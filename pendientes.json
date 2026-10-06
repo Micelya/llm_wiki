@@ -57,7 +57,7 @@
       "titulo": "Proteger la rama main",
       "tipo": "github-manual",
       "responsable": "usuario",
-      "estado": "pendiente",
+      "estado": "hecho",
       "detalle": "Hoy cualquiera con permiso de escritura puede cambiar main y los workflows directamente. Exigir PR y, si se quiere, que pase CI.",
       "depende_de": [],
       "referencia": "Settings → Branches / Rules",
@@ -69,7 +69,7 @@
       "titulo": "Exigir acciones fijadas a versión exacta",
       "tipo": "github-manual",
       "responsable": "usuario",
-      "estado": "pendiente",
+      "estado": "hecho",
       "detalle": "Activar 'Require actions to be pinned to a full-length commit SHA'. Hacerlo después de integrar el PR #3; antes rompería los workflows actuales.",
       "depende_de": [
         "P-001"
@@ -112,7 +112,7 @@
       "titulo": "Revisar si la organización Micelya tiene secretos compartidos con este repo",
       "tipo": "github-manual",
       "responsable": "usuario",
-      "estado": "pendiente",
+      "estado": "hecho",
       "detalle": "La revisión de seguridad no tuvo permiso para consultarlos. Si existen, build.yml podría usarlos.",
       "depende_de": [],
       "referencia": "Organización → Settings → Secrets and variables → Actions",
