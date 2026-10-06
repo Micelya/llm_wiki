@@ -30,6 +30,8 @@ pub use provider::{LocalFolderProvider, ProviderKind, SourceEntry, SourceProvide
 pub const SOURCES_PREFIX: &str = "raw/sources";
 const MOUNTS_FILE: &str = ".llm-wiki/source-mounts.json";
 const MOUNT_TABLE_VERSION: u32 = 1;
+/// Folder the app keeps per-directory derived data in.
+const DERIVED_DIR: &str = ".cache";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -108,7 +110,7 @@ impl SourceVolume {
         if self.mounts.iter().any(|m| same_name(&m.name, name)) {
             return Err(format!("A source named '{name}' is already mounted"));
         }
-        if self.sources_root().join(name).exists() {
+        if has_own_content(&self.sources_root().join(name)) {
             return Err(format!(
                 "'{SOURCES_PREFIX}/{name}' already exists in the project and would be hidden by the mount"
             ));
@@ -174,7 +176,12 @@ impl SourceVolume {
 
         let prefix = parts(Path::new(SOURCES_PREFIX));
         if let Some([name, rest @ ..]) = strip_parts(&rel, &prefix) {
-            if let Some(mount) = self.mounts.iter().find(|m| same_name(&m.name, name)) {
+            // Derived data (extracted-text caches) keeps its logical
+            // address but lives in the project, so the app never writes
+            // next to the originals.
+            let derived = rest.iter().any(|part| part == DERIVED_DIR);
+            let mount = self.mounts.iter().find(|m| same_name(&m.name, name));
+            if let (Some(mount), false) = (mount, derived) {
                 let mut real = PathBuf::from(&mount.location);
                 real.extend(rest);
                 return Ok(Resolved::Mounted {
@@ -279,6 +286,53 @@ fn is_sources_root(path: &Path) -> bool {
             .is_some_and(|name| same_part(&name.to_string_lossy(), expected))
     };
     named(path, "sources") && path.parent().is_some_and(|parent| named(parent, "raw"))
+}
+
+/// Mounts of the project whose `raw/sources` folder is `dir`, as
+/// (name, real location). Empty for any other directory.
+pub fn mounts_under(dir: &Path) -> Result<Vec<(String, PathBuf)>, String> {
+    if !is_sources_root(dir) {
+        return Ok(Vec::new());
+    }
+    Ok(volume_for(dir)?
+        .map(|volume| {
+            volume
+                .mounts
+                .iter()
+                .map(|m| (m.name.clone(), PathBuf::from(&m.location)))
+                .collect()
+        })
+        .unwrap_or_default())
+}
+
+/// `resolve_path` for callers that carry paths as strings. The input is
+/// returned untouched when nothing is mounted there.
+pub fn resolve_str(path: &str) -> Result<String, String> {
+    let resolved = resolve_path(Path::new(path))?;
+    if resolved == Path::new(path) {
+        Ok(path.to_string())
+    } else {
+        Ok(resolved.to_string_lossy().replace('\\', "/"))
+    }
+}
+
+/// True when `dir` holds anything besides derived data, i.e. files a
+/// mount of the same name would hide.
+fn has_own_content(dir: &Path) -> bool {
+    if !dir.exists() {
+        return false;
+    }
+    if !dir.is_dir() {
+        return true;
+    }
+    walkdir::WalkDir::new(dir)
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_type().is_file())
+        .any(|entry| {
+            let rel = entry.path().strip_prefix(dir).unwrap_or(entry.path());
+            !parts(rel).iter().any(|part| part == DERIVED_DIR)
+        })
 }
 
 fn validate_mount_name(name: &str) -> Result<(), String> {
@@ -493,7 +547,9 @@ mod tests {
             assert!(volume.add_local_mount(name, &fx.external).is_err(), "{name}");
         }
         // Would hide a folder that already exists in the project.
-        fs::create_dir_all(fx.project.join(SOURCES_PREFIX).join("Copiados")).unwrap();
+        let copied = fx.project.join(SOURCES_PREFIX).join("Copiados");
+        fs::create_dir_all(&copied).unwrap();
+        fs::write(copied.join("a.md"), "a").unwrap();
         assert!(volume.add_local_mount("Copiados", &fx.external).is_err());
         // Origin must exist and must not overlap the project.
         assert!(volume.add_local_mount("Nada", &fx.base.join("missing")).is_err());
@@ -544,6 +600,55 @@ mod tests {
         // Paths outside raw/sources never consult the table.
         let wiki = fx.project.join("wiki/index.md");
         assert_eq!(resolve_path(&wiki).unwrap(), wiki);
+    }
+
+    #[test]
+    fn derived_data_under_a_mount_stays_in_the_project() {
+        let fx = Fixture::new();
+        let mut volume = fx.volume();
+        volume.add_local_mount("Contratos", &fx.external).unwrap();
+
+        let cache = "raw/sources/Contratos/2025/.cache/acuerdo.pdf.txt";
+        assert_eq!(
+            volume.resolve(Path::new(cache)).unwrap(),
+            Resolved::Direct(fx.project.join(cache))
+        );
+    }
+
+    #[test]
+    fn a_folder_with_only_derived_data_does_not_block_a_mount() {
+        let fx = Fixture::new();
+        let shadow = fx.project.join(SOURCES_PREFIX).join("Contratos");
+        fs::create_dir_all(shadow.join("2025").join(".cache")).unwrap();
+        fs::write(shadow.join("2025").join(".cache").join("acuerdo.pdf.txt"), "x").unwrap();
+
+        let mut volume = fx.volume();
+        assert!(volume.add_local_mount("Contratos", &fx.external).is_ok());
+    }
+
+    #[test]
+    fn mounts_under_only_answers_for_the_sources_root() {
+        let fx = Fixture::new();
+        fx.volume().add_local_mount("Contratos", &fx.external).unwrap();
+
+        let listed = mounts_under(&fx.project.join(SOURCES_PREFIX)).unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].0, "Contratos");
+        assert_eq!(parts(&listed[0].1), parts(&fx.external));
+        assert!(mounts_under(&fx.project).unwrap().is_empty());
+        assert!(mounts_under(&fx.project.join("wiki")).unwrap().is_empty());
+    }
+
+    #[test]
+    fn resolve_str_keeps_untranslated_paths_byte_identical() {
+        let fx = Fixture::new();
+        fx.volume().add_local_mount("Contratos", &fx.external).unwrap();
+
+        let sep = std::path::MAIN_SEPARATOR;
+        let wiki = format!("{}{sep}wiki{sep}index.md", fx.project.display());
+        assert_eq!(resolve_str(&wiki).unwrap(), wiki);
+        let mounted = format!("{}/raw/sources/Contratos/notas.md", fx.project.display());
+        assert!(Path::new(&resolve_str(&mounted).unwrap()).is_file());
     }
 
     #[test]
