@@ -27,6 +27,12 @@ El detalle de cada cambio (qué líneas, qué pruebas) está en su PR; acá no s
 - **Upstream:** candidato
 - **PR:** #1
 
+### F-002 · Volumen de fuentes (fuentes sin copiar)
+- **Propósito:** que un proyecto use carpetas externas como fuentes sin copiarlas, con un único componente (`src-tauri/src/source_volume/`) que decide dónde está cada fuente.
+- **Toca upstream:** `src-tauri/src/lib.rs`, `src-tauri/src/commands/fs.rs`
+- **Upstream:** solo-fork
+- **PR:** pendiente (rama `feat/source-volume`)
+
 ## Reabsorbidos
 
 Cambios que upstream ya incorporó (ID · versión de upstream que lo trae).
