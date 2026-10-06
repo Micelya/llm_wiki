@@ -6,11 +6,19 @@ on:
       - 'v*'
   workflow_dispatch:
 
+# Read-only by default; each job that touches the release asks for
+# write access itself.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
+    # Tag pushes publish a release only where that is switched on with the
+    # repository variable ENABLE_TAG_RELEASE. Without it, tags that arrive
+    # by syncing from another repository do not start a release here.
+    if: github.event_name == 'workflow_dispatch' || vars.ENABLE_TAG_RELEASE == 'true'
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -41,15 +49,17 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
         with:
           targets: ${{ matrix.rust_target }}
 
       - name: Rust cache
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           workspaces: src-tauri
 
@@ -91,17 +101,17 @@ jobs:
 
       - name: Install protoc (Windows)
         if: matrix.platform == 'windows-latest'
-        uses: arduino/setup-protoc@v3
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
 
       - name: Install frontend dependencies
-        run: npm install
+        run: npm ci
 
       - name: Prepare MCP server resources
         run: |
@@ -109,7 +119,7 @@ jobs:
           npm run mcp:build
 
       - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -148,9 +158,10 @@ jobs:
         if: github.event_name == 'push' && matrix.platform == 'windows-latest'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
         shell: pwsh
         run: |
-          gh release upload "${{ github.ref_name }}" dist-portable/*.zip --clobber
+          gh release upload "$env:TAG" dist-portable/*.zip --clobber
 
       # On workflow_dispatch, no release is created, so the bundles
       # would otherwise be discarded with the runner. Upload them as
@@ -159,7 +170,7 @@ jobs:
       # tag pushes since the release page already has them.
       - name: Upload bundles as workflow artifacts (manual runs only)
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: bundle-${{ matrix.platform }}
           # Glob covers both targeted (e.g.
@@ -182,9 +193,13 @@ jobs:
     # tagged release; manual builds don't need it.
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Sync extension manifest version and zip
         run: |
@@ -206,16 +221,20 @@ jobs:
       - name: Attach extension zip to release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
         run: |
-          gh release upload "${{ github.ref_name }}" dist-extension/*.zip --clobber
+          gh release upload "$TAG" dist-extension/*.zip --clobber
 
   publish-release:
     name: Publish verified release
     needs: [build, package-extension]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Publish draft release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release edit "${{ github.ref_name }}" --repo "${{ github.repository }}" --draft=false
+          TAG: ${{ github.ref_name }}
+        run: gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false

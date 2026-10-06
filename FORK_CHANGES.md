@@ -33,6 +33,12 @@ El detalle de cada cambio (qué líneas, qué pruebas) está en su PR; acá no s
 - **Upstream:** solo-fork
 - **PR:** pendiente (rama `feat/source-volume`)
 
+### F-003 · Workflows de GitHub endurecidos
+- **Propósito:** que una acción de terceros o una dependencia comprometida no pueda robar secretos ni alterar releases, y que las etiquetas traídas de upstream no publiquen releases acá (se habilita con la variable `ENABLE_TAG_RELEASE`).
+- **Toca upstream:** `.github/workflows/ci.yml`, `.github/workflows/build.yml`
+- **Upstream:** candidato (salvo la variable `ENABLE_TAG_RELEASE`)
+- **PR:** #3
+
 ## Reabsorbidos
 
 Cambios que upstream ya incorporó (ID · versión de upstream que lo trae).
