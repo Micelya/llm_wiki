@@ -76,6 +76,11 @@ pub async fn read_file(path: String, extract_images: Option<bool>) -> Result<Str
     // pool where blocking-for-seconds is the contract.
     tauri::async_runtime::spawn_blocking(move || {
         run_guarded("read_file", || {
+            // The cache is keyed by the path the app asked for; the
+            // content comes from wherever the source volume keeps it.
+            let requested = path;
+            let path = crate::source_volume::resolve_str(&requested)?;
+            let mounted = path != requested;
             let p = Path::new(&path);
             let ext = p
                 .extension()
@@ -83,11 +88,13 @@ pub async fn read_file(path: String, extract_images: Option<bool>) -> Result<Str
                 .unwrap_or("")
                 .to_lowercase();
 
-            if let Some(cached) = read_cache(p) {
+            if let Some(cached) = read_cache(Path::new(&requested)) {
                 return Ok(cached);
             }
 
-            let include_images = extract_images.unwrap_or(true);
+            // Image extraction derives its output folder from the source
+            // path, which only holds for files stored in the project.
+            let include_images = extract_images.unwrap_or(true) && !mounted;
 
             match ext.as_str() {
                 "pdf" => extract_pdf_text(&path, include_images),
@@ -135,6 +142,8 @@ pub async fn preprocess_file(path: String) -> Result<String, String> {
     // See `read_file` above for why `spawn_blocking` is required.
     tauri::async_runtime::spawn_blocking(move || {
         run_guarded("preprocess_file", || {
+            let requested = path;
+            let path = crate::source_volume::resolve_str(&requested)?;
             let p = Path::new(&path);
             let ext = p
                 .extension()
@@ -152,7 +161,7 @@ pub async fn preprocess_file(path: String) -> Result<String, String> {
                 _ => return Ok("no preprocessing needed".to_string()),
             };
 
-            write_cache(p, &text)?;
+            write_cache(Path::new(&requested), &text)?;
             Ok(text)
         })
     })
@@ -193,7 +202,8 @@ fn read_cache(original: &Path) -> Option<String> {
     {
         return None;
     }
-    let original_modified = fs::metadata(original).ok()?.modified().ok()?;
+    let source = crate::source_volume::resolve_path(original).ok()?;
+    let original_modified = fs::metadata(source).ok()?.modified().ok()?;
     let cache_modified = fs::metadata(&cache_path).ok()?.modified().ok()?;
     if cache_modified >= original_modified {
         fs::read_to_string(&cache_path).ok()
@@ -1660,6 +1670,7 @@ fn build_tree(
 pub async fn copy_file(source: String, destination: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         run_guarded("copy_file", || {
+            let source = crate::source_volume::resolve_str(&source)?;
             let dest = Path::new(&destination);
             if let Some(parent) = dest.parent() {
                 fs::create_dir_all(parent)
@@ -1971,6 +1982,7 @@ pub async fn read_file_as_base64(path: String) -> Result<FileBase64, String> {
     use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
     tauri::async_runtime::spawn_blocking(move || {
         run_guarded("read_file_as_base64", || {
+            let path = crate::source_volume::resolve_str(&path)?;
             let bytes = fs::read(&path).map_err(|e| format!("Failed to read '{}': {}", path, e))?;
             let p = Path::new(&path);
             let ext = p
@@ -2010,7 +2022,9 @@ pub async fn file_exists(path: String) -> Result<bool, String> {
     // every fs command rather than carving out an exception that's
     // easy to violate later.
     tauri::async_runtime::spawn_blocking(move || {
-        run_guarded("file_exists", || Ok(Path::new(&path).exists()))
+        run_guarded("file_exists", || {
+            Ok(Path::new(&crate::source_volume::resolve_str(&path)?).exists())
+        })
     })
     .await
     .map_err(|e| format!("file_exists blocking task join error: {e}"))?
@@ -2022,6 +2036,7 @@ pub async fn file_exists(path: String) -> Result<bool, String> {
 pub async fn get_file_modified_time(path: String) -> Result<u64, String> {
     tauri::async_runtime::spawn_blocking(move || {
         run_guarded("get_file_modified_time", || {
+            let path = crate::source_volume::resolve_str(&path)?;
             let metadata = fs::metadata(&path)
                 .map_err(|e| format!("Failed to get metadata for '{}': {}", path, e))?;
             let modified = metadata
@@ -2041,6 +2056,7 @@ pub async fn get_file_modified_time(path: String) -> Result<u64, String> {
 pub async fn get_file_size(path: String) -> Result<u64, String> {
     tauri::async_runtime::spawn_blocking(move || {
         run_guarded("get_file_size", || {
+            let path = crate::source_volume::resolve_str(&path)?;
             let metadata = fs::metadata(&path)
                 .map_err(|e| format!("Failed to get metadata for '{}': {}", path, e))?;
             Ok(metadata.len())
@@ -2056,6 +2072,7 @@ pub async fn get_file_md5(path: String) -> Result<String, String> {
     use md5::{Digest, Md5};
     tauri::async_runtime::spawn_blocking(move || {
         run_guarded("get_file_md5", || {
+            let path = crate::source_volume::resolve_str(&path)?;
             let mut file = fs::File::open(&path)
                 .map_err(|e| format!("Failed to open file '{}': {}", path, e))?;
             let mut hasher = Md5::new();
@@ -2080,6 +2097,10 @@ pub async fn get_file_md5(path: String) -> Result<String, String> {
 #[cfg(test)]
 #[path = "fs_anydoc_benchmark.rs"]
 mod anydoc_benchmark;
+
+#[cfg(test)]
+#[path = "fs_source_volume_tests.rs"]
+mod source_volume_tests;
 
 #[cfg(test)]
 mod tests {
