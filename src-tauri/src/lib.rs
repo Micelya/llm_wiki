@@ -6,6 +6,7 @@ mod cors;
 mod panic_guard;
 mod proxy;
 mod server_bind;
+mod source_volume;
 mod tray;
 mod types;
 
