@@ -41,17 +41,22 @@ export function parseFrontmatter(content: string): FrontmatterParseResult {
   const { yamlPayload, rawBlock, body } = located
 
   // Two-pass YAML parse: try the payload as-is first, then on
-  // failure run a single round of "wikilink-list" repair (LLMs
-  // sometimes emit `related: [[a]], [[b]], [[c]]` which is not
-  // valid YAML — wrap each `[[…]]` in quotes so it parses as a
-  // string list). This is the only fixup we apply; anything
-  // beyond that is reported as no-frontmatter.
+  // failure run a single round of repairs for the two shapes LLMs
+  // emit most often:
+  //   - `related: [[a]], [[b]], [[c]]` — not valid YAML; wrap each
+  //     `[[…]]` in quotes so it parses as a string list.
+  //   - `title: Foo: Bar` — an unquoted scalar containing `: `;
+  //     quote the whole value.
+  // These are the only fixups we apply; anything beyond that is
+  // reported as no-frontmatter.
   let parsed: unknown
   try {
     parsed = yaml.load(yamlPayload, { schema: yaml.JSON_SCHEMA })
   } catch {
     try {
-      parsed = yaml.load(repairWikilinkLists(yamlPayload), { schema: yaml.JSON_SCHEMA })
+      parsed = yaml.load(quoteUnsafePlainScalars(repairWikilinkLists(yamlPayload)), {
+        schema: yaml.JSON_SCHEMA,
+      })
     } catch {
       return { frontmatter: null, body, rawBlock }
     }
@@ -169,6 +174,36 @@ function repairWikilinkLists(payload: string): string {
       return `${prefix}[${items}]`
     })
     .join("\n")
+}
+
+/**
+ * Quote top-level plain scalars that YAML rejects because they
+ * contain a mapping indicator:
+ *
+ *     title: Pivote Estratégico: Extrimian y Micelya
+ *
+ * becomes
+ *
+ *     title: "Pivote Estratégico: Extrimian y Micelya"
+ *
+ * Without this, one colon in an LLM-written title invalidates the
+ * whole block and the page loses its type, related list and sources.
+ * Only unindented `key: value` lines are touched, and only when the
+ * value is a plain scalar (not already quoted, not a flow collection
+ * or block scalar) containing `: ` or ending in `:`. Values like
+ * `http://…` or `12:30` are valid YAML and pass through unchanged.
+ * Line endings are preserved so the write-time sanitizer can reuse it.
+ */
+export function quoteUnsafePlainScalars(payload: string): string {
+  return payload.replace(
+    /^([A-Za-z_][\w-]*:[ \t]+)(.*?)[ \t]*(\r?)$/gm,
+    (line, prefix: string, value: string, cr: string) => {
+      if (!value || /^["'[{|>&*!#]/.test(value)) return line
+      if (!/:(?:[ \t]|$)/.test(value)) return line
+      const escaped = value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')
+      return `${prefix}"${escaped}"${cr}`
+    },
+  )
 }
 
 /**

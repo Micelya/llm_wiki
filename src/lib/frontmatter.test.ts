@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { parseFrontmatter } from "./frontmatter"
+import { parseFrontmatter, quoteUnsafePlainScalars } from "./frontmatter"
 
 describe("parseFrontmatter", () => {
   it("returns null + full body when content has no frontmatter", () => {
@@ -210,6 +210,24 @@ describe("parseFrontmatter", () => {
     expect(r.body).toBe("body")
   })
 
+  it("repairs an unquoted title containing `: ` (LLM-emitted invalid scalar) via retry", () => {
+    const content =
+      "---\ntype: source\ntitle: Pivote Estratégico: Extrimian y Micelya — versión 0.9\nurl: \"\"\nrelated: [micelya, extrimian]\n---\nbody"
+    const r = parseFrontmatter(content)
+    expect(r.frontmatter?.type).toBe("source")
+    expect(r.frontmatter?.title).toBe("Pivote Estratégico: Extrimian y Micelya — versión 0.9")
+    expect(r.frontmatter?.related).toEqual(["micelya", "extrimian"])
+    expect(r.rawBlock + r.body).toBe(content)
+  })
+
+  it("repairs an unquoted colon title alongside an invalid wikilink list", () => {
+    const content =
+      "---\ntype: source\ntitle: Plan: \"fase\" 2\nrelated: [[a]], [[b]]\n---\nbody"
+    const r = parseFrontmatter(content)
+    expect(r.frontmatter?.title).toBe('Plan: "fase" 2')
+    expect(r.frontmatter?.related).toEqual(["[[a]]", "[[b]]"])
+  })
+
   it("matches the real BOD entity frontmatter (quoted wikilink items in block array)", () => {
     const content =
       `---\ntype: entity\ntitle: BOD（生化需氧量）\ncreated: 2026-04-07\nupdated: 2026-04-07\ntags: [水质指标, 环境监测, 污水处理, 核心参数]\nrelated:\n  - "[[nh3-n]]"\n  - "[[soft-sensor-watertreatment]]"\n  - "[[ai-effluent-water-quality-prediction]]"\n  - "[[digital-twin-wastewater]]"\nsources: ["research-ai-2026-04-07.md"]\n---\n\n# Body`
@@ -222,5 +240,36 @@ describe("parseFrontmatter", () => {
       "[[digital-twin-wastewater]]",
     ])
     expect(r.body).toBe("# Body")
+  })
+})
+
+describe("quoteUnsafePlainScalars", () => {
+  it("quotes a plain scalar containing `: ` or ending in `:`", () => {
+    expect(quoteUnsafePlainScalars("title: Foo: Bar\nvenue: Notas:")).toBe(
+      'title: "Foo: Bar"\nvenue: "Notas:"',
+    )
+  })
+
+  it("leaves valid YAML values untouched", () => {
+    const payload = [
+      "type: source",
+      'title: "Foo: Bar"',
+      "alias: 'Foo: Bar'",
+      "url: https://example.com/a:b",
+      "time: 12:30",
+      "tags: [a, b]",
+      "meta: {a: b}",
+      "summary: |",
+      "  line: one",
+      "related:",
+      "  - foo: bar",
+    ].join("\n")
+    expect(quoteUnsafePlainScalars(payload)).toBe(payload)
+  })
+
+  it("preserves CRLF line endings and is idempotent", () => {
+    const once = quoteUnsafePlainScalars("type: source\r\ntitle: Foo: Bar\r\nyear: 2025")
+    expect(once).toBe('type: source\r\ntitle: "Foo: Bar"\r\nyear: 2025')
+    expect(quoteUnsafePlainScalars(once)).toBe(once)
   })
 })
