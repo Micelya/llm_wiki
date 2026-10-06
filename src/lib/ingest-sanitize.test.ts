@@ -117,6 +117,19 @@ describe("sanitizeIngestedFileContent", () => {
     expect(sanitizeIngestedFileContent(input)).toBe(input)
   })
 
+  it("quotes an unquoted frontmatter title containing `: `", () => {
+    const input =
+      "---\r\ntype: source\r\ntitle: Pivote Estratégico: Extrimian y Micelya\r\n---\r\n# Body: intro\r\n"
+    expect(sanitizeIngestedFileContent(input)).toBe(
+      "---\r\ntype: source\r\ntitle: \"Pivote Estratégico: Extrimian y Micelya\"\r\n---\r\n# Body: intro\r\n",
+    )
+  })
+
+  it("doesn't quote `key: value: more` lines that appear in the body", () => {
+    const input = "---\ntype: x\n---\n\ntitle: Foo: Bar in body prose"
+    expect(sanitizeIngestedFileContent(input)).toBe(input)
+  })
+
   it("composes all three repairs on a real-corpus-shaped input", () => {
     const input =
       "```yaml\nfrontmatter:\n---\ntype: entity\nrelated: [[a]], [[b]]\n---\n\n# Body\n```"
