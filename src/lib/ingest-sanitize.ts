@@ -1,3 +1,5 @@
+import { quoteUnsafePlainScalars } from "./frontmatter"
+
 /**
  * Clean up an LLM-generated wiki page body before it hits disk.
  *
@@ -84,6 +86,11 @@ export function sanitizeIngestedFileContent(content: string): string {
   // left alone — those render fine via the wikilink → markdown
   // link transform applied at read time.
   cleaned = repairWikilinkListsInFrontmatter(cleaned)
+
+  // (3.5) Quote frontmatter scalars such as `title: Foo: Bar`. An
+  // unquoted `: ` makes the whole block unparseable, which drops the
+  // page's type and related list everywhere they are read.
+  cleaned = quoteUnsafeScalarsInFrontmatter(cleaned)
 
   // (4) Normalize recurring malformed body links emitted by generation and
   // synthesis models. Frontmatter and code examples remain byte-identical.
@@ -275,4 +282,11 @@ function repairWikilinkListsInFrontmatter(content: string): string {
   // four bytes. Windows CRLF makes `---\r\n` five bytes, and hard-coded offsets
   // corrupt both the opening fence and the payload boundary.
   return m[1] + repairedPayload + m[4] + content.slice(m[0].length)
+}
+
+/** Apply `quoteUnsafePlainScalars` to the frontmatter block only. */
+function quoteUnsafeScalarsInFrontmatter(content: string): string {
+  const m = content.match(/^(---[ \t]*\r?\n)([\s\S]*?)(\r?\n---[ \t]*(?:\r?\n|$))/)
+  if (!m) return content
+  return m[1] + quoteUnsafePlainScalars(m[2]) + m[3] + content.slice(m[0].length)
 }
