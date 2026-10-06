@@ -127,3 +127,70 @@ async fn files_stored_in_the_project_are_unaffected_by_mounts() {
         "copiado"
     );
 }
+
+fn flatten(nodes: &[FileNode], out: &mut Vec<String>) {
+    for node in nodes {
+        out.push(node.path.clone());
+        if let Some(children) = &node.children {
+            flatten(children, out);
+        }
+    }
+}
+
+async fn listed(path: String) -> Vec<String> {
+    let mut out = Vec::new();
+    flatten(&list_directory(path, Some(true), None).await.unwrap(), &mut out);
+    out
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn listing_sources_shows_mounts_under_their_logical_paths() {
+    let fx = Fixture::new();
+    let copied = fx.project.join("raw/sources/Copiados");
+    fs::create_dir_all(&copied).unwrap();
+    fs::write(copied.join("a.md"), "copiado").unwrap();
+
+    assert_eq!(
+        listed(fx.logical("")).await,
+        vec![
+            fx.logical("Copiados"),
+            fx.logical("Copiados/a.md"),
+            fx.logical("Docs"),
+            fx.logical("Docs/sub"),
+            fx.logical("Docs/sub/nota.md"),
+            fx.logical("Docs/plan.org"),
+        ]
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn listing_works_from_above_and_from_inside_a_mount() {
+    let fx = Fixture::new();
+    let project = fx.project.to_string_lossy().replace('\\', "/");
+
+    assert!(listed(project).await.contains(&fx.logical("Docs/sub/nota.md")));
+    assert_eq!(
+        listed(fx.logical("Docs/sub")).await,
+        vec![fx.logical("Docs/sub/nota.md")]
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_mount_replaces_the_project_folder_that_holds_its_cache() {
+    let fx = Fixture::new();
+    preprocess_file(fx.logical("Docs/plan.org")).await.unwrap();
+
+    let paths = listed(fx.logical("")).await;
+
+    assert_eq!(paths.iter().filter(|p| **p == fx.logical("Docs")).count(), 1);
+    assert!(paths.contains(&fx.logical("Docs/plan.org")));
+    assert!(!paths.iter().any(|p| p.contains("/.cache")));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn an_unreachable_origin_still_lists_as_an_empty_folder() {
+    let fx = Fixture::new();
+    fs::remove_dir_all(&fx.origin).unwrap();
+
+    assert_eq!(listed(fx.logical("")).await, vec![fx.logical("Docs")]);
+}

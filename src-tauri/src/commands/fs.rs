@@ -1584,14 +1584,18 @@ pub async fn list_directory(
     let max_depth = max_depth.unwrap_or(30).clamp(1, 30);
     tauri::async_runtime::spawn_blocking(move || {
         run_guarded("list_directory", || {
-            let p = Path::new(&path);
+            // Entries are reported under the path that was asked for,
+            // even when the source volume keeps them somewhere else.
+            let logical = Path::new(&path);
+            let real = crate::source_volume::resolve_path(logical)?;
+            let p = real.as_path();
             if !p.exists() {
                 return Err(format!("Path does not exist: '{}'", path));
             }
             if !p.is_dir() {
                 return Err(format!("Path is not a directory: '{}'", path));
             }
-            let nodes = build_tree(p, 0, max_depth, include_hidden)?;
+            let nodes = build_tree_at(p, logical, 0, max_depth, include_hidden)?;
             Ok(nodes)
         })
     })
@@ -1599,8 +1603,21 @@ pub async fn list_directory(
     .map_err(|e| format!("list_directory blocking task join error: {e}"))?
 }
 
+#[cfg(test)]
 fn build_tree(
     dir: &Path,
+    depth: usize,
+    max_depth: usize,
+    include_hidden: bool,
+) -> Result<Vec<FileNode>, String> {
+    build_tree_at(dir, dir, depth, max_depth, include_hidden)
+}
+
+/// `dir` is where the entries are read from and `logical` the path
+/// they are reported under. The two differ only inside a mounted source.
+fn build_tree_at(
+    dir: &Path,
+    logical: &Path,
     depth: usize,
     max_depth: usize,
     include_hidden: bool,
@@ -1641,11 +1658,13 @@ fn build_tree(
         // APIs accept forward slashes, so normalizing here is safe and
         // prevents a whole class of bugs where TS-constructed `/` paths
         // fail to match Rust-returned `\` paths.
-        let path_str = entry_path.to_string_lossy().replace('\\', "/");
+        let logical_path = logical.join(&name);
+        let path_str = logical_path.to_string_lossy().replace('\\', "/");
         let is_dir = entry_path.is_dir();
 
         let children = if is_dir {
-            let kids = build_tree(&entry_path, depth + 1, max_depth, include_hidden)?;
+            let kids =
+                build_tree_at(&entry_path, &logical_path, depth + 1, max_depth, include_hidden)?;
             if kids.is_empty() {
                 None
             } else {
@@ -1661,6 +1680,35 @@ fn build_tree(
             is_dir,
             children,
         });
+    }
+
+    // Mounted sources appear as folders of `raw/sources`. A mount takes
+    // the place of the same-named project folder, which only holds data
+    // derived from it.
+    let mounts = if dir == logical {
+        crate::source_volume::mounts_under(dir)?
+    } else {
+        Vec::new()
+    };
+    if !mounts.is_empty() {
+        for (name, origin) in mounts {
+            nodes.retain(|node| node.name.to_lowercase() != name.to_lowercase());
+            let logical_path = logical.join(&name);
+            // An origin that is not reachable right now still shows up,
+            // empty, rather than vanishing from the tree.
+            let kids = if origin.is_dir() {
+                build_tree_at(&origin, &logical_path, depth + 1, max_depth, include_hidden)?
+            } else {
+                Vec::new()
+            };
+            nodes.push(FileNode {
+                name,
+                path: logical_path.to_string_lossy().replace('\\', "/"),
+                is_dir: true,
+                children: if kids.is_empty() { None } else { Some(kids) },
+            });
+        }
+        nodes.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then_with(|| a.name.cmp(&b.name)));
     }
 
     Ok(nodes)
