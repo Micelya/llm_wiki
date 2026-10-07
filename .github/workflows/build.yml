@@ -3,7 +3,7 @@ name: Build & Release
 on:
   push:
     tags:
-      - 'v*'
+      - 'mi-desktop-v*'
   workflow_dispatch:
 
 # Read-only by default; each job that touches the release asks for
@@ -140,7 +140,9 @@ jobs:
           # Tag builds stay private until every platform succeeds and the
           # macOS app has passed strict signature/notarization verification.
           releaseDraft: ${{ github.event_name == 'push' }}
-          prerelease: false
+          # Release candidates (mi-desktop-v0.1.0-rc.1) are published as
+          # pre-releases so they never become the repository's "latest".
+          prerelease: ${{ contains(github.ref_name, '-rc') }}
           args: ${{ matrix.args }}
 
       - name: Verify signed macOS app and DMG
