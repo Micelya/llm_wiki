@@ -105,8 +105,11 @@ export async function copyDirectory(
   return invoke<string[]>("copy_directory", { source, destination })
 }
 
-export async function preprocessFile(path: string): Promise<string> {
-  return invoke<string>("preprocess_file", { path })
+export async function preprocessFile(
+  path: string,
+  recognition?: { engine: string; model: string },
+): Promise<string> {
+  return invoke<string>("preprocess_file", recognition ? { path, recognition } : { path })
 }
 
 export async function deleteFile(path: string): Promise<void> {

@@ -1,5 +1,6 @@
 import { preprocessFile } from "@/commands/fs"
 import { MAX_USER_CONCURRENCY, MIN_USER_CONCURRENCY } from "@/lib/concurrency-limits"
+import { getRecognitionConfig, isRecognizableSource } from "@/lib/text-recognition"
 
 export const MIN_PARSING_CONCURRENCY = MIN_USER_CONCURRENCY
 export const MAX_PARSING_CONCURRENCY = MAX_USER_CONCURRENCY
@@ -60,7 +61,9 @@ export async function preprocessSourceFiles(
     const release = await acquireParser(limit)
     try {
       try {
-        await preprocessFile(path)
+        const recognition = isRecognizableSource(path) ? getRecognitionConfig() : null
+        if (recognition) await preprocessFile(path, recognition)
+        else await preprocessFile(path)
       } catch (err) {
         console.warn(
           `[source-preprocess] failed to pre-process "${path}"; ingest will retry when reading it:`,
