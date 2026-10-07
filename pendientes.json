@@ -222,11 +222,11 @@
       "detalle": "MinHash para encontrar candidatos y clasificación por qué cambió (versión vs. mismo modelo de contrato). Nunca fusiona: solo relaciona. 'Vigente' es una etiqueta opcional. Los casos dudosos van a revisión humana.",
       "depende_de": [
         "P-014",
-        "P-018"
+        "P-023"
       ],
       "referencia": "POC en C:\\Temporales\\poc\\minhash",
       "creado": "2026-10-06",
-      "actualizado": "2026-10-06"
+      "actualizado": "2026-10-07"
     },
     {
       "id": "P-016",
@@ -259,12 +259,12 @@
       "titulo": "Probar la extracción de texto con un PDF escaneado",
       "tipo": "verificacion",
       "responsable": "ambos",
-      "estado": "pendiente",
-      "detalle": "No se encontró reconocimiento de caracteres (OCR) en el extractor integrado. Si un contrato escaneado da texto vacío, no se puede ingerir bien ni comparar para deduplicar, y hay que prever OCR.",
+      "estado": "hecho",
+      "detalle": "Medido con el mismo motor PDFium que usa la app sobre la carpeta AEROS BGH: los 6 PDF escaneados dan 0 caracteres. Confirmado que hace falta reconocimiento de texto (ver P-023).",
       "depende_de": [],
       "referencia": "",
       "creado": "2026-10-06",
-      "actualizado": "2026-10-06"
+      "actualizado": "2026-10-07"
     },
     {
       "id": "P-019",
@@ -289,6 +289,47 @@
       "referencia": "cargo test --lib en src-tauri",
       "creado": "2026-10-06",
       "actualizado": "2026-10-06"
+    },
+    {
+      "id": "P-023",
+      "titulo": "Reconocimiento de texto para escaneos e imágenes",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Las páginas de PDF sin texto y las imágenes sueltas hoy no aportan texto (como mucho, una descripción de 2 a 4 frases si se activa el modelo de visión). Agregar al volumen un paso que detecte páginas sin texto por cantidad de caracteres, las convierta a imagen completa y obtenga su texto íntegro, guardándolo en el mismo caché. Falta decidir el motor (P-024). Marcar en el catálogo qué texto viene de reconocimiento.",
+      "depende_de": [
+        "P-024"
+      ],
+      "referencia": "src-tauri/src/source_volume/, src-tauri/src/commands/extract_images.rs",
+      "creado": "2026-10-07",
+      "actualizado": "2026-10-07"
+    },
+    {
+      "id": "P-024",
+      "titulo": "Decidir el motor de reconocimiento de texto",
+      "tipo": "decision",
+      "responsable": "usuario",
+      "estado": "pendiente",
+      "detalle": "Opciones: reconocimiento local sin conexión (los documentos no salen de la máquina; peor con fotos y manuscritos), modelo de visión (mejor calidad; los documentos van al proveedor salvo que el modelo sea local) o ambos, con el local por defecto. Condiciona la confidencialidad de los documentos de clientes.",
+      "depende_de": [],
+      "referencia": "",
+      "creado": "2026-10-07",
+      "actualizado": "2026-10-07"
+    },
+    {
+      "id": "P-025",
+      "titulo": "Prueba de punta a punta con la carpeta AEROS BGH",
+      "tipo": "verificacion",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "detalle": "33 archivos, 16 MB: 17 PDF con texto, 6 PDF escaneados, 3 imágenes, 4 docx, 1 xlsx. Incluye 13 comprobantes casi idénticos (95-99 % de texto en común) que no deben fusionarse, y 2 docx que parecen versiones. Sirve para validar montaje, reconocimiento de texto y deduplicación.",
+      "depende_de": [
+        "P-009",
+        "P-023"
+      ],
+      "referencia": "G:\\Mi unidad\\Extrimian\\Extrimian-Admin\\ADMIN\\5. Gestión PROVEEDORES\\AEROS BGH",
+      "creado": "2026-10-07",
+      "actualizado": "2026-10-07"
     }
   ]
 }
