@@ -97,9 +97,7 @@
       "responsable": "usuario",
       "estado": "pendiente",
       "detalle": "Convención decidida: etiquetas 'mi-desktop-vX.Y.Z' (candidatas con sufijo '-rc.N'; la primera será mi-desktop-v0.1.0-rc.1). Falta crear la variable de repositorio ENABLE_TAG_RELEASE=true y recién entonces subir la etiqueta. No usar 'git push --tags': el clon tiene las etiquetas de upstream.",
-      "depende_de": [
-        "P-021"
-      ],
+      "depende_de": [],
       "referencia": "Settings → Secrets and variables → Actions → Variables",
       "creado": "2026-10-06",
       "actualizado": "2026-10-07"
@@ -289,11 +287,11 @@
     },
     {
       "id": "P-021",
-      "titulo": "Decidir el nombre visible de la app",
-      "tipo": "decision",
-      "responsable": "usuario",
+      "titulo": "Terminar el cambio de nombre a 'Micelya Desktop' dentro de la app",
+      "tipo": "codigo",
+      "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "El identificador ya es com.micelya.desktop, pero el nombre sigue siendo 'LLM Wiki' (ventana, instalador, nombre del release). En Windows el instalador identifica el producto por ese nombre, así que con el mismo nombre se trataría como la misma app que LLM Wiki. Definir el nombre antes del primer release.",
+      "detalle": "Ya se llama 'Micelya Desktop' en el instalador, la ventana, la bandeja del sistema, el zip portable y el nombre del release. Faltan las menciones a 'LLM Wiki' dentro de los textos de la interfaz (unas 10 por idioma en src/i18n) y en mensajes del agente. Se dejaron porque los archivos de idioma son los que más cambia upstream.",
       "depende_de": [],
       "referencia": "src-tauri/tauri.conf.json (productName, title), .github/workflows/build.yml (releaseName)",
       "creado": "2026-10-07",
