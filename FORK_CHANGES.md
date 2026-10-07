@@ -39,6 +39,12 @@ El detalle de cada cambio (qué líneas, qué pruebas) está en su PR; acá no s
 - **Upstream:** candidato (salvo la variable `ENABLE_TAG_RELEASE`)
 - **PR:** #3
 
+### F-006 · Reconocimiento de texto en escaneos e imágenes
+- **Propósito:** que las páginas de PDF sin texto y las fotos de documentos aporten su texto completo, leído por un motor intercambiable (`src-tauri/src/source_volume/recognition*.rs`); primer motor: Codex CLI.
+- **Toca upstream:** `src-tauri/src/commands/fs.rs`, `src/commands/fs.ts`, `src/lib/source-preprocess.ts`, `src/lib/ingest.ts`
+- **Upstream:** solo-fork
+- **PR:** pendiente (rama `feat/source-volume`)
+
 ## Reabsorbidos
 
 Cambios que upstream ya incorporó (ID · versión de upstream que lo trae).

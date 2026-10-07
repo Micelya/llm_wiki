@@ -271,12 +271,12 @@
       "titulo": "Decidir la política sobre MinerU en la nube",
       "tipo": "decision",
       "responsable": "usuario",
-      "estado": "pendiente",
-      "detalle": "Si se activa MinerU como servicio en la nube, los PDF salen de la máquina. Para documentos de clientes de un estudio hay que decidirlo de forma explícita (o permitir solo la variante local). No se revisó si hoy está activado.",
+      "estado": "hecho",
+      "detalle": "Revisado: MinerU está desactivado en la instalación actual, así que ningún PDF sale de la máquina por esa vía. Si se activa en la nube, vale la misma cautela que para cualquier motor externo.",
       "depende_de": [],
       "referencia": "Configuración de la app → MinerU",
       "creado": "2026-10-06",
-      "actualizado": "2026-10-06"
+      "actualizado": "2026-10-07"
     },
     {
       "id": "P-020",
@@ -295,11 +295,9 @@
       "titulo": "Reconocimiento de texto para escaneos e imágenes",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "Las páginas de PDF sin texto y las imágenes sueltas hoy no aportan texto (como mucho, una descripción de 2 a 4 frases si se activa el modelo de visión). Agregar al volumen un paso que detecte páginas sin texto por cantidad de caracteres, las convierta a imagen completa y obtenga su texto íntegro, guardándolo en el mismo caché. Falta decidir el motor (P-024). Marcar en el catálogo qué texto viene de reconocimiento.",
-      "depende_de": [
-        "P-024"
-      ],
+      "estado": "en-curso",
+      "detalle": "Hecho: contrato de motor intercambiable, motor Codex CLI, detección de páginas sin texto, caché por página, marca de 'texto reconocido' y enganche en la ingesta (se activa con 'Image captioning' cuando el modelo principal es Codex CLI). Falta: probarlo en la app con documentos reales (P-025), un ajuste propio en Configuración (P-028) y registrar en el catálogo qué texto es reconocido (con P-014).",
+      "depende_de": [],
       "referencia": "src-tauri/src/source_volume/, src-tauri/src/commands/extract_images.rs",
       "creado": "2026-10-07",
       "actualizado": "2026-10-07"
@@ -309,8 +307,8 @@
       "titulo": "Decidir el motor de reconocimiento de texto",
       "tipo": "decision",
       "responsable": "usuario",
-      "estado": "pendiente",
-      "detalle": "Opciones: reconocimiento local sin conexión (los documentos no salen de la máquina; peor con fotos y manuscritos), modelo de visión (mejor calidad; los documentos van al proveedor salvo que el modelo sea local) o ambos, con el local por defecto. Condiciona la confidencialidad de los documentos de clientes.",
+      "estado": "hecho",
+      "detalle": "Decidido: en esta etapa, modelo de visión en la nube a través del Codex CLI instalado y la suscripción ChatGPT Plus del desarrollador. Para clientes: o aportan su propia suscripción, o contratan todo junto y se usa Bedrock detrás de la API de Micelya (mi-platform, en construcción). La suscripción de claude.ai queda descartada para esto. Ver P-026 y P-027.",
       "depende_de": [],
       "referencia": "",
       "creado": "2026-10-07",
@@ -324,10 +322,57 @@
       "estado": "pendiente",
       "detalle": "33 archivos, 16 MB: 17 PDF con texto, 6 PDF escaneados, 3 imágenes, 4 docx, 1 xlsx. Incluye 13 comprobantes casi idénticos (95-99 % de texto en común) que no deben fusionarse, y 2 docx que parecen versiones. Sirve para validar montaje, reconocimiento de texto y deduplicación.",
       "depende_de": [
-        "P-009",
-        "P-023"
+        "P-009"
       ],
       "referencia": "G:\\Mi unidad\\Extrimian\\Extrimian-Admin\\ADMIN\\5. Gestión PROVEEDORES\\AEROS BGH",
+      "creado": "2026-10-07",
+      "actualizado": "2026-10-07"
+    },
+    {
+      "id": "P-026",
+      "titulo": "Evaluar Amazon Textract y Bedrock como motores de reconocimiento",
+      "tipo": "decision",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "detalle": "El usuario va a investigar Textract. Cuando haya cuenta de AWS, agregar el motor detrás del mismo contrato y comparar con Codex sobre páginas reales en español. Referencias de costo por 10.000 páginas: Textract texto simple ~USD 15, Claude Haiku 4.5 ~USD 57, Sonnet ~USD 180-200. Un reconocedor clásico no inventa texto; un modelo de visión puede completar lo que no lee (en la prueba adivinó un código ambiguo pese a la instrucción de no hacerlo).",
+      "depende_de": [],
+      "referencia": "src-tauri/src/source_volume/recognition.rs (trait TextRecognizer)",
+      "creado": "2026-10-07",
+      "actualizado": "2026-10-07"
+    },
+    {
+      "id": "P-027",
+      "titulo": "Desactivar el uso de contenido para entrenamiento en ChatGPT",
+      "tipo": "github-manual",
+      "responsable": "usuario",
+      "estado": "pendiente",
+      "detalle": "En el plan Plus, OpenAI puede usar el contenido para entrenar salvo que se desactive. Hacerlo antes de reconocer documentos reales: ChatGPT → Configuración → Controles de datos → 'Mejorar el modelo para todos' en apagado. No es una tarea de GitHub; es un ajuste manual de la cuenta.",
+      "depende_de": [],
+      "referencia": "chatgpt.com → Settings → Data controls",
+      "creado": "2026-10-07",
+      "actualizado": "2026-10-07"
+    },
+    {
+      "id": "P-028",
+      "titulo": "Ajuste propio para el reconocimiento de texto en Configuración",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Hoy se activa con el interruptor 'Image captioning' si el modelo principal es Codex CLI. Hace falta un ajuste separado (activar, elegir motor) y mostrar el avance por página durante la ingesta. Con Codex, las descripciones de imágenes incrustadas siguen sin funcionar (falla sin cortar la ingesta).",
+      "depende_de": [],
+      "referencia": "src/lib/text-recognition.ts",
+      "creado": "2026-10-07",
+      "actualizado": "2026-10-07"
+    },
+    {
+      "id": "P-029",
+      "titulo": "Revisar términos antes de ofrecer a clientes el uso de su propia suscripción",
+      "tipo": "decision",
+      "responsable": "usuario",
+      "estado": "pendiente",
+      "detalle": "Aunque cada cliente aporte su suscripción: OpenAI dice que el login de ChatGPT en apps comerciales 'nunca estuvo permitido' por la vía de Codex y ofrece 'Sign in with ChatGPT' solo a socios aprobados y sin cobrar por esa función; Anthropic prohíbe que apps de terceros hagan pasar pedidos por credenciales Free/Pro/Max de sus usuarios. El caso exacto (la app lanza el programa oficial del cliente) no está escrito en ninguno de los dos. Consultar a cada proveedor antes de venderlo así.",
+      "depende_de": [],
+      "referencia": "Informe del 2026-10-07 (términos de OpenAI y Anthropic)",
       "creado": "2026-10-07",
       "actualizado": "2026-10-07"
     }
