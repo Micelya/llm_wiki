@@ -727,9 +727,9 @@ pub fn run() {
                             let confirmed = app
                                 .dialog()
                                 .message(
-                                    "Quit LLM Wiki? Choose Quit to exit. Choose Hide Window to keep background features running.",
+                                    "Quit Micelya Desktop? Choose Quit to exit. Choose Hide Window to keep background features running.",
                                 )
-                                .title("LLM Wiki")
+                                .title("Micelya Desktop")
                                 .buttons(MessageDialogButtons::OkCancelCustom(
                                     "Quit".to_string(),
                                     "Hide Window".to_string(),

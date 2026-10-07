@@ -14,6 +14,7 @@ import { loadReviewItems, loadLintItems, loadChatHistory, loadChatPreferences } 
 import { setupAutoSave } from "@/lib/auto-save"
 import { startClipWatcher } from "@/lib/clip-watcher"
 import { DEFAULT_SOURCE_WATCH_CONFIG } from "@/lib/source-watch-config"
+import { RELEASES_REPO } from "@/lib/app-identity"
 import { useGlobalShortcut } from "@/hooks/use-global-shortcut"
 import { AppLayout } from "@/components/layout/app-layout"
 import { WelcomeScreen } from "@/components/project/welcome-screen"
@@ -272,7 +273,7 @@ function App() {
         )
         const result = await checkForUpdates({
           currentVersion: __APP_VERSION__,
-          repo: "nashsu/llm_wiki",
+          repo: RELEASES_REPO,
         })
         if (cancelled) return
         useUpdateStore.getState().setResult(result, Date.now())

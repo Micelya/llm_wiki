@@ -33,6 +33,12 @@ El detalle de cada cambio (qué líneas, qué pruebas) está en su PR; acá no s
 - **Upstream:** candidato (salvo la variable `ENABLE_TAG_RELEASE`)
 - **PR:** #3
 
+### F-004 · Identidad y versionado propios de la app
+- **Propósito:** que esta app no comparta datos ni avisos de actualización con LLM Wiki: nombre «Micelya Desktop», identificador `com.micelya.desktop`, versión propia (desde `0.1.0`), releases con etiquetas `mi-desktop-v*` y chequeo de actualizaciones contra este repositorio.
+- **Toca upstream:** `src-tauri/tauri.conf.json`, `package.json`, `package-lock.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `.github/workflows/build.yml`, `.github/scripts/package-windows-portable.ps1`, `index.html`, `src-tauri/src/lib.rs`, `src-tauri/src/tray.rs`, `src/lib/update-check.ts`, `src/lib/changelog.ts`, `src/App.tsx`, `src/components/settings/sections/about-section.tsx`
+- **Upstream:** solo-fork
+- **PR:** #5
+
 ## Reabsorbidos
 
 Cambios que upstream ya incorporó (ID · versión de upstream que lo trae).

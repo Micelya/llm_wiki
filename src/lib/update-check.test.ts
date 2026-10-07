@@ -35,6 +35,17 @@ describe("isNewer — semver comparison", () => {
     expect(isNewer("v0.4.0", "v0.3.9")).toBe(true)
   })
 
+  it("tolerates a product prefix before the 'v'", () => {
+    expect(isNewer("mi-desktop-v0.2.0", "0.1.0")).toBe(true)
+    expect(isNewer("mi-desktop-v0.1.0", "0.1.0")).toBe(false)
+    expect(isNewer("mi-desktop-v0.1.0", "mi-desktop-v0.2.0")).toBe(false)
+  })
+
+  it("ignores a pre-release suffix", () => {
+    expect(isNewer("mi-desktop-v0.1.0-rc.2", "0.1.0")).toBe(false)
+    expect(isNewer("mi-desktop-v0.2.0-rc.1", "0.1.0")).toBe(true)
+  })
+
   it("handles missing components as zero", () => {
     // Weirdly short tag like "v1" — treat as 1.0.0.
     expect(isNewer("v1", "0.3.9")).toBe(true)
