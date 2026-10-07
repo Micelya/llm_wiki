@@ -18,6 +18,8 @@
 #![allow(dead_code, unused_imports)]
 
 mod provider;
+pub mod recognition;
+mod recognition_codex;
 
 use std::fs;
 use std::path::{Path, PathBuf};

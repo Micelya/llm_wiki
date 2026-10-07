@@ -137,8 +137,17 @@ pub async fn read_file(path: String, extract_images: Option<bool>) -> Result<Str
 }
 
 /// Pre-process a file and cache the extracted text.
+///
+/// With `recognition`, sources whose text is only pixels are read by the
+/// configured engine: PDF pages without a text layer and standalone
+/// images. A recognition failure fails the whole call and leaves no
+/// cache behind, so an unread page is never mistaken for a blank one.
 #[tauri::command]
-pub async fn preprocess_file(path: String) -> Result<String, String> {
+pub async fn preprocess_file(
+    path: String,
+    recognition: Option<crate::source_volume::recognition::RecognitionConfig>,
+) -> Result<String, String> {
+    use crate::source_volume::recognition;
     // See `read_file` above for why `spawn_blocking` is required.
     tauri::async_runtime::spawn_blocking(move || {
         run_guarded("preprocess_file", || {
@@ -150,9 +159,28 @@ pub async fn preprocess_file(path: String) -> Result<String, String> {
                 .and_then(|e| e.to_str())
                 .unwrap_or("")
                 .to_lowercase();
+            let recognizer = recognition
+                .as_ref()
+                .map(recognition::recognizer_for)
+                .transpose()?;
 
             let text = match ext.as_str() {
-                "pdf" => extract_pdf_text(&path, false)?,
+                "pdf" => {
+                    let extracted = extract_pdf_text(&path, false)?;
+                    match &recognizer {
+                        Some(recognizer) => recognition::complete_pdf_text(
+                            p,
+                            &extracted,
+                            &recognition::page_cache_dir(Path::new(&requested)),
+                            recognizer.as_ref(),
+                        )?,
+                        None => extracted,
+                    }
+                }
+                e if recognizer.is_some() && recognition::is_recognizable_image(e) => {
+                    let recognizer = recognizer.as_deref().expect("checked by the guard");
+                    recognition::recognize_image_source(p, recognizer)?
+                }
                 "org" => extract_org_text(&path)?,
                 e if OFFICE_EXTS.contains(&e) => extract_office_text(&path, e)?,
                 e if EBOOK_EXTS.contains(&e) => {
@@ -443,6 +471,16 @@ fn pdfium_candidate_paths() -> Vec<String> {
     // We now probe both the `pdfium/` subdir (where the current
     // bundle config actually puts it) and the root (in case a future
     // config change flattens it).
+    // Unit tests run from `target/`, far from any app bundle: use the
+    // copy of the library that is checked into the repository.
+    #[cfg(test)]
+    {
+        let repo_copy = Path::new(env!("CARGO_MANIFEST_DIR")).join("pdfium");
+        for name in ["pdfium.dll", "libpdfium.dylib", "libpdfium.so"] {
+            v.push(repo_copy.join(name).to_string_lossy().into_owned());
+        }
+    }
+
     if let Some(resource_dir) = RESOURCE_DIR_HINT.get() {
         let push = |v: &mut Vec<String>, p: std::path::PathBuf| {
             v.push(p.to_string_lossy().into_owned());
