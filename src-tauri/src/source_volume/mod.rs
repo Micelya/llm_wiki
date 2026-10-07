@@ -337,6 +337,62 @@ fn has_own_content(dir: &Path) -> bool {
         })
 }
 
+/// Handle a delete request for a path the volume owns. Returns false
+/// when the path is not under a mount and the caller should delete it
+/// as usual.
+///
+/// Originals are never deleted. Asking to delete the mounted folder
+/// itself unmounts it and drops the data derived from it; asking to
+/// delete something inside a mount is accepted and does nothing on disk,
+/// so the app can still forget what it generated from that file.
+pub fn delete_mounted(path: &Path) -> Result<bool, String> {
+    let Some(mut volume) = volume_for(path)? else {
+        return Ok(false);
+    };
+    let Resolved::Mounted { mount_id, path: real } = volume.resolve(path)? else {
+        return Ok(false);
+    };
+    let Some(mount) = volume.mounts.iter().find(|m| m.id == mount_id).cloned() else {
+        return Ok(false);
+    };
+    let is_mount_root = strip_parts(&parts(&real), &parts(Path::new(&mount.location)))
+        .is_some_and(|rest| rest.is_empty());
+    if is_mount_root {
+        volume.remove_mount(&mount_id)?;
+        let derived = volume.sources_root().join(&mount.name);
+        if derived.is_dir() && !has_own_content(&derived) {
+            let _ = fs::remove_dir_all(&derived);
+        }
+    }
+    Ok(true)
+}
+
+#[tauri::command]
+pub async fn list_source_mounts(project_path: String) -> Result<Vec<Mount>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::panic_guard::run_guarded("list_source_mounts", || {
+            Ok(SourceVolume::open(project_path)?.mounts().to_vec())
+        })
+    })
+    .await
+    .map_err(|e| format!("list_source_mounts blocking task join error: {e}"))?
+}
+
+#[tauri::command]
+pub async fn add_source_mount(
+    project_path: String,
+    name: String,
+    folder: String,
+) -> Result<Mount, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::panic_guard::run_guarded("add_source_mount", || {
+            SourceVolume::open(project_path)?.add_local_mount(&name, Path::new(&folder))
+        })
+    })
+    .await
+    .map_err(|e| format!("add_source_mount blocking task join error: {e}"))?
+}
+
 fn validate_mount_name(name: &str) -> Result<(), String> {
     let invalid = name.is_empty()
         || name.starts_with('.')
@@ -651,6 +707,32 @@ mod tests {
         assert_eq!(resolve_str(&wiki).unwrap(), wiki);
         let mounted = format!("{}/raw/sources/Contratos/notas.md", fx.project.display());
         assert!(Path::new(&resolve_str(&mounted).unwrap()).is_file());
+    }
+
+    #[test]
+    fn deleting_a_mount_unmounts_it_and_never_touches_the_origin() {
+        let fx = Fixture::new();
+        fx.volume().add_local_mount("Contratos", &fx.external).unwrap();
+        let logical_root = fx.project.join("raw/sources/Contratos");
+        let cache = logical_root.join("2025").join(".cache");
+        fs::create_dir_all(&cache).unwrap();
+        fs::write(cache.join("acuerdo.pdf.txt"), "texto").unwrap();
+
+        // A file inside the mount: accepted, nothing happens on disk.
+        assert!(delete_mounted(&logical_root.join("2025/acuerdo.pdf")).unwrap());
+        assert!(fx.external.join("2025").join("acuerdo.pdf").is_file());
+        assert_eq!(fx.volume().mounts().len(), 1);
+
+        // The mounted folder itself: unmounted, derived data dropped.
+        assert!(delete_mounted(&logical_root).unwrap());
+        assert!(fx.volume().mounts().is_empty());
+        assert!(!logical_root.exists());
+        assert!(fx.external.join("2025").join("acuerdo.pdf").is_file());
+        assert!(fx.external.join("notas.md").is_file());
+
+        // Anything else is left to the caller.
+        assert!(!delete_mounted(&fx.project.join("raw/sources/Copiados/a.md")).unwrap());
+        assert!(!delete_mounted(&fx.project.join("wiki/index.md")).unwrap());
     }
 
     #[test]

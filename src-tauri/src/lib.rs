@@ -638,6 +638,8 @@ pub fn run() {
             commands::fs::list_directory,
             commands::fs::copy_file,
             commands::fs::copy_directory,
+            source_volume::list_source_mounts,
+            source_volume::add_source_mount,
             commands::fs::preprocess_file,
             commands::fs::delete_file,
             commands::fs::find_related_wiki_pages,

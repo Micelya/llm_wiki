@@ -1835,6 +1835,10 @@ pub async fn delete_file(path: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         run_guarded("delete_file", || {
             let p = Path::new(&path);
+            // Mounted sources are not the app's to delete.
+            if crate::source_volume::delete_mounted(p)? {
+                return Ok(());
+            }
             file_sync::mark_app_write_path(p);
             if p.is_dir() {
                 remove_path_with_retry(&path, true)

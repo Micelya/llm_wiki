@@ -1032,6 +1032,7 @@ pub async fn extract_and_save_pdf_images_cmd(
 ) -> Result<Vec<SavedImage>, String> {
     tauri::async_runtime::spawn_blocking(move || {
         crate::panic_guard::run_guarded("extract_and_save_pdf_images", || {
+            let source_path = crate::source_volume::resolve_str(&source_path)?;
             extract_and_save_pdf_images(
                 &source_path,
                 Path::new(&dest_dir),
@@ -1052,6 +1053,7 @@ pub async fn extract_and_save_office_images_cmd(
 ) -> Result<Vec<SavedImage>, String> {
     tauri::async_runtime::spawn_blocking(move || {
         crate::panic_guard::run_guarded("extract_and_save_office_images", || {
+            let source_path = crate::source_volume::resolve_str(&source_path)?;
             extract_and_save_office_images(
                 &source_path,
                 Path::new(&dest_dir),

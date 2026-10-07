@@ -40,6 +40,7 @@ import { naturalCompare } from "@/lib/natural-sort"
 import type { SourceWatchConfig } from "@/stores/wiki-store"
 import { useWikiStore } from "@/stores/wiki-store"
 import { preprocessSourceFiles } from "@/lib/source-preprocess"
+import { addSourceMount } from "@/commands/source-mounts"
 import { moveParsedMarkdown, removeParsedMarkdown } from "@/lib/parsed-source-output"
 
 export const INGESTABLE_SOURCE_EXTENSIONS = new Set([
@@ -378,6 +379,9 @@ export async function importSourceFolder(
   selectedFolder: string,
   llmConfig: LlmConfig,
   sourceWatchConfig?: SourceWatchConfig,
+  // `mount`: leave the files where they are and make the folder appear
+  // under raw/sources through the source volume, instead of copying it.
+  options: { mount?: boolean } = {},
 ): Promise<SourceImportResult> {
   const pp = normalizePath(project.path)
   const sourceRoot = normalizePath(selectedFolder)
@@ -395,6 +399,7 @@ export async function importSourceFolder(
   // agent/tool config folders are still filtered before copy so API
   // keys / tool config do not enter ingest.
   const sourceFiles = flattenFiles(await listDirectory(selectedFolder, true))
+  if (options.mount) await addSourceMount(pp, folderName, selectedFolder)
 
   for (const file of sourceFiles) {
     const relativeSourcePath = getRelativePath(file.path, sourceRoot)
@@ -420,9 +425,11 @@ export async function importSourceFolder(
       continue
     }
     try {
-      const parent = parentPath(destPath)
-      if (parent) await createDirectory(parent)
-      await copyFile(file.path, destPath)
+      if (!options.mount) {
+        const parent = parentPath(destPath)
+        if (parent) await createDirectory(parent)
+        await copyFile(file.path, destPath)
+      }
       allowedFiles.push(destPath)
     } catch (err) {
       console.error(`Failed to import ${displayName}:`, err)

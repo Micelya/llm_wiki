@@ -129,12 +129,12 @@
       "titulo": "Volumen: montar una carpeta desde la interfaz",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "Comandos para listar, montar y desmontar; opción 'montar' al importar carpeta (copiar sigue siendo lo predeterminado); quitar una fuente montada = desmontar; extracción de imágenes de PDF y Office a través del volumen. Permite la primera prueba real en la app.",
+      "estado": "hecho",
+      "detalle": "Hecho: botón 'Mount folder' en la vista de fuentes (copiar sigue siendo lo predeterminado), comandos para listar y montar, borrar la carpeta montada = desmontar sin tocar el original, y extracción de imágenes de PDF y Office a través del volumen. Borrar un archivo suelto dentro de una carpeta montada quita lo generado en el wiki pero el archivo sigue apareciendo en la lista (no hay lista de exclusiones todavía).",
       "depende_de": [],
       "referencia": "rama feat/source-volume",
       "creado": "2026-10-06",
-      "actualizado": "2026-10-06"
+      "actualizado": "2026-10-07"
     },
     {
       "id": "P-010",
@@ -143,12 +143,10 @@
       "responsable": "ambos",
       "estado": "pendiente",
       "detalle": "Hasta ahora el volumen solo está verificado con pruebas automáticas. Montar una carpeta chica, ingerirla y confirmar que no se copió nada ni se escribió en el origen.",
-      "depende_de": [
-        "P-009"
-      ],
+      "depende_de": [],
       "referencia": "",
       "creado": "2026-10-06",
-      "actualizado": "2026-10-06"
+      "actualizado": "2026-10-07"
     },
     {
       "id": "P-011",
