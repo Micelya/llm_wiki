@@ -39,6 +39,12 @@ El detalle de cada cambio (qué líneas, qué pruebas) está en su PR; acá no s
 - **Upstream:** solo-fork
 - **PR:** #5
 
+### F-005 · Actualización mensual de las acciones fijadas
+- **Propósito:** que las acciones de GitHub fijadas a versión exacta no queden congeladas: Dependabot propone un PR mensual agrupado, solo para acciones.
+- **Toca upstream:** ninguno (agrega `.github/dependabot.yml`)
+- **Upstream:** candidato
+- **PR:** #6
+
 ## Reabsorbidos
 
 Cambios que upstream ya incorporó (ID · versión de upstream que lo trae).

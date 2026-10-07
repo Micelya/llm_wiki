@@ -1,0 +1,20 @@
+# Keeps the pinned GitHub Actions in .github/workflows up to date.
+#
+# Only actions are covered: npm and Cargo dependencies come from the
+# upstream project and are updated when its changes are merged in.
+#
+# One grouped pull request per month. Leave it open for a few days
+# before merging, so a release that turns out to be compromised is
+# discovered before it is adopted here.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: ci
