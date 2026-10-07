@@ -390,6 +390,18 @@
       "referencia": "Informe del 2026-10-07 (términos de OpenAI y Anthropic)",
       "creado": "2026-10-07",
       "actualizado": "2026-10-07"
+    },
+    {
+      "id": "P-030",
+      "titulo": "Mejorar la fiabilidad del reconocimiento de texto en cifras e identificadores",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Auditoría del 2026-10-07 sobre 10 piezas de AEROS BGH: el texto corrido sirve para la ingesta, pero ~6 % de los campos críticos salió mal (16 de ~268) y el motor casi nunca usa [ilegible]: adivina. Fallos típicos: dígitos perdidos en fotos de baja resolución, letra chica, texto rotado, sellos, marcas de agua ('SIN VALOR LEGAL' omitida) y 'correcciones' del texto que en un caso invirtieron el sentido de una frase. Ideas: cruzar números de factura, importes y fechas entre documentos y marcar discrepancias; segunda lectura de verificación; ampliar o recortar zonas de letra chica; avisar en la página wiki que el texto es reconocido; comparar con Textract (P-026).",
+      "depende_de": [],
+      "referencia": "src-tauri/src/source_volume/recognition_codex.rs",
+      "creado": "2026-10-07",
+      "actualizado": "2026-10-07"
     }
   ]
 }
