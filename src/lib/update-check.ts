@@ -65,14 +65,15 @@ export type UpdateStatus =
  * in the `semver` npm package just for this.
  *
  * Returns true iff `remote` is strictly greater than `local`. A leading
- * `v` on either side is tolerated; anything non-numeric in a slot
- * defaults to 0 (so a weirdly-shaped remote tag can't trigger a false
- * upgrade).
+ * `v` on either side is tolerated, as is a product prefix before it
+ * (`mi-desktop-v0.2.0`); anything non-numeric in a slot defaults to 0
+ * (so a weirdly-shaped remote tag can't trigger a false upgrade). A
+ * pre-release suffix is ignored: `0.1.0-rc.1` compares equal to `0.1.0`.
  */
 export function isNewer(remote: string, local: string): boolean {
   const parse = (s: string): [number, number, number] => {
     const [a = 0, b = 0, c = 0] = s
-      .replace(/^v/, "")
+      .replace(/^(?:.*-)?v(?=\d)/, "")
       .split(".")
       .map((n) => {
         const v = parseInt(n, 10)

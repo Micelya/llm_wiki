@@ -27,6 +27,22 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  // Entries from here up are this app's own releases. Everything below
+  // 0.1.0 is the history of LLM Wiki, the project it is based on.
+  {
+    version: "0.1.0",
+    date: "2026-10-07",
+    highlights: {
+      en: [
+        "First release under its own identity, based on LLM Wiki 0.6.12. Settings and data are kept separately from an LLM Wiki installation.",
+        "Fixed wiki pages whose title contains a colon losing their type, related pages and sources (they showed up as \"Other\" in the graph with almost no links).",
+      ],
+      zh: [
+        "首个独立身份版本，基于 LLM Wiki 0.6.12。设置和数据与 LLM Wiki 安装相互独立。",
+        "修复标题含冒号的 Wiki 页面丢失类型、关联页面和来源的问题（此类页面在图谱中显示为“其他”且几乎没有连接）。",
+      ],
+    },
+  },
   {
     version: "0.6.12",
     date: "2026-09-27",

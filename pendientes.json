@@ -44,13 +44,11 @@
       "tipo": "github-manual",
       "responsable": "usuario",
       "estado": "pendiente",
-      "detalle": "Antes de cargar las claves de Apple (u otros secretos): crear un Environment con aprobación manual y restringido a etiquetas, y usar un certificado y contraseña de app exclusivos del fork. Durante la compilación las claves quedan visibles para todas las dependencias.",
-      "depende_de": [
-        "P-001"
-      ],
+      "detalle": "Solo hace falta si se distribuye en Mac. Antes de cargar las claves de Apple: crear un Environment con aprobación manual y restringido a etiquetas, y usar un certificado y contraseña de app exclusivos del fork. Durante la compilación las claves quedan visibles para todas las dependencias.",
+      "depende_de": [],
       "referencia": "Settings → Environments",
       "creado": "2026-10-06",
-      "actualizado": "2026-10-06"
+      "actualizado": "2026-10-07"
     },
     {
       "id": "P-003",
@@ -80,32 +78,27 @@
     },
     {
       "id": "P-005",
-      "titulo": "Decidir cómo se actualizan las versiones fijadas de las acciones",
-      "tipo": "decision",
+      "titulo": "Revisar los PR mensuales de Dependabot",
+      "tipo": "github-manual",
       "responsable": "usuario",
       "estado": "pendiente",
-      "detalle": "Tras el PR #3 las acciones ya no se actualizan solas. Opciones: Dependabot para 'github-actions' (propone PRs) o revisión manual periódica.",
-      "depende_de": [
-        "P-001"
-      ],
-      "referencia": "",
+      "detalle": "Dependabot propone una vez por mes un PR con las versiones nuevas de las acciones de GitHub. No integrarlo el mismo día: esperar unos días por si la versión nueva resulta comprometida. Tarea recurrente; verificar tras el primer mes que el PR aparece.",
+      "depende_de": [],
+      "referencia": ".github/dependabot.yml",
       "creado": "2026-10-06",
-      "actualizado": "2026-10-06"
+      "actualizado": "2026-10-07"
     },
     {
       "id": "P-006",
-      "titulo": "Definir cómo se publican releases del fork",
+      "titulo": "Habilitar la publicación de releases del fork",
       "tipo": "decision",
       "responsable": "usuario",
       "estado": "pendiente",
-      "detalle": "Tras el PR #3, una etiqueta v* solo publica si existe la variable de repositorio ENABLE_TAG_RELEASE=true. Definir convención de etiquetas propia y recién entonces crear la variable. Mientras tanto: no subir al fork las etiquetas de upstream (no usar 'git push --tags').",
-      "depende_de": [
-        "P-001",
-        "P-002"
-      ],
+      "detalle": "Convención decidida: etiquetas 'mi-desktop-vX.Y.Z' (candidatas con sufijo '-rc.N'; la primera será mi-desktop-v0.1.0-rc.1). Falta crear la variable de repositorio ENABLE_TAG_RELEASE=true y recién entonces subir la etiqueta. No usar 'git push --tags': el clon tiene las etiquetas de upstream.",
+      "depende_de": [],
       "referencia": "Settings → Secrets and variables → Actions → Variables",
       "creado": "2026-10-06",
-      "actualizado": "2026-10-06"
+      "actualizado": "2026-10-07"
     },
     {
       "id": "P-007",
@@ -291,6 +284,30 @@
       "actualizado": "2026-10-06"
     },
     {
+      "id": "P-021",
+      "titulo": "Terminar el cambio de nombre a 'Micelya Desktop' dentro de la app",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Ya se llama 'Micelya Desktop' en el instalador, la ventana, la bandeja del sistema, el zip portable y el nombre del release. Faltan las menciones a 'LLM Wiki' dentro de los textos de la interfaz (unas 10 por idioma en src/i18n) y en mensajes del agente. Se dejaron porque los archivos de idioma son los que más cambia upstream.",
+      "depende_de": [],
+      "referencia": "src-tauri/tauri.conf.json (productName, title), .github/workflows/build.yml (releaseName)",
+      "creado": "2026-10-07",
+      "actualizado": "2026-10-07"
+    },
+    {
+      "id": "P-022",
+      "titulo": "Decidir si se firman los instaladores de Windows",
+      "tipo": "decision",
+      "responsable": "usuario",
+      "estado": "pendiente",
+      "detalle": "Hoy salen sin firmar y Windows muestra el aviso de 'editor desconocido' al instalar. Firmarlos requiere comprar un certificado de firma de código y agregar ese paso al workflow.",
+      "depende_de": [],
+      "referencia": "",
+      "creado": "2026-10-07",
+      "actualizado": "2026-10-07"
+    },
+    {
       "id": "P-023",
       "titulo": "Reconocimiento de texto para escaneos e imágenes",
       "tipo": "codigo",
@@ -345,7 +362,7 @@
       "titulo": "Desactivar el uso de contenido para entrenamiento en ChatGPT",
       "tipo": "github-manual",
       "responsable": "usuario",
-      "estado": "pendiente",
+      "estado": "hecho",
       "detalle": "En el plan Plus, OpenAI puede usar el contenido para entrenar salvo que se desactive. Hacerlo antes de reconocer documentos reales: ChatGPT → Configuración → Controles de datos → 'Mejorar el modelo para todos' en apagado. No es una tarea de GitHub; es un ajuste manual de la cuenta.",
       "depende_de": [],
       "referencia": "chatgpt.com → Settings → Data controls",

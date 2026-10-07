@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { API_SERVER_HEALTH_URL, API_SERVER_PORT } from "@/lib/api-server-constants"
 import { useUpdateStore, hasAvailableUpdate } from "@/stores/update-store"
 import { checkForUpdates, toLatestReleaseUrl } from "@/lib/update-check"
+import { RELEASES_REPO } from "@/lib/app-identity"
 import { saveUpdateCheckState } from "@/lib/project-store"
 import { useAppDialog } from "@/stores/app-dialog-store"
 
@@ -56,7 +57,7 @@ export function AboutSection() {
     useUpdateStore.getState().setChecking(true)
     const result = await checkForUpdates({
       currentVersion: __APP_VERSION__,
-      repo: "nashsu/llm_wiki",
+      repo: RELEASES_REPO,
     })
     const now = Date.now()
     useUpdateStore.getState().setResult(result, now)
