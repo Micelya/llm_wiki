@@ -78,17 +78,15 @@
     },
     {
       "id": "P-005",
-      "titulo": "Decidir cómo se actualizan las versiones fijadas de las acciones",
-      "tipo": "decision",
+      "titulo": "Revisar los PR mensuales de Dependabot",
+      "tipo": "github-manual",
       "responsable": "usuario",
       "estado": "pendiente",
-      "detalle": "Tras el PR #3 las acciones ya no se actualizan solas. Opciones: Dependabot para 'github-actions' (propone PRs) o revisión manual periódica.",
-      "depende_de": [
-        "P-001"
-      ],
-      "referencia": "",
+      "detalle": "Dependabot propone una vez por mes un PR con las versiones nuevas de las acciones de GitHub. No integrarlo el mismo día: esperar unos días por si la versión nueva resulta comprometida. Tarea recurrente; verificar tras el primer mes que el PR aparece.",
+      "depende_de": [],
+      "referencia": ".github/dependabot.yml",
       "creado": "2026-10-06",
-      "actualizado": "2026-10-06"
+      "actualizado": "2026-10-07"
     },
     {
       "id": "P-006",
