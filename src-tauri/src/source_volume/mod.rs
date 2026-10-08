@@ -20,6 +20,7 @@
 mod provider;
 pub mod recognition;
 mod recognition_codex;
+pub mod watch;
 
 use std::fs;
 use std::path::{Path, PathBuf};
