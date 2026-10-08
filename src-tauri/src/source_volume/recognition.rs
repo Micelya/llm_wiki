@@ -14,11 +14,11 @@
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
 
 use serde::Deserialize;
 
 use super::recognition_codex::CodexRecognizer;
+use super::recognized_store::{Part, RecognizedStore};
 
 /// A PDF page with fewer non-whitespace characters than this is treated
 /// as having no text of its own. Same threshold the image extractor uses
@@ -62,8 +62,9 @@ pub fn marker(engine_id: &str) -> String {
     format!("<!-- texto-reconocido motor=\"{engine_id}\" -->")
 }
 
-/// Where the per-page results for `source` are kept: next to its
-/// extracted-text cache, addressed by the path the app asked for.
+/// Where recognized pages of `source` were kept before they moved to
+/// the recognized store: next to its extracted-text cache, addressed by
+/// the path the app asked for. Only read now, to take that text over.
 pub fn page_cache_dir(requested_source: &Path) -> PathBuf {
     let parent = requested_source.parent().unwrap_or(Path::new("."));
     let name = requested_source
@@ -73,30 +74,42 @@ pub fn page_cache_dir(requested_source: &Path) -> PathBuf {
     parent.join(".cache").join(format!("{name}.recognized"))
 }
 
-/// Text of a standalone image source.
+/// Text of a standalone image source. An image already read is not read
+/// again.
 pub fn recognize_image_source(
     image: &Path,
+    store: &RecognizedStore,
     recognizer: &dyn TextRecognizer,
 ) -> Result<String, String> {
-    let text = recognizer.recognize(image)?;
-    Ok(format!("{}\n{}\n", marker(&recognizer.engine_id()), text.trim()))
+    let entry = match store.get(Part::Image) {
+        Some(entry) => entry,
+        None => {
+            let entry = RecognizedPage {
+                engine_id: recognizer.engine_id(),
+                text: recognizer.recognize(image)?.trim().to_string(),
+            };
+            store.put(Part::Image, &entry)?;
+            entry
+        }
+    };
+    Ok(format!("{}\n{}\n", marker(&entry.engine_id), entry.text))
 }
 
 /// `extracted` (the text PDFium found, one `## Page N` section per page)
 /// with the pages that have no text of their own filled in by
 /// `recognizer`.
 ///
-/// Each recognized page is stored in `cache_dir` as soon as it is read,
+/// Each recognized page is saved in `store` as soon as it is read,
 /// so a failure half-way through a long scan does not throw away the
 /// pages already done: the error is returned, nothing is spliced, and
 /// the next attempt resumes where this one stopped.
 pub fn complete_pdf_text(
     pdf: &Path,
     extracted: &str,
-    cache_dir: &Path,
+    store: &RecognizedStore,
     recognizer: &dyn TextRecognizer,
 ) -> Result<String, String> {
-    complete_pdf_text_reporting(pdf, extracted, cache_dir, recognizer, &|_, _| {})
+    complete_pdf_text_reporting(pdf, extracted, store, recognizer, &|_, _| {})
 }
 
 /// Same as `complete_pdf_text`; `on_page(position, total)` is called for
@@ -104,7 +117,7 @@ pub fn complete_pdf_text(
 pub fn complete_pdf_text_reporting(
     pdf: &Path,
     extracted: &str,
-    cache_dir: &Path,
+    store: &RecognizedStore,
     recognizer: &dyn TextRecognizer,
     on_page: &dyn Fn(usize, usize),
 ) -> Result<String, String> {
@@ -113,14 +126,13 @@ pub fn complete_pdf_text_reporting(
         return Ok(extracted.to_string());
     }
     let total = pages.len();
-    let source_modified = fs::metadata(pdf).and_then(|m| m.modified()).ok();
 
     let mut recognized = BTreeMap::new();
     let mut scratch: Option<PathBuf> = None;
     let mut failure = None;
     for (index, page) in pages.into_iter().enumerate() {
         on_page(index + 1, total);
-        if let Some(hit) = read_page_cache(cache_dir, page, source_modified) {
+        if let Some(hit) = store.get(Part::Page(page)) {
             recognized.insert(page, hit);
             continue;
         }
@@ -141,7 +153,7 @@ pub fn complete_pdf_text_reporting(
                 engine_id: recognizer.engine_id(),
                 text: text.trim().to_string(),
             };
-            write_page_cache(cache_dir, page, &entry)?;
+            store.put(Part::Page(page), &entry)?;
             Ok(entry)
         });
         match result {
@@ -208,36 +220,6 @@ fn section_end(text: &str, page: u32) -> Option<usize> {
         Some(next) => Some(body + next),
         None => Some(text.len()),
     }
-}
-
-fn page_cache_file(cache_dir: &Path, page: u32) -> PathBuf {
-    cache_dir.join(format!("p{page:04}.txt"))
-}
-
-fn read_page_cache(
-    cache_dir: &Path,
-    page: u32,
-    source_modified: Option<SystemTime>,
-) -> Option<RecognizedPage> {
-    let path = page_cache_file(cache_dir, page);
-    let cached_at = fs::metadata(&path).ok()?.modified().ok()?;
-    if cached_at < source_modified? {
-        return None;
-    }
-    let raw = fs::read_to_string(&path).ok()?;
-    let (engine_id, text) = raw.split_once('\n')?;
-    Some(RecognizedPage {
-        engine_id: engine_id.strip_prefix("motor=")?.to_string(),
-        text: text.to_string(),
-    })
-}
-
-fn write_page_cache(cache_dir: &Path, page: u32, entry: &RecognizedPage) -> Result<(), String> {
-    fs::create_dir_all(cache_dir)
-        .map_err(|e| format!("Failed to create '{}': {e}", cache_dir.display()))?;
-    let path = page_cache_file(cache_dir, page);
-    fs::write(&path, format!("motor={}\n{}", entry.engine_id, entry.text))
-        .map_err(|e| format!("Failed to write '{}': {e}", path.display()))
 }
 
 /// 1-based numbers of the pages that have no usable text of their own.
@@ -394,7 +376,11 @@ mod tests {
     #[test]
     fn image_source_text_is_preceded_by_the_engine_marker() {
         let recognizer = FakeRecognizer::new(vec![Ok("  CONTRATO\nlinea 2  ")]);
-        let text = recognize_image_source(&fixture("escaneo-2-paginas.pdf"), &recognizer).unwrap();
+        let text = recognize_image_source(
+            &fixture("escaneo-2-paginas.pdf"),
+            &RecognizedStore::at(scratch()),
+            &recognizer,
+        ).unwrap();
         assert_eq!(text, format!("{M}\nCONTRATO\nlinea 2\n"));
     }
 
@@ -416,6 +402,19 @@ mod tests {
     }
 
     #[test]
+    fn an_image_already_read_is_not_read_again() {
+        let image = fixture("pagina-prueba.png");
+        let store = RecognizedStore::at(scratch());
+        let first = FakeRecognizer::new(vec![Ok("texto de la foto")]);
+        let text = recognize_image_source(&image, &store, &first).unwrap();
+        assert_eq!(first.calls(), 1);
+
+        let second = FakeRecognizer::new(vec![]);
+        assert_eq!(recognize_image_source(&image, &store, &second).unwrap(), text);
+        assert_eq!(second.calls(), 0);
+    }
+
+    #[test]
     fn each_page_needing_recognition_is_reported_in_order() {
         let pdf = fixture("escaneo-2-paginas.pdf");
         let recognizer = FakeRecognizer::new(vec![Ok("primera"), Ok("segunda")]);
@@ -432,7 +431,7 @@ mod tests {
 
 
 ",
-            &scratch(),
+            &RecognizedStore::at(scratch()),
             &recognizer,
             &|page, total| seen.borrow_mut().push((page, total)),
         )
@@ -446,7 +445,8 @@ mod tests {
         let pdf = fixture("escaneo-2-paginas.pdf");
         assert_eq!(textless_pages(&pdf).unwrap(), vec![1, 2]);
 
-        let cache = scratch();
+        let cache_dir = scratch();
+        let cache = RecognizedStore::at(&cache_dir);
         let recognizer = FakeRecognizer::new(vec![Ok("primera"), Ok("segunda")]);
         let extracted = "## Page 1\n\n\n\n\n## Page 2\n\n\n";
 
@@ -465,13 +465,14 @@ mod tests {
             text
         );
         assert_eq!(again.calls(), 0);
-        let _ = fs::remove_dir_all(cache);
+        let _ = fs::remove_dir_all(cache_dir);
     }
 
     #[test]
     fn a_failed_page_fails_the_document_but_keeps_finished_pages() {
         let pdf = fixture("escaneo-2-paginas.pdf");
-        let cache = scratch();
+        let cache_dir = scratch();
+        let cache = RecognizedStore::at(&cache_dir);
         let extracted = "## Page 1\n\n\n\n\n## Page 2\n\n\n";
 
         let failing = FakeRecognizer::new(vec![Ok("primera"), Err("limite de uso")]);
@@ -483,7 +484,7 @@ mod tests {
         let text = complete_pdf_text(&pdf, extracted, &cache, &retry).unwrap();
         assert!(text.contains("primera") && text.contains("segunda"));
         assert_eq!(retry.calls(), 1);
-        let _ = fs::remove_dir_all(cache);
+        let _ = fs::remove_dir_all(cache_dir);
     }
 
     #[test]
@@ -493,7 +494,7 @@ mod tests {
         let recognizer = FakeRecognizer::new(vec![]);
         let extracted = "## Page 1\n\ncualquier cosa\n";
         assert_eq!(
-            complete_pdf_text(&pdf, extracted, &scratch(), &recognizer).unwrap(),
+            complete_pdf_text(&pdf, extracted, &RecognizedStore::at(scratch()), &recognizer).unwrap(),
             extracted
         );
         assert_eq!(recognizer.calls(), 0);
