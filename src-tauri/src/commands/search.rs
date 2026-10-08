@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use walkdir::WalkDir;
 
+use crate::commands::search_spanish;
 use crate::commands::vectorstore;
 use crate::panic_guard::run_guarded_async;
 
@@ -1029,6 +1030,7 @@ pub fn tokenize_query(query: &str) -> Vec<String> {
 fn is_query_separator(c: char) -> bool {
     c.is_whitespace()
         || c.is_ascii_punctuation()
+        || search_spanish::is_separator(c)
         || matches!(
             c,
             '，' | '。'
@@ -1050,7 +1052,7 @@ fn is_query_separator(c: char) -> bool {
 }
 
 fn is_stop_word(token: &str) -> bool {
-    matches!(
+    search_spanish::is_stop_word(token) || matches!(
         token,
         "的" | "是"
             | "了"
