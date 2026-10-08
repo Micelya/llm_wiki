@@ -12,9 +12,11 @@
 //! `image.json` for a standalone image — holding the text and the engine
 //! that read it. Nothing is ever written next to the original file.
 //!
-//! Text recognized before this store existed lived beside the extracted
-//! text cache, keyed by path. It is taken over on first use, so nothing
-//! already read is read again.
+//! Text recognized before this store existed is taken over on first use,
+//! so nothing already read is read again: PDF pages from the per-path
+//! folder beside the extracted-text cache, and standalone images from
+//! the extracted-text cache itself, which for an image is exactly the
+//! recognized text.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -45,6 +47,8 @@ struct StoredPart {
 /// Text recognized earlier for the same source path, in the old layout.
 struct Legacy {
     dir: PathBuf,
+    /// Extracted-text cache of the source (`.cache/<name>.txt`).
+    text_cache: PathBuf,
     source_modified: Option<SystemTime>,
 }
 
@@ -77,6 +81,7 @@ impl RecognizedStore {
             dir,
             legacy: Some(Legacy {
                 dir: legacy_dir,
+                text_cache: text_cache_file(requested),
                 source_modified: fs::metadata(real).and_then(|m| m.modified()).ok(),
             }),
         })
@@ -123,25 +128,52 @@ impl RecognizedStore {
 }
 
 impl Legacy {
-    /// Old layout: `p0001.txt` with the engine on the first line, valid
-    /// only if written after the source was last modified. Standalone
-    /// images were never kept.
+    /// Either old file is valid only if written after the source was
+    /// last modified.
     fn read(&self, part: Part) -> Option<RecognizedPage> {
-        let Part::Page(page) = part else {
-            return None;
-        };
-        let path = self.dir.join(format!("p{page:04}.txt"));
-        let cached_at = fs::metadata(&path).ok()?.modified().ok()?;
-        if cached_at < self.source_modified? {
+        match part {
+            // `p0001.txt`, with the engine on the first line.
+            Part::Page(page) => {
+                let raw = self.read_if_current(&self.dir.join(format!("p{page:04}.txt")))?;
+                let (engine_id, text) = raw.split_once('\n')?;
+                Some(RecognizedPage {
+                    engine_id: engine_id.strip_prefix("motor=")?.to_string(),
+                    text: text.to_string(),
+                })
+            }
+            // The text cache of an image: the recognition marker on the
+            // first line, then the text.
+            Part::Image => {
+                let raw = self.read_if_current(&self.text_cache)?;
+                let (first_line, text) = raw.split_once('\n')?;
+                let engine_id = first_line
+                    .trim()
+                    .strip_prefix("<!-- texto-reconocido motor=\"")?
+                    .strip_suffix("\" -->")?;
+                Some(RecognizedPage {
+                    engine_id: engine_id.to_string(),
+                    text: text.trim().to_string(),
+                })
+            }
+        }
+    }
+
+    fn read_if_current(&self, path: &Path) -> Option<String> {
+        let written_at = fs::metadata(path).ok()?.modified().ok()?;
+        if written_at < self.source_modified? {
             return None;
         }
-        let raw = fs::read_to_string(&path).ok()?;
-        let (engine_id, text) = raw.split_once('\n')?;
-        Some(RecognizedPage {
-            engine_id: engine_id.strip_prefix("motor=")?.to_string(),
-            text: text.to_string(),
-        })
+        fs::read_to_string(path).ok()
     }
+}
+
+fn text_cache_file(requested_source: &Path) -> PathBuf {
+    let parent = requested_source.parent().unwrap_or(Path::new("."));
+    let name = requested_source
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy();
+    parent.join(".cache").join(format!("{name}.txt"))
 }
 
 #[cfg(test)]
@@ -249,6 +281,40 @@ mod tests {
         // Now stored by hash: it survives the removal of the old cache.
         fs::remove_dir_all(&old).unwrap();
         assert_eq!(store.get(Part::Page(3)), Some(taken));
+    }
+
+    #[test]
+    fn an_image_read_before_the_store_existed_is_taken_over_from_its_text_cache() {
+        let fx = Fixture::new();
+        let photo = fx.source("Docs/carta.jpeg", b"jpeg bytes");
+        let cache = fx.project.join("raw/sources/Docs/.cache");
+        fs::create_dir_all(&cache).unwrap();
+        fs::write(
+            cache.join("carta.jpeg.txt"),
+            format!("{}\nCARTA DOCUMENTO\nBuenos Aires\n", crate::source_volume::recognition::marker("codex-cli/gpt")),
+        )
+        .unwrap();
+
+        let store = RecognizedStore::for_source(&photo, &photo).unwrap();
+
+        assert_eq!(
+            store.get(Part::Image),
+            Some(RecognizedPage {
+                engine_id: "codex-cli/gpt".to_string(),
+                text: "CARTA DOCUMENTO\nBuenos Aires".to_string(),
+            })
+        );
+    }
+
+    #[test]
+    fn a_text_cache_that_is_not_recognized_text_is_not_taken_for_an_image() {
+        let fx = Fixture::new();
+        let photo = fx.source("Docs/carta.jpeg", b"jpeg bytes");
+        let cache = fx.project.join("raw/sources/Docs/.cache");
+        fs::create_dir_all(&cache).unwrap();
+        fs::write(cache.join("carta.jpeg.txt"), "no preprocessing needed").unwrap();
+
+        assert_eq!(RecognizedStore::for_source(&photo, &photo).unwrap().get(Part::Image), None);
     }
 
     #[test]
