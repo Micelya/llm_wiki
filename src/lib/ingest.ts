@@ -26,6 +26,12 @@ import {
 import { parseSources, writeSources } from "@/lib/sources-merge"
 import { checkIngestCache, saveIngestCache } from "@/lib/ingest-cache"
 import { ensureRecognizedText } from "@/lib/text-recognition"
+import {
+  adoptCataloguedContent,
+  describeAdoption,
+  recordCataloguedIngest,
+  releaseCataloguedContent,
+} from "@/lib/source-catalog"
 import { sanitizeIngestedFileContent } from "@/lib/ingest-sanitize"
 import { mergePageContent, type MergeFn } from "@/lib/page-merge"
 import { withProjectLock } from "@/lib/project-mutex"
@@ -656,7 +662,7 @@ export async function autoIngest(
       onFileWritten,
       options,
     ),
-  )
+  ).finally(() => releaseCataloguedContent(pp, sp))
 }
 
 function throwIfIngestAborted(signal: AbortSignal | undefined, activityId?: string): void {
@@ -921,6 +927,23 @@ async function autoIngestImpl(
       })
       return cachedFiles
     })
+  }
+
+  // ── Catalog check: the same document was ingested from another file ──
+  const adopted = await adoptCataloguedContent({
+    projectPath: pp,
+    sourcePath: sp,
+    identity: sourceIdentity,
+    text: sourceContent,
+    commit: runCommit,
+  })
+  if (adopted) {
+    activity.updateItem(activityId, {
+      status: "done",
+      detail: describeAdoption(adopted),
+      filesWritten: adopted.files,
+    })
+    return adopted.files
   }
 
   // ── Step 0.5: Extract embedded images ─────────────────────────
@@ -1556,6 +1579,7 @@ async function autoIngestImpl(
     unrecoveredTruncatedPaths.length === 0
   ) {
     await saveIngestCache(pp, sourceIdentity, sourceContent, writtenPaths)
+    await recordCataloguedIngest(pp, sourceIdentity, writtenPaths)
     await clearGenerationCheckpoint(generationProgressPath)
     if (longSourceCheckpointPath) {
       await clearLongSourceCheckpoint(longSourceCheckpointPath)
