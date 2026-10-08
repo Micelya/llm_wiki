@@ -82,9 +82,7 @@
       "responsable": "claude",
       "estado": "pendiente",
       "detalle": "Vigilar las carpetas montadas, traducir sus avisos a rutas lógicas y no tratar un origen desconectado como archivos borrados (dispararía el borrado de sus páginas wiki). Hasta entonces no usar montajes en proyectos reales.",
-      "depende_de": [
-        "P-013"
-      ],
+      "depende_de": [],
       "referencia": "src-tauri/src/commands/file_sync.rs",
       "creado": "2026-10-06",
       "actualizado": "2026-10-08"
@@ -108,8 +106,8 @@
       "titulo": "Integrar el PR #7 (volumen de fuentes y reconocimiento de texto)",
       "tipo": "github-manual",
       "responsable": "usuario",
-      "estado": "pendiente",
-      "detalle": "Rama feat/source-volume: volumen de fuentes (F-002), reconocimiento de texto (F-006), botón 'Mount folder' y el documento de traspaso de la sesión 01. Probado de punta a punta el 2026-10-07 con la carpeta AEROS BGH.",
+      "estado": "hecho",
+      "detalle": "Integrado el 2026-10-08. main contiene el volumen de fuentes (F-002), el reconocimiento de texto (F-006), el botón 'Mount folder' y el traspaso de la sesión 01.",
       "depende_de": [],
       "referencia": "https://github.com/Micelya/llm_wiki/pull/7",
       "creado": "2026-10-06",
@@ -121,10 +119,8 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "Separar 'contenido' de 'ubicación': el mismo documento en varias rutas o formatos se procesa una vez y conserva todas sus ubicaciones (huella del archivo y huella del texto). Va dentro del volumen, en Rust. Probar con my-1st-wiki, que tiene duplicados exactos; AEROS BGH no tiene.",
-      "depende_de": [
-        "P-039"
-      ],
+      "detalle": "Separar 'contenido' de 'ubicación': el mismo documento en varias rutas o formatos se procesa una vez y conserva todas sus ubicaciones (huella del archivo y huella del texto). Va dentro del volumen, en Rust. Probar con my-1st-wiki, que tiene duplicados exactos; AEROS BGH no tiene. Diseño decidido (ver P-039): huellas al montar o importar, antes de encolar la ingesta; un duplicado exacto tiene una sola página de fuente con todas sus ubicaciones; el texto reconocido se compara marcado como menos confiable.",
+      "depende_de": [],
       "referencia": "",
       "creado": "2026-10-06",
       "actualizado": "2026-10-08"
@@ -273,10 +269,10 @@
       "titulo": "Arreglar el chat con Codex y Claude Code: no busca en el wiki",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "Con proveedores CLI la búsqueda de respaldo se desactiva cuando el pedido lleva 'skills', y el chat en modo automático envía todas las instaladas en la máquina; el agente responde 'no se recuperó evidencia'. Defecto de upstream. Arreglo propuesto: en la rama CLI de chat-panel.tsx no enviar las skills en modo automático. Confirmar antes en vivo: Settings → Skills, deshabilitar todas y repetir la pregunta; debe aparecer un paso de búsqueda. Candidato a proponer a upstream.",
+      "estado": "en-curso",
+      "detalle": "Causa confirmada en vivo el 2026-10-08: con las skills deshabilitadas el chat sí busca. Con proveedores CLI la búsqueda de respaldo se desactiva cuando el pedido lleva skills, y el modo automático enviaba todas las habilitadas. Arreglo en el PR #8: en la ruta CLI no se envían las skills del modo automático. Falta: integrar el PR y verificar en la app, con las skills habilitadas, que aparece el paso de búsqueda. Queda sin resolver: elegir una skill a mano con un proveedor CLI sigue desactivando la búsqueda. Candidato a proponer a upstream.",
       "depende_de": [],
-      "referencia": "src/components/chat/chat-panel.tsx:1083, src-tauri/src/agent/runtime.rs:308-314",
+      "referencia": "PR #8, src/lib/cli-chat-context.ts",
       "creado": "2026-10-08",
       "actualizado": "2026-10-08"
     },
@@ -285,12 +281,12 @@
       "titulo": "Chat con proveedores CLI: enviar más contexto de las páginas",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "En modo 'Standard' a Codex le llegan solo título, ruta y unos 80 caracteres de 5 páginas; puede no alcanzar para preguntas concretas (facturas, montos). Evaluar enviar el contenido de las páginas o más páginas.",
+      "estado": "en-curso",
+      "detalle": "A Codex le llegaban solo título, ruta y un extracto de unos 160 caracteres por página, en cualquier modo (Deep solo sube de 5 a 8 páginas); por eso no pudo responder importes de facturas que sí están en el wiki. Arreglo en el PR #8: se agrega al pedido el texto de las páginas recuperadas (hasta 8 páginas, 12.000 caracteres por página, 60.000 en total). Falta: integrar el PR y verificar en la app con la pregunta '¿Qué facturas reclama BGH y por qué monto?' en AEROS-BGH.",
       "depende_de": [
         "P-031"
       ],
-      "referencia": "src/components/chat/chat-panel.tsx (includeContent, topK)",
+      "referencia": "PR #8, src/lib/cli-chat-context.ts",
       "creado": "2026-10-08",
       "actualizado": "2026-10-08"
     },
@@ -300,7 +296,7 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "El buscador solo descarta palabras vacías en chino e inglés, y no trata el signo '¿'. Palabras como 'por', 'qué', 'de', 'se' coinciden con casi todas las páginas y ensucian el orden de los resultados.",
+      "detalle": "El buscador solo descarta palabras vacías en chino e inglés, y no trata el signo '¿'. Palabras como 'por', 'qué', 'de', 'se' coinciden con casi todas las páginas y ensucian el orden de los resultados. Afecta también al chat: decide qué páginas se le pasan al modelo.",
       "depende_de": [],
       "referencia": "src-tauri/src/commands/search.rs (tokenize_query, is_stop_word)",
       "creado": "2026-10-08",
@@ -371,8 +367,8 @@
       "titulo": "Decidir cuatro puntos de diseño del catálogo",
       "tipo": "decision",
       "responsable": "usuario",
-      "estado": "pendiente",
-      "detalle": "(1) Cuándo se calcula: propuesta, al montar o importar, antes de encolar la ingesta. (2) Qué hacer con un duplicado exacto ya ingerido: propuesta, una sola página de fuente con todas las ubicaciones. (3) Si el texto reconocido entra en la comparación: propuesta, sí, marcado como menos confiable. (4) Dónde corre: propuesta, en Rust dentro del volumen.",
+      "estado": "hecho",
+      "detalle": "Decidido el 2026-10-08, el usuario aceptó las cuatro propuestas: (1) las huellas se calculan al montar o importar, antes de encolar la ingesta; (2) un duplicado exacto tiene una sola página de fuente con todas sus ubicaciones; (3) el texto reconocido entra en la comparación, marcado como menos confiable; (4) el cálculo corre en Rust dentro del volumen.",
       "depende_de": [],
       "referencia": "docs/sessions/2026-10-07-sesion-01.md",
       "creado": "2026-10-08",
