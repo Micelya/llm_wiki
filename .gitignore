@@ -21,8 +21,9 @@ src-tauri/gen/
 .env.local
 .env.*.local
 
-# Internal docs (not shipped)
-docs/
+# Internal docs (not shipped), except the session handoff notes
+docs/*
+!docs/sessions/
 AGENTS.md
 
 # Benchmark and test data (local only)
