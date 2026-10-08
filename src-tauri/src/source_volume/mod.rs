@@ -19,8 +19,8 @@
 
 mod provider;
 pub mod recognition;
-mod recognition_codex;
 pub mod recognition_progress;
+mod recognition_codex;
 
 use std::fs;
 use std::path::{Path, PathBuf};
