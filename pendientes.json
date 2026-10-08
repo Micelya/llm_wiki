@@ -347,10 +347,10 @@
       "titulo": "Grafo: etiquetas legibles",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "Las etiquetas se superponen. Mostrar etiqueta solo en los nodos más conectados y al acercar el zoom; al seleccionar un nodo, resaltarlo con sus vecinos y atenuar el resto; acortar títulos largos. El grafo usa sigma.js y graphology.",
+      "estado": "en-curso",
+      "detalle": "Las etiquetas se superponían. Hecho en el PR #9: etiqueta solo en los nodos más conectados y en el resto al acercar el zoom; títulos largos acortados, con el título completo al pasar el mouse; al hacer clic, el nodo y sus vecinos quedan resaltados y el resto atenuado hasta hacer clic en el fondo. Falta: integrar el PR, verlo en la app (solo se verificó con pruebas automáticas, no en pantalla) y agregar la entrada F-008 en FORK_CHANGES.md.",
       "depende_de": [],
-      "referencia": "src/components/graph/graph-view.tsx",
+      "referencia": "PR #9, src/lib/graph-labels.ts, src/components/graph/graph-view.tsx",
       "creado": "2026-10-08",
       "actualizado": "2026-10-08"
     },
