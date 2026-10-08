@@ -270,7 +270,7 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "en-curso",
-      "detalle": "Causa confirmada en vivo el 2026-10-08: con las skills deshabilitadas el chat sí busca. Con proveedores CLI la búsqueda de respaldo se desactiva cuando el pedido lleva skills, y el modo automático enviaba todas las habilitadas. Arreglo en el PR #8: en la ruta CLI no se envían las skills del modo automático. Falta: integrar el PR y verificar en la app, con las skills habilitadas, que aparece el paso de búsqueda. Queda sin resolver: elegir una skill a mano con un proveedor CLI sigue desactivando la búsqueda. Candidato a proponer a upstream.",
+      "detalle": "Causa confirmada en vivo el 2026-10-08: con las skills deshabilitadas el chat sí busca. Con proveedores CLI la búsqueda de respaldo se desactiva cuando el pedido lleva skills, y el modo automático enviaba todas las habilitadas. Arreglo en el PR #8: en la ruta CLI no se envían las skills del modo automático. PR #8 integrado el 2026-10-08. Falta: verificar en la app, con las skills habilitadas, que aparece el paso de búsqueda. Queda sin resolver: elegir una skill a mano con un proveedor CLI sigue desactivando la búsqueda. Candidato a proponer a upstream.",
       "depende_de": [],
       "referencia": "PR #8, src/lib/cli-chat-context.ts",
       "creado": "2026-10-08",
@@ -282,7 +282,7 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "en-curso",
-      "detalle": "A Codex le llegaban solo título, ruta y un extracto de unos 160 caracteres por página, en cualquier modo (Deep solo sube de 5 a 8 páginas); por eso no pudo responder importes de facturas que sí están en el wiki. Arreglo en el PR #8: se agrega al pedido el texto de las páginas recuperadas (hasta 8 páginas, 12.000 caracteres por página, 60.000 en total). Falta: integrar el PR y verificar en la app con la pregunta '¿Qué facturas reclama BGH y por qué monto?' en AEROS-BGH.",
+      "detalle": "A Codex le llegaban solo título, ruta y un extracto de unos 160 caracteres por página, en cualquier modo (Deep solo sube de 5 a 8 páginas); por eso no pudo responder importes de facturas que sí están en el wiki. Arreglo en el PR #8: se agrega al pedido el texto de las páginas recuperadas (hasta 8 páginas, 12.000 caracteres por página, 60.000 en total). PR #8 integrado el 2026-10-08. Falta: verificar en la app con la pregunta '¿Qué facturas reclama BGH y por qué monto?' en AEROS-BGH.",
       "depende_de": [
         "P-031"
       ],
@@ -343,10 +343,10 @@
       "titulo": "Grafo: etiquetas legibles",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "Las etiquetas se superponen. Mostrar etiqueta solo en los nodos más conectados y al acercar el zoom; al seleccionar un nodo, resaltarlo con sus vecinos y atenuar el resto; acortar títulos largos. El grafo usa sigma.js y graphology.",
+      "estado": "en-curso",
+      "detalle": "Las etiquetas se superponían. Hecho en el PR #9: etiqueta solo en los nodos más conectados y en el resto al acercar el zoom; títulos largos acortados, con el título completo al pasar el mouse; al hacer clic, el nodo y sus vecinos quedan resaltados y el resto atenuado hasta hacer clic en el fondo. Falta: integrar el PR y verlo en la app (solo se verificó con pruebas automáticas, no en pantalla); ajustar los umbrales si hace falta.",
       "depende_de": [],
-      "referencia": "src/components/graph/graph-view.tsx",
+      "referencia": "PR #9, src/lib/graph-labels.ts, src/components/graph/graph-view.tsx",
       "creado": "2026-10-08",
       "actualizado": "2026-10-08"
     },

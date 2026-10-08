@@ -63,6 +63,12 @@ El detalle de cada cambio (qué líneas, qué pruebas) está en su PR; acá no s
 - **Upstream:** candidato
 - **PR:** #8
 
+### F-008 · Etiquetas legibles en el grafo
+- **Propósito:** que las etiquetas del grafo no se superpongan: solo los nodos más conectados llevan etiqueta sin acercar el zoom, los títulos largos se acortan y un clic deja resaltado el nodo con sus vecinos (`src/lib/graph-labels.ts`).
+- **Toca upstream:** `src/components/graph/graph-view.tsx`
+- **Upstream:** candidato
+- **PR:** #9
+
 ## Reabsorbidos
 
 Cambios que upstream ya incorporó (ID · versión de upstream que lo trae).

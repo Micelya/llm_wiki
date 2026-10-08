@@ -22,6 +22,7 @@ import { getFileName, normalizePath } from "@/lib/path-utils"
 import { getFileCategory } from "@/lib/file-types"
 import { applyGraphFilters, hasActiveGraphFilters, type GraphFilterState } from "@/lib/graph-filters"
 import { applyGraphSearch } from "@/lib/graph-search"
+import { HUB_LINK_SHARE, focusLabel, hubLabelThreshold, resolveFocus, shortenLabel, type NodeFocus } from "@/lib/graph-labels"
 import { wikiTypeLabel } from "@/lib/wiki-page-types"
 import { useTranslation } from "react-i18next"
 
@@ -340,7 +341,8 @@ function GraphLoader({
         y: cached?.y ?? Math.random() * 100,
         size: nodeSize(node.linkCount, maxLinks, nodes.length, nodeScale),
         color,
-        label: node.label,
+        label: shortenLabel(node.label),
+        fullLabel: node.label,
         nodeType: node.type,
         nodePath: node.path,
         community: node.community,
@@ -457,33 +459,42 @@ function GraphLoader({
 
 function GraphRenderSettings({
   hoverState,
+  pinnedFocus,
   highlightedNodes,
   nodeCount,
+  nodeScale,
   palette,
 }: {
   hoverState: HoverState
+  pinnedFocus: NodeFocus
   highlightedNodes: Set<string>
   nodeCount: number
+  nodeScale: number
   palette: GraphThemePalette
 }) {
   const sigma = useSigma()
   const setSettings = useSetSettings()
 
   useEffect(() => {
+    const hasNode = (node: string) => sigma.getGraph().hasNode(node)
     setSettings({
       hideEdgesOnMove: true,
       hideLabelsOnMove: true,
       labelColor: { color: palette.label },
       labelDensity: labelDensity(nodeCount),
-      labelRenderedSizeThreshold: labelSizeThreshold(nodeCount),
+      labelRenderedSizeThreshold: hubLabelThreshold(
+        labelSizeThreshold(nodeCount),
+        nodeSize(HUB_LINK_SHARE, 1, nodeCount, nodeScale),
+      ),
       renderEdgeLabels: false,
       defaultDrawNodeHover: createGraphNodeHoverRenderer(palette),
       nodeReducer: (node, attrs) => {
         const result = { ...attrs }
-        const hasHover = !!hoverState
+        const focus = resolveFocus(hoverState, pinnedFocus, hasNode)
+        const hasHover = !!focus
         const hasHighlight = highlightedNodes.size > 0
-        const isHoverNode = hoverState?.node === node
-        const isHoverNeighbor = hoverState?.neighbors.has(node) ?? false
+        const isHoverNode = focus?.node === node
+        const isHoverNeighbor = focus?.neighbors.has(node) ?? false
         const isHighlighted = highlightedNodes.has(node)
 
         if (isHighlighted) {
@@ -494,7 +505,11 @@ function GraphRenderSettings({
         if (isHoverNode) {
           result.size = (attrs.size ?? BASE_NODE_SIZE) * 1.4
           result.zIndex = 10
-          result.forceLabel = true
+        }
+        if (focus) {
+          const focused = focusLabel(focus, node, String(attrs.label ?? ""), String(attrs.fullLabel ?? ""))
+          result.label = focused.label
+          if (focused.forceLabel) result.forceLabel = true
         }
         if ((hasHover && !isHoverNode && !isHoverNeighbor) || (hasHighlight && !isHighlighted)) {
           result.color = mixColor(attrs.color ?? "#94a3b8", palette.mutedNodeMixTarget, 0.75)
@@ -507,9 +522,10 @@ function GraphRenderSettings({
         const result = { ...attrs }
         const source = String(attrs.sourceNode ?? "")
         const target = String(attrs.targetNode ?? "")
-        const hasHover = !!hoverState
+        const focus = resolveFocus(hoverState, pinnedFocus, hasNode)
+        const hasHover = !!focus
         const hasHighlight = highlightedNodes.size > 0
-        const hoverEdge = hasHover && (source === hoverState?.node || target === hoverState?.node)
+        const hoverEdge = hasHover && (source === focus?.node || target === focus?.node)
         const highlightedEdge = hasHighlight && highlightedNodes.has(source) && highlightedNodes.has(target)
 
         if (attrs.lowPriority && !hoverEdge && !highlightedEdge) {
@@ -528,7 +544,7 @@ function GraphRenderSettings({
       },
     })
     sigma.refresh()
-  }, [setSettings, sigma, hoverState, highlightedNodes, nodeCount, palette])
+  }, [setSettings, sigma, hoverState, pinnedFocus, highlightedNodes, nodeCount, nodeScale, palette])
 
   return null
 }
@@ -537,17 +553,23 @@ function EventHandler({
   onNodeClick,
   onNodeContextMenu,
   onHoverChange,
+  onFocusChange,
 }: {
   onNodeClick: (nodeId: string) => void
   onNodeContextMenu: (nodeId: string, x: number, y: number) => void
   onHoverChange: (state: HoverState) => void
+  onFocusChange: (focus: NodeFocus) => void
 }) {
   const registerEvents = useRegisterEvents()
   const sigma = useSigma()
 
   useEffect(() => {
     registerEvents({
-      clickNode: ({ node }) => onNodeClick(node),
+      clickNode: ({ node }) => {
+        onFocusChange({ node, neighbors: new Set(sigma.getGraph().neighbors(node)) })
+        onNodeClick(node)
+      },
+      clickStage: () => onFocusChange(null),
       rightClickNode: (payload: SigmaNodeEventPayload) => {
         payload.preventSigmaDefault()
         payload.event.original.preventDefault()
@@ -567,7 +589,7 @@ function EventHandler({
         onHoverChange(null)
       },
     })
-  }, [registerEvents, sigma, onNodeClick, onNodeContextMenu, onHoverChange])
+  }, [registerEvents, sigma, onNodeClick, onNodeContextMenu, onHoverChange, onFocusChange])
 
   return null
 }
@@ -652,6 +674,7 @@ export function GraphView() {
   const [showInsights, setShowInsights] = useState(false)
   const [highlightedNodes, setHighlightedNodes] = useState<Set<string>>(new Set())
   const [hoverState, setHoverState] = useState<HoverState>(null)
+  const [pinnedFocus, setPinnedFocus] = useState<NodeFocus>(null)
   const [dismissedInsights, setDismissedInsights] = useState<Set<string>>(new Set())
   const [sigmaKey, setSigmaKey] = useState(0)
   const [isResizing, setIsResizing] = useState(false)
@@ -1146,11 +1169,14 @@ export function GraphView() {
                     onNodeClick={handleNodeClick}
                     onNodeContextMenu={handleNodeContextMenu}
                     onHoverChange={setHoverState}
+                    onFocusChange={setPinnedFocus}
                   />
                   <GraphRenderSettings
                     hoverState={hoverState}
+                    pinnedFocus={pinnedFocus}
                     highlightedNodes={searchActive ? searchedGraph.matchedNodeIds : highlightedNodes}
                     nodeCount={searchedGraph.nodes.length}
+                    nodeScale={nodeScale}
                     palette={graphPalette}
                   />
                   <ZoomControls />
