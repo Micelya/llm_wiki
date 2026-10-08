@@ -5,6 +5,7 @@ import {
   CLI_CONTEXT_TOTAL_CHARS,
   buildCliRetrievedContext,
   cliRequestSkills,
+  cliSearchTopK,
 } from "./cli-chat-context"
 
 describe("cliRequestSkills", () => {
@@ -14,6 +15,17 @@ describe("cliRequestSkills", () => {
 
   it("keeps the skills the user picked explicitly", () => {
     expect(cliRequestSkills("explicit", ["pdf"])).toEqual(["pdf"])
+  })
+})
+
+describe("cliSearchTopK", () => {
+  it("asks for as many pages as the context will carry", () => {
+    expect(cliSearchTopK("standard")).toBe(CLI_CONTEXT_MAX_PAGES)
+    expect(cliSearchTopK("deep")).toBe(CLI_CONTEXT_MAX_PAGES)
+  })
+
+  it("keeps fast mode small", () => {
+    expect(cliSearchTopK("fast")).toBe(5)
   })
 })
 

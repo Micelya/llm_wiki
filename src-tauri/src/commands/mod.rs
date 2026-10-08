@@ -11,4 +11,5 @@ pub mod page_embedding;
 pub mod project;
 pub mod project_maintenance;
 pub mod search;
+mod search_spanish;
 pub mod vectorstore;
