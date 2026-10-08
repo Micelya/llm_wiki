@@ -81,9 +81,9 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "en-curso",
-      "detalle": "Hecho en el PR #12: las carpetas montadas se recorren y se vigilan, sus archivos se registran con ruta lógica, y un origen que no se puede leer (desconectado, vacío o con la tabla de montajes ilegible) se trata como 'desconocido' y nunca como archivos borrados. Falta: integrar el PR y probarlo en la app antes de usar montajes en proyectos reales (agregar, editar y quitar un archivo; después desconectar el origen y comprobar que no se borra ninguna página). Una carpeta montada con la app abierta recién se vigila al reiniciar; hasta entonces la cubre el repaso de cada 60 segundos.",
+      "detalle": "Integrado (PR #12): las carpetas montadas se recorren y se vigilan, sus archivos se registran con ruta lógica, y un origen que no se puede leer (desconectado, vacío o con la tabla de montajes ilegible) se trata como 'desconocido' y nunca como archivos borrados. Visto en la app: al primer arranque registró los 31 archivos de AEROS BGH sin tocar la carpeta original. Falta la prueba que habilita usar montajes en proyectos reales: agregar, editar y quitar un archivo, y después desconectar el origen y comprobar que no se borra ninguna página. Una carpeta montada con la app abierta recién se vigila al reiniciar; hasta entonces la cubre el repaso de cada 60 segundos.",
       "depende_de": [],
-      "referencia": "PR #12, src-tauri/src/source_volume/watch.rs, src-tauri/src/commands/file_sync.rs",
+      "referencia": "PR #12 (integrado), src-tauri/src/source_volume/watch.rs, src-tauri/src/commands/file_sync.rs",
       "creado": "2026-10-06",
       "actualizado": "2026-10-08"
     },
@@ -93,10 +93,8 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "Servidor API, herramientas del agente y búsqueda leen fuentes por su cuenta y todavía no ven las montadas. Empezar cuando el PR #12 esté integrado.",
-      "depende_de": [
-        "P-011"
-      ],
+      "detalle": "Servidor API, herramientas del agente y búsqueda leen fuentes por su cuenta y todavía no ven las montadas. El PR #12 ya está integrado: se puede empezar.",
+      "depende_de": [],
       "referencia": "api_server.rs, agent/tools.rs, commands/search.rs",
       "creado": "2026-10-06",
       "actualizado": "2026-10-08"
@@ -107,11 +105,9 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "en-curso",
-      "detalle": "Hecho en el PR #15 (apilado sobre el #12): catálogo que separa contenido de ubicación por huella del texto normalizado, y deduplicación exacta dentro de la tarea de ingesta: el segundo archivo con el mismo texto no va al modelo y se agrega a las fuentes de las páginas ya generadas. Diferencia con lo decidido: la huella se calcula al empezar la ingesta de cada fuente y no al importar, porque el texto de un escaneo recién existe ahí; requiere el visto bueno del usuario. Falta: integrar #12 y #15, probar con my-1st-wiki (el mismo acuerdo en Word y PDF), pantalla que liste duplicados (P-044) y cargar al catálogo lo ya ingerido.",
-      "depende_de": [
-        "P-011"
-      ],
-      "referencia": "PR #15, src-tauri/src/source_volume/catalog.rs, src/lib/source-catalog.ts",
+      "detalle": "Integrado (PR #15): catálogo que separa contenido de ubicación por huella del texto normalizado; dentro de la tarea de ingesta, el segundo archivo con el mismo texto no va al modelo y se agrega a las fuentes de las páginas ya generadas. En el PR #17, a propuesta del usuario: primero se compara el SHA-256 del archivo, antes de encolar y sin leer nada; la comparación por texto queda para lo que los bytes no detectan (otro formato, mismo papel escaneado dos veces). Con eso la decisión original (comparar al importar) vuelve a valer para los archivos idénticos. Falta: integrar el #17, probar con my-1st-wiki (el mismo acuerdo en Word y PDF) y con una copia de una imagen en AEROS-BGH, y la pantalla y la carga inicial (P-044).",
+      "depende_de": [],
+      "referencia": "PR #15 (integrado) y PR #17, src-tauri/src/source_volume/catalog.rs, src/lib/source-catalog.ts",
       "creado": "2026-10-06",
       "actualizado": "2026-10-08"
     },
@@ -174,9 +170,9 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "en-curso",
-      "detalle": "Hecho antes: instalador, ventana, bandeja, zip portable, nombre del release y encabezado de bienvenida. Hecho en el PR #11: todos los textos de la interfaz muestran 'Micelya Desktop' mediante un único reemplazo al traducir, sin tocar los archivos de idioma de upstream. Se dejó a propósito: el crédito al proyecto original en 'Acerca de', los textos que se le envían al modelo, la extensión .llmwiki.zip y la variable LLM_WIKI_API_TOKEN. Falta: integrar el PR y verlo en la app.",
+      "detalle": "Hecho antes: instalador, ventana, bandeja, zip portable, nombre del release y encabezado de bienvenida. Hecho en el PR #11: todos los textos de la interfaz muestran 'Micelya Desktop' mediante un único reemplazo al traducir, sin tocar los archivos de idioma de upstream. Se dejó a propósito: el crédito al proyecto original en 'Acerca de', los textos que se le envían al modelo, la extensión .llmwiki.zip y la variable LLM_WIKI_API_TOKEN. Integrado. Falta: verlo en la app (Settings, General).",
       "depende_de": [],
-      "referencia": "PR #11, src/i18n/product-name.ts, src/lib/app-identity.ts",
+      "referencia": "PR #11 (integrado), src/i18n/product-name.ts, src/lib/app-identity.ts",
       "creado": "2026-10-07",
       "actualizado": "2026-10-08"
     },
@@ -198,7 +194,7 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "en-curso",
-      "detalle": "Hecho y probado en la app con AEROS BGH: contrato de motor intercambiable, motor Codex CLI, detección de páginas sin texto, caché por página, marca de 'texto reconocido' y enganche en la ingesta. En el PR #14: fuera del paso de importar y con avance por página (P-034). Falta: ajuste propio en Configuración (P-028) y fiabilidad de cifras (P-030). El catálogo (PR #15) ya registra qué contenido incluye texto reconocido.",
+      "detalle": "Hecho y probado en la app con AEROS BGH: contrato de motor intercambiable, motor Codex CLI, detección de páginas sin texto, marca de 'texto reconocido' y enganche en la ingesta. Integrado (PR #14): fuera del paso de importar y con avance por página. En el PR #17: el texto reconocido se guarda en el proyecto por hash del archivo (P-047). Falta: ajuste propio en Configuración (P-028) y fiabilidad de cifras (P-030).",
       "depende_de": [],
       "referencia": "src-tauri/src/source_volume/, src-tauri/src/commands/extract_images.rs",
       "creado": "2026-10-07",
@@ -272,9 +268,9 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "en-curso",
-      "detalle": "Integrado (PR #8): al pedido se le agrega el texto de las páginas recuperadas (12.000 caracteres por página, 60.000 en total). Verificado por el usuario: la respuesta ya trae importes, pero con 5 páginas quedó incompleta (2 facturas de 13). En el PR #13: se piden 10 páginas en todos los modos salvo Fast. Falta: integrar el #13 y repetir la pregunta de las facturas en AEROS-BGH. Una pregunta que necesite más de 10 páginas sigue quedando corta (P-043).",
+      "detalle": "Integrado (PR #8): al pedido se le agrega el texto de las páginas recuperadas (12.000 caracteres por página, 60.000 en total). Verificado por el usuario: la respuesta ya trae importes, pero con 5 páginas quedó incompleta (2 facturas de 13). Integrado (PR #13): se piden 10 páginas en todos los modos salvo Fast. Falta: repetir la pregunta de las facturas en AEROS-BGH. Una pregunta que necesite más de 10 páginas sigue quedando corta (P-043).",
       "depende_de": [],
-      "referencia": "PR #8 (integrado) y PR #13, src/lib/cli-chat-context.ts",
+      "referencia": "PR #8 y PR #13 (integrados), src/lib/cli-chat-context.ts",
       "creado": "2026-10-08",
       "actualizado": "2026-10-08"
     },
@@ -284,9 +280,9 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "en-curso",
-      "detalle": "Hecho en el PR #13: el buscador descarta palabras vacías en español (con y sin tilde) y separa los signos ¿ ¡ « ». Vale para toda búsqueda de la app, no solo para el chat. Falta: integrar el PR y comprobar en la app que mejora qué páginas se recuperan (no se midió sobre el proyecto real).",
+      "detalle": "Integrado (PR #13): el buscador descarta palabras vacías en español (con y sin tilde) y separa los signos ¿ ¡ « ». Vale para toda búsqueda de la app, no solo para el chat. Falta: comprobar en la app que mejora qué páginas se recuperan (no se midió sobre el proyecto real).",
       "depende_de": [],
-      "referencia": "PR #13, src-tauri/src/commands/search_spanish.rs",
+      "referencia": "PR #13 (integrado), src-tauri/src/commands/search_spanish.rs",
       "creado": "2026-10-08",
       "actualizado": "2026-10-08"
     },
@@ -296,9 +292,9 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "en-curso",
-      "detalle": "Hecho en el PR #14: el reconocimiento corre solo dentro de la tarea de ingesta de cada fuente, la importación ya no espera, y la actividad muestra 'Recognizing text: page 3 of 7'. Las imágenes sueltas se reconocían dos veces; ahora una. Falta: integrar el PR y probarlo en la app montando una carpeta con un PDF escaneado (consume cupo).",
+      "detalle": "Integrado (PR #14): el reconocimiento corre solo dentro de la tarea de ingesta de cada fuente, la importación ya no espera, y la actividad muestra 'Recognizing text: page 3 of 7'. Las imágenes sueltas se reconocían dos veces; ahora una. Falta: probarlo en la app montando una carpeta con un PDF escaneado (consume cupo).",
       "depende_de": [],
-      "referencia": "PR #14, src/lib/text-recognition.ts, src-tauri/src/source_volume/recognition_progress.rs",
+      "referencia": "PR #14 (integrado), src/lib/text-recognition.ts, src-tauri/src/source_volume/recognition_progress.rs",
       "creado": "2026-10-08",
       "actualizado": "2026-10-08"
     },
@@ -332,9 +328,9 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "en-curso",
-      "detalle": "Hecho en el PR #10: el aviso usa un estilo informativo cuando no hubo error y todos los archivos omitidos lo fueron por reglas de exclusión; cualquier otro motivo conserva el estilo de error. Falta: integrar el PR y verlo en la app.",
+      "detalle": "Integrado (PR #10): el aviso usa un estilo informativo cuando no hubo error y todos los archivos omitidos lo fueron por reglas de exclusión; cualquier otro motivo conserva el estilo de error. Falta: verlo en la app.",
       "depende_de": [],
-      "referencia": "PR #10, src/components/sources/sources-view.tsx",
+      "referencia": "PR #10 (integrado), src/components/sources/sources-view.tsx",
       "creado": "2026-10-08",
       "actualizado": "2026-10-08"
     },
@@ -383,9 +379,7 @@
       "responsable": "claude",
       "estado": "pendiente",
       "detalle": "Con Codex el chat responde solo con las páginas que recibe (hasta 10 con el PR #13); una pregunta del tipo 'listame todas las facturas' queda parcial. Además, elegir una skill a mano vuelve a desactivar la búsqueda. Solución de fondo: que el proveedor CLI pueda leer por su cuenta más páginas del wiki, o que el planificador de búsqueda funcione también con proveedores CLI.",
-      "depende_de": [
-        "P-032"
-      ],
+      "depende_de": [],
       "referencia": "src/lib/cli-chat-context.ts, src-tauri/src/agent/runtime.rs (should_fallback_wiki_search)",
       "creado": "2026-10-08",
       "actualizado": "2026-10-08"
@@ -397,9 +391,7 @@
       "responsable": "claude",
       "estado": "pendiente",
       "detalle": "El catálogo (PR #15) ya sabe qué documentos tienen más de una ubicación, pero nada lo muestra, y lo ingerido antes del cambio solo entra al catálogo cuando se vuelve a ingerir. Falta una vista que liste cada documento con sus ubicaciones (marcando los que coinciden por texto reconocido) y una carga inicial desde las fuentes ya ingeridas.",
-      "depende_de": [
-        "P-014"
-      ],
+      "depende_de": [],
       "referencia": "src-tauri/src/source_volume/catalog.rs (catalog_list_duplicates)",
       "creado": "2026-10-08",
       "actualizado": "2026-10-08"
@@ -425,6 +417,18 @@
       "detalle": "La comprobación que exige la protección de main solo compila (interfaz y Rust); no ejecuta 'npm run test:mocks' ni 'cargo test'. Hoy las pruebas se corren a mano antes de cada PR. Agregarlas hace más lento cada PR y obliga a resolver antes las 7 fallas conocidas de Windows (P-020) y las intermitentes (P-045).",
       "depende_de": [],
       "referencia": ".github/workflows/ci.yml",
+      "creado": "2026-10-08",
+      "actualizado": "2026-10-08"
+    },
+    {
+      "id": "P-047",
+      "titulo": "Texto reconocido guardado en el proyecto por hash del archivo",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "en-curso",
+      "detalle": "Al reiniciar la app el 2026-10-08, las tres imágenes sueltas de AEROS BGH se volvieron a leer con Codex (no tenían caché), la lectura salió distinta y se reingirieron con el modelo. Hecho en el PR #17: el texto reconocido se guarda en raw/recognized/<SHA-256 del archivo>/ dentro del proyecto, una entrada JSON por página o por imagen, con el motor que la leyó. Un archivo movido, renombrado, vuelto a guardar sin cambios o presente en dos carpetas se lee una sola vez. Lo ya leído (páginas de PDF e imágenes) se adopta sin releer. Decidido con el usuario: por proyecto y no global, para no mezclar texto de distintos clientes; en raw/ y no en .llm-wiki, porque no es un caché descartable; como JSON, para que Obsidian no lo muestre como notas. Falta: integrar el PR y verificar en la app; acción 'volver a leer este archivo' (el texto ya no vence solo); borrar las entradas de archivos cuyas ubicaciones se eliminaron todas.",
+      "depende_de": [],
+      "referencia": "PR #17, src-tauri/src/source_volume/recognized_store.rs, src-tauri/src/source_volume/file_hash.rs",
       "creado": "2026-10-08",
       "actualizado": "2026-10-08"
     }
