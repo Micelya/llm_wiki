@@ -12,6 +12,7 @@
  * CLI — the one provider that cannot caption images through the regular
  * chat path but can read them through `codex exec`.
  */
+import { listen } from "@tauri-apps/api/event"
 import { preprocessFile } from "@/commands/fs"
 import { getFileName } from "@/lib/path-utils"
 import { useWikiStore } from "@/stores/wiki-store"
@@ -19,6 +20,15 @@ import { useWikiStore } from "@/stores/wiki-store"
 export interface RecognitionConfig {
   engine: "codex-cli"
   model: string
+}
+
+/** Emitted by the Rust side before each page is handed to the engine. */
+const PROGRESS_EVENT = "text-recognition://progress"
+
+interface RecognitionProgress {
+  path: string
+  page: number
+  total: number
 }
 
 const RECOGNIZABLE_EXTENSIONS = new Set(["pdf", "png", "jpg", "jpeg"])
@@ -43,7 +53,8 @@ export function isRecognizableSource(sourcePath: string): boolean {
  * This is the only place recognition is started. It runs inside the
  * ingest task of each source, never while files are being imported, so
  * importing stays quick and the wait shows up against the right file.
- * `onStage` receives a short description of what is happening.
+ * `onStage` receives a short description of what is happening,
+ * page by page for a scanned PDF.
  */
 export async function ensureRecognizedText(
   sourcePath: string,
@@ -52,5 +63,15 @@ export async function ensureRecognizedText(
   const config = getRecognitionConfig()
   if (!config || !isRecognizableSource(sourcePath)) return
   onStage?.("Recognizing text...")
-  await preprocessFile(sourcePath, config)
+  const stopListening = onStage
+    ? await listen<RecognitionProgress>(PROGRESS_EVENT, ({ payload }) => {
+        if (payload.path !== sourcePath) return
+        onStage(`Recognizing text: page ${payload.page} of ${payload.total}`)
+      }).catch(() => null)
+    : null
+  try {
+    await preprocessFile(sourcePath, config)
+  } finally {
+    stopListening?.()
+  }
 }

@@ -96,16 +96,30 @@ pub fn complete_pdf_text(
     cache_dir: &Path,
     recognizer: &dyn TextRecognizer,
 ) -> Result<String, String> {
+    complete_pdf_text_reporting(pdf, extracted, cache_dir, recognizer, &|_, _| {})
+}
+
+/// Same as `complete_pdf_text`; `on_page(position, total)` is called for
+/// each page that needs recognition, before it is read, counting from 1.
+pub fn complete_pdf_text_reporting(
+    pdf: &Path,
+    extracted: &str,
+    cache_dir: &Path,
+    recognizer: &dyn TextRecognizer,
+    on_page: &dyn Fn(usize, usize),
+) -> Result<String, String> {
     let pages = textless_pages(pdf)?;
     if pages.is_empty() {
         return Ok(extracted.to_string());
     }
+    let total = pages.len();
     let source_modified = fs::metadata(pdf).and_then(|m| m.modified()).ok();
 
     let mut recognized = BTreeMap::new();
     let mut scratch: Option<PathBuf> = None;
     let mut failure = None;
-    for page in pages {
+    for (index, page) in pages.into_iter().enumerate() {
+        on_page(index + 1, total);
         if let Some(hit) = read_page_cache(cache_dir, page, source_modified) {
             recognized.insert(page, hit);
             continue;
@@ -399,6 +413,32 @@ mod tests {
             page_cache_dir(Path::new("/p/raw/sources/Docs/a b.pdf")),
             Path::new("/p/raw/sources/Docs/.cache/a b.pdf.recognized")
         );
+    }
+
+    #[test]
+    fn each_page_needing_recognition_is_reported_in_order() {
+        let pdf = fixture("escaneo-2-paginas.pdf");
+        let recognizer = FakeRecognizer::new(vec![Ok("primera"), Ok("segunda")]);
+        let seen = std::cell::RefCell::new(Vec::new());
+
+        complete_pdf_text_reporting(
+            &pdf,
+            "## Page 1
+
+
+
+
+## Page 2
+
+
+",
+            &scratch(),
+            &recognizer,
+            &|page, total| seen.borrow_mut().push((page, total)),
+        )
+        .unwrap();
+
+        assert_eq!(*seen.borrow(), vec![(1, 2), (2, 2)]);
     }
 
     #[test]

@@ -5,6 +5,21 @@ vi.mock("@/commands/fs", () => ({
   preprocessFile: (...args: unknown[]) => preprocessFile(...args),
 }))
 
+const eventMocks = vi.hoisted(() => {
+  const handlers: Array<(event: { payload: unknown }) => void> = []
+  return {
+    handlers,
+    unlisten: vi.fn(),
+    emit: (payload: unknown) => handlers.forEach((handler) => handler({ payload })),
+  }
+})
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: vi.fn(async (_event: string, handler: (event: { payload: unknown }) => void) => {
+    eventMocks.handlers.push(handler)
+    return eventMocks.unlisten
+  }),
+}))
+
 import { useWikiStore } from "@/stores/wiki-store"
 import {
   ensureRecognizedText,
@@ -83,5 +98,34 @@ describe("text recognition", () => {
 
     await ensureRecognizedText("/p/raw/sources/escaneo.pdf", onStage)
     expect(onStage).toHaveBeenCalledWith("Recognizing text...")
+  })
+
+  it("reports each page of the source being recognized and then stops listening", async () => {
+    const onStage = vi.fn()
+    configure({ captioning: true, provider: "codex-cli" })
+    eventMocks.handlers.length = 0
+    eventMocks.unlisten.mockClear()
+    preprocessFile.mockImplementation(async (path: string) => {
+      eventMocks.emit({ path: "/p/raw/sources/otro.pdf", page: 1, total: 9 })
+      eventMocks.emit({ path, page: 2, total: 7 })
+      return "texto"
+    })
+
+    await ensureRecognizedText("/p/raw/sources/escaneo.pdf", onStage)
+
+    expect(onStage.mock.calls.map(([stage]) => stage)).toEqual([
+      "Recognizing text...",
+      "Recognizing text: page 2 of 7",
+    ])
+    expect(eventMocks.unlisten).toHaveBeenCalledTimes(1)
+  })
+
+  it("stops listening when recognition fails", async () => {
+    configure({ captioning: true, provider: "codex-cli" })
+    eventMocks.unlisten.mockClear()
+    preprocessFile.mockRejectedValue(new Error("engine down"))
+
+    await expect(ensureRecognizedText("/p/raw/sources/escaneo.pdf", vi.fn())).rejects.toThrow("engine down")
+    expect(eventMocks.unlisten).toHaveBeenCalledTimes(1)
   })
 })

@@ -144,8 +144,23 @@ pub async fn read_file(path: String, extract_images: Option<bool>) -> Result<Str
 /// cache behind, so an unread page is never mistaken for a blank one.
 #[tauri::command]
 pub async fn preprocess_file(
+    app: tauri::AppHandle,
     path: String,
     recognition: Option<crate::source_volume::recognition::RecognitionConfig>,
+) -> Result<String, String> {
+    let source = path.clone();
+    preprocess_source(path, recognition, move |page, total| {
+        crate::source_volume::recognition_progress::emit(&app, &source, page, total)
+    })
+    .await
+}
+
+/// `preprocess_file` without the app handle; `on_recognized_page` hears
+/// about each page handed to the recognition engine.
+pub(crate) async fn preprocess_source(
+    path: String,
+    recognition: Option<crate::source_volume::recognition::RecognitionConfig>,
+    on_recognized_page: impl Fn(usize, usize) + Send + 'static,
 ) -> Result<String, String> {
     use crate::source_volume::recognition;
     // See `read_file` above for why `spawn_blocking` is required.
@@ -168,11 +183,12 @@ pub async fn preprocess_file(
                 "pdf" => {
                     let extracted = extract_pdf_text(&path, false)?;
                     match &recognizer {
-                        Some(recognizer) => recognition::complete_pdf_text(
+                        Some(recognizer) => recognition::complete_pdf_text_reporting(
                             p,
                             &extracted,
                             &recognition::page_cache_dir(Path::new(&requested)),
                             recognizer.as_ref(),
+                            &on_recognized_page,
                         )?,
                         None => extracted,
                     }
