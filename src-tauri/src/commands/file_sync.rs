@@ -15,6 +15,7 @@ use tauri::{AppHandle, Emitter, State};
 use walkdir::WalkDir;
 
 use crate::panic_guard::run_guarded;
+use crate::source_volume::watch as source_watch;
 
 const SNAPSHOT_FILE: &str = ".llm-wiki/file-snapshot.json";
 const QUEUE_FILE: &str = ".llm-wiki/file-change-queue.json";
@@ -303,6 +304,17 @@ pub fn start_project_file_watcher(
             }
         }
 
+        // Mounted origins live outside the project. Failing to watch one
+        // is not fatal: the periodic rescan still picks its changes up.
+        for origin in source_watch::reachable_origins(&root) {
+            if let Err(err) = watcher.watch(&origin.real_root, RecursiveMode::Recursive) {
+                eprintln!(
+                    "[file-sync] failed to watch mounted origin '{}': {err}",
+                    origin.real_root.display()
+                );
+            }
+        }
+
         {
             let mut inner = state.inner.lock().map_err(|_| "file sync state poisoned")?;
             inner.watcher = Some(watcher);
@@ -468,8 +480,15 @@ fn handle_changed_paths(
     let rules = SourceWatchRules::new(source_watch_config);
     let mut rels = BTreeSet::<String>::new();
     let mut app_written_rels = BTreeSet::<String>::new();
+    let mut mounted_origin_changed = false;
     let snapshot = with_queue_lock(root, || read_snapshot(root))?;
     for path in paths {
+        // An event from a mounted origin carries a real path the rest of
+        // this function cannot map; reconcile the sources as a whole.
+        if source_watch::is_in_mounted_origin(root, &path) {
+            mounted_origin_changed = true;
+            continue;
+        }
         if is_app_write_ignored(&path) {
             collect_known_paths(root, &path, &snapshot, &mut app_written_rels, &rules);
             continue;
@@ -496,11 +515,19 @@ fn handle_changed_paths(
     if !app_written_rels.is_empty() {
         sync_snapshot_paths(root, app_written_rels)?;
     }
-    if rels.is_empty() {
+    if rels.is_empty() && !mounted_origin_changed {
         return Ok(());
     }
     if !is_active_watcher_generation(watcher_generation) {
         return Ok(());
+    }
+    if mounted_origin_changed {
+        enqueue_rescan_changes_for_prefixes(
+            root,
+            project_id,
+            &["raw/sources"],
+            source_watch_config,
+        )?;
     }
     enqueue_paths(root, project_id, rels)?;
     if !is_active_watcher_generation(watcher_generation) {
@@ -629,6 +656,7 @@ fn collect_known_paths(
 fn sync_snapshot_paths(root: &Path, rels: BTreeSet<String>) -> Result<(), String> {
     let metas = rels
         .into_iter()
+        .filter(|rel| watched_location(root, rel).is_some())
         .map(|rel| read_meta(root, &rel).map(|meta| (rel, meta)))
         .collect::<Result<Vec<_>, _>>()?;
 
@@ -670,9 +698,15 @@ fn enqueue_rescan_changes(
         }
     }
 
+    rels.extend(
+        mounted_source_files(root, &rules)
+            .into_iter()
+            .map(|(rel, _)| rel),
+    );
+
     let snapshot = with_queue_lock(root, || read_snapshot(root))?;
     for rel in snapshot.files.keys() {
-        if !root.join(rel).exists() {
+        if watched_location(root, rel).is_some_and(|path| !path.exists()) {
             rels.insert(rel.clone());
         }
     }
@@ -748,11 +782,21 @@ fn enqueue_rescan_changes_for_prefixes(
         }
     }
 
+    if prefixes.contains(&"raw/sources") {
+        for (rel, _) in mounted_source_files(root, &rules) {
+            let old = snapshot.files.get(&rel);
+            let fast = read_meta_fast(root, &rel)?;
+            if old.map(|m| (m.size, m.mtime_ms)) != fast.as_ref().map(|m| (m.size, m.mtime_ms)) {
+                rels.insert(rel);
+            }
+        }
+    }
+
     for rel in snapshot.files.keys() {
         if prefixes
             .iter()
             .any(|prefix| rel == *prefix || rel.starts_with(&format!("{prefix}/")))
-            && !root.join(rel).exists()
+            && watched_location(root, rel).is_some_and(|path| !path.exists())
         {
             rels.insert(rel.clone());
         }
@@ -770,6 +814,9 @@ fn enqueue_paths(root: &Path, project_id: &str, rels: BTreeSet<String>) -> Resul
     let mut changes = Vec::new();
 
     for rel in rels {
+        if watched_location(root, &rel).is_none() {
+            continue;
+        }
         let old = snapshot.files.get(&rel).cloned();
         // Intentional TOCTOU trade-off: `read_meta` can be expensive
         // because it may hash file contents, so it runs outside the queue
@@ -1027,8 +1074,50 @@ fn reset_processing_tasks(root: &Path, project_id: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Where a watched path really is, or `None` while its mounted origin
+/// cannot be reached. `None` means "unknown": the caller must leave the
+/// path alone, and above all must not report it as deleted.
+fn watched_location(root: &Path, rel: &str) -> Option<PathBuf> {
+    match source_watch::locate(root, rel) {
+        source_watch::Location::At(path) => Some(path),
+        source_watch::Location::Unreachable => None,
+    }
+}
+
+fn unreachable_origin_error(rel: &str) -> String {
+    format!("source origin is not reachable for {rel}")
+}
+
+/// Watchable files of every reachable mounted origin, as
+/// (logical path, real path).
+fn mounted_source_files(root: &Path, rules: &SourceWatchRules) -> Vec<(String, PathBuf)> {
+    let mut files = Vec::new();
+    for origin in source_watch::reachable_origins(root) {
+        for entry in WalkDir::new(&origin.real_root)
+            .into_iter()
+            .filter_map(Result::ok)
+        {
+            if !entry.file_type().is_file() {
+                continue;
+            }
+            let Ok(inside) = entry.path().strip_prefix(&origin.real_root) else {
+                continue;
+            };
+            let Some(inside) = normalize_rel_path(inside) else {
+                continue;
+            };
+            let rel = format!("{}/{inside}", origin.logical_prefix);
+            let size = entry.metadata().ok().map(|m| m.len());
+            if watchable_rel(rel.clone(), entry.path(), rules, size).is_some() {
+                files.push((rel, entry.path().to_path_buf()));
+            }
+        }
+    }
+    files
+}
+
 fn read_meta(root: &Path, rel: &str) -> Result<Option<FileMeta>, String> {
-    let path = root.join(rel);
+    let path = watched_location(root, rel).ok_or_else(|| unreachable_origin_error(rel))?;
     if !path.exists() {
         return Ok(None);
     }
@@ -1056,7 +1145,7 @@ fn read_meta(root: &Path, rel: &str) -> Result<Option<FileMeta>, String> {
 }
 
 fn read_meta_fast(root: &Path, rel: &str) -> Result<Option<FileMeta>, String> {
-    let path = root.join(rel);
+    let path = watched_location(root, rel).ok_or_else(|| unreachable_origin_error(rel))?;
     if !path.exists() {
         return Ok(None);
     }
@@ -1102,7 +1191,16 @@ fn relative_watch_path(
     size: Option<u64>,
 ) -> Option<String> {
     let rel = path.strip_prefix(root).ok()?;
-    let rel = normalize_rel_path(rel)?;
+    watchable_rel(normalize_rel_path(rel)?, path, rules, size)
+}
+
+/// `rel` if the watch rules accept it; `path` is where the file really is.
+fn watchable_rel(
+    rel: String,
+    path: &Path,
+    rules: &SourceWatchRules,
+    size: Option<u64>,
+) -> Option<String> {
     if !should_watch_rel(&rel, rules) {
         return None;
     }
@@ -1957,3 +2055,7 @@ mod tests {
         let _ = fs::remove_dir_all(root);
     }
 }
+
+#[cfg(test)]
+#[path = "file_sync_mount_tests.rs"]
+mod mount_tests;
