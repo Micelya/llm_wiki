@@ -39,9 +39,18 @@ export function isRecognizableSource(sourcePath: string): boolean {
  * Make sure a recognizable source has had its pixels read before its
  * text is used. Errors propagate on purpose: carrying on would ingest a
  * scanned page as if it were blank and record that as a success.
+ *
+ * This is the only place recognition is started. It runs inside the
+ * ingest task of each source, never while files are being imported, so
+ * importing stays quick and the wait shows up against the right file.
+ * `onStage` receives a short description of what is happening.
  */
-export async function ensureRecognizedText(sourcePath: string): Promise<void> {
+export async function ensureRecognizedText(
+  sourcePath: string,
+  onStage?: (stage: string) => void,
+): Promise<void> {
   const config = getRecognitionConfig()
   if (!config || !isRecognizableSource(sourcePath)) return
+  onStage?.("Recognizing text...")
   await preprocessFile(sourcePath, config)
 }

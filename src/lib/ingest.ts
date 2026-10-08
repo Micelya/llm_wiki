@@ -788,7 +788,9 @@ async function autoIngestImpl(
 
   // Scanned pages and photos have no text until an engine reads them.
   // Fatal on purpose: ingesting them unread would look like a success.
-  if (!mineruSucceeded) await ensureRecognizedText(sp)
+  if (!mineruSucceeded) {
+    await ensureRecognizedText(sp, (stage) => activity.updateItem(activityId, { detail: stage }))
+  }
 
   const [sourceContent, schema, purpose, index, overview] = await Promise.all([
     tryReadSourceTextFile(sp),

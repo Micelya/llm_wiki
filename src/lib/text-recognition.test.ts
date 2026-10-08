@@ -74,4 +74,14 @@ describe("text recognition", () => {
     preprocessFile.mockRejectedValue(new Error("Text recognition failed on page 2"))
     await expect(ensureRecognizedText("/p/raw/sources/escaneo.pdf")).rejects.toThrow("page 2")
   })
+
+  it("reports the stage only when it is going to recognize", async () => {
+    const onStage = vi.fn()
+    configure({ captioning: true, provider: "codex-cli" })
+    await ensureRecognizedText("/p/raw/sources/nota.docx", onStage)
+    expect(onStage).not.toHaveBeenCalled()
+
+    await ensureRecognizedText("/p/raw/sources/escaneo.pdf", onStage)
+    expect(onStage).toHaveBeenCalledWith("Recognizing text...")
+  })
 })
