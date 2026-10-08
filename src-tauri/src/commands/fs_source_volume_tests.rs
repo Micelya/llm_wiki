@@ -97,7 +97,7 @@ async fn extracted_text_cache_is_written_inside_the_project() {
     let plan = fx.logical("Docs/plan.org");
     let files_before = fx.origin_file_count();
 
-    let extracted = preprocess_file(plan.clone(), None).await.unwrap();
+    let extracted = preprocess_source(plan.clone(), None, |_, _| {}).await.unwrap();
 
     assert!(extracted.contains("# Titulo"));
     let cache = fx.project.join("raw/sources/Docs/.cache/plan.org.txt");
@@ -178,7 +178,7 @@ async fn listing_works_from_above_and_from_inside_a_mount() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_mount_replaces_the_project_folder_that_holds_its_cache() {
     let fx = Fixture::new();
-    preprocess_file(fx.logical("Docs/plan.org"), None).await.unwrap();
+    preprocess_source(fx.logical("Docs/plan.org"), None, |_, _| {}).await.unwrap();
 
     let paths = listed(fx.logical("")).await;
 

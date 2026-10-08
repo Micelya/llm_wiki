@@ -19,6 +19,7 @@
 
 mod provider;
 pub mod recognition;
+pub mod recognition_progress;
 mod recognition_codex;
 pub mod watch;
 
