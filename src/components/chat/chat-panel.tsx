@@ -11,7 +11,7 @@ import { useWikiStore } from "@/stores/wiki-store"
 import { resolveTaskLlmConfig } from "@/lib/llm-task-routing"
 import { isReasoningOnlyResponseError, streamChat } from "@/lib/llm-client"
 import { supportsImageInput } from "@/lib/llm-providers"
-import { buildCliRetrievedContext, cliRequestSkills } from "@/lib/cli-chat-context"
+import { buildCliRetrievedContext, cliRequestSkills, cliSearchTopK } from "@/lib/cli-chat-context"
 import { executeIngestWrites } from "@/lib/ingest"
 import { deleteFile, openPathInProject, readFile } from "@/commands/fs"
 import { getFileName, isAbsolutePath, normalizePath } from "@/lib/path-utils"
@@ -1079,7 +1079,7 @@ export function ChatPanel() {
               web: sendOptions.useWebSearch,
               anytxt: sendOptions.useAnyTxtSearch,
             },
-            topK: sendOptions.agentMode === "deep" ? 8 : 5,
+            topK: cliSearchTopK(sendOptions.agentMode),
             includeContent: sendOptions.agentMode === "deep",
             skills: cliRequestSkills(requestedSkillMode, requestSkills),
             contextFiles: sendOptions.contextFiles,

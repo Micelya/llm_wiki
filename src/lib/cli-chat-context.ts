@@ -31,11 +31,19 @@ export interface CliRetrievedContextInput {
   readPage: (path: string) => Promise<string>
 }
 
-export const CLI_CONTEXT_MAX_PAGES = 8
+export const CLI_CONTEXT_MAX_PAGES = 10
 export const CLI_CONTEXT_PAGE_CHARS = 12_000
 export const CLI_CONTEXT_TOTAL_CHARS = 60_000
 
 const TRUNCATION_MARK = "\n[page truncated]"
+
+/**
+ * Pages to ask the backend for. The CLI answers only from what it is
+ * handed, so every mode but "fast" asks for the most the backend allows.
+ */
+export function cliSearchTopK(agentMode: string): number {
+  return agentMode === "fast" ? 5 : CLI_CONTEXT_MAX_PAGES
+}
 
 export function cliRequestSkills(skillMode: "auto" | "explicit", skills: string[]): string[] {
   return skillMode === "auto" ? [] : skills
