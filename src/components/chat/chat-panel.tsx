@@ -11,6 +11,7 @@ import { useWikiStore } from "@/stores/wiki-store"
 import { resolveTaskLlmConfig } from "@/lib/llm-task-routing"
 import { isReasoningOnlyResponseError, streamChat } from "@/lib/llm-client"
 import { supportsImageInput } from "@/lib/llm-providers"
+import { buildCliRetrievedContext, cliRequestSkills } from "@/lib/cli-chat-context"
 import { executeIngestWrites } from "@/lib/ingest"
 import { deleteFile, openPathInProject, readFile } from "@/commands/fs"
 import { getFileName, isAbsolutePath, normalizePath } from "@/lib/path-utils"
@@ -1080,7 +1081,7 @@ export function ChatPanel() {
             },
             topK: sendOptions.agentMode === "deep" ? 8 : 5,
             includeContent: sendOptions.agentMode === "deep",
-            skills: requestSkills,
+            skills: cliRequestSkills(requestedSkillMode, requestSkills),
             contextFiles: sendOptions.contextFiles,
             skillMode: requestedSkillMode,
             historyExplicit: true,
@@ -1123,9 +1124,16 @@ export function ChatPanel() {
         }
 
         const responseContext = backendResponseText(backendResponse).trim()
-        const retrievedContext = responseContext || backendReferences
-          .map((reference) => `${reference.title} (${reference.path})`)
-          .join("\n")
+        const retrievedContext = await buildCliRetrievedContext({
+          summary: responseContext || backendReferences
+            .map((reference) => `${reference.title} (${reference.path})`)
+            .join("\n"),
+          references: backendReferences,
+          readPage: (path) => project
+            ? readFile(projectAbsolutePath(project.path, path))
+            : Promise.reject(new Error("No project open")),
+        })
+        if (!isCurrentRun()) return
         const contextText = retrievedContext
           ? [
               "You have access to the current LLM Wiki project context below. Use it as retrieved evidence when it is relevant.",

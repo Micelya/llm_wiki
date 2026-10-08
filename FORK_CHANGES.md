@@ -57,6 +57,12 @@ El detalle de cada cambio (qué líneas, qué pruebas) está en su PR; acá no s
 - **Upstream:** solo-fork
 - **PR:** #7
 
+### F-007 · Chat con proveedores CLI: busca en el wiki y lee las páginas
+- **Propósito:** que el chat con Codex CLI o Claude Code responda con el contenido del wiki: no envía las skills del modo automático (desactivaban la búsqueda) y agrega al pedido el texto de las páginas recuperadas (`src/lib/cli-chat-context.ts`).
+- **Toca upstream:** `src/components/chat/chat-panel.tsx`
+- **Upstream:** candidato
+- **PR:** #8
+
 ## Reabsorbidos
 
 Cambios que upstream ya incorporó (ID · versión de upstream que lo trae).
