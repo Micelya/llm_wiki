@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react"
+import { PRODUCT_NAME } from "@/lib/app-identity"
 import {
   FileText, FolderOpen, Search, Network, ClipboardCheck, Settings, ArrowLeftRight, ClipboardList, Globe, MessageSquare, Sparkles,
 } from "lucide-react"
@@ -78,7 +79,7 @@ export function IconSidebar({ onSwitchProject }: IconSidebarProps) {
         <div className="mb-2 flex items-center justify-center">
           <img
             src={logoImg}
-            alt="LLM Wiki"
+            alt={PRODUCT_NAME}
             className="h-8 w-8 rounded-[22%]"
           />
         </div>

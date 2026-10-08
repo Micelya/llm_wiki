@@ -4,8 +4,9 @@ import en from "./en.json"
 import it from "./it.json"
 import zh from "./zh.json"
 import ru from "./ru.json"
+import { productNamePostProcessor } from "./product-name"
 
-i18n.use(initReactI18next).init({
+i18n.use(initReactI18next).use(productNamePostProcessor).init({
   resources: {
     en: { translation: en },
     it: { translation: it },
@@ -14,6 +15,7 @@ i18n.use(initReactI18next).init({
   },
   lng: "en",
   fallbackLng: "en",
+  postProcess: [productNamePostProcessor.name],
   interpolation: { escapeValue: false },
 })
 
