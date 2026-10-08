@@ -80,10 +80,10 @@
       "titulo": "Volumen: detección de cambios (file_sync.rs)",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "Vigilar las carpetas montadas, traducir sus avisos a rutas lógicas y no tratar un origen desconectado como archivos borrados (dispararía el borrado de sus páginas wiki). Hasta entonces no usar montajes en proyectos reales.",
+      "estado": "en-curso",
+      "detalle": "Hecho en el PR #12: las carpetas montadas se recorren y se vigilan, sus archivos se registran con ruta lógica, y un origen que no se puede leer (desconectado, vacío o con la tabla de montajes ilegible) se trata como 'desconocido' y nunca como archivos borrados. Falta: integrar el PR y probarlo en la app antes de usar montajes en proyectos reales (agregar, editar y quitar un archivo; después desconectar el origen y comprobar que no se borra ninguna página). Una carpeta montada con la app abierta recién se vigila al reiniciar; hasta entonces la cubre el repaso de cada 60 segundos.",
       "depende_de": [],
-      "referencia": "src-tauri/src/commands/file_sync.rs",
+      "referencia": "PR #12, src-tauri/src/source_volume/watch.rs, src-tauri/src/commands/file_sync.rs",
       "creado": "2026-10-06",
       "actualizado": "2026-10-08"
     },
@@ -93,7 +93,7 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "Servidor API, herramientas del agente y búsqueda leen fuentes por su cuenta y todavía no ven las montadas.",
+      "detalle": "Servidor API, herramientas del agente y búsqueda leen fuentes por su cuenta y todavía no ven las montadas. Empezar cuando el PR #12 esté integrado.",
       "depende_de": [
         "P-011"
       ],
@@ -102,26 +102,16 @@
       "actualizado": "2026-10-08"
     },
     {
-      "id": "P-013",
-      "titulo": "Integrar el PR #7 (volumen de fuentes y reconocimiento de texto)",
-      "tipo": "github-manual",
-      "responsable": "usuario",
-      "estado": "hecho",
-      "detalle": "Integrado el 2026-10-08. main contiene el volumen de fuentes (F-002), el reconocimiento de texto (F-006), el botón 'Mount folder' y el traspaso de la sesión 01.",
-      "depende_de": [],
-      "referencia": "https://github.com/Micelya/llm_wiki/pull/7",
-      "creado": "2026-10-06",
-      "actualizado": "2026-10-08"
-    },
-    {
       "id": "P-014",
       "titulo": "Catálogo y deduplicación exacta",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "Separar 'contenido' de 'ubicación': el mismo documento en varias rutas o formatos se procesa una vez y conserva todas sus ubicaciones (huella del archivo y huella del texto). Va dentro del volumen, en Rust. Probar con my-1st-wiki, que tiene duplicados exactos; AEROS BGH no tiene. Diseño decidido (ver P-039): huellas al montar o importar, antes de encolar la ingesta; un duplicado exacto tiene una sola página de fuente con todas sus ubicaciones; el texto reconocido se compara marcado como menos confiable.",
-      "depende_de": [],
-      "referencia": "",
+      "estado": "en-curso",
+      "detalle": "Hecho en el PR #15 (apilado sobre el #12): catálogo que separa contenido de ubicación por huella del texto normalizado, y deduplicación exacta dentro de la tarea de ingesta: el segundo archivo con el mismo texto no va al modelo y se agrega a las fuentes de las páginas ya generadas. Diferencia con lo decidido: la huella se calcula al empezar la ingesta de cada fuente y no al importar, porque el texto de un escaneo recién existe ahí; requiere el visto bueno del usuario. Falta: integrar #12 y #15, probar con my-1st-wiki (el mismo acuerdo en Word y PDF), pantalla que liste duplicados (P-044) y cargar al catálogo lo ya ingerido.",
+      "depende_de": [
+        "P-011"
+      ],
+      "referencia": "PR #15, src-tauri/src/source_volume/catalog.rs, src/lib/source-catalog.ts",
       "creado": "2026-10-06",
       "actualizado": "2026-10-08"
     },
@@ -172,11 +162,11 @@
       "tipo": "decision",
       "responsable": "ambos",
       "estado": "pendiente",
-      "detalle": "Fallan en main sin cambios nuestros: 6 de commands::file_history y commands::fs::tests::allow_absolute_write_paths. Arreglarlas, reportarlas a upstream o dejarlas documentadas; mientras tanto hay que descontarlas al leer resultados.",
+      "detalle": "Fallan en main sin cambios nuestros: 6 de commands::file_history y commands::fs::tests::allow_absolute_write_paths. Arreglarlas, reportarlas a upstream o dejarlas documentadas; mientras tanto hay que descontarlas al leer resultados. Ver también P-045 (pruebas de TypeScript intermitentes) y P-046 (la comprobación automática no ejecuta pruebas).",
       "depende_de": [],
       "referencia": "cargo test --lib en src-tauri",
       "creado": "2026-10-06",
-      "actualizado": "2026-10-06"
+      "actualizado": "2026-10-08"
     },
     {
       "id": "P-021",
@@ -184,9 +174,9 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "en-curso",
-      "detalle": "Hecho: instalador, ventana (incluida la barra de título en Windows), bandeja, zip portable, nombre del release y encabezado de bienvenida. Falta: las demás menciones a 'LLM Wiki' en los textos de la interfaz (src/i18n) y en mensajes del agente. Se dejaron porque los archivos de idioma son los que más cambia upstream.",
+      "detalle": "Hecho antes: instalador, ventana, bandeja, zip portable, nombre del release y encabezado de bienvenida. Hecho en el PR #11: todos los textos de la interfaz muestran 'Micelya Desktop' mediante un único reemplazo al traducir, sin tocar los archivos de idioma de upstream. Se dejó a propósito: el crédito al proyecto original en 'Acerca de', los textos que se le envían al modelo, la extensión .llmwiki.zip y la variable LLM_WIKI_API_TOKEN. Falta: integrar el PR y verlo en la app.",
       "depende_de": [],
-      "referencia": "src-tauri/tauri.conf.json (productName, title), .github/workflows/build.yml (releaseName)",
+      "referencia": "PR #11, src/i18n/product-name.ts, src/lib/app-identity.ts",
       "creado": "2026-10-07",
       "actualizado": "2026-10-08"
     },
@@ -208,7 +198,7 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "en-curso",
-      "detalle": "Hecho y probado en la app con AEROS BGH (7 páginas y 3 imágenes reconocidas, ninguna vacía): contrato de motor intercambiable, motor Codex CLI, detección de páginas sin texto, caché por página, marca de 'texto reconocido' y enganche en la ingesta. Falta: sacarlo del paso de importar (P-034), ajuste propio en Configuración (P-028), fiabilidad de cifras (P-030) y registrar en el catálogo qué texto es reconocido (con P-014).",
+      "detalle": "Hecho y probado en la app con AEROS BGH: contrato de motor intercambiable, motor Codex CLI, detección de páginas sin texto, caché por página, marca de 'texto reconocido' y enganche en la ingesta. En el PR #14: fuera del paso de importar y con avance por página (P-034). Falta: ajuste propio en Configuración (P-028) y fiabilidad de cifras (P-030). El catálogo (PR #15) ya registra qué contenido incluye texto reconocido.",
       "depende_de": [],
       "referencia": "src-tauri/src/source_volume/, src-tauri/src/commands/extract_images.rs",
       "creado": "2026-10-07",
@@ -232,7 +222,7 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "Hoy se activa con el interruptor 'Image captioning' si el modelo principal es Codex CLI. Hace falta un ajuste separado (activar, elegir motor) y mostrar el avance por página durante la ingesta. Con Codex, las descripciones de imágenes incrustadas siguen sin funcionar (falla sin cortar la ingesta).",
+      "detalle": "Hoy se activa con el interruptor 'Image captioning' si el modelo principal es Codex CLI. Hace falta un ajuste separado (activar, elegir motor). El avance por página ya está en el PR #14. Con Codex, las descripciones de imágenes incrustadas siguen sin funcionar (falla sin cortar la ingesta).",
       "depende_de": [
         "P-034"
       ],
@@ -270,9 +260,9 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "en-curso",
-      "detalle": "Causa confirmada en vivo el 2026-10-08: con las skills deshabilitadas el chat sí busca. Con proveedores CLI la búsqueda de respaldo se desactiva cuando el pedido lleva skills, y el modo automático enviaba todas las habilitadas. Arreglo en el PR #8: en la ruta CLI no se envían las skills del modo automático. PR #8 integrado el 2026-10-08. Falta: verificar en la app, con las skills habilitadas, que aparece el paso de búsqueda. Queda sin resolver: elegir una skill a mano con un proveedor CLI sigue desactivando la búsqueda. Candidato a proponer a upstream.",
+      "detalle": "Arreglo integrado (PR #8): con proveedores CLI ya no se envían las skills del modo automático, que desactivaban la búsqueda. El usuario confirmó en la app que el chat busca y responde con importes. Queda sin resolver, ver P-043: elegir una skill a mano con un proveedor CLI sigue desactivando la búsqueda. Candidato a proponer a upstream. Cerrar cuando el usuario confirme que la prueba fue con las skills habilitadas.",
       "depende_de": [],
-      "referencia": "PR #8, src/lib/cli-chat-context.ts",
+      "referencia": "PR #8 (integrado), src/lib/cli-chat-context.ts",
       "creado": "2026-10-08",
       "actualizado": "2026-10-08"
     },
@@ -282,11 +272,9 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "en-curso",
-      "detalle": "A Codex le llegaban solo título, ruta y un extracto de unos 160 caracteres por página, en cualquier modo (Deep solo sube de 5 a 8 páginas); por eso no pudo responder importes de facturas que sí están en el wiki. Arreglo en el PR #8: se agrega al pedido el texto de las páginas recuperadas (hasta 8 páginas, 12.000 caracteres por página, 60.000 en total). PR #8 integrado el 2026-10-08. Falta: verificar en la app con la pregunta '¿Qué facturas reclama BGH y por qué monto?' en AEROS-BGH.",
-      "depende_de": [
-        "P-031"
-      ],
-      "referencia": "PR #8, src/lib/cli-chat-context.ts",
+      "detalle": "Integrado (PR #8): al pedido se le agrega el texto de las páginas recuperadas (12.000 caracteres por página, 60.000 en total). Verificado por el usuario: la respuesta ya trae importes, pero con 5 páginas quedó incompleta (2 facturas de 13). En el PR #13: se piden 10 páginas en todos los modos salvo Fast. Falta: integrar el #13 y repetir la pregunta de las facturas en AEROS-BGH. Una pregunta que necesite más de 10 páginas sigue quedando corta (P-043).",
+      "depende_de": [],
+      "referencia": "PR #8 (integrado) y PR #13, src/lib/cli-chat-context.ts",
       "creado": "2026-10-08",
       "actualizado": "2026-10-08"
     },
@@ -295,10 +283,10 @@
       "titulo": "Buscador: palabras vacías en español",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "El buscador solo descarta palabras vacías en chino e inglés, y no trata el signo '¿'. Palabras como 'por', 'qué', 'de', 'se' coinciden con casi todas las páginas y ensucian el orden de los resultados. Afecta también al chat: decide qué páginas se le pasan al modelo.",
+      "estado": "en-curso",
+      "detalle": "Hecho en el PR #13: el buscador descarta palabras vacías en español (con y sin tilde) y separa los signos ¿ ¡ « ». Vale para toda búsqueda de la app, no solo para el chat. Falta: integrar el PR y comprobar en la app que mejora qué páginas se recuperan (no se midió sobre el proyecto real).",
       "depende_de": [],
-      "referencia": "src-tauri/src/commands/search.rs (tokenize_query, is_stop_word)",
+      "referencia": "PR #13, src-tauri/src/commands/search_spanish.rs",
       "creado": "2026-10-08",
       "actualizado": "2026-10-08"
     },
@@ -307,10 +295,10 @@
       "titulo": "Reconocimiento de texto en segundo plano y con avance",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "Al montar una carpeta la pantalla queda bloqueada mientras se reconoce el texto, porque ese paso corre dentro de la importación. Dejarlo solo dentro de la cola de ingesta (ese punto ya existe como red de seguridad) y mostrar el avance por archivo y por página.",
+      "estado": "en-curso",
+      "detalle": "Hecho en el PR #14: el reconocimiento corre solo dentro de la tarea de ingesta de cada fuente, la importación ya no espera, y la actividad muestra 'Recognizing text: page 3 of 7'. Las imágenes sueltas se reconocían dos veces; ahora una. Falta: integrar el PR y probarlo en la app montando una carpeta con un PDF escaneado (consume cupo).",
       "depende_de": [],
-      "referencia": "src/lib/source-preprocess.ts, src/lib/ingest.ts, src/lib/text-recognition.ts",
+      "referencia": "PR #14, src/lib/text-recognition.ts, src-tauri/src/source_volume/recognition_progress.rs",
       "creado": "2026-10-08",
       "actualizado": "2026-10-08"
     },
@@ -327,26 +315,14 @@
       "actualizado": "2026-10-08"
     },
     {
-      "id": "P-036",
-      "titulo": "Investigar por qué el Overview queda vacío después de la ingesta",
-      "tipo": "verificacion",
-      "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "En el proyecto AEROS-BGH, wiki/overview.md siguió con la plantilla inicial tras ingerir 31 documentos, y purpose.md también está en blanco. Determinar si la ingesta debería actualizar el overview y bajo qué condición. Ambos archivos se leen como contexto en cada ingesta y en el chat.",
-      "depende_de": [],
-      "referencia": "src/lib/ingest.ts",
-      "creado": "2026-10-08",
-      "actualizado": "2026-10-08"
-    },
-    {
       "id": "P-037",
       "titulo": "Grafo: etiquetas legibles",
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "en-curso",
-      "detalle": "Las etiquetas se superponían. Hecho en el PR #9: etiqueta solo en los nodos más conectados y en el resto al acercar el zoom; títulos largos acortados, con el título completo al pasar el mouse; al hacer clic, el nodo y sus vecinos quedan resaltados y el resto atenuado hasta hacer clic en el fondo. Falta: integrar el PR y verlo en la app (solo se verificó con pruebas automáticas, no en pantalla); ajustar los umbrales si hace falta.",
+      "detalle": "Integrado (PR #9): etiqueta solo en los nodos más conectados y en el resto al acercar el zoom; títulos acortados con el título completo al pasar el mouse; al hacer clic, el nodo y sus vecinos quedan resaltados hasta hacer clic en el fondo. Falta: que el usuario lo vea en la app y diga si hay que ajustar los umbrales (15 % de enlaces, 32 caracteres, 12 vecinos).",
       "depende_de": [],
-      "referencia": "PR #9, src/lib/graph-labels.ts, src/components/graph/graph-view.tsx",
+      "referencia": "PR #9 (integrado), src/lib/graph-labels.ts",
       "creado": "2026-10-08",
       "actualizado": "2026-10-08"
     },
@@ -355,22 +331,10 @@
       "titulo": "El aviso de importación muestra en rojo los archivos omitidos a propósito",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "'Imported 31, skipped 2' con los desktop.ini de Google Drive es correcto pero se ve como un error. Usar un estilo informativo cuando todo lo omitido es por reglas de exclusión.",
+      "estado": "en-curso",
+      "detalle": "Hecho en el PR #10: el aviso usa un estilo informativo cuando no hubo error y todos los archivos omitidos lo fueron por reglas de exclusión; cualquier otro motivo conserva el estilo de error. Falta: integrar el PR y verlo en la app.",
       "depende_de": [],
-      "referencia": "src/components/sources/sources-view.tsx",
-      "creado": "2026-10-08",
-      "actualizado": "2026-10-08"
-    },
-    {
-      "id": "P-039",
-      "titulo": "Decidir cuatro puntos de diseño del catálogo",
-      "tipo": "decision",
-      "responsable": "usuario",
-      "estado": "hecho",
-      "detalle": "Decidido el 2026-10-08, el usuario aceptó las cuatro propuestas: (1) las huellas se calculan al montar o importar, antes de encolar la ingesta; (2) un duplicado exacto tiene una sola página de fuente con todas sus ubicaciones; (3) el texto reconocido entra en la comparación, marcado como menos confiable; (4) el cálculo corre en Rust dentro del volumen.",
-      "depende_de": [],
-      "referencia": "docs/sessions/2026-10-07-sesion-01.md",
+      "referencia": "PR #10, src/components/sources/sources-view.tsx",
       "creado": "2026-10-08",
       "actualizado": "2026-10-08"
     },
@@ -385,6 +349,82 @@
         "P-014"
       ],
       "referencia": "src-tauri/src/source_volume/mod.rs (delete_mounted)",
+      "creado": "2026-10-08",
+      "actualizado": "2026-10-08"
+    },
+    {
+      "id": "P-041",
+      "titulo": "Decidir si la app genera el Overview del proyecto",
+      "tipo": "decision",
+      "responsable": "usuario",
+      "estado": "pendiente",
+      "detalle": "Investigado (era P-036): la ingesta nunca actualiza wiki/overview.md, por diseño de upstream; al modelo se le pide que no lo genere y, si lo hace, se descarta. Solo se mantiene wiki/index.md. purpose.md tampoco se escribe solo: queda como se creó con el proyecto. Ambos se leen como contexto en cada ingesta y en el chat, así que hoy aportan poco. Decidir si se agrega un paso que genere el overview (con el modelo, consume cupo) y si purpose.md se completa al crear un proyecto legal (ver P-035).",
+      "depende_de": [],
+      "referencia": "src/lib/ingest.ts (líneas 2441, 2064-2068, 1708)",
+      "creado": "2026-10-08",
+      "actualizado": "2026-10-08"
+    },
+    {
+      "id": "P-042",
+      "titulo": "La ingesta interactiva lee schema.md y purpose.md de una carpeta equivocada",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "En la ruta de ingesta interactiva se leen wiki/schema.md y wiki/purpose.md, que no existen: los archivos están en la raíz del proyecto. En esa ruta el propósito y el esquema llegan siempre vacíos. Defecto de upstream encontrado al investigar el Overview; arreglo de dos líneas. Candidato a proponer a upstream.",
+      "depende_de": [],
+      "referencia": "src/lib/ingest.ts (startIngest, lectura de schema y purpose)",
+      "creado": "2026-10-08",
+      "actualizado": "2026-10-08"
+    },
+    {
+      "id": "P-043",
+      "titulo": "Chat con proveedores CLI: que pueda abrir más páginas y usar skills sin perder la búsqueda",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Con Codex el chat responde solo con las páginas que recibe (hasta 10 con el PR #13); una pregunta del tipo 'listame todas las facturas' queda parcial. Además, elegir una skill a mano vuelve a desactivar la búsqueda. Solución de fondo: que el proveedor CLI pueda leer por su cuenta más páginas del wiki, o que el planificador de búsqueda funcione también con proveedores CLI.",
+      "depende_de": [
+        "P-032"
+      ],
+      "referencia": "src/lib/cli-chat-context.ts, src-tauri/src/agent/runtime.rs (should_fallback_wiki_search)",
+      "creado": "2026-10-08",
+      "actualizado": "2026-10-08"
+    },
+    {
+      "id": "P-044",
+      "titulo": "Pantalla de documentos duplicados y carga inicial del catálogo",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "El catálogo (PR #15) ya sabe qué documentos tienen más de una ubicación, pero nada lo muestra, y lo ingerido antes del cambio solo entra al catálogo cuando se vuelve a ingerir. Falta una vista que liste cada documento con sus ubicaciones (marcando los que coinciden por texto reconocido) y una carga inicial desde las fuentes ya ingeridas.",
+      "depende_de": [
+        "P-014"
+      ],
+      "referencia": "src-tauri/src/source_volume/catalog.rs (catalog_list_duplicates)",
+      "creado": "2026-10-08",
+      "actualizado": "2026-10-08"
+    },
+    {
+      "id": "P-045",
+      "titulo": "Pruebas de TypeScript que fallan de forma intermitente",
+      "tipo": "verificacion",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "En esta sesión, 'npm run test:mocks' falló una prueba distinta en tres corridas y pasó al repetir: wiki-graph (2 casos), ingest-source-path-collision (caso MinerU) y project-file-sync (resultado de arranque obsoleto). Una de las fallas fue en una rama sin cambios de TypeScript. Parecen sensibles al tiempo cuando la máquina está cargada. Confirmar la causa y decidir si se arreglan o se reportan a upstream.",
+      "depende_de": [],
+      "referencia": "src/lib/__tests__/wiki-graph.test.ts, src/lib/ingest-source-path-collision.test.ts, src/lib/project-file-sync.test.ts",
+      "creado": "2026-10-08",
+      "actualizado": "2026-10-08"
+    },
+    {
+      "id": "P-046",
+      "titulo": "Decidir si la comprobación automática de GitHub ejecuta las pruebas",
+      "tipo": "decision",
+      "responsable": "usuario",
+      "estado": "pendiente",
+      "detalle": "La comprobación que exige la protección de main solo compila (interfaz y Rust); no ejecuta 'npm run test:mocks' ni 'cargo test'. Hoy las pruebas se corren a mano antes de cada PR. Agregarlas hace más lento cada PR y obliga a resolver antes las 7 fallas conocidas de Windows (P-020) y las intermitentes (P-045).",
+      "depende_de": [],
+      "referencia": ".github/workflows/ci.yml",
       "creado": "2026-10-08",
       "actualizado": "2026-10-08"
     }

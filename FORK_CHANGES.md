@@ -28,10 +28,10 @@ El detalle de cada cambio (qué líneas, qué pruebas) está en su PR; acá no s
 - **PR:** #1
 
 ### F-002 · Volumen de fuentes (fuentes sin copiar)
-- **Propósito:** que un proyecto use carpetas externas como fuentes sin copiarlas, con un único componente (`src-tauri/src/source_volume/`) que decide dónde está cada fuente.
-- **Toca upstream:** `src-tauri/src/lib.rs`, `src-tauri/src/commands/fs.rs`, `src-tauri/src/commands/extract_images.rs`, `src/lib/source-lifecycle.ts`, `src/components/sources/sources-view.tsx`, `src/i18n/*.json`, `src-tauri/tauri.windows.conf.json`
+- **Propósito:** que un proyecto use carpetas externas como fuentes sin copiarlas, con un único componente (`src-tauri/src/source_volume/`) que decide dónde está cada fuente, detecta sus cambios y distingue un archivo borrado de un origen que no se puede leer.
+- **Toca upstream:** `src-tauri/src/lib.rs`, `src-tauri/src/commands/fs.rs`, `src-tauri/src/commands/extract_images.rs`, `src-tauri/src/commands/file_sync.rs`, `src/lib/source-lifecycle.ts`, `src/components/sources/sources-view.tsx`, `src/i18n/*.json`, `src-tauri/tauri.windows.conf.json`
 - **Upstream:** solo-fork
-- **PR:** #7
+- **PR:** #7, #12
 
 ### F-003 · Workflows de GitHub endurecidos
 - **Propósito:** que una acción de terceros o una dependencia comprometida no pueda robar secretos ni alterar releases, y que las etiquetas traídas de upstream no publiquen releases acá (se habilita con la variable `ENABLE_TAG_RELEASE`).
@@ -40,10 +40,10 @@ El detalle de cada cambio (qué líneas, qué pruebas) está en su PR; acá no s
 - **PR:** #3
 
 ### F-004 · Identidad y versionado propios de la app
-- **Propósito:** que esta app no comparta datos ni avisos de actualización con LLM Wiki: nombre «Micelya Desktop», identificador `com.micelya.desktop`, versión propia (desde `0.1.0`), releases con etiquetas `mi-desktop-v*` y chequeo de actualizaciones contra este repositorio.
-- **Toca upstream:** `src-tauri/tauri.conf.json`, `package.json`, `package-lock.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `.github/workflows/build.yml`, `.github/scripts/package-windows-portable.ps1`, `index.html`, `src-tauri/src/lib.rs`, `src-tauri/src/tray.rs`, `src/lib/update-check.ts`, `src/lib/changelog.ts`, `src/App.tsx`, `src/components/settings/sections/about-section.tsx`
+- **Propósito:** que esta app no comparta datos ni avisos de actualización con LLM Wiki: nombre «Micelya Desktop» (también en los textos de la interfaz, con un único reemplazo en `src/i18n/product-name.ts`), identificador `com.micelya.desktop`, versión propia (desde `0.1.0`), releases con etiquetas `mi-desktop-v*` y chequeo de actualizaciones contra este repositorio.
+- **Toca upstream:** `src-tauri/tauri.conf.json`, `package.json`, `package-lock.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `.github/workflows/build.yml`, `.github/scripts/package-windows-portable.ps1`, `index.html`, `src-tauri/src/lib.rs`, `src-tauri/src/tray.rs`, `src/lib/update-check.ts`, `src/lib/changelog.ts`, `src/App.tsx`, `src/components/settings/sections/about-section.tsx`, `src/i18n/index.ts`, `src/components/layout/icon-sidebar.tsx`, `src/main.tsx`
 - **Upstream:** solo-fork
-- **PR:** #5
+- **PR:** #5, #11
 
 ### F-005 · Actualización mensual de las acciones fijadas
 - **Propósito:** que las acciones de GitHub fijadas a versión exacta no queden congeladas: Dependabot propone un PR mensual agrupado, solo para acciones.
@@ -52,22 +52,40 @@ El detalle de cada cambio (qué líneas, qué pruebas) está en su PR; acá no s
 - **PR:** #6
 
 ### F-006 · Reconocimiento de texto en escaneos e imágenes
-- **Propósito:** que las páginas de PDF sin texto y las fotos de documentos aporten su texto completo, leído por un motor intercambiable (`src-tauri/src/source_volume/recognition*.rs`); primer motor: Codex CLI.
-- **Toca upstream:** `src-tauri/src/commands/fs.rs`, `src/commands/fs.ts`, `src/lib/source-preprocess.ts`, `src/lib/ingest.ts`
+- **Propósito:** que las páginas de PDF sin texto y las fotos de documentos aporten su texto completo, leído por un motor intercambiable (`src-tauri/src/source_volume/recognition*.rs`) dentro de la tarea de ingesta de cada fuente y con avance por página; primer motor: Codex CLI.
+- **Toca upstream:** `src-tauri/src/commands/fs.rs`, `src/commands/fs.ts`, `src/lib/ingest.ts`
 - **Upstream:** solo-fork
-- **PR:** #7
+- **PR:** #7, #14
 
 ### F-007 · Chat con proveedores CLI: busca en el wiki y lee las páginas
-- **Propósito:** que el chat con Codex CLI o Claude Code responda con el contenido del wiki: no envía las skills del modo automático (desactivaban la búsqueda) y agrega al pedido el texto de las páginas recuperadas (`src/lib/cli-chat-context.ts`).
+- **Propósito:** que el chat con Codex CLI o Claude Code responda con el contenido del wiki: no envía las skills del modo automático (desactivaban la búsqueda), pide hasta 10 páginas y agrega al pedido su texto (`src/lib/cli-chat-context.ts`).
 - **Toca upstream:** `src/components/chat/chat-panel.tsx`
 - **Upstream:** candidato
-- **PR:** #8
+- **PR:** #8, #13
 
 ### F-008 · Etiquetas legibles en el grafo
 - **Propósito:** que las etiquetas del grafo no se superpongan: solo los nodos más conectados llevan etiqueta sin acercar el zoom, los títulos largos se acortan y un clic deja resaltado el nodo con sus vecinos (`src/lib/graph-labels.ts`).
 - **Toca upstream:** `src/components/graph/graph-view.tsx`
 - **Upstream:** candidato
 - **PR:** #9
+
+### F-009 · Buscador en español
+- **Propósito:** que una pregunta en español no arrastre palabras como «por», «qué» o «de», que coinciden con casi todas las páginas y desordenan los resultados (`src-tauri/src/commands/search_spanish.rs`).
+- **Toca upstream:** `src-tauri/src/commands/search.rs`, `src-tauri/src/commands/mod.rs`
+- **Upstream:** candidato
+- **PR:** #13
+
+### F-010 · Aviso de importación informativo
+- **Propósito:** que «Imported 31, skipped 2» no se muestre como error cuando los archivos omitidos lo fueron por las reglas de exclusión.
+- **Toca upstream:** `src/components/sources/sources-view.tsx`
+- **Upstream:** candidato
+- **PR:** #10
+
+### F-011 · Catálogo de fuentes y deduplicación exacta
+- **Propósito:** que el mismo documento en varias rutas o formatos se ingiera una sola vez y conserve todas sus ubicaciones: el catálogo (`src-tauri/src/source_volume/catalog.rs`) separa contenido de ubicación y la ingesta lo consulta antes de llamar al modelo (`src/lib/source-catalog.ts`).
+- **Toca upstream:** `src-tauri/src/lib.rs`, `src/lib/ingest.ts`
+- **Upstream:** solo-fork
+- **PR:** #15
 
 ## Reabsorbidos
 
