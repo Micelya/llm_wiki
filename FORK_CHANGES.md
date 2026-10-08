@@ -27,6 +27,12 @@ El detalle de cada cambio (qué líneas, qué pruebas) está en su PR; acá no s
 - **Upstream:** candidato
 - **PR:** #1
 
+### F-002 · Volumen de fuentes (fuentes sin copiar)
+- **Propósito:** que un proyecto use carpetas externas como fuentes sin copiarlas, con un único componente (`src-tauri/src/source_volume/`) que decide dónde está cada fuente.
+- **Toca upstream:** `src-tauri/src/lib.rs`, `src-tauri/src/commands/fs.rs`, `src-tauri/src/commands/extract_images.rs`, `src/lib/source-lifecycle.ts`, `src/components/sources/sources-view.tsx`, `src/i18n/*.json`, `src-tauri/tauri.windows.conf.json`
+- **Upstream:** solo-fork
+- **PR:** #7
+
 ### F-003 · Workflows de GitHub endurecidos
 - **Propósito:** que una acción de terceros o una dependencia comprometida no pueda robar secretos ni alterar releases, y que las etiquetas traídas de upstream no publiquen releases acá (se habilita con la variable `ENABLE_TAG_RELEASE`).
 - **Toca upstream:** `.github/workflows/ci.yml`, `.github/workflows/build.yml`
@@ -44,6 +50,12 @@ El detalle de cada cambio (qué líneas, qué pruebas) está en su PR; acá no s
 - **Toca upstream:** ninguno (agrega `.github/dependabot.yml`)
 - **Upstream:** candidato
 - **PR:** #6
+
+### F-006 · Reconocimiento de texto en escaneos e imágenes
+- **Propósito:** que las páginas de PDF sin texto y las fotos de documentos aporten su texto completo, leído por un motor intercambiable (`src-tauri/src/source_volume/recognition*.rs`); primer motor: Codex CLI.
+- **Toca upstream:** `src-tauri/src/commands/fs.rs`, `src/commands/fs.ts`, `src/lib/source-preprocess.ts`, `src/lib/ingest.ts`
+- **Upstream:** solo-fork
+- **PR:** #7
 
 ## Reabsorbidos
 

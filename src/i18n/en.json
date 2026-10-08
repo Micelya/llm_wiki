@@ -1,6 +1,6 @@
 {
   "app": {
-    "title": "LLM Wiki",
+    "title": "Micelya Desktop",
     "subtitle": "Build and maintain your personal knowledge base with LLMs"
   },
   "common": {
@@ -175,6 +175,8 @@
     "importUrls": "URLs",
     "importSourceFiles": "Import Source Files",
     "importSourceFolder": "Import Source Folder",
+    "mountSourceFolder": "Mount Source Folder (no copy)",
+    "mountFolder": "Mount folder",
     "urlImport": {
       "title": "Import web pages",
       "description": "Enter one HTTP(S) URL per line. Each page is saved as a source and queued for ingest; failed URLs do not stop the rest of the batch.",

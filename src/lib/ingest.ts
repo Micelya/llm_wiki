@@ -25,6 +25,7 @@ import {
 } from "@/lib/source-identity"
 import { parseSources, writeSources } from "@/lib/sources-merge"
 import { checkIngestCache, saveIngestCache } from "@/lib/ingest-cache"
+import { ensureRecognizedText } from "@/lib/text-recognition"
 import { sanitizeIngestedFileContent } from "@/lib/ingest-sanitize"
 import { mergePageContent, type MergeFn } from "@/lib/page-merge"
 import { withProjectLock } from "@/lib/project-mutex"
@@ -784,6 +785,10 @@ async function autoIngestImpl(
       activity.updateItem(activityId, { detail: "Reading source..." })
     }
   }
+
+  // Scanned pages and photos have no text until an engine reads them.
+  // Fatal on purpose: ingesting them unread would look like a success.
+  if (!mineruSucceeded) await ensureRecognizedText(sp)
 
   const [sourceContent, schema, purpose, index, overview] = await Promise.all([
     tryReadSourceTextFile(sp),

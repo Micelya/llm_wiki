@@ -1,6 +1,6 @@
 {
   "app": {
-    "title": "LLM Wiki",
+    "title": "Micelya Desktop",
     "subtitle": "用 LLM 构建和维护你的个人知识库"
   },
   "common": {
@@ -175,6 +175,8 @@
     "importUrls": "网址",
     "importSourceFiles": "导入源文件",
     "importSourceFolder": "导入源文件夹",
+    "mountSourceFolder": "挂载源文件夹（不复制）",
+    "mountFolder": "挂载文件夹",
     "urlImport": {
       "title": "导入网页",
       "description": "每行输入一个 HTTP(S) 网址。网页会保存为原始资料并进入提取队列；单个网址失败不会中断整批任务。",

@@ -1,6 +1,6 @@
 {
   "app": {
-    "title": "LLM Wiki",
+    "title": "Micelya Desktop",
     "subtitle": "Costruisci e mantieni la tua knowledge base personale con gli LLM"
   },
   "common": {
@@ -175,6 +175,8 @@
     "importUrls": "URL",
     "importSourceFiles": "Importa file sorgente",
     "importSourceFolder": "Importa cartella sorgente",
+    "mountSourceFolder": "Monta cartella sorgente (senza copia)",
+    "mountFolder": "Monta cartella",
     "urlImport": {
       "title": "Importa pagine web",
       "description": "Inserisci un URL HTTP(S) per riga. Ogni pagina viene salvata come fonte e messa in coda per l'elaborazione; gli URL non riusciti non bloccano il resto del gruppo.",

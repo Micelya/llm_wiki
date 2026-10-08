@@ -3,6 +3,7 @@
     "windows": [
       {
         "label": "main",
+        "title": "Micelya Desktop",
         "hiddenTitle": false,
         "titleBarStyle": "Visible"
       }

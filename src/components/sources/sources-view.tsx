@@ -222,12 +222,14 @@ export function SourcesView() {
     }
   }
 
-  async function handleImportFolder() {
+  async function handleImportFolder(mount = false) {
     if (!project) return
 
     const selected = await open({
       directory: true,
-      title: t("sources.importSourceFolder"),
+      title: mount
+        ? t("sources.mountSourceFolder", "Mount Source Folder (no copy)")
+        : t("sources.importSourceFolder"),
     })
 
     if (!selected || typeof selected !== "string") return
@@ -236,7 +238,7 @@ export function SourcesView() {
     setImportOutcome(null)
     setShowAllImportSkips(false)
     try {
-      const result = await importSourceFolder(project, selected, llmConfig, sourceWatchConfig)
+      const result = await importSourceFolder(project, selected, llmConfig, sourceWatchConfig, { mount })
       setImportOutcome(summarizeImportOutcome(result, null))
       await loadSources()
     } catch (err) {
@@ -403,9 +405,13 @@ export function SourcesView() {
             <Plus className="mr-1 h-4 w-4" />
             {importing ? t("sources.importing") : t("sources.import")}
           </Button>
-          <Button size="sm" onClick={handleImportFolder} disabled={importing}>
+          <Button size="sm" onClick={() => handleImportFolder()} disabled={importing}>
             <Plus className="mr-1 h-4 w-4" />
             {t("sources.importFolder", "Folder")}
+          </Button>
+          <Button size="sm" onClick={() => handleImportFolder(true)} disabled={importing}>
+            <Link className="mr-1 h-4 w-4" />
+            {t("sources.mountFolder", "Mount folder")}
           </Button>
           <Button size="sm" onClick={() => setUrlDialogOpen(true)} disabled={importing}>
             <Link className="mr-1 h-4 w-4" />
@@ -549,9 +555,13 @@ export function SourcesView() {
                 <Plus className="mr-1 h-4 w-4" />
                 {t("sources.importFiles")}
               </Button>
-              <Button variant="outline" size="sm" onClick={handleImportFolder}>
+              <Button variant="outline" size="sm" onClick={() => handleImportFolder()}>
                 <Plus className="mr-1 h-4 w-4" />
                 {t("sources.importFolder")}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => handleImportFolder(true)}>
+                <Link className="mr-1 h-4 w-4" />
+                {t("sources.mountFolder", "Mount folder")}
               </Button>
             </div>
           </div>
