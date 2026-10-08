@@ -496,7 +496,13 @@ export function SourcesView() {
           </div>
         )}
         {importOutcome && (
-          <div className="mx-4 mt-3 space-y-1 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          <div
+            className={`mx-4 mt-3 space-y-1 rounded-md border px-3 py-2 text-xs ${
+              isRoutineImportOutcome(importOutcome)
+                ? "border-border bg-muted/50 text-muted-foreground"
+                : "border-destructive/30 bg-destructive/10 text-destructive"
+            }`}
+          >
             <div className="flex items-start justify-between gap-2">
               <span className="font-medium">
                 {importOutcome.error
@@ -513,7 +519,9 @@ export function SourcesView() {
               <button
                 type="button"
                 onClick={() => setImportOutcome(null)}
-                className="shrink-0 rounded p-0.5 hover:bg-destructive/20"
+                className={`shrink-0 rounded p-0.5 ${
+                  isRoutineImportOutcome(importOutcome) ? "hover:bg-muted" : "hover:bg-destructive/20"
+                }`}
                 aria-label={t("common.dismiss", { defaultValue: "Dismiss" })}
               >
                 <X className="h-3 w-3" />
@@ -662,6 +670,15 @@ export function summarizeImportOutcome(
   }
   if (!result || result.skipped.length === 0) return null
   return { importedCount: result.imported.length, skipped: result.skipped, error: null }
+}
+
+/**
+ * An outcome is routine when nothing went wrong: every skipped file was
+ * left out by the user's own exclusion rules (desktop.ini in a Drive
+ * folder, for instance). It is reported as information, not as an error.
+ */
+export function isRoutineImportOutcome(outcome: ImportOutcome): boolean {
+  return !outcome.error && outcome.skipped.every((file) => file.reason === "excluded")
 }
 
 export function filterSourceTreeByQuery(

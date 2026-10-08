@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { FileNode } from "@/types/wiki"
-import { filterSourceTreeByQuery, summarizeImportOutcome } from "./sources-view"
+import { filterSourceTreeByQuery, isRoutineImportOutcome, summarizeImportOutcome } from "./sources-view"
 
 const TREE: FileNode[] = [
   {
@@ -81,5 +81,33 @@ describe("summarizeImportOutcome", () => {
       skipped: [{ name: "a.py", reason: "unsupported-type" }],
       error: null,
     })
+  })
+})
+
+describe("isRoutineImportOutcome", () => {
+  it("is routine when every skipped file was excluded by rule", () => {
+    expect(isRoutineImportOutcome({
+      importedCount: 31,
+      skipped: [
+        { name: "desktop.ini", reason: "excluded" },
+        { name: "sub/desktop.ini", reason: "excluded" },
+      ],
+      error: null,
+    })).toBe(true)
+  })
+
+  it("is not routine when any file was skipped for another reason", () => {
+    expect(isRoutineImportOutcome({
+      importedCount: 1,
+      skipped: [
+        { name: "desktop.ini", reason: "excluded" },
+        { name: "big.pdf", reason: "too-large" },
+      ],
+      error: null,
+    })).toBe(false)
+  })
+
+  it("is not routine when the import failed", () => {
+    expect(isRoutineImportOutcome({ importedCount: 0, skipped: [], error: "disk full" })).toBe(false)
   })
 })
