@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   invoke: vi.fn(),
   files: new Map<string, string>(),
   saveIngestCache: vi.fn(async () => {}),
+  copyIngestCacheEntry: vi.fn(async () => true),
 }))
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke }))
@@ -18,12 +19,17 @@ vi.mock("@/commands/fs", () => ({
     mocks.files.set(path, content)
   }),
 }))
-vi.mock("@/lib/ingest-cache", () => ({ saveIngestCache: mocks.saveIngestCache }))
+vi.mock("@/lib/ingest-cache", () => ({
+  saveIngestCache: mocks.saveIngestCache,
+  copyIngestCacheEntry: mocks.copyIngestCacheEntry,
+}))
 
 import { parseSources } from "@/lib/sources-merge"
+import { useActivityStore } from "@/stores/activity-store"
 import {
   adoptCataloguedContent,
   describeAdoption,
+  leaveOutIdenticalFiles,
   recordCataloguedIngest,
   releaseCataloguedContent,
 } from "./source-catalog"
@@ -49,6 +55,8 @@ describe("source catalog at ingest time", () => {
   beforeEach(() => {
     mocks.invoke.mockReset()
     mocks.saveIngestCache.mockClear()
+    mocks.copyIngestCacheEntry.mockClear()
+    useActivityStore.setState({ items: [] })
     mocks.files.clear()
     releaseCataloguedContent(PP, `${PP}/raw/sources/a.docx`)
     releaseCataloguedContent(PP, `${PP}/raw/sources/a.pdf`)
@@ -170,5 +178,71 @@ describe("source catalog at ingest time", () => {
       .toBe("Skipped (same document as a.docx) — 1 files shared")
     expect(describeAdoption({ files: ["x"], original: "a.docx", recognized: true }))
       .toContain("matched on recognized text")
+  })
+
+  describe("identical files, before queueing", () => {
+    const files = [
+      { sourcePath: `${PP}/raw/sources/Docs/carta.jpeg`, folderContext: "Docs" },
+      { sourcePath: `${PP}/raw/sources/Otra/carta (copia).jpeg`, folderContext: "Otra" },
+    ]
+
+    it("queues every file when none is a known file", async () => {
+      mocks.invoke.mockResolvedValue(null)
+      expect(await leaveOutIdenticalFiles(PP, files)).toEqual(files)
+      expect(mocks.invoke).toHaveBeenCalledWith("catalog_match_file", {
+        projectPath: PP,
+        identity: "Otra/carta (copia).jpeg",
+      })
+    })
+
+    it("leaves out a copy of an ingested file and attaches it to the pages", async () => {
+      mocks.files.set(`${PP}/wiki/sources/carta.md`, page(["Docs/carta.jpeg"]))
+      mocks.invoke.mockImplementation(async (_command: string, args: { identity: string }) =>
+        args.identity === "Otra/carta (copia).jpeg"
+          ? {
+              id: "c1",
+              recognized: true,
+              wordCount: 500,
+              locations: ["Docs/carta.jpeg", "Otra/carta (copia).jpeg"],
+              ingested: { identity: "Docs/carta.jpeg", files: ["wiki/sources/carta.md"] },
+            }
+          : null,
+      )
+
+      const pending = await leaveOutIdenticalFiles(PP, files)
+
+      expect(pending).toEqual([files[0]])
+      expect(parseSources(mocks.files.get(`${PP}/wiki/sources/carta.md`)!)).toEqual([
+        "Docs/carta.jpeg",
+        "Otra/carta (copia).jpeg",
+      ])
+      expect(mocks.copyIngestCacheEntry).toHaveBeenCalledWith(PP, "Docs/carta.jpeg", "Otra/carta (copia).jpeg")
+      const [activity] = useActivityStore.getState().items
+      expect(activity.status).toBe("done")
+      expect(activity.detail).toContain("same file as Docs/carta.jpeg")
+    })
+
+    it("queues the original itself, and a copy whose document has no pages yet", async () => {
+      const known = {
+        id: "c1",
+        recognized: false,
+        wordCount: 90,
+        locations: ["Docs/carta.jpeg", "Otra/carta (copia).jpeg"],
+      }
+      mocks.invoke.mockResolvedValue({ ...known, ingested: { identity: "Docs/carta.jpeg", files: ["wiki/sources/carta.md"] } })
+      // The pages are missing, so nothing can be shared.
+      expect(await leaveOutIdenticalFiles(PP, files)).toEqual(files)
+
+      mocks.files.set(`${PP}/wiki/sources/carta.md`, page(["Docs/carta.jpeg"]))
+      expect(await leaveOutIdenticalFiles(PP, [files[0]])).toEqual([files[0]])
+
+      mocks.invoke.mockResolvedValue(known)
+      expect(await leaveOutIdenticalFiles(PP, [files[1]])).toEqual([files[1]])
+    })
+
+    it("queues the file when the check fails", async () => {
+      mocks.invoke.mockRejectedValue(new Error("catalog unreadable"))
+      expect(await leaveOutIdenticalFiles(PP, files)).toEqual(files)
+    })
   })
 })

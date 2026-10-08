@@ -40,6 +40,7 @@ import { naturalCompare } from "@/lib/natural-sort"
 import type { SourceWatchConfig } from "@/stores/wiki-store"
 import { useWikiStore } from "@/stores/wiki-store"
 import { preprocessSourceFiles } from "@/lib/source-preprocess"
+import { leaveOutIdenticalFiles } from "@/lib/source-catalog"
 import { addSourceMount } from "@/commands/source-mounts"
 import { moveParsedMarkdown, removeParsedMarkdown } from "@/lib/parsed-source-output"
 
@@ -280,10 +281,14 @@ export async function enqueueSourceIngest(
       ),
     }))
   if (files.length === 0) return []
+  // A file that is byte for byte one already ingested joins that
+  // document's pages here and never reaches the queue.
+  const pending = await leaveOutIdenticalFiles(project.path, files)
+  if (pending.length === 0) return []
   const parsingConcurrency = options.parsingConcurrency
     ?? normalizeSourceWatchConfig(useWikiStore.getState().sourceWatchConfig).parsingConcurrency
-  await preprocessSourceFiles(files.map((file) => file.sourcePath), parsingConcurrency)
-  return enqueueBatch(project.id, files)
+  await preprocessSourceFiles(pending.map((file) => file.sourcePath), parsingConcurrency)
+  return enqueueBatch(project.id, pending)
 }
 
 export type SourceImportSkipReason =
