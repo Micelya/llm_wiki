@@ -131,6 +131,25 @@ export async function removeFromIngestCache(
   await saveCache(projectPath, { entries: newEntries })
 }
 
+/**
+ * Give `newSourceIdentity` the entry of `sourceIdentity`, for a source
+ * that is the same file under another path. Returns false when there is
+ * nothing to copy.
+ */
+export async function copyIngestCacheEntry(
+  projectPath: string,
+  sourceIdentity: string,
+  newSourceIdentity: string,
+): Promise<boolean> {
+  const cache = await loadCache(projectPath)
+  const entry = cache.entries[sourceIdentity]
+  if (!entry || sourceIdentity === newSourceIdentity) return false
+  await saveCache(projectPath, {
+    entries: { ...cache.entries, [newSourceIdentity]: { ...entry, timestamp: Date.now() } },
+  })
+  return true
+}
+
 /** Move a cache entry when an unchanged source is renamed inside raw/sources. */
 export async function moveIngestCacheEntry(
   projectPath: string,
