@@ -179,6 +179,13 @@ pub(crate) async fn preprocess_source(
                 .map(recognition::recognizer_for)
                 .transpose()?;
 
+            let recognized_store = || {
+                crate::source_volume::recognized_store::RecognizedStore::for_source(
+                    Path::new(&requested),
+                    p,
+                )
+            };
+
             let text = match ext.as_str() {
                 "pdf" => {
                     let extracted = extract_pdf_text(&path, false)?;
@@ -186,7 +193,7 @@ pub(crate) async fn preprocess_source(
                         Some(recognizer) => recognition::complete_pdf_text_reporting(
                             p,
                             &extracted,
-                            &recognition::page_cache_dir(Path::new(&requested)),
+                            &recognized_store()?,
                             recognizer.as_ref(),
                             &on_recognized_page,
                         )?,
@@ -195,7 +202,7 @@ pub(crate) async fn preprocess_source(
                 }
                 e if recognizer.is_some() && recognition::is_recognizable_image(e) => {
                     let recognizer = recognizer.as_deref().expect("checked by the guard");
-                    recognition::recognize_image_source(p, recognizer)?
+                    recognition::recognize_image_source(p, &recognized_store()?, recognizer)?
                 }
                 "org" => extract_org_text(&path)?,
                 e if OFFICE_EXTS.contains(&e) => extract_office_text(&path, e)?,

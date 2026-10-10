@@ -641,6 +641,7 @@ pub fn run() {
             source_volume::list_source_mounts,
             source_volume::add_source_mount,
             source_volume::catalog::catalog_register_source,
+            source_volume::catalog::catalog_match_file,
             source_volume::catalog::catalog_record_ingest,
             source_volume::catalog::catalog_list_duplicates,
             commands::fs::preprocess_file,

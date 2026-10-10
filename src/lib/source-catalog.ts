@@ -8,20 +8,27 @@
  * produced, so those pages now answer for both files and survive the
  * deletion of either.
  *
- * Only an exact match of the normalized text counts. Similar documents
- * are different documents here.
+ * Only an exact match counts. Similar documents are different
+ * documents here.
  *
- * The check runs inside each source's ingest task, right after its text
- * is read and before any model call. That is the one point every path
- * goes through (import, mounted folders, change detection, re-ingest)
- * and the only one where the text of a scanned source exists.
+ * There are two checks, the cheap one first:
+ *
+ * - Same bytes (`leaveOutIdenticalFiles`), before a source is queued.
+ *   It needs no text, so an identical scan or photo is recognized
+ *   without the recognition engine reading it.
+ * - Same normalized text (`adoptCataloguedContent`), inside the ingest
+ *   task, right after the text is read and before any model call. This
+ *   catches the same document in another format, or scanned twice.
  *
  * The catalog is an optimisation: any failure in it is logged and the
  * source is ingested the ordinary way.
  */
 import { invoke } from "@tauri-apps/api/core"
 import { fileExists, readFile, writeFile } from "@/commands/fs"
-import { saveIngestCache } from "@/lib/ingest-cache"
+import { copyIngestCacheEntry, saveIngestCache } from "@/lib/ingest-cache"
+import { withProjectLock } from "@/lib/project-mutex"
+import { sourceIdentityForPath } from "@/lib/source-identity"
+import { useActivityStore } from "@/stores/activity-store"
 import { isAbsolutePath, normalizePath } from "@/lib/path-utils"
 import { parseSources, writeSources } from "@/lib/sources-merge"
 
@@ -155,6 +162,57 @@ export async function adoptCataloguedContent(request: AdoptionRequest): Promise<
     )
     return null
   }
+}
+
+/**
+ * The entries of `files` that still have to be ingested. A source whose
+ * file is byte for byte the file of a document already ingested is
+ * attached to that document's pages and left out; the activity panel
+ * says so.
+ */
+export async function leaveOutIdenticalFiles<T extends { sourcePath: string }>(
+  projectPath: string,
+  files: readonly T[],
+): Promise<T[]> {
+  const pp = normalizePath(projectPath)
+  const pending: T[] = []
+  for (const file of files) {
+    const identity = sourceIdentityForPath(pp, file.sourcePath)
+    try {
+      const content = await invoke<CatalogContent | null>("catalog_match_file", {
+        projectPath: pp,
+        identity,
+      })
+      const ingested = content?.ingested
+      if (
+        !content
+        || !ingested
+        || sameIdentity(ingested.identity, identity)
+        || !(await allExist(pp, ingested.files))
+      ) {
+        pending.push(file)
+        continue
+      }
+      await withProjectLock(pp, async () => {
+        await addSourceToPages(pp, ingested.files, ingested.identity, identity)
+        await copyIngestCacheEntry(pp, ingested.identity, identity)
+      })
+      useActivityStore.getState().addItem({
+        type: "ingest",
+        title: identity.split("/").pop() ?? identity,
+        status: "done",
+        detail: `Skipped (same file as ${ingested.identity}) — ${ingested.files.length} files shared`,
+        filesWritten: ingested.files,
+      })
+    } catch (err) {
+      console.warn(
+        `[source-catalog] file check failed for "${identity}"; queueing it normally:`,
+        err instanceof Error ? err.message : err,
+      )
+      pending.push(file)
+    }
+  }
+  return pending
 }
 
 /** Let sources waiting on the ingest of `sourcePath` go on. Safe to call always. */

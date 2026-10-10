@@ -18,9 +18,11 @@
 #![allow(dead_code, unused_imports)]
 
 pub mod catalog;
+pub mod file_hash;
 mod provider;
 pub mod recognition;
 pub mod recognition_progress;
+pub mod recognized_store;
 mod recognition_codex;
 pub mod watch;
 
@@ -283,6 +285,14 @@ pub fn volume_for(path: &Path) -> Result<Option<SourceVolume>, String> {
         }
     }
     Ok(None)
+}
+
+/// Root of the project `path` belongs to, when `path` is inside that
+/// project's `raw/sources`.
+pub fn project_root_of(path: &Path) -> Option<PathBuf> {
+    path.ancestors()
+        .find(|ancestor| is_sources_root(ancestor))
+        .and_then(|sources| sources.parent()?.parent().map(Path::to_path_buf))
 }
 
 fn is_sources_root(path: &Path) -> bool {

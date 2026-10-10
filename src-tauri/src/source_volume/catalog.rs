@@ -7,8 +7,12 @@
 //! saved as Word and as PDF, or copied into two folders, is one content
 //! with several locations, and only needs to be ingested once.
 //!
-//! Only an exact match of the normalized text makes two files the same
-//! content. Similar documents — versions, or forms filled in with
+//! Two files are the same content when their bytes are identical, or
+//! when their normalized text matches exactly. The bytes are compared
+//! first because that needs no text: a scan or a photo can be recognized
+//! as a known document before any engine has to read it.
+//!
+//! Nothing weaker than an exact match joins two files. Similar documents — versions, or forms filled in with
 //! different data — have different fingerprints and are never joined
 //! here.
 //!
@@ -25,6 +29,7 @@ use std::sync::Mutex;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use super::file_hash::file_sha256;
 use super::watch::{self, Location};
 use super::SOURCES_PREFIX;
 
@@ -59,6 +64,9 @@ pub struct Content {
     pub word_count: usize,
     /// Source identities (paths under `raw/sources`) holding this content.
     pub locations: Vec<String>,
+    /// SHA-256 of the file at each location, by source identity.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub file_hashes: BTreeMap<String, String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ingested: Option<Ingested>,
 }
@@ -169,12 +177,68 @@ pub fn register(project_root: &Path, identity: &str, text: &str) -> Result<Optio
                 recognized,
                 word_count,
                 locations: Vec::new(),
+                file_hashes: BTreeMap::new(),
                 ingested: None,
             });
             catalog.contents.len() - 1
         }
     };
     let content = &mut catalog.contents[position];
+    attach_location(project_root, content, identity, source_file_hash(project_root, identity));
+    // Every text that produced this fingerprint must be extracted text
+    // for the match to count as certain.
+    content.recognized = content.recognized || recognized;
+    let result = content.clone();
+    write(project_root, &catalog)?;
+    Ok(Some(result))
+}
+
+/// If the file of the source `identity` is byte for byte the file of a
+/// source already catalogued, record `identity` as one more location of
+/// that content and return it. `None` when no other source has the same
+/// bytes; the catalog is then left as it was.
+///
+/// This needs no text, so it can be asked before a scan or a photo is
+/// read by the recognition engine.
+pub fn match_file(project_root: &Path, identity: &str) -> Result<Option<Content>, String> {
+    let Some(hash) = source_file_hash(project_root, identity) else {
+        return Ok(None);
+    };
+    let _guard = lock();
+    let mut catalog = read(project_root)?;
+    let Some(id) = catalog
+        .contents
+        .iter()
+        .find(|content| {
+            content.file_hashes.iter().any(|(other, other_hash)| {
+                *other_hash == hash
+                    && !same_identity(other, identity)
+                    && location_may_exist(project_root, other)
+            })
+        })
+        .map(|content| content.id.clone())
+    else {
+        return Ok(None);
+    };
+    forget_location(&mut catalog, identity, Some(&id));
+    let Some(content) = catalog.contents.iter_mut().find(|content| content.id == id) else {
+        return Ok(None);
+    };
+    attach_location(project_root, content, identity, Some(hash));
+    let result = content.clone();
+    write(project_root, &catalog)?;
+    Ok(Some(result))
+}
+
+/// Add `identity` to `content`, dropping the locations that are gone and
+/// handing the pages of the content over if their location is one of
+/// them.
+fn attach_location(
+    project_root: &Path,
+    content: &mut Content,
+    identity: &str,
+    file_hash: Option<String>,
+) {
     content
         .locations
         .retain(|location| location_may_exist(project_root, location));
@@ -198,12 +262,21 @@ pub fn register(project_root: &Path, identity: &str, text: &str) -> Result<Optio
         };
     }
     content.locations.push(identity.to_string());
-    // Every text that produced this fingerprint must be extracted text
-    // for the match to count as certain.
-    content.recognized = content.recognized || recognized;
-    let result = content.clone();
-    write(project_root, &catalog)?;
-    Ok(Some(result))
+    let locations = content.locations.clone();
+    content
+        .file_hashes
+        .retain(|known, _| locations.iter().any(|location| same_identity(location, known)));
+    if let Some(file_hash) = file_hash {
+        content.file_hashes.insert(identity.to_string(), file_hash);
+    }
+}
+
+/// SHA-256 of the file behind a source, when it can be read now.
+fn source_file_hash(project_root: &Path, identity: &str) -> Option<String> {
+    match watch::locate(project_root, &format!("{SOURCES_PREFIX}/{identity}")) {
+        Location::At(path) if path.is_file() => file_sha256(&path).ok().flatten(),
+        _ => None,
+    }
 }
 
 /// Record the wiki pages produced by ingesting `identity`.
@@ -241,6 +314,9 @@ fn forget_location(catalog: &mut CatalogFile, identity: &str, keep: Option<&str>
         content
             .locations
             .retain(|location| !same_identity(location, identity));
+        content
+            .file_hashes
+            .retain(|location, _| !same_identity(location, identity));
     }
     catalog
         .contents
@@ -320,6 +396,20 @@ pub async fn catalog_register_source(
 }
 
 #[tauri::command]
+pub async fn catalog_match_file(
+    project_path: String,
+    identity: String,
+) -> Result<Option<Content>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::panic_guard::run_guarded("catalog_match_file", || {
+            match_file(Path::new(&project_path), &identity)
+        })
+    })
+    .await
+    .map_err(|e| format!("catalog_match_file blocking task join error: {e}"))?
+}
+
+#[tauri::command]
 pub async fn catalog_record_ingest(
     project_path: String,
     identity: String,
@@ -363,9 +453,13 @@ mod tests {
         }
 
         fn source(&self, identity: &str) {
+            self.source_with(identity, identity.as_bytes());
+        }
+
+        fn source_with(&self, identity: &str, bytes: &[u8]) {
             let path = self.0.join("raw/sources").join(identity);
             fs::create_dir_all(path.parent().unwrap()).unwrap();
-            fs::write(path, "x").unwrap();
+            fs::write(path, bytes).unwrap();
         }
 
         fn register(&self, identity: &str, text: &str) -> Option<Content> {
@@ -507,6 +601,58 @@ mod tests {
 
         assert_eq!(content.locations, vec!["b.pdf"]);
         assert_eq!(content.ingested, None);
+    }
+
+    #[test]
+    fn a_byte_identical_file_is_matched_without_its_text() {
+        let project = Project::new();
+        project.source_with("Docs/carta.jpeg", b"jpeg bytes");
+        register(&project.0, "Docs/carta.jpeg", AGREEMENT).unwrap();
+        record_ingest(&project.0, "Docs/carta.jpeg", vec!["wiki/sources/carta.md".to_string()]).unwrap();
+
+        project.source_with("Otra/carta (copia).jpeg", b"jpeg bytes");
+        let matched = match_file(&project.0, "Otra/carta (copia).jpeg").unwrap().unwrap();
+
+        assert_eq!(matched.locations, vec!["Docs/carta.jpeg", "Otra/carta (copia).jpeg"]);
+        assert_eq!(matched.ingested.unwrap().identity, "Docs/carta.jpeg");
+        assert_eq!(matched.file_hashes.len(), 2);
+    }
+
+    #[test]
+    fn a_file_with_other_bytes_is_not_matched_and_the_catalog_is_untouched() {
+        let project = Project::new();
+        project.source_with("a.jpeg", b"jpeg bytes");
+        register(&project.0, "a.jpeg", AGREEMENT).unwrap();
+
+        project.source_with("b.jpeg", b"jpeg bytes, scanned again");
+        assert_eq!(match_file(&project.0, "b.jpeg").unwrap(), None);
+        assert_eq!(match_file(&project.0, "missing.jpeg").unwrap(), None);
+        assert!(duplicates(&project.0).unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_file_is_not_matched_against_itself_or_against_a_deleted_file() {
+        let project = Project::new();
+        project.source_with("a.jpeg", b"jpeg bytes");
+        register(&project.0, "a.jpeg", AGREEMENT).unwrap();
+        assert_eq!(match_file(&project.0, "a.jpeg").unwrap(), None);
+
+        project.source_with("b.jpeg", b"jpeg bytes");
+        fs::remove_file(project.0.join("raw/sources/a.jpeg")).unwrap();
+        assert_eq!(match_file(&project.0, "b.jpeg").unwrap(), None);
+    }
+
+    #[test]
+    fn a_catalog_written_before_file_hashes_existed_still_loads() {
+        let project = Project::new();
+        fs::create_dir_all(project.0.join(".llm-wiki")).unwrap();
+        fs::write(
+            project.0.join(CATALOG_FILE),
+            r#"{"version":1,"contents":[{"id":"abc","recognized":true,"wordCount":76,"locations":["a.png"]}]}"#,
+        )
+        .unwrap();
+        project.source_with("b.png", b"png bytes");
+        assert_eq!(match_file(&project.0, "b.png").unwrap(), None);
     }
 
     #[test]

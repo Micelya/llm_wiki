@@ -52,10 +52,10 @@ El detalle de cada cambio (qué líneas, qué pruebas) está en su PR; acá no s
 - **PR:** #6
 
 ### F-006 · Reconocimiento de texto en escaneos e imágenes
-- **Propósito:** que las páginas de PDF sin texto y las fotos de documentos aporten su texto completo, leído por un motor intercambiable (`src-tauri/src/source_volume/recognition*.rs`) dentro de la tarea de ingesta de cada fuente y con avance por página; primer motor: Codex CLI.
+- **Propósito:** que las páginas de PDF sin texto y las fotos de documentos aporten su texto completo, leído por un motor intercambiable (`src-tauri/src/source_volume/recognition*.rs`) dentro de la tarea de ingesta de cada fuente y con avance por página; el texto leído se guarda en el proyecto por hash del archivo (`raw/recognized/`), así ningún archivo se lee dos veces. Primer motor: Codex CLI.
 - **Toca upstream:** `src-tauri/src/commands/fs.rs`, `src/commands/fs.ts`, `src/lib/ingest.ts`
 - **Upstream:** solo-fork
-- **PR:** #7, #14
+- **PR:** #7, #14, #17
 
 ### F-007 · Chat con proveedores CLI: busca en el wiki y lee las páginas
 - **Propósito:** que el chat con Codex CLI o Claude Code responda con el contenido del wiki: no envía las skills del modo automático (desactivaban la búsqueda), pide hasta 10 páginas y agrega al pedido su texto (`src/lib/cli-chat-context.ts`).
@@ -82,10 +82,10 @@ El detalle de cada cambio (qué líneas, qué pruebas) está en su PR; acá no s
 - **PR:** #10
 
 ### F-011 · Catálogo de fuentes y deduplicación exacta
-- **Propósito:** que el mismo documento en varias rutas o formatos se ingiera una sola vez y conserve todas sus ubicaciones: el catálogo (`src-tauri/src/source_volume/catalog.rs`) separa contenido de ubicación y la ingesta lo consulta antes de llamar al modelo (`src/lib/source-catalog.ts`).
-- **Toca upstream:** `src-tauri/src/lib.rs`, `src/lib/ingest.ts`
+- **Propósito:** que el mismo documento en varias rutas o formatos se ingiera una sola vez y conserve todas sus ubicaciones: el catálogo (`src-tauri/src/source_volume/catalog.rs`) separa contenido de ubicación; un archivo idéntico se detecta por su SHA-256 antes de encolarlo y el mismo texto en otro formato dentro de la tarea de ingesta, antes de llamar al modelo (`src/lib/source-catalog.ts`).
+- **Toca upstream:** `src-tauri/src/lib.rs`, `src/lib/ingest.ts`, `src/lib/source-lifecycle.ts`, `src/lib/ingest-cache.ts`
 - **Upstream:** solo-fork
-- **PR:** #15
+- **PR:** #15, #17
 
 ## Reabsorbidos
 
