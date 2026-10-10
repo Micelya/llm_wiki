@@ -93,11 +93,11 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "Servidor API, herramientas del agente y búsqueda leen fuentes por su cuenta y todavía no ven las montadas. El PR #12 ya está integrado: se puede empezar.",
+      "detalle": "Servidor API, herramientas del agente y búsqueda leen fuentes por su cuenta y todavía no ven las montadas. El PR #12 ya está integrado: se puede empezar. Replantear sobre la base documental (P-049) antes de empezar.",
       "depende_de": [],
       "referencia": "api_server.rs, agent/tools.rs, commands/search.rs",
       "creado": "2026-10-06",
-      "actualizado": "2026-10-08"
+      "actualizado": "2026-10-09"
     },
     {
       "id": "P-014",
@@ -117,14 +117,14 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "MinHash (secuencias de 5 palabras) y contención para encontrar candidatos; familias automáticas, no por nombre de archivo; clasificación por qué cambió (copia, versión, misma plantilla, divergente). Nunca fusiona: solo relaciona. 'Vigente' es una etiqueta opcional. Los casos dudosos van a revisión humana. Caso de prueba: los 13 comprobantes de AEROS BGH (95-99 % de texto en común, documentos distintos).",
+      "detalle": "MinHash (secuencias de 5 palabras) y contención para encontrar candidatos; familias automáticas, no por nombre de archivo; clasificación por qué cambió (copia, versión, misma plantilla, divergente). Nunca fusiona: solo relaciona. 'Vigente' es una etiqueta opcional. Los casos dudosos van a revisión humana. Caso de prueba: los 13 comprobantes de AEROS BGH (95-99 % de texto en común, documentos distintos). Replantear sobre la base documental (P-049) antes de empezar.",
       "depende_de": [
         "P-014",
         "P-023"
       ],
       "referencia": "POC en C:\\Temporales\\poc\\minhash",
       "creado": "2026-10-06",
-      "actualizado": "2026-10-08"
+      "actualizado": "2026-10-09"
     },
     {
       "id": "P-016",
@@ -132,13 +132,13 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "Agregar al grafo las relaciones con tipo que dicta el catálogo ('versión de', 'copia de', 'mismo modelo que') y una vista de familias.",
+      "detalle": "Agregar al grafo las relaciones con tipo que dicta el catálogo ('versión de', 'copia de', 'mismo modelo que') y una vista de familias. Replantear sobre la base documental (P-049) antes de empezar.",
       "depende_de": [
         "P-015"
       ],
       "referencia": "src/lib/wiki-graph.ts",
       "creado": "2026-10-06",
-      "actualizado": "2026-10-06"
+      "actualizado": "2026-10-09"
     },
     {
       "id": "P-017",
@@ -340,13 +340,13 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "Borrar un archivo dentro de una carpeta montada quita lo generado en el wiki pero el archivo sigue apareciendo en la lista, porque el original no se toca. Hace falta una lista de exclusiones por proyecto.",
+      "detalle": "Borrar un archivo dentro de una carpeta montada quita lo generado en el wiki pero el archivo sigue apareciendo en la lista, porque el original no se toca. Hace falta una lista de exclusiones por proyecto. Replantear sobre la base documental (P-049) antes de empezar.",
       "depende_de": [
         "P-014"
       ],
       "referencia": "src-tauri/src/source_volume/mod.rs (delete_mounted)",
       "creado": "2026-10-08",
-      "actualizado": "2026-10-08"
+      "actualizado": "2026-10-09"
     },
     {
       "id": "P-041",
@@ -390,11 +390,11 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "El catálogo (PR #15) ya sabe qué documentos tienen más de una ubicación, pero nada lo muestra, y lo ingerido antes del cambio solo entra al catálogo cuando se vuelve a ingerir. Falta una vista que liste cada documento con sus ubicaciones (marcando los que coinciden por texto reconocido) y una carga inicial desde las fuentes ya ingeridas.",
+      "detalle": "El catálogo (PR #15) ya sabe qué documentos tienen más de una ubicación, pero nada lo muestra, y lo ingerido antes del cambio solo entra al catálogo cuando se vuelve a ingerir. Falta una vista que liste cada documento con sus ubicaciones (marcando los que coinciden por texto reconocido) y una carga inicial desde las fuentes ya ingeridas. Replantear sobre la base documental (P-049) antes de empezar.",
       "depende_de": [],
       "referencia": "src-tauri/src/source_volume/catalog.rs (catalog_list_duplicates)",
       "creado": "2026-10-08",
-      "actualizado": "2026-10-08"
+      "actualizado": "2026-10-09"
     },
     {
       "id": "P-045",
@@ -431,6 +431,30 @@
       "referencia": "PR #17, src-tauri/src/source_volume/recognized_store.rs, src-tauri/src/source_volume/file_hash.rs",
       "creado": "2026-10-08",
       "actualizado": "2026-10-08"
+    },
+    {
+      "id": "P-048",
+      "titulo": "Investigar el esquema de autorización (UMA 2.0) y el modelo de red entre instancias",
+      "tipo": "decision",
+      "responsable": "usuario",
+      "estado": "pendiente",
+      "detalle": "Decidido el 2026-10-09: la autorización se piensa desde el principio al estilo de UMA 2.0, aunque se implemente después. Falta definir qué parte se adopta, cómo funciona en un servidor local del estudio sin administración o administrable a distancia, cuánto se hereda de los permisos del origen (Drive, OneDrive), y cómo se encuentran y colaboran las instancias (topología, posible componente en la nube; ver cómo lo resuelve Obsidian). El usuario lo investiga en una conversación aparte y trae las conclusiones; con ellas se actualizan las decisiones abiertas 1 y 2 del documento de diseño.",
+      "depende_de": [],
+      "referencia": "docs/design/base-documental.md (sección 9)",
+      "creado": "2026-10-09",
+      "actualizado": "2026-10-09"
+    },
+    {
+      "id": "P-049",
+      "titulo": "Base documental, etapa 1: base del espacio privado",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Primer paso del diseño acordado el 2026-10-09: la base documental pasa a ser un componente separado del fork y su unidad es el espacio, no el proyecto. Etapa 1: inventario, vigilancia, identidad (ubicación, contenido, familia) y derivados únicos para el espacio privado de un solo usuario, con sus pantallas, registrando el dueño de cada recurso. Antes de escribir código hay que cerrar dos decisiones abiertas del documento: el motor de base de datos y cómo migra lo construido por proyecto (catálogo, texto reconocido, detección de cambios). Reemplaza el enfoque por proyecto de P-044 y condiciona P-012, P-015, P-016 y P-040, que se replantean sobre la base.",
+      "depende_de": [],
+      "referencia": "docs/design/base-documental.md",
+      "creado": "2026-10-09",
+      "actualizado": "2026-10-09"
     }
   ]
 }
