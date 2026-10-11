@@ -434,15 +434,15 @@
     },
     {
       "id": "P-048",
-      "titulo": "Investigar el esquema de autorización (UMA 2.0) y el modelo de red entre instancias",
+      "titulo": "Definir la autorización en la aplicación y el modelo de red entre instancias",
       "tipo": "decision",
-      "responsable": "usuario",
+      "responsable": "ambos",
       "estado": "pendiente",
-      "detalle": "Decidido el 2026-10-09: la autorización se piensa desde el principio al estilo de UMA 2.0, aunque se implemente después. Falta definir qué parte se adopta, cómo funciona en un servidor local del estudio sin administración o administrable a distancia, cuánto se hereda de los permisos del origen (Drive, OneDrive), y cómo se encuentran y colaboran las instancias (topología, posible componente en la nube; ver cómo lo resuelve Obsidian). El usuario lo investiga en una conversación aparte y trae las conclusiones; con ellas se actualizan las decisiones abiertas 1 y 2 del documento de diseño.",
+      "detalle": "Definido el 2026-10-10: en el espacio compartido las autorizaciones se manejan en la aplicación; el sistema de archivos es infraestructura física; los proyectos se crean en la aplicación y los permisos se asignan a los proyectos; hace falta una experiencia de uso potente para que manejar permisos no sea un problema. Reemplaza al esquema UMA 2.0 del documento de diseño y a dos hipótesis analizadas y no adoptadas (permisos heredados del origen; derivados en el sistema de archivos compartido). Falta trabajar: qué pieza guarda y hace cumplir los permisos, cómo se identifica a cada usuario, cómo se relacionan los permisos de un proyecto con sus documentos, y el modelo de red entre instancias.",
       "depende_de": [],
-      "referencia": "docs/design/base-documental.md (sección 9)",
+      "referencia": "docs/sessions/2026-10-10-sesion-03.md (sección 2)",
       "creado": "2026-10-09",
-      "actualizado": "2026-10-09"
+      "actualizado": "2026-10-10"
     },
     {
       "id": "P-049",
@@ -451,10 +451,26 @@
       "responsable": "claude",
       "estado": "pendiente",
       "detalle": "Primer paso del diseño acordado el 2026-10-09: la base documental pasa a ser un componente separado del fork y su unidad es el espacio, no el proyecto. Etapa 1: inventario, vigilancia, identidad (ubicación, contenido, familia) y derivados únicos para el espacio privado de un solo usuario, con sus pantallas, registrando el dueño de cada recurso. Antes de escribir código hay que cerrar dos decisiones abiertas del documento: el motor de base de datos y cómo migra lo construido por proyecto (catálogo, texto reconocido, detección de cambios). Reemplaza el enfoque por proyecto de P-044 y condiciona P-012, P-015, P-016 y P-040, que se replantean sobre la base.",
-      "depende_de": [],
+      "depende_de": [
+        "P-050"
+      ],
       "referencia": "docs/design/base-documental.md",
       "creado": "2026-10-09",
-      "actualizado": "2026-10-09"
+      "actualizado": "2026-10-10"
+    },
+    {
+      "id": "P-050",
+      "titulo": "Consolidar el documento de diseño de la base documental",
+      "tipo": "decision",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "detalle": "El documento de diseño quedó desactualizado: todavía describe la autorización al estilo de UMA 2.0 y no incluye las definiciones acordadas el 9 y 10 de octubre, que están en el traspaso de la sesión 03. El dueño pidió ver la propuesta de cambios antes de aplicarla, y que se verifique que lo conversado en los distintos turnos sea consistente.",
+      "depende_de": [
+        "P-048"
+      ],
+      "referencia": "docs/design/base-documental.md, docs/sessions/2026-10-10-sesion-03.md",
+      "creado": "2026-10-10",
+      "actualizado": "2026-10-10"
     }
   ]
 }
