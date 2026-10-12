@@ -157,12 +157,12 @@
       "titulo": "Decidir qué hacer con 7 pruebas de Rust que fallan en Windows",
       "tipo": "decision",
       "responsable": "ambos",
-      "estado": "pendiente",
-      "detalle": "Fallan en main sin cambios nuestros: 6 de commands::file_history y commands::fs::tests::allow_absolute_write_paths. Arreglarlas, reportarlas a upstream o dejarlas documentadas; mientras tanto hay que descontarlas al leer resultados. Ver también P-045 (pruebas de TypeScript intermitentes) y P-046 (la comprobación automática no ejecuta pruebas).",
+      "estado": "en-curso",
+      "detalle": "Decidido por el usuario el 2026-10-11: corregirlas. Hecho en el PR #21. Las 6 de commands::file_history eran un defecto real en Windows: el historial de un archivo se guardaba bajo una clave calculada con la ruta escrita con '/' y se buscaba con la ruta escrita con '\\', así que el panel de historial salía vacío; ahora el separador se normaliza. La de commands::fs (allow_absolute_write_paths) afirmaba que '/tmp/...' es una ruta absoluta, cierto solo en Unix; esa línea quedó limitada a Unix. Con el PR, cargo test --lib da 493 pasan y 0 fallan. Falta: integrar el PR. Sin verificar en la app (el historial está desactivado por defecto).",
       "depende_de": [],
-      "referencia": "cargo test --lib en src-tauri",
+      "referencia": "PR #21, src-tauri/src/commands/file_history.rs (history_path)",
       "creado": "2026-10-06",
-      "actualizado": "2026-10-08"
+      "actualizado": "2026-10-11"
     },
     {
       "id": "P-021",

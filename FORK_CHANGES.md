@@ -87,6 +87,12 @@ El detalle de cada cambio (qué líneas, qué pruebas) está en su PR; acá no s
 - **Upstream:** solo-fork
 - **PR:** #15, #17
 
+### F-012 · Historial de versiones en Windows
+- **Propósito:** que el historial de versiones de un archivo se encuentre en Windows: la clave bajo la que se guarda ya no depende de si la ruta llegó con `/` o con `\` (antes se guardaba y el panel lo mostraba vacío); además deja en cero los fallos de `cargo test --lib` en Windows.
+- **Toca upstream:** `src-tauri/src/commands/file_history.rs`, `src-tauri/src/commands/fs.rs`
+- **Upstream:** candidato
+- **PR:** #21
+
 ## Reabsorbidos
 
 Cambios que upstream ya incorporó (ID · versión de upstream que lo trae).
