@@ -19,6 +19,7 @@
 // The base is introduced ahead of its callers.
 #![allow(dead_code)]
 
+pub mod bridge;
 pub mod commands;
 #[cfg(test)]
 mod field_check;

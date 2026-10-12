@@ -10,6 +10,7 @@ use std::sync::Arc;
 use serde::Serialize;
 use tauri::{Emitter, Manager, State};
 
+use super::bridge::{self, GeneralProject, WikiSource};
 use super::origins::Origin;
 use super::query::{Activity, DocumentDetail, DocumentFilter, DocumentPage, Health, OriginSummary};
 use super::worker::{self, Wake};
@@ -44,6 +45,7 @@ pub fn start(app: &tauri::AppHandle) {
         .map(Arc::new);
     match &base {
         Ok(base) => {
+            bridge::share(base.clone());
             let handle = app.clone();
             worker::spawn(base.clone(), wake.clone(), move || {
                 let _ = handle.emit(CHANGED_EVENT, ());
@@ -92,9 +94,14 @@ pub fn docbase_add_origin(
     folder: String,
     convention: Vec<String>,
 ) -> Result<Origin, String> {
-    let origin = state
-        .base()?
-        .add_origin(&name, Path::new(&folder), &convention)?;
+    let base = state.base()?;
+    let origin = base.add_origin(&name, Path::new(&folder), &convention)?;
+    // The general project's wiki, when there is one, gets the new origin
+    // as a source too. Failing to mount it does not undo the origin: the
+    // Orígenes screen shows the reason.
+    if let Err(error) = base.sync_general_mounts() {
+        eprintln!("[docbase] {error}");
+    }
     state.wake.request_sweep();
     Ok(origin)
 }
@@ -110,7 +117,39 @@ pub fn docbase_set_origin_convention(
 
 #[tauri::command(async)]
 pub fn docbase_remove_origin(state: State<'_, DocBaseState>, origin_id: String) -> Result<(), String> {
-    state.base()?.remove_origin(&origin_id)
+    let base = state.base()?;
+    base.unmount_from_general(&origin_id)?;
+    base.remove_origin(&origin_id)
+}
+
+#[tauri::command(async)]
+pub fn docbase_general_project(state: State<'_, DocBaseState>) -> Result<Option<GeneralProject>, String> {
+    state.base()?.general_project()
+}
+
+/// Makes a wiki project the general project of the space: every origin
+/// becomes a source of it, without copying anything. Nothing is ingested
+/// by this.
+#[tauri::command(async)]
+pub fn docbase_link_general_project(
+    state: State<'_, DocBaseState>,
+    project_path: String,
+    name: String,
+) -> Result<GeneralProject, String> {
+    state
+        .base()?
+        .link_general_project(Path::new(&project_path), &name)
+}
+
+#[tauri::command(async)]
+pub fn docbase_unlink_general_project(state: State<'_, DocBaseState>) -> Result<(), String> {
+    state.base()?.unlink_general_project()
+}
+
+/// The files of the base as sources of the general project's wiki.
+#[tauri::command(async)]
+pub fn docbase_wiki_sources(state: State<'_, DocBaseState>) -> Result<Vec<WikiSource>, String> {
+    state.base()?.wiki_sources()
 }
 
 /// Asks for a sweep of every origin now; the result arrives as
