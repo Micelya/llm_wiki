@@ -20,6 +20,8 @@
 #![allow(dead_code)]
 
 pub mod commands;
+#[cfg(test)]
+mod field_check;
 mod identity;
 pub mod origins;
 pub mod query;
@@ -27,6 +29,7 @@ mod scan;
 mod schema;
 #[cfg(test)]
 pub(crate) mod testing;
+pub mod text;
 mod worker;
 
 use std::path::{Path, PathBuf};

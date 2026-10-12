@@ -220,6 +220,42 @@ pub(crate) async fn preprocess_source(
     .map_err(|e| format!("preprocess_file blocking task join error: {e}"))?
 }
 
+/// The text of a document by extraction alone: no cache and no
+/// recognition engine, so it costs nothing and never invents. `Ok(None)`
+/// for what carries no text of its own (images, media, other binaries).
+pub(crate) fn extract_text_without_recognition(path: &Path) -> Result<Option<String>, String> {
+    /// Plain files above this are logs or data dumps, not documents.
+    const MAX_PLAIN_TEXT_BYTES: u64 = 8 * 1024 * 1024;
+
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    let location = path.to_string_lossy();
+    match ext.as_str() {
+        "pdf" => extract_pdf_text(&location, false).map(Some),
+        "org" => extract_org_text(&location).map(Some),
+        e if OFFICE_EXTS.contains(&e) => extract_office_text(&location, e).map(Some),
+        e if EBOOK_EXTS.contains(&e) => {
+            crate::commands::ebook::extract_ebook_text(&location, e).map(Some)
+        }
+        e if IMAGE_EXTS.contains(&e) || MEDIA_EXTS.contains(&e) || LEGACY_DOC_EXTS.contains(&e) => {
+            Ok(None)
+        }
+        _ => {
+            let size = fs::metadata(path)
+                .map_err(|e| format!("Failed to read metadata of '{location}': {e}"))?
+                .len();
+            if size > MAX_PLAIN_TEXT_BYTES {
+                return Ok(None);
+            }
+            let bytes = fs::read(path).map_err(|e| format!("Failed to read '{location}': {e}"))?;
+            Ok(String::from_utf8(bytes).ok())
+        }
+    }
+}
+
 fn cache_path_for(original: &Path) -> std::path::PathBuf {
     let parent = original.parent().unwrap_or(Path::new("."));
     let cache_dir = parent.join(".cache");

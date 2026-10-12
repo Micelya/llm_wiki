@@ -27,7 +27,8 @@ pub struct OriginSummary {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct DocumentFilter {
-    /// Words to look for in the name and path of the file.
+    /// Words to look for in the name and path of the file and in the
+    /// text of the document. Every word has to be found somewhere.
     pub query: Option<String>,
     pub origin_id: Option<String>,
     /// One of the states of `DocumentRow::state`.
@@ -193,8 +194,22 @@ impl DocBase {
             .split_whitespace()
             .take(8)
         {
-            conditions.push("rel_path LIKE ? ESCAPE '\\'".to_string());
-            bound.push(Value::Text(format!("%{}%", escape_like(word))));
+            // Each word has to be in the path or in the text.
+            let like = Value::Text(format!("%{}%", escape_like(word)));
+            match fts_prefix(word) {
+                Some(prefix) => {
+                    conditions.push(
+                        "(rel_path LIKE ? ESCAPE '\\' OR content_id IN (SELECT rowid FROM content_fts WHERE content_fts MATCH ?))"
+                            .to_string(),
+                    );
+                    bound.push(like);
+                    bound.push(Value::Text(prefix));
+                }
+                None => {
+                    conditions.push("rel_path LIKE ? ESCAPE '\\'".to_string());
+                    bound.push(like);
+                }
+            }
         }
         let filter_sql = if conditions.is_empty() {
             "1 = 1".to_string()
@@ -451,6 +466,22 @@ fn read_rows(conn: &Connection, sql: &str, bound: Vec<Value>) -> Result<Vec<Docu
         })
         .map_err(sql_err)?;
     rows.collect::<Result<Vec<_>, _>>().map_err(sql_err)
+}
+
+/// A word as a full-text query matching the words that start with it,
+/// or `None` when it has nothing a text index would hold. Quoting keeps
+/// whatever the user typed from being read as query syntax.
+fn fts_prefix(word: &str) -> Option<String> {
+    let clean: String = word
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c } else { ' ' })
+        .collect();
+    let clean = clean.split_whitespace().collect::<Vec<_>>().join(" ");
+    if clean.is_empty() {
+        None
+    } else {
+        Some(format!("\"{clean}\"*"))
+    }
 }
 
 fn escape_like(word: &str) -> String {

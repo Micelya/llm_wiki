@@ -80,7 +80,7 @@ export type DocumentState =
   | "error"
 
 export interface DocumentFilter {
-  /** Words to look for in the name and path of the file. */
+  /** Words to look for in the name, the path and the text. All must be found. */
   query?: string
   originId?: string
   state?: DocumentState | ""
