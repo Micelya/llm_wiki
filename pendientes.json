@@ -57,13 +57,13 @@
       "id": "P-006",
       "titulo": "Habilitar la publicación de releases del fork",
       "tipo": "decision",
-      "responsable": "usuario",
+      "responsable": "ambos",
       "estado": "pendiente",
-      "detalle": "Convención decidida: etiquetas 'mi-desktop-vX.Y.Z' (candidatas con sufijo '-rc.N'; la primera será mi-desktop-v0.1.0-rc.1). Falta crear la variable de repositorio ENABLE_TAG_RELEASE=true y recién entonces subir la etiqueta. No usar 'git push --tags': el clon tiene las etiquetas de upstream.",
+      "detalle": "Convención decidida: etiquetas 'mi-desktop-vX.Y.Z' (candidatas con sufijo '-rc.N'; la primera será mi-desktop-v0.1.0-rc.1). Falta crear la variable de repositorio ENABLE_TAG_RELEASE=true y recién entonces subir la etiqueta. No usar 'git push --tags': el clon tiene las etiquetas de upstream. Plan del 2026-10-12: el usuario quiere generar el instalador y probarlo en su otra máquina antes de pasarlo a los abogados del estudio de referencia. Dos caminos: (a) corrida manual del workflow de build (Actions, 'Run workflow'), que deja los instaladores como archivos de esa corrida sin publicar nada; (b) crear la variable ENABLE_TAG_RELEASE=true y subir la etiqueta mi-desktop-v0.1.0-rc.1, que publica una versión de prueba descargable sin cuenta porque el repo es público. Nunca se generó ningún instalador: no está verificado que el workflow termine bien. Antes de entregarlo a terceros: decidir si la descarga puede ser pública, el proveedor de modelo de cada usuario (P-029) y si va con el wiki sin activar.",
       "depende_de": [],
       "referencia": "Settings → Secrets and variables → Actions → Variables",
       "creado": "2026-10-06",
-      "actualizado": "2026-10-07"
+      "actualizado": "2026-10-12"
     },
     {
       "id": "P-008",
@@ -172,11 +172,11 @@
       "tipo": "decision",
       "responsable": "usuario",
       "estado": "pendiente",
-      "detalle": "Hoy salen sin firmar y Windows muestra el aviso de 'editor desconocido' al instalar. Firmarlos requiere comprar un certificado de firma de código y agregar ese paso al workflow. Cómo se hace (explicado al usuario el 2026-10-11, sin verificar precios ni requisitos): una certificadora valida a la empresa y emite un certificado cuya clave vive en un dispositivo o en un servicio de firma en la nube; se agrega un paso de firma al workflow. Alternativa más barata: el servicio de firma de Microsoft, si una empresa argentina califica. Recomendación: hacerlo justo antes de entregar el primer instalador a un estudio; depende de proteger los secretos (P-002).",
+      "detalle": "Hoy salen sin firmar y Windows muestra el aviso de 'editor desconocido' al instalar. Firmarlos requiere comprar un certificado de firma de código y agregar ese paso al workflow. Cómo se hace (explicado al usuario el 2026-10-11, sin verificar precios ni requisitos): una certificadora valida a la empresa y emite un certificado cuya clave vive en un dispositivo o en un servicio de firma en la nube; se agrega un paso de firma al workflow. Alternativa más barata: el servicio de firma de Microsoft, si una empresa argentina califica. Recomendación: hacerlo justo antes de entregar el primer instalador a un estudio; depende de proteger los secretos (P-002). Mientras no se firme, quien instale tiene que tocar 'Más información' y 'Ejecutar de todas formas' en el aviso de Windows.",
       "depende_de": [],
       "referencia": "",
       "creado": "2026-10-07",
-      "actualizado": "2026-10-11"
+      "actualizado": "2026-10-12"
     },
     {
       "id": "P-023",
@@ -325,20 +325,6 @@
       "actualizado": "2026-10-08"
     },
     {
-      "id": "P-040",
-      "titulo": "Excluir un archivo individual de una carpeta montada",
-      "tipo": "codigo",
-      "responsable": "claude",
-      "estado": "hecho",
-      "detalle": "Borrar un archivo dentro de una carpeta montada quita lo generado en el wiki pero el archivo sigue apareciendo en la lista, porque el original no se toca. Hace falta una lista de exclusiones por proyecto. Replantear sobre la base documental (P-049) antes de empezar. Resuelto en el PR #31: en el árbol de Orígenes un archivo o una carpeta se excluyen sin tocar nada en disco; quedan a la vista, tachados, y la base no los procesa ni los entrega al wiki. Se puede deshacer.",
-      "depende_de": [
-        "P-014"
-      ],
-      "referencia": "src-tauri/src/source_volume/mod.rs (delete_mounted)",
-      "creado": "2026-10-08",
-      "actualizado": "2026-10-12"
-    },
-    {
       "id": "P-041",
       "titulo": "Decidir si la app genera el Overview del proyecto",
       "tipo": "decision",
@@ -428,7 +414,7 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "en-curso",
-      "detalle": "Alcance confirmado por el usuario el 2026-10-11: la etapa 1 del diseño más un puente mínimo, que es que el wiki del proyecto general tome sus fuentes de la base. Etapa 1: inventario, vigilancia, identidad (ubicación y contenido; las familias son de la etapa 2), derivados procesados una vez y pantallas de la base, para el espacio privado de un solo usuario. Base en SQLite, con su búsqueda por palabras; LanceDB sigue para vectores. Desde esta etapa: cada ubicación guarda origen, carpeta y etiquetas (las define el usuario según cómo ordena sus carpetas; 'cliente' y 'caso' son etiquetas); toda consulta recibe el conjunto de lo visible, que en privado es 'todo'; cada proyecto tiene miembros, 'abierto' al inicio; existe el proyecto general del espacio. Los datos que hoy viven por proyecto (catálogo, texto reconocido, detección de cambios) pasan al espacio. Pantallas acordadas: Inicio (salud del archivo, requiere atención, actividad reciente, proyectos), Orígenes, Documentos y Detalle de un documento; van en español. El marco visual de toda la app se trata aparte (P-057). Los pendientes P-012, P-015, P-016, P-040 y P-044 se replantean sobre esta base. Avance: (1) PR #24, la base SQLite del espacio privado y sus tablas, sin nada visible todavía. (2) PR #25, orígenes, barrido, huella de cada archivo en segundo plano y pantalla Orígenes. La vigilancia es un barrido al arrancar, cada cinco minutos y a pedido; el aviso en vivo del sistema quedó como P-064. (3) PR #26, pantalla Documentos (tabla con buscador y filtros) y Detalle de un documento con forma de artículo, etiquetas corregibles y todas las ubicaciones del mismo documento. (4) PR #27, texto de cada documento obtenido una vez por extracción directa (sin motores de reconocimiento por su cuenta), mismo texto en dos archivos como un solo documento, y búsqueda por palabras en Documentos. Comprobado en solo lectura sobre AEROS BGH (31 archivos) y Extrimian 3.0 (183), sin errores. (5) PR #28, pantalla Inicio (requiere atención, salud del archivo, actividad reciente, búsqueda rápida); la app abre ahí. (6) PR #29, el puente: un proyecto de wiki se asigna como proyecto general y las carpetas de la base pasan a ser sus fuentes sin copiar nada; el texto sale de la base y un escaneo reconocido por el wiki vuelve a la base, así no se reconoce dos veces. Asignarlo desactiva la incorporación automática de ese proyecto; incorporar se pide carpeta por carpeta. Construido completo y con pruebas automáticas; falta verlo en la app (P-065) e integrar los PR #24 a #30. El 2026-10-12 el usuario la vio funcionando en la app (abre en Inicio; copias, movidos y editados detectados sobre una copia local de AEROS BGH) y pidió cuatro cambios, hechos en el PR #31: el archivo que la app crea sola con su wiki activable, Orígenes como árbol con exclusiones, etiquetas con grupos y reglas por carpeta, e índice de enlaces del wiki. Falta integrar el #31 y verlo en la app (P-067).",
+      "detalle": "Alcance confirmado por el usuario el 2026-10-11: la etapa 1 del diseño más un puente mínimo, que es que el wiki del proyecto general tome sus fuentes de la base. Etapa 1: inventario, vigilancia, identidad (ubicación y contenido; las familias son de la etapa 2), derivados procesados una vez y pantallas de la base, para el espacio privado de un solo usuario. Base en SQLite, con su búsqueda por palabras; LanceDB sigue para vectores. Desde esta etapa: cada ubicación guarda origen, carpeta y etiquetas (las define el usuario según cómo ordena sus carpetas; 'cliente' y 'caso' son etiquetas); toda consulta recibe el conjunto de lo visible, que en privado es 'todo'; cada proyecto tiene miembros, 'abierto' al inicio; existe el proyecto general del espacio. Los datos que hoy viven por proyecto (catálogo, texto reconocido, detección de cambios) pasan al espacio. Pantallas acordadas: Inicio (salud del archivo, requiere atención, actividad reciente, proyectos), Orígenes, Documentos y Detalle de un documento; van en español. El marco visual de toda la app se trata aparte (P-057). Los pendientes P-012, P-015, P-016, P-040 y P-044 se replantean sobre esta base. Avance: (1) PR #24, la base SQLite del espacio privado y sus tablas, sin nada visible todavía. (2) PR #25, orígenes, barrido, huella de cada archivo en segundo plano y pantalla Orígenes. La vigilancia es un barrido al arrancar, cada cinco minutos y a pedido; el aviso en vivo del sistema quedó como P-064. (3) PR #26, pantalla Documentos (tabla con buscador y filtros) y Detalle de un documento con forma de artículo, etiquetas corregibles y todas las ubicaciones del mismo documento. (4) PR #27, texto de cada documento obtenido una vez por extracción directa (sin motores de reconocimiento por su cuenta), mismo texto en dos archivos como un solo documento, y búsqueda por palabras en Documentos. Comprobado en solo lectura sobre AEROS BGH (31 archivos) y Extrimian 3.0 (183), sin errores. (5) PR #28, pantalla Inicio (requiere atención, salud del archivo, actividad reciente, búsqueda rápida); la app abre ahí. (6) PR #29, el puente: un proyecto de wiki se asigna como proyecto general y las carpetas de la base pasan a ser sus fuentes sin copiar nada; el texto sale de la base y un escaneo reconocido por el wiki vuelve a la base, así no se reconoce dos veces. Asignarlo desactiva la incorporación automática de ese proyecto; incorporar se pide carpeta por carpeta. Construido completo y con pruebas automáticas; falta verlo en la app (P-065) e integrar los PR #24 a #30. El 2026-10-12 el usuario la vio funcionando en la app (abre en Inicio; copias, movidos y editados detectados sobre una copia local de AEROS BGH) y pidió cuatro cambios, hechos en el PR #31: el archivo que la app crea sola con su wiki activable, Orígenes como árbol con exclusiones, etiquetas con grupos y reglas por carpeta, e índice de enlaces del wiki. Falta integrar el #31 y verlo en la app (P-067). Al cierre del 2026-10-12 todo está integrado en main (PR #24 a #31). Queda verla funcionando entera (P-067) y activar el wiki por primera vez (P-051).",
       "depende_de": [],
       "referencia": "docs/design/base-documental.md; docs/sessions/2026-10-12-sesion-05.md; src-tauri/src/docbase/; src/components/docbase/; src/vocabulary/; PR #24 a #31",
       "creado": "2026-10-09",
@@ -628,20 +614,6 @@
       "actualizado": "2026-10-11"
     },
     {
-      "id": "P-065",
-      "titulo": "Ver la base documental funcionando en la app",
-      "tipo": "verificacion",
-      "responsable": "ambos",
-      "estado": "hecho",
-      "detalle": "Nada de los PR #24 a #29 se vio en la app real: solo pruebas automáticas, el motor sobre las carpetas reales en solo lectura y las pantallas dibujadas con datos inventados. Sin consumir cupo: abrir la app (tiene que abrir en Inicio); agregar AEROS BGH en Orígenes (31 archivos; al rato 21 procesados y 10 con 'Texto en imagen'); agregar Extrimian 3.0 (183 archivos, 74 'detectado, no procesable'); en Documentos, 'Solo con copias' tiene que mostrar el acuerdo en Word y en PDF; abrir un documento, corregir una etiqueta y usar 'Ver en su carpeta'; buscar una palabra que esté solo en el texto. El puente se prueba aparte porque consume cupo (P-051). Hecho por el usuario el 2026-10-12 sobre una copia local de AEROS BGH con duplicados deliberados: abrió en Inicio y las pruebas de copias, movidos y editados dieron bien. Dejó detalles de interfaz para pasar juntos (P-057).",
-      "depende_de": [
-        "P-049"
-      ],
-      "referencia": "docs/sessions/2026-10-11-sesion-04.md (secciones 5 y 7)",
-      "creado": "2026-10-11",
-      "actualizado": "2026-10-12"
-    },
-    {
       "id": "P-066",
       "titulo": "Revisar las decisiones tomadas sin consultar al construir la base",
       "tipo": "decision",
@@ -660,8 +632,8 @@
       "titulo": "Ver en la app el archivo, el árbol, las etiquetas y el índice del wiki",
       "tipo": "verificacion",
       "responsable": "ambos",
-      "estado": "pendiente",
-      "detalle": "Nada del PR #31 se vio en la app real. Sin consumir cupo: (1) primer arranque: tiene que preguntar la carpeta de trabajo, proponer llm-wiki-workspace, crear el proyecto 'default' y abrir en Inicio; (2) Orígenes: panel 'Wiki del archivo' sin activar; 'Ver el contenido' despliega el árbol; (3) excluir un archivo y una carpeta: quedan tachados y con estado 'Excluido', y se pueden volver a incluir; (4) en una carpeta, ícono de etiqueta: 'cada subcarpeta de acá es un… Cliente' y ver los chips en Documentos; filtrar por etiqueta; (5) renombrar una etiqueta en 'Grupos y etiquetas' y ver que cambia en todos lados; (6) corregir a mano la etiqueta de un archivo. Verificar también que la carpeta de prueba ya cargada conserve sus etiquetas como regla en la raíz.",
+      "estado": "en-curso",
+      "detalle": "Nada del PR #31 se vio en la app real. Sin consumir cupo: (1) primer arranque: tiene que preguntar la carpeta de trabajo, proponer llm-wiki-workspace, crear el proyecto 'default' y abrir en Inicio; (2) Orígenes: panel 'Wiki del archivo' sin activar; 'Ver el contenido' despliega el árbol; (3) excluir un archivo y una carpeta: quedan tachados y con estado 'Excluido', y se pueden volver a incluir; (4) en una carpeta, ícono de etiqueta: 'cada subcarpeta de acá es un… Cliente' y ver los chips en Documentos; filtrar por etiqueta; (5) renombrar una etiqueta en 'Grupos y etiquetas' y ver que cambia en todos lados; (6) corregir a mano la etiqueta de un archivo. Verificar también que la carpeta de prueba ya cargada conserve sus etiquetas como regla en la raíz. Avance del 2026-10-12: el primer paso dio bien en la app real (pregunta la carpeta de trabajo y propone C:/Users/Usuario/llm-wiki-workspace). Faltan los puntos 2 a 6 y la conversión de los niveles ya cargados.",
       "depende_de": [
         "P-049"
       ],
@@ -675,7 +647,7 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "La base ya lleva un índice de páginas, enlaces y página-documento (PR #31), pero el grafo, la búsqueda, el panel de enlaces y el lint siguen releyendo todas las páginas, cada uno con su propia regla para decidir a qué página apunta un enlace (hay al menos seis). Pasarlos de a uno al índice, que es código original y conviene tocarlo con cuidado. También: actualizar los enlaces cuando se renombra una página, que hoy no se hace.",
+      "detalle": "La base ya lleva un índice de páginas, enlaces y página-documento (PR #31), pero el grafo, la búsqueda, el panel de enlaces y el lint siguen releyendo todas las páginas, cada uno con su propia regla para decidir a qué página apunta un enlace (hay al menos seis). Pasarlos de a uno al índice, que es código original y conviene tocarlo con cuidado. También: actualizar los enlaces cuando se renombra una página, que hoy no se hace. Pregunta del usuario del 2026-10-12: por qué no pasar los enlaces a la base con identificadores en vez de mantener las páginas como verdad y un índice aparte. Respuesta dada, sin confirmación suya: las páginas las escribe el modelo como texto y toda la capa de wiki lee y escribe esos archivos; se recomendó dejarlas como verdad y que este pendiente cubra lo que se busca con identificadores (que renombrar una página no rompa enlaces). Reabrir si el usuario prefiere el otro camino.",
       "depende_de": [
         "P-049"
       ],
