@@ -21,7 +21,6 @@ function origin(patch: Partial<OriginSummary>): OriginSummary {
     name: "Casos",
     provider: "local-folder",
     location: "C:/casos",
-    convention: [],
     addedAt: 0,
     lastScanAt: 0,
     reachable: true,

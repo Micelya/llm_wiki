@@ -50,6 +50,15 @@ struct Known {
 
 impl DocBase {
     pub fn scan_origin(&self, origin_id: &str) -> Result<ScanReport, String> {
+        let report = self.sweep(origin_id)?;
+        // New files inherit the label rules of their folders.
+        if report.added > 0 {
+            self.relabel_origin(origin_id)?;
+        }
+        Ok(report)
+    }
+
+    fn sweep(&self, origin_id: &str) -> Result<ScanReport, String> {
         let origin = self
             .origin(origin_id)?
             .ok_or_else(|| "Ese origen ya no existe".to_string())?;

@@ -21,6 +21,7 @@ pub mod commands;
 #[cfg(test)]
 mod field_check;
 mod identity;
+pub mod labels;
 pub mod origins;
 pub mod query;
 mod scan;
@@ -106,9 +107,11 @@ impl DocBase {
         conn.pragma_update(None, "foreign_keys", "ON")
             .map_err(|e| format!("Failed to enable foreign keys: {e}"))?;
         schema::migrate(&mut conn)?;
-        Ok(Self {
+        let base = Self {
             conn: Mutex::new(conn),
-        })
+        };
+        labels::adopt_conventions(&base)?;
+        Ok(base)
     }
 
     /// The connection. Hold it only for the statements themselves: reading

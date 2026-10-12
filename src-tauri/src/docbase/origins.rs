@@ -3,7 +3,6 @@
 //! Incorporating the first one creates the space's general project,
 //! which covers every origin from then on.
 
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use rusqlite::{params, Connection, OptionalExtension};
@@ -25,8 +24,6 @@ pub struct Origin {
     pub name: String,
     pub provider: String,
     pub location: String,
-    /// The name of each folder level, outermost first.
-    pub convention: Vec<String>,
     pub added_at: i64,
     pub last_scan_at: Option<i64>,
     /// `None` until the first sweep.
@@ -40,12 +37,18 @@ impl Origin {
 }
 
 impl DocBase {
-    pub fn add_origin(
-        &self,
-        name: &str,
-        folder: &Path,
-        convention: &[String],
-    ) -> Result<Origin, String> {
+    /// Incorporates a folder. `levels`, when given, says how the whole
+    /// folder is ordered ("cliente", "caso") and becomes a label rule on
+    /// its root; it only suits folders ordered the same way throughout.
+    pub fn add_origin(&self, name: &str, folder: &Path, levels: &[String]) -> Result<Origin, String> {
+        let origin = self.insert_origin(name, folder)?;
+        if levels.iter().any(|level| !level.trim().is_empty()) {
+            self.set_levels_rule(&origin.id, "", levels)?;
+        }
+        Ok(origin)
+    }
+
+    fn insert_origin(&self, name: &str, folder: &Path) -> Result<Origin, String> {
         let name = name.trim();
         if name.is_empty() {
             return Err("El origen necesita un nombre".to_string());
@@ -63,7 +66,6 @@ impl DocBase {
                 folder.display()
             ));
         }
-        let convention = clean_convention(convention);
         let location = folder.to_string_lossy().to_string();
 
         let mut conn = self.conn();
@@ -85,22 +87,13 @@ impl DocBase {
             name: name.to_string(),
             provider: LOCAL_FOLDER.to_string(),
             location,
-            convention,
             added_at: now_ms(),
             last_scan_at: None,
             reachable: None,
         };
         tx.execute(
-            "INSERT INTO origin (id, name, provider, location, convention, added_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![
-                origin.id,
-                origin.name,
-                origin.provider,
-                origin.location,
-                serde_json::to_string(&origin.convention).unwrap_or_else(|_| "[]".into()),
-                origin.added_at
-            ],
+            "INSERT INTO origin (id, name, provider, location, added_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![origin.id, origin.name, origin.provider, origin.location, origin.added_at],
         )
         .map_err(sql_err)?;
         let general = ensure_general_project(&tx)?;
@@ -127,19 +120,6 @@ impl DocBase {
         Ok(())
     }
 
-    pub fn set_origin_convention(&self, id: &str, convention: &[String]) -> Result<(), String> {
-        let json = serde_json::to_string(&clean_convention(convention))
-            .unwrap_or_else(|_| "[]".to_string());
-        let updated = self
-            .conn()
-            .execute("UPDATE origin SET convention = ?1 WHERE id = ?2", params![json, id])
-            .map_err(sql_err)?;
-        if updated == 0 {
-            return Err("Ese origen ya no existe".to_string());
-        }
-        Ok(())
-    }
-
     pub fn origins(&self, visible: &Visible) -> Result<Vec<Origin>, String> {
         list(&self.conn(), visible)
     }
@@ -155,22 +135,20 @@ pub(crate) fn list(conn: &Connection, visible: &Visible) -> Result<Vec<Origin>, 
     let (condition, bound) = visible.condition("id");
     let mut statement = conn
         .prepare(&format!(
-            "SELECT id, name, provider, location, convention, added_at, last_scan_at, reachable
+            "SELECT id, name, provider, location, added_at, last_scan_at, reachable
              FROM origin WHERE {condition} ORDER BY name COLLATE NOCASE"
         ))
         .map_err(sql_err)?;
     let rows = statement
         .query_map(rusqlite::params_from_iter(bound.iter()), |row| {
-            let convention: String = row.get(4)?;
-            let reachable: Option<i64> = row.get(7)?;
+            let reachable: Option<i64> = row.get(6)?;
             Ok(Origin {
                 id: row.get(0)?,
                 name: row.get(1)?,
                 provider: row.get(2)?,
                 location: row.get(3)?,
-                convention: serde_json::from_str(&convention).unwrap_or_default(),
-                added_at: row.get(5)?,
-                last_scan_at: row.get(6)?,
+                added_at: row.get(4)?,
+                last_scan_at: row.get(5)?,
                 reachable: reachable.map(|value| value != 0),
             })
         })
@@ -196,36 +174,6 @@ pub(crate) fn ensure_general_project(conn: &Connection) -> Result<String, String
     )
     .map_err(sql_err)?;
     Ok(id)
-}
-
-/// The labels of a file: one per folder level the user named, taken from
-/// the folder it is in, with the values the user corrected on top.
-pub fn labels_for(
-    folder: &str,
-    convention: &[String],
-    overrides: &BTreeMap<String, String>,
-) -> BTreeMap<String, String> {
-    let mut labels = BTreeMap::new();
-    let levels = folder.split('/').filter(|part| !part.is_empty());
-    for (name, value) in convention.iter().zip(levels) {
-        labels.insert(name.clone(), value.to_string());
-    }
-    for (name, value) in overrides {
-        if value.trim().is_empty() {
-            labels.remove(name);
-        } else {
-            labels.insert(name.clone(), value.trim().to_string());
-        }
-    }
-    labels
-}
-
-fn clean_convention(convention: &[String]) -> Vec<String> {
-    convention
-        .iter()
-        .map(|level| level.trim().to_string())
-        .filter(|level| !level.is_empty())
-        .collect()
 }
 
 /// Whether `inner` is `outer` or sits somewhere under it, comparing the
@@ -298,24 +246,4 @@ mod tests {
         assert!(base.origins(&Visible::Origins(vec![])).unwrap().is_empty());
     }
 
-    #[test]
-    fn labels_come_from_the_folder_levels_and_can_be_corrected() {
-        let convention = vec!["cliente".to_string(), "caso".to_string()];
-        let none = BTreeMap::new();
-
-        let labels = labels_for("BGH/Reclamo facturas/Anexos", &convention, &none);
-        assert_eq!(labels.get("cliente").map(String::as_str), Some("BGH"));
-        assert_eq!(labels.get("caso").map(String::as_str), Some("Reclamo facturas"));
-
-        // A file left at the client level has no case.
-        assert_eq!(labels_for("BGH", &convention, &none).len(), 1);
-        assert!(labels_for("", &convention, &none).is_empty());
-
-        // A misfiled document: the user corrects the case and clears nothing else.
-        let mut fixed = BTreeMap::new();
-        fixed.insert("caso".to_string(), "Otro caso".to_string());
-        let labels = labels_for("BGH/Reclamo facturas", &convention, &fixed);
-        assert_eq!(labels.get("caso").map(String::as_str), Some("Otro caso"));
-        assert_eq!(labels.get("cliente").map(String::as_str), Some("BGH"));
-    }
 }

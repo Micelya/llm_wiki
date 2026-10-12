@@ -1,13 +1,12 @@
 import { useEffect, useState, type ReactNode } from "react"
-import { ArrowLeft, Check, ExternalLink, FolderOpen, Pencil, X } from "lucide-react"
+import { ArrowLeft, ExternalLink, FolderOpen } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { findRelatedWikiPages } from "@/commands/fs"
 import {
   getDocument,
   getGeneralProject,
   openLocation,
-  setDocumentLabel,
+  setLocationLabel,
   type DocumentDetail,
   type LocationRef,
 } from "@/commands/docbase"
@@ -16,6 +15,7 @@ import { normalizePath } from "@/lib/path-utils"
 import { useDocbaseStore } from "@/stores/docbase-store"
 import { useWikiStore } from "@/stores/wiki-store"
 import { DOCUMENT_STATES, DocumentStateBadge } from "./document-state"
+import { LabelChip, LabelPicker } from "./labels"
 import { EmptyNote, ErrorNote } from "./page"
 import { formatCount, formatDate, formatSize } from "./format"
 import { useDocbaseQuery } from "./use-docbase-query"
@@ -260,9 +260,6 @@ function FactBox({
   onChanged: () => void
   onProblem: (problem: string | null) => void
 }) {
-  // Every level the origin names can be corrected, plus any label that
-  // only exists as a correction.
-  const labelNames = [...new Set([...document.labelNames, ...Object.keys(document.labels)])]
   return (
     <div className="rounded-md border bg-muted/30 text-sm">
       <div className="border-b bg-muted px-3 py-2 text-center font-semibold break-words">{document.name}</div>
@@ -273,23 +270,31 @@ function FactBox({
         <Fact label="Origen">{document.originName}</Fact>
         <Fact label="Carpeta">{document.folder ? document.folder.split("/").join(" › ") : "—"}</Fact>
       </FactRows>
-      {labelNames.length > 0 && (
-        <>
-          <FactHeading>Etiquetas</FactHeading>
-          <FactRows>
-            {labelNames.map((name) => (
-              <LabelFact
-                key={name}
-                name={name}
-                value={document.labels[name] ?? ""}
-                locationId={document.locationId}
-                onChanged={onChanged}
-                onProblem={onProblem}
-              />
-            ))}
-          </FactRows>
-        </>
-      )}
+      <FactHeading>Etiquetas</FactHeading>
+      <div className="flex flex-col gap-2 px-3 py-2">
+        <div className="flex flex-wrap gap-1">
+          {document.labels.length === 0 && <span className="text-xs text-muted-foreground">Sin etiquetas</span>}
+          {document.labels.map((label) => (
+            <LabelChip
+              key={label.id}
+              label={label}
+              onRemove={() =>
+                setLocationLabel(document.locationId, label.id, false)
+                  .then(onChanged)
+                  .catch((cause) => onProblem(String(cause)))
+              }
+            />
+          ))}
+        </div>
+        <LabelPicker
+          exclude={document.labels.map((label) => label.id)}
+          onPick={(label) => setLocationLabel(document.locationId, label.id, true).then(onChanged)}
+          onProblem={onProblem}
+        />
+        <p className="text-xs text-muted-foreground">
+          Lo que pongas o quites acá vale para este archivo, digan lo que digan las reglas de su carpeta.
+        </p>
+      </div>
       <FactHeading>Archivo</FactHeading>
       <FactRows>
         <Fact label="Tamaño">{formatSize(document.size)}</Fact>
@@ -332,69 +337,5 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
       <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
       <dd className="min-w-0 break-words">{children}</dd>
     </div>
-  )
-}
-
-function LabelFact({
-  name,
-  value,
-  locationId,
-  onChanged,
-  onProblem,
-}: {
-  name: string
-  value: string
-  locationId: number
-  onChanged: () => void
-  onProblem: (problem: string | null) => void
-}) {
-  const [editing, setEditing] = useState<string | null>(null)
-
-  async function save() {
-    if (editing === null) return
-    try {
-      await setDocumentLabel(locationId, name, editing)
-      setEditing(null)
-      onChanged()
-    } catch (cause) {
-      onProblem(String(cause))
-    }
-  }
-
-  return (
-    <Fact label={name}>
-      {editing === null ? (
-        <span className="flex items-center gap-1">
-          <span className="min-w-0 break-words">{value || "—"}</span>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            title="Corregir. Si lo dejás vacío vuelve a valer lo que dice la carpeta."
-            onClick={() => setEditing(value)}
-          >
-            <Pencil />
-          </Button>
-        </span>
-      ) : (
-        <span className="flex items-center gap-1">
-          <Input
-            className="h-7"
-            value={editing}
-            autoFocus
-            onChange={(event) => setEditing(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") void save()
-              if (event.key === "Escape") setEditing(null)
-            }}
-          />
-          <Button variant="ghost" size="icon-xs" title="Guardar" onClick={save}>
-            <Check />
-          </Button>
-          <Button variant="ghost" size="icon-xs" title="Cancelar" onClick={() => setEditing(null)}>
-            <X />
-          </Button>
-        </span>
-      )}
-    </Fact>
   )
 }

@@ -6,7 +6,8 @@ use rusqlite::types::Value;
 use rusqlite::{params_from_iter, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
-use super::origins::{self, labels_for, Origin};
+use super::labels::{labels_of, Label};
+use super::origins::{self, Origin};
 use super::{sql_err, DocBase, Visible};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -35,6 +36,8 @@ pub struct DocumentFilter {
     pub state: Option<String>,
     /// Only documents with more than one visible location.
     pub duplicates_only: bool,
+    /// Only files carrying this label.
+    pub label_id: Option<i64>,
     /// `recent` (default), `name` or `folder`.
     pub sort: Option<String>,
     pub limit: Option<i64>,
@@ -65,7 +68,7 @@ pub struct DocumentRow {
     pub content_id: Option<i64>,
     /// Visible locations holding this same document, this one included.
     pub copies: i64,
-    pub labels: BTreeMap<String, String>,
+    pub labels: Vec<Label>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -107,9 +110,6 @@ pub struct DocumentDetail {
     pub text: Option<String>,
     /// What produced the text: an extractor, or a recognition engine.
     pub text_engine: Option<String>,
-    /// The folder levels the origin names, to offer every label for
-    /// correction even when this file has no value for it.
-    pub label_names: Vec<String>,
     /// Every visible location of this document, this one first.
     pub locations: Vec<LocationRef>,
 }
@@ -315,6 +315,10 @@ impl DocBase {
         if filter.duplicates_only {
             conditions.push("copies > 1".to_string());
         }
+        if let Some(label_id) = filter.label_id {
+            conditions.push("location_id IN (SELECT location_id FROM location_label WHERE label_id = ?)".to_string());
+            bound.push(Value::Integer(label_id));
+        }
         for word in filter
             .query
             .as_deref()
@@ -387,12 +391,12 @@ impl DocBase {
             return Ok(None);
         };
 
-        let (root, convention, file_hash, hash_error, first_seen_at): (String, String, Option<String>, Option<String>, i64) = conn
+        let (root, file_hash, hash_error, first_seen_at): (String, Option<String>, Option<String>, i64) = conn
             .query_row(
-                "SELECT o.location, o.convention, l.file_hash, l.hash_error, l.first_seen_at
+                "SELECT o.location, l.file_hash, l.hash_error, l.first_seen_at
                  FROM location l JOIN origin o ON o.id = l.origin_id WHERE l.id = ?1",
                 [location_id],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
             )
             .map_err(sql_err)?;
 
@@ -469,45 +473,9 @@ impl DocBase {
             first_seen_at,
             text: text.as_ref().map(|(body, _)| body.clone()),
             text_engine: text.map(|(_, engine)| engine),
-            label_names: serde_json::from_str(&convention).unwrap_or_default(),
             locations,
             row,
         }))
-    }
-
-    /// Corrects the value of one label of a location. An empty value
-    /// undoes the correction, so the label is again what the folder
-    /// says. The folder itself is never touched.
-    pub fn set_label(&self, location_id: i64, name: &str, value: &str) -> Result<(), String> {
-        let name = name.trim();
-        if name.is_empty() {
-            return Err("La etiqueta necesita un nombre".to_string());
-        }
-        let conn = self.conn();
-        let current: Option<String> = conn
-            .query_row("SELECT label_overrides FROM location WHERE id = ?1", [location_id], |row| {
-                row.get(0)
-            })
-            .optional()
-            .map_err(sql_err)?;
-        let Some(current) = current else {
-            return Err("Ese archivo ya no está en el inventario".to_string());
-        };
-        let mut overrides: BTreeMap<String, String> = serde_json::from_str(&current).unwrap_or_default();
-        if value.trim().is_empty() {
-            overrides.remove(name);
-        } else {
-            overrides.insert(name.to_string(), value.trim().to_string());
-        }
-        conn.execute(
-            "UPDATE location SET label_overrides = ?1 WHERE id = ?2",
-            rusqlite::params![
-                serde_json::to_string(&overrides).unwrap_or_else(|_| "{}".to_string()),
-                location_id
-            ],
-        )
-        .map_err(sql_err)?;
-        Ok(())
     }
 
     /// Where a location is on disk, when it is visible.
@@ -554,8 +522,7 @@ pub(crate) fn rows_sql(visible: &Visible, only: Option<i64>) -> (String, Vec<Val
                 CASE WHEN f.content_id IS NULL THEN 1 ELSE (
                     SELECT count(*) FROM location l2 JOIN file f2 ON f2.hash = l2.file_hash
                     WHERE f2.content_id = f.content_id AND {visible_l2}
-                ) END AS copies,
-                o.convention AS convention, l.label_overrides AS label_overrides
+                ) END AS copies
          FROM location l
          JOIN origin o ON o.id = l.origin_id
          LEFT JOIN file f ON f.hash = l.file_hash
@@ -570,19 +537,14 @@ pub(crate) fn read_rows(conn: &Connection, sql: &str, bound: Vec<Value>) -> Resu
     let rows = statement
         .query_map(params_from_iter(bound), |row| {
             let reachable: Option<i64> = row.get("origin_reachable")?;
-            let folder: String = row.get("folder")?;
-            let convention: String = row.get("convention")?;
-            let overrides: String = row.get("label_overrides")?;
-            let convention: Vec<String> = serde_json::from_str(&convention).unwrap_or_default();
-            let overrides: BTreeMap<String, String> = serde_json::from_str(&overrides).unwrap_or_default();
             Ok(DocumentRow {
                 location_id: row.get("location_id")?,
                 origin_id: row.get("origin_id")?,
                 origin_name: row.get("origin_name")?,
                 origin_reachable: reachable.map(|value| value != 0),
                 rel_path: row.get("rel_path")?,
-                labels: labels_for(&folder, &convention, &overrides),
-                folder,
+                labels: Vec::new(),
+                folder: row.get("folder")?,
                 name: row.get("name")?,
                 ext: row.get("ext")?,
                 size: row.get("size")?,
@@ -593,7 +555,13 @@ pub(crate) fn read_rows(conn: &Connection, sql: &str, bound: Vec<Value>) -> Resu
             })
         })
         .map_err(sql_err)?;
-    rows.collect::<Result<Vec<_>, _>>().map_err(sql_err)
+    let mut rows = rows.collect::<Result<Vec<_>, _>>().map_err(sql_err)?;
+    let ids: Vec<i64> = rows.iter().map(|row| row.location_id).collect();
+    let mut labels = labels_of(conn, &ids)?;
+    for row in &mut rows {
+        row.labels = labels.remove(&row.location_id).unwrap_or_default();
+    }
+    Ok(rows)
 }
 
 /// A word as a full-text query matching the words that start with it,
@@ -685,13 +653,18 @@ mod tests {
         let carta = page.rows.iter().find(|row| row.name == "carta documento.pdf").unwrap();
         assert_eq!(carta.state, "unprocessed");
         assert_eq!(carta.copies, 3);
-        assert_eq!(carta.labels.get("cliente").map(String::as_str), Some("BGH"));
-        assert_eq!(carta.labels.get("caso").map(String::as_str), Some("Reclamo"));
+        let named = |row: &DocumentRow| -> Vec<String> {
+            row.labels
+                .iter()
+                .map(|label| format!("{}: {}", label.group.clone().unwrap_or_default(), label.name))
+                .collect()
+        };
+        assert_eq!(named(carta), ["caso: Reclamo", "cliente: BGH"]);
 
         let link = page.rows.iter().find(|row| row.name == "notas.gdoc").unwrap();
         assert_eq!((link.state.as_str(), link.copies, link.content_id), ("link", 1, None));
         // Left at the client level: it has a client and no case.
-        assert_eq!(link.labels.len(), 1);
+        assert_eq!(named(link), ["cliente: Aeros"]);
     }
 
     #[test]
@@ -746,7 +719,6 @@ mod tests {
             std::path::PathBuf::from(&detail.path),
             dir.path().join("casos").join("BGH").join("Reclamo").join("copia de la carta.pdf")
         );
-        assert_eq!(detail.label_names, ["cliente", "caso"]);
         assert!(detail.file_hash.is_some());
         assert!(detail.text.is_none());
 
@@ -802,29 +774,5 @@ mod tests {
         assert_eq!(latest[0].kind, "moved");
         assert_eq!(latest[0].rel_path, "Aeros/Firmados/contrato firmado.docx");
         assert_eq!(latest[0].from_path.as_deref(), Some("Aeros/Contrato/contrato.docx"));
-    }
-
-    #[test]
-    fn a_label_can_be_corrected_for_one_misfiled_document() {
-        let (_dir, base, _, _) = sample();
-        let page = base.documents(&Visible::All, &DocumentFilter::default()).unwrap();
-        let carta = page.rows.iter().find(|row| row.name == "carta documento.pdf").unwrap();
-
-        base.set_label(carta.location_id, "caso", "Otro reclamo").unwrap();
-        let detail = base.document(&Visible::All, carta.location_id).unwrap().unwrap();
-        assert_eq!(detail.row.labels.get("caso").map(String::as_str), Some("Otro reclamo"));
-        assert_eq!(detail.row.labels.get("cliente").map(String::as_str), Some("BGH"));
-
-        // The copy next to it keeps the label its folder gives it.
-        let copy = page.rows.iter().find(|row| row.name == "copia de la carta.pdf").unwrap();
-        let other = base.document(&Visible::All, copy.location_id).unwrap().unwrap();
-        assert_eq!(other.row.labels.get("caso").map(String::as_str), Some("Reclamo"));
-
-        // Emptying the correction brings back what the folder says.
-        base.set_label(carta.location_id, "caso", " ").unwrap();
-        let detail = base.document(&Visible::All, carta.location_id).unwrap().unwrap();
-        assert_eq!(detail.row.labels.get("caso").map(String::as_str), Some("Reclamo"));
-
-        assert!(base.set_label(9999, "caso", "x").is_err());
     }
 }

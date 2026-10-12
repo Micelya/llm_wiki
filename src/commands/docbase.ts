@@ -7,8 +7,6 @@ export interface Origin {
   name: string
   provider: "local-folder"
   location: string
-  /** The name of each folder level, outermost first: ["cliente", "caso"]. */
-  convention: string[]
   addedAt: number
   lastScanAt: number | null
   /** `null` until the first sweep. `false`: what was known is kept. */
@@ -40,12 +38,13 @@ export function previewFolder(folder: string): Promise<FolderPreview> {
   return invoke<FolderPreview>("docbase_preview_folder", { folder })
 }
 
-export function addOrigin(name: string, folder: string, convention: string[]): Promise<Origin> {
-  return invoke<Origin>("docbase_add_origin", { name, folder, convention })
-}
-
-export function setOriginConvention(originId: string, convention: string[]): Promise<void> {
-  return invoke<void>("docbase_set_origin_convention", { originId, convention })
+/**
+ * Incorporates a folder. `levels` says how the whole folder is ordered
+ * ("cliente", "caso") and becomes a label rule on its root; leave it
+ * empty unless the folder is ordered the same way throughout.
+ */
+export function addOrigin(name: string, folder: string, levels: string[]): Promise<Origin> {
+  return invoke<Origin>("docbase_add_origin", { name, folder, convention: levels })
 }
 
 export function removeOrigin(originId: string): Promise<void> {
@@ -87,6 +86,8 @@ export interface DocumentFilter {
   state?: DocumentState | ""
   /** Only documents with more than one location. */
   duplicatesOnly?: boolean
+  /** Only files carrying this label. */
+  labelId?: number | null
   sort?: "recent" | "name" | "folder"
   limit?: number
   offset?: number
@@ -108,7 +109,87 @@ export interface DocumentRow {
   contentId: number | null
   /** Locations holding this same document, this one included. */
   copies: number
-  labels: Record<string, string>
+  labels: Label[]
+}
+
+/** A label: an answer ("BGH") to its group's question ("Cliente"), or standing alone. */
+export interface Label {
+  id: number
+  groupId: number | null
+  group: string | null
+  name: string
+  color: string
+}
+
+export interface LabelUse extends Label {
+  /** Files carrying it. */
+  files: number
+}
+
+export interface LabelGroup {
+  /** `null` for the labels that stand alone. */
+  id: number | null
+  name: string | null
+  labels: LabelUse[]
+}
+
+/** A rule on a folder that labels everything under it. */
+export interface LabelRule {
+  id: number
+  originId: string
+  /** Folder it sits on; "" for the root of the origin. */
+  folder: string
+  /** `fixed`: everything carries `label`. `levels`: each subfolder is a label of `groups[0]`, and so on down. */
+  kind: "fixed" | "levels"
+  label: Label | null
+  groups: string[]
+}
+
+export function listLabelGroups(): Promise<LabelGroup[]> {
+  return invoke<LabelGroup[]>("docbase_label_groups")
+}
+
+/** Finds the label, creating its group and the label when they do not exist. */
+export function ensureLabel(group: string | null, name: string): Promise<Label> {
+  return invoke<Label>("docbase_ensure_label", { group, name })
+}
+
+export function renameLabel(labelId: number, name: string): Promise<void> {
+  return invoke<void>("docbase_rename_label", { labelId, name })
+}
+
+export function deleteLabel(labelId: number): Promise<void> {
+  return invoke<void>("docbase_delete_label", { labelId })
+}
+
+export function renameGroup(groupId: number, name: string): Promise<void> {
+  return invoke<void>("docbase_rename_group", { groupId, name })
+}
+
+export function deleteGroup(groupId: number): Promise<void> {
+  return invoke<void>("docbase_delete_group", { groupId })
+}
+
+export function listLabelRules(originId: string): Promise<LabelRule[]> {
+  return invoke<LabelRule[]>("docbase_label_rules", { originId })
+}
+
+export function addFixedRule(originId: string, folder: string, labelId: number): Promise<void> {
+  return invoke<void>("docbase_add_fixed_rule", { originId, folder, labelId })
+}
+
+/** An empty list removes the rule from the folder. */
+export function setLevelsRule(originId: string, folder: string, groups: string[]): Promise<void> {
+  return invoke<void>("docbase_set_levels_rule", { originId, folder, groups })
+}
+
+export function removeRule(ruleId: number): Promise<void> {
+  return invoke<void>("docbase_remove_rule", { ruleId })
+}
+
+/** Puts a label on one file or takes it off, whatever the folder rules say. */
+export function setLocationLabel(locationId: number, labelId: number, on: boolean): Promise<void> {
+  return invoke<void>("docbase_set_location_label", { locationId, labelId, on })
 }
 
 export interface DocumentPage {
@@ -137,8 +218,6 @@ export interface DocumentDetail extends DocumentRow {
   firstSeenAt: number
   text: string | null
   textEngine: string | null
-  /** The folder levels the origin names. */
-  labelNames: string[]
   /** Every location of this document, this one first. */
   locations: LocationRef[]
 }
@@ -283,11 +362,6 @@ export function listDocuments(filter: DocumentFilter): Promise<DocumentPage> {
 
 export function getDocument(locationId: number): Promise<DocumentDetail | null> {
   return invoke<DocumentDetail | null>("docbase_get_document", { locationId })
-}
-
-/** An empty value undoes the correction: the label is again what the folder says. */
-export function setDocumentLabel(locationId: number, name: string, value: string): Promise<void> {
-  return invoke<void>("docbase_set_label", { locationId, name, value })
 }
 
 /** Opens the original with the system's program, or shows it in its folder. */

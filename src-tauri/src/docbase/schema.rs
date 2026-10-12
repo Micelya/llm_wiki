@@ -10,7 +10,53 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4];
+
+/// Label groups, labels, the folder rules that assign them, what the
+/// user put or removed by hand, and what each file ends up with.
+/// `label.key` is the text a label is found by (the folder name it came
+/// from); `label.name` is what the user reads and can rename.
+const V4: &str = "
+CREATE TABLE label_group (
+    id          INTEGER PRIMARY KEY,
+    name        TEXT NOT NULL COLLATE NOCASE UNIQUE,
+    created_at  INTEGER NOT NULL
+);
+
+CREATE TABLE label (
+    id          INTEGER PRIMARY KEY,
+    group_id    INTEGER REFERENCES label_group (id) ON DELETE CASCADE,
+    name        TEXT NOT NULL,
+    key         TEXT NOT NULL COLLATE NOCASE,
+    color       TEXT NOT NULL,
+    created_at  INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX label_by_key ON label (coalesce(group_id, 0), key);
+
+CREATE TABLE label_rule (
+    id          INTEGER PRIMARY KEY,
+    origin_id   TEXT NOT NULL REFERENCES origin (id) ON DELETE CASCADE,
+    folder      TEXT NOT NULL,
+    kind        TEXT NOT NULL CHECK (kind IN ('fixed', 'levels')),
+    label_id    INTEGER REFERENCES label (id) ON DELETE CASCADE,
+    groups      TEXT NOT NULL DEFAULT '[]',
+    created_at  INTEGER NOT NULL
+);
+
+CREATE TABLE label_manual (
+    location_id  INTEGER NOT NULL REFERENCES location (id) ON DELETE CASCADE,
+    label_id     INTEGER NOT NULL REFERENCES label (id) ON DELETE CASCADE,
+    mode         TEXT NOT NULL CHECK (mode IN ('add', 'remove')),
+    PRIMARY KEY (location_id, label_id)
+);
+
+CREATE TABLE location_label (
+    location_id  INTEGER NOT NULL REFERENCES location (id) ON DELETE CASCADE,
+    label_id     INTEGER NOT NULL REFERENCES label (id) ON DELETE CASCADE,
+    PRIMARY KEY (location_id, label_id)
+);
+CREATE INDEX location_label_by_label ON location_label (label_id);
+";
 
 /// Files and folders the user left out of the base. Nothing on disk is
 /// touched; `rel_path` is the path inside the origin.

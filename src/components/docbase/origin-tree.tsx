@@ -34,6 +34,8 @@ export interface TreeActions {
   onProblem: (problem: string | null) => void
   /** Extra buttons for a folder row (label rules). */
   folderExtras?: (originId: string, folder: string) => ReactNode
+  /** Something to show right under a folder row. */
+  folderPanel?: (originId: string, folder: string) => ReactNode
 }
 
 /**
@@ -142,6 +144,7 @@ function FolderRow({
           </IconAction>
         </RowActions>
       </div>
+      {actions.folderPanel?.(originId, node.relPath)}
       {open && <FolderContent originId={originId} folder={node.relPath} depth={depth + 1} actions={actions} />}
     </>
   )
