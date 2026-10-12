@@ -16,9 +16,6 @@
 //!
 //! Design: `docs/design/base-documental.md`.
 
-// The base is introduced ahead of its callers.
-#![allow(dead_code)]
-
 pub mod bridge;
 pub mod commands;
 #[cfg(test)]
@@ -33,7 +30,7 @@ pub(crate) mod testing;
 pub mod text;
 mod worker;
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::{Mutex, MutexGuard};
 
 use rusqlite::Connection;
@@ -67,7 +64,6 @@ impl Visible {
 /// The database of one space.
 pub struct DocBase {
     conn: Mutex<Connection>,
-    path: Option<PathBuf>,
 }
 
 impl DocBase {
@@ -83,28 +79,24 @@ impl DocBase {
         // WAL lets the screens read while the background worker writes.
         conn.pragma_update(None, "journal_mode", "WAL")
             .map_err(|e| format!("Failed to set the journal mode: {e}"))?;
-        Self::prepare(conn, Some(path.to_path_buf()))
+        Self::prepare(conn)
     }
 
     /// A database that lives only in memory, for tests.
+    #[cfg(test)]
     pub fn in_memory() -> Result<Self, String> {
         let conn = Connection::open_in_memory()
             .map_err(|e| format!("Failed to open an in-memory document base: {e}"))?;
-        Self::prepare(conn, None)
+        Self::prepare(conn)
     }
 
-    fn prepare(mut conn: Connection, path: Option<PathBuf>) -> Result<Self, String> {
+    fn prepare(mut conn: Connection) -> Result<Self, String> {
         conn.pragma_update(None, "foreign_keys", "ON")
             .map_err(|e| format!("Failed to enable foreign keys: {e}"))?;
         schema::migrate(&mut conn)?;
         Ok(Self {
             conn: Mutex::new(conn),
-            path,
         })
-    }
-
-    pub fn path(&self) -> Option<&Path> {
-        self.path.as_deref()
     }
 
     /// The connection. Hold it only for the statements themselves: reading
