@@ -2,7 +2,7 @@ import { useState, useEffect } from "react"
 import { PRODUCT_NAME } from "@/lib/app-identity"
 import {
   FileText, FolderOpen, Search, Network, ClipboardCheck, Settings, ArrowLeftRight, ClipboardList, Globe, MessageSquare, Sparkles,
-  HardDrive,
+  HardDrive, Files,
 } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useWikiStore } from "@/stores/wiki-store"
@@ -32,6 +32,7 @@ const NAV_ITEMS: { view: NavView; icon: typeof FileText; labelKey: string }[] = 
 // The document base screens are written in Spanish only for now, so their
 // labels are not translation keys.
 const DOCBASE_NAV_ITEMS: { view: NavView; icon: typeof FileText; label: string }[] = [
+  { view: "documents", icon: Files, label: "Documentos" },
   { view: "origins", icon: HardDrive, label: "Orígenes" },
 ]
 

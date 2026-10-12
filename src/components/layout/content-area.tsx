@@ -9,6 +9,7 @@ import { LintView } from "@/components/lint/lint-view"
 import { SearchView } from "@/components/search/search-view"
 import { GraphView } from "@/components/graph/graph-view"
 import { OriginsView } from "@/components/docbase/origins-view"
+import { DocumentsView } from "@/components/docbase/documents-view"
 import { PreviewPanel } from "./preview-panel"
 
 export function ContentArea() {
@@ -66,6 +67,8 @@ function ActiveContent({
       return <GraphView />
     case "origins":
       return <OriginsView />
+    case "documents":
+      return <DocumentsView />
     default:
       return <PreviewPanel />
   }

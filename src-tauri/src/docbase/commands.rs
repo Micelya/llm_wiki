@@ -11,7 +11,7 @@ use serde::Serialize;
 use tauri::{Emitter, Manager, State};
 
 use super::origins::Origin;
-use super::query::OriginSummary;
+use super::query::{DocumentDetail, DocumentFilter, DocumentPage, OriginSummary};
 use super::worker::{self, Wake};
 use super::{DocBase, Visible, PRIVATE_DB_FILE};
 
@@ -120,6 +120,60 @@ pub fn docbase_rescan(state: State<'_, DocBaseState>) -> Result<(), String> {
     state.base()?;
     state.wake.request_sweep();
     Ok(())
+}
+
+#[tauri::command(async)]
+pub fn docbase_list_documents(
+    state: State<'_, DocBaseState>,
+    filter: Option<DocumentFilter>,
+) -> Result<DocumentPage, String> {
+    state
+        .base()?
+        .documents(&Visible::All, &filter.unwrap_or_default())
+}
+
+#[tauri::command(async)]
+pub fn docbase_get_document(
+    state: State<'_, DocBaseState>,
+    location_id: i64,
+) -> Result<Option<DocumentDetail>, String> {
+    state.base()?.document(&Visible::All, location_id)
+}
+
+#[tauri::command(async)]
+pub fn docbase_set_label(
+    state: State<'_, DocBaseState>,
+    location_id: i64,
+    name: String,
+    value: String,
+) -> Result<(), String> {
+    state.base()?.set_label(location_id, &name, &value)
+}
+
+/// Opens a file of the inventory with the program the system uses for
+/// it, or shows it in its folder. Only locations the base knows can be
+/// opened this way.
+#[tauri::command(async)]
+pub fn docbase_open_location(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    location_id: i64,
+    reveal: bool,
+) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let path = state
+        .base()?
+        .location_path(&Visible::All, location_id)?
+        .ok_or_else(|| "Ese archivo ya no está en el inventario".to_string())?;
+    if !Path::new(&path).exists() {
+        return Err(format!("No se puede abrir '{path}': el archivo no está disponible ahora"));
+    }
+    let opened = if reveal {
+        app.opener().reveal_item_in_dir(&path)
+    } else {
+        app.opener().open_path(path.clone(), None::<&str>)
+    };
+    opened.map_err(|e| format!("No se pudo abrir '{path}': {e}"))
 }
 
 /// Up to `count` paths of nested folders under `root`, `depth` levels
