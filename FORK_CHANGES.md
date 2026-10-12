@@ -97,7 +97,7 @@ El detalle de cada cambio (qué líneas, qué pruebas) está en su PR; acá no s
 - **Propósito:** que la app sepa qué archivos hay en un espacio, dónde está cada copia y cuáles son el mismo documento, y que lo derivado de cada documento se obtenga una sola vez: un componente propio (`src-tauri/src/docbase/`) con una base SQLite por espacio, en la carpeta local de datos de la app.
 - **Toca upstream:** `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `src-tauri/src/lib.rs`, `src/stores/wiki-store.ts`, `src/components/layout/content-area.tsx`, `src/components/layout/icon-sidebar.tsx`, `src/components/layout/research-panel-nav.ts`
 - **Upstream:** solo-fork
-- **PR:** #24, #25
+- **PR:** #24, #25, #26
 
 ## Reabsorbidos
 
