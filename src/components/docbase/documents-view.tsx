@@ -78,7 +78,8 @@ function DocumentList() {
         <div className="flex flex-wrap items-center gap-2">
           <Input
             className="max-w-xs"
-            placeholder="Buscar por nombre o carpeta…"
+            title="Cada palabra tiene que estar en el nombre, en la carpeta o en el texto del documento. No distingue tildes ni mayúsculas."
+            placeholder="Buscar por nombre, carpeta o texto…"
             value={typed}
             onChange={(event) => setTyped(event.target.value)}
           />

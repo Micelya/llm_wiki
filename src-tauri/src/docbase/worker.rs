@@ -13,6 +13,7 @@ use super::{DocBase, Visible};
 const SWEEP_EVERY: Duration = Duration::from_secs(5 * 60);
 const IDLE_WAIT: Duration = Duration::from_secs(20);
 const HASH_BATCH: usize = 8;
+const TEXT_BATCH: usize = 2;
 const NOTIFY_EVERY: Duration = Duration::from_millis(800);
 
 /// How the rest of the app asks the worker to sweep now.
@@ -102,6 +103,9 @@ fn sweep(base: &DocBase) -> bool {
 /// One small piece of pending work. Returns whether there was any.
 fn step(base: &DocBase) -> Result<bool, String> {
     if base.hash_pending(HASH_BATCH)? > 0 {
+        return Ok(true);
+    }
+    if base.extract_pending(TEXT_BATCH)? > 0 {
         return Ok(true);
     }
     Ok(base.purge_orphans()? > 0)

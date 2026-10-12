@@ -238,7 +238,11 @@ function FactBox({
         <Fact label="En la base desde">{formatDate(document.firstSeenAt)}</Fact>
         <Fact label="Copias">{document.copies > 1 ? `${document.copies} ubicaciones` : "Única"}</Fact>
         {document.wordCount !== null && <Fact label="Palabras">{formatCount(document.wordCount)}</Fact>}
-        {document.textEngine && <Fact label="Texto obtenido con">{document.textEngine}</Fact>}
+        {document.textEngine && (
+          <Fact label="Texto obtenido por">
+            {document.textEngine === "extraction" ? "Extracción directa" : `Reconocimiento (${document.textEngine})`}
+          </Fact>
+        )}
         {document.fileHash && (
           <Fact label="Huella">
             <span className="font-mono text-xs" title={document.fileHash}>
