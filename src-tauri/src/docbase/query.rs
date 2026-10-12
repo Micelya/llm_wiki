@@ -57,7 +57,8 @@ pub struct DocumentRow {
     pub mtime_ms: i64,
     /// Where the document stands, from the inventory to its text:
     /// `link` (cloud shortcut: detected, not processable), `unread`
-    /// (waiting to be read), `unreadable`, `too-large`, `unprocessed`
+    /// (waiting to be read), `excluded` (left out by the user),
+    /// `unreadable`, `too-large`, `unprocessed`
     /// (read, text not extracted yet), `processed`, `needs-recognition`
     /// (its text is only pixels), `unsupported` or `error`.
     pub state: String,
@@ -147,14 +148,18 @@ pub struct Activity {
     pub from_path: Option<String>,
 }
 
-const STATE_SQL: &str = "CASE
+const STATE_SQL: &str = concat!(
+    "CASE WHEN ",
+    super::excluded_sql!(),
+    " THEN 'excluded'
         WHEN l.kind = 'link' THEN 'link'
         WHEN l.hash_state = 'pending' AND l.file_hash IS NULL THEN 'unread'
         WHEN l.hash_state = 'error' THEN 'unreadable'
         WHEN l.hash_state = 'too-large' THEN 'too-large'
         WHEN c.state = 'pending' THEN 'unprocessed'
         ELSE COALESCE(c.state, 'unread')
-    END";
+    END"
+);
 
 impl DocBase {
     pub fn origin_summaries(&self, visible: &Visible) -> Result<Vec<OriginSummary>, String> {
@@ -528,7 +533,7 @@ impl DocBase {
 /// The query behind every document row: one row per visible location,
 /// or just `only` when given. Copies are counted among what is visible:
 /// a copy the caller cannot see does not exist for them.
-fn rows_sql(visible: &Visible, only: Option<i64>) -> (String, Vec<Value>) {
+pub(crate) fn rows_sql(visible: &Visible, only: Option<i64>) -> (String, Vec<Value>) {
     let (visible_l, bound_l) = visible.condition("l.origin_id");
     let (visible_l2, bound_l2) = visible.condition("l2.origin_id");
     let mut bound: Vec<Value> = bound_l2.into_iter().map(Value::Text).collect();
@@ -560,7 +565,7 @@ fn rows_sql(visible: &Visible, only: Option<i64>) -> (String, Vec<Value>) {
     (sql, bound)
 }
 
-fn read_rows(conn: &Connection, sql: &str, bound: Vec<Value>) -> Result<Vec<DocumentRow>, String> {
+pub(crate) fn read_rows(conn: &Connection, sql: &str, bound: Vec<Value>) -> Result<Vec<DocumentRow>, String> {
     let mut statement = conn.prepare(sql).map_err(sql_err)?;
     let rows = statement
         .query_map(params_from_iter(bound), |row| {

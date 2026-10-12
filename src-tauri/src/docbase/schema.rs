@@ -10,7 +10,19 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2];
+const MIGRATIONS: &[&str] = &[V1, V2, V3];
+
+/// Files and folders the user left out of the base. Nothing on disk is
+/// touched; `rel_path` is the path inside the origin.
+const V3: &str = "
+CREATE TABLE exclusion (
+    origin_id   TEXT NOT NULL REFERENCES origin (id) ON DELETE CASCADE,
+    rel_path    TEXT NOT NULL,
+    is_folder   INTEGER NOT NULL,
+    created_at  INTEGER NOT NULL,
+    PRIMARY KEY (origin_id, rel_path)
+);
+";
 
 /// The general project's wiki is fed from the base only once the user
 /// turns it on: feeding it uses the model.

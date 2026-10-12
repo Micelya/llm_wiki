@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { open } from "@tauri-apps/plugin-dialog"
-import { FolderPlus, RefreshCw, Trash2, Pencil, Check, X } from "lucide-react"
+import { ChevronDown, ChevronRight, FolderPlus, RefreshCw, Trash2, Pencil, Check, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useAppDialog } from "@/stores/app-dialog-store"
@@ -16,6 +16,9 @@ import {
   type OriginSummary,
 } from "@/commands/docbase"
 import { GeneralProjectPanel } from "./general-project-panel"
+import { OriginTree, type TreeActions } from "./origin-tree"
+import { ingestWikiSources, isSameProjectPath, pendingUnder } from "@/lib/docbase-wiki-bridge"
+import { useWikiStore } from "@/stores/wiki-store"
 import { DocbasePage, EmptyNote, ErrorNote, Panel, StatusBadge } from "./page"
 import { formatAgo, parseConvention, plural } from "./format"
 import { useDocbaseQuery } from "./use-docbase-query"
@@ -104,6 +107,35 @@ export function OriginsView() {
 
   const list = origins.data ?? []
 
+  // The tree can send things to the wiki only while the wiki is active
+  // and its project is the open one.
+  const project = useWikiStore((s) => s.project)
+  const general = useDocbaseQuery("general-project", getGeneralProject)
+  const canIngest = !!general.data?.wikiActive && isSameProjectPath(general.data?.path, project?.path)
+
+  async function handleIngest(originId: string, relPath: string, isFolder: boolean) {
+    if (!project) return
+    setProblem(null)
+    try {
+      const sources = await pendingUnder(project, originId, relPath, isFolder)
+      if (sources.length === 0) {
+        await dialog.alert({ message: "No hay nada pendiente de incorporar ahí: ya está en el wiki o en la cola." })
+        return
+      }
+      const confirmed = await dialog.confirm({
+        title: "Incorporar al wiki",
+        message: `Se van a incorporar ${plural(sources.length, "documento", "documentos")}. Cada uno pasa por el modelo configurado.`,
+        confirmLabel: "Incorporar",
+        cancelLabel: "Cancelar",
+      })
+      if (confirmed) await ingestWikiSources(project, sources)
+    } catch (cause) {
+      setProblem(String(cause))
+    }
+  }
+
+  const treeActions: TreeActions = { canIngest, onIngest: handleIngest, onProblem: setProblem }
+
   return (
     <DocbasePage
       title="Orígenes"
@@ -150,6 +182,7 @@ export function OriginsView() {
             onRemove={() => handleRemove(origin)}
             onSaved={origins.reload}
             onProblem={setProblem}
+            treeActions={treeActions}
           />
         ))}
       </div>
@@ -239,13 +272,16 @@ function OriginCard({
   onRemove,
   onSaved,
   onProblem,
+  treeActions,
 }: {
   origin: OriginSummary
   onRemove: () => void
   onSaved: () => void
   onProblem: (problem: string | null) => void
+  treeActions: TreeActions
 }) {
   const [editing, setEditing] = useState<string | null>(null)
+  const [showTree, setShowTree] = useState(false)
 
   async function saveConvention() {
     if (editing === null) return
@@ -328,6 +364,16 @@ function OriginCard({
                 <X />
               </Button>
             </>
+          )}
+        </div>
+        <div>
+          <Button variant="ghost" size="sm" onClick={() => setShowTree(!showTree)}>
+            {showTree ? <ChevronDown /> : <ChevronRight />} {showTree ? "Ocultar el contenido" : "Ver el contenido"}
+          </Button>
+          {showTree && (
+            <div className="mt-2">
+              <OriginTree originId={origin.id} actions={treeActions} />
+            </div>
           )}
         </div>
       </div>

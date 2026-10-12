@@ -92,6 +92,21 @@ export async function setWikiFeeding(project: WikiProject, active: boolean): Pro
   return pending.length > 0 ? ingestWikiSources(project, pending) : 0
 }
 
+/** The pending sources under one folder of an origin, or one file. */
+export async function pendingUnder(
+  project: WikiProject,
+  originId: string,
+  relPath: string,
+  isFolder: boolean,
+): Promise<WikiSource[]> {
+  const pending = (await pendingWikiSourcesByOrigin(project)).get(originId) ?? []
+  return pending.filter((source) => {
+    // identity is "<mount>/<path inside the origin>".
+    const inside = source.identity.slice(source.identity.indexOf("/") + 1)
+    return isFolder ? relPath === "" || inside.startsWith(`${relPath}/`) : inside === relPath
+  })
+}
+
 /** Queues the given sources for ingest. Returns how many were queued. */
 export async function ingestWikiSources(project: WikiProject, sources: WikiSource[]): Promise<number> {
   const queued = await enqueueSourceIngest(

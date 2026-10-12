@@ -264,7 +264,12 @@ impl DocBase {
         for origin in project.origins.iter().filter(|origin| origin.mounted_as.is_some()) {
             let mount = origin.mounted_as.as_deref().unwrap_or_default();
             let mut statement = conn
-                .prepare("SELECT rel_path, ext FROM location WHERE origin_id = ?1 AND kind = 'file' ORDER BY rel_path")
+                .prepare(&format!(
+                    "SELECT l.rel_path, l.ext FROM location l
+                     WHERE l.origin_id = ?1 AND l.kind = 'file' AND NOT {}
+                     ORDER BY l.rel_path",
+                    super::excluded_sql!()
+                ))
                 .map_err(sql_err)?;
             let rows = statement
                 .query_map([&origin.origin_id], |row| {
@@ -283,6 +288,38 @@ impl DocBase {
             }
         }
         Ok(sources)
+    }
+
+    /// Which of these sources of a wiki project (`raw/sources/…` paths)
+    /// the user left out of the base. Only the general project's sources
+    /// come from the base; for any other project the answer is none.
+    pub fn excluded_sources(&self, project_path: &Path, source_paths: &[String]) -> Result<Vec<String>, String> {
+        let Some(project) = self.general_project()? else {
+            return Ok(Vec::new());
+        };
+        let is_general = project
+            .path
+            .as_deref()
+            .is_some_and(|path| same_folder(path, &project_path.to_string_lossy()));
+        if !is_general {
+            return Ok(Vec::new());
+        }
+        let prefix = format!("{SOURCES_PREFIX}/");
+        let mut excluded = Vec::new();
+        for origin in project.origins.iter().filter(|origin| origin.mounted_as.is_some()) {
+            let mount = format!("{}/", origin.mounted_as.as_deref().unwrap_or_default().to_lowercase());
+            let exclusions = super::tree::Exclusions::load(self, &origin.origin_id)?;
+            for source in source_paths {
+                let clean = source.replace('\\', "/");
+                let Some(identity) = clean.strip_prefix(&prefix) else {
+                    continue;
+                };
+                if identity.to_lowercase().starts_with(&mount) && exclusions.covers_file(&identity[mount.len()..]) {
+                    excluded.push(source.clone());
+                }
+            }
+        }
+        Ok(excluded)
     }
 
     /// The hash and the state of the document at a path on disk, when

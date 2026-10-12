@@ -69,6 +69,7 @@ export function onDocbaseChanged(handler: () => void): Promise<UnlistenFn> {
  * `needs-recognition`: its text is only pixels.
  */
 export type DocumentState =
+  | "excluded"
   | "link"
   | "unread"
   | "unreadable"
@@ -237,6 +238,43 @@ export function unlinkGeneralProject(): Promise<void> {
 
 export function listWikiSources(): Promise<WikiSource[]> {
   return invoke<WikiSource[]>("docbase_wiki_sources")
+}
+
+export interface FolderNode {
+  name: string
+  /** Path inside the origin, with forward slashes. */
+  relPath: string
+  /** Files anywhere under it. */
+  files: number
+  /** Left out by the user, itself or through a folder above it. */
+  excluded: boolean
+}
+
+export interface FolderListing {
+  originId: string
+  folder: string
+  excluded: boolean
+  folders: FolderNode[]
+  files: DocumentRow[]
+}
+
+/** The folders and files directly inside one folder of an origin ("" is its root). */
+export function listFolder(originId: string, folder: string): Promise<FolderListing> {
+  return invoke<FolderListing>("docbase_list_folder", { originId, folder })
+}
+
+/** Leaves a file or folder out of the base, or brings it back. Nothing on disk is touched. */
+export function setExcluded(originId: string, relPath: string, isFolder: boolean, excluded: boolean): Promise<void> {
+  return invoke<void>("docbase_set_excluded", { originId, relPath, isFolder, excluded })
+}
+
+/** Which of these `raw/sources/…` paths of a wiki project the user left out of the base. */
+export function excludedSources(projectPath: string, sourcePaths: string[]): Promise<string[]> {
+  return invoke<string[]>("docbase_excluded_sources", { projectPath, sourcePaths })
+}
+
+export function openFolder(originId: string, folder: string): Promise<void> {
+  return invoke<void>("docbase_open_folder", { originId, folder })
 }
 
 export function listDocuments(filter: DocumentFilter): Promise<DocumentPage> {

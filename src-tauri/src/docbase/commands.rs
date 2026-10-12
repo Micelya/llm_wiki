@@ -13,6 +13,7 @@ use tauri::{Emitter, Manager, State};
 use super::bridge::{self, GeneralProject, WikiSource};
 use super::origins::Origin;
 use super::query::{Activity, DocumentDetail, DocumentFilter, DocumentPage, Health, OriginSummary};
+use super::tree::FolderListing;
 use super::worker::{self, Wake};
 use super::{DocBase, Visible, PRIVATE_DB_FILE};
 
@@ -221,6 +222,67 @@ pub fn docbase_set_label(
     value: String,
 ) -> Result<(), String> {
     state.base()?.set_label(location_id, &name, &value)
+}
+
+/// The folders and files directly inside one folder of an origin.
+#[tauri::command(async)]
+pub fn docbase_list_folder(
+    state: State<'_, DocBaseState>,
+    origin_id: String,
+    folder: String,
+) -> Result<FolderListing, String> {
+    state.base()?.list_folder(&Visible::All, &origin_id, &folder)
+}
+
+/// Leaves a file or a folder out of the base, or brings it back. Nothing
+/// on disk is touched.
+#[tauri::command(async)]
+pub fn docbase_set_excluded(
+    state: State<'_, DocBaseState>,
+    origin_id: String,
+    rel_path: String,
+    is_folder: bool,
+    excluded: bool,
+) -> Result<(), String> {
+    state
+        .base()?
+        .set_excluded(&origin_id, &rel_path, is_folder, excluded)?;
+    // Bringing something back gives the worker files to read.
+    state.wake.request_sweep();
+    Ok(())
+}
+
+/// Which of these sources of a wiki project the user left out of the base.
+#[tauri::command(async)]
+pub fn docbase_excluded_sources(
+    state: State<'_, DocBaseState>,
+    project_path: String,
+    source_paths: Vec<String>,
+) -> Result<Vec<String>, String> {
+    state
+        .base()?
+        .excluded_sources(Path::new(&project_path), &source_paths)
+}
+
+/// Shows a folder of an origin in the system's file manager.
+#[tauri::command(async)]
+pub fn docbase_open_folder(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    origin_id: String,
+    folder: String,
+) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let path = state
+        .base()?
+        .folder_path(&origin_id, &folder)?
+        .ok_or_else(|| "Ese origen ya no existe".to_string())?;
+    if !Path::new(&path).is_dir() {
+        return Err(format!("No se puede abrir '{path}': la carpeta no está disponible ahora"));
+    }
+    app.opener()
+        .open_path(path.clone(), None::<&str>)
+        .map_err(|e| format!("No se pudo abrir '{path}': {e}"))
 }
 
 /// Opens a file of the inventory with the program the system uses for

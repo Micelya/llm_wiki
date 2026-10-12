@@ -28,12 +28,24 @@ mod schema;
 #[cfg(test)]
 pub(crate) mod testing;
 pub mod text;
+pub mod tree;
 mod worker;
 
 use std::path::Path;
 use std::sync::{Mutex, MutexGuard};
 
 use rusqlite::Connection;
+
+/// SQL condition: the location `l` was left out by the user, itself or
+/// through a folder above it.
+macro_rules! excluded_sql {
+    () => {
+        "EXISTS (SELECT 1 FROM exclusion e WHERE e.origin_id = l.origin_id AND (
+            (e.is_folder = 0 AND e.rel_path = l.rel_path)
+            OR (e.is_folder = 1 AND (e.rel_path = '' OR substr(l.rel_path, 1, length(e.rel_path) + 1) = e.rel_path || '/'))))"
+    };
+}
+pub(crate) use excluded_sql;
 
 /// File name of the private space's database inside the app data folder.
 pub const PRIVATE_DB_FILE: &str = "docbase/private.sqlite3";

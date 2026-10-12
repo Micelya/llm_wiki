@@ -100,7 +100,7 @@ export function buildAttention(
 /** Share of the processable files whose text is already in the base, 0 to 100. */
 export function processedPercent(health: Health): number | null {
   const count = (state: DocumentState) => health.byState[state] ?? 0
-  const processable = health.locations - count("link") - count("unsupported")
+  const processable = health.locations - count("link") - count("unsupported") - count("excluded")
   if (processable <= 0) return null
   return Math.round((count("processed") / processable) * 1000) / 10
 }
