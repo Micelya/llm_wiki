@@ -19,6 +19,7 @@ import { useGlobalShortcut } from "@/hooks/use-global-shortcut"
 import { AppLayout } from "@/components/layout/app-layout"
 import { WelcomeScreen } from "@/components/project/welcome-screen"
 import { CreateProjectDialog } from "@/components/project/create-project-dialog"
+import { WorkspaceSetup } from "@/components/project/workspace-setup"
 import type { WikiProject } from "@/types/wiki"
 import { useAppDialog } from "@/stores/app-dialog-store"
 
@@ -36,6 +37,8 @@ function App() {
   const zoomLevel = useZoomStore((s) => s.level)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [loading, setLoading] = useState(true)
+  // First run: the app does not know yet where to keep what it creates.
+  const [needsWorkspace, setNeedsWorkspace] = useState(false)
 
   function isCurrentProject(proj: WikiProject): boolean {
     const current = useWikiStore.getState().project
@@ -413,14 +416,32 @@ function App() {
         if (savedLang) {
           await i18n.changeLanguage(savedLang)
         }
+        // The default project is the general project of the space. The
+        // app creates it by itself and keeps its sources in step with the
+        // document base on every start, whichever project gets opened.
+        let defaultProject: WikiProject | null = null
+        let workspaceMissing = false
+        try {
+          const { openDefaultProject } = await import("@/lib/default-project")
+          defaultProject = await openDefaultProject()
+          workspaceMissing = defaultProject === null
+        } catch (err) {
+          console.error("[startup] failed to prepare the default project:", err)
+        }
         const lastProject = await getLastProject()
-        if (lastProject) {
+        let opened = false
+        if (lastProject && lastProject.path !== defaultProject?.path) {
           try {
             const proj = await openProject(lastProject.path)
             await handleProjectOpened(proj)
+            opened = true
           } catch {
             // Last project no longer valid
           }
+        }
+        if (!opened) {
+          if (defaultProject) await handleProjectOpened(defaultProject)
+          else if (workspaceMissing) setNeedsWorkspace(true)
         }
       } catch {
         // ignore init errors
@@ -651,6 +672,23 @@ function App() {
       <div className="flex h-full items-center justify-center bg-background text-muted-foreground">
         Loading...
       </div>
+    )
+  }
+
+  if (!project && needsWorkspace) {
+    return (
+      <WorkspaceSetup
+        onChosen={async (dir) => {
+          const { saveWorkspaceDir } = await import("@/lib/project-store")
+          const { openDefaultProject } = await import("@/lib/default-project")
+          const proj = await openDefaultProject(dir)
+          if (!proj) throw new Error("No se pudo crear el proyecto en esa carpeta")
+          await saveWorkspaceDir(dir)
+          setNeedsWorkspace(false)
+          await handleProjectOpened(proj)
+        }}
+        onSkip={() => setNeedsWorkspace(false)}
+      />
     )
   }
 

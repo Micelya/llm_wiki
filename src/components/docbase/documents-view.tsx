@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   listDocuments,
+  listLabelGroups,
   listOrigins,
   type DocumentFilter,
   type DocumentRow,
@@ -12,6 +13,7 @@ import {
 import { useDocbaseStore } from "@/stores/docbase-store"
 import { DocumentDetailView } from "./document-detail"
 import { DOCUMENT_STATES, DOCUMENT_STATE_ORDER, DocumentStateBadge } from "./document-state"
+import { LabelChip } from "./labels"
 import { DocbasePage, EmptyNote, ErrorNote } from "./page"
 import { formatCount, formatDate, formatSize } from "./format"
 import { useDocbaseQuery } from "./use-docbase-query"
@@ -60,6 +62,7 @@ function DocumentList() {
   }, [filter])
 
   const origins = useDocbaseQuery("origins", listOrigins)
+  const labelGroups = useDocbaseQuery("label-groups", listLabelGroups)
   const request: DocumentFilter = { ...filter, limit: PAGE_SIZE, offset: page * PAGE_SIZE }
   const documents = useDocbaseQuery(JSON.stringify(request), () => listDocuments(request))
 
@@ -107,6 +110,26 @@ function DocumentList() {
               </option>
             ))}
           </select>
+          {(labelGroups.data ?? []).length > 0 && (
+            <select
+              className={SELECT_CLASS}
+              value={filter.labelId ?? ""}
+              onChange={(event) =>
+                setFilter({ ...filter, labelId: event.target.value ? Number(event.target.value) : null })
+              }
+            >
+              <option value="">Todas las etiquetas</option>
+              {(labelGroups.data ?? []).map((group) => (
+                <optgroup key={group.id ?? "loose"} label={group.name ?? "Sin grupo"}>
+                  {group.labels.map((label) => (
+                    <option key={label.id} value={label.id}>
+                      {label.name} ({label.files})
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          )}
           <label className="flex items-center gap-1.5 text-sm">
             <input
               type="checkbox"
@@ -178,7 +201,6 @@ function DocumentList() {
 }
 
 function DocumentTableRow({ row, onOpen }: { row: DocumentRow; onOpen: () => void }) {
-  const labels = Object.entries(row.labels)
   return (
     <tr className="cursor-pointer border-t hover:bg-muted/40" onClick={onOpen}>
       <td className="max-w-xs px-3 py-2">
@@ -195,10 +217,8 @@ function DocumentTableRow({ row, onOpen }: { row: DocumentRow; onOpen: () => voi
       </td>
       <td className="px-3 py-2">
         <div className="flex flex-wrap gap-1">
-          {labels.map(([name, value]) => (
-            <span key={name} className="rounded bg-muted px-1.5 py-0.5 text-xs" title={name}>
-              <span className="text-muted-foreground">{name}:</span> {value}
-            </span>
+          {row.labels.map((label) => (
+            <LabelChip key={label.id} label={label} />
           ))}
         </div>
       </td>

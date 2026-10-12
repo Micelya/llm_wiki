@@ -1,13 +1,12 @@
-import { useEffect, useState, type ReactNode } from "react"
-import { ArrowLeft, Check, ExternalLink, FolderOpen, Pencil, X } from "lucide-react"
+import { useState, type ReactNode } from "react"
+import { ArrowLeft, ExternalLink, FolderOpen } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { findRelatedWikiPages } from "@/commands/fs"
 import {
   getDocument,
   getGeneralProject,
   openLocation,
-  setDocumentLabel,
+  pagesCiting,
+  setLocationLabel,
   type DocumentDetail,
   type LocationRef,
 } from "@/commands/docbase"
@@ -16,6 +15,7 @@ import { normalizePath } from "@/lib/path-utils"
 import { useDocbaseStore } from "@/stores/docbase-store"
 import { useWikiStore } from "@/stores/wiki-store"
 import { DOCUMENT_STATES, DocumentStateBadge } from "./document-state"
+import { LabelChip, LabelPicker } from "./labels"
 import { EmptyNote, ErrorNote } from "./page"
 import { formatCount, formatDate, formatSize } from "./format"
 import { useDocbaseQuery } from "./use-docbase-query"
@@ -82,7 +82,7 @@ export function DocumentDetailView({ locationId, onBack }: { locationId: number;
               <Section title={`Ubicaciones (${document.locations.length || 1})`}>
                 <Locations document={document} onOpen={handleOpen} />
               </Section>
-              <WikiPages fileName={document.name} />
+              <WikiPages locationId={document.locationId} />
             </main>
             <aside>
               <FactBox document={document} onChanged={detail.reload} onProblem={setProblem} />
@@ -199,52 +199,42 @@ function Locations({
 }
 
 /**
- * The pages of the general project's wiki that cite this document.
- * Shown only while that wiki is the open project.
+ * The pages of the general project's wiki that came from this document
+ * or from any copy of it. They open here while that wiki is the open
+ * project.
  */
-function WikiPages({ fileName }: { fileName: string }) {
+function WikiPages({ locationId }: { locationId: number }) {
   const project = useWikiStore((s) => s.project)
   const openPathInPreview = useWikiStore((s) => s.openPathInPreview)
-  const [pages, setPages] = useState<string[] | null>(null)
+  const pages = useDocbaseQuery(`pages-citing:${locationId}`, () => pagesCiting(locationId))
+  const general = useDocbaseQuery("general-project", getGeneralProject)
+  const canOpen = isSameProjectPath(general.data?.path, project?.path)
 
-  useEffect(() => {
-    let stale = false
-    setPages(null)
-    if (!project) return
-    getGeneralProject()
-      .then((general) =>
-        isSameProjectPath(general?.path, project.path) ? findRelatedWikiPages(project.path, fileName) : null,
-      )
-      .then((found) => {
-        if (!stale) setPages(found)
-      })
-      .catch(() => {
-        if (!stale) setPages(null)
-      })
-    return () => {
-      stale = true
-    }
-  }, [project, fileName])
-
-  if (!project || pages === null) return null
-  const root = normalizePath(project.path).replace(/\/+$/, "")
+  if (!pages.data) return null
   return (
-    <Section title={`En el wiki (${pages.length})`}>
-      {pages.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Ninguna página del wiki cita este documento todavía.</p>
+    <Section title={`En el wiki (${pages.data.length})`}>
+      {pages.data.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Ninguna página del wiki salió de este documento todavía.</p>
       ) : (
         <ul className="flex flex-col gap-1 text-sm">
-          {pages.map((page) => {
-            const path = normalizePath(page)
-            const shown = path.toLowerCase().startsWith(`${root.toLowerCase()}/`) ? path.slice(root.length + 1) : path
-            return (
-              <li key={page}>
-                <button className="text-left text-primary hover:underline" onClick={() => openPathInPreview(path)}>
-                  {shown}
+          {pages.data.map((page) => (
+            <li key={page.path} className="flex flex-wrap items-baseline gap-2">
+              {canOpen ? (
+                <button
+                  className="text-left text-primary hover:underline"
+                  onClick={() => openPathInPreview(normalizePath(page.file))}
+                >
+                  {page.title}
                 </button>
-              </li>
-            )
-          })}
+              ) : (
+                <span>{page.title}</span>
+              )}
+              <span className="text-xs text-muted-foreground">
+                {page.kind && `${page.kind} · `}
+                {page.path}
+              </span>
+            </li>
+          ))}
         </ul>
       )}
     </Section>
@@ -260,9 +250,6 @@ function FactBox({
   onChanged: () => void
   onProblem: (problem: string | null) => void
 }) {
-  // Every level the origin names can be corrected, plus any label that
-  // only exists as a correction.
-  const labelNames = [...new Set([...document.labelNames, ...Object.keys(document.labels)])]
   return (
     <div className="rounded-md border bg-muted/30 text-sm">
       <div className="border-b bg-muted px-3 py-2 text-center font-semibold break-words">{document.name}</div>
@@ -273,23 +260,31 @@ function FactBox({
         <Fact label="Origen">{document.originName}</Fact>
         <Fact label="Carpeta">{document.folder ? document.folder.split("/").join(" › ") : "—"}</Fact>
       </FactRows>
-      {labelNames.length > 0 && (
-        <>
-          <FactHeading>Etiquetas</FactHeading>
-          <FactRows>
-            {labelNames.map((name) => (
-              <LabelFact
-                key={name}
-                name={name}
-                value={document.labels[name] ?? ""}
-                locationId={document.locationId}
-                onChanged={onChanged}
-                onProblem={onProblem}
-              />
-            ))}
-          </FactRows>
-        </>
-      )}
+      <FactHeading>Etiquetas</FactHeading>
+      <div className="flex flex-col gap-2 px-3 py-2">
+        <div className="flex flex-wrap gap-1">
+          {document.labels.length === 0 && <span className="text-xs text-muted-foreground">Sin etiquetas</span>}
+          {document.labels.map((label) => (
+            <LabelChip
+              key={label.id}
+              label={label}
+              onRemove={() =>
+                setLocationLabel(document.locationId, label.id, false)
+                  .then(onChanged)
+                  .catch((cause) => onProblem(String(cause)))
+              }
+            />
+          ))}
+        </div>
+        <LabelPicker
+          exclude={document.labels.map((label) => label.id)}
+          onPick={(label) => setLocationLabel(document.locationId, label.id, true).then(onChanged)}
+          onProblem={onProblem}
+        />
+        <p className="text-xs text-muted-foreground">
+          Lo que pongas o quites acá vale para este archivo, digan lo que digan las reglas de su carpeta.
+        </p>
+      </div>
       <FactHeading>Archivo</FactHeading>
       <FactRows>
         <Fact label="Tamaño">{formatSize(document.size)}</Fact>
@@ -332,69 +327,5 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
       <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
       <dd className="min-w-0 break-words">{children}</dd>
     </div>
-  )
-}
-
-function LabelFact({
-  name,
-  value,
-  locationId,
-  onChanged,
-  onProblem,
-}: {
-  name: string
-  value: string
-  locationId: number
-  onChanged: () => void
-  onProblem: (problem: string | null) => void
-}) {
-  const [editing, setEditing] = useState<string | null>(null)
-
-  async function save() {
-    if (editing === null) return
-    try {
-      await setDocumentLabel(locationId, name, editing)
-      setEditing(null)
-      onChanged()
-    } catch (cause) {
-      onProblem(String(cause))
-    }
-  }
-
-  return (
-    <Fact label={name}>
-      {editing === null ? (
-        <span className="flex items-center gap-1">
-          <span className="min-w-0 break-words">{value || "—"}</span>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            title="Corregir. Si lo dejás vacío vuelve a valer lo que dice la carpeta."
-            onClick={() => setEditing(value)}
-          >
-            <Pencil />
-          </Button>
-        </span>
-      ) : (
-        <span className="flex items-center gap-1">
-          <Input
-            className="h-7"
-            value={editing}
-            autoFocus
-            onChange={(event) => setEditing(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") void save()
-              if (event.key === "Escape") setEditing(null)
-            }}
-          />
-          <Button variant="ghost" size="icon-xs" title="Guardar" onClick={save}>
-            <Check />
-          </Button>
-          <Button variant="ghost" size="icon-xs" title="Cancelar" onClick={() => setEditing(null)}>
-            <X />
-          </Button>
-        </span>
-      )}
-    </Fact>
   )
 }

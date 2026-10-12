@@ -41,6 +41,7 @@ import type { SourceWatchConfig } from "@/stores/wiki-store"
 import { useWikiStore } from "@/stores/wiki-store"
 import { preprocessSourceFiles } from "@/lib/source-preprocess"
 import { leaveOutIdenticalFiles } from "@/lib/source-catalog"
+import { leaveOutExcludedSources } from "@/lib/docbase-exclusions"
 import { addSourceMount } from "@/commands/source-mounts"
 import { moveParsedMarkdown, removeParsedMarkdown } from "@/lib/parsed-source-output"
 
@@ -281,9 +282,12 @@ export async function enqueueSourceIngest(
       ),
     }))
   if (files.length === 0) return []
+  // What the user excluded in the document base never reaches the model.
+  const included = await leaveOutExcludedSources(project.path, files)
+  if (included.length === 0) return []
   // A file that is byte for byte one already ingested joins that
   // document's pages here and never reaches the queue.
-  const pending = await leaveOutIdenticalFiles(project.path, files)
+  const pending = await leaveOutIdenticalFiles(project.path, included)
   if (pending.length === 0) return []
   const parsingConcurrency = options.parsingConcurrency
     ?? normalizeSourceWatchConfig(useWikiStore.getState().sourceWatchConfig).parsingConcurrency

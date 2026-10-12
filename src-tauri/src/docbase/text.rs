@@ -47,17 +47,18 @@ impl DocBase {
     fn next_text_jobs(&self, limit: usize) -> Result<Vec<(i64, PathBuf)>, String> {
         let conn = self.conn();
         let mut statement = conn
-            .prepare(
+            .prepare(&format!(
                 "SELECT c.id, o.location, min(l.rel_path)
                  FROM content c
                  JOIN file f ON f.content_id = c.id
                  JOIN location l ON l.file_hash = f.hash AND l.hash_state = 'done'
                  JOIN origin o ON o.id = l.origin_id AND o.reachable = 1
-                 WHERE c.state = 'pending'
+                 WHERE c.state = 'pending' AND NOT {}
                  GROUP BY c.id
                  ORDER BY c.id
                  LIMIT ?1",
-            )
+                super::excluded_sql!()
+            ))
             .map_err(sql_err)?;
         let rows = statement
             .query_map([limit as i64], |row| {

@@ -1,23 +1,28 @@
 import { useState } from "react"
 import { open } from "@tauri-apps/plugin-dialog"
-import { FolderPlus, RefreshCw, Trash2, Pencil, Check, X } from "lucide-react"
+import { ChevronDown, ChevronRight, FolderPlus, RefreshCw, Tag, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useAppDialog } from "@/stores/app-dialog-store"
 import {
   addOrigin,
+  getGeneralProject,
   listOrigins,
   previewFolder,
   removeOrigin,
   rescanOrigins,
-  setOriginConvention,
   type FolderPreview,
   type OriginSummary,
 } from "@/commands/docbase"
 import { GeneralProjectPanel } from "./general-project-panel"
+import { IconAction, OriginTree, type TreeActions } from "./origin-tree"
+import { FolderRules, LabelsPanel } from "./labels"
+import { ingestWikiSources, isSameProjectPath, pendingUnder } from "@/lib/docbase-wiki-bridge"
+import { useWikiStore } from "@/stores/wiki-store"
 import { DocbasePage, EmptyNote, ErrorNote, Panel, StatusBadge } from "./page"
 import { formatAgo, parseConvention, plural } from "./format"
 import { useDocbaseQuery } from "./use-docbase-query"
+import { vocabulary } from "@/vocabulary"
 
 interface Draft {
   folder: string
@@ -47,6 +52,19 @@ export function OriginsView() {
 
   async function confirmDraft() {
     if (!draft) return
+    // With the wiki active, a new folder goes to the model by itself.
+    const general = await getGeneralProject().catch(() => null)
+    if (general?.wikiActive) {
+      const confirmed = await dialog.confirm({
+        title: `Incorporar "${draft.name}"`,
+        message:
+          `El ${vocabulary().archive.wiki.toLowerCase()} está activo: todos los documentos de esta carpeta se van a incorporar al wiki solos, ` +
+          "y eso usa el modelo configurado. Si es una carpeta grande, conviene pausar el wiki antes.",
+        confirmLabel: "Incorporar",
+        cancelLabel: "Cancelar",
+      })
+      if (!confirmed) return
+    }
     setBusy(true)
     setProblem(null)
     try {
@@ -89,6 +107,35 @@ export function OriginsView() {
 
   const list = origins.data ?? []
 
+  // The tree can send things to the wiki only while the wiki is active
+  // and its project is the open one.
+  const project = useWikiStore((s) => s.project)
+  const general = useDocbaseQuery("general-project", getGeneralProject)
+  const canIngest = !!general.data?.wikiActive && isSameProjectPath(general.data?.path, project?.path)
+
+  async function handleIngest(originId: string, relPath: string, isFolder: boolean) {
+    if (!project) return
+    setProblem(null)
+    try {
+      const sources = await pendingUnder(project, originId, relPath, isFolder)
+      if (sources.length === 0) {
+        await dialog.alert({ message: "No hay nada pendiente de incorporar ahí: ya está en el wiki o en la cola." })
+        return
+      }
+      const confirmed = await dialog.confirm({
+        title: "Incorporar al wiki",
+        message: `Se van a incorporar ${plural(sources.length, "documento", "documentos")}. Cada uno pasa por el modelo configurado.`,
+        confirmLabel: "Incorporar",
+        cancelLabel: "Cancelar",
+      })
+      if (confirmed) await ingestWikiSources(project, sources)
+    } catch (cause) {
+      setProblem(String(cause))
+    }
+  }
+
+  const treeActions: TreeActions = { canIngest, onIngest: handleIngest, onProblem: setProblem }
+
   return (
     <DocbasePage
       title="Orígenes"
@@ -126,17 +173,19 @@ export function OriginsView() {
           </Panel>
         )}
 
-        {list.length > 0 && <GeneralProjectPanel />}
+        <GeneralProjectPanel />
 
         {list.map((origin) => (
           <OriginCard
             key={origin.id}
             origin={origin}
             onRemove={() => handleRemove(origin)}
-            onSaved={origins.reload}
             onProblem={setProblem}
+            treeActions={treeActions}
           />
         ))}
+
+        <LabelsPanel onProblem={setProblem} />
       </div>
     </DocbasePage>
   )
@@ -169,7 +218,7 @@ function NewOriginForm({
         </label>
         <label className="flex flex-col gap-1">
           <span className="text-xs font-medium text-muted-foreground">
-            ¿Cómo está ordenada? Nombrá cada nivel de carpetas, de afuera hacia adentro (opcional)
+¿Toda la carpeta está ordenada igual? Si es así, nombrá cada nivel, de afuera hacia adentro
           </span>
           <Input
             value={draft.convention}
@@ -177,8 +226,8 @@ function NewOriginForm({
             onChange={(event) => onChange({ ...draft, convention: event.target.value })}
           />
           <span className="text-xs text-muted-foreground">
-            Cada nivel pasa a ser una etiqueta de los documentos. Se puede cambiar después, y el valor de un
-            documento mal guardado se puede corregir.
+            Completalo solo si todas las subcarpetas siguen el mismo criterio; si no, dejalo vacío. Después
+            podés definir etiquetas carpeta por carpeta, desde el contenido del origen.
           </span>
         </label>
         {draft.preview.examples.length > 0 && (
@@ -222,25 +271,29 @@ function ConventionExamples({ examples, levels }: { examples: string[][]; levels
 function OriginCard({
   origin,
   onRemove,
-  onSaved,
   onProblem,
+  treeActions,
 }: {
   origin: OriginSummary
   onRemove: () => void
-  onSaved: () => void
   onProblem: (problem: string | null) => void
+  treeActions: TreeActions
 }) {
-  const [editing, setEditing] = useState<string | null>(null)
-
-  async function saveConvention() {
-    if (editing === null) return
-    try {
-      await setOriginConvention(origin.id, parseConvention(editing))
-      setEditing(null)
-      onSaved()
-    } catch (cause) {
-      onProblem(String(cause))
-    }
+  const [showTree, setShowTree] = useState(false)
+  const [showRules, setShowRules] = useState(false)
+  // Folder rows whose label rules are open, by path inside the origin.
+  const [openRules, setOpenRules] = useState<string[]>([])
+  const toggleRules = (folder: string) =>
+    setOpenRules((open) => (open.includes(folder) ? open.filter((path) => path !== folder) : [...open, folder]))
+  const actions: TreeActions = {
+    ...treeActions,
+    folderExtras: (_originId, folder) => (
+      <IconAction title="Etiquetas de esta carpeta" onClick={() => toggleRules(folder)}>
+        <Tag />
+      </IconAction>
+    ),
+    folderPanel: (originId, folder) =>
+      openRules.includes(folder) ? <FolderRules originId={originId} folder={folder} onProblem={onProblem} /> : null,
   }
 
   return (
@@ -279,40 +332,22 @@ function OriginCard({
             <span className="text-xs text-muted-foreground">Último barrido: {formatAgo(origin.lastScanAt)}</span>
           )}
         </div>
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="text-xs font-medium text-muted-foreground">Niveles de carpeta:</span>
-          {editing === null ? (
-            <>
-              <span>{origin.convention.length > 0 ? origin.convention.join(" › ") : "sin definir"}</span>
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                title="Cambiar"
-                onClick={() => setEditing(origin.convention.join(", "))}
-              >
-                <Pencil />
-              </Button>
-            </>
-          ) : (
-            <>
-              <Input
-                className="h-7 max-w-xs"
-                value={editing}
-                placeholder="cliente, caso"
-                autoFocus
-                onChange={(event) => setEditing(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") void saveConvention()
-                  if (event.key === "Escape") setEditing(null)
-                }}
-              />
-              <Button variant="ghost" size="icon-xs" title="Guardar" onClick={saveConvention}>
-                <Check />
-              </Button>
-              <Button variant="ghost" size="icon-xs" title="Cancelar" onClick={() => setEditing(null)}>
-                <X />
-              </Button>
-            </>
+        <div>
+          <Button variant="ghost" size="sm" onClick={() => setShowTree(!showTree)}>
+            {showTree ? <ChevronDown /> : <ChevronRight />} {showTree ? "Ocultar el contenido" : "Ver el contenido"}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setShowRules(!showRules)}>
+            <Tag /> Etiquetas de todo el origen
+          </Button>
+          {showRules && (
+            <div className="mt-2 overflow-hidden rounded-md border">
+              <FolderRules originId={origin.id} folder="" onProblem={onProblem} />
+            </div>
+          )}
+          {showTree && (
+            <div className="mt-2">
+              <OriginTree originId={origin.id} actions={actions} />
+            </div>
           )}
         </div>
       </div>

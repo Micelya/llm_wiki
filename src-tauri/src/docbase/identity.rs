@@ -52,13 +52,15 @@ impl DocBase {
     fn next_hash_jobs(&self, limit: usize) -> Result<Vec<Job>, String> {
         let conn = self.conn();
         let mut statement = conn
-            .prepare(
+            .prepare(&format!(
                 "SELECT l.id, l.origin_id, l.rel_path, o.location, l.size, l.mtime_ms
                  FROM location l JOIN origin o ON o.id = l.origin_id
                  WHERE l.hash_state = 'pending' AND l.kind = 'file' AND o.reachable = 1
+                   AND NOT {}
                  ORDER BY l.size
                  LIMIT ?1",
-            )
+                super::excluded_sql!()
+            ))
             .map_err(sql_err)?;
         let rows = statement
             .query_map([limit as i64], |row| {
@@ -184,9 +186,12 @@ impl DocBase {
     pub fn has_pending_hashes(&self) -> Result<bool, String> {
         self.conn()
             .query_row(
-                "SELECT EXISTS (
+                &format!(
+                    "SELECT EXISTS (
                      SELECT 1 FROM location l JOIN origin o ON o.id = l.origin_id
-                     WHERE l.hash_state = 'pending' AND l.kind = 'file' AND o.reachable = 1)",
+                     WHERE l.hash_state = 'pending' AND l.kind = 'file' AND o.reachable = 1 AND NOT {})",
+                    super::excluded_sql!()
+                ),
                 [],
                 |row| row.get::<_, i64>(0),
             )

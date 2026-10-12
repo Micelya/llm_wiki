@@ -10,6 +10,7 @@ import { buildAttention, pendingCount, processedPercent, type AttentionItem } fr
 import { DocbasePage, EmptyNote, ErrorNote, Panel, StatusBadge } from "./page"
 import { formatAgo, formatCount, plural } from "./format"
 import { useDocbaseQuery } from "./use-docbase-query"
+import { vocabulary } from "@/vocabulary"
 
 export function HomeView() {
   const home = useDocbaseQuery("home", getHome)
@@ -31,7 +32,7 @@ export function HomeView() {
   }
 
   const data = home.data
-  const attention = data ? buildAttention(data.health, data.origins, reviewPending) : []
+  const attention = data ? buildAttention(data.health, data.origins, reviewPending, data.wiki) : []
   const today = new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
 
   return (
@@ -119,7 +120,7 @@ export function HomeView() {
           </Panel>
 
           {data && data.health.origins > 0 && (
-            <Panel title="Salud del archivo">
+            <Panel title={vocabulary().archive.health}>
               <dl className="flex flex-col divide-y text-sm">
                 <Metric label="Documentos distintos">{formatCount(data.health.documents)}</Metric>
                 <Metric label="Archivos en el inventario">{formatCount(data.health.locations)}</Metric>
@@ -135,6 +136,7 @@ export function HomeView() {
                 </Metric>
                 <Metric label="Con copias en otro lugar">{formatCount(data.health.copies)}</Metric>
                 <Metric label="Palabras en la base">{formatCount(data.health.words)}</Metric>
+                <Metric label="Páginas del wiki">{formatCount(data.wiki.pages)}</Metric>
                 <Metric label="Carpetas">
                   {data.health.unreachableOrigins > 0 ? (
                     <StatusBadge tone="warning">

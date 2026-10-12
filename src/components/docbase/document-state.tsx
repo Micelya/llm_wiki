@@ -29,6 +29,11 @@ export const DOCUMENT_STATES: Record<DocumentState, StateInfo> = {
     tone: "warning",
     hint: "Es un escaneo o una foto: su texto hay que reconocerlo con un motor de lectura.",
   },
+  excluded: {
+    label: "Excluido",
+    tone: "neutral",
+    hint: "Lo dejaste afuera: sigue en su lugar, pero la base no lo procesa ni lo entrega al wiki.",
+  },
   link: {
     label: "Detectado, no procesable",
     tone: "neutral",
@@ -63,6 +68,7 @@ export const DOCUMENT_STATE_ORDER: DocumentState[] = [
   "unread",
   "needs-recognition",
   "link",
+  "excluded",
   "unsupported",
   "too-large",
   "unreadable",

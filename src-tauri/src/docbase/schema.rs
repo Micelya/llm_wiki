@@ -10,7 +10,106 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5];
+
+/// Index of a project's wiki, rebuilt from its pages: the pages, the
+/// links between them (`to_page` is NULL for a broken link) and the
+/// source documents each page names (`location_id` when the base knows
+/// that file). `path` is relative to the project, with forward slashes.
+const V5: &str = "
+CREATE TABLE wiki_page (
+    id          INTEGER PRIMARY KEY,
+    project_id  TEXT NOT NULL REFERENCES project (id) ON DELETE CASCADE,
+    path        TEXT NOT NULL,
+    slug        TEXT NOT NULL,
+    title       TEXT NOT NULL,
+    type        TEXT NOT NULL,
+    size        INTEGER NOT NULL,
+    mtime_ms    INTEGER NOT NULL,
+    UNIQUE (project_id, path)
+);
+
+CREATE TABLE wiki_link (
+    from_page  INTEGER NOT NULL REFERENCES wiki_page (id) ON DELETE CASCADE,
+    target     TEXT NOT NULL,
+    kind       TEXT NOT NULL,
+    to_page    INTEGER REFERENCES wiki_page (id) ON DELETE SET NULL,
+    PRIMARY KEY (from_page, target, kind)
+);
+CREATE INDEX wiki_link_by_target ON wiki_link (to_page);
+
+CREATE TABLE wiki_page_source (
+    page_id      INTEGER NOT NULL REFERENCES wiki_page (id) ON DELETE CASCADE,
+    identity     TEXT NOT NULL,
+    location_id  INTEGER REFERENCES location (id) ON DELETE SET NULL,
+    PRIMARY KEY (page_id, identity)
+);
+CREATE INDEX wiki_page_source_by_location ON wiki_page_source (location_id);
+";
+
+/// Label groups, labels, the folder rules that assign them, what the
+/// user put or removed by hand, and what each file ends up with.
+/// `label.key` is the text a label is found by (the folder name it came
+/// from); `label.name` is what the user reads and can rename.
+const V4: &str = "
+CREATE TABLE label_group (
+    id          INTEGER PRIMARY KEY,
+    name        TEXT NOT NULL COLLATE NOCASE UNIQUE,
+    created_at  INTEGER NOT NULL
+);
+
+CREATE TABLE label (
+    id          INTEGER PRIMARY KEY,
+    group_id    INTEGER REFERENCES label_group (id) ON DELETE CASCADE,
+    name        TEXT NOT NULL,
+    key         TEXT NOT NULL COLLATE NOCASE,
+    color       TEXT NOT NULL,
+    created_at  INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX label_by_key ON label (coalesce(group_id, 0), key);
+
+CREATE TABLE label_rule (
+    id          INTEGER PRIMARY KEY,
+    origin_id   TEXT NOT NULL REFERENCES origin (id) ON DELETE CASCADE,
+    folder      TEXT NOT NULL,
+    kind        TEXT NOT NULL CHECK (kind IN ('fixed', 'levels')),
+    label_id    INTEGER REFERENCES label (id) ON DELETE CASCADE,
+    groups      TEXT NOT NULL DEFAULT '[]',
+    created_at  INTEGER NOT NULL
+);
+
+CREATE TABLE label_manual (
+    location_id  INTEGER NOT NULL REFERENCES location (id) ON DELETE CASCADE,
+    label_id     INTEGER NOT NULL REFERENCES label (id) ON DELETE CASCADE,
+    mode         TEXT NOT NULL CHECK (mode IN ('add', 'remove')),
+    PRIMARY KEY (location_id, label_id)
+);
+
+CREATE TABLE location_label (
+    location_id  INTEGER NOT NULL REFERENCES location (id) ON DELETE CASCADE,
+    label_id     INTEGER NOT NULL REFERENCES label (id) ON DELETE CASCADE,
+    PRIMARY KEY (location_id, label_id)
+);
+CREATE INDEX location_label_by_label ON location_label (label_id);
+";
+
+/// Files and folders the user left out of the base. Nothing on disk is
+/// touched; `rel_path` is the path inside the origin.
+const V3: &str = "
+CREATE TABLE exclusion (
+    origin_id   TEXT NOT NULL REFERENCES origin (id) ON DELETE CASCADE,
+    rel_path    TEXT NOT NULL,
+    is_folder   INTEGER NOT NULL,
+    created_at  INTEGER NOT NULL,
+    PRIMARY KEY (origin_id, rel_path)
+);
+";
+
+/// The general project's wiki is fed from the base only once the user
+/// turns it on: feeding it uses the model.
+const V2: &str = "
+ALTER TABLE project ADD COLUMN wiki_active INTEGER NOT NULL DEFAULT 0;
+";
 
 const V1: &str = "
 -- The space this database belongs to: exactly one row.

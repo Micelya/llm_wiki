@@ -7,8 +7,6 @@ export interface Origin {
   name: string
   provider: "local-folder"
   location: string
-  /** The name of each folder level, outermost first: ["cliente", "caso"]. */
-  convention: string[]
   addedAt: number
   lastScanAt: number | null
   /** `null` until the first sweep. `false`: what was known is kept. */
@@ -40,12 +38,13 @@ export function previewFolder(folder: string): Promise<FolderPreview> {
   return invoke<FolderPreview>("docbase_preview_folder", { folder })
 }
 
-export function addOrigin(name: string, folder: string, convention: string[]): Promise<Origin> {
-  return invoke<Origin>("docbase_add_origin", { name, folder, convention })
-}
-
-export function setOriginConvention(originId: string, convention: string[]): Promise<void> {
-  return invoke<void>("docbase_set_origin_convention", { originId, convention })
+/**
+ * Incorporates a folder. `levels` says how the whole folder is ordered
+ * ("cliente", "caso") and becomes a label rule on its root; leave it
+ * empty unless the folder is ordered the same way throughout.
+ */
+export function addOrigin(name: string, folder: string, levels: string[]): Promise<Origin> {
+  return invoke<Origin>("docbase_add_origin", { name, folder, convention: levels })
 }
 
 export function removeOrigin(originId: string): Promise<void> {
@@ -69,6 +68,7 @@ export function onDocbaseChanged(handler: () => void): Promise<UnlistenFn> {
  * `needs-recognition`: its text is only pixels.
  */
 export type DocumentState =
+  | "excluded"
   | "link"
   | "unread"
   | "unreadable"
@@ -86,6 +86,8 @@ export interface DocumentFilter {
   state?: DocumentState | ""
   /** Only documents with more than one location. */
   duplicatesOnly?: boolean
+  /** Only files carrying this label. */
+  labelId?: number | null
   sort?: "recent" | "name" | "folder"
   limit?: number
   offset?: number
@@ -107,7 +109,87 @@ export interface DocumentRow {
   contentId: number | null
   /** Locations holding this same document, this one included. */
   copies: number
-  labels: Record<string, string>
+  labels: Label[]
+}
+
+/** A label: an answer ("BGH") to its group's question ("Cliente"), or standing alone. */
+export interface Label {
+  id: number
+  groupId: number | null
+  group: string | null
+  name: string
+  color: string
+}
+
+export interface LabelUse extends Label {
+  /** Files carrying it. */
+  files: number
+}
+
+export interface LabelGroup {
+  /** `null` for the labels that stand alone. */
+  id: number | null
+  name: string | null
+  labels: LabelUse[]
+}
+
+/** A rule on a folder that labels everything under it. */
+export interface LabelRule {
+  id: number
+  originId: string
+  /** Folder it sits on; "" for the root of the origin. */
+  folder: string
+  /** `fixed`: everything carries `label`. `levels`: each subfolder is a label of `groups[0]`, and so on down. */
+  kind: "fixed" | "levels"
+  label: Label | null
+  groups: string[]
+}
+
+export function listLabelGroups(): Promise<LabelGroup[]> {
+  return invoke<LabelGroup[]>("docbase_label_groups")
+}
+
+/** Finds the label, creating its group and the label when they do not exist. */
+export function ensureLabel(group: string | null, name: string): Promise<Label> {
+  return invoke<Label>("docbase_ensure_label", { group, name })
+}
+
+export function renameLabel(labelId: number, name: string): Promise<void> {
+  return invoke<void>("docbase_rename_label", { labelId, name })
+}
+
+export function deleteLabel(labelId: number): Promise<void> {
+  return invoke<void>("docbase_delete_label", { labelId })
+}
+
+export function renameGroup(groupId: number, name: string): Promise<void> {
+  return invoke<void>("docbase_rename_group", { groupId, name })
+}
+
+export function deleteGroup(groupId: number): Promise<void> {
+  return invoke<void>("docbase_delete_group", { groupId })
+}
+
+export function listLabelRules(originId: string): Promise<LabelRule[]> {
+  return invoke<LabelRule[]>("docbase_label_rules", { originId })
+}
+
+export function addFixedRule(originId: string, folder: string, labelId: number): Promise<void> {
+  return invoke<void>("docbase_add_fixed_rule", { originId, folder, labelId })
+}
+
+/** An empty list removes the rule from the folder. */
+export function setLevelsRule(originId: string, folder: string, groups: string[]): Promise<void> {
+  return invoke<void>("docbase_set_levels_rule", { originId, folder, groups })
+}
+
+export function removeRule(ruleId: number): Promise<void> {
+  return invoke<void>("docbase_remove_rule", { ruleId })
+}
+
+/** Puts a label on one file or takes it off, whatever the folder rules say. */
+export function setLocationLabel(locationId: number, labelId: number, on: boolean): Promise<void> {
+  return invoke<void>("docbase_set_location_label", { locationId, labelId, on })
 }
 
 export interface DocumentPage {
@@ -136,8 +218,6 @@ export interface DocumentDetail extends DocumentRow {
   firstSeenAt: number
   text: string | null
   textEngine: string | null
-  /** The folder levels the origin names. */
-  labelNames: string[]
   /** Every location of this document, this one first. */
   locations: LocationRef[]
 }
@@ -170,10 +250,50 @@ export interface Activity {
   fromPath: string | null
 }
 
+/** Totals of the general project's wiki, from the base's index of it. */
+export interface WikiIndex {
+  pages: number
+  links: number
+  /** Links that point at no page. */
+  broken: number
+}
+
+/** A wiki page, as the index knows it. */
+export interface PageRef {
+  /** Path inside the project: `wiki/entities/bgh.md`. */
+  path: string
+  /** Where the page is on disk. */
+  file: string
+  title: string
+  /** `type` of its header: source, entity, concept… */
+  kind: string
+}
+
+export interface BrokenLink {
+  from: PageRef
+  /** What the link says, as written. */
+  target: string
+}
+
 export interface Home {
   health: Health
   origins: OriginSummary[]
   activity: Activity[]
+  wiki: WikiIndex
+}
+
+/** The wiki pages that came from the document at this location, or from any copy of it. */
+export function pagesCiting(locationId: number): Promise<PageRef[]> {
+  return invoke<PageRef[]>("docbase_pages_citing", { locationId })
+}
+
+export function listBrokenLinks(): Promise<BrokenLink[]> {
+  return invoke<BrokenLink[]>("docbase_broken_links")
+}
+
+/** The pages that link to the page at this path inside the project. */
+export function listBacklinks(pagePath: string): Promise<PageRef[]> {
+  return invoke<PageRef[]>("docbase_backlinks", { pagePath })
 }
 
 export function getHome(): Promise<Home> {
@@ -197,6 +317,8 @@ export interface GeneralProject {
   /** The wiki project folder, once one was assigned. */
   path: string | null
   members: string
+  /** Whether the wiki is fed from the base on its own. */
+  wikiActive: boolean
   origins: BridgedOrigin[]
 }
 
@@ -220,6 +342,15 @@ export function linkGeneralProject(projectPath: string, name: string): Promise<G
   return invoke<GeneralProject>("docbase_link_general_project", { projectPath, name })
 }
 
+/** Makes sure the general project has its wiki in the workspace; creates it the first time. */
+export function ensureDefaultProject(workspace: string): Promise<GeneralProject> {
+  return invoke<GeneralProject>("docbase_ensure_default_project", { workspace })
+}
+
+export function setWikiActive(active: boolean): Promise<void> {
+  return invoke<void>("docbase_set_wiki_active", { active })
+}
+
 export function unlinkGeneralProject(): Promise<void> {
   return invoke<void>("docbase_unlink_general_project")
 }
@@ -228,17 +359,49 @@ export function listWikiSources(): Promise<WikiSource[]> {
   return invoke<WikiSource[]>("docbase_wiki_sources")
 }
 
+export interface FolderNode {
+  name: string
+  /** Path inside the origin, with forward slashes. */
+  relPath: string
+  /** Files anywhere under it. */
+  files: number
+  /** Left out by the user, itself or through a folder above it. */
+  excluded: boolean
+}
+
+export interface FolderListing {
+  originId: string
+  folder: string
+  excluded: boolean
+  folders: FolderNode[]
+  files: DocumentRow[]
+}
+
+/** The folders and files directly inside one folder of an origin ("" is its root). */
+export function listFolder(originId: string, folder: string): Promise<FolderListing> {
+  return invoke<FolderListing>("docbase_list_folder", { originId, folder })
+}
+
+/** Leaves a file or folder out of the base, or brings it back. Nothing on disk is touched. */
+export function setExcluded(originId: string, relPath: string, isFolder: boolean, excluded: boolean): Promise<void> {
+  return invoke<void>("docbase_set_excluded", { originId, relPath, isFolder, excluded })
+}
+
+/** Which of these `raw/sources/…` paths of a wiki project the user left out of the base. */
+export function excludedSources(projectPath: string, sourcePaths: string[]): Promise<string[]> {
+  return invoke<string[]>("docbase_excluded_sources", { projectPath, sourcePaths })
+}
+
+export function openFolder(originId: string, folder: string): Promise<void> {
+  return invoke<void>("docbase_open_folder", { originId, folder })
+}
+
 export function listDocuments(filter: DocumentFilter): Promise<DocumentPage> {
   return invoke<DocumentPage>("docbase_list_documents", { filter })
 }
 
 export function getDocument(locationId: number): Promise<DocumentDetail | null> {
   return invoke<DocumentDetail | null>("docbase_get_document", { locationId })
-}
-
-/** An empty value undoes the correction: the label is again what the folder says. */
-export function setDocumentLabel(locationId: number, name: string, value: string): Promise<void> {
-  return invoke<void>("docbase_set_label", { locationId, name, value })
 }
 
 /** Opens the original with the system's program, or shows it in its folder. */

@@ -1,4 +1,4 @@
-import type { DocumentState, Health, OriginSummary } from "@/commands/docbase"
+import type { DocumentState, Health, OriginSummary, WikiIndex } from "@/commands/docbase"
 import type { Tone } from "./page"
 import { plural } from "./format"
 
@@ -16,6 +16,7 @@ export interface AttentionItem {
   target:
     | { view: "origins" }
     | { view: "review" }
+    | { view: "lint" }
     | { view: "documents"; state: DocumentState }
 }
 
@@ -25,6 +26,7 @@ export function buildAttention(
   health: Health,
   origins: OriginSummary[],
   reviewPending: number,
+  wiki: WikiIndex = { pages: 0, links: 0, broken: 0 },
 ): AttentionItem[] {
   const items: AttentionItem[] = []
   const count = (state: DocumentState) => health.byState[state] ?? 0
@@ -94,13 +96,22 @@ export function buildAttention(
       target: { view: "review" },
     })
   }
+  if (wiki.broken > 0) {
+    items.push({
+      id: "broken-links",
+      tone: "neutral",
+      title: plural(wiki.broken, "enlace del wiki apunta a una página que no existe", "enlaces del wiki apuntan a páginas que no existen"),
+      detail: "Suelen ser páginas que todavía no se escribieron, o que cambiaron de nombre.",
+      target: { view: "lint" },
+    })
+  }
   return items.sort((a, b) => TONE_ORDER.indexOf(a.tone) - TONE_ORDER.indexOf(b.tone))
 }
 
 /** Share of the processable files whose text is already in the base, 0 to 100. */
 export function processedPercent(health: Health): number | null {
   const count = (state: DocumentState) => health.byState[state] ?? 0
-  const processable = health.locations - count("link") - count("unsupported")
+  const processable = health.locations - count("link") - count("unsupported") - count("excluded")
   if (processable <= 0) return null
   return Math.round((count("processed") / processable) * 1000) / 10
 }

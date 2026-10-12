@@ -11,8 +11,11 @@ use serde::Serialize;
 use tauri::{Emitter, Manager, State};
 
 use super::bridge::{self, GeneralProject, WikiSource};
+use super::labels::{Label, LabelGroup, LabelRule};
 use super::origins::Origin;
 use super::query::{Activity, DocumentDetail, DocumentFilter, DocumentPage, Health, OriginSummary};
+use super::tree::FolderListing;
+use super::wiki::{BrokenLink, PageRef, WikiIndex};
 use super::worker::{self, Wake};
 use super::{DocBase, Visible, PRIVATE_DB_FILE};
 
@@ -107,15 +110,6 @@ pub fn docbase_add_origin(
 }
 
 #[tauri::command(async)]
-pub fn docbase_set_origin_convention(
-    state: State<'_, DocBaseState>,
-    origin_id: String,
-    convention: Vec<String>,
-) -> Result<(), String> {
-    state.base()?.set_origin_convention(&origin_id, &convention)
-}
-
-#[tauri::command(async)]
 pub fn docbase_remove_origin(state: State<'_, DocBaseState>, origin_id: String) -> Result<(), String> {
     let base = state.base()?;
     base.unmount_from_general(&origin_id)?;
@@ -139,6 +133,21 @@ pub fn docbase_link_general_project(
     state
         .base()?
         .link_general_project(Path::new(&project_path), &name)
+}
+
+/// Makes sure the general project has its wiki in the app's workspace
+/// and returns it. Creates nothing but the empty project the first time.
+#[tauri::command(async)]
+pub fn docbase_ensure_default_project(
+    state: State<'_, DocBaseState>,
+    workspace: String,
+) -> Result<GeneralProject, String> {
+    state.base()?.ensure_default_project(Path::new(&workspace))
+}
+
+#[tauri::command(async)]
+pub fn docbase_set_wiki_active(state: State<'_, DocBaseState>, active: bool) -> Result<(), String> {
+    state.base()?.set_wiki_active(active)
 }
 
 #[tauri::command(async)]
@@ -168,6 +177,8 @@ pub struct Home {
     pub health: Health,
     pub origins: Vec<OriginSummary>,
     pub activity: Vec<Activity>,
+    /// Totals of the general project's wiki.
+    pub wiki: WikiIndex,
 }
 
 #[tauri::command(async)]
@@ -177,6 +188,8 @@ pub fn docbase_home(state: State<'_, DocBaseState>) -> Result<Home, String> {
         health: base.health(&Visible::All)?,
         origins: base.origin_summaries(&Visible::All)?,
         activity: base.activity(&Visible::All, 12)?,
+        // The wiki being unreadable must not hide the rest of Inicio.
+        wiki: base.index_wiki().unwrap_or_default(),
     })
 }
 
@@ -198,14 +211,164 @@ pub fn docbase_get_document(
     state.base()?.document(&Visible::All, location_id)
 }
 
+/// The wiki pages that came from the document at this location, or from
+/// any copy of it.
 #[tauri::command(async)]
-pub fn docbase_set_label(
+pub fn docbase_pages_citing(state: State<'_, DocBaseState>, location_id: i64) -> Result<Vec<PageRef>, String> {
+    state.base()?.pages_citing(&Visible::All, location_id)
+}
+
+/// Links of the wiki that point at no page.
+#[tauri::command(async)]
+pub fn docbase_broken_links(state: State<'_, DocBaseState>) -> Result<Vec<BrokenLink>, String> {
+    state.base()?.broken_links(200)
+}
+
+/// The pages that link to the page at this path inside the project.
+#[tauri::command(async)]
+pub fn docbase_backlinks(state: State<'_, DocBaseState>, page_path: String) -> Result<Vec<PageRef>, String> {
+    state.base()?.backlinks(&page_path)
+}
+
+#[tauri::command(async)]
+pub fn docbase_label_groups(state: State<'_, DocBaseState>) -> Result<Vec<LabelGroup>, String> {
+    state.base()?.label_groups()
+}
+
+/// The label with that name in that group (none: it stands alone),
+/// created when it does not exist yet.
+#[tauri::command(async)]
+pub fn docbase_ensure_label(
+    state: State<'_, DocBaseState>,
+    group: Option<String>,
+    name: String,
+) -> Result<Label, String> {
+    state.base()?.ensure_label(group.as_deref(), &name)
+}
+
+#[tauri::command(async)]
+pub fn docbase_rename_label(state: State<'_, DocBaseState>, label_id: i64, name: String) -> Result<(), String> {
+    state.base()?.rename_label(label_id, &name)
+}
+
+#[tauri::command(async)]
+pub fn docbase_delete_label(state: State<'_, DocBaseState>, label_id: i64) -> Result<(), String> {
+    state.base()?.delete_label(label_id)
+}
+
+#[tauri::command(async)]
+pub fn docbase_rename_group(state: State<'_, DocBaseState>, group_id: i64, name: String) -> Result<(), String> {
+    state.base()?.rename_group(group_id, &name)
+}
+
+#[tauri::command(async)]
+pub fn docbase_delete_group(state: State<'_, DocBaseState>, group_id: i64) -> Result<(), String> {
+    state.base()?.delete_group(group_id)
+}
+
+#[tauri::command(async)]
+pub fn docbase_label_rules(state: State<'_, DocBaseState>, origin_id: String) -> Result<Vec<LabelRule>, String> {
+    state.base()?.label_rules(&origin_id)
+}
+
+/// "Everything under this folder carries this label."
+#[tauri::command(async)]
+pub fn docbase_add_fixed_rule(
+    state: State<'_, DocBaseState>,
+    origin_id: String,
+    folder: String,
+    label_id: i64,
+) -> Result<(), String> {
+    state.base()?.add_fixed_rule(&origin_id, &folder, label_id)
+}
+
+/// "Each subfolder of this folder is a … (group), level by level."
+/// An empty list removes that rule from the folder.
+#[tauri::command(async)]
+pub fn docbase_set_levels_rule(
+    state: State<'_, DocBaseState>,
+    origin_id: String,
+    folder: String,
+    groups: Vec<String>,
+) -> Result<(), String> {
+    state.base()?.set_levels_rule(&origin_id, &folder, &groups)
+}
+
+#[tauri::command(async)]
+pub fn docbase_remove_rule(state: State<'_, DocBaseState>, rule_id: i64) -> Result<(), String> {
+    state.base()?.remove_rule(rule_id)
+}
+
+/// Puts a label on one file or takes it off, whatever the rules say.
+#[tauri::command(async)]
+pub fn docbase_set_location_label(
     state: State<'_, DocBaseState>,
     location_id: i64,
-    name: String,
-    value: String,
+    label_id: i64,
+    on: bool,
 ) -> Result<(), String> {
-    state.base()?.set_label(location_id, &name, &value)
+    state.base()?.set_location_label(location_id, label_id, on)
+}
+
+/// The folders and files directly inside one folder of an origin.
+#[tauri::command(async)]
+pub fn docbase_list_folder(
+    state: State<'_, DocBaseState>,
+    origin_id: String,
+    folder: String,
+) -> Result<FolderListing, String> {
+    state.base()?.list_folder(&Visible::All, &origin_id, &folder)
+}
+
+/// Leaves a file or a folder out of the base, or brings it back. Nothing
+/// on disk is touched.
+#[tauri::command(async)]
+pub fn docbase_set_excluded(
+    state: State<'_, DocBaseState>,
+    origin_id: String,
+    rel_path: String,
+    is_folder: bool,
+    excluded: bool,
+) -> Result<(), String> {
+    state
+        .base()?
+        .set_excluded(&origin_id, &rel_path, is_folder, excluded)?;
+    // Bringing something back gives the worker files to read.
+    state.wake.request_sweep();
+    Ok(())
+}
+
+/// Which of these sources of a wiki project the user left out of the base.
+#[tauri::command(async)]
+pub fn docbase_excluded_sources(
+    state: State<'_, DocBaseState>,
+    project_path: String,
+    source_paths: Vec<String>,
+) -> Result<Vec<String>, String> {
+    state
+        .base()?
+        .excluded_sources(Path::new(&project_path), &source_paths)
+}
+
+/// Shows a folder of an origin in the system's file manager.
+#[tauri::command(async)]
+pub fn docbase_open_folder(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    origin_id: String,
+    folder: String,
+) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let path = state
+        .base()?
+        .folder_path(&origin_id, &folder)?
+        .ok_or_else(|| "Ese origen ya no existe".to_string())?;
+    if !Path::new(&path).is_dir() {
+        return Err(format!("No se puede abrir '{path}': la carpeta no está disponible ahora"));
+    }
+    app.opener()
+        .open_path(path.clone(), None::<&str>)
+        .map_err(|e| format!("No se pudo abrir '{path}': {e}"))
 }
 
 /// Opens a file of the inventory with the program the system uses for
