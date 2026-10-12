@@ -93,6 +93,12 @@ El detalle de cada cambio (qué líneas, qué pruebas) está en su PR; acá no s
 - **Upstream:** candidato
 - **PR:** #21
 
+### F-013 · Base documental
+- **Propósito:** que la app sepa qué archivos hay en un espacio, dónde está cada copia y cuáles son el mismo documento, y que lo derivado de cada documento se obtenga una sola vez: un componente propio (`src-tauri/src/docbase/`) con una base SQLite por espacio, en la carpeta local de datos de la app.
+- **Toca upstream:** `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `src-tauri/src/lib.rs`
+- **Upstream:** solo-fork
+- **PR:** #24
+
 ## Reabsorbidos
 
 Cambios que upstream ya incorporó (ID · versión de upstream que lo trae).
