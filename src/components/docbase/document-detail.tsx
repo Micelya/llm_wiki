@@ -1,15 +1,20 @@
-import { useState, type ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import { ArrowLeft, Check, ExternalLink, FolderOpen, Pencil, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { findRelatedWikiPages } from "@/commands/fs"
 import {
   getDocument,
+  getGeneralProject,
   openLocation,
   setDocumentLabel,
   type DocumentDetail,
   type LocationRef,
 } from "@/commands/docbase"
+import { isSameProjectPath } from "@/lib/docbase-wiki-bridge"
+import { normalizePath } from "@/lib/path-utils"
 import { useDocbaseStore } from "@/stores/docbase-store"
+import { useWikiStore } from "@/stores/wiki-store"
 import { DOCUMENT_STATES, DocumentStateBadge } from "./document-state"
 import { EmptyNote, ErrorNote } from "./page"
 import { formatCount, formatDate, formatSize } from "./format"
@@ -77,6 +82,7 @@ export function DocumentDetailView({ locationId, onBack }: { locationId: number;
               <Section title={`Ubicaciones (${document.locations.length || 1})`}>
                 <Locations document={document} onOpen={handleOpen} />
               </Section>
+              <WikiPages fileName={document.name} />
             </main>
             <aside>
               <FactBox document={document} onChanged={detail.reload} onProblem={setProblem} />
@@ -189,6 +195,59 @@ function Locations({
         )
       })}
     </ul>
+  )
+}
+
+/**
+ * The pages of the general project's wiki that cite this document.
+ * Shown only while that wiki is the open project.
+ */
+function WikiPages({ fileName }: { fileName: string }) {
+  const project = useWikiStore((s) => s.project)
+  const openPathInPreview = useWikiStore((s) => s.openPathInPreview)
+  const [pages, setPages] = useState<string[] | null>(null)
+
+  useEffect(() => {
+    let stale = false
+    setPages(null)
+    if (!project) return
+    getGeneralProject()
+      .then((general) =>
+        isSameProjectPath(general?.path, project.path) ? findRelatedWikiPages(project.path, fileName) : null,
+      )
+      .then((found) => {
+        if (!stale) setPages(found)
+      })
+      .catch(() => {
+        if (!stale) setPages(null)
+      })
+    return () => {
+      stale = true
+    }
+  }, [project, fileName])
+
+  if (!project || pages === null) return null
+  const root = normalizePath(project.path).replace(/\/+$/, "")
+  return (
+    <Section title={`En el wiki (${pages.length})`}>
+      {pages.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Ninguna página del wiki cita este documento todavía.</p>
+      ) : (
+        <ul className="flex flex-col gap-1 text-sm">
+          {pages.map((page) => {
+            const path = normalizePath(page)
+            const shown = path.toLowerCase().startsWith(`${root.toLowerCase()}/`) ? path.slice(root.length + 1) : path
+            return (
+              <li key={page}>
+                <button className="text-left text-primary hover:underline" onClick={() => openPathInPreview(path)}>
+                  {shown}
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </Section>
   )
 }
 
