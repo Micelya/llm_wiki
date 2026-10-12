@@ -19,7 +19,15 @@
 // The base is introduced ahead of its callers.
 #![allow(dead_code)]
 
+pub mod commands;
+mod identity;
+pub mod origins;
+pub mod query;
+mod scan;
 mod schema;
+#[cfg(test)]
+pub(crate) mod testing;
+mod worker;
 
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
