@@ -11,7 +11,7 @@ use serde::Serialize;
 use tauri::{Emitter, Manager, State};
 
 use super::origins::Origin;
-use super::query::{DocumentDetail, DocumentFilter, DocumentPage, OriginSummary};
+use super::query::{Activity, DocumentDetail, DocumentFilter, DocumentPage, Health, OriginSummary};
 use super::worker::{self, Wake};
 use super::{DocBase, Visible, PRIVATE_DB_FILE};
 
@@ -120,6 +120,25 @@ pub fn docbase_rescan(state: State<'_, DocBaseState>) -> Result<(), String> {
     state.base()?;
     state.wake.request_sweep();
     Ok(())
+}
+
+/// What the Inicio screen shows of the base.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Home {
+    pub health: Health,
+    pub origins: Vec<OriginSummary>,
+    pub activity: Vec<Activity>,
+}
+
+#[tauri::command(async)]
+pub fn docbase_home(state: State<'_, DocBaseState>) -> Result<Home, String> {
+    let base = state.base()?;
+    Ok(Home {
+        health: base.health(&Visible::All)?,
+        origins: base.origin_summaries(&Visible::All)?,
+        activity: base.activity(&Visible::All, 12)?,
+    })
 }
 
 #[tauri::command(async)]

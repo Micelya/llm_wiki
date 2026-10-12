@@ -460,7 +460,8 @@ function App() {
       useWikiStore.getState().setOutputLanguage(projectOutputLang ?? "auto")
       setSelectedFile(null)
       setFileTree([])
-      setActiveView("wiki")
+      // The app opens on Inicio: the state of the archive, not one page.
+      setActiveView("home")
       useWikiStore.getState().setScheduledImportConfig({
         enabled: false,
         path: `${proj.path}/raw/sources`,

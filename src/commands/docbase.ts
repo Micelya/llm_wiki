@@ -142,6 +142,44 @@ export interface DocumentDetail extends DocumentRow {
   locations: LocationRef[]
 }
 
+/** How the archive is doing, in numbers. */
+export interface Health {
+  origins: number
+  unreachableOrigins: number
+  /** Files in the inventory, cloud shortcuts included. */
+  locations: number
+  /** Distinct documents among the files already read. */
+  documents: number
+  /** Files by state. */
+  byState: Partial<Record<DocumentState, number>>
+  /** Files whose document is also somewhere else. */
+  copies: number
+  words: number
+  lastScanAt: number | null
+}
+
+/** Something that happened to the files; one sweep's changes come together. */
+export interface Activity {
+  at: number
+  kind: "added" | "modified" | "removed" | "moved"
+  originName: string
+  count: number
+  /** One of the files; the only one when `count` is 1. */
+  relPath: string
+  /** For a move, where the file was before. */
+  fromPath: string | null
+}
+
+export interface Home {
+  health: Health
+  origins: OriginSummary[]
+  activity: Activity[]
+}
+
+export function getHome(): Promise<Home> {
+  return invoke<Home>("docbase_home")
+}
+
 export function listDocuments(filter: DocumentFilter): Promise<DocumentPage> {
   return invoke<DocumentPage>("docbase_list_documents", { filter })
 }
