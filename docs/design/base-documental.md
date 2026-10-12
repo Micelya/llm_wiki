@@ -266,7 +266,7 @@ flowchart LR
 
 Se empieza por el espacio privado y un solo usuario. El espacio compartido multiplica cada decisión, así que llega cuando la base ya esté probada.
 
-**El producto mínimo es la etapa 1.** Para que lo compartido entre después sin rehacer nada, desde esa etapa:
+**El producto mínimo es la etapa 1 más un puente mínimo:** el wiki del proyecto general toma sus fuentes de la base documental. El resto de la etapa 3 queda para después. Para que lo compartido entre después sin rehacer nada, desde la etapa 1:
 
 - cada ubicación guarda su origen, su carpeta y sus etiquetas;
 - toda consulta (búsqueda, grafo, familias) recibe el conjunto de lo visible, que en el espacio privado es "todo";
@@ -278,3 +278,17 @@ Se empieza por el espacio privado y un solo usuario. El espacio compartido multi
 Dentro de `src-tauri/src/source_volume/`, todo por proyecto: montaje de carpetas, detección de cambios segura ante orígenes desconectados, catálogo de duplicados exactos, huella del archivo y texto reconocido guardado por huella. Es la semilla del componente: los conceptos son los de este documento; cambia dónde viven los datos y a quién pertenecen.
 
 Hoy cada proyecto guarda esos datos en su propia carpeta. Con la base, pasan a guardarse una vez por espacio: el mismo escaneo usado en dos proyectos se lee una sola vez.
+
+## 13. Interfaz
+
+Hacia dónde va la interfaz. El detalle visual se define en una pasada de diseño propia, antes de aplicarlo.
+
+- **Marco común a toda la app:** una barra superior con la marca, el buscador global y el usuario; una franja que dice en qué estudio y en qué caso se está, y si es privado; navegación a la izquierda, con texto y contadores.
+- **Páginas con forma de artículo de enciclopedia:** pestañas, índice a la izquierda, ficha de datos a la derecha, enlaces entre páginas y referencias numeradas a las fuentes. Es una forma que cualquier persona ya sabe leer.
+- **Pantalla de inicio:** la salud del archivo, lo que requiere atención y la actividad reciente. La lista de lo que requiere atención es una sola, y la alimentan la base documental, el wiki y, más adelante, plazos, tareas y aprobaciones.
+- **Marca propia:** colores, tipografías y logo de Micelya.
+- **Idioma:** las pantallas de la base documental nacen en español.
+
+**En el producto mínimo** las pantallas de la base son cuatro: Inicio, Orígenes, Documentos y Detalle de un documento. Se construyen con el estilo que la app tiene hoy; el marco común y la marca se aplican después, a toda la app de una vez.
+
+"Cliente" y "caso" son etiquetas de las ubicaciones (sección 3), no proyectos.
