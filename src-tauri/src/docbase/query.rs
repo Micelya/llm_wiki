@@ -113,6 +113,40 @@ pub struct DocumentDetail {
     pub locations: Vec<LocationRef>,
 }
 
+/// How the archive is doing, in numbers.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Health {
+    pub origins: i64,
+    pub unreachable_origins: i64,
+    /// Files in the inventory, cloud shortcuts included.
+    pub locations: i64,
+    /// Distinct documents among the files already read.
+    pub documents: i64,
+    /// Locations by `DocumentRow::state`.
+    pub by_state: BTreeMap<String, i64>,
+    /// Locations whose document is also somewhere else.
+    pub copies: i64,
+    pub words: i64,
+    pub last_scan_at: Option<i64>,
+}
+
+/// Something that happened to the files of an origin. Changes found by
+/// the same sweep are told together: "183 files were added".
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Activity {
+    pub at: i64,
+    /// added, modified, removed or moved.
+    pub kind: String,
+    pub origin_name: String,
+    pub count: i64,
+    /// One of the files, as an example; the only one when `count` is 1.
+    pub rel_path: String,
+    /// For a move, the path the file was at before.
+    pub from_path: Option<String>,
+}
+
 const STATE_SQL: &str = "CASE
         WHEN l.kind = 'link' THEN 'link'
         WHEN l.hash_state = 'pending' AND l.file_hash IS NULL THEN 'unread'
@@ -168,6 +202,95 @@ impl DocBase {
                 }
             })
             .collect())
+    }
+
+    pub fn health(&self, visible: &Visible) -> Result<Health, String> {
+        let conn = self.conn();
+        let (sql, bound) = rows_sql(visible, None);
+        let mut health = Health::default();
+
+        let mut statement = conn
+            .prepare(&format!(
+                "SELECT state, count(*), sum(copies > 1) FROM ({sql}) GROUP BY state"
+            ))
+            .map_err(sql_err)?;
+        let groups = statement
+            .query_map(params_from_iter(bound.clone()), |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?, row.get::<_, i64>(2)?))
+            })
+            .map_err(sql_err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(sql_err)?;
+        for (state, count, copies) in groups {
+            health.locations += count;
+            health.copies += copies;
+            health.by_state.insert(state, count);
+        }
+
+        let (documents, words): (i64, i64) = conn
+            .query_row(
+                &format!(
+                    "SELECT count(*), coalesce(sum(word_count), 0) FROM content
+                     WHERE id IN (SELECT content_id FROM ({sql}) WHERE content_id IS NOT NULL)"
+                ),
+                params_from_iter(bound),
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .map_err(sql_err)?;
+        health.documents = documents;
+        health.words = words;
+
+        for origin in origins::list(&conn, visible)? {
+            health.origins += 1;
+            if origin.reachable == Some(false) {
+                health.unreachable_origins += 1;
+            }
+            health.last_scan_at = health.last_scan_at.max(origin.last_scan_at);
+        }
+        Ok(health)
+    }
+
+    /// The latest things that happened to the files, newest first.
+    pub fn activity(&self, visible: &Visible, limit: i64) -> Result<Vec<Activity>, String> {
+        let conn = self.conn();
+        let (condition, bound) = visible.condition("ch.origin_id");
+        let mut bound: Vec<Value> = bound.into_iter().map(Value::Text).collect();
+        bound.push(Value::Integer(limit.clamp(1, 200)));
+        // A move also leaves an 'added' and a 'removed' behind: those are
+        // the same event told twice, so they are left out.
+        let mut statement = conn
+            .prepare(&format!(
+                "SELECT ch.at, ch.kind, o.name, count(*), min(ch.rel_path),
+                        CASE WHEN ch.kind = 'moved' THEN min(ch.detail) END
+                 FROM change ch JOIN origin o ON o.id = ch.origin_id
+                 WHERE {condition}
+                   AND NOT (ch.kind = 'removed' AND ch.detail IS NOT NULL)
+                   AND NOT (ch.kind = 'added' AND EXISTS (
+                        SELECT 1 FROM change m
+                        WHERE m.kind = 'moved' AND m.origin_id = ch.origin_id AND m.rel_path = ch.rel_path))
+                 GROUP BY ch.at, ch.kind, ch.origin_id,
+                          CASE WHEN ch.kind = 'moved' THEN ch.id END
+                 ORDER BY ch.at DESC, max(ch.id) DESC
+                 LIMIT ?"
+            ))
+            .map_err(sql_err)?;
+        let rows = statement
+            .query_map(params_from_iter(bound), |row| {
+                let detail: Option<String> = row.get(5)?;
+                let from_path = detail
+                    .and_then(|detail| serde_json::from_str::<serde_json::Value>(&detail).ok())
+                    .and_then(|from| from.get("relPath").and_then(|p| p.as_str()).map(str::to_string));
+                Ok(Activity {
+                    at: row.get(0)?,
+                    kind: row.get(1)?,
+                    origin_name: row.get(2)?,
+                    count: row.get(3)?,
+                    rel_path: row.get(4)?,
+                    from_path,
+                })
+            })
+            .map_err(sql_err)?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(sql_err)
     }
 
     /// The inventory, one row per location.
@@ -624,6 +747,56 @@ mod tests {
 
         assert!(base.document(&Visible::All, 9999).unwrap().is_none());
         assert!(base.document(&Visible::Origins(vec![]), copy.location_id).unwrap().is_none());
+    }
+
+    #[test]
+    fn health_counts_locations_documents_states_and_copies() {
+        let (dir, base, casos, _) = sample();
+        let health = base.health(&Visible::All).unwrap();
+        assert_eq!((health.origins, health.unreachable_origins), (2, 0));
+        assert_eq!((health.locations, health.documents, health.copies), (5, 2, 3));
+        assert_eq!(health.by_state.get("unprocessed"), Some(&4));
+        assert_eq!(health.by_state.get("link"), Some(&1));
+        assert!(health.last_scan_at.is_some());
+
+        // What cannot be seen is not counted either.
+        let partial = base.health(&Visible::Origins(vec![casos.clone()])).unwrap();
+        assert_eq!((partial.origins, partial.locations, partial.copies), (1, 4, 2));
+
+        dir.remove_dir("nube");
+        let nube = base
+            .origins(&Visible::All)
+            .unwrap()
+            .into_iter()
+            .find(|origin| origin.name == "Nube")
+            .unwrap();
+        base.scan_origin(&nube.id).unwrap();
+        let health = base.health(&Visible::All).unwrap();
+        assert_eq!((health.unreachable_origins, health.locations), (1, 5));
+    }
+
+    #[test]
+    fn activity_tells_each_sweep_together_and_a_move_once() {
+        let (dir, base, casos, _) = sample();
+        let first = base.activity(&Visible::All, 20).unwrap();
+        // One line per origin: its first sweep.
+        assert_eq!(first.len(), 2);
+        let casos_line = first.iter().find(|a| a.origin_name == "Casos").unwrap();
+        assert_eq!((casos_line.kind.as_str(), casos_line.count), ("added", 4));
+
+        std::fs::create_dir_all(dir.path().join("casos/Aeros/Firmados")).unwrap();
+        std::fs::rename(
+            dir.path().join("casos/Aeros/Contrato/contrato.docx"),
+            dir.path().join("casos/Aeros/Firmados/contrato firmado.docx"),
+        )
+        .unwrap();
+        settle(&base, &casos);
+
+        let latest = base.activity(&Visible::All, 20).unwrap();
+        assert_eq!(latest.len(), 3);
+        assert_eq!(latest[0].kind, "moved");
+        assert_eq!(latest[0].rel_path, "Aeros/Firmados/contrato firmado.docx");
+        assert_eq!(latest[0].from_path.as_deref(), Some("Aeros/Contrato/contrato.docx"));
     }
 
     #[test]

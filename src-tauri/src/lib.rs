@@ -652,6 +652,7 @@ pub fn run() {
             docbase::commands::docbase_set_origin_convention,
             docbase::commands::docbase_remove_origin,
             docbase::commands::docbase_rescan,
+            docbase::commands::docbase_home,
             docbase::commands::docbase_list_documents,
             docbase::commands::docbase_get_document,
             docbase::commands::docbase_set_label,

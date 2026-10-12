@@ -425,7 +425,7 @@ interface WikiState {
   activeView:
     | "chat" | "wiki" | "sources" | "search" | "graph" | "lint" | "review" | "skills" | "settings"
     // Document base screens.
-    | "origins" | "documents"
+    | "home" | "origins" | "documents"
   llmConfig: LlmConfig
   /** Persisted global/default config, kept separate while a project override is effective. */
   globalLlmConfig: LlmConfig

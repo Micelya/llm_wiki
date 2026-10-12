@@ -8,6 +8,7 @@ import { ReviewView } from "@/components/review/review-view"
 import { LintView } from "@/components/lint/lint-view"
 import { SearchView } from "@/components/search/search-view"
 import { GraphView } from "@/components/graph/graph-view"
+import { HomeView } from "@/components/docbase/home-view"
 import { OriginsView } from "@/components/docbase/origins-view"
 import { DocumentsView } from "@/components/docbase/documents-view"
 import { PreviewPanel } from "./preview-panel"
@@ -65,6 +66,8 @@ function ActiveContent({
       return <SearchView />
     case "graph":
       return <GraphView />
+    case "home":
+      return <HomeView />
     case "origins":
       return <OriginsView />
     case "documents":
