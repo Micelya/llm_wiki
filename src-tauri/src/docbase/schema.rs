@@ -10,7 +10,42 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3, V4];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5];
+
+/// Index of a project's wiki, rebuilt from its pages: the pages, the
+/// links between them (`to_page` is NULL for a broken link) and the
+/// source documents each page names (`location_id` when the base knows
+/// that file). `path` is relative to the project, with forward slashes.
+const V5: &str = "
+CREATE TABLE wiki_page (
+    id          INTEGER PRIMARY KEY,
+    project_id  TEXT NOT NULL REFERENCES project (id) ON DELETE CASCADE,
+    path        TEXT NOT NULL,
+    slug        TEXT NOT NULL,
+    title       TEXT NOT NULL,
+    type        TEXT NOT NULL,
+    size        INTEGER NOT NULL,
+    mtime_ms    INTEGER NOT NULL,
+    UNIQUE (project_id, path)
+);
+
+CREATE TABLE wiki_link (
+    from_page  INTEGER NOT NULL REFERENCES wiki_page (id) ON DELETE CASCADE,
+    target     TEXT NOT NULL,
+    kind       TEXT NOT NULL,
+    to_page    INTEGER REFERENCES wiki_page (id) ON DELETE SET NULL,
+    PRIMARY KEY (from_page, target, kind)
+);
+CREATE INDEX wiki_link_by_target ON wiki_link (to_page);
+
+CREATE TABLE wiki_page_source (
+    page_id      INTEGER NOT NULL REFERENCES wiki_page (id) ON DELETE CASCADE,
+    identity     TEXT NOT NULL,
+    location_id  INTEGER REFERENCES location (id) ON DELETE SET NULL,
+    PRIMARY KEY (page_id, identity)
+);
+CREATE INDEX wiki_page_source_by_location ON wiki_page_source (location_id);
+";
 
 /// Label groups, labels, the folder rules that assign them, what the
 /// user put or removed by hand, and what each file ends up with.

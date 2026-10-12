@@ -1,4 +1,4 @@
-import type { DocumentState, Health, OriginSummary } from "@/commands/docbase"
+import type { DocumentState, Health, OriginSummary, WikiIndex } from "@/commands/docbase"
 import type { Tone } from "./page"
 import { plural } from "./format"
 
@@ -16,6 +16,7 @@ export interface AttentionItem {
   target:
     | { view: "origins" }
     | { view: "review" }
+    | { view: "lint" }
     | { view: "documents"; state: DocumentState }
 }
 
@@ -25,6 +26,7 @@ export function buildAttention(
   health: Health,
   origins: OriginSummary[],
   reviewPending: number,
+  wiki: WikiIndex = { pages: 0, links: 0, broken: 0 },
 ): AttentionItem[] {
   const items: AttentionItem[] = []
   const count = (state: DocumentState) => health.byState[state] ?? 0
@@ -92,6 +94,15 @@ export function buildAttention(
       title: plural(reviewPending, "propuesta del wiki espera tu revisión", "propuestas del wiki esperan tu revisión"),
       detail: "Contradicciones, páginas duplicadas o faltantes que el wiki encontró al incorporar documentos.",
       target: { view: "review" },
+    })
+  }
+  if (wiki.broken > 0) {
+    items.push({
+      id: "broken-links",
+      tone: "neutral",
+      title: plural(wiki.broken, "enlace del wiki apunta a una página que no existe", "enlaces del wiki apuntan a páginas que no existen"),
+      detail: "Suelen ser páginas que todavía no se escribieron, o que cambiaron de nombre.",
+      target: { view: "lint" },
     })
   }
   return items.sort((a, b) => TONE_ORDER.indexOf(a.tone) - TONE_ORDER.indexOf(b.tone))

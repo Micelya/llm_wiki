@@ -57,6 +57,16 @@ describe("what needs attention", () => {
     expect(items[4].title).toBe("74 documentos de un disco en la nube quedaron afuera")
   })
 
+  it("mentions the wiki's broken links last", () => {
+    const items = buildAttention(health({ processed: 3, unreadable: 1 }, 4), [origin({})], 0, {
+      pages: 12,
+      links: 40,
+      broken: 3,
+    })
+    expect(items.map((item) => item.id)).toEqual(["unreadable", "broken-links"])
+    expect(items[1].target).toEqual({ view: "lint" })
+  })
+
   it("does not count an origin never swept as unreachable", () => {
     expect(buildAttention(health({}, 0), [origin({ reachable: null })], 0)).toEqual([])
   })

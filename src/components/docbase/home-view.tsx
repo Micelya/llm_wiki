@@ -32,7 +32,7 @@ export function HomeView() {
   }
 
   const data = home.data
-  const attention = data ? buildAttention(data.health, data.origins, reviewPending) : []
+  const attention = data ? buildAttention(data.health, data.origins, reviewPending, data.wiki) : []
   const today = new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
 
   return (
@@ -136,6 +136,7 @@ export function HomeView() {
                 </Metric>
                 <Metric label="Con copias en otro lugar">{formatCount(data.health.copies)}</Metric>
                 <Metric label="Palabras en la base">{formatCount(data.health.words)}</Metric>
+                <Metric label="Páginas del wiki">{formatCount(data.wiki.pages)}</Metric>
                 <Metric label="Carpetas">
                   {data.health.unreachableOrigins > 0 ? (
                     <StatusBadge tone="warning">

@@ -15,6 +15,7 @@ use super::labels::{Label, LabelGroup, LabelRule};
 use super::origins::Origin;
 use super::query::{Activity, DocumentDetail, DocumentFilter, DocumentPage, Health, OriginSummary};
 use super::tree::FolderListing;
+use super::wiki::{BrokenLink, PageRef, WikiIndex};
 use super::worker::{self, Wake};
 use super::{DocBase, Visible, PRIVATE_DB_FILE};
 
@@ -176,6 +177,8 @@ pub struct Home {
     pub health: Health,
     pub origins: Vec<OriginSummary>,
     pub activity: Vec<Activity>,
+    /// Totals of the general project's wiki.
+    pub wiki: WikiIndex,
 }
 
 #[tauri::command(async)]
@@ -185,6 +188,8 @@ pub fn docbase_home(state: State<'_, DocBaseState>) -> Result<Home, String> {
         health: base.health(&Visible::All)?,
         origins: base.origin_summaries(&Visible::All)?,
         activity: base.activity(&Visible::All, 12)?,
+        // The wiki being unreadable must not hide the rest of Inicio.
+        wiki: base.index_wiki().unwrap_or_default(),
     })
 }
 
@@ -204,6 +209,25 @@ pub fn docbase_get_document(
     location_id: i64,
 ) -> Result<Option<DocumentDetail>, String> {
     state.base()?.document(&Visible::All, location_id)
+}
+
+/// The wiki pages that came from the document at this location, or from
+/// any copy of it.
+#[tauri::command(async)]
+pub fn docbase_pages_citing(state: State<'_, DocBaseState>, location_id: i64) -> Result<Vec<PageRef>, String> {
+    state.base()?.pages_citing(&Visible::All, location_id)
+}
+
+/// Links of the wiki that point at no page.
+#[tauri::command(async)]
+pub fn docbase_broken_links(state: State<'_, DocBaseState>) -> Result<Vec<BrokenLink>, String> {
+    state.base()?.broken_links(200)
+}
+
+/// The pages that link to the page at this path inside the project.
+#[tauri::command(async)]
+pub fn docbase_backlinks(state: State<'_, DocBaseState>, page_path: String) -> Result<Vec<PageRef>, String> {
+    state.base()?.backlinks(&page_path)
 }
 
 #[tauri::command(async)]

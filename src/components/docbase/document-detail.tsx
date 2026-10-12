@@ -1,11 +1,11 @@
-import { useEffect, useState, type ReactNode } from "react"
+import { useState, type ReactNode } from "react"
 import { ArrowLeft, ExternalLink, FolderOpen } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { findRelatedWikiPages } from "@/commands/fs"
 import {
   getDocument,
   getGeneralProject,
   openLocation,
+  pagesCiting,
   setLocationLabel,
   type DocumentDetail,
   type LocationRef,
@@ -82,7 +82,7 @@ export function DocumentDetailView({ locationId, onBack }: { locationId: number;
               <Section title={`Ubicaciones (${document.locations.length || 1})`}>
                 <Locations document={document} onOpen={handleOpen} />
               </Section>
-              <WikiPages fileName={document.name} />
+              <WikiPages locationId={document.locationId} />
             </main>
             <aside>
               <FactBox document={document} onChanged={detail.reload} onProblem={setProblem} />
@@ -199,52 +199,42 @@ function Locations({
 }
 
 /**
- * The pages of the general project's wiki that cite this document.
- * Shown only while that wiki is the open project.
+ * The pages of the general project's wiki that came from this document
+ * or from any copy of it. They open here while that wiki is the open
+ * project.
  */
-function WikiPages({ fileName }: { fileName: string }) {
+function WikiPages({ locationId }: { locationId: number }) {
   const project = useWikiStore((s) => s.project)
   const openPathInPreview = useWikiStore((s) => s.openPathInPreview)
-  const [pages, setPages] = useState<string[] | null>(null)
+  const pages = useDocbaseQuery(`pages-citing:${locationId}`, () => pagesCiting(locationId))
+  const general = useDocbaseQuery("general-project", getGeneralProject)
+  const canOpen = isSameProjectPath(general.data?.path, project?.path)
 
-  useEffect(() => {
-    let stale = false
-    setPages(null)
-    if (!project) return
-    getGeneralProject()
-      .then((general) =>
-        isSameProjectPath(general?.path, project.path) ? findRelatedWikiPages(project.path, fileName) : null,
-      )
-      .then((found) => {
-        if (!stale) setPages(found)
-      })
-      .catch(() => {
-        if (!stale) setPages(null)
-      })
-    return () => {
-      stale = true
-    }
-  }, [project, fileName])
-
-  if (!project || pages === null) return null
-  const root = normalizePath(project.path).replace(/\/+$/, "")
+  if (!pages.data) return null
   return (
-    <Section title={`En el wiki (${pages.length})`}>
-      {pages.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Ninguna página del wiki cita este documento todavía.</p>
+    <Section title={`En el wiki (${pages.data.length})`}>
+      {pages.data.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Ninguna página del wiki salió de este documento todavía.</p>
       ) : (
         <ul className="flex flex-col gap-1 text-sm">
-          {pages.map((page) => {
-            const path = normalizePath(page)
-            const shown = path.toLowerCase().startsWith(`${root.toLowerCase()}/`) ? path.slice(root.length + 1) : path
-            return (
-              <li key={page}>
-                <button className="text-left text-primary hover:underline" onClick={() => openPathInPreview(path)}>
-                  {shown}
+          {pages.data.map((page) => (
+            <li key={page.path} className="flex flex-wrap items-baseline gap-2">
+              {canOpen ? (
+                <button
+                  className="text-left text-primary hover:underline"
+                  onClick={() => openPathInPreview(normalizePath(page.file))}
+                >
+                  {page.title}
                 </button>
-              </li>
-            )
-          })}
+              ) : (
+                <span>{page.title}</span>
+              )}
+              <span className="text-xs text-muted-foreground">
+                {page.kind && `${page.kind} · `}
+                {page.path}
+              </span>
+            </li>
+          ))}
         </ul>
       )}
     </Section>

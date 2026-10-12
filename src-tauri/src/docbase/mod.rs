@@ -30,6 +30,7 @@ mod schema;
 pub(crate) mod testing;
 pub mod text;
 pub mod tree;
+pub mod wiki;
 mod worker;
 
 use std::path::Path;

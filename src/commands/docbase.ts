@@ -250,10 +250,50 @@ export interface Activity {
   fromPath: string | null
 }
 
+/** Totals of the general project's wiki, from the base's index of it. */
+export interface WikiIndex {
+  pages: number
+  links: number
+  /** Links that point at no page. */
+  broken: number
+}
+
+/** A wiki page, as the index knows it. */
+export interface PageRef {
+  /** Path inside the project: `wiki/entities/bgh.md`. */
+  path: string
+  /** Where the page is on disk. */
+  file: string
+  title: string
+  /** `type` of its header: source, entity, concept… */
+  kind: string
+}
+
+export interface BrokenLink {
+  from: PageRef
+  /** What the link says, as written. */
+  target: string
+}
+
 export interface Home {
   health: Health
   origins: OriginSummary[]
   activity: Activity[]
+  wiki: WikiIndex
+}
+
+/** The wiki pages that came from the document at this location, or from any copy of it. */
+export function pagesCiting(locationId: number): Promise<PageRef[]> {
+  return invoke<PageRef[]>("docbase_pages_citing", { locationId })
+}
+
+export function listBrokenLinks(): Promise<BrokenLink[]> {
+  return invoke<BrokenLink[]>("docbase_broken_links")
+}
+
+/** The pages that link to the page at this path inside the project. */
+export function listBacklinks(pagePath: string): Promise<PageRef[]> {
+  return invoke<PageRef[]>("docbase_backlinks", { pagePath })
 }
 
 export function getHome(): Promise<Home> {
