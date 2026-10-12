@@ -180,6 +180,54 @@ export function getHome(): Promise<Home> {
   return invoke<Home>("docbase_home")
 }
 
+/** An origin as the general project's wiki sees it. */
+export interface BridgedOrigin {
+  originId: string
+  name: string
+  /** The folder under `raw/sources` it appears as, when it is mounted. */
+  mountedAs: string | null
+  /** Why it could not be mounted, when that is the case. */
+  problem: string | null
+}
+
+/** The wiki that covers every origin of the space. */
+export interface GeneralProject {
+  id: string
+  name: string
+  /** The wiki project folder, once one was assigned. */
+  path: string | null
+  members: string
+  origins: BridgedOrigin[]
+}
+
+/** A file of the base as a source of the general project's wiki. */
+export interface WikiSource {
+  originId: string
+  /** Path inside the wiki project: `raw/sources/<origin>/<file>`. */
+  sourcePath: string
+  /** What the wiki calls the source: the path under `raw/sources`. */
+  identity: string
+  ext: string
+}
+
+/** `null` before the first origin is incorporated. */
+export function getGeneralProject(): Promise<GeneralProject | null> {
+  return invoke<GeneralProject | null>("docbase_general_project")
+}
+
+/** Mounts every origin in that wiki project. Copies nothing, ingests nothing. */
+export function linkGeneralProject(projectPath: string, name: string): Promise<GeneralProject> {
+  return invoke<GeneralProject>("docbase_link_general_project", { projectPath, name })
+}
+
+export function unlinkGeneralProject(): Promise<void> {
+  return invoke<void>("docbase_unlink_general_project")
+}
+
+export function listWikiSources(): Promise<WikiSource[]> {
+  return invoke<WikiSource[]>("docbase_wiki_sources")
+}
+
 export function listDocuments(filter: DocumentFilter): Promise<DocumentPage> {
   return invoke<DocumentPage>("docbase_list_documents", { filter })
 }

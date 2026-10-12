@@ -14,6 +14,7 @@ import {
   type FolderPreview,
   type OriginSummary,
 } from "@/commands/docbase"
+import { GeneralProjectPanel } from "./general-project-panel"
 import { DocbasePage, EmptyNote, ErrorNote, Panel, StatusBadge } from "./page"
 import { formatAgo, parseConvention, plural } from "./format"
 import { useDocbaseQuery } from "./use-docbase-query"
@@ -124,6 +125,8 @@ export function OriginsView() {
             </EmptyNote>
           </Panel>
         )}
+
+        {list.length > 0 && <GeneralProjectPanel />}
 
         {list.map((origin) => (
           <OriginCard

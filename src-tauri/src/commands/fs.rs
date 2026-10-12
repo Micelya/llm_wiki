@@ -92,6 +92,14 @@ pub async fn read_file(path: String, extract_images: Option<bool>) -> Result<Str
                 return Ok(cached);
             }
 
+            // A source that lives in an origin of the document base has
+            // its text there already, obtained once for the whole space.
+            if mounted {
+                if let Some(text) = crate::docbase::bridge::text_for_source(p) {
+                    return Ok(text);
+                }
+            }
+
             // Image extraction derives its output folder from the source
             // path, which only holds for files stored in the project.
             let include_images = extract_images.unwrap_or(true) && !mounted;
@@ -186,6 +194,16 @@ pub(crate) async fn preprocess_source(
                 )
             };
 
+            // Another copy of this file may have been recognized already,
+            // for this project or another: the document base keeps that
+            // text, so the engine is not asked twice.
+            if recognizer.is_some() && path != requested {
+                if let Some(text) = crate::docbase::bridge::text_for_source(p) {
+                    write_cache(Path::new(&requested), &text)?;
+                    return Ok(text);
+                }
+            }
+
             let text = match ext.as_str() {
                 "pdf" => {
                     let extracted = extract_pdf_text(&path, false)?;
@@ -212,6 +230,9 @@ pub(crate) async fn preprocess_source(
                 _ => return Ok("no preprocessing needed".to_string()),
             };
 
+            if let Some(recognizer) = &recognizer {
+                crate::docbase::bridge::offer_recognized_text(p, &text, &recognizer.engine_id());
+            }
             write_cache(Path::new(&requested), &text)?;
             Ok(text)
         })

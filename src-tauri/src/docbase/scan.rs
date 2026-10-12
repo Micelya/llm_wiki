@@ -41,12 +41,6 @@ pub struct ScanReport {
     pub removed: usize,
 }
 
-impl ScanReport {
-    pub fn changed(&self) -> bool {
-        self.added + self.modified + self.removed > 0
-    }
-}
-
 struct Known {
     id: i64,
     size: i64,

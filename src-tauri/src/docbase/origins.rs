@@ -47,7 +47,11 @@ impl DocBase {
         if name.is_empty() {
             return Err("El origen necesita un nombre".to_string());
         }
-        if name.contains(['/', '\\', ':']) || name == "." || name == ".." || name.starts_with('.') {
+        // The name becomes a folder of the general project's wiki.
+        let unusable = name.starts_with('.')
+            || name.ends_with('.')
+            || name.chars().any(|c| c.is_control() || r#"/\<>:"|?*"#.contains(c));
+        if unusable {
             return Err(format!("'{name}' no sirve como nombre de origen"));
         }
         if !folder.is_absolute() || !folder.is_dir() {
@@ -274,6 +278,8 @@ mod tests {
         assert!(base.add_origin("Adentro", &dir.folder("casos/2026"), &[]).is_err());
         assert!(base.add_origin("Afuera", dir.path(), &[]).is_err());
         assert!(base.add_origin("  ", &dir.folder("vacio"), &[]).is_err());
+        assert!(base.add_origin("Casos: 2026", &dir.folder("otra2"), &[]).is_err());
+        assert!(base.add_origin("¿Dudas?", &dir.folder("otra3"), &[]).is_err());
         assert_eq!(base.origins(&Visible::All).unwrap().len(), 1);
     }
 
