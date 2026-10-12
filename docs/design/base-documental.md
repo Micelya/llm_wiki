@@ -1,6 +1,6 @@
 # Base documental — documento de diseño
 
-**Estado:** dirección acordada · consolidado el 11 de octubre de 2026
+**Estado:** dirección acordada · consolidado el 11 de octubre de 2026 · ajustado el 12 de octubre de 2026
 **Alcance:** qué vamos a construir y en qué orden. No describe código.
 
 ## 1. Propósito
@@ -38,10 +38,10 @@ erDiagram
     PROYECTO }o--|{ ORIGEN : usa
 
     ESPACIO { string tipo "privado o compartido" }
-    ORIGEN { string convencion "como ordena sus carpetas el usuario" }
+    ORIGEN { string carpeta "solo lectura" }
     UBICACION {
         string ruta "lo que se vigila"
-        string etiquetas "tomadas de la carpeta"
+        string etiquetas "por reglas de carpeta o a mano"
     }
     CONTENIDO { string huella "un documento exacto" }
     DERIVADO { string clase "texto, resumen, tipo, campos" }
@@ -53,8 +53,10 @@ erDiagram
 - **Ubicación:** un archivo en una ruta. Es lo que aparece, cambia, se mueve o se borra. Registra su origen y su carpeta.
 - **Contenido:** un documento exacto. De él cuelgan los derivados.
 - **Familia:** contenidos emparentados. De ella cuelgan las relaciones y, si existe, la plantilla.
-- **Etiquetas.** La estructura de carpetas es un indicio de qué contiene cada una. Al incorporar un origen se le pregunta al usuario cómo lo ordena (por ejemplo, un nivel por cliente y otro por caso, o solo por caso, o con otros criterios). Cada nivel pasa a ser una etiqueta de las ubicaciones. Los nombres de las etiquetas los define el usuario y su valor se puede corregir: siempre hay archivos mal guardados.
-- **Proyecto general.** Al indicar qué carpetas se incorporan a un espacio se crea su proyecto general, que las abarca todas. Los demás proyectos son puntos de vista sobre parte de esas fuentes, con sus propias instrucciones para el modelo, como hace hoy la app.
+- **Grupos y etiquetas.** Una etiqueta agrupa archivos lógicamente. Un **grupo** es la pregunta ("¿de qué cliente es?") y una **etiqueta** es la respuesta ("BGH"); también hay etiquetas sueltas, sin grupo. Un archivo puede tener varias. Las etiquetas se guardan aparte y los archivos las referencian, así que renombrar una no toca ningún archivo.
+- **Reglas de carpeta.** La estructura de carpetas es un indicio de qué contiene cada una, pero rara vez es pareja en todo un origen. Por eso las etiquetas se asignan con reglas puestas en cualquier carpeta, que valen para ella y todo lo que cuelga de ella: "todo lo de acá adentro lleva esta etiqueta" o "cada subcarpeta de acá es un… (cliente, caso)". La regla queda guardada: lo que aparezca después la hereda. Encima, a un archivo se le agrega o se le quita una etiqueta a mano, y eso manda sobre lo heredado: siempre hay archivos mal guardados. Al incorporar un origen se puede indicar cómo está ordenado, pero solo conviene si toda su estructura es pareja.
+- **Exclusión.** Un archivo o una carpeta se pueden excluir: siguen en su lugar y a la vista, pero la base no los procesa ni los entrega al wiki. Se puede deshacer.
+- **Archivo (proyecto general).** Cada espacio tiene un proyecto general que abarca todos sus orígenes; para el usuario es su archivo. La app lo crea sola y abre ahí. Su wiki no arranca sola, porque usa el modelo: se activa una vez y desde entonces se alimenta sola con lo que se agrega, cambia o se quita. Los demás proyectos son puntos de vista sobre parte de esas fuentes, con sus propias instrucciones para el modelo, como hace hoy la app.
 
 ## 4. Capas
 
@@ -80,6 +82,8 @@ flowchart TB
 ```
 
 La capa 3 le pregunta a la base solo tres cosas: qué fuentes hay, cuál es el texto de una, y qué cambió. Esa interfaz angosta permite que la capa de wiki siga pareciéndose a la original. Las páginas del wiki siguen nombrando sus fuentes por una ruta lógica; la base sabe a qué contenido corresponde cada una.
+
+La base guarda además un **índice del wiki**: qué páginas hay, qué enlaces tienen entre sí y de qué documento salió cada una. Las páginas siguen siendo archivos de texto y son la verdad; el índice es una copia consultable que se reconstruye entera a partir de ellas. Sirve para responder sin releer todas las páginas: qué páginas citan un documento, qué enlaza a una página, qué enlaces están rotos.
 
 La base documental es un **componente separado dentro de la misma app**: datos propios, código en un lugar propio y esa interfaz angosta. Reutiliza los extractores de texto, los proveedores de IA, la cola de trabajo, la búsqueda y la interfaz. Reemplaza la importación que copia archivos, la vigilancia de fuentes, la identificación por ruta y los cachés atados a la ruta.
 
@@ -233,7 +237,11 @@ flowchart LR
 | Documentos nativos de Google | Detectados, no procesados |
 | Clasificación | IA, una vez por grupo |
 | Autorización | El origen es el techo, verificado con prueba de lectura; el proyecto es el alcance, abierto por defecto y reservable; hay un administrador del espacio |
-| Proyecto general | Uno por espacio, con todas las fuentes incorporadas |
+| Proyecto general | Uno por espacio, con todas las fuentes incorporadas. Lo crea la app en su carpeta de trabajo; su wiki se activa a mano y después se alimenta sola |
+| Etiquetas | Grupos y etiquetas guardados aparte, asignados por reglas de carpeta y a mano |
+| Exclusión | Por archivo o carpeta; no borra ni mueve nada |
+| Enlaces del wiki | En las páginas; la base lleva un índice reconstruible |
+| Vocabulario | Los términos del dominio no van escritos en el código: salen de un vocabulario por vertical y por idioma |
 | Proveedores de IA | Configurables por instancia |
 | Proyectos de prueba existentes | Se reconstruyen. Sus fuentes originales no se tocan. Las fuentes copiadas dentro de un proyecto se tratan como un origen más |
 | Upstream | Se analiza cambio por cambio; no condiciona el diseño |
@@ -288,7 +296,9 @@ Hacia dónde va la interfaz. El detalle visual se define en una pasada de diseñ
 - **Pantalla de inicio:** la salud del archivo, lo que requiere atención y la actividad reciente. La lista de lo que requiere atención es una sola, y la alimentan la base documental, el wiki y, más adelante, plazos, tareas y aprobaciones.
 - **Marca propia:** colores, tipografías y logo de Micelya.
 - **Idioma:** las pantallas de la base documental nacen en español.
+- **Vocabulario por vertical.** Cómo se llama cada cosa del dominio (el archivo, los grupos sugeridos, más adelante los tipos de documento) depende de la profesión: no es lo mismo un estudio jurídico que una escribanía o un estudio contable. Esos términos salen de un vocabulario, uno por vertical y dentro de él uno por idioma, y no van escritos en las pantallas. Los nombres técnicos (carpetas en disco, identificadores) son neutros y no cambian con la vertical.
+- **Orígenes como árbol.** Cada origen se recorre como un árbol de carpetas y archivos. En cada fila: abrir, incorporar al wiki (si está activo), excluir y, en las carpetas, volver a barrer y definir reglas de etiquetas.
 
 **En el producto mínimo** las pantallas de la base son cuatro: Inicio, Orígenes, Documentos y Detalle de un documento. Se construyen con el estilo que la app tiene hoy; el marco común y la marca se aplican después, a toda la app de una vez.
 
-"Cliente" y "caso" son etiquetas de las ubicaciones (sección 3), no proyectos.
+"Cliente" y "caso" son grupos de etiquetas (sección 3), no proyectos; cada vertical sugiere los suyos y el usuario los nombra como quiera.
