@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { useAppDialog } from "@/stores/app-dialog-store"
 import {
   addOrigin,
+  getGeneralProject,
   listOrigins,
   previewFolder,
   removeOrigin,
@@ -18,6 +19,7 @@ import { GeneralProjectPanel } from "./general-project-panel"
 import { DocbasePage, EmptyNote, ErrorNote, Panel, StatusBadge } from "./page"
 import { formatAgo, parseConvention, plural } from "./format"
 import { useDocbaseQuery } from "./use-docbase-query"
+import { vocabulary } from "@/vocabulary"
 
 interface Draft {
   folder: string
@@ -47,6 +49,19 @@ export function OriginsView() {
 
   async function confirmDraft() {
     if (!draft) return
+    // With the wiki active, a new folder goes to the model by itself.
+    const general = await getGeneralProject().catch(() => null)
+    if (general?.wikiActive) {
+      const confirmed = await dialog.confirm({
+        title: `Incorporar "${draft.name}"`,
+        message:
+          `El ${vocabulary().archive.wiki.toLowerCase()} está activo: todos los documentos de esta carpeta se van a incorporar al wiki solos, ` +
+          "y eso usa el modelo configurado. Si es una carpeta grande, conviene pausar el wiki antes.",
+        confirmLabel: "Incorporar",
+        cancelLabel: "Cancelar",
+      })
+      if (!confirmed) return
+    }
     setBusy(true)
     setProblem(null)
     try {
@@ -126,7 +141,7 @@ export function OriginsView() {
           </Panel>
         )}
 
-        {list.length > 0 && <GeneralProjectPanel />}
+        <GeneralProjectPanel />
 
         {list.map((origin) => (
           <OriginCard

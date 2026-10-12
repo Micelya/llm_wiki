@@ -10,6 +10,7 @@ import { buildAttention, pendingCount, processedPercent, type AttentionItem } fr
 import { DocbasePage, EmptyNote, ErrorNote, Panel, StatusBadge } from "./page"
 import { formatAgo, formatCount, plural } from "./format"
 import { useDocbaseQuery } from "./use-docbase-query"
+import { vocabulary } from "@/vocabulary"
 
 export function HomeView() {
   const home = useDocbaseQuery("home", getHome)
@@ -119,7 +120,7 @@ export function HomeView() {
           </Panel>
 
           {data && data.health.origins > 0 && (
-            <Panel title="Salud del archivo">
+            <Panel title={vocabulary().archive.health}>
               <dl className="flex flex-col divide-y text-sm">
                 <Metric label="Documentos distintos">{formatCount(data.health.documents)}</Metric>
                 <Metric label="Archivos en el inventario">{formatCount(data.health.locations)}</Metric>

@@ -654,6 +654,8 @@ pub fn run() {
             docbase::commands::docbase_rescan,
             docbase::commands::docbase_home,
             docbase::commands::docbase_general_project,
+            docbase::commands::docbase_ensure_default_project,
+            docbase::commands::docbase_set_wiki_active,
             docbase::commands::docbase_link_general_project,
             docbase::commands::docbase_unlink_general_project,
             docbase::commands::docbase_wiki_sources,

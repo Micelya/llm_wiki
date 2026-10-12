@@ -13,7 +13,10 @@ use uuid::Uuid;
 use super::{now_ms, sql_err, DocBase, Visible};
 
 pub const LOCAL_FOLDER: &str = "local-folder";
-pub const GENERAL_PROJECT_NAME: &str = "General";
+/// Technical name of the general project and of its folder in the app's
+/// workspace. What the user reads instead comes from the vocabulary of
+/// their profession ("Archivo" for a law firm).
+pub const GENERAL_PROJECT_NAME: &str = "default";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]

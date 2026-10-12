@@ -2,16 +2,11 @@
  * The wiki side of the bridge with the document base.
  *
  * The general project's wiki takes its sources from the base: every
- * origin is mounted in it. Nothing reaches the wiki by itself, though.
- * Ingesting uses the model, so it only happens when the user asks for
- * it here, origin by origin.
+ * origin is mounted in it. The wiki does not start by itself, because
+ * ingesting uses the model: the user turns it on once, and from then on
+ * it is fed by itself with whatever is added, changed or removed.
  */
-import {
-  linkGeneralProject,
-  listWikiSources,
-  type GeneralProject,
-  type WikiSource,
-} from "@/commands/docbase"
+import { listWikiSources, setWikiActive, type WikiSource } from "@/commands/docbase"
 import { listIngestedSourceIdentities } from "@/lib/ingest-cache"
 import { getQueue } from "@/lib/ingest-queue"
 import { normalizePath } from "@/lib/path-utils"
@@ -68,31 +63,33 @@ export async function pendingWikiSourcesByOrigin(project: WikiProject): Promise<
 }
 
 /**
- * Makes the open project the general project of the space.
+ * Turns the wiki of the general project on or off. `project` is that
+ * project, which has to be the open one.
  *
- * Automatic ingest is turned off for it first, with the watcher stopped:
- * otherwise mounting the origins would look like hundreds of new files
- * and send them all to the model without anyone asking.
+ * On: the project's watcher starts ingesting what appears or changes in
+ * the origins, and what is already there and was never ingested is
+ * queued now. Off: nothing more is sent to the model; pages stay.
+ * Returns how many documents were queued.
  */
-export async function linkOpenProjectAsGeneral(project: WikiProject): Promise<GeneralProject> {
+export async function setWikiFeeding(project: WikiProject, active: boolean): Promise<number> {
   const { startProjectFileSync, stopProjectFileSync } = await import("@/lib/project-file-sync")
   await stopProjectFileSync()
   const config = normalizeSourceWatchConfig({
     ...(await loadSourceWatchConfig(project.id)),
-    autoIngest: false,
+    autoIngest: active,
   })
   await saveSourceWatchConfig(config, project.id)
   useWikiStore.getState().setSourceWatchConfig(config)
-  try {
-    return await linkGeneralProject(normalizePath(project.path), project.name)
-  } finally {
-    // Restarting also makes the watcher cover the folders just mounted.
-    if (config.enabled) {
-      await startProjectFileSync(project, config).catch((error) =>
-        console.error("[docbase] failed to restart the project file watcher:", error),
-      )
-    }
+  await setWikiActive(active)
+  // Restarting applies the setting and covers folders mounted since.
+  if (config.enabled) {
+    await startProjectFileSync(project, config).catch((error) =>
+      console.error("[docbase] failed to restart the project file watcher:", error),
+    )
   }
+  if (!active) return 0
+  const pending = [...(await pendingWikiSourcesByOrigin(project)).values()].flat()
+  return pending.length > 0 ? ingestWikiSources(project, pending) : 0
 }
 
 /** Queues the given sources for ingest. Returns how many were queued. */

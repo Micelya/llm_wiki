@@ -526,3 +526,21 @@ export async function loadZoomLevel(): Promise<number> {
   const level = await store.get<number>(ZOOM_LEVEL_KEY)
   return normalizeZoomLevel(level)
 }
+
+const WORKSPACE_DIR_KEY = "workspaceDir"
+
+/**
+ * The folder where the app keeps the projects it creates by itself.
+ * `null` until the user chose it, the first time the app ran.
+ */
+export async function loadWorkspaceDir(): Promise<string | null> {
+  const store = await getStore()
+  const dir = await store.get<string>(WORKSPACE_DIR_KEY)
+  return dir ? normalizePath(dir) : null
+}
+
+export async function saveWorkspaceDir(dir: string): Promise<void> {
+  const store = await getStore()
+  await store.set(WORKSPACE_DIR_KEY, normalizePath(dir))
+  await store.save()
+}

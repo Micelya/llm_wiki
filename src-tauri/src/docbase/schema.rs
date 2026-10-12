@@ -10,7 +10,13 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1];
+const MIGRATIONS: &[&str] = &[V1, V2];
+
+/// The general project's wiki is fed from the base only once the user
+/// turns it on: feeding it uses the model.
+const V2: &str = "
+ALTER TABLE project ADD COLUMN wiki_active INTEGER NOT NULL DEFAULT 0;
+";
 
 const V1: &str = "
 -- The space this database belongs to: exactly one row.

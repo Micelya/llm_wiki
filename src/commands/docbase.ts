@@ -197,6 +197,8 @@ export interface GeneralProject {
   /** The wiki project folder, once one was assigned. */
   path: string | null
   members: string
+  /** Whether the wiki is fed from the base on its own. */
+  wikiActive: boolean
   origins: BridgedOrigin[]
 }
 
@@ -218,6 +220,15 @@ export function getGeneralProject(): Promise<GeneralProject | null> {
 /** Mounts every origin in that wiki project. Copies nothing, ingests nothing. */
 export function linkGeneralProject(projectPath: string, name: string): Promise<GeneralProject> {
   return invoke<GeneralProject>("docbase_link_general_project", { projectPath, name })
+}
+
+/** Makes sure the general project has its wiki in the workspace; creates it the first time. */
+export function ensureDefaultProject(workspace: string): Promise<GeneralProject> {
+  return invoke<GeneralProject>("docbase_ensure_default_project", { workspace })
+}
+
+export function setWikiActive(active: boolean): Promise<void> {
+  return invoke<void>("docbase_set_wiki_active", { active })
 }
 
 export function unlinkGeneralProject(): Promise<void> {

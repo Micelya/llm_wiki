@@ -21,7 +21,7 @@ use serde::Serialize;
 
 use crate::source_volume::{SourceVolume, SOURCES_PREFIX};
 
-use super::origins::{self, ensure_general_project, Origin};
+use super::origins::{self, ensure_general_project, Origin, GENERAL_PROJECT_NAME};
 use super::{sql_err, DocBase, Visible};
 
 /// The base of the private space, for the parts of the app that read
@@ -56,6 +56,8 @@ pub struct GeneralProject {
     /// The wiki project folder, once one was assigned.
     pub path: Option<String>,
     pub members: String,
+    /// Whether the wiki is fed from the base on its own.
+    pub wiki_active: bool,
     pub origins: Vec<BridgedOrigin>,
 }
 
@@ -76,17 +78,17 @@ impl DocBase {
     pub fn general_project(&self) -> Result<Option<GeneralProject>, String> {
         let (project, origins) = {
             let conn = self.conn();
-            let project: Option<(String, String, Option<String>, String)> = conn
+            let project: Option<(String, String, Option<String>, String, i64)> = conn
                 .query_row(
-                    "SELECT id, name, path, members FROM project WHERE kind = 'general'",
+                    "SELECT id, name, path, members, wiki_active FROM project WHERE kind = 'general'",
                     [],
-                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
                 )
                 .optional()
                 .map_err(sql_err)?;
             (project, origins::list(&conn, &Visible::All)?)
         };
-        let Some((id, name, path, members)) = project else {
+        let Some((id, name, path, members, wiki_active)) = project else {
             return Ok(None);
         };
         let mounts = match &path {
@@ -120,6 +122,7 @@ impl DocBase {
             name,
             path,
             members,
+            wiki_active: wiki_active != 0,
             origins: bridged,
         }))
     }
@@ -142,6 +145,46 @@ impl DocBase {
         self.sync_general_mounts()
     }
 
+    /// Makes sure the general project has its wiki: the project folder
+    /// `default` inside the app's workspace, created the first time, with
+    /// every origin mounted in it. A general project that already has a
+    /// wiki elsewhere keeps it.
+    pub fn ensure_default_project(&self, workspace: &Path) -> Result<GeneralProject, String> {
+        let current = self
+            .general_project()?
+            .and_then(|project| project.path)
+            .map(PathBuf::from)
+            .filter(|path| path.join("wiki").is_dir() && path.join("schema.md").is_file());
+        let path = match current {
+            Some(path) => path,
+            None => {
+                if !workspace.is_absolute() {
+                    return Err(format!("'{}' no es una carpeta de trabajo válida", workspace.display()));
+                }
+                std::fs::create_dir_all(workspace)
+                    .map_err(|e| format!("No se pudo crear '{}': {e}", workspace.display()))?;
+                let path = workspace.join(GENERAL_PROJECT_NAME);
+                if !path.join("wiki").is_dir() {
+                    crate::commands::project::create_project_impl(
+                        GENERAL_PROJECT_NAME.to_string(),
+                        workspace.to_string_lossy().to_string(),
+                    )?;
+                }
+                path
+            }
+        };
+        self.link_general_project(&path, GENERAL_PROJECT_NAME)
+    }
+
+    /// Turns on or off feeding the general project's wiki from the base.
+    pub fn set_wiki_active(&self, active: bool) -> Result<(), String> {
+        let conn = self.conn();
+        ensure_general_project(&conn)?;
+        conn.execute("UPDATE project SET wiki_active = ?1 WHERE kind = 'general'", [active as i64])
+            .map_err(sql_err)?;
+        Ok(())
+    }
+
     /// Stops using a wiki project as the general project. The folders
     /// mounted for the base are unmounted from it; its pages stay.
     pub fn unlink_general_project(&self) -> Result<(), String> {
@@ -156,7 +199,7 @@ impl DocBase {
             }
         }
         self.conn()
-            .execute("UPDATE project SET path = NULL WHERE kind = 'general'", [])
+            .execute("UPDATE project SET path = NULL, wiki_active = 0 WHERE kind = 'general'", [])
             .map_err(sql_err)?;
         Ok(())
     }
@@ -408,6 +451,34 @@ mod tests {
             crate::source_volume::resolve_path(&logical).unwrap(),
             dir.path().join("casos").join("BGH").join("carta.md")
         );
+    }
+
+    #[test]
+    fn the_default_project_is_created_once_in_the_workspace_with_its_wiki_off() {
+        let dir = TempDir::new();
+        dir.write("casos/carta.md", LETTER.as_bytes());
+        let workspace = dir.path().join("workspace");
+        let base = DocBase::in_memory().unwrap();
+
+        // It exists before any folder is incorporated.
+        let project = base.ensure_default_project(&workspace).unwrap();
+        let path = PathBuf::from(project.path.clone().unwrap());
+        assert_eq!(path, workspace.join("default"));
+        assert!(path.join("schema.md").is_file() && path.join("wiki").is_dir());
+        assert!(!project.wiki_active);
+
+        // Folders incorporated later become its sources.
+        base.add_origin("Casos", &dir.path().join("casos"), &[]).unwrap();
+        let again = base.ensure_default_project(&workspace).unwrap();
+        assert_eq!(again.path, project.path);
+        assert_eq!(again.origins[0].mounted_as.as_deref(), Some("Casos"));
+
+        base.set_wiki_active(true).unwrap();
+        assert!(base.general_project().unwrap().unwrap().wiki_active);
+        // Asking again, even with another workspace, keeps the one it has.
+        let moved = base.ensure_default_project(&dir.path().join("otro")).unwrap();
+        assert_eq!(moved.path, project.path);
+        assert!(moved.wiki_active);
     }
 
     #[test]

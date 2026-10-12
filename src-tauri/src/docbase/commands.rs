@@ -141,6 +141,21 @@ pub fn docbase_link_general_project(
         .link_general_project(Path::new(&project_path), &name)
 }
 
+/// Makes sure the general project has its wiki in the app's workspace
+/// and returns it. Creates nothing but the empty project the first time.
+#[tauri::command(async)]
+pub fn docbase_ensure_default_project(
+    state: State<'_, DocBaseState>,
+    workspace: String,
+) -> Result<GeneralProject, String> {
+    state.base()?.ensure_default_project(Path::new(&workspace))
+}
+
+#[tauri::command(async)]
+pub fn docbase_set_wiki_active(state: State<'_, DocBaseState>, active: bool) -> Result<(), String> {
+    state.base()?.set_wiki_active(active)
+}
+
 #[tauri::command(async)]
 pub fn docbase_unlink_general_project(state: State<'_, DocBaseState>) -> Result<(), String> {
     state.base()?.unlink_general_project()
