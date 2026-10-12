@@ -5,12 +5,14 @@
     "Al cambiar un estado, actualizar también 'actualizado' (AAAA-MM-DD).",
     "Los pendientes en estado 'hecho' se borran en la siguiente limpieza; el historial queda en git.",
     "IDs correlativos (P-001, P-002…); no se reutilizan.",
-    "El contexto de cada sesión de trabajo (qué se hizo, hallazgos, decisiones) está en docs/sessions/."
+    "El contexto de cada sesión de trabajo (qué se hizo, hallazgos, decisiones) está en docs/sessions/.",
+    "'en-espera' marca lo que se define en detalle recién después del producto mínimo (P-049): no se empieza ni se diseña antes."
   ],
   "valores": {
     "estado": [
       "pendiente",
       "en-curso",
+      "en-espera",
       "bloqueado",
       "hecho"
     ],
@@ -69,11 +71,11 @@
       "tipo": "decision",
       "responsable": "usuario",
       "estado": "pendiente",
-      "detalle": "El arreglo de encabezados (F-001) y el endurecimiento de workflows (F-003) son generales. Si upstream los acepta, dejan de ser diferencias que mantener. Implica abrir PRs en nashsu/llm_wiki.",
+      "detalle": "En suspenso: el 2026-10-11 el usuario decidió no proponer contribuciones a upstream hasta nuevo aviso. El arreglo de encabezados (F-001) y el endurecimiento de workflows (F-003) son generales. Si upstream los acepta, dejan de ser diferencias que mantener. Implica abrir PRs en nashsu/llm_wiki.",
       "depende_de": [],
       "referencia": "FORK_CHANGES.md",
       "creado": "2026-10-06",
-      "actualizado": "2026-10-06"
+      "actualizado": "2026-10-11"
     },
     {
       "id": "P-011",
@@ -105,11 +107,11 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "en-curso",
-      "detalle": "Integrado (PR #15): catálogo que separa contenido de ubicación por huella del texto normalizado; dentro de la tarea de ingesta, el segundo archivo con el mismo texto no va al modelo y se agrega a las fuentes de las páginas ya generadas. En el PR #17, a propuesta del usuario: primero se compara el SHA-256 del archivo, antes de encolar y sin leer nada; la comparación por texto queda para lo que los bytes no detectan (otro formato, mismo papel escaneado dos veces). Con eso la decisión original (comparar al importar) vuelve a valer para los archivos idénticos. Falta: integrar el #17, probar con my-1st-wiki (el mismo acuerdo en Word y PDF) y con una copia de una imagen en AEROS-BGH, y la pantalla y la carga inicial (P-044).",
+      "detalle": "Integrado (PR #15): catálogo que separa contenido de ubicación por huella del texto normalizado; dentro de la tarea de ingesta, el segundo archivo con el mismo texto no va al modelo y se agrega a las fuentes de las páginas ya generadas. En el PR #17, a propuesta del usuario: primero se compara el SHA-256 del archivo, antes de encolar y sin leer nada; la comparación por texto queda para lo que los bytes no detectan (otro formato, mismo papel escaneado dos veces). Con eso la decisión original (comparar al importar) vuelve a valer para los archivos idénticos. El #17 ya está integrado. Falta: probar con my-1st-wiki (el mismo acuerdo en Word y PDF) y con una copia de una imagen en AEROS-BGH, y la pantalla y la carga inicial (P-044).",
       "depende_de": [],
-      "referencia": "PR #15 (integrado) y PR #17, src-tauri/src/source_volume/catalog.rs, src/lib/source-catalog.ts",
+      "referencia": "PR #15 y PR #17 (integrados), src-tauri/src/source_volume/catalog.rs, src/lib/source-catalog.ts",
       "creado": "2026-10-06",
-      "actualizado": "2026-10-08"
+      "actualizado": "2026-10-11"
     },
     {
       "id": "P-015",
@@ -157,8 +159,8 @@
       "titulo": "Decidir qué hacer con 7 pruebas de Rust que fallan en Windows",
       "tipo": "decision",
       "responsable": "ambos",
-      "estado": "en-curso",
-      "detalle": "Decidido por el usuario el 2026-10-11: corregirlas. Hecho en el PR #21. Las 6 de commands::file_history eran un defecto real en Windows: el historial de un archivo se guardaba bajo una clave calculada con la ruta escrita con '/' y se buscaba con la ruta escrita con '\\', así que el panel de historial salía vacío; ahora el separador se normaliza. La de commands::fs (allow_absolute_write_paths) afirmaba que '/tmp/...' es una ruta absoluta, cierto solo en Unix; esa línea quedó limitada a Unix. Con el PR, cargo test --lib da 493 pasan y 0 fallan. Falta: integrar el PR. Sin verificar en la app (el historial está desactivado por defecto).",
+      "estado": "hecho",
+      "detalle": "Decidido por el usuario el 2026-10-11: corregirlas. Hecho e integrado en el PR #21. Las 6 de commands::file_history eran un defecto real en Windows: el historial de un archivo se guardaba bajo una clave calculada con la ruta escrita con '/' y se buscaba con la ruta escrita con '\\', así que el panel de historial salía vacío; ahora el separador se normaliza. La de commands::fs (allow_absolute_write_paths) afirmaba que '/tmp/...' es una ruta absoluta, cierto solo en Unix; esa línea quedó limitada a Unix. Con el PR, cargo test --lib da 493 pasan y 0 fallan. Sin verificar en la app (el historial está desactivado por defecto).",
       "depende_de": [],
       "referencia": "PR #21, src-tauri/src/commands/file_history.rs (history_path)",
       "creado": "2026-10-06",
@@ -182,11 +184,11 @@
       "tipo": "decision",
       "responsable": "usuario",
       "estado": "pendiente",
-      "detalle": "Hoy salen sin firmar y Windows muestra el aviso de 'editor desconocido' al instalar. Firmarlos requiere comprar un certificado de firma de código y agregar ese paso al workflow.",
+      "detalle": "Hoy salen sin firmar y Windows muestra el aviso de 'editor desconocido' al instalar. Firmarlos requiere comprar un certificado de firma de código y agregar ese paso al workflow. Cómo se hace (explicado al usuario el 2026-10-11, sin verificar precios ni requisitos): una certificadora valida a la empresa y emite un certificado cuya clave vive en un dispositivo o en un servicio de firma en la nube; se agrega un paso de firma al workflow. Alternativa más barata: el servicio de firma de Microsoft, si una empresa argentina califica. Recomendación: hacerlo justo antes de entregar el primer instalador a un estudio; depende de proteger los secretos (P-002).",
       "depende_de": [],
       "referencia": "",
       "creado": "2026-10-07",
-      "actualizado": "2026-10-07"
+      "actualizado": "2026-10-11"
     },
     {
       "id": "P-023",
@@ -426,11 +428,11 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "en-curso",
-      "detalle": "Al reiniciar la app el 2026-10-08, las tres imágenes sueltas de AEROS BGH se volvieron a leer con Codex (no tenían caché), la lectura salió distinta y se reingirieron con el modelo. Hecho en el PR #17: el texto reconocido se guarda en raw/recognized/<SHA-256 del archivo>/ dentro del proyecto, una entrada JSON por página o por imagen, con el motor que la leyó. Un archivo movido, renombrado, vuelto a guardar sin cambios o presente en dos carpetas se lee una sola vez. Lo ya leído (páginas de PDF e imágenes) se adopta sin releer. Decidido con el usuario: por proyecto y no global, para no mezclar texto de distintos clientes; en raw/ y no en .llm-wiki, porque no es un caché descartable; como JSON, para que Obsidian no lo muestre como notas. Falta: integrar el PR y verificar en la app; acción 'volver a leer este archivo' (el texto ya no vence solo); borrar las entradas de archivos cuyas ubicaciones se eliminaron todas.",
+      "detalle": "Al reiniciar la app el 2026-10-08, las tres imágenes sueltas de AEROS BGH se volvieron a leer con Codex (no tenían caché), la lectura salió distinta y se reingirieron con el modelo. Hecho en el PR #17: el texto reconocido se guarda en raw/recognized/<SHA-256 del archivo>/ dentro del proyecto, una entrada JSON por página o por imagen, con el motor que la leyó. Un archivo movido, renombrado, vuelto a guardar sin cambios o presente en dos carpetas se lee una sola vez. Lo ya leído (páginas de PDF e imágenes) se adopta sin releer. Decidido con el usuario: por proyecto y no global, para no mezclar texto de distintos clientes; en raw/ y no en .llm-wiki, porque no es un caché descartable; como JSON, para que Obsidian no lo muestre como notas. El PR está integrado. Falta: verificar en la app; acción 'volver a leer este archivo' (el texto ya no vence solo); borrar las entradas de archivos cuyas ubicaciones se eliminaron todas.",
       "depende_de": [],
-      "referencia": "PR #17, src-tauri/src/source_volume/recognized_store.rs, src-tauri/src/source_volume/file_hash.rs",
+      "referencia": "PR #17 (integrado), src-tauri/src/source_volume/recognized_store.rs, src-tauri/src/source_volume/file_hash.rs",
       "creado": "2026-10-08",
-      "actualizado": "2026-10-08"
+      "actualizado": "2026-10-11"
     },
     {
       "id": "P-048",
@@ -446,11 +448,11 @@
     },
     {
       "id": "P-049",
-      "titulo": "Base documental, etapa 1: producto mínimo sobre el espacio privado",
+      "titulo": "Base documental: producto mínimo (etapa 1 más el puente con el wiki)",
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "Producto mínimo acordado: inventario, vigilancia, identidad (ubicación, contenido, familia), derivados procesados una vez y pantallas de la base, para el espacio privado de un solo usuario. Base en SQLite, con su búsqueda por palabras; LanceDB sigue para vectores. Desde esta etapa: cada ubicación guarda origen, carpeta y etiquetas (las define el usuario según cómo ordena sus carpetas); toda consulta recibe el conjunto de lo visible, que en privado es 'todo'; cada proyecto tiene miembros, 'abierto' al inicio; existe el proyecto general del espacio. Los datos que hoy viven por proyecto (catálogo, texto reconocido, detección de cambios) pasan al espacio. Los pendientes P-012, P-015, P-016, P-040 y P-044 se replantean sobre esta base.",
+      "detalle": "Alcance confirmado por el usuario el 2026-10-11: la etapa 1 del diseño más un puente mínimo, que es que el wiki del proyecto general tome sus fuentes de la base. Etapa 1: inventario, vigilancia, identidad (ubicación y contenido; las familias son de la etapa 2), derivados procesados una vez y pantallas de la base, para el espacio privado de un solo usuario. Base en SQLite, con su búsqueda por palabras; LanceDB sigue para vectores. Desde esta etapa: cada ubicación guarda origen, carpeta y etiquetas (las define el usuario según cómo ordena sus carpetas; 'cliente' y 'caso' son etiquetas); toda consulta recibe el conjunto de lo visible, que en privado es 'todo'; cada proyecto tiene miembros, 'abierto' al inicio; existe el proyecto general del espacio. Los datos que hoy viven por proyecto (catálogo, texto reconocido, detección de cambios) pasan al espacio. Pantallas acordadas: Inicio (salud del archivo, requiere atención, actividad reciente, proyectos), Orígenes, Documentos y Detalle de un documento; van en español. El marco visual de toda la app se trata aparte (P-057). Los pendientes P-012, P-015, P-016, P-040 y P-044 se replantean sobre esta base.",
       "depende_de": [],
       "referencia": "docs/design/base-documental.md (secciones 3, 5, 11 y 12)",
       "creado": "2026-10-09",
@@ -475,8 +477,8 @@
       "titulo": "Al reservar un proyecto, ocultar también sus carpetas en la app",
       "tipo": "decision",
       "responsable": "ambos",
-      "estado": "pendiente",
-      "detalle": "En espera: se define en detalle después del producto mínimo (P-049). Reservar un proyecto oculta su wiki, pero los documentos de sus carpetas seguirían apareciendo en las búsquedas de los demás. Propuesta aceptada a priori: opción para ocultarlos también, activada por defecto al reservar, con el aviso de que oculta pero no protege los archivos si el origen está abierto.",
+      "estado": "en-espera",
+      "detalle": "Reservar un proyecto oculta su wiki, pero los documentos de sus carpetas seguirían apareciendo en las búsquedas de los demás. Propuesta aceptada a priori: opción para ocultarlos también, activada por defecto al reservar, con el aviso de que oculta pero no protege los archivos si el origen está abierto.",
       "depende_de": [
         "P-049"
       ],
@@ -489,8 +491,8 @@
       "titulo": "La misma carpeta en dos proyectos con miembros distintos",
       "tipo": "decision",
       "responsable": "ambos",
-      "estado": "pendiente",
-      "detalle": "En espera: se define en detalle después del producto mínimo (P-049). Si una carpeta está en un proyecto abierto y en otro reservado, se ve por el abierto: gana el menos restrictivo. La app tiene que avisarlo cuando alguien reserva un proyecto cuyas carpetas ya están en otro.",
+      "estado": "en-espera",
+      "detalle": "Si una carpeta está en un proyecto abierto y en otro reservado, se ve por el abierto: gana el menos restrictivo. La app tiene que avisarlo cuando alguien reserva un proyecto cuyas carpetas ya están en otro.",
       "depende_de": [
         "P-049"
       ],
@@ -503,8 +505,8 @@
       "titulo": "Poder desactivar la prueba de lectura",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "En espera: se define en detalle después del producto mínimo (P-049). La prueba de lectura queda siempre activa, como modo único. En estudios donde todos ven todo no aporta nada: tiene que poder configurarse.",
+      "estado": "en-espera",
+      "detalle": "La prueba de lectura queda siempre activa, como modo único. En estudios donde todos ven todo no aporta nada: tiene que poder configurarse.",
       "depende_de": [
         "P-049"
       ],
@@ -517,8 +519,8 @@
       "titulo": "Generación del wiki como servicio, sin depender de una ventana",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "En espera: se define en detalle después del producto mínimo (P-049). Hoy la ingesta con el modelo corre en la ventana de la app (unas 5.000 líneas de código de interfaz en src/lib/ingest.ts y src/lib/ingest-queue.ts), no en el motor. Funciona en segundo plano porque la ventana solo se oculta, pero necesita una sesión abierta y no puede correr como servicio de Windows ni en un servidor sin pantalla. Hay que pasarla al motor para que el servicio compartido sea un servicio de verdad.",
+      "estado": "en-espera",
+      "detalle": "Hoy la ingesta con el modelo corre en la ventana de la app (unas 5.000 líneas de código de interfaz en src/lib/ingest.ts y src/lib/ingest-queue.ts), no en el motor. Funciona en segundo plano porque la ventana solo se oculta, pero necesita una sesión abierta y no puede correr como servicio de Windows ni en un servidor sin pantalla. Hay que pasarla al motor para que el servicio compartido sea un servicio de verdad.",
       "depende_de": [
         "P-049"
       ],
@@ -531,10 +533,107 @@
       "titulo": "Drive y OneDrive por sus interfaces, y documentos nativos de Google",
       "tipo": "decision",
       "responsable": "usuario",
-      "estado": "pendiente",
-      "detalle": "En espera: se define en detalle después del producto mínimo (P-049). Por ahora Drive y OneDrive se leen como unidad montada, y los documentos nativos de Google (Docs, Sheets, Slides) se registran como 'detectado, no procesable': en la unidad montada son un acceso directo sin contenido. Leerlos, y tener listas de cambios y huellas del proveedor, exige registrar la aplicación ante Google y Microsoft, trámite que el dueño del producto decidió no encarar todavía. Percepción a validar: los estudios argentinos usan poco esos formatos y más Office 365.",
-      "depende_de": [],
+      "estado": "en-espera",
+      "detalle": "Por ahora Drive y OneDrive se leen como unidad montada, y los documentos nativos de Google (Docs, Sheets, Slides) se registran como 'detectado, no procesable': en la unidad montada son un acceso directo sin contenido. Leerlos, y tener listas de cambios y huellas del proveedor, exige registrar la aplicación ante Google y Microsoft, trámite que el dueño del producto decidió no encarar todavía. Percepción a validar: los estudios argentinos usan poco esos formatos y más Office 365.",
+      "depende_de": [
+        "P-049"
+      ],
       "referencia": "docs/design/base-documental.md (secciones 5 y 10)",
+      "creado": "2026-10-11",
+      "actualizado": "2026-10-11"
+    },
+    {
+      "id": "P-057",
+      "titulo": "Marco visual de toda la app y elementos de marca",
+      "tipo": "codigo",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "detalle": "El usuario quiere llevar la interfaz hacia el mockup del 2026-05-20: barra superior con marca, buscador global y usuario; franja que indica estudio, caso y si es privado; navegación a la izquierda con texto y contadores; páginas con forma de artículo de enciclopedia (pestañas, índice, ficha de datos, enlaces, referencias). Se aplica a toda la app, incorporando los elementos de marca del sitio de Micelya. Acordado el 2026-10-11: hacerlo en un turno dedicado solo a esto, con una pasada de diseño antes de aplicar cambios; falta definir con qué herramienta se hace esa pasada. Relevado el 2026-10-11: la marca está definida en el Manual de Marca (PDF, con una versión legible en markdown) y el sitio la aplica. Paleta magenta y púrpura (primario #8B2778, texto #2F0A38, acento #DD0D6E), tipografías Mulish para títulos e interfaz e Inter para lectura; el manual define modo claro y modo oscuro. El mockup usa celeste sobre azul oscuro, que no es la paleta de la marca: hay que rehacerlo con la paleta real. Falta para una app: logo en formato vectorial y versión para fondo oscuro, colores de estado (éxito, aviso, error), escala de grises y estilos para pantallas densas (tablas, árboles, pestañas); las tipografías hay que incluirlas en la app, no cargarlas de internet.",
+      "depende_de": [],
+      "referencia": "Manual de Marca (unidad compartida de Micelya, Marketing/Branding/Micelya); sitio: repo Micelya/micelya-website; mockup: carpeta 2026-05-20-mockups del estudio de referencia",
+      "creado": "2026-10-11",
+      "actualizado": "2026-10-11"
+    },
+    {
+      "id": "P-058",
+      "titulo": "Traducción de la interfaz: español en toda la app y las pantallas nuevas en los otros idiomas",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "La app trae inglés, italiano, ruso y chino; no tiene español. Las pantallas de la base documental (P-049) se escriben en español. Trabajo aparte: traducir al español toda la app existente y, en el mismo trabajo, llevar las pantallas que nacieron solo en español a los otros idiomas. Hay una prueba que exige que todos los idiomas tengan las mismas claves.",
+      "depende_de": [
+        "P-049"
+      ],
+      "referencia": "src/i18n/, src/i18n/i18n-parity.test.ts",
+      "creado": "2026-10-11",
+      "actualizado": "2026-10-11"
+    },
+    {
+      "id": "P-059",
+      "titulo": "Inicio: agenda, plazos, tareas asignadas y aprobaciones",
+      "tipo": "decision",
+      "responsable": "ambos",
+      "estado": "en-espera",
+      "detalle": "El mockup del dashboard muestra reuniones del día, plazos de la semana, tareas asignadas al usuario, aprobación de borradores, niveles de autonomía y discusión por página. Hoy la app no tiene agenda, plazos, tareas ni varios usuarios. En el producto mínimo la lista 'requiere atención' de Inicio se arma genérica y se alimenta solo de la base documental y de los ítems de revisión que ya existen; estas otras fuentes se definen después.",
+      "depende_de": [
+        "P-049"
+      ],
+      "referencia": "Mockup 02-dashboard.html",
+      "creado": "2026-10-11",
+      "actualizado": "2026-10-11"
+    },
+    {
+      "id": "P-060",
+      "titulo": "Buscador por tipo de resultado, con filtros y entidades vinculadas",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "en-espera",
+      "detalle": "El mockup del buscador separa resultados por tipo (casos, reuniones, normas, fallos, clientes), filtra por área, fecha, cliente y tipo de documento, y muestra entidades vinculadas y un grafo de los resultados. Necesita el tipo de documento, que llega en la etapa 2. En el producto mínimo la búsqueda por palabras vive en la pantalla Documentos.",
+      "depende_de": [
+        "P-049",
+        "P-015"
+      ],
+      "referencia": "Mockup 03-buscador.html",
+      "creado": "2026-10-11",
+      "actualizado": "2026-10-11"
+    },
+    {
+      "id": "P-061",
+      "titulo": "Cómo nace un 'caso': extraído de los documentos o creado desde la interfaz",
+      "tipo": "decision",
+      "responsable": "ambos",
+      "estado": "en-espera",
+      "detalle": "Definido el 2026-10-11: 'caso' y 'cliente' son etiquetas, no proyectos. El cliente probablemente se extraiga como entidad y tenga su página en el wiki. Del caso no hay certeza de que se pueda extraer; tal vez haya que crearlo desde la interfaz. Se ve más adelante.",
+      "depende_de": [
+        "P-049"
+      ],
+      "referencia": "docs/design/base-documental.md (sección 3, etiquetas)",
+      "creado": "2026-10-11",
+      "actualizado": "2026-10-11"
+    },
+    {
+      "id": "P-062",
+      "titulo": "Reuniones: transcribirlas y derivar contenido y tareas",
+      "tipo": "decision",
+      "responsable": "ambos",
+      "estado": "en-espera",
+      "detalle": "Será una funcionalidad importante del producto: transcribir reuniones, usar la transcripción como fuente para derivar contenido (minuta, notas) y generar tareas que se asignan a los abogados. Hay un caso procesado a mano como muestra. El diseño ya prevé motores de lectura para audio; falta definir todo lo demás.",
+      "depende_de": [
+        "P-049"
+      ],
+      "referencia": "docs/design/base-documental.md (sección 7, motores de lectura)",
+      "creado": "2026-10-11",
+      "actualizado": "2026-10-11"
+    },
+    {
+      "id": "P-063",
+      "titulo": "Integración con Micelya Core",
+      "tipo": "decision",
+      "responsable": "ambos",
+      "estado": "en-espera",
+      "detalle": "Micelya Core es el módulo de la plataforma que dará los servicios de IA y relacionados; se desarrolla en paralelo, primero sobre servicios de Amazon y diseñado para no depender de ellos. En algún momento la app va a usarlo como infraestructura de IA. Por ahora es solo información de contexto: los proveedores de IA siguen siendo configurables por instancia.",
+      "depende_de": [],
+      "referencia": "Repo extrimian/mi-platform, rama dev",
       "creado": "2026-10-11",
       "actualizado": "2026-10-11"
     }
