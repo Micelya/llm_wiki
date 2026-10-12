@@ -1,9 +1,12 @@
 //! Read-only views of the base for the screens.
 
-use rusqlite::params_from_iter;
-use serde::Serialize;
+use std::collections::BTreeMap;
 
-use super::origins::{self, Origin};
+use rusqlite::types::Value;
+use rusqlite::{params_from_iter, Connection, OptionalExtension};
+use serde::{Deserialize, Serialize};
+
+use super::origins::{self, labels_for, Origin};
 use super::{sql_err, DocBase, Visible};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -20,6 +23,103 @@ pub struct OriginSummary {
     /// Cloud shortcuts: detected, not processable.
     pub links: i64,
 }
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct DocumentFilter {
+    /// Words to look for in the name and path of the file.
+    pub query: Option<String>,
+    pub origin_id: Option<String>,
+    /// One of the states of `DocumentRow::state`.
+    pub state: Option<String>,
+    /// Only documents with more than one visible location.
+    pub duplicates_only: bool,
+    /// `recent` (default), `name` or `folder`.
+    pub sort: Option<String>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
+
+/// One location, with what is known of the document it holds.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentRow {
+    pub location_id: i64,
+    pub origin_id: String,
+    pub origin_name: String,
+    pub origin_reachable: Option<bool>,
+    pub rel_path: String,
+    pub folder: String,
+    pub name: String,
+    pub ext: String,
+    pub size: i64,
+    pub mtime_ms: i64,
+    /// Where the document stands, from the inventory to its text:
+    /// `link` (cloud shortcut: detected, not processable), `unread`
+    /// (waiting to be read), `unreadable`, `too-large`, `unprocessed`
+    /// (read, text not extracted yet), `processed`, `needs-recognition`
+    /// (its text is only pixels), `unsupported` or `error`.
+    pub state: String,
+    pub content_id: Option<i64>,
+    /// Visible locations holding this same document, this one included.
+    pub copies: i64,
+    pub labels: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentPage {
+    pub rows: Vec<DocumentRow>,
+    /// Rows matching the filter, before `limit` and `offset`.
+    pub total: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocationRef {
+    pub location_id: i64,
+    pub origin_name: String,
+    pub origin_reachable: Option<bool>,
+    pub rel_path: String,
+    /// Where the file is on disk.
+    pub path: String,
+    pub mtime_ms: i64,
+    /// False when it is the same document in another file (another
+    /// format, another scan of the same paper).
+    pub same_file: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentDetail {
+    #[serde(flatten)]
+    pub row: DocumentRow,
+    /// Where the file is on disk.
+    pub path: String,
+    pub file_hash: Option<String>,
+    /// Why the file or its text could not be read, when that is the case.
+    pub error: Option<String>,
+    pub word_count: Option<i64>,
+    pub processed_at: Option<i64>,
+    pub first_seen_at: i64,
+    pub text: Option<String>,
+    /// What produced the text: an extractor, or a recognition engine.
+    pub text_engine: Option<String>,
+    /// The folder levels the origin names, to offer every label for
+    /// correction even when this file has no value for it.
+    pub label_names: Vec<String>,
+    /// Every visible location of this document, this one first.
+    pub locations: Vec<LocationRef>,
+}
+
+const STATE_SQL: &str = "CASE
+        WHEN l.kind = 'link' THEN 'link'
+        WHEN l.hash_state = 'pending' AND l.file_hash IS NULL THEN 'unread'
+        WHEN l.hash_state = 'error' THEN 'unreadable'
+        WHEN l.hash_state = 'too-large' THEN 'too-large'
+        WHEN c.state = 'pending' THEN 'unprocessed'
+        ELSE COALESCE(c.state, 'unread')
+    END";
 
 impl DocBase {
     pub fn origin_summaries(&self, visible: &Visible) -> Result<Vec<OriginSummary>, String> {
@@ -68,12 +168,312 @@ impl DocBase {
             })
             .collect())
     }
+
+    /// The inventory, one row per location.
+    pub fn documents(&self, visible: &Visible, filter: &DocumentFilter) -> Result<DocumentPage, String> {
+        let conn = self.conn();
+        let mut conditions = Vec::new();
+        let mut bound: Vec<Value> = Vec::new();
+
+        if let Some(origin_id) = filter.origin_id.as_deref().filter(|id| !id.is_empty()) {
+            conditions.push("origin_id = ?".to_string());
+            bound.push(Value::Text(origin_id.to_string()));
+        }
+        if let Some(state) = filter.state.as_deref().filter(|state| !state.is_empty()) {
+            conditions.push("state = ?".to_string());
+            bound.push(Value::Text(state.to_string()));
+        }
+        if filter.duplicates_only {
+            conditions.push("copies > 1".to_string());
+        }
+        for word in filter
+            .query
+            .as_deref()
+            .unwrap_or("")
+            .split_whitespace()
+            .take(8)
+        {
+            conditions.push("rel_path LIKE ? ESCAPE '\\'".to_string());
+            bound.push(Value::Text(format!("%{}%", escape_like(word))));
+        }
+        let filter_sql = if conditions.is_empty() {
+            "1 = 1".to_string()
+        } else {
+            conditions.join(" AND ")
+        };
+        let order = match filter.sort.as_deref() {
+            Some("name") => "name COLLATE NOCASE, rel_path COLLATE NOCASE",
+            Some("folder") => "origin_name COLLATE NOCASE, rel_path COLLATE NOCASE",
+            _ => "mtime_ms DESC, rel_path COLLATE NOCASE",
+        };
+
+        let (base_sql, base_bound) = rows_sql(visible, None);
+        let all_bound = |extra: &[Value]| -> Vec<Value> {
+            base_bound
+                .iter()
+                .cloned()
+                .chain(bound.iter().cloned())
+                .chain(extra.iter().cloned())
+                .collect()
+        };
+
+        let total: i64 = conn
+            .query_row(
+                &format!("SELECT count(*) FROM ({base_sql}) WHERE {filter_sql}"),
+                params_from_iter(all_bound(&[])),
+                |row| row.get(0),
+            )
+            .map_err(sql_err)?;
+
+        let limit = filter.limit.unwrap_or(200).clamp(1, 1000);
+        let offset = filter.offset.unwrap_or(0).max(0);
+        let rows = read_rows(
+            &conn,
+            &format!("SELECT * FROM ({base_sql}) WHERE {filter_sql} ORDER BY {order} LIMIT ? OFFSET ?"),
+            all_bound(&[Value::Integer(limit), Value::Integer(offset)]),
+        )?;
+        Ok(DocumentPage { rows, total })
+    }
+
+    /// Everything known about one location and the document it holds.
+    /// `None` when it does not exist or is not visible.
+    pub fn document(&self, visible: &Visible, location_id: i64) -> Result<Option<DocumentDetail>, String> {
+        let conn = self.conn();
+        let (sql, bound) = rows_sql(visible, Some(location_id));
+        let Some(row) = read_rows(&conn, &sql, bound)?.into_iter().next() else {
+            return Ok(None);
+        };
+
+        let (root, convention, file_hash, hash_error, first_seen_at): (String, String, Option<String>, Option<String>, i64) = conn
+            .query_row(
+                "SELECT o.location, o.convention, l.file_hash, l.hash_error, l.first_seen_at
+                 FROM location l JOIN origin o ON o.id = l.origin_id WHERE l.id = ?1",
+                [location_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+            )
+            .map_err(sql_err)?;
+
+        let content: Option<(Option<i64>, Option<i64>, Option<String>)> = match row.content_id {
+            Some(content_id) => conn
+                .query_row(
+                    "SELECT word_count, processed_at, error FROM content WHERE id = ?1",
+                    [content_id],
+                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                )
+                .optional()
+                .map_err(sql_err)?,
+            None => None,
+        };
+        let (word_count, processed_at, content_error) = content.unwrap_or((None, None, None));
+
+        let text: Option<(String, String)> = match row.content_id {
+            Some(content_id) => conn
+                .query_row(
+                    "SELECT body, engine FROM derivative WHERE content_id = ?1 AND kind = 'text'",
+                    [content_id],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )
+                .optional()
+                .map_err(sql_err)?,
+            None => None,
+        };
+
+        let mut locations = Vec::new();
+        if let Some(content_id) = row.content_id {
+            let (condition, visible_bound) = visible.condition("l.origin_id");
+            let mut statement = conn
+                .prepare(&format!(
+                    "SELECT l.id, o.name, o.reachable, l.rel_path, o.location, l.mtime_ms, l.file_hash
+                     FROM location l
+                     JOIN origin o ON o.id = l.origin_id
+                     JOIN file f ON f.hash = l.file_hash
+                     WHERE f.content_id = ? AND {condition}
+                     ORDER BY (l.id = ?) DESC, o.name COLLATE NOCASE, l.rel_path COLLATE NOCASE"
+                ))
+                .map_err(sql_err)?;
+            let bound: Vec<Value> = std::iter::once(Value::Integer(content_id))
+                .chain(visible_bound.into_iter().map(Value::Text))
+                .chain(std::iter::once(Value::Integer(location_id)))
+                .collect();
+            let found = statement
+                .query_map(params_from_iter(bound), |r| {
+                    let reachable: Option<i64> = r.get(2)?;
+                    let root: String = r.get(4)?;
+                    let rel_path: String = r.get(3)?;
+                    let hash: Option<String> = r.get(6)?;
+                    Ok(LocationRef {
+                        location_id: r.get(0)?,
+                        origin_name: r.get(1)?,
+                        origin_reachable: reachable.map(|value| value != 0),
+                        path: absolute(&root, &rel_path),
+                        rel_path,
+                        mtime_ms: r.get(5)?,
+                        same_file: hash == file_hash,
+                    })
+                })
+                .map_err(sql_err)?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(sql_err)?;
+            locations = found;
+        }
+
+        Ok(Some(DocumentDetail {
+            path: absolute(&root, &row.rel_path),
+            file_hash,
+            error: hash_error.or(content_error),
+            word_count,
+            processed_at,
+            first_seen_at,
+            text: text.as_ref().map(|(body, _)| body.clone()),
+            text_engine: text.map(|(_, engine)| engine),
+            label_names: serde_json::from_str(&convention).unwrap_or_default(),
+            locations,
+            row,
+        }))
+    }
+
+    /// Corrects the value of one label of a location. An empty value
+    /// undoes the correction, so the label is again what the folder
+    /// says. The folder itself is never touched.
+    pub fn set_label(&self, location_id: i64, name: &str, value: &str) -> Result<(), String> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err("La etiqueta necesita un nombre".to_string());
+        }
+        let conn = self.conn();
+        let current: Option<String> = conn
+            .query_row("SELECT label_overrides FROM location WHERE id = ?1", [location_id], |row| {
+                row.get(0)
+            })
+            .optional()
+            .map_err(sql_err)?;
+        let Some(current) = current else {
+            return Err("Ese archivo ya no está en el inventario".to_string());
+        };
+        let mut overrides: BTreeMap<String, String> = serde_json::from_str(&current).unwrap_or_default();
+        if value.trim().is_empty() {
+            overrides.remove(name);
+        } else {
+            overrides.insert(name.to_string(), value.trim().to_string());
+        }
+        conn.execute(
+            "UPDATE location SET label_overrides = ?1 WHERE id = ?2",
+            rusqlite::params![
+                serde_json::to_string(&overrides).unwrap_or_else(|_| "{}".to_string()),
+                location_id
+            ],
+        )
+        .map_err(sql_err)?;
+        Ok(())
+    }
+
+    /// Where a location is on disk, when it is visible.
+    pub fn location_path(&self, visible: &Visible, location_id: i64) -> Result<Option<String>, String> {
+        let (condition, bound) = visible.condition("l.origin_id");
+        let bound: Vec<Value> = std::iter::once(Value::Integer(location_id))
+            .chain(bound.into_iter().map(Value::Text))
+            .collect();
+        self.conn()
+            .query_row(
+                &format!(
+                    "SELECT o.location, l.rel_path FROM location l JOIN origin o ON o.id = l.origin_id
+                     WHERE l.id = ? AND {condition}"
+                ),
+                params_from_iter(bound),
+                |row| Ok(absolute(&row.get::<_, String>(0)?, &row.get::<_, String>(1)?)),
+            )
+            .optional()
+            .map_err(sql_err)
+    }
+}
+
+/// The query behind every document row: one row per visible location,
+/// or just `only` when given. Copies are counted among what is visible:
+/// a copy the caller cannot see does not exist for them.
+fn rows_sql(visible: &Visible, only: Option<i64>) -> (String, Vec<Value>) {
+    let (visible_l, bound_l) = visible.condition("l.origin_id");
+    let (visible_l2, bound_l2) = visible.condition("l2.origin_id");
+    let mut bound: Vec<Value> = bound_l2.into_iter().map(Value::Text).collect();
+    bound.extend(bound_l.into_iter().map(Value::Text));
+    let only_sql = match only {
+        Some(id) => {
+            bound.push(Value::Integer(id));
+            "AND l.id = ?"
+        }
+        None => "",
+    };
+    let sql = format!(
+        "SELECT l.id AS location_id, l.origin_id AS origin_id, o.name AS origin_name,
+                o.reachable AS origin_reachable, l.rel_path AS rel_path, l.folder AS folder,
+                l.name AS name, l.ext AS ext, l.size AS size, l.mtime_ms AS mtime_ms,
+                {STATE_SQL} AS state,
+                f.content_id AS content_id,
+                CASE WHEN f.content_id IS NULL THEN 1 ELSE (
+                    SELECT count(*) FROM location l2 JOIN file f2 ON f2.hash = l2.file_hash
+                    WHERE f2.content_id = f.content_id AND {visible_l2}
+                ) END AS copies,
+                o.convention AS convention, l.label_overrides AS label_overrides
+         FROM location l
+         JOIN origin o ON o.id = l.origin_id
+         LEFT JOIN file f ON f.hash = l.file_hash
+         LEFT JOIN content c ON c.id = f.content_id
+         WHERE {visible_l} {only_sql}"
+    );
+    (sql, bound)
+}
+
+fn read_rows(conn: &Connection, sql: &str, bound: Vec<Value>) -> Result<Vec<DocumentRow>, String> {
+    let mut statement = conn.prepare(sql).map_err(sql_err)?;
+    let rows = statement
+        .query_map(params_from_iter(bound), |row| {
+            let reachable: Option<i64> = row.get("origin_reachable")?;
+            let folder: String = row.get("folder")?;
+            let convention: String = row.get("convention")?;
+            let overrides: String = row.get("label_overrides")?;
+            let convention: Vec<String> = serde_json::from_str(&convention).unwrap_or_default();
+            let overrides: BTreeMap<String, String> = serde_json::from_str(&overrides).unwrap_or_default();
+            Ok(DocumentRow {
+                location_id: row.get("location_id")?,
+                origin_id: row.get("origin_id")?,
+                origin_name: row.get("origin_name")?,
+                origin_reachable: reachable.map(|value| value != 0),
+                rel_path: row.get("rel_path")?,
+                labels: labels_for(&folder, &convention, &overrides),
+                folder,
+                name: row.get("name")?,
+                ext: row.get("ext")?,
+                size: row.get("size")?,
+                mtime_ms: row.get("mtime_ms")?,
+                state: row.get("state")?,
+                content_id: row.get("content_id")?,
+                copies: row.get("copies")?,
+            })
+        })
+        .map_err(sql_err)?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(sql_err)
+}
+
+fn escape_like(word: &str) -> String {
+    word.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+}
+
+fn absolute(root: &str, rel_path: &str) -> String {
+    let mut path = std::path::PathBuf::from(root);
+    for part in rel_path.split('/').filter(|part| !part.is_empty()) {
+        path.push(part);
+    }
+    path.to_string_lossy().to_string()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::docbase::testing::TempDir;
+
+    fn settle(base: &DocBase, origin_id: &str) {
+        base.scan_origin(origin_id).unwrap();
+        while base.hash_pending(50).unwrap() > 0 {}
+    }
 
     #[test]
     fn an_origin_summary_counts_its_files_by_state() {
@@ -93,5 +493,129 @@ mod tests {
         assert_eq!((o.files, o.pending, o.errors, o.links), (3, 1, 0, 1));
         let empty = summaries.iter().find(|s| s.origin.name == "Vacío").unwrap();
         assert_eq!((empty.files, empty.origin.reachable), (0, None));
+    }
+
+    fn sample() -> (TempDir, DocBase, String, String) {
+        let dir = TempDir::new();
+        dir.write("casos/BGH/Reclamo/carta documento.pdf", b"carta");
+        dir.write("casos/BGH/Reclamo/copia de la carta.pdf", b"carta");
+        dir.write("casos/Aeros/Contrato/contrato.docx", b"contrato");
+        dir.write("casos/Aeros/notas.gdoc", b"{}");
+        dir.write("nube/carta escaneada.pdf", b"carta");
+        let base = DocBase::in_memory().unwrap();
+        let convention = vec!["cliente".to_string(), "caso".to_string()];
+        let casos = base.add_origin("Casos", &dir.path().join("casos"), &convention).unwrap();
+        let nube = base.add_origin("Nube", &dir.path().join("nube"), &[]).unwrap();
+        settle(&base, &casos.id);
+        settle(&base, &nube.id);
+        (dir, base, casos.id, nube.id)
+    }
+
+    fn names(page: &DocumentPage) -> Vec<&str> {
+        let mut names: Vec<&str> = page.rows.iter().map(|row| row.name.as_str()).collect();
+        names.sort();
+        names
+    }
+
+    #[test]
+    fn the_inventory_lists_every_location_with_state_copies_and_labels() {
+        let (_dir, base, _, _) = sample();
+        let page = base.documents(&Visible::All, &DocumentFilter::default()).unwrap();
+        assert_eq!(page.total, 5);
+
+        let carta = page.rows.iter().find(|row| row.name == "carta documento.pdf").unwrap();
+        assert_eq!(carta.state, "unprocessed");
+        assert_eq!(carta.copies, 3);
+        assert_eq!(carta.labels.get("cliente").map(String::as_str), Some("BGH"));
+        assert_eq!(carta.labels.get("caso").map(String::as_str), Some("Reclamo"));
+
+        let link = page.rows.iter().find(|row| row.name == "notas.gdoc").unwrap();
+        assert_eq!((link.state.as_str(), link.copies, link.content_id), ("link", 1, None));
+        // Left at the client level: it has a client and no case.
+        assert_eq!(link.labels.len(), 1);
+    }
+
+    #[test]
+    fn the_inventory_filters_by_words_origin_state_and_duplicates() {
+        let (_dir, base, _, nube) = sample();
+        let find = |filter: DocumentFilter| base.documents(&Visible::All, &filter).unwrap();
+
+        let by_words = find(DocumentFilter { query: Some("carta bgh".into()), ..Default::default() });
+        assert_eq!(names(&by_words), ["carta documento.pdf", "copia de la carta.pdf"]);
+
+        let by_origin = find(DocumentFilter { origin_id: Some(nube), ..Default::default() });
+        assert_eq!(names(&by_origin), ["carta escaneada.pdf"]);
+
+        let by_state = find(DocumentFilter { state: Some("link".into()), ..Default::default() });
+        assert_eq!(names(&by_state), ["notas.gdoc"]);
+
+        let duplicates = find(DocumentFilter { duplicates_only: true, ..Default::default() });
+        assert_eq!(duplicates.total, 3);
+
+        let paged = find(DocumentFilter { sort: Some("name".into()), limit: Some(2), offset: Some(1), ..Default::default() });
+        assert_eq!((paged.total, paged.rows.len()), (5, 2));
+        assert_eq!(paged.rows[0].name, "carta escaneada.pdf");
+
+        // A literal % is a character, not a wildcard.
+        assert_eq!(find(DocumentFilter { query: Some("%".into()), ..Default::default() }).total, 0);
+    }
+
+    #[test]
+    fn copies_in_an_origin_the_caller_cannot_see_do_not_count() {
+        let (_dir, base, casos, _) = sample();
+        let visible = Visible::Origins(vec![casos]);
+        let page = base.documents(&visible, &DocumentFilter::default()).unwrap();
+        assert_eq!(page.total, 4);
+        let carta = page.rows.iter().find(|row| row.name == "carta documento.pdf").unwrap();
+        assert_eq!(carta.copies, 2);
+
+        let detail = base.document(&visible, carta.location_id).unwrap().unwrap();
+        assert_eq!(detail.locations.len(), 2);
+    }
+
+    #[test]
+    fn the_detail_of_a_document_lists_all_its_locations_this_one_first() {
+        let (dir, base, _, _) = sample();
+        let page = base.documents(&Visible::All, &DocumentFilter::default()).unwrap();
+        let copy = page.rows.iter().find(|row| row.name == "copia de la carta.pdf").unwrap();
+
+        let detail = base.document(&Visible::All, copy.location_id).unwrap().unwrap();
+        assert_eq!(detail.locations.len(), 3);
+        assert_eq!(detail.locations[0].location_id, copy.location_id);
+        assert!(detail.locations.iter().all(|location| location.same_file));
+        assert_eq!(
+            std::path::PathBuf::from(&detail.path),
+            dir.path().join("casos").join("BGH").join("Reclamo").join("copia de la carta.pdf")
+        );
+        assert_eq!(detail.label_names, ["cliente", "caso"]);
+        assert!(detail.file_hash.is_some());
+        assert!(detail.text.is_none());
+
+        assert!(base.document(&Visible::All, 9999).unwrap().is_none());
+        assert!(base.document(&Visible::Origins(vec![]), copy.location_id).unwrap().is_none());
+    }
+
+    #[test]
+    fn a_label_can_be_corrected_for_one_misfiled_document() {
+        let (_dir, base, _, _) = sample();
+        let page = base.documents(&Visible::All, &DocumentFilter::default()).unwrap();
+        let carta = page.rows.iter().find(|row| row.name == "carta documento.pdf").unwrap();
+
+        base.set_label(carta.location_id, "caso", "Otro reclamo").unwrap();
+        let detail = base.document(&Visible::All, carta.location_id).unwrap().unwrap();
+        assert_eq!(detail.row.labels.get("caso").map(String::as_str), Some("Otro reclamo"));
+        assert_eq!(detail.row.labels.get("cliente").map(String::as_str), Some("BGH"));
+
+        // The copy next to it keeps the label its folder gives it.
+        let copy = page.rows.iter().find(|row| row.name == "copia de la carta.pdf").unwrap();
+        let other = base.document(&Visible::All, copy.location_id).unwrap().unwrap();
+        assert_eq!(other.row.labels.get("caso").map(String::as_str), Some("Reclamo"));
+
+        // Emptying the correction brings back what the folder says.
+        base.set_label(carta.location_id, "caso", " ").unwrap();
+        let detail = base.document(&Visible::All, carta.location_id).unwrap().unwrap();
+        assert_eq!(detail.row.labels.get("caso").map(String::as_str), Some("Reclamo"));
+
+        assert!(base.set_label(9999, "caso", "x").is_err());
     }
 }
