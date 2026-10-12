@@ -94,10 +94,10 @@ El detalle de cada cambio (qué líneas, qué pruebas) está en su PR; acá no s
 - **PR:** #21
 
 ### F-013 · Base documental
-- **Propósito:** que la app sepa qué archivos hay en un espacio, dónde está cada copia y cuáles son el mismo documento, y que lo derivado de cada documento se obtenga una sola vez: un componente propio (`src-tauri/src/docbase/`) con una base SQLite por espacio, en la carpeta local de datos de la app.
+- **Propósito:** que la app sepa qué archivos hay en un espacio, dónde está cada copia y cuáles son el mismo documento, y que lo derivado de cada documento se obtenga una sola vez: un componente propio (`src-tauri/src/docbase/`) con una base SQLite por espacio, sus pantallas (`src/components/docbase/`: Inicio, Documentos, Orígenes) y el puente por el que el wiki del proyecto general toma de la base sus fuentes y su texto.
 - **Toca upstream:** `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `src-tauri/src/lib.rs`, `src/stores/wiki-store.ts`, `src/components/layout/content-area.tsx`, `src/components/layout/icon-sidebar.tsx`, `src/components/layout/research-panel-nav.ts`, `src-tauri/src/commands/fs.rs`, `src/App.tsx`
 - **Upstream:** solo-fork
-- **PR:** #24, #25, #26, #27, #28
+- **PR:** #24, #25, #26, #27, #28, #29
 
 ## Reabsorbidos
 

@@ -95,11 +95,11 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "Servidor API, herramientas del agente y búsqueda leen fuentes por su cuenta y todavía no ven las montadas. El PR #12 ya está integrado: se puede empezar. Replantear sobre la base documental (P-049) antes de empezar.",
+      "detalle": "Servidor API, herramientas del agente y búsqueda leen fuentes por su cuenta y todavía no ven las montadas. El PR #12 ya está integrado: se puede empezar. Replantear sobre la base documental (P-049) antes de empezar. Con el puente (PR #29) el wiki del proyecto general ya ve las carpetas de la base como montajes; sigue faltando que el servidor API, las herramientas del agente y la búsqueda las lean, y que 'qué cambió' salga del registro de cambios de la base (resto de la etapa 3).",
       "depende_de": [],
       "referencia": "api_server.rs, agent/tools.rs, commands/search.rs",
       "creado": "2026-10-06",
-      "actualizado": "2026-10-09"
+      "actualizado": "2026-10-11"
     },
     {
       "id": "P-014",
@@ -153,18 +153,6 @@
       "referencia": "PR #1",
       "creado": "2026-10-06",
       "actualizado": "2026-10-06"
-    },
-    {
-      "id": "P-020",
-      "titulo": "Decidir qué hacer con 7 pruebas de Rust que fallan en Windows",
-      "tipo": "decision",
-      "responsable": "ambos",
-      "estado": "hecho",
-      "detalle": "Decidido por el usuario el 2026-10-11: corregirlas. Hecho e integrado en el PR #21. Las 6 de commands::file_history eran un defecto real en Windows: el historial de un archivo se guardaba bajo una clave calculada con la ruta escrita con '/' y se buscaba con la ruta escrita con '\\', así que el panel de historial salía vacío; ahora el separador se normaliza. La de commands::fs (allow_absolute_write_paths) afirmaba que '/tmp/...' es una ruta absoluta, cierto solo en Unix; esa línea quedó limitada a Unix. Con el PR, cargo test --lib da 493 pasan y 0 fallan. Sin verificar en la app (el historial está desactivado por defecto).",
-      "depende_de": [],
-      "referencia": "PR #21, src-tauri/src/commands/file_history.rs (history_path)",
-      "creado": "2026-10-06",
-      "actualizado": "2026-10-11"
     },
     {
       "id": "P-021",
@@ -391,12 +379,12 @@
       "titulo": "Pantalla de documentos duplicados y carga inicial del catálogo",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "El catálogo (PR #15) ya sabe qué documentos tienen más de una ubicación, pero nada lo muestra, y lo ingerido antes del cambio solo entra al catálogo cuando se vuelve a ingerir. Falta una vista que liste cada documento con sus ubicaciones (marcando los que coinciden por texto reconocido) y una carga inicial desde las fuentes ya ingeridas. Replantear sobre la base documental (P-049) antes de empezar.",
+      "estado": "hecho",
+      "detalle": "El catálogo (PR #15) ya sabe qué documentos tienen más de una ubicación, pero nada lo muestra, y lo ingerido antes del cambio solo entra al catálogo cuando se vuelve a ingerir. Falta una vista que liste cada documento con sus ubicaciones (marcando los que coinciden por texto reconocido) y una carga inicial desde las fuentes ya ingeridas. Replantear sobre la base documental (P-049) antes de empezar. Resuelto sobre la base documental (PR #26): la pantalla Documentos lista cada archivo con su cantidad de copias, tiene el filtro 'Solo con copias' y el detalle muestra todas las ubicaciones del mismo documento. La carga inicial ya no hace falta: la base inventaría las carpetas completas.",
       "depende_de": [],
       "referencia": "src-tauri/src/source_volume/catalog.rs (catalog_list_duplicates)",
       "creado": "2026-10-08",
-      "actualizado": "2026-10-09"
+      "actualizado": "2026-10-11"
     },
     {
       "id": "P-045",
@@ -452,9 +440,9 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "en-curso",
-      "detalle": "Alcance confirmado por el usuario el 2026-10-11: la etapa 1 del diseño más un puente mínimo, que es que el wiki del proyecto general tome sus fuentes de la base. Etapa 1: inventario, vigilancia, identidad (ubicación y contenido; las familias son de la etapa 2), derivados procesados una vez y pantallas de la base, para el espacio privado de un solo usuario. Base en SQLite, con su búsqueda por palabras; LanceDB sigue para vectores. Desde esta etapa: cada ubicación guarda origen, carpeta y etiquetas (las define el usuario según cómo ordena sus carpetas; 'cliente' y 'caso' son etiquetas); toda consulta recibe el conjunto de lo visible, que en privado es 'todo'; cada proyecto tiene miembros, 'abierto' al inicio; existe el proyecto general del espacio. Los datos que hoy viven por proyecto (catálogo, texto reconocido, detección de cambios) pasan al espacio. Pantallas acordadas: Inicio (salud del archivo, requiere atención, actividad reciente, proyectos), Orígenes, Documentos y Detalle de un documento; van en español. El marco visual de toda la app se trata aparte (P-057). Los pendientes P-012, P-015, P-016, P-040 y P-044 se replantean sobre esta base. Avance: (1) PR #24, la base SQLite del espacio privado y sus tablas, sin nada visible todavía. (2) PR #25, orígenes, barrido, huella de cada archivo en segundo plano y pantalla Orígenes. La vigilancia es un barrido al arrancar, cada cinco minutos y a pedido; el aviso en vivo del sistema quedó como P-064. (3) PR #26, pantalla Documentos (tabla con buscador y filtros) y Detalle de un documento con forma de artículo, etiquetas corregibles y todas las ubicaciones del mismo documento. (4) PR #27, texto de cada documento obtenido una vez por extracción directa (sin motores de reconocimiento por su cuenta), mismo texto en dos archivos como un solo documento, y búsqueda por palabras en Documentos. Comprobado en solo lectura sobre AEROS BGH (31 archivos) y Extrimian 3.0 (183), sin errores. (5) PR #28, pantalla Inicio (requiere atención, salud del archivo, actividad reciente, búsqueda rápida); la app abre ahí.",
+      "detalle": "Alcance confirmado por el usuario el 2026-10-11: la etapa 1 del diseño más un puente mínimo, que es que el wiki del proyecto general tome sus fuentes de la base. Etapa 1: inventario, vigilancia, identidad (ubicación y contenido; las familias son de la etapa 2), derivados procesados una vez y pantallas de la base, para el espacio privado de un solo usuario. Base en SQLite, con su búsqueda por palabras; LanceDB sigue para vectores. Desde esta etapa: cada ubicación guarda origen, carpeta y etiquetas (las define el usuario según cómo ordena sus carpetas; 'cliente' y 'caso' son etiquetas); toda consulta recibe el conjunto de lo visible, que en privado es 'todo'; cada proyecto tiene miembros, 'abierto' al inicio; existe el proyecto general del espacio. Los datos que hoy viven por proyecto (catálogo, texto reconocido, detección de cambios) pasan al espacio. Pantallas acordadas: Inicio (salud del archivo, requiere atención, actividad reciente, proyectos), Orígenes, Documentos y Detalle de un documento; van en español. El marco visual de toda la app se trata aparte (P-057). Los pendientes P-012, P-015, P-016, P-040 y P-044 se replantean sobre esta base. Avance: (1) PR #24, la base SQLite del espacio privado y sus tablas, sin nada visible todavía. (2) PR #25, orígenes, barrido, huella de cada archivo en segundo plano y pantalla Orígenes. La vigilancia es un barrido al arrancar, cada cinco minutos y a pedido; el aviso en vivo del sistema quedó como P-064. (3) PR #26, pantalla Documentos (tabla con buscador y filtros) y Detalle de un documento con forma de artículo, etiquetas corregibles y todas las ubicaciones del mismo documento. (4) PR #27, texto de cada documento obtenido una vez por extracción directa (sin motores de reconocimiento por su cuenta), mismo texto en dos archivos como un solo documento, y búsqueda por palabras en Documentos. Comprobado en solo lectura sobre AEROS BGH (31 archivos) y Extrimian 3.0 (183), sin errores. (5) PR #28, pantalla Inicio (requiere atención, salud del archivo, actividad reciente, búsqueda rápida); la app abre ahí. (6) PR #29, el puente: un proyecto de wiki se asigna como proyecto general y las carpetas de la base pasan a ser sus fuentes sin copiar nada; el texto sale de la base y un escaneo reconocido por el wiki vuelve a la base, así no se reconoce dos veces. Asignarlo desactiva la incorporación automática de ese proyecto; incorporar se pide carpeta por carpeta. Construido completo y con pruebas automáticas; falta verlo en la app (P-065) e integrar los PR #24 a #30.",
       "depende_de": [],
-      "referencia": "docs/design/base-documental.md (secciones 3, 5, 11, 12 y 13); src-tauri/src/docbase/; src/components/docbase/; PR #24 a #28",
+      "referencia": "docs/design/base-documental.md; docs/sessions/2026-10-11-sesion-04.md; src-tauri/src/docbase/; src/components/docbase/; PR #24 a #29",
       "creado": "2026-10-09",
       "actualizado": "2026-10-11"
     },
@@ -464,7 +452,7 @@
       "tipo": "codigo",
       "responsable": "ambos",
       "estado": "pendiente",
-      "detalle": "Los dos proyectos de prueba y lo que hay en el workspace se pueden descartar y rehacer. No se pueden alterar sus fuentes originales: G:\\Mi unidad\\Extrimian\\Strategy\\Extrimian 3.0 (my-1st-wiki; verificado el 2026-10-11 que los 92 archivos copiados en el proyecto tienen un original con el mismo nombre ahí) y la carpeta AEROS BGH de Drive. Al rehacer AEROS-BGH, corregir la carpeta duplicada (AEROS-BGH\\AEROS-BGH). En la carpeta de Extrimian 3.0 hay 74 documentos nativos de Google que el proyecto actual nunca incluyó.",
+      "detalle": "Los dos proyectos de prueba y lo que hay en el workspace se pueden descartar y rehacer. No se pueden alterar sus fuentes originales: G:\\Mi unidad\\Extrimian\\Strategy\\Extrimian 3.0 (my-1st-wiki; verificado el 2026-10-11 que los 92 archivos copiados en el proyecto tienen un original con el mismo nombre ahí) y la carpeta AEROS BGH de Drive. Al rehacer AEROS-BGH, corregir la carpeta duplicada (AEROS-BGH\\AEROS-BGH). En la carpeta de Extrimian 3.0 hay 74 documentos nativos de Google que el proyecto actual nunca incluyó. Avance del 2026-10-11: el motor de la base se corrió en solo lectura sobre las dos carpetas originales sin errores (AEROS BGH: 31 archivos, 21 procesados, 10 con texto en imagen; Extrimian 3.0: 183 archivos, 104 procesados, 74 no procesables). Falta lo que consume cupo: crear un proyecto nuevo, asignarlo como proyecto general e incorporar las carpetas al wiki. Hacerlo con el usuario.",
       "depende_de": [
         "P-049"
       ],
@@ -560,7 +548,7 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "La app trae inglés, italiano, ruso y chino; no tiene español. Las pantallas de la base documental (P-049) se escriben en español. Trabajo aparte: traducir al español toda la app existente y, en el mismo trabajo, llevar las pantallas que nacieron solo en español a los otros idiomas. Hay una prueba que exige que todos los idiomas tengan las mismas claves.",
+      "detalle": "La app trae inglés, italiano, ruso y chino; no tiene español. Las pantallas de la base documental (P-049) se escriben en español. Trabajo aparte: traducir al español toda la app existente y, en el mismo trabajo, llevar las pantallas que nacieron solo en español a los otros idiomas. Hay una prueba que exige que todos los idiomas tengan las mismas claves. Incluir los mensajes de error que vienen del motor en inglés y aparecen dentro de las pantallas en español (por ejemplo, por qué una carpeta no se pudo usar como fuente del wiki).",
       "depende_de": [
         "P-049"
       ],
@@ -648,6 +636,34 @@
         "P-049"
       ],
       "referencia": "src-tauri/src/docbase/worker.rs",
+      "creado": "2026-10-11",
+      "actualizado": "2026-10-11"
+    },
+    {
+      "id": "P-065",
+      "titulo": "Ver la base documental funcionando en la app",
+      "tipo": "verificacion",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "detalle": "Nada de los PR #24 a #29 se vio en la app real: solo pruebas automáticas, el motor sobre las carpetas reales en solo lectura y las pantallas dibujadas con datos inventados. Sin consumir cupo: abrir la app (tiene que abrir en Inicio); agregar AEROS BGH en Orígenes (31 archivos; al rato 21 procesados y 10 con 'Texto en imagen'); agregar Extrimian 3.0 (183 archivos, 74 'detectado, no procesable'); en Documentos, 'Solo con copias' tiene que mostrar el acuerdo en Word y en PDF; abrir un documento, corregir una etiqueta y usar 'Ver en su carpeta'; buscar una palabra que esté solo en el texto. El puente se prueba aparte porque consume cupo (P-051).",
+      "depende_de": [
+        "P-049"
+      ],
+      "referencia": "docs/sessions/2026-10-11-sesion-04.md (secciones 5 y 7)",
+      "creado": "2026-10-11",
+      "actualizado": "2026-10-11"
+    },
+    {
+      "id": "P-066",
+      "titulo": "Revisar las decisiones tomadas sin consultar al construir la base",
+      "tipo": "decision",
+      "responsable": "usuario",
+      "estado": "pendiente",
+      "detalle": "La base se construyó en una sesión desatendida. Decisiones a confirmar o cambiar: asignar el proyecto general desactiva la incorporación automática de ese proyecto; el wiki del proyecto general se elige entre los proyectos existentes en vez de crearse solo; la app abre en Inicio; quitar una carpeta la desmonta del wiki general pero deja las páginas generadas; qué archivos deja afuera el inventario (carpetas ocultas, desktop.ini, temporales de Office); dejar vacía una etiqueta corregida vuelve al valor de la carpeta.",
+      "depende_de": [
+        "P-049"
+      ],
+      "referencia": "docs/sessions/2026-10-11-sesion-04.md (sección 6)",
       "creado": "2026-10-11",
       "actualizado": "2026-10-11"
     }
