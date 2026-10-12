@@ -1,7 +1,12 @@
 import type { WikiState } from "@/stores/wiki-store"
 
+/** The document base screens: full width, about the space rather than one project. */
+export function isDocbaseView(view: WikiState["activeView"]): boolean {
+  return view === "origins"
+}
+
 export function isStandaloneView(view: WikiState["activeView"]): boolean {
-  return view === "chat" || view === "skills" || view === "settings"
+  return view === "chat" || view === "skills" || view === "settings" || isDocbaseView(view)
 }
 
 export function isResearchPanelVisible(

@@ -602,6 +602,7 @@ pub fn run() {
             app.manage(agent::cancel::AgentCancellationRegistry::default());
             app.manage(CloseBehaviorState(Mutex::new("minimize".to_string())));
             app.manage(TrayAvailabilityState(Mutex::new(false)));
+            docbase::commands::start(app.handle());
             // Start the API before optional desktop integrations so the
             // backend is reachable if tray setup or another integration fails.
             clip_server::start_clip_server(app.handle().clone());
@@ -645,6 +646,12 @@ pub fn run() {
             source_volume::catalog::catalog_match_file,
             source_volume::catalog::catalog_record_ingest,
             source_volume::catalog::catalog_list_duplicates,
+            docbase::commands::docbase_list_origins,
+            docbase::commands::docbase_preview_folder,
+            docbase::commands::docbase_add_origin,
+            docbase::commands::docbase_set_origin_convention,
+            docbase::commands::docbase_remove_origin,
+            docbase::commands::docbase_rescan,
             commands::fs::preprocess_file,
             commands::fs::delete_file,
             commands::fs::find_related_wiki_pages,

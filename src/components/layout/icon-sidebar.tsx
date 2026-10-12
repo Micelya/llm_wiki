@@ -2,6 +2,7 @@ import { useState, useEffect } from "react"
 import { PRODUCT_NAME } from "@/lib/app-identity"
 import {
   FileText, FolderOpen, Search, Network, ClipboardCheck, Settings, ArrowLeftRight, ClipboardList, Globe, MessageSquare, Sparkles,
+  HardDrive,
 } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useWikiStore } from "@/stores/wiki-store"
@@ -26,6 +27,12 @@ const NAV_ITEMS: { view: NavView; icon: typeof FileText; labelKey: string }[] = 
   { view: "graph", icon: Network, labelKey: "nav.graph" },
   { view: "lint", icon: ClipboardCheck, labelKey: "nav.lint" },
   { view: "review", icon: ClipboardList, labelKey: "nav.review" },
+]
+
+// The document base screens are written in Spanish only for now, so their
+// labels are not translation keys.
+const DOCBASE_NAV_ITEMS: { view: NavView; icon: typeof FileText; label: string }[] = [
+  { view: "origins", icon: HardDrive, label: "Orígenes" },
 ]
 
 interface IconSidebarProps {
@@ -85,6 +92,22 @@ export function IconSidebar({ onSwitchProject }: IconSidebarProps) {
         </div>
         {/* Top: main nav items + Deep Research */}
         <div className="flex flex-1 flex-col items-center gap-1">
+          {DOCBASE_NAV_ITEMS.map(({ view, icon: Icon, label }) => (
+            <Tooltip key={view}>
+              <TooltipTrigger
+                onClick={() => setActiveView(view)}
+                className={`relative flex h-10 w-10 items-center justify-center rounded-md transition-colors ${
+                  activeView === view
+                    ? "bg-accent text-accent-foreground"
+                    : "text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground"
+                }`}
+              >
+                <Icon className="h-5 w-5" />
+              </TooltipTrigger>
+              <TooltipContent side="right">{label}</TooltipContent>
+            </Tooltip>
+          ))}
+          <div className="my-1 h-px w-6 bg-border" />
           {NAV_ITEMS.map(({ view, icon: Icon, labelKey }) => (
             <Tooltip key={view}>
               <TooltipTrigger
