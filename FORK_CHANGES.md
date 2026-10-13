@@ -105,6 +105,12 @@ El detalle de cada cambio (qué líneas, qué pruebas) está en su PR; acá no s
 - **Upstream:** candidato
 - **PR:** #33
 
+### F-015 · Una sola instancia de la app
+- **Propósito:** que abrir la app cuando ya está corriendo (cerrar la ventana solo la oculta en la bandeja) traiga su ventana al frente en vez de arrancar otra copia, que competía con la primera por los puertos locales y quedaba acumulada en segundo plano.
+- **Toca upstream:** `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `src-tauri/src/lib.rs`, `src-tauri/src/tray.rs`
+- **Upstream:** candidato
+- **PR:** #34
+
 ## Reabsorbidos
 
 Cambios que upstream ya incorporó (ID · versión de upstream que lo trae).
