@@ -117,9 +117,9 @@
       "id": "P-015",
       "titulo": "Parecidos, familias de documentos y revisión",
       "tipo": "codigo",
-      "responsable": "claude",
+      "responsable": "ambos",
       "estado": "pendiente",
-      "detalle": "MinHash (secuencias de 5 palabras) y contención para encontrar candidatos; familias automáticas, no por nombre de archivo; clasificación por qué cambió (copia, versión, misma plantilla, divergente). Nunca fusiona: solo relaciona. 'Vigente' es una etiqueta opcional. Los casos dudosos van a revisión humana. Caso de prueba: los 13 comprobantes de AEROS BGH (95-99 % de texto en común, documentos distintos). Replantear sobre la base documental (P-049) antes de empezar. Aclaración del 2026-10-13, a pregunta del usuario: la huella de texto actual ya canoniza (minúsculas, sin acentos, solo letras y dígitos; no cuentan puntuación, saltos de línea, encabezados de página ni marcas de texto reconocido), así que dos textos que difieren solo en formato ya son el mismo documento. Lo que no detecta es cualquier diferencia de palabras: un encabezado o un pie agregados al convertir, una errata, o dos lecturas distintas del mismo escaneo. Eso es lo que resuelve esta tarea, con un umbral muy alto para 'prácticamente el mismo'.",
+      "detalle": "MinHash (secuencias de 5 palabras) y contención para encontrar candidatos; familias automáticas, no por nombre de archivo; clasificación por qué cambió (copia, versión, misma plantilla, divergente). Nunca fusiona: solo relaciona. 'Vigente' es una etiqueta opcional. Los casos dudosos van a revisión humana. Caso de prueba: los 13 comprobantes de AEROS BGH (95-99 % de texto en común, documentos distintos). Replantear sobre la base documental (P-049) antes de empezar. Aclaración del 2026-10-13, a pregunta del usuario: la huella de texto actual ya canoniza (minúsculas, sin acentos, solo letras y dígitos; no cuentan puntuación, saltos de línea, encabezados de página ni marcas de texto reconocido), así que dos textos que difieren solo en formato ya son el mismo documento. Lo que no detecta es cualquier diferencia de palabras: un encabezado o un pie agregados al convertir, una errata, o dos lecturas distintas del mismo escaneo. Eso es lo que resuelve esta tarea, con un umbral muy alto para 'prácticamente el mismo'. Pedido del usuario del 2026-10-13: definir un pipeline para estos casos antes de construir, porque en un estudio es muy común que dos contratos compartan casi todo el texto y sean documentos distintos. Criterio de partida acordado: el porcentaje solo no alcanza, hay que mirar qué cambió; si difieren cifras, fechas, nombres o identificadores son documentos distintos de una misma plantilla, y si difiere texto de relleno es el mismo documento. Primer paso: una propuesta de diseño para revisar con el usuario.",
       "depende_de": [
         "P-014",
         "P-023"
@@ -671,11 +671,11 @@
     },
     {
       "id": "P-070",
-      "titulo": "Llevar al diseño: el wiki tiene un idioma fijo por estudio",
+      "titulo": "El wiki tiene un idioma fijo por estudio",
       "tipo": "decision",
       "responsable": "ambos",
-      "estado": "pendiente",
-      "detalle": "Hoy el modo 'automático' escribe cada página del wiki en el idioma del documento del que salió. Un estudio argentino tiene documentos en castellano, portugués e inglés, y el de referencia además en italiano: daría un wiki en varios idiomas aunque la detección acertara siempre. Propuesta hecha al usuario el 2026-10-13, sin respuesta todavía: el wiki tiene un idioma fijo elegido por el estudio, y el idioma detectado queda como un dato del documento en la base, que sirve para filtrar. Si se acepta, toca el documento de diseño (mostrar la propuesta antes). Mientras tanto el archivo ya nace con un idioma fijo. Decidido por el usuario el 2026-10-13: por ahora el idioma del wiki es siempre fijo por estudio. Falta reflejarlo en el documento de diseño (mostrar la propuesta antes de cambiarlo). El idioma de cada documento como dato pasó a P-072 y el wiki en más de un idioma a P-073.",
+      "estado": "hecho",
+      "detalle": "Hoy el modo 'automático' escribe cada página del wiki en el idioma del documento del que salió. Un estudio argentino tiene documentos en castellano, portugués e inglés, y el de referencia además en italiano: daría un wiki en varios idiomas aunque la detección acertara siempre. Propuesta hecha al usuario el 2026-10-13, sin respuesta todavía: el wiki tiene un idioma fijo elegido por el estudio, y el idioma detectado queda como un dato del documento en la base, que sirve para filtrar. Si se acepta, toca el documento de diseño (mostrar la propuesta antes). Mientras tanto el archivo ya nace con un idioma fijo. Decidido por el usuario el 2026-10-13: por ahora el idioma del wiki es siempre fijo por estudio. Falta reflejarlo en el documento de diseño (mostrar la propuesta antes de cambiarlo). El idioma de cada documento como dato pasó a P-072 y el wiki en más de un idioma a P-073. Cerrado el 2026-10-13: el usuario señaló que la app ya tiene ese ajuste (Configuración, Output Preferences, por proyecto) y que alcanza con usarlo; no hace falta cambiar el documento de diseño. Con el PR #33 el archivo nace con ese ajuste en un idioma fijo. El modo 'automático' sigue existiendo como opción.",
       "depende_de": [
         "P-049"
       ],
@@ -718,9 +718,7 @@
       "responsable": "ambos",
       "estado": "en-espera",
       "detalle": "Para mucho más adelante. El usuario prevé que el estudio exponga funcionalidades por la web y que ahí cada persona elija en qué idioma ver las cosas. Hoy el wiki se genera en un solo idioma, fijo por estudio (P-070). Definir entonces si se generan las páginas en varios idiomas, si se traducen al pedirlas o si se mantiene un idioma de base y los demás se derivan.",
-      "depende_de": [
-        "P-070"
-      ],
+      "depende_de": [],
       "referencia": "",
       "creado": "2026-10-13",
       "actualizado": "2026-10-13"
