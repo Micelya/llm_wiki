@@ -59,11 +59,11 @@
       "tipo": "decision",
       "responsable": "ambos",
       "estado": "pendiente",
-      "detalle": "Convención decidida: etiquetas 'mi-desktop-vX.Y.Z' (candidatas con sufijo '-rc.N'; la primera será mi-desktop-v0.1.0-rc.1). Falta crear la variable de repositorio ENABLE_TAG_RELEASE=true y recién entonces subir la etiqueta. No usar 'git push --tags': el clon tiene las etiquetas de upstream. Plan del 2026-10-12: el usuario quiere generar el instalador y probarlo en su otra máquina antes de pasarlo a los abogados del estudio de referencia. Dos caminos: (a) corrida manual del workflow de build (Actions, 'Run workflow'), que deja los instaladores como archivos de esa corrida sin publicar nada; (b) crear la variable ENABLE_TAG_RELEASE=true y subir la etiqueta mi-desktop-v0.1.0-rc.1, que publica una versión de prueba descargable sin cuenta porque el repo es público. Nunca se generó ningún instalador: no está verificado que el workflow termine bien. Antes de entregarlo a terceros: decidir si la descarga puede ser pública, el proveedor de modelo de cada usuario (P-029) y si va con el wiki sin activar.",
+      "detalle": "Convención decidida: etiquetas 'mi-desktop-vX.Y.Z' (candidatas con sufijo '-rc.N'; la primera será mi-desktop-v0.1.0-rc.1). Falta crear la variable de repositorio ENABLE_TAG_RELEASE=true y recién entonces subir la etiqueta. No usar 'git push --tags': el clon tiene las etiquetas de upstream. Plan del 2026-10-12: el usuario quiere generar el instalador y probarlo en su otra máquina antes de pasarlo a los abogados del estudio de referencia. Dos caminos: (a) corrida manual del workflow de build (Actions, 'Run workflow'), que deja los instaladores como archivos de esa corrida sin publicar nada; (b) crear la variable ENABLE_TAG_RELEASE=true y subir la etiqueta mi-desktop-v0.1.0-rc.1, que publica una versión de prueba descargable sin cuenta porque el repo es público. Nunca se generó ningún instalador: no está verificado que el workflow termine bien. Antes de entregarlo a terceros: decidir si la descarga puede ser pública, el proveedor de modelo de cada usuario (P-029) y si va con el wiki sin activar. Avance del 2026-10-13: el usuario creó la variable ENABLE_TAG_RELEASE=true y se hizo la corrida manual del workflow sobre main (corrida 38325849551), que no publica nada. Windows y Linux compilaron bien; Mac falló al firmar porque no hay certificado de Apple (P-002), lo esperado. Los tres archivos de Windows (instalador .exe, .msi y zip portable, versión 0.1.0) quedaron en LocalRepo\\llm_wiki_mi\\instaladores, fuera del repo. No se subió ninguna etiqueta: con la variable activa, una etiqueta mi-desktop-v* publica una versión descargable por cualquiera. Falta: que el usuario lo pruebe en su otra máquina y decida si se publica.",
       "depende_de": [],
       "referencia": "Settings → Secrets and variables → Actions → Variables",
       "creado": "2026-10-06",
-      "actualizado": "2026-10-12"
+      "actualizado": "2026-10-13"
     },
     {
       "id": "P-008",
@@ -425,14 +425,14 @@
       "titulo": "Activar el wiki del archivo sobre una carpeta de prueba",
       "tipo": "codigo",
       "responsable": "ambos",
-      "estado": "pendiente",
-      "detalle": "Los dos proyectos de prueba y lo que hay en el workspace se pueden descartar y rehacer. No se pueden alterar sus fuentes originales: G:\\Mi unidad\\Extrimian\\Strategy\\Extrimian 3.0 (my-1st-wiki; verificado el 2026-10-11 que los 92 archivos copiados en el proyecto tienen un original con el mismo nombre ahí) y la carpeta AEROS BGH de Drive. Al rehacer AEROS-BGH, corregir la carpeta duplicada (AEROS-BGH\\AEROS-BGH). En la carpeta de Extrimian 3.0 hay 74 documentos nativos de Google que el proyecto actual nunca incluyó. Avance del 2026-10-11: el motor de la base se corrió en solo lectura sobre las dos carpetas originales sin errores (AEROS BGH: 31 archivos, 21 procesados, 10 con texto en imagen; Extrimian 3.0: 183 archivos, 104 procesados, 74 no procesables). Falta lo que consume cupo: crear un proyecto nuevo, asignarlo como proyecto general e incorporar las carpetas al wiki. Hacerlo con el usuario. El 2026-10-12 se borraron los dos proyectos viejos del workspace, a pedido del usuario; las carpetas originales no se tocaron. Ya no hay nada que reconstruir a mano: la app crea el proyecto 'default' y monta ahí las carpetas de la base. Lo que queda es activar el wiki del archivo con una carpeta chica y revisar el resultado. Consume cupo: hacerlo con el usuario.",
+      "estado": "en-curso",
+      "detalle": "Los dos proyectos de prueba y lo que hay en el workspace se pueden descartar y rehacer. No se pueden alterar sus fuentes originales: G:\\Mi unidad\\Extrimian\\Strategy\\Extrimian 3.0 (my-1st-wiki; verificado el 2026-10-11 que los 92 archivos copiados en el proyecto tienen un original con el mismo nombre ahí) y la carpeta AEROS BGH de Drive. Al rehacer AEROS-BGH, corregir la carpeta duplicada (AEROS-BGH\\AEROS-BGH). En la carpeta de Extrimian 3.0 hay 74 documentos nativos de Google que el proyecto actual nunca incluyó. Avance del 2026-10-11: el motor de la base se corrió en solo lectura sobre las dos carpetas originales sin errores (AEROS BGH: 31 archivos, 21 procesados, 10 con texto en imagen; Extrimian 3.0: 183 archivos, 104 procesados, 74 no procesables). Falta lo que consume cupo: crear un proyecto nuevo, asignarlo como proyecto general e incorporar las carpetas al wiki. Hacerlo con el usuario. El 2026-10-12 se borraron los dos proyectos viejos del workspace, a pedido del usuario; las carpetas originales no se tocaron. Ya no hay nada que reconstruir a mano: la app crea el proyecto 'default' y monta ahí las carpetas de la base. Lo que queda es activar el wiki del archivo con una carpeta chica y revisar el resultado. Consume cupo: hacerlo con el usuario. El 2026-10-13 el usuario activó el wiki sobre POC-Micelya (35 archivos, 31 documentos). Funcionó de punta a punta, incluido el reconocimiento de las imágenes con Codex, cuyo texto volvió a la base. Salió en francés: el proyecto 'default' no tenía idioma propio, cayó en 'automático' y la detección tomaba el español por francés. Se frenó con 12 documentos incorporados y 23 en la cola; el wiki quedó mezclado en francés y español. Arreglado en el PR de arreglos del 2026-10-13 (el archivo nace con idioma, la detección distingue las lenguas romances y 'Pausar' frena también la cola). Falta: limpiar lo generado y volver a activarlo con la app ya corregida; no hay una función para rehacer el wiki (P-071).",
       "depende_de": [
         "P-049"
       ],
       "referencia": "docs/design/base-documental.md (sección 9)",
       "creado": "2026-10-11",
-      "actualizado": "2026-10-12"
+      "actualizado": "2026-10-13"
     },
     {
       "id": "P-052",
@@ -510,11 +510,11 @@
       "tipo": "codigo",
       "responsable": "ambos",
       "estado": "pendiente",
-      "detalle": "El usuario quiere llevar la interfaz hacia el mockup del 2026-05-20: barra superior con marca, buscador global y usuario; franja que indica estudio, caso y si es privado; navegación a la izquierda con texto y contadores; páginas con forma de artículo de enciclopedia (pestañas, índice, ficha de datos, enlaces, referencias). Se aplica a toda la app, incorporando los elementos de marca del sitio de Micelya. Acordado el 2026-10-11: hacerlo en un turno dedicado solo a esto, con una pasada de diseño antes de aplicar cambios; falta definir con qué herramienta se hace esa pasada. Relevado el 2026-10-11: la marca está definida en el Manual de Marca (PDF, con una versión legible en markdown) y el sitio la aplica. Paleta magenta y púrpura (primario #8B2778, texto #2F0A38, acento #DD0D6E), tipografías Mulish para títulos e interfaz e Inter para lectura; el manual define modo claro y modo oscuro. El mockup usa celeste sobre azul oscuro, que no es la paleta de la marca: hay que rehacerlo con la paleta real. Falta para una app: logo en formato vectorial y versión para fondo oscuro, colores de estado (éxito, aviso, error), escala de grises y estilos para pantallas densas (tablas, árboles, pestañas); las tipografías hay que incluirlas en la app, no cargarlas de internet. Sumar (2026-10-12): hoy nada en pantalla dice qué proyecto está abierto ni distingue las pantallas de la base (Inicio, Documentos, Orígenes) de las del proyecto abierto (wiki, revisión, grafo); el usuario se confundió y creyó que el wiki había corrido. También entran acá las mejoras de interfaz que el usuario va a pasar juntas, y poder elegir el color de una etiqueta.",
+      "detalle": "El usuario quiere llevar la interfaz hacia el mockup del 2026-05-20: barra superior con marca, buscador global y usuario; franja que indica estudio, caso y si es privado; navegación a la izquierda con texto y contadores; páginas con forma de artículo de enciclopedia (pestañas, índice, ficha de datos, enlaces, referencias). Se aplica a toda la app, incorporando los elementos de marca del sitio de Micelya. Acordado el 2026-10-11: hacerlo en un turno dedicado solo a esto, con una pasada de diseño antes de aplicar cambios; falta definir con qué herramienta se hace esa pasada. Relevado el 2026-10-11: la marca está definida en el Manual de Marca (PDF, con una versión legible en markdown) y el sitio la aplica. Paleta magenta y púrpura (primario #8B2778, texto #2F0A38, acento #DD0D6E), tipografías Mulish para títulos e interfaz e Inter para lectura; el manual define modo claro y modo oscuro. El mockup usa celeste sobre azul oscuro, que no es la paleta de la marca: hay que rehacerlo con la paleta real. Falta para una app: logo en formato vectorial y versión para fondo oscuro, colores de estado (éxito, aviso, error), escala de grises y estilos para pantallas densas (tablas, árboles, pestañas); las tipografías hay que incluirlas en la app, no cargarlas de internet. Sumar (2026-10-12): hoy nada en pantalla dice qué proyecto está abierto ni distingue las pantallas de la base (Inicio, Documentos, Orígenes) de las del proyecto abierto (wiki, revisión, grafo); el usuario se confundió y creyó que el wiki había corrido. También entran acá las mejoras de interfaz que el usuario va a pasar juntas, y poder elegir el color de una etiqueta. Sumar (2026-10-13), del uso real: (a) la caja de etiquetas no dice para qué sirve ni cómo se indica el grupo, dos etiquetas con el mismo nombre solo se distinguen por el color, y quitar una etiqueta recién creada la deja huérfana sin aviso; (b) orígenes, proyectos y wiki están repartidos en pantallas distintas y son temas relacionados: el usuario pide agruparlos; (c) la cola de incorporación solo se ve y se controla desde una barra de la vista del wiki, en inglés, y no desde las pantallas de la base.",
       "depende_de": [],
       "referencia": "Manual de Marca (unidad compartida de Micelya, Marketing/Branding/Micelya); sitio: repo Micelya/micelya-website; mockup: carpeta 2026-05-20-mockups del estudio de referencia",
       "creado": "2026-10-11",
-      "actualizado": "2026-10-12"
+      "actualizado": "2026-10-13"
     },
     {
       "id": "P-058",
@@ -619,27 +619,27 @@
       "tipo": "decision",
       "responsable": "usuario",
       "estado": "pendiente",
-      "detalle": "La base se construyó en una sesión desatendida. Decisiones a confirmar o cambiar: asignar el proyecto general desactiva la incorporación automática de ese proyecto; el wiki del proyecto general se elige entre los proyectos existentes en vez de crearse solo; la app abre en Inicio; quitar una carpeta la desmonta del wiki general pero deja las páginas generadas; qué archivos deja afuera el inventario (carpetas ocultas, desktop.ini, temporales de Office); dejar vacía una etiqueta corregida vuelve al valor de la carpeta. Estado al 2026-10-12: el usuario cambió dos (el proyecto general ahora lo crea la app y se llama según el vocabulario; el wiki, una vez activado, se alimenta solo). Siguen sin revisar: la app abre en Inicio, qué archivos deja afuera el inventario, y las decisiones nuevas de la sección 7 de la sesión 05.",
+      "detalle": "La base se construyó en una sesión desatendida. Decisiones a confirmar o cambiar: asignar el proyecto general desactiva la incorporación automática de ese proyecto; el wiki del proyecto general se elige entre los proyectos existentes en vez de crearse solo; la app abre en Inicio; quitar una carpeta la desmonta del wiki general pero deja las páginas generadas; qué archivos deja afuera el inventario (carpetas ocultas, desktop.ini, temporales de Office); dejar vacía una etiqueta corregida vuelve al valor de la carpeta. Estado al 2026-10-12: el usuario cambió dos (el proyecto general ahora lo crea la app y se llama según el vocabulario; el wiki, una vez activado, se alimenta solo). Siguen sin revisar: la app abre en Inicio, qué archivos deja afuera el inventario, y las decisiones nuevas de la sección 7 de la sesión 05. Decisiones del 2026-10-13 a confirmar: 'Pausar' el wiki del archivo detiene también la cola (el documento en curso vuelve a la cola) y 'Activar' la reanuda; al abrir la app, la cola del archivo queda detenida si su wiki no está activo; el archivo nace con el idioma general de la app o, si no hay, con el del vocabulario; en la caja de etiquetas Enter elige la etiqueta escrita entera y solo crea una si nada coincide; al escribir una etiqueta o un grupo se busca por el nombre que se ve, sin distinguir mayúsculas.",
       "depende_de": [
         "P-049"
       ],
       "referencia": "docs/sessions/2026-10-11-sesion-04.md (sección 6); docs/sessions/2026-10-12-sesion-05.md (sección 7)",
       "creado": "2026-10-11",
-      "actualizado": "2026-10-12"
+      "actualizado": "2026-10-13"
     },
     {
       "id": "P-067",
       "titulo": "Ver en la app el archivo, el árbol, las etiquetas y el índice del wiki",
       "tipo": "verificacion",
       "responsable": "ambos",
-      "estado": "en-curso",
-      "detalle": "Nada del PR #31 se vio en la app real. Sin consumir cupo: (1) primer arranque: tiene que preguntar la carpeta de trabajo, proponer llm-wiki-workspace, crear el proyecto 'default' y abrir en Inicio; (2) Orígenes: panel 'Wiki del archivo' sin activar; 'Ver el contenido' despliega el árbol; (3) excluir un archivo y una carpeta: quedan tachados y con estado 'Excluido', y se pueden volver a incluir; (4) en una carpeta, ícono de etiqueta: 'cada subcarpeta de acá es un… Cliente' y ver los chips en Documentos; filtrar por etiqueta; (5) renombrar una etiqueta en 'Grupos y etiquetas' y ver que cambia en todos lados; (6) corregir a mano la etiqueta de un archivo. Verificar también que la carpeta de prueba ya cargada conserve sus etiquetas como regla en la raíz. Avance del 2026-10-12: el primer paso dio bien en la app real (pregunta la carpeta de trabajo y propone C:/Users/Usuario/llm-wiki-workspace). Faltan los puntos 2 a 6 y la conversión de los niveles ya cargados.",
+      "estado": "hecho",
+      "detalle": "Nada del PR #31 se vio en la app real. Sin consumir cupo: (1) primer arranque: tiene que preguntar la carpeta de trabajo, proponer llm-wiki-workspace, crear el proyecto 'default' y abrir en Inicio; (2) Orígenes: panel 'Wiki del archivo' sin activar; 'Ver el contenido' despliega el árbol; (3) excluir un archivo y una carpeta: quedan tachados y con estado 'Excluido', y se pueden volver a incluir; (4) en una carpeta, ícono de etiqueta: 'cada subcarpeta de acá es un… Cliente' y ver los chips en Documentos; filtrar por etiqueta; (5) renombrar una etiqueta en 'Grupos y etiquetas' y ver que cambia en todos lados; (6) corregir a mano la etiqueta de un archivo. Verificar también que la carpeta de prueba ya cargada conserve sus etiquetas como regla en la raíz. Avance del 2026-10-12: el primer paso dio bien en la app real (pregunta la carpeta de trabajo y propone C:/Users/Usuario/llm-wiki-workspace). Faltan los puntos 2 a 6 y la conversión de los niveles ya cargados. Completado por el usuario el 2026-10-12: los puntos 2 a 6 funcionan. Dejó comentarios de interfaz para pasar juntos (P-057).",
       "depende_de": [
         "P-049"
       ],
       "referencia": "docs/sessions/2026-10-12-sesion-05.md (secciones 5 y 6)",
       "creado": "2026-10-12",
-      "actualizado": "2026-10-12"
+      "actualizado": "2026-10-13"
     },
     {
       "id": "P-068",
@@ -668,6 +668,34 @@
       "referencia": "src/vocabulary/; docs/design/base-documental.md (sección 13)",
       "creado": "2026-10-12",
       "actualizado": "2026-10-12"
+    },
+    {
+      "id": "P-070",
+      "titulo": "Idioma del wiki fijo por estudio, e idioma de cada documento como dato",
+      "tipo": "decision",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "detalle": "Hoy el modo 'automático' escribe cada página del wiki en el idioma del documento del que salió. Un estudio argentino tiene documentos en castellano, portugués e inglés, y el de referencia además en italiano: daría un wiki en varios idiomas aunque la detección acertara siempre. Propuesta hecha al usuario el 2026-10-13, sin respuesta todavía: el wiki tiene un idioma fijo elegido por el estudio, y el idioma detectado queda como un dato del documento en la base, que sirve para filtrar. Si se acepta, toca el documento de diseño (mostrar la propuesta antes). Mientras tanto el archivo ya nace con un idioma fijo.",
+      "depende_de": [
+        "P-049"
+      ],
+      "referencia": "src/lib/output-language.ts; src/lib/detect-language.ts; src/lib/default-project.ts",
+      "creado": "2026-10-13",
+      "actualizado": "2026-10-13"
+    },
+    {
+      "id": "P-071",
+      "titulo": "Rehacer el wiki del archivo desde cero",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "No hay forma de descartar lo generado y volver a incorporar: hace falta cuando el wiki salió mal (idioma equivocado, instrucciones cambiadas). Hoy hay que cerrar la app y apartar a mano la carpeta del proyecto 'default'; la app la crea de nuevo al arrancar. Lo que no se pierde: el texto reconocido de escaneos e imágenes, que ya está en la base. Definir si se ofrece como acción en la pantalla del wiki del archivo, con aviso del cupo que consume.",
+      "depende_de": [
+        "P-049"
+      ],
+      "referencia": "src-tauri/src/docbase/bridge.rs (ensure_default_project); src/lib/docbase-wiki-bridge.ts",
+      "creado": "2026-10-13",
+      "actualizado": "2026-10-13"
     }
   ]
 }
