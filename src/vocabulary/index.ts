@@ -29,6 +29,8 @@ export interface Vocabulary {
   }
   /** Label groups offered to start with, most general first. */
   suggestedGroups: string[]
+  /** The language its wiki is written in when the user chose none, as an output-language value. */
+  wikiLanguage: string
 }
 
 export type VerticalId = "legal"

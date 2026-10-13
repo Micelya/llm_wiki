@@ -2,7 +2,12 @@ import { useEffect, useState } from "react"
 import { BookOpen, Pause, Play } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { getGeneralProject, type WikiSource } from "@/commands/docbase"
-import { isSameProjectPath, pendingWikiSourcesByOrigin, setWikiFeeding } from "@/lib/docbase-wiki-bridge"
+import {
+  isSameProjectPath,
+  pendingWikiSourcesByOrigin,
+  setWikiFeeding,
+  waitingInQueue,
+} from "@/lib/docbase-wiki-bridge"
 import { useAppDialog } from "@/stores/app-dialog-store"
 import { useWikiStore } from "@/stores/wiki-store"
 import { vocabulary } from "@/vocabulary"
@@ -52,6 +57,7 @@ export function GeneralProjectPanel() {
   if (!data || !data.path) return general.error ? <ErrorNote>{general.error}</ErrorNote> : null
 
   const pendingTotal = [...pending.values()].reduce((sum, list) => sum + list.length, 0)
+  const waiting = project && isOpenProject ? waitingInQueue(project) : 0
 
   async function toggle(active: boolean) {
     if (!project) return
@@ -60,8 +66,8 @@ export function GeneralProjectPanel() {
         ? {
             title: `Activar el ${words.archive.wiki.toLowerCase()}`,
             message:
-              (pendingTotal > 0
-                ? `Se van a incorporar ${plural(pendingTotal, "documento", "documentos")} ahora. `
+              (pendingTotal + waiting > 0
+                ? `Se van a incorporar ${plural(pendingTotal + waiting, "documento", "documentos")} ahora. `
                 : "") +
               "Desde ahora todo lo que se agregue o cambie en las carpetas incorporadas pasa al wiki solo. " +
               "Cada documento pasa por el modelo configurado, así que consume cupo o costo de ese proveedor. " +
@@ -72,7 +78,9 @@ export function GeneralProjectPanel() {
         : {
             title: `Pausar el ${words.archive.wiki.toLowerCase()}`,
             message:
-              "Deja de incorporarse lo nuevo. Las páginas que ya existen quedan como están, y lo que esté en la cola termina.",
+              "No se manda nada más al modelo: deja de incorporarse lo nuevo y lo que esperaba en la cola queda detenido, " +
+              "incluido el documento que estuviera en curso. Las páginas que ya existen quedan como están. " +
+              "Al activarlo de nuevo sigue desde donde quedó.",
             confirmLabel: "Pausar",
             cancelLabel: "Cancelar",
           },
@@ -85,8 +93,8 @@ export function GeneralProjectPanel() {
       const queued = await setWikiFeeding(project, active)
       if (active) {
         setNotice(
-          queued > 0
-            ? `${plural(queued, "documento quedó", "documentos quedaron")} en la cola de incorporación.`
+          queued + waiting > 0
+            ? `${plural(queued + waiting, "documento quedó", "documentos quedaron")} en la cola de incorporación.`
             : "Activado. No había documentos pendientes de incorporar, o no hay un modelo configurado.",
         )
       }
@@ -106,7 +114,7 @@ export function GeneralProjectPanel() {
           {data.wikiActive ? (
             <StatusBadge tone="ok">Activo</StatusBadge>
           ) : (
-            <StatusBadge tone="neutral">Sin activar</StatusBadge>
+            <StatusBadge tone="neutral">{waiting > 0 ? "En pausa" : "Sin activar"}</StatusBadge>
           )}
         </>
       }
@@ -132,7 +140,9 @@ export function GeneralProjectPanel() {
           {words.archive.wikiDescription}{" "}
           {data.wikiActive
             ? "Se alimenta solo: lo que se agrega, cambia o se quita en las carpetas pasa al wiki."
-            : "Todavía no se armó: activarlo usa el modelo configurado, por eso no arranca solo."}
+            : waiting > 0
+              ? "Está en pausa: no se manda nada al modelo hasta que lo actives de nuevo."
+              : "Todavía no se armó: activarlo usa el modelo configurado, por eso no arranca solo."}
         </p>
 
         {!isOpenProject && (
@@ -151,6 +161,14 @@ export function GeneralProjectPanel() {
                 </li>
               ))}
           </ul>
+        )}
+
+        {isOpenProject && waiting > 0 && (
+          <p>
+            <StatusBadge tone={data.wikiActive ? "busy" : "neutral"}>
+              {plural(waiting, "documento", "documentos")} en la cola{data.wikiActive ? "" : ", detenidos"}
+            </StatusBadge>
+          </p>
         )}
 
         {isOpenProject && pendingTotal > 0 && (
