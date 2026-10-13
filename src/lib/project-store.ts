@@ -410,11 +410,16 @@ const PROJECT_FILE_SYNC_KEY = "projectFileSyncEnabled"
 const SOURCE_WATCH_CONFIG_KEY = "sourceWatchConfig"
 const SOURCE_WATCH_ALL_PROJECTS_KEY = "sourceWatchAllProjects"
 
-export async function saveOutputLanguage(lang: OutputLanguage, projectId?: string): Promise<void> {
+export async function saveOutputLanguage(
+  lang: OutputLanguage,
+  projectId?: string,
+  options: { projectOnly?: boolean } = {},
+): Promise<void> {
   const store = await getStore()
   if (projectId) {
     const existing = (await store.get<Record<string, OutputLanguage>>(PROJECT_OUTPUT_LANGUAGE_KEY)) ?? {}
     await store.set(PROJECT_OUTPUT_LANGUAGE_KEY, { ...existing, [projectId]: lang })
+    if (options.projectOnly) return
   }
   await store.set(OUTPUT_LANGUAGE_KEY, lang)
 }

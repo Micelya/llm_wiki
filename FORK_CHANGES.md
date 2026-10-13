@@ -97,7 +97,13 @@ El detalle de cada cambio (qué líneas, qué pruebas) está en su PR; acá no s
 - **Propósito:** que la app sepa qué archivos hay en un espacio, dónde está cada copia y cuáles son el mismo documento, y que lo derivado de cada documento se obtenga una sola vez: un componente propio (`src-tauri/src/docbase/`) con una base SQLite por espacio, sus pantallas (`src/components/docbase/`: Inicio, Documentos, Orígenes), el proyecto general que la app crea y abre sola con su wiki activable, etiquetas por grupos con reglas de carpeta, exclusiones, un índice de las páginas y enlaces del wiki, y el vocabulario por vertical (`src/vocabulary/`).
 - **Toca upstream:** `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `src-tauri/src/lib.rs`, `src/stores/wiki-store.ts`, `src/components/layout/content-area.tsx`, `src/components/layout/icon-sidebar.tsx`, `src/components/layout/research-panel-nav.ts`, `src-tauri/src/commands/fs.rs`, `src-tauri/src/commands/project.rs`, `src/App.tsx`, `src/lib/project-store.ts`, `src/lib/source-lifecycle.ts`
 - **Upstream:** solo-fork
-- **PR:** #24, #25, #26, #27, #28, #29, #31
+- **PR:** #24, #25, #26, #27, #28, #29, #31, #33
+
+### F-014 · Detección de idioma entre lenguas romances
+- **Propósito:** que un texto en español, italiano o portugués no se tome por francés solo por traer «la» y una letra acentuada (un wiki entero salió en francés): entre esas cuatro lenguas gana la que junta más palabras y letras propias.
+- **Toca upstream:** `src/lib/detect-language.ts`
+- **Upstream:** candidato
+- **PR:** #33
 
 ## Reabsorbidos
 

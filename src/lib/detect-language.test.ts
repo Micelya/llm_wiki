@@ -106,6 +106,32 @@ describe("detectLanguage", () => {
       expect(detectLanguage("el nino y los libros del colegio que son para todos")).toBe("Spanish")
     })
 
+    it("does not take Spanish for French because of \"la\" and an accent", () => {
+      // Regression: a wiki was generated in French from Spanish documents.
+      expect(detectLanguage(
+        "Por la presente intimamos a la empresa al pago de la suma reclamada, más los intereses hasta la fecha de cancelación.",
+      )).toBe("Spanish")
+      expect(detectLanguage("La intimación fue recibida y la deuda está en discusión entre las partes.")).toBe("Spanish")
+    })
+
+    it("does not take Italian for French because of \"la\" and \"le\"", () => {
+      expect(detectLanguage(
+        "La società è stata costituita nel 2019 e le fatture non sono state pagate, come risulta dalla documentazione che è allegata.",
+      )).toBe("Italian")
+    })
+
+    it("does not take Portuguese for French or Spanish", () => {
+      expect(detectLanguage(
+        "A empresa não pagou as faturas e os juros são devidos na data do vencimento, conforme o contrato de prestação.",
+      )).toBe("Portuguese")
+    })
+
+    it("keeps French when Spanish-looking words are fewer", () => {
+      expect(detectLanguage(
+        "La société a été constituée en 2019 et les factures ne sont pas payées, dans les délais prévus par le contrat.",
+      )).toBe("French")
+    })
+
     it("detects Polish via diacritics", () => {
       expect(detectLanguage("dzień dobry świat")).toBe("Polish")
     })

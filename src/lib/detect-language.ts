@@ -229,6 +229,56 @@ function getScript(cp: number): string | null {
  * Detect Latin-script languages via diacritics and common word patterns.
  */
 function detectLatinLanguage(text: string): string | null {
+  const first = firstLatinMatch(text)
+  // The Romance languages share most of their short words and accents
+  // ("la", "de", "é"), so the first rule that matches is often the wrong
+  // one: any Spanish or Italian text containing "la" used to come out as
+  // French. Between those four the one with the most evidence wins.
+  return first && first in ROMANCE_WORDS ? pickRomanceLanguage(text, first) : first
+}
+
+/** Words and letters that tell each Romance language from the other three. */
+const ROMANCE_WORDS: Record<string, { words: Set<string>; letters: RegExp }> = {
+  French: {
+    words: new Set(["le", "les", "des", "est", "et", "une", "du", "au", "aux", "dans", "avec", "pour", "sur", "qui", "ce", "cette", "sont", "pas", "nous", "vous", "il", "elle", "leur", "mais", "ou", "où"]),
+    letters: /[èêëîïôùûœ]/g,
+  },
+  Spanish: {
+    words: new Set(["el", "los", "las", "del", "y", "con", "por", "para", "es", "al", "su", "sus", "como", "pero", "este", "esta", "son", "más", "fue", "desde", "entre", "sobre", "sin", "lo"]),
+    letters: /[ñ¿¡]/g,
+  },
+  Portuguese: {
+    words: new Set(["o", "os", "as", "do", "da", "dos", "das", "em", "um", "uma", "não", "com", "na", "no", "nas", "nos", "ao", "são", "mais", "pelo", "pela", "foi", "seu", "sua", "você", "também"]),
+    letters: /[ãõ]/g,
+  },
+  Italian: {
+    words: new Set(["il", "gli", "della", "dello", "delle", "dei", "degli", "che", "è", "di", "non", "per", "nel", "nella", "sono", "alla", "anche", "più", "con", "come", "ma", "ed", "tra", "sul"]),
+    letters: /[ìò]/g,
+  },
+}
+
+function pickRomanceLanguage(text: string, first: string): string {
+  const lower = text.toLowerCase()
+  const tokens = lower.match(/\p{L}+/gu) ?? []
+  let best = first
+  let bestScore = -1
+  let firstScore = 0
+  for (const [language, { words, letters }] of Object.entries(ROMANCE_WORDS)) {
+    let score = (lower.match(letters) ?? []).length * 2
+    for (const token of tokens) {
+      if (words.has(token)) score += 1
+    }
+    if (language === first) firstScore = score
+    if (score > bestScore) {
+      best = language
+      bestScore = score
+    }
+  }
+  // On a tie the first rule that matched stands.
+  return bestScore > firstScore ? best : first
+}
+
+function firstLatinMatch(text: string): string | null {
   const lower = text.toLowerCase()
 
   // Vietnamese — VN-EXCLUSIVE tone/hook marks only.

@@ -15,6 +15,7 @@ export const legal: Vertical = {
           "El wiki que se arma con todos los documentos de las carpetas incorporadas.",
       },
       suggestedGroups: ["Cliente", "Caso"],
+      wikiLanguage: "Spanish",
     },
     en: {
       archive: {
@@ -26,6 +27,7 @@ export const legal: Vertical = {
         wikiDescription: "The wiki built from every document in the incorporated folders.",
       },
       suggestedGroups: ["Client", "Matter"],
+      wikiLanguage: "English",
     },
   },
 }

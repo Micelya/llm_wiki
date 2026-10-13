@@ -8,7 +8,7 @@
  */
 import { listWikiSources, setWikiActive, type WikiSource } from "@/commands/docbase"
 import { listIngestedSourceIdentities } from "@/lib/ingest-cache"
-import { getQueue } from "@/lib/ingest-queue"
+import { getQueue, pauseProcessing, resumeProcessing } from "@/lib/ingest-queue"
 import { normalizePath } from "@/lib/path-utils"
 import { loadSourceWatchConfig, saveSourceWatchConfig } from "@/lib/project-store"
 import { enqueueSourceIngest, isIngestableSourcePath } from "@/lib/source-lifecycle"
@@ -68,8 +68,9 @@ export async function pendingWikiSourcesByOrigin(project: WikiProject): Promise<
  *
  * On: the project's watcher starts ingesting what appears or changes in
  * the origins, and what is already there and was never ingested is
- * queued now. Off: nothing more is sent to the model; pages stay.
- * Returns how many documents were queued.
+ * queued now. Off: nothing more is sent to the model, which includes
+ * what was already waiting in the queue; pages stay. Returns how many
+ * documents were queued.
  */
 export async function setWikiFeeding(project: WikiProject, active: boolean): Promise<number> {
   const { startProjectFileSync, stopProjectFileSync } = await import("@/lib/project-file-sync")
@@ -87,9 +88,23 @@ export async function setWikiFeeding(project: WikiProject, active: boolean): Pro
       console.error("[docbase] failed to restart the project file watcher:", error),
     )
   }
-  if (!active) return 0
+  if (!active) {
+    // The document in flight goes back to the queue; nothing is lost.
+    pauseProcessing()
+    return 0
+  }
   const pending = [...(await pendingWikiSourcesByOrigin(project)).values()].flat()
-  return pending.length > 0 ? ingestWikiSources(project, pending) : 0
+  const queued = pending.length > 0 ? await ingestWikiSources(project, pending) : 0
+  // What a pause left waiting goes on from where it stopped.
+  resumeProcessing()
+  return queued
+}
+
+/** How many documents of the project wait in its queue. */
+export function waitingInQueue(project: WikiProject): number {
+  return getQueue().filter(
+    (task) => task.projectId === project.id && (task.status === "pending" || task.status === "processing"),
+  ).length
 }
 
 /** The pending sources under one folder of an origin, or one file. */

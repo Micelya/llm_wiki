@@ -222,7 +222,7 @@ function NewOriginForm({
           </span>
           <Input
             value={draft.convention}
-            placeholder="cliente, caso"
+            placeholder={vocabulary().suggestedGroups.join(", ").toLowerCase()}
             onChange={(event) => onChange({ ...draft, convention: event.target.value })}
           />
           <span className="text-xs text-muted-foreground">

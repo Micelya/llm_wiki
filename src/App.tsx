@@ -516,6 +516,8 @@ function App() {
       try {
         const { restoreQueue } = await import("@/lib/ingest-queue")
         await restoreQueue(proj.id, proj.path)
+        const { holdQueueWhileWikiIsOff } = await import("@/lib/default-project")
+        await holdQueueWhileWikiIsOff(proj)
       } catch (err) {
         console.error("Failed to restore ingest queue:", err)
       }
