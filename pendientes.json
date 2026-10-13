@@ -117,16 +117,16 @@
       "id": "P-015",
       "titulo": "Parecidos, familias de documentos y revisión",
       "tipo": "codigo",
-      "responsable": "claude",
+      "responsable": "ambos",
       "estado": "pendiente",
-      "detalle": "MinHash (secuencias de 5 palabras) y contención para encontrar candidatos; familias automáticas, no por nombre de archivo; clasificación por qué cambió (copia, versión, misma plantilla, divergente). Nunca fusiona: solo relaciona. 'Vigente' es una etiqueta opcional. Los casos dudosos van a revisión humana. Caso de prueba: los 13 comprobantes de AEROS BGH (95-99 % de texto en común, documentos distintos). Replantear sobre la base documental (P-049) antes de empezar.",
+      "detalle": "MinHash (secuencias de 5 palabras) y contención para encontrar candidatos; familias automáticas, no por nombre de archivo; clasificación por qué cambió (copia, versión, misma plantilla, divergente). Nunca fusiona: solo relaciona. 'Vigente' es una etiqueta opcional. Los casos dudosos van a revisión humana. Caso de prueba: los 13 comprobantes de AEROS BGH (95-99 % de texto en común, documentos distintos). Replantear sobre la base documental (P-049) antes de empezar. Aclaración del 2026-10-13, a pregunta del usuario: la huella de texto actual ya canoniza (minúsculas, sin acentos, solo letras y dígitos; no cuentan puntuación, saltos de línea, encabezados de página ni marcas de texto reconocido), así que dos textos que difieren solo en formato ya son el mismo documento. Lo que no detecta es cualquier diferencia de palabras: un encabezado o un pie agregados al convertir, una errata, o dos lecturas distintas del mismo escaneo. Eso es lo que resuelve esta tarea, con un umbral muy alto para 'prácticamente el mismo'. Pedido del usuario del 2026-10-13: definir un pipeline para estos casos antes de construir, porque en un estudio es muy común que dos contratos compartan casi todo el texto y sean documentos distintos. Criterio de partida acordado: el porcentaje solo no alcanza, hay que mirar qué cambió; si difieren cifras, fechas, nombres o identificadores son documentos distintos de una misma plantilla, y si difiere texto de relleno es el mismo documento. Primer paso: una propuesta de diseño para revisar con el usuario.",
       "depende_de": [
         "P-014",
         "P-023"
       ],
       "referencia": "POC en C:\\Temporales\\poc\\minhash",
       "creado": "2026-10-06",
-      "actualizado": "2026-10-09"
+      "actualizado": "2026-10-13"
     },
     {
       "id": "P-016",
@@ -426,7 +426,7 @@
       "tipo": "codigo",
       "responsable": "ambos",
       "estado": "en-curso",
-      "detalle": "Los dos proyectos de prueba y lo que hay en el workspace se pueden descartar y rehacer. No se pueden alterar sus fuentes originales: G:\\Mi unidad\\Extrimian\\Strategy\\Extrimian 3.0 (my-1st-wiki; verificado el 2026-10-11 que los 92 archivos copiados en el proyecto tienen un original con el mismo nombre ahí) y la carpeta AEROS BGH de Drive. Al rehacer AEROS-BGH, corregir la carpeta duplicada (AEROS-BGH\\AEROS-BGH). En la carpeta de Extrimian 3.0 hay 74 documentos nativos de Google que el proyecto actual nunca incluyó. Avance del 2026-10-11: el motor de la base se corrió en solo lectura sobre las dos carpetas originales sin errores (AEROS BGH: 31 archivos, 21 procesados, 10 con texto en imagen; Extrimian 3.0: 183 archivos, 104 procesados, 74 no procesables). Falta lo que consume cupo: crear un proyecto nuevo, asignarlo como proyecto general e incorporar las carpetas al wiki. Hacerlo con el usuario. El 2026-10-12 se borraron los dos proyectos viejos del workspace, a pedido del usuario; las carpetas originales no se tocaron. Ya no hay nada que reconstruir a mano: la app crea el proyecto 'default' y monta ahí las carpetas de la base. Lo que queda es activar el wiki del archivo con una carpeta chica y revisar el resultado. Consume cupo: hacerlo con el usuario. El 2026-10-13 el usuario activó el wiki sobre POC-Micelya (35 archivos, 31 documentos). Funcionó de punta a punta, incluido el reconocimiento de las imágenes con Codex, cuyo texto volvió a la base. Salió en francés: el proyecto 'default' no tenía idioma propio, cayó en 'automático' y la detección tomaba el español por francés. Se frenó con 12 documentos incorporados y 23 en la cola; el wiki quedó mezclado en francés y español. Arreglado en el PR de arreglos del 2026-10-13 (el archivo nace con idioma, la detección distingue las lenguas romances y 'Pausar' frena también la cola). Falta: limpiar lo generado y volver a activarlo con la app ya corregida; no hay una función para rehacer el wiki (P-071).",
+      "detalle": "Los dos proyectos de prueba y lo que hay en el workspace se pueden descartar y rehacer. No se pueden alterar sus fuentes originales: G:\\Mi unidad\\Extrimian\\Strategy\\Extrimian 3.0 (my-1st-wiki; verificado el 2026-10-11 que los 92 archivos copiados en el proyecto tienen un original con el mismo nombre ahí) y la carpeta AEROS BGH de Drive. Al rehacer AEROS-BGH, corregir la carpeta duplicada (AEROS-BGH\\AEROS-BGH). En la carpeta de Extrimian 3.0 hay 74 documentos nativos de Google que el proyecto actual nunca incluyó. Avance del 2026-10-11: el motor de la base se corrió en solo lectura sobre las dos carpetas originales sin errores (AEROS BGH: 31 archivos, 21 procesados, 10 con texto en imagen; Extrimian 3.0: 183 archivos, 104 procesados, 74 no procesables). Falta lo que consume cupo: crear un proyecto nuevo, asignarlo como proyecto general e incorporar las carpetas al wiki. Hacerlo con el usuario. El 2026-10-12 se borraron los dos proyectos viejos del workspace, a pedido del usuario; las carpetas originales no se tocaron. Ya no hay nada que reconstruir a mano: la app crea el proyecto 'default' y monta ahí las carpetas de la base. Lo que queda es activar el wiki del archivo con una carpeta chica y revisar el resultado. Consume cupo: hacerlo con el usuario. El 2026-10-13 el usuario activó el wiki sobre POC-Micelya (35 archivos, 31 documentos). Funcionó de punta a punta, incluido el reconocimiento de las imágenes con Codex, cuyo texto volvió a la base. Salió en francés: el proyecto 'default' no tenía idioma propio, cayó en 'automático' y la detección tomaba el español por francés. Se frenó con 12 documentos incorporados y 23 en la cola; el wiki quedó mezclado en francés y español. Arreglado en el PR de arreglos del 2026-10-13 (el archivo nace con idioma, la detección distingue las lenguas romances y 'Pausar' frena también la cola). Falta: limpiar lo generado y volver a activarlo con la app ya corregida; no hay una función para rehacer el wiki (P-071). El PR #33 se integró el 2026-10-13. La carpeta del wiki mezclado se apartó sin borrarla (LocalRepo\\llm_wiki_mi\\wiki-descartado-2026-10-13-frances) y la carpeta de trabajo quedó vacía: al abrir, la app crea el archivo de nuevo. Falta abrir la app, comprobar que nace en español y activar el wiki.",
       "depende_de": [
         "P-049"
       ],
@@ -671,11 +671,11 @@
     },
     {
       "id": "P-070",
-      "titulo": "Idioma del wiki fijo por estudio, e idioma de cada documento como dato",
+      "titulo": "El wiki tiene un idioma fijo por estudio",
       "tipo": "decision",
       "responsable": "ambos",
-      "estado": "pendiente",
-      "detalle": "Hoy el modo 'automático' escribe cada página del wiki en el idioma del documento del que salió. Un estudio argentino tiene documentos en castellano, portugués e inglés, y el de referencia además en italiano: daría un wiki en varios idiomas aunque la detección acertara siempre. Propuesta hecha al usuario el 2026-10-13, sin respuesta todavía: el wiki tiene un idioma fijo elegido por el estudio, y el idioma detectado queda como un dato del documento en la base, que sirve para filtrar. Si se acepta, toca el documento de diseño (mostrar la propuesta antes). Mientras tanto el archivo ya nace con un idioma fijo.",
+      "estado": "hecho",
+      "detalle": "Hoy el modo 'automático' escribe cada página del wiki en el idioma del documento del que salió. Un estudio argentino tiene documentos en castellano, portugués e inglés, y el de referencia además en italiano: daría un wiki en varios idiomas aunque la detección acertara siempre. Propuesta hecha al usuario el 2026-10-13, sin respuesta todavía: el wiki tiene un idioma fijo elegido por el estudio, y el idioma detectado queda como un dato del documento en la base, que sirve para filtrar. Si se acepta, toca el documento de diseño (mostrar la propuesta antes). Mientras tanto el archivo ya nace con un idioma fijo. Decidido por el usuario el 2026-10-13: por ahora el idioma del wiki es siempre fijo por estudio. Falta reflejarlo en el documento de diseño (mostrar la propuesta antes de cambiarlo). El idioma de cada documento como dato pasó a P-072 y el wiki en más de un idioma a P-073. Cerrado el 2026-10-13: el usuario señaló que la app ya tiene ese ajuste (Configuración, Output Preferences, por proyecto) y que alcanza con usarlo; no hace falta cambiar el documento de diseño. Con el PR #33 el archivo nace con ese ajuste en un idioma fijo. El modo 'automático' sigue existiendo como opción.",
       "depende_de": [
         "P-049"
       ],
@@ -694,6 +694,32 @@
         "P-049"
       ],
       "referencia": "src-tauri/src/docbase/bridge.rs (ensure_default_project); src/lib/docbase-wiki-bridge.ts",
+      "creado": "2026-10-13",
+      "actualizado": "2026-10-13"
+    },
+    {
+      "id": "P-072",
+      "titulo": "Idioma de cada documento como dato de la base, con detección confiable sin IA",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "La base no guarda en qué idioma está cada documento. Registrarlo sirve para filtrar y, más adelante, para elegir el motor de lectura. El usuario pide que la detección siga sin usar IA (más rápida y barata) pero que sea confiable: la actual son reglas a mano sobre letras y palabras cortas, heredadas del proyecto original, y falló con español (corregido para las cuatro lenguas romances en el PR #33, sigue siendo frágil). Evaluar un detector estadístico por frecuencias de secuencias de letras, que corre local y devuelve además un grado de confianza; medirlo sobre documentos reales en castellano, portugués, inglés e italiano, incluidos textos cortos y documentos con dos idiomas. Con el wiki en idioma fijo, la detección deja de decidir en qué idioma se escribe.",
+      "depende_de": [
+        "P-049"
+      ],
+      "referencia": "src/lib/detect-language.ts; src-tauri/src/docbase/text.rs",
+      "creado": "2026-10-13",
+      "actualizado": "2026-10-13"
+    },
+    {
+      "id": "P-073",
+      "titulo": "Wiki en más de un idioma",
+      "tipo": "decision",
+      "responsable": "ambos",
+      "estado": "en-espera",
+      "detalle": "Para mucho más adelante. El usuario prevé que el estudio exponga funcionalidades por la web y que ahí cada persona elija en qué idioma ver las cosas. Hoy el wiki se genera en un solo idioma, fijo por estudio (P-070). Definir entonces si se generan las páginas en varios idiomas, si se traducen al pedirlas o si se mantiene un idioma de base y los demás se derivan.",
+      "depende_de": [],
+      "referencia": "",
       "creado": "2026-10-13",
       "actualizado": "2026-10-13"
     }

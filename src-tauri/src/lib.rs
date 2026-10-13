@@ -555,6 +555,13 @@ pub fn run() {
     apply_linux_webkit_compat_env();
 
     tauri::Builder::default()
+        // Has to be the first plugin. Closing the window only hides the
+        // app in the tray, so opening it again used to start a second
+        // copy that fought the first one for the local ports. A second
+        // launch now brings back the window of the one already running.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            tray::show_main_window(app);
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
