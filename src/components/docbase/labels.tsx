@@ -70,7 +70,8 @@ export function LabelPicker({
     .filter((label) => !exclude.includes(label.id))
     .filter((label) => typed === "" || labelText(label).toLowerCase().includes(typed))
     .slice(0, 8)
-  const exact = all.some((label) => labelText(label).toLowerCase() === typed)
+  const exact = all.find((label) => labelText(label).toLowerCase() === typed)
+  const group = vocabulary().suggestedGroups[0]
 
   async function create() {
     const { group, name } = parseLabelText(text)
@@ -89,10 +90,21 @@ export function LabelPicker({
       <Input
         className="h-7"
         value={text}
-        placeholder="Buscar o crear: Cliente: BGH"
+        placeholder={group ? `Elegir una etiqueta o crear una: ${group}: nombre` : "Elegir una etiqueta o crear una"}
         onChange={(event) => setText(event.target.value)}
         onKeyDown={(event) => {
-          if (event.key === "Enter" && typed !== "" && !exact) void create()
+          if (event.key !== "Enter" || typed === "") return
+          // Enter takes the label that was typed in full. It creates one
+          // only when nothing existing matches: with matches on screen,
+          // creating has to be the explicit choice.
+          if (exact) {
+            if (!exclude.includes(exact.id)) {
+              setText("")
+              void onPick(exact)
+            }
+          } else if (matches.length === 0) {
+            void create()
+          }
         }}
       />
       <div className="flex flex-wrap gap-1">

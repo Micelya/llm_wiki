@@ -135,7 +135,22 @@ impl DocBase {
             Some(group) => Some(ensure_group(&conn, group)?),
             None => None,
         };
-        let id = ensure_label_row(&conn, group_id, name)?;
+        // What the user types is the name they see. A label that came
+        // from a folder and was renamed keeps the folder's name as its
+        // key, so looking only by key would create a second label with
+        // the same name in the same group.
+        let by_name: Option<i64> = conn
+            .query_row(
+                "SELECT id FROM label WHERE coalesce(group_id, 0) = ?1 AND lower(name) = lower(?2) ORDER BY id LIMIT 1",
+                params![group_id.unwrap_or(0), name],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(sql_err)?;
+        let id = match by_name {
+            Some(id) => id,
+            None => ensure_label_row(&conn, group_id, name)?,
+        };
         label_by_id(&conn, id)?.ok_or_else(|| "No se pudo crear la etiqueta".to_string())
     }
 
@@ -503,7 +518,7 @@ fn group_names(conn: &Connection) -> Result<HashMap<i64, String>, String> {
 
 fn ensure_group(conn: &Connection, name: &str) -> Result<i64, String> {
     let found: Option<i64> = conn
-        .query_row("SELECT id FROM label_group WHERE name = ?1", [name], |row| row.get(0))
+        .query_row("SELECT id FROM label_group WHERE lower(name) = lower(?1) ORDER BY id LIMIT 1", [name], |row| row.get(0))
         .optional()
         .map_err(sql_err)?;
     if let Some(id) = found {
@@ -692,6 +707,21 @@ mod tests {
         let clients = groups.iter().find(|group| group.name.as_deref() == Some("Cliente")).unwrap();
         assert_eq!(clients.labels.len(), 3);
         assert_eq!(clients.labels.iter().find(|l| l.label.id == bgh.id).unwrap().files, 4);
+    }
+
+    #[test]
+    fn typing_the_name_of_a_renamed_label_finds_it_instead_of_making_another() {
+        let (_dir, base, origin) = sample();
+        base.set_levels_rule(&origin, "", &["Cliente".into()]).unwrap();
+        let bgh = base.ensure_label(Some("Cliente"), "BGH").unwrap();
+        base.rename_label(bgh.id, "BGH S.A.").unwrap();
+
+        // The name the user reads, in any case.
+        assert_eq!(base.ensure_label(Some("Cliente"), "BGH S.A.").unwrap().id, bgh.id);
+        assert_eq!(base.ensure_label(Some("cliente"), "bgh s.a.").unwrap().id, bgh.id);
+
+        // The same name outside the group is another label.
+        assert_ne!(base.ensure_label(None, "BGH S.A.").unwrap().id, bgh.id);
     }
 
     #[test]
