@@ -1,6 +1,6 @@
 # Documentos parecidos — propuesta
 
-**Estado:** propuesta en revisión · 13 de octubre de 2026 · segunda versión · nada de esto está construido
+**Estado:** propuesta en revisión · 13 de octubre de 2026 · tercera versión · nada de esto está construido
 **Alcance:** cómo reconocer documentos que se parecen sin ser idénticos, y qué hacer con ellos. Es la etapa 2 del [documento de diseño](base-documental.md) (pendiente P-015). No describe código.
 
 Cuando esta propuesta esté acordada, lo que quede firme pasa al documento de diseño.
@@ -50,9 +50,11 @@ Para no proponer sobre supuestos, se midieron dos conjuntos de la carpeta de pru
 | Borrador de un contrato largo y su versión final | 95 % | 78 % | 1.200 palabras en 74 tramos; una de cada seis es una cifra |
 | Dos boletas del mismo organismo | 91 % | 78 a 83 % | Casi solo cifras |
 | Dos fichas de cliente de personas distintas | 100 % | 100 % | **Nada: el texto extraído es idéntico** |
-| Contratos y recibos firmados (19 de los 42 archivos) | — | — | Son imágenes: no tienen texto que comparar |
+| Ejemplares firmados que son solo imagen (5 de los 42 archivos) | — | — | No tienen texto que comparar hasta que se leen |
 
 Además había cuatro grupos de copias exactas, que la base ya resuelve hoy.
+
+Los porcentajes de esta tabla se calcularon con una herramienta de extracción de texto distinta de la que usa la app, que leyó menos archivos. La cantidad de imágenes y el caso de las fichas sí se comprobaron con el motor de la app. Los porcentajes definitivos salen de la herramienta del paso 1 de la sección 14.
 
 ### Lo que deja a la vista
 
@@ -60,8 +62,8 @@ Además había cuatro grupos de copias exactas, que la base ya resuelve hoy.
 2. **Hacen falta las dos medidas.** Un borrador puede parecerse solo 58 % a la carta enviada y estar 98 % adentro de ella.
 3. **Hay que agrupar, no listar pares.** Trece facturas producen 78 pares. Se revisa una familia, no 78 avisos.
 4. **Mirar solo las cifras no alcanza.** En los acuerdos para personas distintas, buena parte de lo que cambia son nombres. Hay que reconocer nombres e identificadores, y la sustitución repetida.
-5. **Casi la mitad del material de contratos es imagen.** El ejemplar firmado es un escaneo. Sin leerlo no se puede relacionar con su versión sin firmar. Acá el reconocimiento de texto no es opcional.
-6. **Un riesgo en lo que ya está construido.** Dos fichas de cliente de personas distintas dieron exactamente el mismo texto: son formularios, y lo que se completó en los campos no sale al extraer el texto. Con la regla actual serían "el mismo documento". Esto se midió con una herramienta de extracción distinta de la que usa la app: **hay que comprobarlo en la app** y, si se repite, corregirlo antes que nada.
+5. **Parte del material firmado es solo imagen.** Sin leerlo no se puede relacionar con su versión sin firmar. Para esos documentos el reconocimiento de texto no es opcional.
+6. **Un defecto en lo que ya está construido, confirmado con el motor de la app.** Dos fichas de cliente de personas distintas figuran como copias una de la otra. Son el mismo formulario en blanco, completado para dos personas: las respuestas viven en los campos del formulario y no salen al extraer el texto, así que el texto de las dos es idéntico y la regla "mismo texto, mismo documento" las une. Una tercera ficha, que se guardó con las respuestas ya impresas en la página, sí se distingue. Se corrige antes que nada (P-074).
 
 ## 3. Definiciones del dueño del producto
 
@@ -70,8 +72,9 @@ Acordadas el 13 de octubre de 2026:
 - **Los parecidos no se unen solos.** Hace falta una persona, al menos hasta tener más experiencia práctica.
 - **Se muestran como hoy se muestran las copias.** En el detalle de un documento aparecen sus documentos parecidos, con una descripción de en qué consiste el parecido.
 - **La persona los une y elige con qué relación,** con botones en esa misma lista.
-- **El wiki:** en principio todos los documentos siguen yendo al wiki. Cuando una persona une dos documentos y define su relación, las páginas del wiki que salieron de ellos podrían unirse también.
+- **El wiki:** en principio todos los documentos siguen yendo al wiki. Cuando una persona une dos documentos como el mismo, queda **uno solo como fuente del wiki**. Lo elige la persona al unirlos; la app, a lo sumo, sugiere cuál. Las páginas del wiki que salieron de ellos podrían unirse también.
 - **Las relaciones tienen que poder ampliarse sin rehacer nada.** La lista va a cambiar a medida que se vean archivos de distintos estudios.
+- **Los nombres de las relaciones son configurables.** No van escritos en el programa: pueden cambiar entre verticales y entre países.
 - **Se reduce el uso de inteligencia artificial, no se elimina.** Se usa donde agrega valor y de la forma más eficiente (sección 7).
 
 ## 4. Las relaciones
@@ -90,7 +93,9 @@ Punto de partida. La lista es un dato de configuración, no algo escrito en el p
 
 Candidatas para más adelante, porque no se detectan comparando palabras: "traducción de", "respuesta a", "trata del mismo asunto" (sección 7).
 
-Los nombres con que el usuario ve cada relación salen del vocabulario por vertical. Lo que hay que validar con un estudio es si un abogado las llamaría así: por ejemplo, si dice "plantilla" o "modelo", y si "versión" y "borrador" son para él lo mismo.
+Los nombres de esta tabla son un punto de partida aceptado. Salen del vocabulario, que hoy se define por vertical y por idioma y tiene que admitir además variantes por país. Conviene validarlos con un estudio: por ejemplo, si un abogado dice "plantilla" o "modelo".
+
+"Queda uno solo como fuente del wiki" vale para las relaciones en que los dos son el mismo documento: prácticamente el mismo, ejemplar firmado y versión. No vale para "misma plantilla" ni para "contenido en", donde son documentos distintos.
 
 ## 5. El recorrido, paso a paso
 
@@ -160,7 +165,7 @@ El cálculo encuentra y mide; el modelo lee, explica y ayuda donde el cálculo n
 
 | Uso | Qué aporta | Cuándo |
 |---|---|---|
-| Leer imágenes y escaneos | Sin esto, casi la mitad del material de contratos queda afuera | Ya existe; una vez por documento |
+| Leer imágenes y escaneos | Sin esto, los documentos que son solo imagen quedan afuera | Ya existe; una vez por documento |
 | Describir qué cambió en palabras de abogado | "Cambia el plazo de 30 a 60 días y se agrega una cláusula de confidencialidad" | A pedido, al abrir un par |
 | Opinar sobre los pares dudosos | Una sugerencia con su razón, antes de que decida la persona | Solo en la zona de 50 a 80 % |
 | Nombrar los datos que cambian | Saber que un nombre es "la parte" y un importe "el monto" | Una vez por familia |
@@ -188,6 +193,14 @@ Lo que agrega la tercera pasada:
 - **Lo común no es señal.** El nombre y el CUIT del propio estudio aparecen en casi todo: no relacionan nada. Eso solo se sabe después de ver todo el archivo, y evita vínculos falsos.
 - **La plantilla, una vez conocida, permite releer.** Con tres o más miembros se sabe qué es fijo y qué es un campo. Entonces cada documento de la familia se puede releer para sacar sus datos de forma ordenada.
 - **Lo decidido se revisa cuando el archivo crece.** Un documento nuevo puede mostrar que dos "versiones" eran en realidad dos ejemplares de una plantilla.
+
+**La iteración tiene que estar acotada.** Una pasada puede cambiar lo que ve la siguiente, y sin límites el proceso puede no terminar nunca o quedarse corrigiendo detalles. Tres reglas:
+
+- pocas vueltas: dos o tres capturan casi todo el beneficio;
+- se corta cuando una vuelta ya casi no cambia nada;
+- cada vuelta solo **agrega propuestas**, con su grado de certeza. Nunca une ni borra por su cuenta, así todo lo que hizo se puede revisar y deshacer.
+
+La misma idea sirve fuera de los documentos: consolidar nombres que el modelo fue inventando de a uno. Los tipos de documento propuestos familia por familia, o las páginas del wiki que nombran lo mismo de dos maneras, solo se pueden unificar mirando el conjunto.
 
 Esto no cambia el orden de construcción: las pasadas 1 y 2 son esta etapa. La tercera se construye después, pero condiciona desde ahora qué se guarda: los identificadores y los datos que cambian se guardan por documento, para poder cruzarlos.
 
@@ -223,16 +236,15 @@ La carpeta de prueba ya tiene material para empezar: cartas, facturas, y ahora c
 
 ## 13. Decisiones abiertas
 
-1. **Versiones y el wiki.** Trece facturas son trece hechos y van todas al wiki. Un borrador y su versión final le cuentan al wiki lo mismo dos veces y, donde difieren, se contradicen. ¿Las versiones siguen yendo todas, o al unirlas solo queda una como fuente?
-2. **Los nombres** con que un abogado llamaría a cada relación (sección 4).
-3. **Quién anota el conjunto de prueba** (sección 11) y con qué carpeta.
-4. **Qué usos del modelo de la sección 7 entran en la primera versión.** Recomendación: ninguno nuevo; solo la lectura de imágenes, que ya existe.
+1. **El conjunto de prueba** (sección 11). Hace falta una tabla con la respuesta correcta para cada par de documentos de la carpeta de prueba. Propuesta: la arma el asistente a partir de las mediciones y la corrige el dueño del producto, que es quien conoce los documentos.
+2. **Qué usos del modelo de la sección 7 entran primero.** Propuesta: la primera entrega mide solo con cálculo y con la lectura de imágenes que ya existe, para saber hasta dónde llega el cálculo. La segunda suma "describir qué cambió", a pedido y de a un par, que es el uso más barato y el que más ayuda a decidir.
+3. **Qué pasa con lo ya incorporado al wiki** cuando se unen dos documentos que ya tenían páginas.
 
 ## 14. Cómo lo construiríamos
 
 En pasos chicos, cada uno comprobable antes del siguiente:
 
-0. **Comprobar el caso de los formularios** en la app y corregirlo si se confirma.
+0. **Corregir el caso de los formularios** (P-074): que lo completado en los campos forme parte del texto del documento.
 1. **Medir sin mostrar nada.** La firma, los candidatos, las medidas y los identificadores, más una herramienta que corre en solo lectura sobre carpetas reales. Con ella se arma y se mide el conjunto de prueba.
 2. **Alinear, clasificar y proponer.** Aparece "Documentos parecidos" en el detalle, con la descripción y los botones para unir.
 3. **Familias.** Aparecen en Inicio y en Documentos.
