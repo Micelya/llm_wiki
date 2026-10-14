@@ -408,3 +408,161 @@ export function getDocument(locationId: number): Promise<DocumentDetail | null> 
 export function openLocation(locationId: number, reveal = false): Promise<void> {
   return invoke<void>("docbase_open_location", { locationId, reveal })
 }
+
+// ── Similar documents ───────────────────────────────────────────────────
+
+/**
+ * Id of a relation between two documents, from the catalog
+ * (`src-tauri/resources/catalog/document-types.json`). The list can grow
+ * without code changes; the name the user reads comes from the vocabulary.
+ */
+export type RelationId =
+  | "same-document"
+  | "near-identical"
+  | "signed-copy"
+  | "preview"
+  | "version"
+  | "contained-in"
+  | "same-template"
+  | "similar"
+  | (string & {})
+
+export interface RelationDef {
+  id: RelationId
+  /** Joining makes both one document: only one stays as the wiki's source. */
+  sameDocument: boolean
+  /** One is the relation of the other (the signed copy, the preview…). */
+  directed: boolean
+  /** Found by comparing texts; the others are inferred. */
+  measured: boolean
+  /** Applied without a person (only the exact same text). */
+  automatic: boolean
+}
+
+/** A document of the base, by one of its locations. */
+export interface DocRef {
+  contentId: number
+  locationId: number
+  originName: string
+  relPath: string
+  name: string
+  copies: number
+}
+
+export type SimilarState = "proposed" | "joined" | "discarded"
+
+/** Kind of thing that changes between two similar documents. */
+export type ChangeKind = "identifier" | "amount" | "date" | "number" | "name" | "field" | "wording"
+
+/** What changes between two similar documents, as stored in the evidence. */
+export interface SimilarChanges {
+  matchedWords: number
+  hunks: number
+  removedWords: number
+  addedWords: number
+  dataTokens: number
+  wordingTokens: number
+  items: Partial<Record<ChangeKind, number>>
+  longestHunk: number
+  largestBlock: number
+  repeated: { from: string; to: string; times: number }[]
+  swaps: Partial<Record<ChangeKind, number>>
+  examples: { kind: ChangeKind; a: string; b: string }[]
+}
+
+export interface SimilarEvidence {
+  engine: string
+  rule: string
+  measures: { jaccard: number; containment: number; cover: number; similarity: number }
+  words: { a: number; b: number }
+  ownWords: { a: number; b: number }
+  recognized: { a: boolean; b: boolean }
+  marks: { a: string[]; b: string[] }
+  changes: SimilarChanges
+}
+
+export interface SimilarDocument {
+  /** The document asked about. */
+  contentId: number
+  other: DocRef
+  /** Proposed relation. */
+  relation: RelationId
+  /** For a directed relation, which of the two is the relation of the other. */
+  subjectContentId: number | null
+  certainty: "high" | "low"
+  /** One sentence in Spanish: "Mismo texto de base; cambian 3 importes y una fecha." */
+  description: string
+  /** Shingles in common over all the shingles of the two (without routine text). */
+  jaccard: number
+  /** Shingles in common over those of the smaller one. */
+  containment: number
+  /** Part of the shorter one found, word by word, in the other. */
+  cover: number
+  similarity: number
+  /** For relations that make them one document, the source the app suggests. */
+  suggestedSource: number | null
+  evidence: SimilarEvidence
+  /** Fingerprint of the evidence: send it back when deciding (what the person saw). */
+  evidenceHash: string
+  computedAt: number
+  state: SimilarState
+  chosenRelation: RelationId | null
+  /** The document left as the wiki's source when joined as one document. */
+  wikiSource: number | null
+  decidedAt: number | null
+}
+
+export type SimilarDecision =
+  | { kind: "join"; relation: RelationId; wikiSource: number | null }
+  | { kind: "discard" }
+  | { kind: "undo" }
+
+export interface SimilarPending {
+  /** Pairs with a proposed relation and no decision. */
+  pairs: number
+  /** Families with at least one such pair. */
+  groups: number
+}
+
+export interface SimilarGroupMember {
+  doc: DocRef
+  relation: RelationId | null
+  cover: number | null
+  state: SimilarState | null
+}
+
+export interface SimilarGroup {
+  principal: DocRef
+  /** The principal first. */
+  members: SimilarGroupMember[]
+  /** "large" (grew too much) or "dispersed" (a chain the principal does not hold). */
+  flags: string[]
+  pending: number
+}
+
+/** The documents similar to the one at this location. */
+export function listSimilarDocuments(locationId: number): Promise<SimilarDocument[]> {
+  return invoke<SimilarDocument[]>("docbase_similar_documents", { locationId })
+}
+
+/** Joins, discards or undoes the decision about two similar documents. */
+export function decideSimilar(
+  contentId: number,
+  otherContentId: number,
+  decision: SimilarDecision,
+  evidenceHash?: string,
+): Promise<void> {
+  return invoke<void>("docbase_decide_similar", { contentId, otherContentId, decision, evidenceHash: evidenceHash ?? null })
+}
+
+export function getSimilarPending(): Promise<SimilarPending> {
+  return invoke<SimilarPending>("docbase_similar_pending")
+}
+
+export function listSimilarGroups(): Promise<SimilarGroup[]> {
+  return invoke<SimilarGroup[]>("docbase_similar_groups")
+}
+
+export function listSimilarRelations(): Promise<RelationDef[]> {
+  return invoke<RelationDef[]>("docbase_similar_relations")
+}

@@ -13,6 +13,8 @@ use tauri::{Emitter, Manager, State};
 use super::bridge::{self, GeneralProject, WikiSource};
 use super::labels::{Label, LabelGroup, LabelRule};
 use super::origins::Origin;
+use super::similar::{self, Decision, SimilarDocument, SimilarGroup, SimilarPending};
+use super::similar::types::RelationDef;
 use super::query::{Activity, DocumentDetail, DocumentFilter, DocumentPage, Health, OriginSummary};
 use super::tree::FolderListing;
 use super::wiki::{BrokenLink, PageRef, WikiIndex};
@@ -40,6 +42,11 @@ impl DocBaseState {
 /// starts its background worker.
 pub fn start(app: &tauri::AppHandle) {
     let wake = Arc::new(Wake::default());
+    // The catalog of document types can be replaced by a file of the same
+    // shape in the data folder (similar/types.rs).
+    if let Ok(dir) = app.path().app_data_dir() {
+        similar::types::install_from(&dir.join("docbase/document-types.json"));
+    }
     let base = app
         .path()
         .app_data_dir()
@@ -397,6 +404,51 @@ pub fn docbase_open_location(
     opened.map_err(|e| format!("No se pudo abrir '{path}': {e}"))
 }
 
+/// The documents similar to the one at this location, with the relation
+/// proposed for each, its description, measures and evidence.
+#[tauri::command(async)]
+pub fn docbase_similar_documents(state: State<'_, DocBaseState>, location_id: i64) -> Result<Vec<SimilarDocument>, String> {
+    state.base()?.similar_of(&Visible::All, location_id)
+}
+
+/// What a person decided about two similar documents: join them with a
+/// relation (and, when it makes them one document, which one stays as
+/// the wiki's source), discard the pair, or undo the decision.
+#[tauri::command(async)]
+pub fn docbase_decide_similar(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    content_id: i64,
+    other_content_id: i64,
+    decision: Decision,
+    evidence_hash: Option<String>,
+) -> Result<(), String> {
+    state
+        .base()?
+        .decide_similar(content_id, other_content_id, &decision, evidence_hash.as_deref())?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(())
+}
+
+/// How many similar documents and families wait for a decision (Inicio).
+#[tauri::command(async)]
+pub fn docbase_similar_pending(state: State<'_, DocBaseState>) -> Result<SimilarPending, String> {
+    state.base()?.similar_pending(&Visible::All)
+}
+
+/// The provisional families, each with its principal document.
+#[tauri::command(async)]
+pub fn docbase_similar_groups(state: State<'_, DocBaseState>) -> Result<Vec<SimilarGroup>, String> {
+    state.base()?.similar_groups(&Visible::All)
+}
+
+/// The relations a person can choose, as the catalog lists them. Their
+/// names come from the vocabulary.
+#[tauri::command(async)]
+pub fn docbase_similar_relations() -> Vec<RelationDef> {
+    similar::relations()
+}
+
 /// Up to `count` paths of nested folders under `root`, `depth` levels
 /// deep at most, following the first folders in name order.
 fn example_paths(root: &Path, count: usize, depth: usize) -> Vec<Vec<String>> {
@@ -437,8 +489,8 @@ mod tests {
     #[test]
     fn folder_examples_follow_the_first_folders_down() {
         let dir = TempDir::new();
-        dir.folder("BGH/Reclamo facturas/Anexos");
-        dir.folder("Aeros/Contrato");
+        dir.folder("BOREAL/Reclamo facturas/Anexos");
+        dir.folder("Andina/Contrato");
         dir.folder(".oculta/x");
         dir.write("suelto.txt", b"x");
 
@@ -446,8 +498,8 @@ mod tests {
         assert_eq!(
             examples,
             vec![
-                vec!["Aeros".to_string(), "Contrato".to_string()],
-                vec!["BGH".to_string(), "Reclamo facturas".to_string(), "Anexos".to_string()],
+                vec!["Andina".to_string(), "Contrato".to_string()],
+                vec!["BOREAL".to_string(), "Reclamo facturas".to_string(), "Anexos".to_string()],
             ]
         );
     }
