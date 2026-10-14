@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import {
   getDocument,
   getGeneralProject,
+  listSimilarDocuments,
   openLocation,
   pagesCiting,
   setLocationLabel,
@@ -19,6 +20,7 @@ import { LabelChip, LabelPicker } from "./labels"
 import { EmptyNote, ErrorNote } from "./page"
 import { formatCount, formatDate, formatSize } from "./format"
 import { DocumentTypeFacts } from "./document-types-view"
+import { passedOverNotice } from "./similar"
 import { SimilarDocuments } from "./similar-documents"
 import { useDocbaseQuery } from "./use-docbase-query"
 
@@ -213,11 +215,22 @@ function WikiPages({ locationId }: { locationId: number }) {
   const openPathInPreview = useWikiStore((s) => s.openPathInPreview)
   const pages = useDocbaseQuery(`pages-citing:${locationId}`, () => pagesCiting(locationId))
   const general = useDocbaseQuery("general-project", getGeneralProject)
+  const similar = useDocbaseQuery(`similar:${locationId}`, () => listSimilarDocuments(locationId))
   const canOpen = isSameProjectPath(general.data?.path, project?.path)
+  const passedOver = passedOverNotice(similar.data ?? [])
 
   if (!pages.data) return null
   return (
     <Section title={`En el wiki (${pages.data.length})`}>
+      {passedOver && (
+        <div className="mb-3 rounded-md border border-dashed px-3 py-2 text-sm" data-testid="passed-over">
+          <p>{passedOver}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Lo que ya se había incorporado de este documento se queda en el wiki. Deshacer la unión lo vuelve a
+            ofrecer.
+          </p>
+        </div>
+      )}
       {pages.data.length === 0 ? (
         <p className="text-sm text-muted-foreground">Ninguna página del wiki salió de este documento todavía.</p>
       ) : (

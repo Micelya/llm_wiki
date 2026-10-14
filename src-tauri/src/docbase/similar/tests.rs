@@ -280,6 +280,81 @@ fn joining_as_one_document_needs_the_wiki_source() {
     assert_eq!(parsed, Decision::Join { relation: "version".into(), wiki_source: Some(7) });
 }
 
+/// The paths of the general project's wiki sources, sorted.
+fn wiki_paths(base: &DocBase) -> Vec<String> {
+    let mut paths: Vec<String> = base.wiki_sources().unwrap().into_iter().map(|source| source.source_path).collect();
+    paths.sort();
+    paths
+}
+
+#[test]
+fn joined_as_one_document_only_the_chosen_one_feeds_the_wiki() {
+    let (dir, base, origin) = base_with(&[
+        ("borrador.md", CONTRACT.as_bytes().to_vec()),
+        ("final.md", contract_final().into_bytes()),
+        ("copias/borrador otra vez.md", CONTRACT.as_bytes().to_vec()),
+        ("marzo.md", march().into_bytes()),
+        ("abril.md", april().into_bytes()),
+    ]);
+    let project = dir.folder("General");
+    dir.folder("General/wiki");
+    dir.folder("General/raw/sources");
+    dir.write("General/schema.md", b"# schema");
+    base.link_general_project(&project, "General").unwrap();
+    let everything = [
+        "raw/sources/O/abril.md",
+        "raw/sources/O/borrador.md",
+        "raw/sources/O/copias/borrador otra vez.md",
+        "raw/sources/O/final.md",
+        "raw/sources/O/marzo.md",
+    ];
+    assert_eq!(wiki_paths(&base), everything);
+    let asked: Vec<String> = everything.iter().map(|path| path.to_string()).collect();
+    assert!(base.excluded_sources(&project, &asked).unwrap().is_empty());
+    // Every source says which document it is.
+    assert!(base.wiki_sources().unwrap().iter().all(|source| source.content_id.is_some()));
+
+    // Joined as versions, with the final wording as the wiki's source.
+    let draft = content(&base, "borrador.md");
+    let last = content(&base, "final.md");
+    let version = Decision::Join { relation: "version".into(), wiki_source: Some(last) };
+    base.decide_similar(draft, last, &version, None).unwrap();
+    // The draft leaves the wiki's sources, in every place it is.
+    assert_eq!(wiki_paths(&base), ["raw/sources/O/abril.md", "raw/sources/O/final.md", "raw/sources/O/marzo.md"]);
+    // Whoever asks to ingest it (the watcher, a person) is told to leave it out.
+    assert_eq!(
+        base.excluded_sources(&project, &asked).unwrap(),
+        ["raw/sources/O/borrador.md", "raw/sources/O/copias/borrador otra vez.md"]
+    );
+    // Only for the general project's wiki.
+    assert!(base.excluded_sources(&dir.path().join("Otro"), &asked).unwrap().is_empty());
+    // Nothing was touched on disk.
+    assert!(dir.path().join("o/borrador.md").is_file());
+
+    // A relation between different documents keeps both.
+    let (one, two) = (content(&base, "marzo.md"), content(&base, "abril.md"));
+    base.decide_similar(one, two, &Decision::Join { relation: "same-template".into(), wiki_source: None }, None)
+        .unwrap();
+    assert_eq!(wiki_paths(&base).len(), 3);
+
+    // Choosing the other one swaps them; undoing offers both again.
+    base.decide_similar(draft, last, &Decision::Join { relation: "version".into(), wiki_source: Some(draft) }, None)
+        .unwrap();
+    assert_eq!(
+        wiki_paths(&base),
+        ["raw/sources/O/abril.md", "raw/sources/O/borrador.md", "raw/sources/O/copias/borrador otra vez.md", "raw/sources/O/marzo.md"]
+    );
+    base.decide_similar(draft, last, &Decision::Undo, None).unwrap();
+    assert_eq!(wiki_paths(&base), everything);
+    assert!(base.excluded_sources(&project, &asked).unwrap().is_empty());
+
+    // Measured again from the texts, the decision still holds.
+    base.decide_similar(draft, last, &version, None).unwrap();
+    base.similar_reset().unwrap();
+    settle(&base, &origin);
+    assert!(!wiki_paths(&base).contains(&"raw/sources/O/borrador.md".to_string()));
+}
+
 #[test]
 fn a_new_document_only_measures_its_neighbourhood() {
     let (dir, base, origin) = base_with(&[("borrador.md", CONTRACT.as_bytes().to_vec()), ("final.md", contract_final().into_bytes())]);

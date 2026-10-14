@@ -122,6 +122,24 @@ export function suggestedWikiSource(similar: SimilarDocument): number {
   return Math.min(...ids)
 }
 
+/**
+ * When this document was joined with another as the same document and
+ * the other was chosen as the wiki's source, the sentence that says so;
+ * `null` while it feeds the wiki. The list is the document's similar
+ * documents (each one has `contentId` = this document).
+ */
+export function passedOverNotice(items: SimilarDocument[]): string | null {
+  const chosen = items.filter(
+    (item) => item.state === "joined" && item.wikiSource !== null && item.wikiSource === item.other.contentId,
+  )
+  if (chosen.length === 0) return null
+  const names = chosen.map((item) => `«${item.other.name}»`)
+  const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} y ${names[names.length - 1]}`
+  return names.length === 1
+    ? `Este documento no alimenta el wiki: se unió con ${list}, que es la fuente elegida.`
+    : `Este documento no alimenta el wiki: se unió con ${list}, que son las fuentes elegidas.`
+}
+
 /** How many families get a line of their own in Inicio; the rest go in one line. */
 export const ATTENTION_GROUP_LINES = 5
 
