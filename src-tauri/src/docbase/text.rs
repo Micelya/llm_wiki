@@ -8,6 +8,11 @@
 //!
 //! Two files with the same text are the same document: the Word file and
 //! the PDF made from it end up as one content with two files.
+//!
+//! A fillable PDF form also keeps what was typed into its fields, both
+//! inside the text and apart, as the `fields` derivative: the same blank
+//! form filled for two people is two documents, and its fields are the
+//! data that tell them apart.
 
 use std::path::{Path, PathBuf};
 
@@ -22,6 +27,9 @@ use super::{now_ms, sql_err, DocBase};
 
 /// Name stored as the engine of text that came from plain extraction.
 pub const EXTRACTION_ENGINE: &str = "extraction";
+
+/// Kind of the derivative that holds the filled-in fields of a form.
+pub const FIELDS_KIND: &str = "fields";
 
 enum Outcome {
     /// Its whole text.
@@ -39,7 +47,8 @@ impl DocBase {
         let jobs = self.next_text_jobs(limit)?;
         for (content_id, path) in &jobs {
             let outcome = run_guarded("docbase_extract_text", || extract(path));
-            self.apply_text(*content_id, outcome)?;
+            let fields = run_guarded("docbase_form_fields", || form_fields(path)).unwrap_or_default();
+            self.apply_text(*content_id, outcome, &fields)?;
         }
         Ok(jobs.len())
     }
@@ -75,7 +84,12 @@ impl DocBase {
         Ok(jobs)
     }
 
-    fn apply_text(&self, content_id: i64, outcome: Result<Outcome, String>) -> Result<(), String> {
+    fn apply_text(
+        &self,
+        content_id: i64,
+        outcome: Result<Outcome, String>,
+        fields: &[(String, String)],
+    ) -> Result<(), String> {
         let mut conn = self.conn();
         let tx = conn.transaction().map_err(sql_err)?;
         // Dropped or already attended while the file was being read.
@@ -89,9 +103,13 @@ impl DocBase {
             return Ok(());
         }
         match outcome {
-            Ok(Outcome::Text(text)) => store(&tx, content_id, &text, EXTRACTION_ENGINE, "processed")?,
+            Ok(Outcome::Text(text)) => {
+                let kept = store(&tx, content_id, &text, EXTRACTION_ENGINE, "processed")?;
+                store_fields(&tx, kept, fields)?;
+            }
             Ok(Outcome::Partial(text)) => {
-                store(&tx, content_id, &text, EXTRACTION_ENGINE, "needs-recognition")?
+                let kept = store(&tx, content_id, &text, EXTRACTION_ENGINE, "needs-recognition")?;
+                store_fields(&tx, kept, fields)?;
             }
             Ok(Outcome::NeedsRecognition) => set_state(&tx, content_id, "needs-recognition", None)?,
             Ok(Outcome::Unsupported) => set_state(&tx, content_id, "unsupported", None)?,
@@ -137,8 +155,8 @@ impl DocBase {
 
 /// Saves the text of a content. If another content already has this
 /// same text, the two are one document: this one's files join the other
-/// and this one goes away.
-fn store(tx: &Transaction<'_>, content_id: i64, text: &str, engine: &str, state: &str) -> Result<(), String> {
+/// and this one goes away. Returns the content that keeps the text.
+fn store(tx: &Transaction<'_>, content_id: i64, text: &str, engine: &str, state: &str) -> Result<i64, String> {
     let now = now_ms();
     let identity = fingerprint(text);
     if let Some((text_hash, _)) = &identity {
@@ -157,7 +175,7 @@ fn store(tx: &Transaction<'_>, content_id: i64, text: &str, engine: &str, state:
                 .map_err(sql_err)?;
             tx.execute("DELETE FROM content WHERE id = ?1", [content_id])
                 .map_err(sql_err)?;
-            return Ok(());
+            return Ok(twin);
         }
     }
     let words = match &identity {
@@ -179,6 +197,29 @@ fn store(tx: &Transaction<'_>, content_id: i64, text: &str, engine: &str, state:
         .map_err(sql_err)?;
     tx.execute("INSERT INTO content_fts (rowid, body) VALUES (?1, ?2)", params![content_id, text])
         .map_err(sql_err)?;
+    Ok(content_id)
+}
+
+/// Keeps the filled-in fields of a form apart from its text, as a list
+/// of {"name", "value"} in page order. Nothing is stored for a document
+/// that is not a form.
+fn store_fields(tx: &Transaction<'_>, content_id: i64, fields: &[(String, String)]) -> Result<(), String> {
+    if fields.is_empty() {
+        return Ok(());
+    }
+    let body = serde_json::to_string(
+        &fields
+            .iter()
+            .map(|(name, value)| serde_json::json!({ "name": name, "value": value }))
+            .collect::<Vec<_>>(),
+    )
+    .map_err(|e| e.to_string())?;
+    tx.execute(
+        "INSERT INTO derivative (content_id, kind, engine, body, created_at) VALUES (?1, ?2, ?3, ?4, ?5)
+         ON CONFLICT (content_id, kind) DO UPDATE SET engine = excluded.engine, body = excluded.body, created_at = excluded.created_at",
+        params![content_id, FIELDS_KIND, EXTRACTION_ENGINE, body, now_ms()],
+    )
+    .map_err(sql_err)?;
     Ok(())
 }
 
@@ -189,6 +230,18 @@ fn set_state(tx: &Transaction<'_>, content_id: i64, state: &str, error: Option<&
     )
     .map_err(sql_err)?;
     Ok(())
+}
+
+/// The filled-in fields of a fillable PDF; empty for anything else.
+fn form_fields(path: &Path) -> Result<Vec<(String, String)>, String> {
+    let is_pdf = path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("pdf"));
+    if !is_pdf {
+        return Ok(Vec::new());
+    }
+    crate::commands::extract_images::pdf_form_fields(&path.to_string_lossy())
 }
 
 fn extract(path: &Path) -> Result<Outcome, String> {
@@ -358,5 +411,73 @@ mod tests {
         assert!(find("mantenimiento unilateral").is_empty());
         // Signs that mean something to the search engine are just text.
         assert!(find("\"*) OR").is_empty());
+    }
+    /// A one-page fillable PDF: the page says `page`, and its only text
+    /// field, "Nombre", holds `name`.
+    fn filled_form(page: &str, name: &str) -> Vec<u8> {
+        let content = format!("BT /F1 10 Tf 40 760 Td ({page}) Tj ET");
+        let objects = [
+            "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [5 0 R] >> >>".to_string(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_string(),
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R \
+             /Resources << /Font << /F1 6 0 R >> >> /Annots [5 0 R] >>"
+                .to_string(),
+            format!("<< /Length {} >>\nstream\n{content}\nendstream", content.len()),
+            format!("<< /Type /Annot /Subtype /Widget /FT /Tx /T (Nombre) /V ({name}) /Rect [40 700 300 720] /P 3 0 R /F 4 >>"),
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".to_string(),
+        ];
+        let mut pdf = String::from("%PDF-1.4\n");
+        let mut offsets = Vec::new();
+        for (index, object) in objects.iter().enumerate() {
+            offsets.push(pdf.len());
+            pdf.push_str(&format!("{} 0 obj\n{object}\nendobj\n", index + 1));
+        }
+        let xref = pdf.len();
+        pdf.push_str(&format!("xref\n0 {}\n0000000000 65535 f \n", objects.len() + 1));
+        for offset in offsets {
+            pdf.push_str(&format!("{offset:010} 00000 n \n"));
+        }
+        pdf.push_str(&format!("trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n", objects.len() + 1));
+        pdf.into_bytes()
+    }
+
+    #[test]
+    fn the_same_form_filled_for_two_people_is_two_documents() {
+        let form = "Ficha de cliente. Complete todos los campos con los datos de la persona o de la sociedad, \
+                    indique domicilio, actividad, origen de los fondos y si reviste la condicion de persona \
+                    expuesta politicamente, y firme al pie de cada hoja.";
+        let dir = TempDir::new();
+        dir.write("o/ficha uno.pdf", &filled_form(form, "Ana Gomez"));
+        dir.write("o/ficha dos.pdf", &filled_form(form, "Bruno Diaz"));
+        let base = DocBase::in_memory().unwrap();
+        let origin = base.add_origin("O", &dir.path().join("o"), &[]).unwrap();
+        settle(&base, &origin.id);
+
+        // Before, only the page was read: both read alike and became one.
+        assert_eq!(count(&base, "SELECT count(*) FROM content WHERE state = 'processed'"), 2);
+        let rows = base.documents(&Visible::All, &DocumentFilter::default()).unwrap().rows;
+        assert!(rows.iter().all(|row| row.copies == 1));
+
+        // What was typed is part of the text, so it can be searched...
+        let one = rows.iter().find(|row| row.name == "ficha uno.pdf").unwrap();
+        let detail = base.document(&Visible::All, one.location_id).unwrap().unwrap();
+        let text = detail.text.unwrap();
+        assert!(text.contains("Ficha de cliente"));
+        assert!(text.contains("Nombre: Ana Gomez"));
+        assert!(!text.contains("Bruno"));
+
+        // ...and kept apart, field by field.
+        let fields: String = base
+            .conn()
+            .query_row(
+                "SELECT d.body FROM derivative d JOIN file f ON f.content_id = d.content_id
+                 JOIN location l ON l.file_hash = f.hash
+                 WHERE d.kind = 'fields' AND l.name = 'ficha dos.pdf'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(fields, r#"[{"name":"Nombre","value":"Bruno Diaz"}]"#);
+        assert_eq!(count(&base, "SELECT count(*) FROM derivative WHERE kind = 'fields'"), 2);
     }
 }
