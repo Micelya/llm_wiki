@@ -1,6 +1,6 @@
 # Documentos parecidos — propuesta
 
-**Estado:** propuesta en revisión · 14 de octubre de 2026 · cuarta versión · nada de esto está construido
+**Estado:** propuesta en revisión · 14 de octubre de 2026 · quinta versión · nada de esto está construido
 **Alcance:** cómo reconocer documentos que se parecen sin ser idénticos, y qué hacer con ellos. Es la etapa 2 del [documento de diseño](base-documental.md) (pendiente P-015). No describe código.
 
 Cuando esta propuesta esté acordada, lo que quede firme pasa al documento de diseño.
@@ -78,23 +78,51 @@ Acordadas el 13 de octubre de 2026:
 - **Los nombres de las relaciones son configurables.** No van escritos en el programa: pueden cambiar entre verticales y entre países.
 - **Se reduce el uso de inteligencia artificial, no se elimina.** Se usa donde agrega valor y de la forma más eficiente (sección 7).
 
+Acordadas el 14 de octubre de 2026:
+
+- **Las relaciones no se limitan a lo que se puede medir.** También entran las que se infieren, por ejemplo "dice lo mismo con otras palabras" (sección 4).
+- **"Ejemplar firmado" solo si la firma se puede verificar.** Una carta documento con la marca de agua "VISTA PREVIA - SIN VALOR LEGAL" no es un ejemplar firmado: es una vista previa que generó el sistema del correo antes de enviarla.
+- **Distinguir en qué etapa está un documento:** un borrador hecho con un procesador de texto, una vista previa generada por el sistema que lo va a despachar, o un documento ya procesado (enviado, recibido, firmado).
+- **Un catálogo de tipos de documento** que describa las particularidades de cada tipo y se vaya ampliando de a poco, para mejorar el reconocimiento (sección 5 bis).
+- **Las firmas electrónicas siguen estándares:** se pueden reconocer con reglas.
+- **Los nombres de archivo no son evidencia firme.** Plantean una hipótesis; manda el contenido.
+- **El tipo de documento requiere el modelo, y conviene saberlo temprano:** si se conoce el tipo, la medición se puede ajustar por tipo. Las pasadas de cálculo y de modelo se alternan, cada una con un propósito definido (sección 8).
+- **Compartir una persona no es compartir un asunto.** Quien prestó dinero a una empresa y además es su consultor aparece en dos asuntos sin relación.
+- **No se hacen inferencias sobre inferencias.** Toda conclusión se ancla en las fuentes; la excepción se verifica contra ellas.
+- **El proceso tiene que decir qué falta,** no solo qué hay.
+- **Las reglas del procesamiento se documentan aparte,** para que las revise una persona en cualquier momento y las respeten los agentes: [reglas-de-procesamiento.md](reglas-de-procesamiento.md).
+
 ## 4. Las relaciones
 
 Punto de partida. La lista es un dato de configuración, no algo escrito en el programa: agregar una relación no exige cambiar el resto.
+
+### Las que se miden comparando textos
 
 | Relación | Qué significa | Ejemplo |
 |---|---|---|
 | **Mismo documento** | Mismos bytes o mismas palabras. Ya existe y es la única automática | Un Word y su PDF |
 | **Prácticamente el mismo** | Cambian muy pocas palabras, sueltas, y ninguna es un dato | PDF con pie agregado; dos lecturas del mismo escaneo |
-| **Ejemplar firmado** | El mismo documento, con firmas y sellos | Un contrato y su escaneo firmado |
+| **Ejemplar firmado** | El mismo documento, firmado por una o más partes, y la firma se puede verificar | Un contrato y su ejemplar con firma electrónica |
+| **Vista previa** | El documento tal como lo generó el sistema que lo va a despachar, antes de enviarlo; no tiene valor legal | El borrador de una carta documento y la vista previa del correo |
 | **Versión** | Mismo documento con cambios de redacción | Borrador y versión final |
 | **Contenido en** | Uno está casi entero dentro del otro | Un anexo dentro de un contrato; un correo dentro de la respuesta |
-| **Misma plantilla, otros datos** | Mismo texto de base; cambian los datos | El mismo acuerdo para tres personas; las facturas de un proveedor |
+| **Misma plantilla, otros datos** | Mismo texto de base; cambian los datos o se agrega una cláusula | El mismo acuerdo para tres personas; las facturas de un proveedor |
 | **Parecidos** | Comparten tramos, sin relación clara | Dos cartas del mismo remitente |
 
-Candidatas para más adelante, porque no se detectan comparando palabras: "traducción de", "respuesta a", "trata del mismo asunto" (sección 7).
+### Las que se infieren
 
-Los nombres de esta tabla son un punto de partida aceptado. Salen del vocabulario, que hoy se define por vertical y por idioma y tiene que admitir además variantes por país. Conviene validarlos con un estudio: por ejemplo, si un abogado dice "plantilla" o "modelo".
+No salen de comparar palabras: salen de cruzar datos o de leer el significado, a veces con el modelo.
+
+| Relación | Qué significa | Cómo se obtiene |
+|---|---|---|
+| **Dice lo mismo con otras palabras** | El mismo contenido, redactado distinto | Comparando el significado (sección 7) |
+| **Traducción de** | El mismo documento en otro idioma | Comparando el significado y el idioma |
+| **Respuesta a** | Uno contesta al otro | Leyendo los dos |
+| **Constancia de firma de** | El resumen que emite un servicio de firma electrónica sobre el proceso de firma de otro documento | Datos del documento firmado que la constancia nombra |
+| **Mismo asunto** | Parte del mismo caso o del mismo contrato | Datos raros compartidos: expediente, contrato, importes |
+| **Misma persona, otro asunto** | Involucran a la misma persona en asuntos distintos | Una persona compartida sin nada más en común |
+
+Los nombres de estas tablas son un punto de partida aceptado. Salen del vocabulario, que hoy se define por vertical y por idioma y tiene que admitir además variantes por país. Conviene validarlos con un estudio: por ejemplo, si un abogado dice "plantilla" o "modelo".
 
 "Queda uno solo como fuente del wiki" vale para las relaciones en que los dos son el mismo documento: prácticamente el mismo, ejemplar firmado y versión. No vale para "misma plantilla" ni para "contenido en", donde son documentos distintos.
 
@@ -140,14 +168,48 @@ Azul: cálculo, en la máquina y sin costo. Naranja: cálculo, con ayuda opciona
    - una familia que crece o se dispersa demasiado se marca para revisión.
 9. **Una persona decide.** Une con la relación propuesta, elige otra o descarta. Su decisión se guarda y no se vuelve a preguntar.
 
+## 5 bis. El catálogo de tipos de documento
+
+### El problema
+
+Muchas relaciones no se pueden decidir sin saber qué tipo de documento es cada uno. Tres ejemplos de la carpeta de prueba:
+
+- Una carta documento puede ser un **borrador** escrito en un procesador de texto, una **vista previa** que generó el sistema del correo (con la marca "VISTA PREVIA - SIN VALOR LEGAL") o una carta **ya procesada** por el correo, firmada y recibida. Comparando el texto, las tres se parecen.
+- Un PDF que salió de un servicio de firma electrónica trae una firma digital incrustada **aunque ninguna parte lo haya firmado**: el servicio sella cada versión que emite. Quién firmó se lee en la página de constancia que el servicio agrega, o en el certificado de cada firma.
+- En una factura, lo que importa para encontrar una serie y sus huecos es la fecha de emisión y el período, no el nombre del archivo.
+
+### La propuesta
+
+Un **catálogo de tipos de documento** que forma parte de la base y se amplía de a poco. Para cada tipo describe:
+
+| Qué describe | Ejemplo para "carta documento" |
+|---|---|
+| Qué es, en palabras del vertical | Comunicación fehaciente enviada por correo |
+| Sus etapas y cómo se reconoce cada una | Borrador: archivo de procesador de texto. Vista previa: marca de agua "VISTA PREVIA - SIN VALOR LEGAL". Procesada: formulario del correo con sellos y firma |
+| Sus marcas verificables sin modelo | La marca de agua; el formato del formulario del correo |
+| Los datos que interesan | Remitente, destinatario, fecha, número de pieza, facturas reclamadas |
+| Qué documentos suelen acompañarlo | La vista previa suele tener una carta procesada después |
+| Cómo se mide por tipo | Dos cartas con distinto número de factura son documentos distintos |
+
+**Cómo se usa:**
+
+1. **Primero las marcas verificables,** con reglas: una marca de agua conocida, una firma digital, la página de constancia de un servicio de firma, los campos de un formulario.
+2. **Después el modelo,** para lo que las reglas no resuelven: elige el tipo de una lista cerrada (las del catálogo) o propone uno nuevo marcado como tal. Se le pregunta una vez por documento, o una vez por familia cuando los miembros son prácticamente iguales.
+3. **Una persona confirma** los tipos nuevos y sus descripciones, y así el catálogo crece.
+
+**Firmas electrónicas.** Las firmas digitales incrustadas en un PDF siguen un estándar: se pueden contar, leer su certificado y saber qué servicio las emitió, sin modelo. La salvedad es la de arriba: una firma del servicio que sella el documento no es la firma de una parte. La regla se arma por servicio: qué certificados son del servicio y cuáles de las personas, y cómo es su página de constancia.
+
+**Por qué gradual.** Cada estudio, cada vertical y cada país tiene sus tipos. El catálogo arranca con los tipos de la carpeta de prueba (carta documento, factura, acuerdo, recibo, boleta, ficha de cliente, constancia de firma) y crece con el uso.
+
 ## 6. Cómo se propone la relación
 
-Los números son puntos de partida: se ajustan con el conjunto de prueba de la sección 11 antes de mostrar nada.
+Los números son puntos de partida: se ajustan con el conjunto de prueba de la sección 11 antes de mostrar nada. **Cuando se conoce el tipo de documento, valen las reglas de su tipo en el catálogo** (sección 5 bis); esta tabla es la regla general.
 
 | Si… | Se propone |
 |---|---|
 | Comparten casi todo (97 % o más) y lo que cambia son pocas palabras sueltas, ninguna un dato | Prácticamente el mismo |
-| Uno contiene al otro entero y le suma un solo bloque (la constancia de una firma digital), o es una imagen leída que contiene casi todo el texto del otro | Ejemplar firmado |
+| Uno contiene al otro entero y le suma un solo bloque (la constancia de una firma), y la firma de una parte se puede verificar | Ejemplar firmado |
+| Uno contiene casi todo el texto del otro y tiene las marcas de una vista previa | Vista previa |
 | El corto está casi entero en el largo (90 % o más) y el largo tiene bastante más texto | Contenido en |
 | Comparten mucho (80 % o más) y lo que cambia son sobre todo datos, en tramos cortos o como sustitución repetida | Misma plantilla, otros datos |
 | Comparten mucho (80 % o más) y lo que cambia es sobre todo redacción | Versión |
@@ -162,18 +224,19 @@ Tres cuidados:
 
 ## 7. Dónde entra la inteligencia artificial
 
-El cálculo encuentra y mide; el modelo lee, explica y ayuda donde el cálculo no alcanza. Nunca se le pregunta al modelo por todos los pares: solo por los que el cálculo ya seleccionó, y una vez.
+El cálculo encuentra y mide; el modelo lee, clasifica y explica. Nunca se le pregunta al modelo por todos los pares: solo por lo que ya se seleccionó, y una vez. Las pasadas de cálculo y de modelo **se alternan**, cada una con un propósito definido (sección 8).
 
 | Uso | Qué aporta | Cuándo |
 |---|---|---|
 | Leer imágenes y escaneos | Sin esto, los documentos que son solo imagen quedan afuera | Ya existe; una vez por documento |
+| **Tipo de documento y etapa** | Saber si es una carta documento, y si es borrador, vista previa o procesada. Con el tipo, la medición se ajusta | Temprano: después de los pares seguros, una vez por documento o por familia |
+| Verificar una firma que es imagen | Una firma escaneada no tiene certificado | Solo en los candidatos a ejemplar firmado |
+| Datos de cada tipo | Fecha de emisión, período, importe, partes | Cuando el formulario o las reglas del tipo no alcanzan |
 | Describir qué cambió en palabras de abogado | "Cambia el plazo de 30 a 60 días y se agrega una cláusula de confidencialidad" | A pedido, al abrir un par |
 | Opinar sobre los pares dudosos | Una sugerencia con su razón, antes de que decida la persona | Solo en la zona de 50 a 80 % |
-| Nombrar los datos que cambian | Saber que un nombre es "la parte" y un importe "el monto" | Una vez por familia |
-| Tipo de documento | "Acuerdo de desvinculación", "boleta de aportes" | Una vez por familia |
-| **Parecido por significado** | Relacionar documentos que tratan de lo mismo con otras palabras: una traducción, una respuesta, dos contratos sobre el mismo asunto | Capa posterior |
+| **Parecido por significado** | Relacionar documentos que dicen lo mismo con otras palabras: una traducción, una respuesta | Pasada propia (sección 8) |
 
-Sobre el último punto: comparar secuencias de palabras encuentra el mismo texto; no encuentra el mismo tema dicho distinto. Para eso cada documento se convierte en una representación numérica de su significado, y se buscan los cercanos. La app ya tiene esa capacidad para las páginas del wiki; la base todavía no la usa. Es complementaria y va después: primero lo que se puede afirmar con certeza.
+Sobre el último punto: comparar secuencias de palabras encuentra el mismo texto; no encuentra el mismo tema dicho distinto. Para eso cada documento se convierte en una representación numérica de su significado, y se buscan los cercanos. La app ya tiene esa capacidad para las páginas del wiki; la base todavía no la usa.
 
 ## 8. Pasadas sobre todo el archivo
 
@@ -197,34 +260,34 @@ Repetir pasadas no alcanza para que el resultado mejore. Lo que una pasada decid
 
 ### 8.3 Las reglas
 
-Son prácticas establecidas en el campo que estudia cómo reconocer registros que se refieren a lo mismo, en la revisión asistida de documentos que hacen los estudios en litigios, y en el refinamiento de grafos de conocimiento. Adaptadas a nuestro caso:
+Las reglas que hacen que las pasadas converjan y aporten valor están en un documento propio, [reglas-de-procesamiento.md](reglas-de-procesamiento.md), para que se puedan revisar en cualquier momento y valgan para todo análisis de la base, no solo para los parecidos. Las que más pesan acá:
 
-1. **Cada pasada tiene un único objetivo,** con sus entradas, lo que produce, lo que puede cambiar y su criterio de corte (8.4). Una pasada que lo quiere hacer todo no se puede medir ni frenar.
-2. **De lo seguro a lo incierto.** Primero lo exacto, después lo que comparte mucho texto, después lo que se infiere por datos compartidos. Así lo que se apoya en resultados anteriores se apoya en lo más confiable.
-3. **Solo se agrega evidencia.** Una pasada escribe propuestas y les cambia la certeza; nunca une ni borra. Como la evidencia posible es finita y solo crece, el proceso termina.
-4. **Lo propuesto no alimenta lo propuesto.** Una pasada puede apoyarse en una relación confirmada por una persona, no en otra propuesta. Esta es la defensa principal contra los errores en cascada.
-5. **Las decisiones humanas son reglas firmes.** Un "sí" se puede usar como base. Un "no tienen relación" bloquea esa relación para siempre, en todas las pasadas, salvo que aparezca evidencia nueva y distinta. Se guarda junto con la evidencia que se le mostró a la persona, para saber cuándo la evidencia cambió.
-6. **El resultado no depende del orden.** Procesar los documentos en otro orden, o volver a correr una pasada sin cambios, da lo mismo. Esto hace que repetir sea seguro y que un documento nuevo no desordene lo anterior.
-7. **Las familias se arman contra un documento principal,** no por cadena. Cada familia tiene un principal: el más completo, o el ejemplar firmado. Un documento entra si se parece al principal, no si se parece a algún miembro. Es como lo hacen las herramientas de revisión de documentos en litigios, y evita el encadenamiento por construcción. Una familia que crece demasiado o se dispersa demasiado se marca para revisión.
-8. **Se trabaja solo sobre lo que cambió.** Después de la primera vez, cada pasada mira solo los documentos tocados por algo nuevo (un documento agregado, una decisión humana) y sus vecinos. Se corta cuando no queda nada tocado.
-9. **Cada pasada tiene un límite propio:** cuántos pares evalúa, cuántas preguntas le hace al modelo, cuántas propuestas le pone en la cola a la persona.
-10. **Se mide cada pasada por separado** contra el conjunto de prueba (sección 11): cuántas propuestas acierta, cuántas relaciones se le escapan y cuántas propuestas acepta la persona. Si una pasada empeora la precisión, se ajusta antes de volver a correrla.
-11. **El modelo aporta evidencia, no decide.** Su opinión pesa como una evidencia más, acotada. Se guarda con lo que se le preguntó, la versión de la pregunta y la del modelo: la misma pregunta no se hace dos veces, y repetir la pasada da lo mismo.
-12. **Los nombres consolidados quedan fijos.** Cuando una persona confirma que dos nombres son el mismo tipo de documento, el nombre elegido pasa a una lista cerrada. Las preguntas siguientes al modelo eligen de esa lista o proponen uno nuevo marcado como tal.
+- **No se infiere sobre lo inferido** (R-02) y **lo propuesto no alimenta lo propuesto** (R-03): son la defensa principal contra los errores en cascada.
+- **Una pasada, un objetivo** (R-10), **de lo seguro a lo incierto** (R-11) y **solo se agrega evidencia** (R-12): garantizan que el proceso termine.
+- **Familias contra un documento principal** (R-14): evita el encadenamiento.
+- **Se trabaja solo sobre lo que cambió** (R-15) y **cada pasada se mide por separado** (R-17).
 
 ### 8.4 Las pasadas
 
-| Pasada | Objetivo | Usa | Produce | Puede cambiar | Se corta cuando |
-|---|---|---|---|---|---|
-| **0 · Lo común** | Saber qué es común en el archivo | Todo el texto y los datos reconocidos | El peso de cada secuencia de palabras y de cada dato según lo raro que es; la lista de texto de rutina (membrete, pie de firma) | Solo pesos | Una corrida; se recalcula al llegar documentos nuevos |
-| **1 · Pares seguros** | Proponer mismo documento, prácticamente el mismo, ejemplar firmado, versión y contenido en | Candidatos por firma, medidas sin el texto de rutina, la comparación lado a lado | Propuestas con su evidencia y su descripción | Propuestas y su certeza | No quedan pares tocados |
-| **2 · Plantillas** | Proponer "misma plantilla, otros datos" y fijar la plantilla de cada familia | Mucha redacción en común con datos distintos; sustituciones repetidas; formularios PDF, que traen plantilla y datos separados | Familias propuestas con su principal; los campos de cada miembro | Propuestas de familia | No aparecen plantillas nuevas |
-| **3 · Correos** | Reconstruir cadenas de correo | Lo citado en cada respuesta | Cadenas, con el correo más completo como principal | Propuestas de cadena | No quedan correos tocados |
-| **4 · Mismo asunto** | Proponer qué documentos son del mismo caso aunque no compartan texto | Datos raros compartidos: número de expediente, CUIT, DNI, una persona, un importe | Propuestas de "mismo asunto", nunca de "mismo documento" | Propuestas | Límite de propuestas o casi sin cambios |
-| **5 · Series** | Encontrar series y faltantes | Familias confirmadas, con sus fechas o números | Series y avisos de faltante | Propuestas de serie | No quedan familias tocadas |
-| **6 · Consistencia** | Unificar nombres y detectar contradicciones | Tipos de documento, páginas del wiki, familias | Nombres a unificar; avisos (una familia con dos números de expediente, un "no tienen relación" dentro de una familia) | Propuestas y avisos; nunca renombra lo confirmado | No quedan avisos nuevos |
+Las de cálculo y las del modelo se alternan: el modelo entra cuando lo que produce mejora lo que sigue.
 
-Las pasadas 4 y 5 solo se apoyan en lo confirmado por una persona (regla 4). Todo el recorrido se repite únicamente mientras haya algo tocado, que en la práctica es una decisión humana nueva o un documento nuevo.
+| Pasada | Hace | Objetivo | Usa | Produce | Se corta cuando |
+|---|---|---|---|---|---|
+| **0 · Lo común** | Cálculo | Saber qué es común en el archivo | Todo el texto y los datos reconocidos | El peso de cada secuencia de palabras y de cada dato según lo raro que es; el texto de rutina (membrete, pie de firma) | Una corrida; se recalcula con documentos nuevos |
+| **1 · Pares seguros** | Cálculo | Proponer mismo documento, prácticamente el mismo, versión y contenido en | Candidatos por firma; medidas sin el texto de rutina; comparación lado a lado | Propuestas con su evidencia | No quedan pares tocados |
+| **2 · Marcas** | Cálculo | Reconocer lo que se verifica sin modelo | Firmas digitales, páginas de constancia, marcas de agua, campos de formulario | Marcas por documento: firmado por quién, vista previa, formulario | No quedan documentos tocados |
+| **3 · Tipo y etapa** | Modelo | Saber qué tipo de documento es y en qué etapa está | Las marcas, el texto y el catálogo de tipos | Tipo y etapa propuestos, de la lista cerrada | Todos los documentos tocados tienen tipo |
+| **4 · Datos por tipo** | Cálculo y modelo | Sacar los datos que interesan según el tipo | Las reglas del tipo; los campos de formulario; el modelo si no alcanzan | Datos por documento: fechas, importes, partes, números | No quedan documentos tocados |
+| **5 · Plantillas y firmados** | Cálculo | Proponer misma plantilla, ejemplar firmado y vista previa | Pares con mucho en común, el tipo, la etapa y los datos | Familias con su principal | No aparecen familias nuevas |
+| **6 · Correos** | Cálculo | Reconstruir cadenas de correo | Lo citado en cada respuesta | Cadenas, con el correo más completo como principal | No quedan correos tocados |
+| **7 · Significado** | Modelo | Proponer "dice lo mismo con otras palabras", "traducción de", "respuesta a" | Representación del significado de cada documento | Propuestas | Límite de propuestas |
+| **8 · Mismo asunto** | Cálculo | Proponer qué es del mismo caso, aunque no comparta texto | Datos raros compartidos, solo de documentos con tipo confirmado | "Mismo asunto" o "misma persona, otro asunto" | Límite o casi sin cambios |
+| **9 · Series y faltantes** | Cálculo | Encontrar series y lo que falta | Familias confirmadas con sus fechas y números, del contenido, no del nombre del archivo | Series; avisos de faltante | No quedan familias tocadas |
+| **10 · Consistencia** | Cálculo y modelo | Unificar nombres y detectar contradicciones | Tipos, páginas del wiki, familias | Nombres a unificar; avisos | No quedan avisos nuevos |
+
+Las pasadas 8 y 9 solo se apoyan en lo que confirmó una persona (R-03). Todo el recorrido se repite únicamente mientras haya algo tocado: una decisión humana nueva o un documento nuevo.
+
+**Qué hace la pasada de correos.** Cuando alguien responde un correo, el mensaje nuevo suele llevar debajo, citado, todo lo anterior. Un correo impreso a PDF (como los tres "Correo - …" de la carpeta de prueba) trae entonces toda la conversación hasta ese momento. Esta pasada separa en cada correo lo nuevo de lo citado, reconstruye qué mensaje contesta a cuál, y se queda con el más completo como principal. Sin ella, el mismo hecho se contaría una vez por cada respuesta que lo cita, y cada correo aparecería "contenido en" el siguiente.
 
 ### 8.5 La persona dentro del recorrido
 
@@ -234,7 +297,7 @@ Las pasadas 4 y 5 solo se apoyan en lo confirmado por una persona (regla 4). Tod
 
 ### 8.6 Qué cambia en la construcción
 
-Las pasadas 1 y 2 son esta etapa. Las demás se construyen después, pero condicionan desde ahora qué se guarda: los datos reconocidos de cada documento, la evidencia de cada propuesta, y cada decisión humana con la evidencia que se le mostró.
+Las pasadas 1 a 5 son esta etapa, con un catálogo inicial chico. Las demás se construyen después, pero condicionan desde ahora qué se guarda: las marcas y los datos de cada documento, su tipo, la evidencia de cada propuesta, y cada decisión humana con la evidencia que se le mostró.
 
 ## 9. Qué ve el usuario
 
@@ -267,15 +330,15 @@ La primera hoja de respuestas ya está armada sobre la carpeta de prueba (cartas
 
 ## 13. Decisiones abiertas
 
-1. **Qué usos del modelo de la sección 7 entran primero.** Propuesta: la primera entrega mide solo con cálculo y con la lectura de imágenes que ya existe, para saber hasta dónde llega el cálculo. La segunda suma "describir qué cambió", a pedido y de a un par, que es el uso más barato y el que más ayuda a decidir.
-2. **Qué pasa con lo ya incorporado al wiki** cuando se unen dos documentos que ya tenían páginas.
+1. **Qué pasa con lo ya incorporado al wiki** cuando se unen dos documentos que ya tenían páginas.
 
 ## 14. Cómo lo construiríamos
 
 En pasos chicos, cada uno comprobable antes del siguiente:
 
 0. **Corregir el caso de los formularios** (P-074): hecho. Lo completado en los campos forma parte del texto, y los campos se guardan aparte.
-1. **Medir sin mostrar nada.** La firma, los candidatos, las medidas y los identificadores, más una herramienta que corre en solo lectura sobre carpetas reales. Con ella se arma y se mide el conjunto de prueba.
-2. **Alinear, clasificar y proponer.** Aparece "Documentos parecidos" en el detalle, con la descripción y los botones para unir.
-3. **Familias.** Aparecen en Inicio y en Documentos.
-4. **Después:** la tercera pasada, las relaciones en el grafo (P-016), el parecido por significado, y la plantilla de cada familia con sus campos, que es la base de la etapa 5 del diseño.
+1. **Medir sin mostrar nada.** La firma, los candidatos, las medidas, los identificadores y las marcas verificables (firmas digitales, constancias, marcas de agua), más una herramienta que corre en solo lectura sobre carpetas reales y se compara contra la hoja de respuestas.
+2. **El catálogo inicial y el tipo de documento.** Los tipos de la carpeta de prueba, y la pasada del modelo que propone tipo y etapa.
+3. **Alinear, clasificar y proponer.** Aparece "Documentos parecidos" en el detalle, con la descripción y los botones para unir.
+4. **Familias.** Aparecen en Inicio y en Documentos.
+5. **Después:** correos, significado, mismo asunto, series y faltantes, consistencia; las relaciones en el grafo (P-016), y la plantilla de cada familia con sus campos, que es la base de la etapa 5 del diseño.
