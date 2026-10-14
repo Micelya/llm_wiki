@@ -111,6 +111,12 @@ El detalle de cada cambio (qué líneas, qué pruebas) está en su PR; acá no s
 - **Upstream:** candidato
 - **PR:** #34
 
+### F-016 · Lo completado en un formulario PDF es parte de su texto
+- **Propósito:** que dos copias del mismo formulario PDF completadas para personas distintas no se lean igual: al texto de cada página se le agrega lo escrito en sus campos, que antes se perdía (la base las tomaba por el mismo documento y el wiki recibía el formulario vacío).
+- **Toca upstream:** `src-tauri/src/commands/extract_images.rs`
+- **Upstream:** candidato
+- **PR:** #38
+
 ## Reabsorbidos
 
 Cambios que upstream ya incorporó (ID · versión de upstream que lo trae).
