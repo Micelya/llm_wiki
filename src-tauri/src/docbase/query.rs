@@ -38,6 +38,11 @@ pub struct DocumentFilter {
     pub duplicates_only: bool,
     /// Only files carrying this label.
     pub label_id: Option<i64>,
+    /// Only documents with a similar document that waits for a decision
+    /// (a proposed relation other than plain `similar`, as Inicio counts).
+    pub similar_pending: bool,
+    /// Only the members of the family whose principal is this content.
+    pub similar_group: Option<i64>,
     /// `recent` (default), `name` or `folder`.
     pub sort: Option<String>,
     pub limit: Option<i64>,
@@ -318,6 +323,17 @@ impl DocBase {
         if let Some(label_id) = filter.label_id {
             conditions.push("location_id IN (SELECT location_id FROM location_label WHERE label_id = ?)".to_string());
             bound.push(Value::Integer(label_id));
+        }
+        if filter.similar_pending {
+            conditions.push(
+                "content_id IN (SELECT a FROM similar_pair WHERE state = 'proposed' AND relation != 'similar'
+                                UNION SELECT b FROM similar_pair WHERE state = 'proposed' AND relation != 'similar')"
+                    .to_string(),
+            );
+        }
+        if let Some(principal) = filter.similar_group {
+            conditions.push("content_id IN (SELECT content_id FROM similar_group_member WHERE principal = ?)".to_string());
+            bound.push(Value::Integer(principal));
         }
         for word in filter
             .query
