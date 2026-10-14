@@ -13,7 +13,7 @@ import type { LlmConfig } from "@/stores/wiki-store"
 import { enqueueBatch } from "@/lib/ingest-queue"
 import { hasUsableLlm } from "@/lib/has-usable-llm"
 import { getTaskLlmConfig } from "@/lib/llm-task-routing"
-import { getFileName, getFileStem, getRelativePath, normalizePath } from "@/lib/path-utils"
+import { getFileName, getFileStem, getRelativePath, isAbsolutePath, normalizePath } from "@/lib/path-utils"
 import {
   sourceIdentityForPath,
   sourceReferenceIdentity,
@@ -258,6 +258,13 @@ export function folderContextForSourcePath(sourcePath: string, sourcesRoot = "ra
   return parts.join(" > ")
 }
 
+/** The full path of a source given absolute or relative to the project. */
+export function sourcePathInProject(projectPath: string, sourcePath: string): string {
+  return isAbsolutePath(sourcePath)
+    ? normalizePath(sourcePath)
+    : `${normalizePath(projectPath)}/${normalizePath(sourcePath)}`
+}
+
 export async function enqueueSourceIngest(
   project: WikiProject,
   sourcePaths: string[],
@@ -291,7 +298,14 @@ export async function enqueueSourceIngest(
   if (pending.length === 0) return []
   const parsingConcurrency = options.parsingConcurrency
     ?? normalizeSourceWatchConfig(useWikiStore.getState().sourceWatchConfig).parsingConcurrency
-  await preprocessSourceFiles(pending.map((file) => file.sourcePath), parsingConcurrency)
+  // Sources of the document base arrive relative to the project
+  // ("raw/sources/..."); the extractor needs the same full path the
+  // ingest reads later, which the source volume resolves to wherever
+  // a mounted source really lives.
+  await preprocessSourceFiles(
+    pending.map((file) => sourcePathInProject(project.path, file.sourcePath)),
+    parsingConcurrency,
+  )
   return enqueueBatch(project.id, pending)
 }
 

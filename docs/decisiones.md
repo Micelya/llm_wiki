@@ -141,6 +141,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-113 | 14 oct | Proceso de trabajo | No se hacen inferencias sobre inferencias | vigente |
 | D-114 | 14 oct | Proceso de trabajo | Las reglas del procesamiento se documentan aparte y se revisan | vigente |
 | D-115 | 14 oct | Parecidos | El proceso tiene que decir qué falta | vigente |
+| D-117 | 14 oct | Base documental | El preprocesado recibe la ruta completa de la fuente, la misma que lee el ingest | en revisión |
 
 ---
 
@@ -1641,3 +1642,16 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** `docs/design/reglas-de-procesamiento.md` (R-23); propuesta de parecidos, pasada 9.
 - **Quién decidió:** El dueño del producto.
 - **Fuente:** Conversación del 14 oct.
+
+### D-117 · El preprocesado recibe la ruta completa de la fuente, la misma que lee el ingest
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Base documental
+- **Estado:** en revisión (agente sin consulta; a confirmar según P-066)
+- **El problema:** Al generar el wiki del archivo, cada documento de una carpeta montada dejaba en el registro un aviso de que no se pudo preprocesar: la base pasa las fuentes como ruta relativa al proyecto (`raw/sources/...`) y el preprocesado la buscaba así, sin el proyecto delante, y no la encontraba. El ingest se recuperaba porque al leer el archivo arma la ruta completa, pero el texto se extraía dos veces y el registro se llenaba de avisos falsos.
+- **Qué se decidió:** Antes de preprocesar, toda ruta relativa se completa con la carpeta del proyecto, igual que hace el ingest al leer; el componente de fuentes (`source_volume`) la resuelve después a donde vive de verdad la carpeta montada. La cola sigue guardando la ruta tal como llegó.
+- **Por qué:** Usa el mismo mecanismo que el ingest, en el único lugar por donde pasan todas las fuentes antes de la cola, sin tocar el código de Rust.
+- **Alternativas descartadas:** Que la base pase rutas absolutas: arreglaba un solo llamador y cambiaba lo que guarda la cola. Resolver rutas relativas en Rust: el comando no conoce el proyecto.
+- **Dónde se aplica:** `src/lib/source-lifecycle.ts` (`enqueueSourceIngest`); F-002.
+- **Quién decidió:** Agente sin consulta.
+- **Fuente:** Sesión desatendida del 14 oct (especificación F1).
