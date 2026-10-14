@@ -200,6 +200,8 @@ Un **catálogo de tipos de documento** que forma parte de la base y se amplía d
 
 **Firmas electrónicas.** Las firmas digitales incrustadas en un PDF siguen un estándar: se pueden contar, leer su certificado y saber qué servicio las emitió, sin modelo. La salvedad es la de arriba: una firma del servicio que sella el documento no es la firma de una parte. La regla se arma por servicio: qué certificados son del servicio y cuáles de las personas, y cómo es su página de constancia.
 
+**El contenido del catálogo** está en [catalogo-de-tipos.md](catalogo-de-tipos.md): la primera versión, con la carta documento de dos correos, su acuse de recibo, los PDF de servicios de firma electrónica, las constancias de firma y los formularios PDF.
+
 **Por qué gradual.** Cada estudio, cada vertical y cada país tiene sus tipos. El catálogo arranca con los tipos de la carpeta de prueba (carta documento, factura, acuerdo, recibo, boleta, ficha de cliente, constancia de firma) y crece con el uso.
 
 ## 6. Cómo se propone la relación

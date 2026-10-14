@@ -65,9 +65,13 @@ Nacieron del diseño de los documentos parecidos ([propuesta](parecidos-propuest
 
 ## 6. Sobre cómo se aprende de los casos de prueba
 
-**R-24 · Las reglas se escriben en términos generales.** Hablan de señales (qué tipo de dato cambió, una marca de agua, la estructura de un formulario, un número de envío), nunca de nombres de archivo, empresas, personas o valores de un conjunto de prueba. Una regla que solo funciona para los documentos con los que se armó no es una regla.
+**R-24 · Ninguna regla nombra un caso.** Las reglas, el catálogo de tipos y el programa hablan de señales generales (qué tipo de dato cambió, una marca de agua, la estructura de un formulario, la forma de un número de envío). Nunca de una persona, una empresa (salvo la que emite un formulario, como un correo o un servicio de firma), un archivo o un número concreto. Ejemplo de lo que no puede existir: "si el documento es de tal persona, entonces son asuntos distintos".
 
-**R-25 · La hoja de respuestas mide; no enseña.** Sirve para comprobar si una regla acierta, no para escribir la regla. Para que la comprobación valga, se ajusta con una parte de los documentos y se comprueba con otra que no se usó para ajustar, y antes de dar una regla por buena se prueba con carpetas nuevas, idealmente de otro estudio.
+Lo que se sabe de un caso puntual ("estos dos documentos de la misma persona son asuntos distintos") es la decisión de una persona sobre ese par: se guarda como dato junto al par, no como regla. Si el proceso no llega solo a esa conclusión, lo que falta es una señal general, y se busca cuál es.
+
+Se comprueba automáticamente: una prueba revisa que ni el programa ni el catálogo contengan nombres, números u otros valores de la hoja de respuestas.
+
+**R-25 · La hoja de respuestas mide; no enseña.** Sirve para comprobar si las reglas aciertan, no para escribirlas. Hoy una regla se da por buena si procesa bien los documentos de la carpeta de prueba. Cuando haya más documentos, se vuelven a comprobar todas, y agregar una regla o un tipo nuevo tiene que ser fácil: es una entrada más en el catálogo, no un cambio en el programa.
 
 **R-26 · Lo aprendido de casos concretos se guarda como conocimiento, no como excepciones.** Si un caso enseña algo (cómo es la vista previa de un correo, cómo sella un servicio de firma), entra al catálogo de tipos de documento o al vocabulario, donde una persona lo puede leer y corregir. No se esconde en el programa como un caso especial.
 
