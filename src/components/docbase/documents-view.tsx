@@ -6,6 +6,7 @@ import {
   listDocuments,
   listLabelGroups,
   listOrigins,
+  listSimilarGroups,
   type DocumentFilter,
   type DocumentRow,
   type DocumentState,
@@ -16,6 +17,7 @@ import { DOCUMENT_STATES, DOCUMENT_STATE_ORDER, DocumentStateBadge } from "./doc
 import { LabelChip } from "./labels"
 import { DocbasePage, EmptyNote, ErrorNote } from "./page"
 import { formatCount, formatDate, formatSize } from "./format"
+import { groupLabel } from "./similar"
 import { useDocbaseQuery } from "./use-docbase-query"
 
 const PAGE_SIZE = 100
@@ -63,6 +65,7 @@ function DocumentList() {
 
   const origins = useDocbaseQuery("origins", listOrigins)
   const labelGroups = useDocbaseQuery("label-groups", listLabelGroups)
+  const similarGroups = useDocbaseQuery("similar-groups", listSimilarGroups)
   const request: DocumentFilter = { ...filter, limit: PAGE_SIZE, offset: page * PAGE_SIZE }
   const documents = useDocbaseQuery(JSON.stringify(request), () => listDocuments(request))
 
@@ -138,6 +141,36 @@ function DocumentList() {
             />
             Solo con copias
           </label>
+          <label className="flex items-center gap-1.5 text-sm" title="Documentos con un parecido que espera que alguien lo una o lo descarte">
+            <input
+              type="checkbox"
+              checked={filter.similarPending ?? false}
+              onChange={(event) => setFilter({ ...filter, similarPending: event.target.checked })}
+            />
+            Con parecidos pendientes
+          </label>
+          {((similarGroups.data ?? []).length > 0 || filter.similarGroup != null) && (
+            <select
+              className={SELECT_CLASS}
+              title="Familias de documentos con el mismo texto de base, por su documento principal"
+              value={filter.similarGroup ?? ""}
+              onChange={(event) =>
+                setFilter({ ...filter, similarGroup: event.target.value ? Number(event.target.value) : null })
+              }
+            >
+              <option value="">Todas las familias</option>
+              {filter.similarGroup != null &&
+                similarGroups.data !== null &&
+                !similarGroups.data.some((group) => group.principal.contentId === filter.similarGroup) && (
+                  <option value={filter.similarGroup}>Familia que ya no existe</option>
+                )}
+              {(similarGroups.data ?? []).map((group) => (
+                <option key={group.principal.contentId} value={group.principal.contentId}>
+                  {groupLabel(group)}
+                </option>
+              ))}
+            </select>
+          )}
           <select
             className={`${SELECT_CLASS} ml-auto`}
             value={filter.sort ?? "recent"}

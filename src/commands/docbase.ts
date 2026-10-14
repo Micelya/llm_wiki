@@ -88,6 +88,10 @@ export interface DocumentFilter {
   duplicatesOnly?: boolean
   /** Only files carrying this label. */
   labelId?: number | null
+  /** Only documents with a similar document that waits for a decision. */
+  similarPending?: boolean
+  /** Only the members of the family whose principal is this content. */
+  similarGroup?: number | null
   sort?: "recent" | "name" | "folder"
   limit?: number
   offset?: number
