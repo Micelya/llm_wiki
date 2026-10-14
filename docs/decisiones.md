@@ -150,6 +150,13 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-122 | 14 oct | Parecidos | Alineación propia, sin sumar dependencias | en revisión |
 | D-123 | 14 oct | Parecidos | Solo se comparan documentos con todo su texto; los que esperan reconocimiento quedan afuera | en revisión |
 | D-124 | 14 oct | Proceso de trabajo | Las pruebas existentes dejan de usar nombres de la carpeta de prueba | en revisión |
+| D-125 | 14 oct | Parecidos | Los nombres de las relaciones salen del vocabulario, con la frase que dice su dirección; una relación sin nombre se muestra por su identificador | en revisión |
+| D-126 | 14 oct | Base documental | El vocabulario admite términos por país, que reemplazan solo lo que cambian y solo sobre su propio idioma | en revisión |
+| D-127 | 14 oct | Parecidos | Qué cuenta como "espera una decisión" y cómo lo muestra Inicio: una línea por familia (hasta cinco) y una para el resto | en revisión |
+| D-128 | 14 oct | Parecidos | Las relaciones que se pueden elegir: las del catálogo, medidas e inferidas, sin la automática ni "parecidos" | en revisión |
+| D-129 | 14 oct | Parecidos | Qué fuente del wiki sugiere la app al unir dos documentos como el mismo, y cómo se elige | en revisión |
+| D-130 | 14 oct | Parecidos | Ver las diferencias lado a lado queda para después, con el botón visible y deshabilitado | en revisión |
+| D-131 | 14 oct | Parecidos | Cómo se ve cada parecido en el detalle de un documento: tarjeta, medidas en palabras y unir en un clic cuando no hay nada que elegir | en revisión |
 
 ---
 
@@ -1767,3 +1774,94 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** `src-tauri/src/docbase/*.rs`, `src/components/docbase/labels.tsx`.
 - **Quién decidió:** agente sin consulta.
 - **Fuente:** construcción de S1, 14 oct.
+
+### D-125 · Los nombres de las relaciones salen del vocabulario
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el motor identifica cada relación con un nombre técnico neutro (`signed-copy`, `version`…) y la propuesta pide que los nombres que lee la persona sean configurables por vertical y por país. Además, en las relaciones con dirección hay que decir cuál de los dos es qué: "el ejemplar firmado" es uno solo de los dos documentos.
+- **Qué se decidió:** cada vocabulario (por vertical y por idioma) tiene la lista `relations`: para cada relación, su nombre ("Ejemplar firmado") y, si tiene dirección, la frase que va entre los dos documentos ("es el ejemplar firmado de"). La pantalla arma "«Contrato firmado.pdf» es el ejemplar firmado de este documento". Una relación que el catálogo agregue y el vocabulario todavía no nombre se muestra por su identificador, sin romper nada. Una prueba exige que cada relación del catálogo tenga nombre en cada idioma, y frase si tiene dirección. Los nombres en español son los de la propuesta (sección 4); los de inglés son una traducción del agente.
+- **Por qué:** el catálogo crece sin tocar el programa (decisión del dueño del 13 de octubre) y los nombres no van escritos en las pantallas. La frase de dirección evita que la persona tenga que adivinar cuál es el firmado o la vista previa.
+- **Alternativas descartadas:** poner los nombres en el catálogo del motor (mezcla datos técnicos con palabras de cada profesión); una sola etiqueta sin dirección ("Ejemplar firmado" a secas).
+- **Dónde se aplica:** `src/vocabulary/index.ts`, `src/vocabulary/legal.ts`, `src/components/docbase/similar.ts`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S2 (pantallas de parecidos), 14 oct.
+
+### D-126 · El vocabulario admite términos por país
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Base documental
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la propuesta pide que los nombres de las relaciones puedan cambiar entre países, y el vocabulario solo distinguía vertical e idioma.
+- **Qué se decidió:** cada vertical puede tener `countries`, por etiqueta de idioma y país ("es-MX"), con solo los términos que cambian; se aplican encima del vocabulario de ese idioma. Una sección del país se mezcla clave por clave con la del idioma. Un país nunca se aplica sobre otro idioma: si la vertical no tiene ese idioma, se usa su idioma por defecto sin los términos del país. `setVertical` acepta el país; hoy nadie lo elige y ningún país tiene términos propios (P-079).
+- **Por qué:** deja preparada la variante sin cambiar lo que ya funcionaba: sin país, todo sigue igual.
+- **Alternativas descartadas:** un vocabulario completo por país (repite todo); esperar a que exista el ajuste para elegir el país.
+- **Dónde se aplica:** `src/vocabulary/index.ts`; pruebas en `src/vocabulary/vocabulary.test.ts` con una vertical inventada.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S2 (pantallas de parecidos), 14 oct.
+
+### D-127 · Qué espera una decisión y cómo lo muestra Inicio
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** Inicio tiene que avisar de los parecidos que esperan una decisión, "una línea por familia" según la propuesta. Pero puede haber decenas de familias, y hay pares que no forman familia (por ejemplo, "contenido en").
+- **Qué se decidió:** espera una decisión todo par propuesto con una relación sugerida; los "parecidos, sin relación clara" no se cuentan, igual que en el motor de S1 (`docbase_similar_pending`). Inicio muestra una línea por familia con algo pendiente, las más grandes primero y hasta cinco ("4 documentos parecidos a «X» esperan una decisión"), y una línea más con los pares restantes. Cada línea de familia lleva a Documentos filtrado por esa familia; la del resto, a Documentos con el filtro "con parecidos pendientes", que usa la misma definición. Las líneas van con el mismo color que las propuestas del wiki que esperan revisión.
+- **Por qué:** que la cuenta de Inicio y lo que muestra el filtro digan lo mismo, y que Inicio no se llene de líneas.
+- **Alternativas descartadas:** una línea por cada familia sin límite; una sola línea con el total; contar también los "parecidos" sin relación.
+- **Dónde se aplica:** `src/components/docbase/similar.ts` (`buildSimilarAttention`), `home-view.tsx`, `documents-view.tsx`, `src-tauri/src/docbase/query.rs` (filtros `similarPending` y `similarGroup`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S2 (pantallas de parecidos), 14 oct.
+
+### D-128 · Las relaciones que se pueden elegir
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el botón "elegir otra relación" necesita una lista. El catálogo trae quince relaciones, entre ellas "mismo documento" (que la base aplica sola) y "parecidos" (que significa que no se encontró relación).
+- **Qué se decidió:** la lista es la del catálogo, sin "mismo documento" ni "parecidos", en dos grupos: las que se miden comparando textos y las que se infieren. Las inferidas se ofrecen aunque el motor todavía no las proponga, porque una persona sí puede saberlas (por ejemplo, que una carta responde a otra). Un parecido sin relación sugerida no tiene botón "unir con esta relación": solo "elegir una relación" y "descartar".
+- **Por qué:** unir con "parecidos" no dice nada, y "mismo documento" ya lo resuelve la base sin preguntar.
+- **Alternativas descartadas:** ofrecer solo las medidas; ofrecer todas.
+- **Dónde se aplica:** `src/components/docbase/similar.ts` (`relationChoices`), `similar-documents.tsx`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S2 (pantallas de parecidos), 14 oct.
+
+### D-129 · La fuente del wiki que sugiere la app
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** al unir dos documentos con una relación de "mismo documento" (prácticamente el mismo, ejemplar firmado, versión) la persona elige cuál queda como fuente del wiki, y la app sugiere uno. El motor sugiere en algunos casos y en otros no (por ejemplo, en "versión" no sugiere).
+- **Qué se decidió:** se sugiere la del motor cuando la hay; si no, el que tiene la firma de una parte, después el que tiene más palabras, y si empatan el contenido más viejo. Al unir aparece un recuadro con los dos documentos para elegir, con el sugerido marcado. Como el wiki todavía no usa esa elección (P-078), el recuadro lo dice: "La elección queda guardada; por ahora el wiki todavía no la aplica".
+- **Por qué:** sigue el mismo criterio que el principal de una familia (D-121) y no promete algo que todavía no pasa.
+- **Alternativas descartadas:** unir sin preguntar usando la sugerencia; no sugerir nada.
+- **Dónde se aplica:** `src/components/docbase/similar.ts` (`suggestedWikiSource`), `similar-documents.tsx`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S2 (pantallas de parecidos), 14 oct.
+
+### D-130 · Ver las diferencias lado a lado queda para después
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la propuesta pide ver los dos textos lado a lado con lo que cambia resaltado. El motor alinea los textos pero no guarda la alineación, así que hace falta un comando nuevo y una vista propia.
+- **Qué se decidió:** en esta etapa cada parecido muestra un botón "Ver diferencias" deshabilitado, con una nota que dice que todavía no está disponible. Queda como P-077.
+- **Por qué:** la etapa se concentró en decidir (unir, elegir, descartar, deshacer); el botón visible deja claro que la función viene.
+- **Alternativas descartadas:** construirla ahora; no mostrar nada.
+- **Dónde se aplica:** `src/components/docbase/similar-documents.tsx`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S2 (pantallas de parecidos), 14 oct.
+
+### D-131 · Cómo se ve cada parecido en el detalle de un documento
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la sección "Documentos parecidos" tenía que decir qué documento es, qué relación se propone, en qué consiste el parecido, cuánto comparten "en lenguaje simple" y qué se puede hacer.
+- **Qué se decidió:** una tarjeta por parecido, con el estilo de las ubicaciones: el otro documento con enlace a su detalle y su carpeta; la relación propuesta (o la elegida, si ya se unieron) y la frase de dirección; la descripción del motor; las medidas en palabras: "Comparten el 92 % del texto" (palabras en común sobre las de los dos), "El 97 % del más corto está, palabra por palabra, en el otro" solo cuando agrega algo (5 puntos o más sobre la anterior), las palabras de cada uno y un aviso si parte del texto se leyó de una imagen. Los porcentajes se cortan, no se redondean, para que nunca diga 100 % si no es igual. Arriba a la derecha, el estado (espera una decisión, unidos o descartado, con su fecha). Unir con una relación de documentos distintos es un solo clic; con una de "mismo documento" pide antes la fuente. Las decisiones se pueden deshacer; los descartados quedan al final, atenuados. "Familia" se usa como palabra de la interfaz, no del vocabulario de la profesión.
+- **Por qué:** mismo marco visual que el resto del detalle (la marca llega con P-057), y todo lo que la persona necesita para decidir sin abrir otra pantalla.
+- **Alternativas descartadas:** una tabla; mostrar las medidas técnicas (Jaccard, contención) tal cual.
+- **Dónde se aplica:** `src/components/docbase/similar-documents.tsx`, `similar.ts`, `document-detail.tsx`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S2 (pantallas de parecidos), 14 oct.
