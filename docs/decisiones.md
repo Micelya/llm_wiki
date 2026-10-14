@@ -130,6 +130,17 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-102 | 13–14 oct | Proceso de trabajo | Esfuerzo estimado solo en términos relativos, nunca en tiempo | vigente |
 | D-103 | 13 oct | Base documental | Corregir los formularios tomados por el mismo documento (P-074) | vigente |
 | D-104 | 14 oct | Base documental | Un formulario PDF entrega su plantilla y sus datos: los campos se guardan aparte | vigente |
+| D-105 | 14 oct | Base documental | Guardar el texto una vez por espacio no expone nada nuevo | vigente |
+| D-106 | 14 oct | Parecidos | Las relaciones entre documentos también se infieren, no solo se miden | vigente |
+| D-107 | 14 oct | Parecidos | "Ejemplar firmado" solo si la firma se puede verificar; vista previa como relación propia | vigente |
+| D-108 | 14 oct | Base documental | Un catálogo de tipos de documento que crece de a poco | vigente |
+| D-109 | 14 oct | Base documental | Las firmas electrónicas se reconocen con reglas | vigente |
+| D-110 | 14 oct | Base documental | Los nombres de archivo son hipótesis; manda el contenido | vigente |
+| D-111 | 14 oct | IA | El tipo de documento necesita el modelo y va temprano; cálculo y modelo se alternan | vigente |
+| D-112 | 14 oct | Parecidos | Compartir una persona no es compartir un asunto | vigente |
+| D-113 | 14 oct | Proceso de trabajo | No se hacen inferencias sobre inferencias | vigente |
+| D-114 | 14 oct | Proceso de trabajo | Las reglas del procesamiento se documentan aparte y se revisan | vigente |
+| D-115 | 14 oct | Parecidos | El proceso tiene que decir qué falta | vigente |
 
 ---
 
@@ -459,6 +470,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** PR #17, P-047. Con la base, el texto leído vuelve a la base (sesión 04 puente; P-071).
 - **Quién decidió:** dueño del producto.
 - **Fuente:** sesión 02, sección 9; P-047.
+- **Nota (14 oct):** la preocupación de no mezclar clientes quedó respondida en D-105: guardar el texto una vez no cambia quién puede verlo; lo que importa es qué recibe junto el modelo, y eso lo gobierna el alcance de cada proyecto.
 
 ### D-026 · El reconocimiento corre solo dentro de la ingesta, con avance
 
@@ -1486,3 +1498,146 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** `src-tauri/src/docbase/text.rs` (derivado `fields`); PR #38; propuesta de parecidos.
 - **Quién decidió:** el dueño del producto lo sugirió; el agente lo implementó.
 - **Fuente:** conversación del 14 oct; PR #38.
+
+### D-105 · Guardar el texto una vez por espacio no expone nada nuevo
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Base documental
+- **Estado:** vigente
+- **El problema:** Cuando el texto leído de los escaneos se guardaba por proyecto, la razón dada era no mezclar textos de distintos clientes (D-025). Desde que la base guarda el texto una vez para todo el espacio, quedó la duda de cómo se atiende esa preocupación.
+- **Qué se decidió:** Guardar una sola vez el texto de un documento que aparece en varias ubicaciones no cambia quién puede verlo: el mismo texto ya estaba en esas ubicaciones, al alcance de quien podía abrirlas. La preocupación de mezclar clientes no es de almacenamiento sino de uso: qué información recibe junta el modelo al responder o al escribir el wiki. Eso lo gobierna el alcance de cada proyecto y el conjunto de lo visible para cada persona (diseño, sección 6).
+- **Por qué:** Razonamiento del dueño del producto, confirmado por el agente.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** `docs/design/base-documental.md` (secciones 6 y 9).
+- **Quién decidió:** El dueño del producto.
+- **Fuente:** Conversación del 14 oct.
+
+### D-106 · Las relaciones entre documentos también se infieren, no solo se miden
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos
+- **Estado:** vigente
+- **El problema:** La lista de relaciones de la propuesta solo tenía lo que se puede medir comparando palabras.
+- **Qué se decidió:** Se suman relaciones que se infieren: dice lo mismo con otras palabras, traducción de, respuesta a, constancia de firma de, mismo asunto, misma persona con otro asunto. Algunas necesitan el modelo.
+- **Por qué:** Lo que un abogado necesita relacionar no se limita a textos parecidos.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** `docs/design/parecidos-propuesta.md`, sección 4.
+- **Quién decidió:** El dueño del producto.
+- **Fuente:** Conversación del 14 oct.
+
+### D-107 · "Ejemplar firmado" solo si la firma se puede verificar; vista previa como relación propia
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos
+- **Estado:** vigente
+- **El problema:** En la carpeta de prueba, la carta documento escaneada que parecía el ejemplar enviado de un borrador era en realidad una vista previa generada por el sistema del correo, con la marca de agua "VISTA PREVIA - SIN VALOR LEGAL".
+- **Qué se decidió:** Un documento solo se trata como ejemplar firmado si la firma se puede verificar (en una imagen, típicamente con el modelo). Se distingue en qué etapa está un documento: borrador hecho con un procesador de texto, vista previa generada por el sistema que lo va a despachar, o ya procesado (enviado, recibido, firmado). "Vista previa" pasa a ser una relación.
+- **Por qué:** Tratar una vista previa sin valor legal como un ejemplar firmado es un error con consecuencias legales.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** `docs/design/parecidos-propuesta.md`, secciones 3, 4 y 5 bis.
+- **Quién decidió:** El dueño del producto.
+- **Fuente:** Conversación del 14 oct; hoja de respuestas.
+
+### D-108 · Un catálogo de tipos de documento que crece de a poco
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Base documental
+- **Estado:** vigente
+- **El problema:** Muchas relaciones no se pueden decidir sin saber qué tipo de documento es cada uno y en qué etapa está.
+- **Qué se decidió:** La base tendrá un catálogo de tipos de documento: para cada tipo, qué es, sus etapas y cómo se reconocen, sus marcas verificables sin modelo, los datos que interesan, los documentos que suelen acompañarlo y cómo se mide. Arranca con los tipos de la carpeta de prueba y se amplía con el uso; los tipos nuevos los confirma una persona.
+- **Por qué:** Cada estudio, vertical y país tiene sus tipos; describirlos mejora el reconocimiento con el tiempo.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** P-075; `docs/design/parecidos-propuesta.md`, sección 5 bis.
+- **Quién decidió:** El dueño del producto lo propuso.
+- **Fuente:** Conversación del 14 oct.
+
+### D-109 · Las firmas electrónicas se reconocen con reglas
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Base documental
+- **Estado:** vigente
+- **El problema:** Varios documentos de la carpeta de prueba se firmaron con servicios de firma electrónica, y saber si un documento está firmado y por quién es clave para relacionarlo con su versión sin firmar.
+- **Qué se decidió:** Las firmas digitales incrustadas en un PDF se reconocen con reglas, porque siguen un estándar. Con una salvedad verificada: los servicios de firma sellan cada versión que emiten, así que un PDF trae una firma incrustada aunque ninguna parte lo haya firmado. Las reglas se arman por servicio, separando el sello del servicio de la firma de cada parte.
+- **Por qué:** Es verificable, no requiere modelo y no inventa.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** P-076.
+- **Quién decidió:** El dueño del producto lo propuso; el agente verificó la salvedad.
+- **Fuente:** Conversación del 14 oct.
+
+### D-110 · Los nombres de archivo son hipótesis; manda el contenido
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Base documental
+- **Estado:** vigente
+- **El problema:** En la carpeta de prueba, el nombre de las facturas indicaba el mes de consumo, no la fecha de emisión ni la de vencimiento; tomarlo como dato hacía ver un hueco en la serie que quizás no existe.
+- **Qué se decidió:** Los nombres de archivo y de carpeta sirven para plantear hipótesis. Cuando el contenido dice otra cosa, manda el contenido.
+- **Por qué:** Los nombres los pone una persona y no son confiables.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** `docs/design/reglas-de-procesamiento.md` (R-04).
+- **Quién decidió:** El dueño del producto.
+- **Fuente:** Conversación del 14 oct.
+
+### D-111 · El tipo de documento necesita el modelo y va temprano; cálculo y modelo se alternan
+
+- **Fecha:** 14 oct 2026
+- **Tema:** IA
+- **Estado:** vigente
+- **El problema:** La propuesta recomendaba medir primero solo con cálculo y sumar usos del modelo después.
+- **Qué se decidió:** Determinar el tipo de documento requiere el modelo, y saberlo temprano permite medir según el tipo. Las pasadas de cálculo y de modelo se alternan, cada una con un propósito bien definido.
+- **Por qué:** Medir sin conocer el tipo es menos efectivo que medir por tipo.
+- **Alternativas descartadas:** Medir primero solo con cálculo: descartada por el dueño.
+- **Dónde se aplica:** `docs/design/parecidos-propuesta.md`, secciones 7 y 8; `docs/design/reglas-de-procesamiento.md` (R-19).
+- **Quién decidió:** El dueño del producto.
+- **Fuente:** Conversación del 14 oct.
+
+### D-112 · Compartir una persona no es compartir un asunto
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos
+- **Estado:** vigente
+- **El problema:** En la carpeta de prueba, un préstamo y un contrato de consultoría nombran a la misma persona, pero son asuntos sin relación.
+- **Qué se decidió:** Que dos documentos nombren a la misma persona o empresa no los hace del mismo asunto. Para "mismo asunto" hace falta algo más específico; si no, la relación es "misma persona, otro asunto".
+- **Por qué:** Evita vincular asuntos distintos por una persona compartida.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** `docs/design/reglas-de-procesamiento.md` (R-05).
+- **Quién decidió:** El dueño del producto.
+- **Fuente:** Conversación del 14 oct; hoja de respuestas.
+
+### D-113 · No se hacen inferencias sobre inferencias
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Proceso de trabajo
+- **Estado:** vigente
+- **El problema:** En un proceso por pasadas, una conclusión puede usarse como base de la siguiente, y los errores se acumulan.
+- **Qué se decidió:** Toda conclusión se ancla en las fuentes. Encadenar inferencias es excepcional, y lo que resulte se verifica contra las fuentes.
+- **Por qué:** Experiencia del dueño: encadenar inferencias acumula el error de forma creciente.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** `docs/design/reglas-de-procesamiento.md` (R-01 a R-03).
+- **Quién decidió:** El dueño del producto.
+- **Fuente:** Conversación del 14 oct.
+
+### D-114 · Las reglas del procesamiento se documentan aparte y se revisan
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Proceso de trabajo
+- **Estado:** vigente
+- **El problema:** Las reglas que hacen que el análisis por pasadas funcione estaban dentro de la propuesta de parecidos.
+- **Qué se decidió:** Pasan a un documento propio, revisable por una persona en cualquier momento y obligatorio para los agentes. Son un punto de partida y se revisan con las pruebas.
+- **Por qué:** Valen para todo análisis de la base, y hay que poder evaluarlas y cambiarlas.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** `docs/design/reglas-de-procesamiento.md`; `CLAUDE.md`.
+- **Quién decidió:** El dueño del producto.
+- **Fuente:** Conversación del 14 oct.
+
+### D-115 · El proceso tiene que decir qué falta
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos
+- **Estado:** vigente
+- **El problema:** Relacionar lo que hay no alcanza: al estudio le importa también lo que no está.
+- **Qué se decidió:** El proceso informa lo que falta: un hueco en una serie, el ejemplar firmado de un contrato que no aparece, la carta enviada de una vista previa.
+- **Por qué:** Es una de las ayudas más valiosas para un abogado y solo se ve mirando el archivo entero.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** `docs/design/reglas-de-procesamiento.md` (R-23); propuesta de parecidos, pasada 9.
+- **Quién decidió:** El dueño del producto.
+- **Fuente:** Conversación del 14 oct.
