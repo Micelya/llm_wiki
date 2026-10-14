@@ -241,7 +241,7 @@ fn form_fields(path: &Path) -> Result<Vec<(String, String)>, String> {
     if !is_pdf {
         return Ok(Vec::new());
     }
-    crate::commands::extract_images::pdf_form_fields(&path.to_string_lossy())
+    crate::commands::pdf_form::pdf_form_fields(&path.to_string_lossy())
 }
 
 fn extract(path: &Path) -> Result<Outcome, String> {
@@ -479,5 +479,169 @@ mod tests {
             .unwrap();
         assert_eq!(fields, r#"[{"name":"Nombre","value":"Bruno Diaz"}]"#);
         assert_eq!(count(&base, "SELECT count(*) FROM derivative WHERE kind = 'fields'"), 2);
+    }
+
+    /// A one-page PDF form. `texts` are (x, y, words) printed on the page;
+    /// `objects` are the form's own objects, numbered from 7 on; `annots`
+    /// and `fields` are the numbers of the page's widgets and of the
+    /// form's top fields. Object 6 is an empty appearance for any button.
+    fn form_pdf(texts: &[(u32, u32, &str)], objects: &[String], annots: &[usize], fields: &[usize]) -> Vec<u8> {
+        // Enough printed text for the page not to pass for a scan.
+        let preamble = [
+            (40, 770, "Formulario de alta. Complete los datos de la persona y marque las opciones que correspondan."),
+            (40, 758, "La informacion se presenta con caracter de declaracion jurada y queda reservada al estudio."),
+        ];
+        let content = preamble
+            .iter()
+            .chain(texts.iter())
+            .map(|(x, y, words)| format!("BT /F1 10 Tf {x} {y} Td ({words}) Tj ET"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let refs = |numbers: &[usize]| numbers.iter().map(|n| format!("{n} 0 R")).collect::<Vec<_>>().join(" ");
+        let mut all = vec![
+            format!("<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [{}] >> >>", refs(fields)),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_string(),
+            format!(
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R \
+                 /Resources << /Font << /F1 5 0 R >> >> /Annots [{}] >>",
+                refs(annots)
+            ),
+            format!("<< /Length {} >>\nstream\n{content}\nendstream", content.len()),
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".to_string(),
+            "<< /Type /XObject /Subtype /Form /BBox [0 0 12 12] /Length 0 >>\nstream\n\nendstream".to_string(),
+        ];
+        all.extend(objects.iter().cloned());
+        let mut pdf = String::from("%PDF-1.4\n");
+        let mut offsets = Vec::new();
+        for (index, object) in all.iter().enumerate() {
+            offsets.push(pdf.len());
+            pdf.push_str(&format!("{} 0 obj\n{object}\nendobj\n", index + 1));
+        }
+        let xref = pdf.len();
+        pdf.push_str(&format!("xref\n0 {}\n0000000000 65535 f \n", all.len() + 1));
+        for offset in offsets {
+            pdf.push_str(&format!("{offset:010} 00000 n \n"));
+        }
+        pdf.push_str(&format!("trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n", all.len() + 1));
+        pdf.into_bytes()
+    }
+
+    /// A tick box or option button at `rect` whose "on" state is `on`,
+    /// currently showing `state`. `own` is its own field part, if it is a
+    /// field by itself (`/FT /Btn /T (...)`), or its `/Parent n 0 R`.
+    fn button(own: &str, rect: &str, on: &str, state: &str) -> String {
+        format!(
+            "<< /Type /Annot /Subtype /Widget {own} /Rect [{rect}] /AS /{state} \
+             /AP << /N << /{on} 6 0 R /Off 6 0 R >> >> /P 3 0 R /F 4 >>"
+        )
+    }
+
+    /// The text and the `fields` derivative of the only document in `pdf`.
+    fn read_form(pdf: &[u8]) -> (String, String) {
+        let dir = TempDir::new();
+        dir.write("o/formulario.pdf", pdf);
+        let base = DocBase::in_memory().unwrap();
+        let origin = base.add_origin("O", &dir.path().join("o"), &[]).unwrap();
+        settle(&base, &origin.id);
+        let rows = base.documents(&Visible::All, &DocumentFilter::default()).unwrap().rows;
+        let detail = base.document(&Visible::All, rows[0].location_id).unwrap().unwrap();
+        let text = detail.text.unwrap_or_else(|| panic!("no text: {} {:?}", rows[0].state, detail.error));
+        let fields: String = base
+            .conn()
+            .query_row("SELECT body FROM derivative WHERE kind = 'fields'", [], |row| row.get(0))
+            .unwrap();
+        (text, fields)
+    }
+
+    #[test]
+    fn an_option_group_says_which_option_was_chosen() {
+        // One field, "Beneficiario final", with two buttons: SI and NO.
+        let pdf = form_pdf(
+            &[(40, 740, "Declaracion jurada de la persona que contrata el servicio")],
+            &[
+                "<< /FT /Btn /Ff 49152 /T (Beneficiario final) /V /NO /Kids [8 0 R 9 0 R] >>".to_string(),
+                button("/Parent 7 0 R", "100 600 112 612", "SI", "Off"),
+                button("/Parent 7 0 R", "160 600 172 612", "NO", "NO"),
+            ],
+            &[8, 9],
+            &[7],
+        );
+        let (text, fields) = read_form(&pdf);
+        assert!(text.contains("- Beneficiario final: NO"), "{text}");
+        assert!(!text.contains("SI"), "{text}");
+        assert_eq!(fields, r#"[{"name":"Beneficiario final","value":"NO"}]"#);
+    }
+
+    #[test]
+    fn a_ticked_box_is_marked_and_an_unticked_one_is_left_out() {
+        // The second box is "on" with a word other than "Yes".
+        let pdf = form_pdf(
+            &[(40, 740, "Preferencias de contacto del cliente para avisos y resumenes")],
+            &[
+                button("/FT /Btn /T (Acepta notificaciones)", "100 600 112 612", "Yes", "Yes"),
+                button("/FT /Btn /T (Recibe resumen mensual)", "100 560 112 572", "Si", "Si"),
+                button("/FT /Btn /T (Autoriza debito)", "100 520 112 532", "Yes", "Off"),
+            ],
+            &[7, 8, 9],
+            &[7, 8, 9],
+        );
+        let (text, fields) = read_form(&pdf);
+        assert!(text.contains("- Acepta notificaciones: marcado"), "{text}");
+        assert!(text.contains("- Recibe resumen mensual: marcado"), "{text}");
+        assert!(!text.contains("Autoriza"), "{text}");
+        assert_eq!(
+            fields,
+            r#"[{"name":"Acepta notificaciones","value":"marcado"},{"name":"Recibe resumen mensual","value":"marcado"}]"#
+        );
+    }
+
+    #[test]
+    fn unnamed_boxes_take_their_question_and_label_from_the_page() {
+        // As a form editor leaves them: one box per answer, named "Check
+        // Box", each with the same "on" word; what tells them apart is the
+        // text printed on their row. Labels are before their boxes here.
+        let pdf = form_pdf(
+            &[
+                (40, 600, "Es cliente habitual del estudio?"),
+                (300, 600, "SI"),
+                (340, 600, "NO"),
+                (40, 560, "Tiene deudas pendientes?"),
+                (300, 560, "SI"),
+                (340, 560, "NO"),
+            ],
+            &[
+                button("/FT /Btn /T (Check Box1)", "315 596 327 610", "Si", "Off"),
+                button("/FT /Btn /T (Check Box2)", "360 596 372 610", "Si", "Si"),
+                button("/FT /Btn /T (Check Box3)", "315 556 327 570", "Si", "Si"),
+                button("/FT /Btn /T (Check Box4)", "360 556 372 570", "Si", "Off"),
+            ],
+            &[7, 8, 9, 10],
+            &[7, 8, 9, 10],
+        );
+        let (text, fields) = read_form(&pdf);
+        assert!(text.contains("- Es cliente habitual del estudio?: NO"), "{text}");
+        assert!(text.contains("- Tiene deudas pendientes?: SI"), "{text}");
+        assert!(!text.contains("Check Box"), "{text}");
+        assert_eq!(
+            fields,
+            r#"[{"name":"Es cliente habitual del estudio?","value":"NO"},{"name":"Tiene deudas pendientes?","value":"SI"}]"#
+        );
+    }
+
+    #[test]
+    fn an_option_group_with_placeholder_states_takes_the_printed_labels() {
+        // States "Choice1" and "Choice2" say nothing: the printed label does.
+        let pdf = form_pdf(
+            &[(40, 600, "Condicion frente al impuesto"), (220, 600, "Inscripto"), (320, 600, "Exento")],
+            &[
+                "<< /FT /Btn /Ff 49152 /T (Group1) /V /Choice2 /Kids [8 0 R 9 0 R] >>".to_string(),
+                button("/Parent 7 0 R", "205 596 217 610", "Choice1", "Off"),
+                button("/Parent 7 0 R", "305 596 317 610", "Choice2", "Choice2"),
+            ],
+            &[8, 9],
+            &[7],
+        );
+        let (text, _) = read_form(&pdf);
+        assert!(text.contains("- Condicion frente al impuesto: Exento"), "{text}");
     }
 }

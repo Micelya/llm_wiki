@@ -141,6 +141,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-113 | 14 oct | Proceso de trabajo | No se hacen inferencias sobre inferencias | vigente |
 | D-114 | 14 oct | Proceso de trabajo | Las reglas del procesamiento se documentan aparte y se revisan | vigente |
 | D-115 | 14 oct | Parecidos | El proceso tiene que decir qué falta | vigente |
+| D-116 | 14 oct | Base documental | En un formulario PDF, de cada casilla o botón marcado se escribe qué opción es | en revisión |
 
 ---
 
@@ -1641,3 +1642,16 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** `docs/design/reglas-de-procesamiento.md` (R-23); propuesta de parecidos, pasada 9.
 - **Quién decidió:** El dueño del producto.
 - **Fuente:** Conversación del 14 oct.
+
+### D-116 · En un formulario PDF, de cada casilla o botón marcado se escribe qué opción es
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Base documental
+- **Estado:** en revisión (agente sin consulta; a confirmar según P-066)
+- **El problema:** Desde el PR #38, lo completado en un formulario PDF se agrega a su texto. Para una casilla o un botón de opción marcado se escribía solo "campo: X", y eso no dice cuál opción se eligió: un "SÍ / NO" puede ser un campo con dos botones o dos casillas sueltas con nombres sin sentido ("Check Box12"). Además, la biblioteca que lee los PDF solo da por marcada una casilla cuyo estado se llama "Yes"; en formularios en castellano el estado suele llamarse "Sí", y esas casillas no se escribían. En el wiki, el modelo leyó invertidas dos respuestas de una ficha de cliente y generó una consulta sobre una discrepancia que no existía.
+- **Qué se decidió:** Una casilla o botón cuenta como marcado si su estado es cualquiera distinto de "Off". De cada uno marcado se escribe una línea `- <campo>: <opción>`. La opción es, en este orden: el nombre que el formulario le da al botón elegido, si es una palabra real (no "Choice2", "On" ni un número); si no, el texto impreso al lado del botón (del lado donde están las etiquetas de toda esa fila); si no, su posición ("opción 2 de 3"). Si el campo tiene un nombre genérico ("Check Box12", "Group1"), se usa como nombre la pregunta impresa en la misma fila, antes de los botones. Una casilla suelta con nombre propio dice "marcado". Las no marcadas no se escriben: la pregunta más la etiqueta de la elegida ya dicen cuál fue la respuesta. Lo mismo vale para el derivado `fields` de la base.
+- **Por qué:** Es la forma más corta que un lector (persona o modelo) no puede leer al revés, y sale solo de señales generales de la estructura del formulario, sin nombrar ningún caso (R-24).
+- **Alternativas descartadas:** Escribir todas las opciones de la fila con su marca ("SI [x] NO [ ]"): más ruido y, cuando la pregunta ocupa varias líneas, el orden de las palabras se mezcla. Leer el valor de exportación con funciones de pdfium que la biblioteca no expone: exigía manejar el PDF a bajo nivel.
+- **Dónde se aplica:** `src-tauri/src/commands/pdf_form.rs`; F-016.
+- **Quién decidió:** Agente sin consulta.
+- **Fuente:** Sesión desatendida del 14 oct (especificación F1).
