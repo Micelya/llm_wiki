@@ -201,6 +201,9 @@ fn should_skip_full_page_pdf_image(
 /// Holds the global pdfium lock for its full duration. Callers MUST
 /// NOT acquire the lock themselves before calling this (would
 /// deadlock — `std::sync::Mutex` is non-reentrant).
+///
+/// The filled-in fields of a fillable form follow each page's text,
+/// under [`FORM_FIELDS_HEADING`].
 pub fn extract_pdf_markdown(
     path: &str,
     media_dest_dir: Option<&Path>,
@@ -251,6 +254,16 @@ pub fn extract_pdf_markdown(
         // line; the `\n\n` separator before the next `## Page` heading
         // gets prepended by the loop entry above.
         out.push('\n');
+        // What was typed into a fillable form lives in its fields, not in
+        // the page: without it, two copies of the same form filled for
+        // two different people read exactly alike.
+        let fields = page_form_fields(&page);
+        if !fields.is_empty() {
+            out.push_str(&format!("\n{FORM_FIELDS_HEADING}\n\n"));
+            for (name, value) in &fields {
+                out.push_str(&format!("- {name}: {value}\n"));
+            }
+        }
 
         // Skip image extraction when the caller didn't supply a
         // destination — no point burning pdfium cycles to throw the
@@ -570,6 +583,60 @@ pub fn extract_office_images(
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────
+
+/// Heading of the list of filled-in form fields in the extracted text.
+pub const FORM_FIELDS_HEADING: &str = "### Form fields";
+
+/// The filled-in fields of one page of a fillable form, as (name,
+/// value), in page order. Empty fields, unticked boxes, buttons and
+/// signatures are left out; a ticked box reads "X".
+fn page_form_fields(page: &pdfium_render::prelude::PdfPage<'_>) -> Vec<(String, String)> {
+    use pdfium_render::prelude::*;
+
+    let mut fields = Vec::new();
+    for annotation in page.annotations().iter() {
+        let Some(field) = annotation.as_form_field() else {
+            continue;
+        };
+        let value = match field {
+            PdfFormField::Text(field) => field.value(),
+            PdfFormField::ComboBox(field) => field.value(),
+            PdfFormField::ListBox(field) => field.value(),
+            PdfFormField::Checkbox(field) => field.is_checked().unwrap_or(false).then(|| "X".to_string()),
+            PdfFormField::RadioButton(field) => field.is_checked().unwrap_or(false).then(|| "X".to_string()),
+            _ => None,
+        };
+        let Some(value) = value.map(|value| value.split_whitespace().collect::<Vec<_>>().join(" ")) else {
+            continue;
+        };
+        if value.is_empty() {
+            continue;
+        }
+        let name = field.name().map(|name| name.trim().to_string()).unwrap_or_default();
+        fields.push((if name.is_empty() { "-".to_string() } else { name }, value));
+    }
+    fields
+}
+
+/// The filled-in fields of a fillable PDF form, page after page; empty
+/// for a PDF that is not a form or was left blank.
+///
+/// Takes the global pdfium lock, like [`extract_pdf_markdown`].
+pub fn pdf_form_fields(path: &str) -> Result<Vec<(String, String)>, String> {
+    let _guard = crate::commands::fs::lock_pdfium();
+    let pdfium = crate::commands::fs::pdfium()?;
+    let doc = pdfium
+        .load_pdf_from_file(path, None)
+        .map_err(|e| format!("Failed to open PDF '{path}': {e}"))?;
+    if doc.form().is_none() {
+        return Ok(Vec::new());
+    }
+    let mut fields = Vec::new();
+    for page in doc.pages().iter() {
+        fields.extend(page_form_fields(&page));
+    }
+    Ok(fields)
+}
 
 fn is_media_path(name: &str) -> bool {
     // PPTX: ppt/media/...    DOCX: word/media/...    XLSX: xl/media/...
