@@ -1,0 +1,1488 @@
+# Registro de decisiones
+
+**Proyecto:** Micelya Desktop (repositorio `Micelya/llm_wiki`) · **Al 14 de octubre de 2026**
+
+## Qué es y cómo usarlo
+
+Este registro junta, en un solo lugar, cada decisión de producto, de diseño y de forma de trabajo tomada desde que empezó el proyecto. Está pensado para alguien que no participó de las conversaciones: cada entrada cuenta primero qué problema obligó a decidir y después qué se decidió y por qué, sin depender de otras entradas.
+
+- **Orden:** cronológico. El tema de cada decisión es un campo, no un capítulo.
+- **Nada se borra.** Si una decisión cambia, se agrega una entrada nueva y la vieja queda marcada "reemplazada por D-xxx". Cuando el cambio afecta solo una parte, se marca "reemplazada en parte por D-xxx" y se dice qué parte sigue valiendo.
+- **Estados:** *vigente* (vale hoy), *reemplazada por D-xxx*, *en revisión* (tomada, pero falta confirmarla o quedó en espera).
+- **Quién decidió:** *dueño del producto*; *agente* (el asistente de IA que programa) cuando el dueño lo pidió o lo aceptó; *agente sin consulta* cuando el asistente decidió solo mientras el dueño no estaba, con su estado de confirmación según el pendiente P-066.
+- **Fechas de la sesión 01:** esa sesión abarcó del 5 al 8 de octubre y no registra el día exacto de cada decisión; esas entradas dicen "5 al 8 oct".
+
+**Palabras que se repiten**, para no explicarlas en cada entrada:
+
+- **Upstream:** el proyecto original de código abierto del que se partió (`nashsu/llm_wiki`). **Fork:** nuestra copia propia de ese proyecto, que evoluciona por separado.
+- **PR (pedido de integración):** un paquete de cambios de código que se revisa antes de entrar a la versión principal (`main`). Se identifica por número (#7, #33…).
+- **P-xxx:** un pendiente anotado en `pendientes.json`. **F-xxx:** una diferencia con upstream anotada en `FORK_CHANGES.md`.
+- **Modelo / cupo:** el modelo de lenguaje (la IA) que lee documentos y escribe el wiki; cada uso consume cupo de una suscripción o cuesta dinero.
+- **Ingesta o incorporación:** el paso en que un documento se le pasa al modelo para que escriba páginas del wiki. **Cola:** la fila de documentos esperando ese paso.
+- **Huella:** un número calculado a partir del contenido de un archivo o de un texto; si dos huellas coinciden, el contenido es idéntico. SHA-256 es el método de cálculo usado.
+- **Base documental:** el componente que sabe qué archivos hay, dónde está cada copia y cuáles son el mismo documento. Es el cimiento del producto desde el 9 de octubre.
+
+## Índice
+
+| ID | Fecha | Tema | Decisión en una línea | Estado |
+|---|---|---|---|---|
+| D-001 | 5 al 8 oct | Producto | El fork se convierte en Micelya Desktop, producto para estudios jurídicos | vigente |
+| D-002 | 5 al 8 oct | Base documental | Los documentos quedan en su carpeta original, sin copiarse | vigente |
+| D-003 | 5 al 8 oct | Base documental | El mismo documento en varias rutas o formatos se procesa una vez | vigente |
+| D-004 | 5 al 8 oct | Parecidos | El parecido solo propone una relación, nunca fusiona; importa qué cambió | vigente |
+| D-005 | 5 al 8 oct | Parecidos | Versiones como familias; "vigente" opcional; todos van al wiki | reemplazada en parte por D-098 |
+| D-006 | 5 al 8 oct | Base documental | Separar el documento (contenido) del archivo en una ruta (ubicación) | vigente |
+| D-007 | 5 al 8 oct | Base documental | Motores de lectura y orígenes de documentos intercambiables | vigente |
+| D-008 | 5 al 8 oct | Parecidos | Comparar por secuencias de cinco palabras y medida de contención | vigente |
+| D-009 | 5 al 8 oct | IA | Proveedor de IA: Codex en desarrollo; para clientes, suscripción propia o servicio de Amazon detrás de Micelya | vigente, con P-029 abierto |
+| D-010 | 5 al 8 oct | IA | Leer con un motor intercambiable las páginas escaneadas y las fotos | vigente |
+| D-011 | 5 al 8 oct | Upstream | La arquitectura pesa más que evitar choques con upstream | reemplazada por D-034 |
+| D-012 | 5 al 8 oct | Proceso de trabajo | Registros: diferencias con upstream, pendientes, traspasos de sesión | vigente |
+| D-013 | 5 al 8 oct | Proceso de trabajo | Todo cambio entra por PR contra el fork, con `main` protegida | vigente |
+| D-014 | 5 al 8 oct | Proceso de trabajo | Explicaciones en español, simples, autocontenidas y verificadas | vigente |
+| D-015 | 5 al 8 oct | Seguridad | Endurecer los procesos automáticos de GitHub | vigente |
+| D-016 | 5 al 8 oct | Seguridad | Actualización mensual de las acciones de GitHub, revisada con demora | vigente |
+| D-017 | 5 al 8 oct | Seguridad | No cargar claves de firma hasta proteger su uso | vigente |
+| D-018 | 5 al 8 oct | Distribución | Identidad y numeración de versiones propias | vigente |
+| D-019 | 8 oct | Base documental | Catálogo: se aceptan las cuatro propuestas (P-039) | vigente |
+| D-020 | 8 oct | Base documental | "Mismo documento" = mismo texto normalizado; una cifra distinta es otro | vigente |
+| D-021 | 8 oct | Base documental | Calcular la huella del texto al empezar la ingesta, no al importar | reemplazada por D-024 |
+| D-022 | 8 oct | Proceso de trabajo | Avanzar con todos los pendientes de código, en commits parciales | vigente |
+| D-023 | 8 oct | Base documental | Un origen vacío o desconectado no es un origen sin archivos | vigente |
+| D-024 | 8 oct | Base documental | Huella del archivo primero, antes de encolar | vigente |
+| D-025 | 8 oct | IA | Texto reconocido guardado por huella, por proyecto, en `raw/`, en JSON | reemplazada en parte por D-035 |
+| D-026 | 8 oct | IA | El reconocimiento corre solo dentro de la ingesta, con avance por página | vigente |
+| D-027 | 8 oct | Interfaz | Nombre del producto con un único reemplazo al traducir | vigente |
+| D-028 | 8 oct | IA | Chat con proveedores de línea de comandos: busca y recibe el texto de hasta 10 páginas | vigente |
+| D-029 | 8 oct | Interfaz | Buscador que ignora palabras vacías del español | vigente |
+| D-030 | 8 oct | Interfaz | Grafo con etiquetas solo en los nodos principales | en revisión |
+| D-031 | 8 oct | Interfaz | Aviso de importación informativo cuando no hubo error | vigente |
+| D-032 | 8 oct | Proceso de trabajo | Programar en una carpeta separada de la que corre la app | vigente |
+| D-033 | 9 oct | Producto | Cambio de rumbo: la base documental es el cimiento | vigente |
+| D-034 | 9 oct | Upstream | Las necesidades propias pesan más que la compatibilidad con upstream | vigente |
+| D-035 | 9 oct | Base documental | La unidad es el espacio (privado o compartido), no el proyecto | vigente |
+| D-036 | 9 oct | Base documental | La base documental es un componente separado | vigente |
+| D-037 | 9 oct | Seguridad | Autorización al estilo UMA 2.0 | reemplazada por D-045 |
+| D-038 | 9 al 11 oct | Base documental | Tres niveles: ubicación, contenido, familia | vigente |
+| D-039 | 9 al 11 oct | Base documental | Cuatro capas; el wiki le pregunta a la base solo tres cosas | vigente |
+| D-040 | 9 al 11 oct | Base documental | SQLite local como fuente de verdad; búsqueda por significado aparte | vigente |
+| D-041 | 9 al 11 oct | Base documental | Orígenes admitidos; documentos nativos de Google detectados, no procesados | vigente |
+| D-042 | 9 al 11 oct | IA | Determinista primero; IA una vez por grupo | vigente |
+| D-043 | 9 al 11 oct | Base documental | Sin ninguna ubicación, se borran los derivados | vigente |
+| D-044 | 9 al 11 oct | Seguridad | Reglas de los espacios privado y compartido | vigente |
+| D-045 | 11 oct | Seguridad | Autorización: el origen es el techo y el proyecto es el alcance | vigente |
+| D-046 | 9 al 11 oct | Distribución | Despliegue: servicio compartido opcional, un solo escritor, IA por instancia | vigente |
+| D-047 | 9 al 11 oct | Wiki | La generación del wiki sigue corriendo en la ventana de la app | vigente |
+| D-048 | 9 al 11 oct | Producto | Cinco etapas, empezando por el espacio privado | vigente |
+| D-049 | 9 al 11 oct | Base documental | Proyectos de prueba descartables; carpetas originales intocables | vigente |
+| D-050 | 9 al 11 oct | Proceso de trabajo | Reglas de colaboración con el dueño del producto | vigente |
+| D-051 | 9 al 11 oct | Seguridad | Tres reglas de autorización en espera (P-052 a P-054) | en revisión |
+| D-052 | 11 oct | Producto | Producto mínimo: etapa 1 más el puente con el wiki | vigente |
+| D-053 | 11 oct | Proceso de trabajo | Producto mínimo primero; lo posterior queda "en espera" | vigente |
+| D-054 | 11 oct | Interfaz | Cuatro pantallas de la base, con el estilo actual de la app | vigente |
+| D-055 | 11 oct | Interfaz | Marco visual y marca: para toda la app, en un turno dedicado | vigente |
+| D-056 | 11 oct | Interfaz | Pantallas nuevas en español; traducción completa aparte | vigente |
+| D-057 | 11 oct | Etiquetas | "Cliente" y "caso" son etiquetas, no proyectos | vigente |
+| D-058 | 11 oct | Upstream | No proponer contribuciones a upstream hasta nuevo aviso | vigente |
+| D-059 | 11 oct | IA | La base no le manda nada al modelo por su cuenta | vigente |
+| D-060 | 11 oct | Wiki | Asignar el proyecto general apaga su incorporación automática | reemplazada por D-071 |
+| D-061 | 11 oct | Wiki | El proyecto general se elige entre los existentes | reemplazada por D-069 |
+| D-062 | 11 oct | Interfaz | La app abre en Inicio | en revisión |
+| D-063 | 11 oct | Wiki | Quitar una carpeta de la base deja las páginas ya generadas | en revisión |
+| D-064 | 11 oct | Base documental | Vigilar solo por barrido periódico | en revisión |
+| D-065 | 11 oct | Wiki | "Qué cambió" lo sigue detectando el vigilante del wiki | en revisión |
+| D-066 | 11 oct | Base documental | Archivos que el inventario ignora | en revisión |
+| D-067 | 11 oct | Interfaz | Mensajes de error del motor en inglés, por ahora | en revisión |
+| D-068 | 11 oct | Etiquetas | Dejar vacía una etiqueta corregida vuelve al valor de la carpeta | en revisión |
+| D-069 | 12 oct | Producto | La app crea sola el proyecto general y lo llama "Archivo" | vigente |
+| D-070 | 12 oct | Producto | Nombres técnicos neutros; la carpeta de trabajo se pregunta una vez | vigente |
+| D-071 | 12 oct | Wiki | El wiki del Archivo se activa a mano y después se alimenta solo | vigente |
+| D-072 | 12 oct | Producto | Términos del dominio en un vocabulario por profesión e idioma | vigente |
+| D-073 | 12 oct | Base documental | "Excluir" en vez de "borrar" | vigente |
+| D-074 | 12 oct | Interfaz | Orígenes como árbol, con acciones por fila | vigente |
+| D-075 | 12 oct | Etiquetas | Grupos y etiquetas, reglas por carpeta, lo manual manda | vigente |
+| D-076 | 12 oct | Wiki | Las páginas son la verdad; la base lleva un índice reconstruible | en revisión |
+| D-077 | 12 oct | Interfaz | Si había otro proyecto abierto, la app lo reabre | en revisión |
+| D-078 | 12 oct | Base documental | "Volver a barrer" en una carpeta barre todo su origen | en revisión |
+| D-079 | 12 oct | Wiki | Excluir no quita del wiki lo ya incorporado | en revisión |
+| D-080 | 12 oct | Wiki | Enlaces emparejados sin distinguir mayúsculas, espacios ni guiones | en revisión |
+| D-081 | 12 oct | Etiquetas | El color de cada etiqueta lo pone la app | en revisión |
+| D-082 | 12 oct | Wiki | El índice de enlaces todavía no lo usan grafo, búsqueda ni revisión | en revisión |
+| D-083 | 12 oct | Producto | Un solo vertical, fijo, por ahora | en revisión |
+| D-084 | 12 oct | Distribución | Probar el instalador en otra máquina antes de entregarlo | vigente |
+| D-085 | 13 oct | Idioma | El Archivo nace con un idioma de wiki fijo | en revisión |
+| D-086 | 13 oct | Idioma | Un idioma fijo por estudio, con el ajuste que la app ya tiene | vigente |
+| D-087 | 13 oct | Idioma | El wiki en varios idiomas se posterga mucho | en revisión |
+| D-088 | 13 oct | Idioma | Detección de idioma sin IA pero confiable; idioma como dato de la base | vigente |
+| D-089 | 13 oct | Wiki | "Pausar" el wiki también frena la cola | en revisión |
+| D-090 | 13 oct | Etiquetas | Caja de etiquetas: Enter no crea por accidente; sin nombres fijos de clientes | en revisión |
+| D-091 | 13 oct | Distribución | Una sola copia de la app corriendo a la vez | vigente |
+| D-092 | 13 oct | Distribución | Instaladores: corrida manual sin publicar; ninguna versión pública todavía | vigente |
+| D-093 | 13 oct | Wiki | Para rehacer un wiki se aparta la carpeta, nunca se borra | vigente |
+| D-094 | 13 oct | Parecidos | Diseñar el recorrido antes de construir; ante la duda, no se une | vigente |
+| D-095 | 13 oct | Parecidos | Los parecidos los une siempre una persona | vigente |
+| D-096 | 13 oct | Parecidos | Se muestran en el detalle del documento, con botones para unir | vigente |
+| D-097 | 13 oct | Parecidos | Relaciones ampliables y con nombres configurables | vigente |
+| D-098 | 13 oct | Parecidos | Al unir como el mismo documento, queda una sola fuente del wiki | vigente |
+| D-099 | 13 oct | IA | Reducir el uso de IA, no eliminarlo | vigente |
+| D-100 | 13 oct | Base documental | Procesar en pasadas sobre todo el archivo | en revisión |
+| D-101 | 13 oct | Parecidos | El conjunto de prueba lo arma el asistente y lo corrige el dueño | vigente |
+| D-102 | 13–14 oct | Proceso de trabajo | Esfuerzo estimado solo en términos relativos, nunca en tiempo | vigente |
+| D-103 | 13 oct | Base documental | Corregir los formularios tomados por el mismo documento (P-074) | vigente |
+| D-104 | 14 oct | Base documental | Un formulario PDF entrega su plantilla y sus datos: los campos se guardan aparte | vigente |
+
+---
+
+## Entradas
+
+### D-001 · Micelya Desktop, un producto para estudios jurídicos
+
+- **Fecha:** 5 al 8 oct 2026
+- **Tema:** Producto
+- **Estado:** vigente
+- **El problema:** se partió de una aplicación de escritorio de código abierto que lee documentos y arma con IA un wiki (un conjunto de páginas enlazadas que resumen lo leído). Había que decidir si se la usaba tal cual o se la convertía en algo propio.
+- **Qué se decidió:** la copia propia (el fork `Micelya/llm_wiki`) se convierte en **Micelya Desktop**, un producto aparte orientado a estudios de abogados.
+- **Por qué:** la base sirve, pero el uso jurídico pide capacidades que la app original no tiene (manejo de fuentes, duplicados, documentos parecidos).
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** todo el repositorio; nombre e identidad en D-018.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** sesión 01, sección 1.
+
+### D-002 · Los documentos quedan en su carpeta original, sin copiarse
+
+- **Fecha:** 5 al 8 oct 2026
+- **Tema:** Base documental
+- **Estado:** vigente (hoy es el principio 2 del diseño: "los originales no se tocan")
+- **El problema:** la app original copia cada documento dentro de la carpeta del proyecto. En un estudio eso duplica miles de archivos y deja dos versiones que pueden divergir.
+- **Qué se decidió:** las fuentes quedan donde están. La app las lee desde su ubicación original y solo guarda lo que obtiene al procesarlas (texto, resúmenes). Los originales nunca se escriben, mueven ni borran.
+- **Por qué:** evitar copias y no arriesgar los documentos del cliente.
+- **Alternativas descartadas:** la importación con copia de la app original.
+- **Dónde se aplica:** primero como "volumen de fuentes" (PR #7, F-002, botón *Mount folder*); hoy en la base documental (`src-tauri/src/docbase/`).
+- **Quién decidió:** dueño del producto.
+- **Fuente:** sesión 01, sección 1, objetivo 1; `base-documental.md`, sección 2.
+
+### D-003 · El mismo documento se procesa una sola vez
+
+- **Fecha:** 5 al 8 oct 2026
+- **Tema:** Base documental
+- **Estado:** vigente
+- **El problema:** en un estudio el mismo documento aparece muchas veces: en varias carpetas, en Word y en PDF, enviado por mail y guardado con otro nombre. Procesar cada copia con IA gasta cupo y llena el wiki de repeticiones.
+- **Qué se decidió:** detectar las copias y procesar el documento una sola vez, conservando todas sus ubicaciones.
+- **Por qué:** costo y orden; además, saber dónde están todas las copias tiene valor propio.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** catálogo (PR #15, #17, F-011) y luego la base documental (PR #24 a #31).
+- **Quién decidió:** dueño del producto.
+- **Fuente:** sesión 01, sección 1, objetivo 2.
+
+### D-004 · El parecido solo propone; importa qué cambió, no cuánto
+
+- **Fecha:** 5 al 8 oct 2026
+- **Tema:** Parecidos
+- **Estado:** vigente (lo retoman D-094 a D-098)
+- **El problema:** dos contratos pueden compartir casi todo el texto y ser documentos distintos (mismo modelo, otro cliente). Si la app los tratara como duplicados mezclaría clientes.
+- **Qué se decidió:** el parecido entre documentos nunca los fusiona: solo propone una relación. Para clasificarla se mira **qué** cambió entre ellos (una cifra, un nombre, redacción), no el porcentaje de texto en común.
+- **Por qué:** el cuidado legal: en un estudio, dos documentos casi iguales no son duplicados.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** P-015; `docs/design/parecidos-propuesta.md`.
+- **Quién decidió:** dueño del producto (objetivo 3); la formulación "nunca fusiona" figura entre las "decisiones de diseño ya tomadas" sin decir quién la propuso.
+- **Fuente:** sesión 01, secciones 1 y 7.
+
+### D-005 · Versiones como familias; "vigente" opcional; todos van al wiki
+
+- **Fecha:** 5 al 8 oct 2026
+- **Tema:** Parecidos
+- **Estado:** reemplazada en parte por D-098 (sigue valiendo lo de la familia y la etiqueta "vigente"; cambió "todos los miembros se ingieren")
+- **El problema:** no siempre se puede saber cuál de varias versiones de un documento es la vigente ni cuál vino primero.
+- **Qué se decidió:** lo seguro es la *familia* de documentos y el tipo de relación entre ellos. "Vigente" es una etiqueta opcional: la app la sugiere si hay señales claras y, si no, queda sin definir. Todos los miembros de una familia van al wiki; solo los duplicados exactos se procesan una vez.
+- **Por qué:** no afirmar lo que el cálculo no puede saber.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** P-015; `parecidos-propuesta.md`, sección 6 ("la app no decide cuál versión es la vigente").
+- **Quién decidió:** No registrado (figura como "decisión de diseño ya tomada").
+- **Fuente:** sesión 01, sección 7.
+
+### D-006 · Separar el documento (contenido) del archivo en una ruta (ubicación)
+
+- **Fecha:** 5 al 8 oct 2026
+- **Tema:** Base documental
+- **Estado:** vigente (ampliado en D-038)
+- **El problema:** "archivo" se usaba para dos cosas distintas: el documento en sí y cada lugar donde está guardado. Sin separarlas no se puede decir "este documento está en tres carpetas".
+- **Qué se decidió:** el catálogo distingue *contenido* (un documento único) de *ubicación* (un archivo en una ruta). Un contenido puede tener varias ubicaciones.
+- **Por qué:** es la condición para deduplicar (D-003) sin perder ninguna copia.
+- **Alternativas descartadas:** identificar documentos por su ruta, como hacía la app original.
+- **Dónde se aplica:** catálogo (F-011) y base documental.
+- **Quién decidió:** No registrado.
+- **Fuente:** sesión 01, sección 7.
+
+### D-007 · Motores de lectura y orígenes intercambiables
+
+- **Fecha:** 5 al 8 oct 2026
+- **Tema:** Base documental
+- **Estado:** vigente
+- **El problema:** los documentos van a venir de lugares distintos (carpetas locales, servidores, nubes) y los escaneos se pueden leer con servicios distintos, que cambian de precio y calidad.
+- **Qué se decidió:** dos piezas reemplazables: una para "de dónde vienen las fuentes" y otra para "quién lee las imágenes". Cambiar de proveedor no obliga a tocar el resto.
+- **Por qué:** no quedar atado a un proveedor y poder comparar (P-026).
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** `src-tauri/src/source_volume/` (`SourceProvider`, `TextRecognizer`); diseño, sección 7 ("motores de lectura intercambiables").
+- **Quién decidió:** No registrado.
+- **Fuente:** sesión 01, sección 7.
+
+### D-008 · Comparar por secuencias de cinco palabras y medida de contención
+
+- **Fecha:** 5 al 8 oct 2026
+- **Tema:** Parecidos
+- **Estado:** vigente
+- **El problema:** hace falta un método de cálculo, sin IA, para saber cuánto texto comparten dos documentos y si uno está dentro del otro.
+- **Qué se decidió:** cortar cada texto en secuencias de cinco palabras seguidas y compararlas con un resumen numérico (MinHash), más una medida de *contención* (qué parte del documento corto está dentro del largo). Se usó así en una prueba previa.
+- **Por qué:** funcionó en la prueba de concepto y es barato de calcular.
+- **Alternativas descartadas:** otro método de resumen (SimHash): "no hace falta".
+- **Dónde se aplica:** P-015; `parecidos-propuesta.md`, sección 5 (firma y casilleros).
+- **Quién decidió:** No registrado.
+- **Fuente:** sesión 01, sección 7.
+
+### D-009 · Proveedor de IA: desarrollo y clientes
+
+- **Fecha:** 5 al 8 oct 2026 (estudio del 7 oct)
+- **Tema:** IA
+- **Estado:** vigente, con una consulta abierta (P-029)
+- **El problema:** hay que decidir con qué servicio de IA se leen los documentos, cuidando qué permiten los términos de cada proveedor y que el contenido no se use para entrenar.
+- **Qué se decidió:** durante el desarrollo se usa Codex con la suscripción ChatGPT del dueño (con el entrenamiento con contenido desactivado). Para clientes, o aportan su propia suscripción (sujeto a consultar los términos, P-029) o se usa el servicio de IA de Amazon (Bedrock) detrás de la API de Micelya.
+- **Por qué:** el estudio de términos mostró que usar suscripciones personales en un producto comercial no está claramente permitido; Bedrock tiene términos comerciales y no entrena con el contenido.
+- **Alternativas descartadas:** la suscripción de claude.ai, porque Anthropic prohíbe que aplicaciones de terceros usen credenciales de planes Free, Pro o Max.
+- **Dónde se aplica:** Configuración de la app; P-026, P-029; más adelante Micelya Core (P-063).
+- **Quién decidió:** No registrado explícitamente; figura como "decisión vigente" tras un estudio pedido por el dueño.
+- **Fuente:** sesión 01, sección 6 ("Proveedores para el reconocimiento de texto").
+
+### D-010 · Leer con un motor intercambiable las páginas escaneadas y las fotos
+
+- **Fecha:** 5 al 8 oct 2026
+- **Tema:** IA
+- **Estado:** vigente
+- **El problema:** un PDF escaneado o una foto no tienen texto que extraer; sin leerlos, quedan afuera del wiki.
+- **Qué se decidió:** las páginas de PDF con menos de 80 caracteres y las imágenes PNG/JPEG se leen con un motor intercambiable (primero Codex). Lo leído se guarda por página; un fallo nunca deja una página como vacía; el texto leído lleva una marca con el motor y el modelo que lo leyó. Se activa, de forma provisoria, con el ajuste *Image captioning* (P-028 pide un ajuste propio).
+- **Por qué:** incluir los escaneos sin perder rastro de que su texto es menos confiable (la auditoría encontró un 6 % de cifras mal leídas, P-030).
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** PR #7, F-006; `src-tauri/src/source_volume/recognition*.rs`.
+- **Quién decidió:** No registrado.
+- **Fuente:** sesión 01, sección 4.
+
+### D-011 · Upstream: la arquitectura pesa más que evitar choques
+
+- **Fecha:** 5 al 8 oct 2026
+- **Tema:** Upstream
+- **Estado:** reemplazada por D-034
+- **El problema:** cada cambio propio dentro de archivos del proyecto original hace más difícil traer después sus mejoras ("choques").
+- **Qué se decidió:** la calidad de la arquitectura pesa más que evitar choques; los choques se abaratan, no se evitan a toda costa. La lógica nueva va en archivos propios y lo que se toca en archivos originales son solo llamadas a nuestros módulos.
+- **Por qué:** poder seguir trayendo cambios del original sin sacrificar el diseño.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** forma de programar; `FORK_CHANGES.md`.
+- **Quién decidió:** dueño del producto (regla de trabajo acordada).
+- **Fuente:** sesión 01, sección 3.
+
+### D-012 · Registros: diferencias con upstream, pendientes y traspasos
+
+- **Fecha:** 5 al 8 oct 2026
+- **Tema:** Proceso de trabajo
+- **Estado:** vigente
+- **El problema:** cada conversación con el asistente empieza sin memoria de las anteriores; sin registros escritos se pierde qué se hizo y qué falta.
+- **Qué se decidió:** cada cambio respecto del original se anota por propósito en `FORK_CHANGES.md`; cada tarea que no se resuelve en el momento, en `pendientes.json`; cada sesión cierra con un documento de traspaso en `docs/sessions/`; `CLAUDE.md` le indica al asistente que al empezar lea el último traspaso, el diseño y los pendientes, y liste los pendientes abiertos.
+- **Por qué:** continuidad entre sesiones sin releer conversaciones.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** `FORK_CHANGES.md`, `pendientes.json`, `docs/sessions/`, `CLAUDE.md` (PR #2 y #4).
+- **Quién decidió:** dueño del producto (reglas acordadas).
+- **Fuente:** sesión 01, secciones 3 y 4; `CLAUDE.md`.
+
+### D-013 · Todo cambio entra por PR contra el fork
+
+- **Fecha:** 5 al 8 oct 2026
+- **Tema:** Proceso de trabajo
+- **Estado:** vigente
+- **El problema:** sin control, un cambio sin revisar puede romper la versión principal; además, la herramienta de GitHub por defecto abre los pedidos contra el proyecto original.
+- **Qué se decidió:** `main` está protegida y todo entra por PR con la comprobación automática en verde; cambios no relacionados van en PR separados; los PR se abren explícitamente contra `Micelya/llm_wiki`; nunca se suben las etiquetas del proyecto original (`git push --tags`); las pruebas se corren a mano antes de cada PR. El dueño integra y borra las ramas, y pide verificar el repositorio después de cada integración.
+- **Por qué:** revisión, posibilidad de volver atrás y no mandar nada por error al proyecto original.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** GitHub (regla de protección configurada por el dueño); `CLAUDE.md`. Si la comprobación automática debe además correr las pruebas sigue abierto (P-046).
+- **Quién decidió:** dueño del producto.
+- **Fuente:** sesión 01, sección 3; sesión 03, sección 8.
+
+### D-014 · Explicaciones en español, simples, autocontenidas y verificadas
+
+- **Fecha:** 5 al 8 oct 2026
+- **Tema:** Proceso de trabajo
+- **Estado:** vigente
+- **El problema:** el dueño del producto no es especialista en el código; una explicación técnica o que depende de contexto anterior no le sirve para decidir.
+- **Qué se decidió:** explicaciones en español, en términos simples y autocontenidas; primero el entendimiento (el problema), después la propuesta. Toda afirmación se verifica contra los proyectos reales antes de sostenerla.
+- **Por qué:** que el dueño pueda decidir con conocimiento.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** toda la comunicación y documentación.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** sesión 01, sección 3; sesión 03, sección 8.
+
+### D-015 · Endurecer los procesos automáticos de GitHub
+
+- **Fecha:** 5 al 8 oct 2026
+- **Tema:** Seguridad
+- **Estado:** vigente
+- **El problema:** los procesos automáticos de GitHub (*workflows*, que compilan y publican) usan piezas de terceros; una pieza comprometida podría robar secretos o alterar lo que se publica. Además, las etiquetas traídas del original podían disparar publicaciones acá.
+- **Qué se decidió:** fijar cada acción de terceros a una versión exacta e inmutable, dar los permisos mínimos y publicar versiones solo si existe la variable `ENABLE_TAG_RELEASE`. El dueño configuró a mano la protección de `main`, la obligación de versiones exactas, la aprobación para colaboradores externos y verificó que no haya secretos en la organización.
+- **Por qué:** una revisión de seguridad no encontró ataques, pero sí puntos débiles.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** PR #3, F-003; `.github/workflows/ci.yml` y `build.yml`.
+- **Quién decidió:** agente propuso; dueño integró y configuró.
+- **Fuente:** sesión 01, sección 4.
+
+### D-016 · Actualización mensual de las acciones de GitHub, revisada con demora
+
+- **Fecha:** 5 al 8 oct 2026
+- **Tema:** Seguridad
+- **Estado:** vigente
+- **El problema:** fijar las acciones a versiones exactas (D-015) las congela: no reciben arreglos.
+- **Qué se decidió:** un servicio de GitHub (Dependabot) propone una vez por mes un PR agrupado con versiones nuevas, solo para acciones. No se integra el mismo día: se esperan unos días por si la versión nueva resulta comprometida.
+- **Por qué:** equilibrio entre estar al día y no tomar una versión maliciosa recién publicada.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** PR #6, F-005; `.github/dependabot.yml`; P-005.
+- **Quién decidió:** agente propuso; dueño integró.
+- **Fuente:** sesión 01, sección 4; P-005.
+
+### D-017 · No cargar claves de firma hasta proteger su uso
+
+- **Fecha:** 6 oct 2026
+- **Tema:** Seguridad
+- **Estado:** vigente
+- **El problema:** para distribuir en Mac hay que cargar en GitHub las claves de firma de Apple; durante la compilación quedan visibles para todas las piezas de terceros.
+- **Qué se decidió:** no cargar claves ni secretos hasta crear un entorno con aprobación manual, restringido a etiquetas, y con certificado y contraseña exclusivos del fork.
+- **Por qué:** reducir el daño si una pieza de terceros está comprometida.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** P-002. Consecuencia: el instalador de Mac no se firma (D-092). Firmar los de Windows es una decisión abierta (P-022).
+- **Quién decidió:** dueño del producto (pendiente a su cargo).
+- **Fuente:** P-002.
+
+### D-018 · Identidad y numeración de versiones propias
+
+- **Fecha:** 5 al 8 oct 2026
+- **Tema:** Distribución
+- **Estado:** vigente
+- **El problema:** con el nombre y el identificador del original, la app compartiría su configuración con la app original instalada y recibiría avisos de sus actualizaciones.
+- **Qué se decidió:** nombre "Micelya Desktop", identificador `com.micelya.desktop`, versión propia desde `0.1.0`, etiquetas de versión `mi-desktop-vX.Y.Z` (las de prueba con `-rc.N`; la primera será `mi-desktop-v0.1.0-rc.1`) y aviso de actualizaciones contra este repositorio.
+- **Por qué:** que las dos apps no se pisen y que el producto tenga identidad propia.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** PR #5 y #11, F-004; P-006.
+- **Quién decidió:** No registrado; integrado por el dueño.
+- **Fuente:** sesión 01, sección 4; P-006.
+
+### D-019 · Catálogo: cuatro propuestas aceptadas (P-039)
+
+- **Fecha:** 8 oct 2026
+- **Tema:** Base documental
+- **Estado:** vigente (el catálogo por proyecto luego pasó a la base del espacio, D-035)
+- **El problema:** antes de construir la detección de duplicados había cuatro preguntas abiertas: cuándo calcular, qué hacer con un duplicado, si contar el texto leído de escaneos y dónde hacer el cálculo.
+- **Qué se decidió:** (1) las huellas se calculan antes de gastar cupo del modelo; (2) un duplicado exacto tiene una sola página de fuente, que lista todas sus ubicaciones (el archivo se agrega a las fuentes de todas las páginas que produjo el documento, así una página se borra solo cuando no le queda ninguna fuente); (3) el texto leído de imágenes entra en la comparación, marcado como menos confiable; (4) el cálculo corre en el motor de la app (Rust).
+- **Por qué:** que un duplicado nunca llegue al modelo y que el borrado siga funcionando.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** PR #15, F-011.
+- **Quién decidió:** dueño del producto (aceptó las propuestas del agente).
+- **Fuente:** sesión 02, secciones 2 y 4.
+
+### D-020 · "Mismo documento" = mismo texto normalizado
+
+- **Fecha:** 8 oct 2026
+- **Tema:** Base documental
+- **Estado:** vigente (con el defecto de formularios de D-103)
+- **El problema:** un Word y el PDF que salió de él tienen bytes distintos pero son el mismo documento; hay que poder reconocerlo sin confundir documentos distintos.
+- **Qué se decidió:** el texto se normaliza (minúsculas, sin tildes, solo letras y dígitos) y se calcula su huella; dos archivos con la misma huella de texto son un documento. Textos de menos de 30 palabras no se catalogan. Solo la coincidencia exacta une: una cifra distinta es otro documento.
+- **Por qué:** seguridad legal; lo "casi igual" queda para la etapa de parecidos.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** PR #15; luego la base documental (PR #27). Aclarado el 13 oct (P-015): las diferencias de formato ya no cuentan, pero una sola palabra distinta sí.
+- **Quién decidió:** No registrado (figura en "decisiones de diseño tomadas en la sesión").
+- **Fuente:** sesión 02, sección 4; P-015.
+
+### D-021 · Calcular la huella del texto al empezar la ingesta
+
+- **Fecha:** 8 oct 2026
+- **Tema:** Base documental
+- **Estado:** reemplazada por D-024 (la comparación por texto sí sigue dentro de la ingesta)
+- **El problema:** lo acordado (D-019) era calcular la huella al montar o importar, pero un escaneo todavía no tiene texto en ese momento (se lee después, D-026).
+- **Qué se decidió:** calcular la huella al empezar la tarea de ingesta de cada fuente, después de leer su texto y antes de llamar al modelo. Efecto visible: el duplicado aparece en la cola y se resuelve ahí.
+- **Por qué:** es el único punto por el que pasan todos los caminos y compara exactamente el texto que se ingiere; un duplicado igual nunca llega al modelo.
+- **Alternativas descartadas:** calcular al importar (lo acordado originalmente).
+- **Dónde se aplica:** PR #15.
+- **Quién decidió:** agente sin consulta; quedó "pendiente de visto bueno" y el dueño respondió con una propuesta propia (D-024).
+- **Fuente:** sesión 02, sección 2 ("Una diferencia con lo decidido") y sección 9.
+
+### D-022 · Avanzar con todos los pendientes de código, en commits parciales
+
+- **Fecha:** 8 oct 2026
+- **Tema:** Proceso de trabajo
+- **Estado:** vigente para esa etapa (después la prioridad pasó al producto mínimo, D-053)
+- **El problema:** tras la demostración del 8 de octubre había muchas tareas de código acumuladas.
+- **Qué se decidió:** avanzar con todas, en cambios guardados por partes, para poder volver atrás alguno.
+- **Por qué:** avanzar rápido sin perder control.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** PR #10 a #16.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** sesión 02, sección 2.
+
+### D-023 · Un origen vacío o desconectado no es un origen sin archivos
+
+- **Fecha:** 8 oct 2026
+- **Tema:** Base documental
+- **Estado:** vigente
+- **El problema:** si un disco en la nube tarda en arrancar o se desconecta, su carpeta parece vacía. Si la app lo tomara como "se borraron todos los archivos", borraría las páginas del wiki.
+- **Qué se decidió:** una carpeta que no está, o que aparece vacía cuando se le conocían archivos, se trata como "no disponible" y se conserva lo que se sabía. Consecuencia aceptada: vaciar a propósito una carpeta entera no borra páginas; hay que quitar la carpeta de la app.
+- **Por qué:** no perder trabajo por una desconexión.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** PR #12 (`source_volume/watch.rs`); luego la base documental (sesión 05, sección 4); diseño, sección 5.
+- **Quién decidió:** No registrado ("consecuencia aceptada", sin decir por quién).
+- **Fuente:** sesión 02, sección 3 ("Detección de cambios").
+
+### D-024 · Huella del archivo primero, antes de encolar
+
+- **Fecha:** 8 oct 2026
+- **Tema:** Base documental
+- **Estado:** vigente
+- **El problema:** con D-021 un archivo idéntico a otro ya procesado entraba a la cola y se leía antes de descartarse. Además, al reiniciar, tres imágenes se volvieron a leer con IA, salieron distintas y se reprocesaron.
+- **Qué se decidió:** primero se compara la huella de los bytes del archivo (SHA-256), antes de encolarlo y sin leerlo. La comparación por texto queda en la ingesta, para el mismo documento en otro formato o escaneado dos veces.
+- **Por qué:** más barato y resuelve la diferencia de D-021: para archivos idénticos vuelve a valer "comparar al importar".
+- **Alternativas descartadas:** solo comparar por texto dentro de la ingesta (D-021).
+- **Dónde se aplica:** PR #17, F-011; hoy en la base (sesión 05: niveles ubicación, archivo y contenido).
+- **Quién decidió:** dueño del producto (propuesta suya).
+- **Fuente:** sesión 02, sección 9; P-014.
+
+### D-025 · Texto leído de imágenes guardado por huella, por proyecto, en `raw/`, en JSON
+
+- **Fecha:** 8 oct 2026
+- **Tema:** IA
+- **Estado:** reemplazada en parte por D-035 (sigue valiendo guardar por huella y que no es descartable; el lugar pasó del proyecto a la base del espacio)
+- **El problema:** el texto leído de escaneos se guardaba atado a la ruta; un archivo movido o renombrado se volvía a leer con IA, con costo y resultados distintos.
+- **Qué se decidió:** guardar el texto leído por huella del archivo en `raw/recognized/` dentro del proyecto, una entrada por página o imagen, con el motor que la leyó. Lo ya leído se adopta sin releer.
+- **Por qué:** por proyecto y no global, para no mezclar texto de distintos clientes; en `raw/` y no en la carpeta de caché, porque no es descartable; en JSON, para que la herramienta de notas que abre el proyecto no lo muestre como notas.
+- **Alternativas descartadas:** guardado global, en la carpeta de caché, en archivos de notas `.md`.
+- **Dónde se aplica:** PR #17, P-047. Con la base, el texto leído vuelve a la base (sesión 04 puente; P-071).
+- **Quién decidió:** dueño del producto.
+- **Fuente:** sesión 02, sección 9; P-047.
+
+### D-026 · El reconocimiento corre solo dentro de la ingesta, con avance
+
+- **Fecha:** 8 oct 2026
+- **Tema:** IA
+- **Estado:** vigente para el wiki (la base, por su parte, no lee imágenes por su cuenta: D-059)
+- **El problema:** al montar una carpeta la pantalla quedaba bloqueada mientras se leían los escaneos, sin avance visible; algunas imágenes se leían dos veces.
+- **Qué se decidió:** la lectura de imágenes corre solo dentro de la tarea de ingesta de cada fuente, con avance por página ("página 3 de 7"); la importación ya no espera.
+- **Por qué:** no bloquear la app y no leer dos veces.
+- **Alternativas descartadas:** leer al importar (comportamiento anterior).
+- **Dónde se aplica:** PR #14, P-034.
+- **Quién decidió:** No registrado (pendiente surgido de la prueba del dueño).
+- **Fuente:** sesión 02, secciones 1 y 4.
+
+### D-027 · Nombre del producto con un único reemplazo al traducir
+
+- **Fecha:** 8 oct 2026
+- **Tema:** Interfaz
+- **Estado:** vigente
+- **El problema:** la interfaz seguía diciendo "LLM Wiki" en muchos textos, repartidos en cuatro archivos de idioma que el proyecto original cambia seguido.
+- **Qué se decidió:** un único reemplazo del nombre al momento de mostrar los textos, sin editar los archivos de idioma. Se dejan a propósito el crédito al proyecto original, los textos que se le envían al modelo, la extensión `.llmwiki.zip` y una variable técnica.
+- **Por qué:** cambiar el nombre sin generar choques con el original.
+- **Alternativas descartadas:** editar los cuatro archivos de idioma.
+- **Dónde se aplica:** PR #11, P-021, F-004 (`src/i18n/product-name.ts`).
+- **Quién decidió:** agente.
+- **Fuente:** sesión 02, sección 4; P-021.
+
+### D-028 · Chat con proveedores de línea de comandos: busca y recibe el texto de las páginas
+
+- **Fecha:** 8 oct 2026
+- **Tema:** IA
+- **Estado:** vigente (con límites en P-043)
+- **El problema:** con Codex el chat respondía "no se encontró evidencia": la búsqueda en el wiki se apagaba y, además, el modelo recibía solo el título y unos 160 caracteres de cada página.
+- **Qué se decidió:** con estos proveedores no se envían las "skills" del modo automático (apagaban la búsqueda); se agrega al pedido el texto de las páginas encontradas; se piden hasta 10 páginas en todos los modos salvo el rápido.
+- **Por qué:** que el chat responda con el contenido real del wiki. El dueño confirmó que ya responde con importes.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** PR #8 y #13, F-007, P-031, P-032.
+- **Quién decidió:** agente; resultado confirmado por el dueño.
+- **Fuente:** sesión 02, secciones 1 y 3.
+
+### D-029 · Buscador que ignora palabras vacías del español
+
+- **Fecha:** 8 oct 2026
+- **Tema:** Interfaz
+- **Estado:** vigente (falta medir la mejora en la app)
+- **El problema:** una pregunta en español arrastraba palabras como "por", "qué", "de", que aparecen en casi todas las páginas y desordenaban los resultados.
+- **Qué se decidió:** el buscador descarta esas palabras (con y sin tilde) y los signos ¿ ¡ « ». La lista vive en un módulo propio; el buscador original solo la consulta.
+- **Por qué:** mejores resultados en español, con un cambio mínimo en código del original.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** PR #13, F-009, P-033.
+- **Quién decidió:** agente.
+- **Fuente:** sesión 02, sección 4.
+
+### D-030 · Grafo con etiquetas solo en los nodos principales
+
+- **Fecha:** 8 oct 2026
+- **Tema:** Interfaz
+- **Estado:** en revisión (el dueño tiene que verlo y decir si se ajustan los umbrales)
+- **El problema:** en el grafo (el dibujo de las páginas y sus enlaces) los nombres se superponían y no se podían leer.
+- **Qué se decidió:** solo los nodos más conectados llevan nombre sin acercar la vista; los títulos largos se acortan; un clic resalta el nodo y sus vecinos.
+- **Por qué:** legibilidad.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** PR #9, F-008, P-037.
+- **Quién decidió:** agente.
+- **Fuente:** sesión 02, sección 1; P-037.
+
+### D-031 · Aviso de importación informativo cuando no hubo error
+
+- **Fecha:** 8 oct 2026
+- **Tema:** Interfaz
+- **Estado:** vigente (falta verlo en la app)
+- **El problema:** el aviso "Importados 31, omitidos 2" se mostraba en rojo aunque las omisiones eran correctas (archivos de sistema).
+- **Qué se decidió:** estilo informativo cuando todas las omisiones se deben a las reglas de exclusión; cualquier otro motivo sigue en estilo de error.
+- **Por qué:** no alarmar sin motivo.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** PR #10, F-010, P-038.
+- **Quién decidió:** agente.
+- **Fuente:** sesión 02, sección 1.
+
+### D-032 · Programar en una carpeta separada de la que corre la app
+
+- **Fecha:** 8 oct 2026
+- **Tema:** Proceso de trabajo
+- **Estado:** vigente
+- **El problema:** la app de prueba corre desde la carpeta del repositorio y se recarga ante cualquier cambio de archivo; programar ahí la interrumpía.
+- **Qué se decidió:** el código se trabaja en otra carpeta (`llm_wiki_wt`) del mismo repositorio. Tiene enlaces hacia la principal: no se borra con un borrado común.
+- **Por qué:** poder programar con la app abierta.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** entorno de trabajo.
+- **Quién decidió:** agente.
+- **Fuente:** sesión 02, sección 6; sesión 03, sección 9.
+
+### D-033 · Cambio de rumbo: la base documental es el cimiento
+
+- **Fecha:** 9 oct 2026
+- **Tema:** Producto
+- **Estado:** vigente
+- **El problema:** el producto venía creciendo como "una app de wiki con manejo de fuentes", con todo atado a cada proyecto. Eso no responde a lo que necesita un estudio: saber qué documentos tiene, dónde está cada copia y cuáles son el mismo.
+- **Qué se decidió:** el cimiento pasa a ser una **base documental** centrada en el archivo. El wiki, el chat y el grafo se montan encima. Las tareas pensadas por proyecto (P-012, P-015, P-016, P-040, P-044) se replantean sobre la base.
+- **Por qué:** el valor central para un estudio es el control de sus documentos; el wiki es uno de sus usos.
+- **Alternativas descartadas:** seguir con el modelo por proyecto.
+- **Dónde se aplica:** `docs/design/base-documental.md` (fuente de verdad del rumbo); PR #18 a #20.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** sesión 02, sección 10; sesión 03, secciones 1 y 4.
+
+### D-034 · Las necesidades propias pesan más que la compatibilidad con upstream
+
+- **Fecha:** 9 oct 2026
+- **Tema:** Upstream
+- **Estado:** vigente (reemplaza a D-011)
+- **El problema:** con el cambio de rumbo, el fork se aleja mucho del original; cuidar la compatibilidad empezaba a condicionar el diseño.
+- **Qué se decidió:** las necesidades propias pesan más que la compatibilidad. Las novedades del original se analizan una por una; ya no se da por hecho que entren con las herramientas automáticas de GitHub. El original no condiciona el diseño.
+- **Por qué:** el producto propio es lo prioritario.
+- **Alternativas descartadas:** la regla anterior (D-011).
+- **Dónde se aplica:** diseño, principio 8 y sección 9 ("Upstream").
+- **Quién decidió:** dueño del producto.
+- **Fuente:** sesión 02, sección 10; sesión 03, sección 8.
+
+### D-035 · La unidad es el espacio, no el proyecto
+
+- **Fecha:** 9 oct 2026
+- **Tema:** Base documental
+- **Estado:** vigente
+- **El problema:** hasta ahí cada proyecto guardaba su propio catálogo, su texto leído y su detección de cambios. El mismo escaneo usado en dos proyectos se leía dos veces.
+- **Qué se decidió:** la unidad es el **espacio**: privado (de una persona) o compartido (de varias). Cada documento se procesa una vez por espacio. Lo construido por proyecto es la semilla y migra a la base del espacio.
+- **Por qué:** procesar una vez y tener una sola vista del archivo de cada persona o estudio.
+- **Alternativas descartadas:** datos por proyecto (lo que existía, incluido D-025).
+- **Dónde se aplica:** diseño, secciones 2, 9 y 12; base documental (`docbase/private.sqlite3`).
+- **Quién decidió:** dueño del producto.
+- **Fuente:** sesión 02, sección 10; sesión 03, sección 4.
+
+### D-036 · La base documental es un componente separado
+
+- **Fecha:** 9 oct 2026 (consolidado el 11 oct)
+- **Tema:** Base documental
+- **Estado:** vigente
+- **El problema:** si la base se mezcla con el código del wiki, no se puede reutilizar ni cambiar por separado.
+- **Qué se decidió:** la base es un componente separado, con datos propios, código en un lugar propio y una interfaz angosta (D-039). Reutiliza extractores de texto, proveedores de IA, cola, búsqueda e interfaz; reemplaza la importación con copia, la vigilancia de fuentes y la identificación por ruta.
+- **Por qué:** poder evolucionarla sin depender del wiki.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** `src-tauri/src/docbase/`, `src/components/docbase/`; F-013.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** sesión 02, sección 10; diseño, secciones 4 y 9. **Ambigüedad:** el 9 oct se escribió "componente separado del fork; el fork es su primer cliente", y el diseño consolidado dice "separado dentro de la misma app". No consta si es un cambio de decisión o una precisión.
+
+### D-037 · Autorización al estilo UMA 2.0
+
+- **Fecha:** 9 oct 2026
+- **Tema:** Seguridad
+- **Estado:** reemplazada por D-045
+- **El problema:** en un espacio compartido, cada persona debe ver solo lo que tiene permitido.
+- **Qué se decidió:** prever desde el principio una autorización al estilo del estándar UMA 2.0 (un servicio que administra permisos). Las investigaciones de autorización y de red entre instancias quedaron a cargo del dueño (P-048).
+- **Por qué:** pensar la seguridad desde el inicio.
+- **Alternativas descartadas:** No registradas en ese momento.
+- **Dónde se aplica:** diseño (luego cambiado).
+- **Quién decidió:** dueño del producto.
+- **Fuente:** sesión 02, sección 10.
+
+### D-038 · Tres niveles: ubicación, contenido, familia
+
+- **Fecha:** 9 al 11 oct 2026
+- **Tema:** Base documental
+- **Estado:** vigente
+- **El problema:** "archivo" se usa para cosas distintas; mezclarlas produce errores de diseño.
+- **Qué se decidió:** *ubicación* (un archivo en una ruta; lo que se vigila), *contenido* (un documento exacto; de él cuelgan los derivados como texto y resumen) y *familia* (contenidos emparentados; de ella cuelgan las relaciones y la plantilla). En la construcción (sesión 05) se agregó un nivel intermedio, *archivo* (los mismos bytes exactos), entre ubicación y contenido.
+- **Por qué:** amplía D-006 para soportar parecidos y familias.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** diseño, sección 3; base documental.
+- **Quién decidió:** dueño del producto (diseño acordado).
+- **Fuente:** sesión 03, sección 4; diseño, sección 3; sesión 05, sección 4.
+
+### D-039 · Cuatro capas; el wiki le pregunta a la base solo tres cosas
+
+- **Fecha:** 9 al 11 oct 2026
+- **Tema:** Base documental
+- **Estado:** vigente
+- **El problema:** había que ordenar cómo se conectan los orígenes, la base y el wiki sin rehacer toda la parte del wiki heredada del original.
+- **Qué se decidió:** cuatro capas: orígenes (solo lectura), base documental, volumen virtual (cada proyecto ve una selección de documentos) y usos (wiki, chat, grafo, pantallas). El wiki le pregunta a la base solo: qué fuentes hay, cuál es el texto de una y qué cambió. Las páginas siguen nombrando sus fuentes por una ruta lógica.
+- **Por qué:** una conexión angosta deja que el wiki siga pareciéndose al original.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** diseño, sección 4.
+- **Quién decidió:** dueño del producto (diseño acordado).
+- **Fuente:** diseño, sección 4.
+
+### D-040 · SQLite local como fuente de verdad; búsqueda por significado aparte
+
+- **Fecha:** 9 al 11 oct 2026
+- **Tema:** Base documental
+- **Estado:** vigente
+- **El problema:** había que elegir dónde guardar los datos de la base.
+- **Qué se decidió:** una base SQLite (un archivo de base de datos local) es la fuente de verdad, con su búsqueda por palabras; la búsqueda por significado (vectores) sigue en el componente que ya tenía la app, como índice reconstruible. Las bases van siempre en una carpeta local de la app, nunca en una carpeta de red ni sincronizada con la nube.
+- **Por qué:** simple, local y sin servidor; una base en carpeta sincronizada puede corromperse.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** `%APPDATA%\com.micelya.desktop\docbase\private.sqlite3`; PR #24.
+- **Quién decidió:** dueño del producto (diseño acordado).
+- **Fuente:** sesión 03, sección 4; diseño, secciones 8 y 9.
+
+### D-041 · Orígenes admitidos; documentos nativos de Google detectados, no procesados
+
+- **Fecha:** 9 al 11 oct 2026
+- **Tema:** Base documental
+- **Estado:** vigente
+- **El problema:** los estudios guardan documentos en carpetas locales, servidores y nubes. Los documentos nativos de Google, vistos desde la unidad montada, son accesos directos de 190 bytes sin contenido.
+- **Qué se decidió:** se admiten carpetas locales, el servidor del estudio y Drive y OneDrive como unidad montada. Los documentos nativos de Google se registran como "detectado, no procesable", para que se vea qué queda afuera. Conectarse a Drive y OneDrive por sus propias interfaces queda para más adelante.
+- **Por qué:** conectarse por sus interfaces exige registrar la aplicación ante cada proveedor, trámite que el dueño decidió no encarar todavía; percepción a validar: los estudios argentinos usan poco esos formatos.
+- **Alternativas descartadas (postergadas):** conexión directa a Drive/OneDrive (P-056).
+- **Dónde se aplica:** diseño, sección 5; P-056.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** sesión 03, secciones 4 y 5; P-056.
+
+### D-042 · Determinista primero; IA una vez por grupo
+
+- **Fecha:** 9 al 11 oct 2026
+- **Tema:** IA
+- **Estado:** vigente (precisado por D-099)
+- **El problema:** la IA cuesta, tarda e inventa; muchas cosas se pueden saber con cálculo exacto.
+- **Qué se decidió:** primero herramientas deterministas (cálculo que da siempre el mismo resultado). La IA entra donde el cálculo no alcanza, y una vez por grupo de documentos, no por documento. La clasificación por tipo de documento se hace con IA, una vez por grupo.
+- **Por qué:** costo, velocidad y certeza.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** diseño, principio 5 y secciones 7 y 9.
+- **Quién decidió:** dueño del producto (diseño acordado).
+- **Fuente:** diseño, secciones 2, 7 y 9.
+
+### D-043 · Sin ninguna ubicación, se borran los derivados
+
+- **Fecha:** 9 al 11 oct 2026
+- **Tema:** Base documental
+- **Estado:** vigente
+- **El problema:** si un documento desaparece de todos lados, qué pasa con su texto, resumen y demás.
+- **Qué se decidió:** cuando desaparecen todas las ubicaciones de un contenido, se borran sus derivados.
+- **Por qué:** no guardar lo que ya no tiene respaldo.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** diseño, secciones 7 y 9.
+- **Quién decidió:** dueño del producto (diseño acordado).
+- **Fuente:** diseño, sección 9.
+
+### D-044 · Reglas de los espacios privado y compartido
+
+- **Fecha:** 9 al 11 oct 2026
+- **Tema:** Seguridad
+- **Estado:** vigente (se construye en la etapa 4)
+- **El problema:** una persona trabaja con lo suyo y con lo del estudio; lo privado no debe filtrarse.
+- **Qué se decidió:** el espacio compartido solo conoce lo compartido; lo que ve una persona es su espacio privado más lo que puede ver del compartido, armado en su propia PC; hay una base por espacio; un proyecto tiene una sola visibilidad (uno privado puede usar documentos compartidos, no al revés). Si un documento privado también está en el compartido, se usa una referencia y se compara localmente, sin revelar lo privado. "Publicar" es mover o copiar el archivo a una carpeta compartida, por cuenta del usuario.
+- **Por qué:** no delatar lo privado y no procesar dos veces.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** diseño, sección 6.
+- **Quién decidió:** dueño del producto (diseño acordado).
+- **Fuente:** diseño, sección 6.
+
+### D-045 · Autorización: el origen es el techo y el proyecto es el alcance
+
+- **Fecha:** 11 oct 2026
+- **Tema:** Seguridad
+- **Estado:** vigente (reemplaza a D-037)
+- **El problema:** cómo decidir qué ve cada persona del espacio compartido sin administrar dos veces los permisos que ya existen en las carpetas.
+- **Qué se decidió:** la app nunca muestra más de lo que la carpeta de origen dejaría leer a esa persona (el *techo*); lo verifica con una *prueba de lectura*: le pide que demuestre que puede leer tramos de archivos al azar y, si coincide, le da un pase temporal. Lo que sale de las fuentes lo gobierna el techo; lo que existe solo en la app (wiki, síntesis) lo gobierna además la membresía del proyecto. Los proyectos nacen abiertos y se pueden reservar; hay un administrador del espacio; cada instancia se empareja una vez con un código. Límites aceptados: restringir en la app no protege los archivos; lo ya recibido no se revoca hacia atrás; protege contra exposición accidental, no contra quien altere su app.
+- **Por qué:** sirve para cualquier origen y no duplica la fuente de verdad de los permisos.
+- **Alternativas descartadas:** servicio al estilo UMA 2.0 (agrega un servidor que administrar); solo permisos del origen (no permite reservar en estudios con cuenta única); derivados escritos en el sistema de archivos compartido (poco práctico); solo permisos en la app (duplica la fuente de verdad y no protege archivos).
+- **Dónde se aplica:** diseño, sección 6; P-048.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** sesión 03, sección 4 ("Cómo se llegó a la autorización"); P-048.
+
+### D-046 · Despliegue: servicio compartido opcional, un solo escritor, IA por instancia
+
+- **Fecha:** 9 al 11 oct 2026
+- **Tema:** Distribución
+- **Estado:** vigente (etapa 4)
+- **El problema:** un estudio chico no tiene servidor; uno mediano sí.
+- **Qué se decidió:** el servicio compartido puede correr en la PC de un abogado o en un servidor; hay un solo escritor por base compartida; cada instancia usa su propia cuenta de IA, con proveedores configurables; el rango de usuarios va de un abogado solo a un estudio mediano. Se parte de que la app ya queda en la bandeja del sistema, puede arrancar con Windows y levanta servicios locales.
+- **Por qué:** no exigir infraestructura extra.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** diseño, sección 8.
+- **Quién decidió:** dueño del producto (diseño acordado).
+- **Fuente:** diseño, sección 8.
+
+### D-047 · La generación del wiki sigue corriendo en la ventana de la app
+
+- **Fecha:** 9 al 11 oct 2026
+- **Tema:** Wiki
+- **Estado:** vigente para el producto mínimo
+- **El problema:** la generación del wiki con IA está escrita en la parte visual de la app (unas 5.000 líneas), no en su motor: necesita una sesión de Windows abierta y no puede correr como servicio.
+- **Qué se decidió:** alcanza para el producto mínimo; convertirla en servicio queda en espera.
+- **Por qué:** es mucho trabajo y no hace falta todavía.
+- **Alternativas descartadas (postergadas):** generación como servicio (P-055).
+- **Dónde se aplica:** diseño, secciones 8 y 10; P-055.
+- **Quién decidió:** dueño del producto (diseño acordado).
+- **Fuente:** sesión 03, sección 5; diseño, sección 8.
+
+### D-048 · Cinco etapas, empezando por el espacio privado
+
+- **Fecha:** 9 al 11 oct 2026
+- **Tema:** Producto
+- **Estado:** vigente
+- **El problema:** el diseño completo es grande; el espacio compartido multiplica cada decisión.
+- **Qué se decidió:** etapas: 1) base del espacio privado; 2) parecidos, familias y tipo; 3) volumen virtual; 4) espacio compartido; 5) plantillas y documentos nuevos. Desde la etapa 1 se dejan preparadas cuatro cosas para no rehacer: cada ubicación guarda origen, carpeta y etiquetas; toda consulta recibe "lo visible"; cada proyecto tiene miembros ("abierto" al inicio); existe el proyecto general.
+- **Por qué:** probar la base antes de compartirla.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** diseño, sección 11.
+- **Quién decidió:** dueño del producto (diseño acordado).
+- **Fuente:** sesión 03, sección 4; diseño, sección 11.
+
+### D-049 · Proyectos de prueba descartables; carpetas originales intocables
+
+- **Fecha:** 9 al 11 oct 2026
+- **Tema:** Base documental
+- **Estado:** vigente
+- **El problema:** los proyectos de prueba se armaron con el modelo viejo y había que decidir si migrarlos.
+- **Qué se decidió:** los proyectos de prueba y la carpeta de trabajo se pueden descartar y rehacer; sus carpetas originales (en la unidad de Drive) no se alteran nunca. Las fuentes copiadas dentro de un proyecto se tratan como un origen más. El 12 oct se borraron los dos proyectos viejos a pedido del dueño (con copia de la configuración); las carpetas originales no se tocaron.
+- **Por qué:** rehacer es más simple que migrar; los originales son datos reales.
+- **Alternativas descartadas:** migrar los proyectos.
+- **Dónde se aplica:** diseño, sección 9; P-051.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** sesión 03, sección 8; sesión 05, sección 12; P-051.
+
+### D-050 · Reglas de colaboración con el dueño del producto
+
+- **Fecha:** 9 al 11 oct 2026
+- **Tema:** Proceso de trabajo
+- **Estado:** vigente
+- **El problema:** en la sesión del cambio de rumbo aparecieron roces de método: análisis traídos de otras conversaciones tomados como definiciones, cambios al diseño sin visto bueno.
+- **Qué se decidió:** los análisis que el dueño trae de otras conversaciones son hipótesis: se verifican contra el código y lo decidido, y se avisa si contradicen algo. Antes de cambiar el documento de diseño se muestra la propuesta y se espera visto bueno. "No toques el repo" significa solo análisis en el chat. En el documento de diseño no se nombran productos de terceros.
+- **Por qué:** que el diseño refleje decisiones del dueño, no suposiciones.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** toda la colaboración.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** sesión 03, sección 8.
+
+### D-051 · Tres reglas de autorización en espera
+
+- **Fecha:** 9 al 11 oct 2026
+- **Tema:** Seguridad
+- **Estado:** en revisión (en espera hasta después del producto mínimo)
+- **El problema:** casos borde del espacio compartido.
+- **Qué se decidió:** a priori: al reservar un proyecto, ocultar también sus carpetas en las búsquedas de los demás, activado por defecto y con aviso de que no protege los archivos (P-052); si una carpeta está en un proyecto abierto y en uno reservado, gana el menos restrictivo y la app avisa (P-053); la prueba de lectura es siempre activa por ahora, pero tiene que poder desactivarse donde todos ven todo (P-054).
+- **Por qué:** coherencia con D-045 sin construir todavía.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** P-052, P-053, P-054; diseño, sección 10.
+- **Quién decidió:** dueño del producto ("propuesta aceptada a priori" en P-052; las otras dos sin indicación de quién).
+- **Fuente:** diseño, sección 10; P-052 a P-054.
+
+### D-052 · Producto mínimo: etapa 1 más el puente con el wiki
+
+- **Fecha:** 11 oct 2026
+- **Tema:** Producto
+- **Estado:** vigente
+- **El problema:** el diseño decía "etapa 1" y el dueño hablaba de "MVP" sin definirlo; sin acordarlo no se podía planificar.
+- **Qué se decidió:** el producto mínimo es la etapa 1 (base del espacio privado: inventario, vigilancia, identidad, texto procesado una vez y pantallas) más un puente mínimo: el wiki del proyecto general toma sus fuentes de la base.
+- **Por qué:** que se vea el valor de la base y que el wiki ya la use.
+- **Alternativas descartadas:** solo la etapa 1.
+- **Dónde se aplica:** P-049; PR #22 a #31.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** sesión 04, sección 3; P-049.
+
+### D-053 · Producto mínimo primero; lo posterior queda "en espera"
+
+- **Fecha:** 11 oct 2026
+- **Tema:** Proceso de trabajo
+- **Estado:** vigente
+- **El problema:** se tendía a definir en detalle cosas que todavía no se podían ver funcionando.
+- **Qué se decidió:** no definir en detalle lo que va después del producto mínimo; se anota en `pendientes.json` con el estado nuevo `en-espera`, que no se empieza ni se diseña antes.
+- **Por qué:** decidir con algo a la vista.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** `pendientes.json` (PR #22); diseño, sección 1.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** sesión 03, sección 8; sesión 04, sección 3.
+
+### D-054 · Cuatro pantallas de la base, con el estilo actual de la app
+
+- **Fecha:** 11 oct 2026
+- **Tema:** Interfaz
+- **Estado:** vigente
+- **El problema:** había que acordar qué se ve de la base, porque eso define cuánto construir.
+- **Qué se decidió:** cuatro pantallas: Inicio (lo que requiere atención, salud del archivo, actividad reciente, búsqueda rápida), Orígenes, Documentos (inventario en tabla con buscador y filtros) y Detalle de un documento (con forma de artículo: texto, ficha, ubicaciones, páginas del wiki que lo citan). Se construyen con el estilo que la app ya tiene. La lista de "requiere atención" es una sola y en el producto mínimo la alimentan la base y la revisión existente (P-059).
+- **Por qué:** lo mínimo para ver y controlar el archivo.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** `src/components/docbase/`; PR #25 a #28; diseño, sección 13.
+- **Quién decidió:** dueño del producto ("pantallas acordadas").
+- **Fuente:** P-049; sesión 04, sección 4.
+
+### D-055 · Marco visual y marca: para toda la app, en un turno dedicado
+
+- **Fecha:** 11 oct 2026
+- **Tema:** Interfaz
+- **Estado:** vigente (sin empezar, P-057)
+- **El problema:** el dueño quiere llevar la interfaz hacia sus bocetos de mayo (aspecto de enciclopedia en línea) y a la marca Micelya, pero hacerlo pantalla por pantalla dejaría la app despareja.
+- **Qué se decidió:** un marco común para toda la app (barra superior con marca, buscador y usuario; franja que dice en qué estudio y caso se está y si es privado; navegación a la izquierda), páginas con forma de artículo de enciclopedia, y colores, tipografías y logo de Micelya. Se aplica a toda la app de una vez, en un turno dedicado y con una pasada de diseño previa. Los bocetos de mayo usan colores que no son de la marca: hay que rehacerlos.
+- **Por qué:** coherencia visual; un formato que cualquiera sabe leer.
+- **Alternativas descartadas:** aplicarlo de a una pantalla.
+- **Dónde se aplica:** P-057; diseño, sección 13.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** sesión 04, secciones 3 y 8; P-057.
+
+### D-056 · Pantallas nuevas en español; traducción completa aparte
+
+- **Fecha:** 11 oct 2026
+- **Tema:** Interfaz
+- **Estado:** vigente
+- **El problema:** la app original trae inglés, italiano, ruso y chino, no español; traducir todo antes de construir demoraría la base.
+- **Qué se decidió:** las pantallas nuevas nacen en español; traducir toda la app al español, y las pantallas nuevas a los otros idiomas, es un trabajo aparte.
+- **Por qué:** los usuarios son estudios argentinos; no frenar la base.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** P-058; diseño, sección 13.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** sesión 04, sección 3.
+
+### D-057 · "Cliente" y "caso" son etiquetas, no proyectos
+
+- **Fecha:** 11 oct 2026
+- **Tema:** Etiquetas
+- **Estado:** vigente
+- **El problema:** había que decidir cómo se representa en la app a quién pertenece un documento y a qué asunto.
+- **Qué se decidió:** "cliente" y "caso" son etiquetas (grupos de etiquetas, D-075), no proyectos. Cada profesión sugiere los suyos y el usuario los nombra como quiera. Cómo nace un caso (de una carpeta, a mano o extraído del contenido) queda para más adelante (P-061).
+- **Por qué:** un documento puede pertenecer a varios agrupamientos; los proyectos son puntos de vista, no carpetas.
+- **Alternativas descartadas:** un proyecto por cliente o por caso.
+- **Dónde se aplica:** diseño, secciones 3 y 13; P-061.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** sesión 04, sección 3; sesión 05, sección 5.
+
+### D-058 · No proponer contribuciones a upstream hasta nuevo aviso
+
+- **Fecha:** 11 oct 2026
+- **Tema:** Upstream
+- **Estado:** vigente
+- **El problema:** algunos arreglos propios (por ejemplo F-001 y F-003) también servirían al original; proponérselos ahorra mantenerlos, pero lleva trabajo y expone el proyecto.
+- **Qué se decidió:** no se proponen contribuciones al original hasta nuevo aviso. P-008 queda en suspenso.
+- **Por qué:** No registrado.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** P-008; columna "Upstream" de `FORK_CHANGES.md` (los "candidatos" no se proponen).
+- **Quién decidió:** dueño del producto.
+- **Fuente:** sesión 04, sección 3; P-008.
+
+### D-059 · La base no le manda nada al modelo por su cuenta
+
+- **Fecha:** 11 oct 2026
+- **Tema:** IA
+- **Estado:** vigente
+- **El problema:** la base recorre todos los documentos del estudio; si usara IA por su cuenta, gastaría cupo y sacaría documentos de la máquina sin que nadie lo pida.
+- **Qué se decidió:** la base obtiene el texto una vez por documento, solo por extracción directa (PDF, Office, texto). Ningún motor de lectura de imágenes corre por su cuenta: un escaneo queda marcado "Texto en imagen". Cuando el wiki lee un escaneo, ese texto vuelve a la base para no leerlo dos veces.
+- **Por qué:** control del costo y de qué sale de la máquina.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** PR #27 y #29; P-049.
+- **Quién decidió:** agente al construir (no figura en las listas de decisiones sin consulta); coherente con D-042.
+- **Fuente:** sesión 04, sección 4; P-049.
+
+### D-060 · Asignar el proyecto general apaga su incorporación automática
+
+- **Fecha:** 11 oct 2026
+- **Tema:** Wiki
+- **Estado:** reemplazada por D-071 (la idea de no mandar todo al modelo sin pedirlo se conserva: el proyecto nace con la incorporación automática apagada hasta activar el wiki)
+- **El problema:** la app original incorpora automáticamente todo archivo nuevo de un proyecto. Al conectar las carpetas de la base al wiki, cientos de archivos se verían como nuevos e irían al modelo sin que nadie lo pida.
+- **Qué se decidió:** asignar un proyecto como general desactiva su incorporación automática; la incorporación se pide carpeta por carpeta, con confirmación y aviso de uso del modelo.
+- **Por qué:** evitar un gasto masivo no pedido.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** PR #29.
+- **Quién decidió:** agente sin consulta; cambiado por el dueño el 12 oct (P-066).
+- **Fuente:** sesión 04, sección 6, punto 1; P-066.
+
+### D-061 · El proyecto general se elige entre los existentes
+
+- **Fecha:** 11 oct 2026
+- **Tema:** Wiki
+- **Estado:** reemplazada por D-069
+- **El problema:** el diseño decía que el proyecto general se crea al incorporar carpetas, pero la app no tenía cómo crearlo sola.
+- **Qué se decidió:** el usuario elige un proyecto de wiki ya abierto para que represente al proyecto general.
+- **Por qué:** era lo más simple sobre la app existente.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** PR #29.
+- **Quién decidió:** agente sin consulta; cambiado por el dueño el 12 oct (P-066).
+- **Fuente:** sesión 04, sección 6, punto 2; P-066.
+
+### D-062 · La app abre en Inicio
+
+- **Fecha:** 11 oct 2026
+- **Tema:** Interfaz
+- **Estado:** en revisión (sin confirmar, P-066)
+- **El problema:** la app original abre en el wiki; con la base, el punto de partida natural es el estado del archivo.
+- **Qué se decidió:** la app abre en la pantalla Inicio.
+- **Por qué:** mostrar primero lo que requiere atención.
+- **Alternativas descartadas:** abrir en el wiki.
+- **Dónde se aplica:** PR #28.
+- **Quién decidió:** agente sin consulta; el dueño la vio funcionando el 12 oct pero no consta que la haya confirmado.
+- **Fuente:** sesión 04, sección 6, punto 3; sesión 05, sección 8, punto 1; P-066.
+
+### D-063 · Quitar una carpeta de la base deja las páginas ya generadas
+
+- **Fecha:** 11 oct 2026
+- **Tema:** Wiki
+- **Estado:** en revisión
+- **El problema:** al quitar una carpeta de la base, qué hacer con las páginas del wiki que ya salieron de ella.
+- **Qué se decidió:** se desmonta del wiki general, pero las páginas generadas quedan.
+- **Por qué:** No registrado.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** PR #29.
+- **Quién decidió:** agente sin consulta. **Ambigüedad:** figura en P-066 como "a confirmar", pero el estado del 12 oct no la nombra ni entre las cambiadas ni entre las sin revisar.
+- **Fuente:** sesión 04, sección 6, punto 4; P-066.
+
+### D-064 · Vigilar solo por barrido periódico
+
+- **Fecha:** 11 oct 2026
+- **Tema:** Base documental
+- **Estado:** en revisión (el aviso en vivo está pendiente, P-064)
+- **El problema:** el diseño dice "aviso en vivo del sistema más barrido de respaldo"; el aviso en vivo agregaba trabajo.
+- **Qué se decidió:** la base solo barre (recorre las carpetas): al arrancar, cada cinco minutos y a pedido. Un archivo nuevo puede tardar hasta cinco minutos en aparecer.
+- **Por qué:** alcanzaba para el producto mínimo.
+- **Alternativas descartadas (postergadas):** aviso en vivo (P-064).
+- **Dónde se aplica:** PR #25 (`src-tauri/src/docbase/worker.rs`).
+- **Quién decidió:** agente sin consulta (sesión 04 punto 5 y sesión 05 punto 10).
+- **Fuente:** sesión 04, sección 6; sesión 05, sección 8; P-064.
+
+### D-065 · "Qué cambió" lo sigue detectando el vigilante del wiki
+
+- **Fecha:** 11 oct 2026
+- **Tema:** Wiki
+- **Estado:** en revisión (es parte de lo que falta de la etapa 3, P-012)
+- **El problema:** la base sabe qué cambió, pero conectar eso al wiki era más trabajo que el puente mínimo.
+- **Qué se decidió:** el puente cubre "qué fuentes hay" y "cuál es el texto de una"; "qué cambió" lo sigue detectando el vigilante propio del proyecto de wiki.
+- **Por qué:** acotar el puente al mínimo.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** PR #29; P-012.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** sesión 04, sección 6, punto 6.
+
+### D-066 · Archivos que el inventario ignora
+
+- **Fecha:** 11 oct 2026
+- **Tema:** Base documental
+- **Estado:** en revisión (sin revisar, P-066)
+- **El problema:** las carpetas tienen archivos de sistema y temporales que no son documentos.
+- **Qué se decidió:** el inventario deja afuera carpetas ocultas (las que empiezan con punto), `desktop.ini`, `Thumbs.db`, temporales de Office (`~$…`) y descargas a medio hacer.
+- **Por qué:** no llenar el inventario de ruido.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** PR #25.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** sesión 04, sección 6, punto 7; sesión 05, sección 8, punto 2; P-066.
+
+### D-067 · Mensajes de error del motor en inglés, por ahora
+
+- **Fecha:** 11 oct 2026
+- **Tema:** Interfaz
+- **Estado:** en revisión (se resuelve con la traducción, P-058)
+- **El problema:** los errores que vienen del motor de montaje están en inglés y aparecen dentro de pantallas en español.
+- **Qué se decidió:** dejarlos así hasta la traducción completa.
+- **Por qué:** no adelantar el trabajo de traducción.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** P-058.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** sesión 04, sección 6, punto 8.
+
+### D-068 · Dejar vacía una etiqueta corregida vuelve al valor de la carpeta
+
+- **Fecha:** 11 oct 2026
+- **Tema:** Etiquetas
+- **Estado:** en revisión
+- **El problema:** si el usuario corrige una etiqueta de un documento y la deja vacía, puede querer decir "sin etiqueta" o "volver a lo que dice la carpeta".
+- **Qué se decidió:** vuelve al valor de la carpeta.
+- **Por qué:** No registrado.
+- **Alternativas descartadas:** dejar el documento sin esa etiqueta.
+- **Dónde se aplica:** PR #26.
+- **Quién decidió:** agente sin consulta. **Ambigüedad:** P-066 la lista a confirmar; el estado del 12 oct no la menciona, y el modelo de etiquetas cambió después (D-075), así que no está claro si sigue aplicando.
+- **Fuente:** sesión 04, sección 6, punto 9; P-066.
+
+### D-069 · La app crea sola el proyecto general y lo llama "Archivo"
+
+- **Fecha:** 12 oct 2026
+- **Tema:** Producto
+- **Estado:** vigente (reemplaza a D-061)
+- **El problema:** con D-061 el usuario tenía que elegir un proyecto para que hiciera de general; además la app exigía un proyecto abierto para mostrar cualquier pantalla, incluso las de la base.
+- **Qué se decidió:** la app crea sola el proyecto general y abre ahí. Para un estudio jurídico se llama "Archivo" (el nombre sale del vocabulario, D-072).
+- **Por qué:** es el archivo del estudio, no un proyecto más; el usuario no debería tener que armarlo.
+- **Alternativas descartadas:** elegirlo entre los existentes (D-061).
+- **Dónde se aplica:** PR #31; `src-tauri/src/docbase/bridge.rs`; diseño, secciones 3 y 9.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** sesión 05, secciones 4 y 5; P-066.
+
+### D-070 · Nombres técnicos neutros; la carpeta de trabajo se pregunta una vez
+
+- **Fecha:** 12 oct 2026
+- **Tema:** Producto
+- **Estado:** vigente
+- **El problema:** el nombre visible ("Archivo") cambia según la profesión y el idioma; si se usara también como nombre de carpeta en disco, cambiaría con ellos. Además, la app nunca guardaba una "carpeta de trabajo": lo que el dueño recordaba haber elegido era la carpeta de su primer proyecto.
+- **Qué se decidió:** los nombres técnicos (carpetas, identificadores) son neutros y no cambian con la profesión: el proyecto general vive en la carpeta `default`, dentro de la carpeta de trabajo de la app. La app pregunta una vez cuál es la carpeta de trabajo y la guarda.
+- **Por qué:** separar lo que ve el usuario de lo que guarda la máquina.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** PR #31; diseño, sección 13.
+- **Quién decidió:** dueño del producto (nombres neutros); la pregunta de la carpeta de trabajo surgió al construir y no consta quién la propuso.
+- **Fuente:** sesión 05, secciones 4, 5 y 6.
+
+### D-071 · El wiki del Archivo se activa a mano y después se alimenta solo
+
+- **Fecha:** 12 oct 2026
+- **Tema:** Wiki
+- **Estado:** vigente (reemplaza a D-060)
+- **El problema:** con D-060 había que pedir la incorporación carpeta por carpeta. Pero dejar el wiki encendido desde el inicio mandaría todo al modelo sin aviso.
+- **Qué se decidió:** el wiki no arranca solo: se activa desde Orígenes, que avisa cuántos documentos van a ir al modelo. Una vez activado se alimenta solo con lo que se agrega, cambia o se quita. Se puede pausar. Hasta que se activa, el proyecto `default` tiene apagada la incorporación automática.
+- **Por qué:** consentimiento explícito para usar el modelo, sin trabajo manual después.
+- **Alternativas descartadas:** incorporación carpeta por carpeta (D-060).
+- **Dónde se aplica:** PR #31; pantalla Orígenes (panel "Wiki del archivo"); diseño, secciones 3 y 9.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** sesión 05, secciones 4, 5 y 6; P-066.
+
+### D-072 · Términos del dominio en un vocabulario por profesión e idioma
+
+- **Fecha:** 12 oct 2026
+- **Tema:** Producto
+- **Estado:** vigente
+- **El problema:** palabras como "Archivo", "Cliente" o "Caso" son de abogados; una escribanía o un estudio contable usan otras. Si se escriben en el código, cada profesión obliga a reprogramar.
+- **Qué se decidió:** los términos del dominio no van escritos en el código: salen de un vocabulario por vertical (profesión) y, dentro de ella, por idioma. Después de los estudios jurídicos vienen escribanías y estudios contables.
+- **Por qué:** el producto apunta a varias profesiones.
+- **Alternativas descartadas:** términos fijos en las pantallas.
+- **Dónde se aplica:** `src/vocabulary/`; diseño, secciones 9 y 13; P-069.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** sesión 05, sección 5.
+
+### D-073 · "Excluir" en vez de "borrar"
+
+- **Fecha:** 12 oct 2026
+- **Tema:** Base documental
+- **Estado:** vigente
+- **El problema:** el usuario necesita sacar de la base algunos archivos o carpetas, pero la app nunca toca los originales; "borrar" sugeriría lo contrario.
+- **Qué se decidió:** la acción se llama "Excluir": el archivo o la carpeta siguen en su lugar y a la vista, pero la base no los procesa ni los entrega al wiki. No toca nada en disco y se puede deshacer.
+- **Por qué:** coherencia con "los originales no se tocan" (D-002).
+- **Alternativas descartadas:** "borrar".
+- **Dónde se aplica:** PR #31; pantalla Orígenes; diseño, secciones 3 y 9.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** sesión 05, secciones 4 y 5.
+
+### D-074 · Orígenes como árbol, con acciones por fila
+
+- **Fecha:** 12 oct 2026
+- **Tema:** Interfaz
+- **Estado:** vigente
+- **El problema:** la pantalla Orígenes mostraba solo cada carpeta incorporada; no se podía actuar sobre una subcarpeta o un archivo.
+- **Qué se decidió:** cada origen se recorre como árbol de carpetas y archivos. En cada fila: abrir, incorporar al wiki (solo con el wiki activo), excluir o volver a incluir; en las carpetas, además, volver a barrer y definir reglas de etiquetas.
+- **Por qué:** pedido por el dueño tras ver la primera versión en la app.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** PR #31; diseño, sección 13.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** sesión 05, sección 4; P-049.
+
+### D-075 · Grupos y etiquetas, reglas por carpeta, lo manual manda
+
+- **Fecha:** 12 oct 2026
+- **Tema:** Etiquetas
+- **Estado:** vigente
+- **El problema:** la estructura de carpetas indica a qué cliente o caso pertenece cada documento, pero rara vez es pareja; y siempre hay archivos mal guardados.
+- **Qué se decidió:** un *grupo* es la pregunta ("Cliente") y una *etiqueta* la respuesta ("BGH"); también hay etiquetas sueltas. Se guardan aparte con un identificador, así renombrar una no toca ningún archivo. En cualquier carpeta se ponen reglas que heredan las subcarpetas y lo que aparezca después: "todo lo de acá lleva esta etiqueta" o "cada subcarpeta de acá es un…". Lo puesto a mano en un archivo manda sobre lo heredado.
+- **Por qué:** reflejar el orden real del estudio, con correcciones a mano.
+- **Alternativas descartadas:** indicar al incorporar cómo está ordenado todo el origen (queda como opción solo si la estructura es pareja).
+- **Dónde se aplica:** PR #31; pantallas Orígenes y Documentos; diseño, sección 3.
+- **Quién decidió:** dueño del producto (pedido suyo, inspirado en una herramienta que usa).
+- **Fuente:** sesión 05, secciones 4 y 6; diseño, sección 3.
+
+### D-076 · Las páginas son la verdad; la base lleva un índice reconstruible
+
+- **Fecha:** 12 oct 2026
+- **Tema:** Wiki
+- **Estado:** en revisión (el dueño no lo objetó ni lo confirmó)
+- **El problema:** los enlaces del wiki viven solo dentro del texto de cada página; para saber qué enlaza a qué hay que releer todas, con al menos seis reglas distintas. Renombrar una página rompe los enlaces que le apuntan. El dueño preguntó por qué no pasar los enlaces a la base con identificadores.
+- **Qué se decidió:** las páginas siguen siendo la verdad (las escribe el modelo como texto y todo el wiki lee y escribe esos archivos). La base lleva un índice de páginas, enlaces y documento de origen, que se reconstruye entero a partir de ellas. Lo que se buscaba con identificadores (que renombrar no rompa enlaces) se resuelve en P-068.
+- **Por qué:** no rehacer toda la capa de wiki heredada.
+- **Alternativas descartadas:** enlaces guardados en la base con identificadores (reabrir si el dueño lo prefiere).
+- **Dónde se aplica:** PR #31; `src-tauri/src/docbase/wiki.rs`; P-068; diseño, secciones 4 y 9.
+- **Quién decidió:** agente recomendó; dueño sin confirmar.
+- **Fuente:** sesión 05, secciones 4 y 9; P-068.
+
+### D-077 · Si había otro proyecto abierto, la app lo reabre
+
+- **Fecha:** 12 oct 2026
+- **Tema:** Interfaz
+- **Estado:** en revisión (sin revisar, P-066)
+- **El problema:** la app crea y abre el Archivo, pero el usuario puede estar trabajando en otro proyecto.
+- **Qué se decidió:** si el último proyecto abierto es distinto del Archivo, la app reabre ese.
+- **Por qué:** No registrado.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** PR #31.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** sesión 05, sección 8, punto 3.
+
+### D-078 · "Volver a barrer" en una carpeta barre todo su origen
+
+- **Fecha:** 12 oct 2026
+- **Tema:** Base documental
+- **Estado:** en revisión (sin revisar, P-066)
+- **El problema:** el botón está en cada carpeta del árbol, pero el barrido funcionaba por origen completo.
+- **Qué se decidió:** pedirlo en una carpeta barre todo el origen al que pertenece.
+- **Por qué:** No registrado.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** PR #31.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** sesión 05, sección 8, punto 4.
+
+### D-079 · Excluir no quita del wiki lo ya incorporado
+
+- **Fecha:** 12 oct 2026
+- **Tema:** Wiki
+- **Estado:** en revisión (sin revisar, P-066)
+- **El problema:** al excluir un documento que ya generó páginas, qué pasa con esas páginas.
+- **Qué se decidió:** quedan; la exclusión solo evita que se procese o entregue de nuevo.
+- **Por qué:** No registrado.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** PR #31.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** sesión 05, sección 8, punto 5.
+
+### D-080 · Enlaces emparejados sin distinguir mayúsculas, espacios ni guiones
+
+- **Fecha:** 12 oct 2026
+- **Tema:** Wiki
+- **Estado:** en revisión (sin revisar, P-066)
+- **El problema:** el modelo escribe los enlaces a mano y no siempre con el nombre exacto de la página.
+- **Qué se decidió:** el índice empareja un enlace con su página sin distinguir mayúsculas, espacios, guiones ni guiones bajos.
+- **Por qué:** No registrado (se infiere: tolerar variaciones de escritura).
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** PR #31; índice del wiki.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** sesión 05, sección 8, punto 6.
+
+### D-081 · El color de cada etiqueta lo pone la app
+
+- **Fecha:** 12 oct 2026
+- **Tema:** Etiquetas
+- **Estado:** en revisión (el dueño pidió poder elegirlo, anotado en P-057)
+- **El problema:** cada etiqueta necesita un color para distinguirse.
+- **Qué se decidió:** la app lo asigna sola.
+- **Por qué:** No registrado.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** PR #31; P-057.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** sesión 05, sección 8, punto 7; P-057.
+
+### D-082 · El índice de enlaces todavía no lo usan grafo, búsqueda ni revisión
+
+- **Fecha:** 12 oct 2026
+- **Tema:** Wiki
+- **Estado:** en revisión (P-068)
+- **El problema:** pasar el grafo, la búsqueda, el panel de enlaces y la revisión automática del wiki al índice nuevo implica tocar código original sensible.
+- **Qué se decidió:** construir el índice ahora y pasar cada función a usarlo después, de a una.
+- **Por qué:** cuidado con código original.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** P-068.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** sesión 05, sección 8, punto 8.
+
+### D-083 · Un solo vertical, fijo, por ahora
+
+- **Fecha:** 12 oct 2026
+- **Tema:** Producto
+- **Estado:** en revisión (en espera, P-069)
+- **El problema:** el vocabulario (D-072) admite varias profesiones, pero no hay dónde elegirla.
+- **Qué se decidió:** por ahora hay una sola, estudios jurídicos, fija en el código. Falta definir dónde se elige, si un estudio puede cambiar términos y los vocabularios de otras profesiones.
+- **Por qué:** alcanza para el estudio de referencia.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** `src/vocabulary/`; P-069.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** sesión 05, sección 8, punto 9; P-069.
+
+### D-084 · Probar el instalador en otra máquina antes de entregarlo
+
+- **Fecha:** 12 oct 2026
+- **Tema:** Distribución
+- **Estado:** vigente (continúa en D-092)
+- **El problema:** nunca se había generado un instalador; el repositorio es público y una versión publicada la puede bajar cualquiera.
+- **Qué se decidió:** generar el instalador y probarlo en otra máquina del dueño antes de pasarlo a los abogados del estudio de referencia. Antes de entregarlo quedan tres decisiones: si la descarga puede ser pública, qué proveedor de IA usa cada uno (P-029) y si la primera entrega va con el wiki sin activar (lo que garantiza que ningún documento salga de la máquina).
+- **Por qué:** no entregar algo no probado.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** P-006; `.github/workflows/build.yml`.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** sesión 05, sección 10; P-006.
+
+### D-085 · El Archivo nace con un idioma de wiki fijo
+
+- **Fecha:** 13 oct 2026
+- **Tema:** Idioma
+- **Estado:** en revisión (a confirmar por el dueño, P-066)
+- **El problema:** la app creó el Archivo sola, sin el diálogo de creación, así que su idioma de salida quedó en "automático". La detección automática tomó el español por francés y el wiki entero salió en francés (se frenó con 12 documentos incorporados y quedó mezclado).
+- **Qué se decidió:** el Archivo nace con un idioma de wiki fijo: la preferencia general de idioma de salida de la app o, si no hay, el idioma del vocabulario.
+- **Por qué:** que el primer wiki salga en el idioma del estudio sin depender de la detección.
+- **Alternativas descartadas:** dejarlo en "automático".
+- **Dónde se aplica:** PR #33; `src/lib/default-project.ts`; P-051.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** conversación del 13-14 oct; P-051; P-066.
+
+### D-086 · Un idioma fijo por estudio, con el ajuste que la app ya tiene
+
+- **Fecha:** 13 oct 2026
+- **Tema:** Idioma
+- **Estado:** vigente
+- **El problema:** en modo "automático" cada página se escribe en el idioma del documento del que salió. Un estudio argentino tiene documentos en castellano, portugués, inglés e italiano: el wiki saldría mezclado aunque la detección acertara siempre.
+- **Qué se decidió:** el wiki se escribe en un idioma fijo por estudio, usando el ajuste por proyecto que la app ya tiene (Configuración, *Output Preferences*). "Automático" sigue existiendo como opción. No hace falta cambiar el documento de diseño.
+- **Por qué:** un wiki coherente; usar lo que la plataforma ya ofrece.
+- **Alternativas descartadas:** la propuesta del agente de escribirlo en el documento de diseño como regla nueva; el idioma por documento.
+- **Dónde se aplica:** P-070 (cerrado); `src/lib/output-language.ts`; PR #33.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 13-14 oct; P-070.
+
+### D-087 · El wiki en varios idiomas se posterga mucho
+
+- **Fecha:** 13 oct 2026
+- **Tema:** Idioma
+- **Estado:** en revisión (en espera, P-073)
+- **El problema:** el dueño prevé que el estudio exponga funciones por la web y que cada persona elija en qué idioma ver las cosas.
+- **Qué se decidió:** postergarlo para mucho más adelante. Entonces se definirá si se generan páginas en varios idiomas, si se traducen al pedirlas o si hay un idioma de base y los demás se derivan.
+- **Por qué:** no hace falta para el producto mínimo.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** P-073.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 13-14 oct; P-073.
+
+### D-088 · Detección de idioma sin IA pero confiable; idioma como dato de la base
+
+- **Fecha:** 13 oct 2026
+- **Tema:** Idioma
+- **Estado:** vigente (el arreglo inmediato está hecho; lo de fondo es P-072)
+- **El problema:** la detección de idioma heredada son reglas hechas a mano sobre letras y palabras cortas: tomaba el español por francés con solo ver "la" y una letra acentuada. Y la base no guarda en qué idioma está cada documento.
+- **Qué se decidió:** la detección sigue sin usar IA, pero tiene que ser confiable. Arreglo inmediato: entre español, italiano, portugués y francés gana la lengua que junta más palabras y letras propias. De fondo: el idioma de cada documento pasa a ser un dato de la base (sirve para filtrar y, más adelante, para elegir el motor de lectura); evaluar un detector estadístico local que dé además un grado de confianza.
+- **Por qué:** sin IA es más rápida y barata; con el idioma del wiki fijo (D-086), la detección ya no decide en qué idioma se escribe.
+- **Alternativas descartadas:** detección con IA.
+- **Dónde se aplica:** PR #33, F-014 (`src/lib/detect-language.ts`); P-072.
+- **Quién decidió:** dueño del producto (pedido); arreglo hecho por el agente.
+- **Fuente:** conversación del 13-14 oct; P-072; F-014.
+
+### D-089 · "Pausar" el wiki también frena la cola
+
+- **Fecha:** 13 oct 2026
+- **Tema:** Wiki
+- **Estado:** en revisión (a confirmar por el dueño, P-066)
+- **El problema:** al pausar el wiki del Archivo solo dejaban de entrar documentos nuevos: la cola seguía procesando lo que ya tenía y gastando cupo del modelo. Así fue difícil frenar el wiki que salió en francés.
+- **Qué se decidió:** "Pausar" detiene también la cola (el documento en curso vuelve a la cola); "Activar" la reanuda; al abrir la app, la cola del Archivo queda detenida mientras su wiki esté apagado.
+- **Por qué:** que pausar signifique de verdad dejar de gastar.
+- **Alternativas descartadas:** el comportamiento anterior.
+- **Dónde se aplica:** PR #33; panel "Wiki del archivo" en Orígenes.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** conversación del 13-14 oct; P-066; P-051.
+
+### D-090 · Caja de etiquetas: Enter no crea por accidente; sin nombres fijos de clientes
+
+- **Fecha:** 13 oct 2026
+- **Tema:** Etiquetas
+- **Estado:** en revisión (las dos primeras partes, a confirmar por el dueño en P-066)
+- **El problema:** en el uso real, Enter creaba etiquetas sin querer; una etiqueta renombrada se duplicaba al escribirla (se buscaba por el nombre viejo); y los textos de ejemplo de la caja tenían escrito el nombre de un cliente real.
+- **Qué se decidió:** Enter toma la etiqueta escrita entera y solo crea una nueva si nada coincide; al escribir una etiqueta o un grupo se busca por el nombre que se ve, sin distinguir mayúsculas; los textos de ejemplo salen del vocabulario.
+- **Por qué:** evitar duplicados y cumplir D-072 (nada de términos ni datos del dominio fijos en el código).
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** PR #33; caja de etiquetas (detalle de documento, reglas de carpeta). Las mejoras de explicación de la caja siguen en P-057.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** conversación del 13-14 oct; P-066.
+
+### D-091 · Una sola copia de la app corriendo a la vez
+
+- **Fecha:** 13 oct 2026
+- **Tema:** Distribución
+- **Estado:** vigente
+- **El problema:** cerrar la ventana no cierra la app, solo la esconde en la bandeja del sistema. Al volver a abrirla se arrancaba otra copia, que competía con la primera por los puertos locales; las copias se acumulaban en segundo plano.
+- **Qué se decidió:** solo puede correr una copia; abrirla de nuevo trae al frente la ventana de la que ya corre.
+- **Por qué:** evitar conflictos y consumo duplicado.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** PR #34, F-015.
+- **Quién decidió:** el dueño del producto: señaló el problema y pidió corregirlo; el agente eligió cómo.
+- **Fuente:** conversación del 13-14 oct; F-015.
+
+### D-092 · Instaladores: corrida manual sin publicar; ninguna versión pública todavía
+
+- **Fecha:** 13 oct 2026
+- **Tema:** Distribución
+- **Estado:** vigente
+- **El problema:** para probar el instalador (D-084) hay que generarlo; publicar una versión con etiqueta la deja descargable para cualquiera, porque el repositorio es público.
+- **Qué se decidió:** primero una corrida manual del proceso de compilación, que deja los instaladores como archivos de esa corrida sin publicar nada. Ninguna etiqueta de versión pública hasta que el dueño pruebe el instalador en otra máquina. Resultado: Windows y Linux compilaron bien; Mac falló al firmar por falta de certificado de Apple, lo esperado (D-017). La variable que habilita publicar ya está creada, por eso subir una etiqueta publicaría de inmediato.
+- **Por qué:** no exponer una versión sin probar.
+- **Alternativas descartadas (postergadas):** publicar `mi-desktop-v0.1.0-rc.1`.
+- **Dónde se aplica:** P-006; `.github/workflows/build.yml`.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 13-14 oct; P-006.
+
+### D-093 · Para rehacer un wiki se aparta la carpeta, nunca se borra
+
+- **Fecha:** 13 oct 2026
+- **Tema:** Wiki
+- **Estado:** vigente (acción integrada pendiente, P-071)
+- **El problema:** el wiki salió mal (en francés y mezclado) y la app no tiene forma de descartar lo generado y empezar de nuevo.
+- **Qué se decidió:** se cierra la app y se aparta la carpeta del proyecto generado (renombrada o movida), nunca se borra; la app vuelve a crear el Archivo al arrancar. El texto leído de escaneos no se pierde porque está en la base. Queda pendiente ofrecer "rehacer el wiki" como acción de la app, con aviso del cupo que consume.
+- **Por qué:** poder volver atrás si hiciera falta.
+- **Alternativas descartadas:** borrar la carpeta.
+- **Dónde se aplica:** P-071; P-051 (la carpeta mezclada quedó apartada fuera del repositorio).
+- **Quién decidió:** el dueño autorizó borrar todo y reincorporar; el agente eligió apartar la carpeta en vez de borrarla, y el dueño no objetó.
+- **Fuente:** conversación del 13-14 oct; P-051; P-071.
+
+### D-094 · Diseñar el recorrido antes de construir; ante la duda, no se une
+
+- **Fecha:** 13 oct 2026
+- **Tema:** Parecidos
+- **Estado:** vigente
+- **El problema:** hoy la base solo reconoce como "el mismo documento" lo idéntico. Alcanza una palabra distinta (un pie agregado, una errata, dos lecturas del mismo escaneo) para que no los reconozca; y a la vez dos contratos del mismo modelo para clientes distintos comparten casi todo el texto y son documentos distintos.
+- **Qué se decidió:** definir el recorrido completo por escrito antes de construir. Criterio de partida: el porcentaje en común no alcanza, hay que mirar qué cambió; si difieren cifras, fechas, nombres o identificadores son documentos distintos de una misma plantilla; si difiere texto de relleno, es el mismo documento. Unir dos cosas distintas (mezclar clientes) es mucho peor que dejar un duplicado sin detectar: ante la duda, no se une.
+- **Por qué:** en un estudio es muy común que dos contratos compartan casi todo y sean distintos.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** P-015; `docs/design/parecidos-propuesta.md` (secciones 1 y 6), en revisión como propuesta.
+- **Quién decidió:** dueño del producto (pedido y criterio "acordado"). **Ambigüedad:** la frase "ante la duda, no se une" está en la propuesta, sección 1; no figura entre las definiciones del dueño de la sección 3.
+- **Fuente:** P-015; `parecidos-propuesta.md`, sección 1.
+
+### D-095 · Los parecidos los une siempre una persona
+
+- **Fecha:** 13 oct 2026
+- **Tema:** Parecidos
+- **Estado:** vigente
+- **El problema:** la app podría unir sola documentos que calcula como casi iguales, pero un error mezcla clientes.
+- **Qué se decidió:** los parecidos nunca se unen automáticamente; siempre decide una persona, al menos hasta tener experiencia práctica. La decisión se guarda y no se vuelve a preguntar; una relación descartada no se vuelve a proponer.
+- **Por qué:** el riesgo legal de una unión equivocada.
+- **Alternativas descartadas:** unión automática por encima de un umbral.
+- **Dónde se aplica:** `parecidos-propuesta.md`, secciones 3, 5 y 10; P-015.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** `parecidos-propuesta.md`, sección 3; conversación del 13-14 oct.
+
+### D-096 · Se muestran en el detalle del documento, con botones para unir
+
+- **Fecha:** 13 oct 2026
+- **Tema:** Parecidos
+- **Estado:** vigente
+- **El problema:** hay que decidir dónde ve la persona los parecidos y cómo decide.
+- **Qué se decidió:** en el detalle de un documento, como hoy se muestran sus copias, aparecen sus documentos parecidos con una descripción de en qué consiste el parecido (por ejemplo, "mismo texto de base; cambian el nombre de la parte y tres importes") y botones para unirlos eligiendo la relación.
+- **Por qué:** reutilizar un lugar que el usuario ya conoce.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** pantalla Detalle de un documento; `parecidos-propuesta.md`, secciones 3 y 9.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** `parecidos-propuesta.md`, sección 3.
+
+### D-097 · Relaciones ampliables y con nombres configurables
+
+- **Fecha:** 13 oct 2026
+- **Tema:** Parecidos
+- **Estado:** vigente
+- **El problema:** la lista de tipos de relación entre documentos va a cambiar a medida que se vean archivos de distintos estudios, y cómo se nombra cada relación depende de la profesión, el idioma y el país.
+- **Qué se decidió:** la lista de relaciones es un dato de configuración: agregar una no obliga a rehacer nada. Los nombres no van escritos en el programa: salen del vocabulario por vertical, idioma y país. Punto de partida aceptado: mismo documento, prácticamente el mismo, ejemplar firmado, versión, contenido en, misma plantilla con otros datos, parecidos. Conviene validar los nombres con un estudio (por ejemplo, "plantilla" o "modelo").
+- **Por qué:** no reprogramar por cada estudio o país; coherencia con D-072.
+- **Alternativas descartadas:** lista fija en el código.
+- **Dónde se aplica:** `parecidos-propuesta.md`, secciones 3 y 4; `src/vocabulary/`.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** `parecidos-propuesta.md`, secciones 3 y 4; conversación del 13-14 oct.
+
+### D-098 · Al unir como el mismo documento, queda una sola fuente del wiki
+
+- **Fecha:** 13 oct 2026
+- **Tema:** Parecidos
+- **Estado:** vigente (reemplaza en parte a D-005)
+- **El problema:** si dos archivos son en realidad el mismo documento (por ejemplo, el contrato y su ejemplar firmado), mandar los dos al wiki repite información.
+- **Qué se decidió:** en principio todos los documentos van al wiki. Pero cuando una persona une dos como el mismo documento (relaciones "prácticamente el mismo", "ejemplar firmado" y "versión"), queda uno solo como fuente del wiki, elegido por la persona; la app, a lo sumo, sugiere cuál. **No** vale para "misma plantilla, otros datos" ni para "contenido en", que son documentos distintos y siguen los dos en el wiki. Las páginas del wiki que salieron de ellos podrían unirse también; eso no está diseñado.
+- **Por qué:** evitar repeticiones sin perder documentos distintos.
+- **Alternativas descartadas:** que todos los miembros de una familia sigan yendo al wiki (D-005).
+- **Dónde se aplica:** `parecidos-propuesta.md`, secciones 3, 4, 12 y 13 (qué pasa con lo ya incorporado sigue abierto).
+- **Quién decidió:** dueño del producto.
+- **Fuente:** `parecidos-propuesta.md`, secciones 3 y 4; conversación del 13-14 oct.
+
+### D-099 · Reducir el uso de IA, no eliminarlo
+
+- **Fecha:** 13 oct 2026
+- **Tema:** IA
+- **Estado:** vigente (precisa D-042)
+- **El problema:** "determinista primero" (D-042) podía leerse como "evitar la IA a toda costa", incluso cuando aporta.
+- **Qué se decidió:** el uso de IA se reduce, no se elimina. Se usa donde agrega valor y de la forma más conveniente. Ahorrar cupo nunca es razón para elegir un camino peor; el modelo solo se posterga si usarlo ahora retrasa medir. Primero se mide hasta dónde llega el cálculo y después se suman usos del modelo; el primer candidato es describir qué cambió entre dos documentos, a pedido y de a un par.
+- **Por qué:** la calidad es lo prioritario; medir primero muestra dónde aporta la IA.
+- **Alternativas descartadas:** eliminar la IA del proceso; elegir por ahorro de cupo.
+- **Dónde se aplica:** `parecidos-propuesta.md`, secciones 3, 7 y 13.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** `parecidos-propuesta.md`, sección 3; conversación del 13-14 oct.
+
+### D-100 · Procesar en pasadas sobre todo el archivo
+
+- **Fecha:** 13 oct 2026
+- **Tema:** Base documental
+- **Estado:** en revisión (el diseño de la iteración se sigue investigando)
+- **El problema:** hoy cada documento se procesa por separado, una vez. Pero lo más valioso a veces solo se ve mirando todo el archivo: que un acuerdo, sus recibos y su ejemplar firmado nombran a la misma persona; que falta una factura en una serie; que el nombre del propio estudio aparece en todo y no relaciona nada.
+- **Qué se decidió:** el procesamiento pasa a ser iterativo sobre todo el archivo, en pasadas: por documento, por par o familia, y sobre todo el archivo; lo de una pasada enriquece y corrige a las otras. Cada pasada necesita objetivos específicos y hay que asegurar que el proceso termine: pocas vueltas, corte cuando una vuelta ya casi no cambia nada, y cada vuelta solo agrega propuestas, nunca une ni borra por su cuenta.
+- **Por qué:** capturar lo que solo se ve en el conjunto, sin un proceso que no termine.
+- **Alternativas descartadas:** solo procesamiento lineal por documento.
+- **Dónde se aplica:** `parecidos-propuesta.md`, sección 8. Las pasadas 1 y 2 son la etapa de parecidos; la 3 va después, pero ya condiciona qué se guarda por documento.
+- **Quién decidió:** dueño del producto (dirección); el diseño detallado está en investigación.
+- **Fuente:** `parecidos-propuesta.md`, sección 8; conversación del 13-14 oct.
+
+### D-101 · El conjunto de prueba lo arma el asistente y lo corrige el dueño
+
+- **Fecha:** 13 oct 2026
+- **Tema:** Parecidos
+- **Estado:** vigente
+- **El problema:** para ajustar los umbrales sin adivinar hace falta una "hoja de respuestas": entre 50 y 100 documentos con la relación correcta escrita a mano para cada par.
+- **Qué se decidió:** la arma el asistente a partir de las mediciones y la revisa y corrige el dueño, que es quien conoce los documentos.
+- **Por qué:** combinar el trabajo pesado del asistente con el conocimiento del dueño.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** `parecidos-propuesta.md`, secciones 11 y 13 (decisión abierta 1, ahora resuelta).
+- **Quién decidió:** dueño del producto (aceptó la propuesta del agente).
+- **Fuente:** conversación del 13-14 oct; `parecidos-propuesta.md`, sección 13.
+
+### D-102 · Esfuerzo estimado solo en términos relativos, nunca en tiempo
+
+- **Fecha:** 13–14 oct 2026
+- **Tema:** Proceso de trabajo
+- **Estado:** vigente
+- **El problema:** las estimaciones en horas o días que da el asistente se basan en cómo trabaja una persona y siempre fallan para un agente de IA.
+- **Qué se decidió:** nunca estimar en horas ni en ninguna unidad de tiempo; solo esfuerzo relativo entre tareas ("esta cuesta más que aquella").
+- **Por qué:** las estimaciones de tiempo vienen del trabajo humano y no aplican.
+- **Alternativas descartadas:** estimaciones en tiempo.
+- **Dónde se aplica:** toda planificación y propuesta.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 13-14 oct.
+
+### D-103 · Corregir los formularios tomados por el mismo documento
+
+- **Fecha:** 13 oct 2026
+- **Tema:** Base documental
+- **Estado:** vigente (arreglado en el PR #38)
+- **El problema:** dos fichas de cliente de personas distintas figuran en la base como copias una de la otra. Son el mismo formulario PDF completado para dos personas: las respuestas están en los campos del formulario y no salen al extraer el texto, así que el texto de las dos es idéntico y la regla "mismo texto, mismo documento" (D-020) las une. Eso es mezclar dos clientes. Confirmado con el motor de la app.
+- **Qué se decidió:** corregirlo antes de construir los parecidos. Se agrega al texto extraído lo completado en los campos del formulario, lo que además hace buscable lo completado y lo hace llegar al wiki.
+- **Por qué:** es un defecto de lo ya construido con riesgo legal directo.
+- **Alternativas descartadas:** no unir por texto cuando el PDF tiene campos: evitaba el error pero dejaba sin leer lo completado.
+- **Dónde se aplica:** P-074; `src-tauri/src/docbase/text.rs`; `parecidos-propuesta.md`, secciones 2 y 14.
+- **Quién decidió:** el dueño del producto ("es un error y hay que corregirlo"); el agente eligió el arreglo.
+- **Fuente:** P-074; `parecidos-propuesta.md`, sección 2, punto 6; conversación del 13-14 oct.
+
+### D-104 · Un formulario PDF entrega su plantilla y sus datos
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Base documental
+- **Estado:** vigente (primer paso hecho en el PR #38)
+- **El problema:** reconocer en un conjunto de documentos qué parte es plantilla y qué parte son datos es una de las tareas más difíciles de la etapa de parecidos. Pero un PDF con formulario ya viene separado así: la página impresa es la plantilla y los campos completados son los datos.
+- **Qué se decidió:** aprovecharlo desde ya. Además de sumar lo completado al texto (D-103), la base guarda los campos de cada formulario aparte, uno por uno (nombre del campo y valor), como el derivado "campos" que prevé el diseño. La regla que use esto para proponer "misma plantilla, otros datos" llega con la etapa de parecidos.
+- **Por qué:** da casi gratis, y con certeza, lo que en otros documentos hay que inferir comparando textos.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** `src-tauri/src/docbase/text.rs` (derivado `fields`); PR #38; propuesta de parecidos.
+- **Quién decidió:** el dueño del producto lo sugirió; el agente lo implementó.
+- **Fuente:** conversación del 14 oct; PR #38.
