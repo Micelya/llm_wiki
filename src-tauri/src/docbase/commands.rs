@@ -14,7 +14,10 @@ use super::bridge::{self, GeneralProject, WikiSource};
 use super::labels::{Label, LabelGroup, LabelRule};
 use super::origins::Origin;
 use super::similar::{self, Decision, SimilarDocument, SimilarGroup, SimilarPending};
+use super::similar::classify::{DocumentType, RunReport, TypesPlan};
+use super::similar::data::Datum;
 use super::similar::types::RelationDef;
+use crate::source_volume::asking::{asker_for, AskConfig};
 use super::query::{Activity, DocumentDetail, DocumentFilter, DocumentPage, Health, OriginSummary};
 use super::tree::FolderListing;
 use super::wiki::{BrokenLink, PageRef, WikiIndex};
@@ -58,6 +61,10 @@ pub fn start(app: &tauri::AppHandle) {
             bridge::share(base.clone());
             let handle = app.clone();
             worker::spawn(base.clone(), wake.clone(), move || {
+                let _ = handle.emit(CHANGED_EVENT, ());
+            });
+            let handle = app.clone();
+            worker::spawn_asking(base.clone(), move || {
                 let _ = handle.emit(CHANGED_EVENT, ());
             });
         }
@@ -448,6 +455,74 @@ pub fn docbase_similar_groups(state: State<'_, DocBaseState>) -> Result<Vec<Simi
 pub fn docbase_similar_relations() -> Vec<RelationDef> {
     similar::relations()
 }
+
+/// What a run of passes 4 to 6 would ask the model now: how many
+/// questions about type and stage, how many about data, and the types the
+/// model proposed that wait for a person.
+#[tauri::command(async)]
+pub fn docbase_types_plan(state: State<'_, DocBaseState>) -> Result<TypesPlan, String> {
+    state.base()?.types_plan()
+}
+
+/// Asks the model the pending questions about type, stage and data, at
+/// most `max_questions`, with this engine. Only on an explicit action of
+/// the user: it costs the provider's quota. The engine is also kept as
+/// the one that answers while the archive's wiki is active.
+#[tauri::command(async)]
+pub fn docbase_types_run(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    engine: AskConfig,
+    max_questions: Option<usize>,
+) -> Result<RunReport, String> {
+    let base = state.base()?.clone();
+    let asker = asker_for(&engine)?;
+    base.set_ask_engine(Some(&engine))?;
+    let report = base.types_run(asker.as_ref(), max_questions.unwrap_or(RUN_LIMIT))?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(report)
+}
+
+/// The engine that answers while the archive's wiki is active, or none.
+#[tauri::command(async)]
+pub fn docbase_set_ask_engine(state: State<'_, DocBaseState>, engine: Option<AskConfig>) -> Result<(), String> {
+    state.base()?.set_ask_engine(engine.as_ref())
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentTypeView {
+    pub doc_type: Option<DocumentType>,
+    pub data: Vec<Datum>,
+}
+
+/// What the document at this location is, in what stage, and its data.
+#[tauri::command(async)]
+pub fn docbase_document_type(state: State<'_, DocBaseState>, location_id: i64) -> Result<DocumentTypeView, String> {
+    let (doc_type, data) = state.base()?.document_type_of(location_id)?;
+    Ok(DocumentTypeView { doc_type, data })
+}
+
+/// The document types of the catalog, with their stages, for the
+/// screens: their names come from the vocabulary.
+#[tauri::command(async)]
+pub fn docbase_document_types() -> Vec<DocTypeView> {
+    similar::types::catalog()
+        .document_types()
+        .map(|t| DocTypeView { id: t.id.clone(), stages: t.stages.clone(), data: t.data.iter().map(|d| d.id.clone()).collect() })
+        .collect()
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DocTypeView {
+    pub id: String,
+    pub stages: Vec<String>,
+    pub data: Vec<String>,
+}
+
+/// Questions a run started by the user asks at most (R-16).
+const RUN_LIMIT: usize = 60;
 
 /// Up to `count` paths of nested folders under `root`, `depth` levels
 /// deep at most, following the first folders in name order.
