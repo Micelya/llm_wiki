@@ -25,6 +25,7 @@ src-tauri/gen/
 docs/*
 !docs/sessions/
 !docs/design/
+!docs/decisiones.md
 AGENTS.md
 
 # Benchmark and test data (local only)
