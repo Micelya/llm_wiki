@@ -1,0 +1,186 @@
+{
+  "version": 1,
+  "about": [
+    "Catálogo de tipos de documento y de relaciones entre documentos (docs/design/catalogo-de-tipos.md).",
+    "Es conocimiento general: nunca nombra un caso, una persona, un archivo ni un número concreto (R-24).",
+    "Las únicas empresas que aparecen son las que emiten un formulario o un servicio de firma.",
+    "Agregar un tipo, una variante o una relación es agregar una entrada acá; el programa no cambia.",
+    "Las frases se comparan sin mayúsculas, sin acentos y sin puntuación.",
+    "Una forma ('shape') describe un identificador: 'A' es una letra mayúscula, '9' un dígito y cualquier otro carácter se exige tal cual.",
+    "Un archivo con este mismo formato en la carpeta de datos de la app (docbase/document-types.json) reemplaza a este al iniciar."
+  ],
+  "relations": [
+    { "id": "same-document", "sameDocument": true, "directed": false, "measured": true, "automatic": true },
+    { "id": "near-identical", "sameDocument": true, "directed": false, "measured": true },
+    { "id": "signed-copy", "sameDocument": true, "directed": true, "measured": true },
+    { "id": "preview", "sameDocument": false, "directed": true, "measured": true },
+    { "id": "version", "sameDocument": true, "directed": false, "measured": true },
+    { "id": "contained-in", "sameDocument": false, "directed": true, "measured": true },
+    { "id": "same-template", "sameDocument": false, "directed": false, "measured": true },
+    { "id": "similar", "sameDocument": false, "directed": false, "measured": true },
+    { "id": "same-meaning", "sameDocument": false, "directed": false, "measured": false },
+    { "id": "translation-of", "sameDocument": false, "directed": true, "measured": false },
+    { "id": "reply-to", "sameDocument": false, "directed": true, "measured": false },
+    { "id": "signing-certificate-of", "sameDocument": false, "directed": true, "measured": false },
+    { "id": "delivery-receipt-of", "sameDocument": false, "directed": true, "measured": false },
+    { "id": "same-matter", "sameDocument": false, "directed": false, "measured": false },
+    { "id": "same-person-other-matter", "sameDocument": false, "directed": false, "measured": false }
+  ],
+  "types": [
+    {
+      "id": "carta-documento",
+      "description": "Comunicación fehaciente enviada por un servicio postal habilitado, con constancia de texto, fecha y entrega.",
+      "stages": ["borrador", "vista-previa", "enviada", "recibida"],
+      "variants": [
+        { "id": "correo-argentino", "issuer": "Correo Argentino" },
+        { "id": "oca", "issuer": "OCA" }
+      ],
+      "signals": [
+        {
+          "id": "marca-vista-previa",
+          "stage": "vista-previa",
+          "mark": "preview",
+          "phrases": ["VISTA PREVIA - SIN VALOR LEGAL"]
+        },
+        {
+          "id": "formulario-correo-argentino",
+          "variant": "correo-argentino",
+          "phrases": ["A.R. - CARTA DOCUMENTO", "Correo Oficial de la República Argentina", "Sector Carta Documento"],
+          "mark": "postal-form"
+        },
+        {
+          "id": "numero-de-envio-correo-argentino",
+          "variant": "correo-argentino",
+          "mark": "shipment-number",
+          "shapes": ["AA999999999AR"]
+        },
+        {
+          "id": "formulario-oca",
+          "variant": "oca",
+          "phrases": ["CARTA DOCUMENTO OCA", "OCA cartadocumento", "OCA C.C.D."],
+          "mark": "postal-form"
+        },
+        {
+          "id": "numero-de-envio-oca",
+          "variant": "oca",
+          "mark": "shipment-number",
+          "shapes": ["A99999AA999"]
+        },
+        {
+          "id": "copia-fiel",
+          "stage": "enviada",
+          "mark": "dispatched",
+          "phrases": ["LA PRESENTE ES COPIA FIEL DEL ORIGINAL"]
+        },
+        {
+          "id": "firmante-validado",
+          "stage": "enviada",
+          "mark": "dispatched",
+          "phrases": ["La identidad del firmante está validada ante RENAPER"]
+        },
+        {
+          "id": "copia-destinatario",
+          "stage": "recibida",
+          "mark": "received",
+          "phrases": ["Copia Destinatario"]
+        }
+      ]
+    },
+    {
+      "id": "acuse-de-recibo",
+      "description": "Constancia del correo de que la carta llegó a su destinatario.",
+      "stages": [],
+      "variants": [{ "id": "correo-argentino", "issuer": "Correo Argentino" }],
+      "signals": [
+        {
+          "id": "recibi-conforme",
+          "variant": "correo-argentino",
+          "mark": "delivery-receipt",
+          "phrases": ["RECIBÍ CONFORME EL ENVÍO REFERENTE A ESTE AVISO", "RECIBÍ CONFORME EL ENVÍO"]
+        }
+      ]
+    },
+    {
+      "id": "pdf-servicio-de-firma",
+      "description": "Documento cargado en un servicio de firma electrónica, en cualquier etapa: enviado a firmar, firmado por una parte, firmado por todas.",
+      "stages": ["sin-firmar", "firmado-por-una-parte", "firmado"],
+      "variants": [
+        { "id": "docusign", "issuer": "Docusign", "certificateNames": ["DocuSign"] },
+        { "id": "adobe-acrobat-sign", "issuer": "Adobe Acrobat Sign", "certificateNames": ["Adobe", "Acrobat Sign", "Echosign"] }
+      ],
+      "signals": [
+        {
+          "id": "sello-del-servicio",
+          "mark": "service-seal",
+          "pdfSignature": "service"
+        },
+        {
+          "id": "firma-de-una-parte",
+          "mark": "party-signature",
+          "pdfSignature": "party"
+        },
+        {
+          "id": "identificador-del-sobre",
+          "variant": "docusign",
+          "mark": "signing-service",
+          "phrases": ["Envelope Id"],
+          "dropLines": true
+        },
+        {
+          "id": "firmado-con-docusign",
+          "variant": "docusign",
+          "mark": "party-signature",
+          "phrases": ["DocuSigned by"]
+        },
+        {
+          "id": "historial-de-firma",
+          "variant": "adobe-acrobat-sign",
+          "mark": "signing-audit",
+          "scope": "page",
+          "phrases": ["Historial", "Final audit report", "Informe de auditoría final", "Firmado electrónicamente", "Transaction ID", "ID de transacción"],
+          "minPhrases": 2,
+          "excludePage": true
+        },
+        {
+          "id": "historial-firmado-por-una-parte",
+          "variant": "adobe-acrobat-sign",
+          "mark": "party-signature",
+          "scope": "page",
+          "phrases": ["ha firmado electrónicamente el documento", "firmó con el nombre de", "Firmado electrónicamente por", "e-signed by"],
+          "minPhrases": 1,
+          "requires": ["historial-de-firma"]
+        }
+      ]
+    },
+    {
+      "id": "constancia-de-firma",
+      "description": "Resumen que emite un servicio de firma electrónica sobre un proceso de firma: qué documento, quiénes firmaron, cuándo.",
+      "stages": [],
+      "variants": [{ "id": "docusign", "issuer": "Docusign" }],
+      "signals": [
+        {
+          "id": "certificado-de-finalizacion",
+          "variant": "docusign",
+          "mark": "signing-audit",
+          "scope": "page",
+          "phrases": ["Certificate Of Completion", "Envelope Summary Events", "Signer Events", "Record Tracking"],
+          "minPhrases": 2,
+          "excludePage": true
+        }
+      ]
+    },
+    {
+      "id": "formulario-pdf",
+      "description": "PDF con casilleros donde se escriben las respuestas. La página tiene la plantilla; los campos, los datos.",
+      "stages": [],
+      "variants": [],
+      "signals": [
+        {
+          "id": "tiene-campos",
+          "mark": "form",
+          "formFields": true
+        }
+      ]
+    }
+  ]
+}
