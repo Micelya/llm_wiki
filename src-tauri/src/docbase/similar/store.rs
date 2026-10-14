@@ -1,0 +1,1129 @@
+//! The passes over the archive, kept in the database and done little by
+//! little in the background (R-15: only what changed and its neighbours).
+//!
+//! 1. **Sign** each content with text, once per text and per catalog:
+//!    its shingles, MinHash and buckets, and its marks (pass 2). Signing
+//!    counts its shingles into `similar_common` (pass 0) and leaves the
+//!    content *dirty*.
+//! 2. **Measure the neighbourhood** of each dirty content (pass 1): its
+//!    candidates by bucket, the exact measures without the routine text,
+//!    the alignment, what changes, and the proposal.
+//! 3. **Regroup** (pass 3) once nothing is dirty: families against a
+//!    principal document.
+//!
+//! Computed rows are rebuilt from the texts whenever they are missing or
+//! stale; a person's decision is never overwritten (R-08, R-09, R-12): a
+//! pair that was discarded stays discarded however often it is measured.
+
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::path::PathBuf;
+
+use rusqlite::{params, params_from_iter, types::Value, Connection, OptionalExtension, Transaction};
+use serde::{Deserialize, Serialize};
+
+use crate::panic_guard::run_guarded;
+use crate::source_volume::{LocalFolderProvider, SourceProvider};
+
+use super::super::{now_ms, sql_err, DocBase, Visible};
+use super::align;
+use super::changes::{self, Changes};
+use super::marks::{self, Mark, PdfSignature};
+use super::minhash;
+use super::propose::{self, Measures, Side};
+use super::text::{self, Prepared, SHINGLE_WORDS};
+use super::types::{self, RelationDef};
+
+/// Version of the computation. Changing it, or the catalog, computes
+/// everything again.
+pub const ENGINE: &str = "similar-1";
+/// Below this many words a text says too little to compare (the same
+/// limit as the text fingerprint).
+pub const MIN_WORDS: usize = 30;
+/// Pass 0: a shingle is routine text (letterhead, a signature block, the
+/// firm's own details) when it appears in at least this share of the
+/// documents with text, and in at least `ROUTINE_MIN_DOCS` of them. High
+/// on purpose: the thirteen invoices of one supplier must not make their
+/// own template routine.
+pub const ROUTINE_SHARE: f64 = 0.5;
+pub const ROUTINE_MIN_DOCS: i64 = 10;
+/// Neighbours by bucket whose estimated containment is below this are not
+/// measured; at most `MAX_NEIGHBOURS` are, the closest first (R-16).
+pub const CANDIDATE_MIN: f64 = 0.15;
+pub const MAX_NEIGHBOURS: usize = 100;
+/// Exact shingle containment below which a pair is not aligned.
+pub const MEASURE_MIN: f64 = 0.25;
+/// Relations that put two documents in the same family.
+pub const GROUP_RELATIONS: &[&str] = &["near-identical", "signed-copy", "preview", "version", "same-template"];
+/// A family bigger than this is marked for review.
+pub const GROUP_LARGE: usize = 30;
+
+fn engine_id() -> String {
+    format!("{ENGINE}+{}", types::catalog().digest)
+}
+
+fn json_err(e: serde_json::Error) -> String {
+    format!("Document base error: {e}")
+}
+
+/// What was computed for one content, before it is saved.
+struct Signed {
+    content_id: i64,
+    text_at: i64,
+    words: usize,
+    shingles: Vec<u64>,
+    minhash: Vec<u64>,
+    marks: Vec<Mark>,
+    signatures: Vec<PdfSignature>,
+    skip_pages: Vec<usize>,
+    drop_phrases: Vec<String>,
+}
+
+/// A content ready to be compared.
+struct Doc {
+    id: i64,
+    prepared: Prepared,
+    shingles: Vec<u64>,
+    /// Words covered by routine shingles.
+    routine: Vec<bool>,
+    own_words: usize,
+    recognized: bool,
+    marks: Vec<String>,
+    fields: Vec<(String, String)>,
+}
+
+/// A document of the base as the screens show it: one of its locations.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DocRef {
+    pub content_id: i64,
+    pub location_id: i64,
+    pub origin_name: String,
+    pub rel_path: String,
+    pub name: String,
+    /// Locations the document has.
+    pub copies: i64,
+}
+
+/// A document similar to the one asked about.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SimilarDocument {
+    pub content_id: i64,
+    pub other: DocRef,
+    /// Proposed relation: an id of the catalog's relations.
+    pub relation: String,
+    /// For a directed relation, which of the two is the relation of the
+    /// other (the signed copy, the preview, the one contained).
+    pub subject_content_id: Option<i64>,
+    pub certainty: String,
+    pub description: String,
+    pub jaccard: f64,
+    pub containment: f64,
+    pub cover: f64,
+    pub similarity: f64,
+    pub suggested_source: Option<i64>,
+    pub evidence: serde_json::Value,
+    pub evidence_hash: String,
+    pub computed_at: i64,
+    /// "proposed", "joined" or "discarded".
+    pub state: String,
+    pub chosen_relation: Option<String>,
+    /// The document left as the wiki's source when both were joined as
+    /// one document.
+    pub wiki_source: Option<i64>,
+    pub decided_at: Option<i64>,
+}
+
+/// What waits for a person, for Inicio.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SimilarPending {
+    /// Pairs with a proposed relation and no decision.
+    pub pairs: i64,
+    /// Families with at least one such pair.
+    pub groups: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GroupMember {
+    pub doc: DocRef,
+    /// Its relation with the principal (the proposed one, or the one a
+    /// person chose).
+    pub relation: Option<String>,
+    pub cover: Option<f64>,
+    pub state: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SimilarGroup {
+    pub principal: DocRef,
+    pub members: Vec<GroupMember>,
+    /// "large" (grew too much) or "dispersed" (part of what is similar to
+    /// its members is not similar to the principal).
+    pub flags: Vec<String>,
+    /// Members whose pair with the principal waits for a decision.
+    pub pending: i64,
+}
+
+/// What a person decided about a pair.
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", rename_all_fields = "camelCase", tag = "kind")]
+pub enum Decision {
+    /// Joined with this relation; for one that makes them one document,
+    /// `wiki_source` is the one that keeps feeding the wiki.
+    Join { relation: String, wiki_source: Option<i64> },
+    Discard,
+    /// Back to proposed.
+    Undo,
+}
+
+impl DocBase {
+    /// One small piece of the similar-documents work. Returns how much was
+    /// done (0: nothing pending).
+    pub fn similar_step(&self, limit: usize) -> Result<usize, String> {
+        let forgotten = self.similar_forget_orphans()?;
+        let signed = self.similar_sign_pending(limit)?;
+        if signed > 0 {
+            return Ok(forgotten + signed);
+        }
+        let measured = self.similar_measure_dirty(limit)?;
+        let dirty_left: i64 = self
+            .conn()
+            .query_row("SELECT count(*) FROM similar_dirty", [], |row| row.get(0))
+            .map_err(sql_err)?;
+        if (measured > 0 || forgotten > 0) && dirty_left == 0 {
+            self.similar_regroup()?;
+        }
+        Ok(forgotten + measured)
+    }
+
+    /// Forgets everything computed (never a decision) so it is computed
+    /// again from the texts.
+    #[cfg(test)]
+    pub fn similar_reset(&self) -> Result<(), String> {
+        self.conn()
+            .execute_batch(
+                "DELETE FROM similar_signature; DELETE FROM similar_common; DELETE FROM document_marks;
+                 DELETE FROM similar_dirty; DELETE FROM similar_group;
+                 DELETE FROM similar_pair WHERE state = 'proposed';",
+            )
+            .map_err(sql_err)
+    }
+
+    /// Uncounts and drops the signatures of contents that went away.
+    fn similar_forget_orphans(&self) -> Result<usize, String> {
+        let mut conn = self.conn();
+        let tx = conn.transaction().map_err(sql_err)?;
+        let gone: Vec<(i64, Vec<u8>)> = {
+            let mut statement = tx
+                .prepare("SELECT content_id, shingles FROM similar_signature WHERE content_id NOT IN (SELECT id FROM content)")
+                .map_err(sql_err)?;
+            let rows = statement
+                .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+                .map_err(sql_err)?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(sql_err)?;
+            rows
+        };
+        for (content_id, shingles) in &gone {
+            uncount(&tx, &minhash::from_blob(shingles))?;
+            tx.execute("DELETE FROM similar_signature WHERE content_id = ?1", [content_id])
+                .map_err(sql_err)?;
+            tx.execute("DELETE FROM similar_dirty WHERE content_id = ?1", [content_id])
+                .map_err(sql_err)?;
+        }
+        tx.commit().map_err(sql_err)?;
+        Ok(gone.len())
+    }
+
+    /// Signs up to `limit` contents whose signature is missing or stale.
+    fn similar_sign_pending(&self, limit: usize) -> Result<usize, String> {
+        let engine = engine_id();
+        let jobs: Vec<(i64, String, i64, Option<String>, Vec<PathBuf>)> = {
+            let conn = self.conn();
+            let mut statement = conn
+                .prepare(
+                    "SELECT c.id, d.body, d.created_at, fd.body
+                     FROM content c
+                     JOIN derivative d ON d.content_id = c.id AND d.kind = 'text'
+                     LEFT JOIN derivative fd ON fd.content_id = c.id AND fd.kind = 'fields'
+                     LEFT JOIN similar_signature s ON s.content_id = c.id
+                     WHERE c.state = 'processed'
+                       AND (s.content_id IS NULL OR s.text_at != d.created_at OR s.engine != ?1)
+                     ORDER BY c.id
+                     LIMIT ?2",
+                )
+                .map_err(sql_err)?;
+            let rows = statement
+                .query_map(params![engine, limit as i64], |row| {
+                    Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+                })
+                .map_err(sql_err)?
+                .collect::<Result<Vec<(i64, String, i64, Option<String>)>, _>>()
+                .map_err(sql_err)?;
+            let mut jobs = Vec::new();
+            for (content_id, body, text_at, fields) in rows {
+                let paths = pdf_paths(&conn, content_id)?;
+                jobs.push((content_id, body, text_at, fields, paths));
+            }
+            jobs
+        };
+        for (content_id, body, text_at, fields, paths) in &jobs {
+            let mut signatures = Vec::new();
+            for path in paths {
+                match run_guarded("docbase_pdf_signatures", || marks::pdf_signatures(path)) {
+                    Ok(found) => {
+                        for signature in found {
+                            if !signatures.contains(&signature) {
+                                signatures.push(signature);
+                            }
+                        }
+                    }
+                    Err(error) => eprintln!("[docbase] signatures of '{}': {error}", path.display()),
+                }
+            }
+            let signed = sign(*content_id, body, *text_at, fields.is_some(), signatures);
+            let mut conn = self.conn();
+            let tx = conn.transaction().map_err(sql_err)?;
+            save_signature(&tx, &signed, &engine)?;
+            tx.commit().map_err(sql_err)?;
+        }
+        Ok(jobs.len())
+    }
+
+    /// Measures the neighbourhood of up to `limit` dirty contents.
+    fn similar_measure_dirty(&self, limit: usize) -> Result<usize, String> {
+        let dirty: Vec<(i64, i64)> = {
+            let conn = self.conn();
+            let mut statement = conn
+                .prepare("SELECT content_id, since FROM similar_dirty ORDER BY since, content_id LIMIT ?1")
+                .map_err(sql_err)?;
+            let rows = statement
+                .query_map([limit as i64], |row| Ok((row.get(0)?, row.get(1)?)))
+                .map_err(sql_err)?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(sql_err)?;
+            rows
+        };
+        if dirty.is_empty() {
+            return Ok(0);
+        }
+        let routine = {
+            let conn = self.conn();
+            routine_shingles(&conn)?
+        };
+        for (content_id, since) in &dirty {
+            self.measure_one(*content_id, &routine)?;
+            self.conn()
+                .execute("DELETE FROM similar_dirty WHERE content_id = ?1 AND since = ?2", params![content_id, since])
+                .map_err(sql_err)?;
+        }
+        Ok(dirty.len())
+    }
+
+    fn measure_one(&self, content_id: i64, routine: &HashSet<u64>) -> Result<(), String> {
+        // Candidates, with the lock held only for the queries.
+        let (me, neighbours) = {
+            let conn = self.conn();
+            let Some(me) = load_doc(&conn, content_id, routine)? else {
+                return Ok(());
+            };
+            let mine = signature_of(&conn, content_id)?;
+            let mut candidates: BTreeSet<i64> = BTreeSet::new();
+            {
+                let mut statement = conn
+                    .prepare(
+                        "SELECT DISTINCT o.content_id FROM similar_band m
+                         JOIN similar_band o ON o.band = m.band AND o.bucket = m.bucket AND o.content_id != m.content_id
+                         WHERE m.content_id = ?1",
+                    )
+                    .map_err(sql_err)?;
+                let rows = statement
+                    .query_map([content_id], |row| row.get::<_, i64>(0))
+                    .map_err(sql_err)?;
+                for row in rows {
+                    candidates.insert(row.map_err(sql_err)?);
+                }
+            }
+            let mut ranked: Vec<(f64, i64)> = Vec::new();
+            for other in &candidates {
+                let Some(theirs) = signature_of(&conn, *other)? else {
+                    continue;
+                };
+                let estimate = estimated_containment(&mine, &theirs);
+                if estimate >= CANDIDATE_MIN && theirs.0 >= MIN_WORDS {
+                    ranked.push((estimate, *other));
+                }
+            }
+            ranked.sort_by(|x, y| y.0.total_cmp(&x.0).then(x.1.cmp(&y.1)));
+            ranked.truncate(MAX_NEIGHBOURS);
+            let mut neighbours: BTreeSet<i64> = ranked.into_iter().map(|(_, id)| id).collect();
+            // Pairs it already has are measured again, so they are updated or dropped.
+            let mut statement = conn
+                .prepare("SELECT CASE WHEN a = ?1 THEN b ELSE a END FROM similar_pair WHERE a = ?1 OR b = ?1")
+                .map_err(sql_err)?;
+            let existing = statement
+                .query_map([content_id], |row| row.get::<_, i64>(0))
+                .map_err(sql_err)?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(sql_err)?;
+            neighbours.extend(existing);
+            (me, neighbours)
+        };
+
+        let mut results: Vec<(i64, i64, Option<(propose::Proposal, Measures, serde_json::Value)>)> = Vec::new();
+        for other_id in neighbours {
+            let other = {
+                let conn = self.conn();
+                load_doc(&conn, other_id, routine)?
+            };
+            let (lo, hi) = if content_id < other_id { (content_id, other_id) } else { (other_id, content_id) };
+            let outcome = match &other {
+                Some(other) if me.prepared.word_count() >= MIN_WORDS && other.prepared.word_count() >= MIN_WORDS => {
+                    let (a, b) = if me.id < other.id { (&me, other) } else { (other, &me) };
+                    compare(a, b, routine)
+                }
+                _ => None,
+            };
+            results.push((lo, hi, outcome));
+        }
+
+        let engine = engine_id();
+        let mut conn = self.conn();
+        let tx = conn.transaction().map_err(sql_err)?;
+        for (a, b, outcome) in results {
+            save_pair(&tx, a, b, outcome, &engine)?;
+        }
+        tx.commit().map_err(sql_err)
+    }
+
+    /// Pass 3: families against a principal document (R-14), from the
+    /// pairs no one discarded.
+    pub fn similar_regroup(&self) -> Result<(), String> {
+        let mut conn = self.conn();
+        let tx = conn.transaction().map_err(sql_err)?;
+        let mut adjacent: BTreeMap<i64, BTreeMap<i64, (String, f64)>> = BTreeMap::new();
+        {
+            let mut statement = tx
+                .prepare(
+                    "SELECT a, b, CASE WHEN state = 'joined' THEN chosen_relation ELSE relation END, cover
+                     FROM similar_pair WHERE state != 'discarded'",
+                )
+                .map_err(sql_err)?;
+            let rows = statement
+                .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, String>(2)?, row.get::<_, f64>(3)?)))
+                .map_err(sql_err)?;
+            for row in rows {
+                let (a, b, relation, cover) = row.map_err(sql_err)?;
+                if !GROUP_RELATIONS.contains(&relation.as_str()) {
+                    continue;
+                }
+                adjacent.entry(a).or_default().insert(b, (relation.clone(), cover));
+                adjacent.entry(b).or_default().insert(a, (relation, cover));
+            }
+        }
+        // How complete each document is: a party's signature first, then
+        // the amount of text, then the oldest content.
+        let mut completeness: HashMap<i64, (bool, i64)> = HashMap::new();
+        {
+            let mut statement = tx
+                .prepare(
+                    "SELECT s.content_id, s.words, coalesce(m.marks, '[]') FROM similar_signature s
+                     LEFT JOIN document_marks m ON m.content_id = s.content_id",
+                )
+                .map_err(sql_err)?;
+            let rows = statement
+                .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, String>(2)?)))
+                .map_err(sql_err)?;
+            for row in rows {
+                let (id, words, marks) = row.map_err(sql_err)?;
+                let marks: Vec<Mark> = serde_json::from_str(&marks).unwrap_or_default();
+                completeness.insert(id, (marks.iter().any(|m| m.kind == "party-signature"), words));
+            }
+        }
+        let groups = families(&adjacent, &|id| completeness.get(&id).copied().unwrap_or((false, 0)));
+
+        tx.execute("DELETE FROM similar_group", []).map_err(sql_err)?;
+        let now = now_ms();
+        for group in &groups {
+            tx.execute(
+                "INSERT INTO similar_group (principal, members, flags, computed_at) VALUES (?1, ?2, ?3, ?4)",
+                params![group.principal, group.members.len() as i64, serde_json::to_string(&group.flags).map_err(json_err)?, now],
+            )
+            .map_err(sql_err)?;
+            for member in &group.members {
+                let link = adjacent.get(&group.principal).and_then(|links| links.get(member));
+                tx.execute(
+                    "INSERT INTO similar_group_member (principal, content_id, relation, cover) VALUES (?1, ?2, ?3, ?4)",
+                    params![group.principal, member, link.map(|(r, _)| r.clone()), link.map(|(_, c)| *c)],
+                )
+                .map_err(sql_err)?;
+            }
+        }
+        tx.commit().map_err(sql_err)
+    }
+
+    /// The documents similar to the one at this location.
+    pub fn similar_of(&self, visible: &Visible, location_id: i64) -> Result<Vec<SimilarDocument>, String> {
+        let conn = self.conn();
+        let Some(content_id) = content_of_location(&conn, location_id)? else {
+            return Ok(Vec::new());
+        };
+        let mut statement = conn
+            .prepare(
+                "SELECT a, b, relation, subject, certainty, description, jaccard, containment, cover, similarity,
+                        suggested_source, evidence, evidence_hash, computed_at, state, chosen_relation, wiki_source, decided_at
+                 FROM similar_pair WHERE a = ?1 OR b = ?1
+                 ORDER BY (state = 'discarded'), (relation = 'similar'), cover DESC",
+            )
+            .map_err(sql_err)?;
+        let rows = statement
+            .query_map([content_id], |row| {
+                let a: i64 = row.get(0)?;
+                let b: i64 = row.get(1)?;
+                let evidence: String = row.get(11)?;
+                Ok((
+                    if a == content_id { b } else { a },
+                    SimilarDocument {
+                        content_id,
+                        other: DocRef { content_id: 0, location_id: 0, origin_name: String::new(), rel_path: String::new(), name: String::new(), copies: 0 },
+                        relation: row.get(2)?,
+                        subject_content_id: row.get(3)?,
+                        certainty: row.get(4)?,
+                        description: row.get(5)?,
+                        jaccard: row.get(6)?,
+                        containment: row.get(7)?,
+                        cover: row.get(8)?,
+                        similarity: row.get(9)?,
+                        suggested_source: row.get(10)?,
+                        evidence: serde_json::from_str(&evidence).unwrap_or(serde_json::Value::Null),
+                        evidence_hash: row.get(12)?,
+                        computed_at: row.get(13)?,
+                        state: row.get(14)?,
+                        chosen_relation: row.get(15)?,
+                        wiki_source: row.get(16)?,
+                        decided_at: row.get(17)?,
+                    },
+                ))
+            })
+            .map_err(sql_err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(sql_err)?;
+        drop(statement);
+        let mut out = Vec::new();
+        for (other, mut similar) in rows {
+            // A relation is seen only if both documents are (design, shared space).
+            if let Some(doc) = doc_ref(&conn, visible, other)? {
+                similar.other = doc;
+                out.push(similar);
+            }
+        }
+        Ok(out)
+    }
+
+    /// Records what a person decided about the pair of these two
+    /// documents. `shown_evidence` is the fingerprint of the evidence the
+    /// person saw (R-08); the current one when not given.
+    pub fn decide_similar(
+        &self,
+        content_id: i64,
+        other_content_id: i64,
+        decision: &Decision,
+        shown_evidence: Option<&str>,
+    ) -> Result<(), String> {
+        let (a, b) = if content_id < other_content_id { (content_id, other_content_id) } else { (other_content_id, content_id) };
+        {
+            let conn = self.conn();
+            let current: Option<String> = conn
+                .query_row("SELECT evidence_hash FROM similar_pair WHERE a = ?1 AND b = ?2", params![a, b], |row| row.get(0))
+                .optional()
+                .map_err(sql_err)?;
+            let Some(current) = current else {
+                return Err("Esos dos documentos no figuran como parecidos".to_string());
+            };
+            let shown = shown_evidence.map(str::to_string).unwrap_or(current);
+            let now = now_ms();
+            match decision {
+                Decision::Join { relation, wiki_source } => {
+                    let Some(definition) = types::catalog().relation(relation) else {
+                        return Err(format!("'{relation}' no es una relación conocida"));
+                    };
+                    let source = match (definition.same_document, wiki_source) {
+                        (true, Some(source)) if *source == a || *source == b => Some(*source),
+                        (true, _) => return Err("Hay que elegir cuál de los dos documentos queda como fuente del wiki".to_string()),
+                        (false, None) => None,
+                        (false, Some(_)) => return Err("Esa relación no deja un solo documento como fuente del wiki".to_string()),
+                    };
+                    conn.execute(
+                        "UPDATE similar_pair SET state = 'joined', chosen_relation = ?3, wiki_source = ?4,
+                         shown_evidence_hash = ?5, decided_at = ?6 WHERE a = ?1 AND b = ?2",
+                        params![a, b, relation, source, shown, now],
+                    )
+                    .map_err(sql_err)?;
+                }
+                Decision::Discard => {
+                    conn.execute(
+                        "UPDATE similar_pair SET state = 'discarded', chosen_relation = NULL, wiki_source = NULL,
+                         shown_evidence_hash = ?3, decided_at = ?4 WHERE a = ?1 AND b = ?2",
+                        params![a, b, shown, now],
+                    )
+                    .map_err(sql_err)?;
+                }
+                Decision::Undo => {
+                    conn.execute(
+                        "UPDATE similar_pair SET state = 'proposed', chosen_relation = NULL, wiki_source = NULL,
+                         shown_evidence_hash = NULL, decided_at = NULL WHERE a = ?1 AND b = ?2",
+                        params![a, b],
+                    )
+                    .map_err(sql_err)?;
+                }
+            }
+        }
+        self.similar_regroup()
+    }
+
+    /// What waits for a decision.
+    pub fn similar_pending(&self, visible: &Visible) -> Result<SimilarPending, String> {
+        let conn = self.conn();
+        let (seen_a, mut bound) = visible_content(visible, "p.a");
+        let (seen_b, bound_b) = visible_content(visible, "p.b");
+        bound.extend(bound_b);
+        let pairs: i64 = conn
+            .query_row(
+                &format!(
+                    "SELECT count(*) FROM similar_pair p
+                     WHERE p.state = 'proposed' AND p.relation != 'similar' AND {seen_a} AND {seen_b}"
+                ),
+                params_from_iter(bound.iter()),
+                |row| row.get(0),
+            )
+            .map_err(sql_err)?;
+        let (seen_principal, bound) = visible_content(visible, "g.principal");
+        let groups: i64 = conn
+            .query_row(
+                &format!(
+                    "SELECT count(*) FROM similar_group g WHERE {seen_principal} AND EXISTS (
+                        SELECT 1 FROM similar_group_member m JOIN similar_pair p
+                          ON p.a = min(m.principal, m.content_id) AND p.b = max(m.principal, m.content_id)
+                        WHERE m.principal = g.principal AND p.state = 'proposed')"
+                ),
+                params_from_iter(bound.iter()),
+                |row| row.get(0),
+            )
+            .map_err(sql_err)?;
+        Ok(SimilarPending { pairs, groups })
+    }
+
+    /// The provisional families, largest first.
+    pub fn similar_groups(&self, visible: &Visible) -> Result<Vec<SimilarGroup>, String> {
+        let conn = self.conn();
+        let heads: Vec<(i64, String)> = {
+            let mut statement = conn
+                .prepare("SELECT principal, flags FROM similar_group ORDER BY members DESC, principal")
+                .map_err(sql_err)?;
+            let rows = statement
+                .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+                .map_err(sql_err)?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(sql_err)?;
+            rows
+        };
+        let mut out = Vec::new();
+        for (principal, flags) in heads {
+            let Some(head) = doc_ref(&conn, visible, principal)? else {
+                continue;
+            };
+            let members: Vec<(i64, Option<String>, Option<f64>, Option<String>)> = {
+                let mut statement = conn
+                    .prepare(
+                        "SELECT m.content_id, m.relation, m.cover, p.state FROM similar_group_member m
+                         LEFT JOIN similar_pair p ON p.a = min(m.principal, m.content_id) AND p.b = max(m.principal, m.content_id)
+                         WHERE m.principal = ?1 ORDER BY m.content_id = m.principal DESC, m.cover DESC, m.content_id",
+                    )
+                    .map_err(sql_err)?;
+                let rows = statement
+                    .query_map([principal], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)))
+                    .map_err(sql_err)?
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(sql_err)?;
+                rows
+            };
+            let mut list = Vec::new();
+            let mut pending = 0;
+            for (content_id, relation, cover, state) in members {
+                if state.as_deref() == Some("proposed") {
+                    pending += 1;
+                }
+                if let Some(doc) = doc_ref(&conn, visible, content_id)? {
+                    list.push(GroupMember { doc, relation, cover, state });
+                }
+            }
+            out.push(SimilarGroup {
+                principal: head,
+                members: list,
+                flags: serde_json::from_str(&flags).unwrap_or_default(),
+                pending,
+            });
+        }
+        Ok(out)
+    }
+}
+
+/// The relations a person can choose from, as the catalog lists them.
+pub fn relations() -> Vec<RelationDef> {
+    types::catalog().relations.clone()
+}
+
+/// Computes what is stored for one content.
+fn sign(content_id: i64, body: &str, text_at: i64, has_fields: bool, signatures: Vec<PdfSignature>) -> Signed {
+    let pages = text::pages(body);
+    let reading = marks::read(types::catalog(), &marks::Facts { pages: &pages, has_fields, signatures: &signatures });
+    let prepared = Prepared::new(&pages, &reading.skip_pages, &reading.drop_phrases);
+    let shingles = if prepared.word_count() >= MIN_WORDS { prepared.shingles() } else { Vec::new() };
+    let minhash = minhash::signature(&shingles);
+    Signed {
+        content_id,
+        text_at,
+        words: prepared.word_count(),
+        shingles,
+        minhash,
+        marks: reading.marks,
+        signatures,
+        skip_pages: reading.skip_pages,
+        drop_phrases: reading.drop_phrases,
+    }
+}
+
+fn save_signature(tx: &Transaction<'_>, signed: &Signed, engine: &str) -> Result<(), String> {
+    let old: Option<Vec<u8>> = tx
+        .query_row("SELECT shingles FROM similar_signature WHERE content_id = ?1", [signed.content_id], |row| row.get(0))
+        .optional()
+        .map_err(sql_err)?;
+    if let Some(old) = old {
+        uncount(tx, &minhash::from_blob(&old))?;
+        tx.execute("DELETE FROM similar_signature WHERE content_id = ?1", [signed.content_id])
+            .map_err(sql_err)?;
+    }
+    let now = now_ms();
+    tx.execute(
+        "INSERT INTO similar_signature (content_id, engine, text_at, words, shingles, minhash, computed_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        params![
+            signed.content_id,
+            engine,
+            signed.text_at,
+            signed.words as i64,
+            minhash::to_blob(&signed.shingles),
+            minhash::to_blob(&signed.minhash),
+            now
+        ],
+    )
+    .map_err(sql_err)?;
+    {
+        let mut statement = tx
+            .prepare_cached(
+                "INSERT INTO similar_common (shingle, docs) VALUES (?1, 1)
+                 ON CONFLICT (shingle) DO UPDATE SET docs = docs + 1",
+            )
+            .map_err(sql_err)?;
+        for shingle in &signed.shingles {
+            statement.execute([*shingle as i64]).map_err(sql_err)?;
+        }
+        let mut statement = tx
+            .prepare_cached("INSERT OR IGNORE INTO similar_band (band, bucket, content_id) VALUES (?1, ?2, ?3)")
+            .map_err(sql_err)?;
+        for (band, bucket) in minhash::buckets(&signed.minhash).into_iter().enumerate() {
+            statement.execute(params![band as i64, bucket, signed.content_id]).map_err(sql_err)?;
+        }
+    }
+    tx.execute(
+        "INSERT OR REPLACE INTO document_marks (content_id, engine, marks, signatures, skip_pages, drop_phrases, computed_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        params![
+            signed.content_id,
+            engine,
+            serde_json::to_string(&signed.marks).map_err(json_err)?,
+            serde_json::to_string(&signed.signatures).map_err(json_err)?,
+            serde_json::to_string(&signed.skip_pages).map_err(json_err)?,
+            serde_json::to_string(&signed.drop_phrases).map_err(json_err)?,
+            now
+        ],
+    )
+    .map_err(sql_err)?;
+    tx.execute(
+        "INSERT OR REPLACE INTO similar_dirty (content_id, since) VALUES (?1, ?2)",
+        params![signed.content_id, now],
+    )
+    .map_err(sql_err)?;
+    Ok(())
+}
+
+fn uncount(tx: &Transaction<'_>, shingles: &[u64]) -> Result<(), String> {
+    let mut statement = tx
+        .prepare_cached("UPDATE similar_common SET docs = docs - 1 WHERE shingle = ?1")
+        .map_err(sql_err)?;
+    for shingle in shingles {
+        statement.execute([*shingle as i64]).map_err(sql_err)?;
+    }
+    tx.execute("DELETE FROM similar_common WHERE docs <= 0", []).map_err(sql_err)?;
+    Ok(())
+}
+
+/// The shingles that are routine text in the archive today (pass 0).
+fn routine_shingles(conn: &Connection) -> Result<HashSet<u64>, String> {
+    let documents: i64 = conn
+        .query_row("SELECT count(*) FROM similar_signature WHERE length(shingles) > 0", [], |row| row.get(0))
+        .map_err(sql_err)?;
+    let threshold = ROUTINE_MIN_DOCS.max((ROUTINE_SHARE * documents as f64).ceil() as i64);
+    let mut statement = conn
+        .prepare("SELECT shingle FROM similar_common WHERE docs >= ?1")
+        .map_err(sql_err)?;
+    let rows = statement
+        .query_map([threshold], |row| row.get::<_, i64>(0))
+        .map_err(sql_err)?;
+    let mut out = HashSet::new();
+    for row in rows {
+        out.insert(row.map_err(sql_err)? as u64);
+    }
+    Ok(out)
+}
+
+/// Words, shingle count and MinHash of a content.
+fn signature_of(conn: &Connection, content_id: i64) -> Result<Option<(usize, usize, Vec<u64>)>, String> {
+    conn.query_row(
+        "SELECT words, length(shingles) / 8, minhash FROM similar_signature WHERE content_id = ?1",
+        [content_id],
+        |row| Ok((row.get::<_, i64>(0)? as usize, row.get::<_, i64>(1)? as usize, minhash::from_blob(&row.get::<_, Vec<u8>>(2)?))),
+    )
+    .optional()
+    .map_err(sql_err)
+}
+
+/// Containment estimated from two signatures and their sizes.
+fn estimated_containment(a: &Option<(usize, usize, Vec<u64>)>, b: &(usize, usize, Vec<u64>)) -> f64 {
+    let Some(a) = a else {
+        return 0.0;
+    };
+    let jaccard = minhash::estimate(&a.2, &b.2);
+    let smaller = a.1.min(b.1);
+    if smaller == 0 {
+        return 0.0;
+    }
+    (jaccard * (a.1 + b.1) as f64 / ((1.0 + jaccard) * smaller as f64)).min(1.0)
+}
+
+/// The PDF files of a content, where they can be read now.
+fn pdf_paths(conn: &Connection, content_id: i64) -> Result<Vec<PathBuf>, String> {
+    let mut statement = conn
+        .prepare(
+            "SELECT o.location, min(l.rel_path) FROM file f
+             JOIN location l ON l.file_hash = f.hash AND l.hash_state = 'done' AND l.ext = 'pdf'
+             JOIN origin o ON o.id = l.origin_id AND o.reachable = 1
+             WHERE f.content_id = ?1
+             GROUP BY f.hash",
+        )
+        .map_err(sql_err)?;
+    let rows = statement
+        .query_map([content_id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))
+        .map_err(sql_err)?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(sql_err)?;
+    Ok(rows
+        .into_iter()
+        .filter_map(|(root, rel_path)| LocalFolderProvider::new(root).local_path(&rel_path))
+        .collect())
+}
+
+/// A content ready to be compared, from what is stored.
+fn load_doc(conn: &Connection, content_id: i64, routine: &HashSet<u64>) -> Result<Option<Doc>, String> {
+    let row: Option<(String, String, Option<String>, String, String, String, Vec<u8>)> = conn
+        .query_row(
+            "SELECT d.body, d.engine, fd.body, m.marks, m.skip_pages, m.drop_phrases, s.shingles
+             FROM similar_signature s
+             JOIN derivative d ON d.content_id = s.content_id AND d.kind = 'text'
+             JOIN document_marks m ON m.content_id = s.content_id
+             LEFT JOIN derivative fd ON fd.content_id = s.content_id AND fd.kind = 'fields'
+             WHERE s.content_id = ?1",
+            [content_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?)),
+        )
+        .optional()
+        .map_err(sql_err)?;
+    let Some((body, engine, fields, marks, skip_pages, drop_phrases, shingles)) = row else {
+        return Ok(None);
+    };
+    let skip: Vec<usize> = serde_json::from_str(&skip_pages).unwrap_or_default();
+    let drop: Vec<String> = serde_json::from_str(&drop_phrases).unwrap_or_default();
+    let marks: Vec<Mark> = serde_json::from_str(&marks).unwrap_or_default();
+    let prepared = Prepared::new(&text::pages(&body), &skip, &drop);
+    let mut routine_words = vec![false; prepared.words.len()];
+    if !routine.is_empty() && prepared.words.len() >= SHINGLE_WORDS {
+        for start in 0..=prepared.words.len() - SHINGLE_WORDS {
+            let window = &prepared.words[start..start + SHINGLE_WORDS];
+            if routine.contains(&text::shingle_hash(window.iter().map(|w| w.key.as_str()))) {
+                routine_words[start..start + SHINGLE_WORDS].iter_mut().for_each(|w| *w = true);
+            }
+        }
+    }
+    let own_words = routine_words.iter().filter(|r| !**r).count();
+    let fields: Vec<(String, String)> = fields
+        .and_then(|body| serde_json::from_str::<Vec<serde_json::Value>>(&body).ok())
+        .unwrap_or_default()
+        .into_iter()
+        .map(|field| {
+            (
+                field["name"].as_str().unwrap_or_default().to_string(),
+                field["value"].as_str().unwrap_or_default().to_string(),
+            )
+        })
+        .collect();
+    let mut kinds: Vec<String> = marks.iter().map(|m| m.kind.clone()).collect();
+    kinds.sort();
+    kinds.dedup();
+    Ok(Some(Doc {
+        id: content_id,
+        recognized: text::is_recognized(&body) || engine != crate::docbase::text::EXTRACTION_ENGINE,
+        prepared,
+        shingles: minhash::from_blob(&shingles),
+        routine: routine_words,
+        own_words,
+        marks: kinds,
+        fields,
+    }))
+}
+
+/// Measures, aligns and proposes for one pair (`a.id < b.id`).
+fn compare(a: &Doc, b: &Doc, routine: &HashSet<u64>) -> Option<(propose::Proposal, Measures, serde_json::Value)> {
+    let shingles = minhash::overlap(&a.shingles, &b.shingles, &|s| routine.contains(&s));
+    if shingles.0 == 0 || (shingles.0 as f64) < MEASURE_MIN * shingles.1.min(shingles.2) as f64 {
+        return None;
+    }
+    let (ids_a, ids_b) = align::intern(
+        a.prepared.words.iter().map(|w| w.key.as_str()),
+        b.prepared.words.iter().map(|w| w.key.as_str()),
+    );
+    let ops = align::align(&ids_a, &ids_b);
+    let mut found: Changes = changes::summarize(&a.prepared, &b.prepared, &ops);
+    changes::add_fields(&mut found, &a.fields, &b.fields);
+    let (mut matched_a, mut matched_b) = (0, 0);
+    for op in &ops {
+        if let align::Op::Same { a: ra, b: rb } = op {
+            matched_a += ra.clone().filter(|i| !a.routine[*i]).count();
+            matched_b += rb.clone().filter(|j| !b.routine[*j]).count();
+        }
+    }
+    let side_a = Side { content_id: a.id, own_words: a.own_words, matched: matched_a, recognized: a.recognized, marks: a.marks.clone() };
+    let side_b = Side { content_id: b.id, own_words: b.own_words, matched: matched_b, recognized: b.recognized, marks: b.marks.clone() };
+    let measures = propose::measures(&side_a, &side_b, shingles);
+    let proposal = propose::propose(&side_a, &side_b, &measures, &found)?;
+    let evidence = serde_json::json!({
+        "engine": ENGINE,
+        "rule": proposal.rule,
+        "measures": measures,
+        "words": { "a": a.prepared.word_count(), "b": b.prepared.word_count() },
+        "ownWords": { "a": a.own_words, "b": b.own_words },
+        "recognized": { "a": a.recognized, "b": b.recognized },
+        "marks": { "a": a.marks, "b": b.marks },
+        "changes": found,
+    });
+    Some((proposal, measures, evidence))
+}
+
+fn save_pair(
+    tx: &Transaction<'_>,
+    a: i64,
+    b: i64,
+    outcome: Option<(propose::Proposal, Measures, serde_json::Value)>,
+    engine: &str,
+) -> Result<(), String> {
+    let Some((proposal, measures, evidence)) = outcome else {
+        tx.execute("DELETE FROM similar_pair WHERE a = ?1 AND b = ?2 AND state = 'proposed'", params![a, b])
+            .map_err(sql_err)?;
+        return Ok(());
+    };
+    let evidence = serde_json::to_string(&evidence).map_err(json_err)?;
+    let hash = format!("{:016x}", text::fnv1a(evidence.as_bytes()));
+    tx.execute(
+        "INSERT INTO similar_pair (a, b, relation, subject, certainty, jaccard, containment, cover, similarity,
+                                   description, suggested_source, evidence, evidence_hash, engine, computed_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
+         ON CONFLICT (a, b) DO UPDATE SET
+            relation = excluded.relation, subject = excluded.subject, certainty = excluded.certainty,
+            jaccard = excluded.jaccard, containment = excluded.containment, cover = excluded.cover,
+            similarity = excluded.similarity, description = excluded.description,
+            suggested_source = excluded.suggested_source, evidence = excluded.evidence,
+            evidence_hash = excluded.evidence_hash, engine = excluded.engine, computed_at = excluded.computed_at",
+        params![
+            a,
+            b,
+            proposal.relation,
+            proposal.subject,
+            proposal.certainty,
+            measures.jaccard,
+            measures.containment,
+            measures.cover,
+            measures.similarity,
+            proposal.description,
+            proposal.suggested_source,
+            evidence,
+            hash,
+            engine,
+            now_ms()
+        ],
+    )
+    .map_err(sql_err)?;
+    Ok(())
+}
+
+/// A provisional family.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Family {
+    pub principal: i64,
+    pub members: Vec<i64>,
+    pub flags: Vec<String>,
+}
+
+/// Families against a principal: in each set of linked documents, the
+/// most complete one is the principal and only the documents linked to
+/// it join; the rest form families of their own the same way.
+pub fn families(
+    adjacent: &BTreeMap<i64, BTreeMap<i64, (String, f64)>>,
+    completeness: &dyn Fn(i64) -> (bool, i64),
+) -> Vec<Family> {
+    let mut seen: HashSet<i64> = HashSet::new();
+    let mut out = Vec::new();
+    for start in adjacent.keys() {
+        if seen.contains(start) {
+            continue;
+        }
+        let mut component: BTreeSet<i64> = BTreeSet::new();
+        let mut queue = vec![*start];
+        while let Some(node) = queue.pop() {
+            if !component.insert(node) {
+                continue;
+            }
+            seen.insert(node);
+            if let Some(links) = adjacent.get(&node) {
+                queue.extend(links.keys().filter(|n| !component.contains(n)));
+            }
+        }
+        let size = component.len();
+        let mut remaining = component;
+        while remaining.len() >= 2 {
+            let principal = *remaining
+                .iter()
+                .max_by(|x, y| {
+                    let (cx, cy) = (completeness(**x), completeness(**y));
+                    cx.cmp(&cy).then(y.cmp(x))
+                })
+                .expect("not empty");
+            let mut members = vec![principal];
+            if let Some(links) = adjacent.get(&principal) {
+                members.extend(links.keys().filter(|n| remaining.contains(n)));
+            }
+            for member in &members {
+                remaining.remove(member);
+            }
+            if members.len() >= 2 {
+                let mut flags = Vec::new();
+                if members.len() > GROUP_LARGE {
+                    flags.push("large".to_string());
+                }
+                if size > members.len() {
+                    flags.push("dispersed".to_string());
+                }
+                members.sort_unstable();
+                out.push(Family { principal, members, flags });
+            }
+        }
+    }
+    out
+}
+
+fn content_of_location(conn: &Connection, location_id: i64) -> Result<Option<i64>, String> {
+    conn.query_row(
+        "SELECT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.id = ?1",
+        [location_id],
+        |row| row.get(0),
+    )
+    .optional()
+    .map_err(sql_err)
+}
+
+/// SQL condition: the content in `column` has a location the caller sees.
+fn visible_content(visible: &Visible, column: &str) -> (String, Vec<Value>) {
+    let (condition, bound) = visible.condition("l.origin_id");
+    (
+        format!(
+            "EXISTS (SELECT 1 FROM file f JOIN location l ON l.file_hash = f.hash
+                     WHERE f.content_id = {column} AND {condition} AND NOT {})",
+            super::super::excluded_sql!()
+        ),
+        bound.into_iter().map(Value::Text).collect(),
+    )
+}
+
+/// The location that stands for a content: the first visible one.
+fn doc_ref(conn: &Connection, visible: &Visible, content_id: i64) -> Result<Option<DocRef>, String> {
+    let (condition, bound) = visible.condition("l.origin_id");
+    let bound: Vec<Value> = std::iter::once(Value::Integer(content_id))
+        .chain(bound.into_iter().map(Value::Text))
+        .collect();
+    conn.query_row(
+        &format!(
+            "SELECT l.id, o.name, l.rel_path, l.name,
+                    (SELECT count(*) FROM location l2 JOIN file f2 ON f2.hash = l2.file_hash WHERE f2.content_id = f.content_id)
+             FROM location l
+             JOIN origin o ON o.id = l.origin_id
+             JOIN file f ON f.hash = l.file_hash
+             WHERE f.content_id = ? AND {condition} AND NOT {}
+             ORDER BY o.name COLLATE NOCASE, l.rel_path COLLATE NOCASE
+             LIMIT 1",
+            super::super::excluded_sql!()
+        ),
+        params_from_iter(bound),
+        |row| {
+            Ok(DocRef {
+                content_id,
+                location_id: row.get(0)?,
+                origin_name: row.get(1)?,
+                rel_path: row.get(2)?,
+                name: row.get(3)?,
+                copies: row.get(4)?,
+            })
+        },
+    )
+    .optional()
+    .map_err(sql_err)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn graph(edges: &[(i64, i64)]) -> BTreeMap<i64, BTreeMap<i64, (String, f64)>> {
+        let mut adjacent: BTreeMap<i64, BTreeMap<i64, (String, f64)>> = BTreeMap::new();
+        for (a, b) in edges {
+            adjacent.entry(*a).or_default().insert(*b, ("same-template".into(), 0.9));
+            adjacent.entry(*b).or_default().insert(*a, ("same-template".into(), 0.9));
+        }
+        adjacent
+    }
+
+    #[test]
+    fn a_chain_does_not_make_a_family() {
+        // 1 ~ 2 ~ 3, and 3 is not similar to 1, the most complete.
+        let words = |id: i64| (false, match id { 1 => 900, 2 => 500, _ => 400 });
+        let found = families(&graph(&[(1, 2), (2, 3)]), &words);
+        assert_eq!(found, vec![Family { principal: 1, members: vec![1, 2], flags: vec!["dispersed".into()] }]);
+    }
+
+    #[test]
+    fn the_signed_copy_is_the_principal_and_all_join_it() {
+        let complete = |id: i64| (id == 3, 100);
+        let found = families(&graph(&[(1, 2), (1, 3), (2, 3)]), &complete);
+        assert_eq!(found, vec![Family { principal: 3, members: vec![1, 2, 3], flags: vec![] }]);
+    }
+}
