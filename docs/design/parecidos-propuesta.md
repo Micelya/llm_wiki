@@ -1,6 +1,6 @@
 # Documentos parecidos — propuesta
 
-**Estado:** propuesta en revisión · 13 de octubre de 2026 · tercera versión · nada de esto está construido
+**Estado:** propuesta en revisión · 14 de octubre de 2026 · cuarta versión · nada de esto está construido
 **Alcance:** cómo reconocer documentos que se parecen sin ser idénticos, y qué hacer con ellos. Es la etapa 2 del [documento de diseño](base-documental.md) (pendiente P-015). No describe código.
 
 Cuando esta propuesta esté acordada, lo que quede firme pasa al documento de diseño.
@@ -47,6 +47,7 @@ Para no proponer sobre supuestos, se midieron dos conjuntos de la carpeta de pru
 | Caso real | Contención | Parecido | Qué cambia |
 |---|---|---|---|
 | El mismo acuerdo de desvinculación para tres personas | 80 a 88 % | 58 a 72 % | 110 a 260 palabras en 18 a 27 tramos; entre un cuarto y la mitad son cifras; el resto, nombres y condiciones. Hay sustituciones que se repiten |
+| Un acuerdo y su ejemplar con firma digital | 100 % | 79 % | Nada del texto original: el firmado le suma un solo bloque, que es la constancia de la firma |
 | Borrador de un contrato largo y su versión final | 95 % | 78 % | 1.200 palabras en 74 tramos; una de cada seis es una cifra |
 | Dos boletas del mismo organismo | 91 % | 78 a 83 % | Casi solo cifras |
 | Dos fichas de cliente de personas distintas | 100 % | 100 % | **Nada: el texto extraído es idéntico** |
@@ -134,9 +135,9 @@ Azul: cálculo, en la máquina y sin costo. Naranja: cálculo, con ayuda opciona
    - **Redacción:** texto corriente.
    - **Sustitución repetida:** si donde un texto dice un nombre el otro dice siempre otro, es el mismo modelo con otra parte.
 7. **Proponer la relación,** con las reglas de la sección 6, y **describir el parecido** en una frase: "Mismo texto de base; cambian el nombre de la parte, el CUIT y tres importes".
-8. **Proponer familias.** Los documentos relacionados por plantilla o por versión forman una familia. Dos defensas contra el encadenamiento (A se parece a B, B a C, y terminan todos juntos por un solo vínculo equivocado):
-   - un vínculo débil no alcanza para unir dos grupos: tienen que estar bien conectados entre sí;
-   - una familia anormalmente grande se marca para revisión.
+8. **Proponer familias.** Los documentos relacionados por plantilla o por versión forman una familia. El riesgo es el encadenamiento: A se parece a B, B a C, y terminan todos juntos por un solo vínculo equivocado. Dos defensas:
+   - cada familia tiene un **documento principal** (el más completo, o el ejemplar firmado), y un documento entra si se parece al principal, no a cualquier miembro;
+   - una familia que crece o se dispersa demasiado se marca para revisión.
 9. **Una persona decide.** Une con la relación propuesta, elige otra o descarta. Su decisión se guarda y no se vuelve a preguntar.
 
 ## 6. Cómo se propone la relación
@@ -146,7 +147,7 @@ Los números son puntos de partida: se ajustan con el conjunto de prueba de la s
 | Si… | Se propone |
 |---|---|
 | Comparten casi todo (97 % o más) y lo que cambia son pocas palabras sueltas, ninguna un dato | Prácticamente el mismo |
-| Uno es una imagen leída, el otro tiene texto, y el texto está casi entero en la imagen | Ejemplar firmado |
+| Uno contiene al otro entero y le suma un solo bloque (la constancia de una firma digital), o es una imagen leída que contiene casi todo el texto del otro | Ejemplar firmado |
 | El corto está casi entero en el largo (90 % o más) y el largo tiene bastante más texto | Contenido en |
 | Comparten mucho (80 % o más) y lo que cambia son sobre todo datos, en tramos cortos o como sustitución repetida | Misma plantilla, otros datos |
 | Comparten mucho (80 % o más) y lo que cambia es sobre todo redacción | Versión |
@@ -174,35 +175,66 @@ El cálculo encuentra y mide; el modelo lee, explica y ayuda donde el cálculo n
 
 Sobre el último punto: comparar secuencias de palabras encuentra el mismo texto; no encuentra el mismo tema dicho distinto. Para eso cada documento se convierte en una representación numérica de su significado, y se buscan los cercanos. La app ya tiene esa capacidad para las páginas del wiki; la base todavía no la usa. Es complementaria y va después: primero lo que se puede afirmar con certeza.
 
-## 8. Tres pasadas, no una
+## 8. Pasadas sobre todo el archivo
 
-Hoy cada documento se procesa por separado y una sola vez. Parte de lo más valioso solo se puede saber mirando el archivo entero, y vuelve a enriquecer lo que se sabía de cada documento.
+### 8.1 Por qué
 
-```mermaid
-flowchart LR
-    P1["1 · Por documento<br/>texto, firma,<br/>identificadores"] --> P2["2 · Por par y por familia<br/>relaciones, plantilla,<br/>datos que cambian"]
-    P2 --> P3["3 · Sobre todo el archivo<br/>cruces, series,<br/>lo común y lo raro"]
-    P3 -.->|enriquece| P1
-    P3 -.->|corrige| P2
-```
+Hoy cada documento se procesa por separado y una sola vez. Parte de lo más valioso solo se ve mirando el archivo entero:
 
-Lo que agrega la tercera pasada:
-
-- **Cruces por datos compartidos.** Un acuerdo, sus recibos de pago y su ejemplar firmado no se parecen en el texto, pero nombran a la misma persona y los mismos importes. Eso los vincula como partes de un mismo asunto, que es lo que un abogado busca.
+- **Cruces por datos compartidos.** Un acuerdo, sus recibos de pago y su ejemplar firmado no se parecen en el texto, pero nombran a la misma persona y los mismos importes. Eso los une como partes de un mismo asunto, que es lo que un abogado busca.
 - **Series y faltantes.** Seis recibos de cuotas o trece facturas mensuales forman una serie. Recién viendo la serie se nota que falta una.
-- **Lo común no es señal.** El nombre y el CUIT del propio estudio aparecen en casi todo: no relacionan nada. Eso solo se sabe después de ver todo el archivo, y evita vínculos falsos.
-- **La plantilla, una vez conocida, permite releer.** Con tres o más miembros se sabe qué es fijo y qué es un campo. Entonces cada documento de la familia se puede releer para sacar sus datos de forma ordenada.
-- **Lo decidido se revisa cuando el archivo crece.** Un documento nuevo puede mostrar que dos "versiones" eran en realidad dos ejemplares de una plantilla.
+- **Lo común no es señal.** El nombre y el CUIT del propio estudio aparecen en casi todo y no relacionan nada. Eso solo se sabe después de ver el archivo entero.
+- **La plantilla, una vez conocida, permite releer.** Con tres o más miembros se sabe qué es fijo y qué es un campo, y cada miembro se puede releer para sacar sus datos ordenados.
+- **Consolidar nombres.** El modelo propone tipos de documento de a una familia por vez, y el wiki crea páginas de a un documento por vez. Que "Acuerdo de desvinculación" y "Acuerdo de terminación" son lo mismo solo se ve mirando el conjunto.
 
-**La iteración tiene que estar acotada.** Una pasada puede cambiar lo que ve la siguiente, y sin límites el proceso puede no terminar nunca o quedarse corrigiendo detalles. Tres reglas:
+### 8.2 El riesgo
 
-- pocas vueltas: dos o tres capturan casi todo el beneficio;
-- se corta cuando una vuelta ya casi no cambia nada;
-- cada vuelta solo **agrega propuestas**, con su grado de certeza. Nunca une ni borra por su cuenta, así todo lo que hizo se puede revisar y deshacer.
+Repetir pasadas no alcanza para que el resultado mejore. Lo que una pasada decide cambia lo que ve la siguiente, y sin un diseño cuidado pasan tres cosas conocidas:
 
-La misma idea sirve fuera de los documentos: consolidar nombres que el modelo fue inventando de a uno. Los tipos de documento propuestos familia por familia, o las páginas del wiki que nombran lo mismo de dos maneras, solo se pueden unificar mirando el conjunto.
+- **No termina:** cada vuelta corrige algo marginal y dispara otra.
+- **Oscila:** una vuelta propone algo y la siguiente lo deshace.
+- **Errores en cascada:** una propuesta equivocada se usa como base de otra, y esa de otra. Es el mismo fenómeno que el encadenamiento de familias de la sección 5.
 
-Esto no cambia el orden de construcción: las pasadas 1 y 2 son esta etapa. La tercera se construye después, pero condiciona desde ahora qué se guarda: los identificadores y los datos que cambian se guardan por documento, para poder cruzarlos.
+### 8.3 Las reglas
+
+Son prácticas establecidas en el campo que estudia cómo reconocer registros que se refieren a lo mismo, en la revisión asistida de documentos que hacen los estudios en litigios, y en el refinamiento de grafos de conocimiento. Adaptadas a nuestro caso:
+
+1. **Cada pasada tiene un único objetivo,** con sus entradas, lo que produce, lo que puede cambiar y su criterio de corte (8.4). Una pasada que lo quiere hacer todo no se puede medir ni frenar.
+2. **De lo seguro a lo incierto.** Primero lo exacto, después lo que comparte mucho texto, después lo que se infiere por datos compartidos. Así lo que se apoya en resultados anteriores se apoya en lo más confiable.
+3. **Solo se agrega evidencia.** Una pasada escribe propuestas y les cambia la certeza; nunca une ni borra. Como la evidencia posible es finita y solo crece, el proceso termina.
+4. **Lo propuesto no alimenta lo propuesto.** Una pasada puede apoyarse en una relación confirmada por una persona, no en otra propuesta. Esta es la defensa principal contra los errores en cascada.
+5. **Las decisiones humanas son reglas firmes.** Un "sí" se puede usar como base. Un "no tienen relación" bloquea esa relación para siempre, en todas las pasadas, salvo que aparezca evidencia nueva y distinta. Se guarda junto con la evidencia que se le mostró a la persona, para saber cuándo la evidencia cambió.
+6. **El resultado no depende del orden.** Procesar los documentos en otro orden, o volver a correr una pasada sin cambios, da lo mismo. Esto hace que repetir sea seguro y que un documento nuevo no desordene lo anterior.
+7. **Las familias se arman contra un documento principal,** no por cadena. Cada familia tiene un principal: el más completo, o el ejemplar firmado. Un documento entra si se parece al principal, no si se parece a algún miembro. Es como lo hacen las herramientas de revisión de documentos en litigios, y evita el encadenamiento por construcción. Una familia que crece demasiado o se dispersa demasiado se marca para revisión.
+8. **Se trabaja solo sobre lo que cambió.** Después de la primera vez, cada pasada mira solo los documentos tocados por algo nuevo (un documento agregado, una decisión humana) y sus vecinos. Se corta cuando no queda nada tocado.
+9. **Cada pasada tiene un límite propio:** cuántos pares evalúa, cuántas preguntas le hace al modelo, cuántas propuestas le pone en la cola a la persona.
+10. **Se mide cada pasada por separado** contra el conjunto de prueba (sección 11): cuántas propuestas acierta, cuántas relaciones se le escapan y cuántas propuestas acepta la persona. Si una pasada empeora la precisión, se ajusta antes de volver a correrla.
+11. **El modelo aporta evidencia, no decide.** Su opinión pesa como una evidencia más, acotada. Se guarda con lo que se le preguntó, la versión de la pregunta y la del modelo: la misma pregunta no se hace dos veces, y repetir la pasada da lo mismo.
+12. **Los nombres consolidados quedan fijos.** Cuando una persona confirma que dos nombres son el mismo tipo de documento, el nombre elegido pasa a una lista cerrada. Las preguntas siguientes al modelo eligen de esa lista o proponen uno nuevo marcado como tal.
+
+### 8.4 Las pasadas
+
+| Pasada | Objetivo | Usa | Produce | Puede cambiar | Se corta cuando |
+|---|---|---|---|---|---|
+| **0 · Lo común** | Saber qué es común en el archivo | Todo el texto y los datos reconocidos | El peso de cada secuencia de palabras y de cada dato según lo raro que es; la lista de texto de rutina (membrete, pie de firma) | Solo pesos | Una corrida; se recalcula al llegar documentos nuevos |
+| **1 · Pares seguros** | Proponer mismo documento, prácticamente el mismo, ejemplar firmado, versión y contenido en | Candidatos por firma, medidas sin el texto de rutina, la comparación lado a lado | Propuestas con su evidencia y su descripción | Propuestas y su certeza | No quedan pares tocados |
+| **2 · Plantillas** | Proponer "misma plantilla, otros datos" y fijar la plantilla de cada familia | Mucha redacción en común con datos distintos; sustituciones repetidas; formularios PDF, que traen plantilla y datos separados | Familias propuestas con su principal; los campos de cada miembro | Propuestas de familia | No aparecen plantillas nuevas |
+| **3 · Correos** | Reconstruir cadenas de correo | Lo citado en cada respuesta | Cadenas, con el correo más completo como principal | Propuestas de cadena | No quedan correos tocados |
+| **4 · Mismo asunto** | Proponer qué documentos son del mismo caso aunque no compartan texto | Datos raros compartidos: número de expediente, CUIT, DNI, una persona, un importe | Propuestas de "mismo asunto", nunca de "mismo documento" | Propuestas | Límite de propuestas o casi sin cambios |
+| **5 · Series** | Encontrar series y faltantes | Familias confirmadas, con sus fechas o números | Series y avisos de faltante | Propuestas de serie | No quedan familias tocadas |
+| **6 · Consistencia** | Unificar nombres y detectar contradicciones | Tipos de documento, páginas del wiki, familias | Nombres a unificar; avisos (una familia con dos números de expediente, un "no tienen relación" dentro de una familia) | Propuestas y avisos; nunca renombra lo confirmado | No quedan avisos nuevos |
+
+Las pasadas 4 y 5 solo se apoyan en lo confirmado por una persona (regla 4). Todo el recorrido se repite únicamente mientras haya algo tocado, que en la práctica es una decisión humana nueva o un documento nuevo.
+
+### 8.5 La persona dentro del recorrido
+
+- **Qué se le muestra primero:** lo que más trabajo destraba. Por ejemplo, confirmar el principal de una familia grande resuelve de una vez a todos sus miembros.
+- **Qué no se le pregunta:** lo que ya respondió, salvo que la evidencia haya cambiado.
+- **Cuándo se deja de proponer:** si la persona rechaza seguido lo que se le muestra, la pasada que lo produjo se frena y se revisa.
+
+### 8.6 Qué cambia en la construcción
+
+Las pasadas 1 y 2 son esta etapa. Las demás se construyen después, pero condicionan desde ahora qué se guarda: los datos reconocidos de cada documento, la evidencia de cada propuesta, y cada decisión humana con la evidencia que se le mostró.
 
 ## 9. Qué ve el usuario
 
@@ -224,27 +256,25 @@ Vale la regla del diseño para el espacio compartido: una relación se ve solo s
 
 Antes de mostrar nada, un **conjunto de prueba anotado**: entre 50 y 100 documentos con la respuesta correcta escrita a mano (qué pares son el mismo documento, cuáles versiones, cuáles la misma plantilla). Sobre ese conjunto se mide cuántas relaciones propone bien y cuántas se le escapan, y se ajustan los umbrales con el criterio de la sección 1: preferir que se escape una antes que proponer una falsa.
 
-La carpeta de prueba ya tiene material para empezar: cartas, facturas, y ahora contratos, acuerdos, recibos y boletas. Falta anotarla.
+La primera hoja de respuestas ya está armada sobre la carpeta de prueba (cartas, facturas, contratos, acuerdos, recibos, boletas y formularios) y la está revisando el dueño del producto. Queda fuera del repositorio porque nombra archivos y personas reales.
 
 ## 12. Límites
 
 - **Nunca une por su cuenta.**
 - **Documentos muy cortos** (una carátula, un recibo de tres líneas) no tienen texto suficiente para comparar.
-- **Formularios:** si lo completado no sale al extraer el texto, dos formularios distintos parecen iguales (sección 2, punto 6).
 - **Reconocer nombres propios sin modelo es aproximado.** La sustitución repetida cubre el caso principal.
 - **Unir las páginas del wiki** cuando se unen dos documentos está previsto pero no diseñado: hay que definir qué pasa con lo que cada página decía distinto.
 
 ## 13. Decisiones abiertas
 
-1. **El conjunto de prueba** (sección 11). Hace falta una tabla con la respuesta correcta para cada par de documentos de la carpeta de prueba. Propuesta: la arma el asistente a partir de las mediciones y la corrige el dueño del producto, que es quien conoce los documentos.
-2. **Qué usos del modelo de la sección 7 entran primero.** Propuesta: la primera entrega mide solo con cálculo y con la lectura de imágenes que ya existe, para saber hasta dónde llega el cálculo. La segunda suma "describir qué cambió", a pedido y de a un par, que es el uso más barato y el que más ayuda a decidir.
-3. **Qué pasa con lo ya incorporado al wiki** cuando se unen dos documentos que ya tenían páginas.
+1. **Qué usos del modelo de la sección 7 entran primero.** Propuesta: la primera entrega mide solo con cálculo y con la lectura de imágenes que ya existe, para saber hasta dónde llega el cálculo. La segunda suma "describir qué cambió", a pedido y de a un par, que es el uso más barato y el que más ayuda a decidir.
+2. **Qué pasa con lo ya incorporado al wiki** cuando se unen dos documentos que ya tenían páginas.
 
 ## 14. Cómo lo construiríamos
 
 En pasos chicos, cada uno comprobable antes del siguiente:
 
-0. **Corregir el caso de los formularios** (P-074): que lo completado en los campos forme parte del texto del documento.
+0. **Corregir el caso de los formularios** (P-074): hecho. Lo completado en los campos forma parte del texto, y los campos se guardan aparte.
 1. **Medir sin mostrar nada.** La firma, los candidatos, las medidas y los identificadores, más una herramienta que corre en solo lectura sobre carpetas reales. Con ella se arma y se mide el conjunto de prueba.
 2. **Alinear, clasificar y proponer.** Aparece "Documentos parecidos" en el detalle, con la descripción y los botones para unir.
 3. **Familias.** Aparecen en Inicio y en Documentos.
