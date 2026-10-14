@@ -55,10 +55,20 @@ Nacieron del diseño de los documentos parecidos ([propuesta](parecidos-propuest
 
 **R-20 · El modelo aporta evidencia, no decide.** Su respuesta pesa como una evidencia más y se guarda junto con lo que se le preguntó y la versión del modelo. La misma pregunta no se hace dos veces.
 
-**R-21 · Al modelo se le pregunta por lo seleccionado, no por todo.** Por un par dudoso, por el principal de una familia, por un documento que ninguna regla clasificó.
+**R-21 · Primero se agrupa, después se pregunta.** Al modelo se le pregunta por lo seleccionado, no por todo: por el principal de un grupo (y vale para todo el grupo), por un documento que quedó solo, por un par dudoso. Nunca por todos los pares posibles.
 
 **R-22 · Los nombres confirmados quedan fijos.** Cuando una persona confirma un tipo de documento o un nombre, pasa a una lista cerrada. El modelo elige de esa lista o propone uno nuevo marcado como tal.
 
 ## 5. Sobre lo que el proceso tiene que decir
 
 **R-23 · Lo que falta es un resultado.** Además de relacionar lo que hay, el proceso tiene que avisar lo que falta: un hueco en una serie, el ejemplar firmado de un contrato que no aparece, la carta enviada de una vista previa.
+
+## 6. Sobre cómo se aprende de los casos de prueba
+
+**R-24 · Las reglas se escriben en términos generales.** Hablan de señales (qué tipo de dato cambió, una marca de agua, la estructura de un formulario, un número de envío), nunca de nombres de archivo, empresas, personas o valores de un conjunto de prueba. Una regla que solo funciona para los documentos con los que se armó no es una regla.
+
+**R-25 · La hoja de respuestas mide; no enseña.** Sirve para comprobar si una regla acierta, no para escribir la regla. Para que la comprobación valga, se ajusta con una parte de los documentos y se comprueba con otra que no se usó para ajustar, y antes de dar una regla por buena se prueba con carpetas nuevas, idealmente de otro estudio.
+
+**R-26 · Lo aprendido de casos concretos se guarda como conocimiento, no como excepciones.** Si un caso enseña algo (cómo es la vista previa de un correo, cómo sella un servicio de firma), entra al catálogo de tipos de documento o al vocabulario, donde una persona lo puede leer y corregir. No se esconde en el programa como un caso especial.
+
+**R-27 · Antes de preguntarle algo a una persona, se agota lo que se puede averiguar.** Leer el documento (también con la vista, si es una imagen), cruzarlo con los demás y con lo que la persona ya dijo. Se pregunta solo lo que de verdad no se puede saber, y se dice qué se averiguó.

@@ -119,6 +119,7 @@ No salen de comparar palabras: salen de cruzar datos o de leer el significado, a
 | **Traducción de** | El mismo documento en otro idioma | Comparando el significado y el idioma |
 | **Respuesta a** | Uno contesta al otro | Leyendo los dos |
 | **Constancia de firma de** | El resumen que emite un servicio de firma electrónica sobre el proceso de firma de otro documento | Datos del documento firmado que la constancia nombra |
+| **Acuse de recibo de** | La constancia de que un envío llegó a su destinatario | El número de envío y la fecha que comparte con el documento enviado |
 | **Mismo asunto** | Parte del mismo caso o del mismo contrato | Datos raros compartidos: expediente, contrato, importes |
 | **Misma persona, otro asunto** | Involucran a la misma persona en asuntos distintos | Una persona compartida sin nada más en común |
 
@@ -269,23 +270,24 @@ Las reglas que hacen que las pasadas converjan y aporten valor están en un docu
 
 ### 8.4 Las pasadas
 
-Las de cálculo y las del modelo se alternan: el modelo entra cuando lo que produce mejora lo que sigue.
+La idea que ordena todo: **primero se agrupa con cálculo, y el modelo se usa sobre los grupos, no sobre cada documento ni sobre cada par.** Trece facturas del mismo proveedor son una sola pregunta al modelo, no trece; y nunca se le pregunta por los miles de pares posibles.
 
-| Pasada | Hace | Objetivo | Usa | Produce | Se corta cuando |
+| Pasada | Hace | Objetivo | Usa | Produce | Uso del modelo |
 |---|---|---|---|---|---|
-| **0 · Lo común** | Cálculo | Saber qué es común en el archivo | Todo el texto y los datos reconocidos | El peso de cada secuencia de palabras y de cada dato según lo raro que es; el texto de rutina (membrete, pie de firma) | Una corrida; se recalcula con documentos nuevos |
-| **1 · Pares seguros** | Cálculo | Proponer mismo documento, prácticamente el mismo, versión y contenido en | Candidatos por firma; medidas sin el texto de rutina; comparación lado a lado | Propuestas con su evidencia | No quedan pares tocados |
-| **2 · Marcas** | Cálculo | Reconocer lo que se verifica sin modelo | Firmas digitales, páginas de constancia, marcas de agua, campos de formulario | Marcas por documento: firmado por quién, vista previa, formulario | No quedan documentos tocados |
-| **3 · Tipo y etapa** | Modelo | Saber qué tipo de documento es y en qué etapa está | Las marcas, el texto y el catálogo de tipos | Tipo y etapa propuestos, de la lista cerrada | Todos los documentos tocados tienen tipo |
-| **4 · Datos por tipo** | Cálculo y modelo | Sacar los datos que interesan según el tipo | Las reglas del tipo; los campos de formulario; el modelo si no alcanzan | Datos por documento: fechas, importes, partes, números | No quedan documentos tocados |
-| **5 · Plantillas y firmados** | Cálculo | Proponer misma plantilla, ejemplar firmado y vista previa | Pares con mucho en común, el tipo, la etapa y los datos | Familias con su principal | No aparecen familias nuevas |
-| **6 · Correos** | Cálculo | Reconstruir cadenas de correo | Lo citado en cada respuesta | Cadenas, con el correo más completo como principal | No quedan correos tocados |
-| **7 · Significado** | Modelo | Proponer "dice lo mismo con otras palabras", "traducción de", "respuesta a" | Representación del significado de cada documento | Propuestas | Límite de propuestas |
-| **8 · Mismo asunto** | Cálculo | Proponer qué es del mismo caso, aunque no comparta texto | Datos raros compartidos, solo de documentos con tipo confirmado | "Mismo asunto" o "misma persona, otro asunto" | Límite o casi sin cambios |
-| **9 · Series y faltantes** | Cálculo | Encontrar series y lo que falta | Familias confirmadas con sus fechas y números, del contenido, no del nombre del archivo | Series; avisos de faltante | No quedan familias tocadas |
-| **10 · Consistencia** | Cálculo y modelo | Unificar nombres y detectar contradicciones | Tipos, páginas del wiki, familias | Nombres a unificar; avisos | No quedan avisos nuevos |
+| **0 · Lo común** | Cálculo | Saber qué es común en el archivo | Todo el texto y los datos reconocidos | El peso de cada secuencia de palabras y de cada dato según lo raro que es; el texto de rutina (membrete, pie de firma) | Ninguno |
+| **1 · Pares seguros** | Cálculo | Proponer mismo documento, prácticamente el mismo, versión y contenido en | Candidatos por firma; medidas sin el texto de rutina; comparación lado a lado | Propuestas con su evidencia | Ninguno |
+| **2 · Marcas** | Cálculo | Reconocer lo que se verifica sin modelo | Firmas digitales, páginas de constancia, marcas de agua, campos de formulario, números de envío | Marcas por documento | Ninguno |
+| **3 · Grupos provisionales** | Cálculo | Juntar lo que tiene el mismo texto de base | Pares con mucha redacción en común y datos distintos; sustituciones repetidas | Grupos con un documento principal cada uno | Ninguno |
+| **4 · Tipo y etapa** | Modelo | Saber qué tipo de documento es y en qué etapa está | Las marcas, el texto del principal y el catálogo de tipos | Tipo y etapa, de la lista cerrada, para todo el grupo | **Una pregunta por grupo** (al principal) y una por documento que quedó solo; ninguna si las marcas ya alcanzan |
+| **5 · Datos por tipo** | Cálculo, y modelo si no alcanza | Sacar los datos que interesan según el tipo | Las reglas del tipo; los campos de formulario | Fechas, importes, partes, números | Solo para los documentos donde las reglas del tipo no encontraron lo que buscaban |
+| **6 · Relaciones por tipo** | Cálculo | Confirmar o corregir las propuestas con las reglas del tipo | Tipo, etapa, marcas y datos | Misma plantilla, ejemplar firmado, vista previa, acuse de recibo; familias | Ninguno |
+| **7 · Lo dudoso** | Modelo | Opinar sobre los pares que las reglas no resolvieron | El par, con lo que cambia resaltado | Una sugerencia con su razón, para la persona | Solo pares de la zona media, con un límite por vuelta |
+| **8 · Correos** | Cálculo | Reconstruir cadenas de correo | Lo citado en cada respuesta | Cadenas, con el correo más completo como principal | Ninguno |
+| **9 · Significado** | Modelo | Proponer "dice lo mismo con otras palabras", "traducción de", "respuesta a" | La representación del significado de cada documento, calculada una vez | Propuestas | Una vez por documento, para la representación; las comparaciones son cálculo |
+| **10 · Mismo asunto, series y faltantes** | Cálculo | Cruzar el archivo entero | Datos raros compartidos y familias, solo de lo confirmado | Mismo asunto o misma persona con otro asunto; series; avisos de faltante | Ninguno |
+| **11 · Consistencia** | Cálculo y modelo | Unificar nombres y detectar contradicciones | Tipos, páginas del wiki, familias | Nombres a unificar; avisos | Una pregunta por lista de nombres parecidos, no por documento |
 
-Las pasadas 8 y 9 solo se apoyan en lo que confirmó una persona (R-03). Todo el recorrido se repite únicamente mientras haya algo tocado: una decisión humana nueva o un documento nuevo.
+La pasada 10 solo se apoya en lo que confirmó una persona (R-03). Todo el recorrido se repite únicamente mientras haya algo tocado: una decisión humana nueva o un documento nuevo.
 
 **Qué hace la pasada de correos.** Cuando alguien responde un correo, el mensaje nuevo suele llevar debajo, citado, todo lo anterior. Un correo impreso a PDF (como los tres "Correo - …" de la carpeta de prueba) trae entonces toda la conversación hasta ese momento. Esta pasada separa en cada correo lo nuevo de lo citado, reconstruye qué mensaje contesta a cuál, y se queda con el más completo como principal. Sin ella, el mismo hecho se contaría una vez por cada respuesta que lo cita, y cada correo aparecería "contenido en" el siguiente.
 
@@ -297,7 +299,7 @@ Las pasadas 8 y 9 solo se apoyan en lo que confirmó una persona (R-03). Todo el
 
 ### 8.6 Qué cambia en la construcción
 
-Las pasadas 1 a 5 son esta etapa, con un catálogo inicial chico. Las demás se construyen después, pero condicionan desde ahora qué se guarda: las marcas y los datos de cada documento, su tipo, la evidencia de cada propuesta, y cada decisión humana con la evidencia que se le mostró.
+Las pasadas 0 a 7 son esta etapa, con un catálogo inicial chico. Las demás se construyen después, pero condicionan desde ahora qué se guarda: las marcas y los datos de cada documento, su tipo, la evidencia de cada propuesta, y cada decisión humana con la evidencia que se le mostró.
 
 ## 9. Qué ve el usuario
 
