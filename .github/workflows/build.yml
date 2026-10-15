@@ -22,18 +22,20 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Windows only for now. macOS and Linux come back when the app is
+        # more stable (pendiente P-082): restore these rows, unchanged.
+        #   - platform: macos-latest
+        #     args: '--target aarch64-apple-darwin'
+        #     rust_target: aarch64-apple-darwin
+        #   - platform: ubuntu-22.04
+        #     args: ''
+        #     rust_target: ''
+        #   # GitHub-hosted ARM Linux runner (free for public repos
+        #   # since 2024). Native build — no cross-compile of webkit2gtk.
+        #   - platform: ubuntu-22.04-arm
+        #     args: ''
+        #     rust_target: ''
         include:
-          - platform: macos-latest
-            args: '--target aarch64-apple-darwin'
-            rust_target: aarch64-apple-darwin
-          - platform: ubuntu-22.04
-            args: ''
-            rust_target: ''
-          # GitHub-hosted ARM Linux runner (free for public repos
-          # since 2024). Native build — no cross-compile of webkit2gtk.
-          - platform: ubuntu-22.04-arm
-            args: ''
-            rust_target: ''
           - platform: windows-latest
             args: ''
             rust_target: ''

@@ -157,6 +157,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-129 | 14 oct | Parecidos | Qué fuente del wiki sugiere la app al unir dos documentos como el mismo, y cómo se elige | en revisión |
 | D-130 | 14 oct | Parecidos | Ver las diferencias lado a lado queda para después, con el botón visible y deshabilitado | en revisión |
 | D-131 | 14 oct | Parecidos | Cómo se ve cada parecido en el detalle de un documento: tarjeta, medidas en palabras y unir en un clic cuando no hay nada que elegir | en revisión |
+| D-149 | 15 oct | Distribución | La comprobación de los PR y los instaladores, solo en Windows por ahora | vigente |
 
 ---
 
@@ -2008,3 +2009,16 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** `document-types.json`, `similar/classify.rs`, `similar/types.rs`.
 - **Quién decidió:** agente sin consulta.
 - **Fuente:** prueba real de S3 contra la hoja de respuestas, 14 oct.
+
+### D-149 · La comprobación de los PR y los instaladores, solo en Windows por ahora
+
+- **Fecha:** 15 oct 2026
+- **Tema:** Distribución
+- **Estado:** vigente
+- **El problema:** cada PR se compilaba en macOS, Linux y Windows, y los instaladores se generaban para cuatro plataformas. macOS era, lejos, lo que más minutos de GitHub Actions consumía, y el 14 de octubre GitHub desactivó las Actions del repositorio (el motivo no se conoce; se consultó a soporte). Al dueño hoy solo le interesa Windows.
+- **Qué se decidió:** la comprobación de cada PR y la generación de instaladores corren solo en Windows. La regla que protege `main` exige solo la comprobación de Windows. macOS y Linux vuelven cuando la aplicación esté más estable (P-082); lo necesario para volver quedó comentado en los workflows.
+- **Por qué:** concentra el esfuerzo y el consumo donde está el producto hoy.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** `.github/workflows/ci.yml`, `.github/workflows/build.yml`, regla `proteger-main`; P-082.
+- **Quién decidió:** el dueño del producto.
+- **Fuente:** conversación del 15 oct; PR #49.
