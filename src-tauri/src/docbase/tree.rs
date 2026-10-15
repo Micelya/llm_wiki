@@ -189,9 +189,9 @@ mod tests {
 
     fn sample() -> (TempDir, DocBase, String) {
         let dir = TempDir::new();
-        dir.write("o/BGH/Reclamo/carta.md", b"una carta");
-        dir.write("o/BGH/Reclamo/Anexos/factura.md", b"una factura");
-        dir.write("o/BGH/contrato.md", b"un contrato");
+        dir.write("o/BOREAL/Reclamo/carta.md", b"una carta");
+        dir.write("o/BOREAL/Reclamo/Anexos/factura.md", b"una factura");
+        dir.write("o/BOREAL/contrato.md", b"un contrato");
         dir.write("o/Sovra/acuerdo.md", b"un acuerdo");
         dir.write("o/suelto.md", b"suelto");
         let base = DocBase::in_memory().unwrap();
@@ -211,14 +211,14 @@ mod tests {
         let root = base.list_folder(&Visible::All, &origin, "").unwrap();
         assert_eq!(
             root.folders.iter().map(|f| (f.name.as_str(), f.files)).collect::<Vec<_>>(),
-            [("BGH", 3), ("Sovra", 1)]
+            [("BOREAL", 3), ("Sovra", 1)]
         );
         assert_eq!(root.files.iter().map(|f| f.name.as_str()).collect::<Vec<_>>(), ["suelto.md"]);
 
-        let bgh = base.list_folder(&Visible::All, &origin, "BGH").unwrap();
-        assert_eq!(bgh.folders.len(), 1);
-        assert_eq!((bgh.folders[0].rel_path.as_str(), bgh.folders[0].files), ("BGH/Reclamo", 2));
-        assert_eq!(bgh.files.len(), 1);
+        let boreal = base.list_folder(&Visible::All, &origin, "BOREAL").unwrap();
+        assert_eq!(boreal.folders.len(), 1);
+        assert_eq!((boreal.folders[0].rel_path.as_str(), boreal.folders[0].files), ("BOREAL/Reclamo", 2));
+        assert_eq!(boreal.files.len(), 1);
 
         assert!(base.list_folder(&Visible::Origins(vec![]), &origin, "").is_err());
     }
@@ -226,11 +226,11 @@ mod tests {
     #[test]
     fn an_excluded_file_is_kept_in_sight_and_never_read() {
         let (_dir, base, origin) = sample();
-        base.set_excluded(&origin, "BGH/contrato.md", false, true).unwrap();
+        base.set_excluded(&origin, "BOREAL/contrato.md", false, true).unwrap();
         settle(&base);
 
-        let bgh = base.list_folder(&Visible::All, &origin, "BGH").unwrap();
-        assert_eq!(bgh.files[0].state, "excluded");
+        let boreal = base.list_folder(&Visible::All, &origin, "BOREAL").unwrap();
+        assert_eq!(boreal.files[0].state, "excluded");
         let unread: i64 = base
             .conn()
             .query_row("SELECT count(*) FROM location WHERE hash_state = 'pending'", [], |r| r.get(0))
@@ -238,27 +238,27 @@ mod tests {
         assert_eq!(unread, 1);
 
         // Brought back, it is read like any other.
-        base.set_excluded(&origin, "BGH/contrato.md", false, false).unwrap();
+        base.set_excluded(&origin, "BOREAL/contrato.md", false, false).unwrap();
         settle(&base);
-        let bgh = base.list_folder(&Visible::All, &origin, "BGH").unwrap();
-        assert_eq!(bgh.files[0].state, "processed");
+        let boreal = base.list_folder(&Visible::All, &origin, "BOREAL").unwrap();
+        assert_eq!(boreal.files[0].state, "processed");
     }
 
     #[test]
     fn excluding_a_folder_leaves_out_everything_under_it_and_nothing_beside_it() {
         let (dir, base, origin) = sample();
-        dir.write("o/BGH-otro/nota.md", b"otra carpeta de nombre parecido");
+        dir.write("o/BOREAL-otro/nota.md", b"otra carpeta de nombre parecido");
         base.scan_origin(&origin).unwrap();
-        base.set_excluded(&origin, "BGH", true, true).unwrap();
+        base.set_excluded(&origin, "BOREAL", true, true).unwrap();
         settle(&base);
 
         let root = base.list_folder(&Visible::All, &origin, "").unwrap();
         let excluded: Vec<&str> = root.folders.iter().filter(|f| f.excluded).map(|f| f.name.as_str()).collect();
-        assert_eq!(excluded, ["BGH"]);
-        let deep = base.list_folder(&Visible::All, &origin, "BGH/Reclamo/Anexos").unwrap();
+        assert_eq!(excluded, ["BOREAL"]);
+        let deep = base.list_folder(&Visible::All, &origin, "BOREAL/Reclamo/Anexos").unwrap();
         assert!(deep.excluded);
         assert_eq!(deep.files[0].state, "excluded");
-        let other = base.list_folder(&Visible::All, &origin, "BGH-otro").unwrap();
+        let other = base.list_folder(&Visible::All, &origin, "BOREAL-otro").unwrap();
         assert_eq!(other.files[0].state, "processed");
 
         let health = base.health(&Visible::All).unwrap();
@@ -272,19 +272,19 @@ mod tests {
         dir.folder("General/raw/sources");
         dir.write("General/schema.md", b"# schema");
         base.link_general_project(&dir.path().join("General"), "default").unwrap();
-        base.set_excluded(&origin, "BGH", true, true).unwrap();
+        base.set_excluded(&origin, "BOREAL", true, true).unwrap();
         base.set_excluded(&origin, "suelto.md", false, true).unwrap();
 
         let offered: Vec<String> = base.wiki_sources().unwrap().into_iter().map(|s| s.identity).collect();
         assert_eq!(offered, ["O/Sovra/acuerdo.md"]);
 
         let asked = vec![
-            "raw/sources/O/BGH/contrato.md".to_string(),
+            "raw/sources/O/BOREAL/contrato.md".to_string(),
             "raw/sources/O/Sovra/acuerdo.md".to_string(),
             "raw/sources/otra-cosa/x.md".to_string(),
         ];
         let project = dir.path().join("General");
-        assert_eq!(base.excluded_sources(&project, &asked).unwrap(), ["raw/sources/O/BGH/contrato.md"]);
+        assert_eq!(base.excluded_sources(&project, &asked).unwrap(), ["raw/sources/O/BOREAL/contrato.md"]);
         // Another project is none of the base's business.
         assert!(base.excluded_sources(&dir.path().join("Otro"), &asked).unwrap().is_empty());
     }

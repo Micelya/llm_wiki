@@ -10,7 +10,111 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6];
+
+/// Similar documents (`similar/`). Everything here but the decisions of
+/// a person is computed again from the texts whenever it is missing or
+/// stale.
+///
+/// - `similar_signature`: the shingles and MinHash of each content with
+///   text. It has no foreign key on purpose: when a content goes away its
+///   shingles are first uncounted from `similar_common`, then the row is
+///   dropped (`similar::store`).
+/// - `similar_band`: the LSH buckets that find a content's neighbours.
+/// - `similar_common`: in how many documents each shingle appears (pass
+///   0); the most common ones are routine text and do not count.
+/// - `document_marks`: what was verified without a model (pass 2), and
+///   what the catalog said to leave out of the comparison.
+/// - `similar_dirty`: contents whose neighbourhood must be measured again.
+/// - `similar_pair`: one row per pair shown (`a` < `b`): measures,
+///   proposal and evidence (computed), and the decision of a person
+///   (`state`, `chosen_relation`, `wiki_source`, `shown_evidence_hash`,
+///   `decided_at`), which a new computation never overwrites.
+/// - `similar_group` / `similar_group_member`: provisional families, each
+///   against its principal document (pass 3).
+const V6: &str = "
+CREATE TABLE similar_signature (
+    content_id   INTEGER PRIMARY KEY,
+    engine       TEXT NOT NULL,
+    text_at      INTEGER NOT NULL,
+    words        INTEGER NOT NULL,
+    shingles     BLOB NOT NULL,
+    minhash      BLOB NOT NULL,
+    computed_at  INTEGER NOT NULL
+);
+
+CREATE TABLE similar_band (
+    band        INTEGER NOT NULL,
+    bucket      INTEGER NOT NULL,
+    content_id  INTEGER NOT NULL REFERENCES similar_signature (content_id) ON DELETE CASCADE,
+    PRIMARY KEY (band, bucket, content_id)
+) WITHOUT ROWID;
+CREATE INDEX similar_band_by_content ON similar_band (content_id);
+
+CREATE TABLE similar_common (
+    shingle  INTEGER PRIMARY KEY,
+    docs     INTEGER NOT NULL
+);
+CREATE INDEX similar_common_by_docs ON similar_common (docs);
+
+CREATE TABLE document_marks (
+    content_id   INTEGER PRIMARY KEY REFERENCES content (id) ON DELETE CASCADE,
+    engine       TEXT NOT NULL,
+    marks        TEXT NOT NULL DEFAULT '[]',
+    signatures   TEXT NOT NULL DEFAULT '[]',
+    skip_pages   TEXT NOT NULL DEFAULT '[]',
+    drop_phrases TEXT NOT NULL DEFAULT '[]',
+    computed_at  INTEGER NOT NULL
+);
+
+CREATE TABLE similar_dirty (
+    content_id  INTEGER PRIMARY KEY,
+    since       INTEGER NOT NULL
+);
+
+CREATE TABLE similar_pair (
+    a                    INTEGER NOT NULL REFERENCES content (id) ON DELETE CASCADE,
+    b                    INTEGER NOT NULL REFERENCES content (id) ON DELETE CASCADE,
+    relation             TEXT NOT NULL,
+    subject              INTEGER,
+    certainty            TEXT NOT NULL,
+    jaccard              REAL NOT NULL,
+    containment          REAL NOT NULL,
+    cover                REAL NOT NULL,
+    similarity           REAL NOT NULL,
+    description          TEXT NOT NULL,
+    suggested_source     INTEGER,
+    evidence             TEXT NOT NULL,
+    evidence_hash        TEXT NOT NULL,
+    engine               TEXT NOT NULL,
+    computed_at          INTEGER NOT NULL,
+    state                TEXT NOT NULL DEFAULT 'proposed' CHECK (state IN ('proposed', 'joined', 'discarded')),
+    chosen_relation      TEXT,
+    wiki_source          INTEGER REFERENCES content (id) ON DELETE SET NULL,
+    shown_evidence_hash  TEXT,
+    decided_at           INTEGER,
+    PRIMARY KEY (a, b),
+    CHECK (a < b)
+);
+CREATE INDEX similar_pair_by_b ON similar_pair (b);
+CREATE INDEX similar_pair_by_state ON similar_pair (state);
+
+CREATE TABLE similar_group (
+    principal    INTEGER PRIMARY KEY REFERENCES content (id) ON DELETE CASCADE,
+    members      INTEGER NOT NULL,
+    flags        TEXT NOT NULL DEFAULT '[]',
+    computed_at  INTEGER NOT NULL
+);
+
+CREATE TABLE similar_group_member (
+    principal   INTEGER NOT NULL REFERENCES similar_group (principal) ON DELETE CASCADE,
+    content_id  INTEGER NOT NULL REFERENCES content (id) ON DELETE CASCADE,
+    relation    TEXT,
+    cover       REAL,
+    PRIMARY KEY (principal, content_id)
+);
+CREATE INDEX similar_group_member_by_content ON similar_group_member (content_id);
+";
 
 /// Index of a project's wiki, rebuilt from its pages: the pages, the
 /// links between them (`to_page` is NULL for a broken link) and the

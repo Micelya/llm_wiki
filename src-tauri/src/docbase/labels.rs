@@ -1,7 +1,7 @@
 //! Label groups, labels and the folder rules that assign them.
 //!
 //! A *group* is a question ("which client?") and a *label* an answer
-//! ("BGH"); a label can also stand alone. Labels are rows of their own
+//! ("BOREAL"); a label can also stand alone. Labels are rows of their own
 //! and files point at them, so renaming one touches no file.
 //!
 //! Labels reach files in two ways. A *rule* sits on a folder and covers
@@ -608,9 +608,9 @@ mod tests {
 
     fn sample() -> (TempDir, DocBase, String) {
         let dir = TempDir::new();
-        dir.write("o/BGH/Reclamo facturas/carta.md", b"carta");
-        dir.write("o/BGH/Contrato/contrato.md", b"contrato");
-        dir.write("o/BGH/suelto del cliente.md", b"suelto");
+        dir.write("o/BOREAL/Reclamo facturas/carta.md", b"carta");
+        dir.write("o/BOREAL/Contrato/contrato.md", b"contrato");
+        dir.write("o/BOREAL/suelto del cliente.md", b"suelto");
         dir.write("o/Sovra/Acuerdo/acuerdo.md", b"acuerdo");
         dir.write("o/Varios/nota.md", b"nota");
         dir.write("o/en la raiz.md", b"raiz");
@@ -641,9 +641,9 @@ mod tests {
         let (_dir, base, origin) = sample();
         base.set_levels_rule(&origin, "", &["Cliente".into(), "Caso".into()]).unwrap();
 
-        assert_eq!(labels_of_file(&base, "carta.md"), ["Caso: Reclamo facturas", "Cliente: BGH"]);
+        assert_eq!(labels_of_file(&base, "carta.md"), ["Caso: Reclamo facturas", "Cliente: BOREAL"]);
         // Left at the client level: a client and no case.
-        assert_eq!(labels_of_file(&base, "suelto del cliente.md"), ["Cliente: BGH"]);
+        assert_eq!(labels_of_file(&base, "suelto del cliente.md"), ["Cliente: BOREAL"]);
         assert!(labels_of_file(&base, "en la raiz.md").is_empty());
     }
 
@@ -652,12 +652,12 @@ mod tests {
         let (_dir, base, origin) = sample();
         // Only the first level is clients everywhere…
         base.set_levels_rule(&origin, "", &["Cliente".into()]).unwrap();
-        // …and only BGH is ordered by case underneath.
-        base.set_levels_rule(&origin, "BGH", &["Caso".into()]).unwrap();
+        // …and only BOREAL is ordered by case underneath.
+        base.set_levels_rule(&origin, "BOREAL", &["Caso".into()]).unwrap();
         let urgent = base.ensure_label(None, "urgente").unwrap();
         base.add_fixed_rule(&origin, "Sovra", urgent.id).unwrap();
 
-        assert_eq!(labels_of_file(&base, "contrato.md"), ["Caso: Contrato", "Cliente: BGH"]);
+        assert_eq!(labels_of_file(&base, "contrato.md"), ["Caso: Contrato", "Cliente: BOREAL"]);
         assert_eq!(labels_of_file(&base, "acuerdo.md"), ["Cliente: Sovra", "urgente"]);
         assert_eq!(labels_of_file(&base, "nota.md"), ["Cliente: Varios"]);
     }
@@ -695,33 +695,33 @@ mod tests {
     fn renaming_a_label_changes_it_everywhere_and_keeps_it_tied_to_its_folder() {
         let (dir, base, origin) = sample();
         base.set_levels_rule(&origin, "", &["Cliente".into()]).unwrap();
-        let bgh = base.ensure_label(Some("Cliente"), "BGH").unwrap();
-        base.rename_label(bgh.id, "BGH S.A.").unwrap();
-        assert_eq!(labels_of_file(&base, "contrato.md"), ["Cliente: BGH S.A."]);
+        let boreal = base.ensure_label(Some("Cliente"), "BOREAL").unwrap();
+        base.rename_label(boreal.id, "BOREAL S.A.").unwrap();
+        assert_eq!(labels_of_file(&base, "contrato.md"), ["Cliente: BOREAL S.A."]);
 
         // A new file in the same folder gets the renamed label, not a new one.
-        dir.write("o/BGH/otro.md", b"otro");
+        dir.write("o/BOREAL/otro.md", b"otro");
         base.scan_origin(&origin).unwrap();
-        assert_eq!(labels_of_file(&base, "otro.md"), ["Cliente: BGH S.A."]);
+        assert_eq!(labels_of_file(&base, "otro.md"), ["Cliente: BOREAL S.A."]);
         let groups = base.label_groups().unwrap();
         let clients = groups.iter().find(|group| group.name.as_deref() == Some("Cliente")).unwrap();
         assert_eq!(clients.labels.len(), 3);
-        assert_eq!(clients.labels.iter().find(|l| l.label.id == bgh.id).unwrap().files, 4);
+        assert_eq!(clients.labels.iter().find(|l| l.label.id == boreal.id).unwrap().files, 4);
     }
 
     #[test]
     fn typing_the_name_of_a_renamed_label_finds_it_instead_of_making_another() {
         let (_dir, base, origin) = sample();
         base.set_levels_rule(&origin, "", &["Cliente".into()]).unwrap();
-        let bgh = base.ensure_label(Some("Cliente"), "BGH").unwrap();
-        base.rename_label(bgh.id, "BGH S.A.").unwrap();
+        let boreal = base.ensure_label(Some("Cliente"), "BOREAL").unwrap();
+        base.rename_label(boreal.id, "BOREAL S.A.").unwrap();
 
         // The name the user reads, in any case.
-        assert_eq!(base.ensure_label(Some("Cliente"), "BGH S.A.").unwrap().id, bgh.id);
-        assert_eq!(base.ensure_label(Some("cliente"), "bgh s.a.").unwrap().id, bgh.id);
+        assert_eq!(base.ensure_label(Some("Cliente"), "BOREAL S.A.").unwrap().id, boreal.id);
+        assert_eq!(base.ensure_label(Some("cliente"), "boreal s.a.").unwrap().id, boreal.id);
 
         // The same name outside the group is another label.
-        assert_ne!(base.ensure_label(None, "BGH S.A.").unwrap().id, bgh.id);
+        assert_ne!(base.ensure_label(None, "BOREAL S.A.").unwrap().id, boreal.id);
     }
 
     #[test]
@@ -739,12 +739,12 @@ mod tests {
         let (_dir, base, origin) = sample();
         base.set_levels_rule(&origin, "", &["Cliente".into()]).unwrap();
         let urgent = base.ensure_label(None, "urgente").unwrap();
-        base.add_fixed_rule(&origin, "BGH", urgent.id).unwrap();
-        assert_eq!(labels_of_file(&base, "contrato.md"), ["Cliente: BGH", "urgente"]);
+        base.add_fixed_rule(&origin, "BOREAL", urgent.id).unwrap();
+        assert_eq!(labels_of_file(&base, "contrato.md"), ["Cliente: BOREAL", "urgente"]);
         assert_eq!(base.label_rules(&origin).unwrap().len(), 2);
 
         base.delete_label(urgent.id).unwrap();
-        assert_eq!(labels_of_file(&base, "contrato.md"), ["Cliente: BGH"]);
+        assert_eq!(labels_of_file(&base, "contrato.md"), ["Cliente: BOREAL"]);
         assert_eq!(base.label_rules(&origin).unwrap().len(), 1);
 
         let group = base.label_groups().unwrap()[0].id.unwrap();
@@ -757,14 +757,14 @@ mod tests {
     #[test]
     fn folder_levels_given_when_incorporating_become_a_rule_on_the_root() {
         let dir = TempDir::new();
-        dir.write("o/BGH/Reclamo/carta.md", b"carta");
+        dir.write("o/BOREAL/Reclamo/carta.md", b"carta");
         let base = DocBase::in_memory().unwrap();
         let origin = base
             .add_origin("O", &dir.path().join("o"), &["cliente".into(), "caso".into()])
             .unwrap();
         base.scan_origin(&origin.id).unwrap();
 
-        assert_eq!(labels_of_file(&base, "carta.md"), ["caso: Reclamo", "cliente: BGH"]);
+        assert_eq!(labels_of_file(&base, "carta.md"), ["caso: Reclamo", "cliente: BOREAL"]);
         let rules = base.label_rules(&origin.id).unwrap();
         assert_eq!((rules[0].kind.as_str(), rules[0].folder.as_str()), ("levels", ""));
         assert_eq!(rules[0].groups, ["cliente", "caso"]);

@@ -26,6 +26,7 @@ pub mod origins;
 pub mod query;
 mod scan;
 mod schema;
+pub mod similar;
 #[cfg(test)]
 pub(crate) mod testing;
 pub mod text;

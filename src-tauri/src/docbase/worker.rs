@@ -14,6 +14,7 @@ const SWEEP_EVERY: Duration = Duration::from_secs(5 * 60);
 const IDLE_WAIT: Duration = Duration::from_secs(20);
 const HASH_BATCH: usize = 8;
 const TEXT_BATCH: usize = 2;
+const SIMILAR_BATCH: usize = 2;
 const NOTIFY_EVERY: Duration = Duration::from_millis(800);
 
 /// How the rest of the app asks the worker to sweep now.
@@ -108,5 +109,10 @@ fn step(base: &DocBase) -> Result<bool, String> {
     if base.extract_pending(TEXT_BATCH)? > 0 {
         return Ok(true);
     }
-    Ok(base.purge_orphans()? > 0)
+    if base.purge_orphans()? > 0 {
+        return Ok(true);
+    }
+    // Similar documents: only once every text is read, a little at a
+    // time, so it never holds the reading back.
+    Ok(base.similar_step(SIMILAR_BATCH)? > 0)
 }

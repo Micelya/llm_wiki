@@ -269,8 +269,8 @@ mod tests {
     #[test]
     fn the_first_sweep_registers_every_file_with_its_folder() {
         let dir = TempDir::new();
-        dir.write("casos/BGH/Reclamo/carta.pdf", b"carta");
-        dir.write("casos/BGH/contrato.docx", b"contrato");
+        dir.write("casos/BOREAL/Reclamo/carta.pdf", b"carta");
+        dir.write("casos/BOREAL/contrato.docx", b"contrato");
         dir.write("casos/suelto.txt", b"suelto");
         let base = DocBase::in_memory().unwrap();
         let origin = base.add_origin("Casos", &dir.path().join("casos"), &[]).unwrap();
@@ -281,12 +281,12 @@ mod tests {
         let (folder, name, ext, state): (String, String, String, String) = base
             .conn()
             .query_row(
-                "SELECT folder, name, ext, hash_state FROM location WHERE rel_path = 'BGH/Reclamo/carta.pdf'",
+                "SELECT folder, name, ext, hash_state FROM location WHERE rel_path = 'BOREAL/Reclamo/carta.pdf'",
                 [],
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
             )
             .unwrap();
-        assert_eq!((folder.as_str(), name.as_str(), ext.as_str(), state.as_str()), ("BGH/Reclamo", "carta.pdf", "pdf", "pending"));
+        assert_eq!((folder.as_str(), name.as_str(), ext.as_str(), state.as_str()), ("BOREAL/Reclamo", "carta.pdf", "pdf", "pending"));
         assert_eq!(base.origin(&origin.id).unwrap().unwrap().reachable, Some(true));
     }
 
@@ -364,11 +364,11 @@ mod tests {
 
     #[test]
     fn system_leftovers_and_hidden_folders_stay_out_of_the_inventory() {
-        assert!(is_inventoried("BGH/carta.pdf"));
+        assert!(is_inventoried("BOREAL/carta.pdf"));
         assert!(is_inventoried("sin extension"));
         assert!(!is_inventoried("desktop.ini"));
-        assert!(!is_inventoried("BGH/Thumbs.db"));
-        assert!(!is_inventoried("BGH/~$carta.docx"));
+        assert!(!is_inventoried("BOREAL/Thumbs.db"));
+        assert!(!is_inventoried("BOREAL/~$carta.docx"));
         assert!(!is_inventoried(".git/config"));
         assert!(!is_inventoried("proyecto/.llm-wiki/ingest-cache.json"));
         assert!(!is_inventoried("fuentes/.cache/carta.pdf.txt"));

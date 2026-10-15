@@ -624,10 +624,10 @@ mod tests {
 
     fn sample() -> (TempDir, DocBase, String, String) {
         let dir = TempDir::new();
-        dir.write("casos/BGH/Reclamo/carta documento.pdf", b"carta");
-        dir.write("casos/BGH/Reclamo/copia de la carta.pdf", b"carta");
-        dir.write("casos/Aeros/Contrato/contrato.docx", b"contrato");
-        dir.write("casos/Aeros/notas.gdoc", b"{}");
+        dir.write("casos/BOREAL/Reclamo/carta documento.pdf", b"carta");
+        dir.write("casos/BOREAL/Reclamo/copia de la carta.pdf", b"carta");
+        dir.write("casos/Andina/Contrato/contrato.docx", b"contrato");
+        dir.write("casos/Andina/notas.gdoc", b"{}");
         dir.write("nube/carta escaneada.pdf", b"carta");
         let base = DocBase::in_memory().unwrap();
         let convention = vec!["cliente".to_string(), "caso".to_string()];
@@ -659,12 +659,12 @@ mod tests {
                 .map(|label| format!("{}: {}", label.group.clone().unwrap_or_default(), label.name))
                 .collect()
         };
-        assert_eq!(named(carta), ["caso: Reclamo", "cliente: BGH"]);
+        assert_eq!(named(carta), ["caso: Reclamo", "cliente: BOREAL"]);
 
         let link = page.rows.iter().find(|row| row.name == "notas.gdoc").unwrap();
         assert_eq!((link.state.as_str(), link.copies, link.content_id), ("link", 1, None));
         // Left at the client level: it has a client and no case.
-        assert_eq!(named(link), ["cliente: Aeros"]);
+        assert_eq!(named(link), ["cliente: Andina"]);
     }
 
     #[test]
@@ -672,7 +672,7 @@ mod tests {
         let (_dir, base, _, nube) = sample();
         let find = |filter: DocumentFilter| base.documents(&Visible::All, &filter).unwrap();
 
-        let by_words = find(DocumentFilter { query: Some("carta bgh".into()), ..Default::default() });
+        let by_words = find(DocumentFilter { query: Some("carta boreal".into()), ..Default::default() });
         assert_eq!(names(&by_words), ["carta documento.pdf", "copia de la carta.pdf"]);
 
         let by_origin = find(DocumentFilter { origin_id: Some(nube), ..Default::default() });
@@ -717,7 +717,7 @@ mod tests {
         assert!(detail.locations.iter().all(|location| location.same_file));
         assert_eq!(
             std::path::PathBuf::from(&detail.path),
-            dir.path().join("casos").join("BGH").join("Reclamo").join("copia de la carta.pdf")
+            dir.path().join("casos").join("BOREAL").join("Reclamo").join("copia de la carta.pdf")
         );
         assert!(detail.file_hash.is_some());
         assert!(detail.text.is_none());
@@ -761,10 +761,10 @@ mod tests {
         let casos_line = first.iter().find(|a| a.origin_name == "Casos").unwrap();
         assert_eq!((casos_line.kind.as_str(), casos_line.count), ("added", 4));
 
-        std::fs::create_dir_all(dir.path().join("casos/Aeros/Firmados")).unwrap();
+        std::fs::create_dir_all(dir.path().join("casos/Andina/Firmados")).unwrap();
         std::fs::rename(
-            dir.path().join("casos/Aeros/Contrato/contrato.docx"),
-            dir.path().join("casos/Aeros/Firmados/contrato firmado.docx"),
+            dir.path().join("casos/Andina/Contrato/contrato.docx"),
+            dir.path().join("casos/Andina/Firmados/contrato firmado.docx"),
         )
         .unwrap();
         settle(&base, &casos);
@@ -772,7 +772,7 @@ mod tests {
         let latest = base.activity(&Visible::All, 20).unwrap();
         assert_eq!(latest.len(), 3);
         assert_eq!(latest[0].kind, "moved");
-        assert_eq!(latest[0].rel_path, "Aeros/Firmados/contrato firmado.docx");
-        assert_eq!(latest[0].from_path.as_deref(), Some("Aeros/Contrato/contrato.docx"));
+        assert_eq!(latest[0].rel_path, "Andina/Firmados/contrato firmado.docx");
+        assert_eq!(latest[0].from_path.as_deref(), Some("Andina/Contrato/contrato.docx"));
     }
 }
