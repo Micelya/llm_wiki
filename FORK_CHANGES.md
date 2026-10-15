@@ -37,7 +37,7 @@ El detalle de cada cambio (qué líneas, qué pruebas) está en su PR; acá no s
 - **Propósito:** que una acción de terceros o una dependencia comprometida no pueda robar secretos ni alterar releases, y que las etiquetas traídas de upstream no publiquen releases acá (se habilita con la variable `ENABLE_TAG_RELEASE`).
 - **Toca upstream:** `.github/workflows/ci.yml`, `.github/workflows/build.yml`
 - **Upstream:** candidato (salvo la variable `ENABLE_TAG_RELEASE`)
-- **PR:** #3
+- **PR:** #3. Desde el PR #49, la comprobación y los instaladores corren solo en Windows (P-082); esa parte es solo-fork
 
 ### F-004 · Identidad y versionado propios de la app
 - **Propósito:** que esta app no comparta datos ni avisos de actualización con LLM Wiki: nombre «Micelya Desktop» (también en los textos de la interfaz, con un único reemplazo en `src/i18n/product-name.ts`), identificador `com.micelya.desktop`, versión propia (desde `0.1.0`), releases con etiquetas `mi-desktop-v*` y chequeo de actualizaciones contra este repositorio.

@@ -150,6 +150,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-122 | 14 oct | Parecidos | Alineación propia, sin sumar dependencias | en revisión |
 | D-123 | 14 oct | Parecidos | Solo se comparan documentos con todo su texto; los que esperan reconocimiento quedan afuera | en revisión |
 | D-124 | 14 oct | Proceso de trabajo | Las pruebas existentes dejan de usar nombres de la carpeta de prueba | en revisión |
+| D-149 | 15 oct | Distribución | La comprobación de los PR y los instaladores, solo en Windows por ahora | vigente |
 
 ---
 
@@ -1767,3 +1768,16 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** `src-tauri/src/docbase/*.rs`, `src/components/docbase/labels.tsx`.
 - **Quién decidió:** agente sin consulta.
 - **Fuente:** construcción de S1, 14 oct.
+
+### D-149 · La comprobación de los PR y los instaladores, solo en Windows por ahora
+
+- **Fecha:** 15 oct 2026
+- **Tema:** Distribución
+- **Estado:** vigente
+- **El problema:** cada PR se compilaba en macOS, Linux y Windows, y los instaladores se generaban para cuatro plataformas. macOS era, lejos, lo que más minutos de GitHub Actions consumía, y el 14 de octubre GitHub desactivó las Actions del repositorio (el motivo no se conoce; se consultó a soporte). Al dueño hoy solo le interesa Windows.
+- **Qué se decidió:** la comprobación de cada PR y la generación de instaladores corren solo en Windows. La regla que protege `main` exige solo la comprobación de Windows. macOS y Linux vuelven cuando la aplicación esté más estable (P-082); lo necesario para volver quedó comentado en los workflows.
+- **Por qué:** concentra el esfuerzo y el consumo donde está el producto hoy.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** `.github/workflows/ci.yml`, `.github/workflows/build.yml`, regla `proteger-main`; P-082.
+- **Quién decidió:** el dueño del producto.
+- **Fuente:** conversación del 15 oct; PR #49.
