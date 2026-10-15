@@ -1,0 +1,732 @@
+{
+  "version": 2,
+  "about": [
+    "Catálogo de tipos de documento y de relaciones entre documentos (docs/design/catalogo-de-tipos.md).",
+    "Es conocimiento general: nunca nombra un caso, una persona, un archivo ni un número concreto (R-24).",
+    "Las únicas empresas que aparecen son las que emiten un formulario o un servicio de firma.",
+    "Agregar un tipo, una variante o una relación es agregar una entrada acá; el programa no cambia.",
+    "Las frases se comparan sin mayúsculas, sin acentos y sin puntuación.",
+    "Una forma ('shape') describe un identificador: 'A' es una letra mayúscula, '9' un dígito y cualquier otro carácter se exige tal cual.",
+    "Un archivo con este mismo formato en la carpeta de datos de la app (docbase/document-types.json) reemplaza a este al iniciar.",
+    "Un tipo 'carrier' dice cómo se emitió o se hizo un documento (un servicio de firma, un formulario), no qué es: sus marcas nunca dan el tipo, y sus datos y reglas valen para el documento que las lleve.",
+    "'data' son los datos que interesan en un documento del tipo y con qué patrón general se encuentran: el valor de una clase ('identifier', 'amount', 'date', 'number' o 'text', el resto de la línea) pocas palabras después de una frase ('after'), un identificador con una forma ('shapes') o el valor de una marca ('fromMark'). 'required': si las reglas no lo encuentran, se le pregunta al modelo.",
+    "'rules' dicen cómo se relacionan dos documentos del tipo: 'different-data' (si cambia uno de esos datos son documentos distintos), 'stage-pair' (una etapa y otra del mismo documento, con los mismos datos) y 'shared-data' (un documento de este tipo y uno de 'otherType' con el mismo dato)."
+  ],
+  "relations": [
+    {
+      "id": "same-document",
+      "sameDocument": true,
+      "directed": false,
+      "measured": true,
+      "automatic": true
+    },
+    {
+      "id": "near-identical",
+      "sameDocument": true,
+      "directed": false,
+      "measured": true
+    },
+    {
+      "id": "signed-copy",
+      "sameDocument": true,
+      "directed": true,
+      "measured": true
+    },
+    {
+      "id": "preview",
+      "sameDocument": false,
+      "directed": true,
+      "measured": true
+    },
+    {
+      "id": "version",
+      "sameDocument": true,
+      "directed": false,
+      "measured": true
+    },
+    {
+      "id": "contained-in",
+      "sameDocument": false,
+      "directed": true,
+      "measured": true
+    },
+    {
+      "id": "same-template",
+      "sameDocument": false,
+      "directed": false,
+      "measured": true
+    },
+    {
+      "id": "similar",
+      "sameDocument": false,
+      "directed": false,
+      "measured": true
+    },
+    {
+      "id": "same-meaning",
+      "sameDocument": false,
+      "directed": false,
+      "measured": false
+    },
+    {
+      "id": "translation-of",
+      "sameDocument": false,
+      "directed": true,
+      "measured": false
+    },
+    {
+      "id": "reply-to",
+      "sameDocument": false,
+      "directed": true,
+      "measured": false
+    },
+    {
+      "id": "signing-certificate-of",
+      "sameDocument": false,
+      "directed": true,
+      "measured": false
+    },
+    {
+      "id": "delivery-receipt-of",
+      "sameDocument": false,
+      "directed": true,
+      "measured": false
+    },
+    {
+      "id": "same-matter",
+      "sameDocument": false,
+      "directed": false,
+      "measured": false
+    },
+    {
+      "id": "same-person-other-matter",
+      "sameDocument": false,
+      "directed": false,
+      "measured": false
+    }
+  ],
+  "types": [
+    {
+      "id": "carta-documento",
+      "description": "Comunicación fehaciente enviada por un servicio postal habilitado, con constancia de texto, fecha y entrega. El recuadro del aviso de recibo («RECIBÍ CONFORME EL ENVÍO…») viene impreso en el formulario de algunos correos: vacío no prueba nada.",
+      "stages": [
+        "borrador",
+        "vista-previa",
+        "enviada",
+        "recibida"
+      ],
+      "variants": [
+        {
+          "id": "correo-argentino",
+          "issuer": "Correo Argentino"
+        },
+        {
+          "id": "oca",
+          "issuer": "OCA"
+        }
+      ],
+      "signals": [
+        {
+          "id": "marca-vista-previa",
+          "stage": "vista-previa",
+          "mark": "preview",
+          "phrases": [
+            "VISTA PREVIA - SIN VALOR LEGAL"
+          ]
+        },
+        {
+          "id": "formulario-correo-argentino",
+          "variant": "correo-argentino",
+          "phrases": [
+            "A.R. - CARTA DOCUMENTO",
+            "Correo Oficial de la República Argentina",
+            "Sector Carta Documento"
+          ],
+          "mark": "postal-form"
+        },
+        {
+          "id": "numero-de-envio-correo-argentino",
+          "variant": "correo-argentino",
+          "mark": "shipment-number",
+          "shapes": [
+            "AA999999999AR"
+          ]
+        },
+        {
+          "id": "formulario-oca",
+          "variant": "oca",
+          "phrases": [
+            "CARTA DOCUMENTO OCA",
+            "OCA cartadocumento",
+            "OCA C.C.D."
+          ],
+          "mark": "postal-form"
+        },
+        {
+          "id": "numero-de-envio-oca",
+          "variant": "oca",
+          "mark": "shipment-number",
+          "shapes": [
+            "A99999AA999"
+          ]
+        },
+        {
+          "id": "copia-fiel",
+          "stage": "enviada",
+          "mark": "dispatched",
+          "phrases": [
+            "LA PRESENTE ES COPIA FIEL DEL ORIGINAL"
+          ]
+        },
+        {
+          "id": "firmante-validado",
+          "stage": "enviada",
+          "mark": "dispatched",
+          "phrases": [
+            "La identidad del firmante está validada ante RENAPER"
+          ]
+        },
+        {
+          "id": "copia-destinatario",
+          "stage": "recibida",
+          "mark": "received",
+          "phrases": [
+            "Copia Destinatario"
+          ]
+        }
+      ],
+      "data": [
+        {
+          "id": "numero-de-envio",
+          "description": "El número de envío que el correo le asignó a la carta.",
+          "kind": "identifier",
+          "fromMark": "shipment-number"
+        },
+        {
+          "id": "fecha",
+          "description": "La fecha en que se escribió o se envió la carta.",
+          "kind": "date",
+          "after": [
+            "fecha",
+            "buenos aires",
+            "ciudad autonoma de buenos aires",
+            "caba"
+          ]
+        },
+        {
+          "id": "facturas",
+          "description": "Los números de las facturas que la carta reclama, rechaza o menciona.",
+          "kind": "identifier",
+          "after": [
+            "facturas",
+            "factura"
+          ],
+          "many": true
+        },
+        {
+          "id": "remitente",
+          "description": "Quién envía la carta.",
+          "kind": "text",
+          "after": [
+            "remitente"
+          ]
+        },
+        {
+          "id": "destinatario",
+          "description": "A quién se le envía la carta.",
+          "kind": "text",
+          "after": [
+            "destinatario"
+          ]
+        }
+      ],
+      "rules": [
+        {
+          "id": "otras-facturas-otra-carta",
+          "kind": "different-data",
+          "data": [
+            "facturas",
+            "numero-de-envio"
+          ],
+          "relation": "similar"
+        },
+        {
+          "id": "vista-previa-de-la-carta",
+          "kind": "stage-pair",
+          "subjectStage": "vista-previa",
+          "otherStages": [
+            "borrador",
+            "enviada",
+            "recibida"
+          ],
+          "data": [
+            "facturas"
+          ],
+          "relation": "preview"
+        }
+      ],
+      "stageDescriptions": {
+        "borrador": "el texto escrito en un procesador de texto, antes de cargarlo en el sistema del correo: sin formulario del correo, número de envío ni sellos",
+        "vista-previa": "lo que genera el sistema del correo antes de despacharla, sin valor legal: leyenda o marca de agua de vista previa y casilleros vacíos donde irían el número de envío y el código de barras",
+        "enviada": "la copia que guarda quien la envió, ya procesada por el correo: formulario con número de envío y sello del correo; el recuadro del aviso de recibo, si está, sin completar",
+        "recibida": "la copia que el correo le entregó al destinatario: marcada como copia para el destinatario, o una carta que quien tiene el archivo recibió de otro"
+      }
+    },
+    {
+      "id": "acuse-de-recibo",
+      "description": "Constancia del correo de que la carta llegó a su destinatario: la parte del aviso de recibo con el recuadro de recepción completado (fecha, hora, firma o aclaración de quien recibió), sin el texto de la carta.",
+      "stages": [],
+      "variants": [
+        {
+          "id": "correo-argentino",
+          "issuer": "Correo Argentino"
+        }
+      ],
+      "signals": [
+        {
+          "id": "recibi-conforme",
+          "variant": "correo-argentino",
+          "mark": "delivery-receipt",
+          "phrases": [
+            "RECIBÍ CONFORME EL ENVÍO REFERENTE A ESTE AVISO",
+            "RECIBÍ CONFORME EL ENVÍO"
+          ]
+        }
+      ],
+      "data": [
+        {
+          "id": "numero-de-envio",
+          "description": "El número de envío de la carta cuyo recibo consta.",
+          "kind": "identifier",
+          "fromMark": "shipment-number",
+          "required": true
+        },
+        {
+          "id": "fecha-de-entrega",
+          "description": "La fecha en que se entregó la carta.",
+          "kind": "date",
+          "after": [
+            "fecha",
+            "recibi conforme"
+          ]
+        }
+      ],
+      "rules": [
+        {
+          "id": "acuse-de-la-carta",
+          "kind": "shared-data",
+          "otherType": "carta-documento",
+          "data": [
+            "numero-de-envio"
+          ],
+          "relation": "delivery-receipt-of"
+        }
+      ]
+    },
+    {
+      "id": "factura",
+      "description": "Comprobante que emite quien vende o presta un servicio: número, fecha de emisión, período, cliente, importes e impuestos.",
+      "stages": [],
+      "variants": [],
+      "signals": [],
+      "data": [
+        {
+          "id": "numero",
+          "description": "El número del comprobante.",
+          "kind": "identifier",
+          "after": [
+            "factura",
+            "comprobante",
+            "factura n",
+            "comprobante n",
+            "numero de comprobante"
+          ],
+          "required": true,
+          "window": 4
+        },
+        {
+          "id": "fecha-de-emision",
+          "description": "La fecha de emisión del comprobante.",
+          "kind": "date",
+          "after": [
+            "fecha de emision",
+            "fecha"
+          ],
+          "required": true,
+          "window": 3
+        },
+        {
+          "id": "periodo",
+          "description": "El período que se factura.",
+          "kind": "text",
+          "after": [
+            "periodo facturado",
+            "periodo"
+          ]
+        },
+        {
+          "id": "total",
+          "description": "El importe total del comprobante.",
+          "kind": "amount",
+          "after": [
+            "importe total",
+            "total a pagar",
+            "total"
+          ],
+          "required": true,
+          "window": 3,
+          "pick": "largest"
+        },
+        {
+          "id": "vencimiento",
+          "description": "La fecha de vencimiento del pago.",
+          "kind": "date",
+          "after": [
+            "vencimiento",
+            "fecha de vto",
+            "vto"
+          ]
+        }
+      ],
+      "rules": [
+        {
+          "id": "otro-numero-otra-factura",
+          "kind": "different-data",
+          "data": [
+            "numero"
+          ],
+          "relation": "same-template"
+        }
+      ]
+    },
+    {
+      "id": "recibo",
+      "description": "Constancia de que alguien recibió un pago: quién paga, quién recibe, cuánto y por qué concepto.",
+      "stages": [
+        "borrador",
+        "sin-firmar",
+        "firmado-por-una-parte",
+        "firmado"
+      ],
+      "variants": [],
+      "signals": [],
+      "data": [
+        {
+          "id": "importe",
+          "description": "El importe recibido.",
+          "kind": "amount",
+          "after": [
+            "monto",
+            "importe",
+            "la suma de",
+            "suma de",
+            "total"
+          ],
+          "required": true
+        },
+        {
+          "id": "fecha",
+          "description": "La fecha del recibo o del pago.",
+          "kind": "date",
+          "after": [
+            "fecha",
+            "buenos aires"
+          ]
+        },
+        {
+          "id": "concepto",
+          "description": "Por qué concepto se pagó.",
+          "kind": "text",
+          "after": [
+            "en concepto de",
+            "concepto"
+          ]
+        }
+      ],
+      "rules": [],
+      "stageDescriptions": {
+        "borrador": "texto en preparación, en un procesador de texto o marcado como borrador, antes de mandarlo a firmar",
+        "sin-firmar": "listo para firmar o ya enviado a firmar, sin la firma de ninguna parte; el sello que un servicio de firma pone en cada copia no es la firma de una parte",
+        "firmado-por-una-parte": "firmado por alguna de las partes pero no por todas, según el historial del servicio de firma o las firmas visibles",
+        "firmado": "firmado por todas las partes"
+      }
+    },
+    {
+      "id": "acuerdo",
+      "description": "Contrato, convenio, acuerdo o memorando entre partes: lo que cada una se obliga a hacer, plazos, precios y firmas.",
+      "stages": [
+        "borrador",
+        "sin-firmar",
+        "firmado-por-una-parte",
+        "firmado"
+      ],
+      "variants": [],
+      "signals": [],
+      "data": [
+        {
+          "id": "fecha",
+          "description": "La fecha del acuerdo.",
+          "kind": "date",
+          "after": [
+            "fecha",
+            "buenos aires",
+            "dated",
+            "effective date"
+          ]
+        },
+        {
+          "id": "importe",
+          "description": "Importes que el acuerdo fija.",
+          "kind": "amount",
+          "after": [
+            "la suma de",
+            "suma de",
+            "importe",
+            "monto",
+            "amount of"
+          ],
+          "many": true
+        }
+      ],
+      "rules": [],
+      "stageDescriptions": {
+        "borrador": "texto en preparación, en un procesador de texto o marcado como borrador, antes de mandarlo a firmar",
+        "sin-firmar": "listo para firmar o ya enviado a firmar, sin la firma de ninguna parte; el sello que un servicio de firma pone en cada copia no es la firma de una parte",
+        "firmado-por-una-parte": "firmado por alguna de las partes pero no por todas, según el historial del servicio de firma o las firmas visibles",
+        "firmado": "firmado por todas las partes"
+      }
+    },
+    {
+      "id": "boleta",
+      "description": "Boleta o volante de pago de un aporte, impuesto, tasa o contribución: a quién corresponde, período, vencimiento e importe.",
+      "stages": [],
+      "variants": [],
+      "signals": [],
+      "data": [
+        {
+          "id": "periodo",
+          "description": "El período que se paga.",
+          "kind": "text",
+          "after": [
+            "periodo"
+          ]
+        },
+        {
+          "id": "vencimiento",
+          "description": "La fecha de vencimiento.",
+          "kind": "date",
+          "after": [
+            "vencimiento",
+            "fecha de vencimiento",
+            "vto"
+          ]
+        },
+        {
+          "id": "importe",
+          "description": "El importe a pagar.",
+          "kind": "amount",
+          "after": [
+            "importe",
+            "total a pagar",
+            "total",
+            "monto"
+          ],
+          "required": true,
+          "window": 4
+        }
+      ],
+      "rules": []
+    },
+    {
+      "id": "ficha-de-cliente",
+      "description": "Formulario con los datos de identificación de un cliente: nombre, documento o identificación fiscal, domicilio, actividad.",
+      "stages": [],
+      "variants": [],
+      "signals": [],
+      "data": [
+        {
+          "id": "identificacion",
+          "description": "El número de documento o de identificación fiscal del cliente.",
+          "kind": "identifier",
+          "after": [
+            "cuit",
+            "cuil",
+            "dni",
+            "documento"
+          ]
+        }
+      ],
+      "rules": []
+    },
+    {
+      "id": "constancia-de-firma",
+      "description": "Resumen que emite un servicio de firma electrónica sobre un proceso de firma: qué documento, quiénes firmaron, cuándo.",
+      "stages": [],
+      "variants": [
+        {
+          "id": "docusign",
+          "issuer": "Docusign"
+        }
+      ],
+      "signals": [
+        {
+          "id": "certificado-de-finalizacion",
+          "variant": "docusign",
+          "mark": "signing-audit",
+          "scope": "page",
+          "phrases": [
+            "Certificate Of Completion",
+            "Envelope Summary Events",
+            "Signer Events",
+            "Record Tracking"
+          ],
+          "minPhrases": 2,
+          "excludePage": true
+        }
+      ],
+      "data": [
+        {
+          "id": "identificador-del-sobre",
+          "description": "El identificador del proceso de firma que resume la constancia.",
+          "kind": "identifier",
+          "after": [
+            "envelope id"
+          ],
+          "required": true
+        }
+      ],
+      "rules": [
+        {
+          "id": "constancia-del-documento",
+          "kind": "shared-data",
+          "otherType": "pdf-servicio-de-firma",
+          "data": [
+            "identificador-del-sobre"
+          ],
+          "relation": "signing-certificate-of"
+        },
+        {
+          "id": "otro-sobre-otra-constancia",
+          "kind": "different-data",
+          "data": [
+            "identificador-del-sobre"
+          ],
+          "relation": "same-template"
+        }
+      ]
+    },
+    {
+      "id": "pdf-servicio-de-firma",
+      "description": "Documento cargado en un servicio de firma electrónica, en cualquier etapa: enviado a firmar, firmado por una parte, firmado por todas.",
+      "stages": [
+        "sin-firmar",
+        "firmado-por-una-parte",
+        "firmado"
+      ],
+      "variants": [
+        {
+          "id": "docusign",
+          "issuer": "Docusign",
+          "certificateNames": [
+            "DocuSign"
+          ]
+        },
+        {
+          "id": "adobe-acrobat-sign",
+          "issuer": "Adobe Acrobat Sign",
+          "certificateNames": [
+            "Adobe",
+            "Acrobat Sign",
+            "Echosign"
+          ]
+        }
+      ],
+      "signals": [
+        {
+          "id": "sello-del-servicio",
+          "mark": "service-seal",
+          "pdfSignature": "service"
+        },
+        {
+          "id": "firma-de-una-parte",
+          "mark": "party-signature",
+          "pdfSignature": "party"
+        },
+        {
+          "id": "identificador-del-sobre",
+          "variant": "docusign",
+          "mark": "signing-service",
+          "phrases": [
+            "Envelope Id"
+          ],
+          "dropLines": true
+        },
+        {
+          "id": "firmado-con-docusign",
+          "variant": "docusign",
+          "mark": "party-signature",
+          "phrases": [
+            "DocuSigned by"
+          ]
+        },
+        {
+          "id": "historial-de-firma",
+          "variant": "adobe-acrobat-sign",
+          "mark": "signing-audit",
+          "scope": "page",
+          "phrases": [
+            "Historial",
+            "Final audit report",
+            "Informe de auditoría final",
+            "Firmado electrónicamente",
+            "Transaction ID",
+            "ID de transacción"
+          ],
+          "minPhrases": 2,
+          "excludePage": true
+        },
+        {
+          "id": "historial-firmado-por-una-parte",
+          "variant": "adobe-acrobat-sign",
+          "mark": "party-signature",
+          "scope": "page",
+          "phrases": [
+            "ha firmado electrónicamente el documento",
+            "firmó con el nombre de",
+            "Firmado electrónicamente por",
+            "e-signed by"
+          ],
+          "minPhrases": 1,
+          "requires": [
+            "historial-de-firma"
+          ]
+        }
+      ],
+      "carrier": true,
+      "data": [
+        {
+          "id": "identificador-del-sobre",
+          "description": "El identificador del proceso de firma que el servicio repite en el documento.",
+          "kind": "identifier",
+          "after": [
+            "envelope id"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "formulario-pdf",
+      "description": "PDF con casilleros donde se escriben las respuestas. La página tiene la plantilla; los campos, los datos.",
+      "stages": [],
+      "variants": [],
+      "signals": [
+        {
+          "id": "tiene-campos",
+          "mark": "form",
+          "formFields": true
+        }
+      ],
+      "carrier": true
+    }
+  ]
+}

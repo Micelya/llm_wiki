@@ -4,8 +4,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   listDocuments,
+  listDocumentTypes,
   listLabelGroups,
   listOrigins,
+  listSimilarGroups,
   type DocumentFilter,
   type DocumentRow,
   type DocumentState,
@@ -16,6 +18,9 @@ import { DOCUMENT_STATES, DOCUMENT_STATE_ORDER, DocumentStateBadge } from "./doc
 import { LabelChip } from "./labels"
 import { DocbasePage, EmptyNote, ErrorNote } from "./page"
 import { formatCount, formatDate, formatSize } from "./format"
+import { groupLabel } from "./similar"
+import { rowTypeLabel } from "./document-types"
+import { documentTypeName, vocabulary } from "@/vocabulary"
 import { useDocbaseQuery } from "./use-docbase-query"
 
 const PAGE_SIZE = 100
@@ -63,6 +68,9 @@ function DocumentList() {
 
   const origins = useDocbaseQuery("origins", listOrigins)
   const labelGroups = useDocbaseQuery("label-groups", listLabelGroups)
+  const similarGroups = useDocbaseQuery("similar-groups", listSimilarGroups)
+  const documentTypes = useDocbaseQuery("document-types", listDocumentTypes)
+  const words = vocabulary()
   const request: DocumentFilter = { ...filter, limit: PAGE_SIZE, offset: page * PAGE_SIZE }
   const documents = useDocbaseQuery(JSON.stringify(request), () => listDocuments(request))
 
@@ -138,6 +146,50 @@ function DocumentList() {
             />
             Solo con copias
           </label>
+          <label className="flex items-center gap-1.5 text-sm" title="Documentos con un parecido que espera que alguien lo una o lo descarte">
+            <input
+              type="checkbox"
+              checked={filter.similarPending ?? false}
+              onChange={(event) => setFilter({ ...filter, similarPending: event.target.checked })}
+            />
+            Con parecidos pendientes
+          </label>
+          {((similarGroups.data ?? []).length > 0 || filter.similarGroup != null) && (
+            <select
+              className={SELECT_CLASS}
+              title="Familias de documentos con el mismo texto de base, por su documento principal"
+              value={filter.similarGroup ?? ""}
+              onChange={(event) =>
+                setFilter({ ...filter, similarGroup: event.target.value ? Number(event.target.value) : null })
+              }
+            >
+              <option value="">Todas las familias</option>
+              {filter.similarGroup != null &&
+                similarGroups.data !== null &&
+                !similarGroups.data.some((group) => group.principal.contentId === filter.similarGroup) && (
+                  <option value={filter.similarGroup}>Familia que ya no existe</option>
+                )}
+              {(similarGroups.data ?? []).map((group) => (
+                <option key={group.principal.contentId} value={group.principal.contentId}>
+                  {groupLabel(group)}
+                </option>
+              ))}
+            </select>
+          )}
+          <select
+            className={SELECT_CLASS}
+            title="Qué tipo de documento es cada uno: lo dicen sus marcas o lo propone el modelo"
+            value={filter.docType ?? ""}
+            onChange={(event) => setFilter({ ...filter, docType: event.target.value || null })}
+          >
+            <option value="">Todos los tipos</option>
+            {(documentTypes.data ?? []).map((docType) => (
+              <option key={docType.id} value={docType.id}>
+                {documentTypeName(docType.id, null, words)}
+              </option>
+            ))}
+            <option value="none">Sin tipo todavía</option>
+          </select>
           <select
             className={`${SELECT_CLASS} ml-auto`}
             value={filter.sort ?? "recent"}
@@ -164,6 +216,7 @@ function DocumentList() {
                 <tr>
                   <th className="px-3 py-2 font-medium">Nombre</th>
                   <th className="px-3 py-2 font-medium">Dónde está</th>
+                  <th className="px-3 py-2 font-medium">Tipo</th>
                   <th className="px-3 py-2 font-medium">Etiquetas</th>
                   <th className="px-3 py-2 font-medium">Estado</th>
                   <th className="px-3 py-2 font-medium">Copias</th>
@@ -214,6 +267,9 @@ function DocumentTableRow({ row, onOpen }: { row: DocumentRow; onOpen: () => voi
           {row.folder && ` › ${row.folder.split("/").join(" › ")}`}
         </span>
         {row.originReachable === false && <span className="ml-1 text-xs">(origen sin conexión)</span>}
+      </td>
+      <td className="px-3 py-2 text-xs">
+        {rowTypeLabel(row) ?? <span className="text-muted-foreground">—</span>}
       </td>
       <td className="px-3 py-2">
         <div className="flex flex-wrap gap-1">

@@ -32,7 +32,7 @@ pub struct WikiIndex {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PageRef {
-    /// Path inside the project: `wiki/entities/bgh.md`.
+    /// Path inside the project: `wiki/entities/boreal.md`.
     pub path: String,
     /// Where the page is on disk.
     pub file: String,
@@ -508,18 +508,18 @@ mod tests {
     use crate::docbase::testing::TempDir;
 
     fn project(dir: &TempDir) -> (DocBase, String) {
-        dir.write("casos/BGH/carta.md", b"una carta documento");
+        dir.write("casos/BOREAL/carta.md", b"una carta documento");
         dir.write("casos/copias/la misma carta.md", b"una carta documento");
-        dir.write("casos/BGH/contrato.md", b"un contrato");
+        dir.write("casos/BOREAL/contrato.md", b"un contrato");
         dir.folder("General/raw/sources");
         dir.write("General/schema.md", b"# schema");
         dir.write(
             "General/wiki/sources/carta-documento.md",
-            b"---\ntype: source\ntitle: \"Carta documento: intimaci\xc3\xb3n\"\nsources: [\"Casos/BGH/carta.md\"]\nrelated: [bgh]\n---\n\nBGH intima a [[Aeros]] por las [[facturas-impagas|facturas]]. Ver ![[foto.png]].\n",
+            b"---\ntype: source\ntitle: \"Carta documento: intimaci\xc3\xb3n\"\nsources: [\"Casos/BOREAL/carta.md\"]\nrelated: [boreal]\n---\n\nBOREAL intima a [[Andina]] por las [[facturas-impagas|facturas]]. Ver ![[foto.png]].\n",
         );
         dir.write(
-            "General/wiki/entities/bgh.md",
-            b"---\ntype: entity\ntitle: BGH\nsources:\n  - Casos/BGH/carta.md\n  - Casos/BGH/contrato.md\n---\n\nCliente. Ver [[carta-documento]] y [[BGH]].\n",
+            "General/wiki/entities/boreal.md",
+            b"---\ntype: entity\ntitle: BOREAL\nsources:\n  - Casos/BOREAL/carta.md\n  - Casos/BOREAL/contrato.md\n---\n\nCliente. Ver [[carta-documento]] y [[BOREAL]].\n",
         );
         let base = DocBase::in_memory().unwrap();
         let origin = base.add_origin("Casos", &dir.path().join("casos"), &[]).unwrap();
@@ -538,19 +538,19 @@ mod tests {
     #[test]
     fn a_page_gives_its_title_type_sources_and_links() {
         let page = parse_page(
-            "---\ntype: source\ntitle: \"Carta: intimación\"\nsources: [\"Casos/BGH/carta, final.pdf\", otro.pdf]\nrelated:\n  - bgh\n  - \"[[aeros]]\"\ntags: [a, b]\n---\n\nVer [[Aeros S.A.|Aeros]], [[bgh#historia]] y otra vez [[Aeros S.A.]]. ![[foto.png]]\n",
+            "---\ntype: source\ntitle: \"Carta: intimación\"\nsources: [\"Casos/BOREAL/carta, final.pdf\", otro.pdf]\nrelated:\n  - boreal\n  - \"[[andina]]\"\ntags: [a, b]\n---\n\nVer [[Andina S.A.|Andina]], [[boreal#historia]] y otra vez [[Andina S.A.]]. ![[foto.png]]\n",
             "wiki/sources/carta.md",
         );
         assert_eq!(page.title, "Carta: intimación");
         assert_eq!(page.kind, "source");
-        assert_eq!(page.sources, ["Casos/BGH/carta, final.pdf", "otro.pdf"]);
+        assert_eq!(page.sources, ["Casos/BOREAL/carta, final.pdf", "otro.pdf"]);
         assert_eq!(
             page.links,
             [
-                ("bgh".to_string(), "related"),
-                ("aeros".to_string(), "related"),
-                ("Aeros S.A.".to_string(), "body"),
-                ("bgh#historia".to_string(), "body"),
+                ("boreal".to_string(), "related"),
+                ("andina".to_string(), "related"),
+                ("Andina S.A.".to_string(), "body"),
+                ("boreal#historia".to_string(), "body"),
             ]
         );
         // Without a header the file name is the title.
@@ -562,12 +562,12 @@ mod tests {
         let dir = TempDir::new();
         let (base, _) = project(&dir);
         let index = base.index_wiki().unwrap();
-        // carta: related bgh, Aeros, facturas-impagas. bgh: carta-documento, BGH.
+        // carta: related boreal, Andina, facturas-impagas. boreal: carta-documento, BOREAL.
         assert_eq!((index.pages, index.links, index.broken), (2, 5, 2));
 
         let broken: Vec<String> = base.broken_links(10).unwrap().into_iter().map(|link| link.target).collect();
-        assert_eq!(broken, ["Aeros", "facturas-impagas"]);
-        let back: Vec<String> = base.backlinks("wiki/entities/bgh.md").unwrap().into_iter().map(|p| p.title).collect();
+        assert_eq!(broken, ["Andina", "facturas-impagas"]);
+        let back: Vec<String> = base.backlinks("wiki/entities/boreal.md").unwrap().into_iter().map(|p| p.title).collect();
         assert_eq!(back, ["Carta documento: intimación"]);
     }
 
@@ -577,11 +577,11 @@ mod tests {
         let (base, _) = project(&dir);
         assert_eq!(base.index_wiki().unwrap().broken, 2);
 
-        dir.write("General/wiki/entities/aeros.md", b"---\ntype: entity\ntitle: Aeros\n---\nProveedor.\n");
+        dir.write("General/wiki/entities/andina.md", b"---\ntype: entity\ntitle: Andina\n---\nProveedor.\n");
         let index = base.index_wiki().unwrap();
         assert_eq!((index.pages, index.broken), (3, 1));
 
-        dir.remove("General/wiki/entities/aeros.md");
+        dir.remove("General/wiki/entities/andina.md");
         let index = base.index_wiki().unwrap();
         assert_eq!((index.pages, index.broken), (2, 2));
     }
@@ -598,22 +598,22 @@ mod tests {
                 .collect()
         };
 
-        assert_eq!(titles("BGH/carta.md"), ["BGH", "Carta documento: intimación"]);
+        assert_eq!(titles("BOREAL/carta.md"), ["BOREAL", "Carta documento: intimación"]);
         // The copy under another name was never cited by name, yet it is the same document.
-        assert_eq!(titles("copias/la misma carta.md"), ["BGH", "Carta documento: intimación"]);
-        assert_eq!(titles("BGH/contrato.md"), ["BGH"]);
+        assert_eq!(titles("copias/la misma carta.md"), ["BOREAL", "Carta documento: intimación"]);
+        assert_eq!(titles("BOREAL/contrato.md"), ["BOREAL"]);
 
-        let page = &base.pages_citing(&Visible::All, location(&base, "BGH/contrato.md")).unwrap()[0];
-        assert_eq!(page.path, "wiki/entities/bgh.md");
-        assert!(page.file.ends_with("General/wiki/entities/bgh.md"));
-        assert!(base.pages_citing(&Visible::Origins(vec![]), location(&base, "BGH/carta.md")).unwrap().is_empty());
+        let page = &base.pages_citing(&Visible::All, location(&base, "BOREAL/contrato.md")).unwrap()[0];
+        assert_eq!(page.path, "wiki/entities/boreal.md");
+        assert!(page.file.ends_with("General/wiki/entities/boreal.md"));
+        assert!(base.pages_citing(&Visible::Origins(vec![]), location(&base, "BOREAL/carta.md")).unwrap().is_empty());
     }
 
     #[test]
     fn link_targets_match_however_they_are_written() {
-        assert_eq!(link_key("Aeros S.A."), link_key("aeros-s.a."));
-        assert_eq!(link_key("wiki/entities/BGH.md"), link_key("bgh"));
-        assert_eq!(link_key("bgh#historia"), link_key("BGH|el cliente"));
-        assert_ne!(link_key("bgh"), link_key("bgh-argentina"));
+        assert_eq!(link_key("Andina S.A."), link_key("andina-s.a."));
+        assert_eq!(link_key("wiki/entities/BOREAL.md"), link_key("boreal"));
+        assert_eq!(link_key("boreal#historia"), link_key("BOREAL|el cliente"));
+        assert_ne!(link_key("boreal"), link_key("boreal-argentina"));
     }
 }

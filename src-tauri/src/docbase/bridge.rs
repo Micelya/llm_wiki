@@ -71,6 +71,8 @@ pub struct WikiSource {
     /// What the wiki calls the source: the path under `raw/sources`.
     pub identity: String,
     pub ext: String,
+    /// The document it is, once the base read it.
+    pub content_id: Option<i64>,
 }
 
 impl DocBase {
@@ -254,7 +256,9 @@ impl DocBase {
 
     /// Which sources the general project's wiki has: every file of the
     /// origins mounted in it that the wiki can ingest. Cloud shortcuts
-    /// are left out: they hold no document.
+    /// are left out: they hold no document. So is what the user excluded,
+    /// and a document joined with another as the same one when the other
+    /// was chosen as the wiki's source.
     pub fn wiki_sources(&self) -> Result<Vec<WikiSource>, String> {
         let Some(project) = self.general_project()? else {
             return Ok(Vec::new());
@@ -265,25 +269,28 @@ impl DocBase {
             let mount = origin.mounted_as.as_deref().unwrap_or_default();
             let mut statement = conn
                 .prepare(&format!(
-                    "SELECT l.rel_path, l.ext FROM location l
-                     WHERE l.origin_id = ?1 AND l.kind = 'file' AND NOT {}
+                    "SELECT l.rel_path, l.ext, f.content_id FROM location l
+                     LEFT JOIN file f ON f.hash = l.file_hash
+                     WHERE l.origin_id = ?1 AND l.kind = 'file' AND NOT {} AND NOT {}
                      ORDER BY l.rel_path",
-                    super::excluded_sql!()
+                    super::excluded_sql!(),
+                    super::passed_over_sql!()
                 ))
                 .map_err(sql_err)?;
             let rows = statement
                 .query_map([&origin.origin_id], |row| {
-                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<i64>>(2)?))
                 })
                 .map_err(sql_err)?;
             for row in rows {
-                let (rel_path, ext) = row.map_err(sql_err)?;
+                let (rel_path, ext, content_id) = row.map_err(sql_err)?;
                 let identity = format!("{mount}/{rel_path}");
                 sources.push(WikiSource {
                     origin_id: origin.origin_id.clone(),
                     source_path: format!("{SOURCES_PREFIX}/{identity}"),
                     identity,
                     ext,
+                    content_id,
                 });
             }
         }
@@ -291,7 +298,9 @@ impl DocBase {
     }
 
     /// Which of these sources of a wiki project (`raw/sources/…` paths)
-    /// the user left out of the base. Only the general project's sources
+    /// must not reach the wiki: what the user left out of the base, and a
+    /// document joined with another as the same one when the other was
+    /// chosen as the wiki's source. Only the general project's sources
     /// come from the base; for any other project the answer is none.
     pub fn excluded_sources(&self, project_path: &Path, source_paths: &[String]) -> Result<Vec<String>, String> {
         let Some(project) = self.general_project()? else {
@@ -309,12 +318,28 @@ impl DocBase {
         for origin in project.origins.iter().filter(|origin| origin.mounted_as.is_some()) {
             let mount = format!("{}/", origin.mounted_as.as_deref().unwrap_or_default().to_lowercase());
             let exclusions = super::tree::Exclusions::load(self, &origin.origin_id)?;
+            let conn = self.conn();
+            let mut passed_over = conn
+                .prepare(&format!(
+                    "SELECT 1 FROM location l
+                     WHERE l.origin_id = ?1 AND l.rel_path = ?2 COLLATE NOCASE AND {}",
+                    super::passed_over_sql!()
+                ))
+                .map_err(sql_err)?;
             for source in source_paths {
                 let clean = source.replace('\\', "/");
                 let Some(identity) = clean.strip_prefix(&prefix) else {
                     continue;
                 };
-                if identity.to_lowercase().starts_with(&mount) && exclusions.covers_file(&identity[mount.len()..]) {
+                if !identity.to_lowercase().starts_with(&mount) {
+                    continue;
+                }
+                let rel_path = &identity[mount.len()..];
+                let left_out = exclusions.covers_file(rel_path)
+                    || passed_over
+                        .exists(params![origin.origin_id, rel_path])
+                        .map_err(sql_err)?;
+                if left_out {
                     excluded.push(source.clone());
                 }
             }
@@ -462,7 +487,7 @@ mod tests {
     #[test]
     fn linking_a_wiki_mounts_every_origin_without_copying_anything() {
         let dir = TempDir::new();
-        dir.write("casos/BGH/carta.md", LETTER.as_bytes());
+        dir.write("casos/BOREAL/carta.md", LETTER.as_bytes());
         dir.write("admin/factura.pdf", b"%PDF-");
         let project = wiki_project(&dir, "General");
         let base = DocBase::in_memory().unwrap();
@@ -483,10 +508,10 @@ mod tests {
         // Nothing was copied into the project.
         assert_eq!(std::fs::read_dir(project.join("raw/sources")).unwrap().count(), 0);
         // The wiki reads the original through its logical path.
-        let logical = project.join("raw/sources/Casos/BGH/carta.md");
+        let logical = project.join("raw/sources/Casos/BOREAL/carta.md");
         assert_eq!(
             crate::source_volume::resolve_path(&logical).unwrap(),
-            dir.path().join("casos").join("BGH").join("carta.md")
+            dir.path().join("casos").join("BOREAL").join("carta.md")
         );
     }
 
@@ -562,8 +587,8 @@ mod tests {
     #[test]
     fn the_wiki_sources_are_the_files_of_the_mounted_origins() {
         let dir = TempDir::new();
-        dir.write("casos/BGH/carta.md", LETTER.as_bytes());
-        dir.write("casos/BGH/notas.gdoc", b"{}");
+        dir.write("casos/BOREAL/carta.md", LETTER.as_bytes());
+        dir.write("casos/BOREAL/notas.gdoc", b"{}");
         let project = wiki_project(&dir, "General");
         let base = DocBase::in_memory().unwrap();
         base.add_origin("Casos", &dir.path().join("casos"), &[]).unwrap();
@@ -573,14 +598,14 @@ mod tests {
         base.link_general_project(&project, "General").unwrap();
         let sources = base.wiki_sources().unwrap();
         assert_eq!(sources.len(), 1);
-        assert_eq!(sources[0].source_path, "raw/sources/Casos/BGH/carta.md");
-        assert_eq!(sources[0].identity, "Casos/BGH/carta.md");
+        assert_eq!(sources[0].source_path, "raw/sources/Casos/BOREAL/carta.md");
+        assert_eq!(sources[0].identity, "Casos/BOREAL/carta.md");
     }
 
     #[test]
     fn the_base_answers_with_the_text_only_for_the_file_as_it_read_it() {
         let dir = TempDir::new();
-        let file = dir.write("casos/BGH/carta.md", LETTER.as_bytes());
+        let file = dir.write("casos/BOREAL/carta.md", LETTER.as_bytes());
         let base = DocBase::in_memory().unwrap();
         base.add_origin("Casos", &dir.path().join("casos"), &[]).unwrap();
         settle(&base);
@@ -589,11 +614,11 @@ mod tests {
         assert_eq!(state, "processed");
         assert_eq!(base.text_of_file(&hash).unwrap().as_deref(), Some(LETTER));
         // Case and separators do not matter on Windows paths.
-        let odd = PathBuf::from(file.to_string_lossy().replace("BGH", "bgh"));
+        let odd = PathBuf::from(file.to_string_lossy().replace("BOREAL", "boreal"));
         assert!(base.known_file(&odd).unwrap().is_some() || !cfg!(windows));
 
         // Edited since: what the base has is about another file.
-        dir.write("casos/BGH/carta.md", format!("{LETTER} Posdata.").as_bytes());
+        dir.write("casos/BOREAL/carta.md", format!("{LETTER} Posdata.").as_bytes());
         assert!(base.known_file(&file).unwrap().is_none());
         assert!(base.known_file(&dir.path().join("fuera.md")).unwrap().is_none());
     }
@@ -604,7 +629,7 @@ mod tests {
     #[test]
     fn a_scan_recognised_once_is_text_for_every_wiki_that_reads_it() {
         let dir = TempDir::new();
-        let photo = dir.write("casos/BGH/foto de la carta.jpg", b"\xff\xd8 una foto");
+        let photo = dir.write("casos/BOREAL/foto de la carta.jpg", b"\xff\xd8 una foto");
         dir.write("casos/copias/la misma foto.jpg", b"\xff\xd8 una foto");
         let project = wiki_project(&dir, "General");
         let base = Arc::new(DocBase::in_memory().unwrap());
@@ -619,23 +644,23 @@ mod tests {
 
         // Not recognised yet: the wiki gets the usual placeholder.
         assert!(text_for_source(&photo).is_none());
-        assert!(read("raw/sources/Casos/BGH/foto de la carta.jpg").starts_with("[Image:"));
+        assert!(read("raw/sources/Casos/BOREAL/foto de la carta.jpg").starts_with("[Image:"));
 
         // The wiki recognises it once, through its own ingest.
         offer_recognized_text(&photo, LETTER, "motor-de-prueba");
 
-        assert_eq!(read("raw/sources/Casos/BGH/foto de la carta.jpg"), LETTER);
+        assert_eq!(read("raw/sources/Casos/BOREAL/foto de la carta.jpg"), LETTER);
         // The copy under another name never goes to the engine.
         assert_eq!(read("raw/sources/Casos/copias/la misma foto.jpg"), LETTER);
         // Offering again, or for a document that is already whole, changes nothing.
         offer_recognized_text(&photo, "otro texto", "motor-de-prueba");
-        assert_eq!(read("raw/sources/Casos/BGH/foto de la carta.jpg"), LETTER);
+        assert_eq!(read("raw/sources/Casos/BOREAL/foto de la carta.jpg"), LETTER);
     }
 
     #[test]
     fn paths_are_matched_to_their_origin_without_case_or_prefix() {
         let root = Path::new(r"C:\Casos\Estudio");
-        assert_eq!(relative_to(root, Path::new(r"c:\casos\estudio\BGH\Carta.pdf")).as_deref(), Some("BGH/Carta.pdf"));
+        assert_eq!(relative_to(root, Path::new(r"c:\casos\estudio\BOREAL\Carta.pdf")).as_deref(), Some("BOREAL/Carta.pdf"));
         assert_eq!(relative_to(root, Path::new(r"\\?\C:\Casos\Estudio\a.pdf")).as_deref(), Some("a.pdf"));
         assert_eq!(relative_to(root, Path::new(r"C:\Casos\Estudio")), None);
         assert_eq!(relative_to(root, Path::new(r"C:\Casos\Otro\a.pdf")), None);

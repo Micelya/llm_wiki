@@ -2,11 +2,12 @@ import { useState, type ReactNode } from "react"
 import { ChevronRight, FolderPlus, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { getHome, type Activity } from "@/commands/docbase"
+import { getHome, getSimilarPending, listSimilarGroups, type Activity } from "@/commands/docbase"
 import { DEFAULT_DOCUMENT_FILTER, useDocbaseStore } from "@/stores/docbase-store"
 import { useReviewStore } from "@/stores/review-store"
 import { useWikiStore } from "@/stores/wiki-store"
 import { buildAttention, pendingCount, processedPercent, type AttentionItem } from "./attention"
+import { buildSimilarAttention } from "./similar"
 import { DocbasePage, EmptyNote, ErrorNote, Panel, StatusBadge } from "./page"
 import { formatAgo, formatCount, plural } from "./format"
 import { useDocbaseQuery } from "./use-docbase-query"
@@ -14,14 +15,19 @@ import { vocabulary } from "@/vocabulary"
 
 export function HomeView() {
   const home = useDocbaseQuery("home", getHome)
+  const similarPending = useDocbaseQuery("similar-pending", getSimilarPending)
+  const similarGroups = useDocbaseQuery("similar-groups", listSimilarGroups)
   const reviewPending = useReviewStore((s) => s.items.filter((item) => !item.resolved).length)
   const setActiveView = useWikiStore((s) => s.setActiveView)
   const setFilter = useDocbaseStore((s) => s.setFilter)
   const [query, setQuery] = useState("")
 
   function goTo(item: AttentionItem) {
-    if (item.target.view === "documents") {
-      setFilter({ ...DEFAULT_DOCUMENT_FILTER, state: item.target.state })
+    const target = item.target
+    if (target.view === "documents") {
+      if ("state" in target) setFilter({ ...DEFAULT_DOCUMENT_FILTER, state: target.state })
+      else if ("similarGroup" in target) setFilter({ ...DEFAULT_DOCUMENT_FILTER, similarGroup: target.similarGroup })
+      else setFilter({ ...DEFAULT_DOCUMENT_FILTER, similarPending: true })
     }
     setActiveView(item.target.view)
   }
@@ -32,7 +38,9 @@ export function HomeView() {
   }
 
   const data = home.data
-  const attention = data ? buildAttention(data.health, data.origins, reviewPending, data.wiki) : []
+  const similar =
+    similarPending.data && similarGroups.data ? buildSimilarAttention(similarPending.data, similarGroups.data) : []
+  const attention = data ? buildAttention(data.health, data.origins, reviewPending, data.wiki, similar) : []
   const today = new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
 
   return (

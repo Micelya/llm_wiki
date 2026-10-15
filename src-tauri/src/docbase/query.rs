@@ -38,6 +38,13 @@ pub struct DocumentFilter {
     pub duplicates_only: bool,
     /// Only files carrying this label.
     pub label_id: Option<i64>,
+    /// Only documents with a similar document that waits for a decision
+    /// (a proposed relation other than plain `similar`, as Inicio counts).
+    pub similar_pending: bool,
+    /// Only the members of the family whose principal is this content.
+    pub similar_group: Option<i64>,
+    /// Only documents of this type (pass 4); `"none"`: without a type.
+    pub doc_type: Option<String>,
     /// `recent` (default), `name` or `folder`.
     pub sort: Option<String>,
     pub limit: Option<i64>,
@@ -69,6 +76,11 @@ pub struct DocumentRow {
     /// Visible locations holding this same document, this one included.
     pub copies: i64,
     pub labels: Vec<Label>,
+    /// What the document is (pass 4): a type of the catalog, or one the
+    /// model proposed (`doc_type_proposed`).
+    pub doc_type: Option<String>,
+    pub doc_stage: Option<String>,
+    pub doc_type_proposed: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -319,6 +331,25 @@ impl DocBase {
             conditions.push("location_id IN (SELECT location_id FROM location_label WHERE label_id = ?)".to_string());
             bound.push(Value::Integer(label_id));
         }
+        if filter.similar_pending {
+            conditions.push(
+                "content_id IN (SELECT a FROM similar_pair WHERE state = 'proposed' AND relation != 'similar'
+                                UNION SELECT b FROM similar_pair WHERE state = 'proposed' AND relation != 'similar')"
+                    .to_string(),
+            );
+        }
+        match filter.doc_type.as_deref().filter(|t| !t.is_empty()) {
+            Some("none") => conditions.push("doc_type IS NULL".to_string()),
+            Some(doc_type) => {
+                conditions.push("doc_type = ?".to_string());
+                bound.push(Value::Text(doc_type.to_string()));
+            }
+            None => {}
+        }
+        if let Some(principal) = filter.similar_group {
+            conditions.push("content_id IN (SELECT content_id FROM similar_group_member WHERE principal = ?)".to_string());
+            bound.push(Value::Integer(principal));
+        }
         for word in filter
             .query
             .as_deref()
@@ -522,11 +553,13 @@ pub(crate) fn rows_sql(visible: &Visible, only: Option<i64>) -> (String, Vec<Val
                 CASE WHEN f.content_id IS NULL THEN 1 ELSE (
                     SELECT count(*) FROM location l2 JOIN file f2 ON f2.hash = l2.file_hash
                     WHERE f2.content_id = f.content_id AND {visible_l2}
-                ) END AS copies
+                ) END AS copies,
+                dt.doc_type AS doc_type, dt.stage AS doc_stage, coalesce(dt.proposed, 0) AS doc_type_proposed
          FROM location l
          JOIN origin o ON o.id = l.origin_id
          LEFT JOIN file f ON f.hash = l.file_hash
          LEFT JOIN content c ON c.id = f.content_id
+         LEFT JOIN document_type dt ON dt.content_id = f.content_id
          WHERE {visible_l} {only_sql}"
     );
     (sql, bound)
@@ -552,6 +585,9 @@ pub(crate) fn read_rows(conn: &Connection, sql: &str, bound: Vec<Value>) -> Resu
                 state: row.get("state")?,
                 content_id: row.get("content_id")?,
                 copies: row.get("copies")?,
+                doc_type: row.get("doc_type")?,
+                doc_stage: row.get("doc_stage")?,
+                doc_type_proposed: row.get("doc_type_proposed")?,
             })
         })
         .map_err(sql_err)?;
@@ -624,10 +660,10 @@ mod tests {
 
     fn sample() -> (TempDir, DocBase, String, String) {
         let dir = TempDir::new();
-        dir.write("casos/BGH/Reclamo/carta documento.pdf", b"carta");
-        dir.write("casos/BGH/Reclamo/copia de la carta.pdf", b"carta");
-        dir.write("casos/Aeros/Contrato/contrato.docx", b"contrato");
-        dir.write("casos/Aeros/notas.gdoc", b"{}");
+        dir.write("casos/BOREAL/Reclamo/carta documento.pdf", b"carta");
+        dir.write("casos/BOREAL/Reclamo/copia de la carta.pdf", b"carta");
+        dir.write("casos/Andina/Contrato/contrato.docx", b"contrato");
+        dir.write("casos/Andina/notas.gdoc", b"{}");
         dir.write("nube/carta escaneada.pdf", b"carta");
         let base = DocBase::in_memory().unwrap();
         let convention = vec!["cliente".to_string(), "caso".to_string()];
@@ -659,12 +695,12 @@ mod tests {
                 .map(|label| format!("{}: {}", label.group.clone().unwrap_or_default(), label.name))
                 .collect()
         };
-        assert_eq!(named(carta), ["caso: Reclamo", "cliente: BGH"]);
+        assert_eq!(named(carta), ["caso: Reclamo", "cliente: BOREAL"]);
 
         let link = page.rows.iter().find(|row| row.name == "notas.gdoc").unwrap();
         assert_eq!((link.state.as_str(), link.copies, link.content_id), ("link", 1, None));
         // Left at the client level: it has a client and no case.
-        assert_eq!(named(link), ["cliente: Aeros"]);
+        assert_eq!(named(link), ["cliente: Andina"]);
     }
 
     #[test]
@@ -672,7 +708,7 @@ mod tests {
         let (_dir, base, _, nube) = sample();
         let find = |filter: DocumentFilter| base.documents(&Visible::All, &filter).unwrap();
 
-        let by_words = find(DocumentFilter { query: Some("carta bgh".into()), ..Default::default() });
+        let by_words = find(DocumentFilter { query: Some("carta boreal".into()), ..Default::default() });
         assert_eq!(names(&by_words), ["carta documento.pdf", "copia de la carta.pdf"]);
 
         let by_origin = find(DocumentFilter { origin_id: Some(nube), ..Default::default() });
@@ -717,7 +753,7 @@ mod tests {
         assert!(detail.locations.iter().all(|location| location.same_file));
         assert_eq!(
             std::path::PathBuf::from(&detail.path),
-            dir.path().join("casos").join("BGH").join("Reclamo").join("copia de la carta.pdf")
+            dir.path().join("casos").join("BOREAL").join("Reclamo").join("copia de la carta.pdf")
         );
         assert!(detail.file_hash.is_some());
         assert!(detail.text.is_none());
@@ -761,10 +797,10 @@ mod tests {
         let casos_line = first.iter().find(|a| a.origin_name == "Casos").unwrap();
         assert_eq!((casos_line.kind.as_str(), casos_line.count), ("added", 4));
 
-        std::fs::create_dir_all(dir.path().join("casos/Aeros/Firmados")).unwrap();
+        std::fs::create_dir_all(dir.path().join("casos/Andina/Firmados")).unwrap();
         std::fs::rename(
-            dir.path().join("casos/Aeros/Contrato/contrato.docx"),
-            dir.path().join("casos/Aeros/Firmados/contrato firmado.docx"),
+            dir.path().join("casos/Andina/Contrato/contrato.docx"),
+            dir.path().join("casos/Andina/Firmados/contrato firmado.docx"),
         )
         .unwrap();
         settle(&base, &casos);
@@ -772,7 +808,7 @@ mod tests {
         let latest = base.activity(&Visible::All, 20).unwrap();
         assert_eq!(latest.len(), 3);
         assert_eq!(latest[0].kind, "moved");
-        assert_eq!(latest[0].rel_path, "Aeros/Firmados/contrato firmado.docx");
-        assert_eq!(latest[0].from_path.as_deref(), Some("Aeros/Contrato/contrato.docx"));
+        assert_eq!(latest[0].rel_path, "Andina/Firmados/contrato firmado.docx");
+        assert_eq!(latest[0].from_path.as_deref(), Some("Andina/Contrato/contrato.docx"));
     }
 }

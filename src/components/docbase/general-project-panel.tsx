@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react"
 import { BookOpen, Pause, Play } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { getGeneralProject, type WikiSource } from "@/commands/docbase"
+import { getGeneralProject, setAskEngine, type WikiSource } from "@/commands/docbase"
+import { getAskConfig } from "@/lib/document-asking"
 import {
   isSameProjectPath,
   pendingWikiSourcesByOrigin,
@@ -33,6 +34,14 @@ export function GeneralProjectPanel() {
 
   const data = general.data
   const isOpenProject = isSameProjectPath(data?.path, project?.path)
+  const llmConfig = useWikiStore((s) => s.llmConfig)
+
+  // While the wiki is active it also asks the type of each document, with
+  // the model configured now; with no model that can answer, nothing is asked.
+  useEffect(() => {
+    if (!data?.wikiActive || !isOpenProject) return
+    setAskEngine(getAskConfig()).catch((cause) => console.error("[docbase] failed to set the engine for questions:", cause))
+  }, [data?.wikiActive, isOpenProject, llmConfig])
 
   // What is pending changes as the wiki ingests, so it is recounted when
   // the base or the project's data changes.
@@ -71,6 +80,7 @@ export function GeneralProjectPanel() {
                 : "") +
               "Desde ahora todo lo que se agregue o cambie en las carpetas incorporadas pasa al wiki solo. " +
               "Cada documento pasa por el modelo configurado, así que consume cupo o costo de ese proveedor. " +
+              "También se le pregunta al modelo el tipo de cada documento: una vez por familia de documentos parecidos y una por documento suelto. " +
               "Las copias de un mismo documento se incorporan una sola vez.",
             confirmLabel: "Activar",
             cancelLabel: "Cancelar",
@@ -91,6 +101,7 @@ export function GeneralProjectPanel() {
     setNotice(null)
     try {
       const queued = await setWikiFeeding(project, active)
+      if (active) await setAskEngine(getAskConfig())
       if (active) {
         setNotice(
           queued + waiting > 0

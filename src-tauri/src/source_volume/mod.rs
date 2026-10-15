@@ -17,6 +17,7 @@
 // routed through it in follow-up changes.
 #![allow(dead_code, unused_imports)]
 
+pub mod asking;
 pub mod catalog;
 pub mod file_hash;
 mod provider;

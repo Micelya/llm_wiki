@@ -14,6 +14,7 @@ import {
   type FolderPreview,
   type OriginSummary,
 } from "@/commands/docbase"
+import { DocumentTypesPanel } from "./document-types-view"
 import { GeneralProjectPanel } from "./general-project-panel"
 import { IconAction, OriginTree, type TreeActions } from "./origin-tree"
 import { FolderRules, LabelsPanel } from "./labels"
@@ -174,6 +175,8 @@ export function OriginsView() {
         )}
 
         <GeneralProjectPanel />
+
+        <DocumentTypesPanel />
 
         {list.map((origin) => (
           <OriginCard

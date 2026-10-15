@@ -285,7 +285,7 @@ mod tests {
             .execute("UPDATE content SET state = 'processed'", [])
             .unwrap();
 
-        dir.write("o/BGH/carta documento 13-02.pdf", b"carta documento");
+        dir.write("o/BOREAL/carta documento 13-02.pdf", b"carta documento");
         dir.remove("o/pendiente/carta.pdf");
         settle(&base, &origin.id);
 
@@ -293,7 +293,7 @@ mod tests {
         assert_eq!(count(&base, "SELECT count(*) FROM content"), 1);
         // Same document, already processed: nothing is redone.
         assert_eq!(count(&base, "SELECT id FROM content WHERE state = 'processed'"), content_before);
-        assert_eq!(count(&base, "SELECT count(*) FROM change WHERE kind = 'moved' AND rel_path = 'BGH/carta documento 13-02.pdf'"), 1);
+        assert_eq!(count(&base, "SELECT count(*) FROM change WHERE kind = 'moved' AND rel_path = 'BOREAL/carta documento 13-02.pdf'"), 1);
     }
 
     #[test]
