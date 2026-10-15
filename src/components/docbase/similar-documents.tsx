@@ -11,6 +11,7 @@ import {
   type SimilarDocument,
 } from "@/commands/docbase"
 import { useDocbaseStore } from "@/stores/docbase-store"
+import { useWikiStore } from "@/stores/wiki-store"
 import { relationName, vocabulary, type Vocabulary } from "@/vocabulary"
 import { formatDate } from "./format"
 import { StatusBadge } from "./page"
@@ -54,6 +55,15 @@ export function SimilarDocuments({
       similar.reload()
     } catch (cause) {
       onProblem(String(cause))
+      return
+    }
+    // The wiki follows the decision: the one not chosen stops feeding it,
+    // and what is a source now and was never ingested is queued.
+    try {
+      const { followSimilarDecision } = await import("@/lib/docbase-wiki-bridge")
+      await followSimilarDecision(useWikiStore.getState().project, [item.contentId, item.other.contentId])
+    } catch (cause) {
+      onProblem(`La decisión quedó guardada, pero el wiki no se pudo actualizar: ${String(cause)}`)
     }
   }
 
@@ -378,7 +388,7 @@ function JoinPanel({
             </label>
           ))}
           <p className="mt-1 text-xs text-muted-foreground">
-            Los dos siguen en la base. La elección queda guardada; por ahora el wiki todavía no la aplica.
+            Los dos siguen en la base. Solo el elegido alimenta el wiki; lo que el otro ya aportó se queda.
           </p>
         </fieldset>
       ) : (

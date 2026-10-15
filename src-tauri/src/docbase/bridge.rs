@@ -71,6 +71,8 @@ pub struct WikiSource {
     /// What the wiki calls the source: the path under `raw/sources`.
     pub identity: String,
     pub ext: String,
+    /// The document it is, once the base read it.
+    pub content_id: Option<i64>,
 }
 
 impl DocBase {
@@ -254,7 +256,9 @@ impl DocBase {
 
     /// Which sources the general project's wiki has: every file of the
     /// origins mounted in it that the wiki can ingest. Cloud shortcuts
-    /// are left out: they hold no document.
+    /// are left out: they hold no document. So is what the user excluded,
+    /// and a document joined with another as the same one when the other
+    /// was chosen as the wiki's source.
     pub fn wiki_sources(&self) -> Result<Vec<WikiSource>, String> {
         let Some(project) = self.general_project()? else {
             return Ok(Vec::new());
@@ -265,25 +269,28 @@ impl DocBase {
             let mount = origin.mounted_as.as_deref().unwrap_or_default();
             let mut statement = conn
                 .prepare(&format!(
-                    "SELECT l.rel_path, l.ext FROM location l
-                     WHERE l.origin_id = ?1 AND l.kind = 'file' AND NOT {}
+                    "SELECT l.rel_path, l.ext, f.content_id FROM location l
+                     LEFT JOIN file f ON f.hash = l.file_hash
+                     WHERE l.origin_id = ?1 AND l.kind = 'file' AND NOT {} AND NOT {}
                      ORDER BY l.rel_path",
-                    super::excluded_sql!()
+                    super::excluded_sql!(),
+                    super::passed_over_sql!()
                 ))
                 .map_err(sql_err)?;
             let rows = statement
                 .query_map([&origin.origin_id], |row| {
-                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<i64>>(2)?))
                 })
                 .map_err(sql_err)?;
             for row in rows {
-                let (rel_path, ext) = row.map_err(sql_err)?;
+                let (rel_path, ext, content_id) = row.map_err(sql_err)?;
                 let identity = format!("{mount}/{rel_path}");
                 sources.push(WikiSource {
                     origin_id: origin.origin_id.clone(),
                     source_path: format!("{SOURCES_PREFIX}/{identity}"),
                     identity,
                     ext,
+                    content_id,
                 });
             }
         }
@@ -291,7 +298,9 @@ impl DocBase {
     }
 
     /// Which of these sources of a wiki project (`raw/sources/…` paths)
-    /// the user left out of the base. Only the general project's sources
+    /// must not reach the wiki: what the user left out of the base, and a
+    /// document joined with another as the same one when the other was
+    /// chosen as the wiki's source. Only the general project's sources
     /// come from the base; for any other project the answer is none.
     pub fn excluded_sources(&self, project_path: &Path, source_paths: &[String]) -> Result<Vec<String>, String> {
         let Some(project) = self.general_project()? else {
@@ -309,12 +318,28 @@ impl DocBase {
         for origin in project.origins.iter().filter(|origin| origin.mounted_as.is_some()) {
             let mount = format!("{}/", origin.mounted_as.as_deref().unwrap_or_default().to_lowercase());
             let exclusions = super::tree::Exclusions::load(self, &origin.origin_id)?;
+            let conn = self.conn();
+            let mut passed_over = conn
+                .prepare(&format!(
+                    "SELECT 1 FROM location l
+                     WHERE l.origin_id = ?1 AND l.rel_path = ?2 COLLATE NOCASE AND {}",
+                    super::passed_over_sql!()
+                ))
+                .map_err(sql_err)?;
             for source in source_paths {
                 let clean = source.replace('\\', "/");
                 let Some(identity) = clean.strip_prefix(&prefix) else {
                     continue;
                 };
-                if identity.to_lowercase().starts_with(&mount) && exclusions.covers_file(&identity[mount.len()..]) {
+                if !identity.to_lowercase().starts_with(&mount) {
+                    continue;
+                }
+                let rel_path = &identity[mount.len()..];
+                let left_out = exclusions.covers_file(rel_path)
+                    || passed_over
+                        .exists(params![origin.origin_id, rel_path])
+                        .map_err(sql_err)?;
+                if left_out {
                     excluded.push(source.clone());
                 }
             }

@@ -6,6 +6,7 @@ import {
   currentRelation,
   makesOneDocument,
   measuresInWords,
+  passedOverNotice,
   percent,
   relationChoices,
   relationSentence,
@@ -157,5 +158,29 @@ describe("what Inicio says about similar documents", () => {
     const similar = buildSimilarAttention({ pairs: 1, groups: 0 }, [])
     const items = buildAttention(health, [], 0, { pages: 0, links: 0, broken: 2 }, similar)
     expect(items.map((item) => item.id)).toEqual(["unreadable", "similar-pending", "broken-links"])
+  })
+})
+
+describe("a document joined with another as the same one", () => {
+  const joined = (wikiSource: number, other = docRef(2, "Contrato de servicios firmado.pdf")) =>
+    similarDocument({ state: "joined", chosenRelation: "signed-copy", wikiSource, other })
+
+  it("says it no longer feeds the wiki when the other one is the chosen source", () => {
+    expect(passedOverNotice([joined(2)])).toBe(
+      "Este documento no alimenta el wiki: se unió con «Contrato de servicios firmado.pdf», que es la fuente elegida.",
+    )
+  })
+
+  it("says nothing while it is the chosen source, or the pair is not joined", () => {
+    expect(passedOverNotice([joined(1)])).toBeNull()
+    expect(passedOverNotice([similarDocument()])).toBeNull()
+    expect(passedOverNotice([similarDocument({ state: "joined", chosenRelation: "same-template" })])).toBeNull()
+    expect(passedOverNotice([])).toBeNull()
+  })
+
+  it("names every chosen source when there are several", () => {
+    expect(passedOverNotice([joined(2), joined(3, docRef(3, "Contrato definitivo.pdf"))])).toBe(
+      "Este documento no alimenta el wiki: se unió con «Contrato de servicios firmado.pdf» y «Contrato definitivo.pdf», que son las fuentes elegidas.",
+    )
   })
 })

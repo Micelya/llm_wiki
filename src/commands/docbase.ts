@@ -341,6 +341,8 @@ export interface WikiSource {
   /** What the wiki calls the source: the path under `raw/sources`. */
   identity: string
   ext: string
+  /** The document it is, once the base read it. */
+  contentId: number | null
 }
 
 /** `null` before the first origin is incorporated. */

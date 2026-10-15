@@ -8,6 +8,7 @@ function source(identity: string): WikiSource {
     identity,
     sourcePath: `raw/sources/${identity}`,
     ext: identity.split(".").pop() ?? "",
+    contentId: null,
   }
 }
 
