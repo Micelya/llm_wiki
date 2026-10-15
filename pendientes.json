@@ -70,12 +70,12 @@
       "titulo": "Decidir si se proponen a upstream los cambios F-001 y F-003",
       "tipo": "decision",
       "responsable": "usuario",
-      "estado": "pendiente",
-      "detalle": "En suspenso: el 2026-10-11 el usuario decidió no proponer contribuciones a upstream hasta nuevo aviso. El arreglo de encabezados (F-001) y el endurecimiento de workflows (F-003) son generales. Si upstream los acepta, dejan de ser diferencias que mantener. Implica abrir PRs en nashsu/llm_wiki.",
+      "estado": "hecho",
+      "detalle": "En suspenso: el 2026-10-11 el usuario decidió no proponer contribuciones a upstream hasta nuevo aviso. El arreglo de encabezados (F-001) y el endurecimiento de workflows (F-003) son generales. Si upstream los acepta, dejan de ser diferencias que mantener. Implica abrir PRs en nashsu/llm_wiki. Decidido el 2026-10-15 (D-151): no se proponen. El proyecto no se sincroniza con upstream y diverge de forma definitiva.",
       "depende_de": [],
-      "referencia": "FORK_CHANGES.md",
+      "referencia": "FORK_CHANGES.md; docs/decisiones.md (D-151)",
       "creado": "2026-10-06",
-      "actualizado": "2026-10-11"
+      "actualizado": "2026-10-15"
     },
     {
       "id": "P-011",

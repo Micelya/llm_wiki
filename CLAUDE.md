@@ -16,6 +16,19 @@ Este repositorio es el fork `Micelya/llm_wiki` de `nashsu/llm_wiki` (remoto `ups
 - Las pruebas se corren a mano antes de cada PR: `npm run test:mocks` y, en `src-tauri`, `cargo test --lib`. No se espera ningún fallo.
 - Los PR se abren contra este fork: `gh pr create --repo Micelya/llm_wiki --base main`. Sin esos parámetros, `gh` apunta al proyecto original.
 
+## Uso de la inteligencia artificial
+
+- **La IA se usa donde agrega valor o donde el proceso la necesita.** No hay ninguna regla que pida evitarla, limitarla ni minimizarla.
+- **Lo determinista se prefiere solo cuando logra la misma eficacia o una mejor, con la misma eficiencia o una mejor.** Si una herramienta determinista da un resultado peor que la IA, se usa la IA.
+- **Si el proceso requiere la IA, o la IA logra un resultado superior, se usa.** Ahorrar cupo, el costo del modelo o "agregar otro uso del modelo" no son argumentos para elegir un camino peor.
+- Antes de una prueba que consuma cupo, se le avisa al dueño del producto. Avisar no es lo mismo que evitar.
+
+## Upstream
+
+- **No vamos a sincronizar con upstream** (`nashsu/llm_wiki`). El proyecto diverge de forma definitiva: lo que haga upstream ya no nos interesa.
+- **La compatibilidad con upstream no es un criterio.** El código se cambia según nuestros requerimientos, en cualquier archivo y en la medida que haga falta. Cuánto nos alejemos de upstream no es algo que importe ni preocupe.
+- No se proponen contribuciones a upstream.
+
 ## Estimaciones de esfuerzo
 
 - **Nunca estimar en horas, días ni ninguna otra unidad de tiempo.** Esas estimaciones salen de cómo trabajan las personas, no de cómo trabaja un agente, y por eso son siempre erróneas.

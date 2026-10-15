@@ -1,6 +1,6 @@
 # Registro de decisiones
 
-**Proyecto:** Micelya Desktop (repositorio `Micelya/llm_wiki`) · **Al 14 de octubre de 2026**
+**Proyecto:** Micelya Desktop (repositorio `Micelya/llm_wiki`) · **Al 15 de octubre de 2026**
 
 ## Qué es y cómo usarlo
 
@@ -59,7 +59,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-031 | 8 oct | Interfaz | Aviso de importación informativo cuando no hubo error | vigente |
 | D-032 | 8 oct | Proceso de trabajo | Programar en una carpeta separada de la que corre la app | vigente |
 | D-033 | 9 oct | Producto | Cambio de rumbo: la base documental es el cimiento | vigente |
-| D-034 | 9 oct | Upstream | Las necesidades propias pesan más que la compatibilidad con upstream | vigente |
+| D-034 | 9 oct | Upstream | Las necesidades propias pesan más que la compatibilidad con upstream | reemplazada por D-151 |
 | D-035 | 9 oct | Base documental | La unidad es el espacio (privado o compartido), no el proyecto | vigente |
 | D-036 | 9 oct | Base documental | La base documental es un componente separado | vigente |
 | D-037 | 9 oct | Seguridad | Autorización al estilo UMA 2.0 | reemplazada por D-045 |
@@ -83,7 +83,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-055 | 11 oct | Interfaz | Marco visual y marca: para toda la app, en un turno dedicado | vigente |
 | D-056 | 11 oct | Interfaz | Pantallas nuevas en español; traducción completa aparte | vigente |
 | D-057 | 11 oct | Etiquetas | "Cliente" y "caso" son etiquetas, no proyectos | vigente |
-| D-058 | 11 oct | Upstream | No proponer contribuciones a upstream hasta nuevo aviso | vigente |
+| D-058 | 11 oct | Upstream | No proponer contribuciones a upstream hasta nuevo aviso | reemplazada por D-151 |
 | D-059 | 11 oct | IA | La base no le manda nada al modelo por su cuenta | vigente |
 | D-060 | 11 oct | Wiki | Asignar el proyecto general apaga su incorporación automática | reemplazada por D-071 |
 | D-061 | 11 oct | Wiki | El proyecto general se elige entre los existentes | reemplazada por D-069 |
@@ -124,7 +124,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-096 | 13 oct | Parecidos | Se muestran en el detalle del documento, con botones para unir | vigente |
 | D-097 | 13 oct | Parecidos | Relaciones ampliables y con nombres configurables | vigente |
 | D-098 | 13 oct | Parecidos | Al unir como el mismo documento, queda una sola fuente del wiki | vigente |
-| D-099 | 13 oct | IA | Reducir el uso de IA, no eliminarlo | vigente |
+| D-099 | 13 oct | IA | Reducir el uso de IA, no eliminarlo | reemplazada en parte por D-150 |
 | D-100 | 13 oct | Base documental | Procesar en pasadas sobre todo el archivo | en revisión |
 | D-101 | 13 oct | Parecidos | El conjunto de prueba lo arma el asistente y lo corrige el dueño | vigente |
 | D-102 | 13–14 oct | Proceso de trabajo | Esfuerzo estimado solo en términos relativos, nunca en tiempo | vigente |
@@ -175,6 +175,8 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-147 | 14 oct | Base documental | El preprocesado recibe la ruta completa de la fuente, la misma que lee el ingest | en revisión |
 | D-148 | 14 oct | Parecidos | Una elección de fuente que dejaría sin ninguna fuente a documentos unidos como el mismo se rechaza, con un mensaje que dice cómo salir | en revisión |
 | D-149 | 15 oct | Distribución | La comprobación de los PR y los instaladores, solo en Windows por ahora | vigente |
+| D-150 | 15 oct | IA | La IA se usa donde agrega valor o el proceso la necesita; lo determinista, solo si iguala o mejora el resultado | vigente |
+| D-151 | 15 oct | Upstream | No se sincroniza con upstream: el proyecto diverge y la compatibilidad deja de ser un criterio | vigente |
 
 ---
 
@@ -614,7 +616,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 - **Fecha:** 9 oct 2026
 - **Tema:** Upstream
-- **Estado:** vigente (reemplaza a D-011)
+- **Estado:** reemplazada por D-151 (antes reemplazó a D-011)
 - **El problema:** con el cambio de rumbo, el fork se aleja mucho del original; cuidar la compatibilidad empezaba a condicionar el diseño.
 - **Qué se decidió:** las necesidades propias pesan más que la compatibilidad. Las novedades del original se analizan una por una; ya no se da por hecho que entren con las herramientas automáticas de GitHub. El original no condiciona el diseño.
 - **Por qué:** el producto propio es lo prioritario.
@@ -926,7 +928,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 - **Fecha:** 11 oct 2026
 - **Tema:** Upstream
-- **Estado:** vigente
+- **Estado:** reemplazada por D-151
 - **El problema:** algunos arreglos propios (por ejemplo F-001 y F-003) también servirían al original; proponérselos ahorra mantenerlos, pero lleva trabajo y expone el proyecto.
 - **Qué se decidió:** no se proponen contribuciones al original hasta nuevo aviso. P-008 queda en suspenso.
 - **Por qué:** No registrado.
@@ -1459,7 +1461,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 - **Fecha:** 13 oct 2026
 - **Tema:** IA
-- **Estado:** vigente (precisa D-042)
+- **Estado:** reemplazada en parte por D-150. Sigue valiendo: ahorrar cupo nunca es razón para elegir un camino peor. Deja de valer: "reducir" el uso de la IA y "primero medir el cálculo y después sumar usos del modelo" como regla general
 - **El problema:** "determinista primero" (D-042) podía leerse como "evitar la IA a toda costa", incluso cuando aporta.
 - **Qué se decidió:** el uso de IA se reduce, no se elimina. Se usa donde agrega valor y de la forma más conveniente. Ahorrar cupo nunca es razón para elegir un camino peor; el modelo solo se posterga si usarlo ahora retrasa medir. Primero se mide hasta dónde llega el cálculo y después se suman usos del modelo; el primer candidato es describir qué cambió entre dos documentos, a pedido y de a un par.
 - **Por qué:** la calidad es lo prioritario; medir primero muestra dónde aporta la IA.
@@ -2117,3 +2119,29 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** `.github/workflows/ci.yml`, `.github/workflows/build.yml`, regla `proteger-main`; P-082.
 - **Quién decidió:** el dueño del producto.
 - **Fuente:** conversación del 15 oct; PR #49.
+
+### D-150 · La IA se usa donde agrega valor o el proceso la necesita
+
+- **Fecha:** 15 oct 2026
+- **Tema:** IA
+- **Estado:** vigente (reemplaza en parte a D-099; precisa D-042)
+- **El problema:** en distintas sesiones, los agentes que programan el proyecto leyeron "determinista primero" (D-042) y "reducir el uso de IA" (D-099) como una regla para evitar la IA, y llegaron a conclusiones como "esto no debería usar el modelo" aun cuando el proceso lo necesitaba o el modelo daba un resultado mejor.
+- **Qué se decidió:** la IA se usa donde agrega valor y donde el proceso la necesita. Se prefiere una herramienta determinista solo si logra la misma eficacia o una mejor, con la misma eficiencia o una mejor. Eso no limita de ninguna manera el uso de la IA cuando el proceso la requiere o cuando logra un resultado superior al de las herramientas deterministas. El costo o el cupo no son argumentos para elegir un camino peor; antes de una prueba que consuma cupo se avisa al dueño, y avisar no es evitar.
+- **Por qué:** la calidad del resultado es lo que importa; el sesgo contra la IA producía procesos que no cumplían su función.
+- **Alternativas descartadas:** mantener "reducir el uso de IA" como regla general.
+- **Dónde se aplica:** `CLAUDE.md` (sección "Uso de la inteligencia artificial"); toda propuesta y pasada de la base documental.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 15 oct.
+
+### D-151 · No se sincroniza con upstream
+
+- **Fecha:** 15 oct 2026
+- **Tema:** Upstream
+- **Estado:** vigente (reemplaza a D-034 y D-058)
+- **El problema:** D-034 ya decía que las necesidades propias pesan más que la compatibilidad con upstream, pero la compatibilidad seguía apareciendo como criterio al diseñar y programar (tocar poco los archivos originales, analizar cada novedad de upstream).
+- **Qué se decidió:** no se sincroniza con upstream (`nashsu/llm_wiki`). El proyecto diverge de forma definitiva; lo que haga upstream ya no interesa. El código se cambia según nuestros requerimientos, en cualquier archivo, y cuánto nos alejemos de upstream no importa ni preocupa. No se proponen contribuciones a upstream.
+- **Por qué:** una regla simple, sin matices, que no se pueda leer como una restricción.
+- **Alternativas descartadas:** seguir analizando las novedades de upstream una por una (D-034).
+- **Dónde se aplica:** `CLAUDE.md` (sección "Upstream"); P-008. Falta el visto bueno del dueño para principio 8 y sección 9 del documento de diseño, y qué hacer con `FORK_CHANGES.md`.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 15 oct.
