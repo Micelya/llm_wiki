@@ -170,7 +170,8 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-142 | 14 oct | Parecidos (catálogo de tipos, uso del modelo) | Las etapas se describen en el catálogo, y eso va en la pregunta | en revisión |
 | D-143 | 14 oct | Parecidos | Al unir dos documentos como el mismo, el no elegido deja de ser fuente del wiki en todas sus ubicaciones; lo ya incorporado queda | en revisión |
 | D-144 | 14 oct | Parecidos | Después de unir o deshacer, la cola sigue la decisión: sale lo que espera y ya no alimenta el wiki, y entra la fuente que nunca se incorporó | en revisión |
-| D-145 | 14 oct | Parecidos | El aviso "no alimenta el wiki" va en la sección "En el wiki" del detalle, y vale cualquier par unido en que se eligió al otro | en revisión |
+| D-145 | 14 oct | Parecidos | El aviso "no alimenta el wiki" va en la sección "En el wiki" del detalle, y vale cualquier par unido en que se eligió al otro | en revisión; reemplazada en parte por D-148 |
+| D-148 | 14 oct | Parecidos | Una elección de fuente que dejaría sin ninguna fuente a documentos unidos como el mismo se rechaza, con un mensaje que dice cómo salir | en revisión |
 
 ---
 
@@ -2053,7 +2054,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 - **Fecha:** 14 oct 2026
 - **Tema:** Parecidos
-- **Estado:** en revisión (agente sin consulta, P-066)
+- **Estado:** en revisión (agente sin consulta, P-066); reemplazada en parte por D-148 (un círculo de elecciones ya no se permite; el aviso y la regla de "algún par" siguen valiendo)
 - **El problema:** la persona tiene que poder ver, en el detalle del documento no elegido, por qué ya no va al wiki. Además, un documento puede estar unido con más de uno.
 - **Qué se decidió:** en la sección "En el wiki" del detalle, arriba de las páginas que salieron de él, un recuadro: "Este documento no alimenta el wiki: se unió con «X», que es la fuente elegida", con una línea que aclara que lo ya incorporado se queda y que deshacer lo vuelve a ofrecer. Si se unió con varios y en todos se eligió al otro, los nombra a todos. Un documento queda afuera si en algún par unido como el mismo documento se eligió al otro; en una cadena (A con B eligiendo B, B con C eligiendo C) quedan afuera A y B. Si una persona arma un círculo de elecciones podrían quedar afuera todos; no se previene en esta etapa.
 - **Por qué:** la sección del wiki es donde se mira qué aportó un documento al wiki; la regla de "algún par" es simple y coincide con lo que la persona eligió en cada unión.
@@ -2061,3 +2062,16 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** `src/components/docbase/similar.ts` (`passedOverNotice`), `document-detail.tsx`, `src-tauri/src/docbase/mod.rs` (`passed_over_sql`).
 - **Quién decidió:** agente sin consulta.
 - **Fuente:** construcción de S4 (el wiki usa la fuente elegida, P-078), 14 oct.
+
+### D-148 · Un círculo de elecciones no deja a todos fuera del wiki
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** un documento deja de alimentar el wiki si en algún par unido como el mismo documento se eligió al otro (D-145). Si las elecciones forman un círculo (A cede ante B, B ante C, C ante A), cada uno tiene otro elegido en su lugar y ninguno de los documentos unidos llega al wiki, sin que la persona lo haya querido. Con un solo par no puede pasar: elegir al otro en el mismo par solo los intercambia.
+- **Qué se decidió:** al unir como el mismo documento (o cambiar la fuente elegida de un par ya unido), la base mira el conjunto de documentos unidos así con esos dos, con la elección nueva incluida. Si en ese conjunto no queda ninguno elegido en todos sus pares, la decisión se rechaza y no se guarda nada; la pantalla muestra: "Con esa elección ninguno de los N documentos unidos como el mismo quedaría como fuente del wiki: cada uno tiene otro elegido en lugar de él. Elegí el otro documento como fuente o deshacé una de esas uniones." Un conjunto sin círculos siempre tiene al menos uno, así que las cadenas y las estrellas no cambian. Las uniones entre documentos distintos (misma plantilla, etc.) no cuentan. El control se hace al decidir: si después se borra el documento que era la única fuente de un conjunto con un círculo, los demás pueden quedar afuera hasta que la persona cambie una elección.
+- **Por qué:** rechazar es la regla más simple de explicar: lo que la persona eligió en cada par se respeta tal cual, y nunca se elige una fuente por ella. Resolverlo solo (por ejemplo, tomar la última elección como ganadora) cambiaría en silencio el efecto de una decisión anterior.
+- **Alternativas descartadas:** dejar entrar a todos los del círculo; elegir sola una fuente por conjunto (D-145 ya descartó una fuente por familia); avisar sin rechazar.
+- **Dónde se aplica:** `src-tauri/src/docbase/similar/store.rs` (`decide_similar`, `joined_without_source`); prueba `choices_that_close_a_circle_are_refused` en `similar/tests.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** arreglo pendiente de S4 al apilarla sobre S3 (P-078), 14 oct.

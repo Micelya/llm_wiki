@@ -561,6 +561,15 @@ impl DocBase {
                         (false, None) => None,
                         (false, Some(_)) => return Err("Esa relación no deja un solo documento como fuente del wiki".to_string()),
                     };
+                    if let Some(source) = source {
+                        if let Some(joined) = joined_without_source(&conn, a, b, source)? {
+                            return Err(format!(
+                                "Con esa elección ninguno de los {joined} documentos unidos como el mismo quedaría como \
+                                 fuente del wiki: cada uno tiene otro elegido en lugar de él. Elegí el otro documento \
+                                 como fuente o deshacé una de esas uniones."
+                            ));
+                        }
+                    }
                     conn.execute(
                         "UPDATE similar_pair SET state = 'joined', chosen_relation = ?3, wiki_source = ?4,
                          shown_evidence_hash = ?5, decided_at = ?6 WHERE a = ?1 AND b = ?2",
@@ -674,6 +683,49 @@ impl DocBase {
         }
         Ok(out)
     }
+}
+
+/// Whether joining `a` and `b` as one same document, with `source` as
+/// the wiki's source, would leave no source at all for the documents
+/// joined that way with them: the choices close a circle (A gives way to
+/// B, B to C, C to A). A document stops feeding the wiki when, in any
+/// pair joined as the same document, the other one was chosen
+/// (`passed_over_sql`), so the set needs at least one document chosen in
+/// every such pair it is in. A set without circles always has one.
+/// Returns how many documents the set has when it would have none.
+fn joined_without_source(conn: &Connection, a: i64, b: i64, source: i64) -> Result<Option<usize>, String> {
+    let mut statement = conn
+        .prepare(
+            "SELECT a, b, wiki_source FROM similar_pair
+             WHERE state = 'joined' AND wiki_source IS NOT NULL AND NOT (a = ?1 AND b = ?2)",
+        )
+        .map_err(sql_err)?;
+    let mut pairs = statement
+        .query_map(params![a, b], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, i64>(2)?)))
+        .map_err(sql_err)?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(sql_err)?;
+    pairs.push((a, b, source));
+    let mut neighbours: HashMap<i64, Vec<i64>> = HashMap::new();
+    for &(x, y, _) in &pairs {
+        neighbours.entry(x).or_default().push(y);
+        neighbours.entry(y).or_default().push(x);
+    }
+    let mut joined: HashSet<i64> = HashSet::from([a]);
+    let mut pending = vec![a];
+    while let Some(next) = pending.pop() {
+        for &other in neighbours.get(&next).into_iter().flatten() {
+            if joined.insert(other) {
+                pending.push(other);
+            }
+        }
+    }
+    let passed_over: HashSet<i64> = pairs
+        .iter()
+        .filter(|(x, _, _)| joined.contains(x))
+        .map(|&(x, y, chosen)| if chosen == x { y } else { x })
+        .collect();
+    Ok((passed_over.len() == joined.len()).then_some(joined.len()))
 }
 
 /// The relations a person can choose from, as the catalog lists them.

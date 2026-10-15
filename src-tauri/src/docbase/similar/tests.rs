@@ -356,6 +356,50 @@ fn joined_as_one_document_only_the_chosen_one_feeds_the_wiki() {
 }
 
 #[test]
+fn choices_that_close_a_circle_are_refused() {
+    // Three versions, each a few words away from the others.
+    let a = words(0..120, 0);
+    let b = [words(0..30, 0), words(30..34, 1), words(34..120, 0)].join(" ");
+    let c = [words(0..80, 0), words(80..84, 2), words(84..120, 0)].join(" ");
+    let (dir, base, _) = base_with(&[("a.md", a.into_bytes()), ("b.md", b.into_bytes()), ("c.md", c.into_bytes())]);
+    let project = dir.folder("General");
+    dir.folder("General/wiki");
+    dir.folder("General/raw/sources");
+    dir.write("General/schema.md", b"# schema");
+    base.link_general_project(&project, "General").unwrap();
+    let (a, b, c) = (content(&base, "a.md"), content(&base, "b.md"), content(&base, "c.md"));
+    for (x, y) in [("a.md", "b.md"), ("b.md", "c.md"), ("a.md", "c.md")] {
+        assert!(pair(&base, x, y).is_some(), "{x} and {y} are not similar");
+    }
+    let choose = |source| Decision::Join { relation: "version".into(), wiki_source: Some(source) };
+
+    // A gives way to B, B to C: a chain, C feeds the wiki.
+    base.decide_similar(a, b, &choose(b), None).unwrap();
+    base.decide_similar(b, c, &choose(c), None).unwrap();
+    assert_eq!(wiki_paths(&base), ["raw/sources/O/c.md"]);
+    // C giving way to A would close the circle: refused, nothing changes.
+    let refused = base.decide_similar(c, a, &choose(a), None).unwrap_err();
+    assert!(refused.contains("ninguno de los 3 documentos"), "{refused}");
+    assert_eq!(pair(&base, "a.md", "c.md").unwrap().state, "proposed");
+    assert_eq!(wiki_paths(&base), ["raw/sources/O/c.md"]);
+    // Choosing C keeps a source.
+    base.decide_similar(c, a, &choose(c), None).unwrap();
+    assert_eq!(wiki_paths(&base), ["raw/sources/O/c.md"]);
+    // Changing an earlier choice is checked too: A over C closes it now.
+    assert!(base.decide_similar(a, c, &choose(a), None).is_err());
+    assert_eq!(pair(&base, "a.md", "c.md").unwrap().wiki_source, Some(c));
+    // B over C leaves B as the only source; then A over C is fine.
+    base.decide_similar(b, c, &choose(b), None).unwrap();
+    assert_eq!(wiki_paths(&base), ["raw/sources/O/b.md"]);
+    base.decide_similar(a, c, &choose(a), None).unwrap();
+    assert_eq!(wiki_paths(&base), ["raw/sources/O/b.md"]);
+    // A relation between different documents never takes a source away,
+    // and a pair outside the set is not affected by it.
+    base.decide_similar(a, b, &Decision::Join { relation: "same-template".into(), wiki_source: None }, None).unwrap();
+    assert_eq!(wiki_paths(&base), ["raw/sources/O/a.md", "raw/sources/O/b.md"]);
+}
+
+#[test]
 fn a_new_document_only_measures_its_neighbourhood() {
     let (dir, base, origin) = base_with(&[("borrador.md", CONTRACT.as_bytes().to_vec()), ("final.md", contract_final().into_bytes())]);
     let before: i64 = base
