@@ -108,9 +108,15 @@ pub struct DataRule {
     /// Tokens looked at after the phrase (12 when not said).
     #[serde(default)]
     pub window: Option<usize>,
-    /// Every value found, not only the first.
+    /// Every value found, not only the first. After a phrase, the values
+    /// follow one another while each is within `window` tokens of the
+    /// last (a list of invoices).
     #[serde(default)]
     pub many: bool,
+    /// Of the values found, the one kept: "first" (the default) or
+    /// "largest" (a total is the largest amount next to the word).
+    #[serde(default)]
+    pub pick: Option<String>,
     /// When the rules do not find it, the model is asked.
     #[serde(default)]
     pub required: bool,

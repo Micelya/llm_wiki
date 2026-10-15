@@ -181,11 +181,17 @@ pub fn find(rule: &DataRule, body: &str, marks: &[Mark]) -> Vec<(String, &'stati
                 }
                 continue;
             }
-            for at in end + 1..(end + 1 + window).min(tokens.len()) {
+            let mut at = end + 1;
+            let mut limit = (end + 1 + window).min(tokens.len());
+            while at < limit {
                 if let Some(value) = value_at(&tokens, at, &rule.kind) {
                     push(&mut values, value);
-                    break;
+                    if !rule.many {
+                        break;
+                    }
+                    limit = (at + 1 + window).min(tokens.len());
                 }
+                at += 1;
             }
         }
     }
@@ -195,10 +201,35 @@ pub fn find(rule: &DataRule, body: &str, marks: &[Mark]) -> Vec<(String, &'stati
             out.push((value, "rule"));
         }
     }
+    if rule.pick.as_deref() == Some("largest") && !rule.many {
+        if let Some(largest) = out.iter().cloned().max_by(|x, y| amount_value(&x.0).total_cmp(&amount_value(&y.0))) {
+            return vec![largest];
+        }
+    }
     if !rule.many {
         out.truncate(1);
     }
     out
+}
+
+/// The number an amount says ("$ 1.234,56" → 1234.56; "1,234.56" too).
+pub fn amount_value(text: &str) -> f64 {
+    let digits: String = text.chars().filter(|c| c.is_ascii_digit() || *c == '.' || *c == ',').collect();
+    let decimal = match (digits.rfind(','), digits.rfind('.')) {
+        (Some(comma), Some(dot)) => Some(comma.max(dot)),
+        (Some(comma), None) => (digits.len() - comma - 1 <= 2).then_some(comma),
+        (None, Some(dot)) => (digits.len() - dot - 1 <= 2).then_some(dot),
+        (None, None) => None,
+    };
+    let mut number = String::new();
+    for (index, c) in digits.chars().enumerate() {
+        if c.is_ascii_digit() {
+            number.push(c);
+        } else if Some(index) == decimal {
+            number.push('.');
+        }
+    }
+    number.parse().unwrap_or(0.0)
 }
 
 /// Everything the rules find, and the required data they did not.
@@ -285,6 +316,33 @@ mod tests {
             value: Some("XY123456789AR".into()),
         };
         assert_eq!(find(&by_mark, "", &[mark]), [("XY123456789AR".to_string(), "mark")]);
+    }
+
+    #[test]
+    fn a_list_after_one_phrase_is_read_whole() {
+        let body = "Rechazo las facturas A0003-00001111 con fecha 16 de abril, A0003-00002222 con fecha 16 de abril                     y A0003-00003333 con fecha 17 de abril, recibidas por correo.";
+        let mut many = rule("identifier", &["facturas"]);
+        many.many = true;
+        assert_eq!(values(&many, body), ["A0003-00001111", "A0003-00002222", "A0003-00003333"]);
+    }
+
+    #[test]
+    fn a_total_is_the_largest_amount_next_to_the_word() {
+        let body = "Total s/imp.
+ 3.453,64
+ IVA 21 %: 725,26
+ TOTAL
+Percepciones
+ 4.178,90";
+        let mut total = rule("amount", &["total"]);
+        total.window = Some(3);
+        assert_eq!(values(&total, body), ["3.453,64"]);
+        total.pick = Some("largest".into());
+        assert_eq!(values(&total, body), ["4.178,90"]);
+        assert_eq!(amount_value("$ 1.234,56"), 1234.56);
+        assert_eq!(amount_value("USD 1,234.56"), 1234.56);
+        assert_eq!(amount_value("$6800.00"), 6800.0);
+        assert_eq!(amount_value("USD 5.506"), 5506.0);
     }
 
     #[test]

@@ -218,10 +218,8 @@
           "description": "Los números de las facturas que la carta reclama, rechaza o menciona.",
           "kind": "identifier",
           "after": [
-            "factura",
             "facturas",
-            "factura n",
-            "facturas n"
+            "factura"
           ],
           "many": true
         },
@@ -330,14 +328,14 @@
           "description": "El número del comprobante.",
           "kind": "identifier",
           "after": [
+            "factura",
+            "comprobante",
             "factura n",
             "comprobante n",
-            "nro",
-            "n",
-            "numero",
-            "comp nro"
+            "numero de comprobante"
           ],
-          "required": true
+          "required": true,
+          "window": 4
         },
         {
           "id": "fecha-de-emision",
@@ -347,7 +345,8 @@
             "fecha de emision",
             "fecha"
           ],
-          "required": true
+          "required": true,
+          "window": 3
         },
         {
           "id": "periodo",
@@ -364,9 +363,12 @@
           "kind": "amount",
           "after": [
             "importe total",
+            "total a pagar",
             "total"
           ],
-          "required": true
+          "required": true,
+          "window": 3,
+          "pick": "largest"
         },
         {
           "id": "vencimiento",
@@ -407,10 +409,10 @@
           "description": "El importe recibido.",
           "kind": "amount",
           "after": [
+            "monto",
+            "importe",
             "la suma de",
             "suma de",
-            "importe",
-            "monto",
             "total"
           ],
           "required": true
@@ -506,11 +508,12 @@
           "kind": "amount",
           "after": [
             "importe",
-            "total",
             "total a pagar",
+            "total",
             "monto"
           ],
-          "required": true
+          "required": true,
+          "window": 4
         }
       ],
       "rules": []
