@@ -14,7 +14,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [macos-latest, ubuntu-22.04, windows-latest]
+        # Windows only for now. macOS and Linux come back when the app is
+        # more stable (pendiente P-082); their steps below stay in place.
+        platform: [windows-latest]
 
     runs-on: ${{ matrix.platform }}
 
