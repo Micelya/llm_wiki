@@ -320,3 +320,41 @@ fn a_new_document_only_measures_its_neighbourhood() {
     assert!(counted > 0 && counted < counted_with);
     assert_eq!(base.similar_pending(&Visible::All).unwrap().pairs, 1);
 }
+
+#[test]
+fn the_documents_screen_filters_by_pending_similar_and_by_family() {
+    let (_dir, base, _) = base_with(&[
+        ("borrador.md", CONTRACT.as_bytes().to_vec()),
+        ("final.md", contract_final().into_bytes()),
+        ("carta.md", LETTER.as_bytes().to_vec()),
+    ]);
+    let names = |filter: DocumentFilter| -> Vec<String> {
+        let mut names: Vec<String> =
+            base.documents(&Visible::All, &filter).unwrap().rows.into_iter().map(|row| row.name).collect();
+        names.sort();
+        names
+    };
+    let pending = DocumentFilter { similar_pending: true, ..Default::default() };
+    assert_eq!(names(pending.clone()), ["borrador.md", "final.md"]);
+
+    let groups = base.similar_groups(&Visible::All).unwrap();
+    assert_eq!(groups.len(), 1);
+    let family = DocumentFilter { similar_group: Some(groups[0].principal.content_id), ..Default::default() };
+    assert_eq!(names(family.clone()), ["borrador.md", "final.md"]);
+
+    // Once decided, nothing waits; the family stays.
+    let similar = pair(&base, "borrador.md", "final.md").unwrap();
+    base.decide_similar(
+        similar.content_id,
+        similar.other.content_id,
+        &Decision::Join { relation: "version".into(), wiki_source: Some(similar.other.content_id) },
+        Some(&similar.evidence_hash),
+    )
+    .unwrap();
+    assert!(names(pending).is_empty());
+    assert_eq!(names(family), ["borrador.md", "final.md"]);
+    // The filter arrives from the screens as JSON.
+    let parsed: DocumentFilter = serde_json::from_str(r#"{"similarPending": true, "similarGroup": 4}"#).unwrap();
+    assert!(parsed.similar_pending);
+    assert_eq!(parsed.similar_group, Some(4));
+}

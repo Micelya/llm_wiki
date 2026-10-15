@@ -18,6 +18,7 @@ import { DOCUMENT_STATES, DocumentStateBadge } from "./document-state"
 import { LabelChip, LabelPicker } from "./labels"
 import { EmptyNote, ErrorNote } from "./page"
 import { formatCount, formatDate, formatSize } from "./format"
+import { SimilarDocuments } from "./similar-documents"
 import { useDocbaseQuery } from "./use-docbase-query"
 
 /** Text longer than this is cut on screen; the whole text stays in the base. */
@@ -82,6 +83,9 @@ export function DocumentDetailView({ locationId, onBack }: { locationId: number;
               <Section title={`Ubicaciones (${document.locations.length || 1})`}>
                 <Locations document={document} onOpen={handleOpen} />
               </Section>
+              {document.contentId !== null && (
+                <SimilarDocuments locationId={document.locationId} name={document.name} onProblem={setProblem} />
+              )}
               <WikiPages locationId={document.locationId} />
             </main>
             <aside>
