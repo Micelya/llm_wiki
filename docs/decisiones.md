@@ -172,6 +172,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-144 | 14 oct | Parecidos | Después de unir o deshacer, la cola sigue la decisión: sale lo que espera y ya no alimenta el wiki, y entra la fuente que nunca se incorporó | en revisión |
 | D-145 | 14 oct | Parecidos | El aviso "no alimenta el wiki" va en la sección "En el wiki" del detalle, y vale cualquier par unido en que se eligió al otro | en revisión; reemplazada en parte por D-148 |
 | D-148 | 14 oct | Parecidos | Una elección de fuente que dejaría sin ninguna fuente a documentos unidos como el mismo se rechaza, con un mensaje que dice cómo salir | en revisión |
+| D-149 | 15 oct | Distribución | La comprobación de los PR y los instaladores, solo en Windows por ahora | vigente |
 
 ---
 
@@ -2075,3 +2076,16 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** `src-tauri/src/docbase/similar/store.rs` (`decide_similar`, `joined_without_source`); prueba `choices_that_close_a_circle_are_refused` en `similar/tests.rs`.
 - **Quién decidió:** agente sin consulta.
 - **Fuente:** arreglo pendiente de S4 al apilarla sobre S3 (P-078), 14 oct.
+
+### D-149 · La comprobación de los PR y los instaladores, solo en Windows por ahora
+
+- **Fecha:** 15 oct 2026
+- **Tema:** Distribución
+- **Estado:** vigente
+- **El problema:** cada PR se compilaba en macOS, Linux y Windows, y los instaladores se generaban para cuatro plataformas. macOS era, lejos, lo que más minutos de GitHub Actions consumía, y el 14 de octubre GitHub desactivó las Actions del repositorio (el motivo no se conoce; se consultó a soporte). Al dueño hoy solo le interesa Windows.
+- **Qué se decidió:** la comprobación de cada PR y la generación de instaladores corren solo en Windows. La regla que protege `main` exige solo la comprobación de Windows. macOS y Linux vuelven cuando la aplicación esté más estable (P-082); lo necesario para volver quedó comentado en los workflows.
+- **Por qué:** concentra el esfuerzo y el consumo donde está el producto hoy.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** `.github/workflows/ci.yml`, `.github/workflows/build.yml`, regla `proteger-main`; P-082.
+- **Quién decidió:** el dueño del producto.
+- **Fuente:** conversación del 15 oct; PR #49.
