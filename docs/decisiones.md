@@ -142,6 +142,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-114 | 14 oct | Proceso de trabajo | Las reglas del procesamiento se documentan aparte y se revisan | vigente |
 | D-115 | 14 oct | Parecidos | El proceso tiene que decir qué falta | vigente |
 | D-146 | 14 oct | Base documental | En un formulario PDF, de cada casilla o botón marcado se escribe qué opción es | en revisión |
+| D-149 | 15 oct | Distribución | La comprobación de los PR y los instaladores, solo en Windows por ahora | vigente |
 
 ---
 
@@ -1655,3 +1656,16 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** `src-tauri/src/commands/pdf_form.rs`; F-016.
 - **Quién decidió:** Agente sin consulta.
 - **Fuente:** Sesión desatendida del 14 oct (especificación F1).
+
+### D-149 · La comprobación de los PR y los instaladores, solo en Windows por ahora
+
+- **Fecha:** 15 oct 2026
+- **Tema:** Distribución
+- **Estado:** vigente
+- **El problema:** cada PR se compilaba en macOS, Linux y Windows, y los instaladores se generaban para cuatro plataformas. macOS era, lejos, lo que más minutos de GitHub Actions consumía, y el 14 de octubre GitHub desactivó las Actions del repositorio (el motivo no se conoce; se consultó a soporte). Al dueño hoy solo le interesa Windows.
+- **Qué se decidió:** la comprobación de cada PR y la generación de instaladores corren solo en Windows. La regla que protege `main` exige solo la comprobación de Windows. macOS y Linux vuelven cuando la aplicación esté más estable (P-082); lo necesario para volver quedó comentado en los workflows.
+- **Por qué:** concentra el esfuerzo y el consumo donde está el producto hoy.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** `.github/workflows/ci.yml`, `.github/workflows/build.yml`, regla `proteger-main`; P-082.
+- **Quién decidió:** el dueño del producto.
+- **Fuente:** conversación del 15 oct; PR #49.
