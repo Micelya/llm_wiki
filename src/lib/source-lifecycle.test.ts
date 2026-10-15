@@ -328,6 +328,35 @@ describe("source-lifecycle path helpers", () => {
     ])
   })
 
+  it("preprocesses sources given relative to the project at their full path", async () => {
+    // Sources of the document base (mounted folders) arrive as
+    // "raw/sources/..."; the extractor cannot find them from there.
+    const queued = await enqueueSourceIngest(
+      { id: "p1", name: "Project", path: "C:\\proyectos\\estudio" },
+      ["raw/sources/Archivo/Clientes/resumen de cuentas.xlsx", "/elsewhere/nota.md"],
+      {
+        provider: "openai",
+        endpoint: "https://api.example.com/v1",
+        apiKey: "key",
+        model: "model",
+        customModel: "",
+        reasoning: { enabled: false, effort: "low" },
+      } as never,
+    )
+
+    expect(queued).toEqual(["task"])
+    expect(mocks.preprocessFile).toHaveBeenCalledTimes(2)
+    expect(mocks.preprocessFile).toHaveBeenCalledWith(
+      "C:/proyectos/estudio/raw/sources/Archivo/Clientes/resumen de cuentas.xlsx",
+    )
+    expect(mocks.preprocessFile).toHaveBeenCalledWith("/elsewhere/nota.md")
+    // The queue keeps the path as it was given.
+    expect(mocks.enqueueBatch).toHaveBeenCalledWith("p1", [
+      expect.objectContaining({ sourcePath: "raw/sources/Archivo/Clientes/resumen de cuentas.xlsx" }),
+      expect.objectContaining({ sourcePath: "/elsewhere/nota.md" }),
+    ])
+  })
+
   it("does not preprocess files when no usable ingest model is configured", async () => {
     const queued = await enqueueSourceIngest(
       { id: "p1", name: "Project", path: "/project" },

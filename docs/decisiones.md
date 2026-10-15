@@ -172,6 +172,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-144 | 14 oct | Parecidos | Después de unir o deshacer, la cola sigue la decisión: sale lo que espera y ya no alimenta el wiki, y entra la fuente que nunca se incorporó | en revisión |
 | D-145 | 14 oct | Parecidos | El aviso "no alimenta el wiki" va en la sección "En el wiki" del detalle, y vale cualquier par unido en que se eligió al otro | en revisión; reemplazada en parte por D-148 |
 | D-146 | 14 oct | Base documental | En un formulario PDF, de cada casilla o botón marcado se escribe qué opción es | en revisión |
+| D-147 | 14 oct | Base documental | El preprocesado recibe la ruta completa de la fuente, la misma que lee el ingest | en revisión |
 | D-148 | 14 oct | Parecidos | Una elección de fuente que dejaría sin ninguna fuente a documentos unidos como el mismo se rechaza, con un mensaje que dice cómo salir | en revisión |
 | D-149 | 15 oct | Distribución | La comprobación de los PR y los instaladores, solo en Windows por ahora | vigente |
 
@@ -2075,6 +2076,19 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Por qué:** Es la forma más corta que un lector (persona o modelo) no puede leer al revés, y sale solo de señales generales de la estructura del formulario, sin nombrar ningún caso (R-24).
 - **Alternativas descartadas:** Escribir todas las opciones de la fila con su marca ("SI [x] NO [ ]"): más ruido y, cuando la pregunta ocupa varias líneas, el orden de las palabras se mezcla. Leer el valor de exportación con funciones de pdfium que la biblioteca no expone: exigía manejar el PDF a bajo nivel.
 - **Dónde se aplica:** `src-tauri/src/commands/pdf_form.rs`; F-016.
+- **Quién decidió:** Agente sin consulta.
+- **Fuente:** Sesión desatendida del 14 oct (especificación F1).
+
+### D-147 · El preprocesado recibe la ruta completa de la fuente, la misma que lee el ingest
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Base documental
+- **Estado:** en revisión (agente sin consulta; a confirmar según P-066)
+- **El problema:** Al generar el wiki del archivo, cada documento de una carpeta montada dejaba en el registro un aviso de que no se pudo preprocesar: la base pasa las fuentes como ruta relativa al proyecto (`raw/sources/...`) y el preprocesado la buscaba así, sin el proyecto delante, y no la encontraba. El ingest se recuperaba porque al leer el archivo arma la ruta completa, pero el texto se extraía dos veces y el registro se llenaba de avisos falsos.
+- **Qué se decidió:** Antes de preprocesar, toda ruta relativa se completa con la carpeta del proyecto, igual que hace el ingest al leer; el componente de fuentes (`source_volume`) la resuelve después a donde vive de verdad la carpeta montada. La cola sigue guardando la ruta tal como llegó.
+- **Por qué:** Usa el mismo mecanismo que el ingest, en el único lugar por donde pasan todas las fuentes antes de la cola, sin tocar el código de Rust.
+- **Alternativas descartadas:** Que la base pase rutas absolutas: arreglaba un solo llamador y cambiaba lo que guarda la cola. Resolver rutas relativas en Rust: el comando no conoce el proyecto.
+- **Dónde se aplica:** `src/lib/source-lifecycle.ts` (`enqueueSourceIngest`); F-002.
 - **Quién decidió:** Agente sin consulta.
 - **Fuente:** Sesión desatendida del 14 oct (especificación F1).
 

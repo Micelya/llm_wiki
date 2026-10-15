@@ -31,7 +31,7 @@ El detalle de cada cambio (qué líneas, qué pruebas) está en su PR; acá no s
 - **Propósito:** que un proyecto use carpetas externas como fuentes sin copiarlas, con un único componente (`src-tauri/src/source_volume/`) que decide dónde está cada fuente, detecta sus cambios y distingue un archivo borrado de un origen que no se puede leer.
 - **Toca upstream:** `src-tauri/src/lib.rs`, `src-tauri/src/commands/fs.rs`, `src-tauri/src/commands/extract_images.rs`, `src-tauri/src/commands/file_sync.rs`, `src/lib/source-lifecycle.ts`, `src/components/sources/sources-view.tsx`, `src/i18n/*.json`, `src-tauri/tauri.windows.conf.json`
 - **Upstream:** solo-fork
-- **PR:** #7, #12
+- **PR:** #7, #12, #45
 
 ### F-003 · Workflows de GitHub endurecidos
 - **Propósito:** que una acción de terceros o una dependencia comprometida no pueda robar secretos ni alterar releases, y que las etiquetas traídas de upstream no publiquen releases acá (se habilita con la variable `ENABLE_TAG_RELEASE`).
