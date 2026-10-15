@@ -64,6 +64,9 @@ pub struct DocType {
     pub description: String,
     #[serde(default)]
     pub stages: Vec<String>,
+    /// How each stage is told apart, in words: it goes to the model.
+    #[serde(default)]
+    pub stage_descriptions: std::collections::BTreeMap<String, String>,
     /// It says how a document was issued or made (a signing service, a
     /// fillable form), not what the document is: its marks never give the
     /// type, and its data and rules apply to whatever document carries
@@ -351,6 +354,9 @@ mod tests {
                 for stage in rule.subject_stage.iter().chain(&rule.other_stages) {
                     assert!(doc_type.stages.contains(stage), "{} {} {stage}", doc_type.id, rule.id);
                 }
+            }
+            for stage in doc_type.stage_descriptions.keys() {
+                assert!(doc_type.stages.contains(stage), "{} {stage}", doc_type.id);
             }
             for signal in &doc_type.signals {
                 if let Some(stage) = &signal.stage {

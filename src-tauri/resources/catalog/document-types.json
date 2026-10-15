@@ -108,7 +108,7 @@
   "types": [
     {
       "id": "carta-documento",
-      "description": "Comunicación fehaciente enviada por un servicio postal habilitado, con constancia de texto, fecha y entrega.",
+      "description": "Comunicación fehaciente enviada por un servicio postal habilitado, con constancia de texto, fecha y entrega. El recuadro del aviso de recibo («RECIBÍ CONFORME EL ENVÍO…») viene impreso en el formulario de algunos correos: vacío no prueba nada.",
       "stages": [
         "borrador",
         "vista-previa",
@@ -248,13 +248,14 @@
             "facturas",
             "numero-de-envio"
           ],
-          "relation": "same-template"
+          "relation": "similar"
         },
         {
           "id": "vista-previa-de-la-carta",
           "kind": "stage-pair",
           "subjectStage": "vista-previa",
           "otherStages": [
+            "borrador",
             "enviada",
             "recibida"
           ],
@@ -263,11 +264,17 @@
           ],
           "relation": "preview"
         }
-      ]
+      ],
+      "stageDescriptions": {
+        "borrador": "el texto escrito en un procesador de texto, antes de cargarlo en el sistema del correo: sin formulario del correo, número de envío ni sellos",
+        "vista-previa": "lo que genera el sistema del correo antes de despacharla, sin valor legal: leyenda o marca de agua de vista previa y casilleros vacíos donde irían el número de envío y el código de barras",
+        "enviada": "la copia que guarda quien la envió, ya procesada por el correo: formulario con número de envío y sello del correo; el recuadro del aviso de recibo, si está, sin completar",
+        "recibida": "la copia que el correo le entregó al destinatario: marcada como copia para el destinatario, o una carta que quien tiene el archivo recibió de otro"
+      }
     },
     {
       "id": "acuse-de-recibo",
-      "description": "Constancia del correo de que la carta llegó a su destinatario.",
+      "description": "Constancia del correo de que la carta llegó a su destinatario: la parte del aviso de recibo con el recuadro de recepción completado (fecha, hora, firma o aclaración de quien recibió), sin el texto de la carta.",
       "stages": [],
       "variants": [
         {
@@ -436,7 +443,13 @@
           ]
         }
       ],
-      "rules": []
+      "rules": [],
+      "stageDescriptions": {
+        "borrador": "texto en preparación, en un procesador de texto o marcado como borrador, antes de mandarlo a firmar",
+        "sin-firmar": "listo para firmar o ya enviado a firmar, sin la firma de ninguna parte; el sello que un servicio de firma pone en cada copia no es la firma de una parte",
+        "firmado-por-una-parte": "firmado por alguna de las partes pero no por todas, según el historial del servicio de firma o las firmas visibles",
+        "firmado": "firmado por todas las partes"
+      }
     },
     {
       "id": "acuerdo",
@@ -475,7 +488,13 @@
           "many": true
         }
       ],
-      "rules": []
+      "rules": [],
+      "stageDescriptions": {
+        "borrador": "texto en preparación, en un procesador de texto o marcado como borrador, antes de mandarlo a firmar",
+        "sin-firmar": "listo para firmar o ya enviado a firmar, sin la firma de ninguna parte; el sello que un servicio de firma pone en cada copia no es la firma de una parte",
+        "firmado-por-una-parte": "firmado por alguna de las partes pero no por todas, según el historial del servicio de firma o las firmas visibles",
+        "firmado": "firmado por todas las partes"
+      }
     },
     {
       "id": "boleta",

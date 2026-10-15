@@ -451,6 +451,14 @@ fn types_in_real_folders() {
         }
         if proposed_wrong {
             wrong += 1;
+            lines.push(format!(
+                "   WRONG expected {want} ({}{}), found {}: {} ~ {}",
+                pair.relation,
+                if pair.measurable { "" } else { ", inferred" },
+                found.clone().unwrap_or_default(),
+                pair.a,
+                pair.b
+            ));
         }
         if let Some((measured, now)) = changed.get(&k) {
             let before_ok = match (want, measured.as_deref()) {

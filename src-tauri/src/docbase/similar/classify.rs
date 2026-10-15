@@ -34,7 +34,7 @@ use crate::source_volume::asking::{AskConfig, DocumentAsker};
 
 /// Versions of the questions. Changing a prompt changes its version, and
 /// every question is asked again.
-pub const TYPE_PROMPT: &str = "tipo-1";
+pub const TYPE_PROMPT: &str = "tipo-2";
 pub const DATA_PROMPT: &str = "datos-1";
 /// A document with fewer words than this says too little to be typed.
 pub const MIN_TYPE_WORDS: i64 = 10;
@@ -410,7 +410,18 @@ fn type_list(catalog: &Catalog) -> String {
     catalog
         .document_types()
         .map(|t| {
-            let stages = if t.stages.is_empty() { "no tiene".to_string() } else { t.stages.join(", ") };
+            let stages = if t.stages.is_empty() {
+                "no tiene".to_string()
+            } else {
+                t.stages
+                    .iter()
+                    .map(|s| match t.stage_descriptions.get(s) {
+                        Some(d) => format!("{s} ({})", d.trim()),
+                        None => s.clone(),
+                    })
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            };
             format!("- {}: {} Etapas: {stages}.", t.id, t.description.trim())
         })
         .collect::<Vec<_>>()
@@ -470,8 +481,8 @@ fn type_prompt(catalog: &Catalog, name: &str, body: &str, marks: &[Mark], member
     if !members.is_empty() {
         prompt.push_str(
             "\nEste documento es el principal de un grupo de documentos que comparten su texto de base; \
-             el tipo que elijas vale para todos. En \"otros\" indicá la etapa de cada uno de los demás \
-             (null si es la misma que la del principal o no se puede saber):\n",
+             el tipo que elijas vale para todos. En \"otros\" indicá la etapa de cada uno de los demás, \
+             leyendo en qué se diferencia del principal (null solo si no se puede saber):\n",
         );
         for (index, member) in members.iter().enumerate() {
             prompt.push_str(&format!(
@@ -583,10 +594,8 @@ fn rows_from_answer(
         let stage = own_stage(catalog, &docs[member].marks, &id)
             .or_else(|| valid_stage(answered))
             .or_else(|| {
-                // Not said: the principal's, for a member in the same stage.
-                (relation.as_deref().is_some_and(|r| SAME_STAGE.contains(&r)) || said.contains_key(&(index as i64 + 2)) || !asked_about)
-                    .then(|| principal_stage.clone())
-                    .flatten()
+                // Not said: the principal's, only for a member in the same stage.
+                relation.as_deref().is_some_and(|r| SAME_STAGE.contains(&r)).then(|| principal_stage.clone()).flatten()
             });
         rows.push(row(*member, stage, "family"));
     }

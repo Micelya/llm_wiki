@@ -1865,3 +1865,146 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** `src/components/docbase/similar-documents.tsx`, `similar.ts`, `document-detail.tsx`.
 - **Quién decidió:** agente sin consulta.
 - **Fuente:** construcción de S2 (pantallas de parecidos), 14 oct.
+
+### D-132 · Un servicio de firma o un formulario no es el tipo de un documento
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos (catálogo de tipos)
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el catálogo de S1 tenía como tipos "PDF emitido por un servicio de firma electrónica" y "Formulario PDF completable". Pero la hoja de respuestas, con razón, dice que esos documentos son un acuerdo, un recibo o una ficha de cliente: el servicio de firma o el formulario dicen cómo se emitió el documento, no qué es.
+- **Qué se decidió:** esas dos entradas quedan marcadas en el catálogo como `carrier` ("portador"). Sus marcas nunca dan el tipo (el tipo lo pregunta el modelo) y sus datos y reglas valen para el documento que las lleve (por ejemplo, el identificador del proceso de firma). El modelo no las ve en la lista de tipos.
+- **Por qué:** sin esto, todo acuerdo firmado por un servicio quedaba con un "tipo" que no le sirve a nadie, y los acuerdos con y sin servicio de firma quedaban separados.
+- **Alternativas descartadas:** borrar esas entradas (se pierden sus señales, que S1 usa); dejarlas como tipos.
+- **Dónde se aplica:** `src-tauri/resources/catalog/document-types.json` (`carrier`), `similar/types.rs`, `similar/classify.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S3 (tipos con el modelo), 14 oct.
+
+### D-133 · Los tipos que se agregaron al catálogo
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos (catálogo de tipos)
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el modelo elige de una lista cerrada (R-22), y la lista de S1 solo tenía cartas documento, acuses y constancias de firma.
+- **Qué se decidió:** se agregaron los tipos que la propuesta (sección 5 bis) nombra para empezar: factura, recibo, acuerdo (contratos, convenios, acuerdos y memorandos), boleta de pago y ficha de cliente, cada uno con una descripción general, sus etapas (acuerdo y recibo: borrador, sin firmar, firmado por una parte, firmado por todas) y sus datos. Las descripciones no nombran ningún caso (R-24).
+- **Por qué:** son los tipos que la propuesta ya preveía; sin ellos el modelo tenía que inventar nombres para la mitad de los documentos.
+- **Alternativas descartadas:** dejar que el modelo proponga esos tipos como nuevos y que una persona los confirme (sería pedir a la persona lo que la propuesta ya definió).
+- **Dónde se aplica:** `src-tauri/resources/catalog/document-types.json`; sus nombres visibles en `src/vocabulary/legal.ts`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S3, 14 oct.
+
+### D-134 · Qué pregunta se le hace al modelo por cada familia
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos (uso del modelo)
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** R-21 pide una pregunta por familia, sobre su documento principal. Pero en una familia los miembros pueden estar en otra etapa que el principal (el ejemplar sin firmar y el firmado, la vista previa y la carta enviada).
+- **Qué se decidió:** la pregunta lleva el texto del principal (un extracto: las primeras 1.200 palabras y las últimas 300, porque la página de historial de firmas suele estar al final), el nombre del archivo como pista (R-04), lo que ya se verificó con marcas, la lista cerrada de tipos con sus etapas y, para cada miembro (hasta 30), su nombre, la frase del motor que dice en qué se parece al principal y sus marcas. El modelo responde el tipo (vale para todos), la etapa del principal y, en "otros", la etapa de cada miembro. Si las marcas propias de un documento dicen la etapa, mandan las marcas sobre el modelo. Un miembro sin etapa dicha toma la del principal.
+- **Por qué:** sigue siendo una sola pregunta por familia, y la etapa de cada miembro se decide con lo que el modelo puede ver.
+- **Alternativas descartadas:** una pregunta más por cada miembro de otra etapa; dejar sin etapa a los miembros.
+- **Dónde se aplica:** `src-tauri/src/docbase/similar/classify.rs` (`type_prompt`, `rows_from_answer`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S3, 14 oct.
+
+### D-135 · Cuándo las marcas alcanzan y no se pregunta
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos (uso del modelo)
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la pasada 4 no tiene que preguntar si las marcas verificables ya dicen el tipo y la etapa.
+- **Qué se decidió:** alcanzan cuando las marcas del principal son de un solo tipo que no es un portador y dan una sola etapa (o el tipo no tiene etapas), y cada miembro de la familia o tiene marcas propias con su etapa o está en la misma etapa por su relación (prácticamente el mismo, misma plantilla, versión). Marcas de dos tipos o de dos etapas se contradicen: pregunta el modelo.
+- **Por qué:** una marca verificada vale más que el modelo, pero una marca que se contradice no decide nada. Ejemplo general: el formulario de un correo trae impreso el recuadro del acuse aunque esté vacío, así que una carta tiene marcas de carta y de acuse.
+- **Alternativas descartadas:** preguntar siempre; decidir por la primera marca.
+- **Dónde se aplica:** `similar/classify.rs` (`type_by_marks`, `rows_by_marks`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S3, 14 oct.
+
+### D-136 · La misma pregunta no se repite: cómo se reconoce
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos (uso del modelo)
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** R-20 pide que la misma pregunta no se haga dos veces, y que la respuesta se guarde con lo preguntado y la versión del modelo.
+- **Qué se decidió:** cada respuesta se guarda en `model_answer` con la huella (SHA-256) de la versión de la pregunta y su texto entero, el texto de la pregunta, el motor y el modelo que respondió, y la fecha. Como el texto de la pregunta incluye el extracto del documento y la lista de tipos, cambiar el texto, la familia o el catálogo es otra pregunta; recalcular todo, borrar los tipos o volver a abrir la app no lo es. Las respuestas no se borran cuando se va un documento: si el mismo texto vuelve, no cuesta nada. Solo se guarda una respuesta que es JSON.
+- **Por qué:** la huella del texto completo de la pregunta es exactamente "la misma pregunta"; no hace falta decidir a mano qué partes cuentan.
+- **Alternativas descartadas:** guardar por documento (se perdería al cambiar el documento y se repetiría por cada copia).
+- **Dónde se aplica:** `similar/classify.rs` (`question_key`, `ask`), esquema 7.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S3, 14 oct.
+
+### D-137 · Respuesta del modelo en JSON estricto, con el camino de Codex que ya existía
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos (uso del modelo)
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** hacía falta preguntarle al modelo desde Rust, con el proveedor intercambiable, y que la respuesta tuviera siempre la misma forma.
+- **Qué se decidió:** un contrato nuevo, `DocumentAsker` (en `source_volume/asking.rs`, al lado del de reconocimiento de texto), con una implementación de Codex CLI que reutiliza la misma ejecución de `codex exec` (carpeta vacía, solo lectura, sin aprobaciones) y le pasa la forma de la respuesta con `--output-schema`. La pantalla elige el motor con el modelo configurado; hoy solo responde Codex CLI. La respuesta tiene tipo, etapa, si el tipo es nuevo, su nombre y descripción, confianza (0 a 1), una razón breve y la etapa de los otros miembros. Un tipo nuevo se guarda como propuesto con el nombre que dio el modelo; uno de la lista dicho como nuevo es el de la lista; una etapa que el tipo no tiene no se guarda.
+- **Por qué:** lo pide la especificación y evita respuestas que no se pueden leer.
+- **Alternativas descartadas:** pedir JSON solo en el texto de la pregunta; llamar a otros proveedores desde Rust (queda para cuando haga falta).
+- **Dónde se aplica:** `src-tauri/src/source_volume/asking.rs`, `recognition_codex.rs`, `src/lib/document-asking.ts`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S3, 14 oct.
+
+### D-138 · Cuándo se le pregunta al modelo
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos (uso del modelo)
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** las preguntas consumen el cupo del proveedor y no pueden correr a espaldas del usuario.
+- **Qué se decidió:** dos caminos. (1) En Orígenes, un panel "Tipos de documento" con cuántos documentos tienen tipo, cuántas preguntas faltan y el botón "Reconocer tipos", que antes avisa cuántas preguntas va a hacer y que consumen cupo; una vuelta hace como mucho 60 (R-16) y el resto queda para otra. (2) Mientras el wiki del archivo está activo, un hilo aparte hace una pregunta cada 30 segundos con el modelo configurado; si falla (por ejemplo, por límite de uso) espera 10 minutos. Pausar el wiki lo detiene. El aviso de "Activar" del wiki lo dice. Lo que no cuesta nada (marcas, respuestas ya guardadas, reglas de datos, relaciones por tipo) corre solo con el resto de las pasadas.
+- **Por qué:** es el mismo criterio que el wiki del archivo: un acto explícito, o el wiki encendido.
+- **Alternativas descartadas:** preguntar siempre en segundo plano; preguntar todo de una vez sin límite.
+- **Dónde se aplica:** `src/components/docbase/document-types-view.tsx`, `general-project-panel.tsx`, `src-tauri/src/docbase/worker.rs` (`spawn_asking`), `commands.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S3, 14 oct.
+
+### D-139 · Cómo se buscan los datos de cada tipo
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos (pasada 5)
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** los datos que interesan de cada tipo tienen que estar en el catálogo como datos, con un patrón general, y el modelo solo debe usarse donde las reglas no encuentran lo que buscan.
+- **Qué se decidió:** cada dato del catálogo dice qué clase de valor es (identificador, importe, fecha, número o el resto de la línea) y cómo se encuentra: pocas palabras después de una frase, por la forma de un identificador o por el valor de una marca ya verificada. Una lista después de una frase se lee entera ("facturas A, B y C"); un total es el mayor importe junto a la palabra. Solo los datos marcados como `required` que no aparecen se le preguntan al modelo, en una pregunta por documento con la misma caché.
+- **Por qué:** agregar un dato o un tipo es una entrada del catálogo (R-25, R-26), y el modelo se usa poco y donde agrega.
+- **Alternativas descartadas:** expresiones regulares en el catálogo (difíciles de leer y corregir para una persona); preguntarle todos los datos al modelo.
+- **Dónde se aplica:** `similar/data.rs`, `document-types.json` (`data`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S3, 14 oct.
+
+### D-140 · Cómo corrigen las relaciones las reglas del tipo
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos (pasada 6)
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** con el tipo, la etapa y los datos, algunas relaciones medidas cambian; pero lo que la regla general ya resolvía no se toca.
+- **Qué se decidió:** tres clases de regla, escritas en el catálogo. "Datos distintos": dos documentos del tipo con un dato distinto (número de factura, número de envío, proceso de firma) son documentos distintos; la relación medida baja a la de la regla y nunca sube (orden: mismo documento, prácticamente el mismo, ejemplar firmado, versión, vista previa, contenido en, misma plantilla, parecidos). Para facturas y constancias baja a "misma plantilla"; para cartas documento, a "parecidos", porque el catálogo dice que el formulario del correo no cuenta como parecido. "Par de etapas": una vista previa y el borrador, la carta enviada o la recibida con las mismas facturas pasan a "vista previa", solo si estaban medidas como prácticamente el mismo, versión, contenido en (la vista previa contiene el texto de la carta y le suma el formulario) o misma plantilla. "Dato compartido": un acuse de recibo y la carta con su número de envío, o una constancia de firma y el documento de su mismo proceso de firma, se proponen aunque sus textos no se parezcan; solo reemplazan "parecidos" o "misma plantilla". Lo medido se guarda y vuelve si la regla deja de valer; las propuestas que dependen del tipo dicho por el modelo quedan con certeza baja; una decisión de una persona nunca se toca.
+- **Por qué:** son las reglas que da el catálogo, y siempre empujan hacia el lado seguro (R-07) o agregan una relación que el texto no podía ver.
+- **Alternativas descartadas:** que la pasada 6 decida sobre todos los pares.
+- **Dónde se aplica:** `similar/by_type.rs`, `document-types.json` (`rules`), columnas nuevas de `similar_pair`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S3, 14 oct.
+
+### D-141 · El texto de las imágenes en la prueba real
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos (medición)
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** en la prueba de S1, 14 documentos de la carpeta de prueba no tenían texto (son imagen) y las cartas documento casi todas eran de esos. Sin su texto no se puede medir su tipo.
+- **Qué se decidió:** la herramienta de prueba copia (nunca mueve ni modifica) el texto ya reconocido que había en las carpetas `raw/recognized` del proyecto del wiki y del wiki descartado, y reconoce con Codex lo que faltaba (2 páginas). Ese texto queda en una carpeta temporal, fuera del repo y de la carpeta de prueba.
+- **Por qué:** mide lo que la app va a ver cuando el wiki ya leyó esas imágenes, sin volver a gastar cupo en lo ya leído.
+- **Alternativas descartadas:** medir sin las imágenes; reconocerlas todas de nuevo.
+- **Dónde se aplica:** `similar/check_types.rs` (solo pruebas).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S3, 14 oct.
+
+### D-142 · Las etapas se describen en el catálogo, y eso va en la pregunta
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos (catálogo de tipos, uso del modelo)
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** en la primera prueba real el modelo acertó el tipo de casi todos los documentos, pero solo 7 de 18 etapas. La pregunta llevaba los nombres de las etapas sin decir cómo se reconoce cada una: el modelo tomaba el recuadro impreso del aviso de recibo como prueba de entrega, y los miembros de una familia que no se nombraban heredaban la etapa del principal (el ejemplar sin firmar quedaba "firmado").
+- **Qué se decidió:** cada tipo del catálogo puede describir sus etapas (`stageDescriptions`), y la pregunta las incluye. La carta documento y el acuse aclaran que el recuadro del aviso de recibo vacío no prueba nada. La pregunta pide la etapa de cada miembro de la familia, y un miembro sin etapa dicha solo hereda la del principal si su relación es de la misma etapa (prácticamente el mismo, misma plantilla, versión). La versión de la pregunta pasó a `tipo-2`.
+- **Por qué:** es conocimiento general del catálogo (R-26), no una regla para un caso; y un miembro sin etapa es mejor que uno con una etapa equivocada.
+- **Alternativas descartadas:** reglas por marcas para decidir "sin firmar" (un servicio de firma no siempre deja una marca de firma de parte, D-140).
+- **Dónde se aplica:** `document-types.json`, `similar/classify.rs`, `similar/types.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** prueba real de S3 contra la hoja de respuestas, 14 oct.

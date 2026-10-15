@@ -31,12 +31,29 @@ use super::data::comparable;
 use super::text;
 use super::types::{self, Catalog, RelationRule};
 
-/// Relations after which the general rule makes two files one document,
-/// or one the preview of the other: what `different-data` takes down.
-const ONE_DOCUMENT: &[&str] = &["near-identical", "version", "signed-copy", "preview", "same-document"];
+/// How close two documents are after each measured relation, closest
+/// first. `different-data` only takes a relation down to its own, never
+/// up: one document, then a stage of the other, then one inside the
+/// other, then the same template, then only similar.
+const CLOSENESS: &[&str] = &[
+    "same-document",
+    "near-identical",
+    "signed-copy",
+    "version",
+    "preview",
+    "contained-in",
+    "same-template",
+    "similar",
+];
+
+fn closeness(relation: &str) -> usize {
+    CLOSENESS.iter().position(|r| *r == relation).unwrap_or(CLOSENESS.len())
+}
+
 /// Relations a `stage-pair` rule turns into its own: the two share their
-/// base text and the general rule found no stage in them.
-const STAGE_PAIR_FROM: &[&str] = &["near-identical", "version", "same-template"];
+/// base text (or one holds the other, as a preview holds the letter) and
+/// the general rule found no stage in them.
+const STAGE_PAIR_FROM: &[&str] = &["near-identical", "version", "contained-in", "same-template"];
 /// Measured relations a `shared-data` rule replaces: they only say the
 /// texts look alike.
 const SHARED_DATA_OVER: &[&str] = &["similar", "same-template"];
@@ -119,9 +136,9 @@ fn verdict(catalog: &Catalog, a: (i64, &Known), b: (i64, &Known), measured: Opti
     let shared: Vec<&String> = a.1.kinds.intersection(&b.1.kinds).collect();
 
     // Different data: different documents.
-    if let Some(measured) = measured.filter(|m| ONE_DOCUMENT.contains(m)) {
+    if let Some(measured) = measured {
         for doc_type in &shared {
-            for rule in rules_of(catalog, doc_type, "different-data") {
+            for rule in rules_of(catalog, doc_type, "different-data").filter(|r| closeness(measured) < closeness(&r.relation)) {
                 for field in &rule.data {
                     let (Some((va, wa)), Some((vb, wb))) = (a.1.data.get(field), b.1.data.get(field)) else { continue };
                     if va.is_empty() || vb.is_empty() || va == vb {
@@ -488,9 +505,14 @@ mod tests {
         let a = known("carta-documento", Some("enviada"), &[("facturas", "0003-00001111")]);
         let b = known("carta-documento", Some("enviada"), &[("facturas", "0003-00002222")]);
         let v = verdict(&catalog, (1, &a), (2, &b), Some("near-identical")).unwrap();
-        assert_eq!(v.relation, "same-template");
-        // What the general rule already says is not touched.
-        assert_eq!(verdict(&catalog, (1, &a), (2, &b), Some("same-template")), None);
+        assert_eq!(v.relation, "similar");
+        // The postal form is not a likeness: a shared template goes down too.
+        assert_eq!(verdict(&catalog, (1, &a), (2, &b), Some("same-template")).unwrap().relation, "similar");
+        // A relation never goes up, and one already as far is not touched.
+        assert_eq!(verdict(&catalog, (1, &a), (2, &b), Some("similar")), None);
+        let invoice_a = known("factura", None, &[("numero", "0003-00001111")]);
+        let invoice_b = known("factura", None, &[("numero", "0003-00002222")]);
+        assert_eq!(verdict(&catalog, (1, &invoice_a), (2, &invoice_b), Some("same-template")), None);
         // Same invoices: nothing to correct.
         let c = known("carta-documento", Some("enviada"), &[("facturas", "0003-00001111")]);
         assert_eq!(verdict(&catalog, (1, &a), (2, &c), Some("near-identical")), None);
