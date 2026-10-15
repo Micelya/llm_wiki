@@ -22,12 +22,12 @@ import { parseConvention, plural } from "./format"
 import { Panel } from "./page"
 import { useDocbaseQuery } from "./use-docbase-query"
 
-/** "Cliente: BGH", or just the name for a label that stands alone. */
+/** "Cliente: BOREAL", or just the name for a label that stands alone. */
 export function labelText(label: Label): string {
   return label.group ? `${label.group}: ${label.name}` : label.name
 }
 
-/** What the user typed as a group and a name: "Cliente: BGH" or "urgente". */
+/** What the user typed as a group and a name: "Cliente: BOREAL" or "urgente". */
 export function parseLabelText(text: string): { group: string | null; name: string } {
   const at = text.indexOf(":")
   if (at <= 0) return { group: null, name: text.trim() }
@@ -50,8 +50,8 @@ export function LabelChip({ label, onRemove }: { label: Label; onRemove?: () => 
 }
 
 /**
- * Finds a label by typing, or creates it: "Cliente: BGH" makes the label
- * BGH in the group Cliente; a name without a colon stands alone.
+ * Finds a label by typing, or creates it: "Cliente: BOREAL" makes the label
+ * BOREAL in the group Cliente; a name without a colon stands alone.
  */
 export function LabelPicker({
   exclude = [],

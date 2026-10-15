@@ -274,8 +274,8 @@ mod tests {
     use crate::docbase::testing::TempDir;
     use crate::docbase::Visible;
 
-    const CONTRACT: &str = "Entre Aeros Sociedad Anónima, con domicilio en la calle Florida 123 de la Ciudad de Buenos Aires, \
-        en adelante el proveedor, y BGH Sociedad Anónima, en adelante el cliente, se celebra el presente contrato de \
+    const CONTRACT: &str = "Entre Andina Sociedad Anónima, con domicilio en la calle Florida 123 de la Ciudad de Buenos Aires, \
+        en adelante el proveedor, y BOREAL Sociedad Anónima, en adelante el cliente, se celebra el presente contrato de \
         prestación de servicios de mantenimiento, sujeto a las cláusulas y condiciones que se detallan a continuación.";
 
     fn count(base: &DocBase, sql: &str) -> i64 {
@@ -363,7 +363,7 @@ mod tests {
     fn recognised_text_reaches_every_copy_of_the_file() {
         let dir = TempDir::new();
         dir.write("o/escaneo/doc0042.jpg", b"\xff\xd8 la misma foto");
-        dir.write("o/socio/Carta BGH.jpg", b"\xff\xd8 la misma foto");
+        dir.write("o/socio/Carta BOREAL.jpg", b"\xff\xd8 la misma foto");
         let base = DocBase::in_memory().unwrap();
         let origin = base.add_origin("O", &dir.path().join("o"), &[]).unwrap();
         settle(&base, &origin.id);
@@ -376,7 +376,7 @@ mod tests {
         assert!(base.store_recognized_text(&hash, CONTRACT, "codex-cli").unwrap());
         assert_eq!(base.text_of_file(&hash).unwrap().as_deref(), Some(CONTRACT));
         assert_eq!(state_of(&base, "doc0042.jpg"), "processed");
-        assert_eq!(state_of(&base, "Carta BGH.jpg"), "processed");
+        assert_eq!(state_of(&base, "Carta BOREAL.jpg"), "processed");
         assert!(!base.store_recognized_text("no-such-hash", CONTRACT, "codex-cli").unwrap());
     }
 
@@ -448,7 +448,7 @@ mod tests {
                     expuesta politicamente, y firme al pie de cada hoja.";
         let dir = TempDir::new();
         dir.write("o/ficha uno.pdf", &filled_form(form, "Ana Gomez"));
-        dir.write("o/ficha dos.pdf", &filled_form(form, "Bruno Diaz"));
+        dir.write("o/ficha dos.pdf", &filled_form(form, "Bruno Vidal"));
         let base = DocBase::in_memory().unwrap();
         let origin = base.add_origin("O", &dir.path().join("o"), &[]).unwrap();
         settle(&base, &origin.id);
@@ -477,7 +477,7 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(fields, r#"[{"name":"Nombre","value":"Bruno Diaz"}]"#);
+        assert_eq!(fields, r#"[{"name":"Nombre","value":"Bruno Vidal"}]"#);
         assert_eq!(count(&base, "SELECT count(*) FROM derivative WHERE kind = 'fields'"), 2);
     }
 }

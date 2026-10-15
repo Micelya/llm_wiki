@@ -141,7 +141,38 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-113 | 14 oct | Proceso de trabajo | No se hacen inferencias sobre inferencias | vigente |
 | D-114 | 14 oct | Proceso de trabajo | Las reglas del procesamiento se documentan aparte y se revisan | vigente |
 | D-115 | 14 oct | Parecidos | El proceso tiene que decir qué falta | vigente |
+| D-116 | 14 oct | Parecidos | Texto de rutina: lo que aparece en la mitad de los documentos o más, y en al menos diez | en revisión |
+| D-117 | 14 oct | Parecidos | "Comparten" se mide palabra por palabra sobre el texto alineado; las secuencias de cinco palabras solo buscan candidatos | en revisión |
+| D-118 | 14 oct | Parecidos | Misma plantilla si se reemplaza un identificador o un importe, o si lo reemplazado es mayormente datos | en revisión |
+| D-119 | 14 oct | Parecidos | Firma de una parte: la que no es del servicio, o la que registra el historial del servicio | en revisión |
+| D-120 | 14 oct | Base documental | El catálogo de tipos y relaciones es un archivo de datos dentro de la app, reemplazable sin compilar | en revisión |
+| D-121 | 14 oct | Parecidos | El principal de una familia es el firmado por una parte; si no, el de más texto | en revisión |
+| D-122 | 14 oct | Parecidos | Alineación propia, sin sumar dependencias | en revisión |
+| D-123 | 14 oct | Parecidos | Solo se comparan documentos con todo su texto; los que esperan reconocimiento quedan afuera | en revisión |
+| D-124 | 14 oct | Proceso de trabajo | Las pruebas existentes dejan de usar nombres de la carpeta de prueba | en revisión |
+| D-125 | 14 oct | Parecidos | Los nombres de las relaciones salen del vocabulario, con la frase que dice su dirección; una relación sin nombre se muestra por su identificador | en revisión |
+| D-126 | 14 oct | Base documental | El vocabulario admite términos por país, que reemplazan solo lo que cambian y solo sobre su propio idioma | en revisión |
+| D-127 | 14 oct | Parecidos | Qué cuenta como "espera una decisión" y cómo lo muestra Inicio: una línea por familia (hasta cinco) y una para el resto | en revisión |
+| D-128 | 14 oct | Parecidos | Las relaciones que se pueden elegir: las del catálogo, medidas e inferidas, sin la automática ni "parecidos" | en revisión |
+| D-129 | 14 oct | Parecidos | Qué fuente del wiki sugiere la app al unir dos documentos como el mismo, y cómo se elige | en revisión |
+| D-130 | 14 oct | Parecidos | Ver las diferencias lado a lado queda para después, con el botón visible y deshabilitado | en revisión |
+| D-131 | 14 oct | Parecidos | Cómo se ve cada parecido en el detalle de un documento: tarjeta, medidas en palabras y unir en un clic cuando no hay nada que elegir | en revisión |
+| D-132 | 14 oct | Parecidos (catálogo de tipos) | Un servicio de firma o un formulario no es el tipo de un documento | en revisión |
+| D-133 | 14 oct | Parecidos (catálogo de tipos) | Los tipos que se agregaron al catálogo | en revisión |
+| D-134 | 14 oct | Parecidos (uso del modelo) | Qué pregunta se le hace al modelo por cada familia | en revisión |
+| D-135 | 14 oct | Parecidos (uso del modelo) | Cuándo las marcas alcanzan y no se pregunta | en revisión |
+| D-136 | 14 oct | Parecidos (uso del modelo) | La misma pregunta no se repite: cómo se reconoce | en revisión |
+| D-137 | 14 oct | Parecidos (uso del modelo) | Respuesta del modelo en JSON estricto, con el camino de Codex que ya existía | en revisión |
+| D-138 | 14 oct | Parecidos (uso del modelo) | Cuándo se le pregunta al modelo | en revisión |
+| D-139 | 14 oct | Parecidos (pasada 5) | Cómo se buscan los datos de cada tipo | en revisión |
+| D-140 | 14 oct | Parecidos (pasada 6) | Cómo corrigen las relaciones las reglas del tipo | en revisión |
+| D-141 | 14 oct | Parecidos (medición) | El texto de las imágenes en la prueba real | en revisión |
+| D-142 | 14 oct | Parecidos (catálogo de tipos, uso del modelo) | Las etapas se describen en el catálogo, y eso va en la pregunta | en revisión |
+| D-143 | 14 oct | Parecidos | Al unir dos documentos como el mismo, el no elegido deja de ser fuente del wiki en todas sus ubicaciones; lo ya incorporado queda | en revisión |
+| D-144 | 14 oct | Parecidos | Después de unir o deshacer, la cola sigue la decisión: sale lo que espera y ya no alimenta el wiki, y entra la fuente que nunca se incorporó | en revisión |
+| D-145 | 14 oct | Parecidos | El aviso "no alimenta el wiki" va en la sección "En el wiki" del detalle, y vale cualquier par unido en que se eligió al otro | en revisión; reemplazada en parte por D-148 |
 | D-147 | 14 oct | Base documental | El preprocesado recibe la ruta completa de la fuente, la misma que lee el ingest | en revisión |
+| D-148 | 14 oct | Parecidos | Una elección de fuente que dejaría sin ninguna fuente a documentos unidos como el mismo se rechaza, con un mensaje que dice cómo salir | en revisión |
 | D-149 | 15 oct | Distribución | La comprobación de los PR y los instaladores, solo en Windows por ahora | vigente |
 
 ---
@@ -1644,6 +1675,396 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Quién decidió:** El dueño del producto.
 - **Fuente:** Conversación del 14 oct.
 
+### D-116 · Qué cuenta como texto de rutina
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la pasada 0 de la propuesta dice que lo que aparece en "una fracción alta" de los documentos (membrete, datos del propio estudio, pie de firma) no cuenta para medir parecidos, pero no dice cuánto es "alta".
+- **Qué se decidió:** una secuencia de cinco palabras es texto de rutina cuando aparece en al menos la mitad de los documentos con texto y en al menos diez de ellos. Al llegar un documento se mide su vecindario con el texto de rutina de ese momento; los pares ya medidos no se vuelven a medir solo porque la rutina cambió.
+- **Por qué:** con un umbral bajo, las trece facturas de un proveedor harían de su propia plantilla "texto de rutina" y dejarían de parecerse. El mínimo de diez evita que en un archivo chico todo sea rutina. No volver a medir todo cuando cambia la rutina respeta R-15 (solo lo que cambió).
+- **Alternativas descartadas:** un 20 % (hacía rutina a la plantilla de las facturas); volver a medir todos los pares cuando cambia la rutina (contra R-15).
+- **Dónde se aplica:** `src-tauri/src/docbase/similar/store.rs` (`ROUTINE_SHARE`, `ROUTINE_MIN_DOCS`). En la carpeta de prueba (52 documentos con texto) ninguna secuencia quedó como rutina.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S1 (`desatendido/spec-S1-motor.md`), 14 oct; PR #42.
+
+### D-117 · Cómo se mide cuánto comparten dos documentos
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** las reglas de la sección 6 de la propuesta dicen "comparten 80 %" o "97 %", pero medido sobre secuencias de cinco palabras una sola palabra cambiada rompe cinco secuencias: dos facturas con solo cifras distintas, o un borrador con pocas correcciones, parecen mucho menos parecidos de lo que son.
+- **Qué se decidió:** las secuencias de cinco palabras (firma, casilleros, parecido y contención) sirven para encontrar candidatos y quedan como medidas de referencia. Las reglas usan el texto alineado palabra por palabra: "comparten" es qué parte de las palabras propias (sin el texto de rutina) del documento más corto aparece, en orden, en el otro. Los candidatos se buscan con un umbral bajo a propósito (64 bandas de 2 números: un par que comparte el 20 % de sus secuencias aparece como candidato 9 de cada 10 veces) para no perder un anexo dentro de un contrato; se miden a lo sumo 100 vecinos por documento, y un par con menos de 25 % de contención en secuencias no se alinea.
+- **Por qué:** es la lectura más fiel de "qué parte del texto tienen en común", y no confunde un dato cambiado con un texto distinto.
+- **Alternativas descartadas:** aplicar los umbrales de la propuesta sobre las secuencias de cinco palabras (las facturas quedaban debajo del 80 %).
+- **Dónde se aplica:** `src-tauri/src/docbase/similar/propose.rs`, `minhash.rs`, `store.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S1, 14 oct.
+
+### D-118 · Cuándo es "misma plantilla" y cuándo "versión"
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la propuesta separa "misma plantilla, otros datos" (documentos distintos) de "versión" (el mismo documento) según si lo que cambia es "sobre todo datos" o "sobre todo redacción". Medido sobre la carpeta de prueba, eso solo no alcanzaba: un recibo de la última cuota agrega una cláusula larga, y la redacción agregada tapaba que cambiaban el importe y las fechas; al revés, al completar el bloque de firma de un acuerdo se agregan nombres y fechas que no reemplazan nada.
+- **Qué se decidió:** se propone "misma plantilla" cuando, compartiendo mucho, (a) un identificador o un importe se reemplaza por otro ("dos contratos idénticos salvo el monto son dos contratos", sección 6), o (b) cambia un campo de formulario, o (c) hay una sustitución repetida, o (d) en lo reemplazado (tramos donde los dos documentos tienen algo) los datos son más de la mitad. Los bloques que tiene uno solo (una cláusula agregada, un bloque de firma completado) no cuentan como datos reemplazados. "Ejemplar firmado" exige además que el firmado contenga al otro casi entero: le puede faltar a lo sumo el 2 % de sus palabras.
+- **Por qué:** ante la duda entre "versión" (uniría las fuentes del wiki) y "misma plantilla" (deja los dos), conviene equivocarse hacia la segunda (R-07). Con estas reglas la carpeta de prueba no tiene ninguna propuesta equivocada.
+- **Alternativas descartadas:** la proporción de datos sobre todo lo que cambia (proponía "versión" para la cuota con la cláusula agregada); exigir el 95 % para el ejemplar firmado (un borrador con pocas correcciones pasaba por ejemplar firmado de la versión final).
+- **Dónde se aplica:** `src-tauri/src/docbase/similar/propose.rs`, `changes.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S1, 14 oct; evaluación en `desatendido/evaluacion-S1.txt` (fuera del repositorio).
+
+### D-119 · Cómo se reconoce la firma de una parte
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** los PDF que salen de un servicio de firma electrónica traen una firma incrustada aunque nadie haya firmado, porque el servicio sella cada copia (P-076). Hay que distinguir ese sello de la firma de una parte, que es lo único que habilita "ejemplar firmado" (D-107).
+- **Qué se decidió:** de cada firma incrustada se leen los nombres de sus certificados; si alguno nombra un servicio del catálogo (los nombres de certificado de cada servicio son datos del catálogo), es el sello del servicio. Es firma de una parte la firma incrustada que no es de un servicio, o la que registra el historial del servicio con frases del catálogo ("ha firmado electrónicamente el documento", "firmó con el nombre de", "DocuSigned by"…). La página de historial o de constancia que agrega el servicio no cuenta como contenido al comparar, y tampoco la línea con el identificador del sobre que el servicio repite en cada página.
+- **Por qué:** se verifica sin modelo y sin nombrar a nadie (R-24); un servicio nuevo es una entrada más del catálogo.
+- **Alternativas descartadas:** contar firmas (todas las copias de un servicio tienen una); validar criptográficamente la cadena de certificados (no hace falta para distinguir sello de parte, y sumaría dependencias).
+- **Dónde se aplica:** `src-tauri/src/docbase/similar/marks.rs`; `src-tauri/resources/catalog/document-types.json`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S1, 14 oct; lectura de las páginas de historial de la carpeta de prueba.
+
+### D-120 · El catálogo de tipos es un archivo de datos
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Base documental
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el catálogo de tipos (D-108) y la lista de relaciones (D-097) tienen que poder ampliarse sin cambiar el programa.
+- **Qué se decidió:** un archivo JSON legible, `src-tauri/resources/catalog/document-types.json`, con las relaciones (identificador neutro, si hacen de los dos un solo documento, si tienen dirección, si se miden) y, por tipo, sus etapas, sus variantes (quién emite el formulario o presta el servicio) y sus señales: frases, formas de identificadores (`AA999999999AR`), si es formulario, firmas incrustadas, páginas y líneas que no cuentan al comparar. Va dentro de la app; si en la carpeta de datos de la app hay un `docbase/document-types.json` con la misma forma, se usa ese al iniciar. Lo calculado con otro catálogo se vuelve a calcular solo.
+- **Por qué:** agregar un tipo, una variante o una relación es editar un archivo (R-25, R-26); el archivo de reemplazo permite probar sin compilar.
+- **Alternativas descartadas:** TOML (el resto de la base usa JSON); guardarlo en la base de datos (todavía no hay pantalla para editarlo).
+- **Dónde se aplica:** `src-tauri/src/docbase/similar/types.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S1, 14 oct.
+
+### D-121 · El documento principal de una familia
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** R-14 dice que una familia se arma contra un documento principal, "el más completo, o el ejemplar firmado", y que una familia que crece o se dispersa demasiado se marca.
+- **Qué se decidió:** el principal es el que tiene la firma verificable de una parte; entre iguales, el de más palabras; entre iguales, el más antiguo en la base. Entran a la familia solo los documentos con una relación de familia (prácticamente el mismo, ejemplar firmado, vista previa, versión, misma plantilla) con el principal; lo que quedó afuera forma su propia familia de la misma manera. Se marca "large" una familia de más de 30 documentos, y "dispersed" la que no pudo tomar todo lo que estaba encadenado a ella. Lo descartado por una persona no cuenta; lo unido, con la relación que eligió.
+- **Por qué:** es la lectura directa de R-14 y evita el encadenamiento.
+- **Alternativas descartadas:** el documento con más vínculos como principal (en una cadena A~B~C el del medio se lleva a los dos extremos, que no se parecen).
+- **Dónde se aplica:** `src-tauri/src/docbase/similar/store.rs` (`families`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S1, 14 oct.
+
+### D-122 · Alineación propia, sin dependencias nuevas
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** comparar dos textos palabra por palabra necesita un algoritmo de diferencias, y reconocer identificadores por su forma suele hacerse con expresiones regulares.
+- **Qué se decidió:** se escribió una alineación chica en la app: anclas en las palabras que aparecen una sola vez en cada texto (la secuencia más larga en el mismo orden) y, entre anclas, la tabla clásica de la subsecuencia común más larga; un tramo demasiado grande para la tabla se toma como cambiado entero. Las formas de los identificadores se describen con una notación propia y simple, sin un paquete de expresiones regulares.
+- **Por qué:** lo pedía la especificación; evita dependencias, y los textos legales tienen muchas palabras únicas, así que es rápido y fiel.
+- **Alternativas descartadas:** los paquetes `similar` o `diff`, y `regex`.
+- **Dónde se aplica:** `src-tauri/src/docbase/similar/align.rs`, `types.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S1, 14 oct.
+
+### D-123 · Solo se comparan documentos con todo su texto
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** un PDF con algunas páginas escaneadas tiene parte de su texto extraído y el resto esperando reconocimiento.
+- **Qué se decidió:** se comparan solo los documentos que tienen todo su texto (estado `processed`). Cuando llega el texto reconocido, el documento se firma y se compara solo. El texto que vino de un reconocimiento tiene 5 puntos más de tolerancia en cada umbral (nunca en "prácticamente el mismo") y certeza baja.
+- **Por qué:** comparar medio documento daría relaciones equivocadas; y la propuesta pide umbrales más tolerantes para lo reconocido.
+- **Alternativas descartadas:** comparar el texto parcial.
+- **Dónde se aplica:** `src-tauri/src/docbase/similar/store.rs`, `propose.rs`. En la carpeta de prueba quedaron afuera 14 documentos que esperan reconocimiento, entre ellos los de 4 pares de la hoja de respuestas.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S1, 14 oct.
+
+### D-124 · Las pruebas no usan nombres de la carpeta de prueba
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Proceso de trabajo
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la comprobación automática de R-24 encontró que las pruebas ya existentes de la base documental usaban nombres de la carpeta de prueba (dos empresas y un apellido) como datos de ejemplo.
+- **Qué se decidió:** se reemplazaron por nombres inventados, sin cambiar lo que prueban.
+- **Por qué:** R-24 vale también para las pruebas, y la comprobación tiene que pasar.
+- **Alternativas descartadas:** excluir las pruebas viejas de la comprobación.
+- **Dónde se aplica:** `src-tauri/src/docbase/*.rs`, `src/components/docbase/labels.tsx`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S1, 14 oct.
+
+### D-125 · Los nombres de las relaciones salen del vocabulario
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el motor identifica cada relación con un nombre técnico neutro (`signed-copy`, `version`…) y la propuesta pide que los nombres que lee la persona sean configurables por vertical y por país. Además, en las relaciones con dirección hay que decir cuál de los dos es qué: "el ejemplar firmado" es uno solo de los dos documentos.
+- **Qué se decidió:** cada vocabulario (por vertical y por idioma) tiene la lista `relations`: para cada relación, su nombre ("Ejemplar firmado") y, si tiene dirección, la frase que va entre los dos documentos ("es el ejemplar firmado de"). La pantalla arma "«Contrato firmado.pdf» es el ejemplar firmado de este documento". Una relación que el catálogo agregue y el vocabulario todavía no nombre se muestra por su identificador, sin romper nada. Una prueba exige que cada relación del catálogo tenga nombre en cada idioma, y frase si tiene dirección. Los nombres en español son los de la propuesta (sección 4); los de inglés son una traducción del agente.
+- **Por qué:** el catálogo crece sin tocar el programa (decisión del dueño del 13 de octubre) y los nombres no van escritos en las pantallas. La frase de dirección evita que la persona tenga que adivinar cuál es el firmado o la vista previa.
+- **Alternativas descartadas:** poner los nombres en el catálogo del motor (mezcla datos técnicos con palabras de cada profesión); una sola etiqueta sin dirección ("Ejemplar firmado" a secas).
+- **Dónde se aplica:** `src/vocabulary/index.ts`, `src/vocabulary/legal.ts`, `src/components/docbase/similar.ts`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S2 (pantallas de parecidos), 14 oct.
+
+### D-126 · El vocabulario admite términos por país
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Base documental
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la propuesta pide que los nombres de las relaciones puedan cambiar entre países, y el vocabulario solo distinguía vertical e idioma.
+- **Qué se decidió:** cada vertical puede tener `countries`, por etiqueta de idioma y país ("es-MX"), con solo los términos que cambian; se aplican encima del vocabulario de ese idioma. Una sección del país se mezcla clave por clave con la del idioma. Un país nunca se aplica sobre otro idioma: si la vertical no tiene ese idioma, se usa su idioma por defecto sin los términos del país. `setVertical` acepta el país; hoy nadie lo elige y ningún país tiene términos propios (P-079).
+- **Por qué:** deja preparada la variante sin cambiar lo que ya funcionaba: sin país, todo sigue igual.
+- **Alternativas descartadas:** un vocabulario completo por país (repite todo); esperar a que exista el ajuste para elegir el país.
+- **Dónde se aplica:** `src/vocabulary/index.ts`; pruebas en `src/vocabulary/vocabulary.test.ts` con una vertical inventada.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S2 (pantallas de parecidos), 14 oct.
+
+### D-127 · Qué espera una decisión y cómo lo muestra Inicio
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** Inicio tiene que avisar de los parecidos que esperan una decisión, "una línea por familia" según la propuesta. Pero puede haber decenas de familias, y hay pares que no forman familia (por ejemplo, "contenido en").
+- **Qué se decidió:** espera una decisión todo par propuesto con una relación sugerida; los "parecidos, sin relación clara" no se cuentan, igual que en el motor de S1 (`docbase_similar_pending`). Inicio muestra una línea por familia con algo pendiente, las más grandes primero y hasta cinco ("4 documentos parecidos a «X» esperan una decisión"), y una línea más con los pares restantes. Cada línea de familia lleva a Documentos filtrado por esa familia; la del resto, a Documentos con el filtro "con parecidos pendientes", que usa la misma definición. Las líneas van con el mismo color que las propuestas del wiki que esperan revisión.
+- **Por qué:** que la cuenta de Inicio y lo que muestra el filtro digan lo mismo, y que Inicio no se llene de líneas.
+- **Alternativas descartadas:** una línea por cada familia sin límite; una sola línea con el total; contar también los "parecidos" sin relación.
+- **Dónde se aplica:** `src/components/docbase/similar.ts` (`buildSimilarAttention`), `home-view.tsx`, `documents-view.tsx`, `src-tauri/src/docbase/query.rs` (filtros `similarPending` y `similarGroup`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S2 (pantallas de parecidos), 14 oct.
+
+### D-128 · Las relaciones que se pueden elegir
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el botón "elegir otra relación" necesita una lista. El catálogo trae quince relaciones, entre ellas "mismo documento" (que la base aplica sola) y "parecidos" (que significa que no se encontró relación).
+- **Qué se decidió:** la lista es la del catálogo, sin "mismo documento" ni "parecidos", en dos grupos: las que se miden comparando textos y las que se infieren. Las inferidas se ofrecen aunque el motor todavía no las proponga, porque una persona sí puede saberlas (por ejemplo, que una carta responde a otra). Un parecido sin relación sugerida no tiene botón "unir con esta relación": solo "elegir una relación" y "descartar".
+- **Por qué:** unir con "parecidos" no dice nada, y "mismo documento" ya lo resuelve la base sin preguntar.
+- **Alternativas descartadas:** ofrecer solo las medidas; ofrecer todas.
+- **Dónde se aplica:** `src/components/docbase/similar.ts` (`relationChoices`), `similar-documents.tsx`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S2 (pantallas de parecidos), 14 oct.
+
+### D-129 · La fuente del wiki que sugiere la app
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos
+- **Estado:** en revisión (agente sin consulta, P-066); reemplazada en parte por D-143 (el texto del recuadro: el wiki ya aplica la elección; el criterio de sugerencia sigue valiendo)
+- **El problema:** al unir dos documentos con una relación de "mismo documento" (prácticamente el mismo, ejemplar firmado, versión) la persona elige cuál queda como fuente del wiki, y la app sugiere uno. El motor sugiere en algunos casos y en otros no (por ejemplo, en "versión" no sugiere).
+- **Qué se decidió:** se sugiere la del motor cuando la hay; si no, el que tiene la firma de una parte, después el que tiene más palabras, y si empatan el contenido más viejo. Al unir aparece un recuadro con los dos documentos para elegir, con el sugerido marcado. Como el wiki todavía no usa esa elección (P-078), el recuadro lo dice: "La elección queda guardada; por ahora el wiki todavía no la aplica".
+- **Por qué:** sigue el mismo criterio que el principal de una familia (D-121) y no promete algo que todavía no pasa.
+- **Alternativas descartadas:** unir sin preguntar usando la sugerencia; no sugerir nada.
+- **Dónde se aplica:** `src/components/docbase/similar.ts` (`suggestedWikiSource`), `similar-documents.tsx`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S2 (pantallas de parecidos), 14 oct.
+
+### D-130 · Ver las diferencias lado a lado queda para después
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la propuesta pide ver los dos textos lado a lado con lo que cambia resaltado. El motor alinea los textos pero no guarda la alineación, así que hace falta un comando nuevo y una vista propia.
+- **Qué se decidió:** en esta etapa cada parecido muestra un botón "Ver diferencias" deshabilitado, con una nota que dice que todavía no está disponible. Queda como P-077.
+- **Por qué:** la etapa se concentró en decidir (unir, elegir, descartar, deshacer); el botón visible deja claro que la función viene.
+- **Alternativas descartadas:** construirla ahora; no mostrar nada.
+- **Dónde se aplica:** `src/components/docbase/similar-documents.tsx`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S2 (pantallas de parecidos), 14 oct.
+
+### D-131 · Cómo se ve cada parecido en el detalle de un documento
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la sección "Documentos parecidos" tenía que decir qué documento es, qué relación se propone, en qué consiste el parecido, cuánto comparten "en lenguaje simple" y qué se puede hacer.
+- **Qué se decidió:** una tarjeta por parecido, con el estilo de las ubicaciones: el otro documento con enlace a su detalle y su carpeta; la relación propuesta (o la elegida, si ya se unieron) y la frase de dirección; la descripción del motor; las medidas en palabras: "Comparten el 92 % del texto" (palabras en común sobre las de los dos), "El 97 % del más corto está, palabra por palabra, en el otro" solo cuando agrega algo (5 puntos o más sobre la anterior), las palabras de cada uno y un aviso si parte del texto se leyó de una imagen. Los porcentajes se cortan, no se redondean, para que nunca diga 100 % si no es igual. Arriba a la derecha, el estado (espera una decisión, unidos o descartado, con su fecha). Unir con una relación de documentos distintos es un solo clic; con una de "mismo documento" pide antes la fuente. Las decisiones se pueden deshacer; los descartados quedan al final, atenuados. "Familia" se usa como palabra de la interfaz, no del vocabulario de la profesión.
+- **Por qué:** mismo marco visual que el resto del detalle (la marca llega con P-057), y todo lo que la persona necesita para decidir sin abrir otra pantalla.
+- **Alternativas descartadas:** una tabla; mostrar las medidas técnicas (Jaccard, contención) tal cual.
+- **Dónde se aplica:** `src/components/docbase/similar-documents.tsx`, `similar.ts`, `document-detail.tsx`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S2 (pantallas de parecidos), 14 oct.
+
+### D-132 · Un servicio de firma o un formulario no es el tipo de un documento
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos (catálogo de tipos)
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el catálogo de S1 tenía como tipos "PDF emitido por un servicio de firma electrónica" y "Formulario PDF completable". Pero la hoja de respuestas, con razón, dice que esos documentos son un acuerdo, un recibo o una ficha de cliente: el servicio de firma o el formulario dicen cómo se emitió el documento, no qué es.
+- **Qué se decidió:** esas dos entradas quedan marcadas en el catálogo como `carrier` ("portador"). Sus marcas nunca dan el tipo (el tipo lo pregunta el modelo) y sus datos y reglas valen para el documento que las lleve (por ejemplo, el identificador del proceso de firma). El modelo no las ve en la lista de tipos.
+- **Por qué:** sin esto, todo acuerdo firmado por un servicio quedaba con un "tipo" que no le sirve a nadie, y los acuerdos con y sin servicio de firma quedaban separados.
+- **Alternativas descartadas:** borrar esas entradas (se pierden sus señales, que S1 usa); dejarlas como tipos.
+- **Dónde se aplica:** `src-tauri/resources/catalog/document-types.json` (`carrier`), `similar/types.rs`, `similar/classify.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S3 (tipos con el modelo), 14 oct.
+
+### D-133 · Los tipos que se agregaron al catálogo
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos (catálogo de tipos)
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el modelo elige de una lista cerrada (R-22), y la lista de S1 solo tenía cartas documento, acuses y constancias de firma.
+- **Qué se decidió:** se agregaron los tipos que la propuesta (sección 5 bis) nombra para empezar: factura, recibo, acuerdo (contratos, convenios, acuerdos y memorandos), boleta de pago y ficha de cliente, cada uno con una descripción general, sus etapas (acuerdo y recibo: borrador, sin firmar, firmado por una parte, firmado por todas) y sus datos. Las descripciones no nombran ningún caso (R-24).
+- **Por qué:** son los tipos que la propuesta ya preveía; sin ellos el modelo tenía que inventar nombres para la mitad de los documentos.
+- **Alternativas descartadas:** dejar que el modelo proponga esos tipos como nuevos y que una persona los confirme (sería pedir a la persona lo que la propuesta ya definió).
+- **Dónde se aplica:** `src-tauri/resources/catalog/document-types.json`; sus nombres visibles en `src/vocabulary/legal.ts`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S3, 14 oct.
+
+### D-134 · Qué pregunta se le hace al modelo por cada familia
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos (uso del modelo)
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** R-21 pide una pregunta por familia, sobre su documento principal. Pero en una familia los miembros pueden estar en otra etapa que el principal (el ejemplar sin firmar y el firmado, la vista previa y la carta enviada).
+- **Qué se decidió:** la pregunta lleva el texto del principal (un extracto: las primeras 1.200 palabras y las últimas 300, porque la página de historial de firmas suele estar al final), el nombre del archivo como pista (R-04), lo que ya se verificó con marcas, la lista cerrada de tipos con sus etapas y, para cada miembro (hasta 30), su nombre, la frase del motor que dice en qué se parece al principal y sus marcas. El modelo responde el tipo (vale para todos), la etapa del principal y, en "otros", la etapa de cada miembro. Si las marcas propias de un documento dicen la etapa, mandan las marcas sobre el modelo. Un miembro sin etapa dicha toma la del principal.
+- **Por qué:** sigue siendo una sola pregunta por familia, y la etapa de cada miembro se decide con lo que el modelo puede ver.
+- **Alternativas descartadas:** una pregunta más por cada miembro de otra etapa; dejar sin etapa a los miembros.
+- **Dónde se aplica:** `src-tauri/src/docbase/similar/classify.rs` (`type_prompt`, `rows_from_answer`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S3, 14 oct.
+
+### D-135 · Cuándo las marcas alcanzan y no se pregunta
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos (uso del modelo)
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la pasada 4 no tiene que preguntar si las marcas verificables ya dicen el tipo y la etapa.
+- **Qué se decidió:** alcanzan cuando las marcas del principal son de un solo tipo que no es un portador y dan una sola etapa (o el tipo no tiene etapas), y cada miembro de la familia o tiene marcas propias con su etapa o está en la misma etapa por su relación (prácticamente el mismo, misma plantilla, versión). Marcas de dos tipos o de dos etapas se contradicen: pregunta el modelo.
+- **Por qué:** una marca verificada vale más que el modelo, pero una marca que se contradice no decide nada. Ejemplo general: el formulario de un correo trae impreso el recuadro del acuse aunque esté vacío, así que una carta tiene marcas de carta y de acuse.
+- **Alternativas descartadas:** preguntar siempre; decidir por la primera marca.
+- **Dónde se aplica:** `similar/classify.rs` (`type_by_marks`, `rows_by_marks`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S3, 14 oct.
+
+### D-136 · La misma pregunta no se repite: cómo se reconoce
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos (uso del modelo)
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** R-20 pide que la misma pregunta no se haga dos veces, y que la respuesta se guarde con lo preguntado y la versión del modelo.
+- **Qué se decidió:** cada respuesta se guarda en `model_answer` con la huella (SHA-256) de la versión de la pregunta y su texto entero, el texto de la pregunta, el motor y el modelo que respondió, y la fecha. Como el texto de la pregunta incluye el extracto del documento y la lista de tipos, cambiar el texto, la familia o el catálogo es otra pregunta; recalcular todo, borrar los tipos o volver a abrir la app no lo es. Las respuestas no se borran cuando se va un documento: si el mismo texto vuelve, no cuesta nada. Solo se guarda una respuesta que es JSON.
+- **Por qué:** la huella del texto completo de la pregunta es exactamente "la misma pregunta"; no hace falta decidir a mano qué partes cuentan.
+- **Alternativas descartadas:** guardar por documento (se perdería al cambiar el documento y se repetiría por cada copia).
+- **Dónde se aplica:** `similar/classify.rs` (`question_key`, `ask`), esquema 7.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S3, 14 oct.
+
+### D-137 · Respuesta del modelo en JSON estricto, con el camino de Codex que ya existía
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos (uso del modelo)
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** hacía falta preguntarle al modelo desde Rust, con el proveedor intercambiable, y que la respuesta tuviera siempre la misma forma.
+- **Qué se decidió:** un contrato nuevo, `DocumentAsker` (en `source_volume/asking.rs`, al lado del de reconocimiento de texto), con una implementación de Codex CLI que reutiliza la misma ejecución de `codex exec` (carpeta vacía, solo lectura, sin aprobaciones) y le pasa la forma de la respuesta con `--output-schema`. La pantalla elige el motor con el modelo configurado; hoy solo responde Codex CLI. La respuesta tiene tipo, etapa, si el tipo es nuevo, su nombre y descripción, confianza (0 a 1), una razón breve y la etapa de los otros miembros. Un tipo nuevo se guarda como propuesto con el nombre que dio el modelo; uno de la lista dicho como nuevo es el de la lista; una etapa que el tipo no tiene no se guarda.
+- **Por qué:** lo pide la especificación y evita respuestas que no se pueden leer.
+- **Alternativas descartadas:** pedir JSON solo en el texto de la pregunta; llamar a otros proveedores desde Rust (queda para cuando haga falta).
+- **Dónde se aplica:** `src-tauri/src/source_volume/asking.rs`, `recognition_codex.rs`, `src/lib/document-asking.ts`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S3, 14 oct.
+
+### D-138 · Cuándo se le pregunta al modelo
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos (uso del modelo)
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** las preguntas consumen el cupo del proveedor y no pueden correr a espaldas del usuario.
+- **Qué se decidió:** dos caminos. (1) En Orígenes, un panel "Tipos de documento" con cuántos documentos tienen tipo, cuántas preguntas faltan y el botón "Reconocer tipos", que antes avisa cuántas preguntas va a hacer y que consumen cupo; una vuelta hace como mucho 60 (R-16) y el resto queda para otra. (2) Mientras el wiki del archivo está activo, un hilo aparte hace una pregunta cada 30 segundos con el modelo configurado; si falla (por ejemplo, por límite de uso) espera 10 minutos. Pausar el wiki lo detiene. El aviso de "Activar" del wiki lo dice. Lo que no cuesta nada (marcas, respuestas ya guardadas, reglas de datos, relaciones por tipo) corre solo con el resto de las pasadas.
+- **Por qué:** es el mismo criterio que el wiki del archivo: un acto explícito, o el wiki encendido.
+- **Alternativas descartadas:** preguntar siempre en segundo plano; preguntar todo de una vez sin límite.
+- **Dónde se aplica:** `src/components/docbase/document-types-view.tsx`, `general-project-panel.tsx`, `src-tauri/src/docbase/worker.rs` (`spawn_asking`), `commands.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S3, 14 oct.
+
+### D-139 · Cómo se buscan los datos de cada tipo
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos (pasada 5)
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** los datos que interesan de cada tipo tienen que estar en el catálogo como datos, con un patrón general, y el modelo solo debe usarse donde las reglas no encuentran lo que buscan.
+- **Qué se decidió:** cada dato del catálogo dice qué clase de valor es (identificador, importe, fecha, número o el resto de la línea) y cómo se encuentra: pocas palabras después de una frase, por la forma de un identificador o por el valor de una marca ya verificada. Una lista después de una frase se lee entera ("facturas A, B y C"); un total es el mayor importe junto a la palabra. Solo los datos marcados como `required` que no aparecen se le preguntan al modelo, en una pregunta por documento con la misma caché.
+- **Por qué:** agregar un dato o un tipo es una entrada del catálogo (R-25, R-26), y el modelo se usa poco y donde agrega.
+- **Alternativas descartadas:** expresiones regulares en el catálogo (difíciles de leer y corregir para una persona); preguntarle todos los datos al modelo.
+- **Dónde se aplica:** `similar/data.rs`, `document-types.json` (`data`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S3, 14 oct.
+
+### D-140 · Cómo corrigen las relaciones las reglas del tipo
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos (pasada 6)
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** con el tipo, la etapa y los datos, algunas relaciones medidas cambian; pero lo que la regla general ya resolvía no se toca.
+- **Qué se decidió:** tres clases de regla, escritas en el catálogo. "Datos distintos": dos documentos del tipo con un dato distinto (número de factura, número de envío, proceso de firma) son documentos distintos; la relación medida baja a la de la regla y nunca sube (orden: mismo documento, prácticamente el mismo, ejemplar firmado, versión, vista previa, contenido en, misma plantilla, parecidos). Para facturas y constancias baja a "misma plantilla"; para cartas documento, a "parecidos", porque el catálogo dice que el formulario del correo no cuenta como parecido. "Par de etapas": una vista previa y el borrador, la carta enviada o la recibida con las mismas facturas pasan a "vista previa", solo si estaban medidas como prácticamente el mismo, versión, contenido en (la vista previa contiene el texto de la carta y le suma el formulario) o misma plantilla. "Dato compartido": un acuse de recibo y la carta con su número de envío, o una constancia de firma y el documento de su mismo proceso de firma, se proponen aunque sus textos no se parezcan; solo reemplazan "parecidos" o "misma plantilla". Lo medido se guarda y vuelve si la regla deja de valer; las propuestas que dependen del tipo dicho por el modelo quedan con certeza baja; una decisión de una persona nunca se toca.
+- **Por qué:** son las reglas que da el catálogo, y siempre empujan hacia el lado seguro (R-07) o agregan una relación que el texto no podía ver.
+- **Alternativas descartadas:** que la pasada 6 decida sobre todos los pares.
+- **Dónde se aplica:** `similar/by_type.rs`, `document-types.json` (`rules`), columnas nuevas de `similar_pair`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S3, 14 oct.
+
+### D-141 · El texto de las imágenes en la prueba real
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos (medición)
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** en la prueba de S1, 14 documentos de la carpeta de prueba no tenían texto (son imagen) y las cartas documento casi todas eran de esos. Sin su texto no se puede medir su tipo.
+- **Qué se decidió:** la herramienta de prueba copia (nunca mueve ni modifica) el texto ya reconocido que había en las carpetas `raw/recognized` del proyecto del wiki y del wiki descartado, y reconoce con Codex lo que faltaba (2 páginas). Ese texto queda en una carpeta temporal, fuera del repo y de la carpeta de prueba.
+- **Por qué:** mide lo que la app va a ver cuando el wiki ya leyó esas imágenes, sin volver a gastar cupo en lo ya leído.
+- **Alternativas descartadas:** medir sin las imágenes; reconocerlas todas de nuevo.
+- **Dónde se aplica:** `similar/check_types.rs` (solo pruebas).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S3, 14 oct.
+
+### D-142 · Las etapas se describen en el catálogo, y eso va en la pregunta
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos (catálogo de tipos, uso del modelo)
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** en la primera prueba real el modelo acertó el tipo de casi todos los documentos, pero solo 7 de 18 etapas. La pregunta llevaba los nombres de las etapas sin decir cómo se reconoce cada una: el modelo tomaba el recuadro impreso del aviso de recibo como prueba de entrega, y los miembros de una familia que no se nombraban heredaban la etapa del principal (el ejemplar sin firmar quedaba "firmado").
+- **Qué se decidió:** cada tipo del catálogo puede describir sus etapas (`stageDescriptions`), y la pregunta las incluye. La carta documento y el acuse aclaran que el recuadro del aviso de recibo vacío no prueba nada. La pregunta pide la etapa de cada miembro de la familia, y un miembro sin etapa dicha solo hereda la del principal si su relación es de la misma etapa (prácticamente el mismo, misma plantilla, versión). La versión de la pregunta pasó a `tipo-2`.
+- **Por qué:** es conocimiento general del catálogo (R-26), no una regla para un caso; y un miembro sin etapa es mejor que uno con una etapa equivocada.
+- **Alternativas descartadas:** reglas por marcas para decidir "sin firmar" (un servicio de firma no siempre deja una marca de firma de parte, D-140).
+- **Dónde se aplica:** `document-types.json`, `similar/classify.rs`, `similar/types.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** prueba real de S3 contra la hoja de respuestas, 14 oct.
+
+### D-143 · El documento no elegido deja de alimentar el wiki
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** al unir dos parecidos con una relación de "mismo documento" (prácticamente el mismo, ejemplar firmado, versión) la persona elige cuál queda como fuente del wiki (D-129), pero el wiki seguía incorporando los dos.
+- **Qué se decidió:** el documento no elegido sale de las fuentes del wiki del proyecto general, en todas sus ubicaciones (sus copias son el mismo documento). Se aplica en el puente con el wiki con el mismo camino que las exclusiones: no aparece como pendiente, no se encola al activar el wiki ni desde Orígenes, y el vigilante del proyecto no lo incorpora aunque cambie, porque toda incorporación pasa por la misma pregunta a la base. Lo que ya se había incorporado de él no se borra ni se mueve (igual que al excluir, D-079): las páginas que salieron de él siguen en el wiki. Deshacer la unión, o elegir al otro, lo vuelve a ofrecer. Unir con una relación de documentos distintos (misma plantilla, contenido en, etc.) deja los dos. El texto del recuadro de D-129 cambió: ahora dice "Solo el elegido alimenta el wiki; lo que el otro ya aportó se queda".
+- **Por qué:** es lo que pide la propuesta (sección 3) y reutiliza un camino ya probado, así que ninguna entrada al wiki queda sin cubrir.
+- **Alternativas descartadas:** borrar o unir las páginas del wiki que salieron del no elegido (la propuesta dice que podrían unirse: queda para más adelante); filtrar solo en la pantalla del proyecto general.
+- **Dónde se aplica:** `src-tauri/src/docbase/mod.rs` (`passed_over_sql`), `bridge.rs` (`wiki_sources`, `excluded_sources`), `src/components/docbase/similar-documents.tsx`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S4 (el wiki usa la fuente elegida, P-078), 14 oct.
+
+### D-144 · La cola del wiki sigue cada decisión sobre parecidos
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** una unión puede llegar con el documento no elegido ya esperando en la cola, y con la fuente elegida sin incorporar. Al deshacer, el que había quedado afuera vuelve a ser fuente.
+- **Qué se decidió:** después de cada decisión (unir, descartar o deshacer), si el proyecto abierto es el general: se sacan de la cola las tareas que esperan (no la que está en curso) de fuentes que la base ya no ofrece al wiki; y, si el wiki está activo, se encolan las fuentes de los dos documentos que nunca se incorporaron, que es la elegida al unir y, al deshacer, también la otra. Con el wiki en pausa no se encola nada; queda como pendiente para cuando se active. Si esa parte falla, la decisión igual queda guardada y la pantalla lo avisa.
+- **Por qué:** con el wiki activo el wiki se alimenta solo (D-071): lo que pasa a ser fuente entra como entraría un archivo nuevo, y lo que deja de serlo no debería gastar modelo. No se corta la tarea en curso para no perder trabajo a medias.
+- **Alternativas descartadas:** dejar que la fuente elegida espere a que el usuario la encole a mano; cancelar también la tarea en curso.
+- **Dónde se aplica:** `src/lib/docbase-wiki-bridge.ts` (`followSimilarDecision`, `sourcesOfDocuments`), `src/components/docbase/similar-documents.tsx`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S4 (el wiki usa la fuente elegida, P-078), 14 oct.
+
+### D-145 · Dónde se avisa que un documento no alimenta el wiki, y qué pasa con las cadenas
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos
+- **Estado:** en revisión (agente sin consulta, P-066); reemplazada en parte por D-148 (un círculo de elecciones ya no se permite; el aviso y la regla de "algún par" siguen valiendo)
+- **El problema:** la persona tiene que poder ver, en el detalle del documento no elegido, por qué ya no va al wiki. Además, un documento puede estar unido con más de uno.
+- **Qué se decidió:** en la sección "En el wiki" del detalle, arriba de las páginas que salieron de él, un recuadro: "Este documento no alimenta el wiki: se unió con «X», que es la fuente elegida", con una línea que aclara que lo ya incorporado se queda y que deshacer lo vuelve a ofrecer. Si se unió con varios y en todos se eligió al otro, los nombra a todos. Un documento queda afuera si en algún par unido como el mismo documento se eligió al otro; en una cadena (A con B eligiendo B, B con C eligiendo C) quedan afuera A y B. Si una persona arma un círculo de elecciones podrían quedar afuera todos; no se previene en esta etapa.
+- **Por qué:** la sección del wiki es donde se mira qué aportó un documento al wiki; la regla de "algún par" es simple y coincide con lo que la persona eligió en cada unión.
+- **Alternativas descartadas:** mostrar el aviso en la ficha lateral; resolver las cadenas eligiendo una sola fuente por familia.
+- **Dónde se aplica:** `src/components/docbase/similar.ts` (`passedOverNotice`), `document-detail.tsx`, `src-tauri/src/docbase/mod.rs` (`passed_over_sql`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** construcción de S4 (el wiki usa la fuente elegida, P-078), 14 oct.
+
 ### D-147 · El preprocesado recibe la ruta completa de la fuente, la misma que lee el ingest
 
 - **Fecha:** 14 oct 2026
@@ -1656,6 +2077,19 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** `src/lib/source-lifecycle.ts` (`enqueueSourceIngest`); F-002.
 - **Quién decidió:** Agente sin consulta.
 - **Fuente:** Sesión desatendida del 14 oct (especificación F1).
+
+### D-148 · Un círculo de elecciones no deja a todos fuera del wiki
+
+- **Fecha:** 14 oct 2026
+- **Tema:** Parecidos
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** un documento deja de alimentar el wiki si en algún par unido como el mismo documento se eligió al otro (D-145). Si las elecciones forman un círculo (A cede ante B, B ante C, C ante A), cada uno tiene otro elegido en su lugar y ninguno de los documentos unidos llega al wiki, sin que la persona lo haya querido. Con un solo par no puede pasar: elegir al otro en el mismo par solo los intercambia.
+- **Qué se decidió:** al unir como el mismo documento (o cambiar la fuente elegida de un par ya unido), la base mira el conjunto de documentos unidos así con esos dos, con la elección nueva incluida. Si en ese conjunto no queda ninguno elegido en todos sus pares, la decisión se rechaza y no se guarda nada; la pantalla muestra: "Con esa elección ninguno de los N documentos unidos como el mismo quedaría como fuente del wiki: cada uno tiene otro elegido en lugar de él. Elegí el otro documento como fuente o deshacé una de esas uniones." Un conjunto sin círculos siempre tiene al menos uno, así que las cadenas y las estrellas no cambian. Las uniones entre documentos distintos (misma plantilla, etc.) no cuentan. El control se hace al decidir: si después se borra el documento que era la única fuente de un conjunto con un círculo, los demás pueden quedar afuera hasta que la persona cambie una elección.
+- **Por qué:** rechazar es la regla más simple de explicar: lo que la persona eligió en cada par se respeta tal cual, y nunca se elige una fuente por ella. Resolverlo solo (por ejemplo, tomar la última elección como ganadora) cambiaría en silencio el efecto de una decisión anterior.
+- **Alternativas descartadas:** dejar entrar a todos los del círculo; elegir sola una fuente por conjunto (D-145 ya descartó una fuente por familia); avisar sin rechazar.
+- **Dónde se aplica:** `src-tauri/src/docbase/similar/store.rs` (`decide_similar`, `joined_without_source`); prueba `choices_that_close_a_circle_are_refused` en `similar/tests.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** arreglo pendiente de S4 al apilarla sobre S3 (P-078), 14 oct.
 
 ### D-149 · La comprobación de los PR y los instaladores, solo en Windows por ahora
 

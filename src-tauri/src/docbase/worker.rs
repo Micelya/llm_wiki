@@ -14,6 +14,7 @@ const SWEEP_EVERY: Duration = Duration::from_secs(5 * 60);
 const IDLE_WAIT: Duration = Duration::from_secs(20);
 const HASH_BATCH: usize = 8;
 const TEXT_BATCH: usize = 2;
+const SIMILAR_BATCH: usize = 2;
 const NOTIFY_EVERY: Duration = Duration::from_millis(800);
 
 /// How the rest of the app asks the worker to sweep now.
@@ -83,6 +84,54 @@ fn run(base: &DocBase, wake: &Wake, on_change: &dyn Fn()) {
     }
 }
 
+/// How often the questions to the model are looked at, and how long to
+/// wait after the provider failed (it may be at its usage limit).
+const ASK_EVERY: Duration = Duration::from_secs(30);
+const ASK_BACKOFF: Duration = Duration::from_secs(10 * 60);
+
+/// Starts the thread that asks the model about type, stage and data,
+/// one question at a time, only while the archive's wiki is active and
+/// an engine was chosen: like feeding the wiki, it costs the provider's
+/// quota, and turning the wiki off stops it.
+pub fn spawn_asking(base: Arc<DocBase>, on_change: impl Fn() + Send + 'static) {
+    let spawned = std::thread::Builder::new()
+        .name("docbase-asking".to_string())
+        .spawn(move || loop {
+            std::thread::sleep(ASK_EVERY);
+            let engine = match base.background_ask_engine() {
+                Ok(Some(engine)) => engine,
+                Ok(None) => continue,
+                Err(error) => {
+                    eprintln!("[docbase] {error}");
+                    continue;
+                }
+            };
+            let asker = match crate::source_volume::asking::asker_for(&engine) {
+                Ok(asker) => asker,
+                Err(error) => {
+                    eprintln!("[docbase] {error}");
+                    std::thread::sleep(ASK_BACKOFF);
+                    continue;
+                }
+            };
+            match base.types_run(asker.as_ref(), 1) {
+                Ok(report) => {
+                    if report.asked + report.data_asked + report.typed + report.corrected > 0 {
+                        on_change();
+                    }
+                    if report.failed + report.data_failed > 0 {
+                        eprintln!("[docbase] questions to the model: {}", report.errors.join("; "));
+                        std::thread::sleep(ASK_BACKOFF);
+                    }
+                }
+                Err(error) => eprintln!("[docbase] {error}"),
+            }
+        });
+    if let Err(error) = spawned {
+        eprintln!("[docbase] could not start the questions to the model: {error}");
+    }
+}
+
 /// Sweeps every origin. Returns whether anything may look different.
 fn sweep(base: &DocBase) -> bool {
     let origins = match base.origins(&Visible::All) {
@@ -108,5 +157,10 @@ fn step(base: &DocBase) -> Result<bool, String> {
     if base.extract_pending(TEXT_BATCH)? > 0 {
         return Ok(true);
     }
-    Ok(base.purge_orphans()? > 0)
+    if base.purge_orphans()? > 0 {
+        return Ok(true);
+    }
+    // Similar documents: only once every text is read, a little at a
+    // time, so it never holds the reading back.
+    Ok(base.similar_step(SIMILAR_BATCH)? > 0)
 }

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import {
   getDocument,
   getGeneralProject,
+  listSimilarDocuments,
   openLocation,
   pagesCiting,
   setLocationLabel,
@@ -18,6 +19,9 @@ import { DOCUMENT_STATES, DocumentStateBadge } from "./document-state"
 import { LabelChip, LabelPicker } from "./labels"
 import { EmptyNote, ErrorNote } from "./page"
 import { formatCount, formatDate, formatSize } from "./format"
+import { DocumentTypeFacts } from "./document-types-view"
+import { passedOverNotice } from "./similar"
+import { SimilarDocuments } from "./similar-documents"
 import { useDocbaseQuery } from "./use-docbase-query"
 
 /** Text longer than this is cut on screen; the whole text stays in the base. */
@@ -82,6 +86,9 @@ export function DocumentDetailView({ locationId, onBack }: { locationId: number;
               <Section title={`Ubicaciones (${document.locations.length || 1})`}>
                 <Locations document={document} onOpen={handleOpen} />
               </Section>
+              {document.contentId !== null && (
+                <SimilarDocuments locationId={document.locationId} name={document.name} onProblem={setProblem} />
+              )}
               <WikiPages locationId={document.locationId} />
             </main>
             <aside>
@@ -208,11 +215,22 @@ function WikiPages({ locationId }: { locationId: number }) {
   const openPathInPreview = useWikiStore((s) => s.openPathInPreview)
   const pages = useDocbaseQuery(`pages-citing:${locationId}`, () => pagesCiting(locationId))
   const general = useDocbaseQuery("general-project", getGeneralProject)
+  const similar = useDocbaseQuery(`similar:${locationId}`, () => listSimilarDocuments(locationId))
   const canOpen = isSameProjectPath(general.data?.path, project?.path)
+  const passedOver = passedOverNotice(similar.data ?? [])
 
   if (!pages.data) return null
   return (
     <Section title={`En el wiki (${pages.data.length})`}>
+      {passedOver && (
+        <div className="mb-3 rounded-md border border-dashed px-3 py-2 text-sm" data-testid="passed-over">
+          <p>{passedOver}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Lo que ya se había incorporado de este documento se queda en el wiki. Deshacer la unión lo vuelve a
+            ofrecer.
+          </p>
+        </div>
+      )}
       {pages.data.length === 0 ? (
         <p className="text-sm text-muted-foreground">Ninguna página del wiki salió de este documento todavía.</p>
       ) : (
@@ -260,6 +278,17 @@ function FactBox({
         <Fact label="Origen">{document.originName}</Fact>
         <Fact label="Carpeta">{document.folder ? document.folder.split("/").join(" › ") : "—"}</Fact>
       </FactRows>
+      {document.contentId !== null && (
+        <DocumentTypeFacts
+          locationId={document.locationId}
+          heading={(children) => <FactHeading>{children}</FactHeading>}
+          row={(label, children) => (
+            <Fact key={label} label={label}>
+              {children}
+            </Fact>
+          )}
+        />
+      )}
       <FactHeading>Etiquetas</FactHeading>
       <div className="flex flex-col gap-2 px-3 py-2">
         <div className="flex flex-wrap gap-1">

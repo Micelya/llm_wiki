@@ -6,9 +6,15 @@
  * ingesting uses the model: the user turns it on once, and from then on
  * it is fed by itself with whatever is added, changed or removed.
  */
-import { listWikiSources, setWikiActive, type WikiSource } from "@/commands/docbase"
+import {
+  excludedSources,
+  getGeneralProject,
+  listWikiSources,
+  setWikiActive,
+  type WikiSource,
+} from "@/commands/docbase"
 import { listIngestedSourceIdentities } from "@/lib/ingest-cache"
-import { getQueue, pauseProcessing, resumeProcessing } from "@/lib/ingest-queue"
+import { discardTasksForSources, getQueue, pauseProcessing, resumeProcessing } from "@/lib/ingest-queue"
 import { normalizePath } from "@/lib/path-utils"
 import { loadSourceWatchConfig, saveSourceWatchConfig } from "@/lib/project-store"
 import { enqueueSourceIngest, isIngestableSourcePath } from "@/lib/source-lifecycle"
@@ -120,6 +126,37 @@ export async function pendingUnder(
     const inside = source.identity.slice(source.identity.indexOf("/") + 1)
     return isFolder ? relPath === "" || inside.startsWith(`${relPath}/`) : inside === relPath
   })
+}
+
+/** The sources that are one of these documents. */
+export function sourcesOfDocuments(sources: WikiSource[], contentIds: number[]): WikiSource[] {
+  const wanted = new Set(contentIds)
+  return sources.filter((source) => source.contentId !== null && wanted.has(source.contentId))
+}
+
+/**
+ * After a person joins two similar documents, or undoes it, the wiki
+ * follows. Joined as the same document, the one not chosen stops being a
+ * source: what of it still waits in the queue (and was not started) is
+ * dropped, and what was already ingested stays. Then, with the wiki
+ * active and its project open, whatever of the two is a source now and
+ * was never ingested is queued: the chosen one, or both after an undo.
+ * Returns how many documents were queued.
+ */
+export async function followSimilarDecision(project: WikiProject | null, contentIds: number[]): Promise<number> {
+  if (!project) return 0
+  const general = await getGeneralProject()
+  if (!general || !isSameProjectPath(general.path, project.path)) return 0
+  const waiting = getQueue()
+    .filter((task) => task.projectId === project.id && task.status === "pending")
+    .map((task) => normalizePath(task.sourcePath))
+  if (waiting.length > 0) {
+    const leftOut = await excludedSources(normalizePath(project.path), waiting)
+    if (leftOut.length > 0) await discardTasksForSources(leftOut)
+  }
+  if (!general.wikiActive) return 0
+  const pending = sourcesOfDocuments([...(await pendingWikiSourcesByOrigin(project)).values()].flat(), contentIds)
+  return pending.length > 0 ? ingestWikiSources(project, pending) : 0
 }
 
 /** Queues the given sources for ingest. Returns how many were queued. */

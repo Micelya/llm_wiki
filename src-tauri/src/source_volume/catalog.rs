@@ -39,7 +39,7 @@ const CATALOG_VERSION: u32 = 1;
 /// same document (an unread scan, a cover page, a photo).
 const MIN_FINGERPRINT_WORDS: usize = 30;
 /// Start of the marker `recognition.rs` writes before machine-read text.
-const RECOGNIZED_MARKER_START: &str = "<!-- texto-reconocido";
+pub(crate) const RECOGNIZED_MARKER_START: &str = "<!-- texto-reconocido";
 
 /// One read-modify-write of the catalog file at a time.
 static CATALOG_LOCK: Mutex<()> = Mutex::new(());
@@ -103,7 +103,7 @@ pub fn is_recognized(text: &str) -> bool {
 /// accents, letters and digits only. Formatting that depends on the file
 /// format — punctuation, line breaks, page headings, recognition
 /// markers — does not take part.
-fn normalized_words(text: &str) -> Vec<String> {
+pub(crate) fn normalized_words(text: &str) -> Vec<String> {
     let mut words = Vec::new();
     for line in text.lines() {
         let trimmed = line.trim();
@@ -129,7 +129,7 @@ fn normalized_words(text: &str) -> Vec<String> {
 }
 
 /// The `## Page N` headings the PDF extractor writes.
-fn is_page_heading(line: &str) -> bool {
+pub(crate) fn is_page_heading(line: &str) -> bool {
     line.strip_prefix("## Page ")
         .is_some_and(|rest| !rest.is_empty() && rest.chars().all(|c| c.is_ascii_digit()))
 }
@@ -137,7 +137,7 @@ fn is_page_heading(line: &str) -> bool {
 /// `c` without its accent, for the accented letters of Western European
 /// languages. Characters outside ASCII that are not listed are dropped
 /// by the caller.
-fn unaccented(c: char) -> Option<char> {
+pub(crate) fn unaccented(c: char) -> Option<char> {
     Some(match c {
         'á' | 'à' | 'ä' | 'â' | 'ã' | 'å' => 'a',
         'é' | 'è' | 'ë' | 'ê' => 'e',

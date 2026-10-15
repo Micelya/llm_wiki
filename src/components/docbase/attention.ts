@@ -18,6 +18,8 @@ export interface AttentionItem {
     | { view: "review" }
     | { view: "lint" }
     | { view: "documents"; state: DocumentState }
+    | { view: "documents"; similarPending: true }
+    | { view: "documents"; similarGroup: number }
 }
 
 const TONE_ORDER: Tone[] = ["error", "warning", "busy", "neutral", "ok"]
@@ -27,6 +29,8 @@ export function buildAttention(
   origins: OriginSummary[],
   reviewPending: number,
   wiki: WikiIndex = { pages: 0, links: 0, broken: 0 },
+  /** Lines raised elsewhere (similar documents), ordered with the rest by tone. */
+  more: AttentionItem[] = [],
 ): AttentionItem[] {
   const items: AttentionItem[] = []
   const count = (state: DocumentState) => health.byState[state] ?? 0
@@ -105,6 +109,7 @@ export function buildAttention(
       target: { view: "lint" },
     })
   }
+  items.push(...more)
   return items.sort((a, b) => TONE_ORDER.indexOf(a.tone) - TONE_ORDER.indexOf(b.tone))
 }
 
