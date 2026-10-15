@@ -804,6 +804,18 @@
       "referencia": "src/vocabulary/index.ts; docs/design/parecidos-propuesta.md (sección 4)",
       "creado": "2026-10-14",
       "actualizado": "2026-10-14"
+    },
+    {
+      "id": "P-082",
+      "titulo": "Volver a compilar en macOS y Linux",
+      "tipo": "codigo",
+      "responsable": "ambos",
+      "estado": "en-espera",
+      "detalle": "El 2026-10-15 la comprobación de cada PR (ci.yml) y la generación de instaladores (build.yml) quedaron solo en Windows, a pedido del usuario: hoy solo interesa Windows, y macOS era lo que más minutos de Actions consumía. La regla 'proteger-main' del repo exige ahora solo 'check (windows-latest)'. Para volver: restaurar las filas comentadas de build.yml, volver a poner macos-latest y ubuntu-22.04 en ci.yml, y agregar 'check (macos-latest)' y 'check (ubuntu-22.04)' a la regla. Hacerlo cuando la aplicación esté más estable. macOS necesita además los secretos de firma (P-002).",
+      "depende_de": [],
+      "referencia": ".github/workflows/ci.yml; .github/workflows/build.yml; Settings → Rules → Rulesets → proteger-main",
+      "creado": "2026-10-15",
+      "actualizado": "2026-10-15"
     }
   ]
 }
