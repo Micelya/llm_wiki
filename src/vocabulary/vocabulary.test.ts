@@ -1,13 +1,20 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
-import { relationName, resolveVocabulary, vocabularyFor, type Vertical } from "./index"
+import { dataFieldName, documentTypeName, relationName, resolveVocabulary, stageName, vocabularyFor, type Vertical } from "./index"
 import { legal } from "./legal"
+
+function catalog(): {
+  relations: { id: string; directed: boolean }[]
+  types: { id: string; carrier?: boolean; stages: string[]; data?: { id: string }[] }[]
+} {
+  const file = join(process.cwd(), "src-tauri", "resources", "catalog", "document-types.json")
+  return JSON.parse(readFileSync(file, "utf8"))
+}
 
 /** The relations the catalog of the engine lists, by id. */
 function catalogRelations(): { id: string; directed: boolean }[] {
-  const file = join(process.cwd(), "src-tauri", "resources", "catalog", "document-types.json")
-  return JSON.parse(readFileSync(file, "utf8")).relations
+  return catalog().relations
 }
 
 describe("vocabulary by vertical and language", () => {
@@ -48,6 +55,29 @@ describe("names of the relations between similar documents", () => {
     const words = vocabularyFor("legal", "es")
     expect(relationName("signed-copy", words)).toBe("Ejemplar firmado")
     expect(relationName("some-new-relation", words)).toBe("some-new-relation")
+  })
+})
+
+describe("names of the document types, their stages and their data", () => {
+  it("names every type, stage and datum of the catalog in every language", () => {
+    for (const language of Object.values(legal.languages)) {
+      for (const type of catalog().types) {
+        // A carrier (a signing service, a form) is not a type a document is.
+        if (!type.carrier) expect(language.documentTypes[type.id], type.id).toBeTruthy()
+        for (const stage of type.stages) expect(language.stages[stage], stage).toBeTruthy()
+        for (const datum of type.data ?? []) expect(language.dataFields[datum.id], datum.id).toBeTruthy()
+      }
+    }
+  })
+
+  it("shows a proposed type by the name the model proposed, and an unnamed id in words", () => {
+    const words = vocabularyFor("legal", "es")
+    expect(documentTypeName("factura", null, words)).toBe("Factura")
+    expect(documentTypeName("receta-de-cocina", "Receta de cocina", words)).toBe("Receta de cocina")
+    expect(documentTypeName("receta-de-cocina", null, words)).toBe("Receta de cocina")
+    expect(stageName("vista-previa", words)).toBe("Vista previa")
+    expect(dataFieldName("numero-de-envio", words)).toBe("Número de envío")
+    expect(dataFieldName("dato-nuevo", words)).toBe("Dato nuevo")
   })
 })
 

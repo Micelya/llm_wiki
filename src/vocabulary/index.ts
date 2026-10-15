@@ -38,6 +38,17 @@ export interface Vocabulary {
    * by its id until someone names it here.
    */
   relations: Record<string, RelationTerms>
+  /**
+   * The names of the document types, by the neutral id the catalog gives
+   * each one (`carta-documento`, `factura`…). A type the catalog adds
+   * later is shown by its id until someone names it here; a type the
+   * model proposed is shown by the name it proposed.
+   */
+  documentTypes: Record<string, string>
+  /** The names of the stages a document can be in (`vista-previa`, `firmado`…), by id. */
+  stages: Record<string, string>
+  /** The names of the data of each type (`numero-de-envio`, `total`…), by id. */
+  dataFields: Record<string, string>
 }
 
 export interface RelationTerms {
@@ -133,4 +144,28 @@ export function vocabulary(): Vocabulary {
 /** The name of a relation between similar documents, or its id when no vocabulary names it. */
 export function relationName(id: string, words: Vocabulary = vocabulary()): string {
   return words.relations[id]?.name ?? id
+}
+
+/** An id shown as words when no vocabulary names it: "numero-de-envio" → "Numero de envio". */
+function idInWords(id: string): string {
+  const words = id.replace(/-/g, " ").trim()
+  return words.charAt(0).toUpperCase() + words.slice(1)
+}
+
+/**
+ * The name of a document type. A type the model proposed is shown by
+ * the name it proposed; one nobody named yet, by its id in words.
+ */
+export function documentTypeName(id: string, proposedName: string | null = null, words: Vocabulary = vocabulary()): string {
+  return words.documentTypes[id] ?? proposedName ?? idInWords(id)
+}
+
+/** The name of a stage of a document. */
+export function stageName(id: string, words: Vocabulary = vocabulary()): string {
+  return words.stages[id] ?? idInWords(id)
+}
+
+/** The name of a datum of a document type. */
+export function dataFieldName(id: string, words: Vocabulary = vocabulary()): string {
+  return words.dataFields[id] ?? idInWords(id)
 }

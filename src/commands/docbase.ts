@@ -92,6 +92,8 @@ export interface DocumentFilter {
   similarPending?: boolean
   /** Only the members of the family whose principal is this content. */
   similarGroup?: number | null
+  /** Only documents of this type; `"none"`: those without a type yet. */
+  docType?: string | null
   sort?: "recent" | "name" | "folder"
   limit?: number
   offset?: number
@@ -114,6 +116,11 @@ export interface DocumentRow {
   /** Locations holding this same document, this one included. */
   copies: number
   labels: Label[]
+  /** What the document is: a type of the catalog, or one the model proposed. */
+  docType: string | null
+  docStage: string | null
+  /** The type is a proposal of the model that no one confirmed yet. */
+  docTypeProposed: boolean
 }
 
 /** A label: an answer ("BGH") to its group's question ("Cliente"), or standing alone. */
@@ -569,4 +576,100 @@ export function listSimilarGroups(): Promise<SimilarGroup[]> {
 
 export function listSimilarRelations(): Promise<RelationDef[]> {
   return invoke<RelationDef[]>("docbase_similar_relations")
+}
+
+/** Which engine answers the questions about documents, and with which model. */
+export interface AskConfig {
+  engine: "codex-cli"
+  model: string
+}
+
+/** What a document is and in what stage (pass 4). */
+export interface DocumentType {
+  contentId: number
+  /** A type of the catalog, or the id the model proposed (`proposed`). */
+  docType: string
+  stage: string | null
+  /** A new type the model proposed: not in the catalog, waiting for a person. */
+  proposed: boolean
+  proposedName: string | null
+  proposedDescription: string | null
+  /** "marks": verified without the model; "model": asked about it; "family": the answer about its family's principal. */
+  source: "marks" | "model" | "family"
+  principal: number | null
+  confidence: number | null
+  reason: string | null
+  computedAt: number
+}
+
+/** One value of one datum of a document (pass 5). */
+export interface Datum {
+  field: string
+  value: string
+  /** "rule", "mark" or "model". */
+  source: string
+}
+
+export interface DocumentTypeView {
+  docType: DocumentType | null
+  data: Datum[]
+}
+
+export interface ProposedType {
+  id: string
+  name: string | null
+  description: string | null
+  documents: number
+}
+
+/** What a run would ask the model now. */
+export interface TypesPlan {
+  documents: number
+  typed: number
+  typeQuestions: number
+  /** More may appear once the pending types are known. */
+  dataQuestions: number
+  proposedTypes: ProposedType[]
+  engine: AskConfig | null
+}
+
+/** What a run did. */
+export interface TypesRunReport {
+  asked: number
+  failed: number
+  typed: number
+  dataAsked: number
+  dataFailed: number
+  corrected: number
+  left: number
+  errors: string[]
+}
+
+/** A document type of the catalog, with its stages and data; names come from the vocabulary. */
+export interface DocTypeDef {
+  id: string
+  stages: string[]
+  data: string[]
+}
+
+export function getTypesPlan(): Promise<TypesPlan> {
+  return invoke<TypesPlan>("docbase_types_plan")
+}
+
+/** Asks the model what is pending. Costs the provider's quota: only on an explicit action. */
+export function runTypes(engine: AskConfig, maxQuestions?: number): Promise<TypesRunReport> {
+  return invoke<TypesRunReport>("docbase_types_run", { engine, maxQuestions: maxQuestions ?? null })
+}
+
+/** The engine that answers while the archive's wiki is active; null stops it. */
+export function setAskEngine(engine: AskConfig | null): Promise<void> {
+  return invoke<void>("docbase_set_ask_engine", { engine })
+}
+
+export function getDocumentType(locationId: number): Promise<DocumentTypeView> {
+  return invoke<DocumentTypeView>("docbase_document_type", { locationId })
+}
+
+export function listDocumentTypes(): Promise<DocTypeDef[]> {
+  return invoke<DocTypeDef[]>("docbase_document_types")
 }

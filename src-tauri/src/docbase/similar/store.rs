@@ -194,7 +194,11 @@ impl DocBase {
             .query_row("SELECT count(*) FROM similar_dirty", [], |row| row.get(0))
             .map_err(sql_err)?;
         if (measured > 0 || forgotten > 0) && dirty_left == 0 {
+            // A new measurement undoes what the rules of the type said
+            // (pass 6), so they apply again before the families.
+            self.apply_type_rules()?;
             self.similar_regroup()?;
+            self.types_refresh()?;
         }
         Ok(forgotten + measured)
     }
@@ -207,7 +211,8 @@ impl DocBase {
             .execute_batch(
                 "DELETE FROM similar_signature; DELETE FROM similar_common; DELETE FROM document_marks;
                  DELETE FROM similar_dirty; DELETE FROM similar_group;
-                 DELETE FROM similar_pair WHERE state = 'proposed';",
+                 DELETE FROM similar_pair WHERE state = 'proposed';
+                 DELETE FROM document_type; DELETE FROM document_data;",
             )
             .map_err(sql_err)
     }
@@ -939,7 +944,11 @@ fn save_pair(
     engine: &str,
 ) -> Result<(), String> {
     let Some((proposal, measures, evidence)) = outcome else {
-        tx.execute("DELETE FROM similar_pair WHERE a = ?1 AND b = ?2 AND state = 'proposed'", params![a, b])
+        // A pair a rule of the type proposed was never measured: it stays.
+        tx.execute(
+            "DELETE FROM similar_pair WHERE a = ?1 AND b = ?2 AND state = 'proposed' AND origin = 'measured'",
+            params![a, b],
+        )
             .map_err(sql_err)?;
         return Ok(());
     };
@@ -954,7 +963,8 @@ fn save_pair(
             jaccard = excluded.jaccard, containment = excluded.containment, cover = excluded.cover,
             similarity = excluded.similarity, description = excluded.description,
             suggested_source = excluded.suggested_source, evidence = excluded.evidence,
-            evidence_hash = excluded.evidence_hash, engine = excluded.engine, computed_at = excluded.computed_at",
+            evidence_hash = excluded.evidence_hash, engine = excluded.engine, computed_at = excluded.computed_at,
+            origin = 'measured', measured = NULL, type_rule = NULL",
         params![
             a,
             b,

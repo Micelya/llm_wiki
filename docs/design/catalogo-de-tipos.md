@@ -91,3 +91,13 @@
 **Datos que interesan:** el contenido de cada campo, que la base ya guarda aparte (PR #38).
 
 **Cómo se compara:** dos formularios con la misma página y distintos campos son **misma plantilla, otros datos**. Un formulario guardado "aplanado" (con las respuestas impresas en la página) no trae campos: se compara por texto.
+
+## Agregado en S3 (14 de octubre de 2026)
+
+Lo construido está en `src-tauri/resources/catalog/document-types.json`; las decisiones, en el [registro](../decisiones.md) (D-132 a D-142).
+
+- **Portadores.** El PDF de un servicio de firma y el formulario PDF no son un tipo de documento: dicen cómo se emitió. Sus marcas dan etapa o datos (el identificador del proceso de firma), nunca el tipo.
+- **Tipos nuevos,** los que la propuesta nombra para empezar: factura, recibo, acuerdo (contratos, convenios, memorandos), boleta de pago y ficha de cliente. Acuerdo y recibo tienen las etapas de firma: borrador, sin firmar, firmado por una parte, firmado por todas.
+- **Etapas descriptas.** Cada etapa dice cómo se reconoce, y eso le llega al modelo. El recuadro del aviso de recibo viene impreso en el formulario de algunos correos: vacío no prueba la entrega.
+- **Datos de cada tipo,** con su patrón general: el valor después de una frase, la forma de un identificador o el valor de una marca. Solo los requeridos que no aparecen se le preguntan al modelo.
+- **Reglas de relación por tipo:** dos cartas con otras facturas u otro número de envío son documentos distintos (el formulario no cuenta como parecido); la vista previa y el borrador o la carta enviada con las mismas facturas son vista previa; el acuse y la carta con el mismo número de envío, y la constancia de firma y el documento del mismo proceso de firma, se relacionan aunque sus textos no se parezcan.

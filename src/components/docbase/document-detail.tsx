@@ -18,6 +18,7 @@ import { DOCUMENT_STATES, DocumentStateBadge } from "./document-state"
 import { LabelChip, LabelPicker } from "./labels"
 import { EmptyNote, ErrorNote } from "./page"
 import { formatCount, formatDate, formatSize } from "./format"
+import { DocumentTypeFacts } from "./document-types-view"
 import { SimilarDocuments } from "./similar-documents"
 import { useDocbaseQuery } from "./use-docbase-query"
 
@@ -264,6 +265,17 @@ function FactBox({
         <Fact label="Origen">{document.originName}</Fact>
         <Fact label="Carpeta">{document.folder ? document.folder.split("/").join(" › ") : "—"}</Fact>
       </FactRows>
+      {document.contentId !== null && (
+        <DocumentTypeFacts
+          locationId={document.locationId}
+          heading={(children) => <FactHeading>{children}</FactHeading>}
+          row={(label, children) => (
+            <Fact key={label} label={label}>
+              {children}
+            </Fact>
+          )}
+        />
+      )}
       <FactHeading>Etiquetas</FactHeading>
       <div className="flex flex-col gap-2 px-3 py-2">
         <div className="flex flex-wrap gap-1">

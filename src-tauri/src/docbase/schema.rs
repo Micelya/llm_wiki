@@ -10,7 +10,77 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7];
+
+/// Type, stage and data of each document, and the relations the type
+/// corrects (passes 4 to 6 of `similar/`).
+///
+/// - `model_answer`: every answer of the model, by the fingerprint of the
+///   question (its prompt version and its whole text), with the engine
+///   and model that gave it (R-20). The same question is never asked
+///   twice. No foreign key: an answer outlives the document it was about,
+///   so the same text coming back costs nothing.
+/// - `document_type`: what each document is and in what stage, where
+///   that came from (`marks`, `model`, or `family`: the answer about the
+///   principal of its family), and on what it was decided (`basis`):
+///   when that changes it is decided again. `proposed` marks a type the
+///   model proposed that is not in the catalog: a person confirms it.
+/// - `document_data`: the data of each document by the rules of its type
+///   and, where they found nothing, by the model.
+/// - `similar_pair.origin`: `measured` (pass 1) or `type` (proposed by a
+///   rule of the type, pass 6, without a measurement). `measured` keeps
+///   the measured proposal when a type rule changed it, and `type_rule`
+///   names that rule.
+/// - `docbase_setting`: small settings of the base (the engine that
+///   answers while the archive's wiki is active).
+const V7: &str = "
+CREATE TABLE model_answer (
+    question        TEXT PRIMARY KEY,
+    task            TEXT NOT NULL,
+    prompt_version  TEXT NOT NULL,
+    engine          TEXT NOT NULL,
+    content_id      INTEGER,
+    prompt          TEXT NOT NULL,
+    answer          TEXT NOT NULL,
+    asked_at        INTEGER NOT NULL
+);
+
+CREATE TABLE document_type (
+    content_id            INTEGER PRIMARY KEY REFERENCES content (id) ON DELETE CASCADE,
+    doc_type              TEXT NOT NULL,
+    stage                 TEXT,
+    proposed              INTEGER NOT NULL DEFAULT 0,
+    proposed_name         TEXT,
+    proposed_description  TEXT,
+    source                TEXT NOT NULL CHECK (source IN ('marks', 'model', 'family')),
+    principal             INTEGER,
+    confidence            REAL,
+    reason                TEXT,
+    question              TEXT,
+    basis                 TEXT NOT NULL,
+    computed_at           INTEGER NOT NULL
+);
+CREATE INDEX document_type_by_type ON document_type (doc_type);
+
+CREATE TABLE document_data (
+    content_id   INTEGER PRIMARY KEY REFERENCES content (id) ON DELETE CASCADE,
+    doc_type     TEXT NOT NULL,
+    data         TEXT NOT NULL DEFAULT '[]',
+    missing      TEXT NOT NULL DEFAULT '[]',
+    question     TEXT,
+    basis        TEXT NOT NULL,
+    computed_at  INTEGER NOT NULL
+);
+
+ALTER TABLE similar_pair ADD COLUMN origin TEXT NOT NULL DEFAULT 'measured';
+ALTER TABLE similar_pair ADD COLUMN measured TEXT;
+ALTER TABLE similar_pair ADD COLUMN type_rule TEXT;
+
+CREATE TABLE docbase_setting (
+    key    TEXT PRIMARY KEY,
+    value  TEXT NOT NULL
+);
+";
 
 /// Similar documents (`similar/`). Everything here but the decisions of
 /// a person is computed again from the texts whenever it is missing or

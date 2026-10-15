@@ -43,6 +43,8 @@ pub struct DocumentFilter {
     pub similar_pending: bool,
     /// Only the members of the family whose principal is this content.
     pub similar_group: Option<i64>,
+    /// Only documents of this type (pass 4); `"none"`: without a type.
+    pub doc_type: Option<String>,
     /// `recent` (default), `name` or `folder`.
     pub sort: Option<String>,
     pub limit: Option<i64>,
@@ -74,6 +76,11 @@ pub struct DocumentRow {
     /// Visible locations holding this same document, this one included.
     pub copies: i64,
     pub labels: Vec<Label>,
+    /// What the document is (pass 4): a type of the catalog, or one the
+    /// model proposed (`doc_type_proposed`).
+    pub doc_type: Option<String>,
+    pub doc_stage: Option<String>,
+    pub doc_type_proposed: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -331,6 +338,14 @@ impl DocBase {
                     .to_string(),
             );
         }
+        match filter.doc_type.as_deref().filter(|t| !t.is_empty()) {
+            Some("none") => conditions.push("doc_type IS NULL".to_string()),
+            Some(doc_type) => {
+                conditions.push("doc_type = ?".to_string());
+                bound.push(Value::Text(doc_type.to_string()));
+            }
+            None => {}
+        }
         if let Some(principal) = filter.similar_group {
             conditions.push("content_id IN (SELECT content_id FROM similar_group_member WHERE principal = ?)".to_string());
             bound.push(Value::Integer(principal));
@@ -538,11 +553,13 @@ pub(crate) fn rows_sql(visible: &Visible, only: Option<i64>) -> (String, Vec<Val
                 CASE WHEN f.content_id IS NULL THEN 1 ELSE (
                     SELECT count(*) FROM location l2 JOIN file f2 ON f2.hash = l2.file_hash
                     WHERE f2.content_id = f.content_id AND {visible_l2}
-                ) END AS copies
+                ) END AS copies,
+                dt.doc_type AS doc_type, dt.stage AS doc_stage, coalesce(dt.proposed, 0) AS doc_type_proposed
          FROM location l
          JOIN origin o ON o.id = l.origin_id
          LEFT JOIN file f ON f.hash = l.file_hash
          LEFT JOIN content c ON c.id = f.content_id
+         LEFT JOIN document_type dt ON dt.content_id = f.content_id
          WHERE {visible_l} {only_sql}"
     );
     (sql, bound)
@@ -568,6 +585,9 @@ pub(crate) fn read_rows(conn: &Connection, sql: &str, bound: Vec<Value>) -> Resu
                 state: row.get("state")?,
                 content_id: row.get("content_id")?,
                 copies: row.get("copies")?,
+                doc_type: row.get("doc_type")?,
+                doc_stage: row.get("doc_stage")?,
+                doc_type_proposed: row.get("doc_type_proposed")?,
             })
         })
         .map_err(sql_err)?;

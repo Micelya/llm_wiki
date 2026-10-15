@@ -56,7 +56,7 @@ pub struct RelationDef {
     pub automatic: bool,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DocType {
     pub id: String,
@@ -64,10 +64,92 @@ pub struct DocType {
     pub description: String,
     #[serde(default)]
     pub stages: Vec<String>,
+    /// How each stage is told apart, in words: it goes to the model.
+    #[serde(default)]
+    pub stage_descriptions: std::collections::BTreeMap<String, String>,
+    /// It says how a document was issued or made (a signing service, a
+    /// fillable form), not what the document is: its marks never give the
+    /// type, and its data and rules apply to whatever document carries
+    /// them.
+    #[serde(default)]
+    pub carrier: bool,
     #[serde(default)]
     pub variants: Vec<Variant>,
     #[serde(default)]
     pub signals: Vec<Signal>,
+    /// The data that matter in a document of this type (pass 5).
+    #[serde(default)]
+    pub data: Vec<DataRule>,
+    /// How two documents of this type relate (pass 6).
+    #[serde(default)]
+    pub rules: Vec<RelationRule>,
+}
+
+/// One datum of a type, and the general pattern it is found with.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DataRule {
+    pub id: String,
+    /// What it is, in words: it goes to the model when the rules do not
+    /// find it.
+    #[serde(default)]
+    pub description: String,
+    /// "identifier", "amount", "date", "number" or "text" (the rest of
+    /// the line).
+    #[serde(default)]
+    pub kind: String,
+    /// It is the value found within `window` tokens after one of these
+    /// phrases (compared like the signals' phrases).
+    #[serde(default)]
+    pub after: Vec<String>,
+    /// Or any token with one of these shapes.
+    #[serde(default)]
+    pub shapes: Vec<String>,
+    /// Or the value of the document's marks of this kind.
+    #[serde(default)]
+    pub from_mark: Option<String>,
+    /// Tokens looked at after the phrase (12 when not said).
+    #[serde(default)]
+    pub window: Option<usize>,
+    /// Every value found, not only the first. After a phrase, the values
+    /// follow one another while each is within `window` tokens of the
+    /// last (a list of invoices).
+    #[serde(default)]
+    pub many: bool,
+    /// Of the values found, the one kept: "first" (the default) or
+    /// "largest" (a total is the largest amount next to the word).
+    #[serde(default)]
+    pub pick: Option<String>,
+    /// When the rules do not find it, the model is asked.
+    #[serde(default)]
+    pub required: bool,
+}
+
+/// How the type corrects or completes the relation measured for two
+/// documents (pass 6). What the general rule already resolved is left
+/// alone.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RelationRule {
+    pub id: String,
+    /// - `different-data`: two documents of this type whose `data` differ
+    ///   are different documents, however much text they share: a
+    ///   relation that makes them one document becomes `relation`.
+    /// - `stage-pair`: one in `subjectStage` and the other in one of
+    ///   `otherStages`, sharing their base text, are `relation`, the first
+    ///   being the subject.
+    /// - `shared-data`: a document of this type and one of `otherType`
+    ///   with the same `data` are `relation`, this one being the subject.
+    pub kind: String,
+    #[serde(default)]
+    pub data: Vec<String>,
+    #[serde(default)]
+    pub subject_stage: Option<String>,
+    #[serde(default)]
+    pub other_stages: Vec<String>,
+    #[serde(default)]
+    pub other_type: Option<String>,
+    pub relation: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -150,6 +232,16 @@ impl Catalog {
 
     pub fn relation(&self, id: &str) -> Option<&RelationDef> {
         self.relations.iter().find(|relation| relation.id == id)
+    }
+
+    pub fn doc_type(&self, id: &str) -> Option<&DocType> {
+        self.types.iter().find(|doc_type| doc_type.id == id)
+    }
+
+    /// The types a document can be (not the carriers): the closed list
+    /// the model chooses from (R-22).
+    pub fn document_types(&self) -> impl Iterator<Item = &DocType> {
+        self.types.iter().filter(|doc_type| !doc_type.carrier)
     }
 
     /// Every signing service named by a variant, with the certificate
@@ -236,6 +328,41 @@ mod tests {
             ids.sort();
             ids.dedup();
             assert_eq!(ids.len(), doc_type.signals.len(), "{}", doc_type.id);
+        }
+    }
+
+    #[test]
+    fn data_and_rules_name_what_exists() {
+        let catalog = Catalog::builtin();
+        let kinds = ["identifier", "amount", "date", "number", "text"];
+        let rule_kinds = ["different-data", "stage-pair", "shared-data"];
+        assert!(catalog.document_types().count() >= 5);
+        for doc_type in &catalog.types {
+            for datum in &doc_type.data {
+                assert!(kinds.contains(&datum.kind.as_str()), "{} {}", doc_type.id, datum.id);
+                assert!(!datum.description.is_empty(), "{} {}", doc_type.id, datum.id);
+                assert!(!datum.after.is_empty() || !datum.shapes.is_empty() || datum.from_mark.is_some(), "{} {}", doc_type.id, datum.id);
+            }
+            for rule in &doc_type.rules {
+                assert!(rule_kinds.contains(&rule.kind.as_str()), "{} {}", doc_type.id, rule.id);
+                assert!(catalog.relation(&rule.relation).is_some(), "{} {}", doc_type.id, rule.id);
+                for field in &rule.data {
+                    let other = rule.other_type.as_deref().and_then(|t| catalog.doc_type(t));
+                    let known = |t: &DocType| t.data.iter().any(|d| &d.id == field);
+                    assert!(known(doc_type) && other.is_none_or(known), "{} {} {field}", doc_type.id, rule.id);
+                }
+                for stage in rule.subject_stage.iter().chain(&rule.other_stages) {
+                    assert!(doc_type.stages.contains(stage), "{} {} {stage}", doc_type.id, rule.id);
+                }
+            }
+            for stage in doc_type.stage_descriptions.keys() {
+                assert!(doc_type.stages.contains(stage), "{} {stage}", doc_type.id);
+            }
+            for signal in &doc_type.signals {
+                if let Some(stage) = &signal.stage {
+                    assert!(doc_type.stages.contains(stage), "{} {}", doc_type.id, signal.id);
+                }
+            }
         }
     }
 
