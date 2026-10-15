@@ -141,7 +141,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-113 | 14 oct | Proceso de trabajo | No se hacen inferencias sobre inferencias | vigente |
 | D-114 | 14 oct | Proceso de trabajo | Las reglas del procesamiento se documentan aparte y se revisan | vigente |
 | D-115 | 14 oct | Parecidos | El proceso tiene que decir qué falta | vigente |
-| D-117 | 14 oct | Base documental | El preprocesado recibe la ruta completa de la fuente, la misma que lee el ingest | en revisión |
+| D-147 | 14 oct | Base documental | El preprocesado recibe la ruta completa de la fuente, la misma que lee el ingest | en revisión |
 
 ---
 
@@ -1643,7 +1643,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Quién decidió:** El dueño del producto.
 - **Fuente:** Conversación del 14 oct.
 
-### D-117 · El preprocesado recibe la ruta completa de la fuente, la misma que lee el ingest
+### D-147 · El preprocesado recibe la ruta completa de la fuente, la misma que lee el ingest
 
 - **Fecha:** 14 oct 2026
 - **Tema:** Base documental
