@@ -141,7 +141,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-113 | 14 oct | Proceso de trabajo | No se hacen inferencias sobre inferencias | vigente |
 | D-114 | 14 oct | Proceso de trabajo | Las reglas del procesamiento se documentan aparte y se revisan | vigente |
 | D-115 | 14 oct | Parecidos | El proceso tiene que decir qué falta | vigente |
-| D-116 | 14 oct | Base documental | En un formulario PDF, de cada casilla o botón marcado se escribe qué opción es | en revisión |
+| D-146 | 14 oct | Base documental | En un formulario PDF, de cada casilla o botón marcado se escribe qué opción es | en revisión |
 
 ---
 
@@ -1643,7 +1643,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Quién decidió:** El dueño del producto.
 - **Fuente:** Conversación del 14 oct.
 
-### D-116 · En un formulario PDF, de cada casilla o botón marcado se escribe qué opción es
+### D-146 · En un formulario PDF, de cada casilla o botón marcado se escribe qué opción es
 
 - **Fecha:** 14 oct 2026
 - **Tema:** Base documental
