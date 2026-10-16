@@ -54,13 +54,13 @@ fn reading(prompt: &str) -> String {
     serde_json::json!({ "menciones": mentions, "afirmaciones": claims }).to_string()
 }
 
-fn is_synthesis(prompt: &str) -> bool {
+pub(crate) fn is_synthesis(prompt: &str) -> bool {
     prompt.starts_with("Sos asistente de un estudio jurídico. Redactá lo que dicen")
 }
 
 /// A sentence per claim, backed by it; one with a number no claim says,
 /// and one naming a claim that does not exist: both must go.
-fn synthesis(prompt: &str) -> String {
+pub(crate) fn synthesis(prompt: &str) -> String {
     let mut sentences = Vec::new();
     let mut count = 0;
     for line in prompt.lines() {
@@ -106,14 +106,14 @@ fn archive(files: &[(&str, &str)]) -> (TempDir, DocBase, PathBuf, FakeModel) {
     (dir, base, project, asker)
 }
 
-fn read(base: &DocBase, asker: &FakeModel) {
+pub(crate) fn read(base: &DocBase, asker: &FakeModel) {
     base.types_run(asker, 50).unwrap();
     while base.knowledge_run(asker, 50).unwrap().extracted > 0 {}
     base.knowledge_resolve(Some(asker), 50).unwrap();
 }
 
 /// The entity pages on disk: (file name, text).
-fn entity_pages(project: &PathBuf) -> Vec<(String, String)> {
+pub(crate) fn entity_pages(project: &PathBuf) -> Vec<(String, String)> {
     let mut out: Vec<(String, String)> = std::fs::read_dir(project.join("wiki/entities"))
         .map(|dir| {
             dir.filter_map(Result::ok)
@@ -125,7 +125,7 @@ fn entity_pages(project: &PathBuf) -> Vec<(String, String)> {
     out
 }
 
-fn page_of<'a>(pages: &'a [(String, String)], title: &str) -> &'a str {
+pub(crate) fn page_of<'a>(pages: &'a [(String, String)], title: &str) -> &'a str {
     pages
         .iter()
         .find(|(_, text)| text.contains(&format!("title: \"{title}\"")))

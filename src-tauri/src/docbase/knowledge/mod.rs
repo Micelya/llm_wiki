@@ -16,8 +16,11 @@
 //! 3. **Projection** (`pages.rs`): the page of each entity in the
 //!    archive's wiki, the block of entities of each document's page and
 //!    the overview, from the record.
-//! 4. Changes and deletions, 5. relations, 6. the attention view: later
-//!    stages, on the tables already here (`schema.rs`, V8 and V9).
+//! 4. **Changes and deletions** (`changes.rs`): what a document that goes
+//!    away, comes back, is replaced or is left out takes with it, and what
+//!    goes on to the document that takes its place.
+//! 5. Relations, 6. the attention view: later stages, on the tables
+//!    already here (`schema.rs`, V8 to V10).
 //!
 //! The types of entity, roles, identifiers and predicates are data
 //! (`vocabulary.rs`, R-26).
@@ -28,6 +31,7 @@ pub(crate) mod check;
 mod check_identity;
 #[cfg(test)]
 mod check_pages;
+pub(crate) mod changes;
 pub(crate) mod claims;
 pub mod decide;
 pub mod entities;
@@ -37,11 +41,13 @@ pub mod pages;
 pub mod quote;
 pub mod resolve;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
+#[cfg(test)]
+mod tests_changes;
 #[cfg(test)]
 mod tests_identity;
 #[cfg(test)]
-mod tests_pages;
+pub(crate) mod tests_pages;
 pub mod vocabulary;
 
 use std::collections::BTreeMap;

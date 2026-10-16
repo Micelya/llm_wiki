@@ -10,7 +10,7 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11];
 
 /// What a person decided about the document types the model proposed
 /// (R-22). `confirmed`: the type joins the closed list the model chooses
@@ -25,6 +25,71 @@ CREATE TABLE type_decision (
     description  TEXT,
     decided_at   INTEGER NOT NULL
 );
+";
+
+/// Changes and deletions in the knowledge layer (`knowledge/changes.rs`):
+/// what a document that went away leaves behind, so that what a person
+/// decided about it, and the ids of its entities, go on to the document
+/// that takes its place (the same text back, or the new version of the
+/// file at its path).
+///
+/// - `knowledge_gone`: a content that went away, with the fingerprint of
+///   its text. Its id is never given to another content.
+/// - `knowledge_gone_file`: the files it had (the change log names the
+///   path where each one was replaced by a new version).
+/// - `knowledge_gone_mention`: the entity each name of a document had
+///   when its mentions went away (the document went, or was read again),
+///   so the same name of the document that takes its place keeps it.
+/// - `knowledge_claim.context_entity`: the entity a value is said within
+///   (a position held in a company): the same value within two entities
+///   is two claims, not a conflict.
+/// - What the model said of the groups of a content that goes away is
+///   forgotten (the answers stay in `model_answer`: the same question
+///   costs nothing).
+const V11: &str = "
+CREATE TABLE knowledge_gone (
+    content_id  INTEGER PRIMARY KEY,
+    text_hash   TEXT,
+    gone_at     INTEGER NOT NULL
+);
+
+CREATE TABLE knowledge_gone_file (
+    hash        TEXT PRIMARY KEY,
+    content_id  INTEGER NOT NULL,
+    gone_at     INTEGER NOT NULL
+);
+CREATE INDEX knowledge_gone_file_by_content ON knowledge_gone_file (content_id);
+
+CREATE TABLE knowledge_gone_mention (
+    content_id  INTEGER NOT NULL,
+    kind        TEXT NOT NULL,
+    normalized  TEXT NOT NULL,
+    entity_id   TEXT NOT NULL,
+    gone_at     INTEGER NOT NULL,
+    PRIMARY KEY (content_id, kind, normalized)
+);
+
+CREATE TRIGGER knowledge_content_gone AFTER DELETE ON content BEGIN
+    INSERT OR REPLACE INTO knowledge_gone (content_id, text_hash, gone_at)
+        VALUES (OLD.id, OLD.text_hash, CAST(strftime('%s', 'now') AS INTEGER) * 1000);
+    DELETE FROM knowledge_verdict
+        WHERE a LIKE 'cluster:' || OLD.id || ':%' OR b LIKE 'cluster:' || OLD.id || ':%';
+END;
+
+CREATE TRIGGER knowledge_file_gone AFTER DELETE ON file BEGIN
+    INSERT OR REPLACE INTO knowledge_gone_file (hash, content_id, gone_at)
+        VALUES (OLD.hash, OLD.content_id, CAST(strftime('%s', 'now') AS INTEGER) * 1000);
+END;
+
+CREATE TRIGGER knowledge_mention_gone AFTER DELETE ON knowledge_mention WHEN OLD.entity_id IS NOT NULL BEGIN
+    INSERT OR REPLACE INTO knowledge_gone_mention (content_id, kind, normalized, entity_id, gone_at)
+        VALUES (OLD.content_id, OLD.kind, OLD.normalized, OLD.entity_id, CAST(strftime('%s', 'now') AS INTEGER) * 1000);
+END;
+
+ALTER TABLE knowledge_claim ADD COLUMN context_entity TEXT REFERENCES knowledge_entity (id) ON DELETE SET NULL;
+DROP INDEX knowledge_claim_key;
+CREATE UNIQUE INDEX knowledge_claim_key
+    ON knowledge_claim (subject, predicate, coalesce(object_entity, ''), coalesce(object_normalized, ''), coalesce(context_entity, ''));
 ";
 
 /// The projection of the knowledge layer into the general project's wiki

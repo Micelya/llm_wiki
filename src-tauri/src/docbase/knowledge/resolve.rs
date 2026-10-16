@@ -48,7 +48,7 @@ use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use super::claims;
+use super::{changes, claims};
 use super::names::{self, Likeness, NameKey, ORGANIZATION, PERSON};
 use super::vocabulary::{vocabulary, Vocabulary};
 use crate::docbase::similar::classify::{self as classify, ask_and_keep, cached_answer, parse_json, stops_the_run, Question, ASKING};
@@ -115,6 +115,9 @@ pub(crate) struct Row {
     pub role: String,
     pub quote: String,
     pub entity: Option<String>,
+    /// The entity this name of the document had before its mentions went
+    /// away (read again, or the document it took the place of).
+    pub hint: Option<String>,
 }
 
 /// The mentions of one document that are the same entity.
@@ -162,12 +165,15 @@ fn hash(parts: &[&str]) -> String {
 
 pub(crate) fn load_rows(conn: &Connection) -> Result<Vec<Row>, String> {
     let mut statement = conn
-        .prepare(
+        .prepare(&format!(
             "SELECT m.id, m.content_id, m.ref, m.same_as, m.kind, m.written, m.normalized, m.role, m.quote, m.entity_id
              FROM knowledge_mention m JOIN knowledge_extraction k ON k.content_id = m.content_id AND k.state = 'done'
+             WHERE {}
              ORDER BY m.content_id, m.id",
-        )
+            changes::active_content("m.content_id")
+        ))
         .map_err(sql_err)?;
+    let hints = changes::entity_hints(conn)?;
     let rows = statement
         .query_map([], |row| {
             Ok(Row {
@@ -181,10 +187,15 @@ pub(crate) fn load_rows(conn: &Connection) -> Result<Vec<Row>, String> {
                 role: row.get(7)?,
                 quote: row.get(8)?,
                 entity: row.get(9)?,
+                hint: None,
             })
         })
         .map_err(sql_err)?;
-    rows.collect::<Result<Vec<_>, _>>().map_err(sql_err)
+    let mut rows = rows.collect::<Result<Vec<_>, _>>().map_err(sql_err)?;
+    for row in rows.iter_mut().filter(|r| r.entity.is_none()) {
+        row.hint = hints.get(&(row.content_id, row.kind.clone(), row.normalized.clone())).cloned();
+    }
+    Ok(rows)
 }
 
 fn load_identifiers(conn: &Connection) -> Result<HashMap<i64, Vec<(String, String, String)>>, String> {
@@ -387,9 +398,12 @@ pub(crate) fn load_decided(conn: &Connection) -> Result<Decided, String> {
     let rows = statement
         .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<String>>(2)?)))
         .map_err(sql_err)?;
+    let successors = changes::successors(conn)?;
+    let moved = |key: String| changes::translate(&key, &successors);
     let mut out = Decided::default();
     for row in rows {
-        match row.map_err(sql_err)? {
+        let (kind, a, b) = row.map_err(sql_err)?;
+        match (kind, moved(a), b.map(moved)) {
             (kind, a, Some(b)) if kind == "join" => out.joins.push((a, b)),
             (kind, a, Some(b)) if kind == "separate" => out.separations.push((a, b)),
             (kind, a, _) if kind == "wrong" => {
@@ -1336,7 +1350,9 @@ pub(crate) fn write(base: &DocBase, outcome: &Outcome, report: &mut ResolveRepor
         let mut overlap: BTreeMap<String, usize> = BTreeMap::new();
         for &c in &list {
             for &r in &clusters[c].rows {
-                if let Some(entity) = &rows[r].entity {
+                // The entity it has, or the one its name had before the
+                // document was read again or took another one's place.
+                if let Some(entity) = rows[r].entity.as_ref().or(rows[r].hint.as_ref()) {
                     if !taken.contains(entity) && existing.get(entity).is_some_and(|e| e.kind == clusters[c].kind) {
                         *overlap.entry(entity.clone()).or_default() += 1;
                     }
@@ -1478,6 +1494,9 @@ pub(crate) fn write(base: &DocBase, outcome: &Outcome, report: &mut ResolveRepor
     report.doubts = outcome.doubts.len();
     report.groups = clusters.iter().filter(|c| c.excluded.is_none()).count();
     report.entities = assigned.len();
+    // The documents left out: their mentions out of the record.
+    let left_out = changes::left_out(&tx)?;
+    changed.extend(changes::leave_out(&tx, &left_out)?);
     // Claims: the evidence in terms of entities.
     let consolidated = claims::consolidate(&tx, vocabulary, &decided.wrong)?;
     report.claims = consolidated.claims;
@@ -1487,6 +1506,7 @@ pub(crate) fn write(base: &DocBase, outcome: &Outcome, report: &mut ResolveRepor
         super::mark_dirty(&tx, "project", id)?;
     }
     report.changed = changed.len();
+    changes::forget_used_hints(&tx)?;
     tx.commit().map_err(sql_err)
 }
 
@@ -1508,6 +1528,9 @@ impl DocBase {
     pub fn knowledge_resolve(&self, asker: Option<&dyn DocumentAsker>, max_questions: usize) -> Result<ResolveReport, String> {
         let _one = RESOLVING.lock().unwrap_or_else(|p| p.into_inner());
         let _asking = asker.map(|_| ASKING.lock().unwrap_or_else(|p| p.into_inner()));
+        // A change in what is left out is work to do, marked before the
+        // resolution starts so that finishing it clears the mark.
+        changes::notice_left_out(&self.conn())?;
         let started = now_ms();
         let dirty: i64 = self
             .conn()

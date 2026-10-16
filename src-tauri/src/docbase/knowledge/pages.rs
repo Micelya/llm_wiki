@@ -173,6 +173,9 @@ struct Document {
     /// The page the wiki wrote from it.
     page: Option<String>,
     doc_type: Option<String>,
+    /// Joined with another one as the same document, and that one chosen
+    /// as the wiki's source.
+    chosen: Option<i64>,
 }
 
 #[derive(Debug, Clone)]
@@ -375,6 +378,10 @@ fn load(conn: &Connection, project_id: &str, identities: &HashMap<i64, String>) 
             entities.insert(entity.id.clone(), entity);
         }
     }
+    // A document joined with another as the same document, with the other
+    // one chosen as the wiki's source, is listed as the chosen one (D-207).
+    let chosen = passed_over(conn)?;
+    let fold = |content: i64| chosen.get(&content).copied().unwrap_or(content);
     // Only documents that still have a file somewhere count.
     let (visible, params) = super::visible_content("m.content_id", &Visible::All);
     {
@@ -392,7 +399,7 @@ fn load(conn: &Connection, project_id: &str, identities: &HashMap<i64, String>) 
         for row in rows {
             let (entity, content, role, written) = row.map_err(sql_err)?;
             if let Some(entity) = entities.get_mut(&entity) {
-                entity.documents.entry(content).or_default().insert(role);
+                entity.documents.entry(fold(content)).or_default().insert(role);
                 *entity.written.entry(written).or_default() += 1;
             }
         }
@@ -412,7 +419,7 @@ fn load(conn: &Connection, project_id: &str, identities: &HashMap<i64, String>) 
         for row in rows {
             let (entity, kind, value, normalized, content) = row.map_err(sql_err)?;
             if let Some(entity) = entities.get_mut(&entity) {
-                entity.identifiers.entry((kind, normalized)).or_insert_with(|| (value, BTreeSet::new())).1.insert(content);
+                entity.identifiers.entry((kind, normalized)).or_insert_with(|| (value, BTreeSet::new())).1.insert(fold(content));
             }
         }
     }
@@ -480,11 +487,17 @@ fn load(conn: &Connection, project_id: &str, identities: &HashMap<i64, String>) 
         }
     }
     let mut documents: BTreeMap<i64, Document> = BTreeMap::new();
-    let contents: BTreeSet<i64> = entities.values().flat_map(|e| e.documents.keys().copied()).collect();
+    let mut contents: BTreeSet<i64> = entities.values().flat_map(|e| e.documents.keys().copied()).collect();
+    contents.extend(entities.values().flat_map(|e| e.claims.iter().flat_map(|c| c.evidence.iter().map(|(content, ..)| *content))));
     for content in &contents {
         documents.insert(
             *content,
-            Document { name: classify::name_of(conn, *content)?, identity: identities.get(content).cloned(), ..Default::default() },
+            Document {
+                name: classify::name_of(conn, *content)?,
+                identity: identities.get(content).cloned(),
+                chosen: chosen.get(content).copied(),
+                ..Default::default()
+            },
         );
     }
     {
@@ -588,7 +601,8 @@ fn synthesis_question(vocabulary: &Vocabulary, record: &Record, entity: &Entity,
         if claim.state == "conflict" {
             line.push_str(" — EN CONFLICTO con otra afirmación del mismo dato");
         }
-        let documents: BTreeSet<i64> = claim.evidence.iter().map(|(c, ..)| *c).collect();
+        let documents: BTreeSet<i64> =
+            claim.evidence.iter().map(|(c, ..)| record.documents.get(c).and_then(|d| d.chosen).unwrap_or(*c)).collect();
         line.push_str(&format!(" — en {} documento(s)", documents.len()));
         for (content, quote, _) in claim.evidence.iter().take(QUOTES_PER_CLAIM) {
             let name = record.documents.get(content).map(|d| d.name.as_str()).unwrap_or_default();
@@ -704,9 +718,49 @@ struct Rendered {
 fn document_link(record: &Record, content: i64) -> String {
     match record.documents.get(&content) {
         Some(Document { page: Some(page), name, .. }) => link(page, name),
+        // A copy joined with the chosen one: its own name (the quote is in
+        // its text), and the one the wiki reads.
+        Some(Document { chosen: Some(chosen), name, .. }) if *chosen != content => {
+            format!("{name} → {}", document_link(record, *chosen))
+        }
         Some(document) => document.name.clone(),
         None => format!("#{content}"),
     }
+}
+
+/// The documents joined with another one as the same document, with the
+/// other one chosen as the wiki's source: each with the one chosen in its
+/// place, following a chain.
+pub(crate) fn passed_over(conn: &Connection) -> Result<HashMap<i64, i64>, String> {
+    let mut statement = conn
+        .prepare("SELECT a, b, wiki_source FROM similar_pair WHERE state = 'joined' AND wiki_source IS NOT NULL")
+        .map_err(sql_err)?;
+    let rows: Vec<(i64, i64, i64)> = statement
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+        .map_err(sql_err)?
+        .collect::<Result<_, _>>()
+        .map_err(sql_err)?;
+    let mut next: HashMap<i64, i64> = HashMap::new();
+    for (a, b, source) in rows {
+        let other = if source == a { b } else { a };
+        if other != source {
+            next.insert(other, source);
+        }
+    }
+    let mut out = HashMap::new();
+    for &start in next.keys() {
+        let mut at = start;
+        for _ in 0..16 {
+            match next.get(&at) {
+                Some(&n) if n != start => at = n,
+                _ => break,
+            }
+        }
+        if at != start {
+            out.insert(start, at);
+        }
+    }
+    Ok(out)
 }
 
 /// The entities related to one: the ones with a page that share documents
@@ -1068,6 +1122,44 @@ fn overview(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, S
     out
 }
 
+/// The pages (by the name links use, in lower case) that a page the app
+/// does not write links to: a page of the wiki other than the entity pages
+/// and the overview, outside the block of entities the app keeps in it.
+fn linked_from_outside(base: &DocBase, project_id: &str, root: &Path) -> Result<BTreeSet<String>, String> {
+    let linking: Vec<(String, String)> = {
+        let conn = base.conn();
+        let mut statement = conn
+            .prepare(
+                "SELECT DISTINCT p.path, t.path FROM wiki_link k
+                 JOIN wiki_page p ON p.id = k.from_page JOIN wiki_page t ON t.id = k.to_page
+                 WHERE p.project_id = ?1 AND p.id != t.id",
+            )
+            .map_err(sql_err)?;
+        let rows = statement.query_map([project_id], |row| Ok((row.get(0)?, row.get(1)?))).map_err(sql_err)?;
+        rows.collect::<Result<_, _>>().map_err(sql_err)?
+    };
+    let mut texts: HashMap<String, Option<String>> = HashMap::new();
+    let mut out = BTreeSet::new();
+    for (from, to) in linking {
+        let text = texts
+            .entry(from.clone())
+            .or_insert_with(|| {
+                read_file(&root.join(&from))
+                    .filter(|t| !t.contains(&format!("generated_by: {GENERATED_BY}")))
+                    .map(|t| with_block(&t, None).to_lowercase())
+            })
+            .clone();
+        let target = stem(&to).to_lowercase();
+        let Some(text) = text else { continue };
+        if [format!("[[{target}]]"), format!("[[{target}|"), format!("[[{target}#")].iter().any(|l| text.contains(l.as_str()))
+            || text.lines().any(|l| l.starts_with("related:") && l.contains(target.as_str()))
+        {
+            out.insert(target);
+        }
+    }
+    Ok(out)
+}
+
 /// The entity a merged one went into, following the chain.
 fn survivor<'a>(record: &'a Record, id: &str) -> Option<&'a Entity> {
     let mut current = record.entities.get(id)?;
@@ -1281,15 +1373,19 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
         return Ok(());
     }
 
-    // Pages whose entity has no page any more: gone, unless a person wrote
-    // notes in them (R-09).
+    // Pages whose entity has no page any more (it left the record, went
+    // into another one or no longer meets the rule): gone, unless a person
+    // wrote notes in them (R-09) or a page the app does not write links to
+    // them. Then a short page stays in their place, saying where the
+    // entity went: no link breaks (D-206).
+    let outside = linked_from_outside(base, &general.id, &root)?;
     for (id, page) in &record.pages {
         if paths.contains_key(id) {
             continue;
         }
         let file = root.join(&page.path);
         let notes = read_file(&file).map(|t| notes_of(&t, vocabulary.pages.word("notes"))).unwrap_or_default();
-        if notes.trim().is_empty() {
+        if notes.trim().is_empty() && !outside.contains(&stem(&page.path).to_lowercase()) {
             if file.is_file() {
                 std::fs::remove_file(&file).map_err(|e| format!("No se pudo borrar '{}': {e}", file.display()))?;
             }

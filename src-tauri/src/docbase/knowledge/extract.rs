@@ -155,7 +155,9 @@ pub(crate) fn standings(conn: &Connection, visible: &Visible, only: Option<i64>)
              FROM content c JOIN derivative d ON d.content_id = c.id AND d.kind = 'text'
              LEFT JOIN knowledge_extraction k ON k.content_id = c.id
              WHERE c.state = 'processed' AND coalesce(c.word_count, 0) >= ?1 AND (?2 IS NULL OR c.id = ?2) AND {condition}
-             ORDER BY c.id"
+               AND {active}
+             ORDER BY c.id",
+            active = super::changes::active_content("c.id")
         ))
         .map_err(sql_err)?;
     let rows = statement
