@@ -22,6 +22,8 @@
 #[cfg(test)]
 pub(crate) mod check;
 pub(crate) mod claims;
+pub mod decide;
+pub mod entities;
 pub mod extract;
 pub mod names;
 pub mod quote;
@@ -73,8 +75,18 @@ pub struct KnowledgeStatus {
     /// (a quote not found in the text, a name outside its quote…).
     pub discarded: usize,
     pub discarded_by_reason: BTreeMap<String, usize>,
-    /// Answers of the model kept for this layer.
+    /// Answers of the model kept for this layer (readings and identities).
     pub answers: usize,
+    /// Active entities, by kind.
+    pub entities: usize,
+    pub entities_by_kind: BTreeMap<String, usize>,
+    /// Pairs left for a person to decide.
+    pub doubts: usize,
+    pub claims: usize,
+    /// Claims with another value for the same time.
+    pub conflicts: usize,
+    /// Readings or decisions not resolved yet.
+    pub to_resolve: usize,
     /// The engine that reads while the archive's wiki is active.
     pub engine: Option<AskConfig>,
 }
@@ -184,7 +196,51 @@ impl DocBase {
             count("SELECT count(*) FROM knowledge_identifier i JOIN knowledge_mention m ON m.id = i.mention_id")?;
         status.evidence = count("SELECT count(*) FROM knowledge_evidence m")?;
         status.answers = conn
-            .query_row("SELECT count(*) FROM model_answer WHERE task = ?1", [extract::TASK], |row| row.get::<_, i64>(0))
+            .query_row("SELECT count(*) FROM model_answer WHERE task IN (?1, ?2)", [extract::TASK, resolve::TASK], |row| row.get::<_, i64>(0))
+            .map_err(sql_err)? as usize;
+        {
+            let (condition, params) = visible_content("m.content_id", visible);
+            let mut statement = conn
+                .prepare(&format!(
+                    "SELECT e.kind, count(DISTINCT e.id) FROM knowledge_entity e JOIN knowledge_mention m ON m.entity_id = e.id
+                     WHERE e.state = 'active' AND {condition} GROUP BY e.kind"
+                ))
+                .map_err(sql_err)?;
+            let rows = statement
+                .query_map(rusqlite::params_from_iter(params.iter()), |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)))
+                .map_err(sql_err)?;
+            for row in rows {
+                let (kind, n) = row.map_err(sql_err)?;
+                status.entities += n as usize;
+                status.entities_by_kind.insert(kind, n as usize);
+            }
+        }
+        drop(conn);
+        status.doubts = self.knowledge_doubts(visible)?.len();
+        let conn = self.conn();
+        let (condition, params) = visible_content("e.content_id", visible);
+        let claims: Vec<(String, i64)> = {
+            let mut statement = conn
+                .prepare(&format!(
+                    "SELECT c.state, count(DISTINCT c.id) FROM knowledge_claim c JOIN knowledge_evidence e ON e.claim_id = c.id
+                     WHERE {condition} GROUP BY c.state"
+                ))
+                .map_err(sql_err)?;
+            let rows = statement
+                .query_map(rusqlite::params_from_iter(params.iter()), |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)))
+                .map_err(sql_err)?;
+            rows.collect::<Result<_, _>>().map_err(sql_err)?
+        };
+        for (state, n) in claims {
+            if state != "retired" {
+                status.claims += n as usize;
+            }
+            if state == "conflict" {
+                status.conflicts += n as usize;
+            }
+        }
+        status.to_resolve = conn
+            .query_row("SELECT count(*) FROM knowledge_dirty WHERE scope IN ('resolve', 'retire')", [], |row| row.get::<_, i64>(0))
             .map_err(sql_err)? as usize;
         status.engine = super::similar::classify::ask_engine(&conn)?;
         Ok(status)

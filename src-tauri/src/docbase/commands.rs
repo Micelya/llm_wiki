@@ -12,6 +12,9 @@ use tauri::{Emitter, Manager, State};
 
 use super::bridge::{self, GeneralProject, WikiSource};
 use super::knowledge::extract::{KnowledgePlan, KnowledgeReport};
+use super::knowledge::decide::{DecisionView, IdentityDecision};
+use super::knowledge::entities::{DoubtView, EntityDetail, EntitySummary};
+use super::knowledge::resolve::ResolveReport;
 use super::knowledge::{DocumentKnowledge, KnowledgeStatus};
 use super::labels::{Label, LabelGroup, LabelRule};
 use super::origins::Origin;
@@ -628,6 +631,80 @@ pub fn docbase_knowledge_run(
     let report = base.knowledge_run(asker.as_ref(), max_questions.unwrap_or(RUN_LIMIT))?;
     let _ = app.emit(CHANGED_EVENT, ());
     Ok(report)
+}
+
+/// Resolves the identities of what the knowledge layer read: without a
+/// model, or asking at most `max_questions` questions to this engine (only
+/// on an explicit action of the user: it costs the provider's quota).
+#[tauri::command(async)]
+pub fn docbase_knowledge_resolve(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    engine: Option<AskConfig>,
+    max_questions: Option<usize>,
+) -> Result<ResolveReport, String> {
+    let base = state.base()?.clone();
+    let report = match engine {
+        Some(engine) => {
+            let asker = asker_for(&engine)?;
+            base.knowledge_resolve(Some(asker.as_ref()), max_questions.unwrap_or(RUN_LIMIT))?
+        }
+        None => base.knowledge_resolve(None, 0)?,
+    };
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(report)
+}
+
+/// The entities of the record, of one kind or all, whose names contain
+/// the words of `query`.
+#[tauri::command(async)]
+pub fn docbase_knowledge_entities(
+    state: State<'_, DocBaseState>,
+    kind: Option<String>,
+    query: Option<String>,
+) -> Result<Vec<EntitySummary>, String> {
+    state.base()?.knowledge_entities(&Visible::All, kind.as_deref(), query.as_deref())
+}
+
+/// One entity with its aliases, identifiers, mentions, claims and doubts.
+#[tauri::command(async)]
+pub fn docbase_knowledge_entity(state: State<'_, DocBaseState>, id: String) -> Result<Option<EntityDetail>, String> {
+    state.base()?.knowledge_entity(&Visible::All, &id)
+}
+
+/// The pairs of mentions the resolution left for a person.
+#[tauri::command(async)]
+pub fn docbase_knowledge_doubts(state: State<'_, DocBaseState>) -> Result<Vec<DoubtView>, String> {
+    state.base()?.knowledge_doubts(&Visible::All)
+}
+
+/// Every decision about identities, the latest first.
+#[tauri::command(async)]
+pub fn docbase_knowledge_decisions(state: State<'_, DocBaseState>) -> Result<Vec<DecisionView>, String> {
+    state.base()?.knowledge_decisions()
+}
+
+/// Keeps and applies a decision of the user about identities (join,
+/// separate, wrong datum), with the evidence the screen showed.
+#[tauri::command(async)]
+pub fn docbase_knowledge_decide(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    decision: IdentityDecision,
+    note: Option<String>,
+    shown_evidence: Option<String>,
+) -> Result<i64, String> {
+    let id = state.base()?.knowledge_decide(&decision, note.as_deref(), shown_evidence.as_deref())?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(id)
+}
+
+/// Undoes a decision about identities.
+#[tauri::command(async)]
+pub fn docbase_knowledge_undo(app: tauri::AppHandle, state: State<'_, DocBaseState>, id: i64) -> Result<(), String> {
+    state.base()?.knowledge_undo(id)?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(())
 }
 
 /// Up to `count` paths of nested folders under `root`, `depth` levels
