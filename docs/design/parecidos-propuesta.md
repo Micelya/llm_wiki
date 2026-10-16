@@ -1,6 +1,6 @@
 # Documentos parecidos — propuesta
 
-**Estado:** propuesta en revisión · 14 de octubre de 2026 · quinta versión · nada de esto está construido
+**Estado:** propuesta en revisión · 14 de octubre de 2026 · quinta versión · las pasadas 0 a 6 y las pantallas están construidas desde el 14 de octubre (PR #42, #43, #46 y #47); las decisiones que tomó el agente al construirlas (D-116 a D-148) esperan la revisión del dueño (P-066)
 **Alcance:** cómo reconocer documentos que se parecen sin ser idénticos, y qué hacer con ellos. Es la etapa 2 del [documento de diseño](base-documental.md) (pendiente P-015). No describe código.
 
 Cuando esta propuesta esté acordada, lo que quede firme pasa al documento de diseño.

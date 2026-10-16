@@ -178,6 +178,8 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-150 | 15 oct | IA | La IA se usa donde agrega valor o el proceso la necesita; lo determinista, solo si iguala o mejora el resultado | vigente |
 | D-151 | 15 oct | Upstream | No se sincroniza con upstream: el proyecto diverge y la compatibilidad deja de ser un criterio | vigente |
 | D-152 | 16 oct | Proceso de trabajo | `FORK_CHANGES.md` se congela: sin sincronización, ya no hace falta | vigente |
+| D-153 | 16 oct | Proceso de trabajo | Estado "a verificar" para lo construido que solo espera que el dueño lo vea en la app | vigente |
+| D-154 | 16 oct | Producto | El producto mínimo no está cerrado: el wiki generado es inservible y la experiencia de uso no alcanza | vigente |
 
 ---
 
@@ -2120,6 +2122,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** `.github/workflows/ci.yml`, `.github/workflows/build.yml`, regla `proteger-main`; P-082.
 - **Quién decidió:** el dueño del producto.
 - **Fuente:** conversación del 15 oct; PR #49.
+- **Nota del 16 oct:** las Actions del repositorio volvieron a funcionar; el 15 de octubre ya había corridas terminadas bien. La decisión no cambia.
 
 ### D-150 · La IA se usa donde agrega valor o el proceso la necesita
 
@@ -2159,3 +2162,29 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** `FORK_CHANGES.md`; `CLAUDE.md`.
 - **Quién decidió:** dueño del producto, sobre la recomendación del agente.
 - **Fuente:** conversación del 15 y 16 oct.
+
+### D-153 · Estado "a verificar" en los pendientes
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Proceso de trabajo
+- **Estado:** vigente
+- **El problema:** once pendientes figuraban "en curso" aunque su código estaba terminado e integrado; solo faltaba que el dueño lo viera en la app. Mezclados con el trabajo que de verdad está en marcha, daban la impresión de que había mucho más a medio hacer, y no se veía qué le tocaba mirar al dueño.
+- **Qué se decidió:** un estado propio, `a-verificar`, para lo construido e integrado que espera que el dueño lo vea en la app. Si lo aprueba pasa a `hecho`; si pide cambios, vuelve a `pendiente` o `en-curso`.
+- **Por qué:** separar lo que espera al dueño de lo que espera al agente.
+- **Alternativas descartadas:** dejarlos "en curso".
+- **Dónde se aplica:** `pendientes.json` (valores y reglas; P-011, P-014, P-021, P-023, P-031 a P-034, P-037, P-038, P-047).
+- **Quién decidió:** dueño del producto, sobre la propuesta del agente.
+- **Fuente:** conversación del 16 oct.
+
+### D-154 · El producto mínimo no está cerrado
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Producto
+- **Estado:** vigente
+- **El problema:** todo lo que lista el pendiente del producto mínimo (P-049) está construido y el wiki del archivo ya se generó, y el agente propuso darlo por cerrado.
+- **Qué se decidió:** no se cierra. Hay una primera versión construida, pero la experiencia de uso deja mucho que desear y el wiki que generó es inservible. Que algo esté construido no lo hace terminado: un paso se cierra cuando cumple su función para quien lo usa. El dueño va a traer una propuesta de diseño para revisarla, ajustarla e implementarla.
+- **Por qué:** el producto mínimo tiene que servir a un estudio, no solo existir.
+- **Alternativas descartadas:** cerrarlo porque las tareas que listaba estaban hechas.
+- **Dónde se aplica:** P-049 y los pendientes que dependen de él.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 16 oct.
