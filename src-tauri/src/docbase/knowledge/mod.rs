@@ -225,7 +225,11 @@ impl DocBase {
             count("SELECT count(*) FROM knowledge_identifier i JOIN knowledge_mention m ON m.id = i.mention_id")?;
         status.evidence = count("SELECT count(*) FROM knowledge_evidence m")?;
         status.answers = conn
-            .query_row("SELECT count(*) FROM model_answer WHERE task IN (?1, ?2, ?3)", [extract::TASK, resolve::TASK, pages::TASK], |row| row.get::<_, i64>(0))
+            .query_row(
+                "SELECT count(*) FROM model_answer WHERE task IN (?1, ?2, ?3, ?4)",
+                [extract::TASK, resolve::TASK, pages::TASK, matters::TASK],
+                |row| row.get::<_, i64>(0),
+            )
             .map_err(sql_err)? as usize;
         {
             let (condition, params) = visible_content("m.content_id", visible);

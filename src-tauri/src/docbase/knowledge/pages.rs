@@ -88,6 +88,9 @@ pub const WORDS: &[&str] = &[
     "matterSameAmount",
     "matterByPerson",
     "matterOf",
+    "matterProposed",
+    "matterProposedNote",
+    "proposed",
     "relations",
 ];
 /// Claims of one entity described in its question; the rest are left
@@ -214,6 +217,9 @@ struct Record {
     /// each document.
     matters: BTreeMap<String, Matter>,
     matter_of: BTreeMap<i64, BTreeSet<String>>,
+    /// The matters the model proposed for documents no evidence puts in
+    /// one, with its reason: a proposal for a person (R-03).
+    proposed: BTreeMap<i64, Vec<(String, Option<String>)>>,
 }
 
 /// A matter: a group of documents, with the reasons each one is in it.
@@ -601,7 +607,25 @@ fn load(conn: &Connection, project_id: &str, identities: &HashMap<i64, String>) 
             pages.insert(id, page);
         }
     }
-    Ok(Record { entities, documents, pages, source_pages, matters, matter_of })
+    let proposed: BTreeMap<i64, Vec<(String, Option<String>)>> = super::matters::proposals(conn)?
+        .into_iter()
+        .map(|(content, list)| (fold(content), list))
+        .filter(|(content, _)| !matter_of.contains_key(content))
+        .collect();
+    for content in proposed.keys() {
+        if !documents.contains_key(content) {
+            documents.insert(
+                *content,
+                Document {
+                    name: classify::name_of(conn, *content)?,
+                    identity: identities.get(content).cloned(),
+                    chosen: chosen.get(content).copied(),
+                    ..Default::default()
+                },
+            );
+        }
+    }
+    Ok(Record { entities, documents, pages, source_pages, matters, matter_of, proposed })
 }
 
 /// The language the wiki is written in, as the wiki said it; none when it
@@ -999,10 +1023,18 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
                 .filter_map(|id| record.matters.get(id))
                 .filter(|m| paths.contains_key(&m.id))
                 .collect();
-            if matters.is_empty() {
+            let proposed: Vec<&Matter> = record
+                .proposed
+                .get(content)
+                .into_iter()
+                .flatten()
+                .filter_map(|(id, _)| record.matters.get(id))
+                .filter(|m| paths.contains_key(&m.id))
+                .collect();
+            if matters.is_empty() && proposed.is_empty() {
                 alone.push(*content);
             }
-            for matter in matters {
+            for matter in matters.into_iter().chain(proposed) {
                 by_matter
                     .entry(matter.id.clone())
                     .or_insert_with(|| (link(&paths[&matter.id], &matter.name), Vec::new()))
@@ -1016,7 +1048,11 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
         for (title, contents) in groups {
             out.push_str(&format!("### {title}\n\n"));
             for content in contents {
-                out.push_str(&line(content, &entity.documents[&content]));
+                let mut text = line(content, &entity.documents[&content]);
+                if !record.matter_of.contains_key(&content) {
+                    text = format!("{} ({})\n", text.trim_end(), words.word("proposed"));
+                }
+                out.push_str(&text);
             }
             out.push('\n');
         }
@@ -1151,7 +1187,7 @@ fn source_block(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<Strin
         .filter_map(|id| record.matters.get(id))
         .filter(|m| paths.contains_key(&m.id))
         .collect();
-    if named.is_empty() && matters.is_empty() {
+    if named.is_empty() && matters.is_empty() && !record.proposed.contains_key(&content) {
         return None;
     }
     named.sort_by(|a, b| order(&a.0.kind).cmp(&order(&b.0.kind)).then_with(|| a.0.name.cmp(&b.0.name)));
@@ -1159,6 +1195,11 @@ fn source_block(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<Strin
     let mut out = format!("{BLOCK_START}: {} -->\n## {}\n\n", words.word("sourceBlockMark"), words.word("sourceBlock"));
     for matter in matters {
         out.push_str(&format!("- {}: {}\n", words.word("matterOf"), link(&paths[&matter.id], &matter.name)));
+    }
+    for (id, _) in record.proposed.get(&content).into_iter().flatten() {
+        if let (Some(matter), Some(path)) = (record.matters.get(id), paths.get(id)) {
+            out.push_str(&format!("- {} ({}): {}\n", words.word("matterOf"), words.word("proposed"), link(path, &matter.name)));
+        }
     }
     for (entity, roles) in named {
         let name = match paths.get(&entity.id) {
@@ -1418,6 +1459,19 @@ fn render_matter(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<Stri
         out.push_str(&format!("- {}{kind}\n", document_link(record, *content)));
     }
     out.push('\n');
+    let proposed: Vec<(i64, Option<&String>)> = record
+        .proposed
+        .iter()
+        .filter_map(|(content, list)| list.iter().find(|(id, _)| *id == matter.id).map(|(_, reason)| (*content, reason.as_ref())))
+        .collect();
+    if !proposed.is_empty() {
+        out.push_str(&format!("### {}\n\n*{}*\n\n", words.word("matterProposed"), words.word("matterProposedNote")));
+        for (content, reason) in proposed {
+            let reason = reason.map(|r| format!(" — {}", one_line(r))).unwrap_or_default();
+            out.push_str(&format!("- {}{reason}\n", document_link(record, content)));
+        }
+        out.push('\n');
+    }
     let mut why: Vec<String> = Vec::new();
     for (content, reasons) in &matter.documents {
         let mut by: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();

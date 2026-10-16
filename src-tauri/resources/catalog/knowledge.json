@@ -138,6 +138,9 @@
       "matterSameAmount": "comparten el importe",
       "matterByPerson": "una persona decidió que son del mismo asunto",
       "matterOf": "Asunto",
+      "matterProposed": "Posiblemente de este asunto",
+      "matterProposedNote": "lo propuso el modelo por su contenido; una persona lo confirma o lo descarta",
+      "proposed": "propuesto",
       "relations": "Vínculos",
       "relationsInverse": "(de otro lado)"
     }
@@ -154,6 +157,8 @@
     "subjectRoles": ["referido"],
     "partyRoles": ["parte"],
     "partiesInName": 2,
+    "proposeWithShared": 2,
+    "proposeCandidates": 3,
     "minDocuments": 2
   },
   "values": {

@@ -109,6 +109,21 @@ pub struct MatterRules {
     pub parties_in_name: usize,
     /// Documents a matter needs for a page of its own.
     pub min_documents: usize,
+    /// A document no evidence puts in a matter is asked about the matters
+    /// with which it shares this many parties or more, up to this many
+    /// matters in one question (`matters::propose`).
+    #[serde(default = "two")]
+    pub propose_with_shared: usize,
+    #[serde(default = "three")]
+    pub propose_candidates: usize,
+}
+
+fn two() -> usize {
+    2
+}
+
+fn three() -> usize {
+    3
 }
 
 impl Default for MatterRules {
@@ -126,6 +141,8 @@ impl Default for MatterRules {
             party_roles: Vec::new(),
             parties_in_name: 2,
             min_documents: 2,
+            propose_with_shared: 2,
+            propose_candidates: 3,
         }
     }
 }

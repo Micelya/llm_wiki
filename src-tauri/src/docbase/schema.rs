@@ -53,6 +53,9 @@ CREATE TABLE type_decision (
 ///   stable id, a name and, for each document, the reasons it is in the
 ///   matter. Computed again on every resolution; a person's decisions
 ///   about them are in `knowledge_decision` (`content:<id>` keys).
+///   `knowledge_matter_verdict`: what the model said of a document that
+///   no evidence puts in a matter (does it belong to this one?): a
+///   proposal for a person, never a link between documents (R-03).
 const V11: &str = "
 CREATE TABLE knowledge_matter (
     id          TEXT PRIMARY KEY,
@@ -70,6 +73,17 @@ CREATE TABLE knowledge_matter_document (
     PRIMARY KEY (matter_id, content_id)
 );
 CREATE INDEX knowledge_matter_document_by_content ON knowledge_matter_document (content_id);
+
+CREATE TABLE knowledge_matter_verdict (
+    content_id  INTEGER NOT NULL,
+    matter_id   TEXT NOT NULL,
+    engine      TEXT NOT NULL,
+    verdict     TEXT NOT NULL CHECK (verdict IN ('same', 'different', 'doubtful')),
+    reason      TEXT,
+    question    TEXT NOT NULL,
+    asked_at    INTEGER NOT NULL,
+    PRIMARY KEY (content_id, matter_id, engine)
+);
 
 CREATE TABLE knowledge_gone (
     content_id  INTEGER PRIMARY KEY,
@@ -98,6 +112,7 @@ CREATE TRIGGER knowledge_content_gone AFTER DELETE ON content BEGIN
         VALUES (OLD.id, OLD.text_hash, CAST(strftime('%s', 'now') AS INTEGER) * 1000);
     DELETE FROM knowledge_verdict
         WHERE a LIKE 'cluster:' || OLD.id || ':%' OR b LIKE 'cluster:' || OLD.id || ':%';
+    DELETE FROM knowledge_matter_verdict WHERE content_id = OLD.id;
 END;
 
 CREATE TRIGGER knowledge_file_gone AFTER DELETE ON file BEGIN

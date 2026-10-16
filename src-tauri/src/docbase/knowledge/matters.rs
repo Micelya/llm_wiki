@@ -31,6 +31,12 @@
 //! a person kept apart. A group of two documents or more is a matter, with
 //! a stable id (the one of the matter that keeps most of its documents)
 //! and the reasons each document is in it, so a person can see why.
+//!
+//! A document that no evidence puts in a matter, but shares parties with
+//! one, is read by the model against those matters (one question per
+//! document, with abstention): what it says is a **proposal** for a
+//! person, shown as such in the pages, never a link that groups other
+//! documents (R-03, `knowledge_propose_matters`).
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
@@ -43,7 +49,9 @@ use super::names;
 use super::quote;
 use super::values;
 use super::vocabulary::Vocabulary;
+use crate::docbase::similar::classify::Question;
 use crate::docbase::{now_ms, sql_err};
+use crate::source_volume::asking::DocumentAsker;
 
 /// What a grouping left.
 #[derive(Debug, Default, Clone, PartialEq, Serialize)]
@@ -501,4 +509,364 @@ fn matter_name(conn: &Connection, vocabulary: &Vocabulary, contents: &[i64]) -> 
 
 fn one_line(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Version of the question about the matter of a document.
+pub const MATTER_PROMPT: &str = "asunto-1";
+/// The task its answers are kept under in `model_answer`.
+pub const TASK: &str = "matter";
+/// Words of a document's text shown in its question.
+const OPENING_WORDS: usize = 250;
+/// Documents of a matter described in a question.
+const MATTER_DOCUMENTS: usize = 10;
+/// What its documents say, described in a question.
+const FACTS: usize = 15;
+
+/// What a pass of proposals did.
+#[derive(Debug, Default, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProposeReport {
+    /// Nothing to do: the identities are still being resolved.
+    pub skipped: bool,
+    /// Documents asked about, questions sent, failed and left for later.
+    pub candidates: usize,
+    pub asked: usize,
+    pub failed: usize,
+    pub left: usize,
+    /// Documents proposed for a matter now.
+    pub proposed: usize,
+    pub errors: Vec<String>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct Choice {
+    asunto: i64,
+    #[serde(default)]
+    certeza: Option<String>,
+    #[serde(default)]
+    razon: Option<String>,
+}
+
+pub fn schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["asunto", "certeza", "razon"],
+        "properties": {
+            "asunto": { "type": "integer" },
+            "certeza": { "type": "string", "enum": ["alta", "media", "baja"] },
+            "razon": { "type": "string" }
+        }
+    })
+}
+
+/// The parties of each document: entities other than matters, with a
+/// role that is not the fallback one, whose name is a name.
+fn parties_by_document(conn: &Connection, vocabulary: &Vocabulary) -> Result<BTreeMap<i64, BTreeSet<String>>, String> {
+    let mut statement = conn
+        .prepare(
+            "SELECT DISTINCT m.content_id, m.role, e.id, e.kind, e.name FROM knowledge_mention m JOIN knowledge_entity e ON e.id = m.entity_id
+             WHERE e.state = 'active' AND e.kind != ?1",
+        )
+        .map_err(sql_err)?;
+    let rows = statement
+        .query_map([&vocabulary.matters.kind], |row| {
+            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, String>(3)?, row.get::<_, String>(4)?))
+        })
+        .map_err(sql_err)?;
+    let mut out: BTreeMap<i64, BTreeSet<String>> = BTreeMap::new();
+    for row in rows {
+        let (content, role, id, kind, name) = row.map_err(sql_err)?;
+        if role != vocabulary.fallback_role() && super::pages::name_like(&kind, &name) {
+            out.entry(content).or_default().insert(id);
+        }
+    }
+    Ok(out)
+}
+
+/// A document, as a question shows it: its name and type, who appears in
+/// it and with what role, what it says of them, and how it starts.
+fn describe_document(conn: &Connection, vocabulary: &Vocabulary, content: i64) -> Result<String, String> {
+    let name = crate::docbase::similar::classify::name_of(conn, content)?;
+    let doc_type: Option<String> = conn.query_row("SELECT doc_type FROM document_type WHERE content_id = ?1", [content], |row| row.get(0)).ok();
+    let mut out = format!("Documento: {name}");
+    if let Some(doc_type) = doc_type {
+        out.push_str(&format!(" ({})", doc_type.replace('-', " ")));
+    }
+    out.push('\n');
+    let mut statement = conn
+        .prepare(
+            "SELECT DISTINCT e.name, e.kind, m.role FROM knowledge_mention m JOIN knowledge_entity e ON e.id = m.entity_id
+             WHERE m.content_id = ?1 AND e.state = 'active' ORDER BY e.kind, e.name, m.role",
+        )
+        .map_err(sql_err)?;
+    let rows: Vec<(String, String, String)> = statement
+        .query_map([content], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+        .map_err(sql_err)?
+        .collect::<Result<_, _>>()
+        .map_err(sql_err)?;
+    if !rows.is_empty() {
+        let named: Vec<String> = rows
+            .iter()
+            .map(|(name, kind, role)| format!("{} ({}, {})", one_line(name), vocabulary.type_label(kind), vocabulary.role_label(role)))
+            .collect();
+        out.push_str(&format!("- Nombra a: {}\n", named.join("; ")));
+    }
+    let mut statement = conn
+        .prepare(
+            "SELECT e.predicate, coalesce(e.object_value, o.written), e.quote FROM knowledge_evidence e
+             LEFT JOIN knowledge_mention o ON o.id = e.object_mention WHERE e.content_id = ?1 ORDER BY e.id LIMIT ?2",
+        )
+        .map_err(sql_err)?;
+    let facts: Vec<(String, String, String)> = statement
+        .query_map(params![content, FACTS as i64], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+        .map_err(sql_err)?
+        .collect::<Result<_, _>>()
+        .map_err(sql_err)?;
+    for (predicate, object, quote_text) in facts {
+        out.push_str(&format!("- {}: {} («{}»)\n", vocabulary.predicate_label(&predicate), one_line(&object), one_line(&quote_text)));
+    }
+    let body: Option<String> =
+        conn.query_row("SELECT body FROM derivative WHERE content_id = ?1 AND kind = 'text'", [content], |row| row.get(0)).ok();
+    if let Some(body) = body {
+        let opening: Vec<&str> = body.split_whitespace().filter(|w| !w.starts_with("##")).take(OPENING_WORDS).collect();
+        out.push_str(&format!("- Empieza así: «{}»\n", opening.join(" ")));
+    }
+    Ok(out)
+}
+
+/// A matter, as a question shows it: its name, its documents and parties.
+fn describe_matter(conn: &Connection, vocabulary: &Vocabulary, name: &str, documents: &BTreeSet<i64>, parties: &BTreeSet<String>) -> Result<String, String> {
+    let mut out = format!("Asunto: {}\n", one_line(name));
+    for content in documents.iter().take(MATTER_DOCUMENTS) {
+        let doc_name = crate::docbase::similar::classify::name_of(conn, *content)?;
+        let doc_type: Option<String> = conn.query_row("SELECT doc_type FROM document_type WHERE content_id = ?1", [content], |row| row.get(0)).ok();
+        out.push_str(&format!("- Documento: {doc_name}{}\n", doc_type.map(|t| format!(" ({})", t.replace('-', " "))).unwrap_or_default()));
+    }
+    if documents.len() > MATTER_DOCUMENTS {
+        out.push_str(&format!("- y {} documentos más\n", documents.len() - MATTER_DOCUMENTS));
+    }
+    let mut names: Vec<String> = Vec::new();
+    for id in parties {
+        if let Ok((entity, kind)) = conn.query_row("SELECT name, kind FROM knowledge_entity WHERE id = ?1", [id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))) {
+            names.push(format!("{} ({})", one_line(&entity), vocabulary.type_label(&kind)));
+        }
+    }
+    names.sort();
+    if !names.is_empty() {
+        out.push_str(&format!("- Partes y personas: {}\n", names.join("; ")));
+    }
+    Ok(out)
+}
+
+fn matter_question(document: &str, matters: &[String], content_id: i64) -> Question {
+    let listed: Vec<String> = matters.iter().enumerate().map(|(i, m)| format!("[{}]\n{m}", i + 1)).collect();
+    let prompt = format!(
+        "Sos asistente de un estudio jurídico. Hay que decidir si un documento del archivo es parte de alguno de estos asuntos \
+(un asunto es un reclamo, un contrato, un trámite: un conjunto de documentos sobre los mismos hechos). Usá solo lo que se \
+muestra: no agregues nada que sepas por otro lado.\n\n\
+Reglas:\n\
+- Que el documento nombre a las mismas personas u organizaciones no alcanza: pueden tener varios asuntos entre ellas.\n\
+- Elegí un asunto solo si el documento trata de los mismos hechos: el mismo contrato, reclamo, deuda, trámite o \
+intercambio, o se refiere a uno de sus documentos.\n\
+- Si no es de ninguno, o no se puede saber, respondé 0.\n\
+- En \"certeza\": \"alta\" si el documento lo dice (cita el contrato, la factura, la carta); \"media\" si los hechos coinciden \
+sin que lo diga; \"baja\" si es una suposición.\n\
+- En \"razon\", en una oración, qué dato del documento lo decide.\n\n\
+{document}\n\
+Asuntos:\n{}\n\n\
+Respondé solo con el JSON pedido: {{\"asunto\": número del asunto o 0, \"certeza\": ..., \"razon\": ...}}.",
+        listed.join("\n")
+    );
+    Question {
+        key: crate::docbase::similar::classify::question_key(MATTER_PROMPT, &prompt),
+        version: MATTER_PROMPT,
+        task: TASK,
+        content_id,
+        prompt,
+        schema: schema(),
+    }
+}
+
+impl crate::docbase::DocBase {
+    /// Proposes a matter for the documents no evidence puts in one, when
+    /// they share parties with it (D-213): the model reads the document
+    /// and the matters and says which, if any. Up to `max_questions`
+    /// questions; an answer is kept and never asked again (R-20). What it
+    /// says is a proposal for a person, shown as such, never a link
+    /// between documents (R-03). Waits for the resolution to finish.
+    pub fn knowledge_propose_matters(&self, asker: Option<&dyn DocumentAsker>, max_questions: usize) -> Result<ProposeReport, String> {
+        let _asking = asker.map(|_| crate::docbase::similar::classify::ASKING.lock().unwrap_or_else(|p| p.into_inner()));
+        let vocabulary = super::vocabulary::vocabulary();
+        let rules = &vocabulary.matters;
+        let mut report = ProposeReport::default();
+        let to_resolve: i64 = self
+            .conn()
+            .query_row("SELECT count(*) FROM knowledge_dirty WHERE scope IN ('resolve', 'retire')", [], |row| row.get(0))
+            .map_err(sql_err)?;
+        if to_resolve > 0 {
+            report.skipped = true;
+            return Ok(report);
+        }
+        let engine = match asker {
+            Some(asker) => Some(asker.engine_id()),
+            None => crate::docbase::similar::classify::ask_engine(&self.conn())?.map(|c| crate::source_volume::asking::engine_id(&c)),
+        };
+        let (matters, grouped, parties, separated) = {
+            let conn = self.conn();
+            let mut matters: BTreeMap<String, (String, BTreeSet<i64>)> = BTreeMap::new();
+            let mut statement = conn
+                .prepare(
+                    "SELECT m.id, m.name, d.content_id FROM knowledge_matter m JOIN knowledge_matter_document d ON d.matter_id = m.id
+                     WHERE m.state = 'active' AND d.state = 'firm'",
+                )
+                .map_err(sql_err)?;
+            let rows = statement
+                .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, i64>(2)?)))
+                .map_err(sql_err)?;
+            for row in rows {
+                let (id, name, content) = row.map_err(sql_err)?;
+                matters.entry(id).or_insert_with(|| (name, BTreeSet::new())).1.insert(content);
+            }
+            let grouped: BTreeSet<i64> = matters.values().flat_map(|(_, d)| d.iter().copied()).collect();
+            let parties = parties_by_document(&conn, vocabulary)?;
+            let decided = super::resolve::load_decided(&conn)?;
+            let successors = changes::successors(&conn)?;
+            let separated: BTreeSet<(i64, i64)> = decided
+                .separations
+                .iter()
+                .filter_map(|(a, b)| {
+                    let (a, b) = (changes::translate(a, &successors), changes::translate(b, &successors));
+                    Some((content_of(&a)?, content_of(&b)?))
+                })
+                .flat_map(|(a, b)| [(a, b), (b, a)])
+                .collect();
+            (matters, grouped, parties, separated)
+        };
+        let loose: Vec<i64> = documents(&self.conn())?.into_iter().map(|(c, _)| c).filter(|c| !grouped.contains(c)).collect();
+        let mut changed = false;
+        let mut stopped = false;
+        for content in loose {
+            let Some(own) = parties.get(&content) else { continue };
+            let mut candidates: Vec<(usize, &String)> = matters
+                .iter()
+                .filter(|(_, (_, docs))| !docs.iter().any(|d| separated.contains(&(content, *d))))
+                .map(|(id, (_, docs))| {
+                    let theirs: BTreeSet<&String> = docs.iter().flat_map(|d| parties.get(d).into_iter().flatten()).collect();
+                    (own.iter().filter(|p| theirs.contains(p)).count(), id)
+                })
+                .filter(|(shared, _)| *shared >= rules.propose_with_shared)
+                .collect();
+            if candidates.is_empty() {
+                continue;
+            }
+            candidates.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(b.1)));
+            candidates.truncate(rules.propose_candidates);
+            report.candidates += 1;
+            let ids: Vec<&String> = candidates.iter().map(|(_, id)| *id).collect();
+            let known: usize = {
+                let conn = self.conn();
+                let mut n = 0;
+                for id in &ids {
+                    let found: Option<String> = conn
+                        .query_row(
+                            "SELECT verdict FROM knowledge_matter_verdict WHERE content_id = ?1 AND matter_id = ?2 AND engine = ?3",
+                            params![content, id, engine.clone().unwrap_or_default()],
+                            |row| row.get(0),
+                        )
+                        .ok();
+                    n += found.is_some() as usize;
+                }
+                n
+            };
+            if known == ids.len() {
+                continue;
+            }
+            let question = {
+                let conn = self.conn();
+                let document = describe_document(&conn, vocabulary, content)?;
+                let mut texts = Vec::new();
+                for id in &ids {
+                    let (name, docs) = &matters[*id];
+                    let theirs: BTreeSet<String> = docs.iter().flat_map(|d| parties.get(d).into_iter().flatten().cloned()).collect();
+                    texts.push(describe_matter(&conn, vocabulary, name, docs, &theirs)?);
+                }
+                matter_question(&document, &texts, content)
+            };
+            let cached = crate::docbase::similar::classify::cached_answer(&self.conn(), &question.key, engine.as_deref())?;
+            let answer = match (cached, asker) {
+                (Some(answer), _) => Some(answer),
+                (None, Some(asker)) if !stopped && report.asked < max_questions => {
+                    report.asked += 1;
+                    match crate::docbase::similar::classify::ask_and_keep(self, asker, &question) {
+                        Ok(answer) => Some(answer),
+                        Err(error) => {
+                            report.failed += 1;
+                            stopped = crate::docbase::similar::classify::stops_the_run(&error);
+                            report.errors.push(error);
+                            None
+                        }
+                    }
+                }
+                _ => None,
+            };
+            let Some(answer) = answer else {
+                report.left += 1;
+                continue;
+            };
+            let choice: Option<Choice> = crate::docbase::similar::classify::parse_json(&answer).ok();
+            let now = now_ms();
+            for (index, id) in ids.iter().enumerate() {
+                let (verdict, reason) = match &choice {
+                    Some(c) if c.asunto == index as i64 + 1 && c.certeza.as_deref() != Some("baja") => {
+                        ("same", Some(format!("certeza {}: {}", c.certeza.as_deref().unwrap_or("-"), c.razon.as_deref().unwrap_or_default())))
+                    }
+                    Some(c) if c.asunto == index as i64 + 1 => ("doubtful", c.razon.clone()),
+                    Some(c) => ("different", c.razon.clone()),
+                    None => ("doubtful", Some("el modelo no respondió en la forma pedida".to_string())),
+                };
+                self.conn()
+                    .execute(
+                        "INSERT OR REPLACE INTO knowledge_matter_verdict (content_id, matter_id, engine, verdict, reason, question, asked_at)
+                         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                        params![content, id, engine.clone().unwrap_or_default(), verdict, reason, question.key, now],
+                    )
+                    .map_err(sql_err)?;
+                if verdict == "same" {
+                    report.proposed += 1;
+                }
+                changed = true;
+            }
+        }
+        if changed {
+            super::mark_dirty(&self.conn(), "project", "matter-proposals")?;
+        }
+        Ok(report)
+    }
+}
+
+/// What the model proposed: the matter of each document no evidence puts
+/// in one, with its reason, for the engine in use (or any, without one).
+pub(crate) fn proposals(conn: &Connection) -> Result<BTreeMap<i64, Vec<(String, Option<String>)>>, String> {
+    let engine = crate::docbase::similar::classify::ask_engine(conn)?.map(|c| crate::source_volume::asking::engine_id(&c));
+    let mut statement = conn
+        .prepare(
+            "SELECT v.content_id, v.matter_id, v.reason, v.engine FROM knowledge_matter_verdict v
+             JOIN knowledge_matter m ON m.id = v.matter_id AND m.state = 'active'
+             WHERE v.verdict = 'same' AND NOT EXISTS (SELECT 1 FROM knowledge_matter_document d WHERE d.content_id = v.content_id)
+             ORDER BY v.content_id, v.matter_id",
+        )
+        .map_err(sql_err)?;
+    let rows = statement
+        .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<String>>(2)?, row.get::<_, String>(3)?)))
+        .map_err(sql_err)?;
+    let mut out: BTreeMap<i64, Vec<(String, Option<String>)>> = BTreeMap::new();
+    for row in rows {
+        let (content, matter, reason, by) = row.map_err(sql_err)?;
+        if engine.as_deref().is_some_and(|e| e != by) {
+            continue;
+        }
+        out.entry(content).or_default().push((matter, reason));
+    }
+    Ok(out)
 }

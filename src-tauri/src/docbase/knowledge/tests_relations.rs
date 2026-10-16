@@ -17,7 +17,9 @@ const R: &str = "DOC-R. Recibo de Persona Dos a Ejemplo Uno S.A. por $ 1.234,56 
 const O: &str = "DOC-O. Nota de Persona Dos a Ejemplo Uno S.A. sobre otro tema, por $ 10.000 de anticipo.";
 const G: &str = "DOC-G. Acta de Otra Empresa S.R.L. firmada por Persona Nueve, presidente de Otra Empresa S.R.L.";
 
-const FILES: &[(&str, &str)] = &[("l.txt", L), ("f.txt", F), ("r.txt", R), ("o.txt", O), ("g.txt", G)];
+const P: &str = "DOC-P. Correo de Persona Dos a Ejemplo Uno S.A. para coordinar el pago pendiente que reclama la carta.";
+
+const FILES: &[(&str, &str)] = &[("l.txt", L), ("f.txt", F), ("r.txt", R), ("o.txt", O), ("g.txt", G), ("p.txt", P)];
 
 fn ids(kind: &str, value: &str, quote: &str) -> serde_json::Value {
     serde_json::json!([{ "clase": kind, "valor": value, "cita": quote }])
@@ -59,6 +61,8 @@ fn reading(prompt: &str) -> String {
             vec![two("remitente", "Nota de Persona Dos"), company("destinatario", "a Ejemplo Uno S.A. sobre otro tema")],
             vec![claim("p", "monto_adeudado", None, Some("$ 10.000"), "por $ 10.000 de anticipo", None)],
         )
+    } else if prompt.contains("DOC-P.") {
+        (vec![two("remitente", "Correo de Persona Dos"), company("destinatario", "a Ejemplo Uno S.A. para coordinar")], vec![])
     } else if prompt.contains("DOC-G.") {
         (
             vec![
@@ -77,6 +81,10 @@ fn model() -> FakeModel {
     FakeModel::new("falso:1", |prompt| {
         if is_synthesis(prompt) {
             synthesis(prompt)
+        } else if prompt.contains("Hay que decidir si un documento del archivo es parte de alguno de estos asuntos") {
+            // The mail is about the letter's claim; the note is not.
+            let chosen = if prompt.contains("Empieza así: «DOC-P.") { 1 } else { 0 };
+            serde_json::json!({ "asunto": chosen, "certeza": "media", "razon": "por los hechos" }).to_string()
         } else if is_knowledge(prompt) {
             reading(prompt)
         } else if prompt.contains("Hay que decidir si cada candidato es la misma entidad") {
@@ -95,6 +103,7 @@ fn archive() -> (TempDir, DocBase, PathBuf, FakeModel) {
     base.link_general_project(&project, "General").unwrap();
     let asker = model();
     read(&base, &asker);
+    base.knowledge_propose_matters(Some(&asker), 50).unwrap();
     base.knowledge_project(Some(&asker), 50).unwrap();
     (dir, base, project, asker)
 }
@@ -182,4 +191,23 @@ fn a_relation_is_shown_on_both_sides_with_its_quote() {
     let company = page_of(&pages, "Ejemplo Uno S.A.");
     assert!(company.contains("## Vínculos") && company.contains("Representada por [[persona-nueve-"), "{company}");
     assert!(company.contains("«firmada por Persona Nueve, presidente de Ejemplo Uno S.A.»"), "{company}");
+}
+
+#[test]
+fn the_model_proposes_the_matter_of_a_loose_document_and_it_stays_a_proposal() {
+    let (_dir, base, project, asker) = archive();
+    // The mail shares the parties and no number: it is not grouped…
+    assert_eq!(matters(&base), vec![vec!["f.txt".to_string(), "l.txt".to_string(), "r.txt".to_string()]]);
+    // …but the model, asked once, proposes it; the note it does not.
+    let asked = |a: &FakeModel| a.asked.lock().unwrap().iter().filter(|q| q.contains("es parte de alguno de estos asuntos")).count();
+    assert_eq!(asked(&asker), 2);
+    let pages = entity_pages(&project);
+    let matter = pages.iter().find(|(_, t)| t.contains("entity_id: mat-")).map(|(_, t)| t.as_str()).unwrap();
+    assert!(matter.contains("### Posiblemente de este asunto") && matter.contains("p.txt — certeza media: por los hechos"), "{matter}");
+    assert!(matter.contains("## Documentos (3)"), "{matter}");
+    let person = page_of(&pages, "Persona Dos");
+    assert!(person.contains("p.txt — remitente · contrato (propuesto)"), "{person}");
+    // Asking again asks nothing.
+    base.knowledge_propose_matters(Some(&asker), 50).unwrap();
+    assert_eq!(asked(&asker), 2);
 }

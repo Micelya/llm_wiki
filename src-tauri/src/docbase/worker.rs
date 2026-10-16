@@ -186,7 +186,25 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
             return ASK_IDLE;
         }
     }
-    // Every identity resolved: the pages that changed, one question at a
+    // Every identity resolved: the matter of the documents no evidence puts
+    // in one, proposed by the model, one question at a time (D-213).
+    match base.knowledge_propose_matters(Some(asker.as_ref()), 1) {
+        Ok(report) => {
+            if report.failed > 0 {
+                eprintln!("[docbase] matters of the knowledge layer: {}", report.errors.join("; "));
+                return ASK_BACKOFF;
+            }
+            if report.asked > 0 {
+                on_change();
+                return Duration::ZERO;
+            }
+        }
+        Err(error) => {
+            eprintln!("[docbase] {error}");
+            return ASK_IDLE;
+        }
+    }
+    // The pages that changed, one question at a
     // time for what the documents say. Whatever the order in which the
     // wiki wrote its pages of documents, this leaves every page of entity
     // up to date with the whole archive.

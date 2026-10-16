@@ -60,6 +60,8 @@ fn pages_against_the_entity_sheet() {
     ask_in_parallel(&asker, questions, "identity");
     let resolved = base.knowledge_resolve(Some(&asker), 10_000).unwrap();
     println!("identity: {resolved:?}");
+    let proposed = base.knowledge_propose_matters(Some(&asker), 10_000).unwrap();
+    println!("matters proposed by the model: {proposed:?}");
 
     // A scratch wiki project as the general project of the copy.
     let project = TempDir::new();
@@ -307,6 +309,28 @@ fn matters_against_the_sheet(
     );
     println!("   pairs of documents of one matter of the sheet: {in_sheet}; grouped: {found} ({})", ratio(found, in_sheet));
     println!("   pairs grouped: {grouped}; false groupings (not one matter in the sheet): {} ({})", grouped - found, ratio(grouped - found, grouped));
+    // What the model proposed for documents no evidence put in a matter:
+    // right when the sheet puts the document in the matter most of that
+    // group's documents are in.
+    let proposals = super::matters::proposals(&base.conn()).unwrap();
+    let (mut right, mut wrong) = (0usize, 0usize);
+    for (content, list) in &proposals {
+        for (matter, _) in list {
+            let mut counts: BTreeMap<&String, usize> = BTreeMap::new();
+            for doc in groups.get(matter).into_iter().flatten() {
+                for id in sheet_of.get(doc).into_iter().flatten() {
+                    *counts.entry(id).or_default() += 1;
+                }
+            }
+            let majority = counts.iter().max_by_key(|(_, n)| **n).map(|(id, _)| (*id).clone());
+            if majority.is_some_and(|m| sheet_of.get(content).is_some_and(|s| s.contains(&m))) {
+                right += 1;
+            } else {
+                wrong += 1;
+            }
+        }
+    }
+    println!("   documents the model proposed for a matter: {}; right by the sheet: {right}; wrong: {wrong}", right + wrong);
     for matter in &sheet.matters {
         let docs: BTreeSet<i64> = matter.documents.iter().filter_map(|p| content_of(p)).collect();
         let mut best: BTreeMap<&String, usize> = BTreeMap::new();
