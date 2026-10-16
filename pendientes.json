@@ -926,6 +926,58 @@
       "referencia": "src-tauri/src/docbase/worker.rs; src-tauri/src/docbase/similar/classify.rs",
       "creado": "2026-10-16",
       "actualizado": "2026-10-16"
+    },
+    {
+      "id": "P-096",
+      "titulo": "Comprobantes y nombres genéricos tomados como asunto",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "La extracción sigue tomando facturas, boletas y cartas documento como asuntos, y nombres genéricos (\"el acuerdo\", \"this Agreement\") como un asunto propio. La resolución no los une por nombre (D-186) y le pregunta al modelo, que los separa bien, pero cuesta preguntas y deja asuntos sueltos. Evaluar un tipo de entidad o un rol para el comprobante en el vocabulario, o una pregunta de extracción nueva medida contra la hoja (R-17); agrupar documentos por asunto es la etapa K5.",
+      "depende_de": [
+        "P-092"
+      ],
+      "referencia": "src-tauri/resources/catalog/knowledge.json; src-tauri/src/docbase/knowledge/extract.rs",
+      "creado": "2026-10-16",
+      "actualizado": "2026-10-16"
+    },
+    {
+      "id": "P-097",
+      "titulo": "Resolver solo los grupos tocados en archivos grandes",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "La resolución se calcula entera, sin modelo, cada vez que hay algo nuevo, y en segundo plano se repite por cada pregunta al modelo (D-192). Con cientos de documentos no se nota; con decenas de miles sí. Limitar el cálculo a los componentes de candidatos que tocan los documentos marcados, con el mismo resultado.",
+      "depende_de": [
+        "P-095"
+      ],
+      "referencia": "src-tauri/src/docbase/knowledge/resolve.rs",
+      "creado": "2026-10-16",
+      "actualizado": "2026-10-16"
+    },
+    {
+      "id": "P-098",
+      "titulo": "Un CUIL que contiene el DNI de la misma persona",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "El CUIT o CUIL de una persona contiene su DNI; hoy un documento con el DNI y otro con el CUIL no se unen por identificador, solo por nombre o por el modelo. Agregarlo como una regla de forma del identificador en el vocabulario (dato, no código: depende del país) y medirlo contra la hoja.",
+      "depende_de": [],
+      "referencia": "src-tauri/resources/catalog/knowledge.json; src-tauri/src/docbase/knowledge/resolve.rs",
+      "creado": "2026-10-16",
+      "actualizado": "2026-10-16"
+    },
+    {
+      "id": "P-099",
+      "titulo": "Volver a proponer una separación cuando aparece evidencia nueva",
+      "tipo": "decision",
+      "responsable": "usuario",
+      "estado": "pendiente",
+      "detalle": "R-08 dice que un \"no son la misma\" bloquea la relación salvo que aparezca evidencia nueva y distinta. Hoy la separación queda firme hasta que se deshace (D-189); la decisión guarda la huella de lo mostrado, así que se puede detectar el cambio. Decidir si la vista de atención la vuelve a mostrar y con qué evidencia (etapa K6).",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/knowledge/decide.rs; docs/design/conocimiento-propuesta.md (sección 11)",
+      "creado": "2026-10-16",
+      "actualizado": "2026-10-16"
     }
   ]
 }

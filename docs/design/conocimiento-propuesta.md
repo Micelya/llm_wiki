@@ -1,6 +1,6 @@
 # Capa de conocimiento — propuesta
 
-**Estado:** dirección acordada con el dueño del producto el 16 de octubre de 2026 (D-170 a D-176) · primera etapa (extracción) construida en la rama `feat/knowledge-layer`; las decisiones que tomó el agente al construirla (D-177 a D-184) esperan la revisión del dueño (P-066)
+**Estado:** dirección acordada con el dueño del producto el 16 de octubre de 2026 (D-170 a D-176) · etapas 1 (extracción) y 2 (resolución de identidad) construidas en la rama `feat/knowledge-layer`; las decisiones que tomó el agente al construirlas (D-177 a D-194) esperan la revisión del dueño (P-066)
 **Alcance:** cómo sabe la app quiénes son las personas, organizaciones y asuntos que nombran los documentos, qué dicen los documentos de cada uno y cómo se arma con eso una página por entidad. Es una capa nueva entre la base documental y el wiki ([documento de diseño](base-documental.md), sección 4). No describe código.
 
 ## 1. El problema
@@ -70,12 +70,15 @@ erDiagram
 Cada pasada con su objetivo (R-10), de lo seguro a lo incierto (R-11):
 
 1. **Extracción, por documento, con el modelo.** El modelo lee el texto de un documento (por tramos de páginas si es largo) y devuelve, en JSON con forma estricta, las menciones (tipo, cómo está escrita, rol, cita, página), los identificadores de cada una y las afirmaciones. Las instrucciones hablan de documentos de un estudio jurídico y prohíben agregar algo que el documento no diga. Recibe como ayuda lo que la base ya sabe sin modelo: los identificadores reconocidos por su forma, el tipo y la etapa del documento y sus datos por tipo. Después, **el cálculo verifica cada cita**; lo que no está en el texto se descarta y se cuenta, con el motivo. Una lectura por documento y por espacio; la respuesta se guarda y no se vuelve a pedir (R-20).
-2. **Resolución de identidad, en cascada,** con tres salidas: la misma, distinta, dudosa.
-   1. Identificadores: el mismo une; uno distinto separa siempre. Si los nombres coinciden y los identificadores difieren por poco (un dígito mal leído en un escaneo), es dudosa.
-   2. Nombre normalizado, atributos y contexto: iniciales, orden de los apellidos, abreviaturas. "S.A.", "LLC" y "Ltd" del mismo nombre son organizaciones distintas salvo evidencia.
-   3. El modelo, para los candidatos difíciles, por grupo (R-21), con evidencia acotada, respuesta estructurada y la opción de abstenerse.
-   4. Lo dudoso va a una persona, en la vista de atención.
-3. **Consolidación:** las evidencias se agrupan en afirmaciones por entidad; se marcan los conflictos.
+2. **Resolución de identidad, en cascada,** con tres salidas: la misma, distinta, dudosa. Lo que se resuelve es el **grupo de menciones de un documento** (las que tienen el mismo nombre, y las que el modelo dio como la misma dentro del documento), con una clave que no depende del orden de lectura (D-185).
+   0. Lo que decidió una persona: una unión es firme; una separación mantiene aparte a los dos en todas las pasadas (D-189).
+   1. Identificadores fuertes (DNI, CUIT, matrícula, expediente; no los números de factura o de cliente): el mismo une; uno distinto separa siempre. Si los nombres coinciden y los identificadores difieren en un carácter (un dígito mal leído en un escaneo), es dudosa. Si los nombres no tienen relación, también: el identificador puede estar atribuido a quien no es. Un identificador que el modelo le dio a una persona y a una organización, o a dos grupos del mismo documento, no se usa (D-187).
+   2. El mismo nombre: las mismas palabras, sin artículos ni títulos, en cualquier orden para una persona (dos palabras al menos), con la misma forma societaria para una organización. "S.A.", "LLC" y "Ltd" del mismo nombre son organizaciones distintas salvo que una persona diga otra cosa. Un asunto nunca se une por su nombre ("el acuerdo" suele ser otro). Las palabras que no cuentan y las formas societarias son datos del vocabulario (D-186).
+   3. El modelo, para los nombres que pueden ser el mismo (un nombre parcial, una inicial, un error de tipeo, una sigla, una organización sin su forma): una pregunta por entidad principal y sus candidatos (R-21), con nombres, identificadores, datos y citas de cada uno, y la opción de abstenerse. Lo que dijo se guarda por par y no se vuelve a preguntar (D-188). Un nombre sin forma societaria que comparten sociedades de distinta forma queda dudoso sin preguntar.
+   4. Lo dudoso va a una persona, en la vista de atención (`knowledge_doubt`).
+
+   Los candidatos se encuentran por índices de palabras, iniciales y casillas, nunca comparando todo contra todo. Las familias se arman contra una principal, no por cadena (R-14). La resolución se calcula entera sin modelo cada vez que algo cambia y escribe solo lo que cambió (D-192); el identificador de una entidad lo conserva la que se queda con más menciones (D-190).
+3. **Consolidación:** las evidencias se agrupan en afirmaciones por entidad; se marcan los conflictos. Un dato de un valor a la vez (marcado en el vocabulario: cargo, domicilio, monto reclamado, nacionalidad, estado civil) con valores distintos es una historia si cada valor tiene su tiempo, y un conflicto si no (D-191).
 4. **Proyección:** la página de cada entidad tocada se rehace.
 
 **Incremental (R-15).** Documento nuevo: se extrae, se resuelven sus menciones contra lo existente y se rehacen solo las páginas tocadas. Documento borrado o reemplazado: se retiran sus menciones y evidencias; las afirmaciones con otra evidencia se conservan; se rehacen las páginas afectadas. La extracción se rehace solo si cambió el texto, la versión de la pregunta o la versión del vocabulario de la capa. Reprocesar sin cambios no cambia nada (R-13).
@@ -91,7 +94,9 @@ Los tipos de entidad, los roles y los predicados son **datos** (R-24, R-26): un 
 - **Predicados:** cargo, domicilio, representa a, socio de, empleado de, deudor de, acreedor de, monto reclamado, monto adeudado, parte en (un asunto), inicio y fin de un vínculo, profesión, nacionalidad, estado civil, contacto.
 - **Identificadores:** DNI, CUIT o CUIL, matrícula, número de expediente, otro.
 
-Cambiar el vocabulario cambia su versión, y los documentos se vuelven a leer.
+Para la resolución de identidad trae también qué identificadores son fuertes, qué predicados tienen un valor a la vez, las palabras que no cuentan al comparar nombres (artículos, títulos) y las formas societarias con sus maneras de escribirse.
+
+Cambiar lo que usa la pregunta de lectura (tipos, roles, identificadores y predicados con sus descripciones) hace volver a leer los documentos; cambiar lo demás, no (D-193).
 
 ## 7. Qué se guarda
 
@@ -100,7 +105,8 @@ En la base del espacio:
 - Por documento, la **extracción**: con qué versión de la pregunta, qué vocabulario, qué motor y modelo, sobre qué texto (su huella), cuántas menciones y evidencias dejó y qué descartó y por qué.
 - Las **menciones**, sus **identificadores** y las **evidencias**, cada una con su cita y su página.
 - Las **entidades**, sus **alias** y las **afirmaciones** que agrupan evidencias (desde la etapa 2).
-- Las **decisiones de identidad** de una persona, con la evidencia mostrada y su huella.
+- Las **decisiones de identidad** de una persona, con la evidencia mostrada y su huella, sobre claves que no cambian al volver a leer el archivo (D-189).
+- Los **veredictos del modelo** sobre cada par de grupos que se le preguntó (la misma, distinta, dudosa, con su motivo y el motor), y las **dudas** que quedan para una persona.
 - Las **marcas de trabajo pendiente:** qué documentos hay que volver a resolver, qué evidencias retirar y qué páginas rehacer.
 - Cada respuesta del modelo, con la pregunta y **el modelo que la dio**: cambiar de modelo vuelve a preguntar.
 
@@ -139,14 +145,15 @@ Una prueba comprueba además que ni el programa ni el vocabulario de la capa con
 
 ## 11. Decisiones abiertas
 
-1. Cuándo vuelve a leer un archivo entero un modelo nuevo: hoy, cambiar de modelo no vuelve a leer lo ya extraído (D-180).
+1. Cuándo vuelve a leer un archivo entero un modelo nuevo: hoy, cambiar de modelo no vuelve a leer lo ya extraído (D-180). Lo mismo para los veredictos de identidad: con otro motor, se vuelven a preguntar los pares.
 2. Cómo se muestran en una página las afirmaciones en conflicto.
 3. Cómo pasa la página de un documento del wiki a enlazar las páginas de entidad.
+4. Cuánta certeza del modelo alcanza para unir (hoy une cualquier "la misma"; exigir certeza alta separó de más, D-188) y si una separación decidida por una persona se vuelve a proponer cuando aparece evidencia nueva y distinta (R-08; hoy queda firme hasta que se deshace, P-099).
 
 ## 12. Etapas
 
-1. **Extracción** (esta rama): modelo de datos, vocabulario, extracción con cita verificada, trabajo de fondo, estado para las pantallas y evaluación contra la hoja. Sin pantallas.
-2. **Resolución de identidad** con abstención, decisiones de una persona y evaluación de uniones y separaciones falsas.
+1. **Extracción** (construida): modelo de datos, vocabulario, extracción con cita verificada, trabajo de fondo, estado para las pantallas y evaluación contra la hoja. Sin pantallas.
+2. **Resolución de identidad** (construida) con abstención, decisiones de una persona, consolidación de afirmaciones y evaluación de uniones y separaciones falsas. Sin pantallas: deja los comandos para consultar entidades y dudas y para decidir.
 3. **Proyección:** páginas de entidad desde el registro; la incorporación del wiki deja de crear páginas de entidad y se adapta a lo jurídico.
 4. **Cambios y borrados:** retiro de evidencia y rehacer solo lo afectado.
 5. **Relaciones entre entidades y asuntos:** quién representa a quién, en qué asunto aparece cada uno.
