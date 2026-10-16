@@ -243,4 +243,101 @@ fn pages_against_the_entity_sheet() {
         }
         println!("   a sample of the pages: {}", sample.display());
     }
+    changes(&base, &asker, project.path());
+}
+
+/// The pages on disk, without the date they were written.
+fn page_texts(root: &std::path::Path) -> BTreeMap<String, String> {
+    let mut out = BTreeMap::new();
+    for folder in ["wiki/entities", "wiki/sources"] {
+        for entry in std::fs::read_dir(root.join(folder)).into_iter().flatten().flatten() {
+            let text = std::fs::read_to_string(entry.path()).unwrap_or_default();
+            let text: Vec<&str> = text.lines().filter(|l| !l.starts_with("updated:")).collect();
+            out.insert(format!("{folder}/{}", entry.file_name().to_string_lossy()), text.join("
+"));
+        }
+    }
+    out
+}
+
+fn entity_states(base: &crate::docbase::DocBase) -> BTreeMap<String, String> {
+    let conn = base.conn();
+    let mut statement = conn.prepare("SELECT id, state FROM knowledge_entity").unwrap();
+    let rows = statement.query_map([], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
+    rows.collect::<Result<_, _>>().unwrap()
+}
+
+/// Changes (stage 4): the document that names most entities is left out
+/// and taken back, then deleted. Leaving it out must retire only what it
+/// alone said and write only the pages it touches; taking it back must
+/// leave everything as it was, asking nothing.
+fn changes(base: &crate::docbase::DocBase, asker: &super::check::Recorded, root: &std::path::Path) {
+    use std::sync::atomic::Ordering;
+    let (content, named): (i64, i64) = base
+        .conn()
+        .query_row(
+            "SELECT content_id, count(DISTINCT entity_id) AS n FROM knowledge_mention WHERE entity_id IS NOT NULL
+             GROUP BY content_id ORDER BY n DESC, content_id LIMIT 1",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    let only_there: i64 = base
+        .conn()
+        .query_row(
+            "SELECT count(DISTINCT entity_id) FROM knowledge_mention m WHERE m.content_id = ?1 AND m.entity_id IS NOT NULL
+             AND NOT EXISTS (SELECT 1 FROM knowledge_mention o WHERE o.entity_id = m.entity_id AND o.content_id != ?1)",
+            [content],
+            |r| r.get(0),
+        )
+        .unwrap();
+    let locations: Vec<(String, String)> = {
+        let conn = base.conn();
+        let mut statement = conn
+            .prepare("SELECT l.origin_id, l.rel_path FROM location l JOIN file f ON f.hash = l.file_hash WHERE f.content_id = ?1")
+            .unwrap();
+        let rows = statement.query_map([content], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
+        rows.collect::<Result<_, _>>().unwrap()
+    };
+    let states = entity_states(base);
+    let pages = page_texts(root);
+    let asked = asker.asked.load(Ordering::SeqCst);
+    println!(
+        "
+== changes ==
+   the document that names most entities: {named} entities, {only_there} named only there; {} locations",
+        locations.len()
+    );
+    for (origin, path) in &locations {
+        base.set_excluded(origin, path, false, true).unwrap();
+    }
+    let resolved = base.knowledge_resolve(Some(asker), 30).unwrap();
+    let projected = base.knowledge_project(Some(asker), 30).unwrap();
+    let after = entity_states(base);
+    let retired = after.iter().filter(|(id, s)| *s == "retired" && states.get(*id).is_some_and(|b| b != "retired")).count();
+    let texts = page_texts(root);
+    let changed = texts.iter().filter(|(p, t)| pages.get(*p) != Some(*t)).count() + pages.keys().filter(|p| !texts.contains_key(*p)).count();
+    println!(
+        "   left out: {retired} entities retired (should be {only_there}); entities changed {}; pages written {}, removed {}, kept {}, blocks {}; files that changed: {changed}; questions left: {}",
+        resolved.changed, projected.written, projected.removed, projected.kept, projected.blocks_written, resolved.left + projected.left
+    );
+    let asked_left_out = asker.asked.load(Ordering::SeqCst) - asked;
+    println!("   questions to the model while it was left out: {asked_left_out}");
+    let asked = asker.asked.load(Ordering::SeqCst);
+    for (origin, path) in &locations {
+        base.set_excluded(origin, path, false, false).unwrap();
+    }
+    let resolved = base.knowledge_resolve(Some(asker), 30).unwrap();
+    let projected = base.knowledge_project(Some(asker), 30).unwrap();
+    let back = entity_states(base);
+    let texts = page_texts(root);
+    let differ = texts.iter().filter(|(p, t)| pages.get(*p) != Some(*t)).count() + pages.keys().filter(|p| !texts.contains_key(*p)).count();
+    let states_differ = back.iter().filter(|(id, s)| states.get(*id) != Some(*s)).count();
+    println!(
+        "   taken back: entities changed {}, pages written {}; entities whose state differs from before: {states_differ}; files that differ from before: {differ}; questions to the model: {} (should be 0); left {}",
+        resolved.changed,
+        projected.written,
+        asker.asked.load(Ordering::SeqCst) - asked,
+        resolved.left + projected.left
+    );
 }
