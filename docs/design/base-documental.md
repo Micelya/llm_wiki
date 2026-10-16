@@ -1,6 +1,6 @@
 # Base documental — documento de diseño
 
-**Estado:** dirección acordada · consolidado el 11 de octubre de 2026 · ajustado el 16 de octubre de 2026 (sección 13: vista de atención) · capa de conocimiento agregada el 16 de octubre de 2026 (D-170)
+**Estado:** dirección acordada · consolidado el 11 de octubre de 2026 · ajustado el 16 de octubre de 2026 (sección 13: vista de atención) · capa de conocimiento agregada el 16 de octubre de 2026 (D-170) · sus pantallas y su lugar en la vista de atención, el 16 de octubre de 2026 (D-215 a D-224)
 **Alcance:** qué vamos a construir y en qué orden. No describe código.
 
 ## 1. Propósito
@@ -254,6 +254,7 @@ flowchart LR
 | Tipos de entidad | Persona, organización y asunto; tipos, roles y predicados son datos, no código (D-172) |
 | Identidad de entidades | En cascada, con abstención: mismo identificador une solo y se puede deshacer, identificador distinto nunca une, lo dudoso va a una persona (D-173, D-174) |
 | Páginas de entidad | Proyección del registro: documentos agrupados por asunto y síntesis solo desde afirmaciones verificadas; la incorporación del wiki deja de crearlas (D-175) |
+| Correcciones de entidades | Siempre como decisiones de una persona sobre el registro (unir, separar, dato incorrecto, sacar de un asunto), reversibles; nunca editando una página. La fusión de duplicados de Mantenimiento también, para las páginas del registro (D-219, D-220) |
 
 ## 10. Decisiones abiertas y lista de espera
 
@@ -296,6 +297,8 @@ Se empieza por el espacio privado y un solo usuario. El espacio compartido multi
 
 Dentro de `src-tauri/src/source_volume/`, todo por proyecto: montaje de carpetas, detección de cambios segura ante orígenes desconectados, catálogo de duplicados exactos, huella del archivo y texto reconocido guardado por huella. Es la semilla del componente: los conceptos son los de este documento; cambia dónde viven los datos y a quién pertenecen.
 
+La capa de conocimiento ocupa las versiones 9 a 11 del esquema de la base, después de la 8 de la vista de atención (las decisiones sobre tipos); una base en la versión 8 recibe las tablas de la capa sin perder nada (D-215).
+
 Hoy cada proyecto guarda esos datos en su propia carpeta. Con la base, pasan a guardarse una vez por espacio: el mismo escaneo usado en dos proyectos se lee una sola vez.
 
 ## 13. Interfaz
@@ -315,12 +318,15 @@ Hacia dónde va la interfaz. El detalle visual se define en una pasada de diseñ
   - **Muestra los avisos del archivo y los del proyecto abierto.** Si el proyecto abierto no es el archivo, sus líneas dicen de qué proyecto son, y las del wiki del archivo se muestran sin botones.
   - **Fuentes enchufables.** Cada parte de la app sigue detectando lo suyo y lo entrega con la misma forma (clase, tema, título, por qué importa, qué hacer, acción o destino, cuándo deja de ser cierto); la vista solo junta y ordena. Sumar una parte nueva es agregar una fuente, no rehacer la vista.
   - **La revisión estructural de los enlaces del wiki corre sola** cada vez que la cola del wiki termina (sin modelo), así el número de enlaces rotos de la vista coincide con el de la revisión de enlaces.
-- **Vistas para resolver en bloque,** a las que lleva la vista de atención: los documentos parecidos por familia (unir, elegir otra relación, descartar, ver los dos textos lado a lado, y confirmar de un clic una familia de la misma plantilla, para que las pasadas que vienen tengan una base confirmada, R-03); los tipos de documento que propuso el modelo (confirmar, cambiar el nombre o rechazar; lo confirmado pasa a la lista cerrada, R-22); y la revisión del wiki, en español.
+  - **La capa de conocimiento es una fuente más** (D-217). Problemas: documentos que no se pudieron leer para saber a quiénes nombran (con el motivo) y documentos que perdieron muchas citas al leerlos (suele ser un escaneo mal reconocido). Decisiones: identidades dudosas, una por grupo de dudas que comparten una entidad (D-216); datos en los que los documentos difieren; el asunto que el modelo propone para un documento suelto, que se confirma o se descarta desde la línea. Con prioridad baja: uniones recientes por identificador de nombres distintos, páginas que se conservan por sus notas, entidades que dejaron el registro con documentos excluidos y oraciones de las páginas que se descartaron. En curso: la lectura, la resolución de identidades y la escritura de las páginas.
+- **Vistas para resolver en bloque,** a las que lleva la vista de atención: los documentos parecidos por familia (unir, elegir otra relación, descartar, ver los dos textos lado a lado, y confirmar de un clic una familia de la misma plantilla, para que las pasadas que vienen tengan una base confirmada, R-03); los tipos de documento que propuso el modelo (confirmar, cambiar el nombre o rechazar; lo confirmado pasa a la lista cerrada, R-22); las identidades dudosas por grupo, con lo que dice cada documento de cada lado (son la misma o no; lo que se mostró se guarda con la decisión, R-08); y la revisión del wiki, en español.
+- **Personas y organizaciones, y asuntos** (sus nombres salen del vocabulario; D-219). Una lista con buscador y filtro por tipo, y el detalle de cada entidad con forma de artículo: cómo la escriben los documentos, sus identificadores, sus documentos agrupados por asunto con su rol en cada uno, lo que dice cada documento con la cita, los datos en que difieren, los vínculos desde otras entidades, su página del wiki y lo que decidió una persona. Las acciones son decisiones sobre el registro: unir con otra, separar una mención, "no es una entidad", marcar un dato como incorrecto y deshacer. Los asuntos: sus documentos con el motivo por el que está cada uno, sus partes, los que el modelo propone (confirmar o descartar) y sacar un documento del asunto (D-218). El detalle de un documento dice a quiénes nombra, con su rol, y de qué asunto es.
+- **Enlaces dentro de la página de cada documento** (D-221): además del bloque del final, la app enlaza el primer lugar del texto donde aparece un nombre tal como lo escribe el documento, solo cuando no puede ser otra entidad del documento; esos enlaces llevan una marca de la app y se rehacen. El lector del wiki no muestra los comentarios de las páginas, que son las marcas de la app.
 - **Marca propia:** colores, tipografías y logo de Micelya.
 - **Idioma:** las pantallas de la base documental nacen en español.
 - **Vocabulario por vertical.** Cómo se llama cada cosa del dominio (el archivo, los grupos sugeridos, más adelante los tipos de documento) depende de la profesión: no es lo mismo un estudio jurídico que una escribanía o un estudio contable. Esos términos salen de un vocabulario, uno por vertical y dentro de él uno por idioma, y no van escritos en las pantallas. Los nombres técnicos (carpetas en disco, identificadores) son neutros y no cambian con la vertical.
 - **Orígenes como árbol.** Cada origen se recorre como un árbol de carpetas y archivos. En cada fila: abrir, incorporar al wiki (si está activo), excluir y, en las carpetas, volver a barrer y definir reglas de etiquetas.
 
-**En el producto mínimo** las pantallas de la base son Inicio, Atención, Orígenes, Documentos y Detalle de un documento, más las dos vistas para resolver en bloque (parecidos y tipos de documento). Se construyen con el estilo que la app tiene hoy; el marco común y la marca se aplican después, a toda la app de una vez.
+**En el producto mínimo** las pantallas de la base son Inicio, Atención, Orígenes, Documentos y Detalle de un documento, más las vistas para resolver en bloque (parecidos, tipos de documento e identidades dudosas) y las de la capa de conocimiento (personas y organizaciones, y asuntos). Se construyen con el estilo que la app tiene hoy; el marco común y la marca se aplican después, a toda la app de una vez.
 
 "Cliente" y "caso" son grupos de etiquetas (sección 3), no proyectos; cada vertical sugiere los suyos y el usuario los nombra como quiera.

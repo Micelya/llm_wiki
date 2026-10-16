@@ -1,6 +1,6 @@
 # Capa de conocimiento — propuesta
 
-**Estado:** dirección acordada con el dueño del producto el 16 de octubre de 2026 (D-170 a D-176) · etapas 1 (extracción), 2 (resolución de identidad), 3 (proyección), 4 (cambios y borrados) y 5 (asuntos y vínculos) construidas en la rama `feat/knowledge-layer`; las decisiones que tomó el agente al construirlas (D-177 a D-214) esperan la revisión del dueño (P-066)
+**Estado:** dirección acordada con el dueño del producto el 16 de octubre de 2026 (D-170 a D-176) · las seis etapas construidas en la rama `feat/knowledge-layer`, rebasada sobre la vista de atención; las decisiones que tomó el agente al construirlas (D-177 a D-224) esperan la revisión del dueño (P-066)
 **Alcance:** cómo sabe la app quiénes son las personas, organizaciones y asuntos que nombran los documentos, qué dicen los documentos de cada uno y cómo se arma con eso una página por entidad. Es una capa nueva entre la base documental y el wiki ([documento de diseño](base-documental.md), sección 4). No describe código.
 
 ## 1. El problema
@@ -121,11 +121,13 @@ Vale la regla del espacio compartido: una entidad, una mención o una afirmació
 
 ## 8. Qué ve el usuario
 
-- **Página de cada entidad:** la ficha (alias, identificadores, datos), la lista completa de sus documentos agrupada por asunto, con el rol en cada uno, y la síntesis con referencias numeradas a las citas. Debajo, sus notas, que la app no toca.
-- **Vista de atención:** identidades dudosas ("¿son la misma persona?", con la evidencia de cada lado), contradicciones entre documentos y datos marcados como incorrectos.
-- **Detalle de un documento:** quiénes aparecen y con qué rol.
-
-La primera etapa (extracción) no tiene pantallas: deja los datos y su estado listos para ellas.
+- **Página de cada entidad:** la ficha (alias, identificadores, datos), la lista completa de sus documentos agrupada por asunto, con el rol en cada uno, y la síntesis con referencias numeradas a las citas. Debajo, sus notas, que la app no toca. En la página de cada documento, además del bloque del final, el primer lugar del texto donde aparece un nombre tal como lo escribe el documento lleva a su página, cuando no puede ser otra entidad del documento (D-221).
+- **Vista de atención** (etapa 6, D-216 y D-217): lecturas que fallaron (con el motivo) y lecturas que perdieron muchas citas (un escaneo mal reconocido); identidades dudosas, una decisión por grupo de dudas que comparten una entidad; datos en que los documentos difieren; el asunto que el modelo propone para un documento suelto, para confirmarlo o descartarlo; y, sin sumar al contador, las uniones recientes por identificador de nombres distintos, las páginas que se conservan por sus notas y las entidades que dejaron el registro con documentos excluidos. En curso: la lectura, la resolución y las páginas que esperan su síntesis. Los umbrales (cuántas citas perdidas, cuán reciente) son datos del vocabulario de la capa.
+- **Personas y organizaciones:** lista con buscador y filtro por tipo; el detalle de cada una, con lo de su página más sus menciones una por una, quién habla de ella y lo que decidió una persona. Las acciones son decisiones (D-219): unir con otra, separar una mención, "no es una entidad", marcar un dato o lo que dice un documento como incorrecto, y deshacer cualquiera.
+- **Identidades dudosas:** una tarjeta por grupo, con cada lado (cómo se escribe, identificadores, citas y documentos) y el motivo de la duda; "son la misma" o "no son la misma", guardado con lo que se mostró (R-08).
+- **Asuntos:** sus documentos con el motivo por el que está cada uno, sus partes, los documentos que el modelo propone y las decisiones. Sacar un documento de un asunto lo separa de cada uno de sus documentos (D-218).
+- **Detalle de un documento:** quiénes aparecen y con qué rol, y de qué asunto es.
+- **Mantenimiento:** la fusión de duplicados, para las páginas del registro, se vuelve una decisión de unir (o de separar) en el registro (D-220).
 
 ## 9. Cómo sabemos que funciona
 
@@ -165,4 +167,4 @@ Una prueba comprueba además que ni el programa ni el vocabulario de la capa con
 3. **Proyección** (construida): páginas de entidad desde el registro, bloque de entidades en la página de cada documento, resumen del archivo e índice completo por tipo; la incorporación del wiki deja de crear páginas de entidad en el archivo y sus instrucciones son las de un estudio jurídico (D-195 a D-204).
 4. **Cambios y borrados** (construida): retiro de evidencia, lo que pasa al documento que toma el lugar de otro, lo excluido y lo unido, y rehacer solo lo afectado (D-205 a D-208).
 5. **Asuntos y vínculos** (construida): los asuntos como grupos de documentos con página propia, los cargos por organización, la forma de los valores y los vínculos en los dos sentidos (D-209 a D-214).
-6. **Vista de atención y pantallas mínimas:** identidades dudosas, contradicciones y el detalle de una entidad en la base.
+6. **Vista de atención y pantallas mínimas** (construida): la capa como fuente de la vista de atención, las pantallas de personas y organizaciones, de identidades dudosas y de asuntos, el detalle de un documento, la fusión de duplicados llevada al registro y los enlaces dentro de la página de cada documento (D-215 a D-224).

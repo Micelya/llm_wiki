@@ -222,7 +222,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-199 | 16 oct | Conocimiento | Coordinación: proyectar después de resolver, entera y escribiendo solo lo que cambió | en revisión |
 | D-200 | 16 oct | Conocimiento | Incorporación: sin páginas de entidad en el archivo e instrucciones de estudio jurídico | en revisión |
 | D-201 | 16 oct | Conocimiento | Índice y resumen: todas las páginas por tipo, en el idioma del wiki | en revisión |
-| D-202 | 16 oct | Conocimiento | Mantenimiento: la fusión de duplicados deja afuera las páginas proyectadas | en revisión |
+| D-202 | 16 oct | Conocimiento | Mantenimiento: la fusión de duplicados deja afuera las páginas proyectadas | reemplazada por D-220 |
 | D-203 | 16 oct | Conocimiento | Proyección: la base escribe las páginas y conserva las notas de una persona | en revisión |
 | D-204 | 16 oct | Conocimiento | Cómo se evalúa la proyección: páginas, documentos listados y oraciones comprobadas | en revisión |
 | D-205 | 16 oct | Conocimiento | Un documento que se va se lleva lo suyo; las decisiones y los identificadores pasan al que toma su lugar | en revisión |
@@ -235,6 +235,16 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-212 | 16 oct | Conocimiento | Un nombre sin forma que comparten varias sociedades se pregunta una vez contra todas y une solo si el modelo nombra una | en revisión |
 | D-213 | 16 oct | Conocimiento | Un asunto es un grupo de documentos unidos por evidencia propia del asunto, con página propia | en revisión |
 | D-214 | 16 oct | Conocimiento | Los vínculos entre entidades se muestran de los dos lados, con su cita | en revisión |
+| D-215 | 16 oct | Conocimiento | Las versiones del esquema de la capa pasan a ser la 9, la 10 y la 11, después de la 8 de la vista de atención | en revisión |
+| D-216 | 16 oct | Conocimiento | Las identidades dudosas que comparten una entidad son una sola decisión | en revisión |
+| D-217 | 16 oct | Interfaz | Qué lleva la capa de conocimiento a la vista de atención, en qué clase y con qué prioridad | en revisión |
+| D-218 | 16 oct | Conocimiento | Sacar un documento de un asunto lo separa de cada uno de sus documentos; así se responde también una propuesta del modelo | en revisión |
+| D-219 | 16 oct | Interfaz | Pantallas de personas y organizaciones, de identidades dudosas y de asuntos; toda corrección es una decisión sobre el registro | en revisión |
+| D-220 | 16 oct | Conocimiento | La fusión de duplicados de Mantenimiento une o separa en el registro las páginas que se arman desde él | en revisión |
+| D-221 | 16 oct | Wiki | Enlaces dentro del texto de la página de cada documento, solo donde no pueden enlazar mal | en revisión |
+| D-222 | 16 oct | Proceso de trabajo | La prueba de R-24 revisa todo el programa, sus pruebas y los textos de diseño | en revisión |
+| D-223 | 16 oct | Interfaz | Los nombres de tipos, roles, predicados e identificadores de la capa, en el vocabulario de cada vertical | en revisión |
+| D-224 | 16 oct | Conocimiento | Una decisión sobre una identidad guarda lo que la pantalla mostró de cada lado | en revisión |
 
 ---
 
@@ -2793,7 +2803,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 - **Fecha:** 16 oct 2026
 - **Tema:** Conocimiento
-- **Estado:** en revisión (agente sin consulta, P-066)
+- **Estado:** reemplazada por D-220 (las páginas del registro vuelven a la búsqueda de duplicados y se unen o separan en el registro)
 - **El problema:** Ajustes > Mantenimiento junta páginas duplicadas reescribiéndolas con el modelo y no se puede deshacer; sobre una página proyectada la siguiente proyección la volvería a escribir.
 - **Qué se decidió:** las páginas que llevan `generated_by: micelya-conocimiento` no entran en la búsqueda de duplicados y no se pueden fusionar; dos entidades se unen con una decisión sobre el registro (comandos de K2, reversibles; las pantallas llegan en K6).
 - **Por qué:** una unión en el registro se puede deshacer (R-09) y arrastra menciones, afirmaciones y enlaces; la fusión de archivos no.
@@ -2979,3 +2989,133 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** `src-tauri/src/docbase/knowledge/pages.rs` (sección de vínculos); `knowledge.json` (`inverseLabel`).
 - **Quién decidió:** agente sin consulta.
 - **Fuente:** etapa K4/K5 de la tanda desatendida del 16 oct.
+
+### D-215 · Las versiones del esquema de la capa van después de la de la vista de atención
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la vista de atención y la capa de conocimiento se construyeron en ramas separadas y cada una agregó su versión 8 del esquema de la base. La base real del dueño ya está en la versión 8 de la vista de atención (las decisiones sobre tipos), porque la app de desarrollo corrió con esa rama. Si la capa conservara su 8, esa base nunca recibiría las tablas de la capa.
+- **Qué se decidió:** al rebasar la capa sobre la vista de atención, la versión 8 queda para las decisiones sobre tipos y las de la capa pasan a ser la 9 (registro de entidades), la 10 (páginas) y la 11 (cambios, contexto de las afirmaciones y asuntos), en ese orden. Una prueba migra una base en la versión 8 con un tipo decidido y comprueba que llegan las tablas de la capa y que la decisión sigue.
+- **Por qué:** nadie corrió la app con la capa sobre una base real, así que no existe una base con la versión 8 de la capa: alcanza con renumerar, sin migraciones de reparación.
+- **Alternativas descartadas:** una versión que detecte cuál de las dos versiones 8 tiene una base (complica el esquema para un caso que no existe).
+- **Dónde se aplica:** `src-tauri/src/docbase/schema.rs`; P-084 y P-094 (hechos).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K6 de la tanda desatendida del 16 oct.
+
+### D-216 · Las identidades dudosas que comparten una entidad son una sola decisión
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la resolución deja para una persona pares de grupos de menciones que no supo si son la misma entidad. Contar cada par como una decisión infla el contador: una persona con tres posibles iguales serían tres decisiones, y se miran juntas.
+- **Qué se decidió:** los pares que comparten una entidad, en cadena, forman un grupo (como una familia de parecidos), y cada grupo es una decisión en el contador y una tarjeta en la vista de identidades dudosas. Un par cuyos lados todavía no tienen entidad se agrupa por su clave. Dentro de la tarjeta se ven todos los lados con su evidencia y se decide par por par ("son la misma" o "no son la misma").
+- **Por qué:** sigue el principio de la vista de atención (lo que se resuelve mirando junto es una decisión, D-155) y deja decidir de a pares, que es lo que la base sabe guardar.
+- **Alternativas descartadas:** una decisión por par (infla el contador); una decisión por grupo que una todo de un clic (unir en cadena es inferir sobre lo inferido, R-02).
+- **Dónde se aplica:** `src/components/knowledge/knowledge.ts` (`groupDoubts`); `src/components/knowledge/doubts-view.tsx`; `src/components/attention/sources/knowledge.ts`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K6 de la tanda desatendida del 16 oct.
+
+### D-217 · Qué lleva la capa de conocimiento a la vista de atención
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Interfaz
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la especificación de la etapa pedía las identidades dudosas, los conflictos, las uniones recientes por identificador, las lecturas que fallaron, las que perdieron muchas citas y el avance, pero no la clase ni la prioridad de cada una, ni qué es "en gran proporción" o "reciente". Además quedaban de las etapas anteriores las propuestas de asunto del modelo, las páginas que se conservan por sus notas y las entidades que se van con documentos excluidos (P-107), y las oraciones descartadas de la síntesis (P-102).
+- **Qué se decidió:** problemas, prioridad normal: lecturas que fallaron (con el motivo) y lecturas que perdieron muchas citas. Decisiones, prioridad normal: identidades dudosas (D-216), datos en que los documentos difieren (uno por entidad y dato) y el asunto que el modelo propone para un documento suelto (con "Confirmar" y "Descartar" en la línea). Prioridad baja, sin sumar al contador: uniones por identificador de nombres distintos traídas por un documento leído hace menos de 30 días, páginas que se conservan por sus notas o enlaces, entidades que dejaron el registro con documentos excluidos y oraciones descartadas de la síntesis. En curso: la lectura (con su avance), la resolución y las páginas (las que esperan su síntesis). "Muchas citas" es al menos 4 descartes cuya cita no está en el texto y más del 40 % de lo que dijo el modelo; esos números y los 30 días son datos del vocabulario de la capa (`attention` en `knowledge.json`), no del programa. El motor da los datos (`docbase_knowledge_attention`); los textos se arman en la pantalla con el vocabulario (D-156).
+- **Por qué:** lo que bloquea saber quién es quién es un problema; lo que espera el criterio de una persona es una decisión; lo que casi siempre está bien o no se puede resolver de inmediato no debe mantener el contador encendido (D-155).
+- **Alternativas descartadas:** contar las uniones por identificador como decisiones normales (son correctas casi siempre y encenderían el contador sin motivo); fijar los umbrales en el código.
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/screens.rs` (`knowledge_attention`); `src/components/attention/sources/knowledge.ts`; `knowledge.json` (`attention`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K6 de la tanda desatendida del 16 oct.
+
+### D-218 · Sacar un documento de un asunto, y responder una propuesta del modelo
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** las decisiones de una persona sobre asuntos son por par de documentos ("del mismo asunto", "de asuntos distintos", D-213). Para sacar un documento de un asunto no alcanza con separarlo de uno: puede volver a entrar por otro de sus documentos. Y una propuesta del modelo para un documento suelto quedaba a la vista para siempre, sin manera de contestarla.
+- **Qué se decidió:** sacar un documento de un asunto guarda, de una vez y con una sola resolución, una separación entre ese documento y cada uno de los demás documentos del asunto. Descartar una propuesta del modelo hace lo mismo; confirmarla guarda "del mismo asunto" con el primer documento del asunto. Una propuesta deja de mostrarse cuando una persona separó el documento de alguno de los del asunto. Cada separación se puede deshacer desde el asunto.
+- **Por qué:** usa las decisiones que la base ya sabe guardar y aplicar, sin un tipo nuevo de decisión ni una versión nueva del esquema; una separación no se cruza nunca, así que el documento queda afuera aunque comparta datos.
+- **Alternativas descartadas:** una decisión nueva "este documento no es de este asunto" (el asunto se recalcula y cambia de identificador: la decisión quedaría colgada de algo que no es estable); separar solo del documento que lo unió (vuelve a entrar por otro).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/screens.rs` (`knowledge_leave_matter`, `knowledge_join_matter`); `decide.rs` (`knowledge_decide_many`); `matters.rs` (`proposals`); P-110.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K6 de la tanda desatendida del 16 oct.
+
+### D-219 · Pantallas de la capa de conocimiento; toda corrección es una decisión
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Interfaz
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la etapa pedía pantallas mínimas: la lista de entidades, su detalle con sus acciones, la vista de identidades dudosas, las entidades en el detalle de cada documento y, por P-107, los asuntos. Faltaba decidir dónde viven, cómo se llega y qué se puede corregir.
+- **Qué se decidió:** dos pantallas nuevas en la navegación, con nombres del vocabulario: "Personas y organizaciones" (lista con buscador y filtro por tipo; detalle con forma de artículo: cómo se escribe, identificadores, documentos por asunto con su rol y cada mención, lo que dice cada documento con su cita, los datos en que difieren, los vínculos desde otras entidades, su página del wiki y las decisiones) y "Asuntos" (lista; detalle con sus documentos y el motivo de cada uno, sus partes, las propuestas del modelo y las decisiones). "Identidades dudosas" es una vista para resolver en bloque, a la que llevan la vista de atención, la lista de entidades y el detalle de una entidad con dudas. El detalle de un documento suma una sección con las entidades que nombra, su rol y su asunto. Las acciones son decisiones sobre el registro, con confirmación cuando cambian algo: unir con otra (buscándola por nombre entre las del mismo tipo), separar una mención, "no es una entidad", marcar un dato o lo que dice un documento como incorrecto, sacar un documento de un asunto y deshacer cualquiera. Nada se corrige editando el texto de una página (D-175).
+- **Por qué:** el registro es la verdad y las páginas su proyección: corregir en la página se perdería en la próxima proyección; y las decisiones guardadas son firmes y reversibles (R-08, R-09).
+- **Alternativas descartadas:** una sola pantalla para entidades y asuntos (los asuntos son grupos de documentos, no entidades con menciones); editar el nombre de una entidad a mano (el nombre sale de sus alias; queda para después si hace falta).
+- **Dónde se aplica:** `src/components/knowledge/`; `src/components/docbase/document-detail.tsx`; navegación en `icon-sidebar.tsx`, `content-area.tsx`, `wiki-store.ts` y `attention/navigate.ts`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K6 de la tanda desatendida del 16 oct.
+
+### D-220 · La fusión de duplicados de Mantenimiento, sobre las páginas del registro
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la fusión de duplicados de Ajustes > Mantenimiento reescribe y borra archivos y no se puede deshacer. Desde la etapa 3 las páginas de entidad del archivo salen del registro, y se dejaron fuera de esa fusión (D-202); pero la herramienta sigue siendo la manera de encontrar páginas que parecen la misma, y dejarlas fuera la volvía inútil para el archivo.
+- **Qué se decidió:** la búsqueda de duplicados vuelve a ofrecer las páginas de entidades del registro (no las de asuntos ni las que se conservan solo por sus notas). Fusionar dos o más páginas del registro guarda una decisión de unir sus entidades, con la de la página elegida como la que queda, en vez de reescribir archivos; decir que no son duplicados guarda una separación. Un grupo que mezcla una página del registro con una que escribió el wiki no se fusiona y se dice por qué.
+- **Por qué:** convierte la herramienta en una fuente de decisiones firmes y reversibles (R-08, R-09) sin tocar archivos que la app vuelve a escribir.
+- **Alternativas descartadas:** dejar las páginas del registro fuera (la herramienta no servía para el archivo); fusionar los archivos y después avisar al registro (la próxima proyección los reescribiría).
+- **Dónde se aplica:** `src/lib/dedup-runner.ts` (`projectedEntityId`, `joinOnTheRecord`, `separateOnTheRecord`); `src/components/settings/sections/maintenance-section.tsx`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K6 de la tanda desatendida del 16 oct.
+
+### D-221 · Enlaces dentro del texto de la página de cada documento
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Wiki
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la página de cada documento la escribe el wiki y termina con un bloque, escrito por la app, con las entidades que nombra (D-198). Dentro del texto, los nombres no llevan a ninguna parte, y P-102 pedía enlazarlos si se podía hacer sin modelo y sin riesgo de enlazar mal.
+- **Qué se decidió:** la app enlaza el primer lugar del texto donde aparece un nombre del documento escrito exactamente como lo escribe el documento, hacia la página de su entidad, una vez por entidad, solo si: la entidad tiene página; el nombre tiene dos palabras o más y no es genérico; ninguna otra entidad del mismo documento se escribe igual o con un nombre que lo contiene (una organización sin su forma societaria cuando otra la tiene); el lugar es texto corrido (no el encabezado, un título, código ni otro enlace) y el nombre está entero (no le sigue otra palabra con mayúscula). Cada enlace lleva una marca de la app (un comentario), así la proyección los saca y los vuelve a poner, y no cuentan como enlaces que hizo el wiki o una persona. El lector del wiki no muestra los comentarios de las páginas: hasta ahora las marcas del bloque se veían como texto.
+- **Por qué:** un enlace equivocado manda a la persona a la página de otro, que es peor que no tener enlace; con estas reglas solo se enlaza lo que no puede ser otra entidad del documento.
+- **Alternativas descartadas:** enlazar todos los alias de la entidad (un alias de otro documento puede ser otra persona en este); que el modelo marque los nombres al escribir la página (un uso más del modelo para algo que el cálculo resuelve en los casos seguros); no enlazar nada dentro del texto.
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/links.rs`; `pages.rs` (bloque y enlaces de las páginas de documentos); `src/lib/wikilink-transform.ts` (`hideHtmlComments`); P-109.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K6 de la tanda desatendida del 16 oct.
+
+### D-222 · La prueba de R-24 revisa todo el programa
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Proceso de trabajo
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la prueba que comprueba que ningún caso de las hojas de respuestas está en el programa (R-24) miraba solo la base documental, sus pantallas, el vocabulario y los catálogos. Por eso no veía nombres de la carpeta de prueba en ejemplos y pruebas anteriores a la regla (la búsqueda en español, la lectura del encabezado de las páginas, el puente con el wiki, las etiquetas del grafo y el ejemplo de etiqueta del diseño).
+- **Qué se decidió:** la prueba lee todo el programa y sus pruebas, en Rust y en TypeScript, los recursos y los textos de diseño; no los registros de lo que pasó (`docs/sessions/`, este registro, los pendientes), que no se reescriben. Los nombres que encontró se reemplazaron por nombres inventados. Las palabras que el programa usa por motivos propios y que un caso comparte (el proveedor de búsqueda y el modelo con que habla la app, palabras comunes en inglés de pruebas traídas del proyecto original, una letra griega) quedan en una lista aparte de la prueba, dicha como tal; un nombre de pila en un texto de prueba del proyecto original se abrevió.
+- **Por qué:** una regla que se comprueba sobre una parte del programa no se comprueba.
+- **Alternativas descartadas:** seguir mirando solo la base documental (dejaba afuera justamente el código viejo).
+- **Dónde se aplica:** `src-tauri/src/docbase/similar/check.rs` (`no_case_of_the_answer_sheet_is_in_the_program`, `NOT_OF_CASES`); los archivos corregidos están en el commit de la etapa.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K6 de la tanda desatendida del 16 oct.
+
+### D-223 · Los nombres de la capa de conocimiento en el vocabulario de cada vertical
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Interfaz
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el vocabulario de la capa (`knowledge.json`) trae identificadores y descripciones para el modelo, y etiquetas en el idioma del wiki para las páginas. Las pantallas necesitan los nombres para el usuario, por vertical y por idioma (P-091), y los términos del dominio no pueden ir escritos en un componente.
+- **Qué se decidió:** el vocabulario de cada vertical (`src/vocabulary/`) suma una parte `knowledge`: el nombre de las pantallas ("Personas y organizaciones", "Asuntos", "Identidades dudosas"), el de un asunto y el de los documentos sin asunto, los tipos de entidad en singular y plural, los roles, los predicados leídos desde el sujeto y desde el objeto ("Representa a", "Representada por") y los tipos de identificador, en español y en inglés. Un identificador del vocabulario de la capa que la vertical no nombra se muestra con su identificador en palabras. El rol "otro" se muestra como "nombrado".
+- **Por qué:** separa lo que lee el modelo (que cambia la lectura, D-193) de lo que lee una persona, que cambia con la profesión y el idioma.
+- **Alternativas descartadas:** leer las etiquetas de `knowledge.json` desde las pantallas (están en el idioma del wiki, no en el de la pantalla, y son una por app, no por vertical).
+- **Dónde se aplica:** `src/vocabulary/index.ts` y `legal.ts`; P-091.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K6 de la tanda desatendida del 16 oct.
+
+### D-224 · Una decisión sobre una identidad guarda lo que se mostró de cada lado
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** R-08 pide guardar cada decisión con la evidencia que se le mostró a la persona. El motor, cuando la pantalla no dice nada, guarda solo los nombres de los dos lados (D-189).
+- **Qué se decidió:** las pantallas mandan lo que mostraron: en la vista de identidades dudosas, el motivo de la duda y de cada lado su nombre, cómo se escribe, sus identificadores y sus documentos; al unir desde una entidad, los nombres y alias de las dos; al separar una mención, la mención y su documento; al marcar un dato, cuál. Se guarda como texto con su huella, como en los parecidos.
+- **Por qué:** permite saber después qué vio la persona al decidir y, cuando haya evidencia nueva y distinta, volver a mostrar una separación (P-099).
+- **Alternativas descartadas:** guardar solo los nombres (no alcanza para comparar con evidencia nueva).
+- **Dónde se aplica:** `src/components/knowledge/doubts-view.tsx` y `entity-detail.tsx`; `src-tauri/src/docbase/knowledge/decide.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K6 de la tanda desatendida del 16 oct.
