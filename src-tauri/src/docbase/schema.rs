@@ -10,7 +10,15 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12];
+
+/// What the model was shown of the two sides when it said a verdict on a
+/// pair of groups (`knowledge_verdict.evidence`, a fingerprint): a verdict
+/// that kept them apart is asked again when what they show changed (R-08:
+/// new and different evidence). Verdicts kept before have none.
+const V12: &str = "
+ALTER TABLE knowledge_verdict ADD COLUMN evidence TEXT;
+";
 
 /// Changes and deletions in the knowledge layer (`knowledge/changes.rs`):
 /// what a document that went away leaves behind, so that what a person

@@ -62,7 +62,7 @@ pub const IDENTITY_PROMPT: &str = "identidad-3";
 /// the program's or the vocabulary's change, the record is computed again.
 const RESOLUTION_SETTING: &str = "knowledge-resolution";
 /// Raised when a change in the program changes what a resolution gives.
-const RESOLUTION_VERSION: &str = "resolucion-3";
+const RESOLUTION_VERSION: &str = "resolucion-4";
 
 fn resolution_basis() -> String {
     format!("{RESOLUTION_VERSION}|{IDENTITY_PROMPT}|{}", vocabulary().digest)
@@ -457,6 +457,8 @@ pub(crate) fn load_decided(conn: &Connection) -> Result<Decided, String> {
 struct Verdict {
     verdict: String,
     reason: Option<String>,
+    /// The fingerprint of what the two sides showed, when it was said.
+    evidence: Option<String>,
 }
 
 /// The verdicts kept: with an engine, only its own; without one, the
@@ -466,23 +468,30 @@ fn load_verdicts(conn: &Connection, engine: Option<&str>) -> Result<HashMap<(Str
     // question changed, so it is asked again (R-20).
     let mut statement = conn
         .prepare(
-            "SELECT v.a, v.b, v.engine, v.verdict, v.reason FROM knowledge_verdict v
+            "SELECT v.a, v.b, v.engine, v.verdict, v.reason, v.evidence FROM knowledge_verdict v
              WHERE NOT EXISTS (SELECT 1 FROM model_answer m WHERE m.question = v.question AND m.prompt_version != ?1)
              ORDER BY v.asked_at, v.engine",
         )
         .map_err(sql_err)?;
     let rows = statement
         .query_map([IDENTITY_PROMPT], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, String>(3)?, row.get::<_, Option<String>>(4)?))
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, Option<String>>(4)?,
+                row.get::<_, Option<String>>(5)?,
+            ))
         })
         .map_err(sql_err)?;
     let mut out = HashMap::new();
     for row in rows {
-        let (a, b, by, verdict, reason) = row.map_err(sql_err)?;
+        let (a, b, by, verdict, reason, evidence) = row.map_err(sql_err)?;
         if engine.is_some_and(|e| e != by) {
             continue;
         }
-        out.insert((a, b), Verdict { verdict, reason });
+        out.insert((a, b), Verdict { verdict, reason, evidence });
     }
     Ok(out)
 }
@@ -923,6 +932,12 @@ fn context(conn: &Connection, rows: &[Row], clusters: &[Cluster], identifiers: H
     Ok(Context { documents, facts, by_content, identifiers })
 }
 
+/// The fingerprint of what a question shows of two sides.
+fn shown_fingerprint(principal: &str, candidate: &str) -> String {
+    let digest = Sha256::digest(format!("{principal}\u{0}{candidate}").as_bytes());
+    digest.iter().take(8).map(|b| format!("{b:02x}")).collect()
+}
+
 fn cut(text: &str, words: usize) -> String {
     let all: Vec<&str> = text.split_whitespace().collect();
     if all.len() <= words {
@@ -1204,13 +1219,20 @@ pub(crate) fn resolve(base: &DocBase, asking: &mut Asking, report: &mut ResolveR
         let mut list: Vec<usize> = partners[&principal].iter().copied().filter(|c| rank[c] > rank[&principal] && !absorbed.contains(c)).collect();
         list.sort_by_key(|c| rank[c]);
         let mut to_ask: Vec<usize> = Vec::new();
+        let principal_shown = describe(&rows, &clusters, &members[&principal], &context);
         for candidate in list {
-            // What the model already said of this pair, on any of their own groups.
+            // What the model already said of this pair, on any of their own
+            // groups. A verdict that kept them apart, said when the two
+            // sides showed something else, is asked again: the evidence is
+            // new (R-08); one that joined them holds.
+            let shown = shown_fingerprint(&principal_shown, &describe(&rows, &clusters, &members[&candidate], &context));
             let mut said: Vec<&Verdict> = Vec::new();
             for &x in &members[&principal] {
                 for &y in &members[&candidate] {
                     if let Some(v) = verdicts.get(&(x.min(y), x.max(y))) {
-                        said.push(v);
+                        if v.verdict == "same" || v.evidence.as_deref() == Some(shown.as_str()) {
+                            said.push(v);
+                        }
                     }
                 }
             }
@@ -1235,14 +1257,18 @@ pub(crate) fn resolve(base: &DocBase, asking: &mut Asking, report: &mut ResolveR
                 report.left += 1;
                 continue;
             }
-            let principal_text = describe(&rows, &clusters, &members[&principal], &context);
+            let principal_text = &principal_shown;
             let texts: Vec<String> = batch.iter().map(|c| describe(&rows, &clusters, &members[c], &context)).collect();
             let kind = clusters[principal].kind.clone();
-            let question = question(vocabulary, &kind, &principal_text, &texts, clusters[principal].content_id, false);
+            let question = question(vocabulary, &kind, principal_text, &texts, clusters[principal].content_id, false);
             let Some(said) = ask_question(base, asking, report, &question, batch.len(), &mut stopped)? else { continue };
-            for (&candidate, (verdict, reason)) in batch.iter().zip(said) {
-                keep_verdict(base, &clusters[principal].key, &clusters[candidate].key, &verdict, &reason, &question.key)?;
-                verdicts.insert((principal.min(candidate), principal.max(candidate)), Verdict { verdict: verdict.to_string(), reason: reason.clone() });
+            for ((&candidate, (verdict, reason)), text) in batch.iter().zip(said).zip(&texts) {
+                let shown = shown_fingerprint(principal_text, text);
+                keep_verdict(base, &clusters[principal].key, &clusters[candidate].key, &verdict, &reason, &question.key, Some(&shown))?;
+                verdicts.insert(
+                    (principal.min(candidate), principal.max(candidate)),
+                    Verdict { verdict: verdict.to_string(), reason: reason.clone(), evidence: Some(shown) },
+                );
                 apply(&mut resolver, &mut absorbed, principal, candidate, verdict, reason, report);
             }
         }
@@ -1287,8 +1313,8 @@ pub(crate) fn resolve(base: &DocBase, asking: &mut Asking, report: &mut ResolveR
                 if let Some(answers) = ask_question(base, asking, report, &question, against.len(), &mut stopped)? {
                     said.clear();
                     for (&candidate, (verdict, reason)) in against.iter().zip(answers) {
-                        keep_verdict(base, &clusters[lone].key, &clusters[candidate].key, &verdict, &reason, &question.key)?;
-                        let v = Verdict { verdict: verdict.to_string(), reason };
+                        keep_verdict(base, &clusters[lone].key, &clusters[candidate].key, &verdict, &reason, &question.key, None)?;
+                        let v = Verdict { verdict: verdict.to_string(), reason, evidence: None };
                         verdicts.insert((lone.min(candidate), lone.max(candidate)), v.clone());
                         said.push(Some(v));
                     }
@@ -1404,7 +1430,7 @@ fn ask_question(
 
 /// Keeps what the model said of a pair of groups, for every later
 /// resolution (R-20).
-fn keep_verdict(base: &DocBase, x: &str, y: &str, verdict: &str, reason: &Option<String>, question: &str) -> Result<(), String> {
+fn keep_verdict(base: &DocBase, x: &str, y: &str, verdict: &str, reason: &Option<String>, question: &str, evidence: Option<&str>) -> Result<(), String> {
     let engine = base
         .conn()
         .query_row("SELECT engine FROM model_answer WHERE question = ?1 ORDER BY asked_at DESC LIMIT 1", [question], |row| row.get::<_, String>(0))
@@ -1412,9 +1438,9 @@ fn keep_verdict(base: &DocBase, x: &str, y: &str, verdict: &str, reason: &Option
     let (a, b) = pair(x, y);
     base.conn()
         .execute(
-            "INSERT OR REPLACE INTO knowledge_verdict (a, b, engine, verdict, reason, question, asked_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![a, b, engine, verdict, reason, question, now_ms()],
+            "INSERT OR REPLACE INTO knowledge_verdict (a, b, engine, verdict, reason, question, asked_at, evidence)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![a, b, engine, verdict, reason, question, now_ms(), evidence],
         )
         .map_err(sql_err)?;
     Ok(())

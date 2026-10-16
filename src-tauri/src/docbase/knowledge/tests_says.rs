@@ -209,3 +209,55 @@ fn a_number_written_after_another_persons_name_is_not_hers() {
     let kept: i64 = base.conn().query_row("SELECT count(*) FROM knowledge_identifier", [], |row| row.get(0)).unwrap();
     assert_eq!(kept, 0, "the spouse's DNI is not the client's");
 }
+
+const V1: &str = "DOC-V1. Nota firmada por Persona Dos Tres, de la oficina central, sobre el pedido de este mes.";
+const V2: &str = "DOC-V2. Respuesta de Persona Tres a la nota de este mes, sin más datos de ella.";
+const V3: &str = "DOC-V3. Recibo de Persona Tres, correo persona.tres@ejemplo.com, de la oficina central.";
+
+fn doubtful_model() -> FakeModel {
+    FakeModel::new("falso:1", |prompt| {
+        if prompt.contains("Hay que decidir si cada candidato es la misma entidad") {
+            return serde_json::json!({ "respuestas": [{ "candidato": 1, "decision": "dudosa", "certeza": "media", "razon": "no alcanza" }] })
+                .to_string();
+        }
+        if !is_knowledge(prompt) {
+            return type_answer("contrato");
+        }
+        let none = serde_json::json!([]);
+        let (m, claims) = if prompt.contains("DOC-V1.") {
+            (mention("p", "persona", "Persona Dos Tres", "firmante", "firmada por Persona Dos Tres", none), vec![])
+        } else if prompt.contains("DOC-V2.") {
+            (mention("p", "persona", "Persona Tres", "remitente", "Respuesta de Persona Tres", none), vec![])
+        } else {
+            (
+                mention("p", "persona", "Persona Tres", "emisor", "Recibo de Persona Tres", none),
+                vec![claim("p", "contacto", None, Some("persona.tres@ejemplo.com"), "correo persona.tres@ejemplo.com", None)],
+            )
+        };
+        serde_json::json!({ "menciones": [m], "afirmaciones": claims }).to_string()
+    })
+}
+
+#[test]
+fn a_verdict_that_kept_two_apart_is_asked_again_when_they_show_more() {
+    let (dir, base) = base_with(&[("v1.txt", V1), ("v2.txt", V2)]);
+    let asker = doubtful_model();
+    let identity = |m: &FakeModel| m.asked.lock().unwrap().iter().filter(|q| q.contains("Hay que decidir si cada candidato")).count();
+    base.types_run(&asker, 50).unwrap();
+    base.knowledge_run(&asker, 50).unwrap();
+    base.knowledge_resolve(Some(&asker), 50).unwrap();
+    assert_eq!(identity(&asker), 1);
+    super::mark_dirty(&base.conn(), "resolve", "otra vez").unwrap();
+    base.knowledge_resolve(Some(&asker), 50).unwrap();
+    assert_eq!(identity(&asker), 1, "nothing new: nothing is asked");
+    // A new document shows more of one side: the doubt is asked again.
+    dir.write("o/v3.txt", V3.as_bytes());
+    super::tests::refresh(&base, &base.origins(&crate::docbase::Visible::All).unwrap()[0].id);
+    base.types_run(&asker, 50).unwrap();
+    base.knowledge_run(&asker, 50).unwrap();
+    base.knowledge_resolve(Some(&asker), 50).unwrap();
+    assert_eq!(identity(&asker), 2);
+    super::mark_dirty(&base.conn(), "resolve", "otra vez").unwrap();
+    base.knowledge_resolve(Some(&asker), 50).unwrap();
+    assert_eq!(identity(&asker), 2);
+}
