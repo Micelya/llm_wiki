@@ -3119,3 +3119,118 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** `src/components/knowledge/doubts-view.tsx` y `entity-detail.tsx`; `src-tauri/src/docbase/knowledge/decide.rs`.
 - **Quién decidió:** agente sin consulta.
 - **Fuente:** etapa K6 de la tanda desatendida del 16 oct.
+
+### D-225 · Lo que no es un nombre no tiene página
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** en la primera generación del wiki sobre el archivo real, una de cada cinco páginas de entidad no era de nadie: domicilios y códigos postales leídos como organizaciones (con el rol "domicilio", que da página), pronombres y roles ("Uds.", "mi representada", "apoderado"), el hueco de una plantilla ("[Nombre / Razón social]") y, en una relectura, las direcciones web de las facturas.
+- **Qué se decidió:** una forma de escribir que es solo de palabras genéricas, que tiene una palabra de dirección y un número, un número de calle o un código postal, corchetes de un formulario en blanco, una dirección de correo o una dirección web no es un nombre: la mención queda en el registro, pero no da página, no aparece en el bloque de entidades de la página de un documento, no se enlaza y no nombra a una entidad ni a un asunto. Las palabras genéricas y las de dirección son datos del vocabulario (`identity.generic`, `identity.addressWords`).
+- **Por qué:** una página de una dirección o de un pronombre hace ruido y le quita confianza al wiki; borrar la mención perdería lo que el documento dice (R-09).
+- **Alternativas descartadas:** pedirle al modelo que no las extraiga (no alcanza: lo hace igual en algunas lecturas); borrarlas del registro.
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/vocabulary.rs` (`is_a_name`), `pages.rs`, `matters.rs`; `src-tauri/resources/catalog/knowledge.json`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa W de la tanda desatendida del 16 oct.
+
+### D-226 · Una afirmación cuenta solo si su cita la dice
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la cita de cada afirmación se comprueba contra el texto, pero eso solo asegura que la cita existe, no que diga la afirmación. En el archivo real, cerca de un tercio de las afirmaciones tenía una cita que no la decía: "acreedor de" con una cita que no nombra a ninguno de los dos, una línea de percepciones de una factura tomada como deuda, la fecha de una factura tomada como inicio de un vínculo, un CUIT o un DNI tomado como contacto.
+- **Qué se decidió:** al consolidar el registro, una relación entre dos entidades necesita en su cita alguno de los dos nombres; los predicados con palabras propias (deudor, acreedor, inicio y fin de un vínculo) necesitan una de ellas en la cita (`cues`); los importes no cuentan si la cita tiene palabras que dicen que es otra cosa (`notCues`: percepción, IVA, subtotal…); un contacto no puede contener un número que los documentos dan como identificador. Lo que no pasa queda en la lectura, contado como "no corresponde", y no llega a las páginas.
+- **Por qué:** es un cálculo que verifica lo que dijo el modelo (R-19), con las palabras como datos del vocabulario (R-26). Medido sobre una muestra: las afirmaciones correctas pasaron de 69 % a 74 % con esta regla y a 84 % con D-230 y D-231.
+- **Alternativas descartadas:** una segunda pregunta al modelo por cada afirmación (queda como P-112: es la forma de llegar más lejos, pero cuesta una pasada nueva).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/claims.rs` (`says`); `knowledge.json` (`cues`, `notCues` de los predicados).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa W de la tanda desatendida del 16 oct.
+
+### D-227 · El registro y las páginas se rehacen cuando cambian las reglas del programa
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la resolución corría solo con marcas de trabajo pendiente, la verificación de una lectura solo cuando cambiaba la pregunta o el vocabulario, y la proyección solo cuando cambiaban el registro, el vocabulario o las páginas. Un arreglo del programa no llegaba a una base ya calculada.
+- **Qué se decidió:** la resolución guarda con qué reglas se calculó (versión del programa, de la pregunta de identidad y del vocabulario) y se rehace si cambian; la verificación de lecturas tiene una versión que cuenta en lo que usa una lectura (se vuelve a verificar con las respuestas guardadas, sin preguntar); la proyección tiene una versión en su base.
+- **Por qué:** R-09 (lo calculado se puede rehacer entero desde las fuentes) y R-13 (repetir sin cambios no cambia nada): las versiones solo cambian cuando cambia el programa.
+- **Alternativas descartadas:** pedirle a la persona que "recalcule" desde una pantalla.
+- **Dónde se aplica:** `resolve.rs` (`RESOLUTION_VERSION`, ajuste `knowledge-resolution`), `vocabulary.rs` (`READING_CHECK`), `pages.rs` (`PROJECTION_VERSION`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa W de la tanda desatendida del 16 oct.
+
+### D-228 · Otro cargo u otra sociedad no separan a una persona
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la persona que más documentos nombran quedó en dos entidades: el modelo respondió que quien firma por una sociedad no es quien firma por otra del mismo grupo, aunque los dos lados tenían el mismo correo personal.
+- **Qué se decidió:** la pregunta de identidad (versión `identidad-3`) dice que otro cargo u otra organización no alcanza para decir "distinta" y que el mismo correo personal (no una casilla general) es un dato fuerte; cada lado lista sus correos. Un veredicto dicho a otra versión de la pregunta no se usa: se pregunta de nuevo (R-20).
+- **Por qué:** la regla de la pregunta llevaba al modelo a separar por el contexto, que en un grupo de sociedades siempre difiere.
+- **Alternativas descartadas:** unir por correo sin preguntar (una lectura le dio a otra persona el correo de esta: habría unido a dos personas distintas).
+- **Dónde se aplica:** `resolve.rs` (`question`, `describe`, `load_verdicts`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa W de la tanda desatendida del 16 oct.
+
+### D-229 · Un veredicto que separó se vuelve a preguntar cuando los lados muestran otra cosa
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** los veredictos del modelo se guardan por par de grupos y se reusan para siempre. Un "dudosa" dicho cuando un lado mostraba poco seguía valiendo cuando lecturas nuevas le dieron el nombre completo, el DNI y el correo: la persona principal volvió a quedar en dos.
+- **Qué se decidió:** cada veredicto guarda la huella de lo que se mostró de los dos lados (esquema V12, `knowledge_verdict.evidence`). Uno que los separó ("distinta" o "dudosa") se pregunta de nuevo cuando esa huella cambió; uno que los unió se mantiene. Los veredictos anteriores no tienen huella: los que separaron se preguntan una vez más.
+- **Por qué:** es la misma regla que R-08 pide para las decisiones de una persona: una separación se revisa ante evidencia nueva y distinta.
+- **Alternativas descartadas:** volver a preguntar todo cuando cambia algo (más preguntas y más cambios de opinión del modelo sin evidencia nueva); no volver a preguntar nunca (lo de antes).
+- **Dónde se aplica:** `src-tauri/src/docbase/schema.rs` (V12), `resolve.rs`. Al rebasar, la V12 de esta rama va después de cualquier versión nueva de `main`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa W de la tanda desatendida del 16 oct.
+
+### D-230 · La pregunta de lectura dice quién es el sujeto de una deuda, una representación y una fecha
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la lectura atribuía la deuda a quien la reclama ("Ud. adeuda" dicho del remitente), daba vuelta las representaciones ("la sociedad, representada por X" como "la sociedad representa a X"), tomaba la fecha de firma como inicio de un vínculo, le daba el correo de una persona a otra y tomaba un número de comprobante por un asunto.
+- **Qué se decidió:** las descripciones de esos predicados en el vocabulario (que la pregunta muestra) dicen quién es el sujeto y qué no es el valor. Todos los documentos se leen de nuevo (75 preguntas).
+- **Por qué:** es un cambio de datos, no de programa (R-26). Las representaciones invertidas desaparecieron de la muestra; las deudas atribuidas al acreedor bajaron, pero no del todo (P-112).
+- **Alternativas descartadas:** corregir la dirección con reglas en el programa (no hay una señal general confiable).
+- **Dónde se aplica:** `src-tauri/resources/catalog/knowledge.json` (`representa_a`, `deudor_de`, `acreedor_de`, `monto_reclamado`, `monto_adeudado`, `parte_en`, `inicio_de_vinculo`, `fin_de_vinculo`, `contacto`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa W de la tanda desatendida del 16 oct.
+
+### D-231 · Los números que no identifican a la mención no la separan
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** una relectura dio como identificadores de una sociedad su número de oficina y su código postal en unos documentos y su número de registro en otros: los números distintos dejaron a cada mención con el mismo nombre como duda y la sociedad quedó en veinte entidades. En una ficha de cliente, el DNI del cónyuge, escrito debajo del cliente, se leyó como del cliente y lo separó de todos sus documentos. Un documento dio el DNI de la persona como "otro número".
+- **Qué se decidió:** al verificar una lectura, un identificador cuyo valor está dentro de un domicilio que da la misma lectura, o que sigue a una palabra de dirección en su cita, se descarta ("parte-de-un-domicilio"); el número de una persona que en todo el texto aparece justo después del nombre de otra persona de la lectura, y no del suyo, se descarta ("de-otra-persona"). En la resolución, un número de seis dígitos o más que otros documentos dan como identificador fuerte de una sola clase, para el mismo tipo de entidad, cuenta como ese identificador.
+- **Por qué:** la regla "identificador distinto nunca se une" (aprobada por el dueño) hace que un solo número mal atribuido separe a una entidad entera; hay que cuidar qué es un identificador antes de aplicarla.
+- **Alternativas descartadas:** relajar la regla de identificadores distintos (aumenta las uniones falsas).
+- **Dónde se aplica:** `extract.rs` (`verify`), `resolve.rs` (`clusters`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa W de la tanda desatendida del 16 oct.
+
+### D-232 · Solo espera una síntesis la página que tiene afirmaciones
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la vista Atención mostraba "Escribiendo lo que dicen los documentos en 51 páginas" para siempre: contaba las páginas sin síntesis, y las de entidades sin afirmaciones y las de asuntos no tienen síntesis nunca.
+- **Qué se decidió:** cuenta solo las páginas cuya entidad tiene afirmaciones vigentes y todavía no tienen síntesis.
+- **Por qué:** un aviso "en curso" que no termina nunca enseña a ignorar la vista.
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/screens.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa W de la tanda desatendida del 16 oct.
+
+### D-233 · El wiki anterior se apartó copiándolo y moviendo el original fuera de la carpeta de trabajo
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Proceso de trabajo
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la etapa pedía mover el wiki del 14 de octubre a `wiki-descartado-2026-10-16`; la herramienta del agente bloqueó el movimiento directo.
+- **Qué se decidió:** se copió a `LocalRepo\llm_wiki_mi\wiki-descartado-2026-10-16\`, se comprobó que la copia es idéntica (474 archivos) y recién entonces se movió el original a `desatendido-2\wiki-original-movido-2026-10-16\`. Quedan dos copias iguales; ninguna se borró (D-093).
+- **Por qué:** no perder la línea de base aunque falle un paso.
+- **Dónde se aplica:** carpetas de la tanda (fuera del repositorio).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa W de la tanda desatendida del 16 oct.

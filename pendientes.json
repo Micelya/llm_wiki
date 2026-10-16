@@ -1081,7 +1081,7 @@
       "tipo": "verificacion",
       "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "La etapa K6 se probó con pruebas, sin levantar la app: falta ver en la app real la vista Atención con la fuente de conocimiento, Personas y organizaciones (lista, detalle, unir, separar, marcar incorrecto, deshacer), Identidades dudosas, Asuntos, la sección de entidades del detalle de un documento, los enlaces dentro de las páginas de documentos y que el lector ya no muestre las marcas de la app. Le toca a la etapa W.",
+      "detalle": "La etapa K6 se probó con pruebas, sin levantar la app: falta ver en la app real la vista Atención con la fuente de conocimiento, Personas y organizaciones (lista, detalle, unir, separar, marcar incorrecto, deshacer), Identidades dudosas, Asuntos, la sección de entidades del detalle de un documento, los enlaces dentro de las páginas de documentos y que el lector ya no muestre las marcas de la app. Le toca a la etapa W. Etapa W: la app corrió con la base real y la capa completa, y lo que la vista Atención y las pantallas leen se comprobó con la misma consulta del motor (18 dudas, 3 conflictos, 10 uniones por identificador, 1 propuesta de asunto, 2 páginas conservadas); las pantallas no se pudieron mirar (sin herramienta de capturas en la tanda).",
       "depende_de": [],
       "referencia": "src/components/knowledge/; docs/decisiones.md (D-216 a D-221)",
       "creado": "2026-10-16",
@@ -1092,8 +1092,8 @@
       "titulo": "Medir los enlaces dentro de las páginas de documentos",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "Los enlaces dentro del texto (D-221) se ponen solo donde el texto escribe el nombre igual que el documento y no puede ser otra entidad. Medir sobre el wiki real cuántos nombres se enlazan, si alguno enlaza mal y cuántos se pierden porque el wiki escribe el nombre de otra manera; si conviene, sumar los alias de la entidad con las mismas reglas de seguridad.",
+      "estado": "a-verificar",
+      "detalle": "Los enlaces dentro del texto (D-221) se ponen solo donde el texto escribe el nombre igual que el documento y no puede ser otra entidad. Medir sobre el wiki real cuántos nombres se enlazan, si alguno enlaza mal y cuántos se pierden porque el wiki escribe el nombre de otra manera; si conviene, sumar los alias de la entidad con las mismas reglas de seguridad. Etapa W: 221 enlaces en 61 de 66 páginas de documentos; en una revisión por nombre, cerca del 95 % lleva a la entidad correcta (los errores vienen de uniones de la capa, como el área legal de una sociedad unida a otra del grupo). No se midió cuántos nombres se pierden por escribirse distinto.",
       "depende_de": [
         "P-108"
       ],
@@ -1122,6 +1122,54 @@
       "detalle": "Los umbrales de las lecturas que pierden citas (4 descartes y 40 %) y de las uniones recientes por identificador (30 días) son una primera estimación (D-217): medirlos sobre el archivo real. La consulta de Atención de la capa recorre todas las lecturas y las entidades unidas por identificador cada vez que la base avisa un cambio: con miles de documentos hay que limitarla a lo cambiado.",
       "depende_de": [],
       "referencia": "src-tauri/resources/catalog/knowledge.json (attention); src-tauri/src/docbase/knowledge/screens.rs",
+      "creado": "2026-10-16",
+      "actualizado": "2026-10-16"
+    },
+    {
+      "id": "P-112",
+      "titulo": "Que el modelo confirme cada afirmación de la capa",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Después de los arreglos de la etapa W, cerca de una de cada seis afirmaciones que llegan a las páginas sigue mal: la deuda atribuida a quien la reclama, relaciones cuya cita no las dice, un asunto que es una frase. Probar una pasada que le pregunte al modelo, por documento, si cada cita dice exactamente esa afirmación con ese sujeto, y medirla contra la hoja de entidades (R-17).",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/knowledge/claims.rs; D-226, D-230",
+      "creado": "2026-10-16",
+      "actualizado": "2026-10-16"
+    },
+    {
+      "id": "P-113",
+      "titulo": "Estabilidad de la capa entre lecturas",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Cada relectura completa (por un cambio de pregunta) cambió mucho el resultado: la misma persona pasó de 1 a 6 entidades y una sociedad de 1 a 20 por números que el modelo atribuyó distinto. Medir la variación entre dos lecturas iguales y decidir cómo se acota (conservar la lectura anterior cuando la nueva no mejora, comparar lecturas, avisar en Atención un cambio grande).",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/knowledge/extract.rs; resolve.rs",
+      "creado": "2026-10-16",
+      "actualizado": "2026-10-16"
+    },
+    {
+      "id": "P-114",
+      "titulo": "Enlaces rotos y conceptos de más en las páginas que escribe el wiki",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "En el wiki generado de cero, las páginas de documentos y de conceptos que escribe el modelo tienen 30 enlaces a páginas que no existen (títulos inventados) y hay 85 conceptos, varios solapados. Revisar la generación del wiki (no la capa): enlazar solo a páginas del índice y agrupar conceptos.",
+      "depende_de": [],
+      "referencia": "src/lib/ingest.ts",
+      "creado": "2026-10-16",
+      "actualizado": "2026-10-16"
+    },
+    {
+      "id": "P-115",
+      "titulo": "Detalles del arranque y de los nombres de archivo de las páginas de entidad",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Al crear el proyecto general la app registró 'no es un proyecto de wiki' (dos preparaciones a la vez: una ve la carpeta wiki antes de que exista schema.md), aunque siguió bien. schema.md del proyecto sigue siendo la plantilla de investigación en inglés. El archivo de una página de entidad conserva el nombre de su primera proyección aunque la entidad cambie de nombre (una página de la marca de un correo quedó con el nombre de la sociedad).",
+      "depende_de": [],
+      "referencia": "src/App.tsx; src/lib/default-project.ts; src-tauri/src/commands/project.rs; src-tauri/src/docbase/knowledge/pages.rs",
       "creado": "2026-10-16",
       "actualizado": "2026-10-16"
     }
