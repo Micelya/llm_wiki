@@ -16,6 +16,7 @@ use super::knowledge::decide::{DecisionView, IdentityDecision};
 use super::knowledge::entities::{DoubtView, EntityDetail, EntitySummary};
 use super::knowledge::pages::ProjectReport;
 use super::knowledge::resolve::ResolveReport;
+use super::knowledge::screens::{DocumentEntities, KnowledgeAttention, MatterDetail, MatterSummary};
 use super::knowledge::{DocumentKnowledge, KnowledgeStatus};
 use super::labels::{Label, LabelGroup, LabelRule};
 use super::origins::Origin;
@@ -750,6 +751,77 @@ pub fn docbase_knowledge_undo(app: tauri::AppHandle, state: State<'_, DocBaseSta
     state.base()?.knowledge_undo(id)?;
     let _ = app.emit(CHANGED_EVENT, ());
     Ok(())
+}
+
+/// Keeps and applies several decisions of the user at once, with one
+/// resolution (taking a document out of a matter, confirming a family).
+#[tauri::command(async)]
+pub fn docbase_knowledge_decide_many(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    decisions: Vec<IdentityDecision>,
+    note: Option<String>,
+) -> Result<Vec<i64>, String> {
+    let ids = state.base()?.knowledge_decide_many(&decisions, note.as_deref())?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(ids)
+}
+
+/// What the knowledge layer brings to the attention view: failed and noisy
+/// readings, conflicts, recent joins by identifier, matters the model
+/// proposed, pages kept and how far the work went.
+#[tauri::command(async)]
+pub fn docbase_knowledge_attention(state: State<'_, DocBaseState>) -> Result<KnowledgeAttention, String> {
+    state.base()?.knowledge_attention(&Visible::All)
+}
+
+/// The matters of the archive, the largest first.
+#[tauri::command(async)]
+pub fn docbase_knowledge_matters(state: State<'_, DocBaseState>) -> Result<Vec<MatterSummary>, String> {
+    state.base()?.knowledge_matters(&Visible::All)
+}
+
+/// One matter with its documents, why each is in it, its parties and the
+/// decisions about it.
+#[tauri::command(async)]
+pub fn docbase_knowledge_matter(state: State<'_, DocBaseState>, id: String) -> Result<Option<MatterDetail>, String> {
+    state.base()?.knowledge_matter(&Visible::All, &id)
+}
+
+/// The entities the document at this location names, with their roles,
+/// and its matter.
+#[tauri::command(async)]
+pub fn docbase_knowledge_document_entities(state: State<'_, DocBaseState>, location_id: i64) -> Result<DocumentEntities, String> {
+    state.base()?.knowledge_document_entities(&Visible::All, location_id)
+}
+
+/// Takes a document (`content:<id>` or `location:<id>`) out of a matter,
+/// or turns down the model's proposal of it.
+#[tauri::command(async)]
+pub fn docbase_knowledge_leave_matter(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    document: String,
+    matter_id: String,
+    note: Option<String>,
+) -> Result<Vec<i64>, String> {
+    let ids = state.base()?.knowledge_leave_matter(&document, &matter_id, note.as_deref())?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(ids)
+}
+
+/// Puts a document in a matter, or confirms the model's proposal of it.
+#[tauri::command(async)]
+pub fn docbase_knowledge_join_matter(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    document: String,
+    matter_id: String,
+    note: Option<String>,
+) -> Result<i64, String> {
+    let id = state.base()?.knowledge_join_matter(&document, &matter_id, note.as_deref())?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(id)
 }
 
 /// Up to `count` paths of nested folders under `root`, `depth` levels

@@ -77,7 +77,7 @@ fn reading(prompt: &str) -> String {
     serde_json::json!({ "menciones": mentions, "afirmaciones": claims }).to_string()
 }
 
-fn model() -> FakeModel {
+pub(crate) fn model() -> FakeModel {
     FakeModel::new("falso:1", |prompt| {
         if is_synthesis(prompt) {
             synthesis(prompt)
@@ -95,7 +95,7 @@ fn model() -> FakeModel {
     })
 }
 
-fn archive() -> (TempDir, DocBase, PathBuf, FakeModel) {
+pub(crate) fn archive() -> (TempDir, DocBase, PathBuf, FakeModel) {
     let (dir, base) = base_with(FILES);
     dir.folder("General/wiki/sources");
     dir.write("General/schema.md", b"# schema");
@@ -108,12 +108,12 @@ fn archive() -> (TempDir, DocBase, PathBuf, FakeModel) {
     (dir, base, project, asker)
 }
 
-fn content(base: &DocBase, file: &str) -> i64 {
+pub(crate) fn content(base: &DocBase, file: &str) -> i64 {
     base.knowledge_of(&Visible::All, super::tests::location(base, file)).unwrap().content_id.unwrap()
 }
 
 /// The matters, as sets of file names.
-fn matters(base: &DocBase) -> Vec<Vec<String>> {
+pub(crate) fn matters(base: &DocBase) -> Vec<Vec<String>> {
     let conn = base.conn();
     let mut statement = conn
         .prepare(

@@ -112,6 +112,14 @@ pub struct EntityDetail {
     pub mentions: Vec<EntityMention>,
     pub claims: Vec<ClaimView>,
     pub doubts: Vec<DoubtView>,
+    /// Its page in the archive's wiki, when it has one.
+    pub page_path: Option<String>,
+    /// The matter of each of its documents (firm or proposed by the model).
+    pub matters: Vec<super::screens::DocumentMatter>,
+    /// What a person decided about it, active or undone, the latest first.
+    pub decisions: Vec<super::decide::DecisionView>,
+    /// What other entities' claims say of it ("represents it").
+    pub incoming: Vec<super::screens::IncomingClaim>,
 }
 
 fn values(first: Vec<Value>, params: Vec<String>) -> Vec<Value> {
@@ -121,7 +129,7 @@ fn values(first: Vec<Value>, params: Vec<String>) -> Vec<Value> {
 }
 
 /// The name of a document and a location of it the caller can see.
-fn document(conn: &Connection, visible: &Visible, content_id: i64, cache: &mut HashMap<i64, (Option<i64>, String)>) -> Result<(Option<i64>, String), String> {
+pub(crate) fn document(conn: &Connection, visible: &Visible, content_id: i64, cache: &mut HashMap<i64, (Option<i64>, String)>) -> Result<(Option<i64>, String), String> {
     if let Some(found) = cache.get(&content_id) {
         return Ok(found.clone());
     }
@@ -302,7 +310,27 @@ impl DocBase {
                 .collect();
             let claims = claims_of(&conn, visible, id, &mut cache)?;
             let doubts = doubts(&conn, visible, Some(id))?;
-            return Ok(Some(EntityDetail { id: id.to_string(), kind, name, state, merged_into, aliases, identifiers, mentions, claims, doubts }));
+            let paths = super::screens::page_paths(&conn)?;
+            let contents: Vec<i64> = mentions.iter().map(|m| m.content_id).collect::<BTreeSet<_>>().into_iter().collect();
+            let matters = super::screens::document_matters(&conn, &contents, &paths)?;
+            let decisions = super::screens::entity_decisions(&conn, id)?;
+            let incoming = super::screens::incoming_claims(&conn, visible, id)?;
+            return Ok(Some(EntityDetail {
+                id: id.to_string(),
+                kind,
+                name,
+                state,
+                merged_into,
+                aliases,
+                identifiers,
+                mentions,
+                claims,
+                doubts,
+                page_path: paths.get(id).cloned(),
+                matters,
+                decisions,
+                incoming,
+            }));
         }
     }
 

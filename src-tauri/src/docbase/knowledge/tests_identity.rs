@@ -16,7 +16,7 @@ const D: &str = "DOC-D. Nota de Persona Dos, DNI 22.222.223, sobre el mismo cont
 const E: &str = "DOC-E. Acuerdo entre Ejemplo Uno S.A. y Ejemplo Uno LLC, firmado por Persona Tres, soltera en 2020, en nombre de ambas sociedades.";
 const F: &str = "DOC-F. Factura de EJEMPLO UNO para Persona Tres Cuatro, casada en 2024, por servicios prestados durante marzo.";
 
-const FILES: &[(&str, &str)] = &[("a.txt", A), ("b.txt", B), ("c.txt", C), ("d.txt", D), ("e.txt", E), ("f.txt", F)];
+pub(crate) const FILES: &[(&str, &str)] = &[("a.txt", A), ("b.txt", B), ("c.txt", C), ("d.txt", D), ("e.txt", E), ("f.txt", F)];
 
 fn ids(kind: &str, value: &str, quote: &str) -> serde_json::Value {
     serde_json::json!([{ "clase": kind, "valor": value, "cita": quote }])
@@ -91,7 +91,7 @@ fn verdicts(prompt: &str) -> String {
     serde_json::json!({ "respuestas": answers }).to_string()
 }
 
-fn model() -> FakeModel {
+pub(crate) fn model() -> FakeModel {
     FakeModel::new("falso:1", |prompt| {
         if is_identity(prompt) {
             verdicts(prompt)
@@ -108,7 +108,7 @@ fn identity_calls(model: &FakeModel) -> usize {
 }
 
 /// Reads everything and resolves it.
-fn run(base: &DocBase, asker: &FakeModel) {
+pub(crate) fn run(base: &DocBase, asker: &FakeModel) {
     base.types_run(asker, 50).unwrap();
     while base.knowledge_run(asker, 50).unwrap().extracted > 0 {}
     base.knowledge_resolve(Some(asker), 50).unwrap();

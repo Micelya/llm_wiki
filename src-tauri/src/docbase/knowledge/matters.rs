@@ -861,12 +861,53 @@ pub(crate) fn proposals(conn: &Connection) -> Result<BTreeMap<i64, Vec<(String, 
         .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<String>>(2)?, row.get::<_, String>(3)?)))
         .map_err(sql_err)?;
     let mut out: BTreeMap<i64, Vec<(String, Option<String>)>> = BTreeMap::new();
-    for row in rows {
-        let (content, matter, reason, by) = row.map_err(sql_err)?;
+    let found: Vec<(i64, String, Option<String>, String)> = rows.collect::<Result<_, _>>().map_err(sql_err)?;
+    drop(statement);
+    if found.is_empty() {
+        return Ok(out);
+    }
+    // A person who kept the document apart from a document of the matter
+    // answered the proposal (D-218).
+    let apart = separated_documents(conn)?;
+    let mut members: HashMap<String, Vec<i64>> = HashMap::new();
+    {
+        let mut statement = conn.prepare("SELECT matter_id, content_id FROM knowledge_matter_document").map_err(sql_err)?;
+        let rows = statement.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))).map_err(sql_err)?;
+        for row in rows {
+            let (matter, content) = row.map_err(sql_err)?;
+            members.entry(matter).or_default().push(content);
+        }
+    }
+    for (content, matter, reason, by) in found {
         if engine.as_deref().is_some_and(|e| e != by) {
             continue;
         }
+        let answered = members.get(&matter).into_iter().flatten().any(|other| apart.contains(&(content.min(*other), content.max(*other))));
+        if answered {
+            continue;
+        }
         out.entry(content).or_default().push((matter, reason));
+    }
+    Ok(out)
+}
+
+/// Pairs of documents a person kept apart ("not the same matter"), each
+/// with the smaller id first, after the documents that took the place of
+/// others.
+fn separated_documents(conn: &Connection) -> Result<BTreeSet<(i64, i64)>, String> {
+    let successors = changes::successors(conn)?;
+    let mut statement = conn
+        .prepare("SELECT a, b FROM knowledge_decision WHERE state = 'active' AND kind = 'separate' AND a LIKE 'content:%'")
+        .map_err(sql_err)?;
+    let rows = statement.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))).map_err(sql_err)?;
+    let mut out = BTreeSet::new();
+    for row in rows {
+        let (a, b) = row.map_err(sql_err)?;
+        let a = content_of(&changes::translate(&a, &successors));
+        let b = b.and_then(|b| content_of(&changes::translate(&b, &successors)));
+        if let (Some(a), Some(b)) = (a, b) {
+            out.insert((a.min(b), a.max(b)));
+        }
     }
     Ok(out)
 }

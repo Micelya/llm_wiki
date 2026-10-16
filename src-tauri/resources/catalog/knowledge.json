@@ -190,5 +190,12 @@
       { "id": "fundacion", "variants": ["fundacion", "stiftung"], "before": true },
       { "id": "cooperativa", "variants": ["cooperativa", "cooperative"], "before": true }
     ]
+  },
+  "attention": {
+    "about": "Qué lleva la capa a la vista de atención. Un documento cuya lectura perdió muchas citas (al menos noisyMin descartes con alguno de los motivos de noisyReasons, y más de noisyShare de todo lo que el modelo dijo) puede tener mal reconocido el escaneo. Una unión por identificador de nombres distintos se muestra para revisarla, si se quiere, cuando el documento que la trajo se leyó hace menos de recentJoinDays días.",
+    "noisyReasons": ["cita-no-encontrada", "nombre-fuera-de-la-cita", "valor-fuera-de-la-cita"],
+    "noisyMin": 4,
+    "noisyShare": 0.4,
+    "recentJoinDays": 30
   }
 }

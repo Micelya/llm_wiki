@@ -182,58 +182,81 @@ fn shown_by_default(conn: &Connection, keys: &[&str]) -> Result<String, String> 
     Ok(serde_json::Value::Array(sides).to_string())
 }
 
+/// Keeps a decision of a person about identities, with the evidence that
+/// was shown (or, when the screen does not say, the names of both sides),
+/// and marks the resolution to be done again. Returns its id.
+fn record(conn: &Connection, decision: &IdentityDecision, note: Option<&str>, shown_evidence: Option<&str>) -> Result<i64, String> {
+    let (kind, a, b) = match decision {
+        IdentityDecision::Join { a, b } | IdentityDecision::Separate { a, b } => {
+            let first = group_key(conn, a, None)?;
+            // Taking a mention out of its entity: the entity stands
+            // for itself by a mention of another document.
+            let avoid = matches!(decision, IdentityDecision::Separate { .. }).then_some(first.as_str());
+            let second = group_key(conn, b, avoid)?;
+            let (ka, kb) = (parse_cluster_key(&first), parse_cluster_key(&second));
+            if ka.as_ref().map(|k| &k.1) != kb.as_ref().map(|k| &k.1) {
+                return Err("Solo se puede decidir sobre dos entidades del mismo tipo".to_string());
+            }
+            if first == second {
+                return Err("Las dos partes son la misma mención".to_string());
+            }
+            let kind = if matches!(decision, IdentityDecision::Join { .. }) { "join" } else { "separate" };
+            (kind, first, Some(second))
+        }
+        IdentityDecision::Wrong { a } => ("wrong", wrong_key(conn, a)?, None),
+        IdentityDecision::SameMatter { a, b } | IdentityDecision::OtherMatter { a, b } => {
+            let (first, second) = (document_key(conn, a)?, document_key(conn, b)?);
+            if first == second {
+                return Err("Las dos partes son el mismo documento".to_string());
+            }
+            let kind = if matches!(decision, IdentityDecision::SameMatter { .. }) { "join" } else { "separate" };
+            (kind, first, Some(second))
+        }
+    };
+    let shown = match shown_evidence {
+        Some(text) => text.to_string(),
+        None => shown_by_default(conn, &[a.as_str(), b.as_deref().unwrap_or_default()])?,
+    };
+    let digest: String = Sha256::digest(shown.as_bytes()).iter().take(16).map(|b| format!("{b:02x}")).collect();
+    conn.execute(
+        "INSERT INTO knowledge_decision (kind, a, b, note, shown_evidence, shown_evidence_hash, state, decided_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'active', ?7)",
+        params![kind, a, b, note, shown, digest, now_ms()],
+    )
+    .map_err(sql_err)?;
+    let id = conn.last_insert_rowid();
+    mark_dirty(conn, "resolve", &format!("decision:{id}"))?;
+    Ok(id)
+}
+
 impl DocBase {
     /// Keeps a decision of a person about identities, with the evidence
     /// that was shown (or, when the screen does not say, the names of both
     /// sides), and applies it: the next resolution, which this one starts
     /// without asking the model, reads it. Returns its id.
     pub fn knowledge_decide(&self, decision: &IdentityDecision, note: Option<&str>, shown_evidence: Option<&str>) -> Result<i64, String> {
-        let id = {
-            let conn = self.conn();
-            let (kind, a, b) = match decision {
-                IdentityDecision::Join { a, b } | IdentityDecision::Separate { a, b } => {
-                    let first = group_key(&conn, a, None)?;
-                    // Taking a mention out of its entity: the entity stands
-                    // for itself by a mention of another document.
-                    let avoid = matches!(decision, IdentityDecision::Separate { .. }).then_some(first.as_str());
-                    let second = group_key(&conn, b, avoid)?;
-                    let (ka, kb) = (parse_cluster_key(&first), parse_cluster_key(&second));
-                    if ka.as_ref().map(|k| &k.1) != kb.as_ref().map(|k| &k.1) {
-                        return Err("Solo se puede decidir sobre dos entidades del mismo tipo".to_string());
-                    }
-                    if first == second {
-                        return Err("Las dos partes son la misma mención".to_string());
-                    }
-                    let kind = if matches!(decision, IdentityDecision::Join { .. }) { "join" } else { "separate" };
-                    (kind, first, Some(second))
-                }
-                IdentityDecision::Wrong { a } => ("wrong", wrong_key(&conn, a)?, None),
-                IdentityDecision::SameMatter { a, b } | IdentityDecision::OtherMatter { a, b } => {
-                    let (first, second) = (document_key(&conn, a)?, document_key(&conn, b)?);
-                    if first == second {
-                        return Err("Las dos partes son el mismo documento".to_string());
-                    }
-                    let kind = if matches!(decision, IdentityDecision::SameMatter { .. }) { "join" } else { "separate" };
-                    (kind, first, Some(second))
-                }
-            };
-            let shown = match shown_evidence {
-                Some(text) => text.to_string(),
-                None => shown_by_default(&conn, &[a.as_str(), b.as_deref().unwrap_or_default()])?,
-            };
-            let digest: String = Sha256::digest(shown.as_bytes()).iter().take(16).map(|b| format!("{b:02x}")).collect();
-            conn.execute(
-                "INSERT INTO knowledge_decision (kind, a, b, note, shown_evidence, shown_evidence_hash, state, decided_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'active', ?7)",
-                params![kind, a, b, note, shown, digest, now_ms()],
-            )
-            .map_err(sql_err)?;
-            let id = conn.last_insert_rowid();
-            mark_dirty(&conn, "resolve", &format!("decision:{id}"))?;
-            id
-        };
+        let id = record(&self.conn(), decision, note, shown_evidence)?;
         self.knowledge_resolve(None, 0)?;
         Ok(id)
+    }
+
+    /// Keeps several decisions of a person at once (taking a document out
+    /// of a matter keeps it apart from each of its documents), with what
+    /// the screen showed of each by default, and applies them with one
+    /// resolution. Nothing is kept when one of them cannot be.
+    pub fn knowledge_decide_many(&self, decisions: &[IdentityDecision], note: Option<&str>) -> Result<Vec<i64>, String> {
+        let ids = {
+            let mut conn = self.conn();
+            let tx = conn.transaction().map_err(sql_err)?;
+            let mut ids = Vec::new();
+            for decision in decisions {
+                ids.push(record(&tx, decision, note, None)?);
+            }
+            tx.commit().map_err(sql_err)?;
+            ids
+        };
+        self.knowledge_resolve(None, 0)?;
+        Ok(ids)
     }
 
     /// Undoes a decision: it is kept, marked undone, and stops counting.

@@ -42,6 +42,9 @@ pub struct Vocabulary {
     /// How documents are grouped into matters (`matters.rs`).
     #[serde(default)]
     pub matters: MatterRules,
+    /// What the layer brings to the attention view (`screens.rs`).
+    #[serde(default)]
+    pub attention: AttentionRules,
     /// Fingerprint of the vocabulary text.
     #[serde(skip)]
     pub digest: String,
@@ -144,6 +147,31 @@ impl Default for MatterRules {
             propose_with_shared: 2,
             propose_candidates: 3,
         }
+    }
+}
+
+/// What the layer brings to the attention view (`screens.rs`).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttentionRules {
+    #[serde(default)]
+    pub about: String,
+    /// Reasons of a discarded piece that say its quote is not in the text
+    /// (what a badly recognized scan does).
+    #[serde(default)]
+    pub noisy_reasons: Vec<String>,
+    /// A reading with at least this many such discards, and more than this
+    /// share of all the model said, is shown as a problem.
+    pub noisy_min: usize,
+    pub noisy_share: f64,
+    /// Joins by identifier of different names are shown when the document
+    /// that brought them was read less than this many days ago.
+    pub recent_join_days: i64,
+}
+
+impl Default for AttentionRules {
+    fn default() -> Self {
+        Self { about: String::new(), noisy_reasons: Vec::new(), noisy_min: 4, noisy_share: 0.4, recent_join_days: 30 }
     }
 }
 

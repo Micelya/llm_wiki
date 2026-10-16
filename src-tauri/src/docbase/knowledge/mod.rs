@@ -44,6 +44,7 @@ pub mod names;
 pub mod pages;
 pub mod quote;
 pub mod resolve;
+pub mod screens;
 pub mod values;
 #[cfg(test)]
 pub(crate) mod tests;
@@ -55,6 +56,8 @@ mod tests_identity;
 pub(crate) mod tests_pages;
 #[cfg(test)]
 mod tests_relations;
+#[cfg(test)]
+mod tests_screens;
 pub mod vocabulary;
 
 use std::collections::BTreeMap;
