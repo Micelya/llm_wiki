@@ -495,10 +495,14 @@ impl DocBase {
             }
         }
 
+        // Only a page with claims waits for a synthesis: one whose entity
+        // the documents say nothing more of (or a matter's) never gets one.
         let (synthesis_pending, discarded_sentences): (i64, i64) = conn
             .query_row(
-                "SELECT coalesce(sum(CASE WHEN synthesis IS NULL THEN 1 ELSE 0 END), 0), coalesce(sum(discarded), 0)
-                 FROM knowledge_page WHERE state = 'projected'",
+                "SELECT coalesce(sum(CASE WHEN p.synthesis IS NULL AND EXISTS (
+                            SELECT 1 FROM knowledge_claim c WHERE c.subject = p.entity_id AND c.state IN ('supported', 'conflict')
+                        ) THEN 1 ELSE 0 END), 0), coalesce(sum(p.discarded), 0)
+                 FROM knowledge_page p WHERE p.state = 'projected'",
                 [],
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )

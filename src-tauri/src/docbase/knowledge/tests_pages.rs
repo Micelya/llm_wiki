@@ -274,6 +274,19 @@ fn without_a_model_the_pages_are_written_and_the_synthesis_waits() {
 }
 
 #[test]
+fn a_page_with_nothing_more_to_say_does_not_wait_for_a_synthesis() {
+    // The company of these documents has a page but no claim: it never
+    // gets a synthesis, so the attention view must not wait for one.
+    let (_dir, base, project, asker) = archive(&[("a.txt", A), ("b.txt", B)]);
+    base.knowledge_project(None, 0).unwrap();
+    assert_eq!(base.knowledge_attention(&crate::docbase::Visible::All).unwrap().synthesis_pending, 1);
+    base.knowledge_project(Some(&asker), 5).unwrap();
+    let company = page_of(&entity_pages(&project), "Ejemplo Uno S.A.").to_string();
+    assert!(company.contains("Los documentos no dicen de esta entidad nada más"), "{company}");
+    assert_eq!(base.knowledge_attention(&crate::docbase::Visible::All).unwrap().synthesis_pending, 0);
+}
+
+#[test]
 fn the_pages_do_not_depend_on_the_order_of_reading() {
     let texts = |files: &[(&str, &str)]| {
         let (_dir, base, project, asker) = archive(files);

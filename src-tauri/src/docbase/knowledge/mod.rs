@@ -33,6 +33,8 @@ pub(crate) mod check;
 #[cfg(test)]
 mod check_identity;
 #[cfg(test)]
+mod check_attention;
+#[cfg(test)]
 mod check_pages;
 pub(crate) mod changes;
 pub(crate) mod claims;
