@@ -10,7 +10,7 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10];
 
 /// What a person decided about the document types the model proposed
 /// (R-22). `confirmed`: the type joins the closed list the model chooses
@@ -24,6 +24,42 @@ CREATE TABLE type_decision (
     name         TEXT,
     description  TEXT,
     decided_at   INTEGER NOT NULL
+);
+";
+
+/// The projection of the knowledge layer into the general project's wiki
+/// (`knowledge/pages.rs`).
+///
+/// - `knowledge_page`: the page of each entity that has one. `path` is
+///   fixed the first time (a readable name plus the entity's id) and kept
+///   when the entity is renamed, so links never break. `fingerprint` is
+///   that of what the app wrote (everything but the notes): the file is
+///   written again only when it changes. `synthesis` is the key of the
+///   model's answer the page uses (`model_answer`), or none while it is
+///   being asked; `discarded` counts the sentences of that answer the
+///   computation threw away. `state` is `projected`, or `kept` for a page
+///   whose entity left the record but that holds notes of a person.
+/// - `knowledge_source_block`: the block of entities the app keeps at the
+///   end of each document's page, with what the file looked like after it
+///   was written (size and date), so a page written again by the wiki gets
+///   its block back.
+const V10: &str = "
+CREATE TABLE knowledge_page (
+    entity_id    TEXT PRIMARY KEY,
+    path         TEXT NOT NULL UNIQUE,
+    state        TEXT NOT NULL DEFAULT 'projected' CHECK (state IN ('projected', 'kept')),
+    fingerprint  TEXT NOT NULL,
+    synthesis    TEXT,
+    sentences    INTEGER NOT NULL DEFAULT 0,
+    discarded    INTEGER NOT NULL DEFAULT 0,
+    written_at   INTEGER NOT NULL
+);
+
+CREATE TABLE knowledge_source_block (
+    path        TEXT PRIMARY KEY,
+    block_hash  TEXT NOT NULL,
+    size        INTEGER NOT NULL,
+    mtime_ms    INTEGER NOT NULL
 );
 ";
 

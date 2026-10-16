@@ -13,8 +13,11 @@
 //!    `names.rs`), the decisions of a person (`decide.rs`) and the claims
 //!    consolidated from the evidence (`claims.rs`); what the screens read
 //!    of the record (`entities.rs`).
-//! 3. Projection, 4. changes and deletions, 5. relations, 6. the attention
-//!    view: later stages, on the tables already here (`schema.rs`, V8).
+//! 3. **Projection** (`pages.rs`): the page of each entity in the
+//!    archive's wiki, the block of entities of each document's page and
+//!    the overview, from the record.
+//! 4. Changes and deletions, 5. relations, 6. the attention view: later
+//!    stages, on the tables already here (`schema.rs`, V8 and V9).
 //!
 //! The types of entity, roles, identifiers and predicates are data
 //! (`vocabulary.rs`, R-26).
@@ -28,12 +31,15 @@ pub mod decide;
 pub mod entities;
 pub mod extract;
 pub mod names;
+pub mod pages;
 pub mod quote;
 pub mod resolve;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod tests_identity;
+#[cfg(test)]
+mod tests_pages;
 pub mod vocabulary;
 
 use std::collections::BTreeMap;
@@ -91,6 +97,10 @@ pub struct KnowledgeStatus {
     pub conflicts: usize,
     /// Readings or decisions not resolved yet.
     pub to_resolve: usize,
+    /// Entities with a page in the archive's wiki, and entities whose page
+    /// is to be written again.
+    pub pages: usize,
+    pub to_project: usize,
     /// The engine that reads while the archive's wiki is active.
     pub engine: Option<AskConfig>,
 }
@@ -200,7 +210,7 @@ impl DocBase {
             count("SELECT count(*) FROM knowledge_identifier i JOIN knowledge_mention m ON m.id = i.mention_id")?;
         status.evidence = count("SELECT count(*) FROM knowledge_evidence m")?;
         status.answers = conn
-            .query_row("SELECT count(*) FROM model_answer WHERE task IN (?1, ?2)", [extract::TASK, resolve::TASK], |row| row.get::<_, i64>(0))
+            .query_row("SELECT count(*) FROM model_answer WHERE task IN (?1, ?2, ?3)", [extract::TASK, resolve::TASK, pages::TASK], |row| row.get::<_, i64>(0))
             .map_err(sql_err)? as usize;
         {
             let (condition, params) = visible_content("m.content_id", visible);
@@ -245,6 +255,12 @@ impl DocBase {
         }
         status.to_resolve = conn
             .query_row("SELECT count(*) FROM knowledge_dirty WHERE scope IN ('resolve', 'retire')", [], |row| row.get::<_, i64>(0))
+            .map_err(sql_err)? as usize;
+        status.pages = conn
+            .query_row("SELECT count(*) FROM knowledge_page WHERE state = 'projected'", [], |row| row.get::<_, i64>(0))
+            .map_err(sql_err)? as usize;
+        status.to_project = conn
+            .query_row("SELECT count(*) FROM knowledge_dirty WHERE scope = 'project'", [], |row| row.get::<_, i64>(0))
             .map_err(sql_err)? as usize;
         status.engine = super::similar::classify::ask_engine(&conn)?;
         Ok(status)

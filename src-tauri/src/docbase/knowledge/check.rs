@@ -201,9 +201,10 @@ pub(crate) fn open_base() -> Option<(TempDir, DocBase)> {
             let ours: i64 = conn
                 .query_row("SELECT count(*) FROM sqlite_master WHERE name = 'knowledge_extraction'", [], |row| row.get(0))
                 .unwrap();
-            if ours == 0 && version >= crate::docbase::schema::CURRENT_VERSION {
-                println!("the copy is at schema {version} without this branch's tables: taken back to {}", crate::docbase::schema::CURRENT_VERSION - 1);
-                conn.pragma_update(None, "user_version", crate::docbase::schema::CURRENT_VERSION - 1).unwrap();
+            // The knowledge layer starts at schema 8 on this branch.
+            if ours == 0 && version >= 8 {
+                println!("the copy is at schema {version} without this branch's tables: taken back to 7");
+                conn.pragma_update(None, "user_version", 7).unwrap();
             }
         }
         let base = DocBase::open(&target).unwrap();

@@ -2,95 +2,131 @@
   "version": 1,
   "entityTypes": [
     {
-      "id": "persona",
+      "id": "persona", "label": "Persona",
       "description": "Una persona humana nombrada en el documento: una parte, quien firma, quien representa, un testigo, un empleado, un destinatario."
     },
     {
-      "id": "organizacion",
+      "id": "organizacion", "label": "Organización",
       "description": "Una persona jurídica u organización: una sociedad, una empresa, un estudio jurídico, un organismo público, un banco, un juzgado. Cada forma societaria es una organización distinta salvo que el documento diga que es la misma: una sociedad anónima y una sociedad extranjera con el mismo nombre comercial son dos organizaciones."
     },
     {
-      "id": "asunto",
+      "id": "asunto", "label": "Asunto",
       "description": "Un asunto jurídico con identidad propia: un expediente judicial o administrativo, un reclamo, un contrato marco o un acuerdo al que otros documentos se refieren. No es un asunto un tema general ni una cláusula."
     }
   ],
   "roles": [
     {
-      "id": "parte",
+      "id": "parte", "label": "parte",
       "description": "Es parte del acto o del contrato: contratante, locador, locatario, prestamista, deudor, empleador, empleado, actor, demandado, requirente, requerido.",
       "types": ["persona", "organizacion"]
     },
     {
-      "id": "apoderado",
+      "id": "apoderado", "label": "apoderado",
       "description": "Actúa en nombre de otra persona u organización: apoderado, representante legal, presidente o gerente que obliga a la sociedad, abogado patrocinante.",
       "types": ["persona", "organizacion"]
     },
     {
-      "id": "firmante",
+      "id": "firmante", "label": "firmante",
       "description": "Firma el documento, por sí o por otro, sin que el documento diga otro papel suyo.",
       "types": ["persona"]
     },
     {
-      "id": "remitente",
+      "id": "remitente", "label": "remitente",
       "description": "Envía la carta, la carta documento, el correo o la notificación.",
       "types": ["persona", "organizacion"]
     },
     {
-      "id": "destinatario",
+      "id": "destinatario", "label": "destinatario",
       "description": "Recibe la carta, la carta documento, el correo, la notificación o la factura.",
       "types": ["persona", "organizacion"]
     },
     {
-      "id": "emisor",
+      "id": "emisor", "label": "emisor",
       "description": "Emite el comprobante, la factura, el recibo, la boleta o la constancia.",
       "types": ["persona", "organizacion"]
     },
     {
-      "id": "domicilio",
+      "id": "domicilio", "label": "domicilio constituido",
       "description": "Su domicilio está constituido o indicado para el acto (por ejemplo, el estudio jurídico donde una parte constituye domicilio).",
       "types": ["persona", "organizacion"]
     },
     {
-      "id": "testigo",
+      "id": "testigo", "label": "testigo",
       "description": "Interviene como testigo, certificante o escribano del acto.",
       "types": ["persona", "organizacion"]
     },
     {
-      "id": "referido",
+      "id": "referido", "label": "asunto del documento",
       "description": "Es el asunto del que trata el documento o al que se refiere (el expediente, el reclamo, el contrato marco).",
       "types": ["asunto"]
     },
     {
-      "id": "otro",
+      "id": "otro", "label": "otro",
       "description": "Se lo nombra con otro papel, o al pasar.",
       "types": ["persona", "organizacion", "asunto"]
     }
   ],
   "identifiers": [
-    { "id": "dni", "strong": true, "description": "Documento nacional de identidad o pasaporte de una persona.", "types": ["persona"] },
-    { "id": "cuit", "strong": true, "description": "CUIT o CUIL: clave de identificación tributaria o laboral, de una persona o de una organización.", "types": ["persona", "organizacion"] },
-    { "id": "matricula", "strong": true, "description": "Matrícula profesional (de abogado, contador, escribano) o inscripción en un registro (de comercio, de sociedades).", "types": ["persona", "organizacion"] },
-    { "id": "expediente", "strong": true, "description": "Número de expediente, causa, carátula o legajo de un asunto.", "types": ["asunto"] },
-    { "id": "otro", "description": "Otro número que identifica a la entidad (número de cliente, de socio, de contrato).", "types": ["persona", "organizacion", "asunto"] }
+    { "id": "dni", "label": "DNI", "strong": true, "description": "Documento nacional de identidad o pasaporte de una persona.", "types": ["persona"] },
+    { "id": "cuit", "label": "CUIT o CUIL", "strong": true, "description": "CUIT o CUIL: clave de identificación tributaria o laboral, de una persona o de una organización.", "types": ["persona", "organizacion"] },
+    { "id": "matricula", "label": "Matrícula", "strong": true, "description": "Matrícula profesional (de abogado, contador, escribano) o inscripción en un registro (de comercio, de sociedades).", "types": ["persona", "organizacion"] },
+    { "id": "expediente", "label": "Expediente", "strong": true, "description": "Número de expediente, causa, carátula o legajo de un asunto.", "types": ["asunto"] },
+    { "id": "otro", "label": "Otro número", "description": "Otro número que identifica a la entidad (número de cliente, de socio, de contrato).", "types": ["persona", "organizacion", "asunto"] }
   ],
   "predicates": [
-    { "id": "cargo", "single": true, "description": "El cargo, puesto o función que ocupa (presidente, gerente, socio gerente, empleado de tal área).", "subject": ["persona"], "object": "value" },
-    { "id": "domicilio", "single": true, "description": "Un domicilio real, legal, fiscal o constituido que el documento le atribuye.", "subject": ["persona", "organizacion"], "object": "value" },
-    { "id": "representa_a", "description": "Actúa en nombre o en representación de otra persona u organización.", "subject": ["persona", "organizacion"], "object": "entity", "objectTypes": ["persona", "organizacion"] },
-    { "id": "socio_de", "description": "Es socio o accionista de una organización.", "subject": ["persona", "organizacion"], "object": "entity", "objectTypes": ["organizacion"] },
-    { "id": "empleado_de", "description": "Trabaja o trabajó en relación de dependencia o como contratado para otra persona u organización.", "subject": ["persona"], "object": "entity", "objectTypes": ["persona", "organizacion"] },
-    { "id": "deudor_de", "description": "Le debe algo a otra persona u organización según el documento.", "subject": ["persona", "organizacion"], "object": "entity", "objectTypes": ["persona", "organizacion"] },
-    { "id": "acreedor_de", "description": "Es acreedor de otra persona u organización según el documento.", "subject": ["persona", "organizacion"], "object": "entity", "objectTypes": ["persona", "organizacion"] },
-    { "id": "monto_reclamado", "single": true, "description": "Un importe que reclama o intima a pagar, tal como está escrito.", "subject": ["persona", "organizacion"], "object": "value" },
-    { "id": "monto_adeudado", "description": "Un importe que debe, que se le paga o que se compromete a pagar, tal como está escrito.", "subject": ["persona", "organizacion"], "object": "value" },
-    { "id": "parte_en", "description": "Es parte o interviene en un asunto (un expediente, un reclamo, un contrato marco).", "subject": ["persona", "organizacion"], "object": "entity", "objectTypes": ["asunto"] },
-    { "id": "inicio_de_vinculo", "description": "La fecha en que empieza un vínculo suyo (una relación laboral, un contrato, una representación), tal como está escrita.", "subject": ["persona", "organizacion"], "object": "value" },
-    { "id": "fin_de_vinculo", "description": "La fecha en que termina un vínculo suyo, tal como está escrita.", "subject": ["persona", "organizacion"], "object": "value" },
-    { "id": "profesion", "description": "Su profesión u ocupación.", "subject": ["persona"], "object": "value" },
-    { "id": "nacionalidad", "single": true, "description": "Su nacionalidad.", "subject": ["persona"], "object": "value" },
-    { "id": "estado_civil", "single": true, "description": "Su estado civil.", "subject": ["persona"], "object": "value" },
-    { "id": "contacto", "description": "Un correo electrónico o un teléfono suyo.", "subject": ["persona", "organizacion"], "object": "value" }
+    { "id": "cargo", "label": "Cargo", "single": true, "description": "El cargo, puesto o función que ocupa (presidente, gerente, socio gerente, empleado de tal área).", "subject": ["persona"], "object": "value" },
+    { "id": "domicilio", "label": "Domicilio", "single": true, "description": "Un domicilio real, legal, fiscal o constituido que el documento le atribuye.", "subject": ["persona", "organizacion"], "object": "value" },
+    { "id": "representa_a", "label": "Representa a", "description": "Actúa en nombre o en representación de otra persona u organización.", "subject": ["persona", "organizacion"], "object": "entity", "objectTypes": ["persona", "organizacion"] },
+    { "id": "socio_de", "label": "Socio de", "description": "Es socio o accionista de una organización.", "subject": ["persona", "organizacion"], "object": "entity", "objectTypes": ["organizacion"] },
+    { "id": "empleado_de", "label": "Empleado de", "description": "Trabaja o trabajó en relación de dependencia o como contratado para otra persona u organización.", "subject": ["persona"], "object": "entity", "objectTypes": ["persona", "organizacion"] },
+    { "id": "deudor_de", "label": "Deudor de", "description": "Le debe algo a otra persona u organización según el documento.", "subject": ["persona", "organizacion"], "object": "entity", "objectTypes": ["persona", "organizacion"] },
+    { "id": "acreedor_de", "label": "Acreedor de", "description": "Es acreedor de otra persona u organización según el documento.", "subject": ["persona", "organizacion"], "object": "entity", "objectTypes": ["persona", "organizacion"] },
+    { "id": "monto_reclamado", "label": "Monto reclamado", "single": true, "description": "Un importe que reclama o intima a pagar, tal como está escrito.", "subject": ["persona", "organizacion"], "object": "value" },
+    { "id": "monto_adeudado", "label": "Monto adeudado", "description": "Un importe que debe, que se le paga o que se compromete a pagar, tal como está escrito.", "subject": ["persona", "organizacion"], "object": "value" },
+    { "id": "parte_en", "label": "Parte en", "description": "Es parte o interviene en un asunto (un expediente, un reclamo, un contrato marco).", "subject": ["persona", "organizacion"], "object": "entity", "objectTypes": ["asunto"] },
+    { "id": "inicio_de_vinculo", "label": "Inicio de un vínculo", "description": "La fecha en que empieza un vínculo suyo (una relación laboral, un contrato, una representación), tal como está escrita.", "subject": ["persona", "organizacion"], "object": "value" },
+    { "id": "fin_de_vinculo", "label": "Fin de un vínculo", "description": "La fecha en que termina un vínculo suyo, tal como está escrita.", "subject": ["persona", "organizacion"], "object": "value" },
+    { "id": "profesion", "label": "Profesión", "description": "Su profesión u ocupación.", "subject": ["persona"], "object": "value" },
+    { "id": "nacionalidad", "label": "Nacionalidad", "single": true, "description": "Su nacionalidad.", "subject": ["persona"], "object": "value" },
+    { "id": "estado_civil", "label": "Estado civil", "single": true, "description": "Su estado civil.", "subject": ["persona"], "object": "value" },
+    { "id": "contacto", "label": "Contacto", "description": "Un correo electrónico o un teléfono suyo.", "subject": ["persona", "organizacion"], "object": "value" }
   ],
+  "pages": {
+    "about": "Qué entidad tiene página en el wiki del archivo y con qué palabras se arma. Se decide mirando el archivo entero, no documento por documento: una entidad tiene página si aparece en al menos minDocuments documentos, si en alguno tiene uno de los roles de la lista, o (cuando strongIdentifier es verdadero) si algún documento le da un identificador fuerte, como un número de expediente.",
+    "folder": "wiki/entities",
+    "kinds": [
+      { "type": "persona", "minDocuments": 2, "roles": ["parte", "apoderado", "firmante", "remitente", "destinatario", "emisor", "domicilio", "testigo"] },
+      { "type": "organizacion", "minDocuments": 2, "roles": ["parte", "apoderado", "firmante", "remitente", "destinatario", "emisor", "domicilio", "testigo"] },
+      { "type": "asunto", "minDocuments": 2, "roles": [], "strongIdentifier": true }
+    ],
+    "words": {
+      "says": "Lo que dicen los documentos",
+      "saysNothing": "Los documentos no dicen de esta entidad nada más que su nombre y su rol.",
+      "saysPending": "La síntesis todavía no está escrita: se arma desde las afirmaciones de los documentos.",
+      "conflicts": "Datos en los que los documentos difieren",
+      "references": "Referencias",
+      "documents": "Documentos",
+      "withoutMatter": "Sin asunto identificado",
+      "related": "Relacionados",
+      "inCommon": "documentos en común",
+      "notes": "Notas",
+      "notesMark": "micelya:notas — lo que se escriba debajo de esta línea la app no lo reescribe nunca",
+      "aliases": "También escrito como",
+      "page": "p.",
+      "documentWord": "documento",
+      "documentsWord": "documentos",
+      "kept": "Esta página ya no se arma desde los documentos: la entidad dejó el registro. Se conserva por las notas que tiene.",
+      "keptMerged": "Esta página ya no se arma desde los documentos: la entidad se unió con",
+      "sourceBlock": "Personas, organizaciones y asuntos",
+      "sourceBlockMark": "micelya:entidades — la app rehace este bloque",
+      "overviewTitle": "Resumen del archivo",
+      "overviewIntro": "Lo que el registro sabe del archivo, armado por la app desde los documentos.",
+      "overviewDocuments": "Documentos leídos",
+      "overviewEntities": "Con página",
+      "overviewMost": "Los más nombrados",
+      "overviewMatters": "Asuntos"
+    }
+  },
   "identity": {
     "about": "Palabras que la resolución de identidad no cuenta al comparar nombres, y formas societarias. Cada forma es una organización distinta: dos nombres iguales con distinta forma no se unen salvo que una persona lo decida.",
     "stopwords": ["el", "la", "los", "las", "lo", "de", "del", "y", "e", "en", "the", "of", "and", "for"],

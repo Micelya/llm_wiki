@@ -32,6 +32,10 @@ pub struct Vocabulary {
     /// names, and the legal forms of organizations.
     #[serde(default)]
     pub identity: IdentityWords,
+    /// Which entities have a page in the archive's wiki, and the words the
+    /// pages are written with (`pages.rs`).
+    #[serde(default)]
+    pub pages: Pages,
     /// Fingerprint of the vocabulary text.
     #[serde(skip)]
     pub digest: String,
@@ -72,11 +76,66 @@ pub struct LegalForm {
     pub before: bool,
 }
 
+/// Which entities have a page (decided over the whole archive, D-196),
+/// where the pages go and the words they are written with.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Pages {
+    #[serde(default)]
+    pub about: String,
+    /// Folder of the pages inside the wiki project.
+    #[serde(default)]
+    pub folder: String,
+    #[serde(default)]
+    pub kinds: Vec<PageRule>,
+    /// Headings and phrases of the pages, by key.
+    #[serde(default)]
+    pub words: std::collections::BTreeMap<String, String>,
+}
+
+/// When an entity of one type has a page: it appears in `min_documents`
+/// documents or more, or has one of `roles` in any, or (with
+/// `strong_identifier`) a document gives it a strong identifier.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PageRule {
+    #[serde(rename = "type")]
+    pub kind: String,
+    #[serde(default)]
+    pub min_documents: usize,
+    #[serde(default)]
+    pub roles: Vec<String>,
+    #[serde(default)]
+    pub strong_identifier: bool,
+}
+
+impl Pages {
+    /// The word kept under `key`, or the key itself when it is missing.
+    pub fn word<'a>(&'a self, key: &'a str) -> &'a str {
+        self.words.get(key).map(String::as_str).unwrap_or(key)
+    }
+
+    pub fn rule(&self, kind: &str) -> Option<&PageRule> {
+        self.kinds.iter().find(|rule| rule.kind == kind)
+    }
+
+    pub fn folder(&self) -> &str {
+        if self.folder.trim().is_empty() {
+            "wiki/entities"
+        } else {
+            self.folder.trim().trim_end_matches('/')
+        }
+    }
+}
+
 /// A type of entity, a role or a kind of identifier.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Term {
     pub id: String,
+    /// How the pages of the wiki name it.
+    #[serde(default)]
+    pub label: String,
     #[serde(default)]
     pub description: String,
     /// The types of entity it applies to (empty: all).
@@ -93,6 +152,9 @@ pub struct Term {
 #[serde(rename_all = "camelCase")]
 pub struct Predicate {
     pub id: String,
+    /// How the pages of the wiki name it.
+    #[serde(default)]
+    pub label: String,
     #[serde(default)]
     pub description: String,
     /// Types of entity it is said of (empty: all).
@@ -170,6 +232,24 @@ impl Vocabulary {
 
     /// The role kept when the model gave one that is not in the list, or
     /// one that does not apply to the type: the last one, "other".
+    /// How the pages name a type, a role, an identifier or a predicate:
+    /// its label, or its id when it has none.
+    pub fn type_label<'a>(&'a self, id: &'a str) -> &'a str {
+        self.entity_type(id).map(|t| t.label.as_str()).filter(|l| !l.is_empty()).unwrap_or(id)
+    }
+
+    pub fn role_label<'a>(&'a self, id: &'a str) -> &'a str {
+        self.role(id).map(|t| t.label.as_str()).filter(|l| !l.is_empty()).unwrap_or(id)
+    }
+
+    pub fn identifier_label<'a>(&'a self, id: &'a str) -> &'a str {
+        self.identifier(id).map(|t| t.label.as_str()).filter(|l| !l.is_empty()).unwrap_or(id)
+    }
+
+    pub fn predicate_label<'a>(&'a self, id: &'a str) -> &'a str {
+        self.predicate(id).map(|p| p.label.as_str()).filter(|l| !l.is_empty()).unwrap_or(id)
+    }
+
     pub fn fallback_role(&self) -> &str {
         self.roles.last().map(|r| r.id.as_str()).unwrap_or_default()
     }
@@ -217,6 +297,21 @@ mod tests {
                 assert!(types.contains(&t.as_str()), "{} names an unknown type {t}", predicate.id);
             }
         }
+        // Every type has a page rule, naming known roles, and every word
+        // a page needs is there.
+        for t in &types {
+            let rule = vocabulary.pages.rule(t).unwrap_or_else(|| panic!("no page rule for {t}"));
+            for role in &rule.roles {
+                assert!(vocabulary.role(role).is_some(), "the page rule of {t} names an unknown role {role}");
+            }
+        }
+        for key in super::super::pages::WORDS {
+            assert!(vocabulary.pages.words.contains_key(*key), "the pages have no word for {key}");
+        }
+        for term in vocabulary.entity_types.iter().chain(&vocabulary.roles).chain(&vocabulary.identifiers) {
+            assert!(!term.label.is_empty(), "{} has no label", term.id);
+        }
+        assert!(vocabulary.predicates.iter().all(|p| !p.label.is_empty()));
         // The fallback role applies to every type.
         let fallback = vocabulary.role(vocabulary.fallback_role()).unwrap();
         assert!(fallback.types.is_empty() || types.iter().all(|t| fallback.types.iter().any(|f| f == t)));
