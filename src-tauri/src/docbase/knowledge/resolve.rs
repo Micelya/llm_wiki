@@ -56,7 +56,7 @@ use crate::docbase::{now_ms, sql_err, DocBase};
 use crate::source_volume::asking::DocumentAsker;
 
 /// Version of the question about identities.
-pub const IDENTITY_PROMPT: &str = "identidad-2";
+pub const IDENTITY_PROMPT: &str = "identidad-3";
 
 /// The rules the record was last computed with (`docbase_setting`): when
 /// the program's or the vocabulary's change, the record is computed again.
@@ -65,7 +65,7 @@ const RESOLUTION_SETTING: &str = "knowledge-resolution";
 const RESOLUTION_VERSION: &str = "resolucion-2";
 
 fn resolution_basis() -> String {
-    format!("{RESOLUTION_VERSION}|{}", vocabulary().digest)
+    format!("{RESOLUTION_VERSION}|{IDENTITY_PROMPT}|{}", vocabulary().digest)
 }
 /// The task its answers are kept under in `model_answer`.
 pub const TASK: &str = "identity";
@@ -440,9 +440,17 @@ struct Verdict {
 /// The verdicts kept: with an engine, only its own; without one, the
 /// latest of any engine (D-177).
 fn load_verdicts(conn: &Connection, engine: Option<&str>) -> Result<HashMap<(String, String), Verdict>, String> {
-    let mut statement = conn.prepare("SELECT a, b, engine, verdict, reason FROM knowledge_verdict ORDER BY asked_at, engine").map_err(sql_err)?;
+    // A verdict said to another version of the question is not kept: the
+    // question changed, so it is asked again (R-20).
+    let mut statement = conn
+        .prepare(
+            "SELECT v.a, v.b, v.engine, v.verdict, v.reason FROM knowledge_verdict v
+             WHERE NOT EXISTS (SELECT 1 FROM model_answer m WHERE m.question = v.question AND m.prompt_version != ?1)
+             ORDER BY v.asked_at, v.engine",
+        )
+        .map_err(sql_err)?;
     let rows = statement
-        .query_map([], |row| {
+        .query_map([IDENTITY_PROMPT], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, String>(3)?, row.get::<_, Option<String>>(4)?))
         })
         .map_err(sql_err)?;
@@ -946,6 +954,16 @@ fn describe(rows: &[Row], clusters: &[Cluster], members: &[usize], context: &Con
     if !identifiers.is_empty() {
         out.push_str(&format!("- Identificadores: {}\n", identifiers.into_iter().take(6).collect::<Vec<_>>().join("; ")));
     }
+    // Mail addresses, all of them: the most telling of the facts.
+    let mails: BTreeSet<String> = facts
+        .keys()
+        .filter_map(|f| f.split_once(": ").map(|(_, v)| v.trim().to_lowercase()))
+        .filter(|v| v.contains('@') && !v.contains(' '))
+        .take(4)
+        .collect();
+    if !mails.is_empty() {
+        out.push_str(&format!("- Correos: {}\n", mails.into_iter().collect::<Vec<_>>().join(", ")));
+    }
     let facts = ranked(&facts, 6);
     if !facts.is_empty() {
         out.push_str(&format!("- Lo que dicen los documentos: {}\n", facts.join("; ")));
@@ -1002,6 +1020,10 @@ domicilio, las mismas personas alrededor, el mismo asunto).\n\
 - \"distinta\" si algo las separa: otro nombre de pila u otro apellido, otro identificador, otra forma societaria, otro país, un \
 contexto que no puede ser el mismo. Una marca, un grupo empresario o un área no es la sociedad. Compartir un nombre de pila, un \
 apellido, un teléfono o un domicilio no alcanza para que sean la misma.\n\
+- Una persona puede tener cargos en varias organizaciones (directora de una sociedad y presidenta de otra del mismo grupo) y \
+escribirse con o sin su segundo nombre: otro cargo u otra organización no alcanza para decir \"distinta\". La misma dirección \
+de correo personal en las dos (no una casilla general como legales@, info@ o cobranzas@) es un dato fuerte de que es la misma \
+persona.\n\
 - \"dudosa\" si con esto no se puede saber. Una letra distinta en un nombre puede ser un error o una persona distinta: si el \
 contexto no lo resuelve, \"dudosa\". Ante la duda, \"dudosa\": unir dos entidades distintas es mucho peor que dejarlas separadas.\n\
 - Si es \"misma\", en \"certeza\" poné \"alta\" solo si un dato de los documentos lo deja fuera de duda (el mismo \

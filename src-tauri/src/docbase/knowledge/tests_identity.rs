@@ -224,6 +224,37 @@ fn identifiers_names_and_the_model_in_cascade() {
 }
 
 #[test]
+fn a_verdict_said_to_another_version_of_the_question_is_asked_again() {
+    let (_dir, base) = base_with(FILES);
+    let asker = model();
+    run(&base, &asker);
+    let asked = identity_calls(&asker);
+    let before = partition(&base);
+    // The verdicts kept were said to an older version of the question.
+    let conn = base.conn();
+    conn.execute("UPDATE model_answer SET question = question || '-vieja', prompt_version = 'identidad-0' WHERE task = 'identity'", []).unwrap();
+    conn.execute("UPDATE knowledge_verdict SET question = question || '-vieja'", []).unwrap();
+    drop(conn);
+    super::mark_dirty(&base.conn(), "resolve", "otra versión").unwrap();
+    base.knowledge_resolve(Some(&asker), 50).unwrap();
+    assert_eq!(identity_calls(&asker), 2 * asked, "each question is asked again, once");
+    assert_eq!(partition(&base), before, "the same answers give the same entities");
+    // And kept again: one more resolution asks nothing.
+    super::mark_dirty(&base.conn(), "resolve", "otra vez").unwrap();
+    base.knowledge_resolve(Some(&asker), 50).unwrap();
+    assert_eq!(identity_calls(&asker), 2 * asked);
+}
+
+#[test]
+fn the_question_says_another_position_is_not_another_person() {
+    let (_dir, base) = base_with(FILES);
+    let asker = model();
+    run(&base, &asker);
+    let questions: Vec<String> = asker.asked.lock().unwrap().iter().filter(|q| is_identity(q)).cloned().collect();
+    assert!(questions.iter().all(|q| q.contains("otro cargo u otra organización no alcanza")), "{questions:?}");
+}
+
+#[test]
 fn the_order_of_reading_does_not_change_the_entities() {
     let (_dir, all) = base_with(FILES);
     run(&all, &model());
