@@ -22,21 +22,36 @@ import { hasConfiguredDeepResearchSources } from "@/lib/web-search"
 import { makeQueryFileName } from "@/lib/wiki-filename"
 import { availableReviewPageFileName, createReviewPageDrafts } from "@/lib/review-create-page"
 import { cleanAssistantContentForWikiSave, titleFromCleanAssistantContent } from "@/lib/chat-save-to-wiki"
-import { useTranslation } from "react-i18next"
 import { useAppDialog } from "@/stores/app-dialog-store"
 import { useResearchStore } from "@/stores/research-store"
 import { reviewResearchQueries, reviewResearchTopic, selectedResearchReviews } from "@/lib/review-batch-research"
+import { optionLabel, resolvedLabel } from "./review-labels"
 
-const typeConfig: Record<ReviewItem["type"], { icon: typeof AlertTriangle; color: string }> = {
-  contradiction: { icon: AlertTriangle, color: "text-amber-500" },
-  duplicate: { icon: Copy, color: "text-blue-500" },
-  "missing-page": { icon: FileQuestion, color: "text-purple-500" },
-  confirm: { icon: MessageSquare, color: "text-foreground" },
-  suggestion: { icon: Lightbulb, color: "text-emerald-500" },
+const typeConfig: Record<ReviewItem["type"], { icon: typeof AlertTriangle; color: string; label: string }> = {
+  contradiction: { icon: AlertTriangle, color: "text-amber-500", label: "Contradicción" },
+  duplicate: { icon: Copy, color: "text-blue-500", label: "Página duplicada" },
+  "missing-page": { icon: FileQuestion, color: "text-purple-500", label: "Página que falta" },
+  confirm: { icon: MessageSquare, color: "text-foreground", label: "Para confirmar" },
+  suggestion: { icon: Lightbulb, color: "text-emerald-500", label: "Sugerencia" },
 }
 
+// The wiki's screens are being moved to Spanish one by one; this one is
+// written in Spanish, like the document base screens, so its texts are
+// not translation keys.
+const RESEARCH_NOT_CONFIGURED =
+  "La investigación no tiene fuentes configuradas. Configurá la búsqueda web o AnyTXT en Configuración → Fuentes de información externas."
+
+const RESEARCH_STATUS: Record<string, string> = {
+  queued: "En espera para investigar",
+  searching: "Buscando fuentes…",
+  synthesizing: "Resumiendo lo encontrado…",
+  saving: "Guardando en el wiki…",
+  done: "Investigación terminada",
+  error: "La investigación falló",
+}
+
+
 export function ReviewView() {
-  const { t } = useTranslation()
   const appDialog = useAppDialog()
   const items = useReviewStore((s) => s.items)
   const resolveItem = useReviewStore((s) => s.resolveItem)
@@ -94,7 +109,7 @@ export function ReviewView() {
     if (action === "__deep_research__" && project) {
       const searchConfig = useWikiStore.getState().searchApiConfig
       if (!hasConfiguredDeepResearchSources(searchConfig)) {
-        await appDialog.alert({ message: t("research.notConfigured") })
+        await appDialog.alert({ message: RESEARCH_NOT_CONFIGURED })
         return
       }
       if (item) {
@@ -313,7 +328,7 @@ export function ReviewView() {
     } else {
       resolveItem(id, action)
     }
-  }, [appDialog, project, items, resolveItem, setReviewError, setReviewWorking, t])
+  }, [appDialog, project, items, resolveItem, setReviewError, setReviewWorking])
 
   const pending = items.filter((i) => !i.resolved)
   const resolved = items.filter((i) => i.resolved)
@@ -373,7 +388,7 @@ export function ReviewView() {
     if (eligibleItems.length === 0) return
     const state = useWikiStore.getState()
     if (!hasConfiguredDeepResearchSources(state.searchApiConfig)) {
-      await appDialog.alert({ message: t("research.notConfigured") })
+      await appDialog.alert({ message: RESEARCH_NOT_CONFIGURED })
       return
     }
     queueResearchBatch(
@@ -388,13 +403,13 @@ export function ReviewView() {
     )
     const queuedIds = new Set(eligibleItems.map((item) => item.id))
     setSelectedReviewIds((current) => new Set([...current].filter((id) => !queuedIds.has(id))))
-  }, [appDialog, items, project, selectedReviewIds, t])
+  }, [appDialog, items, project, selectedReviewIds])
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b px-4 py-3">
         <h2 className="text-sm font-semibold">
-          {t("review.title")}
+          Revisión del wiki
           {pending.length > 0 && (
             <span className="ml-2 rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">
               {pending.length}
@@ -408,15 +423,15 @@ export function ReviewView() {
             onClick={handleRefresh}
             disabled={refreshing}
             className="text-xs"
-            title={t("review.refreshHint", "Reload review items from disk")}
+            title="Volver a leer las propuestas guardadas"
           >
             <RotateCcw className={`mr-1 h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
-            {t("review.refresh", "Refresh")}
+            Actualizar
           </Button>
           {resolved.length > 0 && (
             <Button variant="ghost" size="sm" onClick={clearResolved} className="text-xs">
               <Trash2 className="mr-1 h-3 w-3" />
-              {t("review.clearResolved")}
+              Quitar las resueltas
             </Button>
           )}
         </div>
@@ -431,10 +446,10 @@ export function ReviewView() {
               checked={allPendingSelected}
               onChange={toggleAllPending}
             />
-            {t("review.selectPending")}
+            Elegir las pendientes
           </label>
           <span className="text-muted-foreground">
-            {t("review.selectedCount", { count: selectedPendingIds.length })}
+            {selectedPendingIds.length === 1 ? "1 elegida" : `${selectedPendingIds.length} elegidas`}
           </span>
           <Button
             variant="outline"
@@ -443,7 +458,7 @@ export function ReviewView() {
             disabled={batchResearchItems.length === 0}
             onClick={handleBatchResearch}
           >
-            {t("review.researchSelected", { count: batchResearchItems.length })}
+            Investigar las elegidas ({batchResearchItems.length})
           </Button>
           <Button
             variant="outline"
@@ -452,7 +467,7 @@ export function ReviewView() {
             disabled={selectedPendingIds.length === 0}
             onClick={handleBatchResolve}
           >
-            {t("review.markSelectedResolved")}
+            Marcar las elegidas como resueltas
           </Button>
           <Button
             variant="outline"
@@ -461,7 +476,7 @@ export function ReviewView() {
             disabled={selectedPendingIds.length === 0}
             onClick={handleBatchDismiss}
           >
-            {t("review.dismissSelected")}
+            Descartar las elegidas
           </Button>
         </div>
       )}
@@ -470,7 +485,7 @@ export function ReviewView() {
         {items.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 p-8 text-center text-sm text-muted-foreground">
             <CheckCircle2 className="h-8 w-8 text-muted-foreground/30" />
-            <p>{t("review.allClear")}</p>
+            <p>Nada para revisar: el wiki no tiene propuestas pendientes.</p>
           </div>
         ) : (
           <div className="flex flex-col gap-2 p-3">
@@ -488,7 +503,7 @@ export function ReviewView() {
             ))}
             {resolved.length > 0 && pending.length > 0 && (
               <div className="my-2 text-center text-xs text-muted-foreground">
-                {t("review.resolvedDivider")}
+                — Resueltas —
               </div>
             )}
             {resolved.map((item) => (
@@ -527,7 +542,6 @@ function ReviewCard({
   working: boolean
   error?: string
 }) {
-  const { t } = useTranslation()
   const config = typeConfig[item.type]
   const Icon = config.icon
   const researchTask = useResearchStore((state) => {
@@ -560,15 +574,18 @@ function ReviewCard({
               className="h-3.5 w-3.5"
               checked={selected}
               onChange={(event) => onSelectedChange(item.id, event.target.checked)}
-              aria-label={t("review.selectItem", { title: item.title })}
+              aria-label={`Elegir ${item.title}`}
             />
           )}
           <Icon className={`h-4 w-4 shrink-0 ${config.color}`} />
           <span className="font-medium">{item.title}</span>
+          <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{config.label}</span>
         </div>
         <button
           onClick={() => onDismiss(item.id)}
           className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted"
+          title="Descartar"
+          aria-label="Descartar"
         >
           <X className="h-3.5 w-3.5" />
         </button>
@@ -578,7 +595,7 @@ function ReviewCard({
 
       {item.affectedPages && item.affectedPages.length > 0 && (
         <div className="mb-3 text-xs text-muted-foreground">
-          {t("review.affectedPages")}: {item.affectedPages.join(", ")}
+          Páginas: {item.affectedPages.join(", ")}
         </div>
       )}
 
@@ -586,12 +603,12 @@ function ReviewCard({
         <div className="space-y-2">
           {error && (
             <div className="rounded border border-destructive/30 bg-destructive/10 px-2 py-1.5 text-xs text-destructive">
-              {t("review.actionFailed", { error })}
+              La acción falló y la propuesta sigue pendiente. Podés reintentar: {error}
             </div>
           )}
           {researchRunning && (
             <div className="text-xs text-muted-foreground">
-              {t(`research.status.${researchTask.status}`)}
+              {RESEARCH_STATUS[researchTask.status] ?? researchTask.status}
             </div>
           )}
           <div className="flex flex-wrap gap-1.5">
@@ -603,7 +620,7 @@ function ReviewCard({
               disabled={researchRunning || working}
               onClick={() => onResolve(item.id, "__deep_research__")}
             >
-              🔍 {t("research.title")}
+              🔍 Investigar
             </Button>
           )}
           {item.options.map((opt) => (
@@ -615,7 +632,7 @@ function ReviewCard({
               disabled={researchRunning || working}
               onClick={() => onResolve(item.id, opt.action)}
             >
-              {opt.label}
+              {optionLabel(opt.label)}
             </Button>
           ))}
           </div>
@@ -623,7 +640,7 @@ function ReviewCard({
       ) : (
         <div className="flex items-center gap-1 text-xs text-emerald-600">
           <Check className="h-3 w-3" />
-          {item.resolvedAction}
+          {resolvedLabel(item.resolvedAction)}
         </div>
       )}
     </div>
