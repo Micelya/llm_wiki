@@ -208,15 +208,15 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-185 | 16 oct | Conocimiento | La unidad que se resuelve es el grupo de menciones de un documento, con una clave que no depende del orden de lectura | en revisión |
 | D-186 | 16 oct | Conocimiento | Cómo se comparan los nombres: sin artículos, títulos ni forma societaria; los candidatos salen de índices, no de comparar todos contra todos | en revisión |
 | D-187 | 16 oct | Conocimiento | El mismo identificador fuerte une solo, salvo nombres sin relación; uno distinto separa; un carácter de diferencia es dudoso | en revisión |
-| D-188 | 16 oct | Conocimiento | El modelo decide los candidatos difíciles contra una entidad principal; su veredicto se guarda por par; un nombre sin forma que comparten varias sociedades queda dudoso | en revisión |
+| D-188 | 16 oct | Conocimiento | El modelo decide los candidatos difíciles contra una entidad principal; su veredicto se guarda por par; un nombre sin forma que comparten varias sociedades queda dudoso | en revisión; reemplazada en parte por D-212 |
 | D-189 | 16 oct | Conocimiento | Las decisiones de una persona (unir, separar, dato incorrecto, deshacer) se guardan sobre claves estables y se aplican al instante | en revisión |
 | D-190 | 16 oct | Conocimiento | El identificador de una entidad lo conserva la que se queda con más menciones; la que se vacía queda unida a otra o retirada | en revisión |
-| D-191 | 16 oct | Conocimiento | Afirmaciones: lo mismo dicho varias veces es una sola; un dato de un valor a la vez con valores distintos es un conflicto o una historia | en revisión |
+| D-191 | 16 oct | Conocimiento | Afirmaciones: lo mismo dicho varias veces es una sola; un dato de un valor a la vez con valores distintos es un conflicto o una historia | en revisión; reemplazada en parte por D-209 |
 | D-192 | 16 oct | Conocimiento | La resolución se recalcula entera sin modelo, escribe solo lo que cambió y corre en el hilo de preguntas después de la lectura | en revisión |
 | D-193 | 16 oct | Conocimiento | Cambiar las palabras de la resolución no vuelve a leer el archivo: la lectura depende solo de lo que usa la pregunta | en revisión |
 | D-194 | 16 oct | Conocimiento | Cómo se evalúa la identidad contra la hoja: pares de menciones, uniones y separaciones falsas por separado | en revisión |
 | D-195 | 16 oct | Conocimiento | Proyección: nombre de archivo estable de cada página de entidad | en revisión |
-| D-196 | 16 oct | Conocimiento | Proyección: qué entidad tiene página (regla del vocabulario, sobre todo el archivo) | en revisión |
+| D-196 | 16 oct | Conocimiento | Proyección: qué entidad tiene página (regla del vocabulario, sobre todo el archivo) | en revisión; reemplazada en parte por D-213 |
 | D-197 | 16 oct | Conocimiento | Proyección: la síntesis del modelo sale solo de afirmaciones numeradas y se comprueba | en revisión |
 | D-198 | 16 oct | Conocimiento | Proyección: el bloque de entidades al final de la página de cada documento | en revisión |
 | D-199 | 16 oct | Conocimiento | Coordinación: proyectar después de resolver, entera y escribiendo solo lo que cambió | en revisión |
@@ -225,6 +225,16 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-202 | 16 oct | Conocimiento | Mantenimiento: la fusión de duplicados deja afuera las páginas proyectadas | en revisión |
 | D-203 | 16 oct | Conocimiento | Proyección: la base escribe las páginas y conserva las notas de una persona | en revisión |
 | D-204 | 16 oct | Conocimiento | Cómo se evalúa la proyección: páginas, documentos listados y oraciones comprobadas | en revisión |
+| D-205 | 16 oct | Conocimiento | Un documento que se va se lleva lo suyo; las decisiones y los identificadores pasan al que toma su lugar | en revisión |
+| D-206 | 16 oct | Conocimiento | La página de una entidad que deja el registro se borra, salvo notas o enlaces de páginas que la app no escribe | en revisión |
+| D-207 | 16 oct | Conocimiento | Lo excluido no cuenta (su lectura se conserva); lo unido con otro elegido cuenta y la página nombra al elegido | en revisión |
+| D-208 | 16 oct | Conocimiento | Cómo se miden los cambios, los asuntos y los vínculos sobre la copia de la base | en revisión |
+| D-209 | 16 oct | Conocimiento | La forma de cada valor, el mismo valor escrito de dos maneras, cargo y monto reclamado como listas, domicilio constituido aparte | en revisión |
+| D-210 | 16 oct | Conocimiento | Un cargo es un cargo en una organización, tomada de la cita o de la relación del documento | en revisión |
+| D-211 | 16 oct | Conocimiento | Las palabras genéricas ("mi", "el cliente") no son nombres ni alias | en revisión |
+| D-212 | 16 oct | Conocimiento | Un nombre sin forma que comparten varias sociedades se pregunta una vez contra todas y une solo si el modelo nombra una | en revisión |
+| D-213 | 16 oct | Conocimiento | Un asunto es un grupo de documentos unidos por evidencia propia del asunto, con página propia | en revisión |
+| D-214 | 16 oct | Conocimiento | Los vínculos entre entidades se muestran de los dos lados, con su cita | en revisión |
 
 ---
 
@@ -2601,7 +2611,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 - **Fecha:** 16 oct 2026
 - **Tema:** Conocimiento
-- **Estado:** en revisión (agente sin consulta, P-066)
+- **Estado:** en revisión (agente sin consulta, P-066); reemplazada en parte por D-212 (el nombre sin forma que comparten varias sociedades ahora se pregunta una vez contra todas)
 - **El problema:** después de los identificadores y los nombres iguales quedan los parecidos (nombre parcial, inicial, error de tipeo, sigla, organización sin forma). Decidirlos con reglas une de más o de menos; preguntar por cada par cuesta y deja que el modelo una por cadena (A con B y B con C).
 - **Qué se decidió:** se arma una pregunta por **entidad principal** (las más nombradas primero) y sus candidatos, hasta ocho por pregunta (R-21). Cada uno se describe con sus nombres, identificadores, lo que dicen los documentos, hasta cinco apariciones con su cita, y quién más aparece en esos documentos. El modelo responde por cada candidato "misma", "distinta" o "dudosa", con una certeza y un motivo. "misma" une (la certeza queda anotada con el motivo); "dudosa" queda como duda para una persona. Lo que dijo se guarda como **veredicto del par** (`knowledge_verdict`, con el motor) y vale en todas las resoluciones siguientes, aunque la descripción cambie: el mismo par no se pregunta dos veces (R-20). Se pregunta contra los grupos propios de la principal, y un candidato unido por el modelo no trae a sus propios candidatos (R-14). Un nombre de organización sin forma societaria que en el archivo tienen dos o más sociedades con distinta forma queda dudoso sin preguntar: puede ser cualquiera.
 - **Por qué:** medido contra la hoja (R-17): en una corrida el modelo unió con motivos débiles un nombre sin forma con una de las sociedades que lo comparten (52 pares de uniones falsas); no preguntar ese caso las eliminó. Se probó también unir solo con certeza alta: los pares bien unidos bajaron de 92 % a 74 % (casi todos los "misma" con certeza media eran correctos), así que se descartó.
@@ -2640,7 +2650,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 - **Fecha:** 16 oct 2026
 - **Tema:** Conocimiento
-- **Estado:** en revisión (agente sin consulta, P-066)
+- **Estado:** en revisión (agente sin consulta, P-066); reemplazada en parte por D-209 (cargo y monto reclamado ya no son de un valor a la vez; la forma de los valores)
 - **El problema:** la etapa 1 guarda evidencias entre menciones de un documento; las páginas necesitan afirmaciones sobre entidades, sin repetir lo mismo y mostrando las contradicciones (D-171).
 - **Qué se decidió:** cada evidencia se pasa a términos de entidades: sujeto, predicado y objeto (otra entidad, o un valor comparado por sus palabras normalizadas). Las que dicen lo mismo son **una afirmación** con varias evidencias. Los predicados de un valor a la vez se marcan en el vocabulario (`single`: cargo, domicilio, monto reclamado, nacionalidad, estado civil); si una entidad tiene valores distintos de uno de ellos, son una **historia** cuando cada valor tiene su propio tiempo, y un **conflicto** cuando el tiempo es el mismo o no se dice: el conflicto se guarda y se muestra, nunca gana el último. Una afirmación marcada como incorrecta queda retirada; una evidencia marcada no cuenta. Una relación de una entidad consigo misma (después de unir) no se guarda. Se recalculan en cada resolución y se escribe solo lo que cambió.
 - **Por qué:** es lo que pide D-171; marcar en el vocabulario qué predicados tienen un valor a la vez evita llamar conflicto a dos montos adeudados de facturas distintas.
@@ -2705,7 +2715,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 - **Fecha:** 16 oct 2026
 - **Tema:** Conocimiento
-- **Estado:** en revisión (agente sin consulta, P-066)
+- **Estado:** en revisión (agente sin consulta, P-066); reemplazada en parte por D-213 (los asuntos tienen página como grupos de documentos, no como entidades)
 - **El problema:** el wiki anterior decidía documento por documento si una entidad "merecía página", y así 28 de 39 páginas tenían una sola fuente y faltaban otras. Además K2 dejó 104 asuntos, muchos de ellos comprobantes, y menciones que son correos o teléfonos.
 - **Qué se decidió:** la regla es un dato del vocabulario de la capa (`pages.kinds` en `knowledge.json`). Persona u organización: aparece en dos documentos o más, o en alguno tiene un rol que no es "otro". Asunto: aparece en dos documentos o más y al menos uno trata de él (rol "referido"). Un nombre que es una dirección de correo, un teléfono o un número no es el nombre de una persona ni de una organización: si la entidad tiene otra forma de escribirse que sí lo es, esa da el título; si no, no tiene página.
 - **Por qué:** mide todo el archivo (R-05: lo general antes que el documento suelto) y deja afuera lo nombrado al pasar. Medido contra la hoja (R-17): con "o un identificador fuerte" para los asuntos había 22 páginas de asunto, la mayoría facturas a las que el modelo dio número de expediente; con la regla actual quedan 11 y la hoja pierde un asunto de un solo documento. En total 91 páginas; 52 de las 84 entidades de la hoja tienen página.
@@ -2817,3 +2827,154 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** `src-tauri/src/docbase/knowledge/check_pages.rs`; `desatendido-2\K3-correr-evaluacion.sh` (fuera del repositorio).
 - **Quién decidió:** agente sin consulta.
 - **Fuente:** etapa K3 de la tanda desatendida del 16 oct.
+
+### D-205 · Lo que se llevan los documentos que se van y lo que pasa al que toma su lugar
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el registro se recalcula entero desde las menciones, así que lo que dijo un documento que desaparece se va con él. Pero hay cosas que no deben perderse: lo que una persona decidió sobre ese documento (las decisiones lo nombran por su número interno de contenido) y el identificador de cada entidad, del que depende el nombre fijo de su página. Si un documento cambia de versión, la versión nueva es otro contenido con otro número: las decisiones quedaban apuntando a la vieja, y una entidad que solo aparecía en ese documento recibía otro identificador y otra página. Además, SQLite puede volver a usar el número de un contenido borrado, y una decisión vieja podía caer en un documento que no tiene nada que ver.
+- **Qué se decidió:**
+  - Cuando un documento desaparece (todas sus ubicaciones), se retiran sus menciones y evidencias; una afirmación con otra evidencia se conserva; una entidad sin menciones queda **retirada**, no borrada, con las decisiones sobre ella guardadas.
+  - La base anota cada contenido que se va (con la huella de su texto), sus archivos y la entidad que tenía cada nombre del documento (esquema V10: `knowledge_gone`, `knowledge_gone_file`, `knowledge_gone_mention`).
+  - El **documento que toma su lugar** es, en este orden: el que vuelve con el mismo texto (por la huella), el que vuelve con los mismos bytes (textos cortos, sin huella), o la versión nueva del archivo en la misma ruta (por el registro de cambios). Las decisiones de una persona sobre el documento viejo valen para ese (se traducen al leerlas; la decisión guardada no se toca), y cada nombre del documento nuevo conserva la entidad que tenía: una entidad que solo aparecía ahí conserva su identificador y su página.
+  - Lo mismo cuando un documento se vuelve a leer (otro texto reconocido, otra versión de la pregunta): sus nombres conservan su entidad.
+  - Un número de contenido no se vuelve a dar nunca.
+  - Lo que dijo el modelo sobre los grupos de un contenido que se va se olvida (las respuestas quedan en `model_answer`: si la misma pregunta vuelve, no cuesta nada).
+- **Por qué:** "nada se pierde" (R-09) y "lo que decide una persona es firme" (R-08) tienen que valer también cuando el archivo cambia; y el nombre de una página no debe cambiar porque se corrigió una coma del documento.
+- **Alternativas descartadas:** cambiar la clave de las decisiones para que use la huella del texto (rompía las decisiones y veredictos ya guardados y no resolvía el caso de una versión nueva); reescribir las decisiones guardadas al cambiar el documento (se perdería a qué documento se refería la persona).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/changes.rs`; `resolve.rs` (`load_rows`, `load_decided`, `write`); `identity.rs` (número de contenido); `schema.rs` (V10). Pruebas en `tests_changes.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K4/K5 de la tanda desatendida del 16 oct.
+
+### D-206 · La página de una entidad que deja el registro se quita sin romper enlaces
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** cuando una entidad se retira (sus documentos se fueron) o se une con otra, su página ya no tiene que estar; pero otra página puede enlazarla, y un enlace roto en el wiki confunde.
+- **Qué se decidió:** las páginas que escribe la app (las de entidades y asuntos, el resumen y el bloque de entidades de cada página de documento) se rehacen sin esa entidad, así que sus enlaces no se rompen. La página se **borra** salvo que tenga notas de una persona o que la enlace una página que la app no escribe (por ejemplo, el texto que escribió el wiki en la página de un documento, fuera del bloque de la app). En esos casos queda una **página mínima** en el mismo lugar que dice que la entidad dejó el registro, o con quién se unió (con el enlace), y las notas. Cuando ese enlace desaparece y no hay notas, la página mínima también se va.
+- **Por qué:** quitar lo que ya no corresponde sin perder nada que haya escrito una persona ni dejar enlaces muertos.
+- **Alternativas descartadas:** dejar siempre una página mínima (llena el wiki de páginas vacías); borrar siempre (rompe los enlaces del texto del wiki).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/pages.rs` (`linked_from_outside`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K4/K5 de la tanda desatendida del 16 oct.
+
+### D-207 · Un documento excluido no cuenta; uno unido con otro elegido cuenta, y la página nombra al elegido
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** hay dos formas en que un documento deja de alimentar el wiki sin desaparecer: una persona lo **excluyó** (el archivo o su carpeta), o lo **unió con otro** como el mismo documento y eligió el otro como fuente del wiki. Hay que decidir si lo que dice cuenta para el registro.
+- **Qué se decidió:**
+  - **Excluido** (todas sus ubicaciones excluidas): no cuenta. El diseño dice que la base no procesa lo excluido: sus menciones salen del registro como si se hubiera borrado (las entidades que solo estaban ahí quedan retiradas), pero su lectura se conserva, así que deshacer la exclusión no vuelve a preguntarle nada al modelo y todo vuelve como estaba (mismas entidades, mismas páginas). Un documento excluido que nunca se leyó no se lee.
+  - **Unido con otro elegido:** cuenta como evidencia (su texto es real y las citas se verificaron en él), pero las páginas lo listan como el elegido: en la lista de documentos aparece una sola vez, el elegido; en las referencias, la cita se muestra con su propio nombre y una flecha al elegido. Los dos quedan en el mismo asunto.
+  - Un cambio en lo excluido o en lo que una persona unió dispara la resolución y la proyección.
+- **Por qué:** es la recomendación de la especificación para lo unido; para lo excluido manda el diseño de la base. Medido sobre el archivo real: excluir el documento que más entidades nombra retira exactamente las entidades que solo estaban ahí (26 de 26) y reescribe solo 3 páginas; devolverlo deja todo igual que antes sin preguntar nada (D-208).
+- **Alternativas descartadas:** que lo excluido siga contando (una persona lo excluye justamente para que no se procese); que lo unido no cuente (se perderían citas verificadas que el elegido puede no tener).
+- **Dónde se aplica:** `changes.rs` (`active_content`, `left_out`, `leave_out`, `notice_left_out`); `extract.rs` (`standings`); `pages.rs` (`passed_over`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K4/K5 de la tanda desatendida del 16 oct.
+
+### D-208 · Cómo se miden los cambios, los asuntos y los vínculos contra el archivo real
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** las etapas 4 y 5 piden medir que borrar un documento retire lo suyo y nada más, que reprocesar sin cambios no cambie nada, y que los asuntos y los vínculos coincidan con la hoja de entidades.
+- **Qué se decidió:** la prueba ignorada de la proyección (`check_pages.rs`) agrega tres mediciones sobre la copia de la base:
+  - **Cambios:** toma el documento que más entidades nombra, lo excluye y mide cuántas entidades se retiran (tienen que ser exactamente las que solo estaban ahí), cuántas páginas se escriben y borran; después lo devuelve y comprueba que el estado de las entidades y el texto de todas las páginas sean iguales a los de antes, y que no se le haya preguntado nada al modelo.
+  - **Asuntos:** pares de documentos que la hoja pone en el mismo asunto y que la capa agrupa (encontrados), y pares que la capa agrupa y la hoja no (agrupaciones falsas, el error peor), además de cuántos documentos de cada asunto de la hoja quedan juntos.
+  - **Vínculos:** para cada afirmación de la hoja entre dos de sus entidades con un predicado del vocabulario, si el registro tiene esa afirmación entre las entidades a las que fueron a parar (en cualquier sentido: la hoja dice "representada por" donde el vocabulario dice "representa a").
+  - Las pruebas con documentos inventados cubren los cuatro casos de la etapa 4 (borrado, vuelta, versión nueva, excluido, unido, reprocesar sin cambios) y los de la etapa 5.
+- **Por qué:** cada pasada se mide por separado (R-17), y la hoja mide sin enseñar (R-25).
+- **Alternativas descartadas:** borrar de verdad un documento de la copia (no se puede devolver sin volver a leer los archivos de la carpeta de prueba; la exclusión pasa por el mismo camino de retiro).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/check_pages.rs`; `desatendido-2\K45-correr-evaluacion.sh` (fuera del repositorio).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K4/K5 de la tanda desatendida del 16 oct.
+
+### D-209 · Valores que no son valores, el mismo valor escrito de dos maneras y datos que no son de un valor a la vez
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066). Reemplaza en parte a D-191 (qué datos son de un valor a la vez).
+- **El problema:** las páginas mostraban "los documentos difieren" donde no difieren (P-100). Medido sobre el archivo real había 54 afirmaciones en conflicto y casi todas eran falsas: un número de documento tomado como cargo, un plazo en horas como monto reclamado, un DNI como domicilio, el mismo domicilio escrito con y sin el piso, y cargos y montos que no son de un valor a la vez (una persona tiene varios cargos; un reclamo crece con las facturas).
+- **Qué se decidió:**
+  - Cada predicado dice en el vocabulario la **forma** de su valor: un importe tiene dígitos y una moneda (o decimales o miles, con pocas palabras alrededor); un texto (cargo, profesión, nacionalidad, estado civil) tiene más letras que dígitos y no es el nombre de quien se habla; un domicilio tiene un número y palabras; un contacto es una casilla de correo o un teléfono. Un valor sin su forma queda en la lectura (la cita es real) pero no es una afirmación. Las monedas y las palabras de un domicilio que no distinguen (piso, ciudad, provincia) son datos del vocabulario.
+  - **El mismo valor escrito de dos maneras** es una sola afirmación, con toda su evidencia, mostrada con la escritura más completa: dos domicilios con los mismos números y una palabra en común (o dos números o más en común); dos importes con los mismos números.
+  - **Cargo y monto reclamado** dejan de ser datos de un valor a la vez: se listan todos, cada uno con su documento. Domicilio, nacionalidad y estado civil siguen siéndolo.
+  - Un **domicilio constituido** para un trámite (la cita dice "constituyo domicilio", "domicilio especial", "a estos efectos") es de otra clase que el real: no están en conflicto. Las palabras que lo dicen son datos del vocabulario (`qualifiers`).
+- **Por qué:** medido contra el archivo real: de 54 conflictos quedaron 6, todos reales o atribuciones equivocadas del modelo que conviene ver (una dirección de una sociedad atribuida a otra, dos domicilios de una persona en países distintos). Se descartan 40 valores sin forma; los revisados son errores del modelo.
+- **Alternativas descartadas:** pedirle al modelo que vuelva a leer el archivo con instrucciones más estrictas (en K1 una variante así empeoró roles y afirmaciones, D-184); resolver los conflictos eligiendo un valor (nunca gana el último, D-171).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/values.rs`, `claims.rs`; `resources/catalog/knowledge.json` (`shape`, `qualifiers`, `values`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K4/K5 de la tanda desatendida del 16 oct.
+
+### D-210 · Un cargo es un cargo en una organización
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** una persona que es presidente de una sociedad y director de otra aparecía con "los documentos difieren" sobre su cargo (P-100): el cargo se guardaba como un valor suelto, sin la organización.
+- **Qué se decidió:** un predicado puede decir en el vocabulario dentro de qué tipo de entidad se dice su valor (`within`; el cargo, dentro de una organización). La organización se toma del mismo documento, sin preguntarle al modelo: la que la cita nombra (si es una sola, o la única de ellas con la que la persona tiene una relación en el documento); si la cita no nombra ninguna, aquella con la que la persona tiene una relación en el documento (representa a, empleado de, socio de), si es una sola. Si no se puede saber, el cargo queda sin organización. El mismo cargo en dos organizaciones son dos afirmaciones, y los valores dentro de organizaciones distintas nunca están en conflicto. La página lo muestra como "presidente (en Ejemplo S.A.)". Esquema V10: `knowledge_claim.context_entity` y `qualifier`.
+- **Por qué:** es lo que dice el documento, anclado en la cita (R-01), sin encadenar inferencias (R-02). Con la cita a la vista, una persona ve de dónde salió.
+- **Alternativas descartadas:** pedirle al modelo que diga la organización de cada cargo (obligaba a volver a leer todo el archivo y a cambiar la pregunta de lectura; queda como mejora posible si la medición muestra muchos cargos sin organización, P-104).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/claims.rs` (`context_of`); `pages.rs` (`object_text`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K4/K5 de la tanda desatendida del 16 oct.
+
+### D-211 · Las palabras genéricas no son nombres
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el modelo a veces da como mención "mi", "el locatario", "Señor cliente" o "Both Parties", unidas con el nombre verdadero dentro del documento. Eso producía alias espurios en las páginas (P-100) y, peor, un grupo cuyo nombre principal era "Señor cliente" no se unía con la sociedad que tenía el mismo CUIT, porque los nombres "no tenían relación".
+- **Qué se decidió:** el vocabulario tiene una lista de palabras genéricas (pronombres, roles como cliente, locatario, empleador, "las partes"). Un nombre de persona u organización hecho solo de esas palabras (y de títulos) no es un nombre: no se compara, no es alias en las páginas y no le da nombre a una entidad; el grupo toma el nombre de otra de sus menciones. En los asuntos, "el acuerdo" sigue siendo una mención del asunto (se une solo por identificador o por el modelo), pero no se muestra como su nombre ni como alias.
+- **Por qué:** medido contra la hoja: los pares de menciones de la misma entidad bien unidos subieron de 91,7 % a 92,5 % sin ninguna unión falsa nueva.
+- **Dónde se aplica:** `names.rs` (`key`); `vocabulary.rs` (`is_generic`); `pages.rs` (alias); `knowledge.json` (`identity.generic`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K4/K5 de la tanda desatendida del 16 oct.
+
+### D-212 · Un nombre sin forma societaria que comparten varias sociedades se pregunta una vez contra todas
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066). Reemplaza en parte a D-188 (el caso del nombre sin forma).
+- **El problema:** la contraparte principal quedaba repartida en varias entidades. Una de las causas: los correos y cartas que la nombran sin su forma societaria quedaban como dudas sin preguntar, porque en el archivo hay varias sociedades con ese nombre y distinta forma (D-188). La decisión anterior se tomó porque preguntar contra cada sociedad por separado hizo que el modelo uniera con motivos débiles (52 pares de uniones falsas).
+- **Qué se decidió:** se le hace **una sola pregunta** con todas las sociedades que comparten el nombre, diciéndole que son distintas entre sí y que a lo sumo una puede ser la misma; que diga "misma" solo si los documentos muestran cuál (el mismo identificador, domicilio, asunto o personas) y "dudosa" para todas si no. Se une solo si nombra exactamente una; si nombra más de una o ninguna, queda la duda contra cada una, como antes. Lo que responde se guarda como veredicto de cada par (R-20).
+- **Por qué:** medido contra la hoja: los pares de menciones de la misma entidad bien unidos subieron de 92,5 % a 95,6 %, con las mismas 5 uniones falsas de antes (ninguna nueva); la contraparte principal pasó de 4 entidades a 2 y su página lista 30 de sus 34 documentos (antes 27).
+- **Alternativas descartadas:** seguir sin preguntar (dejaba partida a la entidad más importante del archivo); preguntar contra cada sociedad por separado (las uniones falsas de D-188).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/resolve.rs` (paso 3b, `question` con `one_of`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K4/K5 de la tanda desatendida del 16 oct.
+
+### D-213 · Un asunto es un grupo de documentos unidos por evidencia propia del asunto
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066). Reemplaza en parte a D-196 (los asuntos ya no tienen página como entidad).
+- **El problema:** después de la etapa 3 los asuntos eran las menciones de asunto de cada documento ("el acuerdo", "la factura N", "carta documento X"): 104 entidades, casi todas de un solo documento, y 11 páginas (P-103). Un asunto de un estudio (un reclamo con sus cartas, facturas y correos; un contrato con sus pagos) es otra cosa: un conjunto de documentos que no siempre se nombran igual.
+- **Qué se decidió:**
+  - Un **asunto** es un grupo de documentos (`knowledge_matter`, `knowledge_matter_document`, esquema V10) que se arma en cada resolución con estos vínculos, de lo más seguro a lo menos (R-11): lo que decidió una persona ("son del mismo asunto" / "no lo son"; una separación no se cruza nunca); dos documentos que una persona unió con una relación de un mismo asunto (el mismo documento, versión, respuesta, acuse de recibo, certificado de firma; la lista es del vocabulario); el mismo asunto nombrado por los dos, ya resuelta la identidad; el mismo número de un asunto en los dos (en una mención de asunto o en un dato del tipo de documento que es un identificador, como las facturas que reclama una carta o el número de envío), comparado por sus dígitos; y el mismo importe con decimales o miles, que no sea redondo.
+  - **No une:** compartir una persona o una organización (R-05); un número que identifica a una persona u organización (DNI, CUIT); un número o importe que está en más de la mitad de los documentos (R-16); un importe redondo.
+  - Solo cuenta lo que confirmó una persona, nunca una propuesta de parecidos (R-03).
+  - Cada asunto tiene un identificador estable (el del asunto que conserva más de sus documentos), un nombre (el asunto que más documentos nombran, con sus partes) y, por cada documento, los motivos por los que está en el grupo.
+  - **Página:** un asunto con dos documentos o más tiene página: las partes y personas con sus roles, lo que dicen sus documentos de cada una (con sus citas), sus documentos y "por qué estos documentos van juntos". La escribe la app sin el modelo. Las entidades de tipo asunto ya no tienen página propia: su página es la del grupo. Las páginas de personas y organizaciones agrupan sus documentos por estos asuntos, y el bloque de entidades de cada página de documento nombra su asunto.
+  - Las decisiones de una persona se guardan como las de identidad, con claves `content:<id>` que siguen al documento que toma el lugar de otro (D-205).
+- **Por qué:** medido contra la hoja: de los 506 pares de documentos que la hoja pone en un mismo asunto, la capa agrupa 356 (70,4 %), con **0 agrupaciones falsas**; el asunto principal del archivo junta 26 de sus 31 documentos; otros tres asuntos quedan completos. Antes de excluir los importes redondos hubo una agrupación falsa (el mismo importe redondo en dos documentos sin relación), y se corrigió con esa regla general.
+- **Alternativas descartadas:** unir las menciones de asunto por su número como identidad (mezclaba identidad con pertenencia, y una factura no es "la misma entidad" que el reclamo); familias contra un principal (R-14): una respuesta a una carta que responde a una factura es una cadena legítima de un asunto; el resguardo es que solo unen datos específicos y que se mide la agrupación falsa. Preguntarle al modelo por los documentos sueltos que comparten partes con un asunto queda para después, como propuesta (P-105).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/matters.rs`; `resolve.rs` (`write`); `decide.rs` (`SameMatter`, `OtherMatter`); `pages.rs` (`render_matter`, agrupación por asunto); `knowledge.json` (`matters`, regla de página de asunto `byMatter`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K4/K5 de la tanda desatendida del 16 oct.
+
+### D-214 · Los vínculos entre entidades se muestran de los dos lados, con su cita
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** las relaciones entre entidades (quién representa a quién, quién es socio, empleado, deudor o acreedor de quién) ya eran afirmaciones con evidencia, pero solo aparecían en la síntesis de la entidad que es sujeto. La organización representada no veía a su representante, salvo como "relacionado".
+- **Qué se decidió:** cada página de persona u organización tiene una sección "Vínculos" con las afirmaciones que la unen a otra entidad, en los dos sentidos: "Representa a X" en la página del representante y "Representada por Y" en la de la representada, cada una con su cita y su documento. El nombre del vínculo visto desde el otro lado es del vocabulario (`inverseLabel`). Solo lo que dicen los documentos, sin transitividad ni derivaciones (R-02). No se agregaron predicados nuevos ("apoderado de" es "representa a"; "contraparte en" queda para cuando el asunto tenga roles, P-106): agregarlos obliga a volver a leer todo el archivo.
+- **Por qué:** medido contra la hoja: de 30 vínculos de la hoja entre dos de sus entidades, el registro tiene 21 (70 %) entre las mismas entidades; acreedor, deudor y contratista, todos; los que faltan son "integra el equipo de", "pertenece a" y "trabaja en", que la lectura no extrae como relación.
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/pages.rs` (sección de vínculos); `knowledge.json` (`inverseLabel`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K4/K5 de la tanda desatendida del 16 oct.

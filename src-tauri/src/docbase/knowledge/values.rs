@@ -2,7 +2,7 @@
 //! ways of writing a value are the same value (D-209).
 //!
 //! The model sometimes puts in a value what is not one: a document number
-//! as a position, "48 horas hábiles" as an amount claimed, an identity
+//! as a position, a time limit as an amount claimed, an identity
 //! number as a domicile. The quote is real (it was verified), the value is
 //! not: such a piece of evidence stays in the reading but is not a claim.
 //! Each predicate says its shape in the vocabulary (`shape`); the words
@@ -121,7 +121,7 @@ mod tests {
         for amount in ["USD 5.129,80", "$ 100.000", "71.008,64", "500 dólares", "CINCO MIL DÓLARES (USD 5.000)"] {
             assert!(fits(&v, "amount", amount, "x"), "{amount}");
         }
-        for not in ["48 horas hábiles", "las sumas indicadas en las facturas", "2024", "30-11111111-1", "1,000+ usuarios activos garantizados por día"] {
+        for not in ["72 horas corridas", "lo que surja de la liquidación", "2024", "30-11111111-1", "1,000+ usuarios activos garantizados por día"] {
             assert!(!fits(&v, "amount", not, "x"), "{not}");
         }
         assert!(fits(&v, "text", "Presidente", "persona dos"));
