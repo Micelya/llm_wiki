@@ -36,9 +36,9 @@ pub mod align;
 pub mod by_type;
 pub mod changes;
 #[cfg(test)]
-mod check;
+pub(crate) mod check;
 #[cfg(test)]
-mod check_types;
+pub(crate) mod check_types;
 pub mod classify;
 pub mod data;
 pub mod marks;

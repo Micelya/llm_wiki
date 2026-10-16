@@ -16,6 +16,8 @@
 //! The types of entity, roles, identifiers and predicates are data
 //! (`vocabulary.rs`, R-26).
 
+#[cfg(test)]
+pub(crate) mod check;
 pub mod extract;
 pub mod quote;
 #[cfg(test)]
