@@ -1,6 +1,6 @@
 # Base documental — documento de diseño
 
-**Estado:** dirección acordada · consolidado el 11 de octubre de 2026 · ajustado el 16 de octubre de 2026 (sección 13: vista de atención)
+**Estado:** dirección acordada · consolidado el 11 de octubre de 2026 · ajustado el 16 de octubre de 2026 (sección 13: vista de atención) · capa de conocimiento agregada el 16 de octubre de 2026 (D-170)
 **Alcance:** qué vamos a construir y en qué orden. No describe código.
 
 ## 1. Propósito
@@ -56,6 +56,7 @@ erDiagram
 - **Grupos y etiquetas.** Una etiqueta agrupa archivos lógicamente. Un **grupo** es la pregunta ("¿de qué cliente es?") y una **etiqueta** es la respuesta ("BGH"); también hay etiquetas sueltas, sin grupo. Un archivo puede tener varias. Las etiquetas se guardan aparte y los archivos las referencian, así que renombrar una no toca ningún archivo.
 - **Reglas de carpeta.** La estructura de carpetas es un indicio de qué contiene cada una, pero rara vez es pareja en todo un origen. Por eso las etiquetas se asignan con reglas puestas en cualquier carpeta, que valen para ella y todo lo que cuelga de ella: "todo lo de acá adentro lleva esta etiqueta" o "cada subcarpeta de acá es un… (cliente, caso)". La regla queda guardada: lo que aparezca después la hereda. Encima, a un archivo se le agrega o se le quita una etiqueta a mano, y eso manda sobre lo heredado: siempre hay archivos mal guardados. Al incorporar un origen se puede indicar cómo está ordenado, pero solo conviene si toda su estructura es pareja.
 - **Exclusión.** Un archivo o una carpeta se pueden excluir: siguen en su lugar y a la vista, pero la base no los procesa ni los entrega al wiki. Se puede deshacer.
+- **Entidad, mención y afirmación** (capa de conocimiento, sección 4). Una **entidad** es una persona, una organización o un asunto, con un identificador estable que no depende de su nombre. Una **mención** es una forma en que un documento la nombra, con un rol (parte, apoderado, firmante…). Una **afirmación** es algo que los documentos dicen de ella, con la cita textual que lo respalda, verificada por cálculo en el texto. El detalle está en la [propuesta de la capa](conocimiento-propuesta.md).
 - **Archivo (proyecto general).** Cada espacio tiene un proyecto general que abarca todos sus orígenes; para el usuario es su archivo. La app lo crea sola y abre ahí. Su wiki no arranca sola, porque usa el modelo: se activa una vez y desde entonces se alimenta sola con lo que se agrega, cambia o se quita. Los demás proyectos son puntos de vista sobre parte de esas fuentes, con sus propias instrucciones para el modelo, como hace hoy la app.
 
 ## 4. Capas
@@ -68,6 +69,7 @@ flowchart TB
         G[Documentos nuevos desde plantillas]
     end
     V["3 · Volumen virtual<br/>cada proyecto es una selección de documentos"]
+    K["2 bis · Conocimiento<br/>entidades, menciones y afirmaciones con cita"]
     subgraph B["2 · Base documental"]
         I[Inventario y vigilancia]
         D[Identidad y derivados]
@@ -79,11 +81,14 @@ flowchart TB
         C[Drive y OneDrive, como unidad montada]
     end
     U --> V --> B --> O
+    U --> K --> B
 ```
 
 La capa 3 le pregunta a la base solo tres cosas: qué fuentes hay, cuál es el texto de una, y qué cambió. Esa interfaz angosta permite que la capa de wiki siga pareciéndose a la original. Las páginas del wiki siguen nombrando sus fuentes por una ruta lógica; la base sabe a qué contenido corresponde cada una.
 
 La base guarda además un **índice del wiki**: qué páginas hay, qué enlaces tienen entre sí y de qué documento salió cada una. Las páginas siguen siendo archivos de texto y son la verdad; el índice es una copia consultable que se reconstruye entera a partir de ellas. Sirve para responder sin releer todas las páginas: qué páginas citan un documento, qué enlaza a una página, qué enlaces están rotos.
+
+Entre la base y los usos está la **capa de conocimiento** (D-170): un registro, dentro de la misma base del espacio, de las personas, organizaciones y asuntos que nombran los documentos, de cómo los nombra cada uno y de lo que dicen de ellos, cada cosa con la cita que la respalda. Las páginas de entidad del wiki se arman desde ese registro (son una proyección) y se rehacen cuando cambia lo que se sabe de la entidad. Detalle en la [propuesta de la capa](conocimiento-propuesta.md).
 
 La base documental es un **componente separado dentro de la misma app**: datos propios, código en un lugar propio y esa interfaz angosta. Reutiliza los extractores de texto, los proveedores de IA, la cola de trabajo, la búsqueda y la interfaz. Reemplaza la importación que copia archivos, la vigilancia de fuentes, la identificación por ruta y los cachés atados a la ruta.
 
@@ -245,6 +250,10 @@ flowchart LR
 | Proveedores de IA | Configurables por instancia |
 | Proyectos de prueba existentes | Se reconstruyen. Sus fuentes originales no se tocan. Las fuentes copiadas dentro de un proyecto se tratan como un origen más |
 | Upstream | No se sincroniza; el proyecto diverge y la compatibilidad no es un criterio |
+| Conocimiento | Una capa propia dentro de la base del espacio: entidades con identificador estable, menciones con rol y afirmaciones con cita verificada por cálculo (D-170, D-171) |
+| Tipos de entidad | Persona, organización y asunto; tipos, roles y predicados son datos, no código (D-172) |
+| Identidad de entidades | En cascada, con abstención: mismo identificador une solo y se puede deshacer, identificador distinto nunca une, lo dudoso va a una persona (D-173, D-174) |
+| Páginas de entidad | Proyección del registro: documentos agrupados por asunto y síntesis solo desde afirmaciones verificadas; la incorporación del wiki deja de crearlas (D-175) |
 
 ## 10. Decisiones abiertas y lista de espera
 
@@ -271,6 +280,8 @@ flowchart LR
     E3 --> E4["4 · Espacio compartido<br/>servicio, prueba de lectura,<br/>proyectos reservables"]
     E4 --> E5["5 · Plantillas y datos<br/>documentos nuevos"]
 ```
+
+La **capa de conocimiento** (D-170) se construye en paralelo, sobre la etapa 2, en seis pasos: extracción con cita verificada, resolución de identidad, proyección en páginas, cambios y borrados, relaciones entre entidades y asuntos, y su lugar en la vista de atención ([propuesta](conocimiento-propuesta.md), sección 12).
 
 Se empieza por el espacio privado y un solo usuario. El espacio compartido multiplica cada decisión, así que llega cuando la base ya esté probada.
 

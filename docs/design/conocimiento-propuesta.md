@@ -1,0 +1,153 @@
+# Capa de conocimiento — propuesta
+
+**Estado:** dirección acordada con el dueño del producto el 16 de octubre de 2026 (D-170 a D-176) · primera etapa (extracción) construida en la rama `feat/knowledge-layer`; las decisiones que tomó el agente al construirla (D-177 a D-184) esperan la revisión del dueño (P-066)
+**Alcance:** cómo sabe la app quiénes son las personas, organizaciones y asuntos que nombran los documentos, qué dicen los documentos de cada uno y cómo se arma con eso una página por entidad. Es una capa nueva entre la base documental y el wiki ([documento de diseño](base-documental.md), sección 4). No describe código.
+
+## 1. El problema
+
+El wiki de hoy procesa un documento por vez. Para cada uno, el modelo decide qué personas y organizaciones "merecen página" y escribe o completa esas páginas. Para saber qué páginas existen ve solo sus títulos (el índice del wiki, que además guarda las últimas 200 líneas), nunca su contenido. Una entidad es el nombre de su archivo: no hay alias ni identificador estable. Cada página guarda de qué documentos salió, pero no qué dijo cada documento, así que borrar una fuente no retira lo que aportó. La fusión de duplicados de Ajustes no se puede deshacer. Y las instrucciones al modelo son de investigación académica: permiten agregarle a una entidad conocimiento público, que en un estudio jurídico no sirve y confunde.
+
+Medido sobre el wiki generado con la carpeta de prueba (14 de octubre):
+
+- 39 páginas de entidad; 28 con una sola fuente.
+- La contraparte principal aparece en 31 páginas de documentos y su página usa 5. La empresa propia, 34 contra 5. Una persona, 24 contra 3: su página habla solo de 3 boletas y su ficha de cliente no le sumó nada.
+
+Para un abogado eso es peor que no tener páginas: la página de una persona parece completa y le falta casi todo, sin decirlo.
+
+## 2. La idea
+
+Una **capa de conocimiento** dentro de la base del espacio, con un registro propio:
+
+- **Entidades canónicas** (personas, organizaciones y asuntos) con un **identificador estable**, que no depende del nombre, de un alias, del título de una página ni de una ruta.
+- **Menciones:** cada vez que un documento nombra a una entidad, cómo la escribe y con qué **rol** (parte, apoderado, firmante, destinatario, emisor, domicilio constituido…).
+- **Afirmaciones:** lo que los documentos dicen de cada entidad (su cargo, su domicilio, a quién representa, qué debe), cada una con la **cita textual** que la respalda y su documento.
+- **Decisiones de una persona** sobre identidades: "son la misma", "son distintas", "este dato está mal". Firmes y reversibles.
+
+El wiki pasa a ser una **proyección** de ese registro: la página de una entidad se arma desde él y se rehace cuando cambia lo que se sabe de ella.
+
+**El control que ordena todo:** toda mención y toda afirmación que extrae el modelo trae su cita textual, y **un cálculo comprueba que la cita está en el texto del documento**, con la misma normalización que usa la base (sin mayúsculas, acentos ni puntuación). Lo que no se encuentra se descarta y se cuenta. Así todo queda anclado a una fuente (R-01), y escribir páginas desde afirmaciones verificadas no es inferir sobre lo inferido (R-02): cada frase de la página remite a una cita comprobada.
+
+## 3. Definiciones del dueño del producto
+
+Acordadas el 16 de octubre de 2026 (D-170 a D-176):
+
+- **Una capa nueva, con registro propio** (alternativa B), dentro de la base del espacio. Es una divergencia fuerte con el proyecto original, y está bien (D-151).
+- **Toda afirmación lleva cita verificada por cálculo.** Varias evidencias para lo mismo no la duplican. Las contradicciones se guardan y se muestran; nunca gana el último.
+- **Tipos iniciales: persona, organización y asunto** (expediente, caso, contrato marco), con el rol de cada mención. Los tipos, roles y predicados son datos, no código. Conceptos, productos y eventos quedan para después.
+- **La identidad se resuelve en cascada y con abstención:** mismo identificador (DNI, CUIT, matrícula, número de expediente) se une solo y se puede deshacer; identificador distinto no se une nunca; lo demás, por nombre y contexto, y el modelo para lo difícil; lo dudoso va a una persona. Ante la duda no se une (R-07).
+- **Lo que decide una persona** se guarda como en los parecidos: firme, reversible, con la evidencia que se le mostró, nunca pisado por un recálculo (R-08, R-09).
+- **La página de una entidad es una proyección del registro:** la lista completa de sus documentos agrupada por asunto, sin modelo; y una síntesis escrita por el modelo solo desde afirmaciones verificadas. Las notas de una persona van en una sección que la app nunca reescribe. La incorporación del wiki deja de crear páginas de entidad y se adapta a un estudio jurídico. No se busca compatibilidad con Obsidian.
+- **Sin derivaciones por reglas en esta etapa,** y todo incremental: un documento nuevo, cambiado o borrado toca solo lo suyo. El costo de modelo aprobado: una lectura por documento, preguntas sueltas para lo dudoso y un texto por entidad tocada.
+
+## 4. Conceptos
+
+```mermaid
+erDiagram
+    CONTENIDO ||--o| EXTRACCION : "se lee una vez"
+    CONTENIDO ||--o{ MENCION : nombra
+    MENCION ||--o{ IDENTIFICADOR : "trae"
+    MENCION }o--o| ENTIDAD : "es de"
+    ENTIDAD ||--o{ ALIAS : "se escribe"
+    MENCION ||--o{ EVIDENCIA : "es sujeto de"
+    EVIDENCIA }o--o| AFIRMACION : respalda
+    ENTIDAD ||--o{ AFIRMACION : "de ella se dice"
+    DECISION }o--o{ ENTIDAD : "une o separa"
+
+    MENCION { string escrito "como lo escribe el documento" }
+    EVIDENCIA { string cita "verificada en el texto" }
+    AFIRMACION { string estado "respaldada, en conflicto, retirada, pendiente" }
+```
+
+- **Entidad:** una persona, una organización o un asunto, con un identificador estable. Su nombre visible es el más usado de sus alias.
+- **Mención:** una forma en que un documento nombra a una entidad con un rol: "el documento X nombra a 'J. Pérez' como firmante". Lleva la cita que la contiene y la página. Dentro de un mismo documento, el modelo dice qué menciones son la misma entidad ("el locatario" y su nombre completo).
+- **Identificador:** un DNI, un CUIT, una matrícula o un número de expediente asociado a una mención, con su cita.
+- **Evidencia:** lo que un documento dice de una mención: sujeto, predicado (de una lista), objeto (otra mención o un valor), cita, página y, si el documento lo dice, el tiempo del hecho.
+- **Afirmación:** la evidencia ya puesta en términos de entidades. Varias evidencias que dicen lo mismo (mismo sujeto, predicado y objeto) son una sola afirmación con varias citas. Dos afirmaciones que no pueden ser ciertas a la vez (dos domicilios para el mismo momento) quedan **en conflicto**, las dos a la vista.
+- **Decisión de identidad:** "estas menciones o entidades son la misma", "son distintas" o "este dato está mal", con la evidencia mostrada. Se puede deshacer.
+
+## 5. Las pasadas
+
+Cada pasada con su objetivo (R-10), de lo seguro a lo incierto (R-11):
+
+1. **Extracción, por documento, con el modelo.** El modelo lee el texto de un documento (por tramos de páginas si es largo) y devuelve, en JSON con forma estricta, las menciones (tipo, cómo está escrita, rol, cita, página), los identificadores de cada una y las afirmaciones. Las instrucciones hablan de documentos de un estudio jurídico y prohíben agregar algo que el documento no diga. Recibe como ayuda lo que la base ya sabe sin modelo: los identificadores reconocidos por su forma, el tipo y la etapa del documento y sus datos por tipo. Después, **el cálculo verifica cada cita**; lo que no está en el texto se descarta y se cuenta, con el motivo. Una lectura por documento y por espacio; la respuesta se guarda y no se vuelve a pedir (R-20).
+2. **Resolución de identidad, en cascada,** con tres salidas: la misma, distinta, dudosa.
+   1. Identificadores: el mismo une; uno distinto separa siempre. Si los nombres coinciden y los identificadores difieren por poco (un dígito mal leído en un escaneo), es dudosa.
+   2. Nombre normalizado, atributos y contexto: iniciales, orden de los apellidos, abreviaturas. "S.A.", "LLC" y "Ltd" del mismo nombre son organizaciones distintas salvo evidencia.
+   3. El modelo, para los candidatos difíciles, por grupo (R-21), con evidencia acotada, respuesta estructurada y la opción de abstenerse.
+   4. Lo dudoso va a una persona, en la vista de atención.
+3. **Consolidación:** las evidencias se agrupan en afirmaciones por entidad; se marcan los conflictos.
+4. **Proyección:** la página de cada entidad tocada se rehace.
+
+**Incremental (R-15).** Documento nuevo: se extrae, se resuelven sus menciones contra lo existente y se rehacen solo las páginas tocadas. Documento borrado o reemplazado: se retiran sus menciones y evidencias; las afirmaciones con otra evidencia se conservan; se rehacen las páginas afectadas. La extracción se rehace solo si cambió el texto, la versión de la pregunta o la versión del vocabulario de la capa. Reprocesar sin cambios no cambia nada (R-13).
+
+**Ritmo.** La extracción corre en segundo plano mientras el wiki del archivo está activo y hay un motor elegido, de a una pregunta por vez pero seguido, para que un archivo entero se procese en una tanda. Ante el límite de uso del proveedor se corta y se reintenta más tarde.
+
+## 6. El vocabulario de la capa
+
+Los tipos de entidad, los roles y los predicados son **datos** (R-24, R-26): un archivo del mismo estilo que el catálogo de tipos de documento, reemplazable por otro en la carpeta de datos de la app. Cada entrada tiene una descripción en palabras, que es lo que lee el modelo. Arranca con:
+
+- **Tipos:** persona, organización, asunto.
+- **Roles:** parte, apoderado, firmante, remitente, destinatario, emisor, domicilio constituido, testigo, el asunto del que trata el documento, otro.
+- **Predicados:** cargo, domicilio, representa a, socio de, empleado de, deudor de, acreedor de, monto reclamado, monto adeudado, parte en (un asunto), inicio y fin de un vínculo, profesión, nacionalidad, estado civil, contacto.
+- **Identificadores:** DNI, CUIT o CUIL, matrícula, número de expediente, otro.
+
+Cambiar el vocabulario cambia su versión, y los documentos se vuelven a leer.
+
+## 7. Qué se guarda
+
+En la base del espacio:
+
+- Por documento, la **extracción**: con qué versión de la pregunta, qué vocabulario, qué motor y modelo, sobre qué texto (su huella), cuántas menciones y evidencias dejó y qué descartó y por qué.
+- Las **menciones**, sus **identificadores** y las **evidencias**, cada una con su cita y su página.
+- Las **entidades**, sus **alias** y las **afirmaciones** que agrupan evidencias (desde la etapa 2).
+- Las **decisiones de identidad** de una persona, con la evidencia mostrada y su huella.
+- Las **marcas de trabajo pendiente:** qué documentos hay que volver a resolver, qué evidencias retirar y qué páginas rehacer.
+- Cada respuesta del modelo, con la pregunta y **el modelo que la dio**: cambiar de modelo vuelve a preguntar.
+
+Lo calculado se puede rehacer entero desde los textos. Lo que decide una persona no se pisa.
+
+Vale la regla del espacio compartido: una entidad, una mención o una afirmación se ven solo a través de documentos visibles. Toda consulta recibe el conjunto de lo visible.
+
+## 8. Qué ve el usuario
+
+- **Página de cada entidad:** la ficha (alias, identificadores, datos), la lista completa de sus documentos agrupada por asunto, con el rol en cada uno, y la síntesis con referencias numeradas a las citas. Debajo, sus notas, que la app no toca.
+- **Vista de atención:** identidades dudosas ("¿son la misma persona?", con la evidencia de cada lado), contradicciones entre documentos y datos marcados como incorrectos.
+- **Detalle de un documento:** quiénes aparecen y con qué rol.
+
+La primera etapa (extracción) no tiene pantallas: deja los datos y su estado listos para ellas.
+
+## 9. Cómo sabemos que funciona
+
+Una **hoja de respuestas de entidades** hecha leyendo los documentos de la carpeta de prueba (fuera del repositorio, porque nombra personas reales): cada entidad con sus alias, identificadores, menciones con rol y afirmaciones con cita; los pares que parecen la misma entidad y no lo son; las menciones que no se pueden resolver; y los asuntos. Mide, no enseña (R-25).
+
+Se mide por separado (R-17):
+
+- **Extracción:** menciones encontradas y acertadas por documento (por nombre normalizado y tipo), roles acertados, afirmaciones encontradas, citas verificadas y descartadas.
+- **Identidad:** uniones falsas y separaciones falsas, por separado. Una unión falsa pesa mucho más.
+- **Proyección:** que cada página tenga todos los documentos de su entidad y que cada frase remita a una cita.
+- **Cambios:** que borrar un documento retire lo suyo y nada más; que reprocesar sin cambios no cambie nada.
+
+Una prueba comprueba además que ni el programa ni el vocabulario de la capa contengan nombres, números u otros valores de las hojas de respuestas (R-24).
+
+## 10. Límites
+
+- **Lo que el modelo no ve, no está.** Una mención que el modelo no extrae no se recupera con cálculo. La hoja dice cuánto se escapa.
+- **La cita verificada prueba que el texto existe, no que la lectura sea correcta.** El modelo puede atribuir una cita a la persona equivocada; la cita a la vista permite que una persona lo note.
+- **Los escaneos traen errores de lectura.** Un identificador mal leído separa a una persona (el error menos grave) y aparece como dudoso.
+- **Una sola página por cita.** El texto de la base ubica por página, no por párrafo.
+- **Sin derivaciones:** "A dirige B" y "B firmó C" no dan "A firmó C".
+
+## 11. Decisiones abiertas
+
+1. Cuándo vuelve a leer un archivo entero un modelo nuevo: hoy, cambiar de modelo no vuelve a leer lo ya extraído (D-180).
+2. Cómo se muestran en una página las afirmaciones en conflicto.
+3. Cómo pasa la página de un documento del wiki a enlazar las páginas de entidad.
+
+## 12. Etapas
+
+1. **Extracción** (esta rama): modelo de datos, vocabulario, extracción con cita verificada, trabajo de fondo, estado para las pantallas y evaluación contra la hoja. Sin pantallas.
+2. **Resolución de identidad** con abstención, decisiones de una persona y evaluación de uniones y separaciones falsas.
+3. **Proyección:** páginas de entidad desde el registro; la incorporación del wiki deja de crear páginas de entidad y se adapta a lo jurídico.
+4. **Cambios y borrados:** retiro de evidencia y rehacer solo lo afectado.
+5. **Relaciones entre entidades y asuntos:** quién representa a quién, en qué asunto aparece cada uno.
+6. **Vista de atención y pantallas mínimas:** identidades dudosas, contradicciones y el detalle de una entidad en la base.
