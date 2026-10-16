@@ -432,6 +432,17 @@ impl Vocabulary {
         if text.contains('@') {
             return false;
         }
+        // A web address ("www.ejemplo.com.ar"): where to find someone.
+        let lower = text.trim().to_lowercase();
+        let web = lower.starts_with("www.")
+            || lower.starts_with("http")
+            || (!lower.contains(char::is_whitespace)
+                && lower.split('.').count() >= 2
+                && lower.rsplit('.').next().is_some_and(|tld| (2..=4).contains(&tld.len()) && tld.chars().all(|c| c.is_ascii_lowercase()))
+                && lower.split('.').next().is_some_and(|first| first.chars().count() >= 3));
+        if web {
+            return false;
+        }
         if kind == "asunto" {
             return true;
         }
@@ -548,7 +559,7 @@ mod tests {
     #[test]
     fn what_is_not_a_name_gets_no_page() {
         let v = Vocabulary::builtin();
-        for name in ["Persona Dos", "Ejemplo Uno S.A.", "Banco de Ejemplo", "Provincia de Ejemplo", "Ejemplo 3 S.R.L."] {
+        for name in ["Persona Dos", "Ejemplo Uno S.A.", "Banco de Ejemplo", "Provincia de Ejemplo", "Ejemplo 3 S.R.L.", "S.A.", "J.P. Ejemplo"] {
             assert!(v.is_a_name("persona", name) && v.is_a_name("organizacion", name), "{name}");
         }
         for not_a_name in [
@@ -561,6 +572,8 @@ mod tests {
             "Ejemplo 555 Ciudad 1000",
             "X1234ABC",
             "alguien@ejemplo.com",
+            "www.ejemplo.com.ar",
+            "ejemplo.com",
             "(011) 4444-5555",
         ] {
             assert!(!v.is_a_name("organizacion", not_a_name), "{not_a_name}");
