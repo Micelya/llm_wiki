@@ -21,6 +21,7 @@ pub mod commands;
 #[cfg(test)]
 mod field_check;
 mod identity;
+pub mod knowledge;
 pub mod labels;
 pub mod origins;
 pub mod query;

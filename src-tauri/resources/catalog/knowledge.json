@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "entityTypes": [
+    {
+      "id": "persona",
+      "description": "Una persona humana nombrada en el documento: una parte, quien firma, quien representa, un testigo, un empleado, un destinatario."
+    },
+    {
+      "id": "organizacion",
+      "description": "Una persona jurídica u organización: una sociedad, una empresa, un estudio jurídico, un organismo público, un banco, un juzgado. Cada forma societaria es una organización distinta salvo que el documento diga que es la misma: una sociedad anónima y una sociedad extranjera con el mismo nombre comercial son dos organizaciones."
+    },
+    {
+      "id": "asunto",
+      "description": "Un asunto jurídico con identidad propia: un expediente judicial o administrativo, un reclamo, un contrato marco o un acuerdo al que otros documentos se refieren. No es un asunto un tema general ni una cláusula."
+    }
+  ],
+  "roles": [
+    {
+      "id": "parte",
+      "description": "Es parte del acto o del contrato: contratante, locador, locatario, prestamista, deudor, empleador, empleado, actor, demandado, requirente, requerido.",
+      "types": ["persona", "organizacion"]
+    },
+    {
+      "id": "apoderado",
+      "description": "Actúa en nombre de otra persona u organización: apoderado, representante legal, presidente o gerente que obliga a la sociedad, abogado patrocinante.",
+      "types": ["persona", "organizacion"]
+    },
+    {
+      "id": "firmante",
+      "description": "Firma el documento, por sí o por otro, sin que el documento diga otro papel suyo.",
+      "types": ["persona"]
+    },
+    {
+      "id": "remitente",
+      "description": "Envía la carta, la carta documento, el correo o la notificación.",
+      "types": ["persona", "organizacion"]
+    },
+    {
+      "id": "destinatario",
+      "description": "Recibe la carta, la carta documento, el correo, la notificación o la factura.",
+      "types": ["persona", "organizacion"]
+    },
+    {
+      "id": "emisor",
+      "description": "Emite el comprobante, la factura, el recibo, la boleta o la constancia.",
+      "types": ["persona", "organizacion"]
+    },
+    {
+      "id": "domicilio",
+      "description": "Su domicilio está constituido o indicado para el acto (por ejemplo, el estudio jurídico donde una parte constituye domicilio).",
+      "types": ["persona", "organizacion"]
+    },
+    {
+      "id": "testigo",
+      "description": "Interviene como testigo, certificante o escribano del acto.",
+      "types": ["persona", "organizacion"]
+    },
+    {
+      "id": "referido",
+      "description": "Es el asunto del que trata el documento o al que se refiere (el expediente, el reclamo, el contrato marco).",
+      "types": ["asunto"]
+    },
+    {
+      "id": "otro",
+      "description": "Se lo nombra con otro papel, o al pasar.",
+      "types": ["persona", "organizacion", "asunto"]
+    }
+  ],
+  "identifiers": [
+    { "id": "dni", "description": "Documento nacional de identidad o pasaporte de una persona.", "types": ["persona"] },
+    { "id": "cuit", "description": "CUIT o CUIL: clave de identificación tributaria o laboral, de una persona o de una organización.", "types": ["persona", "organizacion"] },
+    { "id": "matricula", "description": "Matrícula profesional (de abogado, contador, escribano) o inscripción en un registro (de comercio, de sociedades).", "types": ["persona", "organizacion"] },
+    { "id": "expediente", "description": "Número de expediente, causa, carátula o legajo de un asunto.", "types": ["asunto"] },
+    { "id": "otro", "description": "Otro número que identifica a la entidad (número de cliente, de socio, de contrato).", "types": ["persona", "organizacion", "asunto"] }
+  ],
+  "predicates": [
+    { "id": "cargo", "description": "El cargo, puesto o función que ocupa (presidente, gerente, socio gerente, empleado de tal área).", "subject": ["persona"], "object": "value" },
+    { "id": "domicilio", "description": "Un domicilio real, legal, fiscal o constituido que el documento le atribuye.", "subject": ["persona", "organizacion"], "object": "value" },
+    { "id": "representa_a", "description": "Actúa en nombre o en representación de otra persona u organización.", "subject": ["persona", "organizacion"], "object": "entity", "objectTypes": ["persona", "organizacion"] },
+    { "id": "socio_de", "description": "Es socio o accionista de una organización.", "subject": ["persona", "organizacion"], "object": "entity", "objectTypes": ["organizacion"] },
+    { "id": "empleado_de", "description": "Trabaja o trabajó en relación de dependencia o como contratado para otra persona u organización.", "subject": ["persona"], "object": "entity", "objectTypes": ["persona", "organizacion"] },
+    { "id": "deudor_de", "description": "Le debe algo a otra persona u organización según el documento.", "subject": ["persona", "organizacion"], "object": "entity", "objectTypes": ["persona", "organizacion"] },
+    { "id": "acreedor_de", "description": "Es acreedor de otra persona u organización según el documento.", "subject": ["persona", "organizacion"], "object": "entity", "objectTypes": ["persona", "organizacion"] },
+    { "id": "monto_reclamado", "description": "Un importe que reclama o intima a pagar, tal como está escrito.", "subject": ["persona", "organizacion"], "object": "value" },
+    { "id": "monto_adeudado", "description": "Un importe que debe, que se le paga o que se compromete a pagar, tal como está escrito.", "subject": ["persona", "organizacion"], "object": "value" },
+    { "id": "parte_en", "description": "Es parte o interviene en un asunto (un expediente, un reclamo, un contrato marco).", "subject": ["persona", "organizacion"], "object": "entity", "objectTypes": ["asunto"] },
+    { "id": "inicio_de_vinculo", "description": "La fecha en que empieza un vínculo suyo (una relación laboral, un contrato, una representación), tal como está escrita.", "subject": ["persona", "organizacion"], "object": "value" },
+    { "id": "fin_de_vinculo", "description": "La fecha en que termina un vínculo suyo, tal como está escrita.", "subject": ["persona", "organizacion"], "object": "value" },
+    { "id": "profesion", "description": "Su profesión u ocupación.", "subject": ["persona"], "object": "value" },
+    { "id": "nacionalidad", "description": "Su nacionalidad.", "subject": ["persona"], "object": "value" },
+    { "id": "estado_civil", "description": "Su estado civil.", "subject": ["persona"], "object": "value" },
+    { "id": "contacto", "description": "Un correo electrónico o un teléfono suyo.", "subject": ["persona", "organizacion"], "object": "value" }
+  ]
+}
