@@ -1,6 +1,6 @@
 # Registro de decisiones
 
-**Proyecto:** Micelya Desktop (repositorio `Micelya/llm_wiki`) · **Al 15 de octubre de 2026**
+**Proyecto:** Micelya Desktop (repositorio `Micelya/llm_wiki`) · **Al 16 de octubre de 2026**
 
 ## Qué es y cómo usarlo
 
@@ -37,7 +37,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-009 | 5 al 8 oct | IA | Proveedor de IA: Codex en desarrollo; para clientes, suscripción propia o servicio de Amazon detrás de Micelya | vigente, con P-029 abierto |
 | D-010 | 5 al 8 oct | IA | Leer con un motor intercambiable las páginas escaneadas y las fotos | vigente |
 | D-011 | 5 al 8 oct | Upstream | La arquitectura pesa más que evitar choques con upstream | reemplazada por D-034 |
-| D-012 | 5 al 8 oct | Proceso de trabajo | Registros: diferencias con upstream, pendientes, traspasos de sesión | vigente |
+| D-012 | 5 al 8 oct | Proceso de trabajo | Registros: diferencias con upstream, pendientes, traspasos de sesión | reemplazada en parte por D-152 |
 | D-013 | 5 al 8 oct | Proceso de trabajo | Todo cambio entra por PR contra el fork, con `main` protegida | vigente |
 | D-014 | 5 al 8 oct | Proceso de trabajo | Explicaciones en español, simples, autocontenidas y verificadas | vigente |
 | D-015 | 5 al 8 oct | Seguridad | Endurecer los procesos automáticos de GitHub | vigente |
@@ -67,7 +67,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-039 | 9 al 11 oct | Base documental | Cuatro capas; el wiki le pregunta a la base solo tres cosas | vigente |
 | D-040 | 9 al 11 oct | Base documental | SQLite local como fuente de verdad; búsqueda por significado aparte | vigente |
 | D-041 | 9 al 11 oct | Base documental | Orígenes admitidos; documentos nativos de Google detectados, no procesados | vigente |
-| D-042 | 9 al 11 oct | IA | Determinista primero; IA una vez por grupo | vigente |
+| D-042 | 9 al 11 oct | IA | Determinista primero; IA una vez por grupo | reemplazada en parte por D-150 |
 | D-043 | 9 al 11 oct | Base documental | Sin ninguna ubicación, se borran los derivados | vigente |
 | D-044 | 9 al 11 oct | Seguridad | Reglas de los espacios privado y compartido | vigente |
 | D-045 | 11 oct | Seguridad | Autorización: el origen es el techo y el proyecto es el alcance | vigente |
@@ -177,6 +177,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-149 | 15 oct | Distribución | La comprobación de los PR y los instaladores, solo en Windows por ahora | vigente |
 | D-150 | 15 oct | IA | La IA se usa donde agrega valor o el proceso la necesita; lo determinista, solo si iguala o mejora el resultado | vigente |
 | D-151 | 15 oct | Upstream | No se sincroniza con upstream: el proyecto diverge y la compatibilidad deja de ser un criterio | vigente |
+| D-152 | 16 oct | Proceso de trabajo | `FORK_CHANGES.md` se congela: sin sincronización, ya no hace falta | vigente |
 
 ---
 
@@ -329,7 +330,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 - **Fecha:** 5 al 8 oct 2026
 - **Tema:** Proceso de trabajo
-- **Estado:** vigente
+- **Estado:** reemplazada en parte por D-152 (el registro de diferencias con upstream se congela; los pendientes y los traspasos siguen)
 - **El problema:** cada conversación con el asistente empieza sin memoria de las anteriores; sin registros escritos se pierde qué se hizo y qué falta.
 - **Qué se decidió:** cada cambio respecto del original se anota por propósito en `FORK_CHANGES.md`; cada tarea que no se resuelve en el momento, en `pendientes.json`; cada sesión cierra con un documento de traspaso en `docs/sessions/`; `CLAUDE.md` le indica al asistente que al empezar lea el último traspaso, el diseño y los pendientes, y liste los pendientes abiertos.
 - **Por qué:** continuidad entre sesiones sin releer conversaciones.
@@ -720,7 +721,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 - **Fecha:** 9 al 11 oct 2026
 - **Tema:** IA
-- **Estado:** vigente (precisado por D-099)
+- **Estado:** reemplazada en parte por D-150. Sigue valiendo: cuando un grupo de documentos comparte la respuesta, se le pregunta al modelo una vez por grupo. Deja de valer: "determinista primero" como orden; ahora el principio es usar la herramienta que da el mejor resultado
 - **El problema:** la IA cuesta, tarda e inventa; muchas cosas se pueden saber con cálculo exacto.
 - **Qué se decidió:** primero herramientas deterministas (cálculo que da siempre el mismo resultado). La IA entra donde el cálculo no alcanza, y una vez por grupo de documentos, no por documento. La clasificación por tipo de documento se hace con IA, una vez por grupo.
 - **Por qué:** costo, velocidad y certeza.
@@ -2129,7 +2130,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Qué se decidió:** la IA se usa donde agrega valor y donde el proceso la necesita. Se prefiere una herramienta determinista solo si logra la misma eficacia o una mejor, con la misma eficiencia o una mejor. Eso no limita de ninguna manera el uso de la IA cuando el proceso la requiere o cuando logra un resultado superior al de las herramientas deterministas. El costo o el cupo no son argumentos para elegir un camino peor; antes de una prueba que consuma cupo se avisa al dueño, y avisar no es evitar.
 - **Por qué:** la calidad del resultado es lo que importa; el sesgo contra la IA producía procesos que no cumplían su función.
 - **Alternativas descartadas:** mantener "reducir el uso de IA" como regla general.
-- **Dónde se aplica:** `CLAUDE.md` (sección "Uso de la inteligencia artificial"); toda propuesta y pasada de la base documental.
+- **Dónde se aplica:** `CLAUDE.md` (sección "Uso de la inteligencia artificial"); principio 5 de `base-documental.md`; R-18 de `reglas-de-procesamiento.md`; sección 3 de `parecidos-propuesta.md`; toda propuesta y pasada de la base documental.
 - **Quién decidió:** dueño del producto.
 - **Fuente:** conversación del 15 oct.
 
@@ -2142,6 +2143,19 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Qué se decidió:** no se sincroniza con upstream (`nashsu/llm_wiki`). El proyecto diverge de forma definitiva; lo que haga upstream ya no interesa. El código se cambia según nuestros requerimientos, en cualquier archivo, y cuánto nos alejemos de upstream no importa ni preocupa. No se proponen contribuciones a upstream.
 - **Por qué:** una regla simple, sin matices, que no se pueda leer como una restricción.
 - **Alternativas descartadas:** seguir analizando las novedades de upstream una por una (D-034).
-- **Dónde se aplica:** `CLAUDE.md` (sección "Upstream"); P-008. Falta el visto bueno del dueño para principio 8 y sección 9 del documento de diseño, y qué hacer con `FORK_CHANGES.md`.
+- **Dónde se aplica:** `CLAUDE.md` (sección "Upstream"); principio 8 y sección 9 de `base-documental.md`; P-008; `FORK_CHANGES.md` (D-152).
 - **Quién decidió:** dueño del producto.
 - **Fuente:** conversación del 15 oct.
+
+### D-152 · `FORK_CHANGES.md` se congela
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Proceso de trabajo
+- **Estado:** vigente (reemplaza en parte a D-012: los demás registros siguen)
+- **El problema:** `FORK_CHANGES.md` anotaba, por propósito, qué archivos del original tocaba el fork y si convenía proponer cada cambio al original. Servía para que traer novedades de upstream fuera barato. Desde D-151 no se sincroniza con upstream, así que mantenerlo es trabajo sin uso, y lo que cambió ya queda en este registro, en `pendientes.json` y en git.
+- **Qué se decidió:** el archivo queda congelado, con una nota al principio que lo explica, como historia de lo que el fork cambió hasta el 16 de octubre. No se actualiza más y `CLAUDE.md` deja de pedirlo.
+- **Por qué:** sin sincronización, el registro perdió su función.
+- **Alternativas descartadas:** borrarlo (se pierde la historia sin ganar nada); seguir manteniéndolo como lista de funciones propias (ya la dan este registro y el documento de diseño).
+- **Dónde se aplica:** `FORK_CHANGES.md`; `CLAUDE.md`.
+- **Quién decidió:** dueño del producto, sobre la recomendación del agente.
+- **Fuente:** conversación del 15 y 16 oct.

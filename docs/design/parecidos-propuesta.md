@@ -76,7 +76,7 @@ Acordadas el 13 de octubre de 2026:
 - **El wiki:** en principio todos los documentos siguen yendo al wiki. Cuando una persona une dos documentos como el mismo, queda **uno solo como fuente del wiki**. Lo elige la persona al unirlos; la app, a lo sumo, sugiere cuál. Las páginas del wiki que salieron de ellos podrían unirse también.
 - **Las relaciones tienen que poder ampliarse sin rehacer nada.** La lista va a cambiar a medida que se vean archivos de distintos estudios.
 - **Los nombres de las relaciones son configurables.** No van escritos en el programa: pueden cambiar entre verticales y entre países.
-- **Se reduce el uso de inteligencia artificial, no se elimina.** Se usa donde agrega valor y de la forma más eficiente (sección 7).
+- **La inteligencia artificial se usa donde agrega valor o donde el proceso la necesita** (sección 7). Lo determinista se prefiere solo si iguala o mejora el resultado. *(Precisado el 15 de octubre, D-150: la versión original decía "se reduce el uso, no se elimina".)*
 
 Acordadas el 14 de octubre de 2026:
 
