@@ -1041,11 +1041,11 @@
     },
     {
       "id": "P-105",
-      "titulo": "Proponer con el modelo el asunto de los documentos sueltos",
+      "titulo": "Asuntos de los documentos sueltos: lo que el modelo no propone",
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "Los documentos que no comparten con un asunto ningún dato específico (una cronología, correos que no citan números) quedan sin asunto aunque compartan sus partes: el asunto principal del archivo agrupa 26 de sus 31 documentos y cinco asuntos de la hoja de dos a cuatro documentos no se agrupan. Preguntarle al modelo, por documento suelto que comparte dos partes o más con un asunto, si pertenece a alguno (con abstención), y guardarlo como propuesta (estado 'proposed' de knowledge_matter_document), nunca como firme ni como base de otra propuesta (R-03); mostrarlo en la página como posible y en Atención para que una persona lo confirme.",
+      "detalle": "El modelo ya propone el asunto de un documento suelto que comparte dos partes o más con uno (D-213, como propuesta); sobre el archivo real fue conservador: 11 preguntas, ninguna propuesta, todas correctas según la hoja. Siguen sin asunto documentos que no comparten partes resueltas con ninguno (una cronología y un correo sin menciones leídas, un correo cuyo remitente quedó como su sitio web) y cinco asuntos de la hoja de dos a cuatro documentos que no comparten ningún dato específico entre sí. Ver si conviene proponer asuntos nuevos entre documentos sueltos, y revisar por qué esos documentos no tienen menciones (K1).",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/knowledge/matters.rs",
       "creado": "2026-10-16",
