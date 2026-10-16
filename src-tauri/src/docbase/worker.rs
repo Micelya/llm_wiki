@@ -90,7 +90,8 @@ const ASK_IDLE: Duration = Duration::from_secs(30);
 const ASK_BACKOFF: Duration = Duration::from_secs(10 * 60);
 
 /// Starts the thread that asks the model: first the type, stage and data
-/// of each document, then its reading for the knowledge layer. One
+/// of each document, then its reading for the knowledge layer, then the
+/// identities of what was read (D-192). One
 /// question at a time, but one after the other while there is work, so a
 /// whole archive is read in one go; only while the archive's wiki is
 /// active and an engine was chosen: like feeding the wiki, it costs the
@@ -155,6 +156,26 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn()) -> Duration {
                 return ASK_BACKOFF;
             }
             if report.asked > 0 || report.extracted > 0 {
+                return Duration::ZERO;
+            }
+        }
+        Err(error) => {
+            eprintln!("[docbase] {error}");
+            return ASK_IDLE;
+        }
+    }
+    // Nothing left to read: the identities of what was read, one question
+    // at a time too.
+    match base.knowledge_resolve(Some(asker.as_ref()), 1) {
+        Ok(report) => {
+            if report.changed > 0 {
+                on_change();
+            }
+            if report.failed > 0 {
+                eprintln!("[docbase] identities of the knowledge layer: {}", report.errors.join("; "));
+                return ASK_BACKOFF;
+            }
+            if report.asked > 0 || report.left > 0 {
                 Duration::ZERO
             } else {
                 ASK_IDLE

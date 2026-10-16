@@ -12,14 +12,14 @@ use crate::source_volume::asking::DocumentAsker;
 
 /// Answers each question with what `answer` says for it, and remembers
 /// every question it was asked.
-struct FakeModel {
+pub(crate) struct FakeModel {
     engine: String,
     answer: Box<dyn Fn(&str) -> String + Send + Sync>,
-    asked: Mutex<Vec<String>>,
+    pub(crate) asked: Mutex<Vec<String>>,
 }
 
 impl FakeModel {
-    fn new(engine: &str, answer: impl Fn(&str) -> String + Send + Sync + 'static) -> Self {
+    pub(crate) fn new(engine: &str, answer: impl Fn(&str) -> String + Send + Sync + 'static) -> Self {
         Self { engine: engine.into(), answer: Box::new(answer), asked: Mutex::new(Vec::new()) }
     }
 
@@ -40,8 +40,8 @@ impl DocumentAsker for FakeModel {
     }
 }
 
-fn is_knowledge(prompt: &str) -> bool {
-    prompt.starts_with("Sos asistente de un estudio jurídico")
+pub(crate) fn is_knowledge(prompt: &str) -> bool {
+    prompt.starts_with("Sos asistente de un estudio jurídico. Leé el documento")
 }
 
 const LEASE: &str = "CONTRATO DE LOCACIÓN\n\nEntre Ejemplo Uno S.A., CUIT 30-11111111-1, representada por su presidente \
@@ -52,14 +52,14 @@ El canon mensual es de $ 100.000 a partir del 1 de marzo.";
 const RECIPE: &str = "Bizcochuelo de vainilla. Batir cuatro huevos con una taza de azúcar hasta que dupliquen su volumen, \
 agregar una taza de harina tamizada de a poco y hornear a temperatura moderada durante cuarenta minutos.";
 
-fn mention(reference: &str, kind: &str, written: &str, role: &str, quote: &str, ids: serde_json::Value) -> serde_json::Value {
+pub(crate) fn mention(reference: &str, kind: &str, written: &str, role: &str, quote: &str, ids: serde_json::Value) -> serde_json::Value {
     serde_json::json!({
         "ref": reference, "misma_que": null, "tipo": kind, "escrito": written, "rol": role,
         "cita": quote, "pagina": null, "identificadores": ids
     })
 }
 
-fn claim(subject: &str, predicate: &str, object_ref: Option<&str>, value: Option<&str>, quote: &str, time: Option<&str>) -> serde_json::Value {
+pub(crate) fn claim(subject: &str, predicate: &str, object_ref: Option<&str>, value: Option<&str>, quote: &str, time: Option<&str>) -> serde_json::Value {
     serde_json::json!({
         "sujeto": subject, "predicado": predicate, "objeto_ref": object_ref, "objeto_valor": value,
         "cita": quote, "pagina": null, "tiempo": time
@@ -100,11 +100,11 @@ fn lease_answer() -> String {
     .to_string()
 }
 
-fn empty_answer() -> String {
+pub(crate) fn empty_answer() -> String {
     serde_json::json!({ "menciones": [], "afirmaciones": [] }).to_string()
 }
 
-fn type_answer(tipo: &str) -> String {
+pub(crate) fn type_answer(tipo: &str) -> String {
     serde_json::json!({
         "tipo": tipo, "etapa": null, "nuevo": false, "nombre": null, "descripcion": null,
         "confianza": 0.9, "razon": "por el texto", "otros": []
@@ -126,7 +126,7 @@ fn model(engine: &str) -> FakeModel {
     })
 }
 
-fn base_with(files: &[(&str, &str)]) -> (TempDir, DocBase) {
+pub(crate) fn base_with(files: &[(&str, &str)]) -> (TempDir, DocBase) {
     let dir = TempDir::new();
     for (name, text) in files {
         dir.write(&format!("o/{name}"), text.as_bytes());
@@ -137,7 +137,7 @@ fn base_with(files: &[(&str, &str)]) -> (TempDir, DocBase) {
     (dir, base)
 }
 
-fn refresh(base: &DocBase, origin: &str) {
+pub(crate) fn refresh(base: &DocBase, origin: &str) {
     base.scan_origin(origin).unwrap();
     while base.hash_pending(50).unwrap() > 0 {}
     while base.extract_pending(50).unwrap() > 0 {}
@@ -145,7 +145,7 @@ fn refresh(base: &DocBase, origin: &str) {
     while base.similar_step(10).unwrap() > 0 {}
 }
 
-fn location(base: &DocBase, name: &str) -> i64 {
+pub(crate) fn location(base: &DocBase, name: &str) -> i64 {
     base.documents(&Visible::All, &DocumentFilter::default())
         .unwrap()
         .rows

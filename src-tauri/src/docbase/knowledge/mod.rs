@@ -30,6 +30,8 @@ pub mod quote;
 pub mod resolve;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_identity;
 pub mod vocabulary;
 
 use std::collections::BTreeMap;
