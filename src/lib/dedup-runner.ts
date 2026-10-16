@@ -135,9 +135,21 @@ function toWikiRelative(projectPath: string, absPath: string): string {
 }
 
 /**
+ * Whether a page is a projection of the knowledge layer (the page of an
+ * entity of the archive's wiki). Those pages are not merged here: they
+ * are written again from the record, and two of them are joined by a
+ * decision on the record (reversible), never by rewriting files (D-202).
+ */
+export function isProjectedPage(content: string): boolean {
+  const header = content.replace(/\r\n/g, "\n").match(/^---\n([\s\S]*?)\n---/)
+  return !!header && /^generated_by:\s*micelya-conocimiento\s*$/m.test(header[1])
+}
+
+/**
  * Walk wiki/entities/ and wiki/concepts/, build summaries.
  * Pages that fail to parse (no frontmatter, etc.) are skipped
- * silently — they can't participate in dedup anyway.
+ * silently — they can't participate in dedup anyway. Pages projected by
+ * the knowledge layer are left out.
  */
 export async function loadAllEntitySummaries(
   projectPath: string,
@@ -149,6 +161,7 @@ export async function loadAllEntitySummaries(
     for (const node of walkMd(tree, prefix)) {
       try {
         const content = await readFile(node.path)
+        if (isProjectedPage(content)) continue
         const rel = toWikiRelative(pp, node.path)
         const summary = extractEntitySummary(rel, content)
         if (summary) out.push(summary)
@@ -418,6 +431,11 @@ export async function executeMerge(
       )
     }
     const page = allPages.find((p) => p.path === relPath)
+    if (page && isProjectedPage(page.content)) {
+      throw new Error(
+        `"${slug}" is written from the record of people, organizations and matters; join them there, not by merging pages.`,
+      )
+    }
     if (!page) {
       throw new Error(`Internal: page lookup miss for ${relPath}`)
     }
