@@ -255,6 +255,7 @@ function FamilyPairs({
               item={item}
               relations={relations}
               name={principal.name}
+              selfLocationId={principal.locationId}
               words={words}
               onOpen={open}
               onDecide={decide}
@@ -288,6 +289,7 @@ function OpenPairCard({ pair, relations }: { pair: { doc: SimilarGroup["principa
           item={pair.similar}
           relations={relations}
           name={pair.doc.name}
+          selfLocationId={pair.doc.locationId}
           words={words}
           onOpen={open}
           onDecide={(item, decision) => decideAndFollow(item, decision, setProblem)}
