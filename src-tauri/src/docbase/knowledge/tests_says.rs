@@ -32,6 +32,7 @@ fn model() -> FakeModel {
                 claim("o", "acreedor_de", Some("t"), None, "Persona Tres vive en otra ciudad", None),
                 claim("o", "monto_reclamado", None, Some("1.234,56"), "TOTAL Percepciones 1.234,56", None),
                 claim("p", "contacto", None, Some("22.222.222"), "DNI 22.222.222", None),
+                claim("p", "contacto", None, Some("DNI 22.222.222"), "DNI 22.222.222", None),
                 claim("o", "inicio_de_vinculo", None, Some("01.02.2020"), "Fecha: 01.02.2020", None),
             ]
         })
@@ -68,7 +69,7 @@ fn a_claim_counts_only_when_its_quote_says_it() {
     );
     // What was dropped stays in the reading, counted as not fit.
     let evidence: i64 = conn.query_row("SELECT count(*) FROM knowledge_evidence", [], |row| row.get(0)).unwrap();
-    assert_eq!(evidence, 10);
+    assert_eq!(evidence, 11);
     assert!(report.unfit >= 5, "{report:?}");
 }
 

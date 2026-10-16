@@ -62,7 +62,7 @@ pub const IDENTITY_PROMPT: &str = "identidad-3";
 /// the program's or the vocabulary's change, the record is computed again.
 const RESOLUTION_SETTING: &str = "knowledge-resolution";
 /// Raised when a change in the program changes what a resolution gives.
-const RESOLUTION_VERSION: &str = "resolucion-4";
+const RESOLUTION_VERSION: &str = "resolucion-5";
 
 fn resolution_basis() -> String {
     format!("{RESOLUTION_VERSION}|{IDENTITY_PROMPT}|{}", vocabulary().digest)

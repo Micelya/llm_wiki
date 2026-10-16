@@ -203,7 +203,12 @@ fn says(vocabulary: &Vocabulary, piece: &Piece, identifiers: &HashSet<String>) -
     }
     if definition.shape == "contact" {
         let value = piece.normalized.clone().unwrap_or_else(|| quote::words(piece.value.as_deref().unwrap_or_default()).join(" "));
-        if identifiers.contains(&value) {
+        let words: Vec<String> = value.split_whitespace().map(str::to_string).collect();
+        let is_identifier = identifiers.iter().any(|id| {
+            let id: Vec<String> = id.split_whitespace().map(str::to_string).collect();
+            id.iter().map(|w| w.chars().filter(char::is_ascii_digit).count()).sum::<usize>() >= 6 && quote::contains(&words, &id)
+        });
+        if is_identifier {
             return false;
         }
     }
