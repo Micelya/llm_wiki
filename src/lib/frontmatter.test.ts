@@ -212,11 +212,11 @@ describe("parseFrontmatter", () => {
 
   it("repairs an unquoted title containing `: ` (LLM-emitted invalid scalar) via retry", () => {
     const content =
-      "---\ntype: source\ntitle: Pivote Estratégico: Extrimian y Micelya — versión 0.9\nurl: \"\"\nrelated: [micelya, extrimian]\n---\nbody"
+      "---\ntype: source\ntitle: Pivote Estratégico: Ventisca y Micelya — versión 0.9\nurl: \"\"\nrelated: [micelya, ventisca]\n---\nbody"
     const r = parseFrontmatter(content)
     expect(r.frontmatter?.type).toBe("source")
-    expect(r.frontmatter?.title).toBe("Pivote Estratégico: Extrimian y Micelya — versión 0.9")
-    expect(r.frontmatter?.related).toEqual(["micelya", "extrimian"])
+    expect(r.frontmatter?.title).toBe("Pivote Estratégico: Ventisca y Micelya — versión 0.9")
+    expect(r.frontmatter?.related).toEqual(["micelya", "ventisca"])
     expect(r.rawBlock + r.body).toBe(content)
   })
 

@@ -486,6 +486,13 @@ const GENERIC: &[&str] = &[
     "dos", "tres", "todas", "mes", "dia", "sociedad", "anonima", "cloud", "safe",
 ];
 
+/// Words the program uses for its own reasons that a case happens to share:
+/// the vendors and models it talks to (a search provider, the model of the
+/// reading), ordinary English words of the tests brought from the original
+/// project, and a letter of the Greek alphabet. They say nothing about a
+/// case.
+const NOT_OF_CASES: &[&str] = &["google", "luna", "tea", "foundation", "grant", "iota"];
+
 /// Words in a text, normalized as everywhere else.
 fn tokens(text: &str) -> Vec<String> {
     super::text::normalized(text).split(' ').filter(|w| !w.is_empty()).map(str::to_string).collect()
@@ -499,7 +506,7 @@ fn tokens(text: &str) -> Vec<String> {
 /// that issue forms, which may be named.
 fn generic_words(catalog: &Catalog) -> BTreeSet<String> {
     let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let mut generic: BTreeSet<String> = GENERIC.iter().map(|w| w.to_string()).collect();
+    let mut generic: BTreeSet<String> = GENERIC.iter().chain(NOT_OF_CASES).map(|w| w.to_string()).collect();
     for doc in ["reglas-de-procesamiento.md", "catalogo-de-tipos.md", "parecidos-propuesta.md", "conocimiento-propuesta.md"] {
         let text = std::fs::read_to_string(manifest.join("../docs/design").join(doc)).unwrap_or_default();
         generic.extend(tokens(&text));
@@ -591,7 +598,7 @@ fn files_under(root: &Path, out: &mut Vec<PathBuf>) {
         let wanted = path
             .extension()
             .and_then(|e| e.to_str())
-            .is_some_and(|e| matches!(e, "rs" | "ts" | "tsx" | "json"));
+            .is_some_and(|e| matches!(e, "rs" | "ts" | "tsx" | "json" | "md"));
         if entry.file_type().is_file() && wanted {
             out.push(path.to_path_buf());
         }
@@ -619,12 +626,14 @@ fn no_case_of_the_answer_sheet_is_in_the_program() {
     );
 
     let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+    // The whole program, its tests and its catalogs, and the design texts.
+    // Not the records of what happened (`docs/sessions/`, the register of
+    // decisions, the pending list): they are history and are not rewritten.
     let mut files = Vec::new();
-    files_under(&manifest.join("src/docbase"), &mut files);
-    files_under(&manifest.join("../src/components/docbase"), &mut files);
-    files_under(&manifest.join("../src/vocabulary"), &mut files);
-    files.push(manifest.join("resources/catalog/document-types.json"));
-    files.push(manifest.join("resources/catalog/knowledge.json"));
+    files_under(&manifest.join("src"), &mut files);
+    files_under(&manifest.join("resources"), &mut files);
+    files_under(&manifest.join("../src"), &mut files);
+    files_under(&manifest.join("../docs/design"), &mut files);
 
     let mut found = Vec::new();
     for file in &files {

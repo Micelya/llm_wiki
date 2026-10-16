@@ -125,7 +125,7 @@ export interface DocumentRow {
   docTypeName: string | null
 }
 
-/** A label: an answer ("BGH") to its group's question ("Cliente"), or standing alone. */
+/** A label: an answer ("Zentora") to its group's question ("Cliente"), or standing alone. */
 export interface Label {
   id: number
   groupId: number | null
@@ -273,7 +273,7 @@ export interface WikiIndex {
 
 /** A wiki page, as the index knows it. */
 export interface PageRef {
-  /** Path inside the project: `wiki/entities/bgh.md`. */
+  /** Path inside the project: `wiki/entities/zentora.md`. */
   path: string
   /** Where the page is on disk. */
   file: string
