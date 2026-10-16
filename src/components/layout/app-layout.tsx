@@ -6,7 +6,7 @@ import { UpdateBanner } from "./update-banner"
 import { SidebarPanel } from "./sidebar-panel"
 import { ContentArea } from "./content-area"
 import { ResearchPanel } from "./research-panel"
-import { ActivityPanel } from "./activity-panel"
+import { ActivityLink } from "./activity-link"
 import { useResearchStore } from "@/stores/research-store"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { AttentionSources } from "@/components/attention/sources-host"
@@ -121,7 +121,7 @@ export function AppLayout({ onSwitchProject }: AppLayoutProps) {
                 <div className="flex-1 overflow-hidden">
                   <SidebarPanel onCollapse={toggleLeftPanel} />
                 </div>
-                <ActivityPanel />
+                <ActivityLink />
               </div>
               <div
                 className="w-1.5 shrink-0 cursor-col-resize bg-border/40 transition-colors hover:bg-primary/30 active:bg-primary/40"

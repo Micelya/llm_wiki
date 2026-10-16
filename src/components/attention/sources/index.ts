@@ -1,5 +1,7 @@
 import type { AttentionNotice, AttentionSourceInfo } from "@/lib/attention/types"
 import { DOCBASE_SOURCE, useDocbaseNotices } from "./docbase"
+import { FILE_SYNC_SOURCE, useFileSyncNotices } from "./file-sync"
+import { QUEUE_SOURCE, useQueueNotices } from "./wiki-queue"
 import {
   ARCHIVE_WIKI_SOURCE,
   LINT_SOURCE,
@@ -30,6 +32,8 @@ export interface AttentionSource extends AttentionSourceInfo {
  */
 export const ATTENTION_SOURCES: AttentionSource[] = [
   { id: DOCBASE_SOURCE, label: "la base documental", useNotices: useDocbaseNotices },
+  { id: QUEUE_SOURCE, label: "la cola del wiki", useNotices: useQueueNotices },
+  { id: FILE_SYNC_SOURCE, label: "el registro de cambios de los archivos del wiki", useNotices: useFileSyncNotices },
   { id: REVIEW_SOURCE, label: "la revisión del wiki", useNotices: useReviewNotices },
   { id: LINT_SOURCE, label: "la revisión de enlaces del wiki", useNotices: useLintNotices },
   { id: ARCHIVE_WIKI_SOURCE, label: "el wiki del archivo", useNotices: useArchiveWikiNotices },
