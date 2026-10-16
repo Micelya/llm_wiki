@@ -657,7 +657,7 @@ const IDENTIFIER_PREDICATES: &[&str] = &["dni", "cuit", "cuil", "registro", "mat
 
 /// The predicates of the vocabulary that say what a predicate of the
 /// sheet says, when there are such.
-fn vocabulary_predicates(sheet: &str) -> Option<&'static [&'static str]> {
+pub(crate) fn vocabulary_predicates(sheet: &str) -> Option<&'static [&'static str]> {
     Some(match sheet {
         "cargo" => &["cargo"],
         "domicilio" | "domicilio_constituido" | "domicilio_constituido_por" => &["domicilio"],

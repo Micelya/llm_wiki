@@ -170,6 +170,7 @@ fn pages_against_the_entity_sheet() {
     println!("\n== against the sheet ==");
     let (mut with_page, mut docs_total, mut docs_listed, mut entities) = (0usize, 0usize, 0usize, 0usize);
     let mut rows = Vec::new();
+    let mut main_of: BTreeMap<String, String> = BTreeMap::new();
     for entity in sheet.entities.iter().filter(|e| e.kind != "asunto") {
         let mut names: Vec<String> = vec![normalized(&entity.name)];
         names.extend(entity.aliases.iter().map(|a| normalized(a)));
@@ -192,6 +193,9 @@ fn pages_against_the_entity_sheet() {
             }
         }
         let main = ours.iter().max_by_key(|(_, n)| **n).map(|(id, _)| id.clone());
+        if let Some(main) = &main {
+            main_of.insert(entity.id.clone(), main.clone());
+        }
         let page = main.as_ref().and_then(|id| pages.get(id));
         let listed = main.as_ref().and_then(|id| documents_of.get(id)).map(|d| d.intersection(&docs).count()).unwrap_or(0);
         docs_total += docs.len();
@@ -217,6 +221,7 @@ fn pages_against_the_entity_sheet() {
     }
 
     matters_against_the_sheet(&base, &sheet, &content_of, &pages);
+    relations_against_the_sheet(&base, &sheet, &main_of);
 
     if let Ok(sample) = std::env::var("MICELYA_PAGES_SAMPLE") {
         let sample = std::path::PathBuf::from(sample);
@@ -321,6 +326,68 @@ fn matters_against_the_sheet(
             }
         );
     }
+}
+
+/// The relations between entities against the sheet's (stage 5): for each
+/// claim of the sheet between two of its entities with a predicate of the
+/// vocabulary, whether the record has a claim of that predicate between
+/// the entities each one went to (either way: the sheet says "represented
+/// by" where the vocabulary says "represents").
+fn relations_against_the_sheet(base: &crate::docbase::DocBase, sheet: &super::check::Sheet, main_of: &BTreeMap<String, String>) {
+    let ours: BTreeSet<(String, String, String)> = {
+        let conn = base.conn();
+        let mut statement = conn
+            .prepare("SELECT subject, predicate, object_entity FROM knowledge_claim WHERE object_entity IS NOT NULL AND state != 'retired'")
+            .unwrap();
+        let rows = statement.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).unwrap();
+        rows.collect::<Result<_, _>>().unwrap()
+    };
+    let entity_named = |object: &serde_json::Value| -> Option<&super::check::SheetEntity> {
+        let text = object.as_str()?;
+        // The sheet names the object by its id, before what it adds ("E04 (…)").
+        let first = text.split_whitespace().next().unwrap_or_default().split('/').next().unwrap_or_default();
+        if let Some(found) = sheet.entities.iter().find(|e| e.id == first) {
+            return Some(found);
+        }
+        let wanted = normalized(text);
+        sheet.entities.iter().find(|e| {
+            e.kind != "asunto" && (names_match(&normalized(&e.name), &wanted) || e.aliases.iter().any(|a| names_match(&normalized(a), &wanted)))
+        })
+    };
+    let (mut total, mut found, mut unresolved) = (0usize, 0usize, 0usize);
+    let mut by_predicate: BTreeMap<&str, (usize, usize)> = BTreeMap::new();
+    for entity in &sheet.entities {
+        for claim in &entity.claims {
+            let Some(predicates) = super::check::vocabulary_predicates(&claim.predicate) else { continue };
+            let Some(object) = entity_named(&claim.object) else { continue };
+            if object.kind == "asunto" || !predicates.iter().any(|p| super::vocabulary::vocabulary().predicate(p).is_some_and(|d| d.takes_entity())) {
+                continue;
+            }
+            total += 1;
+            let entry = by_predicate.entry(claim.predicate.as_str()).or_default();
+            entry.0 += 1;
+            let (Some(s), Some(o)) = (main_of.get(&entity.id), main_of.get(&object.id)) else {
+                unresolved += 1;
+                continue;
+            };
+            let hit = predicates.iter().any(|p| {
+                ours.contains(&(s.clone(), p.to_string(), o.clone())) || ours.contains(&(o.clone(), p.to_string(), s.clone()))
+            });
+            if hit {
+                found += 1;
+                entry.1 += 1;
+            }
+        }
+    }
+    println!("\n== relations ==");
+    println!(
+        "   relations of the sheet between two of its entities: {total}; in the record between the same entities: {found} ({}); with an entity not found: {unresolved}",
+        ratio(found, total)
+    );
+    for (predicate, (want, hit)) in by_predicate {
+        println!("      {predicate}: {hit} of {want}");
+    }
+    println!("   relations in the record between two entities: {}", ours.len());
 }
 
 /// The pages on disk, without the date they were written.
