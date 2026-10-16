@@ -11,6 +11,8 @@ use serde::Serialize;
 use tauri::{Emitter, Manager, State};
 
 use super::bridge::{self, GeneralProject, WikiSource};
+use super::knowledge::extract::{KnowledgePlan, KnowledgeReport};
+use super::knowledge::{DocumentKnowledge, KnowledgeStatus};
 use super::labels::{Label, LabelGroup, LabelRule};
 use super::origins::Origin;
 use super::similar::{self, Decision, OpenPair, PairDecision, SimilarDocument, SimilarGroup, SimilarPending};
@@ -49,6 +51,8 @@ pub fn start(app: &tauri::AppHandle) {
     // shape in the data folder (similar/types.rs).
     if let Ok(dir) = app.path().app_data_dir() {
         similar::types::install_from(&dir.join("docbase/document-types.json"));
+        // And so can the vocabulary of the knowledge layer.
+        super::knowledge::vocabulary::install_from(&dir.join("docbase/knowledge.json"));
     }
     let base = app
         .path()
@@ -583,6 +587,48 @@ pub struct DocTypeView {
 
 /// Questions a run started by the user asks at most (R-16).
 const RUN_LIMIT: usize = 60;
+
+/// How far the knowledge layer read the archive: documents read, still
+/// to read and failed, mentions, identifiers and claims kept, and what
+/// the check of the quotes discarded.
+#[tauri::command(async)]
+pub fn docbase_knowledge_status(state: State<'_, DocBaseState>) -> Result<KnowledgeStatus, String> {
+    state.base()?.knowledge_status(&Visible::All)
+}
+
+/// What the knowledge layer read in the document at this location: its
+/// mentions with their role, identifiers and quotes, its claims, and what
+/// was discarded.
+#[tauri::command(async)]
+pub fn docbase_knowledge_document(state: State<'_, DocBaseState>, location_id: i64) -> Result<DocumentKnowledge, String> {
+    state.base()?.knowledge_of(&Visible::All, location_id)
+}
+
+/// What a reading for the knowledge layer would ask now: documents still
+/// to read, the questions that takes, and those waiting for their type.
+#[tauri::command(async)]
+pub fn docbase_knowledge_plan(state: State<'_, DocBaseState>) -> Result<KnowledgePlan, String> {
+    state.base()?.knowledge_plan()
+}
+
+/// Reads the pending documents for the knowledge layer, asking at most
+/// `max_questions` questions, with this engine. Only on an explicit action
+/// of the user: it costs the provider's quota. The engine is also kept as
+/// the one that answers while the archive's wiki is active.
+#[tauri::command(async)]
+pub fn docbase_knowledge_run(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    engine: AskConfig,
+    max_questions: Option<usize>,
+) -> Result<KnowledgeReport, String> {
+    let base = state.base()?.clone();
+    let asker = asker_for(&engine)?;
+    base.set_ask_engine(Some(&engine))?;
+    let report = base.knowledge_run(asker.as_ref(), max_questions.unwrap_or(RUN_LIMIT))?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(report)
+}
 
 /// Up to `count` paths of nested folders under `root`, `depth` levels
 /// deep at most, following the first folders in name order.
