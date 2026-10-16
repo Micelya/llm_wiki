@@ -37,6 +37,26 @@ pub enum IdentityDecision {
     /// `a` is wrong: a mention that is not an entity, a piece of evidence
     /// or a claim that the document does not say.
     Wrong { a: String },
+    /// Two documents (`content:<id>` or `location:<id>`) are of the same
+    /// matter.
+    SameMatter { a: String, b: String },
+    /// Two documents are not of the same matter: never grouped together.
+    OtherMatter { a: String, b: String },
+}
+
+/// The key of a document a person decides matters by.
+fn document_key(conn: &Connection, reference: &str) -> Result<String, String> {
+    if let Some(id) = id_of(reference, "content:") {
+        return Ok(super::matters::content_key(id));
+    }
+    if let Some(id) = id_of(reference, "location:") {
+        let content: Option<i64> = conn
+            .query_row("SELECT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.id = ?1", [id], |row| row.get(0))
+            .optional()
+            .map_err(sql_err)?;
+        return content.map(super::matters::content_key).ok_or_else(|| "Ese documento ya no existe".to_string());
+    }
+    Err(format!("'{reference}' no es un documento"))
 }
 
 /// A decision as the screens show it.
@@ -188,6 +208,14 @@ impl DocBase {
                     (kind, first, Some(second))
                 }
                 IdentityDecision::Wrong { a } => ("wrong", wrong_key(&conn, a)?, None),
+                IdentityDecision::SameMatter { a, b } | IdentityDecision::OtherMatter { a, b } => {
+                    let (first, second) = (document_key(&conn, a)?, document_key(&conn, b)?);
+                    if first == second {
+                        return Err("Las dos partes son el mismo documento".to_string());
+                    }
+                    let kind = if matches!(decision, IdentityDecision::SameMatter { .. }) { "join" } else { "separate" };
+                    (kind, first, Some(second))
+                }
             };
             let shown = match shown_evidence {
                 Some(text) => text.to_string(),

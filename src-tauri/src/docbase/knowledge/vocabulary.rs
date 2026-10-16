@@ -39,6 +39,9 @@ pub struct Vocabulary {
     /// The words the shapes of values are checked with.
     #[serde(default)]
     pub values: ValueWords,
+    /// How documents are grouped into matters (`matters.rs`).
+    #[serde(default)]
+    pub matters: MatterRules,
     /// Fingerprint of the vocabulary text.
     #[serde(skip)]
     pub digest: String,
@@ -72,6 +75,59 @@ pub struct IdentityWords {
     /// compare, to show as an alias or to name an entity by.
     #[serde(default)]
     pub generic: Vec<String>,
+}
+
+/// How documents are grouped into matters (D-213).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MatterRules {
+    #[serde(default)]
+    pub about: String,
+    /// The type of entity a matter is.
+    pub kind: String,
+    /// Relations between two documents, confirmed by a person, that keep
+    /// them in one matter (ids of the catalog of document types).
+    #[serde(default)]
+    pub relations: Vec<String>,
+    /// Kinds of identifier of a matter whose same number in two documents
+    /// puts them in one matter, and how long and with how many digits.
+    #[serde(default)]
+    pub identifier_kinds: Vec<String>,
+    pub min_length: usize,
+    pub min_digits: usize,
+    /// Digits of an amount, at least, for the same amount to count.
+    pub amount_digits: usize,
+    /// A number or amount in more than this share of the documents is too
+    /// common to say anything (R-16).
+    pub max_share: f64,
+    /// Roles of a matter's mention that say the document is about it.
+    #[serde(default)]
+    pub subject_roles: Vec<String>,
+    /// Roles of the parties of a matter, and how many name it.
+    #[serde(default)]
+    pub party_roles: Vec<String>,
+    pub parties_in_name: usize,
+    /// Documents a matter needs for a page of its own.
+    pub min_documents: usize,
+}
+
+impl Default for MatterRules {
+    fn default() -> Self {
+        Self {
+            about: String::new(),
+            kind: "asunto".into(),
+            relations: Vec::new(),
+            identifier_kinds: Vec::new(),
+            min_length: 6,
+            min_digits: 3,
+            amount_digits: 4,
+            max_share: 0.5,
+            subject_roles: Vec::new(),
+            party_roles: Vec::new(),
+            parties_in_name: 2,
+            min_documents: 2,
+        }
+    }
 }
 
 /// The words the shapes of values are checked with (normalized).
@@ -135,6 +191,10 @@ pub struct PageRule {
     /// matter: a document that is about it, not one that only cites it).
     #[serde(default)]
     pub roles_required: Vec<String>,
+    /// Entities of this type have no page of their own: their page is the
+    /// one of the matter (group of documents) they are in (`matters.rs`).
+    #[serde(default)]
+    pub by_matter: bool,
 }
 
 impl Pages {
@@ -190,6 +250,10 @@ pub struct Predicate {
     pub subject: Vec<String>,
     /// "entity" (another mention of the document) or "value".
     pub object: String,
+    /// How the pages name the claim seen from its object ("representada
+    /// por" for "representa a"); none: it is not shown from the object.
+    #[serde(default)]
+    pub inverse_label: String,
     #[serde(default)]
     pub object_types: Vec<String>,
     /// One value at a time (a domicile, a marital status): two different

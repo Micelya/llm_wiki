@@ -61,6 +61,18 @@ pub(crate) struct Sheet {
     /// Mentions that cannot be told to be anyone.
     #[serde(default)]
     pub unresolvable: Vec<SheetFalseMention>,
+    /// The matters: groups of documents.
+    #[serde(default)]
+    pub matters: Vec<SheetMatter>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct SheetMatter {
+    pub id: String,
+    #[serde(default)]
+    pub documents: Vec<String>,
+    #[serde(default)]
+    pub entities: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]

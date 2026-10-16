@@ -100,6 +100,9 @@ pub struct ResolveReport {
     pub conflicts: usize,
     /// Pieces of evidence whose value has not the shape of its predicate.
     pub unfit: usize,
+    /// Matters (groups of documents) and the documents in them.
+    pub matters: usize,
+    pub matter_documents: usize,
     /// Keys too common to look for candidates by.
     pub common_keys: usize,
     pub errors: Vec<String>,
@@ -1609,6 +1612,10 @@ pub(crate) fn write(base: &DocBase, outcome: &Outcome, report: &mut ResolveRepor
     report.conflicts = consolidated.conflicts;
     report.unfit = consolidated.unfit;
     changed.extend(consolidated.touched);
+    // Matters: the documents grouped by what is specific to one matter.
+    let grouped = super::matters::group(&tx, vocabulary, &decided.joins, &decided.separations)?;
+    report.matters = grouped.matters;
+    report.matter_documents = grouped.documents;
     for id in &changed {
         super::mark_dirty(&tx, "project", id)?;
     }

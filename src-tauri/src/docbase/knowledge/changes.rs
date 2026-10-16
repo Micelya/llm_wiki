@@ -62,20 +62,34 @@ pub(crate) fn left_out(conn: &Connection) -> Result<BTreeSet<i64>, String> {
     rows.collect::<Result<_, _>>().map_err(sql_err)
 }
 
-/// Whether the documents left out changed since the last time this was
-/// asked; marks the resolution to be done again when they did.
+/// Whether the documents left out, or the documents a person joined,
+/// changed since the last time this was asked; marks the resolution and
+/// the pages to be done again when they did.
 pub(crate) fn notice_left_out(conn: &Connection) -> Result<bool, String> {
     let now: Vec<String> = left_out(conn)?.into_iter().map(|c| c.to_string()).collect();
-    let now = now.join(",");
+    // Documents a person joined (they go into one matter, and the page
+    // names the one chosen) count as a change too.
+    let joined: Vec<String> = {
+        let mut statement = conn
+            .prepare(
+                "SELECT a || '-' || b || '-' || coalesce(chosen_relation, relation) || '-' || coalesce(wiki_source, '')
+                 FROM similar_pair WHERE state = 'joined' ORDER BY a, b",
+            )
+            .map_err(sql_err)?;
+        let rows = statement.query_map([], |row| row.get::<_, String>(0)).map_err(sql_err)?;
+        rows.collect::<Result<_, _>>().map_err(sql_err)?
+    };
+    let now = format!("{}|{}", now.join(","), joined.join(","));
     let before: Option<String> = conn
         .query_row("SELECT value FROM docbase_setting WHERE key = ?1", [LEFT_OUT_SETTING], |row| row.get(0))
         .ok();
-    if before.as_deref().unwrap_or("") == now {
+    if before.as_deref().unwrap_or("|") == now {
         return Ok(false);
     }
     conn.execute("INSERT OR REPLACE INTO docbase_setting (key, value) VALUES (?1, ?2)", params![LEFT_OUT_SETTING, now])
         .map_err(sql_err)?;
     super::mark_dirty(conn, "resolve", "left-out")?;
+    super::mark_dirty(conn, "project", "left-out")?;
     Ok(true)
 }
 
@@ -133,6 +147,15 @@ pub(crate) fn successors(conn: &Connection) -> Result<HashMap<i64, i64>, String>
 /// A key of a decision on the document that took the place of the one it
 /// names, if that one went away.
 pub(crate) fn translate(key: &str, successors: &HashMap<i64, i64>) -> String {
+    if let Some(Ok(mut content)) = key.strip_prefix("content:").map(str::parse::<i64>) {
+        for _ in 0..8 {
+            match successors.get(&content) {
+                Some(&next) => content = next,
+                None => break,
+            }
+        }
+        return format!("content:{content}");
+    }
     for prefix in ["cluster:", "evidence:"] {
         let Some(rest) = key.strip_prefix(prefix) else { continue };
         let Some((content, tail)) = rest.split_once(':') else { continue };

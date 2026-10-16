@@ -48,7 +48,29 @@ CREATE TABLE type_decision (
 /// - What the model said of the groups of a content that goes away is
 ///   forgotten (the answers stay in `model_answer`: the same question
 ///   costs nothing).
+/// - `knowledge_matter` / `knowledge_matter_document`: the matters of the
+///   archive as groups of documents (`knowledge/matters.rs`), with a
+///   stable id, a name and, for each document, the reasons it is in the
+///   matter. Computed again on every resolution; a person's decisions
+///   about them are in `knowledge_decision` (`content:<id>` keys).
 const V11: &str = "
+CREATE TABLE knowledge_matter (
+    id          TEXT PRIMARY KEY,
+    name        TEXT NOT NULL,
+    state       TEXT NOT NULL DEFAULT 'active' CHECK (state IN ('active', 'retired')),
+    created_at  INTEGER NOT NULL,
+    updated_at  INTEGER NOT NULL
+);
+
+CREATE TABLE knowledge_matter_document (
+    matter_id   TEXT NOT NULL REFERENCES knowledge_matter (id) ON DELETE CASCADE,
+    content_id  INTEGER NOT NULL REFERENCES content (id) ON DELETE CASCADE,
+    state       TEXT NOT NULL DEFAULT 'firm' CHECK (state IN ('firm', 'proposed')),
+    reasons     TEXT NOT NULL DEFAULT '[]',
+    PRIMARY KEY (matter_id, content_id)
+);
+CREATE INDEX knowledge_matter_document_by_content ON knowledge_matter_document (content_id);
+
 CREATE TABLE knowledge_gone (
     content_id  INTEGER PRIMARY KEY,
     text_hash   TEXT,

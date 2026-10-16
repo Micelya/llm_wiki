@@ -95,8 +95,10 @@ fn pages_against_the_entity_sheet() {
         let conn = base.conn();
         let mut statement = conn
             .prepare(
-                "SELECT p.entity_id, p.path, e.kind, (SELECT count(DISTINCT m.content_id) FROM knowledge_mention m WHERE m.entity_id = e.id)
-                 FROM knowledge_page p JOIN knowledge_entity e ON e.id = p.entity_id WHERE p.state = 'projected'",
+                "SELECT p.entity_id, p.path, coalesce(e.kind, 'asunto (grupo)'),
+                        coalesce((SELECT count(DISTINCT m.content_id) FROM knowledge_mention m WHERE m.entity_id = e.id),
+                                 (SELECT count(*) FROM knowledge_matter_document d WHERE d.matter_id = p.entity_id))
+                 FROM knowledge_page p LEFT JOIN knowledge_entity e ON e.id = p.entity_id WHERE p.state = 'projected'",
             )
             .unwrap();
         let rows: Vec<(String, String, String, i64)> =
@@ -168,7 +170,7 @@ fn pages_against_the_entity_sheet() {
     println!("\n== against the sheet ==");
     let (mut with_page, mut docs_total, mut docs_listed, mut entities) = (0usize, 0usize, 0usize, 0usize);
     let mut rows = Vec::new();
-    for entity in &sheet.entities {
+    for entity in sheet.entities.iter().filter(|e| e.kind != "asunto") {
         let mut names: Vec<String> = vec![normalized(&entity.name)];
         names.extend(entity.aliases.iter().map(|a| normalized(a)));
         let docs: BTreeSet<i64> = entity.mentions.iter().filter_map(|m| content_of(&m.path)).collect();
@@ -214,6 +216,8 @@ fn pages_against_the_entity_sheet() {
         let _ = page;
     }
 
+    matters_against_the_sheet(&base, &sheet, &content_of, &pages);
+
     if let Ok(sample) = std::env::var("MICELYA_PAGES_SAMPLE") {
         let sample = std::path::PathBuf::from(sample);
         std::fs::create_dir_all(&sample).unwrap();
@@ -221,7 +225,7 @@ fn pages_against_the_entity_sheet() {
         chosen.sort_by(|a, b| b.1 .2.cmp(&a.1 .2).then_with(|| a.0.cmp(b.0)));
         // The three named in most documents, a matter and a person further down.
         let mut picked: Vec<&String> = chosen.iter().take(3).map(|(id, _)| *id).collect();
-        if let Some((id, _)) = chosen.iter().find(|(id, p)| p.1 == "asunto" && !picked.contains(id)) {
+        if let Some((id, _)) = chosen.iter().find(|(id, p)| p.1.starts_with("asunto") && !picked.contains(id)) {
             picked.push(id);
         }
         if let Some((id, _)) = chosen.iter().rev().find(|(id, p)| p.1 == "persona" && !picked.contains(id)) {
@@ -244,6 +248,79 @@ fn pages_against_the_entity_sheet() {
         println!("   a sample of the pages: {}", sample.display());
     }
     changes(&base, &asker, project.path());
+}
+
+/// The matters (groups of documents) against the matters of the sheet:
+/// pairs of documents of one matter of the sheet grouped by the layer
+/// (found), and pairs it grouped that the sheet has in different matters
+/// or in none (false groupings, the worse error: R-07).
+fn matters_against_the_sheet(
+    base: &crate::docbase::DocBase,
+    sheet: &super::check::Sheet,
+    content_of: &dyn Fn(&str) -> Option<i64>,
+    pages: &BTreeMap<String, (String, String, usize)>,
+) {
+    let mut sheet_of: BTreeMap<i64, BTreeSet<String>> = BTreeMap::new();
+    for matter in &sheet.matters {
+        for path in &matter.documents {
+            if let Some(content) = content_of(path) {
+                sheet_of.entry(content).or_default().insert(matter.id.clone());
+            }
+        }
+    }
+    let ours: Vec<(String, i64)> = {
+        let conn = base.conn();
+        let mut statement = conn
+            .prepare("SELECT d.matter_id, d.content_id FROM knowledge_matter_document d JOIN knowledge_matter m ON m.id = d.matter_id WHERE m.state = 'active'")
+            .unwrap();
+        let rows = statement.query_map([], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
+        rows.collect::<Result<_, _>>().unwrap()
+    };
+    let mut our_of: BTreeMap<i64, String> = BTreeMap::new();
+    let mut groups: BTreeMap<String, BTreeSet<i64>> = BTreeMap::new();
+    for (matter, content) in &ours {
+        our_of.insert(*content, matter.clone());
+        groups.entry(matter.clone()).or_default().insert(*content);
+    }
+    let documents: Vec<i64> = sheet_of.keys().chain(our_of.keys()).copied().collect::<BTreeSet<_>>().into_iter().collect();
+    let (mut in_sheet, mut grouped, mut found) = (0usize, 0usize, 0usize);
+    for (i, a) in documents.iter().enumerate() {
+        for b in &documents[i + 1..] {
+            let same_sheet = sheet_of.get(a).zip(sheet_of.get(b)).is_some_and(|(x, y)| !x.is_disjoint(y));
+            let same_ours = our_of.get(a).is_some() && our_of.get(a) == our_of.get(b);
+            in_sheet += same_sheet as usize;
+            grouped += same_ours as usize;
+            found += (same_sheet && same_ours) as usize;
+        }
+    }
+    println!("\n== matters ==");
+    println!(
+        "   matters (groups of documents): {}, with {} documents; with a page: {}",
+        groups.len(),
+        our_of.len(),
+        groups.keys().filter(|g| pages.contains_key(*g)).count()
+    );
+    println!("   pairs of documents of one matter of the sheet: {in_sheet}; grouped: {found} ({})", ratio(found, in_sheet));
+    println!("   pairs grouped: {grouped}; false groupings (not one matter in the sheet): {} ({})", grouped - found, ratio(grouped - found, grouped));
+    for matter in &sheet.matters {
+        let docs: BTreeSet<i64> = matter.documents.iter().filter_map(|p| content_of(p)).collect();
+        let mut best: BTreeMap<&String, usize> = BTreeMap::new();
+        for content in &docs {
+            if let Some(ours) = our_of.get(content) {
+                *best.entry(ours).or_default() += 1;
+            }
+        }
+        let top = best.iter().max_by_key(|(_, n)| **n).map(|(id, n)| (*id, *n));
+        println!(
+            "      {} ({} documents): {}",
+            matter.id,
+            docs.len(),
+            match top {
+                Some((id, n)) => format!("{n} in one of ours ({} documents{})", groups[id].len(), if pages.contains_key(id) { ", with a page" } else { "" }),
+                None => "in none of ours".to_string(),
+            }
+        );
+    }
 }
 
 /// The pages on disk, without the date they were written.

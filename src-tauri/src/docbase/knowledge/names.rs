@@ -124,7 +124,9 @@ pub fn key(vocabulary: &Vocabulary, kind: &str, written: &str) -> NameKey {
     // Words that name someone without being a name ("el cliente", "mi",
     // "la locataria"): no name to compare (D-211).
     let generic = |w: &String| identity.generic.iter().any(|g| g == w) || titles.contains(w.as_str());
-    if form.is_none() && !words.is_empty() && words.iter().all(generic) {
+    // A matter is often named so ("el acuerdo"): it is still a mention of
+    // it, joined only by its identifiers or by the model.
+    if kind != "asunto" && form.is_none() && !words.is_empty() && words.iter().all(generic) {
         return NameKey { words: Vec::new(), form, email, full: Vec::new() };
     }
     NameKey { words, form, email, full }

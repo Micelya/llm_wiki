@@ -17,7 +17,7 @@ use super::quote;
 use super::vocabulary::Vocabulary;
 
 /// The runs of digits of a text, in order.
-fn digit_runs(text: &str) -> Vec<String> {
+pub fn digit_runs(text: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut current = String::new();
     for c in text.chars() {
@@ -73,6 +73,8 @@ pub fn fits(vocabulary: &Vocabulary, shape: &str, value: &str, subject: &str) ->
             own.is_empty() || !own.iter().all(|w| words.contains(w))
         }
         "address" => digits > 0 && letters >= 3 && !value.contains('@'),
+        // A mail address, or a telephone: not a name.
+        "contact" => value.contains('@') || digits >= 6,
         _ => !value.trim().is_empty(),
     }
 }
@@ -127,6 +129,8 @@ mod tests {
             assert!(!fits(&v, "text", not, "persona dos"), "{not}");
         }
         assert!(fits(&v, "address", "Calle Uno 100, piso 3", "x"));
+        assert!(fits(&v, "contact", "alguien@ejemplo.com", "x") && fits(&v, "contact", "+54 11 4444-5555", "x"));
+        assert!(!fits(&v, "contact", "Atención: Persona Dos", "persona dos"));
         for not in ["22.222.222", "Islas del Norte"] {
             assert!(!fits(&v, "address", not, "x"), "{not}");
         }

@@ -19,8 +19,11 @@
 //! 4. **Changes and deletions** (`changes.rs`): what a document that goes
 //!    away, comes back, is replaced or is left out takes with it, and what
 //!    goes on to the document that takes its place.
-//! 5. Relations, 6. the attention view: later stages, on the tables
-//!    already here (`schema.rs`, V8 to V10).
+//! 5. **Matters** (`matters.rs`): the documents of one matter, grouped by
+//!    evidence specific to it; and the relations between entities, as
+//!    claims, shown both ways in the pages.
+//! 6. The attention view: a later stage, on the tables already here
+//!    (`schema.rs`, V8 to V10).
 //!
 //! The types of entity, roles, identifiers and predicates are data
 //! (`vocabulary.rs`, R-26).
@@ -36,6 +39,7 @@ pub(crate) mod claims;
 pub mod decide;
 pub mod entities;
 pub mod extract;
+pub mod matters;
 pub mod names;
 pub mod pages;
 pub mod quote;
@@ -49,6 +53,8 @@ mod tests_changes;
 mod tests_identity;
 #[cfg(test)]
 pub(crate) mod tests_pages;
+#[cfg(test)]
+mod tests_relations;
 pub mod vocabulary;
 
 use std::collections::BTreeMap;
