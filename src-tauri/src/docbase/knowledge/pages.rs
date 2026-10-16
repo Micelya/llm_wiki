@@ -45,6 +45,10 @@ use crate::source_volume::asking::DocumentAsker;
 
 /// Version of the question that writes what the documents say.
 pub const SYNTHESIS_PROMPT: &str = "sintesis-1";
+/// Raised when a change in the program changes what a projection writes
+/// (which names have a page, what a block lists): every page is written
+/// again from the record, without asking more.
+const PROJECTION_VERSION: &str = "proyeccion-2";
 /// The task its answers are kept under in `model_answer`.
 pub const TASK: &str = "synthesis";
 /// The words of the vocabulary (`pages.words`) a page is written with.
@@ -1612,7 +1616,7 @@ fn basis_of(base: &DocBase, project_id: &str, vocabulary: &Vocabulary, language:
         .map_err(sql_err)?
         .collect::<Result<_, _>>()
         .map_err(sql_err)?;
-    Ok(hash(&[&vocabulary.digest, language.unwrap_or(""), &root.to_string_lossy(), &rows.join("
+    Ok(hash(&[PROJECTION_VERSION, &vocabulary.digest, language.unwrap_or(""), &root.to_string_lossy(), &rows.join("
 ")]))
 }
 
