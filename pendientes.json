@@ -852,6 +852,80 @@
       "referencia": "src/components/attention/sources/wiki-queue.ts",
       "creado": "2026-10-16",
       "actualizado": "2026-10-16"
+    },
+    {
+      "id": "P-090",
+      "titulo": "Ofrecer releer el archivo con un modelo nuevo",
+      "tipo": "decision",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "detalle": "Cambiar de modelo no vuelve a leer lo que la capa de conocimiento ya extrajo (D-180). Decidir si la app ofrece releer todo el archivo, o solo lo que falló, cuando el dueño elige otro modelo, y con qué aviso de costo.",
+      "depende_de": [],
+      "referencia": "docs/decisiones.md (D-180); src-tauri/src/docbase/knowledge/extract.rs",
+      "creado": "2026-10-16",
+      "actualizado": "2026-10-16"
+    },
+    {
+      "id": "P-091",
+      "titulo": "Nombres de tipos de entidad, roles y predicados en el vocabulario de la vertical",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "El vocabulario de la capa (resources/catalog/knowledge.json) trae identificadores y descripciones para el modelo; las pantallas necesitan sus nombres para el usuario, por vertical y por idioma, en src/vocabulary. Hacerlo con las primeras pantallas de la capa (etapa 6).",
+      "depende_de": [],
+      "referencia": "src-tauri/resources/catalog/knowledge.json; src/vocabulary/",
+      "creado": "2026-10-16",
+      "actualizado": "2026-10-16"
+    },
+    {
+      "id": "P-092",
+      "titulo": "Ajustar la extracción de la capa según la evaluación",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "La primera corrida real (reporte K1) deja menciones que se escapan, roles distintos de la hoja y citas descartadas. Revisar los casos, ajustar la pregunta o el vocabulario (sin nombrar casos, R-24) y volver a medir.",
+      "depende_de": [
+        "P-093"
+      ],
+      "referencia": "LocalRepo\\llm_wiki_mi\\desatendido-2\\reporte-K1.md; src-tauri/src/docbase/knowledge/check.rs",
+      "creado": "2026-10-16",
+      "actualizado": "2026-10-16"
+    },
+    {
+      "id": "P-093",
+      "titulo": "Acordar la lista de predicados de la capa con la hoja de entidades",
+      "tipo": "decision",
+      "responsable": "usuario",
+      "estado": "pendiente",
+      "detalle": "La hoja de entidades usa predicados libres (más de cuarenta); el vocabulario de la capa tiene dieciséis (D-183) y la evaluación los compara con una tabla de equivalencias. Decidir qué predicados agregar al vocabulario (por ejemplo, cesión, cliente de, cónyuge de) y llevar la hoja a esa lista.",
+      "depende_de": [],
+      "referencia": "docs/decisiones.md (D-183); src-tauri/resources/catalog/knowledge.json",
+      "creado": "2026-10-16",
+      "actualizado": "2026-10-16"
+    },
+    {
+      "id": "P-094",
+      "titulo": "Volver a numerar la migración de la capa al rebasar sobre la vista de atención",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "La rama feat/attention-view agregó su propia versión 8 del esquema (tabla type_decision) y la app de desarrollo ya la aplicó a la base real. Al rebasar feat/knowledge-layer sobre ella, la migración de la capa tiene que pasar a ser la versión 9; si no, una base en versión 8 nunca recibe las tablas de la capa.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/schema.rs",
+      "creado": "2026-10-16",
+      "actualizado": "2026-10-16"
+    },
+    {
+      "id": "P-095",
+      "titulo": "Menos trabajo por paso en el hilo de preguntas con archivos grandes",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Cada paso del hilo de preguntas recalcula sin modelo la pasada de tipos (pass4_refresh) y lista los documentos de la capa; con 66 documentos no se nota, con miles sí. Marcar lo cambiado (como similar_dirty) para mirar solo eso.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/worker.rs; src-tauri/src/docbase/similar/classify.rs",
+      "creado": "2026-10-16",
+      "actualizado": "2026-10-16"
     }
   ]
 }

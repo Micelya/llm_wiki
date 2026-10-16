@@ -197,6 +197,14 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-174 | 16 oct | Conocimiento | Las decisiones de una persona sobre identidades son firmes, reversibles y no las pisa un recálculo | vigente |
 | D-175 | 16 oct | Conocimiento | La página de una entidad es una proyección del registro; la incorporación del wiki deja de crear páginas de entidad | vigente |
 | D-176 | 16 oct | Conocimiento | Sin derivaciones por reglas por ahora; todo incremental; costo de modelo aprobado | vigente |
+| D-177 | 16 oct | IA | Las respuestas del modelo se guardan por pregunta y por motor y modelo; con un motor elegido solo cuentan las suyas | en revisión |
+| D-178 | 16 oct | Conocimiento | Qué cuenta como cita verificada: una tira continua de palabras del texto que contiene el nombre o el valor | en revisión |
+| D-179 | 16 oct | Conocimiento | La lectura de un documento espera a que se pregunte su tipo; los de menos de 10 palabras no se leen | en revisión |
+| D-180 | 16 oct | Conocimiento | Cambiar de modelo no vuelve a leer lo ya extraído; se relee si cambia el texto, la pregunta o el vocabulario | en revisión |
+| D-181 | 16 oct | Conocimiento | En segundo plano se pregunta sin pausa mientras hay trabajo: primero tipos, después la lectura de la capa | en revisión |
+| D-182 | 16 oct | Conocimiento | Los documentos largos se leen en partes de páginas enteras de hasta 4.000 palabras, y se guardan cuando todas tienen respuesta | en revisión |
+| D-183 | 16 oct | Conocimiento | Vocabulario inicial de la capa, y lo que se guarda en la etapa 1: evidencias entre menciones del documento | en revisión |
+| D-184 | 16 oct | Conocimiento | La evaluación de la extracción corre sobre una copia de la base de la app y compara por tipo y nombre normalizado | en revisión |
 
 ---
 
@@ -2425,3 +2433,107 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** `docs/design/conocimiento-propuesta.md` (secciones 3 y 5).
 - **Quién decidió:** dueño del producto, sobre el análisis del agente.
 - **Fuente:** conversación del 16 oct.
+
+### D-177 · El modelo forma parte de la clave de las respuestas guardadas
+
+- **Fecha:** 16 oct 2026
+- **Tema:** IA
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** cada respuesta del modelo se guardaba por la huella de la pregunta (su versión y su texto), sin el modelo que la dio. Si el dueño cambiaba de modelo, la app seguía usando las respuestas del anterior y nunca le preguntaba al nuevo. La etapa 1 de la capa de conocimiento pidió agregar el modelo a la clave sin perder lo ya guardado.
+- **Qué se decidió:** la tabla de respuestas pasa a tener como clave la pregunta y el motor con su modelo (por ejemplo, "codex-cli:gpt-6-luna"). Las respuestas guardadas hasta ahora se conservan con su pregunta y su motor. Al preguntar, se usa la respuesta de ese mismo motor y modelo, o se pregunta. Cuando las pasadas sin modelo aplican respuestas ya guardadas (tipo, datos), usan las del motor elegido para el archivo; si todavía no se eligió ninguno, la más reciente de cualquier motor, como antes.
+- **Por qué:** dos modelos pueden responder distinto la misma pregunta; cada respuesta es evidencia de quien la dio (R-20).
+- **Alternativas descartadas:** meter el modelo en la huella de la pregunta (las pasadas sin modelo dejarían de encontrar las respuestas guardadas cuando no hay motor elegido); dejar las preguntas de tipo y datos como estaban y cambiar solo las de la capa nueva (un cambio de modelo no se notaría en el tipo).
+- **Dónde se aplica:** `src-tauri/src/docbase/schema.rs` (V8); `similar/classify.rs` (`cached_answer`, `keep_answer`, `ask_and_keep`); pruebas `answers_kept_before_keep_their_question_and_engine` y `once_an_engine_is_chosen_only_its_answers_count`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K1 de la tanda desatendida del 16 oct.
+
+### D-178 · Qué cuenta como una cita verificada
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** D-171 pide que un cálculo compruebe que cada cita del modelo está en el texto del documento, y descartar lo que no. Falta decir qué es "estar en el texto" y qué más se comprueba.
+- **Qué se decidió:** la cita y el texto se comparan normalizados como en toda la base (minúsculas, sin acentos, solo letras y números); la cita tiene que aparecer como una tira continua de palabras en cualquier parte del texto, incluidos los campos de un formulario. Además, el nombre de una mención tiene que estar dentro de su cita, el valor de un identificador dentro de la suya y el valor de una afirmación dentro de la suya; si no, se descarta. El tiempo del hecho se conserva solo si está dentro de la cita (si no, se quita el tiempo y la afirmación queda). La página es la que dijo el modelo si la cita está en ella; si no, la primera donde aparece. Un rol fuera de la lista, o que no corresponde al tipo de entidad, pasa a "otro" sin descartar la mención; un tipo o un predicado fuera de la lista, una afirmación cuyo sujeto u objeto no es una mención conservada, o cuyo sujeto no es del tipo que pide el predicado, se descartan. Cada descarte se guarda con su motivo.
+- **Por qué:** una cita que contiene el nombre ancla la mención al pasaje, no solo al documento; la normalización evita descartar por un salto de línea o una comilla distinta, y una cifra cambiada sigue siendo otra.
+- **Alternativas descartadas:** una coincidencia aproximada (aceptaría citas con una cifra cambiada, justo lo que hay que evitar); comprobar solo que el nombre esté en algún lugar del texto.
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/quote.rs` y `extract.rs` (`verify`); pruebas de `quote.rs` y `knowledge/tests.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K1 de la tanda desatendida del 16 oct.
+
+### D-179 · La lectura espera al tipo del documento
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la pregunta de la capa lleva como ayuda el tipo y la etapa del documento y sus datos por tipo. Si se lee antes de que el tipo esté preguntado, la ayuda falta, y leerlo de nuevo cuando llega el tipo costaría otra pregunta.
+- **Qué se decidió:** un documento cuyo tipo todavía está por preguntar espera; se cuenta como "esperando el tipo". En el trabajo de fondo las preguntas de tipo van primero, así que la espera es corta. Un cambio posterior del tipo no hace leer de nuevo el documento (la lectura depende del texto, de la pregunta y del vocabulario, D-180). Los documentos con menos de 10 palabras no se leen, como no se les pregunta el tipo.
+- **Por qué:** una sola lectura por documento, con la mejor ayuda disponible.
+- **Alternativas descartadas:** leer sin esperar; incluir el tipo en lo que decide volver a leer (cada corrección de tipo costaría una lectura).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/extract.rs` (`knowledge_pending`); `similar/classify.rs` (`contents_waiting_for_type`); prueba `a_document_waits_for_its_type_and_a_budget_leaves_the_rest`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K1 de la tanda desatendida del 16 oct.
+
+### D-180 · Qué hace volver a leer un documento
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** hay que decidir cuándo una lectura ya hecha deja de valer. Volver a leer todo el archivo cuesta una pregunta por documento.
+- **Qué se decidió:** un documento se vuelve a leer cuando cambia su texto (su huella), la versión de la pregunta o la versión del vocabulario de la capa. Cambiar de motor o de modelo no lo hace volver a leer: la lectura queda con el modelo que la hizo anotado. Si una lectura se vuelve a hacer por otro motivo, se le pregunta al modelo nuevo (D-177). Cuando el texto se vuelve a escribir igual (el mismo escaneo leído otra vez), la lectura sigue valiendo. Saber si una lectura está al día no exige leer los textos: alcanza con cuándo se escribió el texto, la pregunta y el vocabulario.
+- **Por qué:** releer el archivo entero es una decisión de costo que le toca al dueño, no un efecto lateral de elegir otro modelo.
+- **Alternativas descartadas:** releer todo al cambiar de modelo.
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/extract.rs` (`basis`, `standings`); prueba `another_model_asks_again_but_the_reading_stays_until_the_text_changes`; P-090.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K1 de la tanda desatendida del 16 oct.
+
+### D-181 · El ritmo de las preguntas en segundo plano
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el trabajo de fondo hacía una pregunta al modelo cada 30 segundos. Con la capa de conocimiento cada documento suma al menos una pregunta, y a ese ritmo un archivo entero tarda demasiado; la etapa 1 pidió poder procesarlo en una tanda.
+- **Qué se decidió:** un solo hilo de preguntas, el que ya existía, de a una pregunta por vez: primero las de tipo, etapa y datos; cuando no quedan, las de la capa. Mientras hay trabajo sigue sin pausa; cuando no hay nada que preguntar mira de nuevo a los 30 segundos; cuando el proveedor falla (por ejemplo, por el límite de uso) espera 10 minutos y reintenta. Sigue corriendo solo con el wiki del archivo activo y un motor elegido.
+- **Por qué:** una pregunta a la vez no compite con la generación del wiki por el mismo proveedor, y sin pausas un archivo de prueba se procesa en una tanda.
+- **Alternativas descartadas:** un hilo aparte para la capa (dos preguntas a la vez al mismo proveedor); preguntas en paralelo.
+- **Dónde se aplica:** `src-tauri/src/docbase/worker.rs` (`spawn_asking`, `ask_step`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K1 de la tanda desatendida del 16 oct.
+
+### D-182 · Cómo se lee un documento largo
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** algunos documentos (contratos largos) tienen decenas de miles de caracteres. Pasarlos enteros en una sola pregunta hace que el modelo pierda detalle; cortarlos en cualquier lugar parte una cláusula.
+- **Qué se decidió:** un documento se lee en partes de páginas enteras de hasta 4.000 palabras; una página más larga que eso se corta por líneas. La lectura de un documento se guarda recién cuando todas sus partes tienen respuesta. La misma mención (mismo tipo, nombre y rol) en dos partes queda una sola, con los identificadores de las dos. "Es la misma que" solo vale dentro de una parte; unir menciones de partes distintas queda para la resolución de identidad.
+- **Por qué:** páginas enteras respetan la ubicación de las citas; guardar todo junto evita una lectura a medias.
+- **Alternativas descartadas:** el principio y el final del texto, como en la pregunta de tipo (para la capa se necesita todo el documento).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/extract.rs` (`parts`, `verify`); pruebas `a_long_text_is_read_in_parts_of_whole_pages` y `the_same_mention_in_two_parts_is_one`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K1 de la tanda desatendida del 16 oct.
+
+### D-183 · El vocabulario inicial y lo que guarda la etapa 1
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** D-172 fija los tipos y pide roles y predicados como datos, pero no cuáles. Y en la etapa 1 todavía no hay entidades (las arma la resolución de identidad), así que hay que decidir a qué se refiere una afirmación recién extraída.
+- **Qué se decidió:** roles: los de la hoja de respuestas de entidades (parte, apoderado, firmante, remitente, destinatario, emisor, domicilio, testigo, otro) más "referido", para el asunto del que trata un documento. Identificadores: DNI, CUIT o CUIL, matrícula, expediente y otro. Dieciséis predicados de un estudio jurídico: cargo, domicilio, representa a, socio de, empleado de, deudor de, acreedor de, monto reclamado, monto adeudado, parte en, inicio y fin de un vínculo, profesión, nacionalidad, estado civil y contacto. Los asuntos se extraen como entidades, con rol "referido". En la etapa 1 cada afirmación se guarda como **evidencia** entre menciones del mismo documento (sujeto y, si corresponde, objeto); la resolución de identidad las convierte en afirmaciones sobre entidades y agrupa las que dicen lo mismo. Las tablas de entidades, alias, afirmaciones y decisiones ya existen, vacías.
+- **Por qué:** los roles de la hoja permiten medir sin traducir; las evidencias por mención no dependen de una identidad que todavía no se resolvió.
+- **Alternativas descartadas:** predicados libres, como los de la hoja (no se pueden consolidar); crear una entidad por mención ya en la etapa 1.
+- **Dónde se aplica:** `src-tauri/resources/catalog/knowledge.json`; tablas `knowledge_mention`, `knowledge_evidence`, `knowledge_claim` (`schema.rs`, V8); P-093.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K1 de la tanda desatendida del 16 oct.
+
+### D-184 · Cómo se evalúa la extracción contra la hoja de entidades
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la extracción se mide contra la hoja de respuestas de entidades (R-17). El texto de los escaneos de la carpeta de prueba ya está reconocido en la base de la app, y volver a reconocerlo costaría cupo. Además, la hoja escribe los nombres como aparecen en cada documento y usa predicados libres.
+- **Qué se decidió:** la prueba de evaluación (ignorada en la corrida normal) abre una copia de la base de la app, con su texto, tipos y datos, y la actualiza en una carpeta temporal; también puede leer carpetas, como las pruebas de parecidos. Una mención de la hoja se da por encontrada si el documento tiene una mención del mismo tipo con el mismo nombre normalizado, o con todas las palabras de uno dentro del otro (dos palabras al menos); se cuenta aparte la coincidencia exacta y el rol. Una afirmación de la hoja se compara con los predicados del vocabulario que dicen lo mismo, con una tabla de equivalencias en la prueba; los identificadores que la hoja da como afirmaciones se buscan entre los identificadores de la mención. Las respuestas del modelo se guardan entre corridas por motor y pregunta.
+- **Por qué:** medir sin volver a reconocer, y sin castigar diferencias de forma que la resolución de identidad igual va a cubrir.
+- **Alternativas descartadas:** exigir el nombre exacto (contaría como errores "Nombre Apellido" frente a "Apellido, Nombre").
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/check.rs`; prueba R-24 en `similar/check.rs`, que ahora revisa también el vocabulario de la capa contra la hoja de entidades.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K1 de la tanda desatendida del 16 oct.
