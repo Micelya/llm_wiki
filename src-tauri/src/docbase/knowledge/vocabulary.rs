@@ -315,6 +315,14 @@ pub struct Predicate {
     /// of another shape is kept in the reading but is not a claim.
     #[serde(default)]
     pub shape: String,
+    /// Words (or how they start, normalized) of which the quote of a claim
+    /// needs one to say it ("adeud", "saldo" for a debt); none: any quote.
+    #[serde(default)]
+    pub cues: Vec<String>,
+    /// Words (or how they start) that say the quote is about something
+    /// else ("percepciones", "IVA" next to an amount: a tax, not a debt).
+    #[serde(default)]
+    pub not_cues: Vec<String>,
     /// Types of entity a value is said within (a position is held in a
     /// company): the entity of the document the quote names, or the one
     /// the subject is related to in the document. The same value within

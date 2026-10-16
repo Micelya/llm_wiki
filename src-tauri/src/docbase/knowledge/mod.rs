@@ -61,6 +61,8 @@ pub(crate) mod tests_pages;
 mod tests_relations;
 #[cfg(test)]
 mod tests_screens;
+#[cfg(test)]
+mod tests_says;
 pub mod vocabulary;
 
 use std::collections::BTreeMap;

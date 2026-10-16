@@ -25,7 +25,7 @@
 //! Computed again from the evidence on every resolution; only what
 //! changed is written.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use rusqlite::{params, Connection};
 
@@ -165,6 +165,51 @@ struct Piece {
     time: Option<String>,
 }
 
+/// The values given as identifiers in any document (normalized): a
+/// number of a document is not someone's telephone.
+fn identifier_values(conn: &Connection) -> Result<HashSet<String>, String> {
+    let mut statement = conn.prepare("SELECT DISTINCT normalized FROM knowledge_identifier").map_err(sql_err)?;
+    let values = statement
+        .query_map([], |row| row.get::<_, String>(0))
+        .map_err(sql_err)?
+        .collect::<Result<HashSet<_>, _>>()
+        .map_err(sql_err)?;
+    Ok(values)
+}
+
+/// Whether the quote of a piece says what the piece claims, beyond being
+/// in the text (R-02): a relation between two entities names one of them
+/// in its quote; a predicate with words of its own (`cues`: a debt says
+/// "adeuda", "saldo", "a pagar"…) has one of them, or the start of one, in
+/// its quote, and none of the words that say it is about something else
+/// (`not_cues`: "percepciones" next to an amount); a contact is not a
+/// number the documents give as an identifier. What fails is kept in the reading but is not a claim.
+fn says(vocabulary: &Vocabulary, piece: &Piece, identifiers: &HashSet<String>) -> bool {
+    let quote = quote::words(&piece.quote);
+    let Some(definition) = vocabulary.predicate(&piece.predicate) else { return true };
+    let has = |list: &[String]| quote.iter().any(|w| list.iter().any(|c| w.starts_with(c.as_str())));
+    if (!definition.cues.is_empty() && !has(&definition.cues)) || has(&definition.not_cues) {
+        return false;
+    }
+    if let Some(object) = &piece.object_name {
+        let named = |name: &str| {
+            let words: Vec<String> = name.split_whitespace().map(str::to_string).collect();
+            quote::contains(&quote, &words)
+                || words.iter().any(|w| w.chars().count() >= 4 && !vocabulary.is_generic(w) && quote.contains(w))
+        };
+        if !named(&piece.subject_name) && !named(object) {
+            return false;
+        }
+    }
+    if definition.shape == "contact" {
+        let value = piece.normalized.clone().unwrap_or_else(|| quote::words(piece.value.as_deref().unwrap_or_default()).join(" "));
+        if identifiers.contains(&value) {
+            return false;
+        }
+    }
+    true
+}
+
 fn load_pieces(conn: &Connection) -> Result<Vec<Piece>, String> {
     let mut statement = conn
         .prepare(
@@ -242,10 +287,17 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, wrong: &BT
     // and its ways of writing are put together, by (subject, predicate,
     // context).
     let mut unfit = 0;
+    let identifiers = identifier_values(conn)?;
+    let mut unsaid: HashSet<i64> = HashSet::new();
     let mut contexts: HashMap<i64, (Option<String>, Option<String>)> = HashMap::new();
     let mut by_value: BTreeMap<(String, String, Option<String>, Option<String>), Vec<usize>> = BTreeMap::new();
     for (index, piece) in pieces.iter().enumerate() {
         let Some(subject) = &piece.subject_entity else { continue };
+        if !says(vocabulary, piece, &identifiers) {
+            unfit += 1;
+            unsaid.insert(piece.id);
+            continue;
+        }
         let definition = vocabulary.predicate(&piece.predicate);
         let within = definition.map(|p| p.within.as_slice()).unwrap_or_default();
         let context = (!within.is_empty())
@@ -300,6 +352,9 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, wrong: &BT
     let mut evidence_claim: BTreeMap<i64, String> = BTreeMap::new();
     for piece in &pieces {
         let Some(subject) = &piece.subject_entity else { continue };
+        if unsaid.contains(&piece.id) {
+            continue;
+        }
         let object_word = match (&piece.object_name, &piece.normalized) {
             (Some(name), _) => format!("m:{name}"),
             (None, Some(value)) => value.clone(),

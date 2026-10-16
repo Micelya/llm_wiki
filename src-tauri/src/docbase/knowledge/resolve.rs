@@ -57,6 +57,16 @@ use crate::source_volume::asking::DocumentAsker;
 
 /// Version of the question about identities.
 pub const IDENTITY_PROMPT: &str = "identidad-2";
+
+/// The rules the record was last computed with (`docbase_setting`): when
+/// the program's or the vocabulary's change, the record is computed again.
+const RESOLUTION_SETTING: &str = "knowledge-resolution";
+/// Raised when a change in the program changes what a resolution gives.
+const RESOLUTION_VERSION: &str = "resolucion-2";
+
+fn resolution_basis() -> String {
+    format!("{RESOLUTION_VERSION}|{}", vocabulary().digest)
+}
 /// The task its answers are kept under in `model_answer`.
 pub const TASK: &str = "identity";
 /// Candidates described in one question; more take another question.
@@ -1650,7 +1660,22 @@ impl DocBase {
             .conn()
             .query_row("SELECT count(*) FROM knowledge_dirty WHERE scope IN ('resolve', 'retire')", [], |row| row.get(0))
             .map_err(sql_err)?;
-        if dirty == 0 {
+        // Other rules (a new version of the program's or of the
+        // vocabulary's) are work to do too: the record is computed again
+        // from the readings and the verdicts kept, without asking more.
+        let basis = resolution_basis();
+        let current = self
+            .conn()
+            .query_row("SELECT value FROM docbase_setting WHERE key = ?1", [RESOLUTION_SETTING], |row| row.get::<_, String>(0))
+            .ok();
+        if dirty == 0 && current.as_deref() == Some(basis.as_str()) {
+            return Ok(ResolveReport { skipped: true, ..Default::default() });
+        }
+        let any_reading: i64 = self
+            .conn()
+            .query_row("SELECT count(*) FROM knowledge_extraction", [], |row| row.get(0))
+            .map_err(sql_err)?;
+        if dirty == 0 && any_reading == 0 {
             return Ok(ResolveReport { skipped: true, ..Default::default() });
         }
         let engine = match asker {
@@ -1664,6 +1689,9 @@ impl DocBase {
         if report.left == 0 {
             self.conn()
                 .execute("DELETE FROM knowledge_dirty WHERE scope IN ('resolve', 'retire') AND since <= ?1", [started])
+                .map_err(sql_err)?;
+            self.conn()
+                .execute("INSERT OR REPLACE INTO docbase_setting (key, value) VALUES (?1, ?2)", params![RESOLUTION_SETTING, basis])
                 .map_err(sql_err)?;
         }
         Ok(report)
