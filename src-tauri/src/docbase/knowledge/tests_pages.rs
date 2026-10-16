@@ -12,7 +12,7 @@ use crate::docbase::DocBase;
 const A: &str = "DOC-A. Contrato de locación entre Ejemplo Uno S.A., CUIT 30-11111111-1, y Persona Dos, DNI 22.222.222, \
 con domicilio en Calle Uno 100. Expediente 1234/2020 del juzgado.";
 const B: &str = "DOC-B. Recibo firmado por Persona Dos, DNI 22.222.222, a favor de Ejemplo Uno S.A. por $ 5.000 en efectivo.";
-const C: &str = "DOC-C. Nota al pasar que menciona a Persona Cinco y a la empresa Otra Cosa sin decir nada más de ellas.";
+const C: &str = "DOC-C. Nota al pasar que menciona a Persona Cinco y a la empresa Otra Cosa sin decir nada más de ellas, sobre el Expediente 1234/2020.";
 
 fn ids(kind: &str, value: &str, quote: &str) -> serde_json::Value {
     serde_json::json!([{ "clase": kind, "valor": value, "cita": quote }])
@@ -44,6 +44,7 @@ fn reading(prompt: &str) -> String {
             vec![
                 mention("p", "persona", "Persona Cinco", "otro", "menciona a Persona Cinco", none.clone()),
                 mention("o", "organizacion", "Otra Cosa", "otro", "la empresa Otra Cosa", none.clone()),
+                mention("x", "asunto", "Expediente 1234/2020", "referido", "sobre el Expediente 1234/2020", ids("expediente", "1234/2020", "Expediente 1234/2020")),
             ],
             vec![],
         )
@@ -142,8 +143,8 @@ fn every_entity_with_a_page_has_all_its_documents_and_only_verified_sentences() 
     let report = base.knowledge_project(Some(&asker), 50).unwrap();
     assert!(!report.skipped, "{report:?}");
     let pages = entity_pages(&project);
-    // A person in two documents, a company with a role, a matter with its
-    // file number; who is only named in passing has no page.
+    // A person in two documents, a company with a role, a matter two
+    // documents are about; who is only named in passing has no page.
     assert_eq!(pages.len(), 3, "{:?}", pages.iter().map(|p| &p.0).collect::<Vec<_>>());
     assert!(!pages.iter().any(|(_, t)| t.contains("Persona Cinco") || t.contains("Otra Cosa")));
     let person = page_of(&pages, "Persona Dos");
@@ -295,6 +296,8 @@ fn file_names_are_readable_and_carry_the_id() {
     assert_eq!(pages::slug("Ejemplo Uno S.A.", "organizacion"), "ejemplo-uno-s-a");
     assert_eq!(pages::slug("Peña, José", "persona"), "pena-jose");
     assert_eq!(pages::slug("—", "persona"), "persona");
+    assert!(pages::name_like("persona", "Persona Dos") && pages::name_like("asunto", "1234/2020"));
+    assert!(!pages::name_like("organizacion", "alguien@ejemplo.com") && !pages::name_like("persona", "(011) 4444-5555"));
     assert_eq!(pages::page_path("wiki/entities", "ent-0123456789abcdef", "Persona Dos", "persona"), "wiki/entities/persona-dos-01234567.md");
     let with = pages::with_block("---\ntype: source\n---\n\nTexto.\n", Some("<!-- micelya:entidades:inicio -->\nx\n<!-- micelya:entidades:fin -->\n"));
     assert!(with.ends_with("Texto.\n\n<!-- micelya:entidades:inicio -->\nx\n<!-- micelya:entidades:fin -->\n"), "{with}");

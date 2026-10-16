@@ -307,6 +307,7 @@ impl Entity {
         let own = quote::words(&self.name).join(" ");
         let mut seen = BTreeSet::from([own]);
         list.into_iter()
+            .filter(|(w, _)| name_like(&self.kind, w))
             .filter(|(w, _)| seen.insert(quote::words(w).join(" ")))
             .map(|(w, _)| w.clone())
             .collect()
@@ -317,14 +318,33 @@ impl Entity {
     }
 }
 
+/// Whether a way of writing is the name of a person or an organization: a
+/// mail address, a telephone or a number read as a mention is not (it is
+/// contact data or an identifier). A matter is often named by its number.
+pub fn name_like(kind: &str, text: &str) -> bool {
+    let letters = text.chars().filter(|c| c.is_alphabetic()).count();
+    let digits = text.chars().filter(|c| c.is_ascii_digit()).count();
+    !text.contains('@') && (kind == "asunto" || (letters > 0 && letters >= digits))
+}
+
+/// A quote on one line, as a list item needs it.
+fn one_line(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
 /// Whether an entity has a page, by the rule of its type (D-196): it
 /// appears in enough documents, has a role of the list in one of them, or
 /// (if the rule says so) a document gives it a strong identifier.
 fn has_page(vocabulary: &Vocabulary, entity: &Entity) -> bool {
-    if entity.state != "active" || entity.documents.is_empty() {
+    if entity.state != "active" || entity.documents.is_empty() || !name_like(&entity.kind, &entity.name) {
         return false;
     }
     let Some(rule) = vocabulary.pages.rule(&entity.kind) else { return false };
+    if !rule.roles_required.is_empty()
+        && !entity.documents.values().flatten().any(|role| rule.roles_required.iter().any(|r| r == role))
+    {
+        return false;
+    }
     if rule.min_documents > 0 && entity.documents.len() >= rule.min_documents {
         return true;
     }
@@ -447,6 +467,18 @@ fn load(conn: &Connection, project_id: &str, identities: &HashMap<i64, String>) 
             }
         }
     }
+    // A name the record took from a mail address or a number (contact data
+    // read as a mention) gives way to the most used way of writing that is
+    // a name, when there is one.
+    for entity in entities.values_mut() {
+        if !name_like(&entity.kind, &entity.name) {
+            let mut written: Vec<(&String, &usize)> = entity.written.iter().filter(|(w, _)| name_like(&entity.kind, w)).collect();
+            written.sort_by(|a, b| b.1.cmp(a.1).then_with(|| a.0.cmp(b.0)));
+            if let Some((name, _)) = written.first() {
+                entity.name = one_line(name);
+            }
+        }
+    }
     let mut documents: BTreeMap<i64, Document> = BTreeMap::new();
     let contents: BTreeSet<i64> = entities.values().flat_map(|e| e.documents.keys().copied()).collect();
     for content in &contents {
@@ -560,7 +592,7 @@ fn synthesis_question(vocabulary: &Vocabulary, record: &Record, entity: &Entity,
         line.push_str(&format!(" — en {} documento(s)", documents.len()));
         for (content, quote, _) in claim.evidence.iter().take(QUOTES_PER_CLAIM) {
             let name = record.documents.get(content).map(|d| d.name.as_str()).unwrap_or_default();
-            line.push_str(&format!("\n    Cita: «{}» ({name})", quote.trim()));
+            line.push_str(&format!("\n    Cita: «{}» ({name})", one_line(quote)));
         }
         listed.push(line);
     }
@@ -781,7 +813,7 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
             out.push_str(&format!("**{}**\n\n", words.word("conflicts")));
             for (predicate, indexes) in &conflicts {
                 let values: Vec<String> =
-                    indexes.iter().map(|i| format!("«{}» [{}]", object_text(record, &claims[*i]), i + 1)).collect();
+                    indexes.iter().map(|i| format!("«{}» [{}]", one_line(&object_text(record, &claims[*i])), i + 1)).collect();
                 used.extend(indexes.iter().copied());
                 out.push_str(&format!("- {}: {}\n", vocabulary.predicate_label(predicate), values.join(" · ")));
             }
@@ -796,14 +828,14 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
                     .iter()
                     .map(|(content, quote, page)| {
                         let at = page.map(|p| format!(", {} {p}", words.word("page"))).unwrap_or_default();
-                        format!("«{}» ({}{at})", quote.trim(), document_link(record, *content))
+                        format!("«{}» ({}{at})", one_line(quote), document_link(record, *content))
                     })
                     .collect();
                 out.push_str(&format!(
                     "- [{}] {}: {} — {}\n",
                     index + 1,
                     vocabulary.predicate_label(&claim.predicate),
-                    object_text(record, claim),
+                    one_line(&object_text(record, claim)),
                     quotes.join("; ")
                 ));
             }

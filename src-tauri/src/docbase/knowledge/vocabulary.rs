@@ -95,7 +95,8 @@ pub struct Pages {
 
 /// When an entity of one type has a page: it appears in `min_documents`
 /// documents or more, or has one of `roles` in any, or (with
-/// `strong_identifier`) a document gives it a strong identifier.
+/// `strong_identifier`) a document gives it a strong identifier; and, when
+/// `roles_required` says some, one of its mentions has one of them.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PageRule {
@@ -107,6 +108,10 @@ pub struct PageRule {
     pub roles: Vec<String>,
     #[serde(default)]
     pub strong_identifier: bool,
+    /// Besides, at least one mention must have one of these roles (for a
+    /// matter: a document that is about it, not one that only cites it).
+    #[serde(default)]
+    pub roles_required: Vec<String>,
 }
 
 impl Pages {
@@ -301,7 +306,7 @@ mod tests {
         // a page needs is there.
         for t in &types {
             let rule = vocabulary.pages.rule(t).unwrap_or_else(|| panic!("no page rule for {t}"));
-            for role in &rule.roles {
+            for role in rule.roles.iter().chain(&rule.roles_required) {
                 assert!(vocabulary.role(role).is_some(), "the page rule of {t} names an unknown role {role}");
             }
         }
