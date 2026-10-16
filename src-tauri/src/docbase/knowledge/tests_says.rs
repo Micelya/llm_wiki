@@ -183,3 +183,29 @@ fn the_same_number_read_as_another_kind_is_that_identifier() {
     assert_eq!(entity_of("k1.txt"), entity_of("k2.txt"), "the number of the planilla is the DNI");
     assert_ne!(entity_of("k1.txt"), entity_of("k3.txt"), "another DNI is another person");
 }
+
+const P1: &str = "DOC-P1. Ficha de cliente. Nombre: Persona Dos Tres. Cónyuge: Persona Cinco Seis DNI 55.555.555 ama de casa. \
+Firma: Persona Dos Tres.";
+
+#[test]
+fn a_number_written_after_another_persons_name_is_not_hers() {
+    let model = FakeModel::new("falso:1", |prompt| {
+        if !is_knowledge(prompt) {
+            return type_answer("contrato");
+        }
+        let ids = serde_json::json!([{ "clase": "dni", "valor": "55.555.555", "cita": "DNI 55.555.555" }]);
+        serde_json::json!({
+            "menciones": [
+                mention("p", "persona", "Persona Dos Tres", "parte", "Nombre: Persona Dos Tres", ids),
+                mention("c", "persona", "Persona Cinco Seis", "otro", "Cónyuge: Persona Cinco Seis", serde_json::json!([])),
+            ],
+            "afirmaciones": []
+        })
+        .to_string()
+    });
+    let (_dir, base) = base_with(&[("p1.txt", P1)]);
+    base.types_run(&model, 50).unwrap();
+    base.knowledge_run(&model, 50).unwrap();
+    let kept: i64 = base.conn().query_row("SELECT count(*) FROM knowledge_identifier", [], |row| row.get(0)).unwrap();
+    assert_eq!(kept, 0, "the spouse's DNI is not the client's");
+}

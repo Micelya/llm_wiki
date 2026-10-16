@@ -17,6 +17,9 @@ use std::sync::OnceLock;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+/// The version of the program's check of a reading (`extract::verify`).
+const READING_CHECK: &str = "lectura-2";
+
 const BUILTIN: &str = include_str!("../../../resources/catalog/knowledge.json");
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -379,6 +382,9 @@ impl Vocabulary {
                 .collect::<Vec<_>>(),
             // The check of a reading drops what is part of an address.
             "addressWords": &vocabulary.identity.address_words,
+            // Raised when the program's check of a reading changes: every
+            // document is checked again from the answers kept.
+            "check": READING_CHECK,
         });
         let digest = Sha256::digest(read.to_string().as_bytes());
         vocabulary.reading_digest = format!("r-{}", digest.iter().take(8).map(|b| format!("{b:02x}")).collect::<String>());

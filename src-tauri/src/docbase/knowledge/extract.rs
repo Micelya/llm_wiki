@@ -48,6 +48,11 @@ pub const TASK: &str = "knowledge";
 /// Words of text in one question; a longer document is read in parts of
 /// whole pages.
 pub const PART_WORDS: usize = 4000;
+
+/// The type of entity of a person (`knowledge.json`), and how many words
+/// before a number are looked at to tell whose it is.
+const PERSON_KIND: &str = "persona";
+const OTHER_PERSON_WINDOW: usize = 6;
 /// Identifiers recognized by their shape handed over as a hint.
 const MAX_SHAPE_HINTS: usize = 60;
 
@@ -699,6 +704,45 @@ pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &
     }
     for (value, quote) in dropped {
         discard(&mut reading, "identifier", "parte-de-un-domicilio", &value, &quote);
+    }
+    // A person's number that, everywhere the text has it, comes right
+    // after the name of another person of the same reading and not after
+    // hers (a form that lists a spouse under the client) is the other
+    // person's: it would keep the same person apart.
+    let body_words = quote::words(body);
+    let people: Vec<(String, Vec<String>)> = reading
+        .mentions
+        .iter()
+        .filter(|m| m.kind == PERSON_KIND)
+        .map(|m| (m.reference.clone(), quote::words(&m.written)))
+        .filter(|(_, w)| w.len() >= 2)
+        .collect();
+    let mut dropped: Vec<(String, String)> = Vec::new();
+    for mention in reading.mentions.iter_mut().filter(|m| m.kind == PERSON_KIND) {
+        let own = quote::words(&mention.written);
+        let reference = mention.reference.clone();
+        mention.identifiers.retain(|identifier| {
+            let value = quote::words(&identifier.value);
+            if value.is_empty() {
+                return true;
+            }
+            let places: Vec<usize> = (0..body_words.len().saturating_sub(value.len() - 1))
+                .filter(|&i| body_words[i..i + value.len()] == value[..])
+                .collect();
+            let anothers = |i: usize| {
+                let before = &body_words[i.saturating_sub(OTHER_PERSON_WINDOW)..i];
+                !quote::contains(before, &own)
+                    && people.iter().any(|(r, name)| *r != reference && *name != own && quote::contains(before, name))
+            };
+            let other = !places.is_empty() && places.iter().all(|&i| anothers(i));
+            if other {
+                dropped.push((identifier.value.clone(), identifier.quote.clone()));
+            }
+            !other
+        });
+    }
+    for (value, quote) in dropped {
+        discard(&mut reading, "identifier", "de-otra-persona", &value, &quote);
     }
     reading
 }
