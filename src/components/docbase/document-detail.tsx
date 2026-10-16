@@ -23,6 +23,7 @@ import { DocumentTypeFacts } from "./document-types-view"
 import { passedOverNotice } from "./similar"
 import { SimilarDocuments } from "./similar-documents"
 import { useDocbaseQuery } from "./use-docbase-query"
+import { DocumentEntitiesSection } from "@/components/knowledge/document-entities"
 
 /** Text longer than this is cut on screen; the whole text stays in the base. */
 const SHOWN_TEXT_LIMIT = 200_000
@@ -86,6 +87,11 @@ export function DocumentDetailView({ locationId, onBack }: { locationId: number;
               <Section title={`Ubicaciones (${document.locations.length || 1})`}>
                 <Locations document={document} onOpen={handleOpen} />
               </Section>
+              {document.contentId !== null && (
+                <div className="mt-8">
+                  <DocumentEntitiesSection locationId={document.locationId} />
+                </div>
+              )}
               {document.contentId !== null && (
                 <SimilarDocuments locationId={document.locationId} name={document.name} onProblem={setProblem} />
               )}

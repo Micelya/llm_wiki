@@ -2,7 +2,7 @@ import { useState, useEffect } from "react"
 import { PRODUCT_NAME } from "@/lib/app-identity"
 import {
   FileText, FolderOpen, Search, Network, ClipboardCheck, Settings, ArrowLeftRight, ClipboardList, Globe, MessageSquare, Sparkles,
-  HardDrive, Files, Home, BellDot,
+  HardDrive, Files, Home, BellDot, Users, Briefcase,
 } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useWikiStore } from "@/stores/wiki-store"
@@ -40,6 +40,8 @@ function docbaseNavItems(): { view: NavView; icon: typeof FileText; label: strin
     { view: "home", icon: Home, label: "Inicio" },
     { view: "attention", icon: BellDot, label: vocabulary().attention.name },
     { view: "documents", icon: Files, label: "Documentos" },
+    { view: "entities", icon: Users, label: vocabulary().knowledge.entities },
+    { view: "matters", icon: Briefcase, label: vocabulary().knowledge.matters },
     { view: "origins", icon: HardDrive, label: "Orígenes" },
   ]
 }

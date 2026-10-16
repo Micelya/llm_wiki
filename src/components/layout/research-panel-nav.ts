@@ -8,7 +8,10 @@ export function isDocbaseView(view: WikiState["activeView"]): boolean {
     view === "documents" ||
     view === "attention" ||
     view === "similar" ||
-    view === "document-types"
+    view === "document-types" ||
+    view === "entities" ||
+    view === "identity-doubts" ||
+    view === "matters"
   )
 }
 
