@@ -52,6 +52,21 @@ pub(crate) struct Sheet {
     pub entities: Vec<SheetEntity>,
     #[serde(default)]
     pub false_mentions: Vec<SheetFalseMention>,
+    /// Pairs of entities that look the same and are not.
+    #[serde(default)]
+    pub distinct: Vec<SheetPair>,
+    /// Pairs the layer should leave in doubt.
+    #[serde(default)]
+    pub doubtful: Vec<SheetPair>,
+    /// Mentions that cannot be told to be anyone.
+    #[serde(default)]
+    pub unresolvable: Vec<SheetFalseMention>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct SheetPair {
+    pub a: String,
+    pub b: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -114,11 +129,11 @@ pub(crate) fn sheet() -> Option<Sheet> {
 
 /// The model, with its answers kept in `MICELYA_ASK_CACHE` by engine and
 /// question; answers from an earlier run are not counted.
-struct Recorded {
+pub(crate) struct Recorded {
     inner: Box<dyn DocumentAsker>,
     file: Option<PathBuf>,
     saved: Mutex<BTreeMap<String, String>>,
-    asked: AtomicUsize,
+    pub asked: AtomicUsize,
 }
 
 impl Recorded {
@@ -126,7 +141,7 @@ impl Recorded {
         classify::question_key("check", &format!("{}\u{0}{prompt}", self.inner.engine_id()))
     }
 
-    fn has(&self, prompt: &str) -> bool {
+    pub(crate) fn has(&self, prompt: &str) -> bool {
         self.saved.lock().unwrap().contains_key(&self.key(prompt))
     }
 }
@@ -166,7 +181,7 @@ impl DocumentAsker for Recorded {
 
 /// A scratch copy of the base in `MICELYA_DOCBASE_COPY`, or the folders
 /// of `MICELYA_DOCBASE_CHECK` read into a scratch base.
-fn open_base() -> Option<(TempDir, DocBase)> {
+pub(crate) fn open_base() -> Option<(TempDir, DocBase)> {
     if let Ok(copy) = std::env::var("MICELYA_DOCBASE_COPY") {
         let scratch = TempDir::new();
         let target = scratch.path().join(PRIVATE_DB_FILE);
@@ -198,9 +213,21 @@ fn open_base() -> Option<(TempDir, DocBase)> {
     Some(prepare(&folders))
 }
 
+/// Keeps a copy of the scratch base, after the run, in the file named in
+/// `MICELYA_KNOWLEDGE_SAVE` (outside the repository: it holds real
+/// documents), to look into it by hand.
+pub(crate) fn save_copy(base: &DocBase) {
+    let Ok(path) = std::env::var("MICELYA_KNOWLEDGE_SAVE") else { return };
+    let _ = std::fs::remove_file(&path);
+    match base.conn().execute("VACUUM INTO ?1", [&path]) {
+        Ok(_) => println!("   a copy of the base after the run: {path}"),
+        Err(error) => println!("   could not keep a copy of the base in {path}: {error}"),
+    }
+}
+
 /// Whether two names, normalized, are the same one: equal, or the words
 /// of one all among those of the other (two words at least).
-fn names_match(a: &str, b: &str) -> bool {
+pub(crate) fn names_match(a: &str, b: &str) -> bool {
     if a == b {
         return true;
     }
@@ -210,7 +237,7 @@ fn names_match(a: &str, b: &str) -> bool {
     short.len() >= 2 && short.is_subset(long)
 }
 
-fn normalized(text: &str) -> String {
+pub(crate) fn normalized(text: &str) -> String {
     quote::words(text).join(" ")
 }
 
@@ -230,20 +257,16 @@ fn ratio(a: usize, b: usize) -> String {
     }
 }
 
-#[test]
-#[ignore = "reads a real base or real folders and asks the real model"]
-fn extraction_against_the_entity_sheet() {
-    let Some((_scratch, base)) = open_base() else {
-        println!("MICELYA_DOCBASE_COPY or MICELYA_DOCBASE_CHECK is not set: nothing to check");
-        return;
-    };
+/// The model of the evaluations: Codex CLI with `MICELYA_ASK_MODEL`, its
+/// answers kept in `MICELYA_ASK_CACHE`.
+pub(crate) fn recorded() -> Recorded {
     let file = std::env::var("MICELYA_ASK_CACHE").ok().map(PathBuf::from);
     let saved: BTreeMap<String, String> = file
         .as_ref()
         .and_then(|f| std::fs::read_to_string(f).ok())
         .and_then(|t| serde_json::from_str(&t).ok())
         .unwrap_or_default();
-    let asker = Recorded {
+    Recorded {
         inner: crate::source_volume::asking::asker_for(&AskConfig {
             engine: "codex-cli".into(),
             model: std::env::var("MICELYA_ASK_MODEL").unwrap_or_default(),
@@ -252,30 +275,30 @@ fn extraction_against_the_entity_sheet() {
         file,
         saved: Mutex::new(saved),
         asked: AtomicUsize::new(0),
-    };
-    let parallel: usize = std::env::var("MICELYA_ASK_PARALLEL").ok().and_then(|p| p.parse().ok()).unwrap_or(1).max(1);
-
-    // Types first: they are a hint of the question.
-    let started = Instant::now();
-    loop {
-        let report = base.types_run(&asker, 100).unwrap();
-        if report.asked + report.data_asked == 0 {
-            break;
-        }
     }
-    let types_asked = asker.asked.load(Ordering::SeqCst);
-    println!("types: {:.1}s, {types_asked} questions to the model", started.elapsed().as_secs_f32());
+}
 
-    // The questions still to ask, a few at a time, into the cache.
-    let started = Instant::now();
-    let mut questions: Vec<classify::Question> =
-        base.knowledge_questions().unwrap().into_iter().filter(|q| !asker.has(&q.prompt)).collect();
-    // A trial run: only this many new questions, and nothing else asked.
-    let limit: Option<usize> = std::env::var("MICELYA_ASK_LIMIT").ok().and_then(|l| l.parse().ok());
-    if let Some(limit) = limit {
+/// Questions asked at the same time while warming the cache.
+pub(crate) fn parallel() -> usize {
+    std::env::var("MICELYA_ASK_PARALLEL").ok().and_then(|p| p.parse().ok()).unwrap_or(1).max(1)
+}
+
+/// A trial run: only this many new questions.
+pub(crate) fn limit() -> Option<usize> {
+    std::env::var("MICELYA_ASK_LIMIT").ok().and_then(|l| l.parse().ok())
+}
+
+/// Asks the questions not yet in the cache, a few at a time. Returns the
+/// failures.
+pub(crate) fn ask_in_parallel(asker: &Recorded, mut questions: Vec<classify::Question>, what: &str) -> Vec<String> {
+    questions.retain(|q| !asker.has(&q.prompt));
+    let mut seen = BTreeSet::new();
+    questions.retain(|q| seen.insert(q.key.clone()));
+    if let Some(limit) = limit() {
         questions.truncate(limit);
     }
-    println!("knowledge: {} questions not yet in the cache; asking {parallel} at a time", questions.len());
+    let parallel = parallel();
+    println!("{what}: {} questions not yet in the cache; asking {parallel} at a time", questions.len());
     let next = AtomicUsize::new(0);
     let failures = Mutex::new(Vec::new());
     std::thread::scope(|scope| {
@@ -300,9 +323,26 @@ fn extraction_against_the_entity_sheet() {
             });
         }
     });
+    failures.into_inner().unwrap()
+}
+
+/// Types first (a hint of the reading), then the reading of every
+/// document, with the questions warmed in the cache a few at a time.
+pub(crate) fn read_all(base: &DocBase, asker: &Recorded) -> KnowledgeReport {
+    let started = Instant::now();
+    loop {
+        let report = base.types_run(asker, 100).unwrap();
+        if report.asked + report.data_asked == 0 {
+            break;
+        }
+    }
+    let types_asked = asker.asked.load(Ordering::SeqCst);
+    println!("types: {:.1}s, {types_asked} questions to the model", started.elapsed().as_secs_f32());
+    let started = Instant::now();
+    let failures = ask_in_parallel(asker, base.knowledge_questions().unwrap(), "knowledge");
     let mut total = KnowledgeReport::default();
     loop {
-        let report = base.knowledge_run(&asker, limit.unwrap_or(1000)).unwrap();
+        let report = base.knowledge_run(asker, 1000).unwrap();
         let more = report.extracted > 0;
         total.add(&report);
         if !more {
@@ -313,11 +353,24 @@ fn extraction_against_the_entity_sheet() {
         "knowledge: {:.1}s; questions to the model in this run: {} (answers kept from earlier runs not counted); failures: {}",
         started.elapsed().as_secs_f32(),
         asker.asked.load(Ordering::SeqCst) - types_asked,
-        failures.lock().unwrap().len()
+        failures.len()
     );
     println!("   {total:?}");
+    total
+}
+
+#[test]
+#[ignore = "reads a real base or real folders and asks the real model"]
+fn extraction_against_the_entity_sheet() {
+    let Some((_scratch, base)) = open_base() else {
+        println!("MICELYA_DOCBASE_COPY or MICELYA_DOCBASE_CHECK is not set: nothing to check");
+        return;
+    };
+    let asker = recorded();
+    read_all(&base, &asker);
     let status = base.knowledge_status(&Visible::All).unwrap();
     println!("\n== status ==\n   {status:?}");
+    save_copy(&base);
 
     let (by_path, by_content) = paths_by_content(&base);
     let name = |content: i64| by_content.get(&content).map(|p| p.join(" = ")).unwrap_or_else(|| format!("#{content}"));

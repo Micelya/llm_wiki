@@ -21,6 +21,8 @@
 
 #[cfg(test)]
 pub(crate) mod check;
+#[cfg(test)]
+mod check_identity;
 pub(crate) mod claims;
 pub mod decide;
 pub mod entities;
