@@ -5,6 +5,7 @@
  * the algorithm core stays testable without mocks of all that.
  */
 import { listDirectory, readFile, writeFile, deleteFile } from "@/commands/fs"
+import { decideIdentityMany, type IdentityDecision } from "@/commands/docbase"
 import { streamChat } from "@/lib/llm-client"
 import {
   candidatePairs,
@@ -146,10 +147,23 @@ export function isProjectedPage(content: string): boolean {
 }
 
 /**
+ * The entity of the record a projected page stands for (`ent-…`): not
+ * the page of a matter, nor a page kept only for its notes.
+ */
+export function projectedEntityId(content: string): string | null {
+  if (!isProjectedPage(content)) return null
+  const header = content.replace(/\r\n/g, "\n").match(/^---\n([\s\S]*?)\n---/)?.[1] ?? ""
+  if (/^state:\s*kept\s*$/m.test(header)) return null
+  const id = header.match(/^entity_id:\s*(\S+)\s*$/m)?.[1] ?? null
+  return id && id.startsWith("ent-") ? id : null
+}
+
+/**
  * Walk wiki/entities/ and wiki/concepts/, build summaries.
  * Pages that fail to parse (no frontmatter, etc.) are skipped
- * silently — they can't participate in dedup anyway. Pages projected by
- * the knowledge layer are left out.
+ * silently — they can't participate in dedup anyway. Of the pages
+ * projected by the knowledge layer only those of an entity take part:
+ * two of them are joined by a decision on the record (`executeMerge`).
  */
 export async function loadAllEntitySummaries(
   projectPath: string,
@@ -161,7 +175,7 @@ export async function loadAllEntitySummaries(
     for (const node of walkMd(tree, prefix)) {
       try {
         const content = await readFile(node.path)
-        if (isProjectedPage(content)) continue
+        if (isProjectedPage(content) && !projectedEntityId(content)) continue
         const rel = toWikiRelative(pp, node.path)
         const summary = extractEntitySummary(rel, content)
         if (summary) out.push(summary)
@@ -431,15 +445,23 @@ export async function executeMerge(
       )
     }
     const page = allPages.find((p) => p.path === relPath)
-    if (page && isProjectedPage(page.content)) {
-      throw new Error(
-        `"${slug}" is written from the record of people, organizations and matters; join them there, not by merging pages.`,
-      )
-    }
     if (!page) {
       throw new Error(`Internal: page lookup miss for ${relPath}`)
     }
     groupPages.push({ slug, path: relPath, content: page.content })
+  }
+
+  // Pages written from the record are joined on the record (D-220): a
+  // decision of a person, reversible, that the next projection writes.
+  const projected = groupPages.filter((p) => isProjectedPage(p.content))
+  if (projected.length > 0) {
+    if (projected.length < groupPages.length) {
+      throw new Error(
+        "Una de estas páginas se arma desde el registro de personas, organizaciones y asuntos y otra no: no se fusionan. " +
+          "Uní las entidades desde el registro.",
+      )
+    }
+    return joinOnTheRecord(groupPages, canonicalSlug)
   }
 
   const groupPaths = new Set(groupPages.map((p) => p.path))
@@ -501,4 +523,46 @@ export async function executeMerge(
   }
 
   return result
+}
+
+/**
+ * Two or more pages of entities of the record that are the same: a join
+ * of their entities, kept as a decision of a person (R-08, reversible
+ * from the entity), instead of rewriting files. The projection writes the
+ * one page that stays; the others become redirects or go.
+ */
+async function joinOnTheRecord(
+  pages: { slug: string; path: string; content: string }[],
+  canonicalSlug: string,
+): Promise<MergeResult> {
+  const canonical = pages.find((p) => p.slug === canonicalSlug) ?? pages[0]
+  const keep = projectedEntityId(canonical.content)
+  if (!keep) throw new Error(`"${canonical.slug}" no es la página de una entidad del registro.`)
+  const decisions: IdentityDecision[] = []
+  for (const page of pages) {
+    const other = projectedEntityId(page.content)
+    if (!other) throw new Error(`"${page.slug}" no es la página de una entidad del registro.`)
+    if (other !== keep) decisions.push({ kind: "join", a: `entity:${keep}`, b: `entity:${other}` })
+  }
+  if (decisions.length > 0) await decideIdentityMany(decisions, "duplicados de Mantenimiento")
+  return { canonicalContent: canonical.content, canonicalPath: canonical.path, rewrites: [], pagesToDelete: [], backup: [] }
+}
+
+/**
+ * "They are not duplicates" said of pages of the record: their entities
+ * are kept apart in every resolution (R-08). Pages that are not of the
+ * record are left to the list of not-duplicates, as before.
+ */
+export async function separateOnTheRecord(projectPath: string, slugs: string[]): Promise<number> {
+  const pp = normalizePath(projectPath)
+  const allPages = await loadAllWikiPages(pp)
+  const ids: string[] = []
+  for (const slug of slugs) {
+    const page = allPages.find((p) => p.path.split("/").pop() === `${slug}.md`)
+    const id = page ? projectedEntityId(page.content) : null
+    if (id && !ids.includes(id)) ids.push(id)
+  }
+  const decisions: IdentityDecision[] = ids.slice(1).map((other) => ({ kind: "separate", a: `entity:${ids[0]}`, b: `entity:${other}` }))
+  if (decisions.length > 0) await decideIdentityMany(decisions, "no son duplicados (Mantenimiento)")
+  return decisions.length
 }

@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { useWikiStore } from "@/stores/wiki-store"
 import { hasUsableLlm } from "@/lib/has-usable-llm"
-import { runDuplicateDetection } from "@/lib/dedup-runner"
+import { runDuplicateDetection, separateOnTheRecord } from "@/lib/dedup-runner"
 import { addNotDuplicate } from "@/lib/dedup-storage"
 import {
   enqueueMerge,
@@ -320,6 +320,8 @@ export function MaintenanceSection() {
       const entry = groups[idx]
       if (!entry) return
       try {
+        // Pages of the record: their entities are kept apart there.
+        await separateOnTheRecord(project.path, entry.group.slugs)
         await addNotDuplicate(project.path, entry.group.slugs)
         setGroups((prev) =>
           prev.map((g, i) => (i === idx ? { ...g, skipped: true } : g)),
