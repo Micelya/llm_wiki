@@ -74,21 +74,21 @@
     { "id": "otro", "label": "Otro número", "description": "Otro número que identifica a la entidad (número de cliente, de socio, de contrato).", "types": ["persona", "organizacion", "asunto"] }
   ],
   "predicates": [
-    { "id": "cargo", "label": "Cargo", "single": true, "description": "El cargo, puesto o función que ocupa (presidente, gerente, socio gerente, empleado de tal área).", "subject": ["persona"], "object": "value" },
-    { "id": "domicilio", "label": "Domicilio", "single": true, "description": "Un domicilio real, legal, fiscal o constituido que el documento le atribuye.", "subject": ["persona", "organizacion"], "object": "value" },
+    { "id": "cargo", "label": "Cargo", "shape": "text", "within": ["organizacion"], "description": "El cargo, puesto o función que ocupa (presidente, gerente, socio gerente, empleado de tal área).", "subject": ["persona"], "object": "value" },
+    { "id": "domicilio", "label": "Domicilio", "single": true, "shape": "address", "qualifiers": [{ "id": "constituido", "label": "constituido", "words": ["constituye domicilio", "constituyo domicilio", "constituimos domicilio", "constituyen domicilio", "constituyendo domicilio", "domicilio constituido", "domicilio especial", "a estos efectos", "a todos los efectos"] }], "description": "Un domicilio real, legal, fiscal o constituido que el documento le atribuye.", "subject": ["persona", "organizacion"], "object": "value" },
     { "id": "representa_a", "label": "Representa a", "description": "Actúa en nombre o en representación de otra persona u organización.", "subject": ["persona", "organizacion"], "object": "entity", "objectTypes": ["persona", "organizacion"] },
     { "id": "socio_de", "label": "Socio de", "description": "Es socio o accionista de una organización.", "subject": ["persona", "organizacion"], "object": "entity", "objectTypes": ["organizacion"] },
     { "id": "empleado_de", "label": "Empleado de", "description": "Trabaja o trabajó en relación de dependencia o como contratado para otra persona u organización.", "subject": ["persona"], "object": "entity", "objectTypes": ["persona", "organizacion"] },
     { "id": "deudor_de", "label": "Deudor de", "description": "Le debe algo a otra persona u organización según el documento.", "subject": ["persona", "organizacion"], "object": "entity", "objectTypes": ["persona", "organizacion"] },
     { "id": "acreedor_de", "label": "Acreedor de", "description": "Es acreedor de otra persona u organización según el documento.", "subject": ["persona", "organizacion"], "object": "entity", "objectTypes": ["persona", "organizacion"] },
-    { "id": "monto_reclamado", "label": "Monto reclamado", "single": true, "description": "Un importe que reclama o intima a pagar, tal como está escrito.", "subject": ["persona", "organizacion"], "object": "value" },
-    { "id": "monto_adeudado", "label": "Monto adeudado", "description": "Un importe que debe, que se le paga o que se compromete a pagar, tal como está escrito.", "subject": ["persona", "organizacion"], "object": "value" },
+    { "id": "monto_reclamado", "label": "Monto reclamado", "shape": "amount", "description": "Un importe que reclama o intima a pagar, tal como está escrito.", "subject": ["persona", "organizacion"], "object": "value" },
+    { "id": "monto_adeudado", "label": "Monto adeudado", "shape": "amount", "description": "Un importe que debe, que se le paga o que se compromete a pagar, tal como está escrito.", "subject": ["persona", "organizacion"], "object": "value" },
     { "id": "parte_en", "label": "Parte en", "description": "Es parte o interviene en un asunto (un expediente, un reclamo, un contrato marco).", "subject": ["persona", "organizacion"], "object": "entity", "objectTypes": ["asunto"] },
     { "id": "inicio_de_vinculo", "label": "Inicio de un vínculo", "description": "La fecha en que empieza un vínculo suyo (una relación laboral, un contrato, una representación), tal como está escrita.", "subject": ["persona", "organizacion"], "object": "value" },
     { "id": "fin_de_vinculo", "label": "Fin de un vínculo", "description": "La fecha en que termina un vínculo suyo, tal como está escrita.", "subject": ["persona", "organizacion"], "object": "value" },
-    { "id": "profesion", "label": "Profesión", "description": "Su profesión u ocupación.", "subject": ["persona"], "object": "value" },
-    { "id": "nacionalidad", "label": "Nacionalidad", "single": true, "description": "Su nacionalidad.", "subject": ["persona"], "object": "value" },
-    { "id": "estado_civil", "label": "Estado civil", "single": true, "description": "Su estado civil.", "subject": ["persona"], "object": "value" },
+    { "id": "profesion", "label": "Profesión", "shape": "text", "description": "Su profesión u ocupación.", "subject": ["persona"], "object": "value" },
+    { "id": "nacionalidad", "label": "Nacionalidad", "single": true, "shape": "text", "description": "Su nacionalidad.", "subject": ["persona"], "object": "value" },
+    { "id": "estado_civil", "label": "Estado civil", "single": true, "shape": "text", "description": "Su estado civil.", "subject": ["persona"], "object": "value" },
     { "id": "contacto", "label": "Contacto", "description": "Un correo electrónico o un teléfono suyo.", "subject": ["persona", "organizacion"], "object": "value" }
   ],
   "pages": {
@@ -124,11 +124,18 @@
       "overviewDocuments": "Documentos leídos",
       "overviewEntities": "Con página",
       "overviewMost": "Los más nombrados",
-      "overviewMatters": "Asuntos"
+      "overviewMatters": "Asuntos",
+      "within": "en"
     }
+  },
+  "values": {
+    "about": "Con qué se comprueba la forma de un valor: un importe tiene dígitos y, si no tiene separadores, una moneda; un texto tiene más letras que dígitos y no es el nombre de quien se habla; un domicilio tiene un número y palabras. Dos domicilios con los mismos números y una palabra en común son el mismo escrito de dos maneras; dos importes con los mismos números, también.",
+    "currencies": ["$", "usd", "us", "u s", "ars", "eur", "euro", "euros", "peso", "pesos", "dolar", "dolares", "dollar", "dollars"],
+    "addressNoise": ["piso", "dpto", "depto", "departamento", "of", "oficina", "suite", "unidad", "uf", "ciudad", "autonoma", "buenos", "aires", "caba", "provincia", "pcia", "prov", "capital", "federal", "argentina", "av", "avenida", "calle", "street", "st", "ave", "road", "rd", "c", "o"]
   },
   "identity": {
     "about": "Palabras que la resolución de identidad no cuenta al comparar nombres, y formas societarias. Cada forma es una organización distinta: dos nombres iguales con distinta forma no se unen salvo que una persona lo decida.",
+    "generic": ["yo", "mi", "me", "nos", "nosotros", "nosotras", "usted", "ustedes", "el", "ella", "ellos", "ellas", "este", "esta", "suscripto", "suscripta", "suscriptos", "firmante", "firmantes", "cliente", "clientes", "locador", "locadora", "locatario", "locataria", "comprador", "compradora", "vendedor", "vendedora", "empresa", "sociedad", "compania", "parte", "partes", "deudor", "deudora", "acreedor", "acreedora", "empleador", "empleadora", "empleado", "empleada", "trabajador", "trabajadora", "contratista", "contratante", "consultor", "consultora", "prestador", "prestadora", "proveedor", "proveedora", "requirente", "requerido", "requerida", "actor", "actora", "demandado", "demandada", "mutuante", "mutuario", "mutuaria", "cedente", "cesionario", "cesionaria", "inversor", "inversora", "beneficiario", "beneficiaria", "destinatario", "destinataria", "remitente", "i", "you", "we", "us", "company", "party", "parties", "client", "customer", "employee", "employer", "consultant", "contractor", "lender", "borrower", "holder", "investor", "buyer", "seller"],
     "stopwords": ["el", "la", "los", "las", "lo", "de", "del", "y", "e", "en", "the", "of", "and", "for"],
     "titles": ["sr", "sra", "srta", "senor", "senora", "dr", "dra", "doctor", "doctora", "lic", "licenciado", "licenciada", "ing", "ingeniero", "ingeniera", "cr", "cra", "cdor", "cdora", "contador", "contadora", "esc", "escribano", "escribana", "abogado", "abogada", "mr", "mrs", "ms", "miss"],
     "legalForms": [

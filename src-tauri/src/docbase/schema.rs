@@ -42,7 +42,9 @@ CREATE TABLE type_decision (
 ///   so the same name of the document that takes its place keeps it.
 /// - `knowledge_claim.context_entity`: the entity a value is said within
 ///   (a position held in a company): the same value within two entities
-///   is two claims, not a conflict.
+///   is two claims, not a conflict. `qualifier`: what kind of value the
+///   quote says it is (a domicile constituted for a proceeding): values of
+///   different kinds are not in conflict either.
 /// - What the model said of the groups of a content that goes away is
 ///   forgotten (the answers stay in `model_answer`: the same question
 ///   costs nothing).
@@ -87,9 +89,11 @@ CREATE TRIGGER knowledge_mention_gone AFTER DELETE ON knowledge_mention WHEN OLD
 END;
 
 ALTER TABLE knowledge_claim ADD COLUMN context_entity TEXT REFERENCES knowledge_entity (id) ON DELETE SET NULL;
+ALTER TABLE knowledge_claim ADD COLUMN qualifier TEXT;
 DROP INDEX knowledge_claim_key;
 CREATE UNIQUE INDEX knowledge_claim_key
-    ON knowledge_claim (subject, predicate, coalesce(object_entity, ''), coalesce(object_normalized, ''), coalesce(context_entity, ''));
+    ON knowledge_claim (subject, predicate, coalesce(object_entity, ''), coalesce(object_normalized, ''), coalesce(context_entity, ''),
+                        coalesce(qualifier, ''));
 ";
 
 /// The projection of the knowledge layer into the general project's wiki

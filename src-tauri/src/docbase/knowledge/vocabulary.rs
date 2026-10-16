@@ -36,6 +36,9 @@ pub struct Vocabulary {
     /// pages are written with (`pages.rs`).
     #[serde(default)]
     pub pages: Pages,
+    /// The words the shapes of values are checked with.
+    #[serde(default)]
+    pub values: ValueWords,
     /// Fingerprint of the vocabulary text.
     #[serde(skip)]
     pub digest: String,
@@ -64,6 +67,26 @@ pub struct IdentityWords {
     /// organization.
     #[serde(default)]
     pub legal_forms: Vec<LegalForm>,
+    /// Words that name someone without being a name ("el cliente", "mi",
+    /// "la locataria"): a mention written only with them is not a name to
+    /// compare, to show as an alias or to name an entity by.
+    #[serde(default)]
+    pub generic: Vec<String>,
+}
+
+/// The words the shapes of values are checked with (normalized).
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ValueWords {
+    #[serde(default)]
+    pub about: String,
+    /// Currency signs and names: with them, a number is an amount.
+    #[serde(default)]
+    pub currencies: Vec<String>,
+    /// Words of an address that do not tell two addresses apart ("piso",
+    /// "ciudad", "provincia").
+    #[serde(default)]
+    pub address_noise: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -173,6 +196,35 @@ pub struct Predicate {
     /// values for the same time are a conflict, at different times a history.
     #[serde(default)]
     pub single: bool,
+    /// What a value must look like to count (`values.shapes`): an amount
+    /// has digits, a text has more letters than digits and is not the name
+    /// of whom it is said of, an address has a number and words. A value
+    /// of another shape is kept in the reading but is not a claim.
+    #[serde(default)]
+    pub shape: String,
+    /// Types of entity a value is said within (a position is held in a
+    /// company): the entity of the document the quote names, or the one
+    /// the subject is related to in the document. The same value within
+    /// two entities is two claims; values within different entities are
+    /// never in conflict.
+    #[serde(default)]
+    pub within: Vec<String>,
+    /// Kinds of value the quote can say (a domicile "constituted" for a
+    /// proceeding): values of different kinds are not in conflict.
+    #[serde(default)]
+    pub qualifiers: Vec<Qualifier>,
+}
+
+/// A kind of value, told by words of the quote (normalized, each a run of
+/// words that must be in it).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Qualifier {
+    pub id: String,
+    #[serde(default)]
+    pub label: String,
+    #[serde(default)]
+    pub words: Vec<String>,
 }
 
 impl Predicate {
@@ -228,6 +280,15 @@ impl Vocabulary {
 
     pub fn predicate(&self, id: &str) -> Option<&Predicate> {
         self.predicates.iter().find(|p| p.id == id)
+    }
+
+    /// Whether a normalized name is only generic words (or no word at all).
+    pub fn is_generic(&self, normalized: &str) -> bool {
+        let words = &self.identity;
+        normalized
+            .split_whitespace()
+            .filter(|w| !words.stopwords.iter().any(|s| s == w) && !words.titles.iter().any(|t| t == w))
+            .all(|w| words.generic.iter().any(|g| g == w))
     }
 
     /// Whether this kind of identifier names one entity only.

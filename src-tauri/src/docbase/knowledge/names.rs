@@ -121,6 +121,12 @@ pub fn key(vocabulary: &Vocabulary, kind: &str, written: &str) -> NameKey {
         form = take_form(vocabulary, &mut words);
     }
     words.retain(counts);
+    // Words that name someone without being a name ("el cliente", "mi",
+    // "la locataria"): no name to compare (D-211).
+    let generic = |w: &String| identity.generic.iter().any(|g| g == w) || titles.contains(w.as_str());
+    if form.is_none() && !words.is_empty() && words.iter().all(generic) {
+        return NameKey { words: Vec::new(), form, email, full: Vec::new() };
+    }
     NameKey { words, form, email, full }
 }
 

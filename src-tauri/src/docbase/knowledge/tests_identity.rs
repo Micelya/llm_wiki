@@ -189,8 +189,8 @@ fn identifiers_names_and_the_model_in_cascade() {
     assert!(doubts.iter().any(|(_, reason)| reason == "identificador-parecido"), "{doubts:?}");
 
     // The same name and legal form joins; another legal form never; the
-    // name without a form, when two forms share it, is a doubt without
-    // asking (either could be).
+    // name without a form, when two forms share it, is asked once against
+    // both: the model cannot tell, so it is a doubt against each.
     let company = entity(&base, "a.txt", "Ejemplo Uno S.A.").unwrap();
     assert_eq!(entity(&base, "b.txt", "Ejemplo Uno SA").as_ref(), Some(&company));
     assert_eq!(entity(&base, "e.txt", "Ejemplo Uno S.A.").as_ref(), Some(&company));
@@ -205,7 +205,7 @@ fn identifiers_names_and_the_model_in_cascade() {
     assert_eq!(entity(&base, "f.txt", "Persona Tres Cuatro").as_ref(), Some(&three));
     assert_eq!(resolved_by(&base, "f.txt", "Persona Tres Cuatro").as_deref(), Some("modelo"));
     let asked = identity_calls(&asker);
-    assert_eq!(asked, 1, "one question, about the partial name");
+    assert_eq!(asked, 2, "one question about the partial name, one about the name without a form");
 
     // Resolving again asks nothing and changes nothing (R-13, R-20).
     let before = partition(&base);
@@ -328,4 +328,48 @@ fn claims_with_their_own_time_are_a_history() {
     let listed = base.knowledge_entities(&Visible::All, Some("persona"), Some("dos")).unwrap();
     assert!(listed.iter().any(|e| e.id == two && e.documents == 2));
     assert!(base.knowledge_entities(&Visible::Origins(vec![]), None, None).unwrap().is_empty());
+}
+
+/// The model names one of the companies a name without a form may be.
+fn naming(company: &'static str) -> FakeModel {
+    FakeModel::new("falso:1", move |prompt| {
+        if is_identity(prompt) && prompt.contains("a lo sumo uno puede ser la misma") {
+            let candidates = prompt.split("Candidatos:\n").nth(1).unwrap_or_default();
+            let answers: Vec<serde_json::Value> = candidates
+                .split("\n[")
+                .enumerate()
+                .map(|(index, block)| {
+                    let names = block.lines().find(|l| l.starts_with("- Nombres:")).unwrap_or_default();
+                    let decision = if names.contains(company) { "misma" } else { "distinta" };
+                    serde_json::json!({ "candidato": index + 1, "decision": decision, "certeza": "media", "razon": "por el contexto" })
+                })
+                .collect();
+            serde_json::json!({ "respuestas": answers }).to_string()
+        } else if is_identity(prompt) {
+            verdicts(prompt)
+        } else if is_knowledge(prompt) {
+            reading(prompt)
+        } else {
+            type_answer("contrato")
+        }
+    })
+}
+
+#[test]
+fn a_name_without_a_form_joins_the_one_company_the_model_names() {
+    let (_dir, base) = base_with(FILES);
+    run(&base, &naming("LLC"));
+    let other = entity(&base, "e.txt", "Ejemplo Uno LLC").unwrap();
+    assert_eq!(entity(&base, "f.txt", "EJEMPLO UNO").as_ref(), Some(&other));
+    let (_, doubts) = partition(&base);
+    assert!(!doubts.iter().any(|(_, reason)| reason == "sin-forma-varias-sociedades"), "{doubts:?}");
+
+    // Naming both is not knowing which: a doubt against each.
+    let (_dir, base) = base_with(FILES);
+    run(&base, &naming("Ejemplo Uno"));
+    let bare = entity(&base, "f.txt", "EJEMPLO UNO").unwrap();
+    assert_ne!(Some(&bare), entity(&base, "e.txt", "Ejemplo Uno LLC").as_ref());
+    assert_ne!(Some(&bare), entity(&base, "a.txt", "Ejemplo Uno S.A.").as_ref());
+    let (_, doubts) = partition(&base);
+    assert_eq!(doubts.iter().filter(|(_, reason)| reason == "sin-forma-varias-sociedades").count(), 2, "{doubts:?}");
 }

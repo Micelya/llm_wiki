@@ -40,6 +40,7 @@ pub mod names;
 pub mod pages;
 pub mod quote;
 pub mod resolve;
+pub mod values;
 #[cfg(test)]
 pub(crate) mod tests;
 #[cfg(test)]

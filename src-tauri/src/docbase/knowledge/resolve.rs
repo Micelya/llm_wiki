@@ -98,6 +98,8 @@ pub struct ResolveReport {
     pub changed: usize,
     pub claims: usize,
     pub conflicts: usize,
+    /// Pieces of evidence whose value has not the shape of its predicate.
+    pub unfit: usize,
     /// Keys too common to look for candidates by.
     pub common_keys: usize,
     pub errors: Vec<String>,
@@ -730,7 +732,7 @@ impl Sets {
 
 /// The candidates for the model: pairs of entities (after the joins by
 /// identifier and by name) whose names may be the same, with the reason.
-fn candidates(resolver: &mut Resolver, common: &mut usize) -> BTreeMap<(usize, usize), &'static str> {
+fn candidates(resolver: &mut Resolver, common: &mut usize, formless: &mut BTreeMap<usize, BTreeSet<usize>>) -> BTreeMap<(usize, usize), &'static str> {
     let clusters = resolver.clusters;
     let mut index: BTreeMap<String, Vec<usize>> = BTreeMap::new();
     for (i, cluster) in clusters.iter().enumerate() {
@@ -801,9 +803,14 @@ fn candidates(resolver: &mut Resolver, common: &mut usize) -> BTreeMap<(usize, u
                 }
                 let key = (rx.min(ry), rx.max(ry));
                 let formless_against_formed = |a: usize, b: usize| clusters[a].name.form.is_none() && clusters[b].name.form.is_some();
-                if (formless_against_formed(x, y) && is_ambiguous(x)) || (formless_against_formed(y, x) && is_ambiguous(y)) {
-                    // One doubt per pair of entities, not per pair of mentions.
-                    resolver.doubt(rx, ry, "sin-forma-varias-sociedades", None);
+                if formless_against_formed(x, y) && is_ambiguous(x) {
+                    // A name without a legal form that several companies
+                    // share: one question for all of them, later.
+                    formless.entry(rx).or_default().insert(ry);
+                    continue;
+                }
+                if formless_against_formed(y, x) && is_ambiguous(y) {
+                    formless.entry(ry).or_default().insert(rx);
                     continue;
                 }
                 if clusters[x].kind == PERSON && reason == "una-palabra" {
@@ -968,7 +975,7 @@ fn describe(rows: &[Row], clusters: &[Cluster], members: &[usize], context: &Con
 }
 
 /// The question about a principal entity and its candidates.
-fn question(vocabulary: &Vocabulary, kind: &str, principal: &str, candidates: &[String], content_id: i64) -> Question {
+fn question(vocabulary: &Vocabulary, kind: &str, principal: &str, candidates: &[String], content_id: i64, one_of: bool) -> Question {
     let about = vocabulary.entity_type(kind).map(|t| t.description.trim().to_string()).unwrap_or_default();
     let listed: Vec<String> = candidates.iter().enumerate().map(|(i, c)| format!("[{}]\n{c}", i + 1)).collect();
     let prompt = format!(
@@ -987,11 +994,18 @@ contexto no lo resuelve, \"dudosa\". Ante la duda, \"dudosa\": unir dos entidade
 - Si es \"misma\", en \"certeza\" poné \"alta\" solo si un dato de los documentos lo deja fuera de duda (el mismo \
 identificador, el mismo nombre completo con la misma organización o el mismo cargo, una cita que dice que son la misma); si \
 no, \"media\". Para \"distinta\" y \"dudosa\", la que corresponda.\n\
-- En \"razon\", en una oración, qué dato de los documentos lo decide.\n\n\
+- En \"razon\", en una oración, qué dato de los documentos lo decide.\n{one_of}\n\
 Principal:\n{principal}\n\
 Candidatos:\n{}\n\
 Respondé solo con el JSON pedido: una respuesta por candidato, con su número.",
-        listed.join("\n")
+        listed.join("\n"),
+        one_of = if one_of {
+            "- La principal se nombra sin su forma societaria y los candidatos son sociedades distintas entre sí (cada una con \
+otra forma): a lo sumo uno puede ser la misma. Decí \"misma\" solo si los documentos de la principal muestran cuál es (el mismo \
+identificador, el mismo domicilio, el mismo asunto, las mismas personas); si no se puede saber, \"dudosa\" para todos.\n"
+        } else {
+            ""
+        }
     );
     Question {
         key: classify::question_key(IDENTITY_PROMPT, &prompt),
@@ -1105,7 +1119,8 @@ pub(crate) fn resolve(base: &DocBase, asking: &mut Asking, report: &mut ResolveR
 
     // 3. The model, for the candidates left, against each principal.
     let mut common = 0;
-    let edges = candidates(&mut resolver, &mut common);
+    let mut formless: BTreeMap<usize, BTreeSet<usize>> = BTreeMap::new();
+    let edges = candidates(&mut resolver, &mut common, &mut formless);
     report.common_keys = common;
     let core: Vec<usize> = (0..clusters.len()).map(|i| resolver.find(i)).collect();
     let mut members: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
@@ -1166,66 +1181,76 @@ pub(crate) fn resolve(base: &DocBase, asking: &mut Asking, report: &mut ResolveR
             let principal_text = describe(&rows, &clusters, &members[&principal], &context);
             let texts: Vec<String> = batch.iter().map(|c| describe(&rows, &clusters, &members[c], &context)).collect();
             let kind = clusters[principal].kind.clone();
-            let question = question(vocabulary, &kind, &principal_text, &texts, clusters[principal].content_id);
-            if let Some(collected) = asking.collect.as_mut() {
-                if cached_answer(&base.conn(), &question.key, asking.engine.as_deref())?.is_none() {
-                    collected.push(question);
-                    report.left += 1;
-                    continue;
-                }
-            }
-            let answer = match asking.asker {
-                Some(asker) => {
-                    let cached = cached_answer(&base.conn(), &question.key, Some(&asker.engine_id()))?;
-                    if cached.is_none() {
-                        asking.budget -= 1;
-                        report.asked += 1;
-                    }
-                    match ask_and_keep(base, asker, &question) {
-                        Ok(answer) => Some((answer, asker.engine_id())),
-                        Err(error) => {
-                            report.failed += 1;
-                            report.left += 1;
-                            stopped = stops_the_run(&error);
-                            report.errors.push(error);
-                            None
-                        }
-                    }
-                }
-                None => cached_answer(&base.conn(), &question.key, asking.engine.as_deref())?
-                    .map(|a| (a, asking.engine.clone().unwrap_or_default())),
-            };
-            let Some((answer, engine)) = answer else {
-                if asking.asker.is_none() {
-                    report.left += 1;
-                }
-                continue;
-            };
-            let parsed: Option<Answer> = parse_json(&answer).ok();
-            for (index, &candidate) in batch.iter().enumerate() {
-                let item = parsed.as_ref().and_then(|a| a.respuestas.iter().find(|r| r.candidato == index as i64 + 1));
-                let (verdict, reason) = match item.map(|i| i.decision.as_str()) {
-                    // The certainty is kept with the reason: measured, a
-                    // "the same" with medium certainty was right as often.
-                    Some("misma") => (
-                        "same",
-                        item.map(|i| format!("certeza {}: {}", i.certeza.as_deref().unwrap_or("-"), i.razon.as_deref().unwrap_or_default())),
-                    ),
-                    Some("distinta") => ("different", item.and_then(|i| i.razon.clone())),
-                    Some(_) => ("doubtful", item.and_then(|i| i.razon.clone())),
-                    None => ("doubtful", Some("el modelo no respondió por este candidato".to_string())),
-                };
-                let (a, b) = pair(&clusters[principal].key, &clusters[candidate].key);
-                base.conn()
-                    .execute(
-                        "INSERT OR REPLACE INTO knowledge_verdict (a, b, engine, verdict, reason, question, asked_at)
-                         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                        params![a, b, engine, verdict, reason, question.key, now_ms()],
-                    )
-                    .map_err(sql_err)?;
+            let question = question(vocabulary, &kind, &principal_text, &texts, clusters[principal].content_id, false);
+            let Some(said) = ask_question(base, asking, report, &question, batch.len(), &mut stopped)? else { continue };
+            for (&candidate, (verdict, reason)) in batch.iter().zip(said) {
+                keep_verdict(base, &clusters[principal].key, &clusters[candidate].key, &verdict, &reason, &question.key)?;
                 verdicts.insert((principal.min(candidate), principal.max(candidate)), Verdict { verdict: verdict.to_string(), reason: reason.clone() });
                 apply(&mut resolver, &mut absorbed, principal, candidate, verdict, reason, report);
             }
+        }
+    }
+
+    // 3b. A name without a legal form that several companies share (D-212):
+    // one question with all of them, the model told that at most one can
+    // be the same. Joined only when it names exactly one; else, a doubt
+    // against each.
+    for (&lone, partners) in &formless {
+        let Some(own) = members.get(&lone) else { continue };
+        let mut against: Vec<usize> = Vec::new();
+        for &partner in partners {
+            if resolver.find(partner) != resolver.find(lone) && members.contains_key(&partner) && !against.contains(&partner) {
+                against.push(partner);
+            }
+        }
+        against.sort_by_key(|&c| clusters[c].canon.clone());
+        if against.is_empty() || absorbed.contains(&lone) {
+            continue;
+        }
+        let mut said: Vec<Option<Verdict>> = Vec::new();
+        for &candidate in &against {
+            let mut found: Option<Verdict> = None;
+            for &x in own {
+                for &y in &members[&candidate] {
+                    if let Some(v) = verdicts.get(&(x.min(y), x.max(y))) {
+                        found = Some(v.clone());
+                    }
+                }
+            }
+            said.push(found);
+        }
+        if said.iter().any(Option::is_none) && against.len() <= MAX_CANDIDATES {
+            if stopped || (asking.asker.is_some() && asking.budget == 0) {
+                report.left += 1;
+            } else {
+                let principal_text = describe(&rows, &clusters, own, &context);
+                let texts: Vec<String> = against.iter().map(|c| describe(&rows, &clusters, &members[c], &context)).collect();
+                let kind = clusters[lone].kind.clone();
+                let question = question(vocabulary, &kind, &principal_text, &texts, clusters[lone].content_id, true);
+                if let Some(answers) = ask_question(base, asking, report, &question, against.len(), &mut stopped)? {
+                    said.clear();
+                    for (&candidate, (verdict, reason)) in against.iter().zip(answers) {
+                        keep_verdict(base, &clusters[lone].key, &clusters[candidate].key, &verdict, &reason, &question.key)?;
+                        let v = Verdict { verdict: verdict.to_string(), reason };
+                        verdicts.insert((lone.min(candidate), lone.max(candidate)), v.clone());
+                        said.push(Some(v));
+                    }
+                }
+            }
+        }
+        let same: Vec<usize> =
+            against.iter().zip(&said).filter(|(_, v)| v.as_ref().is_some_and(|v| v.verdict == "same")).map(|(&c, _)| c).collect();
+        let complete = said.iter().all(Option::is_some);
+        if complete && same.len() == 1 {
+            let reason = said.iter().flatten().find(|v| v.verdict == "same").and_then(|v| v.reason.clone());
+            match resolver.join(same[0], lone, "modelo") {
+                Ok(_) => continue,
+                Err(why) => resolver.doubt(same[0], lone, &format!("modelo-misma-{why}"), reason),
+            }
+            continue;
+        }
+        for &candidate in &against {
+            resolver.doubt(lone, candidate, "sin-forma-varias-sociedades", None);
         }
     }
 
@@ -1255,6 +1280,87 @@ pub(crate) fn resolve(base: &DocBase, asking: &mut Asking, report: &mut ResolveR
     doubts.retain(|&(x, y), _| root[x] != root[y] && clusters[x].excluded.is_none() && clusters[y].excluded.is_none());
     drop(resolver);
     Ok(Outcome { rows, clusters, root, by, doubts })
+}
+
+/// Asks a question about identities (or takes its answer kept): the
+/// verdict on each candidate, in order, with its reason. None when it was
+/// not answered (left for another run, or only collected).
+fn ask_question(
+    base: &DocBase,
+    asking: &mut Asking,
+    report: &mut ResolveReport,
+    question: &Question,
+    count: usize,
+    stopped: &mut bool,
+) -> Result<Option<Vec<(&'static str, Option<String>)>>, String> {
+    if let Some(collected) = asking.collect.as_mut() {
+        if cached_answer(&base.conn(), &question.key, asking.engine.as_deref())?.is_none() {
+            collected.push(question.clone());
+            report.left += 1;
+            return Ok(None);
+        }
+    }
+    let answer = match asking.asker {
+        Some(asker) => {
+            let cached = cached_answer(&base.conn(), &question.key, Some(&asker.engine_id()))?;
+            if cached.is_none() {
+                asking.budget = asking.budget.saturating_sub(1);
+                report.asked += 1;
+            }
+            match ask_and_keep(base, asker, question) {
+                Ok(answer) => Some(answer),
+                Err(error) => {
+                    report.failed += 1;
+                    report.left += 1;
+                    *stopped = stops_the_run(&error);
+                    report.errors.push(error);
+                    None
+                }
+            }
+        }
+        None => cached_answer(&base.conn(), &question.key, asking.engine.as_deref())?,
+    };
+    let Some(answer) = answer else {
+        if asking.asker.is_none() {
+            report.left += 1;
+        }
+        return Ok(None);
+    };
+    let parsed: Option<Answer> = parse_json(&answer).ok();
+    let mut out = Vec::new();
+    for index in 0..count {
+        let item = parsed.as_ref().and_then(|a| a.respuestas.iter().find(|r| r.candidato == index as i64 + 1));
+        out.push(match item.map(|i| i.decision.as_str()) {
+            // The certainty is kept with the reason: measured, a "the
+            // same" with medium certainty was right as often.
+            Some("misma") => (
+                "same",
+                item.map(|i| format!("certeza {}: {}", i.certeza.as_deref().unwrap_or("-"), i.razon.as_deref().unwrap_or_default())),
+            ),
+            Some("distinta") => ("different", item.and_then(|i| i.razon.clone())),
+            Some(_) => ("doubtful", item.and_then(|i| i.razon.clone())),
+            None => ("doubtful", Some("el modelo no respondió por este candidato".to_string())),
+        });
+    }
+    Ok(Some(out))
+}
+
+/// Keeps what the model said of a pair of groups, for every later
+/// resolution (R-20).
+fn keep_verdict(base: &DocBase, x: &str, y: &str, verdict: &str, reason: &Option<String>, question: &str) -> Result<(), String> {
+    let engine = base
+        .conn()
+        .query_row("SELECT engine FROM model_answer WHERE question = ?1 ORDER BY asked_at DESC LIMIT 1", [question], |row| row.get::<_, String>(0))
+        .unwrap_or_default();
+    let (a, b) = pair(x, y);
+    base.conn()
+        .execute(
+            "INSERT OR REPLACE INTO knowledge_verdict (a, b, engine, verdict, reason, question, asked_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![a, b, engine, verdict, reason, question, now_ms()],
+        )
+        .map_err(sql_err)?;
+    Ok(())
 }
 
 /// Applies what the model said of a candidate: the same joins it to the
@@ -1501,6 +1607,7 @@ pub(crate) fn write(base: &DocBase, outcome: &Outcome, report: &mut ResolveRepor
     let consolidated = claims::consolidate(&tx, vocabulary, &decided.wrong)?;
     report.claims = consolidated.claims;
     report.conflicts = consolidated.conflicts;
+    report.unfit = consolidated.unfit;
     changed.extend(consolidated.touched);
     for id in &changed {
         super::mark_dirty(&tx, "project", id)?;

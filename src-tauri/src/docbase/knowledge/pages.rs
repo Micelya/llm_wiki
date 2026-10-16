@@ -75,6 +75,7 @@ pub const WORDS: &[&str] = &[
     "overviewEntities",
     "overviewMost",
     "overviewMatters",
+    "within",
 ];
 /// Claims of one entity described in its question; the rest are left
 /// out of the synthesis (the list of documents is always complete).
@@ -141,6 +142,10 @@ impl ProjectReport {
 struct Claim {
     id: i64,
     predicate: String,
+    /// The entity the value is said within (a position in a company), and
+    /// the kind of value its quote says.
+    context: Option<String>,
+    qualifier: Option<String>,
     object_entity: Option<String>,
     object_value: Option<String>,
     state: String,
@@ -309,8 +314,9 @@ impl Entity {
         list.sort_by(|a, b| b.1.cmp(a.1).then_with(|| a.0.cmp(b.0)));
         let own = quote::words(&self.name).join(" ");
         let mut seen = BTreeSet::from([own]);
+        let vocabulary = vocabulary();
         list.into_iter()
-            .filter(|(w, _)| name_like(&self.kind, w))
+            .filter(|(w, _)| name_like(&self.kind, w) && !vocabulary.is_generic(&quote::words(w).join(" ")))
             .filter(|(w, _)| seen.insert(quote::words(w).join(" ")))
             .map(|(w, _)| w.clone())
             .collect()
@@ -443,7 +449,7 @@ fn load(conn: &Connection, project_id: &str, identities: &HashMap<i64, String>) 
         }
         let mut statement = conn
             .prepare(
-                "SELECT id, subject, predicate, object_entity, object_value, state, valid_from FROM knowledge_claim
+                "SELECT id, subject, predicate, object_entity, object_value, state, valid_from, context_entity, qualifier FROM knowledge_claim
                  WHERE state != 'retired' ORDER BY subject, predicate, coalesce(valid_from, ''), coalesce(object_normalized, object_entity, ''), id",
             )
             .map_err(sql_err)?;
@@ -458,6 +464,8 @@ fn load(conn: &Connection, project_id: &str, identities: &HashMap<i64, String>) 
                         object_value: row.get(4)?,
                         state: row.get(5)?,
                         valid_from: row.get(6)?,
+                        context: row.get(7)?,
+                        qualifier: row.get(8)?,
                         evidence: Vec::new(),
                     },
                 ))
@@ -576,16 +584,31 @@ fn numbered(vocabulary: &Vocabulary, entity: &Entity) -> Vec<Claim> {
             .then_with(|| a.valid_from.cmp(&b.valid_from))
             .then_with(|| a.object_value.cmp(&b.object_value))
             .then_with(|| a.object_entity.cmp(&b.object_entity))
+            .then_with(|| a.context.cmp(&b.context))
     });
     claims.truncate(MAX_CLAIMS);
     claims
 }
 
 fn object_text(record: &Record, claim: &Claim) -> String {
-    match (&claim.object_value, &claim.object_entity) {
-        (Some(value), _) => value.clone(),
+    let text = match (&claim.object_value, &claim.object_entity) {
+        (Some(value), _) => one_line(value),
         (None, Some(id)) => record.entities.get(id).map(|e| e.name.clone()).unwrap_or_else(|| id.clone()),
         (None, None) => String::new(),
+    };
+    let vocabulary = vocabulary();
+    let mut text = text;
+    if let Some(qualifier) = claim.qualifier.as_deref() {
+        let label = vocabulary
+            .predicate(&claim.predicate)
+            .and_then(|p| p.qualifiers.iter().find(|q| q.id == qualifier))
+            .map(|q| if q.label.is_empty() { q.id.as_str() } else { q.label.as_str() })
+            .unwrap_or(qualifier);
+        text = format!("{text} ({label})");
+    }
+    match claim.context.as_ref().and_then(|c| record.entities.get(c)) {
+        Some(within) => format!("{text} ({} {})", vocabulary.pages.word("within"), within.name),
+        None => text,
     }
 }
 
