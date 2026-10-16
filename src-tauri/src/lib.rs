@@ -705,6 +705,8 @@ pub fn run() {
             docbase::commands::docbase_knowledge_plan,
             docbase::commands::docbase_knowledge_document,
             docbase::commands::docbase_knowledge_run,
+            docbase::commands::docbase_knowledge_project,
+            docbase::commands::docbase_set_wiki_language,
             docbase::commands::docbase_knowledge_resolve,
             docbase::commands::docbase_knowledge_entities,
             docbase::commands::docbase_knowledge_entity,

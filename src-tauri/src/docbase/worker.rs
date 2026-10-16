@@ -91,17 +91,19 @@ const ASK_BACKOFF: Duration = Duration::from_secs(10 * 60);
 
 /// Starts the thread that asks the model: first the type, stage and data
 /// of each document, then its reading for the knowledge layer, then the
-/// identities of what was read (D-192). One
+/// identities of what was read (D-192), then the pages of the archive's
+/// wiki that are a projection of the record (D-199). One
 /// question at a time, but one after the other while there is work, so a
 /// whole archive is read in one go; only while the archive's wiki is
 /// active and an engine was chosen: like feeding the wiki, it costs the
 /// provider's quota, and turning the wiki off stops it. When the provider
 /// stops answering (its usage limit), it waits and tries again.
-pub fn spawn_asking(base: Arc<DocBase>, on_change: impl Fn() + Send + 'static) {
+/// `on_pages` is called when pages of the wiki were written.
+pub fn spawn_asking(base: Arc<DocBase>, on_change: impl Fn() + Send + 'static, on_pages: impl Fn() + Send + 'static) {
     let spawned = std::thread::Builder::new()
         .name("docbase-asking".to_string())
         .spawn(move || loop {
-            let wait = ask_step(&base, &on_change);
+            let wait = ask_step(&base, &on_change, &on_pages);
             if !wait.is_zero() {
                 std::thread::sleep(wait);
             }
@@ -112,7 +114,7 @@ pub fn spawn_asking(base: Arc<DocBase>, on_change: impl Fn() + Send + 'static) {
 }
 
 /// One question at most. Returns how long to wait before the next.
-fn ask_step(base: &DocBase, on_change: &dyn Fn()) -> Duration {
+fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Duration {
     let engine = match base.background_ask_engine() {
         Ok(Some(engine)) => engine,
         Ok(None) => return ASK_IDLE,
@@ -173,6 +175,29 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn()) -> Duration {
             }
             if report.failed > 0 {
                 eprintln!("[docbase] identities of the knowledge layer: {}", report.errors.join("; "));
+                return ASK_BACKOFF;
+            }
+            if report.asked > 0 || report.left > 0 {
+                return Duration::ZERO;
+            }
+        }
+        Err(error) => {
+            eprintln!("[docbase] {error}");
+            return ASK_IDLE;
+        }
+    }
+    // Every identity resolved: the pages that changed, one question at a
+    // time for what the documents say. Whatever the order in which the
+    // wiki wrote its pages of documents, this leaves every page of entity
+    // up to date with the whole archive.
+    match base.knowledge_project(Some(asker.as_ref()), 1) {
+        Ok(report) => {
+            if report.wrote() {
+                on_change();
+                on_pages();
+            }
+            if report.failed > 0 {
+                eprintln!("[docbase] pages of the knowledge layer: {}", report.errors.join("; "));
                 return ASK_BACKOFF;
             }
             if report.asked > 0 || report.left > 0 {

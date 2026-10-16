@@ -14,6 +14,7 @@ use super::bridge::{self, GeneralProject, WikiSource};
 use super::knowledge::extract::{KnowledgePlan, KnowledgeReport};
 use super::knowledge::decide::{DecisionView, IdentityDecision};
 use super::knowledge::entities::{DoubtView, EntityDetail, EntitySummary};
+use super::knowledge::pages::ProjectReport;
 use super::knowledge::resolve::ResolveReport;
 use super::knowledge::{DocumentKnowledge, KnowledgeStatus};
 use super::labels::{Label, LabelGroup, LabelRule};
@@ -31,6 +32,9 @@ use super::{DocBase, Visible, PRIVATE_DB_FILE};
 
 /// Event the screens listen to in order to refresh.
 pub const CHANGED_EVENT: &str = "docbase://changed";
+/// Event sent when the knowledge layer wrote pages of the archive's wiki
+/// (the wiki brings its index and its tree up to date).
+pub const PAGES_EVENT: &str = "docbase://knowledge-pages";
 
 /// The base of the private space, or why it could not be opened.
 pub struct DocBaseState {
@@ -71,9 +75,16 @@ pub fn start(app: &tauri::AppHandle) {
                 let _ = handle.emit(CHANGED_EVENT, ());
             });
             let handle = app.clone();
-            worker::spawn_asking(base.clone(), move || {
-                let _ = handle.emit(CHANGED_EVENT, ());
-            });
+            let pages = app.clone();
+            worker::spawn_asking(
+                base.clone(),
+                move || {
+                    let _ = handle.emit(CHANGED_EVENT, ());
+                },
+                move || {
+                    let _ = pages.emit(PAGES_EVENT, ());
+                },
+            );
         }
         Err(error) => eprintln!("[docbase] {error}"),
     }
@@ -653,6 +664,40 @@ pub fn docbase_knowledge_resolve(
     };
     let _ = app.emit(CHANGED_EVENT, ());
     Ok(report)
+}
+
+/// Projects the record into the archive's wiki now: the pages of the
+/// entities, the blocks of the pages of documents and the overview. Without
+/// an engine, what the documents say is left as it is (or pending); with
+/// one, at most `max_questions` questions (only on an explicit action of
+/// the user: it costs the provider's quota).
+#[tauri::command(async)]
+pub fn docbase_knowledge_project(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    engine: Option<AskConfig>,
+    max_questions: Option<usize>,
+) -> Result<ProjectReport, String> {
+    let base = state.base()?.clone();
+    let report = match engine {
+        Some(engine) => {
+            let asker = asker_for(&engine)?;
+            base.knowledge_project(Some(asker.as_ref()), max_questions.unwrap_or(RUN_LIMIT))?
+        }
+        None => base.knowledge_project(None, 0)?,
+    };
+    if report.wrote() {
+        let _ = app.emit(CHANGED_EVENT, ());
+        let _ = app.emit(PAGES_EVENT, ());
+    }
+    Ok(report)
+}
+
+/// The language the archive's wiki is written in ("auto" or none: the
+/// language of the documents), for the pages the knowledge layer writes.
+#[tauri::command(async)]
+pub fn docbase_set_wiki_language(state: State<'_, DocBaseState>, language: Option<String>) -> Result<(), String> {
+    state.base()?.set_wiki_language(language.as_deref())
 }
 
 /// The entities of the record, of one kind or all, whose names contain
