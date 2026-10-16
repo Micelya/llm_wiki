@@ -6,8 +6,11 @@
 //! knowledge.json`, compiled in, and replaced at start by a file of the
 //! same shape in the app's data folder when there is one, like the
 //! catalog of document types. Each entry carries a description in words:
-//! that is what the model reads. Changing the vocabulary changes its
-//! digest, and every document is read again.
+//! that is what the model reads. Changing what the reading uses (types,
+//! roles, identifiers, predicates and their descriptions) changes its
+//! `reading_digest`, and every document is read again; the words of the
+//! resolution of identities (`identity`) and the marks `strong` and
+//! `single` do not (D-193).
 
 use std::sync::OnceLock;
 
@@ -25,9 +28,48 @@ pub struct Vocabulary {
     #[serde(default)]
     pub identifiers: Vec<Term>,
     pub predicates: Vec<Predicate>,
+    /// What the resolution of identities does not count when it compares
+    /// names, and the legal forms of organizations.
+    #[serde(default)]
+    pub identity: IdentityWords,
     /// Fingerprint of the vocabulary text.
     #[serde(skip)]
     pub digest: String,
+    /// Fingerprint of what the reading of a document uses (types, roles,
+    /// identifiers and predicates, with their descriptions): changing
+    /// anything else (the words of the resolution of identities, which
+    /// identifiers are strong) does not read the archive again.
+    #[serde(skip)]
+    pub reading_digest: String,
+}
+
+/// The words the resolution of identities works with (D-186).
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IdentityWords {
+    #[serde(default)]
+    pub about: String,
+    /// Words that are not part of a name ("de", "the"…).
+    #[serde(default)]
+    pub stopwords: Vec<String>,
+    /// Titles and forms of address before a person's name ("dr", "sr"…).
+    #[serde(default)]
+    pub titles: Vec<String>,
+    /// Legal forms of organizations, each with the ways it is written
+    /// (normalized words). The same name with another form is another
+    /// organization.
+    #[serde(default)]
+    pub legal_forms: Vec<LegalForm>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LegalForm {
+    pub id: String,
+    pub variants: Vec<String>,
+    /// Also written before the name ("Fundación …", "Verein …").
+    #[serde(default)]
+    pub before: bool,
 }
 
 /// A type of entity, a role or a kind of identifier.
@@ -40,6 +82,10 @@ pub struct Term {
     /// The types of entity it applies to (empty: all).
     #[serde(default)]
     pub types: Vec<String>,
+    /// An identifier that names one entity only (a DNI, a CUIT): the same
+    /// one joins two mentions by itself, a different one keeps them apart.
+    #[serde(default)]
+    pub strong: bool,
 }
 
 /// What a claim can say of an entity.
@@ -56,6 +102,10 @@ pub struct Predicate {
     pub object: String,
     #[serde(default)]
     pub object_types: Vec<String>,
+    /// One value at a time (a domicile, a marital status): two different
+    /// values for the same time are a conflict, at different times a history.
+    #[serde(default)]
+    pub single: bool,
 }
 
 impl Predicate {
@@ -78,6 +128,18 @@ impl Vocabulary {
         }
         let digest = Sha256::digest(text.as_bytes());
         vocabulary.digest = format!("v{}-{}", vocabulary.version, digest.iter().take(8).map(|b| format!("{b:02x}")).collect::<String>());
+        let read = serde_json::json!({
+            "types": vocabulary.entity_types.iter().map(|t| (&t.id, &t.description, &t.types)).collect::<Vec<_>>(),
+            "roles": vocabulary.roles.iter().map(|t| (&t.id, &t.description, &t.types)).collect::<Vec<_>>(),
+            "identifiers": vocabulary.identifiers.iter().map(|t| (&t.id, &t.description, &t.types)).collect::<Vec<_>>(),
+            "predicates": vocabulary
+                .predicates
+                .iter()
+                .map(|p| (&p.id, &p.description, &p.subject, &p.object, &p.object_types))
+                .collect::<Vec<_>>(),
+        });
+        let digest = Sha256::digest(read.to_string().as_bytes());
+        vocabulary.reading_digest = format!("r-{}", digest.iter().take(8).map(|b| format!("{b:02x}")).collect::<String>());
         Ok(vocabulary)
     }
 
@@ -99,6 +161,11 @@ impl Vocabulary {
 
     pub fn predicate(&self, id: &str) -> Option<&Predicate> {
         self.predicates.iter().find(|p| p.id == id)
+    }
+
+    /// Whether this kind of identifier names one entity only.
+    pub fn is_strong(&self, identifier: &str) -> bool {
+        self.identifier(identifier).is_some_and(|t| t.strong)
     }
 
     /// The role kept when the model gave one that is not in the list, or
@@ -161,6 +228,12 @@ mod tests {
         let two = Vocabulary::parse(r#"{"version": 1, "entityTypes": [{"id": "b"}], "roles": [{"id": "r"}], "predicates": [{"id": "p", "object": "value"}]}"#).unwrap();
         assert_ne!(one.digest, two.digest);
         assert!(Vocabulary::parse(r#"{"version": 1, "entityTypes": [], "roles": [], "predicates": []}"#).is_err());
+        // The words of the resolution of identities do not change what a
+        // reading uses.
+        let three = Vocabulary::parse(r#"{"version": 1, "entityTypes": [{"id": "a"}], "roles": [{"id": "r"}], "predicates": [{"id": "p", "object": "value"}], "identity": {"stopwords": ["de"]}}"#).unwrap();
+        assert_ne!(one.digest, three.digest);
+        assert_eq!(one.reading_digest, three.reading_digest);
+        assert_ne!(one.reading_digest, two.reading_digest);
         assert!(Vocabulary::parse(r#"{"version": 1, "entityTypes": [{"id": "a"}], "roles": [{"id": "r"}], "predicates": [{"id": "p", "object": "x"}]}"#).is_err());
     }
 }

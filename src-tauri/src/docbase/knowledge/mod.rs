@@ -9,9 +9,12 @@
 //!
 //! 1. **Extraction** (`extract.rs`): one reading of each document by the
 //!    model, in strict JSON, with every quote checked (`quote.rs`).
-//! 2. Resolution of identities, 3. projection, 4. changes and deletions,
-//!    5. relations, 6. the attention view: later stages, on the tables
-//!    already here (`schema.rs`, V8).
+//! 2. **Resolution of identities** (`resolve.rs`, with the names read by
+//!    `names.rs`), the decisions of a person (`decide.rs`) and the claims
+//!    consolidated from the evidence (`claims.rs`); what the screens read
+//!    of the record (`entities.rs`).
+//! 3. Projection, 4. changes and deletions, 5. relations, 6. the attention
+//!    view: later stages, on the tables already here (`schema.rs`, V8).
 //!
 //! The types of entity, roles, identifiers and predicates are data
 //! (`vocabulary.rs`, R-26).
@@ -19,6 +22,7 @@
 #[cfg(test)]
 pub(crate) mod check;
 pub mod extract;
+pub mod names;
 pub mod quote;
 #[cfg(test)]
 mod tests;

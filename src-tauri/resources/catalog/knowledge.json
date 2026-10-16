@@ -67,28 +67,52 @@
     }
   ],
   "identifiers": [
-    { "id": "dni", "description": "Documento nacional de identidad o pasaporte de una persona.", "types": ["persona"] },
-    { "id": "cuit", "description": "CUIT o CUIL: clave de identificación tributaria o laboral, de una persona o de una organización.", "types": ["persona", "organizacion"] },
-    { "id": "matricula", "description": "Matrícula profesional (de abogado, contador, escribano) o inscripción en un registro (de comercio, de sociedades).", "types": ["persona", "organizacion"] },
-    { "id": "expediente", "description": "Número de expediente, causa, carátula o legajo de un asunto.", "types": ["asunto"] },
+    { "id": "dni", "strong": true, "description": "Documento nacional de identidad o pasaporte de una persona.", "types": ["persona"] },
+    { "id": "cuit", "strong": true, "description": "CUIT o CUIL: clave de identificación tributaria o laboral, de una persona o de una organización.", "types": ["persona", "organizacion"] },
+    { "id": "matricula", "strong": true, "description": "Matrícula profesional (de abogado, contador, escribano) o inscripción en un registro (de comercio, de sociedades).", "types": ["persona", "organizacion"] },
+    { "id": "expediente", "strong": true, "description": "Número de expediente, causa, carátula o legajo de un asunto.", "types": ["asunto"] },
     { "id": "otro", "description": "Otro número que identifica a la entidad (número de cliente, de socio, de contrato).", "types": ["persona", "organizacion", "asunto"] }
   ],
   "predicates": [
-    { "id": "cargo", "description": "El cargo, puesto o función que ocupa (presidente, gerente, socio gerente, empleado de tal área).", "subject": ["persona"], "object": "value" },
-    { "id": "domicilio", "description": "Un domicilio real, legal, fiscal o constituido que el documento le atribuye.", "subject": ["persona", "organizacion"], "object": "value" },
+    { "id": "cargo", "single": true, "description": "El cargo, puesto o función que ocupa (presidente, gerente, socio gerente, empleado de tal área).", "subject": ["persona"], "object": "value" },
+    { "id": "domicilio", "single": true, "description": "Un domicilio real, legal, fiscal o constituido que el documento le atribuye.", "subject": ["persona", "organizacion"], "object": "value" },
     { "id": "representa_a", "description": "Actúa en nombre o en representación de otra persona u organización.", "subject": ["persona", "organizacion"], "object": "entity", "objectTypes": ["persona", "organizacion"] },
     { "id": "socio_de", "description": "Es socio o accionista de una organización.", "subject": ["persona", "organizacion"], "object": "entity", "objectTypes": ["organizacion"] },
     { "id": "empleado_de", "description": "Trabaja o trabajó en relación de dependencia o como contratado para otra persona u organización.", "subject": ["persona"], "object": "entity", "objectTypes": ["persona", "organizacion"] },
     { "id": "deudor_de", "description": "Le debe algo a otra persona u organización según el documento.", "subject": ["persona", "organizacion"], "object": "entity", "objectTypes": ["persona", "organizacion"] },
     { "id": "acreedor_de", "description": "Es acreedor de otra persona u organización según el documento.", "subject": ["persona", "organizacion"], "object": "entity", "objectTypes": ["persona", "organizacion"] },
-    { "id": "monto_reclamado", "description": "Un importe que reclama o intima a pagar, tal como está escrito.", "subject": ["persona", "organizacion"], "object": "value" },
+    { "id": "monto_reclamado", "single": true, "description": "Un importe que reclama o intima a pagar, tal como está escrito.", "subject": ["persona", "organizacion"], "object": "value" },
     { "id": "monto_adeudado", "description": "Un importe que debe, que se le paga o que se compromete a pagar, tal como está escrito.", "subject": ["persona", "organizacion"], "object": "value" },
     { "id": "parte_en", "description": "Es parte o interviene en un asunto (un expediente, un reclamo, un contrato marco).", "subject": ["persona", "organizacion"], "object": "entity", "objectTypes": ["asunto"] },
     { "id": "inicio_de_vinculo", "description": "La fecha en que empieza un vínculo suyo (una relación laboral, un contrato, una representación), tal como está escrita.", "subject": ["persona", "organizacion"], "object": "value" },
     { "id": "fin_de_vinculo", "description": "La fecha en que termina un vínculo suyo, tal como está escrita.", "subject": ["persona", "organizacion"], "object": "value" },
     { "id": "profesion", "description": "Su profesión u ocupación.", "subject": ["persona"], "object": "value" },
-    { "id": "nacionalidad", "description": "Su nacionalidad.", "subject": ["persona"], "object": "value" },
-    { "id": "estado_civil", "description": "Su estado civil.", "subject": ["persona"], "object": "value" },
+    { "id": "nacionalidad", "single": true, "description": "Su nacionalidad.", "subject": ["persona"], "object": "value" },
+    { "id": "estado_civil", "single": true, "description": "Su estado civil.", "subject": ["persona"], "object": "value" },
     { "id": "contacto", "description": "Un correo electrónico o un teléfono suyo.", "subject": ["persona", "organizacion"], "object": "value" }
-  ]
+  ],
+  "identity": {
+    "about": "Palabras que la resolución de identidad no cuenta al comparar nombres, y formas societarias. Cada forma es una organización distinta: dos nombres iguales con distinta forma no se unen salvo que una persona lo decida.",
+    "stopwords": ["el", "la", "los", "las", "lo", "de", "del", "y", "e", "en", "the", "of", "and", "for"],
+    "titles": ["sr", "sra", "srta", "senor", "senora", "dr", "dra", "doctor", "doctora", "lic", "licenciado", "licenciada", "ing", "ingeniero", "ingeniera", "cr", "cra", "cdor", "cdora", "contador", "contadora", "esc", "escribano", "escribana", "abogado", "abogada", "mr", "mrs", "ms", "miss"],
+    "legalForms": [
+      { "id": "sa", "variants": ["s a", "sa", "sociedad anonima"] },
+      { "id": "sau", "variants": ["s a u", "sau", "sociedad anonima unipersonal"] },
+      { "id": "srl", "variants": ["s r l", "srl", "sociedad de responsabilidad limitada"] },
+      { "id": "sas", "variants": ["s a s", "sas", "sociedad por acciones simplificada"] },
+      { "id": "sca", "variants": ["s c a", "sca", "sociedad en comandita por acciones"] },
+      { "id": "sl", "variants": ["s l", "sociedad limitada"] },
+      { "id": "llc", "variants": ["llc", "l l c", "limited liability company"] },
+      { "id": "pte-ltd", "variants": ["pte ltd", "pte limited", "private limited"] },
+      { "id": "ltd", "variants": ["ltd", "limited", "l t d"] },
+      { "id": "plc", "variants": ["plc", "public limited company"] },
+      { "id": "inc", "variants": ["inc", "incorporated", "corp", "corporation"] },
+      { "id": "gmbh", "variants": ["gmbh"] },
+      { "id": "ag", "variants": ["ag", "aktiengesellschaft"] },
+      { "id": "bv", "variants": ["bv", "b v"] },
+      { "id": "asociacion", "variants": ["asociacion civil", "asociacion", "association", "verein", "e v"], "before": true },
+      { "id": "fundacion", "variants": ["fundacion", "stiftung"], "before": true },
+      { "id": "cooperativa", "variants": ["cooperativa", "cooperative"], "before": true }
+    ]
+  }
 }

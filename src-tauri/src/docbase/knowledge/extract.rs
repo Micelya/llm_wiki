@@ -119,7 +119,7 @@ fn text_hash(body: &str) -> String {
 
 /// What a reading is decided on: when it is the same, nothing is read again.
 fn basis(vocabulary: &Vocabulary, text_hash: &str) -> String {
-    fingerprint(&[KNOWLEDGE_PROMPT, &vocabulary.digest, text_hash])
+    fingerprint(&[KNOWLEDGE_PROMPT, &vocabulary.reading_digest, text_hash])
 }
 
 /// How the reading of one document stands.
@@ -171,7 +171,7 @@ pub(crate) fn standings(conn: &Connection, visible: &Visible, only: Option<i64>)
                     Some(ReadingRow {
                         state,
                         basis: row.get(3)?,
-                        current: read_at == text_at && prompt == KNOWLEDGE_PROMPT && vocabulary_digest == vocabulary.digest,
+                        current: read_at == text_at && prompt == KNOWLEDGE_PROMPT && vocabulary_digest == vocabulary.reading_digest,
                         discarded: row.get(7)?,
                     })
                 }
@@ -792,7 +792,7 @@ fn write_reading(
             state,
             pending.basis,
             KNOWLEDGE_PROMPT,
-            vocabulary.digest,
+            vocabulary.reading_digest,
             pending.text_hash,
             pending.text_at,
             engine,
@@ -837,7 +837,7 @@ impl DocBase {
                 // The same text written again: the reading stands.
                 conn.execute(
                     "UPDATE knowledge_extraction SET text_at = ?1, prompt_version = ?2, vocabulary = ?3 WHERE content_id = ?4",
-                    params![standing.text_at, KNOWLEDGE_PROMPT, vocabulary.digest, standing.content_id],
+                    params![standing.text_at, KNOWLEDGE_PROMPT, vocabulary.reading_digest, standing.content_id],
                 )
                 .map_err(sql_err)?;
                 continue;
