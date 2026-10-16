@@ -844,6 +844,18 @@
       "referencia": ".github/workflows/ci.yml; .github/workflows/build.yml; Settings → Rules → Rulesets → proteger-main",
       "creado": "2026-10-15",
       "actualizado": "2026-10-15"
+    },
+    {
+      "id": "P-083",
+      "titulo": "Vista única de atención",
+      "tipo": "decision",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "detalle": "Pedido del usuario del 2026-10-15: Inicio escala líneas que no dicen qué hacer (los parecidos llevan a una lista filtrada) y los avisos están repartidos entre Inicio y el panel de actividad del wiki. Propuesta escrita el 2026-10-16 en docs/design/atencion-propuesta.md: una sola vista con problemas, decisiones y lo que está en curso; cada aviso dice qué pasa, por qué importa y qué hacer, con la acción en la fila; Inicio pasa a un resumen; vistas dedicadas para resolver parecidos y tipos. Espera la revisión del usuario y cinco decisiones abiertas (sección 8).",
+      "depende_de": [],
+      "referencia": "docs/design/atencion-propuesta.md",
+      "creado": "2026-10-16",
+      "actualizado": "2026-10-16"
     }
   ]
 }
