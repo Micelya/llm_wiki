@@ -377,6 +377,8 @@ impl Vocabulary {
                 .iter()
                 .map(|p| (&p.id, &p.description, &p.subject, &p.object, &p.object_types))
                 .collect::<Vec<_>>(),
+            // The check of a reading drops what is part of an address.
+            "addressWords": &vocabulary.identity.address_words,
         });
         let digest = Sha256::digest(read.to_string().as_bytes());
         vocabulary.reading_digest = format!("r-{}", digest.iter().take(8).map(|b| format!("{b:02x}")).collect::<String>());

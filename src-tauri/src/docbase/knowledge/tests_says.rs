@@ -88,3 +88,56 @@ fn other_rules_compute_the_record_again_without_asking() {
     assert_eq!(asker.asked.lock().unwrap().len(), asked_before, "nothing more is asked");
     assert!(base.knowledge_resolve(Some(&asker), 50).unwrap().skipped);
 }
+
+const S1: &str = "DOC-S1. Contrato de Ejemplo Uno LLC, con domicilio en 100 Ejemplo Ave, Suite 555-B, Ciudad Ejemplo, ZZ 99999-1234, \
+representada por Persona Dos.";
+const S2: &str = "DOC-S2. Acuerdo de Ejemplo Uno LLC, registration number 7654321, firmado por Persona Dos.";
+
+fn address_model() -> FakeModel {
+    FakeModel::new("falso:1", |prompt| {
+        if !is_knowledge(prompt) {
+            return type_answer("contrato");
+        }
+        let ids = |list: &[(&str, &str, &str)]| {
+            serde_json::Value::Array(list.iter().map(|(k, v, q)| serde_json::json!({ "clase": k, "valor": v, "cita": q })).collect())
+        };
+        if prompt.contains("DOC-S1.") {
+            serde_json::json!({
+                "menciones": [mention("o", "organizacion", "Ejemplo Uno LLC", "parte", "Contrato de Ejemplo Uno LLC",
+                    ids(&[("matricula", "555-B", "Suite 555-B"), ("otro", "99999-1234", "ZZ 99999-1234")]))],
+                "afirmaciones": [claim("o", "domicilio", None, Some("100 Ejemplo Ave, Suite 555-B, Ciudad Ejemplo, ZZ 99999-1234"),
+                    "con domicilio en 100 Ejemplo Ave, Suite 555-B, Ciudad Ejemplo, ZZ 99999-1234", None)]
+            })
+            .to_string()
+        } else {
+            serde_json::json!({
+                "menciones": [mention("o", "organizacion", "Ejemplo Uno LLC", "parte", "Acuerdo de Ejemplo Uno LLC",
+                    ids(&[("matricula", "7654321", "registration number 7654321")]))],
+                "afirmaciones": []
+            })
+            .to_string()
+        }
+    })
+}
+
+#[test]
+fn a_part_of_an_address_is_not_an_identifier_and_does_not_keep_a_company_apart() {
+    let (_dir, base) = base_with(&[("s1.txt", S1), ("s2.txt", S2)]);
+    let asker = address_model();
+    base.types_run(&asker, 50).unwrap();
+    base.knowledge_run(&asker, 50).unwrap();
+    base.knowledge_resolve(Some(&asker), 50).unwrap();
+    let conn = base.conn();
+    let values: Vec<String> = conn
+        .prepare("SELECT value FROM knowledge_identifier ORDER BY value")
+        .unwrap()
+        .query_map([], |row| row.get(0))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(values, ["7654321"]);
+    let companies: i64 = conn
+        .query_row("SELECT count(DISTINCT entity_id) FROM knowledge_mention WHERE kind = 'organizacion'", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(companies, 1, "the same name, nothing keeps them apart");
+}

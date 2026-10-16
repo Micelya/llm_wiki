@@ -668,6 +668,38 @@ pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &
             }
         }
     }
+    // A part of an address read as a number that identifies someone (a
+    // suite, a postal code, a floor): its value is inside a domicile the
+    // same reading gives, or the word before it in its quote is a word of
+    // an address. It would keep apart the same company in two documents.
+    let addresses: Vec<Vec<String>> = reading
+        .evidence
+        .iter()
+        .filter(|e| vocabulary.predicate(&e.predicate).is_some_and(|p| p.shape == "address"))
+        .filter_map(|e| e.object_value.as_deref())
+        .map(quote::words)
+        .collect();
+    let address_words = &vocabulary.identity.address_words;
+    let mut dropped: Vec<(String, String)> = Vec::new();
+    for mention in &mut reading.mentions {
+        mention.identifiers.retain(|identifier| {
+            let value = quote::words(&identifier.value);
+            let quote_words = quote::words(&identifier.quote);
+            let in_address = addresses.iter().any(|a| quote::contains(a, &value));
+            let after_address_word = quote_words
+                .windows(value.len() + 1)
+                .any(|w| w[1..] == value[..] && address_words.iter().any(|a| a == &w[0]));
+            if in_address || after_address_word {
+                dropped.push((identifier.value.clone(), identifier.quote.clone()));
+                false
+            } else {
+                true
+            }
+        });
+    }
+    for (value, quote) in dropped {
+        discard(&mut reading, "identifier", "parte-de-un-domicilio", &value, &quote);
+    }
     reading
 }
 
