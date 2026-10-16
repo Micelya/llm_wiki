@@ -24,7 +24,7 @@ export function typeLabel(
 /** The type of a row of Documentos, or null when it has none yet. */
 export function rowTypeLabel(row: DocumentRow, words: Vocabulary = vocabulary()): string | null {
   if (!row.docType) return null
-  return typeLabel(row.docType, row.docStage, row.docTypeProposed, null, words)
+  return typeLabel(row.docType, row.docStage, row.docTypeProposed, row.docTypeName, words)
 }
 
 /** Where the type came from, in words. */

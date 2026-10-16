@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { getDocumentType, getTypesPlan, runTypes } from "@/commands/docbase"
 import { getAskConfig } from "@/lib/document-asking"
 import { useAppDialog } from "@/stores/app-dialog-store"
+import { useWikiStore } from "@/stores/wiki-store"
 import { documentTypeName, stageName, vocabulary } from "@/vocabulary"
 import {
   confidenceText,
@@ -31,6 +32,7 @@ export const RUN_LIMIT = 60
 export function DocumentTypesPanel() {
   const plan = useDocbaseQuery("types-plan", getTypesPlan)
   const dialog = useAppDialog()
+  const setActiveView = useWikiStore((s) => s.setActiveView)
   const words = vocabulary()
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
@@ -106,7 +108,12 @@ export function DocumentTypesPanel() {
         )}
         {data.proposedTypes.length > 0 && (
           <div>
-            <p className="font-medium">Tipos que propuso el modelo y nadie confirmó todavía</p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="font-medium">Tipos que propuso el modelo y nadie confirmó todavía</p>
+              <Button size="sm" variant="outline" onClick={() => setActiveView("document-types")}>
+                Confirmar o rechazar
+              </Button>
+            </div>
             <ul className="mt-1 flex flex-col gap-1">
               {data.proposedTypes.map((proposed) => (
                 <li key={proposed.id} className="text-xs">

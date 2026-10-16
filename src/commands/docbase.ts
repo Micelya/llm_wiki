@@ -121,6 +121,8 @@ export interface DocumentRow {
   docStage: string | null
   /** The type is a proposal of the model that no one confirmed yet. */
   docTypeProposed: boolean
+  /** The name of a type outside the catalog: proposed by the model, or given by a person who confirmed it. */
+  docTypeName: string | null
 }
 
 /** A label: an answer ("BGH") to its group's question ("Cliente"), or standing alone. */
@@ -689,10 +691,39 @@ export interface DocTypeDef {
   id: string
   stages: string[]
   data: string[]
+  /** For a type a person confirmed from the model's proposals: its name. */
+  name: string | null
 }
 
 export function getTypesPlan(): Promise<TypesPlan> {
   return invoke<TypesPlan>("docbase_types_plan")
+}
+
+/** What a person decides about a type the model proposed (R-22). */
+export type TypeDecision =
+  /** It joins the closed list with this name: the model's, or another one (rename). */
+  | { kind: "confirm"; name: string; description?: string | null }
+  /** Its documents lose it and are asked again, telling the model not to propose it. */
+  | { kind: "reject" }
+  | { kind: "undo" }
+
+export function decideType(typeId: string, decision: TypeDecision): Promise<void> {
+  return invoke<void>("docbase_decide_type", { typeId, decision })
+}
+
+/** A type a person confirmed or rejected. */
+export interface DecidedType {
+  id: string
+  decision: "confirmed" | "rejected"
+  name: string | null
+  description: string | null
+  decidedAt: number
+  /** Documents that have it now. */
+  documents: number
+}
+
+export function listDecidedTypes(): Promise<DecidedType[]> {
+  return invoke<DecidedType[]>("docbase_decided_types")
 }
 
 /** The types the model proposed that wait for a person. Computes nothing. */

@@ -96,6 +96,30 @@ pub struct ProposedType {
     pub documents: i64,
 }
 
+/// What a person decides about a type the model proposed.
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", rename_all_fields = "camelCase", tag = "kind")]
+pub enum TypeDecision {
+    /// It joins the closed list with this name (the model's or another).
+    Confirm { name: String, description: Option<String> },
+    Reject,
+    Undo,
+}
+
+/// A type a person confirmed or rejected.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DecidedType {
+    pub id: String,
+    /// "confirmed" or "rejected".
+    pub decision: String,
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub decided_at: i64,
+    /// Documents that have it now (none, for a rejected one).
+    pub documents: i64,
+}
+
 /// What a run would do, for the notice shown before it.
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -406,7 +430,66 @@ fn marks_text(catalog: &Catalog, marks: &[Mark]) -> String {
     }
 }
 
-fn type_list(catalog: &Catalog) -> String {
+/// What people decided about the types the model proposed (R-22).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub(super) struct TypeDecisions {
+    /// Confirmed types, by id: their name and description.
+    pub confirmed: BTreeMap<String, (String, Option<String>)>,
+    /// Rejected types, by id, with the name they had.
+    pub rejected: BTreeMap<String, Option<String>>,
+}
+
+pub(super) fn read_type_decisions(conn: &Connection) -> Result<TypeDecisions, String> {
+    let mut statement = conn
+        .prepare("SELECT type_id, decision, name, description FROM type_decision ORDER BY type_id")
+        .map_err(sql_err)?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<String>>(2)?, row.get::<_, Option<String>>(3)?))
+        })
+        .map_err(sql_err)?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(sql_err)?;
+    let mut decisions = TypeDecisions::default();
+    for (id, decision, name, description) in rows {
+        if decision == "confirmed" {
+            decisions.confirmed.insert(id.clone(), (name.unwrap_or_else(|| id.clone()), description));
+        } else {
+            decisions.rejected.insert(id, name);
+        }
+    }
+    Ok(decisions)
+}
+
+/// The closed list of types for the question: the catalog's, then the
+/// ones a person confirmed. Without decisions it is the catalog's alone,
+/// word for word, so the questions already answered stay answered.
+fn type_list(catalog: &Catalog, decisions: &TypeDecisions) -> String {
+    let mut list = catalog_type_list(catalog);
+    for (id, (name, description)) in &decisions.confirmed {
+        let what = description.as_deref().map(str::trim).filter(|d| !d.is_empty()).unwrap_or(name.as_str());
+        list.push_str(&format!("\n- {id}: {what} (confirmado por una persona). Etapas: no tiene."));
+    }
+    list
+}
+
+/// The types a person rejected, for the question; empty when there are none.
+fn rejected_text(decisions: &TypeDecisions) -> String {
+    if decisions.rejected.is_empty() {
+        return String::new();
+    }
+    let names: Vec<String> = decisions
+        .rejected
+        .iter()
+        .map(|(id, name)| match name {
+            Some(name) if !name.trim().is_empty() => format!("{id} ({})", name.trim()),
+            _ => id.clone(),
+        })
+        .collect();
+    format!("Tipos que una persona rechazó: no los propongas otra vez: {}.\n", names.join("; "))
+}
+
+fn catalog_type_list(catalog: &Catalog) -> String {
     catalog
         .document_types()
         .map(|t| {
@@ -465,7 +548,14 @@ struct MemberView {
 }
 
 /// The question about a unit's type and stage.
-fn type_prompt(catalog: &Catalog, name: &str, body: &str, marks: &[Mark], members: &[MemberView]) -> String {
+fn type_prompt(
+    catalog: &Catalog,
+    decisions: &TypeDecisions,
+    name: &str,
+    body: &str,
+    marks: &[Mark],
+    members: &[MemberView],
+) -> String {
     let (text, cut) = excerpt(body);
     let mut prompt = format!(
         "Clasificá un documento de un archivo profesional según la lista de tipos de abajo.\n\n\
@@ -473,9 +563,11 @@ fn type_prompt(catalog: &Catalog, name: &str, body: &str, marks: &[Mark], member
          Si ningún tipo de la lista corresponde, proponé uno nuevo: en \"tipo\" un identificador corto en minúsculas con guiones, \
          en \"nombre\" cómo se llama y en \"descripcion\" qué es, en términos generales (sin nombres de personas, empresas ni números), \
          y \"nuevo\": true. Si elegís uno de la lista, \"nuevo\" es false y \"nombre\" y \"descripcion\" van en null.\n\
+         {}\
          La etapa es una de las del tipo elegido, o null si el tipo no tiene etapas o el documento no permite saberla.\n\n\
          Lo que ya se verificó en el documento sin el modelo: {}.\n",
-        type_list(catalog),
+        type_list(catalog, decisions),
+        rejected_text(decisions),
         marks_text(catalog, marks)
     );
     if !members.is_empty() {
@@ -553,6 +645,7 @@ fn clean_id(id: &str) -> String {
 /// The rows a type answer gives a unit.
 fn rows_from_answer(
     catalog: &Catalog,
+    decisions: &TypeDecisions,
     unit: &Unit,
     docs: &BTreeMap<i64, DocInfo>,
     answer: &str,
@@ -561,7 +654,14 @@ fn rows_from_answer(
     let answer: TypeAnswer = parse_json(answer)?;
     let id = clean_id(&answer.tipo);
     let known: Option<&DocType> = catalog.doc_type(&id).filter(|t| !t.carrier);
-    let proposed = known.is_none();
+    // A type a person rejected is not used: the documents stay without one
+    // until a question that knows of the rejection is answered (R-08).
+    if known.is_none() && decisions.rejected.contains_key(&id) {
+        return Ok(Vec::new());
+    }
+    // One a person confirmed is part of the closed list, with its name.
+    let confirmed = if known.is_none() { decisions.confirmed.get(&id) } else { None };
+    let proposed = known.is_none() && confirmed.is_none();
     let valid_stage = |stage: Option<String>| -> Option<String> {
         let stage = stage.map(|s| clean_id(&s))?;
         match known {
@@ -578,8 +678,16 @@ fn rows_from_answer(
         doc_type: id.clone(),
         stage,
         proposed,
-        proposed_name: if proposed { answer.nombre.clone().filter(|n| !n.trim().is_empty()) } else { None },
-        proposed_description: if proposed { answer.descripcion.clone().filter(|d| !d.trim().is_empty()) } else { None },
+        proposed_name: match confirmed {
+            Some((name, _)) => Some(name.clone()),
+            None if proposed => answer.nombre.clone().filter(|n| !n.trim().is_empty()),
+            None => None,
+        },
+        proposed_description: match confirmed {
+            Some((_, description)) => description.clone(),
+            None if proposed => answer.descripcion.clone().filter(|d| !d.trim().is_empty()),
+            None => None,
+        },
         source,
         principal: Some(unit.principal),
         confidence,
@@ -782,6 +890,7 @@ impl DocBase {
         let conn = self.conn();
         let docs = load_docs(&conn)?;
         let units = load_units(&conn, &docs)?;
+        let decisions = read_type_decisions(&conn)?;
         let current: HashMap<i64, String> = {
             let mut statement = conn.prepare("SELECT content_id, basis FROM document_type").map_err(sql_err)?;
             let rows = statement
@@ -810,9 +919,9 @@ impl DocBase {
                 written += write_type_rows(&conn, &rows, &basis)?;
                 continue;
             }
-            let question = type_question(&conn, catalog, &unit, &docs)?;
+            let question = type_question(&conn, catalog, &decisions, &unit, &docs)?;
             match cached_answer(&conn, &question.key)? {
-                Some(answer) => match rows_from_answer(catalog, &unit, &docs, &answer, &question.key) {
+                Some(answer) => match rows_from_answer(catalog, &decisions, &unit, &docs, &answer, &question.key) {
                     Ok(rows) => written += write_type_rows(&conn, &rows, &basis)?,
                     Err(error) => eprintln!("[docbase] stored answer {}: {error}", question.key),
                 },
@@ -945,6 +1054,122 @@ impl DocBase {
         })
     }
 
+    /// Records what a person decided about a type the model proposed
+    /// (R-22): confirm it (with the name it keeps), reject it, or undo
+    /// the decision (R-09). Confirming makes its documents typed for good
+    /// and adds it to the closed list the model chooses from; rejecting
+    /// leaves them without a type, to be asked again with the model told
+    /// not to propose it.
+    pub fn decide_type(&self, type_id: &str, decision: &TypeDecision) -> Result<(), String> {
+        let catalog = types::catalog();
+        if catalog.doc_type(type_id).is_some() {
+            return Err(format!("'{type_id}' es un tipo del catálogo, no una propuesta del modelo"));
+        }
+        let conn = self.conn();
+        let now = now_ms();
+        let proposed_name: Option<String> = conn
+            .query_row(
+                "SELECT max(proposed_name) FROM document_type WHERE doc_type = ?1 AND proposed = 1",
+                [type_id],
+                |row| row.get(0),
+            )
+            .map_err(sql_err)?;
+        let is_proposed: bool = conn
+            .query_row("SELECT EXISTS (SELECT 1 FROM document_type WHERE doc_type = ?1 AND proposed = 1)", [type_id], |row| row.get(0))
+            .map_err(sql_err)?;
+        match decision {
+            TypeDecision::Confirm { name, description } => {
+                let name = name.trim();
+                if name.is_empty() {
+                    return Err("El tipo necesita un nombre".to_string());
+                }
+                let decided_before: bool = conn
+                    .query_row("SELECT EXISTS (SELECT 1 FROM type_decision WHERE type_id = ?1 AND decision = 'confirmed')", [type_id], |row| row.get(0))
+                    .map_err(sql_err)?;
+                if !is_proposed && !decided_before {
+                    return Err(format!("Ningún documento tiene el tipo propuesto '{type_id}'"));
+                }
+                let description = description.as_deref().map(str::trim).filter(|d| !d.is_empty()).map(str::to_string);
+                conn.execute(
+                    "INSERT OR REPLACE INTO type_decision (type_id, decision, name, description, decided_at)
+                     VALUES (?1, 'confirmed', ?2, ?3, ?4)",
+                    params![type_id, name, description, now],
+                )
+                .map_err(sql_err)?;
+                conn.execute(
+                    "UPDATE document_type SET proposed = 0, proposed_name = ?2,
+                            proposed_description = coalesce(?3, proposed_description)
+                     WHERE doc_type = ?1",
+                    params![type_id, name, description],
+                )
+                .map_err(sql_err)?;
+            }
+            TypeDecision::Reject => {
+                if !is_proposed {
+                    return Err(format!("Ningún documento tiene el tipo propuesto '{type_id}'"));
+                }
+                conn.execute(
+                    "INSERT OR REPLACE INTO type_decision (type_id, decision, name, description, decided_at)
+                     VALUES (?1, 'rejected', ?2, NULL, ?3)",
+                    params![type_id, proposed_name, now],
+                )
+                .map_err(sql_err)?;
+                conn.execute("DELETE FROM document_data WHERE doc_type = ?1", [type_id]).map_err(sql_err)?;
+                conn.execute("DELETE FROM document_type WHERE doc_type = ?1 AND proposed = 1", [type_id]).map_err(sql_err)?;
+            }
+            TypeDecision::Undo => {
+                let before: Option<String> = conn
+                    .query_row("SELECT decision FROM type_decision WHERE type_id = ?1", [type_id], |row| row.get(0))
+                    .optional()
+                    .map_err(sql_err)?;
+                let Some(before) = before else {
+                    return Err(format!("Nadie decidió sobre el tipo '{type_id}'"));
+                };
+                conn.execute("DELETE FROM type_decision WHERE type_id = ?1", [type_id]).map_err(sql_err)?;
+                if before == "confirmed" {
+                    // Back to a proposal: only what the model said, never the marks.
+                    conn.execute(
+                        "UPDATE document_type SET proposed = 1 WHERE doc_type = ?1 AND source != 'marks'",
+                        [type_id],
+                    )
+                    .map_err(sql_err)?;
+                }
+            }
+        }
+        drop(conn);
+        // What costs nothing is redone now: answers already given come back.
+        self.types_refresh()?;
+        Ok(())
+    }
+
+    /// The types people confirmed or rejected, with how many documents
+    /// have each one now.
+    pub fn decided_types(&self) -> Result<Vec<DecidedType>, String> {
+        let conn = self.conn();
+        let mut statement = conn
+            .prepare(
+                "SELECT d.type_id, d.decision, d.name, d.description, d.decided_at,
+                        (SELECT count(*) FROM document_type t WHERE t.doc_type = d.type_id)
+                 FROM type_decision d ORDER BY d.decided_at DESC, d.type_id",
+            )
+            .map_err(sql_err)?;
+        let rows = statement
+            .query_map([], |row| {
+                Ok(DecidedType {
+                    id: row.get(0)?,
+                    decision: row.get(1)?,
+                    name: row.get(2)?,
+                    description: row.get(3)?,
+                    decided_at: row.get(4)?,
+                    documents: row.get(5)?,
+                })
+            })
+            .map_err(sql_err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(sql_err)?;
+        Ok(rows)
+    }
+
     /// The types the model proposed that no person confirmed yet, with how
     /// many documents have each one. Reads what is stored; costs nothing.
     pub fn proposed_types(&self) -> Result<Vec<ProposedType>, String> {
@@ -976,7 +1201,8 @@ impl DocBase {
                     if !std::iter::once(item.unit.principal).chain(item.unit.members.iter().map(|(m, _)| *m)).all(|id| docs.contains_key(&id)) {
                         continue;
                     }
-                    match rows_from_answer(catalog, &item.unit, &docs, &answer, &item.question.key) {
+                    let decisions = read_type_decisions(&conn)?;
+                    match rows_from_answer(catalog, &decisions, &item.unit, &docs, &answer, &item.question.key) {
                         Ok(rows) => report.typed += write_type_rows(&conn, &rows, &item.basis)?,
                         Err(error) => {
                             report.failed += 1;
@@ -1130,7 +1356,13 @@ pub fn stops_the_run(error: &str) -> bool {
         .any(|w| error.contains(w))
 }
 
-fn type_question(conn: &Connection, catalog: &Catalog, unit: &Unit, docs: &BTreeMap<i64, DocInfo>) -> Result<Question, String> {
+fn type_question(
+    conn: &Connection,
+    catalog: &Catalog,
+    decisions: &TypeDecisions,
+    unit: &Unit,
+    docs: &BTreeMap<i64, DocInfo>,
+) -> Result<Question, String> {
     let body = body_of(conn, unit.principal)?;
     let name = name_of(conn, unit.principal)?;
     let mut members = Vec::new();
@@ -1147,7 +1379,7 @@ fn type_question(conn: &Connection, catalog: &Catalog, unit: &Unit, docs: &BTree
             marks: marks_text(catalog, &docs[member].marks),
         });
     }
-    let prompt = type_prompt(catalog, &name, &body, &docs[&unit.principal].marks, &members);
+    let prompt = type_prompt(catalog, decisions, &name, &body, &docs[&unit.principal].marks, &members);
     Ok(Question {
         key: question_key(TYPE_PROMPT, &prompt),
         version: TYPE_PROMPT,

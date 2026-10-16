@@ -153,7 +153,7 @@ export function docbaseNotices(facts: DocbaseFacts, words: Vocabulary = vocabula
         explanation: `Abarcan ${plural(documents, "documento", "documentos")}. Hasta que una persona los confirme no entran a la lista de tipos, y el modelo no los puede elegir para otros documentos.`,
         todo: "Confirmalos, cambiales el nombre o rechazalos.",
         resolvedWhen: "Desaparece cuando cada tipo propuesto se confirma o se rechaza.",
-        actions: [{ kind: "go", label: "Ver tipos", target: { view: "origins" } }],
+        actions: [{ kind: "go", label: "Revisar tipos", target: { view: "document-types" } }],
         cases: proposed.map((type) => ({
           id: type.id,
           title: documentTypeName(type.id, type.name, words),

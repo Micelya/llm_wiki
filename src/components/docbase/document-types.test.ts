@@ -44,6 +44,10 @@ describe("the type of a document in words", () => {
     expect(typeLabel("receta-de-cocina", null, true, "Receta de cocina", words)).toBe("Receta de cocina (propuesto)")
   })
 
+  it("shows a type a person confirmed by the name it was given, without the mark", () => {
+    expect(typeLabel("receta-de-cocina", null, false, "Receta", words)).toBe("Receta")
+  })
+
   it("says where the type came from", () => {
     expect(typeSourceText(found({ source: "marks" }))).toContain("marcas verificadas")
     expect(typeSourceText(found({ source: "family" }))).toContain("documento principal de su familia")
