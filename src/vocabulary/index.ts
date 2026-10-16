@@ -60,6 +60,18 @@ export interface Vocabulary {
   stages: Record<string, string>
   /** The names of the data of each type (`numero-de-envio`, `total`…), by id. */
   dataFields: Record<string, string>
+  /** The words of the wiki's index (`wiki/index.md`), written in the wiki's language. */
+  wikiIndex: {
+    title: string
+    /** One sentence under the title. */
+    intro: string
+    /** The heading of each type of page, by the type its header says (`source`, `entity`…). */
+    types: Record<string, string>
+    /** The subheadings of the pages of entities, by their kind (`persona`…). */
+    entityKinds: Record<string, string>
+    /** Pages of a type nobody named here. */
+    other: string
+  }
 }
 
 export interface RelationTerms {
@@ -150,6 +162,17 @@ export function setVertical(vertical: VerticalId, country: string | null = null)
 export function vocabulary(): Vocabulary {
   const tag = currentCountry ? `${SCREEN_LANGUAGE}-${currentCountry}` : SCREEN_LANGUAGE
   return vocabularyFor(currentVertical, tag)
+}
+
+/**
+ * The vocabulary of the vertical whose wiki is written in this language
+ * (an output-language value such as "Spanish"), or the vertical's own
+ * when none is.
+ */
+export function wikiVocabulary(language: string, vertical: VerticalId = currentVertical): Vocabulary {
+  const entry = VERTICALS[vertical] ?? VERTICALS[DEFAULT_VERTICAL]
+  const found = Object.values(entry.languages).find((words) => words?.wikiLanguage === language)
+  return found ?? resolveVocabulary(entry, entry.default)
 }
 
 /** The name of a relation between similar documents, or its id when no vocabulary names it. */

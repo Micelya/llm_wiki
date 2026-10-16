@@ -748,3 +748,42 @@ export function getDocumentType(locationId: number): Promise<DocumentTypeView> {
 export function listDocumentTypes(): Promise<DocTypeDef[]> {
   return invoke<DocTypeDef[]>("docbase_document_types")
 }
+
+/** What a projection of the knowledge layer into the archive's wiki did. */
+export interface KnowledgeProjectReport {
+  skipped: boolean
+  reason: string | null
+  pages: number
+  written: number
+  unchanged: number
+  removed: number
+  kept: number
+  asked: number
+  failed: number
+  left: number
+  sentences: number
+  discarded: number
+  sourcePages: number
+  blocksWritten: number
+  overviewWritten: boolean
+  errors: string[]
+}
+
+/**
+ * Projects the record of the knowledge layer into the archive's wiki now.
+ * Without an engine nothing is asked; with one it costs the provider's
+ * quota: only on an explicit action.
+ */
+export function projectKnowledge(engine: AskConfig | null, maxQuestions?: number): Promise<KnowledgeProjectReport> {
+  return invoke<KnowledgeProjectReport>("docbase_knowledge_project", { engine, maxQuestions: maxQuestions ?? null })
+}
+
+/** The language of the archive's wiki, for the pages the knowledge layer writes. */
+export function setWikiLanguage(language: string | null): Promise<void> {
+  return invoke<void>("docbase_set_wiki_language", { language })
+}
+
+/** Fires when the knowledge layer wrote pages of the archive's wiki. */
+export function onKnowledgePages(handler: () => void): Promise<UnlistenFn> {
+  return listen("docbase://knowledge-pages", () => handler())
+}

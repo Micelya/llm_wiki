@@ -73,6 +73,24 @@ export const legal: Vertical = {
         concepto: "Concepto",
         identificacion: "Identificación",
       },
+      wikiIndex: {
+        title: "Índice del wiki",
+        intro: "Todas las páginas del wiki, por tipo. La app lo rehace cada vez que cambia una página.",
+        types: {
+          source: "Documentos",
+          entity: "Personas, organizaciones y asuntos",
+          concept: "Conceptos",
+          query: "Consultas",
+          comparison: "Comparaciones",
+          synthesis: "Síntesis",
+        },
+        entityKinds: {
+          persona: "Personas",
+          organizacion: "Organizaciones",
+          asunto: "Asuntos",
+        },
+        other: "Otras páginas",
+      },
     },
     en: {
       archive: {
@@ -141,6 +159,24 @@ export const legal: Vertical = {
         importe: "Amount",
         concepto: "Concept",
         identificacion: "Identification",
+      },
+      wikiIndex: {
+        title: "Wiki index",
+        intro: "Every page of the wiki, by type. The app writes it again whenever a page changes.",
+        types: {
+          source: "Documents",
+          entity: "People, organizations and matters",
+          concept: "Concepts",
+          query: "Queries",
+          comparison: "Comparisons",
+          synthesis: "Syntheses",
+        },
+        entityKinds: {
+          persona: "People",
+          organizacion: "Organizations",
+          asunto: "Matters",
+        },
+        other: "Other pages",
       },
     },
   },
