@@ -215,6 +215,16 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-192 | 16 oct | Conocimiento | La resolución se recalcula entera sin modelo, escribe solo lo que cambió y corre en el hilo de preguntas después de la lectura | en revisión |
 | D-193 | 16 oct | Conocimiento | Cambiar las palabras de la resolución no vuelve a leer el archivo: la lectura depende solo de lo que usa la pregunta | en revisión |
 | D-194 | 16 oct | Conocimiento | Cómo se evalúa la identidad contra la hoja: pares de menciones, uniones y separaciones falsas por separado | en revisión |
+| D-195 | 16 oct | Conocimiento | Proyección: nombre de archivo estable de cada página de entidad | en revisión |
+| D-196 | 16 oct | Conocimiento | Proyección: qué entidad tiene página (regla del vocabulario, sobre todo el archivo) | en revisión |
+| D-197 | 16 oct | Conocimiento | Proyección: la síntesis del modelo sale solo de afirmaciones numeradas y se comprueba | en revisión |
+| D-198 | 16 oct | Conocimiento | Proyección: el bloque de entidades al final de la página de cada documento | en revisión |
+| D-199 | 16 oct | Conocimiento | Coordinación: proyectar después de resolver, entera y escribiendo solo lo que cambió | en revisión |
+| D-200 | 16 oct | Conocimiento | Incorporación: sin páginas de entidad en el archivo e instrucciones de estudio jurídico | en revisión |
+| D-201 | 16 oct | Conocimiento | Índice y resumen: todas las páginas por tipo, en el idioma del wiki | en revisión |
+| D-202 | 16 oct | Conocimiento | Mantenimiento: la fusión de duplicados deja afuera las páginas proyectadas | en revisión |
+| D-203 | 16 oct | Conocimiento | Proyección: la base escribe las páginas y conserva las notas de una persona | en revisión |
+| D-204 | 16 oct | Conocimiento | Cómo se evalúa la proyección: páginas, documentos listados y oraciones comprobadas | en revisión |
 
 ---
 
@@ -2677,3 +2687,133 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** `src-tauri/src/docbase/knowledge/check_identity.rs`; `desatendido-2\K2-correr-evaluacion.sh` (fuera del repositorio).
 - **Quién decidió:** agente sin consulta.
 - **Fuente:** etapa K2 de la tanda desatendida del 16 oct.
+
+### D-195 · El nombre de archivo de una página de entidad no cambia
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la página de una entidad tiene que tener un nombre de archivo que no se rompa: los enlaces del wiki apuntan al nombre del archivo, y el nombre visible de una entidad puede cambiar (otra forma de escribirla pasa a ser la más usada, o una persona la corrige).
+- **Qué se decidió:** el archivo es `wiki/entities/<nombre legible>-<8 caracteres del identificador>.md`. El nombre legible sale del nombre visible la primera vez que se escribe la página (palabras sin acentos unidas por guiones) y queda guardado en `knowledge_page.path`; si la entidad cambia de nombre, cambia el título dentro de la página, no el archivo. Los enlaces se escriben `[[archivo|Nombre]]`. Si dos entidades darían el mismo archivo, la segunda lleva el identificador entero.
+- **Por qué:** el identificador hace único al archivo y no depende del nombre; la parte legible deja reconocer el archivo en una carpeta. Renombrar el archivo con el nombre rompería los enlaces de las páginas que la app no escribe.
+- **Alternativas descartadas:** solo el identificador (ilegible en una carpeta); el nombre solo (cambia y choca entre homónimos); renombrar el archivo y redirigir (más trabajo, enlaces rotos mientras tanto).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/pages.rs` (`page_path`, `slug`); esquema V9 (`knowledge_page`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K3 de la tanda desatendida del 16 oct.
+
+### D-196 · Qué entidad tiene página se decide mirando el archivo entero
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el wiki anterior decidía documento por documento si una entidad "merecía página", y así 28 de 39 páginas tenían una sola fuente y faltaban otras. Además K2 dejó 104 asuntos, muchos de ellos comprobantes, y menciones que son correos o teléfonos.
+- **Qué se decidió:** la regla es un dato del vocabulario de la capa (`pages.kinds` en `knowledge.json`). Persona u organización: aparece en dos documentos o más, o en alguno tiene un rol que no es "otro". Asunto: aparece en dos documentos o más y al menos uno trata de él (rol "referido"). Un nombre que es una dirección de correo, un teléfono o un número no es el nombre de una persona ni de una organización: si la entidad tiene otra forma de escribirse que sí lo es, esa da el título; si no, no tiene página.
+- **Por qué:** mide todo el archivo (R-05: lo general antes que el documento suelto) y deja afuera lo nombrado al pasar. Medido contra la hoja (R-17): con "o un identificador fuerte" para los asuntos había 22 páginas de asunto, la mayoría facturas a las que el modelo dio número de expediente; con la regla actual quedan 11 y la hoja pierde un asunto de un solo documento. En total 91 páginas; 52 de las 84 entidades de la hoja tienen página.
+- **Alternativas descartadas:** decidir por documento (lo de antes); una página para toda entidad (más de 250 páginas, muchas de comprobantes).
+- **Dónde se aplica:** `src-tauri/resources/catalog/knowledge.json` (`pages`); `pages.rs` (`has_page`, `name_like`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K3 de la tanda desatendida del 16 oct.
+
+### D-197 · La síntesis de una entidad sale solo de sus afirmaciones verificadas
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la página de una entidad tiene que decir lo que dicen sus documentos sin inventar nada y sin inferir sobre lo inferido (R-02).
+- **Qué se decidió:** al modelo se le pasan solo las afirmaciones de la entidad (hasta 120), numeradas, cada una con su estado y hasta dos citas, y se le pide en JSON estricto una lista de oraciones con los números que las respaldan, en el idioma del wiki. Un cálculo descarta la oración que no nombra ninguna afirmación, nombra una que no existe o trae un número que no está en sus afirmaciones o citas. Debajo van, sin modelo, los datos en conflicto con todos sus valores y las referencias de cada número con sus citas y el documento. La respuesta se guarda como cualquier otra (`model_answer`, tarea `synthesis`): mientras las afirmaciones no cambian no se vuelve a preguntar. Sin modelo, la página se escribe igual con la síntesis pendiente.
+- **Por qué:** cada oración queda atada a citas comprobadas; el control de números ataja el error más dañino (importes y fechas inventados). Corrida real: 179 oraciones guardadas, 5 descartadas (2,7 %), ninguna sin referencia.
+- **Alternativas descartadas:** que el modelo lea los documentos enteros (repetiría la extracción y no se puede comprobar); escribir la síntesis sin modelo (una lista de datos, no un texto).
+- **Dónde se aplica:** `pages.rs` (`synthesis_question`, `checked`, `render`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K3 de la tanda desatendida del 16 oct.
+
+### D-198 · Las páginas de documentos enlazan a las entidades con un bloque que escribe la app
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la página de cada documento tiene que enlazar a las páginas de sus entidades, pero el wiki puede escribirla antes de que la capa lea y resuelva ese documento, y las entidades pueden unirse o cambiar después.
+- **Qué se decidió:** la app escribe, sin modelo, un bloque al final de la página de cada documento, entre dos marcas (`<!-- micelya:entidades:inicio … -->` y `<!-- micelya:entidades:fin -->`), con cada entidad que el documento nombra, su tipo y su rol, enlazada si tiene página; lo nombrado al pasar y sin página no se lista. La proyección lo rehace cuando cambian las entidades del documento o cuando el wiki vuelve a escribir la página (lo nota por el tamaño y la fecha del archivo); si una fusión dejó dos bloques, deja uno. Al modelo de la incorporación se le pide que nombre a las personas, organizaciones y asuntos en texto, sin enlaces.
+- **Por qué:** el registro sabe exactamente qué entidades salieron de cada documento; reescribir de forma determinista no depende del orden ni de que la entidad exista al incorporar, y se corrige solo cuando cambia la identidad.
+- **Alternativas descartadas:** pasarle al modelo la lista de entidades (no existe todavía cuando se incorpora, y no se actualiza al unir o separar); enlazar dentro del texto (pendiente, P-102).
+- **Dónde se aplica:** `pages.rs` (`source_block`, `with_block`); esquema V9 (`knowledge_source_block`); instrucciones en `src/lib/ingest.ts`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K3 de la tanda desatendida del 16 oct.
+
+### D-199 · La proyección corre cuando termina la resolución y no depende del orden
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** las páginas tienen que reflejar todo el archivo al final de una tanda, sin importar si el wiki incorporó un documento antes o después de que la capa lo leyera.
+- **Qué se decidió:** el hilo de fondo que pregunta al modelo proyecta cuando no queda nada por leer ni resolver, de a una pregunta de síntesis por vez. Cada proyección se calcula entera desde el registro y las páginas de documentos del wiki y escribe solo los archivos que cambiaron (huella de lo escrito); no corre si no cambió ni el registro ni ninguna página de documento ni el vocabulario ni el idioma. Cuando escribe, avisa al wiki (evento `docbase://knowledge-pages`), que rehace su índice y su árbol. Comandos: `docbase_knowledge_project` y `docbase_set_wiki_language`.
+- **Por qué:** calcular todo y escribir lo que cambió da el mismo resultado en cualquier orden (R-13) y, sin derivaciones, sigue siendo barato (R-15); proyectar a medias durante la resolución mostraría entidades que todavía pueden unirse.
+- **Alternativas descartadas:** proyectar en la incorporación del wiki (depende del orden y del modelo del wiki); un grafo de dependencias por página (no hace falta sin derivaciones).
+- **Dónde se aplica:** `src-tauri/src/docbase/worker.rs`; `commands.rs`; `src/lib/knowledge-layer.ts`; `src/App.tsx`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K3 de la tanda desatendida del 16 oct.
+
+### D-200 · En el wiki del archivo la incorporación no escribe páginas de entidad
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** las páginas de entidad ahora salen del registro; si la incorporación siguiera escribiéndolas habría dos páginas de cada persona y la vieja seguiría incompleta. Además las instrucciones al modelo eran de investigación académica y permitían agregar conocimiento público.
+- **Qué se decidió:** en el proyecto general la incorporación escribe la página de cada documento y los conceptos; se le dice que no escriba páginas de personas, organizaciones ni asuntos, y la app descarta cualquier bloque bajo `wiki/entities/` o de tipo `entity`. Las instrucciones de todos los proyectos pasan a ser las de un estudio jurídico: tipo, fecha y etapa del documento, partes y roles, identificadores, fechas, importes, plazos y obligaciones tal como están escritos, cada hecho con su parte, sin conocimiento externo ni opiniones; los ejemplos académicos se van. Los demás proyectos siguen escribiendo páginas de entidad, con las reglas nuevas. La incorporación le avisa a la base el idioma del wiki.
+- **Por qué:** una sola fuente para cada página; el producto es para estudios jurídicos.
+- **Alternativas descartadas:** mantener las páginas del wiki y sumarles lo del registro (dos verdades).
+- **Dónde se aplica:** `src/lib/ingest.ts` (`IngestPromptOptions`, reglas `LAYER_ENTITY_*`); `src/lib/knowledge-layer.ts`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K3 de la tanda desatendida del 16 oct.
+
+### D-201 · El índice lista todas las páginas por tipo y el resumen del archivo sale del registro
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el índice guardaba solo las 200 páginas escritas más recientemente, con las secciones por tipo vacías, y el resumen general era la plantilla en inglés.
+- **Qué se decidió:** el índice se rehace entero desde las páginas en disco cada vez que la incorporación o la capa escriben una página: una sección por tipo (documentos; personas, organizaciones y asuntos, con una subsección por clase; conceptos…) con sus títulos, en el idioma del wiki, con las palabras del vocabulario (`wikiIndex`). El resumen del archivo (`wiki/overview.md`) lo escribe la capa desde el registro: cuántos documentos, cuántas páginas por tipo, los más nombrados y los asuntos, con las palabras de su vocabulario.
+- **Por qué:** un índice parcial hace creer que el wiki no tiene lo que tiene; contar desde el registro no necesita modelo y no se equivoca.
+- **Alternativas descartadas:** que el modelo escriba el índice o el resumen (reescribe archivos grandes y se equivoca).
+- **Dónde se aplica:** `src/lib/wiki-index.ts`; `src/vocabulary/`; `pages.rs` (`overview`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K3 de la tanda desatendida del 16 oct.
+
+### D-202 · La fusión de duplicados no toca las páginas que proyecta la capa
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** Ajustes > Mantenimiento junta páginas duplicadas reescribiéndolas con el modelo y no se puede deshacer; sobre una página proyectada la siguiente proyección la volvería a escribir.
+- **Qué se decidió:** las páginas que llevan `generated_by: micelya-conocimiento` no entran en la búsqueda de duplicados y no se pueden fusionar; dos entidades se unen con una decisión sobre el registro (comandos de K2, reversibles; las pantallas llegan en K6).
+- **Por qué:** una unión en el registro se puede deshacer (R-09) y arrastra menciones, afirmaciones y enlaces; la fusión de archivos no.
+- **Alternativas descartadas:** redirigir la fusión a una decisión del registro desde esa pantalla (queda para K6, P-102).
+- **Dónde se aplica:** `src/lib/dedup-runner.ts` (`isProjectedPage`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K3 de la tanda desatendida del 16 oct.
+
+### D-203 · La página de una entidad la escribe la base, con una sección de notas que nunca reescribe
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** las páginas tienen que poder rehacerse sin perder lo que una persona escribió, y quien las arma tiene que tener el registro a mano.
+- **Qué se decidió:** la base (Rust) escribe las páginas en la carpeta del proyecto general. Cada página termina con "Notas" y una marca; lo que está debajo se copia tal cual al reescribir. Lo demás se reescribe: las correcciones se hacen como decisiones, no editando. Si una entidad deja de tener página y sus notas están vacías, la página se borra; si tienen algo, queda una página mínima que dice por qué (y con quién se unió) con las notas. Esquema V9: `knowledge_page` y `knowledge_source_block`.
+- **Por qué:** la base tiene el registro, el modelo de la capa y el trabajo de fondo; nada de lo que escribe una persona se pierde (R-09).
+- **Alternativas descartadas:** escribir las páginas desde el wiki (no tiene el registro ni corre sin la ventana abierta); guardar las notas en la base (se perderían al editar el archivo con otro programa).
+- **Dónde se aplica:** `pages.rs` (`notes_of`, `with_notes`, páginas `kept`); `schema.rs` (V9).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K3 de la tanda desatendida del 16 oct.
+
+### D-204 · Cómo se evalúa la proyección contra la hoja de entidades
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la etapa 3 pide medir que cada página tenga todos los documentos de su entidad y que cada frase remita a una cita.
+- **Qué se decidió:** una prueba ignorada copia la base de la app, lee y resuelve con el caché del modelo, proyecta sobre un wiki temporal (con las páginas de documentos del wiki anterior copiadas, solo lectura) y cuenta: páginas por tipo, entidades de la hoja con página, documentos de cada entidad de la hoja que su página lista (por la entidad propia donde cayeron más de sus menciones), oraciones guardadas y descartadas, oraciones sin referencia, y que proyectar de nuevo no escribe nada. Guarda una muestra de páginas fuera del repositorio.
+- **Por qué:** separa lo que mide esta etapa (la proyección) de lo que arrastra de las anteriores (lo que la extracción no vio o la identidad dejó partido).
+- **Alternativas descartadas:** comparar páginas con texto esperado (la hoja no lo tiene).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/check_pages.rs`; `desatendido-2\K3-correr-evaluacion.sh` (fuera del repositorio).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa K3 de la tanda desatendida del 16 oct.

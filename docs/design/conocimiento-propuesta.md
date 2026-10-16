@@ -1,6 +1,6 @@
 # Capa de conocimiento — propuesta
 
-**Estado:** dirección acordada con el dueño del producto el 16 de octubre de 2026 (D-170 a D-176) · etapas 1 (extracción) y 2 (resolución de identidad) construidas en la rama `feat/knowledge-layer`; las decisiones que tomó el agente al construirlas (D-177 a D-194) esperan la revisión del dueño (P-066)
+**Estado:** dirección acordada con el dueño del producto el 16 de octubre de 2026 (D-170 a D-176) · etapas 1 (extracción), 2 (resolución de identidad) y 3 (proyección) construidas en la rama `feat/knowledge-layer`; las decisiones que tomó el agente al construirlas (D-177 a D-204) esperan la revisión del dueño (P-066)
 **Alcance:** cómo sabe la app quiénes son las personas, organizaciones y asuntos que nombran los documentos, qué dicen los documentos de cada uno y cómo se arma con eso una página por entidad. Es una capa nueva entre la base documental y el wiki ([documento de diseño](base-documental.md), sección 4). No describe código.
 
 ## 1. El problema
@@ -79,7 +79,7 @@ Cada pasada con su objetivo (R-10), de lo seguro a lo incierto (R-11):
 
    Los candidatos se encuentran por índices de palabras, iniciales y casillas, nunca comparando todo contra todo. Las familias se arman contra una principal, no por cadena (R-14). La resolución se calcula entera sin modelo cada vez que algo cambia y escribe solo lo que cambió (D-192); el identificador de una entidad lo conserva la que se queda con más menciones (D-190).
 3. **Consolidación:** las evidencias se agrupan en afirmaciones por entidad; se marcan los conflictos. Un dato de un valor a la vez (marcado en el vocabulario: cargo, domicilio, monto reclamado, nacionalidad, estado civil) con valores distintos es una historia si cada valor tiene su tiempo, y un conflicto si no (D-191).
-4. **Proyección:** la página de cada entidad tocada se rehace.
+4. **Proyección,** cuando no queda nada por leer ni resolver (D-199). Qué entidad tiene página se decide mirando el archivo entero, con una regla del vocabulario (D-196): una persona o una organización si aparece en dos documentos o tiene un rol que no es "otro"; un asunto si aparece en dos documentos y al menos uno trata de él. La página (`wiki/entities/<nombre>-<identificador>.md`, nombre fijo aunque la entidad cambie de nombre, D-195) tiene el encabezado (tipo, nombre, alias, identificador, todas sus fuentes), **lo que dicen los documentos** escrito por el modelo solo desde las afirmaciones numeradas de la entidad, cada oración con sus números, y comprobado por cálculo (D-197), los datos en conflicto con todos sus valores, las referencias con sus citas, **los documentos** agrupados por asunto con el rol en cada uno, **los relacionados** y **las notas**, que la app nunca reescribe (D-203). La página de cada documento que escribe el wiki termina con un bloque, escrito por la app, con las entidades que nombra y su rol (D-198). El resumen del archivo sale del registro (D-201). Todo se calcula entero y se escribe solo lo que cambió: el orden en que el wiki y la capa procesan los documentos no importa.
 
 **Incremental (R-15).** Documento nuevo: se extrae, se resuelven sus menciones contra lo existente y se rehacen solo las páginas tocadas. Documento borrado o reemplazado: se retiran sus menciones y evidencias; las afirmaciones con otra evidencia se conservan; se rehacen las páginas afectadas. La extracción se rehace solo si cambió el texto, la versión de la pregunta o la versión del vocabulario de la capa. Reprocesar sin cambios no cambia nada (R-13).
 
@@ -146,15 +146,15 @@ Una prueba comprueba además que ni el programa ni el vocabulario de la capa con
 ## 11. Decisiones abiertas
 
 1. Cuándo vuelve a leer un archivo entero un modelo nuevo: hoy, cambiar de modelo no vuelve a leer lo ya extraído (D-180). Lo mismo para los veredictos de identidad: con otro motor, se vuelven a preguntar los pares.
-2. Cómo se muestran en una página las afirmaciones en conflicto.
-3. Cómo pasa la página de un documento del wiki a enlazar las páginas de entidad.
+2. ~~Cómo se muestran en una página las afirmaciones en conflicto.~~ Resuelto en la etapa 3 (D-197): todos los valores a la vista, con sus referencias; la síntesis dice que los documentos difieren. Falta que el cargo se consolide por organización (P-100).
+3. ~~Cómo pasa la página de un documento del wiki a enlazar las páginas de entidad.~~ Resuelto en la etapa 3 (D-198): un bloque al final, escrito por la app.
 4. Cuánta certeza del modelo alcanza para unir (hoy une cualquier "la misma"; exigir certeza alta separó de más, D-188) y si una separación decidida por una persona se vuelve a proponer cuando aparece evidencia nueva y distinta (R-08; hoy queda firme hasta que se deshace, P-099).
 
 ## 12. Etapas
 
 1. **Extracción** (construida): modelo de datos, vocabulario, extracción con cita verificada, trabajo de fondo, estado para las pantallas y evaluación contra la hoja. Sin pantallas.
 2. **Resolución de identidad** (construida) con abstención, decisiones de una persona, consolidación de afirmaciones y evaluación de uniones y separaciones falsas. Sin pantallas: deja los comandos para consultar entidades y dudas y para decidir.
-3. **Proyección:** páginas de entidad desde el registro; la incorporación del wiki deja de crear páginas de entidad y se adapta a lo jurídico.
+3. **Proyección** (construida): páginas de entidad desde el registro, bloque de entidades en la página de cada documento, resumen del archivo e índice completo por tipo; la incorporación del wiki deja de crear páginas de entidad en el archivo y sus instrucciones son las de un estudio jurídico (D-195 a D-204).
 4. **Cambios y borrados:** retiro de evidencia y rehacer solo lo afectado.
 5. **Relaciones entre entidades y asuntos:** quién representa a quién, en qué asunto aparece cada uno.
 6. **Vista de atención y pantallas mínimas:** identidades dudosas, contradicciones y el detalle de una entidad en la base.

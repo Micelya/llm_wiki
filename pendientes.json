@@ -909,7 +909,7 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "La rama feat/attention-view agregó su propia versión 8 del esquema (tabla type_decision) y la app de desarrollo ya la aplicó a la base real. Al rebasar feat/knowledge-layer sobre ella, la migración de la capa tiene que pasar a ser la versión 9; si no, una base en versión 8 nunca recibe las tablas de la capa.",
+      "detalle": "La etapa K3 agregó además la V9 (páginas de la capa): al rebasar sobre la rama de atención, V8 y V9 de esta rama pasan a V9 y V10. La rama feat/attention-view agregó su propia versión 8 del esquema (tabla type_decision) y la app de desarrollo ya la aplicó a la base real. Al rebasar feat/knowledge-layer sobre ella, la migración de la capa tiene que pasar a ser la versión 9; si no, una base en versión 8 nunca recibe las tablas de la capa.",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/schema.rs",
       "creado": "2026-10-16",
@@ -976,6 +976,54 @@
       "detalle": "R-08 dice que un \"no son la misma\" bloquea la relación salvo que aparezca evidencia nueva y distinta. Hoy la separación queda firme hasta que se deshace (D-189); la decisión guarda la huella de lo mostrado, así que se puede detectar el cambio. Decidir si la vista de atención la vuelve a mostrar y con qué evidencia (etapa K6).",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/knowledge/decide.rs; docs/design/conocimiento-propuesta.md (sección 11)",
+      "creado": "2026-10-16",
+      "actualizado": "2026-10-16"
+    },
+    {
+      "id": "P-100",
+      "titulo": "Cargos y otros datos de un valor por organización, y ruido de la extracción en las páginas",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "En la corrida real la página de una persona dice que los documentos \"difieren\" sobre su cargo cuando tiene cargos distintos en sociedades distintas (apoderado de una, director de otra): el cargo se consolida como un dato de un valor sin tener en cuenta la organización (D-191). También llegan a las páginas montos reclamados que no son montos (un plazo, una línea de factura), alias que no son nombres (\"mi\") y correos o teléfonos tomados como menciones (D-196 los saca de títulos y alias, no de la extracción). Ajustar la consolidación y la pregunta de extracción, medido con la hoja (R-17).",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/knowledge/claims.rs; extract.rs; pages.rs",
+      "creado": "2026-10-16",
+      "actualizado": "2026-10-16"
+    },
+    {
+      "id": "P-101",
+      "titulo": "Páginas de entidad que el wiki escribió antes de la capa",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Un wiki del archivo generado antes de esta etapa conserva sus páginas de entidad escritas por la incorporación (sin la marca de la capa) junto a las proyectadas. Decidir si se borran, se convierten en notas de la página proyectada o se dejan (la etapa W genera el wiki de cero, así que ahí no aparecen). También: los proyectos que no son el archivo siguen creándose con un resumen en inglés (plantilla de `commands/project.rs`).",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/knowledge/pages.rs; src-tauri/src/commands/project.rs",
+      "creado": "2026-10-16",
+      "actualizado": "2026-10-16"
+    },
+    {
+      "id": "P-102",
+      "titulo": "Pantallas y enlaces que faltan de la proyección",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Para K6: mostrar en Atención las páginas con síntesis pendiente y las oraciones descartadas; llevar la fusión de duplicados de Mantenimiento a decisiones del registro (D-202); envoltorios del frontend para los comandos de K2. Más adelante: enlazar los nombres dentro del texto de la página de cada documento (hoy solo el bloque del final, D-198) y ordenar los documentos de una entidad por fecha (hoy por nombre).",
+      "depende_de": [],
+      "referencia": "src/lib/knowledge-layer.ts; src/components/attention/; src/lib/dedup-runner.ts",
+      "creado": "2026-10-16",
+      "actualizado": "2026-10-16"
+    },
+    {
+      "id": "P-103",
+      "titulo": "Asuntos: páginas que faltan y regla de un solo documento",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "De los 18 asuntos de la hoja pocos tienen página: están partidos entre varias entidades (K2) o aparecen en un solo documento. La regla actual (dos documentos y uno que trate de él, D-196) deja afuera un contrato con número de expediente que aparece una vez; con \"o un identificador fuerte\" entraban además facturas a las que el modelo dio número de expediente. Revisar con las relaciones de asunto (K5).",
+      "depende_de": [],
+      "referencia": "src-tauri/resources/catalog/knowledge.json (pages); src-tauri/src/docbase/knowledge/resolve.rs",
       "creado": "2026-10-16",
       "actualizado": "2026-10-16"
     }
