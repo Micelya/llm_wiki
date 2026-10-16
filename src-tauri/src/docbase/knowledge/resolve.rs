@@ -62,7 +62,7 @@ pub const IDENTITY_PROMPT: &str = "identidad-3";
 /// the program's or the vocabulary's change, the record is computed again.
 const RESOLUTION_SETTING: &str = "knowledge-resolution";
 /// Raised when a change in the program changes what a resolution gives.
-const RESOLUTION_VERSION: &str = "resolucion-2";
+const RESOLUTION_VERSION: &str = "resolucion-3";
 
 fn resolution_basis() -> String {
     format!("{RESOLUTION_VERSION}|{IDENTITY_PROMPT}|{}", vocabulary().digest)
@@ -281,7 +281,7 @@ pub(crate) fn clusters(
     hashes: &HashMap<i64, String>,
 ) -> Vec<Cluster> {
     let keys: Vec<NameKey> = rows.iter().map(|r| names::key(vocabulary, &r.kind, &r.written)).collect();
-    let ids: Vec<Vec<(String, String)>> = rows
+    let mut ids: Vec<Vec<(String, String)>> = rows
         .iter()
         .map(|r| {
             identifiers
@@ -290,6 +290,28 @@ pub(crate) fn clusters(
                 .unwrap_or_default()
         })
         .collect();
+    // The same number read as another kind ("otro número" in one document,
+    // the DNI in others) is that strong identifier: the reading did not
+    // say which kind it is, the number says who.
+    let applies = |kind: &str, entity: &str| vocabulary.identifier(kind).is_some_and(|t| t.strong && (t.types.is_empty() || t.types.iter().any(|x| x == entity)));
+    let mut strong_kind: HashMap<(String, String), BTreeSet<String>> = HashMap::new();
+    for (row, list) in rows.iter().zip(&ids) {
+        for (kind, value) in list {
+            if applies(kind, &row.kind) && value.chars().filter(|c| c.is_ascii_digit()).count() >= 6 {
+                strong_kind.entry((row.kind.clone(), value.clone())).or_default().insert(kind.clone());
+            }
+        }
+    }
+    for (row, list) in rows.iter().zip(ids.iter_mut()) {
+        for (kind, value) in list.iter_mut() {
+            if applies(kind, &row.kind) {
+                continue;
+            }
+            if let Some(kinds) = strong_kind.get(&(row.kind.clone(), value.clone())).filter(|k| k.len() == 1) {
+                *kind = kinds.iter().next().unwrap().clone();
+            }
+        }
+    }
     let mut sets = Sets::new(rows.len());
     let mut start = 0;
     while start < rows.len() {

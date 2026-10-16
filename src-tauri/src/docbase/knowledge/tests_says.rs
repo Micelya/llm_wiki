@@ -141,3 +141,45 @@ fn a_part_of_an_address_is_not_an_identifier_and_does_not_keep_a_company_apart()
         .unwrap();
     assert_eq!(companies, 1, "the same name, nothing keeps them apart");
 }
+
+const K1: &str = "DOC-K1. Constancia de Persona Dos, DNI 22.222.222, para el trámite.";
+const K2: &str = "DOC-K2. Planilla del servicio con el alta de Persona Dos 22222222 en la lista de este año, sin otro dato.";
+const K3: &str = "DOC-K3. Nota de Persona Dos, DNI 33.333.333, vecina de otra ciudad.";
+
+fn kind_model() -> FakeModel {
+    FakeModel::new("falso:1", |prompt| {
+        if !is_knowledge(prompt) {
+            return type_answer("contrato");
+        }
+        let ids = |k: &str, v: &str, q: &str| serde_json::json!([{ "clase": k, "valor": v, "cita": q }]);
+        let m = if prompt.contains("DOC-K1.") {
+            mention("p", "persona", "Persona Dos", "parte", "Constancia de Persona Dos, DNI 22.222.222", ids("dni", "22.222.222", "DNI 22.222.222"))
+        } else if prompt.contains("DOC-K2.") {
+            mention("p", "persona", "Persona Dos", "parte", "Persona Dos 22222222", ids("otro", "22222222", "Persona Dos 22222222"))
+        } else {
+            mention("p", "persona", "Persona Dos", "parte", "Nota de Persona Dos, DNI 33.333.333", ids("dni", "33.333.333", "DNI 33.333.333"))
+        };
+        serde_json::json!({ "menciones": [m], "afirmaciones": [] }).to_string()
+    })
+}
+
+#[test]
+fn the_same_number_read_as_another_kind_is_that_identifier() {
+    let (_dir, base) = base_with(&[("k1.txt", K1), ("k2.txt", K2), ("k3.txt", K3)]);
+    let asker = kind_model();
+    base.types_run(&asker, 50).unwrap();
+    base.knowledge_run(&asker, 50).unwrap();
+    base.knowledge_resolve(Some(&asker), 50).unwrap();
+    let entity_of = |content: &str| -> String {
+        base.conn()
+            .query_row(
+                "SELECT m.entity_id FROM knowledge_mention m JOIN file f ON f.content_id = m.content_id JOIN location l ON l.file_hash = f.hash
+                 WHERE l.name = ?1",
+                [content],
+                |row| row.get(0),
+            )
+            .unwrap()
+    };
+    assert_eq!(entity_of("k1.txt"), entity_of("k2.txt"), "the number of the planilla is the DNI");
+    assert_ne!(entity_of("k1.txt"), entity_of("k3.txt"), "another DNI is another person");
+}
