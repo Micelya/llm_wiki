@@ -704,14 +704,14 @@
       "titulo": "Ver las diferencias de dos documentos parecidos lado a lado",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "En la sección 'Documentos parecidos' del detalle de un documento quedó un botón 'Ver diferencias' deshabilitado. Falta mostrar los dos textos lado a lado con lo que cambia resaltado, distinguiendo datos (identificadores, importes, fechas, nombres) de redacción. El motor ya alinea los textos (src-tauri/src/docbase/similar/align.rs), pero no guarda la alineación: hace falta un comando que la calcule a pedido para un par.",
+      "estado": "a-verificar",
+      "detalle": "Construido el 2026-10-16 en la rama feat/attention-view (sin integrar a main): el botón \"Ver diferencias\" de cada par, en el detalle de un documento y en la vista de parecidos, muestra los dos textos lado a lado con lo que cambia resaltado; un cambio es un dato cuando todas sus palabras tienen un dígito, si no es redacción; los tramos iguales largos se pliegan. Se calcula en la pantalla, a pedido (D-160). Falta que el dueño lo vea con pares reales; si hace falta distinguir el tipo de dato (identificador, importe, fecha, nombre) como el motor, es una mejora.",
       "depende_de": [
         "P-015"
       ],
       "referencia": "docs/design/parecidos-propuesta.md (sección 9)",
       "creado": "2026-10-14",
-      "actualizado": "2026-10-14"
+      "actualizado": "2026-10-16"
     },
     {
       "id": "P-079",
@@ -730,14 +730,14 @@
       "titulo": "Confirmar o corregir los tipos de documento que propone el modelo",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "El modelo puede proponer un tipo que no está en el catálogo; hoy queda guardado como propuesto (document_type.proposed) y se lista en Orígenes, pero nadie lo puede confirmar, renombrar ni corregir, ni cambiar a mano el tipo o la etapa de un documento. Al confirmarlo tiene que pasar a la lista cerrada (R-22), con su nombre en el vocabulario. En la prueba real propuso cinco: cronología, notificación de terminación, intimación por correo y dos nombres distintos para hilos de correo (lo que la pasada 11 tendría que unificar).",
+      "estado": "a-verificar",
+      "detalle": "Construido el 2026-10-16 en la rama feat/attention-view (sin integrar a main): la vista \"Tipos de documento propuestos\" (desde Atención y desde Orígenes) confirma un tipo con su nombre o con otro, o lo rechaza, y todo se puede deshacer. Lo confirmado pasa a la lista cerrada (tabla type_decision, esquema 8) y entra en las preguntas nuevas sin volver a preguntar lo ya respondido (D-161); lo rechazado deja sus documentos sin tipo y se vuelven a preguntar diciendo que no lo proponga (D-162). Queda aparte cambiar a mano el tipo o la etapa de un documento (P-088).",
       "depende_de": [
         "P-075"
       ],
       "referencia": "docs/decisiones.md (D-137); src-tauri/src/docbase/similar/classify.rs",
       "creado": "2026-10-14",
-      "actualizado": "2026-10-14"
+      "actualizado": "2026-10-16"
     },
     {
       "id": "P-081",
@@ -768,12 +768,88 @@
     {
       "id": "P-083",
       "titulo": "Vista única de atención",
-      "tipo": "decision",
+      "tipo": "codigo",
       "responsable": "ambos",
-      "estado": "pendiente",
-      "detalle": "Pedido del usuario del 2026-10-15: Inicio escala líneas que no dicen qué hacer (los parecidos llevan a una lista filtrada) y los avisos están repartidos entre Inicio y el panel de actividad del wiki. Propuesta escrita el 2026-10-16 en docs/design/atencion-propuesta.md: una sola vista con problemas, decisiones y lo que está en curso; cada aviso dice qué pasa, por qué importa y qué hacer, con la acción en la fila; Inicio pasa a un resumen; vistas dedicadas para resolver parecidos y tipos. Espera la revisión del usuario y cinco decisiones abiertas (sección 8).",
+      "estado": "a-verificar",
+      "detalle": "Propuesta aprobada y construida el 2026-10-16 en la rama feat/attention-view (sin integrar a main), siguiendo su sección 9: (1) Inicio deja de escalar \"misma plantilla\", \"contenido en\" y \"parecidos\" y muestra un resumen que lleva a la vista; (2) la vista \"Atención\" (nombre desde el vocabulario) en la navegación, con contador (D-155), con Problemas, Decisiones y En curso, líneas por tema que dicen qué pasa, por qué importa y qué hacer, con la acción en la fila y los casos al desplegarla; fuentes enchufables (D-156); (3) \"En curso\" reemplaza al panel de actividad, que queda en una línea (D-157), y aparece \"falta configurar el modelo\"; la revisión estructural de enlaces corre sola al vaciarse la cola (D-163); (4) vistas para resolver: parecidos por familia con confirmación de una familia de la misma plantilla de un clic (D-159) y diferencias lado a lado (P-077), tipos propuestos (P-080) y la revisión del wiki en español. Falta que el dueño lo vea en la app. Lo que quedó: P-084 a P-089.",
       "depende_de": [],
       "referencia": "docs/design/atencion-propuesta.md",
+      "creado": "2026-10-16",
+      "actualizado": "2026-10-16"
+    },
+    {
+      "id": "P-084",
+      "titulo": "Renumerar la versión 8 del esquema si otra rama también la usa",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "La rama feat/attention-view agrega la versión 8 del esquema de la base (tabla type_decision, src-tauri/src/docbase/schema.rs). Si feat/knowledge-layer (u otra rama) también agrega una versión 8, al integrar la segunda hay que pasarla a 9 y revisar que la migración corra sobre una base que ya tenga la otra.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/schema.rs",
+      "creado": "2026-10-16",
+      "actualizado": "2026-10-16"
+    },
+    {
+      "id": "P-085",
+      "titulo": "Pasar al español el resto de las pantallas del wiki",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "La revisión del wiki ya está en español. Siguen en inglés la revisión de enlaces, las etiquetas de la navegación del wiki (Chat, Wiki, Fuentes, Revisión…), la configuración y los mensajes que escribe la incorporación (detalle de cada paso). Conviene hacerlo junto con el marco visual (P-057).",
+      "depende_de": [
+        "P-057"
+      ],
+      "referencia": "src/components/lint/lint-view.tsx; src/components/layout/icon-sidebar.tsx; src/i18n/",
+      "creado": "2026-10-16",
+      "actualizado": "2026-10-16"
+    },
+    {
+      "id": "P-086",
+      "titulo": "Sumar a Atención las páginas que podrían ser la misma",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "La propuesta de la vista de atención dice que las páginas de entidades o conceptos que podrían ser la misma (Ajustes, Mantenimiento) se suman como decisión cuando esa búsqueda se haga sola; hoy corre a pedido. Cuando corra sola, es una fuente más (src/components/attention/sources/index.ts). Puede quedar cubierto por la capa de entidades (feat/knowledge-layer).",
+      "depende_de": [],
+      "referencia": "docs/design/atencion-propuesta.md (sección 5)",
+      "creado": "2026-10-16",
+      "actualizado": "2026-10-16"
+    },
+    {
+      "id": "P-087",
+      "titulo": "Mostrar en \"En curso\" las preguntas de tipos y el barrido de los orígenes",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "La sección \"En curso\" muestra la cola del wiki, los cambios de archivos y lo que la base todavía está leyendo, pero no las preguntas sobre tipos y datos que la base le hace al modelo en segundo plano ni el barrido de los orígenes: el motor no expone ese estado. Hace falta que lo exponga (por ejemplo, junto al aviso docbase://changed) y una línea en la fuente de la base documental.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/worker.rs; src/components/attention/sources/docbase.ts",
+      "creado": "2026-10-16",
+      "actualizado": "2026-10-16"
+    },
+    {
+      "id": "P-088",
+      "titulo": "Cambiar a mano el tipo o la etapa de un documento",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "P-080 pedía también corregir a mano el tipo o la etapa de un documento puntual; la vista de tipos propuestos solo decide sobre un tipo entero. Falta, en el detalle del documento, elegir otro tipo de la lista cerrada o otra etapa, guardado como decisión de una persona (R-08) que una pasada nueva no pisa.",
+      "depende_de": [
+        "P-080"
+      ],
+      "referencia": "src/components/docbase/document-types-view.tsx; src-tauri/src/docbase/similar/classify.rs",
+      "creado": "2026-10-16",
+      "actualizado": "2026-10-16"
+    },
+    {
+      "id": "P-089",
+      "titulo": "Recuperar lo que el panel de actividad mostraba y no pasó a Atención",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Al reducir el panel de actividad a una línea (D-157) no pasaron dos cosas: la selección de varias tareas de la cola para reintentarlas o cancelarlas juntas, y la lista de las páginas que escribió cada incorporación, con un clic para abrirlas. Decidir si hacen falta y dónde (por ejemplo, la actividad reciente del wiki en Inicio).",
+      "depende_de": [],
+      "referencia": "src/components/attention/sources/wiki-queue.ts",
       "creado": "2026-10-16",
       "actualizado": "2026-10-16"
     }
