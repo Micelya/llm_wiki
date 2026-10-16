@@ -486,7 +486,7 @@ fn matter_name(conn: &Connection, vocabulary: &Vocabulary, contents: &[i64]) -> 
             if rules.subject_roles.iter().any(|r| r == &role) {
                 entry.1 += 1;
             }
-        } else if rules.party_roles.iter().any(|r| r == &role) && super::pages::name_like(&kind, &name) {
+        } else if rules.party_roles.iter().any(|r| r == &role) && vocabulary.is_a_name(&kind, &name) {
             let entry = parties.entry(id).or_insert((0, name));
             if seen.insert((content, format!("party:{}", entry.1))) {
                 entry.0 += 1;
@@ -577,7 +577,7 @@ fn parties_by_document(conn: &Connection, vocabulary: &Vocabulary) -> Result<BTr
     let mut out: BTreeMap<i64, BTreeSet<String>> = BTreeMap::new();
     for row in rows {
         let (content, role, id, kind, name) = row.map_err(sql_err)?;
-        if role != vocabulary.fallback_role() && super::pages::name_like(&kind, &name) {
+        if role != vocabulary.fallback_role() && vocabulary.is_a_name(&kind, &name) {
             out.entry(content).or_default().insert(id);
         }
     }

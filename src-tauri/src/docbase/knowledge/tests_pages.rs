@@ -12,6 +12,7 @@ use crate::docbase::DocBase;
 const A: &str = "DOC-A. Contrato de locación entre Ejemplo Uno S.A., CUIT 30-11111111-1, y Persona Dos, DNI 22.222.222, \
 con domicilio en Calle Uno 100. Expediente 1234/2020 del juzgado.";
 const B: &str = "DOC-B. Recibo firmado por Persona Dos, DNI 22.222.222, a favor de Ejemplo Uno S.A. por $ 5.000 en efectivo.";
+const E: &str = "DOC-E. Carta de Ejemplo Uno S.A., con domicilio en Calle Uno 100, dirigida a Uds. y firmada por el apoderado.";
 const C: &str = "DOC-C. Nota al pasar que menciona a Persona Cinco y a la empresa Otra Cosa sin decir nada más de ellas, sobre el Expediente 1234/2020.";
 
 fn ids(kind: &str, value: &str, quote: &str) -> serde_json::Value {
@@ -36,6 +37,17 @@ fn reading(prompt: &str) -> String {
                 mention("o", "organizacion", "Ejemplo Uno S.A.", "destinatario", "a favor de Ejemplo Uno S.A.", none.clone()),
             ],
             vec![claim("p", "monto_adeudado", None, Some("$ 5.000"), "a favor de Ejemplo Uno S.A. por $ 5.000", None)],
+        )
+    } else if prompt.contains("DOC-E.") {
+        // An address, a pronoun and a role read as names.
+        (
+            vec![
+                mention("o", "organizacion", "Ejemplo Uno S.A.", "remitente", "Carta de Ejemplo Uno S.A.", none.clone()),
+                mention("d", "organizacion", "Calle Uno 100", "domicilio", "con domicilio en Calle Uno 100", none.clone()),
+                mention("u", "organizacion", "Uds.", "destinatario", "dirigida a Uds.", none.clone()),
+                mention("f", "persona", "apoderado", "firmante", "firmada por el apoderado", none.clone()),
+            ],
+            vec![],
         )
     } else if prompt.contains("DOC-D.") {
         (vec![mention("p", "persona", "Persona Dos", "remitente", "Otra nota de Persona Dos, DNI 22.222.222", ids("dni", "22.222.222", "DNI 22.222.222"))], vec![])
@@ -284,6 +296,32 @@ fn a_page_with_nothing_more_to_say_does_not_wait_for_a_synthesis() {
     let company = page_of(&entity_pages(&project), "Ejemplo Uno S.A.").to_string();
     assert!(company.contains("Los documentos no dicen de esta entidad nada más"), "{company}");
     assert_eq!(base.knowledge_attention(&crate::docbase::Visible::All).unwrap().synthesis_pending, 0);
+}
+
+#[test]
+fn an_address_a_pronoun_or_a_role_read_as_a_name_gets_no_page_nor_line() {
+    let (dir, base, project, asker) = archive(&[("a.txt", A), ("e.txt", E)]);
+    let source = format!("---
+type: source
+title: e.txt
+sources: [\"{}\"]
+---
+
+Resumen.
+", identity_of(&base, "e.txt"));
+    dir.write("General/wiki/sources/e.md", source.as_bytes());
+    base.knowledge_project(Some(&asker), 50).unwrap();
+    let pages = entity_pages(&project);
+    let titles: Vec<&str> = pages.iter().filter_map(|(_, t)| t.lines().find(|l| l.starts_with("title: "))).collect();
+    assert!(titles.iter().any(|t| t.contains("Ejemplo Uno S.A.")), "{titles:?}");
+    for not_a_name in ["Calle Uno 100", "Uds.", "apoderado"] {
+        assert!(!titles.iter().any(|t| t.contains(not_a_name)), "{not_a_name} has a page: {titles:?}");
+    }
+    let e = std::fs::read_to_string(project.join("wiki/sources/e.md")).unwrap();
+    assert!(e.contains("[[ejemplo-uno-s-a-"), "{e}");
+    for not_a_name in ["Calle Uno 100 ·", "Uds. ·", "apoderado ·"] {
+        assert!(!e.contains(not_a_name), "{not_a_name} is in the block: {e}");
+    }
 }
 
 #[test]

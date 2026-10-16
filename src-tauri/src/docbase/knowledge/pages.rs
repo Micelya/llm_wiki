@@ -347,7 +347,7 @@ impl Entity {
         let mut seen = BTreeSet::from([own]);
         let vocabulary = vocabulary();
         list.into_iter()
-            .filter(|(w, _)| name_like(&self.kind, w) && !vocabulary.is_generic(&quote::words(w).join(" ")))
+            .filter(|(w, _)| vocabulary.is_a_name(&self.kind, w))
             .filter(|(w, _)| seen.insert(quote::words(w).join(" ")))
             .map(|(w, _)| w.clone())
             .collect()
@@ -376,7 +376,7 @@ fn one_line(text: &str) -> String {
 /// appears in enough documents, has a role of the list in one of them, or
 /// (if the rule says so) a document gives it a strong identifier.
 fn has_page(vocabulary: &Vocabulary, entity: &Entity) -> bool {
-    if entity.state != "active" || entity.documents.is_empty() || !name_like(&entity.kind, &entity.name) {
+    if entity.state != "active" || entity.documents.is_empty() || !vocabulary.is_a_name(&entity.kind, &entity.name) {
         return false;
     }
     let Some(rule) = vocabulary.pages.rule(&entity.kind) else { return false };
@@ -517,11 +517,12 @@ fn load(conn: &Connection, project_id: &str, identities: &HashMap<i64, String>) 
         }
     }
     // A name the record took from a mail address or a number (contact data
-    // read as a mention) gives way to the most used way of writing that is
-    // a name, when there is one.
+    // read as a mention), or from a generic word, gives way to the most
+    // used way of writing that is a name, when there is one.
+    let words = vocabulary();
     for entity in entities.values_mut() {
-        if !name_like(&entity.kind, &entity.name) {
-            let mut written: Vec<(&String, &usize)> = entity.written.iter().filter(|(w, _)| name_like(&entity.kind, w)).collect();
+        if !words.is_a_name(&entity.kind, &entity.name) {
+            let mut written: Vec<(&String, &usize)> = entity.written.iter().filter(|(w, _)| words.is_a_name(&entity.kind, w)).collect();
             written.sort_by(|a, b| b.1.cmp(a.1).then_with(|| a.0.cmp(b.0)));
             if let Some((name, _)) = written.first() {
                 entity.name = one_line(name);
@@ -1176,8 +1177,10 @@ fn source_block(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<Strin
         .values()
         .filter(|e| e.state == "active")
         .filter_map(|e| e.documents.get(&content).map(|roles| (e, roles)))
-        // Who has no page and was only named in passing is left out.
+        // Who has no page and was only named in passing is left out, and
+        // so is what is not a name (an address, a blank of a form).
         .filter(|(e, roles)| paths.contains_key(&e.id) || roles.iter().any(|r| r != vocabulary.fallback_role()))
+        .filter(|(e, _)| vocabulary.is_a_name(&e.kind, &e.name))
         .collect();
     let matters: Vec<&Matter> = record
         .matter_of
@@ -1237,7 +1240,7 @@ fn link_forms(
         .map_err(sql_err)?;
     let mentions: Vec<(String, String, Option<String>)> = rows
         .into_iter()
-        .filter(|(_, kind, written)| name_like(kind, written))
+        .filter(|(_, kind, written)| vocabulary.is_a_name(kind, written))
         .map(|(entity, _, written)| {
             let active = record.entities.get(&entity).is_some_and(|e| e.state == "active");
             let page = paths.get(&entity).filter(|_| active).map(|p| stem(p));

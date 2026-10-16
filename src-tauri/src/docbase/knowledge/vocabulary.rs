@@ -78,6 +78,10 @@ pub struct IdentityWords {
     /// compare, to show as an alias or to name an entity by.
     #[serde(default)]
     pub generic: Vec<String>,
+    /// Words of an address ("calle", "piso", "cp"…): a way of writing with
+    /// one of them and a number is where someone is, not who.
+    #[serde(default)]
+    pub address_words: Vec<String>,
 }
 
 /// How documents are grouped into matters (D-213).
@@ -400,6 +404,39 @@ impl Vocabulary {
             .all(|w| words.generic.iter().any(|g| g == w))
     }
 
+    /// Whether a way of writing can name a person or an organization (a
+    /// matter is often named by its number, so any name does): not a mail
+    /// address or a number, not a blank of a form ("[Nombre]"), not only
+    /// generic words ("apoderado", "Uds."), not an address or a postal code
+    /// read as a mention. Such a mention stays in the record, but it gets
+    /// no page, no link and does not name anything.
+    pub fn is_a_name(&self, kind: &str, text: &str) -> bool {
+        let letters = text.chars().filter(|c| c.is_alphabetic()).count();
+        let digits = text.chars().filter(|c| c.is_ascii_digit()).count();
+        if text.contains('@') {
+            return false;
+        }
+        if kind == "asunto" {
+            return true;
+        }
+        if letters == 0 || letters < digits || text.contains(['[', ']']) {
+            return false;
+        }
+        let words = super::quote::words(text);
+        if words.is_empty() || self.is_generic(&words.join(" ")) {
+            return false;
+        }
+        if digits > 0 && words.iter().any(|w| self.identity.address_words.iter().any(|a| a == w)) {
+            return false;
+        }
+        // A street number or a postal code: a word of three digits or more,
+        // or a code that mixes letters with four digits or more.
+        !words.iter().any(|w| {
+            let d = w.chars().filter(|c| c.is_ascii_digit()).count();
+            d >= 3 && (d == w.chars().count() || d >= 4)
+        })
+    }
+
     /// Whether this kind of identifier names one entity only.
     pub fn is_strong(&self, identifier: &str) -> bool {
         self.identifier(identifier).is_some_and(|t| t.strong)
@@ -490,6 +527,30 @@ mod tests {
         // The fallback role applies to every type.
         let fallback = vocabulary.role(vocabulary.fallback_role()).unwrap();
         assert!(fallback.types.is_empty() || types.iter().all(|t| fallback.types.iter().any(|f| f == t)));
+    }
+
+    #[test]
+    fn what_is_not_a_name_gets_no_page() {
+        let v = Vocabulary::builtin();
+        for name in ["Persona Dos", "Ejemplo Uno S.A.", "Banco de Ejemplo", "Provincia de Ejemplo", "Ejemplo 3 S.R.L."] {
+            assert!(v.is_a_name("persona", name) && v.is_a_name("organizacion", name), "{name}");
+        }
+        for not_a_name in [
+            "apoderado",
+            "Uds.",
+            "mi representada",
+            "[Nombre / Razón social]",
+            "Calle Uno 100, Ciudad Ejemplo",
+            "Av. Ejemplo 1234 piso 3",
+            "Ejemplo 555 Ciudad 1000",
+            "X1234ABC",
+            "alguien@ejemplo.com",
+            "(011) 4444-5555",
+        ] {
+            assert!(!v.is_a_name("organizacion", not_a_name), "{not_a_name}");
+        }
+        // A matter is often named by its number.
+        assert!(v.is_a_name("asunto", "1234/2020") && v.is_a_name("asunto", "Calle Uno 100"));
     }
 
     #[test]
