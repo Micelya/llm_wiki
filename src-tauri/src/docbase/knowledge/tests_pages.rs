@@ -317,3 +317,23 @@ fn the_questions_are_kept_and_counted_once() {
     assert!(base.synthesis_questions("falso:1").unwrap().is_empty());
     assert_eq!(synthesis_calls(&asker), 1);
 }
+
+#[test]
+fn a_document_page_links_the_names_its_text_writes_as_the_document_does() {
+    let (dir, base, project, asker) = archive(&[("a.txt", A), ("b.txt", B)]);
+    let text = "Recibo de Persona Dos a favor de Ejemplo Uno S.A. por un pago. Persona Dos lo firma.";
+    let page = format!("---\ntype: source\ntitle: b.txt\nsources: [\"{}\"]\n---\n\n# Persona Dos\n\n{text}\n", identity_of(&base, "b.txt"));
+    dir.write("General/wiki/sources/b.md", page.as_bytes());
+    base.knowledge_project(Some(&asker), 50).unwrap();
+    let b = std::fs::read_to_string(project.join("wiki/sources/b.md")).unwrap();
+    // The first place in the running text, once, with the app's mark; not the heading.
+    assert!(b.contains("Recibo de [[persona-dos-"), "{b}");
+    assert!(b.contains("|Persona Dos]]<!--micelya--> a favor de [[ejemplo-uno-s-a-"), "{b}");
+    assert!(b.contains("# Persona Dos\n") && b.contains("pago. Persona Dos lo firma."), "{b}");
+    // Projecting again changes nothing; without the app's part, the wiki's text.
+    let report = base.knowledge_project(Some(&asker), 50).unwrap();
+    assert_eq!(report.blocks_written, 0, "{report:?}");
+    assert!(pages::with_block(&b, None).contains(text));
+    // The links are not links a page the app does not write makes.
+    assert_eq!(std::fs::read_to_string(project.join("wiki/sources/b.md")).unwrap(), b);
+}

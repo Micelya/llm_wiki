@@ -1214,9 +1214,49 @@ fn source_block(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<Strin
     Some(out)
 }
 
+/// The names of the documents of a page that can be linked inside its text
+/// without doubt (`links::safe_forms`), to the pages of their entities.
+fn link_forms(
+    base: &DocBase,
+    vocabulary: &Vocabulary,
+    record: &Record,
+    paths: &BTreeMap<String, String>,
+    contents: &[i64],
+) -> Result<Vec<super::links::LinkForm>, String> {
+    let list = contents.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(",");
+    let conn = base.conn();
+    let mut statement = conn
+        .prepare(&format!(
+            "SELECT entity_id, kind, written FROM knowledge_mention WHERE content_id IN ({list}) AND entity_id IS NOT NULL ORDER BY id"
+        ))
+        .map_err(sql_err)?;
+    let rows: Vec<(String, String, String)> = statement
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+        .map_err(sql_err)?
+        .collect::<Result<_, _>>()
+        .map_err(sql_err)?;
+    let mentions: Vec<(String, String, Option<String>)> = rows
+        .into_iter()
+        .filter(|(_, kind, written)| name_like(kind, written))
+        .map(|(entity, _, written)| {
+            let active = record.entities.get(&entity).is_some_and(|e| e.state == "active");
+            let page = paths.get(&entity).filter(|_| active).map(|p| stem(p));
+            (entity, written, page)
+        })
+        .collect();
+    Ok(super::links::safe_forms(&mentions, |name| vocabulary.is_generic(&quote::words(name).join(" "))))
+}
+
 /// The page with its block of entities in place of the one it had (or at
-/// its end); with none, without any.
+/// its end); with none, without any. The links the app added inside its
+/// text go too (`links.rs`): what is left is what the wiki wrote.
 pub(crate) fn with_block(text: &str, block: Option<&str>) -> String {
+    place_block(&super::links::strip_app_links(text), block)
+}
+
+/// The page with its block of entities in place of the one it had (or at
+/// its end), its text untouched.
+fn place_block(text: &str, block: Option<&str>) -> String {
     let mut rest = text.replace("\r\n", "\n");
     // Every block there is goes, so a page merged twice keeps one.
     while let Some(start) = rest.find(BLOCK_START) {
@@ -1825,14 +1865,18 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
     report.source_pages = by_page.len();
     for (path, contents) in &by_page {
         let block = source_block(vocabulary, &record, &paths, contents[0]);
-        let block_hash = hash(&[block.as_deref().unwrap_or("")]);
+        let forms = link_forms(base, vocabulary, &record, &paths, contents)?;
+        let forms_key: Vec<String> = forms.iter().map(|f| format!("{}\u{1}{}", f.written, f.stem)).collect();
+        let block_hash = hash(&[block.as_deref().unwrap_or(""), &forms_key.join("\u{2}")]);
         let file = root.join(path);
         let (size, mtime) = file_meta(&file);
         if blocks.get(*path).is_some_and(|(h, s, m)| *h == block_hash && *s == size && *m == mtime) {
             continue;
         }
         let Some(text) = read_file(&file) else { continue };
-        let next = with_block(&text, block.as_deref());
+        // What the wiki wrote, with the app's links in its text and its
+        // block at the end (D-221).
+        let next = place_block(&super::links::with_links(&with_block(&text, None), &forms), block.as_deref());
         if next != text {
             write_file(&file, &next)?;
             report.blocks_written += 1;

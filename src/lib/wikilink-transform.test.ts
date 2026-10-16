@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { transformImageEmbeds, transformWikilinks } from "./wikilink-transform"
+import { hideHtmlComments, transformImageEmbeds, transformWikilinks } from "./wikilink-transform"
 
 describe("transformWikilinks", () => {
   it("returns input unchanged when there are no wikilinks", () => {
@@ -162,5 +162,15 @@ describe("composition: embeds then wikilinks", () => {
     // …whereas the correct pipeline yields a real image reference:
     const correct = transformWikilinks(transformImageEmbeds("![[x.png]]"))
     expect(correct).toBe("![](<x.png>)")
+  })
+})
+
+describe("hideHtmlComments", () => {
+  it("takes the marks the app leaves out of the page and keeps its lines", () => {
+    const page =
+      "Texto de [[persona-dos-1|Persona Dos]]<!--micelya--> y más.\n\n<!-- micelya:entidades:inicio: la app rehace\neste bloque -->\n## Personas\n"
+    const hidden = hideHtmlComments(page)
+    expect(hidden).toBe("Texto de [[persona-dos-1|Persona Dos]] y más.\n\n\n\n## Personas\n")
+    expect(hidden.split("\n")).toHaveLength(page.split("\n").length)
   })
 })

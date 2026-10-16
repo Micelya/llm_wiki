@@ -39,6 +39,7 @@ pub(crate) mod claims;
 pub mod decide;
 pub mod entities;
 pub mod extract;
+pub mod links;
 pub mod matters;
 pub mod names;
 pub mod pages;
