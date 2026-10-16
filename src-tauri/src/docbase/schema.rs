@@ -51,6 +51,16 @@ CREATE TABLE type_decision (
 /// - `knowledge_decision`: what a person decided about identities (join,
 ///   separate, wrong datum), with the evidence shown. A computation never
 ///   overwrites it; undoing it keeps it, marked undone.
+/// - `knowledge_doubt`: pairs of mentions the resolution could not tell
+///   apart (the same name with an identifier misread, the model
+///   abstaining…), for a person to decide; computed again on every
+///   resolution, never joined by it. `a` and `b` are the keys of groups
+///   of mentions of one document (`cluster:<content>:<kind>:<name>`).
+/// - `knowledge_verdict`: what the model said of two groups of mentions
+///   (the same, different, it cannot tell), by the keys of the groups and
+///   the engine that said it: evidence kept for every later resolution,
+///   so a pair is never asked twice (R-20). `question` is the key of the
+///   answer in `model_answer`.
 /// - `knowledge_dirty`: work left for the incremental passes: contents to
 ///   resolve again, contents whose evidence must be retired, pages to
 ///   project again. A content that goes away marks itself (trigger).
@@ -186,6 +196,32 @@ CREATE TABLE knowledge_decision (
 );
 CREATE INDEX knowledge_decision_by_a ON knowledge_decision (a);
 CREATE INDEX knowledge_decision_by_b ON knowledge_decision (b);
+
+CREATE TABLE knowledge_doubt (
+    a              TEXT NOT NULL,
+    b              TEXT NOT NULL,
+    kind           TEXT NOT NULL,
+    entity_a       TEXT,
+    entity_b       TEXT,
+    reason         TEXT NOT NULL,
+    detail         TEXT,
+    evidence_hash  TEXT NOT NULL,
+    computed_at    INTEGER NOT NULL,
+    PRIMARY KEY (a, b)
+);
+CREATE INDEX knowledge_doubt_by_entity_a ON knowledge_doubt (entity_a);
+CREATE INDEX knowledge_doubt_by_entity_b ON knowledge_doubt (entity_b);
+
+CREATE TABLE knowledge_verdict (
+    a          TEXT NOT NULL,
+    b          TEXT NOT NULL,
+    engine     TEXT NOT NULL,
+    verdict    TEXT NOT NULL CHECK (verdict IN ('same', 'different', 'doubtful')),
+    reason     TEXT,
+    question   TEXT NOT NULL,
+    asked_at   INTEGER NOT NULL,
+    PRIMARY KEY (a, b, engine)
+);
 
 CREATE TABLE knowledge_dirty (
     scope  TEXT NOT NULL CHECK (scope IN ('resolve', 'retire', 'project')),

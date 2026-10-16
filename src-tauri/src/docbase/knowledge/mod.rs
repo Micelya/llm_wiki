@@ -21,9 +21,11 @@
 
 #[cfg(test)]
 pub(crate) mod check;
+pub(crate) mod claims;
 pub mod extract;
 pub mod names;
 pub mod quote;
+pub mod resolve;
 #[cfg(test)]
 mod tests;
 pub mod vocabulary;
