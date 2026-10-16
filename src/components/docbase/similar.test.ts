@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest"
 import { vocabularyFor } from "@/vocabulary"
 import {
   currentRelation,
+  familyPairs,
+  orderFamilies,
+  orderOpenPairs,
+  templateConfirmations,
   makesOneDocument,
   measuresInWords,
   passedOverNotice,
@@ -133,5 +137,57 @@ describe("a document joined with another as the same one", () => {
     expect(passedOverNotice([joined(2), joined(3, docRef(3, "Contrato definitivo.pdf"))])).toBe(
       "Este documento no alimenta el wiki: se unió con «Contrato de servicios firmado.pdf» y «Contrato definitivo.pdf», que son las fuentes elegidas.",
     )
+  })
+})
+
+describe("the similar documents screen", () => {
+  const principal = docRef(10, "Modelo.docx")
+
+  it("puts first the families where two could be the same document, then what else waits, then the decided ones", () => {
+    const template = similarGroup(docRef(20, "Facturas.pdf"), [docRef(21, "x.pdf")], 1)
+    const decided = similarGroup(docRef(30, "Recibos.pdf"), [docRef(31, "y.pdf")], 0)
+    const signed = similarGroup(principal, [docRef(11, "a.docx"), docRef(12, "b.docx")], 2, [], "signed-copy")
+    const versions = similarGroup(docRef(40, "Escrito.docx"), [docRef(41, "z.docx")], 1, [], "version")
+    expect(orderFamilies([decided, template, versions, signed]).map((g) => g.principal.name)).toEqual([
+      "Modelo.docx",
+      "Escrito.docx",
+      "Facturas.pdf",
+      "Recibos.pdf",
+    ])
+  })
+
+  it("shows a family's pairs from its principal: only its members, what makes one document first", () => {
+    const group = similarGroup(principal, [docRef(11, "a.docx"), docRef(12, "b.docx")], 2)
+    const items = [
+      similarDocument({ contentId: 10, other: docRef(11, "a.docx"), relation: "same-template" }),
+      similarDocument({ contentId: 10, other: docRef(99, "fuera.docx"), relation: "contained-in" }),
+      similarDocument({ contentId: 10, other: docRef(12, "b.docx"), relation: "near-identical" }),
+    ]
+    expect(familyPairs(items, group, RELATIONS).map((item) => item.other.name)).toEqual(["b.docx", "a.docx"])
+  })
+
+  it("confirms a family as same template with the evidence seen, leaving the other relations for one by one", () => {
+    const group = similarGroup(principal, [docRef(11, "a.docx"), docRef(12, "b.docx"), docRef(13, "c.docx")], 3)
+    const items = [
+      similarDocument({ contentId: 10, other: docRef(11, "a.docx"), relation: "same-template", evidenceHash: "h11" }),
+      similarDocument({ contentId: 10, other: docRef(12, "b.docx"), relation: "version" }),
+      similarDocument({ contentId: 10, other: docRef(13, "c.docx"), relation: "same-template", state: "discarded" }),
+    ]
+    expect(templateConfirmations(items, group)).toEqual([
+      {
+        contentId: 10,
+        otherContentId: 11,
+        decision: { kind: "join", relation: "same-template", wikiSource: null },
+        evidenceHash: "h11",
+      },
+    ])
+  })
+
+  it("puts first the loose pairs that could be the same document", () => {
+    const pair = (relation: string, other: number) => ({
+      doc: docRef(1, "uno.pdf"),
+      similar: similarDocument({ relation, other: docRef(other, `${other}.pdf`) }),
+    })
+    expect(orderOpenPairs([pair("contained-in", 2), pair("signed-copy", 3)], RELATIONS).map((p) => p.similar.other.contentId)).toEqual([3, 2])
   })
 })

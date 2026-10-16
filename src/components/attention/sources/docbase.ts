@@ -256,19 +256,13 @@ export function similarNotice(pending: SimilarPending | null, groups: SimilarGro
     id: `family:${group.principal.contentId}`,
     title: `«${group.principal.name}»`,
     detail: `${plural(group.pendingSameDocument, "documento podría ser el mismo", "documentos podrían ser el mismo")} · familia de ${formatCount(group.members.length)}`,
-    actions: [{ kind: "go", label: "Resolver", target: { view: "document", locationId: group.principal.locationId } }],
+    actions: [{ kind: "go", label: "Resolver", target: { view: "similar", principal: group.principal.contentId } }],
   }))
   if (loose > 0) {
     cases.push({
       id: "loose",
       title: plural(loose, "par fuera de las familias", "pares fuera de las familias"),
-      actions: [
-        {
-          kind: "go",
-          label: "Ver",
-          target: { view: "documents", filter: { ...DEFAULT_DOCUMENT_FILTER, similarPending: true } },
-        },
-      ],
+      actions: [{ kind: "go", label: "Ver", target: { view: "similar" } }],
     })
   }
   return {
@@ -287,15 +281,7 @@ export function similarNotice(pending: SimilarPending | null, groups: SimilarGro
       "Prácticamente el mismo, un ejemplar firmado o una versión: si se unen, al wiki va uno solo, el que elijas, y no se repite lo que dicen.",
     todo: "Unilos con la relación que corresponda, elegí otra o descartalos.",
     resolvedWhen: "Desaparece cuando cada par se une o se descarta.",
-    actions: families[0]
-      ? [{ kind: "go", label: "Resolver parecidos", target: { view: "document", locationId: families[0].principal.locationId } }]
-      : [
-          {
-            kind: "go",
-            label: "Resolver parecidos",
-            target: { view: "documents", filter: { ...DEFAULT_DOCUMENT_FILTER, similarPending: true } },
-          },
-        ],
+    actions: [{ kind: "go", label: "Resolver parecidos", target: { view: "similar", principal: families[0]?.principal.contentId ?? null } }],
     cases,
   }
 }

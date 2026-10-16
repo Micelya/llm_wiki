@@ -12,6 +12,7 @@ import { HomeView } from "@/components/docbase/home-view"
 import { OriginsView } from "@/components/docbase/origins-view"
 import { DocumentsView } from "@/components/docbase/documents-view"
 import { AttentionView } from "@/components/attention/attention-view"
+import { SimilarView } from "@/components/docbase/similar-view"
 import { PreviewPanel } from "./preview-panel"
 
 export function ContentArea() {
@@ -75,6 +76,8 @@ function ActiveContent({
       return <DocumentsView />
     case "attention":
       return <AttentionView />
+    case "similar":
+      return <SimilarView />
     default:
       return <PreviewPanel />
   }

@@ -13,7 +13,7 @@ use tauri::{Emitter, Manager, State};
 use super::bridge::{self, GeneralProject, WikiSource};
 use super::labels::{Label, LabelGroup, LabelRule};
 use super::origins::Origin;
-use super::similar::{self, Decision, SimilarDocument, SimilarGroup, SimilarPending};
+use super::similar::{self, Decision, OpenPair, PairDecision, SimilarDocument, SimilarGroup, SimilarPending};
 use super::similar::classify::{DocumentType, ProposedType, RunReport, TypesPlan};
 use super::similar::data::Datum;
 use super::similar::types::RelationDef;
@@ -435,6 +435,25 @@ pub fn docbase_decide_similar(
         .decide_similar(content_id, other_content_id, &decision, evidence_hash.as_deref())?;
     let _ = app.emit(CHANGED_EVENT, ());
     Ok(())
+}
+
+/// Several decisions about similar documents at once (a family confirmed
+/// in one click). Returns how many were recorded.
+#[tauri::command(async)]
+pub fn docbase_decide_similar_many(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    decisions: Vec<PairDecision>,
+) -> Result<usize, String> {
+    let result = state.base()?.decide_similar_many(&decisions);
+    let _ = app.emit(CHANGED_EVENT, ());
+    result
+}
+
+/// The pairs that wait for a decision outside the families' principals.
+#[tauri::command(async)]
+pub fn docbase_similar_open_pairs(state: State<'_, DocBaseState>) -> Result<Vec<OpenPair>, String> {
+    state.base()?.similar_open_pairs(&Visible::All)
 }
 
 /// How many similar documents and families wait for a decision (Inicio).

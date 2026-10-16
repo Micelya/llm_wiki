@@ -689,6 +689,8 @@ pub fn run() {
             docbase::commands::docbase_similar_documents,
             docbase::commands::docbase_decide_similar,
             docbase::commands::docbase_similar_pending,
+            docbase::commands::docbase_decide_similar_many,
+            docbase::commands::docbase_similar_open_pairs,
             docbase::commands::docbase_similar_groups,
             docbase::commands::docbase_similar_relations,
             docbase::commands::docbase_types_plan,

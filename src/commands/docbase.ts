@@ -576,6 +576,35 @@ export function decideSimilar(
   return invoke<void>("docbase_decide_similar", { contentId, otherContentId, decision, evidenceHash: evidenceHash ?? null })
 }
 
+/** One decision of `decideSimilarMany`. */
+export interface PairDecision {
+  contentId: number
+  otherContentId: number
+  decision: SimilarDecision
+  /** Fingerprint of the evidence the person saw. */
+  evidenceHash?: string | null
+}
+
+/**
+ * Several decisions at once, recorded in order with one regrouping (a
+ * family confirmed in one click). Returns how many were recorded; when
+ * one fails, the error says how many were saved before it.
+ */
+export function decideSimilarMany(decisions: PairDecision[]): Promise<number> {
+  return invoke<number>("docbase_decide_similar_many", { decisions })
+}
+
+/** A pair waiting for a decision outside the families' principals, seen from `doc`. */
+export interface OpenPair {
+  doc: DocRef
+  similar: SimilarDocument
+}
+
+/** The pairs that wait outside the families' principals: outside families, or between two members. */
+export function listOpenSimilarPairs(): Promise<OpenPair[]> {
+  return invoke<OpenPair[]>("docbase_similar_open_pairs")
+}
+
 export function getSimilarPending(): Promise<SimilarPending> {
   return invoke<SimilarPending>("docbase_similar_pending")
 }

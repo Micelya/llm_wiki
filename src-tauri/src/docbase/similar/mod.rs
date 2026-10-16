@@ -52,4 +52,4 @@ mod tests_types;
 pub mod text;
 pub mod types;
 
-pub use store::{relations, Decision, SimilarDocument, SimilarGroup, SimilarPending};
+pub use store::{relations, Decision, OpenPair, PairDecision, SimilarDocument, SimilarGroup, SimilarPending};

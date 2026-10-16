@@ -49,22 +49,7 @@ export function SimilarDocuments({
   const openDocument = useDocbaseStore((s) => s.openDocument)
 
   async function decide(item: SimilarDocument, decision: SimilarDecision) {
-    onProblem(null)
-    try {
-      await decideSimilar(item.contentId, item.other.contentId, decision, item.evidenceHash)
-      similar.reload()
-    } catch (cause) {
-      onProblem(String(cause))
-      return
-    }
-    // The wiki follows the decision: the one not chosen stops feeding it,
-    // and what is a source now and was never ingested is queued.
-    try {
-      const { followSimilarDecision } = await import("@/lib/docbase-wiki-bridge")
-      await followSimilarDecision(useWikiStore.getState().project, [item.contentId, item.other.contentId])
-    } catch (cause) {
-      onProblem(`La decisión quedó guardada, pero el wiki no se pudo actualizar: ${String(cause)}`)
-    }
+    await decideAndFollow(item, decision, onProblem, similar.reload)
   }
 
   if (!similar.data) return null
@@ -77,6 +62,33 @@ export function SimilarDocuments({
       onDecide={decide}
     />
   )
+}
+
+/**
+ * Records what a person decided about a pair, and has the wiki follow:
+ * the one not chosen stops feeding it, and what is a source now and was
+ * never ingested is queued. Problems go to `onProblem`.
+ */
+export async function decideAndFollow(
+  item: SimilarDocument,
+  decision: SimilarDecision,
+  onProblem: (problem: string | null) => void,
+  onDecided: () => void = () => {},
+): Promise<void> {
+  onProblem(null)
+  try {
+    await decideSimilar(item.contentId, item.other.contentId, decision, item.evidenceHash)
+    onDecided()
+  } catch (cause) {
+    onProblem(String(cause))
+    return
+  }
+  try {
+    const { followSimilarDecision } = await import("@/lib/docbase-wiki-bridge")
+    await followSimilarDecision(useWikiStore.getState().project, [item.contentId, item.other.contentId])
+  } catch (cause) {
+    onProblem(`La decisión quedó guardada, pero el wiki no se pudo actualizar: ${String(cause)}`)
+  }
 }
 
 /** The section itself, apart from where its data comes from. */

@@ -1,4 +1,6 @@
 import type {
+  OpenPair,
+  PairDecision,
   RelationDef,
   RelationId,
   SimilarDocument,
@@ -141,4 +143,74 @@ export function passedOverNotice(items: SimilarDocument[]): string | null {
 /** How a family is named in a list: its principal, with how many documents it has. */
 export function groupLabel(group: SimilarGroup): string {
   return `${group.principal.name} (${formatCount(group.members.length)})`
+}
+
+// ── The similar documents screen ────────────────────────────────────────
+
+/**
+ * The families in the order of the screen: first those where two could
+ * be the same document (what changes what goes to the wiki), the most
+ * first; then those with something else to decide; then the decided
+ * ones. Inside each, as the base gave them (largest first).
+ */
+export function orderFamilies(groups: readonly SimilarGroup[]): SimilarGroup[] {
+  const rank = (group: SimilarGroup) => (group.pendingSameDocument > 0 ? 0 : group.pending > 0 ? 1 : 2)
+  return groups
+    .map((group, index) => ({ group, index }))
+    .sort(
+      (a, b) =>
+        rank(a.group) - rank(b.group) ||
+        b.group.pendingSameDocument - a.group.pendingSameDocument ||
+        a.index - b.index,
+    )
+    .map(({ group }) => group)
+}
+
+/**
+ * The pairs of a family seen from its principal (`items` are the
+ * principal's similar documents): only its members, those that could be
+ * the same document first, then the rest waiting, then the decided ones.
+ */
+export function familyPairs(
+  items: readonly SimilarDocument[],
+  group: SimilarGroup,
+  definitions: RelationDef[],
+): SimilarDocument[] {
+  const members = new Set(group.members.map((member) => member.doc.contentId))
+  const rank = (item: SimilarDocument) =>
+    item.state !== "proposed" ? 2 : makesOneDocument(item.relation, definitions) ? 0 : 1
+  return items
+    .filter((item) => members.has(item.other.contentId))
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => rank(a.item) - rank(b.item) || a.index - b.index)
+    .map(({ item }) => item)
+}
+
+/**
+ * What confirming a family as "same template" decides: every pair of its
+ * principal with a member still proposed as "same template" is joined as
+ * such, with the evidence the person saw. Pairs proposed as anything else
+ * are left for one by one.
+ */
+export function templateConfirmations(items: readonly SimilarDocument[], group: SimilarGroup): PairDecision[] {
+  return familyPairs(items, group, [])
+    .filter((item) => item.state === "proposed" && item.relation === TEMPLATE_RELATION)
+    .map((item) => ({
+      contentId: item.contentId,
+      otherContentId: item.other.contentId,
+      decision: { kind: "join", relation: TEMPLATE_RELATION, wikiSource: null },
+      evidenceHash: item.evidenceHash,
+    }))
+}
+
+/** The relation a family is confirmed with in one click. */
+export const TEMPLATE_RELATION = "same-template"
+
+/** The pairs outside the families' principals, those that could be the same document first. */
+export function orderOpenPairs(pairs: readonly OpenPair[], definitions: RelationDef[]): OpenPair[] {
+  const rank = (pair: OpenPair) => (makesOneDocument(pair.similar.relation, definitions) ? 0 : 1)
+  return pairs
+    .map((pair, index) => ({ pair, index }))
+    .sort((a, b) => rank(a.pair) - rank(b.pair) || a.index - b.index)
+    .map(({ pair }) => pair)
 }
