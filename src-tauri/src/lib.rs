@@ -692,6 +692,7 @@ pub fn run() {
             docbase::commands::docbase_similar_groups,
             docbase::commands::docbase_similar_relations,
             docbase::commands::docbase_types_plan,
+            docbase::commands::docbase_proposed_types,
             docbase::commands::docbase_types_run,
             docbase::commands::docbase_set_ask_engine,
             docbase::commands::docbase_document_type,

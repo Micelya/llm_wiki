@@ -644,6 +644,21 @@ fn write_type_rows(conn: &Connection, rows: &[TypeRow], basis: &str) -> Result<u
     Ok(changed)
 }
 
+fn read_proposed_types(conn: &Connection) -> Result<Vec<ProposedType>, String> {
+    let mut statement = conn
+        .prepare(
+            "SELECT doc_type, max(proposed_name), max(proposed_description), count(*) FROM document_type
+             WHERE proposed = 1 GROUP BY doc_type ORDER BY count(*) DESC, doc_type",
+        )
+        .map_err(sql_err)?;
+    let rows = statement
+        .query_map([], |row| Ok(ProposedType { id: row.get(0)?, name: row.get(1)?, description: row.get(2)?, documents: row.get(3)? }))
+        .map_err(sql_err)?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(sql_err)?;
+    Ok(rows)
+}
+
 fn cached_answer(conn: &Connection, key: &str) -> Result<Option<String>, String> {
     conn.query_row("SELECT answer FROM model_answer WHERE question = ?1", [key], |row| row.get(0))
         .optional()
@@ -917,23 +932,7 @@ impl DocBase {
         let conn = self.conn();
         let documents = load_docs(&conn)?.len();
         let typed: i64 = conn.query_row("SELECT count(*) FROM document_type", [], |row| row.get(0)).map_err(sql_err)?;
-        let mut proposed_types = Vec::new();
-        {
-            let mut statement = conn
-                .prepare(
-                    "SELECT doc_type, max(proposed_name), max(proposed_description), count(*) FROM document_type
-                     WHERE proposed = 1 GROUP BY doc_type ORDER BY count(*) DESC, doc_type",
-                )
-                .map_err(sql_err)?;
-            let rows = statement
-                .query_map([], |row| {
-                    Ok(ProposedType { id: row.get(0)?, name: row.get(1)?, description: row.get(2)?, documents: row.get(3)? })
-                })
-                .map_err(sql_err)?;
-            for row in rows {
-                proposed_types.push(row.map_err(sql_err)?);
-            }
-        }
+        let proposed_types = read_proposed_types(&conn)?;
         let mut keys: BTreeSet<&str> = BTreeSet::new();
         let data_questions = pending_data.iter().filter(|p| keys.insert(p.question.key.as_str())).count();
         Ok(TypesPlan {
@@ -944,6 +943,12 @@ impl DocBase {
             proposed_types,
             engine: ask_engine(&conn)?,
         })
+    }
+
+    /// The types the model proposed that no person confirmed yet, with how
+    /// many documents have each one. Reads what is stored; costs nothing.
+    pub fn proposed_types(&self) -> Result<Vec<ProposedType>, String> {
+        read_proposed_types(&self.conn())
     }
 
     /// Asks the model what is pending, at most `max_questions` questions,

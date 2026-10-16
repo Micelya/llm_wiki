@@ -11,6 +11,7 @@ import { GraphView } from "@/components/graph/graph-view"
 import { HomeView } from "@/components/docbase/home-view"
 import { OriginsView } from "@/components/docbase/origins-view"
 import { DocumentsView } from "@/components/docbase/documents-view"
+import { AttentionView } from "@/components/attention/attention-view"
 import { PreviewPanel } from "./preview-panel"
 
 export function ContentArea() {
@@ -72,6 +73,8 @@ function ActiveContent({
       return <OriginsView />
     case "documents":
       return <DocumentsView />
+    case "attention":
+      return <AttentionView />
     default:
       return <PreviewPanel />
   }

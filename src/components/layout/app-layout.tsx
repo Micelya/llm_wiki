@@ -9,6 +9,7 @@ import { ResearchPanel } from "./research-panel"
 import { ActivityPanel } from "./activity-panel"
 import { useResearchStore } from "@/stores/research-store"
 import { ErrorBoundary } from "@/components/error-boundary"
+import { AttentionSources } from "@/components/attention/sources-host"
 import { getAppLayoutVisibility } from "./app-layout-visibility"
 import { PanelLeftOpen } from "lucide-react"
 import { useTranslation } from "react-i18next"
@@ -105,6 +106,7 @@ export function AppLayout({ onSwitchProject }: AppLayoutProps) {
     // so it doesn't compress the work area; main row is flex-1 so
     // it fills the rest of the viewport.
     <div className="flex h-full flex-col bg-background text-foreground">
+      <AttentionSources />
       <UpdateBanner />
       <div className="flex min-h-0 flex-1">
         <IconSidebar onSwitchProject={onSwitchProject} />

@@ -14,7 +14,7 @@ use super::bridge::{self, GeneralProject, WikiSource};
 use super::labels::{Label, LabelGroup, LabelRule};
 use super::origins::Origin;
 use super::similar::{self, Decision, SimilarDocument, SimilarGroup, SimilarPending};
-use super::similar::classify::{DocumentType, RunReport, TypesPlan};
+use super::similar::classify::{DocumentType, ProposedType, RunReport, TypesPlan};
 use super::similar::data::Datum;
 use super::similar::types::RelationDef;
 use crate::source_volume::asking::{asker_for, AskConfig};
@@ -462,6 +462,13 @@ pub fn docbase_similar_relations() -> Vec<RelationDef> {
 #[tauri::command(async)]
 pub fn docbase_types_plan(state: State<'_, DocBaseState>) -> Result<TypesPlan, String> {
     state.base()?.types_plan()
+}
+
+/// The types the model proposed that wait for a person, without
+/// computing anything (the attention view asks it on every change).
+#[tauri::command(async)]
+pub fn docbase_proposed_types(state: State<'_, DocBaseState>) -> Result<Vec<ProposedType>, String> {
+    state.base()?.proposed_types()
 }
 
 /// Asks the model the pending questions about type, stage and data, at

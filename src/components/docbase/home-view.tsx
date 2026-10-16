@@ -2,41 +2,28 @@ import { useState, type ReactNode } from "react"
 import { ChevronRight, FolderPlus, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { getHome, getSimilarPending, listSimilarGroups, type Activity } from "@/commands/docbase"
+import { getHome, type Activity } from "@/commands/docbase"
 import { DEFAULT_DOCUMENT_FILTER, useDocbaseStore } from "@/stores/docbase-store"
-import { useReviewStore } from "@/stores/review-store"
 import { useWikiStore } from "@/stores/wiki-store"
-import { buildAttention, pendingCount, processedPercent, type AttentionItem } from "./attention"
-import { buildSimilarAttention } from "./similar"
+import { noticesOf, summaryText } from "@/lib/attention/order"
+import { NoticeMark } from "@/components/attention/attention-view"
+import { useAttention } from "@/components/attention/use-attention"
+import { pendingCount, processedPercent } from "./attention"
 import { DocbasePage, EmptyNote, ErrorNote, Panel, StatusBadge } from "./page"
 import { formatAgo, formatCount, plural } from "./format"
 import { useDocbaseQuery } from "./use-docbase-query"
 import { vocabulary } from "@/vocabulary"
 
+/** How many lines that need a person Inicio shows before "Ver todo". */
+const HOME_GLANCE = 3
+
 export function HomeView() {
   const home = useDocbaseQuery("home", getHome)
-  const similarPending = useDocbaseQuery("similar-pending", getSimilarPending)
-  const similarGroups = useDocbaseQuery("similar-groups", listSimilarGroups)
-  const reviewPending = useReviewStore((s) => s.items.filter((item) => !item.resolved).length)
   const setActiveView = useWikiStore((s) => s.setActiveView)
   const setFilter = useDocbaseStore((s) => s.setFilter)
-  const openDocument = useDocbaseStore((s) => s.openDocument)
   const [query, setQuery] = useState("")
-
-  function goTo(item: AttentionItem) {
-    const target = item.target
-    if (target.view === "document") {
-      setActiveView("documents")
-      openDocument(target.locationId)
-      return
-    }
-    if (target.view === "documents") {
-      if ("state" in target) setFilter({ ...DEFAULT_DOCUMENT_FILTER, state: target.state })
-      else if ("similarGroup" in target) setFilter({ ...DEFAULT_DOCUMENT_FILTER, similarGroup: target.similarGroup })
-      else setFilter({ ...DEFAULT_DOCUMENT_FILTER, similarPending: true })
-    }
-    setActiveView(item.target.view)
-  }
+  const { notices, counts } = useAttention()
+  const words = vocabulary()
 
   function search() {
     setFilter({ ...DEFAULT_DOCUMENT_FILTER, query: query.trim() })
@@ -44,9 +31,11 @@ export function HomeView() {
   }
 
   const data = home.data
-  const similar =
-    similarPending.data && similarGroups.data ? buildSimilarAttention(similarPending.data, similarGroups.data) : []
-  const attention = data ? buildAttention(data.health, data.origins, reviewPending, data.wiki, similar) : []
+  const summary = summaryText(counts)
+  // The first lines that need a person, as a glance; the rest are in the view.
+  const glance = [...noticesOf(notices, "problem"), ...noticesOf(notices, "decision")]
+    .filter((notice) => notice.priority !== "low")
+    .slice(0, HOME_GLANCE)
   const today = new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
 
   return (
@@ -69,27 +58,41 @@ export function HomeView() {
             </Panel>
           ) : (
             <>
-              <Panel title="Requiere atención" count={attention.length}>
-                {attention.length === 0 ? (
-                  <EmptyNote>Nada pendiente. Todo lo que se pudo procesar está procesado.</EmptyNote>
+              <Panel
+                title={words.attention.name}
+                action={
+                  <Button size="sm" variant="outline" onClick={() => setActiveView("attention")}>
+                    Ver todo <ChevronRight />
+                  </Button>
+                }
+              >
+                {summary === null ? (
+                  <EmptyNote>
+                    Nada requiere tu atención.
+                    {counts.ongoing > 0 && " La app está trabajando: lo ves en la sección «En curso»."}
+                  </EmptyNote>
                 ) : (
-                  <ul className="flex flex-col divide-y">
-                    {attention.map((item) => (
-                      <li key={item.id}>
-                        <button
-                          className="flex w-full items-center gap-3 py-2.5 text-left hover:bg-muted/40"
-                          onClick={() => goTo(item)}
-                        >
-                          <AttentionMark tone={item.tone} />
-                          <span className="min-w-0 flex-1">
-                            <span className="block text-sm font-medium">{item.title}</span>
-                            <span className="block text-xs text-muted-foreground">{item.detail}</span>
-                          </span>
-                          <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      className="text-left text-lg font-semibold hover:underline"
+                      onClick={() => setActiveView("attention")}
+                    >
+                      {summary}
+                    </button>
+                    <ul className="flex flex-col gap-1">
+                      {glance.map((notice) => (
+                        <li key={notice.id} className="flex items-start gap-2 text-sm">
+                          <NoticeMark notice={notice} />
+                          <span className="min-w-0 flex-1">{notice.title}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    {counts.ongoing > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Además, {counts.ongoing === 1 ? "hay una tarea en curso" : `hay ${counts.ongoing} tareas en curso`}.
+                      </p>
+                    )}
+                  </div>
                 )}
               </Panel>
 
@@ -170,18 +173,6 @@ export function HomeView() {
       </div>
     </DocbasePage>
   )
-}
-
-function AttentionMark({ tone }: { tone: AttentionItem["tone"] }) {
-  const color =
-    tone === "error"
-      ? "bg-destructive"
-      : tone === "warning"
-        ? "bg-amber-500"
-        : tone === "busy"
-          ? "bg-blue-500"
-          : "bg-muted-foreground/50"
-  return <span className={`size-2 shrink-0 rounded-full ${color}`} />
 }
 
 function Metric({ label, children }: { label: string; children: ReactNode }) {

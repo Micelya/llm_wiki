@@ -666,6 +666,11 @@ export function getTypesPlan(): Promise<TypesPlan> {
   return invoke<TypesPlan>("docbase_types_plan")
 }
 
+/** The types the model proposed that wait for a person. Computes nothing. */
+export function listProposedTypes(): Promise<ProposedType[]> {
+  return invoke<ProposedType[]>("docbase_proposed_types")
+}
+
 /** Asks the model what is pending. Costs the provider's quota: only on an explicit action. */
 export function runTypes(engine: AskConfig, maxQuestions?: number): Promise<TypesRunReport> {
   return invoke<TypesRunReport>("docbase_types_run", { engine, maxQuestions: maxQuestions ?? null })

@@ -27,6 +27,17 @@ export interface Vocabulary {
     /** One sentence saying what its wiki is. */
     wikiDescription: string
   }
+  /**
+   * The single view of what needs a person (problems, decisions, what is
+   * in progress), as the screens name it: "Atención". A notary's office
+   * may prefer "Pendientes" or "Bandeja".
+   */
+  attention: {
+    /** Its name in the navigation and as its title. */
+    name: string
+    /** One sentence under the title. */
+    description: string
+  }
   /** Label groups offered to start with, most general first. */
   suggestedGroups: string[]
   /** The language its wiki is written in when the user chose none, as an output-language value. */
