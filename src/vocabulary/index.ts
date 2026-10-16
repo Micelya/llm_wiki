@@ -60,6 +60,13 @@ export interface Vocabulary {
   stages: Record<string, string>
   /** The names of the data of each type (`numero-de-envio`, `total`…), by id. */
   dataFields: Record<string, string>
+  /**
+   * The words of the knowledge layer's screens: who and what the
+   * documents name. The ids are those of the layer's vocabulary
+   * (`src-tauri/resources/catalog/knowledge.json`); an id nobody named
+   * here is shown as words.
+   */
+  knowledge: KnowledgeTerms
   /** The words of the wiki's index (`wiki/index.md`), written in the wiki's language. */
   wikiIndex: {
     title: string
@@ -72,6 +79,31 @@ export interface Vocabulary {
     /** Pages of a type nobody named here. */
     other: string
   }
+}
+
+export interface KnowledgeTerms {
+  /** The screen of the people and organizations: "Personas y organizaciones". */
+  entities: string
+  /** One sentence under its title. */
+  entitiesDescription: string
+  /** The matters of the archive, as the profession calls them: "Asuntos". */
+  matters: string
+  /** One sentence under its title. */
+  mattersDescription: string
+  /** One matter: "Asunto". */
+  matter: string
+  /** Where the documents of no matter go: "Sin asunto identificado". */
+  withoutMatter: string
+  /** The screen that resolves doubtful identities: "Identidades dudosas". */
+  doubts: string
+  /** The types of entity, by id, in singular and plural. */
+  entityTypes: Record<string, { one: string; many: string }>
+  /** The role a mention has in its document, by id. */
+  roles: Record<string, string>
+  /** What a claim says, by predicate id; `of` reads it from its object ("Representada por"). */
+  predicates: Record<string, { name: string; of?: string }>
+  /** The kinds of identifier, by id. */
+  identifiers: Record<string, string>
 }
 
 export interface RelationTerms {
@@ -202,4 +234,27 @@ export function stageName(id: string, words: Vocabulary = vocabulary()): string 
 /** The name of a datum of a document type. */
 export function dataFieldName(id: string, words: Vocabulary = vocabulary()): string {
   return words.dataFields[id] ?? idInWords(id)
+}
+
+/** The name of a type of entity, in singular or plural. */
+export function entityTypeName(id: string, many = false, words: Vocabulary = vocabulary()): string {
+  const found = words.knowledge.entityTypes[id]
+  return found ? (many ? found.many : found.one) : idInWords(id)
+}
+
+/** The name of the role a mention has in its document. */
+export function roleName(id: string, words: Vocabulary = vocabulary()): string {
+  return words.knowledge.roles[id] ?? idInWords(id).toLowerCase()
+}
+
+/** What a claim says, read from its subject, or from its object when `inverse`. */
+export function predicateName(id: string, inverse = false, words: Vocabulary = vocabulary()): string {
+  const found = words.knowledge.predicates[id]
+  if (!found) return idInWords(id.replace(/_/g, "-"))
+  return inverse ? (found.of ?? found.name) : found.name
+}
+
+/** The name of a kind of identifier. */
+export function identifierName(id: string, words: Vocabulary = vocabulary()): string {
+  return words.knowledge.identifiers[id] ?? idInWords(id)
 }

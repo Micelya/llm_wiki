@@ -787,3 +787,463 @@ export function setWikiLanguage(language: string | null): Promise<void> {
 export function onKnowledgePages(handler: () => void): Promise<UnlistenFn> {
   return listen("docbase://knowledge-pages", () => handler())
 }
+
+// ── Knowledge layer: people, organizations and matters ──────────────────
+
+/** How far the knowledge layer read, resolved and projected the archive. */
+export interface KnowledgeStatus {
+  documents: number
+  extracted: number
+  stale: number
+  pending: number
+  failed: number
+  mentions: number
+  identifiers: number
+  evidence: number
+  discarded: number
+  discardedByReason: Record<string, number>
+  answers: number
+  entities: number
+  entitiesByKind: Record<string, number>
+  doubts: number
+  claims: number
+  conflicts: number
+  toResolve: number
+  pages: number
+  toProject: number
+  engine: AskConfig | null
+}
+
+export interface KnowledgeIdentifierView {
+  kind: string
+  value: string
+  quote: string
+  page: number | null
+  byShape: boolean
+}
+
+export interface KnowledgeMentionView {
+  id: number
+  kind: string
+  written: string
+  role: string
+  quote: string
+  page: number | null
+  sameAs: number | null
+  entityId: string | null
+  identifiers: KnowledgeIdentifierView[]
+}
+
+export interface KnowledgeEvidenceView {
+  id: number
+  subject: number
+  predicate: string
+  objectMention: number | null
+  objectValue: string | null
+  quote: string
+  page: number | null
+  factTime: string | null
+}
+
+export interface KnowledgeDiscarded {
+  what: string
+  reason: string
+  said: string
+  quote: string
+}
+
+/** What the layer read in one document. */
+export interface DocumentKnowledge {
+  contentId: number | null
+  state: "done" | "failed" | "stale" | "pending"
+  engine: string | null
+  extractedAt: number | null
+  mentions: KnowledgeMentionView[]
+  evidence: KnowledgeEvidenceView[]
+  discarded: KnowledgeDiscarded[]
+  error: string | null
+}
+
+export interface KnowledgePlan {
+  documents: number
+  questions: number
+  waitingForType: number
+  engine: AskConfig | null
+}
+
+export interface KnowledgeRunReport {
+  asked: number
+  failed: number
+  extracted: number
+  unusable: number
+  left: number
+  waitingForType: number
+  mentions: number
+  evidence: number
+  discarded: number
+  errors: string[]
+}
+
+export interface KnowledgeResolveReport {
+  skipped: boolean
+  asked: number
+  failed: number
+  left: number
+  groups: number
+  entities: number
+  byPerson: number
+  byIdentifier: number
+  byName: number
+  byModel: number
+  doubts: number
+  changed: number
+  claims: number
+  conflicts: number
+  unfit: number
+  matters: number
+  matterDocuments: number
+  commonKeys: number
+  errors: string[]
+}
+
+export interface EntitySummary {
+  id: string
+  kind: string
+  name: string
+  mentions: number
+  documents: number
+  aliases: string[]
+}
+
+export interface EntityAlias {
+  written: string
+  mentions: number
+}
+
+export interface EntityIdentifier {
+  kind: string
+  value: string
+  documents: number
+}
+
+export interface EntityMention {
+  mentionId: number
+  contentId: number
+  locationId: number | null
+  document: string
+  role: string
+  written: string
+  quote: string
+  page: number | null
+  /** What joined it to the entity: "persona", "identificador", "nombre", "modelo" or "sola". */
+  resolvedBy: string | null
+}
+
+export interface ClaimEvidence {
+  evidenceId: number
+  contentId: number
+  document: string
+  quote: string
+  page: number | null
+  factTime: string | null
+}
+
+export interface ClaimView {
+  id: number
+  predicate: string
+  objectEntity: string | null
+  objectName: string | null
+  objectValue: string | null
+  state: "supported" | "conflict" | "retired"
+  validFrom: string | null
+  evidence: ClaimEvidence[]
+}
+
+/** Two groups of mentions the resolution left for a person. */
+export interface DoubtView {
+  a: string
+  b: string
+  kind: string
+  entityA: string | null
+  entityB: string | null
+  nameA: string | null
+  nameB: string | null
+  /** Why it is in doubt ("identificador-parecido", "modelo-dudosa"…). */
+  reason: string
+  detail: string | null
+  evidenceHash: string
+}
+
+export interface IdentityDecisionView {
+  id: number
+  /** "join", "separate" or "wrong". */
+  kind: string
+  a: string
+  b: string | null
+  note: string | null
+  shownEvidence: string
+  state: "active" | "undone"
+  decidedAt: number
+  undoneAt: number | null
+}
+
+export interface DocumentMatter {
+  contentId: number
+  matterId: string
+  name: string
+  proposed: boolean
+  pagePath: string | null
+}
+
+export interface IncomingClaim {
+  claimId: number
+  subjectId: string
+  subjectName: string
+  subjectKind: string
+  predicate: string
+  state: string
+  documents: number
+}
+
+export interface EntityDetail {
+  id: string
+  kind: string
+  name: string
+  state: "active" | "merged" | "retired"
+  mergedInto: string | null
+  aliases: EntityAlias[]
+  identifiers: EntityIdentifier[]
+  mentions: EntityMention[]
+  claims: ClaimView[]
+  doubts: DoubtView[]
+  pagePath: string | null
+  matters: DocumentMatter[]
+  decisions: IdentityDecisionView[]
+  incoming: IncomingClaim[]
+}
+
+/**
+ * A decision of a person about identities and matters. References: an
+ * entity (`entity:<id>`), a mention (`mention:<id>`), a group key, a piece
+ * of evidence (`evidence:<id>`), a claim (`claim:<id>`), or a document
+ * (`content:<id>`, `location:<id>`) for matters.
+ */
+export type IdentityDecision =
+  | { kind: "join"; a: string; b: string }
+  | { kind: "separate"; a: string; b: string }
+  | { kind: "wrong"; a: string }
+  | { kind: "sameMatter"; a: string; b: string }
+  | { kind: "otherMatter"; a: string; b: string }
+
+export interface KnowledgeDocumentRef {
+  contentId: number
+  locationId: number | null
+  name: string
+}
+
+export interface KnowledgeFailedReading {
+  document: KnowledgeDocumentRef
+  error: string | null
+}
+
+export interface KnowledgeNoisyReading {
+  document: KnowledgeDocumentRef
+  kept: number
+  discarded: number
+}
+
+export interface KnowledgeConflictGroup {
+  entityId: string
+  entityName: string
+  kind: string
+  predicate: string
+  within: string | null
+  values: string[]
+  claims: number[]
+}
+
+export interface KnowledgeIdentifierJoin {
+  entityId: string
+  name: string
+  kind: string
+  names: string[]
+  identifiers: string[]
+  documents: number
+  readAt: number
+}
+
+export interface KnowledgeProposedMatter {
+  document: KnowledgeDocumentRef
+  matterId: string
+  matterName: string
+  reason: string | null
+}
+
+export interface KnowledgeKeptPage {
+  entityId: string
+  path: string
+  name: string | null
+  mergedInto: string | null
+}
+
+export interface KnowledgeLeftWithDocuments {
+  entityId: string
+  name: string
+  kind: string
+  documents: KnowledgeDocumentRef[]
+}
+
+/** What the knowledge layer brings to the attention view. */
+export interface KnowledgeAttention {
+  status: KnowledgeStatus
+  failed: KnowledgeFailedReading[]
+  noisy: KnowledgeNoisyReading[]
+  conflicts: KnowledgeConflictGroup[]
+  identifierJoins: KnowledgeIdentifierJoin[]
+  proposedMatters: KnowledgeProposedMatter[]
+  synthesisPending: number
+  discardedSentences: number
+  keptPages: KnowledgeKeptPage[]
+  leftWithDocuments: KnowledgeLeftWithDocuments[]
+}
+
+export interface MatterSummary {
+  id: string
+  name: string
+  documents: number
+  proposed: number
+  pagePath: string | null
+}
+
+export interface MatterReason {
+  /** "persona", "documento", "asunto", "numero" or "importe". */
+  kind: string
+  value: string
+  valueName: string | null
+  with: KnowledgeDocumentRef | null
+}
+
+export interface MatterDocument {
+  document: KnowledgeDocumentRef
+  state: "firm" | "proposed"
+  reasons: MatterReason[]
+  proposalReason: string | null
+}
+
+export interface MatterParty {
+  entityId: string
+  kind: string
+  name: string
+  roles: string[]
+  documents: number
+}
+
+export interface MatterDetail {
+  id: string
+  name: string
+  state: "active" | "retired"
+  pagePath: string | null
+  documents: MatterDocument[]
+  parties: MatterParty[]
+  decisions: IdentityDecisionView[]
+}
+
+export interface DocumentEntity {
+  entityId: string | null
+  kind: string
+  name: string
+  written: string[]
+  roles: string[]
+  pagePath: string | null
+}
+
+export interface DocumentEntities {
+  contentId: number | null
+  state: "done" | "failed" | "stale" | "pending"
+  error: string | null
+  entities: DocumentEntity[]
+  matters: DocumentMatter[]
+  discarded: number
+}
+
+export function getKnowledgeStatus(): Promise<KnowledgeStatus> {
+  return invoke<KnowledgeStatus>("docbase_knowledge_status")
+}
+
+export function getKnowledgePlan(): Promise<KnowledgePlan> {
+  return invoke<KnowledgePlan>("docbase_knowledge_plan")
+}
+
+export function getDocumentKnowledge(locationId: number): Promise<DocumentKnowledge> {
+  return invoke<DocumentKnowledge>("docbase_knowledge_document", { locationId })
+}
+
+/** Reads the pending documents for the layer. It costs the provider's quota: only on an explicit action. */
+export function runKnowledge(engine: AskConfig, maxQuestions?: number): Promise<KnowledgeRunReport> {
+  return invoke<KnowledgeRunReport>("docbase_knowledge_run", { engine, maxQuestions: maxQuestions ?? null })
+}
+
+/** Resolves identities; with an engine it costs the provider's quota: only on an explicit action. */
+export function resolveKnowledge(engine: AskConfig | null, maxQuestions?: number): Promise<KnowledgeResolveReport> {
+  return invoke<KnowledgeResolveReport>("docbase_knowledge_resolve", { engine, maxQuestions: maxQuestions ?? null })
+}
+
+export function listEntities(kind: string | null = null, query: string | null = null): Promise<EntitySummary[]> {
+  return invoke<EntitySummary[]>("docbase_knowledge_entities", { kind, query })
+}
+
+export function getEntity(id: string): Promise<EntityDetail | null> {
+  return invoke<EntityDetail | null>("docbase_knowledge_entity", { id })
+}
+
+export function listIdentityDoubts(): Promise<DoubtView[]> {
+  return invoke<DoubtView[]>("docbase_knowledge_doubts")
+}
+
+export function listIdentityDecisions(): Promise<IdentityDecisionView[]> {
+  return invoke<IdentityDecisionView[]>("docbase_knowledge_decisions")
+}
+
+/** Keeps and applies a decision; `shownEvidence` is what the screen showed (R-08). */
+export function decideIdentity(
+  decision: IdentityDecision,
+  note: string | null = null,
+  shownEvidence: string | null = null,
+): Promise<number> {
+  return invoke<number>("docbase_knowledge_decide", { decision, note, shownEvidence })
+}
+
+/** Several decisions at once, with one resolution. */
+export function decideIdentityMany(decisions: IdentityDecision[], note: string | null = null): Promise<number[]> {
+  return invoke<number[]>("docbase_knowledge_decide_many", { decisions, note })
+}
+
+export function undoIdentityDecision(id: number): Promise<void> {
+  return invoke<void>("docbase_knowledge_undo", { id })
+}
+
+export function getKnowledgeAttention(): Promise<KnowledgeAttention> {
+  return invoke<KnowledgeAttention>("docbase_knowledge_attention")
+}
+
+export function listMatters(): Promise<MatterSummary[]> {
+  return invoke<MatterSummary[]>("docbase_knowledge_matters")
+}
+
+export function getMatter(id: string): Promise<MatterDetail | null> {
+  return invoke<MatterDetail | null>("docbase_knowledge_matter", { id })
+}
+
+export function getDocumentEntities(locationId: number): Promise<DocumentEntities> {
+  return invoke<DocumentEntities>("docbase_knowledge_document_entities", { locationId })
+}
+
+/** Takes a document (`content:<id>` or `location:<id>`) out of a matter, or turns down the model's proposal. */
+export function leaveMatter(document: string, matterId: string, note: string | null = null): Promise<number[]> {
+  return invoke<number[]>("docbase_knowledge_leave_matter", { document, matterId, note })
+}
+
+/** Puts a document in a matter, or confirms the model's proposal. */
+export function joinMatter(document: string, matterId: string, note: string | null = null): Promise<number> {
+  return invoke<number>("docbase_knowledge_join_matter", { document, matterId, note })
+}
