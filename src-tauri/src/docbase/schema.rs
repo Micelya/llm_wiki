@@ -12,21 +12,6 @@ pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
 const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11];
 
-/// What a person decided about the document types the model proposed
-/// (R-22). `confirmed`: the type joins the closed list the model chooses
-/// from, with the `name` (and `description`) the person gave it.
-/// `rejected`: the type is not used; its documents are typed again, with
-/// the model told not to propose it. A decision is undone by deleting it.
-const V8: &str = "
-CREATE TABLE type_decision (
-    type_id      TEXT PRIMARY KEY,
-    decision     TEXT NOT NULL CHECK (decision IN ('confirmed', 'rejected')),
-    name         TEXT,
-    description  TEXT,
-    decided_at   INTEGER NOT NULL
-);
-";
-
 /// Changes and deletions in the knowledge layer (`knowledge/changes.rs`):
 /// what a document that went away leaves behind, so that what a person
 /// decided about it, and the ids of its entities, go on to the document
@@ -376,6 +361,21 @@ CREATE TRIGGER knowledge_extraction_gone AFTER DELETE ON knowledge_extraction BE
     INSERT OR REPLACE INTO knowledge_dirty (scope, ref, since)
         VALUES ('retire', CAST(OLD.content_id AS TEXT), CAST(strftime('%s', 'now') AS INTEGER) * 1000);
 END;
+";
+
+/// What a person decided about the document types the model proposed
+/// (R-22). `confirmed`: the type joins the closed list the model chooses
+/// from, with the `name` (and `description`) the person gave it.
+/// `rejected`: the type is not used; its documents are typed again, with
+/// the model told not to propose it. A decision is undone by deleting it.
+const V8: &str = "
+CREATE TABLE type_decision (
+    type_id      TEXT PRIMARY KEY,
+    decision     TEXT NOT NULL CHECK (decision IN ('confirmed', 'rejected')),
+    name         TEXT,
+    description  TEXT,
+    decided_at   INTEGER NOT NULL
+);
 ";
 
 /// Type, stage and data of each document, and the relations the type
@@ -821,5 +821,31 @@ mod tests {
         // same model, only one.
         conn.execute(insert, ["codex-cli:n"]).unwrap();
         assert!(conn.execute(insert, ["codex-cli:m"]).is_err());
+    }
+
+    /// The owner's base is at version 8 (the type decisions of the
+    /// attention view): the layer's tables come after it, and what was
+    /// decided about types stays.
+    #[test]
+    fn a_base_at_the_attention_views_version_gets_the_layer_and_keeps_its_type_decisions() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+        for (index, migration) in MIGRATIONS.iter().enumerate().take(8) {
+            conn.execute_batch(migration).unwrap();
+            conn.pragma_update(None, "user_version", index as i64 + 1).unwrap();
+        }
+        conn.execute("INSERT INTO type_decision (type_id, decision, name, decided_at) VALUES ('receta', 'confirmed', 'Receta', 1)", [])
+            .unwrap();
+        migrate(&mut conn).unwrap();
+        let version: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0)).unwrap();
+        assert_eq!(version, CURRENT_VERSION);
+        for table in ["type_decision", "knowledge_entity", "knowledge_page", "knowledge_matter"] {
+            let found: i64 = conn
+                .query_row("SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?1", [table], |row| row.get(0))
+                .unwrap();
+            assert_eq!(found, 1, "{table}");
+        }
+        let kept: String = conn.query_row("SELECT name FROM type_decision", [], |row| row.get(0)).unwrap();
+        assert_eq!(kept, "Receta");
     }
 }

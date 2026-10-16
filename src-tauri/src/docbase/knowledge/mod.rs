@@ -23,7 +23,7 @@
 //!    evidence specific to it; and the relations between entities, as
 //!    claims, shown both ways in the pages.
 //! 6. The attention view: a later stage, on the tables already here
-//!    (`schema.rs`, V8 to V10).
+//!    (`schema.rs`, V9 to V11; V8 is the type decisions of the attention view).
 //!
 //! The types of entity, roles, identifiers and predicates are data
 //! (`vocabulary.rs`, R-26).
