@@ -142,6 +142,11 @@ pub struct SimilarPending {
     pub pairs: i64,
     /// Families with at least one such pair.
     pub groups: i64,
+    /// Of `pairs`, those whose proposed relation makes both one document
+    /// (practically the same, the signed copy, a version): deciding them
+    /// changes which one feeds the wiki. Only these need a person soon;
+    /// the rest (same template, contained in) are information.
+    pub same_document_pairs: i64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -165,6 +170,8 @@ pub struct SimilarGroup {
     pub flags: Vec<String>,
     /// Members whose pair with the principal waits for a decision.
     pub pending: i64,
+    /// Of `pending`, those whose proposed relation makes both one document.
+    pub pending_same_document: i64,
 }
 
 /// What a person decided about a pair.
@@ -627,7 +634,18 @@ impl DocBase {
                 |row| row.get(0),
             )
             .map_err(sql_err)?;
-        Ok(SimilarPending { pairs, groups })
+        let one = same_document_sql("p.relation");
+        let (seen_a, mut bound) = visible_content(visible, "p.a");
+        let (seen_b, bound_b) = visible_content(visible, "p.b");
+        bound.extend(bound_b);
+        let same_document_pairs: i64 = conn
+            .query_row(
+                &format!("SELECT count(*) FROM similar_pair p WHERE p.state = 'proposed' AND {one} AND {seen_a} AND {seen_b}"),
+                params_from_iter(bound.iter()),
+                |row| row.get(0),
+            )
+            .map_err(sql_err)?;
+        Ok(SimilarPending { pairs, groups, same_document_pairs })
     }
 
     /// The provisional families, largest first.
@@ -666,9 +684,13 @@ impl DocBase {
             };
             let mut list = Vec::new();
             let mut pending = 0;
+            let mut pending_same_document = 0;
             for (content_id, relation, cover, state) in members {
                 if state.as_deref() == Some("proposed") {
                     pending += 1;
+                    if relation.as_deref().is_some_and(makes_one_document) {
+                        pending_same_document += 1;
+                    }
                 }
                 if let Some(doc) = doc_ref(&conn, visible, content_id)? {
                     list.push(GroupMember { doc, relation, cover, state });
@@ -679,6 +701,7 @@ impl DocBase {
                 members: list,
                 flags: serde_json::from_str(&flags).unwrap_or_default(),
                 pending,
+                pending_same_document,
             });
         }
         Ok(out)
@@ -726,6 +749,28 @@ fn joined_without_source(conn: &Connection, a: i64, b: i64, source: i64) -> Resu
         .map(|&(x, y, chosen)| if chosen == x { y } else { x })
         .collect();
     Ok((passed_over.len() == joined.len()).then_some(joined.len()))
+}
+
+/// Whether joining with this relation leaves only one of the two as the
+/// wiki's source (catalog: `sameDocument`). The automatic one is done by
+/// the base itself and never waits for a person.
+pub fn makes_one_document(relation: &str) -> bool {
+    types::catalog().relation(relation).is_some_and(|r| r.same_document && !r.automatic)
+}
+
+/// SQL condition: the relation in `column` makes both one document.
+fn same_document_sql(column: &str) -> String {
+    let ids: Vec<String> = types::catalog()
+        .relations
+        .iter()
+        .filter(|r| r.same_document && !r.automatic)
+        .map(|r| format!("'{}'", r.id.replace('\'', "''")))
+        .collect();
+    if ids.is_empty() {
+        "0".to_string()
+    } else {
+        format!("{column} IN ({})", ids.join(", "))
+    }
 }
 
 /// The relations a person can choose from, as the catalog lists them.

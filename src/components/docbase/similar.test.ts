@@ -116,32 +116,44 @@ describe("the wiki's source the app suggests", () => {
 
 describe("what Inicio says about similar documents", () => {
   const principal = docRef(10, "Acuerdo modelo.docx")
+  const none = { pairs: 0, groups: 0, sameDocumentPairs: 0 }
 
   it("says nothing when nothing waits", () => {
-    expect(buildSimilarAttention({ pairs: 0, groups: 0 }, [similarGroup(principal, [docRef(11, "a.docx")], 0)])).toEqual([])
+    expect(buildSimilarAttention(none, [similarGroup(principal, [docRef(11, "a.docx")], 0)])).toEqual([])
   })
 
-  it("has one line per family that waits, leading to Documentos filtered by it", () => {
-    const groups = [similarGroup(principal, [docRef(11, "a.docx"), docRef(12, "b.docx"), docRef(13, "c.docx")], 2, ["large"])]
-    const items = buildSimilarAttention({ pairs: 2, groups: 1 }, groups)
+  it("does not escalate what does not change the wiki: same template, contained in, plain similar", () => {
+    const groups = [similarGroup(principal, [docRef(11, "a.docx"), docRef(12, "b.docx")], 2)]
+    expect(buildSimilarAttention({ pairs: 5, groups: 1, sameDocumentPairs: 0 }, groups)).toEqual([])
+  })
+
+  it("has one line per family where two could be the same document, leading to its principal", () => {
+    const groups = [
+      similarGroup(docRef(20, "Facturas.pdf"), [docRef(21, "x.pdf")], 1),
+      similarGroup(principal, [docRef(11, "a.docx"), docRef(12, "b.docx"), docRef(13, "c.docx")], 2, ["large"], "signed-copy"),
+    ]
+    const items = buildSimilarAttention({ pairs: 3, groups: 2, sameDocumentPairs: 2 }, groups)
     expect(items).toHaveLength(1)
-    expect(items[0].title).toBe("2 documentos parecidos a «Acuerdo modelo.docx» esperan una decisión")
-    expect(items[0].detail).toContain("Una familia de 4 documentos")
+    expect(items[0].title).toBe("2 documentos podrían ser el mismo que «Acuerdo modelo.docx»")
+    expect(items[0].detail).toContain("al wiki va uno solo")
+    expect(items[0].detail).toContain("Familia de 4 documentos")
     expect(items[0].detail).toContain("Creció mucho")
-    expect(items[0].target).toEqual({ view: "documents", similarGroup: 10 })
+    expect(items[0].target).toEqual({ view: "document", locationId: 100 })
   })
 
-  it("puts what is left in one more line, filtered by pending similar documents", () => {
-    const groups = [1, 2, 3].map((n) => similarGroup(docRef(n * 100, `Modelo ${n}.docx`), [docRef(n * 100 + 1, "x.docx")], 1))
-    const items = buildSimilarAttention({ pairs: 5, groups: 3 }, groups, 2)
+  it("puts what is left in one more line", () => {
+    const groups = [1, 2, 3].map((n) =>
+      similarGroup(docRef(n * 100, `Modelo ${n}.docx`), [docRef(n * 100 + 1, "x.docx")], 1, [], "version"),
+    )
+    const items = buildSimilarAttention({ pairs: 9, groups: 3, sameDocumentPairs: 5 }, groups, 2)
     expect(items.map((item) => item.id)).toEqual(["similar-group:100", "similar-group:200", "similar-pending"])
-    expect(items[2].title).toBe("3 pares de documentos parecidos más esperan una decisión")
+    expect(items[2].title).toBe("3 pares de documentos más podrían ser el mismo documento")
     expect(items[2].target).toEqual({ view: "documents", similarPending: true })
   })
 
   it("speaks of pairs alone when no family waits", () => {
-    const items = buildSimilarAttention({ pairs: 1, groups: 0 }, [])
-    expect(items[0].title).toBe("1 par de documentos parecidos espera una decisión")
+    const items = buildSimilarAttention({ pairs: 1, groups: 0, sameDocumentPairs: 1 }, [])
+    expect(items[0].title).toBe("1 par de documentos podría ser el mismo documento")
   })
 
   it("is ordered with the other lines of Inicio by how urgent each one is", () => {
@@ -155,7 +167,7 @@ describe("what Inicio says about similar documents", () => {
       words: 0,
       lastScanAt: null,
     }
-    const similar = buildSimilarAttention({ pairs: 1, groups: 0 }, [])
+    const similar = buildSimilarAttention({ pairs: 1, groups: 0, sameDocumentPairs: 1 }, [])
     const items = buildAttention(health, [], 0, { pages: 0, links: 0, broken: 2 }, similar)
     expect(items.map((item) => item.id)).toEqual(["unreadable", "similar-pending", "broken-links"])
   })

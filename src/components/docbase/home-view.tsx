@@ -20,10 +20,16 @@ export function HomeView() {
   const reviewPending = useReviewStore((s) => s.items.filter((item) => !item.resolved).length)
   const setActiveView = useWikiStore((s) => s.setActiveView)
   const setFilter = useDocbaseStore((s) => s.setFilter)
+  const openDocument = useDocbaseStore((s) => s.openDocument)
   const [query, setQuery] = useState("")
 
   function goTo(item: AttentionItem) {
     const target = item.target
+    if (target.view === "document") {
+      setActiveView("documents")
+      openDocument(target.locationId)
+      return
+    }
     if (target.view === "documents") {
       if ("state" in target) setFilter({ ...DEFAULT_DOCUMENT_FILTER, state: target.state })
       else if ("similarGroup" in target) setFilter({ ...DEFAULT_DOCUMENT_FILTER, similarGroup: target.similarGroup })

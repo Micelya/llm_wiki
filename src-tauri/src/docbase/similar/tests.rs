@@ -145,6 +145,12 @@ fn the_same_form_for_two_people_is_the_same_template() {
     assert!(similar.description.contains("cambia un nombre"), "{}", similar.description);
     let marks: Vec<String> = serde_json::from_value(similar.evidence["marks"]["a"].clone()).unwrap();
     assert!(marks.contains(&"form".to_string()));
+    // Two different documents: it waits for a person, but it is not
+    // escalated as something that changes the wiki.
+    let pending = base.similar_pending(&Visible::All).unwrap();
+    assert_eq!((pending.pairs, pending.same_document_pairs), (1, 0));
+    let groups = base.similar_groups(&Visible::All).unwrap();
+    assert_eq!((groups[0].pending, groups[0].pending_same_document), (1, 0));
 }
 
 #[test]
@@ -155,6 +161,10 @@ fn a_draft_and_its_final_wording_are_versions() {
     assert!(similar.description.starts_with("Mismo texto de base; cambian la redacción en"), "{}", similar.description);
     assert!(similar.cover >= 0.8 && similar.cover < 0.97, "{}", similar.cover);
     assert_eq!(similar.evidence["changes"]["dataTokens"], 0);
+    // Versions are one document: deciding them changes what the wiki reads.
+    let pending = base.similar_pending(&Visible::All).unwrap();
+    assert_eq!((pending.pairs, pending.same_document_pairs), (1, 1));
+    assert_eq!(base.similar_groups(&Visible::All).unwrap()[0].pending_same_document, 1);
 }
 
 #[test]

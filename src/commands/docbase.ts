@@ -535,6 +535,12 @@ export interface SimilarPending {
   pairs: number
   /** Families with at least one such pair. */
   groups: number
+  /**
+   * Of `pairs`, those whose proposed relation makes both one document
+   * (practically the same, signed copy, version): deciding them changes
+   * which one feeds the wiki. The rest are information.
+   */
+  sameDocumentPairs: number
 }
 
 export interface SimilarGroupMember {
@@ -551,6 +557,8 @@ export interface SimilarGroup {
   /** "large" (grew too much) or "dispersed" (a chain the principal does not hold). */
   flags: string[]
   pending: number
+  /** Of `pending`, those whose proposed relation makes both one document. */
+  pendingSameDocument: number
 }
 
 /** The documents similar to the one at this location. */

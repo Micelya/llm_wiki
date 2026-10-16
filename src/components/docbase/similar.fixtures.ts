@@ -76,16 +76,29 @@ export const RELATIONS: RelationDef[] = [
   { id: "reply-to", sameDocument: false, directed: true, measured: false, automatic: false },
 ]
 
-export function similarGroup(principal: DocRef, others: DocRef[], pending: number, flags: string[] = []): SimilarGroup {
+/**
+ * A family whose first `pending` members wait for a decision. Their
+ * relation is `relation` ("same-template" by default); the pending ones
+ * that make one document are counted in `pendingSameDocument`.
+ */
+export function similarGroup(
+  principal: DocRef,
+  others: DocRef[],
+  pending: number,
+  flags: string[] = [],
+  relation: string = "same-template",
+): SimilarGroup {
+  const oneDocument = RELATIONS.find((r) => r.id === relation)?.sameDocument ?? false
   return {
     principal,
     members: [principal, ...others].map((doc, index) => ({
       doc,
-      relation: index === 0 ? null : "same-template",
+      relation: index === 0 ? null : relation,
       cover: index === 0 ? null : 0.9,
       state: index === 0 ? null : index <= pending ? "proposed" : "joined",
     })),
     flags,
     pending,
+    pendingSameDocument: oneDocument ? pending : 0,
   }
 }

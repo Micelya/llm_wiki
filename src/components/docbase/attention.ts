@@ -20,6 +20,7 @@ export interface AttentionItem {
     | { view: "documents"; state: DocumentState }
     | { view: "documents"; similarPending: true }
     | { view: "documents"; similarGroup: number }
+    | { view: "document"; locationId: number }
 }
 
 const TONE_ORDER: Tone[] = ["error", "warning", "busy", "neutral", "ok"]

@@ -144,31 +144,37 @@ export function passedOverNotice(items: SimilarDocument[]): string | null {
 export const ATTENTION_GROUP_LINES = 5
 
 /**
- * The lines of "requiere atención" for similar documents: one per family
- * with something to decide, the largest first, and one more for what is
- * left (pairs outside families, or families past the first few). Each
- * line leads to Documentos filtered.
+ * The lines of "requiere atención" for similar documents. Only the
+ * pairs whose proposed relation makes both one document are escalated
+ * (practically the same, signed copy, version): deciding them changes
+ * which one feeds the wiki. "Same template", "contained in" and plain
+ * "similar" are information about two different documents; they are
+ * seen in each document and are not escalated (design, attention view).
+ *
+ * One line per family with such a pair, the largest first, leading to
+ * its principal document, where the pairs are decided; one more for what
+ * is left (pairs outside families, or families past the first few).
  */
 export function buildSimilarAttention(
   pending: SimilarPending,
   groups: SimilarGroup[],
   maxGroups: number = ATTENTION_GROUP_LINES,
 ): AttentionItem[] {
-  const waiting = groups.filter((group) => group.pending > 0)
+  const waiting = groups.filter((group) => group.pendingSameDocument > 0)
   const shown = waiting.slice(0, maxGroups)
   const items: AttentionItem[] = shown.map((group) => ({
     id: `similar-group:${group.principal.contentId}`,
     tone: "busy",
     title: plural(
-      group.pending,
-      `documento parecido a «${group.principal.name}» espera una decisión`,
-      `documentos parecidos a «${group.principal.name}» esperan una decisión`,
+      group.pendingSameDocument,
+      `documento podría ser el mismo que «${group.principal.name}»`,
+      `documentos podrían ser el mismo que «${group.principal.name}»`,
     ),
     detail: groupDetail(group),
-    target: { view: "documents", similarGroup: group.principal.contentId },
+    target: { view: "document", locationId: group.principal.locationId },
   }))
-  const inShown = shown.reduce((sum, group) => sum + group.pending, 0)
-  const rest = Math.max(0, pending.pairs - inShown)
+  const inShown = shown.reduce((sum, group) => sum + group.pendingSameDocument, 0)
+  const rest = Math.max(0, pending.sameDocumentPairs - inShown)
   if (rest > 0) {
     const more = shown.length > 0 ? " más" : ""
     items.push({
@@ -176,10 +182,11 @@ export function buildSimilarAttention(
       tone: "busy",
       title: plural(
         rest,
-        `par de documentos parecidos${more} espera una decisión`,
-        `pares de documentos parecidos${more} esperan una decisión`,
+        `par de documentos${more} podría ser el mismo documento`,
+        `pares de documentos${more} podrían ser el mismo documento`,
       ),
-      detail: "En el detalle de cada documento se ven sus parecidos: unilos con la relación que corresponda o descartalos.",
+      detail:
+        "Si se unen, al wiki va uno solo, el que elijas. Abrí cada documento y, en sus parecidos, unilo o descartalo.",
       target: { view: "documents", similarPending: true },
     })
   }
@@ -187,7 +194,10 @@ export function buildSimilarAttention(
 }
 
 function groupDetail(group: SimilarGroup): string {
-  const parts = [`Una familia de ${formatCount(group.members.length)} documentos con el mismo texto de base.`]
+  const parts = [
+    `Si se unen, al wiki va uno solo, el que elijas. En el documento principal, unilos o descartalos.`,
+    `Familia de ${formatCount(group.members.length)} documentos.`,
+  ]
   if (group.flags.includes("large")) parts.push("Creció mucho: conviene revisarla con cuidado.")
   if (group.flags.includes("dispersed")) parts.push("Algunos documentos se parecen entre sí pero no al principal.")
   return parts.join(" ")
