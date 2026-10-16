@@ -1,6 +1,6 @@
 # Catálogo de tipos de documento — primera versión
 
-**Estado:** borrador · 14 de octubre de 2026 · nada de esto está construido
+**Estado:** borrador · 14 de octubre de 2026 · construido el 14 de octubre como archivo de datos (ver "Agregado en S3", al final)
 **Qué es:** el conocimiento que la app va a usar para reconocer qué es cada documento y en qué etapa está. Es la sección 5 bis de la [propuesta de parecidos](parecidos-propuesta.md), con contenido.
 
 ## Cómo se lee y cómo crece

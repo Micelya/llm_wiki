@@ -1,6 +1,6 @@
 # Base documental — documento de diseño
 
-**Estado:** dirección acordada · consolidado el 11 de octubre de 2026 · ajustado el 12 de octubre de 2026
+**Estado:** dirección acordada · consolidado el 11 de octubre de 2026 · ajustado el 16 de octubre de 2026
 **Alcance:** qué vamos a construir y en qué orden. No describe código.
 
 ## 1. Propósito
@@ -17,10 +17,10 @@ Es una aplicación de uso personal que además puede trabajar con un espacio com
 2. **Los originales no se tocan.** No se alteran, mueven ni copian. Solo se guarda el resultado de procesarlos.
 3. **Cada documento se procesa una sola vez por espacio.** Aunque haya muchas copias, su texto, resumen, huella y tipo se obtienen una vez.
 4. **Dos espacios.** Privado (de una persona) y compartido (de varias).
-5. **Determinista primero.** La IA entra donde el cálculo no alcanza, y una vez por grupo, no por documento.
+5. **El mejor resultado primero.** Cada paso usa la herramienta que da el mejor resultado: el cálculo cuando iguala o supera al modelo, el modelo cuando el proceso lo necesita o rinde más. Cuando un grupo de documentos comparte la respuesta, se le pregunta al modelo una vez por grupo.
 6. **El wiki ve un volumen virtual,** no el disco.
 7. **Nos apoyamos en lo que ya hacen los orígenes.** La plataforma agrega capacidades por encima de carpetas, servidores y discos en la nube; no rehace un sistema de archivos.
-8. **Nuestras necesidades pesan más que la compatibilidad con upstream.**
+8. **No se sincroniza con upstream.** El proyecto diverge; la compatibilidad con el original no es un criterio.
 
 ## 3. Conceptos
 
@@ -244,7 +244,7 @@ flowchart LR
 | Vocabulario | Los términos del dominio no van escritos en el código: salen de un vocabulario por vertical y por idioma |
 | Proveedores de IA | Configurables por instancia |
 | Proyectos de prueba existentes | Se reconstruyen. Sus fuentes originales no se tocan. Las fuentes copiadas dentro de un proyecto se tratan como un origen más |
-| Upstream | Se analiza cambio por cambio; no condiciona el diseño |
+| Upstream | No se sincroniza; el proyecto diverge y la compatibilidad no es un criterio |
 
 ## 10. Decisiones abiertas y lista de espera
 

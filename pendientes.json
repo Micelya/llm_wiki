@@ -6,7 +6,8 @@
     "Los pendientes en estado 'hecho' se borran en la siguiente limpieza; el historial queda en git.",
     "IDs correlativos (P-001, P-002…); no se reutilizan.",
     "El contexto de cada sesión de trabajo (qué se hizo, hallazgos, decisiones) está en docs/sessions/.",
-    "'en-espera' marca lo que se define en detalle recién después del producto mínimo (P-049): no se empieza ni se diseña antes."
+    "'en-espera' marca lo que se define en detalle recién después del producto mínimo (P-049): no se empieza ni se diseña antes.",
+    "'a-verificar' marca lo que está construido e integrado y solo espera que el usuario lo vea en la app y lo apruebe. Cuando lo aprueba pasa a 'hecho'; si pide cambios, vuelve a 'pendiente' o 'en-curso'."
   ],
   "valores": {
     "estado": [
@@ -14,6 +15,7 @@
       "en-curso",
       "en-espera",
       "bloqueado",
+      "a-verificar",
       "hecho"
     ],
     "tipo": [
@@ -66,28 +68,16 @@
       "actualizado": "2026-10-13"
     },
     {
-      "id": "P-008",
-      "titulo": "Decidir si se proponen a upstream los cambios F-001 y F-003",
-      "tipo": "decision",
-      "responsable": "usuario",
-      "estado": "pendiente",
-      "detalle": "En suspenso: el 2026-10-11 el usuario decidió no proponer contribuciones a upstream hasta nuevo aviso. El arreglo de encabezados (F-001) y el endurecimiento de workflows (F-003) son generales. Si upstream los acepta, dejan de ser diferencias que mantener. Implica abrir PRs en nashsu/llm_wiki.",
-      "depende_de": [],
-      "referencia": "FORK_CHANGES.md",
-      "creado": "2026-10-06",
-      "actualizado": "2026-10-11"
-    },
-    {
       "id": "P-011",
       "titulo": "Volumen: detección de cambios (file_sync.rs)",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "en-curso",
+      "estado": "a-verificar",
       "detalle": "Integrado (PR #12): las carpetas montadas se recorren y se vigilan, sus archivos se registran con ruta lógica, y un origen que no se puede leer (desconectado, vacío o con la tabla de montajes ilegible) se trata como 'desconocido' y nunca como archivos borrados. Visto en la app: al primer arranque registró los 31 archivos de AEROS BGH sin tocar la carpeta original. Falta la prueba que habilita usar montajes en proyectos reales: agregar, editar y quitar un archivo, y después desconectar el origen y comprobar que no se borra ninguna página. Una carpeta montada con la app abierta recién se vigila al reiniciar; hasta entonces la cubre el repaso de cada 60 segundos.",
       "depende_de": [],
       "referencia": "PR #12 (integrado), src-tauri/src/source_volume/watch.rs, src-tauri/src/commands/file_sync.rs",
       "creado": "2026-10-06",
-      "actualizado": "2026-10-08"
+      "actualizado": "2026-10-16"
     },
     {
       "id": "P-012",
@@ -106,12 +96,12 @@
       "titulo": "Catálogo y deduplicación exacta",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "en-curso",
+      "estado": "a-verificar",
       "detalle": "Integrado (PR #15): catálogo que separa contenido de ubicación por huella del texto normalizado; dentro de la tarea de ingesta, el segundo archivo con el mismo texto no va al modelo y se agrega a las fuentes de las páginas ya generadas. En el PR #17, a propuesta del usuario: primero se compara el SHA-256 del archivo, antes de encolar y sin leer nada; la comparación por texto queda para lo que los bytes no detectan (otro formato, mismo papel escaneado dos veces). Con eso la decisión original (comparar al importar) vuelve a valer para los archivos idénticos. El #17 ya está integrado. Falta: probar con my-1st-wiki (el mismo acuerdo en Word y PDF) y con una copia de una imagen en AEROS-BGH, y la pantalla y la carga inicial (P-044).",
       "depende_de": [],
       "referencia": "PR #15 y PR #17 (integrados), src-tauri/src/source_volume/catalog.rs, src/lib/source-catalog.ts",
       "creado": "2026-10-06",
-      "actualizado": "2026-10-11"
+      "actualizado": "2026-10-16"
     },
     {
       "id": "P-015",
@@ -159,12 +149,12 @@
       "titulo": "Terminar el cambio de nombre a 'Micelya Desktop' dentro de la app",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "en-curso",
+      "estado": "a-verificar",
       "detalle": "Hecho antes: instalador, ventana, bandeja, zip portable, nombre del release y encabezado de bienvenida. Hecho en el PR #11: todos los textos de la interfaz muestran 'Micelya Desktop' mediante un único reemplazo al traducir, sin tocar los archivos de idioma de upstream. Se dejó a propósito: el crédito al proyecto original en 'Acerca de', los textos que se le envían al modelo, la extensión .llmwiki.zip y la variable LLM_WIKI_API_TOKEN. Integrado. Falta: verlo en la app (Settings, General).",
       "depende_de": [],
       "referencia": "PR #11 (integrado), src/i18n/product-name.ts, src/lib/app-identity.ts",
       "creado": "2026-10-07",
-      "actualizado": "2026-10-08"
+      "actualizado": "2026-10-16"
     },
     {
       "id": "P-022",
@@ -183,12 +173,12 @@
       "titulo": "Reconocimiento de texto para escaneos e imágenes",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "en-curso",
+      "estado": "a-verificar",
       "detalle": "Hecho y probado en la app con AEROS BGH: contrato de motor intercambiable, motor Codex CLI, detección de páginas sin texto, marca de 'texto reconocido' y enganche en la ingesta. Integrado (PR #14): fuera del paso de importar y con avance por página. En el PR #17: el texto reconocido se guarda en el proyecto por hash del archivo (P-047). Falta: ajuste propio en Configuración (P-028) y fiabilidad de cifras (P-030).",
       "depende_de": [],
       "referencia": "src-tauri/src/source_volume/, src-tauri/src/commands/extract_images.rs",
       "creado": "2026-10-07",
-      "actualizado": "2026-10-08"
+      "actualizado": "2026-10-16"
     },
     {
       "id": "P-026",
@@ -245,48 +235,48 @@
       "titulo": "Arreglar el chat con Codex y Claude Code: no busca en el wiki",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "en-curso",
+      "estado": "a-verificar",
       "detalle": "Arreglo integrado (PR #8): con proveedores CLI ya no se envían las skills del modo automático, que desactivaban la búsqueda. El usuario confirmó en la app que el chat busca y responde con importes. Queda sin resolver, ver P-043: elegir una skill a mano con un proveedor CLI sigue desactivando la búsqueda. Candidato a proponer a upstream. Cerrar cuando el usuario confirme que la prueba fue con las skills habilitadas.",
       "depende_de": [],
       "referencia": "PR #8 (integrado), src/lib/cli-chat-context.ts",
       "creado": "2026-10-08",
-      "actualizado": "2026-10-08"
+      "actualizado": "2026-10-16"
     },
     {
       "id": "P-032",
       "titulo": "Chat con proveedores CLI: enviar más contexto de las páginas",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "en-curso",
+      "estado": "a-verificar",
       "detalle": "Integrado (PR #8): al pedido se le agrega el texto de las páginas recuperadas (12.000 caracteres por página, 60.000 en total). Verificado por el usuario: la respuesta ya trae importes, pero con 5 páginas quedó incompleta (2 facturas de 13). Integrado (PR #13): se piden 10 páginas en todos los modos salvo Fast. Falta: repetir la pregunta de las facturas en AEROS-BGH. Una pregunta que necesite más de 10 páginas sigue quedando corta (P-043).",
       "depende_de": [],
       "referencia": "PR #8 y PR #13 (integrados), src/lib/cli-chat-context.ts",
       "creado": "2026-10-08",
-      "actualizado": "2026-10-08"
+      "actualizado": "2026-10-16"
     },
     {
       "id": "P-033",
       "titulo": "Buscador: palabras vacías en español",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "en-curso",
+      "estado": "a-verificar",
       "detalle": "Integrado (PR #13): el buscador descarta palabras vacías en español (con y sin tilde) y separa los signos ¿ ¡ « ». Vale para toda búsqueda de la app, no solo para el chat. Falta: comprobar en la app que mejora qué páginas se recuperan (no se midió sobre el proyecto real).",
       "depende_de": [],
       "referencia": "PR #13 (integrado), src-tauri/src/commands/search_spanish.rs",
       "creado": "2026-10-08",
-      "actualizado": "2026-10-08"
+      "actualizado": "2026-10-16"
     },
     {
       "id": "P-034",
       "titulo": "Reconocimiento de texto en segundo plano y con avance",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "en-curso",
+      "estado": "a-verificar",
       "detalle": "Integrado (PR #14): el reconocimiento corre solo dentro de la tarea de ingesta de cada fuente, la importación ya no espera, y la actividad muestra 'Recognizing text: page 3 of 7'. Las imágenes sueltas se reconocían dos veces; ahora una. Falta: probarlo en la app montando una carpeta con un PDF escaneado (consume cupo).",
       "depende_de": [],
       "referencia": "PR #14 (integrado), src/lib/text-recognition.ts, src-tauri/src/source_volume/recognition_progress.rs",
       "creado": "2026-10-08",
-      "actualizado": "2026-10-08"
+      "actualizado": "2026-10-16"
     },
     {
       "id": "P-035",
@@ -305,24 +295,24 @@
       "titulo": "Grafo: etiquetas legibles",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "en-curso",
+      "estado": "a-verificar",
       "detalle": "Integrado (PR #9): etiqueta solo en los nodos más conectados y en el resto al acercar el zoom; títulos acortados con el título completo al pasar el mouse; al hacer clic, el nodo y sus vecinos quedan resaltados hasta hacer clic en el fondo. Falta: que el usuario lo vea en la app y diga si hay que ajustar los umbrales (15 % de enlaces, 32 caracteres, 12 vecinos).",
       "depende_de": [],
       "referencia": "PR #9 (integrado), src/lib/graph-labels.ts",
       "creado": "2026-10-08",
-      "actualizado": "2026-10-08"
+      "actualizado": "2026-10-16"
     },
     {
       "id": "P-038",
       "titulo": "El aviso de importación muestra en rojo los archivos omitidos a propósito",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "en-curso",
+      "estado": "a-verificar",
       "detalle": "Integrado (PR #10): el aviso usa un estilo informativo cuando no hubo error y todos los archivos omitidos lo fueron por reglas de exclusión; cualquier otro motivo conserva el estilo de error. Falta: verlo en la app.",
       "depende_de": [],
       "referencia": "PR #10 (integrado), src/components/sources/sources-view.tsx",
       "creado": "2026-10-08",
-      "actualizado": "2026-10-08"
+      "actualizado": "2026-10-16"
     },
     {
       "id": "P-041",
@@ -389,12 +379,12 @@
       "titulo": "Texto reconocido guardado en el proyecto por hash del archivo",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "en-curso",
+      "estado": "a-verificar",
       "detalle": "Al reiniciar la app el 2026-10-08, las tres imágenes sueltas de AEROS BGH se volvieron a leer con Codex (no tenían caché), la lectura salió distinta y se reingirieron con el modelo. Hecho en el PR #17: el texto reconocido se guarda en raw/recognized/<SHA-256 del archivo>/ dentro del proyecto, una entrada JSON por página o por imagen, con el motor que la leyó. Un archivo movido, renombrado, vuelto a guardar sin cambios o presente en dos carpetas se lee una sola vez. Lo ya leído (páginas de PDF e imágenes) se adopta sin releer. Decidido con el usuario: por proyecto y no global, para no mezclar texto de distintos clientes; en raw/ y no en .llm-wiki, porque no es un caché descartable; como JSON, para que Obsidian no lo muestre como notas. El PR está integrado. Falta: verificar en la app; acción 'volver a leer este archivo' (el texto ya no vence solo); borrar las entradas de archivos cuyas ubicaciones se eliminaron todas.",
       "depende_de": [],
       "referencia": "PR #17 (integrado), src-tauri/src/source_volume/recognized_store.rs, src-tauri/src/source_volume/file_hash.rs",
       "creado": "2026-10-08",
-      "actualizado": "2026-10-11"
+      "actualizado": "2026-10-16"
     },
     {
       "id": "P-048",
@@ -414,25 +404,11 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "en-curso",
-      "detalle": "Alcance confirmado por el usuario el 2026-10-11: la etapa 1 del diseño más un puente mínimo, que es que el wiki del proyecto general tome sus fuentes de la base. Etapa 1: inventario, vigilancia, identidad (ubicación y contenido; las familias son de la etapa 2), derivados procesados una vez y pantallas de la base, para el espacio privado de un solo usuario. Base en SQLite, con su búsqueda por palabras; LanceDB sigue para vectores. Desde esta etapa: cada ubicación guarda origen, carpeta y etiquetas (las define el usuario según cómo ordena sus carpetas; 'cliente' y 'caso' son etiquetas); toda consulta recibe el conjunto de lo visible, que en privado es 'todo'; cada proyecto tiene miembros, 'abierto' al inicio; existe el proyecto general del espacio. Los datos que hoy viven por proyecto (catálogo, texto reconocido, detección de cambios) pasan al espacio. Pantallas acordadas: Inicio (salud del archivo, requiere atención, actividad reciente, proyectos), Orígenes, Documentos y Detalle de un documento; van en español. El marco visual de toda la app se trata aparte (P-057). Los pendientes P-012, P-015, P-016, P-040 y P-044 se replantean sobre esta base. Avance: (1) PR #24, la base SQLite del espacio privado y sus tablas, sin nada visible todavía. (2) PR #25, orígenes, barrido, huella de cada archivo en segundo plano y pantalla Orígenes. La vigilancia es un barrido al arrancar, cada cinco minutos y a pedido; el aviso en vivo del sistema quedó como P-064. (3) PR #26, pantalla Documentos (tabla con buscador y filtros) y Detalle de un documento con forma de artículo, etiquetas corregibles y todas las ubicaciones del mismo documento. (4) PR #27, texto de cada documento obtenido una vez por extracción directa (sin motores de reconocimiento por su cuenta), mismo texto en dos archivos como un solo documento, y búsqueda por palabras en Documentos. Comprobado en solo lectura sobre AEROS BGH (31 archivos) y Extrimian 3.0 (183), sin errores. (5) PR #28, pantalla Inicio (requiere atención, salud del archivo, actividad reciente, búsqueda rápida); la app abre ahí. (6) PR #29, el puente: un proyecto de wiki se asigna como proyecto general y las carpetas de la base pasan a ser sus fuentes sin copiar nada; el texto sale de la base y un escaneo reconocido por el wiki vuelve a la base, así no se reconoce dos veces. Asignarlo desactiva la incorporación automática de ese proyecto; incorporar se pide carpeta por carpeta. Construido completo y con pruebas automáticas; falta verlo en la app (P-065) e integrar los PR #24 a #30. El 2026-10-12 el usuario la vio funcionando en la app (abre en Inicio; copias, movidos y editados detectados sobre una copia local de AEROS BGH) y pidió cuatro cambios, hechos en el PR #31: el archivo que la app crea sola con su wiki activable, Orígenes como árbol con exclusiones, etiquetas con grupos y reglas por carpeta, e índice de enlaces del wiki. Falta integrar el #31 y verlo en la app (P-067). Al cierre del 2026-10-12 todo está integrado en main (PR #24 a #31). Queda verla funcionando entera (P-067) y activar el wiki por primera vez (P-051).",
+      "detalle": "Alcance confirmado por el usuario el 2026-10-11: la etapa 1 del diseño más un puente mínimo, que es que el wiki del proyecto general tome sus fuentes de la base. Etapa 1: inventario, vigilancia, identidad (ubicación y contenido; las familias son de la etapa 2), derivados procesados una vez y pantallas de la base, para el espacio privado de un solo usuario. Base en SQLite, con su búsqueda por palabras; LanceDB sigue para vectores. Desde esta etapa: cada ubicación guarda origen, carpeta y etiquetas (las define el usuario según cómo ordena sus carpetas; 'cliente' y 'caso' son etiquetas); toda consulta recibe el conjunto de lo visible, que en privado es 'todo'; cada proyecto tiene miembros, 'abierto' al inicio; existe el proyecto general del espacio. Los datos que hoy viven por proyecto (catálogo, texto reconocido, detección de cambios) pasan al espacio. Pantallas acordadas: Inicio (salud del archivo, requiere atención, actividad reciente, proyectos), Orígenes, Documentos y Detalle de un documento; van en español. El marco visual de toda la app se trata aparte (P-057). Los pendientes P-012, P-015, P-016, P-040 y P-044 se replantean sobre esta base. Avance: (1) PR #24, la base SQLite del espacio privado y sus tablas, sin nada visible todavía. (2) PR #25, orígenes, barrido, huella de cada archivo en segundo plano y pantalla Orígenes. La vigilancia es un barrido al arrancar, cada cinco minutos y a pedido; el aviso en vivo del sistema quedó como P-064. (3) PR #26, pantalla Documentos (tabla con buscador y filtros) y Detalle de un documento con forma de artículo, etiquetas corregibles y todas las ubicaciones del mismo documento. (4) PR #27, texto de cada documento obtenido una vez por extracción directa (sin motores de reconocimiento por su cuenta), mismo texto en dos archivos como un solo documento, y búsqueda por palabras en Documentos. Comprobado en solo lectura sobre AEROS BGH (31 archivos) y Extrimian 3.0 (183), sin errores. (5) PR #28, pantalla Inicio (requiere atención, salud del archivo, actividad reciente, búsqueda rápida); la app abre ahí. (6) PR #29, el puente: un proyecto de wiki se asigna como proyecto general y las carpetas de la base pasan a ser sus fuentes sin copiar nada; el texto sale de la base y un escaneo reconocido por el wiki vuelve a la base, así no se reconoce dos veces. Asignarlo desactiva la incorporación automática de ese proyecto; incorporar se pide carpeta por carpeta. Construido completo y con pruebas automáticas; falta verlo en la app (P-065) e integrar los PR #24 a #30. El 2026-10-12 el usuario la vio funcionando en la app (abre en Inicio; copias, movidos y editados detectados sobre una copia local de AEROS BGH) y pidió cuatro cambios, hechos en el PR #31: el archivo que la app crea sola con su wiki activable, Orígenes como árbol con exclusiones, etiquetas con grupos y reglas por carpeta, e índice de enlaces del wiki. Falta integrar el #31 y verlo en la app (P-067). Al cierre del 2026-10-12 todo está integrado en main (PR #24 a #31). Queda verla funcionando entera (P-067) y activar el wiki por primera vez (P-051). Estado al 2026-10-16, según el usuario: el producto mínimo NO está cerrado. Hay una primera versión construida, pero deja mucho que desear en experiencia de uso y el wiki que generó es inservible. El usuario va a traer una propuesta de diseño para revisarla, ajustarla e implementarla.",
       "depende_de": [],
       "referencia": "docs/design/base-documental.md; docs/sessions/2026-10-12-sesion-05.md; src-tauri/src/docbase/; src/components/docbase/; src/vocabulary/; PR #24 a #31",
       "creado": "2026-10-09",
-      "actualizado": "2026-10-12"
-    },
-    {
-      "id": "P-051",
-      "titulo": "Activar el wiki del archivo sobre una carpeta de prueba",
-      "tipo": "codigo",
-      "responsable": "ambos",
-      "estado": "hecho",
-      "detalle": "Los dos proyectos de prueba y lo que hay en el workspace se pueden descartar y rehacer. No se pueden alterar sus fuentes originales: G:\\Mi unidad\\Extrimian\\Strategy\\Extrimian 3.0 (my-1st-wiki; verificado el 2026-10-11 que los 92 archivos copiados en el proyecto tienen un original con el mismo nombre ahí) y la carpeta AEROS BGH de Drive. Al rehacer AEROS-BGH, corregir la carpeta duplicada (AEROS-BGH\\AEROS-BGH). En la carpeta de Extrimian 3.0 hay 74 documentos nativos de Google que el proyecto actual nunca incluyó. Avance del 2026-10-11: el motor de la base se corrió en solo lectura sobre las dos carpetas originales sin errores (AEROS BGH: 31 archivos, 21 procesados, 10 con texto en imagen; Extrimian 3.0: 183 archivos, 104 procesados, 74 no procesables). Falta lo que consume cupo: crear un proyecto nuevo, asignarlo como proyecto general e incorporar las carpetas al wiki. Hacerlo con el usuario. El 2026-10-12 se borraron los dos proyectos viejos del workspace, a pedido del usuario; las carpetas originales no se tocaron. Ya no hay nada que reconstruir a mano: la app crea el proyecto 'default' y monta ahí las carpetas de la base. Lo que queda es activar el wiki del archivo con una carpeta chica y revisar el resultado. Consume cupo: hacerlo con el usuario. El 2026-10-13 el usuario activó el wiki sobre POC-Micelya (35 archivos, 31 documentos). Funcionó de punta a punta, incluido el reconocimiento de las imágenes con Codex, cuyo texto volvió a la base. Salió en francés: el proyecto 'default' no tenía idioma propio, cayó en 'automático' y la detección tomaba el español por francés. Se frenó con 12 documentos incorporados y 23 en la cola; el wiki quedó mezclado en francés y español. Arreglado en el PR de arreglos del 2026-10-13 (el archivo nace con idioma, la detección distingue las lenguas romances y 'Pausar' frena también la cola). Falta: limpiar lo generado y volver a activarlo con la app ya corregida; no hay una función para rehacer el wiki (P-071). El PR #33 se integró el 2026-10-13. La carpeta del wiki mezclado se apartó sin borrarla (LocalRepo\\llm_wiki_mi\\wiki-descartado-2026-10-13-frances) y la carpeta de trabajo quedó vacía: al abrir, la app crea el archivo de nuevo. Falta abrir la app, comprobar que nace en español y activar el wiki. Hecho el 2026-10-14: con la app cerrada y la carpeta de trabajo vacía se puso wiki_active=1 en la base, y al arrancar la app creó el archivo y encoló todo lo montado. 76 archivos sin fallos, 183 páginas, en español. Problemas encontrados y su seguimiento en docs/sessions/2026-10-14-sesion-06.md (sección 5).",
-      "depende_de": [
-        "P-049"
-      ],
-      "referencia": "docs/design/base-documental.md (sección 9)",
-      "creado": "2026-10-11",
-      "actualizado": "2026-10-14"
+      "actualizado": "2026-10-16"
     },
     {
       "id": "P-052",
@@ -628,20 +604,6 @@
       "actualizado": "2026-10-14"
     },
     {
-      "id": "P-067",
-      "titulo": "Ver en la app el archivo, el árbol, las etiquetas y el índice del wiki",
-      "tipo": "verificacion",
-      "responsable": "ambos",
-      "estado": "hecho",
-      "detalle": "Nada del PR #31 se vio en la app real. Sin consumir cupo: (1) primer arranque: tiene que preguntar la carpeta de trabajo, proponer llm-wiki-workspace, crear el proyecto 'default' y abrir en Inicio; (2) Orígenes: panel 'Wiki del archivo' sin activar; 'Ver el contenido' despliega el árbol; (3) excluir un archivo y una carpeta: quedan tachados y con estado 'Excluido', y se pueden volver a incluir; (4) en una carpeta, ícono de etiqueta: 'cada subcarpeta de acá es un… Cliente' y ver los chips en Documentos; filtrar por etiqueta; (5) renombrar una etiqueta en 'Grupos y etiquetas' y ver que cambia en todos lados; (6) corregir a mano la etiqueta de un archivo. Verificar también que la carpeta de prueba ya cargada conserve sus etiquetas como regla en la raíz. Avance del 2026-10-12: el primer paso dio bien en la app real (pregunta la carpeta de trabajo y propone C:/Users/Usuario/llm-wiki-workspace). Faltan los puntos 2 a 6 y la conversión de los niveles ya cargados. Completado por el usuario el 2026-10-12: los puntos 2 a 6 funcionan. Dejó comentarios de interfaz para pasar juntos (P-057).",
-      "depende_de": [
-        "P-049"
-      ],
-      "referencia": "docs/sessions/2026-10-12-sesion-05.md (secciones 5 y 6)",
-      "creado": "2026-10-12",
-      "actualizado": "2026-10-13"
-    },
-    {
       "id": "P-068",
       "titulo": "Que el grafo, la búsqueda y el lint usen el índice de enlaces",
       "tipo": "codigo",
@@ -668,20 +630,6 @@
       "referencia": "src/vocabulary/; docs/design/base-documental.md (sección 13)",
       "creado": "2026-10-12",
       "actualizado": "2026-10-12"
-    },
-    {
-      "id": "P-070",
-      "titulo": "El wiki tiene un idioma fijo por estudio",
-      "tipo": "decision",
-      "responsable": "ambos",
-      "estado": "hecho",
-      "detalle": "Hoy el modo 'automático' escribe cada página del wiki en el idioma del documento del que salió. Un estudio argentino tiene documentos en castellano, portugués e inglés, y el de referencia además en italiano: daría un wiki en varios idiomas aunque la detección acertara siempre. Propuesta hecha al usuario el 2026-10-13, sin respuesta todavía: el wiki tiene un idioma fijo elegido por el estudio, y el idioma detectado queda como un dato del documento en la base, que sirve para filtrar. Si se acepta, toca el documento de diseño (mostrar la propuesta antes). Mientras tanto el archivo ya nace con un idioma fijo. Decidido por el usuario el 2026-10-13: por ahora el idioma del wiki es siempre fijo por estudio. Falta reflejarlo en el documento de diseño (mostrar la propuesta antes de cambiarlo). El idioma de cada documento como dato pasó a P-072 y el wiki en más de un idioma a P-073. Cerrado el 2026-10-13: el usuario señaló que la app ya tiene ese ajuste (Configuración, Output Preferences, por proyecto) y que alcanza con usarlo; no hace falta cambiar el documento de diseño. Con el PR #33 el archivo nace con ese ajuste en un idioma fijo. El modo 'automático' sigue existiendo como opción.",
-      "depende_de": [
-        "P-049"
-      ],
-      "referencia": "src/lib/output-language.ts; src/lib/detect-language.ts; src/lib/default-project.ts",
-      "creado": "2026-10-13",
-      "actualizado": "2026-10-13"
     },
     {
       "id": "P-071",
@@ -724,20 +672,6 @@
       "actualizado": "2026-10-13"
     },
     {
-      "id": "P-074",
-      "titulo": "Dos formularios distintos se toman por el mismo documento",
-      "tipo": "codigo",
-      "responsable": "claude",
-      "estado": "hecho",
-      "detalle": "Al medir la carpeta ContenidoExtra de la prueba, dos fichas de cliente de personas distintas dieron exactamente el mismo texto extraído: son formularios en PDF y lo completado en los campos no sale al extraer. Con la regla actual (mismo texto, mismo documento) la base los trataría como uno, que en un estudio es mezclar dos clientes. Se midió con una herramienta de extracción distinta de la que usa la app: comprobarlo en la app (los dos archivos tienen que figurar como dos documentos, no como copias). Si se confirma, corregir antes de construir los parecidos: leer también el contenido de los campos del formulario, o no unir por texto cuando el PDF tiene campos. Confirmado el 2026-10-13 con el motor de la app (la comprobación en solo lectura sobre carpetas reales): las dos fichas figuran como copias una de la otra. Son el mismo formulario PDF en blanco (51 campos) completado para dos personas; las respuestas están en los campos y no salen al extraer el texto. Una tercera ficha, guardada con las respuestas impresas en la página y firmada digitalmente, sí se distingue. Arreglo propuesto: agregar al texto extraído el contenido de los campos del formulario, que además hace buscable lo completado. Afecta también al wiki, que recibe el mismo texto sin las respuestas. Arreglado el 2026-10-14 (PR #38): al texto de cada página de un PDF se le agrega lo completado en sus campos (texto, listas y casillas marcadas), y la base guarda además esos campos aparte, uno por uno, como el derivado 'campos' del diseño: es el punto de partida de la plantilla y sus datos. Comprobado con el motor sobre la carpeta real: las dos fichas ya no son copias. Lo que la base ya había leído antes del arreglo no se relee; la carpeta de prueba con las fichas todavía no había sido barrida por la app. Corregido el 2026-10-14 (rama fix/pdf-form-choices): las casillas y botones marcados se escribían como 'campo: X', sin decir qué opción era, y las casillas cuyo estado 'marcado' no se llama 'Yes' no salían; ahora se escribe la opción elegida y, si el campo tiene nombre genérico, la pregunta de su fila (D-146). Comprobado en solo lectura sobre las tres fichas de la carpeta de prueba.",
-      "depende_de": [
-        "P-049"
-      ],
-      "referencia": "docs/design/parecidos-propuesta.md (sección 2, punto 6); src-tauri/src/docbase/text.rs",
-      "creado": "2026-10-13",
-      "actualizado": "2026-10-14"
-    },
-    {
       "id": "P-075",
       "titulo": "Catálogo de tipos de documento",
       "tipo": "codigo",
@@ -776,20 +710,6 @@
         "P-015"
       ],
       "referencia": "docs/design/parecidos-propuesta.md (sección 9)",
-      "creado": "2026-10-14",
-      "actualizado": "2026-10-14"
-    },
-    {
-      "id": "P-078",
-      "titulo": "Que el wiki use solo la fuente elegida al unir dos documentos como el mismo",
-      "tipo": "codigo",
-      "responsable": "claude",
-      "estado": "hecho",
-      "detalle": "Al unir dos parecidos con una relación de 'mismo documento' (prácticamente el mismo, ejemplar firmado, versión) la persona elige cuál queda como fuente del wiki y la base lo guarda (similar_pair.wiki_source), pero el wiki todavía incorpora los dos. Falta que el puente con el wiki deje de ofrecer el otro como fuente y decidir qué pasa con las páginas que ya salieron de él (la propuesta dice que podrían unirse). La pantalla hoy lo aclara: 'por ahora el wiki todavía no la aplica'. Hecho el 2026-10-14 (S4, apilado sobre el PR #43, sin supervisión): el documento no elegido sale de las fuentes del wiki en todas sus ubicaciones, con el mismo camino que las exclusiones (no es pendiente, no se encola al activar ni desde Orígenes, el vigilante no lo incorpora); lo ya incorporado queda; deshacer lo vuelve a ofrecer; después de cada decisión se saca de la cola lo que espera y ya no alimenta el wiki y, con el wiki activo, se encola la fuente que nunca se incorporó. El detalle del documento no elegido lo avisa en 'En el wiki'. Decisiones sin consultar D-143 a D-145. Después, al apilarla sobre S3 (PR #47): una elección de fuente que cerraría un círculo (A cede ante B, B ante C, C ante A) y dejaría sin fuente a todos los unidos se rechaza con un mensaje claro (D-148). Queda afuera unir las páginas del wiki que salieron de los dos (la propuesta dice que podrían unirse) y probarlo con la app corriendo.",
-      "depende_de": [
-        "P-015"
-      ],
-      "referencia": "docs/design/parecidos-propuesta.md (sección 3)",
       "creado": "2026-10-14",
       "actualizado": "2026-10-14"
     },
@@ -844,6 +764,18 @@
       "referencia": ".github/workflows/ci.yml; .github/workflows/build.yml; Settings → Rules → Rulesets → proteger-main",
       "creado": "2026-10-15",
       "actualizado": "2026-10-15"
+    },
+    {
+      "id": "P-083",
+      "titulo": "Vista única de atención",
+      "tipo": "decision",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "detalle": "Pedido del usuario del 2026-10-15: Inicio escala líneas que no dicen qué hacer (los parecidos llevan a una lista filtrada) y los avisos están repartidos entre Inicio y el panel de actividad del wiki. Propuesta escrita el 2026-10-16 en docs/design/atencion-propuesta.md: una sola vista con problemas, decisiones y lo que está en curso; cada aviso dice qué pasa, por qué importa y qué hacer, con la acción en la fila; Inicio pasa a un resumen; vistas dedicadas para resolver parecidos y tipos. Espera la revisión del usuario y cinco decisiones abiertas (sección 8).",
+      "depende_de": [],
+      "referencia": "docs/design/atencion-propuesta.md",
+      "creado": "2026-10-16",
+      "actualizado": "2026-10-16"
     }
   ]
 }
