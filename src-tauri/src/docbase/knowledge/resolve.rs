@@ -130,6 +130,9 @@ pub(crate) struct Row {
     pub role: String,
     pub quote: String,
     pub entity: Option<String>,
+    /// A term the document defines ("la Empresa"): never what names its
+    /// group (D-245).
+    pub defined: bool,
     /// The entity this name of the document had before its mentions went
     /// away (read again, or the document it took the place of).
     pub hint: Option<String>,
@@ -181,7 +184,7 @@ fn hash(parts: &[&str]) -> String {
 pub(crate) fn load_rows(conn: &Connection) -> Result<Vec<Row>, String> {
     let mut statement = conn
         .prepare(&format!(
-            "SELECT m.id, m.content_id, m.ref, m.same_as, m.kind, m.written, m.normalized, m.role, m.quote, m.entity_id
+            "SELECT m.id, m.content_id, m.ref, m.same_as, m.kind, m.written, m.normalized, m.role, m.quote, m.entity_id, m.defined
              FROM knowledge_mention m JOIN knowledge_extraction k ON k.content_id = m.content_id AND k.state = 'done'
              WHERE {}
              ORDER BY m.content_id, m.id",
@@ -202,6 +205,7 @@ pub(crate) fn load_rows(conn: &Connection) -> Result<Vec<Row>, String> {
                 role: row.get(7)?,
                 quote: row.get(8)?,
                 entity: row.get(9)?,
+                defined: row.get(10)?,
                 hint: None,
             })
         })
@@ -349,9 +353,9 @@ pub(crate) fn clusters(
         let principal = *list
             .iter()
             .max_by(|&&a, &&b| {
-                keys[a]
-                    .weight()
-                    .cmp(&keys[b].weight())
+                (!rows[a].defined)
+                    .cmp(&!rows[b].defined)
+                    .then_with(|| keys[a].weight().cmp(&keys[b].weight()))
                     .then_with(|| count(&rows[a].normalized).cmp(&count(&rows[b].normalized)))
                     .then_with(|| rows[b].normalized.cmp(&rows[a].normalized))
                     .then_with(|| rows[b].id.cmp(&rows[a].id))
@@ -378,7 +382,12 @@ pub(crate) fn clusters(
             key: cluster_key(first.content_id, &first.kind, &first.normalized),
             canon: format!("{}|{}|{}", hashes.get(&first.content_id).map(String::as_str).unwrap_or(""), first.kind, first.normalized),
             names: list.iter().map(|&i| rows[i].normalized.clone()).collect(),
-            excluded: (!name.has_name() && name.email.is_none()).then_some("sin-nombre"),
+            excluded: if first.defined {
+                // Only terms the document defines, without what they define.
+                Some("termino-definido")
+            } else {
+                (!name.has_name() && name.email.is_none()).then_some("sin-nombre")
+            },
             name,
             strong,
             rows: list,

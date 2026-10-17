@@ -28,6 +28,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use super::quote::{self, Located};
+use super::{names, read_checks, values};
 use super::vocabulary::{vocabulary, Vocabulary};
 use super::{mark_dirty, visible_content, Discarded};
 use crate::docbase::similar::changes::{classify as kind_of_token, Kind};
@@ -42,7 +43,7 @@ use crate::source_volume::catalog::{is_page_heading, RECOGNIZED_MARKER_START};
 
 /// Version of the question. Changing the prompt changes it, and every
 /// document is read again.
-pub const KNOWLEDGE_PROMPT: &str = "conocimiento-1";
+pub const KNOWLEDGE_PROMPT: &str = "conocimiento-2";
 /// The task the answers are kept under in `model_answer`.
 pub const TASK: &str = "knowledge";
 /// Words of text in one question; a longer document is read in parts of
@@ -52,6 +53,7 @@ pub const PART_WORDS: usize = 4000;
 /// The type of entity of a person (`knowledge.json`), and how many words
 /// before a number are looked at to tell whose it is.
 const PERSON_KIND: &str = "persona";
+const ORGANIZATION_KIND: &str = "organizacion";
 const OTHER_PERSON_WINDOW: usize = 6;
 /// Identifiers recognized by their shape handed over as a hint.
 const MAX_SHAPE_HINTS: usize = 60;
@@ -293,14 +295,18 @@ pub fn prompt(vocabulary: &Vocabulary, hints: &Hints, part: &str, index: usize, 
     let types = list(vocabulary.entity_types.iter().map(|t| (t.id.clone(), t.description.clone())));
     let roles = list(vocabulary.roles.iter().map(|t| (t.id.clone(), with_types(&t.description, &t.types))));
     let identifiers = list(vocabulary.identifiers.iter().map(|t| (t.id.clone(), with_types(&t.description, &t.types))));
-    let predicates = list(vocabulary.predicates.iter().map(|p| {
+    let predicates = list(vocabulary.predicates.iter().filter(|p| !p.is_money()).map(|p| {
         let object = if p.takes_entity() {
             format!("el objeto es otra mención del documento{}", if p.object_types.is_empty() { String::new() } else { format!(" ({})", p.object_types.join(", ")) })
         } else {
             "el objeto es un valor copiado del texto".to_string()
         };
-        (p.id.clone(), format!("{} Sujeto: {}; {object}.", p.description.trim(), if p.subject.is_empty() { "cualquiera".to_string() } else { p.subject.join(", ") }))
+        let classes: Vec<String> = p.classes().map(|q| format!("{} ({})", q.id, q.description.trim())).collect();
+        let classes = if classes.is_empty() { String::new() } else { format!(" Clases: {}.", classes.join("; ")) };
+        (p.id.clone(), format!("{} Sujeto: {}; {object}.{classes}", p.description.trim(), if p.subject.is_empty() { "cualquiera".to_string() } else { p.subject.join(", ") }))
     }));
+    let money = vocabulary.money_predicate().map(|p| p.description.trim().to_string()).unwrap_or_default();
+    let kinds = list(vocabulary.money.kinds.iter().map(|k| (k.id.clone(), k.description.clone())));
     let mut known = Vec::new();
     if let Some(doc_type) = &hints.doc_type {
         known.push(format!(
@@ -332,17 +338,36 @@ Se va a comprobar que esté en el texto: lo que no esté, se descarta.\n\
 tal como aparece, y su cita lo contiene. Si dos menciones de este documento son la misma entidad (\"el locatario\" y su nombre, \
 la sigla y la razón social), en \"misma_que\" de la segunda poné la \"ref\" de la primera; si no, null. No registres un pronombre \
 ni un papel sin nombre (\"el locatario\") si el documento no dice quién es.\n\
-- Los identificadores (DNI, CUIT, matrícula, número de expediente) van en la mención a la que el texto los asocia, con el valor \
-tal como está escrito y una cita que lo contiene.\n\
+- Los términos definidos (\"en adelante «la Empresa»\", \"(«la Locataria»)\", \"hereinafter the «Company»\") no son nombres: \
+van en \"definiciones\", con la \"ref\" de la mención con nombre propio que definen y una cita que tiene el término y ese nombre. \
+Si además registrás el término como mención, en \"misma_que\" poné la \"ref\" de lo que define. Un rótulo de formulario \
+(\"PROVINCIA:\", \"Nombre:\") no es una mención: lo es el valor que lo sigue.\n\
+- Los identificadores van en la mención a la que el texto los asocia, con el valor tal como está escrito y una cita que lo \
+contiene. Su \"clase\" es la que dice el rótulo que el texto le pone (un número rotulado EIN es EIN aunque otro texto lo llame CUIT). \
+Un número de factura, de carta documento o envío postal, de sobre de firma o un código postal no identifica a una persona ni a \
+una organización: si el documento trata de un asunto, van en la mención del asunto; si no, no van.\n\
 - Las afirmaciones dicen algo del sujeto (la \"ref\" de una mención) con un predicado de la lista. Si el predicado lleva otra \
 mención como objeto, va en \"objeto_ref\" y \"objeto_valor\" es null; si lleva un valor, va en \"objeto_valor\" tal como está \
 escrito, dentro de la cita, y \"objeto_ref\" es null. \"tiempo\" es la fecha o el período del hecho si el documento lo dice, \
-tal como está escrito; si no, null.\n\
+tal como está escrito; si no, null. \"clase\" es la clase del dato cuando el predicado tiene clases y el texto la dice; si no, \"ninguna\".\n\
+- Una relación con consecuencias jurídicas (representa a, socio de, beneficiario final de, cónyuge de, parte en) se registra solo \
+si la cita nombra a los dos: quién y de quién.\n\
+- El dinero no va en \"afirmaciones\" sino en \"importes\": {money} \"deudor\" y \"acreedor\" son \"ref\" de menciones de personas \
+u organizaciones de este documento, ya resueltos los términos definidos (si el texto dice «la Empresa adeuda a la Locadora», el \
+deudor es la mención que el documento definió como «la Empresa»). Si el texto no dice una de las dos partes, el importe no va. \
+\"importe\" copiado del texto, dentro de la cita; \"moneda\" y \"concepto\" como los dice la cita, o null; \"fecha\" del pago, \
+de la deuda o del reclamo si la cita la dice, o null. Un impuesto, una percepción o un subtotal no son un importe entre partes.\n\
+- En un formulario cada valor va con su campo y con la persona de su rótulo: lo que está bajo \"cónyuge\" es del cónyuge, no de \
+quien completa el formulario. Si el rótulo y el valor están separados en el texto, \"cita\" tiene el valor y \"rotulo\" el rótulo \
+copiado del texto; si no, \"rotulo\" es null.\n\
+- Las páginas de la constancia de un servicio de firma electrónica (resumen del sobre, eventos de firma) no dicen quién es parte \
+del acto: allí, quien aparece es \"firmante\" u \"otro\".\n\
+- \"fecha_documento\" es la fecha del documento (de su firma, emisión o envío) tal como está escrita, o null.\n\
 - \"pagina\" es el número de la página (los encabezados \"## Page N\" del texto) donde está la cita, o null si el texto no tiene páginas.\n\
 - La sección \"### Form fields\", si está, trae los campos completados de un formulario: son parte del texto.\n\
 - El nombre del archivo es una pista, no una prueba.\n\n\
 Tipos de entidad:\n{types}\n\nPapeles (\"rol\"):\n{roles}\n\nIdentificadores (\"clase\"):\n{identifiers}\n\n\
-Predicados:\n{predicates}\n\n\
+Predicados:\n{predicates}\n\nTipos de importe (\"tipo\"):\n{kinds}\n\n\
 Lo que ya se sabe del documento sin leerlo:\n- {known}\n\n\
 Archivo: «{}»\n\nTexto del documento:\n\"\"\"\n{part}\n\"\"\"\n\n\
 Respondé solo con el JSON pedido.",
@@ -356,14 +381,52 @@ pub fn schema(vocabulary: &Vocabulary) -> serde_json::Value {
     let types = ids(vocabulary.entity_types.iter().map(|t| t.id.clone()).collect());
     let roles = ids(vocabulary.roles.iter().map(|t| t.id.clone()).collect());
     let identifiers = ids(vocabulary.identifiers.iter().map(|t| t.id.clone()).collect());
-    let predicates = ids(vocabulary.predicates.iter().map(|p| p.id.clone()).collect());
+    let predicates = ids(vocabulary.predicates.iter().filter(|p| !p.is_money()).map(|p| p.id.clone()).collect());
+    let mut classes: Vec<String> = vec![NO_CLASS.to_string()];
+    for class in vocabulary.predicates.iter().flat_map(|p| p.classes()) {
+        if !classes.contains(&class.id) {
+            classes.push(class.id.clone());
+        }
+    }
+    let classes = ids(classes);
+    let kinds = ids(vocabulary.money.kinds.iter().map(|k| k.id.clone()).collect());
     let text = serde_json::json!({ "type": "string" });
+    let maybe = serde_json::json!({ "type": ["string", "null"] });
     let page = serde_json::json!({ "type": ["integer", "null"] });
     serde_json::json!({
         "type": "object",
         "additionalProperties": false,
-        "required": ["menciones", "afirmaciones"],
+        "required": ["fecha_documento", "menciones", "definiciones", "afirmaciones", "importes"],
         "properties": {
+            "fecha_documento": maybe,
+            "definiciones": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["termino", "ref", "cita"],
+                    "properties": { "termino": text, "ref": text, "cita": text }
+                }
+            },
+            "importes": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["deudor", "acreedor", "importe", "moneda", "tipo", "concepto", "fecha", "cita", "pagina"],
+                    "properties": {
+                        "deudor": maybe,
+                        "acreedor": maybe,
+                        "importe": text,
+                        "moneda": maybe,
+                        "tipo": kinds,
+                        "concepto": maybe,
+                        "fecha": maybe,
+                        "cita": text,
+                        "pagina": page
+                    }
+                }
+            },
             "menciones": {
                 "type": "array",
                 "items": {
@@ -383,8 +446,8 @@ pub fn schema(vocabulary: &Vocabulary) -> serde_json::Value {
                             "items": {
                                 "type": "object",
                                 "additionalProperties": false,
-                                "required": ["clase", "valor", "cita"],
-                                "properties": { "clase": identifiers, "valor": text, "cita": text }
+                                "required": ["clase", "valor", "cita", "rotulo"],
+                                "properties": { "clase": identifiers, "valor": text, "cita": text, "rotulo": maybe }
                             }
                         }
                     }
@@ -395,13 +458,15 @@ pub fn schema(vocabulary: &Vocabulary) -> serde_json::Value {
                 "items": {
                     "type": "object",
                     "additionalProperties": false,
-                    "required": ["sujeto", "predicado", "objeto_ref", "objeto_valor", "cita", "pagina", "tiempo"],
+                    "required": ["sujeto", "predicado", "objeto_ref", "objeto_valor", "clase", "cita", "rotulo", "pagina", "tiempo"],
                     "properties": {
                         "sujeto": text,
                         "predicado": predicates,
                         "objeto_ref": { "type": ["string", "null"] },
                         "objeto_valor": { "type": ["string", "null"] },
+                        "clase": classes,
                         "cita": text,
+                        "rotulo": maybe,
                         "pagina": page,
                         "tiempo": { "type": ["string", "null"] }
                     }
@@ -411,12 +476,21 @@ pub fn schema(vocabulary: &Vocabulary) -> serde_json::Value {
     })
 }
 
+/// The class of a claim when the text says none.
+pub const NO_CLASS: &str = "ninguna";
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct Answer {
     #[serde(default)]
+    pub fecha_documento: Option<String>,
+    #[serde(default)]
     pub menciones: Vec<AnswerMention>,
     #[serde(default)]
+    pub definiciones: Vec<AnswerDefinition>,
+    #[serde(default)]
     pub afirmaciones: Vec<AnswerClaim>,
+    #[serde(default)]
+    pub importes: Vec<AnswerAmount>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -440,6 +514,16 @@ pub struct AnswerIdentifier {
     pub clase: String,
     pub valor: String,
     pub cita: String,
+    #[serde(default)]
+    pub rotulo: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct AnswerDefinition {
+    pub termino: String,
+    #[serde(rename = "ref")]
+    pub reference: String,
+    pub cita: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -450,11 +534,35 @@ pub struct AnswerClaim {
     pub objeto_ref: Option<String>,
     #[serde(default)]
     pub objeto_valor: Option<String>,
+    #[serde(default)]
+    pub clase: Option<String>,
     pub cita: String,
+    #[serde(default)]
+    pub rotulo: Option<String>,
     #[serde(default)]
     pub pagina: Option<i64>,
     #[serde(default)]
     pub tiempo: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct AnswerAmount {
+    #[serde(default)]
+    pub deudor: Option<String>,
+    #[serde(default)]
+    pub acreedor: Option<String>,
+    pub importe: String,
+    #[serde(default)]
+    pub moneda: Option<String>,
+    #[serde(default)]
+    pub tipo: String,
+    #[serde(default)]
+    pub concepto: Option<String>,
+    #[serde(default)]
+    pub fecha: Option<String>,
+    pub cita: String,
+    #[serde(default)]
+    pub pagina: Option<i64>,
 }
 
 /// A mention that passed the check.
@@ -469,6 +577,9 @@ pub struct Mention {
     pub quote: String,
     pub page: Option<i64>,
     pub identifiers: Vec<Identifier>,
+    /// A term the document defines ("la Empresa"): a local alias of the
+    /// entity it defines (D-245).
+    pub defined: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -491,6 +602,11 @@ pub struct Evidence {
     pub quote: String,
     pub page: Option<i64>,
     pub fact_time: Option<String>,
+    /// The amount of an amount between two parties, as written (D-244).
+    pub amount: Option<String>,
+    /// What else the reading says of it, as JSON: the kind, currency and
+    /// concept of an amount; the class of a value ("real", "sede").
+    pub detail: Option<serde_json::Value>,
 }
 
 /// What is kept of the answers about one document.
@@ -499,11 +615,22 @@ pub struct Reading {
     pub mentions: Vec<Mention>,
     pub evidence: Vec<Evidence>,
     pub discarded: Vec<Discarded>,
+    /// The date of the document as its text writes it (D-247).
+    pub doc_date: Option<String>,
 }
 
 fn discard(reading: &mut Reading, what: &str, reason: &str, said: &str, quote: &str) {
     reading.discarded.push(Discarded { what: what.into(), reason: reason.into(), said: said.trim().into(), quote: quote.trim().into() });
 }
+
+/// What the program corrected of a reading (kept, not thrown away): the
+/// discards list keeps it with `what` = "correction" so that it is counted.
+fn corrected(reading: &mut Reading, reason: &str, said: &str, quote: &str) {
+    discard(reading, CORRECTION, reason, said, quote);
+}
+
+/// `what` of a correction in the list of discards.
+pub const CORRECTION: &str = "correction";
 
 fn normalized(text: &str) -> String {
     quote::words(text).join(" ")
@@ -513,17 +640,48 @@ fn applies(types: &[String], kind: &str) -> bool {
     types.is_empty() || types.iter().any(|t| t == kind)
 }
 
+/// Where a value is, given its quote and, for a form, its label apart
+/// (D-248): the page of the quote, when the quote is in the text and the
+/// label (if any) comes before it, at most `window` words before.
+fn locate_with_label(text: &Located, quote_text: &str, label: Option<&str>, page: Option<i64>, window: usize) -> Option<Option<i64>> {
+    let found = text.locate(quote_text, page)?;
+    let Some(label) = label.map(str::trim).filter(|l| !l.is_empty()) else {
+        return Some(found);
+    };
+    let label_words = quote::words(label);
+    let quote_words = quote::words(quote_text);
+    if label_words.is_empty() || quote_words.is_empty() {
+        return Some(found);
+    }
+    let starts = text.starts(&quote_words);
+    let labels = text.starts(&label_words);
+    labels
+        .iter()
+        .any(|&l| starts.iter().any(|&s| s >= l + label_words.len() && s - (l + label_words.len()) <= window))
+        .then_some(found)
+}
+
 /// Checks the answers about the parts of one document against its text,
 /// and puts them together: the mentions of every part, the same mention
 /// (type, name and role) once, and each claim once.
 pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &[Answer]) -> Reading {
     let text = Located::new(body);
-    let shapes: BTreeSet<String> = shapes.iter().map(|s| normalized(s)).collect();
+    let shapes: BTreeSet<String> = shapes.iter().map(|s| names::identifier_value(s)).collect();
+    let certificate = read_checks::certificate_pages(vocabulary, body);
+    let window = vocabulary.reading.label_window;
     let mut reading = Reading::default();
     // The model's ref in each part, to the kept mention's ref.
     let mut refs: HashMap<(usize, String), String> = HashMap::new();
     let mut by_key: HashMap<(String, String, String), usize> = HashMap::new();
     for (part, answer) in answers.iter().enumerate() {
+        if reading.doc_date.is_none() {
+            reading.doc_date = answer
+                .fecha_documento
+                .as_deref()
+                .map(str::trim)
+                .filter(|d| !d.is_empty() && text.locate(d, None).is_some())
+                .map(str::to_string);
+        }
         for said in &answer.menciones {
             let Some(kind) = vocabulary.entity_type(&said.tipo).map(|t| t.id.clone()) else {
                 discard(&mut reading, "mention", "tipo-desconocido", &said.escrito, &said.cita);
@@ -535,36 +693,83 @@ pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &
                 discard(&mut reading, "mention", "cita-no-encontrada", &written, &said.cita);
                 continue;
             };
-            if !quote::contains(&quote::words(&said.cita), &name) {
+            if !read_checks::name_in_quote(&quote::words(&said.cita), &name) {
                 discard(&mut reading, "mention", "nombre-fuera-de-la-cita", &written, &said.cita);
                 continue;
             }
-            let role = vocabulary
+            // A label of a form ("PROVINCIA:") is not someone (D-245).
+            if kind != vocabulary.matters.kind && read_checks::is_form_label(body, &written) {
+                discard(&mut reading, "mention", "rotulo-de-formulario", &written, &said.cita);
+                continue;
+            }
+            let mut role = vocabulary
                 .role(&said.rol)
                 .filter(|r| applies(&r.types, &kind))
                 .map(|r| r.id.clone())
                 .unwrap_or_else(|| vocabulary.fallback_role().to_string());
+            // The record of a signing service does not say the roles of the
+            // act (D-251).
+            if certificate.contains(&page) {
+                if let Some(other) = vocabulary.reading.certificate_roles.get(&role) {
+                    let other = vocabulary
+                        .role(other)
+                        .filter(|r| applies(&r.types, &kind))
+                        .map(|r| r.id.clone())
+                        .unwrap_or_else(|| vocabulary.fallback_role().to_string());
+                    if other != role {
+                        corrected(&mut reading, "papel-de-la-constancia-de-firma", &format!("{written}: {role} → {other}"), &said.cita);
+                        role = other;
+                    }
+                }
+            }
             let mut identifiers = Vec::new();
             for identifier in &said.identificadores {
                 let value = identifier.valor.trim().to_string();
                 let value_words = quote::words(&value);
-                let Some(id_page) = text.locate(&identifier.cita, said.pagina) else {
+                let Some(id_page) = locate_with_label(&text, &identifier.cita, identifier.rotulo.as_deref(), said.pagina, window) else {
                     discard(&mut reading, "identifier", "cita-no-encontrada", &value, &identifier.cita);
                     continue;
                 };
-                if !quote::contains(&quote::words(&identifier.cita), &value_words) {
+                let quote_words = quote::words(&identifier.cita);
+                if !quote::contains(&quote_words, &value_words) {
                     discard(&mut reading, "identifier", "valor-fuera-de-la-cita", &value, &identifier.cita);
                     continue;
                 }
-                let kind = vocabulary
+                let said_kind = vocabulary
                     .identifier(&identifier.clase)
                     .map(|t| t.id.clone())
                     .or_else(|| vocabulary.identifiers.last().map(|t| t.id.clone()))
                     .unwrap_or_default();
-                let normalized_value = value_words.join(" ");
-                if !identifiers.iter().any(|i: &Identifier| i.kind == kind && i.normalized == normalized_value) {
+                // The label the text puts right before the number says its
+                // kind (D-249); the label of a form apart, too.
+                let labelled = read_checks::kind_by_label(vocabulary, &quote_words, &value_words).or_else(|| {
+                    identifier.rotulo.as_deref().and_then(|r| {
+                        let mut words = quote::words(r);
+                        words.extend(value_words.iter().cloned());
+                        read_checks::kind_by_label(vocabulary, &words, &value_words)
+                    })
+                });
+                let id_kind = match labelled {
+                    Some(label) if label != said_kind => {
+                        corrected(&mut reading, "clase-por-su-rotulo", &format!("{value}: {said_kind} → {label}"), &identifier.cita);
+                        label
+                    }
+                    _ => said_kind,
+                };
+                // A number of an invoice, a shipment or an envelope does not
+                // identify a person or an organization.
+                let term = vocabulary.identifier(&id_kind);
+                if term.is_some_and(|t| !t.identifies && (t.types.is_empty() || !t.types.iter().any(|x| x == &kind))) {
+                    discard(&mut reading, "identifier", "no-identifica", &value, &identifier.cita);
+                    continue;
+                }
+                let normalized_value = names::identifier_value(&value);
+                if normalized_value.is_empty() {
+                    continue;
+                }
+                if !identifiers.iter().any(|i: &Identifier| i.kind == id_kind && i.normalized == normalized_value) {
                     identifiers.push(Identifier {
-                        kind,
+                        kind: id_kind,
                         by_shape: shapes.contains(&normalized_value),
                         value,
                         normalized: normalized_value,
@@ -598,6 +803,7 @@ pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &
                 quote: said.cita.trim().to_string(),
                 page,
                 identifiers,
+                defined: false,
             });
         }
     }
@@ -611,10 +817,15 @@ pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &
             mention.same_as = None;
         }
     }
+    define_terms(vocabulary, body, answers, &text, &refs, &mut reading);
     let kinds: HashMap<String, String> = reading.mentions.iter().map(|m| (m.reference.clone(), m.kind.clone())).collect();
+    // The names of each mention within the document: its own and those of
+    // the mentions that are the same entity (the defined term and what it
+    // defines, the short name and the full one).
+    let group_names = group_names(&reading.mentions);
     for (part, answer) in answers.iter().enumerate() {
         for said in &answer.afirmaciones {
-            let Some(predicate) = vocabulary.predicate(&said.predicado) else {
+            let Some(predicate) = vocabulary.predicate(&said.predicado).filter(|p| !p.is_money()) else {
                 discard(&mut reading, "claim", "predicado-desconocido", &said.predicado, &said.cita);
                 continue;
             };
@@ -626,7 +837,7 @@ pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &
                 discard(&mut reading, "claim", "no-corresponde-al-tipo", &said.predicado, &said.cita);
                 continue;
             }
-            let Some(page) = text.locate(&said.cita, said.pagina) else {
+            let Some(page) = locate_with_label(&text, &said.cita, said.rotulo.as_deref(), said.pagina, window) else {
                 discard(&mut reading, "claim", "cita-no-encontrada", &said.predicado, &said.cita);
                 continue;
             };
@@ -647,12 +858,34 @@ pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &
                 }
                 (None, Some(value))
             };
+            // What has legal consequences names its object in the quote
+            // (D-250).
+            if predicate.object_in_quote {
+                let object = object_mention.as_deref().expect("an entity");
+                let named = group_names.get(object).is_some_and(|names| names.iter().any(|n| read_checks::name_in_quote(&quote_words, n)));
+                if !named {
+                    discard(&mut reading, "claim", "objeto-fuera-de-la-cita", &said.predicado, &said.cita);
+                    continue;
+                }
+            }
             // A time is kept only when it is in the quote too.
             let fact_time = said
                 .tiempo
                 .clone()
                 .map(|t| t.trim().to_string())
                 .filter(|t| !t.is_empty() && quote::contains(&quote_words, &quote::words(t)));
+            let class = said
+                .clase
+                .as_deref()
+                .filter(|c| *c != NO_CLASS && predicate.classes().any(|q| q.id == *c))
+                .map(str::to_string);
+            let mut detail = serde_json::Map::new();
+            if let Some(class) = &class {
+                detail.insert("clase".into(), class.clone().into());
+            }
+            if let Some(label) = said.rotulo.as_deref().map(str::trim).filter(|l| !l.is_empty()) {
+                detail.insert("rotulo".into(), label.into());
+            }
             let evidence = Evidence {
                 subject,
                 predicate: predicate.id.clone(),
@@ -661,18 +894,17 @@ pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &
                 quote: said.cita.trim().to_string(),
                 page,
                 fact_time,
+                amount: None,
+                detail: (!detail.is_empty()).then_some(serde_json::Value::Object(detail)),
             };
-            let same = |e: &Evidence| {
-                e.subject == evidence.subject
-                    && e.predicate == evidence.predicate
-                    && e.object_mention == evidence.object_mention
-                    && e.object_value.as_deref().map(normalized) == evidence.object_value.as_deref().map(normalized)
-            };
-            if !reading.evidence.iter().any(same) {
-                reading.evidence.push(evidence);
-            }
+            push_evidence(&mut reading, evidence);
+        }
+        for said in &answer.importes {
+            amount_evidence(vocabulary, &text, &refs, &kinds, &group_names, part, said, &mut reading);
         }
     }
+    other_person(vocabulary, body, &mut reading);
+    signature_block(vocabulary, &group_names, &mut reading);
     // A part of an address read as a number that identifies someone (a
     // suite, a postal code, a floor): its value is inside a domicile the
     // same reading gives, or the word before it in its quote is a word of
@@ -708,7 +940,7 @@ pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &
     // A person's number that, everywhere the text has it, comes right
     // after the name of another person of the same reading and not after
     // hers (a form that lists a spouse under the client) is the other
-    // person's: it would keep the same person apart.
+    // person's: it goes to her, when she is only one (D-248).
     let body_words = quote::words(body);
     let people: Vec<(String, Vec<String>)> = reading
         .mentions
@@ -717,6 +949,7 @@ pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &
         .map(|m| (m.reference.clone(), quote::words(&m.written)))
         .filter(|(_, w)| w.len() >= 2)
         .collect();
+    let mut moved: Vec<(String, Identifier)> = Vec::new();
     let mut dropped: Vec<(String, String)> = Vec::new();
     for mention in reading.mentions.iter_mut().filter(|m| m.kind == PERSON_KIND) {
         let own = quote::words(&mention.written);
@@ -726,25 +959,367 @@ pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &
             if value.is_empty() {
                 return true;
             }
-            let places: Vec<usize> = (0..body_words.len().saturating_sub(value.len() - 1))
-                .filter(|&i| body_words[i..i + value.len()] == value[..])
-                .collect();
-            let anothers = |i: usize| {
+            let places = read_checks::positions(&body_words, &value);
+            let others = |i: usize| -> BTreeSet<String> {
                 let before = &body_words[i.saturating_sub(OTHER_PERSON_WINDOW)..i];
-                !quote::contains(before, &own)
-                    && people.iter().any(|(r, name)| *r != reference && *name != own && quote::contains(before, name))
+                if quote::contains(before, &own) {
+                    return BTreeSet::new();
+                }
+                people.iter().filter(|(r, name)| *r != reference && *name != own && quote::contains(before, name)).map(|(r, _)| r.clone()).collect()
             };
-            let other = !places.is_empty() && places.iter().all(|&i| anothers(i));
+            let all: Vec<BTreeSet<String>> = places.iter().map(|&i| others(i)).collect();
+            let other = !places.is_empty() && all.iter().all(|o| !o.is_empty());
             if other {
-                dropped.push((identifier.value.clone(), identifier.quote.clone()));
+                let first = &all[0];
+                if first.len() == 1 && all.iter().all(|o| o == first) {
+                    moved.push((first.iter().next().cloned().expect("one"), identifier.clone()));
+                } else {
+                    dropped.push((identifier.value.clone(), identifier.quote.clone()));
+                }
             }
             !other
         });
+    }
+    for (to, identifier) in moved {
+        corrected(&mut reading, "de-otra-persona", &identifier.value, &identifier.quote);
+        if let Some(mention) = reading.mentions.iter_mut().find(|m| m.reference == to) {
+            if !mention.identifiers.iter().any(|i| i.kind == identifier.kind && i.normalized == identifier.normalized) {
+                mention.identifiers.push(identifier);
+            }
+        }
     }
     for (value, quote) in dropped {
         discard(&mut reading, "identifier", "de-otra-persona", &value, &quote);
     }
     reading
+}
+
+fn push_evidence(reading: &mut Reading, evidence: Evidence) {
+    let same = |e: &Evidence| {
+        e.subject == evidence.subject
+            && e.predicate == evidence.predicate
+            && e.object_mention == evidence.object_mention
+            && e.object_value.as_deref().map(normalized) == evidence.object_value.as_deref().map(normalized)
+            && e.amount.as_deref().map(normalized) == evidence.amount.as_deref().map(normalized)
+    };
+    if !reading.evidence.iter().any(same) {
+        reading.evidence.push(evidence);
+    }
+}
+
+/// The names (normalized words) of each mention within its document: its
+/// own and those of the mentions that are the same entity in it.
+fn group_names(mentions: &[Mention]) -> HashMap<String, Vec<Vec<String>>> {
+    let index: HashMap<&str, usize> = mentions.iter().enumerate().map(|(i, m)| (m.reference.as_str(), i)).collect();
+    let mut root: Vec<usize> = (0..mentions.len()).collect();
+    fn find(root: &mut [usize], x: usize) -> usize {
+        let mut r = x;
+        while root[r] != r {
+            r = root[r];
+        }
+        root[x] = r;
+        r
+    }
+    for (i, mention) in mentions.iter().enumerate() {
+        if let Some(&j) = mention.same_as.as_deref().and_then(|s| index.get(s)) {
+            if mentions[j].kind == mention.kind {
+                let (a, b) = (find(&mut root, i), find(&mut root, j));
+                root[a.max(b)] = a.min(b);
+            }
+        }
+    }
+    // The same name in the document is the same mention's.
+    for i in 0..mentions.len() {
+        for j in 0..i {
+            if mentions[i].kind == mentions[j].kind && mentions[i].normalized == mentions[j].normalized {
+                let (a, b) = (find(&mut root, i), find(&mut root, j));
+                root[a.max(b)] = a.min(b);
+            }
+        }
+    }
+    let mut by_root: HashMap<usize, Vec<Vec<String>>> = HashMap::new();
+    for i in 0..mentions.len() {
+        let r = find(&mut root, i);
+        let words: Vec<String> = mentions[i].normalized.split_whitespace().map(str::to_string).collect();
+        if !words.is_empty() {
+            let list = by_root.entry(r).or_default();
+            if !list.contains(&words) {
+                list.push(words);
+            }
+        }
+    }
+    (0..mentions.len())
+        .map(|i| {
+            let r = find(&mut root, i);
+            (mentions[i].reference.clone(), by_root.get(&r).cloned().unwrap_or_default())
+        })
+        .collect()
+}
+
+/// The terms the document defines are local aliases (D-245): what the
+/// model gave in "definiciones" (with a quote that has the term and a name
+/// of what it defines) and what has the shape of a definition in the text.
+/// A mention written as such a term is marked as defined and, when it is
+/// not already the same as another mention, made the same as what the
+/// term defines: the model's, or the nearest name before the definition.
+fn define_terms(vocabulary: &Vocabulary, body: &str, answers: &[Answer], text: &Located, refs: &HashMap<(usize, String), String>, reading: &mut Reading) {
+    let mut targets: HashMap<String, String> = HashMap::new();
+    let names: HashMap<String, (String, Vec<String>)> =
+        reading.mentions.iter().map(|m| (m.reference.clone(), (m.kind.clone(), quote::words(&m.written)))).collect();
+    for (part, answer) in answers.iter().enumerate() {
+        for said in &answer.definiciones {
+            let term = read_checks::without_article(&normalized(&said.termino));
+            let quote_words = quote::words(&said.cita);
+            let Some(target) = refs.get(&(part, said.reference.clone())).cloned() else {
+                discard(reading, "definition", "sujeto-desconocido", &said.termino, &said.cita);
+                continue;
+            };
+            let named = names.get(&target).is_some_and(|(_, n)| read_checks::name_in_quote(&quote_words, n));
+            let term_words: Vec<String> = term.split_whitespace().map(str::to_string).collect();
+            if term.is_empty() || text.locate(&said.cita, None).is_none() || !quote::contains(&quote_words, &term_words) || !named {
+                discard(reading, "definition", "cita-no-encontrada", &said.termino, &said.cita);
+                continue;
+            }
+            targets.entry(term).or_insert(target);
+        }
+    }
+    let body_words = quote::words(body);
+    let mut shaped: HashMap<String, Option<String>> = HashMap::new();
+    for (term, at) in read_checks::defined_terms(body) {
+        // The nearest name of a mention (not itself a term) that ends
+        // before the definition, in the forty words before it.
+        let from = at.saturating_sub(40);
+        let before = &body_words[from..at.min(body_words.len())];
+        let nearest = reading
+            .mentions
+            .iter()
+            .filter(|m| read_checks::without_article(&m.normalized) != term && !m.normalized.is_empty())
+            .filter_map(|m| {
+                let words: Vec<String> = m.normalized.split_whitespace().map(str::to_string).collect();
+                read_checks::positions(before, &words).last().map(|p| (p + words.len(), m.reference.clone()))
+            })
+            .max_by_key(|(end, _)| *end)
+            .map(|(_, r)| r);
+        shaped.entry(term).and_modify(|t| {
+            if *t != nearest {
+                *t = None;
+            }
+        }).or_insert(nearest);
+    }
+    let kinds: HashMap<String, String> = reading.mentions.iter().map(|m| (m.reference.clone(), m.kind.clone())).collect();
+    for mention in &mut reading.mentions {
+        if mention.kind == vocabulary.matters.kind {
+            continue;
+        }
+        let term = read_checks::without_article(&mention.normalized);
+        let target = match (targets.get(&term), shaped.get(&term)) {
+            (Some(target), _) => Some(target.clone()),
+            (None, Some(target)) => target.clone(),
+            (None, None) => continue,
+        };
+        mention.defined = true;
+        let target = target.filter(|t| *t != mention.reference && kinds.get(t) == Some(&mention.kind));
+        if mention.same_as.is_none() {
+            mention.same_as = target;
+        }
+    }
+    // What a term defines is not itself a defined term.
+    let defined: BTreeSet<String> = reading.mentions.iter().filter(|m| m.defined).map(|m| m.reference.clone()).collect();
+    for mention in &mut reading.mentions {
+        if mention.same_as.as_ref().is_some_and(|s| defined.contains(s)) && mention.defined {
+            mention.same_as = None;
+        }
+    }
+}
+
+/// An amount between two parties (D-244): both parties are mentions of
+/// the document (persons or organizations, not the same one), the amount
+/// is in the quote and not next to a word of a tax, and the direction the
+/// quote says wins over the model's (counted as a correction).
+#[allow(clippy::too_many_arguments)]
+fn amount_evidence(
+    vocabulary: &Vocabulary,
+    text: &Located,
+    refs: &HashMap<(usize, String), String>,
+    kinds: &HashMap<String, String>,
+    group_names: &HashMap<String, Vec<Vec<String>>>,
+    part: usize,
+    said: &AnswerAmount,
+    reading: &mut Reading,
+) {
+    let Some(predicate) = vocabulary.money_predicate() else { return };
+    let what = format!("{}: {}", said.tipo, said.importe.trim());
+    let party = |r: &Option<String>| r.as_ref().and_then(|r| refs.get(&(part, r.clone()))).cloned();
+    let (Some(mut debtor), Some(mut creditor)) = (party(&said.deudor), party(&said.acreedor)) else {
+        discard(reading, "amount", "sin-contraparte", &what, &said.cita);
+        return;
+    };
+    let fits = |r: &String| kinds.get(r).is_some_and(|k| applies(&predicate.subject, k) && applies(&predicate.object_types, k));
+    if !fits(&debtor) || !fits(&creditor) {
+        discard(reading, "amount", "no-corresponde-al-tipo", &what, &said.cita);
+        return;
+    }
+    let same_group = group_names.get(&debtor) == group_names.get(&creditor) && debtor != creditor && group_names.get(&debtor).is_some_and(|g| !g.is_empty());
+    if debtor == creditor || same_group {
+        discard(reading, "amount", "mismas-partes", &what, &said.cita);
+        return;
+    }
+    let Some(page) = text.locate(&said.cita, said.pagina) else {
+        discard(reading, "amount", "cita-no-encontrada", &what, &said.cita);
+        return;
+    };
+    let quote_words = quote::words(&said.cita);
+    let amount = said.importe.trim().to_string();
+    let amount_words = quote::words(&amount);
+    if amount_words.is_empty() || !quote::contains(&quote_words, &amount_words) {
+        discard(reading, "amount", "valor-fuera-de-la-cita", &what, &said.cita);
+        return;
+    }
+    if !values::fits(vocabulary, "amount", &amount, "") {
+        discard(reading, "amount", "no-es-un-importe", &what, &said.cita);
+        return;
+    }
+    if read_checks::amount_about_else(&predicate.not_cues, &quote_words, &amount_words) {
+        discard(reading, "amount", "es-un-impuesto", &what, &said.cita);
+        return;
+    }
+    let names_of = |r: &String| group_names.get(r).cloned().unwrap_or_default();
+    if read_checks::money_direction(vocabulary, &quote_words, &names_of(&debtor), &names_of(&creditor)) == Some(false) {
+        corrected(reading, "direccion-invertida", &what, &said.cita);
+        std::mem::swap(&mut debtor, &mut creditor);
+    }
+    let kind = vocabulary.money_kind(&said.tipo).or_else(|| vocabulary.money.kinds.last()).map(|k| k.id.clone()).unwrap_or_default();
+    let in_quote = |v: &Option<String>| -> Option<String> {
+        v.as_deref().map(str::trim).filter(|v| !v.is_empty() && quote::contains(&quote_words, &quote::words(v))).map(str::to_string)
+    };
+    let mut detail = serde_json::Map::new();
+    detail.insert("tipo".into(), kind.into());
+    let currency = in_quote(&said.moneda).or_else(|| {
+        let words = quote::words(&amount);
+        let sign = amount.contains('$') || amount.contains('€');
+        vocabulary.values.currencies.iter().find(|c| words.contains(c)).cloned().or_else(|| sign.then(|| if amount.contains('€') { "€".to_string() } else { "$".to_string() }))
+    });
+    if let Some(currency) = currency {
+        detail.insert("moneda".into(), currency.into());
+    }
+    if let Some(concept) = in_quote(&said.concepto) {
+        detail.insert("concepto".into(), concept.into());
+    }
+    push_evidence(
+        reading,
+        Evidence {
+            subject: debtor,
+            predicate: predicate.id.clone(),
+            object_mention: Some(creditor),
+            object_value: None,
+            quote: said.cita.trim().to_string(),
+            page,
+            fact_time: in_quote(&said.fecha),
+            amount: Some(amount),
+            detail: Some(serde_json::Value::Object(detail)),
+        },
+    );
+}
+
+/// A value the quote puts under a label of another person of a form
+/// ("cónyuge") is that person's, when the reading names one such person
+/// whose own quote has that label; otherwise it is nobody's (D-248).
+fn other_person(vocabulary: &Vocabulary, _body: &str, reading: &mut Reading) {
+    let labels = &vocabulary.reading.other_person_labels;
+    if labels.is_empty() {
+        return;
+    }
+    let has_label = |text: &str| quote::words(text).iter().any(|w| labels.iter().any(|l| w.starts_with(l.as_str())));
+    let labelled: Vec<String> =
+        reading.mentions.iter().filter(|m| m.kind == PERSON_KIND && has_label(&m.quote)).map(|m| m.reference.clone()).collect();
+    let person: BTreeSet<String> = reading.mentions.iter().filter(|m| m.kind == PERSON_KIND).map(|m| m.reference.clone()).collect();
+    let mut kept = Vec::new();
+    let evidence = std::mem::take(&mut reading.evidence);
+    for mut item in evidence {
+        let under = has_label(&item.quote) || item.detail.as_ref().and_then(|d| d.get("rotulo")).and_then(|r| r.as_str()).is_some_and(has_label);
+        // A relation between the two (the spouse of) says it of both.
+        let between = item.object_mention.as_ref().is_some_and(|o| labelled.contains(o));
+        if !under || !person.contains(&item.subject) || labelled.contains(&item.subject) || between {
+            kept.push(item);
+            continue;
+        }
+        match labelled.as_slice() {
+            [other] => {
+                corrected(reading, "de-otra-persona", &item.predicate, &item.quote);
+                item.subject = other.clone();
+                kept.push(item);
+            }
+            _ => discard(reading, "claim", "de-otra-persona", &item.predicate, &item.quote),
+        }
+    }
+    reading.evidence = kept;
+    // The same for identifiers.
+    let mut moved: Vec<(String, Identifier)> = Vec::new();
+    let mut dropped: Vec<(String, String)> = Vec::new();
+    for mention in reading.mentions.iter_mut().filter(|m| m.kind == PERSON_KIND && !labelled.contains(&m.reference)) {
+        mention.identifiers.retain(|identifier| {
+            if !has_label(&identifier.quote) {
+                return true;
+            }
+            match labelled.as_slice() {
+                [other] => moved.push((other.clone(), identifier.clone())),
+                _ => dropped.push((identifier.value.clone(), identifier.quote.clone())),
+            }
+            false
+        });
+    }
+    for (to, identifier) in moved {
+        corrected(reading, "de-otra-persona", &identifier.value, &identifier.quote);
+        if let Some(mention) = reading.mentions.iter_mut().find(|m| m.reference == to) {
+            if !mention.identifiers.iter().any(|i| i.kind == identifier.kind && i.normalized == identifier.normalized) {
+                mention.identifiers.push(identifier);
+            }
+        }
+    }
+    for (value, quote) in dropped {
+        discard(reading, "identifier", "de-otra-persona", &value, &quote);
+    }
+}
+
+/// A domicile the model gave a person whose quote names, between the
+/// person and the address, an organization of the document ("X, por
+/// Ejemplo S.A., con domicilio en…"): the address of a signature block is
+/// the organization's (D-247).
+fn signature_block(vocabulary: &Vocabulary, group_names: &HashMap<String, Vec<Vec<String>>>, reading: &mut Reading) {
+    let organization = ORGANIZATION_KIND.to_string();
+    let organizations: Vec<String> =
+        reading.mentions.iter().filter(|m| m.kind == organization).map(|m| m.reference.clone()).collect();
+    let kinds: HashMap<String, String> = reading.mentions.iter().map(|m| (m.reference.clone(), m.kind.clone())).collect();
+    let mut changes: Vec<(usize, String)> = Vec::new();
+    for (index, item) in reading.evidence.iter().enumerate() {
+        let address = vocabulary.predicate(&item.predicate).is_some_and(|p| p.shape == "address");
+        if !address || kinds.get(&item.subject).map(String::as_str) != Some(PERSON_KIND) {
+            continue;
+        }
+        let Some(value) = item.object_value.as_deref() else { continue };
+        let words = quote::words(&item.quote);
+        let Some(&at) = read_checks::positions(&words, &quote::words(value)).first() else { continue };
+        let ends = |r: &String| -> Vec<(usize, usize)> {
+            group_names
+                .get(r)
+                .into_iter()
+                .flatten()
+                .flat_map(|n| read_checks::positions(&words, n).into_iter().map(move |p| (p, p + n.len())))
+                .filter(|(_, end)| *end <= at)
+                .collect()
+        };
+        let Some(person_end) = ends(&item.subject).iter().map(|(_, e)| *e).max() else { continue };
+        let between: Vec<&String> =
+            organizations.iter().filter(|o| ends(o).iter().any(|(start, _)| *start >= person_end)).collect();
+        if let [only] = between.as_slice() {
+            changes.push((index, (*only).clone()));
+        }
+    }
+    for (index, to) in changes {
+        let quote = reading.evidence[index].quote.clone();
+        corrected(reading, "domicilio-de-la-sociedad", &reading.evidence[index].object_value.clone().unwrap_or_default(), &quote);
+        reading.evidence[index].subject = to;
+    }
 }
 
 /// A document to read, with its questions.
@@ -794,13 +1369,14 @@ fn write_reading(
     tx.execute("DELETE FROM knowledge_mention WHERE content_id = ?1", [pending.content_id]).map_err(sql_err)?;
     tx.execute("DELETE FROM knowledge_evidence WHERE content_id = ?1", [pending.content_id]).map_err(sql_err)?;
     let keys: Vec<&str> = questions.iter().map(|q| q.key.as_str()).collect();
+    let doc_date = reading.ok().and_then(|r| r.doc_date.clone());
     let (state, mentions, evidence, discarded, error) = match reading {
         Ok(reading) => {
             let mut ids: HashMap<&str, i64> = HashMap::new();
             for mention in &reading.mentions {
                 tx.execute(
-                    "INSERT INTO knowledge_mention (content_id, ref, same_as, kind, written, normalized, role, quote, page)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                    "INSERT INTO knowledge_mention (content_id, ref, same_as, kind, written, normalized, role, quote, page, defined)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
                     params![
                         pending.content_id,
                         mention.reference,
@@ -810,7 +1386,8 @@ fn write_reading(
                         mention.normalized,
                         mention.role,
                         mention.quote,
-                        mention.page
+                        mention.page,
+                        mention.defined
                     ],
                 )
                 .map_err(sql_err)?;
@@ -828,18 +1405,21 @@ fn write_reading(
             for item in &reading.evidence {
                 tx.execute(
                     "INSERT INTO knowledge_evidence
-                        (content_id, subject_mention, predicate, object_mention, object_value, object_normalized, quote, page, fact_time)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                        (content_id, subject_mention, predicate, object_mention, object_value, object_normalized, quote, page, fact_time,
+                         amount, detail)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
                     params![
                         pending.content_id,
                         ids[item.subject.as_str()],
                         item.predicate,
                         item.object_mention.as_deref().map(|m| ids[m]),
                         item.object_value,
-                        item.object_value.as_deref().map(normalized),
+                        item.object_value.as_deref().map(normalized).or_else(|| item.amount.as_deref().map(normalized)),
                         item.quote,
                         item.page,
-                        item.fact_time
+                        item.fact_time,
+                        item.amount,
+                        item.detail.as_ref().map(|d| d.to_string())
                     ],
                 )
                 .map_err(sql_err)?;
@@ -857,14 +1437,14 @@ fn write_reading(
     tx.execute(
         "INSERT INTO knowledge_extraction
             (content_id, state, basis, prompt_version, vocabulary, text_hash, text_at, engine, questions, parts, mentions,
-             evidence, discarded, error, extracted_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
+             evidence, discarded, error, extracted_at, doc_date)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
          ON CONFLICT (content_id) DO UPDATE SET
             state = excluded.state, basis = excluded.basis, prompt_version = excluded.prompt_version,
             vocabulary = excluded.vocabulary, text_hash = excluded.text_hash, text_at = excluded.text_at, engine = excluded.engine,
             questions = excluded.questions, parts = excluded.parts, mentions = excluded.mentions,
             evidence = excluded.evidence, discarded = excluded.discarded, error = excluded.error,
-            extracted_at = excluded.extracted_at",
+            extracted_at = excluded.extracted_at, doc_date = excluded.doc_date",
         params![
             pending.content_id,
             state,
@@ -880,7 +1460,8 @@ fn write_reading(
             evidence as i64,
             discarded,
             error,
-            now_ms()
+            now_ms(),
+            doc_date
         ],
     )
     .map_err(sql_err)?;

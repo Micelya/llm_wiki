@@ -76,6 +76,21 @@ impl Located {
         found
     }
 
+    /// The places (word positions) where `quote` starts.
+    pub fn starts(&self, quote: &[String]) -> Vec<usize> {
+        let Some(head) = quote.first() else {
+            return Vec::new();
+        };
+        self.first
+            .get(head)
+            .map(Vec::as_slice)
+            .unwrap_or_default()
+            .iter()
+            .copied()
+            .filter(|&start| self.words.get(start..start + quote.len()).is_some_and(|w| w == quote))
+            .collect()
+    }
+
     /// Where a quote is: `None` when it is not in the text, otherwise the
     /// page (the one the model said, when the quote is there too).
     pub fn locate(&self, quote: &str, said_page: Option<i64>) -> Option<Option<i64>> {

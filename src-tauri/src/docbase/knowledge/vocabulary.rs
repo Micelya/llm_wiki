@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 /// The version of the program's check of a reading (`extract::verify`).
-const READING_CHECK: &str = "lectura-3";
+const READING_CHECK: &str = "lectura-4";
 
 const BUILTIN: &str = include_str!("../../../resources/catalog/knowledge.json");
 
@@ -48,6 +48,12 @@ pub struct Vocabulary {
     /// What the layer brings to the attention view (`screens.rs`).
     #[serde(default)]
     pub attention: AttentionRules,
+    /// Money as a relation between a debtor and a creditor (D-244).
+    #[serde(default)]
+    pub money: MoneyRules,
+    /// The program's checks of a reading (D-245 to D-250).
+    #[serde(default)]
+    pub reading: ReadingRules,
     /// Fingerprint of the vocabulary text.
     #[serde(skip)]
     pub digest: String,
@@ -207,6 +213,75 @@ impl Default for AttentionRules {
     }
 }
 
+/// Money as a relation (D-244): the kinds of amount, each with how a page
+/// tells it from each side, and the words the direction of a quote is
+/// checked with (normalized beginnings of words).
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MoneyRules {
+    #[serde(default)]
+    pub about: String,
+    /// Beginnings of the verbs of whoever pays or owes ("adeud", "pagar").
+    #[serde(default)]
+    pub payer_cues: Vec<String>,
+    /// Beginnings of the verbs of whoever is paid or claims ("reclam").
+    #[serde(default)]
+    pub payee_cues: Vec<String>,
+    /// Words right before the creditor ("a favor de").
+    #[serde(default)]
+    pub creditor_markers: Vec<String>,
+    /// Words there can be between a name and the verb.
+    #[serde(default = "eight")]
+    pub window: usize,
+    #[serde(default)]
+    pub kinds: Vec<MoneyKind>,
+}
+
+fn eight() -> usize {
+    8
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MoneyKind {
+    pub id: String,
+    #[serde(default)]
+    pub label: String,
+    #[serde(default)]
+    pub description: String,
+    /// How the debtor's page tells it ("Debe a"), and the creditor's.
+    #[serde(default)]
+    pub debtor: String,
+    #[serde(default)]
+    pub creditor: String,
+}
+
+/// The program's checks of a reading (D-245 to D-250).
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReadingRules {
+    #[serde(default)]
+    pub about: String,
+    /// Beginnings of words of a label that puts a datum under another
+    /// person of a form ("cónyuge").
+    #[serde(default)]
+    pub other_person_labels: Vec<String>,
+    /// Marks of the catalog of document types that say a page is the
+    /// record of an electronic signing service.
+    #[serde(default)]
+    pub certificate_marks: Vec<String>,
+    /// On such a page, the role a role becomes.
+    #[serde(default)]
+    pub certificate_roles: std::collections::BTreeMap<String, String>,
+    /// Words there can be between the label of a form and its value.
+    #[serde(default = "sixty")]
+    pub label_window: usize,
+}
+
+fn sixty() -> usize {
+    60
+}
+
 /// The words the shapes of values are checked with (normalized).
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -315,6 +390,21 @@ pub struct Term {
     /// one joins two mentions by itself, a different one keeps them apart.
     #[serde(default)]
     pub strong: bool,
+    /// For a kind of identifier: whether it identifies who it is given to
+    /// at all. A number of an invoice, of a shipment or of a signing
+    /// envelope does not: it is kept only on a mention of one of `types`
+    /// (the matter of the document), never on a person or an organization.
+    #[serde(default = "yes")]
+    pub identifies: bool,
+    /// For a kind of identifier: the labels a text writes it with
+    /// (normalized words). The label right before a number says its kind,
+    /// whatever kind the model gave (D-249).
+    #[serde(default)]
+    pub labels: Vec<String>,
+}
+
+fn yes() -> bool {
+    true
 }
 
 /// What a claim can say of an entity.
@@ -367,6 +457,15 @@ pub struct Predicate {
     /// proceeding): values of different kinds are not in conflict.
     #[serde(default)]
     pub qualifiers: Vec<Qualifier>,
+    /// A relation whose object must be named in the quote, not only the
+    /// subject: what has legal consequences (represents, is a party, is
+    /// the beneficial owner of) is kept only when the quote says of whom.
+    #[serde(default)]
+    pub object_in_quote: bool,
+    /// A value whose time, when the quote does not say one, is the date of
+    /// its document: two values at different dates are a history.
+    #[serde(default)]
+    pub time_from_document: bool,
 }
 
 /// A kind of value, told by words of the quote (normalized, each a run of
@@ -377,6 +476,9 @@ pub struct Qualifier {
     pub id: String,
     #[serde(default)]
     pub label: String,
+    /// What the model reads to tell it (the "clase" of a claim).
+    #[serde(default)]
+    pub description: String,
     #[serde(default)]
     pub words: Vec<String>,
 }
@@ -384,6 +486,17 @@ pub struct Qualifier {
 impl Predicate {
     pub fn takes_entity(&self) -> bool {
         self.object == "entity"
+    }
+
+    /// An amount between a debtor and a creditor (D-244): read in its own
+    /// list, with its kind and the amount besides the other party.
+    pub fn is_money(&self) -> bool {
+        self.shape == "money"
+    }
+
+    /// The kinds of value the model is asked to tell ("clase").
+    pub fn classes(&self) -> impl Iterator<Item = &Qualifier> {
+        self.qualifiers.iter().filter(|q| !q.description.is_empty())
     }
 }
 
@@ -398,18 +511,25 @@ impl Vocabulary {
             if predicate.object != "entity" && predicate.object != "value" {
                 return Err(format!("Predicate '{}': object must be \"entity\" or \"value\"", predicate.id));
             }
+            if predicate.is_money() && !predicate.takes_entity() {
+                return Err(format!("Predicate '{}': an amount between two parties takes an entity as object", predicate.id));
+            }
         }
         let digest = Sha256::digest(text.as_bytes());
         vocabulary.digest = format!("v{}-{}", vocabulary.version, digest.iter().take(8).map(|b| format!("{b:02x}")).collect::<String>());
         let read = serde_json::json!({
             "types": vocabulary.entity_types.iter().map(|t| (&t.id, &t.description, &t.types)).collect::<Vec<_>>(),
             "roles": vocabulary.roles.iter().map(|t| (&t.id, &t.description, &t.types)).collect::<Vec<_>>(),
-            "identifiers": vocabulary.identifiers.iter().map(|t| (&t.id, &t.description, &t.types)).collect::<Vec<_>>(),
+            "identifiers": vocabulary.identifiers.iter().map(|t| (&t.id, &t.description, &t.types, &t.labels, t.identifies)).collect::<Vec<_>>(),
             "predicates": vocabulary
                 .predicates
                 .iter()
-                .map(|p| (&p.id, &p.description, &p.subject, &p.object, &p.object_types))
+                .map(|p| (&p.id, &p.description, &p.subject, &p.object, &p.object_types, &p.shape, &p.qualifiers, p.object_in_quote))
                 .collect::<Vec<_>>(),
+            // The kinds of amount are asked; the direction of a quote and
+            // the other checks of a reading are computed from these words.
+            "money": &vocabulary.money,
+            "reading": &vocabulary.reading,
             // The check of a reading drops what is part of an address.
             "addressWords": &vocabulary.identity.address_words,
             // Raised when the program's check of a reading changes: every
@@ -497,6 +617,15 @@ impl Vocabulary {
     /// Whether this kind of identifier names one entity only.
     pub fn is_strong(&self, identifier: &str) -> bool {
         self.identifier(identifier).is_some_and(|t| t.strong)
+    }
+
+    /// The predicate of an amount between two parties, when there is one.
+    pub fn money_predicate(&self) -> Option<&Predicate> {
+        self.predicates.iter().find(|p| p.is_money())
+    }
+
+    pub fn money_kind(&self, id: &str) -> Option<&MoneyKind> {
+        self.money.kinds.iter().find(|k| k.id == id)
     }
 
     /// The role kept when the model gave one that is not in the list, or
