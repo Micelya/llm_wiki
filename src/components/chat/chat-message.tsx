@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next"
 import { convertFileSrc } from "@tauri-apps/api/core"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
-import remarkMath from "remark-math"
+import { remarkMathPlugin } from "@/lib/markdown-math"
 import rehypeKatex from "rehype-katex"
 import "katex/dist/katex.min.css"
 import {
@@ -1445,7 +1445,7 @@ function MarkdownContent({ content }: { content: string }) {
         style={{ textAlign: "start" }}
       >
         <ReactMarkdown
-          remarkPlugins={[remarkGfm, remarkMath]}
+          remarkPlugins={[remarkGfm, remarkMathPlugin]}
           rehypePlugins={[rehypeKatex]}
           components={{
             a: ({ href, children }) => {
@@ -1617,8 +1617,8 @@ function processContent(text: string): string {
   )
 
   // Only apply Unicode conversion to text outside of math delimiters
-  // Split on $$...$$ and $...$ blocks, only convert non-math parts
-  const parts = result.split(/(\$\$[\s\S]*?\$\$|\$[^$\n]+?\$)/g)
+  // Only $$...$$ is math: a single $ is the currency sign (markdown-math.ts)
+  const parts = result.split(/(\$\$[\s\S]*?\$\$)/g)
   result = parts
     .map((part) => {
       if (part.startsWith("$")) return part // preserve math

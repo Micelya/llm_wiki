@@ -1,7 +1,7 @@
 import { useMemo } from "react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
-import remarkMath from "remark-math"
+import { remarkMathPlugin } from "@/lib/markdown-math"
 import rehypeKatex from "rehype-katex"
 import "katex/dist/katex.min.css"
 import { transformImageEmbeds, transformWikilinks, hideHtmlComments } from "@/lib/wikilink-transform"
@@ -110,7 +110,7 @@ export function WikiReader({ body, sourceBody, sourceOffset = 0, filePath }: Wik
       style={{ textAlign: "start" }}
     >
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkMath]}
+        remarkPlugins={[remarkGfm, remarkMathPlugin]}
         rehypePlugins={[rehypeKatex]}
         components={{
           p: ({ node, children, ...props }) => <p {...sourceAttrs(node)} {...props}>{children}</p>,

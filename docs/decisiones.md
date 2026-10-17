@@ -3234,3 +3234,16 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** carpetas de la tanda (fuera del repositorio).
 - **Quién decidió:** agente sin consulta.
 - **Fuente:** etapa W de la tanda desatendida del 16 oct.
+
+### D-234 · Un `$` suelto es siempre el signo de moneda en los lectores
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Wiki
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** los lectores del wiki, de la vista previa, del chat y del panel de investigación dibujaban como fórmula todo lo que quedaba entre dos `$` de una misma línea. En un archivo jurídico eso son justo los importes ("reclama $ 1.500 y $ 300 de intereses"): el texto del medio perdía los espacios y las palabras aparecían pegadas. La revisión del 17 de octubre contó 39 casos en 21 páginas.
+- **Qué se decidió:** en los cuatro lectores solo `$$…$$` es una fórmula; el `$` simple no abre fórmula nunca (opción `singleDollarTextMath: false`, en un único lugar compartido, `src/lib/markdown-math.ts`). El chat dejó de tratar `$…$` como fórmula al convertir LaTeX a texto.
+- **Por qué:** arreglarlo en el lector cubre de una vez todas las páginas: las que proyecta la app, las que escribe el modelo del wiki (que no controla el programa) y las notas que escribe una persona, también las ya escritas. Escapar al escribir habría dejado afuera las páginas del modelo y las notas, y obligaría a volver a escribir todo el wiki. En un estudio jurídico la fórmula en línea con `$` simple no se usa; quien la necesite tiene `$$`.
+- **Alternativas descartadas:** escapar `$` al escribir las páginas (no cubre lo que escribe el modelo ni lo que escribe una persona).
+- **Dónde se aplica:** `src/lib/markdown-math.ts`, `wiki-reader.tsx`, `file-preview.tsx`, `chat-message.tsx`, `research-panel.tsx`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q1 de la tanda desatendida del 17 oct.
