@@ -255,6 +255,17 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-251 | 17 oct | Conocimiento | El rol "domicilio constituido" y los roles de una constancia de firma | en revisión |
 | D-252 | 17 oct | Conocimiento | Un conflicto es el mismo dato, de la misma clase, del mismo titular y del mismo tiempo | en revisión |
 | D-253 | 17 oct | Proceso de trabajo | La muestra de atribución: 40 afirmaciones al azar, juzgadas a ciegas | en revisión |
+| D-259 | 17 oct | Conocimiento | Una entidad se nombra por su forma más completa que sea nombre propio, no por la más repetida | en revisión |
+| D-260 | 17 oct | Conocimiento | Grupos de sociedades: mismo nombre, otra forma y otra señal que las vincule; lo no atribuible va al grupo | en revisión |
+| D-261 | 17 oct | Conocimiento | Dentro de un documento, la sociedad sin forma es la única forma completa que escribe el documento | en revisión |
+| D-262 | 17 oct | Conocimiento | Áreas y casillas generales no se unen por nombre: son contacto de la organización que indica el documento o de su grupo | en revisión |
+| D-263 | 17 oct | Conocimiento | Dos asuntos del mismo nombre entre otras partes no se le preguntan al modelo | en revisión |
+| D-264 | 17 oct | Conocimiento | Todos los nombres de un grupo de menciones cuentan para unir y comparar, no solo el principal | en revisión |
+| D-265 | 17 oct | Conocimiento | La pregunta de identidad trata la errata de una razón social entre las mismas partes (identidad-4) | en revisión |
+| D-266 | 17 oct | Conocimiento | Página de persona u organización: con un rol de sustancia o con algo que los documentos dicen de ella | en revisión |
+| D-267 | 17 oct | Conocimiento | El asunto se nombra por la relación entre sus partes, nunca por un comprobante, un número o un archivo | en revisión |
+| D-268 | 17 oct | Conocimiento | El número de un asunto en el texto de otro documento lo suma al asunto; el porqué, resumido y plegado | en revisión |
+| D-269 | 17 oct | Conocimiento | Una representación vale con la sociedad en la línea anterior y la cita que dice cómo actúa (P-122) | en revisión |
 
 ---
 
@@ -3473,3 +3484,113 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Qué se decidió:** se toman con semilla fija 40 afirmaciones de una base (14 de dinero, 13 de domicilio y 13 de relaciones) con su cita y el texto completo de su documento; las muestras que se comparan se mezclan sin decir su origen y las juzga un revisor (un sub-agente) contra el documento: correcta, sujeto equivocado, dirección o naturaleza equivocada, objeto equivocado, o el documento no lo dice. Los scripts quedan fuera del repositorio porque las muestras nombran personas reales (`desatendido-3\Q2-muestra-atribucion.py`, `Q2-mezclar-muestras.py`, `Q2-contar-juicios.py`).
 - **Quién decidió:** agente sin consulta.
 - **Fuente:** etapa Q2 de la tanda desatendida del 17 oct.
+
+### D-259 · Una entidad se nombra por su forma más completa que sea nombre propio
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el nombre visible de una entidad era el más repetido de sus nombres, y "PROVINCIA" (dos veces, un rótulo de formulario) le ganaba a "Gobierno de la Provincia de …" (una vez); un nombre partido por un escaneo ("Ejem plo", dos palabras) le ganaba como nombre principal del grupo de menciones a la razón social con su forma; y quedaban como nombres frases y palabras de rol ("la Provincia", "accionistas", "su carta documento").
+- **Qué se decidió:** el nombre de una entidad es el más completo que sea nombre propio: el más usado de los que son nombres es el ancla, y entre los que tienen todas sus palabras (y su forma societaria) gana el de más palabras. Las palabras genéricas se amplían como datos del vocabulario (jurisdicciones como provincia, ciudad, estado o gobierno; plurales y palabras de rol; posesivos y demostrativos; nombres de documento como factura, carta o recibo). Un nombre que empieza con un artículo, un posesivo o un demostrativo en minúscula seguido de una palabra en minúscula es una frase (`identity.determiners`). Un asunto no se nombra por el nombre de un archivo ni por palabras comunes. En un grupo de menciones, la forma societaria pesa antes que la cantidad de palabras.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q3 de la tanda desatendida del 17 oct.
+
+### D-260 · Grupos de sociedades
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la empresa propia aparece como tres sociedades (S.A., LLC, LTD) con el mismo nombre: está bien que sean tres, pero lo que se nombra sin forma y la casilla de firma que usan todas terminaban unidos a una sola, que heredaba documentos de las otras; y un grupo nombrado en el texto ("Grupo X") no tenía relación con sus sociedades.
+- **Qué se decidió:** varias organizaciones con el mismo nombre propio que difieren solo en la forma societaria (formas del vocabulario) y con al menos otra señal que las vincule (la misma persona como su representante, socia o empleada, `identity.groupLinks`, o como apoderada en documentos de cada una; la misma casilla general en documentos de varias; un documento que nombra a dos y dice grupo o afiliada, `identity.affiliateWords`) son las sociedades de un grupo: lo que se nombra sin forma y no se pudo atribuir a una sola, y esa casilla, son del grupo, que se nombra por el nombre compartido. Solo el nombre compartido no alcanza: quedan las dudas para una persona (R-07). Un grupo nombrado en los documentos (`identity.groupWords`) existe por su cita, y sus sociedades son las que empiezan con el resto de su nombre y aparecen con él en un documento. Se guarda en `knowledge_group` (esquema V14) con los motivos; la página del grupo lista sus sociedades con el porqué y la de cada sociedad dice de qué grupo es. El grupo existe como entidad solo cuando hay algo que atribuirle (P-128).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q3 de la tanda desatendida del 17 oct.
+
+### D-261 · La sociedad sin forma, dentro de un documento, es la única forma completa del documento
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** dentro de un mismo documento, "X" y "X S.A." quedaban como dos grupos de menciones cuando el modelo no las había dado como la misma, y "X" iba después a una duda entre todas las sociedades de ese nombre.
+- **Qué se decidió:** dentro de un documento, el nombre de una organización sin forma societaria se une con la única forma completa de ese nombre que escribe el documento (las mismas palabras con forma, o un nombre más largo que empieza con ellas), cuando ninguna otra organización del documento tiene esas palabras y ningún identificador fuerte los separa. Si el documento escribe dos formas, no se une.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q3 de la tanda desatendida del 17 oct.
+
+### D-262 · Áreas y casillas generales
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** "Legales X", "X Finance", "Línea Ética de X", `legal@…` o `noreply@…` se comparaban por su nombre con las sociedades: la casilla de firma del grupo se unió con una de ellas, y las áreas de una organización quedaban como organizaciones aparte.
+- **Qué se decidió:** un nombre sin forma societaria con palabras de un área (`identity.areaWords`) o una casilla cuyo usuario es una de ellas es un contacto: nunca se une por nombre. Va a la organización que nombra su mismo documento (las palabras que quedan sin las del área, sus iniciales o las letras del dominio de la casilla) o, si el documento no nombra ninguna, a la única organización del archivo con el nombre de su dominio. La misma área en varios documentos es una: si todos dicen la misma organización, es de ella; si dicen varias, es de su grupo (D-260). Un área que no nombra a nadie ("Cobranzas" sola) y una casilla general leída como persona no son entidades (motivo `casilla`). Una persona y una organización no se unen nunca. Un área o una casilla no da nombre a la entidad a la que pertenece.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q3 de la tanda desatendida del 17 oct.
+
+### D-263 · Dos asuntos del mismo nombre entre otras partes no se preguntan
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el modelo de identidad unía asuntos que se llaman igual ("Acuerdo de terminación") en documentos de personas distintas, y eso armaba un asunto con documentos de tres acuerdos (P-123).
+- **Qué se decidió:** dos menciones de asunto de documentos distintos no son candidatas cuando cada documento tiene dos partes o más (con rol de parte, emisor, remitente o destinatario) y las de ninguno están dentro de las del otro: un contrato es entre sus partes. Un recibo de cuota y su acuerdo, con las mismas partes, siguen siendo candidatos.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q3 de la tanda desatendida del 17 oct.
+
+### D-264 · Todos los nombres de un grupo de menciones
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la resolución comparaba y buscaba candidatos solo por el nombre principal de cada grupo de menciones; el nombre corto que el propio documento da a una organización ("Universidad de Ejemplo (UDE)") no servía para encontrarla en otro documento que solo escribe el corto.
+- **Qué se decidió:** un grupo de menciones se une por nombre exacto con cualquiera de sus nombres (salvo los términos que define el documento), se encuentra por las claves de todos ellos y se compara por el principal o, si no se parecen, por el mejor par de sus otros nombres. La sigla, la errata o el nombre corto quedan como candidatos para el modelo, nunca unidos solos.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q3 de la tanda desatendida del 17 oct.
+
+### D-265 · La errata de una razón social
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** una razón social con una letra de menos en dos cartas documento quedaba separada: el modelo decía "dudosa" aunque los documentos tenían las mismas partes.
+- **Qué se decidió:** la pregunta de identidad (identidad-4) dice que una razón social con la misma forma societaria que difiere en una o dos letras, en documentos donde aparecen las mismas otras partes, es la misma (el error es del documento), salvo que algún documento muestre otra organización con ese nombre. Medido: separaciones falsas 6,9 % → 1,6 % de los pares, sin uniones falsas.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q3 de la tanda desatendida del 17 oct.
+
+### D-266 · Qué persona u organización tiene página
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** una entidad tenía página si aparecía en dos documentos, aunque solo se la nombrara al pasar: bancos de las facturas, jurisdicciones de las boletas, servicios de correo, productos.
+- **Qué se decidió:** una persona o una organización tiene página si en algún documento tiene un rol de sustancia (parte, apoderado, firmante, remitente, destinatario, emisor, domicilio constituido, testigo) o si los documentos dicen algo de ella (`withClaims`); aparecer en muchos documentos no alcanza (`minDocuments` 0). Un grupo de sociedades tiene página siempre. Se dejaron emisor, domicilio constituido y testigo además de los cinco roles que nombra la especificación porque son papeles del acto (quien factura, el estudio donde se constituye domicilio, el escribano).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q3 de la tanda desatendida del 17 oct.
+
+### D-267 · El nombre de un asunto
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** los asuntos se llamaban por un comprobante ("Carta Documento — …", "BOLETA N° …", "factura N° …"), por el título de un sobre de firma o por una frase, con alias que eran números y frases.
+- **Qué se decidió:** un asunto se nombra por la relación entre sus partes y su objeto: si sus documentos dicen que una de sus partes le reclama a otra (`matters.claimKinds`), "Reclamo de X a Y"; si no, lo que sus documentos lo nombran, entre sus partes ("Acuerdo de terminación entre X y Y", en minúscula si estaba todo en mayúsculas); si no, "Asunto entre X y Y". Un nombre de asunto no es un archivo, una frase, un título de más de ocho palabras, un comprobante por su rótulo ni un nombre con un número de cuatro dígitos o más, salvo la carátula de una causa ("Expediente 1234/2020"); lo mismo vale para sus alias. Las partes de un documento para los asuntos incluyen emisor, remitente y destinatario.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q3 de la tanda desatendida del 17 oct.
+
+### D-268 · Documentos centrales por evidencia y el porqué plegado
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** documentos centrales de un reclamo (la cronología, correos) quedaban fuera del asunto cuando su lectura no tomaba el número que comparten; y la explicación de por qué van juntos era una lista larga e ilegible.
+- **Qué se decidió:** un número de un asunto (uno que ya une documentos por su identificador o por los datos de su tipo) escrito en el texto de otro documento también lo pone en el asunto. En la página del asunto, el porqué se resume (cuántos documentos por cada clase de motivo) y el detalle queda plegado, con la sintaxis de llamada plegada de Obsidian (`> [!info]- …`), que el lector del wiki dibuja como un desplegable cerrado (`src/lib/markdown-fold.ts`, sin leer HTML de la página).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q3 de la tanda desatendida del 17 oct.
+
+### D-269 · Una representación con la sociedad en la línea anterior
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** D-250 descartaba "representa a" cuando la cita no nombraba a la representada; en un bloque de firma ("Por: X S.A." / "Nombre: Y" / "Cargo: Apoderado") o en "X S.A., representada por Y" la sociedad está en otra línea, y se perdían representaciones reales (P-122).
+- **Qué se decidió:** vale si la última organización que el texto nombra antes de la cita, a menos de 30 palabras (`reading.objectWindow`), es la representada y la cita dice cómo actúa por ella (`reading.representationCues`: apoderado, representante, representada, cargo, title, by…). Se vuelve a comprobar desde las respuestas guardadas (lectura-5). Medido: 3 de las 12 representaciones descartadas vuelven, las tres correctas; ninguna inventada.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q3 de la tanda desatendida del 17 oct.
