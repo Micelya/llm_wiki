@@ -54,11 +54,22 @@ impl NameKey {
     }
 
     /// How specific the name is, to choose the principal name of a group
-    /// of mentions: a name before a number or an address, more words
-    /// with letters first, then a legal form.
-    pub fn weight(&self) -> (bool, usize, bool) {
+    /// of mentions: a name before a number or an address, then a legal
+    /// form (the company's name, not a word read apart in a scan: D-259),
+    /// then more words with letters.
+    pub fn weight(&self) -> (bool, bool, usize) {
         let lettered = self.words.iter().filter(|w| w.chars().any(char::is_alphabetic)).count();
-        (lettered > 0, lettered, self.form.is_some())
+        (lettered > 0, self.form.is_some(), lettered)
+    }
+
+    /// The words that tell how complete a name is: its words and its legal
+    /// form, without order.
+    pub fn complete_set(&self) -> BTreeSet<String> {
+        let mut set: BTreeSet<String> = self.words.iter().cloned().collect();
+        if let Some(form) = &self.form {
+            set.insert(format!("form:{form}"));
+        }
+        set
     }
 }
 
@@ -448,6 +459,42 @@ pub fn misread(a: &str, b: &str) -> bool {
     a != b && a.chars().count().min(b.chars().count()) >= 6 && distance(a, b, 1) <= 1
 }
 
+/// The name an entity is named by, among the principal names of its groups
+/// (each with how many mentions write it): the most complete form that is
+/// a proper name, not the most repeated one (D-259). The most used name
+/// that is a name is the anchor; among the names that hold all of its
+/// words (and its legal form), the one with most words wins, then the most
+/// used. "Gobierno de la Provincia de Ejemplo" names the entity before
+/// "PROVINCIA" (not a name) and "Persona Uno Dos" before "Persona Dos";
+/// a name read wrong in a scan that does not hold the anchor's words never
+/// does. Without any name, the most used one.
+pub fn most_specific<'a>(vocabulary: &Vocabulary, kind: &str, candidates: &[(&'a str, &'a str, usize)]) -> Option<&'a str> {
+    // (normalized, written, mentions)
+    let keyed: Vec<(&'a str, NameKey, usize, bool)> = candidates
+        .iter()
+        .map(|&(normalized, written, count)| {
+            let key = key(vocabulary, kind, written);
+            let named = key.has_name() && vocabulary.is_a_name(kind, written);
+            (normalized, key, count, named)
+        })
+        .collect();
+    let by_use = |a: &&(&'a str, NameKey, usize, bool), b: &&(&'a str, NameKey, usize, bool)| {
+        a.2.cmp(&b.2).then_with(|| a.1.words.len().cmp(&b.1.words.len())).then_with(|| b.0.cmp(a.0))
+    };
+    let named: Vec<&(&'a str, NameKey, usize, bool)> = keyed.iter().filter(|k| k.3).collect();
+    if named.is_empty() {
+        return keyed.iter().max_by(by_use).map(|k| k.0);
+    }
+    let anchor = named.iter().copied().max_by(by_use)?;
+    let anchor_set = anchor.1.complete_set();
+    named
+        .iter()
+        .copied()
+        .filter(|k| k.1.complete_set().is_superset(&anchor_set))
+        .max_by(|a, b| a.1.complete_set().len().cmp(&b.1.complete_set().len()).then_with(|| by_use(a, b)))
+        .map(|k| k.0)
+}
+
 /// The name an entity is shown with: on one line, and a name written all in
 /// capitals ("PERSONA DOS, UNO") in the form of a proper name when the
 /// documents write each of its words some other way ("Uno Persona Dos"):
@@ -529,6 +576,29 @@ mod tests {
 
     fn k(kind: &str, name: &str) -> NameKey {
         key(&Vocabulary::builtin(), kind, name)
+    }
+
+    #[test]
+    fn an_entity_is_named_by_its_most_complete_proper_name() {
+        let v = Vocabulary::builtin();
+        // The most repeated is not a name; the complete one is.
+        let list = [("provincia", "PROVINCIA", 2), ("gobierno de la provincia de ejemplo", "Gobierno de la Provincia de Ejemplo", 1)];
+        assert_eq!(most_specific(&v, ORGANIZATION, &list), Some("gobierno de la provincia de ejemplo"));
+        // The complete form holds the words of the most used one.
+        let list = [("persona dos", "Persona Dos", 9), ("persona uno dos", "Persona Uno Dos", 1)];
+        assert_eq!(most_specific(&v, PERSON, &list), Some("persona uno dos"));
+        // A form read apart in a scan does not hold them: the most used.
+        let list = [("ejemplo s a", "Ejemplo S.A.", 5), ("ejem plo", "Ejem plo", 1)];
+        assert_eq!(most_specific(&v, ORGANIZATION, &list), Some("ejemplo s a"));
+        // A matter is not named by a file's name or by common words.
+        let list = [
+            ("2020 01 01 ejemplo agreement pdf", "2020-01-01_Ejemplo_Agreement.pdf", 1),
+            ("ejemplo agreement", "Ejemplo Agreement", 1),
+            ("acuerdo", "Acuerdo", 4),
+        ];
+        assert_eq!(most_specific(&v, "asunto", &list), Some("ejemplo agreement"));
+        // The legal form wins the group's principal name over more words.
+        assert!(k(ORGANIZATION, "Ejemplo S.A.").weight() > k(ORGANIZATION, "Ejem plo").weight());
     }
 
     #[test]

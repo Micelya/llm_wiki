@@ -62,7 +62,7 @@ pub const IDENTITY_PROMPT: &str = "identidad-3";
 /// the program's or the vocabulary's change, the record is computed again.
 const RESOLUTION_SETTING: &str = "knowledge-resolution";
 /// Raised when a change in the program changes what a resolution gives.
-const RESOLUTION_VERSION: &str = "resolucion-5";
+const RESOLUTION_VERSION: &str = "resolucion-6";
 
 fn resolution_basis() -> String {
     format!("{RESOLUTION_VERSION}|{IDENTITY_PROMPT}|{}", vocabulary().digest)
@@ -1582,15 +1582,15 @@ pub(crate) fn write(base: &DocBase, outcome: &Outcome, report: &mut ResolveRepor
             }
         }
         let count = |n: &str| aliases[n].values().sum::<usize>();
-        let words = |n: &str| n.split(' ').count();
-        let chosen = proper
-            .iter()
-            .max_by(|a, b| count(a).cmp(&count(b)).then_with(|| words(a).cmp(&words(b))).then_with(|| b.cmp(a)))
-            .copied()
-            .unwrap_or_default();
         let written_of = |n: &str| -> String {
             aliases[n].iter().max_by(|a, b| a.1.cmp(b.1).then_with(|| b.0.cmp(a.0))).map(|(w, _)| w.to_string()).unwrap_or_default()
         };
+        // By specificity: the most complete form that is a proper name,
+        // not the most repeated one (D-259).
+        let shown: Vec<(String, String, usize)> = proper.iter().map(|n| (n.to_string(), written_of(n), count(n))).collect();
+        let candidates: Vec<(&str, &str, usize)> = shown.iter().map(|(n, w, c)| (n.as_str(), w.as_str(), *c)).collect();
+        let chosen = names::most_specific(vocabulary, kind, &candidates).unwrap_or_default().to_string();
+        let chosen = chosen.as_str();
         // On one line, and in the form of a proper name when the documents
         // write it some other way than in capitals (D-239).
         let name = super::names::shown_name(&written_of(chosen), aliases.values().flat_map(|forms| forms.keys().copied()));

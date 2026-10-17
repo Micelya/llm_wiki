@@ -77,6 +77,12 @@ pub struct IdentityWords {
     /// Titles and forms of address before a person's name ("dr", "sr"…).
     #[serde(default)]
     pub titles: Vec<String>,
+    /// Articles, possessives and demonstratives: a way of writing that
+    /// starts with one in lowercase and goes on with a common word ("la
+    /// provincia", "su carta documento", "los tribunales ordinarios") is a
+    /// phrase, not a proper name (D-259).
+    #[serde(default)]
+    pub determiners: Vec<String>,
     /// Legal forms of organizations, each with the ways it is written
     /// (normalized words). The same name with another form is another
     /// organization.
@@ -594,13 +600,22 @@ impl Vocabulary {
             return false;
         }
         if kind == "asunto" {
-            return true;
+            // A matter is often named by its number, so a number names it;
+            // a file's name ("2020-01-01_Acuerdo.pdf") or only common words
+            // ("el acuerdo", "this Agreement") do not (D-259).
+            let file = lower.contains('_')
+                || lower.rsplit_once('.').is_some_and(|(_, ext)| (2..=4).contains(&ext.len()) && ext.chars().all(|c| c.is_ascii_lowercase()));
+            let words = super::quote::words(text);
+            return !file && !(words.iter().any(|w| w.chars().any(char::is_alphabetic)) && self.is_generic(&words.join(" ")));
         }
         if letters == 0 || letters < digits || text.contains(['[', ']']) {
             return false;
         }
         let words = super::quote::words(text);
         if words.is_empty() || self.is_generic(&words.join(" ")) {
+            return false;
+        }
+        if self.is_a_phrase(text) {
             return false;
         }
         if digits > 0 && words.iter().any(|w| self.identity.address_words.iter().any(|a| a == w)) {
@@ -612,6 +627,18 @@ impl Vocabulary {
             let d = w.chars().filter(|c| c.is_ascii_digit()).count();
             d >= 3 && (d == w.chars().count() || d >= 4)
         })
+    }
+
+    /// Whether a way of writing is a phrase rather than a proper name: it
+    /// starts with an article, a possessive or a demonstrative written in
+    /// lowercase, and the next word is in lowercase too ("la provincia",
+    /// "su carta documento"), D-259. "la República Argentina" is not one.
+    pub fn is_a_phrase(&self, text: &str) -> bool {
+        let mut tokens = text.split(|c: char| c.is_whitespace() || c == ',').filter(|t| !t.is_empty());
+        let (Some(first), Some(second)) = (tokens.next(), tokens.next()) else { return false };
+        let lower = |t: &str| t.chars().find(|c| c.is_alphabetic()).is_some_and(char::is_lowercase);
+        let determiner = super::quote::words(first).join(" ");
+        lower(first) && lower(second) && self.identity.determiners.iter().any(|d| d == &determiner)
     }
 
     /// Whether this kind of identifier names one entity only.
@@ -718,7 +745,7 @@ mod tests {
     #[test]
     fn what_is_not_a_name_gets_no_page() {
         let v = Vocabulary::builtin();
-        for name in ["Persona Dos", "Ejemplo Uno S.A.", "Banco de Ejemplo", "Provincia de Ejemplo", "Ejemplo 3 S.R.L.", "S.A.", "J.P. Ejemplo"] {
+        for name in ["Persona Dos", "Ejemplo Uno S.A.", "Banco de Ejemplo", "Provincia de Ejemplo", "Ejemplo 3 S.R.L.", "S.A.", "J.P. Ejemplo", "la República Ejemplar"] {
             assert!(v.is_a_name("persona", name) && v.is_a_name("organizacion", name), "{name}");
         }
         for not_a_name in [
@@ -734,6 +761,12 @@ mod tests {
             "www.ejemplo.com.ar",
             "ejemplo.com",
             "(011) 4444-5555",
+            "PROVINCIA",
+            "la provincia",
+            "su carta documento",
+            "presente contrato",
+            "accionistas",
+            "los tribunales ordinarios de Ejemplo",
         ] {
             assert!(!v.is_a_name("organizacion", not_a_name), "{not_a_name}");
         }
