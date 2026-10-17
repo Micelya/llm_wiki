@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 /// The version of the program's check of a reading (`extract::verify`).
-const READING_CHECK: &str = "lectura-4";
+const READING_CHECK: &str = "lectura-5";
 
 const BUILTIN: &str = include_str!("../../../resources/catalog/knowledge.json");
 
@@ -306,6 +306,19 @@ pub struct ReadingRules {
     /// Words there can be between the label of a form and its value.
     #[serde(default = "sixty")]
     pub label_window: usize,
+    /// Predicates whose object, when the quote does not name it, may be
+    /// the organization the text names last before the quote, within
+    /// `objectWindow` words (a signature block, "X S.A., representada por
+    /// Y"): P-122, D-269.
+    #[serde(default)]
+    pub object_before: Vec<String>,
+    #[serde(default)]
+    pub object_window: usize,
+    /// Beginnings of words of a quote that says how someone acts for a
+    /// company ("apoderado", "Title", "representada por"): without one, the
+    /// organization before the quote is not taken as its object.
+    #[serde(default)]
+    pub representation_cues: Vec<String>,
 }
 
 fn sixty() -> usize {

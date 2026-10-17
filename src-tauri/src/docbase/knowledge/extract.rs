@@ -895,7 +895,20 @@ pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &
             // (D-250).
             if predicate.object_in_quote {
                 let object = object_mention.as_deref().expect("an entity");
-                let named = group_names.get(object).is_some_and(|names| names.iter().any(|n| read_checks::name_in_quote(&quote_words, n)));
+                let mut named = group_names.get(object).is_some_and(|names| names.iter().any(|n| read_checks::name_in_quote(&quote_words, n)));
+                // A signature block or "X, representada por Y": the
+                // organization named right before the quote (P-122, D-269).
+                let rules = &vocabulary.reading;
+                let acts_for = quote_words.iter().any(|w| {
+                    rules.representation_cues.iter().any(|cue| if cue.chars().count() <= 3 { w == cue } else { w.starts_with(cue.as_str()) })
+                });
+                if !named && acts_for && rules.object_window > 0 && rules.object_before.iter().any(|p| *p == predicate.id) && kinds[object] == super::names::ORGANIZATION {
+                    if let Some(own) = group_names.get(object) {
+                        let organizations: Vec<&Vec<Vec<String>>> =
+                            group_names.iter().filter(|(r, _)| kinds.get(r.as_str()).is_some_and(|k| k == super::names::ORGANIZATION)).map(|(_, n)| n).collect();
+                        named = read_checks::nearest_before(body, &said.cita, &organizations, own, rules.object_window);
+                    }
+                }
                 if !named {
                     discard(&mut reading, "claim", "objeto-fuera-de-la-cita", &said.predicado, &said.cita);
                     continue;

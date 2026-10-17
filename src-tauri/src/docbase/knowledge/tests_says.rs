@@ -62,15 +62,19 @@ fn a_claim_counts_only_when_its_quote_says_it() {
             "Persona Dos deudor_de Ejemplo Uno S.A.",
             "Persona Dos fin_de_vinculo 1 de marzo de 2020",
             "Persona Dos importe Ejemplo Uno S.A.",
+            // "Nota de Ejemplo Uno S.A., ..., firmada por Persona Dos, ...,
+            // su apoderada": the company is the one named right before
+            // (P-122, D-269).
+            "Persona Dos representa_a Ejemplo Uno S.A.",
         ],
         "{report:?}"
     );
     // What was dropped stays in the reading, counted as not fit. A relation
-    // with legal consequences whose quote does not name whom ("su
-    // apoderada") and an amount next to the word of a tax do not even get
-    // there: the reading drops them (D-244, D-250).
+    // with legal consequences whose quote neither names whom nor says how
+    // ("vive en otra ciudad") and an amount next to the word of a tax do
+    // not even get there: the reading drops them (D-244, D-250).
     let evidence: i64 = conn.query_row("SELECT count(*) FROM knowledge_evidence", [], |row| row.get(0)).unwrap();
-    assert_eq!(evidence, 8);
+    assert_eq!(evidence, 9);
     assert!(report.unfit >= 4, "{report:?}");
     let dropped: String = conn.query_row("SELECT discarded FROM knowledge_extraction", [], |row| row.get(0)).unwrap();
     assert!(dropped.contains("objeto-fuera-de-la-cita") && dropped.contains("es-un-impuesto"), "{dropped}");

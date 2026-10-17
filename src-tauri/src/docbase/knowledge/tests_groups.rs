@@ -228,3 +228,40 @@ fn a_matter_is_named_by_the_claim_between_its_parties_and_a_number_in_the_text_j
     assert_eq!(documents, 3, "the chronology cites the invoice by its number (D-268)");
     assert_eq!(name, "Reclamo de Muestra Uno S.A. a Muestra Dos S.R.L.", "by the claim, never by the invoice (D-267)");
 }
+
+const S1: &str = "DOC-S1. Acuerdo de servicios entre las partes.\nPor la empresa: Ejemplar Norte S.A.\nNombre: Persona Ocho\nCargo: Apoderado\nPor el cliente: Persona Nueve\nFecha: hoy, en dos ejemplares.";
+
+#[test]
+fn a_signature_block_names_the_company_on_a_line_of_its_own() {
+    let reading = |prompt: &str| -> String {
+        if !prompt.contains("DOC-S1.") {
+            return empty_answer();
+        }
+        answer(
+            vec![
+                mention("s", "organizacion", "Ejemplar Norte S.A.", "parte", "Por la empresa: Ejemplar Norte S.A.", none()),
+                mention("p", "persona", "Persona Ocho", "firmante", "Nombre: Persona Ocho", none()),
+                mention("c", "persona", "Persona Nueve", "parte", "Por el cliente: Persona Nueve", none()),
+            ],
+            vec![
+                // The company is on its own line, before the name and the
+                // position: it is the one represented (P-122, D-269).
+                claim("p", "representa_a", Some("s"), None, "Nombre: Persona Ocho\nCargo: Apoderado", None),
+                // Nothing in this quote says she acts for the company.
+                claim("c", "representa_a", Some("s"), None, "Por el cliente: Persona Nueve", None),
+            ],
+        )
+    };
+    let asker = FakeModel::new("falso:1", move |prompt| if is_knowledge(prompt) { reading(prompt) } else { type_answer("contrato") });
+    let (_dir, base) = base_with(&[("s1.txt", S1)]);
+    run(&base, &asker);
+    let kept: Vec<String> = {
+        let conn = base.conn();
+        let mut statement = conn
+            .prepare("SELECT s.written FROM knowledge_evidence e JOIN knowledge_mention s ON s.id = e.subject_mention WHERE e.predicate = 'representa_a'")
+            .unwrap();
+        let rows = statement.query_map([], |row| row.get(0)).unwrap();
+        rows.collect::<Result<_, _>>().unwrap()
+    };
+    assert_eq!(kept, vec!["Persona Ocho".to_string()]);
+}

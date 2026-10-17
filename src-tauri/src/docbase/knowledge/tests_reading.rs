@@ -127,16 +127,20 @@ fn a_signature_block_and_a_signing_record_say_what_they_say() {
             ],
             "afirmaciones": [
                 claim("p", "domicilio", None, Some("Calle Dos 200"), "Persona Tres, por Ejemplo Uno S.A., con domicilio en Calle Dos 200", None),
-                // Represents whom? The quote does not say.
+                // The company is named right before and the quote says she
+                // acts for it (P-122, D-269): kept.
                 claim("p", "representa_a", Some("o"), None, "Persona Tres es apoderada", None),
                 claim("p", "representa_a", Some("o"), None, "Persona Tres, por Ejemplo Uno S.A.", None),
+                // Represents whom? The quote neither says it nor says how.
+                claim("p", "representa_a", Some("o"), None, "representa a la sociedad", None),
             ]
         }),
     );
     // The address of the signature block is the company's.
     let domicile = reading.evidence.iter().find(|e| e.predicate == "domicilio").unwrap();
     assert_eq!(domicile.subject, "m2");
-    assert_eq!(reading.evidence.iter().filter(|e| e.predicate == "representa_a").count(), 1);
+    // The two that say the same are one piece of evidence.
+    assert_eq!(reading.evidence.iter().filter(|e| e.predicate == "representa_a").count(), 1, "{:?}", reading.discarded);
     // On the page of the signing record, the party is a signer.
     let roles: Vec<&str> = reading.mentions.iter().filter(|m| m.written == "Persona Tres").map(|m| m.role.as_str()).collect();
     assert_eq!(roles, ["apoderado", "firmante"]);

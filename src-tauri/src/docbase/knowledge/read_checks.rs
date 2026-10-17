@@ -40,6 +40,33 @@ pub fn name_in_quote(quote_words: &[String], name: &[String]) -> bool {
     quote::contains(quote_words, name) || (name.len() >= 2 && name.iter().all(|w| quote_words.contains(w)))
 }
 
+/// Whether the organization the text names last before a quote, within
+/// `window` words, is the object (P-122, D-269): a signature block writes
+/// the company on a line of its own ("Por: Ejemplo S.A." / "Nombre: X" /
+/// "Cargo: Apoderado"), and a contract the party right before "representada
+/// por X". `organizations` are the names of each organization the reading
+/// gave (all the names of its mentions); the one whose names end last
+/// before the quote must be the object's.
+pub fn nearest_before(body: &str, quote_text: &str, organizations: &[&Vec<Vec<String>>], object: &Vec<Vec<String>>, window: usize) -> bool {
+    let words = quote::words(body);
+    let quoted = quote::words(quote_text);
+    let probe: Vec<String> = quoted.iter().take(6).cloned().collect();
+    if probe.is_empty() || words.len() < probe.len() {
+        return false;
+    }
+    let Some(start) = (0..=words.len() - probe.len()).find(|&i| words[i..i + probe.len()] == probe[..]) else { return false };
+    let region = &words[start.saturating_sub(window)..start];
+    let last_end = |names: &Vec<Vec<String>>| -> Option<usize> {
+        names
+            .iter()
+            .filter(|n| !n.is_empty() && n.len() <= region.len())
+            .filter_map(|n| (0..=region.len() - n.len()).rev().find(|&i| region[i..i + n.len()] == n[..]).map(|i| i + n.len()))
+            .max()
+    };
+    let nearest = organizations.iter().filter_map(|names| last_end(names).map(|end| (end, *names))).max_by_key(|(end, _)| *end);
+    nearest.is_some_and(|(_, names)| names == object)
+}
+
 fn lowercase_unaccented(text: &str) -> Vec<char> {
     text.chars()
         .flat_map(char::to_lowercase)
