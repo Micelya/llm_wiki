@@ -1364,6 +1364,42 @@
       "referencia": "src-tauri/src/docbase/knowledge/resolve.rs, matters.rs, pages.rs; resources/catalog/knowledge.json",
       "creado": "2026-10-17",
       "actualizado": "2026-10-17"
+    },
+    {
+      "id": "P-132",
+      "titulo": "Sol alto sin identidad completa en la comparación",
+      "tipo": "verificacion",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "En la comparación de D-276, gpt-6.1-sol alto no llegó a completar la identidad (116 de 146 preguntas sin responder, por el límite de uso de Codex): sus uniones y separaciones falsas no están medidas del todo. Completarlo solo si se vuelve a considerar sol alto (D-278); hoy se descarta por tiempo.",
+      "depende_de": [],
+      "referencia": "src/lib/codex-reasoning.ts; src-tauri/src/source_volume/asking.rs; src-tauri/src/docbase/knowledge/resolve.rs",
+      "creado": "2026-10-17",
+      "actualizado": "2026-10-17"
+    },
+    {
+      "id": "P-133",
+      "titulo": "Variación del modelo entre corridas",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Dos corridas desde cero de luna alto difieren en 9,6 % de los pares de menciones y comparten solo 26 a 31 % de las afirmaciones (D-277); sol medio encuentra más afirmaciones (74 % frente a 61 %) y no se le midió la estabilidad. Ver cómo hacer más estable la lectura (por ejemplo, más de una pasada sobre el archivo y quedarse con lo que se repite) y medir sol medio dos veces antes de descartarlo del todo.",
+      "depende_de": [],
+      "referencia": "src/lib/codex-reasoning.ts; src-tauri/src/source_volume/asking.rs; src-tauri/src/docbase/knowledge/resolve.rs",
+      "creado": "2026-10-17",
+      "actualizado": "2026-10-17"
+    },
+    {
+      "id": "P-134",
+      "titulo": "Nombre comercial con la sociedad entre paréntesis",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "La única unión falsa que queda es la misma en las cuatro variantes de D-276: un nombre comercial escrito con la razón social de otra sociedad entre paréntesis (\"Marca (Sociedad S.A.)\") termina uniendo dos organizaciones distintas. Es del programa, no del modelo: un paréntesis con una razón social completa distinta del nombre no debería hacerlas la misma, sino a lo sumo vincularlas.",
+      "depende_de": [],
+      "referencia": "src/lib/codex-reasoning.ts; src-tauri/src/source_volume/asking.rs; src-tauri/src/docbase/knowledge/resolve.rs",
+      "creado": "2026-10-17",
+      "actualizado": "2026-10-17"
     }
   ]
 }

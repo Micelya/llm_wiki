@@ -266,6 +266,12 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-267 | 17 oct | Conocimiento | El asunto se nombra por la relación entre sus partes, nunca por un comprobante, un número o un archivo | en revisión |
 | D-268 | 17 oct | Conocimiento | El número de un asunto en el texto de otro documento lo suma al asunto; el porqué, resumido y plegado | en revisión |
 | D-269 | 17 oct | Conocimiento | Una representación vale con la sociedad en la línea anterior y la cita que dice cómo actúa (P-122) | en revisión |
+| D-274 | 17 oct | Conocimiento | El nivel de razonamiento va a Codex (solo bajo, medio y alto) y es parte del nombre del motor | en revisión |
+| D-275 | 17 oct | Conocimiento | Un CUIT con prefijo de persona dado a una sociedad es de la persona (lectura-6) | en revisión |
+| D-276 | 17 oct | Conocimiento | Cómo se comparan modelos: cuatro variantes con su caché, la hoja, atribución a ciegas y tiempo | en revisión |
+| D-277 | 17 oct | Conocimiento | El mismo modelo cambia entre corridas: una corrida no alcanza para juzgar un cambio fino | en revisión |
+| D-278 | 17 oct | Conocimiento | gpt-6.1-sol queda como alternativa; alto se descarta por tiempo | en revisión |
+| D-279 | 17 oct | Conocimiento | Por defecto, gpt-6-luna con razonamiento alto | en revisión |
 
 ---
 
@@ -3594,3 +3600,64 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Qué se decidió:** vale si la última organización que el texto nombra antes de la cita, a menos de 30 palabras (`reading.objectWindow`), es la representada y la cita dice cómo actúa por ella (`reading.representationCues`: apoderado, representante, representada, cargo, title, by…). Se vuelve a comprobar desde las respuestas guardadas (lectura-5). Medido: 3 de las 12 representaciones descartadas vuelven, las tres correctas; ninguna inventada.
 - **Quién decidió:** agente sin consulta.
 - **Fuente:** etapa Q3 de la tanda desatendida del 17 oct.
+
+### D-274 · El razonamiento de Codex, parte del motor
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** para comparar modelos con distinto razonamiento hacía falta pasarle el nivel a Codex y que las respuestas de un nivel no se mezclaran con las de otro en la base ni en las cachés de evaluación.
+- **Qué se decidió:** el nivel va a Codex como `-c model_reasoning_effort=<nivel>` (en las preguntas sobre documentos, `source_volume/asking.rs`, y en las llamadas del wiki, `codex-cli-transport.ts`), y forma parte del nombre del motor: `codex-cli:modelo@nivel`. Solo se ofrecen `low`, `medium` y `high` (por decisión del dueño, el proceso se mejora ajustando las preguntas, no gastando más en cada respuesta); otro nivel es un error. Ajustes tiene un selector para el preset de Codex (`src/lib/codex-reasoning.ts`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q4 de la tanda desatendida del 17 oct.
+
+### D-275 · Un CUIT con prefijo de persona dado a una sociedad
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** en una segunda corrida del mismo modelo, una sociedad recibió el CUIT de su apoderada (el número de la persona, escrito junto a su DNI). Con dos identificadores fuertes distintos la sociedad ya no se unía por nombre y quedó partida en diez.
+- **Qué se decidió:** el vocabulario dice qué primeros dígitos del CUIT son de persona y cuáles de sociedad; la comprobación de una lectura (lectura-6) pasa ese número a la única mención del otro tipo que lo contiene (el DNI dentro del CUIT) o lo descarta. Medido en la corrida que lo mostró: la sociedad vuelve a ser una.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q4 de la tanda desatendida del 17 oct.
+
+### D-276 · Cómo se comparan modelos
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** elegir modelo y razonamiento por impresión no sirve: hay que medir lo mismo para todos.
+- **Qué se decidió:** cuatro variantes (`gpt-6-luna` y `gpt-6.1-sol`, con razonamiento medio y alto), cada una con lectura, identidad, asuntos y síntesis completas sobre la carpeta de prueba y su propia caché de respuestas. Se mide contra la hoja (menciones, roles, afirmaciones, uniones y separaciones falsas, asuntos), con una muestra de atribución de 40 afirmaciones de dinero, domicilio y relación por variante juzgada contra el documento por un revisor que no sabe de qué variante sale cada una (las muestras mezcladas), con los casos de control y con el tiempo por respuesta. Para volver a medir con el programa nuevo sin volver a preguntar, el arnés puede correr solo con las respuestas guardadas (`MICELYA_ASK_OFFLINE=1`).
+- **Resultados** (atribución a ciegas, dos lotes): luna medio 33/40 (82 %; dinero 71 %); luna alto 40/40 y 38/40 en su segunda corrida (97,5 % entre las dos); sol medio 39/40 (98 %); sol alto 38/40 (95 %). Uniones falsas: la misma única unión falsa en las cuatro (P-134). Separaciones falsas: luna medio 2,5 %, luna alto 2,2 %, sol medio 1,3 %. Menciones 84/92/92/92 %; afirmaciones 56/61/74/77 %; asuntos agrupados 70/76/56/56 %, sin agrupaciones falsas. Segundos por respuesta: 9,6 / 13,8 / 22,9 / ~64.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q4 de la tanda desatendida del 17 oct.
+
+### D-277 · El mismo modelo cambia entre corridas
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** dos corridas desde cero de la misma variante no dan lo mismo.
+- **Qué se decidió:** se mide y se tiene en cuenta: con luna alto, 9,6 % de los pares de menciones presentes en las dos corridas quedan juntos en una y separados en la otra (luna medio, 2,0 %), y solo 26 a 31 % de las afirmaciones son las mismas. La segunda corrida de luna alto mostró además la sociedad partida por un CUIT mal atribuido (D-275). Una diferencia de un par de puntos entre variantes o entre versiones de una pregunta, medida en una sola corrida, no alcanza para decidir; las respuestas guardadas hacen que el resultado de un archivo ya leído no cambie mientras no cambie la pregunta (R-20). Cómo hacerlo más estable queda en P-133.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q4 de la tanda desatendida del 17 oct.
+
+### D-278 · gpt-6.1-sol como alternativa
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** sol medio empata en atribución con luna alto y encuentra más afirmaciones; sol alto es el que más encuentra, pero es muy lento.
+- **Qué se decidió:** `gpt-6.1-sol` queda como el otro modelo que ofrece el preset de Codex, no como el de por defecto. Sol alto se descarta por tiempo: unos 64 segundos por respuesta (4,6 veces luna alto), y en el tiempo de la comparación no llegó a completar la identidad (116 de 146 preguntas sin responder), así que sus uniones y separaciones no están medidas del todo (P-132). Sol medio agrupa peor los asuntos (56 % frente a 76 %) y tarda 1,7 veces más que luna alto.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q4 de la tanda desatendida del 17 oct.
+
+### D-279 · Por defecto, gpt-6-luna alto
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la app usaba por defecto un modelo de Codex que no es de los permitidos y razonamiento medio.
+- **Qué se decidió:** por defecto, `gpt-6-luna` con razonamiento alto (`DEFAULT_CODEX_REASONING`, `defaultModel` del preset de Codex). Por calidad primero: atribución 97,5 % en dos corridas (empata con sol medio, 98 %, y supera a luna medio, 82 %, y a sol alto, 95 %), la misma única unión falsa que todas, separaciones falsas 2,2 %; entre las que empatan, por tiempo (13,8 segundos por respuesta, frente a 22,9 de sol medio) y por asuntos (76 % frente a 56 %). Lo que cede: menos afirmaciones que sol (61 % frente a 74 %) y más variación entre corridas que luna medio (D-277). El motor guardado en `docbase_setting` y el modelo del wiki se fijan al regenerar el wiki (etapa Q5).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q4 de la tanda desatendida del 17 oct.

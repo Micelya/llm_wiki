@@ -90,6 +90,8 @@ Cada pasada con su objetivo (R-10), de lo seguro a lo incierto (R-11):
 
 **Ritmo.** La extracción corre en segundo plano mientras el wiki del archivo está activo y hay un motor elegido, de a una pregunta por vez pero seguido, para que un archivo entero se procese en una tanda. Ante el límite de uso del proveedor se corta y se reintenta más tarde.
 
+**Motor y razonamiento.** Con Codex, el nivel de razonamiento (solo bajo, medio o alto) va con cada pregunta y es parte del nombre del motor, así que las respuestas de otro nivel son otras respuestas (D-274). Por defecto, `gpt-6-luna` con razonamiento alto, elegido comparando cuatro variantes contra la hoja y con atribución juzgada a ciegas (D-276, D-279); `gpt-6.1-sol` queda como alternativa (D-278). El mismo modelo cambia bastante entre dos corridas desde cero, así que una diferencia chica medida en una sola corrida no decide nada (D-277).
+
 ## 6. El vocabulario de la capa
 
 Los tipos de entidad, los roles y los predicados son **datos** (R-24, R-26): un archivo del mismo estilo que el catálogo de tipos de documento, reemplazable por otro en la carpeta de datos de la app. Cada entrada tiene una descripción en palabras, que es lo que lee el modelo. Arranca con:
