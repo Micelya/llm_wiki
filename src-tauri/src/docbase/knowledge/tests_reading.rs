@@ -226,3 +226,41 @@ fn a_label_and_its_value_apart_in_the_text_are_one_quote() {
     assert_eq!(ids, ["30-11111111-1"], "{:?}", reading.discarded);
     assert_eq!(reading.evidence.len(), 1, "{:?}", reading.discarded);
 }
+
+const POWER: &str = "Ejemplo Uno S.A., CUIT 30-11111111-1, representada por Persona Tres, apoderada, DNI 22.222.222, CUIT 27-22222222-4.";
+
+#[test]
+fn a_number_with_the_prefix_of_a_person_given_to_a_company_is_the_person_s() {
+    let reading = read(
+        POWER,
+        serde_json::json!({
+            "menciones": [
+                mention("o", "organizacion", "Ejemplo Uno S.A.", "parte", "Ejemplo Uno S.A., CUIT 30-11111111-1",
+                    serde_json::json!([
+                        { "clase": "cuit", "valor": "30-11111111-1", "cita": "Ejemplo Uno S.A., CUIT 30-11111111-1", "rotulo": null },
+                        { "clase": "cuit", "valor": "27-22222222-4", "cita": "DNI 22.222.222, CUIT 27-22222222-4", "rotulo": null },
+                    ])),
+                mention("p", "persona", "Persona Tres", "apoderado", "representada por Persona Tres, apoderada",
+                    ids("dni", "22.222.222", "DNI 22.222.222")),
+            ]
+        }),
+    );
+    let of = |name: &str| reading.mentions.iter().find(|m| m.written == name).unwrap();
+    let numbers = |name: &str| of(name).identifiers.iter().map(|i| i.value.clone()).collect::<Vec<_>>();
+    assert_eq!(numbers("Ejemplo Uno S.A."), ["30-11111111-1"]);
+    assert_eq!(numbers("Persona Tres"), ["22.222.222", "27-22222222-4"]);
+    assert!(reasons(&reading).contains(&(CORRECTION.to_string(), "de-otra-persona".to_string())));
+
+    // With no person it could be, it is nobody's.
+    let alone = read(
+        "Ejemplo Uno S.A., CUIT 20-33333333-3.",
+        serde_json::json!({
+            "menciones": [
+                mention("o", "organizacion", "Ejemplo Uno S.A.", "parte", "Ejemplo Uno S.A., CUIT 20-33333333-3",
+                    ids("cuit", "20-33333333-3", "Ejemplo Uno S.A., CUIT 20-33333333-3")),
+            ]
+        }),
+    );
+    assert!(alone.mentions[0].identifiers.is_empty());
+    assert!(reasons(&alone).contains(&("identifier".to_string(), "de-otra-persona".to_string())));
+}

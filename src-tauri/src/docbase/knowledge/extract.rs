@@ -950,6 +950,7 @@ pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &
         }
     }
     other_person(vocabulary, body, &mut reading);
+    owner_by_prefix(vocabulary, &mut reading);
     signature_block(vocabulary, &group_names, &mut reading);
     // A part of an address read as a number that identifies someone (a
     // suite, a postal code, a floor): its value is inside a domicile the
@@ -1270,6 +1271,62 @@ fn amount_evidence(
             detail: Some(serde_json::Value::Object(detail)),
         },
     );
+}
+
+/// A number whose prefix says it belongs to another type of entity (a
+/// person's CUIT given to a company, as in "Ejemplo S.A., por su apoderado,
+/// DNI …, CUIT 20-…"): it goes to the only mention of that type that
+/// already has its number inside (the DNI within the CUIT) or whose quote
+/// has it; otherwise it is nobody's (D-277).
+fn owner_by_prefix(vocabulary: &Vocabulary, reading: &mut Reading) {
+    let digits = |text: &str| text.chars().filter(|c| c.is_ascii_digit()).collect::<String>();
+    let type_of = |kind: &str, value: &str| -> Option<String> {
+        let term = vocabulary.identifier(kind)?;
+        let number = digits(value);
+        term.prefixes
+            .iter()
+            .find(|(_, prefixes)| prefixes.iter().any(|p| !p.is_empty() && number.starts_with(p.as_str())))
+            .map(|(t, _)| t.clone())
+    };
+    let mut moved: Vec<(Option<String>, Identifier)> = Vec::new();
+    for mention in reading.mentions.iter_mut() {
+        let own = mention.kind.clone();
+        mention.identifiers.retain(|identifier| match type_of(&identifier.kind, &identifier.value) {
+            Some(other) if other != own && vocabulary.identifier(&identifier.kind).is_some_and(|t| t.prefixes.contains_key(&own)) => {
+                moved.push((Some(other), identifier.clone()));
+                false
+            }
+            _ => true,
+        });
+    }
+    for (other, identifier) in moved {
+        let other = other.expect("a type");
+        let number = digits(&identifier.value);
+        let candidates: Vec<usize> = reading
+            .mentions
+            .iter()
+            .enumerate()
+            .filter(|(_, m)| m.kind == other)
+            .filter(|(_, m)| {
+                digits(&m.quote).contains(&number)
+                    || m.identifiers.iter().any(|i| {
+                        let inner = digits(&i.value);
+                        inner.len() >= 7 && (number.contains(&inner) || inner == number)
+                    })
+            })
+            .map(|(i, _)| i)
+            .collect();
+        match candidates.as_slice() {
+            [one] => {
+                corrected(reading, "de-otra-persona", &identifier.value, &identifier.quote);
+                let mention = &mut reading.mentions[*one];
+                if !mention.identifiers.iter().any(|i| i.kind == identifier.kind && i.normalized == identifier.normalized) {
+                    mention.identifiers.push(identifier);
+                }
+            }
+            _ => discard(reading, "identifier", "de-otra-persona", &identifier.value, &identifier.quote),
+        }
+    }
 }
 
 /// A value the quote puts under a label of another person of a form

@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 /// The version of the program's check of a reading (`extract::verify`).
-const READING_CHECK: &str = "lectura-5";
+const READING_CHECK: &str = "lectura-6";
 
 const BUILTIN: &str = include_str!("../../../resources/catalog/knowledge.json");
 
@@ -448,6 +448,12 @@ pub struct Term {
     /// whatever kind the model gave (D-249).
     #[serde(default)]
     pub labels: Vec<String>,
+    /// For a kind of identifier whose first digits say what it is given
+    /// to (a CUIT of a person and one of a company start differently): by
+    /// type of entity, the prefixes of its numbers. A number with the
+    /// prefix of another type is not this mention's (D-277).
+    #[serde(default)]
+    pub prefixes: std::collections::BTreeMap<String, Vec<String>>,
 }
 
 fn yes() -> bool {
@@ -579,6 +585,8 @@ impl Vocabulary {
             "reading": &vocabulary.reading,
             // The check of a reading drops what is part of an address.
             "addressWords": &vocabulary.identity.address_words,
+            // The check of a reading moves a number with another type's prefix.
+            "identifierPrefixes": vocabulary.identifiers.iter().map(|t| (&t.id, &t.prefixes)).collect::<Vec<_>>(),
             // Raised when the program's check of a reading changes: every
             // document is checked again from the answers kept.
             "check": READING_CHECK,
