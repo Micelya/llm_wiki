@@ -128,7 +128,7 @@
       "overviewTitle": "Resumen del archivo",
       "overviewIntro": "Lo que el registro sabe del archivo, armado por la app desde los documentos.",
       "overviewDocuments": "Documentos leídos",
-      "overviewFailed": "Documentos cuya lectura falló (ver Atención)",
+      "overviewFailed": "Documentos cuya lectura falló",
       "overviewEntities": "Con página",
       "overviewMost": "Los más nombrados",
       "overviewMatters": "Asuntos",
