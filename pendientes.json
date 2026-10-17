@@ -1220,6 +1220,78 @@
       "referencia": "src-tauri/src/docbase/knowledge/pages.rs (localized_dates)",
       "creado": "2026-10-17",
       "actualizado": "2026-10-17"
+    },
+    {
+      "id": "P-120",
+      "titulo": "Separaciones falsas después de la segunda pregunta de lectura",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Con la pregunta nueva las separaciones falsas de la hoja subieron de 10,4 % a 13,2 % de los pares (las uniones falsas bajaron de 89 a 5): la forma corta sin sociedad, una errata de una letra en la razón social y las áreas o casillas de una organización quedan aparte. Lo atacan los puntos 1, 3 y 5 de la etapa Q3.",
+      "depende_de": [],
+      "referencia": "desatendido-3/Q2-eval-5.txt (fuera del repo); src-tauri/src/docbase/knowledge/resolve.rs",
+      "creado": "2026-10-17",
+      "actualizado": "2026-10-17"
+    },
+    {
+      "id": "P-121",
+      "titulo": "Dirección de la sociedad que firma dada a la persona sin su nombre en la cita",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "D-247 pasa a la sociedad la dirección de un bloque de firma cuando la cita nombra a la persona y a la sociedad; si la cita es solo «Address: …» debajo del bloque, la dirección sigue en la persona (la revisión ciega de Q2 encontró 2 de 13 domicilios así). Falta usar la estructura del bloque de firma (la línea «Por …» antes) como señal general. En la segunda revisión, 3 de 13: además se cruzan los domicilios del remitente y del destinatario en el formulario de una carta documento.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/knowledge/extract.rs (signature_block)",
+      "creado": "2026-10-17",
+      "actualizado": "2026-10-17"
+    },
+    {
+      "id": "P-122",
+      "titulo": "Representaciones del bloque de firma perdidas por exigir el objeto en la cita",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "D-250 descarta «representa a» cuando la cita no nombra a la representada (46 descartes de este tipo en la relectura): en un bloque de firma «Aclaración: X (Apoderado)» la sociedad está en otra línea. Permitir el objeto en un rótulo aparte cercano (como D-248) recuperaría las reales sin volver a aceptar las inventadas.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/knowledge/extract.rs (object_in_quote)",
+      "creado": "2026-10-17",
+      "actualizado": "2026-10-17"
+    },
+    {
+      "id": "P-123",
+      "titulo": "Asuntos de nombre genérico unidos entre documentos de personas distintas",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "El modelo de identidad une asuntos que se llaman igual («Acuerdo de terminación») en documentos de personas distintas, y eso arma un asunto con 4 documentos de 3 acuerdos distintos: 5 agrupaciones falsas de la hoja después de la relectura (antes 0). Es el punto 7 de la etapa Q3 (un asunto no se une por su nombre).",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/knowledge/resolve.rs, matters.rs",
+      "creado": "2026-10-17",
+      "actualizado": "2026-10-17"
+    },
+    {
+      "id": "P-124",
+      "titulo": "Dirección del dinero en contratos con partes definidas por sus términos",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "La revisión ciega de Q2 encontró importes al revés en un contrato en inglés donde una parte se define con otro nombre comercial y el pago va «a» la otra: el control de dirección no decide porque la cita no tiene un verbo entre los dos nombres. Probar una segunda señal general (quien «recibe» o «factura» en la cláusula de pago) o una pregunta de confirmación del modelo para los importes de contratos.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/knowledge/read_checks.rs (money_direction)",
+      "creado": "2026-10-17",
+      "actualizado": "2026-10-17"
+    },
+    {
+      "id": "P-125",
+      "titulo": "Definiciones de cosas que no son entidades",
+      "tipo": "verificacion",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "La relectura descartó 60 definiciones porque definen algo que no es una mención («los Servicios», «las Partes», «la Fecha de terminación»). No hacen daño, pero alargan la respuesta del modelo; ver en Q4 si conviene pedir solo las definiciones de personas, organizaciones y asuntos.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/knowledge/extract.rs (prompt)",
+      "creado": "2026-10-17",
+      "actualizado": "2026-10-17"
     }
   ]
 }

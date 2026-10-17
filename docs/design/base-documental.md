@@ -299,7 +299,7 @@ Se empieza por el espacio privado y un solo usuario. El espacio compartido multi
 
 Dentro de `src-tauri/src/source_volume/`, todo por proyecto: montaje de carpetas, detección de cambios segura ante orígenes desconectados, catálogo de duplicados exactos, huella del archivo y texto reconocido guardado por huella. Es la semilla del componente: los conceptos son los de este documento; cambia dónde viven los datos y a quién pertenecen.
 
-La capa de conocimiento ocupa las versiones 9 a 11 del esquema de la base, después de la 8 de la vista de atención (las decisiones sobre tipos); una base en la versión 8 recibe las tablas de la capa sin perder nada (D-215).
+La capa de conocimiento ocupa las versiones 9 a 11 del esquema de la base, después de la 8 de la vista de atención (las decisiones sobre tipos); una base en la versión 8 recibe las tablas de la capa sin perder nada (D-215). La versión 13 agrega lo que trae la segunda pregunta de lectura: el importe y su detalle en evidencias y afirmaciones, la marca de término definido de una mención y la fecha del documento (D-244 a D-247).
 
 Hoy cada proyecto guarda esos datos en su propia carpeta. Con la base, pasan a guardarse una vez por espacio: el mismo escaneo usado en dos proyectos se lee una sola vez.
 

@@ -211,7 +211,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-188 | 16 oct | Conocimiento | El modelo decide los candidatos difíciles contra una entidad principal; su veredicto se guarda por par; un nombre sin forma que comparten varias sociedades queda dudoso | en revisión; reemplazada en parte por D-212 |
 | D-189 | 16 oct | Conocimiento | Las decisiones de una persona (unir, separar, dato incorrecto, deshacer) se guardan sobre claves estables y se aplican al instante | en revisión |
 | D-190 | 16 oct | Conocimiento | El identificador de una entidad lo conserva la que se queda con más menciones; la que se vacía queda unida a otra o retirada | en revisión |
-| D-191 | 16 oct | Conocimiento | Afirmaciones: lo mismo dicho varias veces es una sola; un dato de un valor a la vez con valores distintos es un conflicto o una historia | en revisión; reemplazada en parte por D-209 |
+| D-191 | 16 oct | Conocimiento | Afirmaciones: lo mismo dicho varias veces es una sola; un dato de un valor a la vez con valores distintos es un conflicto o una historia | en revisión; reemplazada en parte por D-209 y D-252 |
 | D-192 | 16 oct | Conocimiento | La resolución se recalcula entera sin modelo, escribe solo lo que cambió y corre en el hilo de preguntas después de la lectura | en revisión |
 | D-193 | 16 oct | Conocimiento | Cambiar las palabras de la resolución no vuelve a leer el archivo: la lectura depende solo de lo que usa la pregunta | en revisión |
 | D-194 | 16 oct | Conocimiento | Cómo se evalúa la identidad contra la hoja: pares de menciones, uniones y separaciones falsas por separado | en revisión |
@@ -245,6 +245,16 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-222 | 16 oct | Proceso de trabajo | La prueba de R-24 revisa todo el programa, sus pruebas y los textos de diseño | en revisión |
 | D-223 | 16 oct | Interfaz | Los nombres de tipos, roles, predicados e identificadores de la capa, en el vocabulario de cada vertical | en revisión |
 | D-224 | 16 oct | Conocimiento | Una decisión sobre una identidad guarda lo que la pantalla mostró de cada lado | en revisión |
+| D-244 | 17 oct | Conocimiento | El dinero es una relación entre un deudor y un acreedor, con control de dirección por la cita | en revisión |
+| D-245 | 17 oct | Conocimiento | Los términos definidos y los rótulos de formulario son alias locales, no nombres | en revisión |
+| D-246 | 17 oct | Conocimiento | Una pregunta de lectura nueva: se vuelve a leer el archivo entero | en revisión |
+| D-247 | 17 oct | Conocimiento | El domicilio tiene clase, tiempo y titular | en revisión |
+| D-248 | 17 oct | Conocimiento | Formularios: cada valor con su campo y su persona, y el rótulo aparte | en revisión |
+| D-249 | 17 oct | Conocimiento | Los identificadores por su rótulo; los números que no identifican a nadie | en revisión |
+| D-250 | 17 oct | Conocimiento | Lo que tiene consecuencias jurídicas nombra a su objeto en la cita | en revisión |
+| D-251 | 17 oct | Conocimiento | El rol "domicilio constituido" y los roles de una constancia de firma | en revisión |
+| D-252 | 17 oct | Conocimiento | Un conflicto es el mismo dato, de la misma clase, del mismo titular y del mismo tiempo | en revisión |
+| D-253 | 17 oct | Proceso de trabajo | La muestra de atribución: 40 afirmaciones al azar, juzgadas a ciegas | en revisión |
 
 ---
 
@@ -2660,7 +2670,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 - **Fecha:** 16 oct 2026
 - **Tema:** Conocimiento
-- **Estado:** en revisión (agente sin consulta, P-066); reemplazada en parte por D-209 (cargo y monto reclamado ya no son de un valor a la vez; la forma de los valores)
+- **Estado:** en revisión (agente sin consulta, P-066); reemplazada en parte por D-209 (cargo y monto reclamado ya no son de un valor a la vez; la forma de los valores) y por D-252 (sin tiempo no hay conflicto; la clase y el tiempo del documento)
 - **El problema:** la etapa 1 guarda evidencias entre menciones de un documento; las páginas necesitan afirmaciones sobre entidades, sin repetir lo mismo y mostrando las contradicciones (D-171).
 - **Qué se decidió:** cada evidencia se pasa a términos de entidades: sujeto, predicado y objeto (otra entidad, o un valor comparado por sus palabras normalizadas). Las que dicen lo mismo son **una afirmación** con varias evidencias. Los predicados de un valor a la vez se marcan en el vocabulario (`single`: cargo, domicilio, monto reclamado, nacionalidad, estado civil); si una entidad tiene valores distintos de uno de ellos, son una **historia** cuando cada valor tiene su propio tiempo, y un **conflicto** cuando el tiempo es el mismo o no se dice: el conflicto se guarda y se muestra, nunca gana el último. Una afirmación marcada como incorrecta queda retirada; una evidencia marcada no cuenta. Una relación de una entidad consigo misma (después de unir) no se guarda. Se recalculan en cada resolución y se escribe solo lo que cambió.
 - **Por qué:** es lo que pide D-171; marcar en el vocabulario qué predicados tienen un valor a la vez evita llamar conflicto a dos montos adeudados de facturas distintas.
@@ -3330,3 +3340,136 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** `src-tauri/src/docbase/knowledge/pages.rs` (`overview`), `vocabulary.rs`, `resources/catalog/knowledge.json`.
 - **Quién decidió:** agente sin consulta.
 - **Fuente:** etapa Q1 de la tanda desatendida del 17 oct.
+
+### D-244 · El dinero es una relación entre un deudor y un acreedor
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la revisión del 17 de octubre encontró que cerca de 20 de 38 afirmaciones de dinero tenían mal el sujeto, la dirección o la naturaleza del importe. Los predicados `monto_adeudado` y `monto_reclamado` guardaban un importe suelto, sin la otra parte: la página decía "consta un monto adeudado" sin decir a quién, y faltaba la relación central del reclamo (quién le debe a quién).
+- **Qué se decidió:**
+  - La pregunta de lectura tiene una lista propia, `importes`: deudor (quien debe, paga o pone el dinero), acreedor (quien lo recibe, lo cobra o lo reclama), importe, moneda, tipo (total de factura, saldo, reclamo, cuota pagada, intereses, precio, honorarios, préstamo, inversión, otro), concepto y fecha, con su cita. Pide quién debe a quién **después de resolver los términos definidos** ("la Empresa" es la sociedad que el documento definió así).
+  - Se guarda como una afirmación `importe` cuyo sujeto es el deudor y cuyo objeto es el acreedor, con el importe y su tipo (esquema V13: `amount` y `detail` en la evidencia y en la afirmación). Dos importes entre las mismas partes son dos afirmaciones. Se eliminan `monto_adeudado`, `monto_reclamado` y `acreedor_de` (que era la inversa de `deudor_de`); `deudor_de` queda para una deuda sin importe.
+  - **Control de dirección, por regla general:** si la cita pone al deudor delante de un verbo de quien cobra ("X reclama a Y") o al acreedor delante de un verbo de quien paga ("Y le adeuda a X"), o al deudor detrás de "a favor de", el programa da vuelta las partes y lo cuenta (`direccion-invertida`). Un verbo en voz pasiva o dos verbos que dicen cosas distintas no deciden nada. Los verbos son datos del vocabulario (`money.payerCues`, `payeeCues`, `creditorMarkers`).
+  - Un importe sin una de las partes no se guarda (`sin-contraparte`), tampoco uno con una palabra de impuesto justo antes ("Percepción IVA", `es-un-impuesto`) ni uno entre dos menciones de la misma entidad.
+  - Como las partes salen de la lectura del documento entero ("Ud. adeuda la suma de…": el deudor es el destinatario), no se exige que la cita nombre a las dos.
+  - Las páginas lo cuentan desde cada lado, con las palabras de cada tipo ("Debe a X", "Le debe X", "Reclama a X", "Le reclama X", "Pagó a X", "Cobró de X"…: `money.kinds` del vocabulario): el importe figura en la página del deudor y en la del acreedor, y no se repite en "Vínculos".
+- **Por qué:** para un abogado el importe sin las partes no sirve, y la dirección es lo que más se equivocaba.
+- **Medición:** sobre una copia de la base del 16 de octubre, con `gpt-6-luna` y una caché nueva (`desatendido-3\Q2-eval-*.txt`): vínculos de la hoja hallados entre las mismas entidades del registro, de 8 de 30 (26,7 %) a 21 de 32 (65,6 %); "acreedor de" de 0 a 7 de 8 y "deudor de" de 0 a 3 de 3. Muestra de atribución juzgada a ciegas: ver el reporte de la etapa Q2.
+- **Dónde se aplica:** `src-tauri/resources/catalog/knowledge.json` (`importe`, `money`), `knowledge/extract.rs` (`amount_evidence`), `read_checks.rs` (`money_direction`, `amount_about_else`), `claims.rs`, `pages.rs` (`claim_label`, `amount_text`), `matters.rs`, `schema.rs` (V13).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q2 de la tanda desatendida del 17 oct.
+
+### D-245 · Los términos definidos y los rótulos de formulario son alias locales, no nombres
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** "Empresa", "Cliente", "Trabajadora", "Contratista" quedaban como alias de entidades y se filtraban al texto de las páginas; "PROVINCIA" (el rótulo de un formulario) llegó a ser el nombre de una entidad con página.
+- **Qué se decidió:** la pregunta pide los términos definidos ("en adelante «la Empresa»", "(«la Locataria»)", "hereinafter the «Company»") en una lista `definiciones`, con la mención que definen y una cita que tenga el término y el nombre. El programa además los busca por su forma en el texto (un término entre comillas precedido de "en adelante", "denominado", "hereinafter" o de un paréntesis) y, si el modelo no dijo a qué se refieren, toma el nombre más cercano antes de la definición. Una mención escrita como un término definido queda marcada (`knowledge_mention.defined`) y se une, dentro del documento, con lo que define: nunca da nombre a la entidad, no es alias en las páginas y no se compara con otros documentos. Una forma de escribir de una sola palabra que el texto escribe siempre seguida de dos puntos ("PROVINCIA:") es un rótulo de formulario y se descarta (`rotulo-de-formulario`).
+- **Por qué:** un término definido vale solo dentro de su documento; tomarlo como nombre une o nombra mal.
+- **Dónde se aplica:** `knowledge/extract.rs` (`define_terms`), `read_checks.rs` (`defined_terms`, `is_form_label`), `resolve.rs` (el principal de un grupo nunca es un término definido), `pages.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q2 de la tanda desatendida del 17 oct.
+
+### D-246 · Una pregunta de lectura nueva: se vuelve a leer el archivo entero
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** los arreglos de esta etapa cambian lo que se le pide al modelo (importes, definiciones, clase de un dato, rótulo apartado, fecha del documento) y lo que el programa comprueba.
+- **Qué se decidió:** versión de la pregunta `conocimiento-2` y comprobación `lectura-4`; el vocabulario de lectura incluye ahora las clases de los datos, los rótulos de los identificadores, los tipos de importe y los controles de lectura. Todo el archivo se vuelve a leer una vez (66 documentos, 75 preguntas). La síntesis pasa a `sintesis-2` y la proyección a `proyeccion-4`.
+- **Por qué:** la regla de siempre (R-20): una pregunta distinta es otra pregunta.
+- **Medición:** la relectura con `gpt-6-luna` tardó unos 10 minutos con 3 preguntas a la vez; ninguna lectura vacía ni fallida (antes, 2 fallidas).
+- **Dónde se aplica:** `knowledge/extract.rs`, `vocabulary.rs`, `pages.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q2 de la tanda desatendida del 17 oct.
+
+### D-247 · El domicilio tiene clase, tiempo y titular
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** 7 páginas de entidad y 2 de asunto decían "los documentos difieren sobre su domicilio" por un cambio en el tiempo, el domicilio de la sociedad por la que se firma, un domicilio laboral o constituido, o el mismo dato escrito distinto. El domicilio no tenía clase ni tiempo, y la lectura le daba al firmante la dirección del bloque de firma.
+- **Qué se decidió:**
+  - El modelo dice la **clase** de un domicilio (real, legal o sede, laboral, fiscal, constituido; "ninguna" si el texto no la dice). Las palabras de la cita ("constituye domicilio") siguen mandando para "constituido". Domicilios de clases distintas no se comparan.
+  - El **tiempo** es el que dice la cita o, si no dice, la **fecha del documento**, que la lectura ahora pide (`fecha_documento`, comprobada en el texto; esquema V13). Dos domicilios con fechas distintas son una historia.
+  - **Titular:** un domicilio que el modelo le dio a una persona, cuando entre su nombre y la dirección la cita nombra a una sola organización del documento ("X, por Ejemplo S.A., con domicilio en…"), pasa a la organización (`domicilio-de-la-sociedad`). La descripción del predicado dice que la dirección de un bloque de firma o de un membrete es de la organización.
+  - Un código postal solo no es un domicilio.
+- **Medición:** páginas con "los documentos difieren": de 8 a 2 (las dos de la misma persona, por dos direcciones del mismo documento que el modelo le dio como reales: la revisión ciega dice que una es de la sociedad que firma, ver P-121).
+- **Dónde se aplica:** `knowledge.json` (`domicilio`), `extract.rs` (`signature_block`), `claims.rs`, `values.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q2 de la tanda desatendida del 17 oct.
+
+### D-248 · Formularios: cada valor con su campo y su persona, y el rótulo aparte
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** las fichas de cliente perdían casi todo: el nombre está en dos campos ("Apellidos" y "Nombres") y ninguna cita lo contiene como una sola frase; en una factura o un formulario en columnas el rótulo ("CUIT:") y su valor quedan separados en el texto. Y un dato del cónyuge quedaba en el cliente.
+- **Qué se decidió:**
+  - El nombre de una mención está en su cita si están todas sus palabras (dos o más), aunque no en orden.
+  - Una cita de rótulo y valor que no está seguida en el texto vale si el valor está en el texto y el rótulo, a lo sumo a `reading.labelWindow` palabras antes (y lo que siga, a lo sumo a esa distancia después). El modelo puede dar el rótulo aparte (`rotulo`); un rótulo que no está cerca del valor se ignora, nunca hace perder el valor.
+  - Un dato o un identificador que la cita pone bajo un rótulo de otra persona (`reading.otherPersonLabels`: "cónyuge", "concubino") pasa a la única persona del documento nombrada con ese rótulo; si no hay una sola, no queda en nadie. Lo mismo para un número que el texto escribe siempre después del nombre de otra persona.
+- **Medición:** identificadores de la hoja hallados, de 19 de 26 (73 %) a 21 de 26 (81 %); la primera versión, sin la cita en dos partes, perdía 116 identificadores por "cita no encontrada" (bajaron a 21 en total, contando todo).
+- **Dónde se aplica:** `extract.rs` (`locate_apart`, `label_verified`, `other_person`), `read_checks.rs` (`name_in_quote`), `quote.rs`, `knowledge.json` (`reading`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q2 de la tanda desatendida del 17 oct.
+
+### D-249 · Los identificadores por su rótulo; los números que no identifican a nadie
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** ~12 identificadores mal asignados: números de carta documento, de cliente, de sobre de firma, códigos postales, un EIN rotulado como CUIT, números de factura tomados como "expediente" (que es identificador fuerte y une). Y el mismo número escrito con y sin guiones se mostraba dos veces.
+- **Qué se decidió:** clases nuevas de identificador, cada una con sus rótulos (datos del vocabulario): EIN (fuerte), número de cliente, número de factura, número de envío o carta documento, sobre de firma y código postal. El rótulo que el texto pone justo antes del número decide la clase, sea cual sea la que dijo el modelo (`clase-por-su-rotulo`); entre un rótulo débil y uno fuerte seguidos ("CUIT del cliente") gana el fuerte. Factura, envío, sobre y código postal **no identifican** a una persona ni a una organización: solo se guardan en la mención del asunto del documento (y sirven para agrupar asuntos, `matters.identifierKinds`); en una persona u organización se descartan (`no-identifica`). El valor de un identificador se compara y se muestra por sus letras y dígitos, sin separadores.
+- **Medición:** uniones falsas de entidades de la hoja: de 89 pares de menciones (2 pares de entidades de la hoja unidas: la sociedad anónima con la LLC y la empresa de la contraparte con su grupo) a 5 pares (0 entidades de la hoja unidas). Separaciones falsas: de 10,4 % a 13,2 % de los pares (ver P-120).
+- **Dónde se aplica:** `knowledge.json` (`identifiers`), `read_checks.rs` (`kind_by_label`), `extract.rs`, `vocabulary.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q2 de la tanda desatendida del 17 oct.
+
+### D-250 · Lo que tiene consecuencias jurídicas nombra a su objeto en la cita
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** "beneficiario final de la operación" leído como de la sociedad; "representa a" sacado de una frase sobre un dominio de correo; la provincia como "parte".
+- **Qué se decidió:** predicados nuevos `beneficiario_final_de` y `conyuge_de`. "Representa a", "socio de", "beneficiario final de", "cónyuge de" y "parte en" (`objectInQuote` en el vocabulario) se guardan solo si la cita nombra al objeto (por cualquiera de sus nombres en el documento, también un término definido); si no, se descartan (`objeto-fuera-de-la-cita`).
+- **Por qué:** son los datos que un abogado usa para actuar; sin el objeto en la cita no hay cómo comprobarlos.
+- **Costo:** se pierden representaciones reales cuyo bloque de firma pone la sociedad en otra línea (46 descartes de este tipo). Ver P-122.
+- **Dónde se aplica:** `knowledge.json`, `extract.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q2 de la tanda desatendida del 17 oct.
+
+### D-251 · El rol "domicilio constituido" y los roles de una constancia de firma
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el rol "domicilio" se usaba para "tiene domicilio" (17 menciones, 3 o 4 reales), y los roles salidos de la constancia de un servicio de firma (quién firmó el sobre, quién lo envió) se tomaban como los del acto.
+- **Qué se decidió:** el rol pasa a `domicilio_constituido`, descrito como el lugar donde otra parte constituye domicilio, distinto de tener un domicilio (que es una afirmación). En las páginas del texto que tienen las marcas de una constancia de firma del catálogo de tipos (`reading.certificateMarks`), parte, remitente, destinatario y apoderado pasan a firmante (o a "otro" para una organización), según `reading.certificateRoles`.
+- **Medición:** menciones con ese rol, de 17 a 3; 3 papeles corregidos por la constancia.
+- **Dónde se aplica:** `knowledge.json`, `extract.rs`, `read_checks.rs` (`certificate_pages`), `src/vocabulary/legal.ts`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q2 de la tanda desatendida del 17 oct.
+
+### D-252 · Un conflicto es el mismo dato, de la misma clase, del mismo titular y del mismo tiempo
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066) · reemplaza en parte a D-191
+- **El problema:** D-191 marcaba en conflicto dos valores de un dato de un valor a la vez cuando no tenían tiempo, y la síntesis decía "los documentos difieren" también para historias y datos de distinta clase.
+- **Qué se decidió:** hay conflicto solo con el mismo predicado, la misma clase, el mismo titular, el mismo tiempo y valores distintos. Sin tiempo, los valores se muestran todos, sin compararlos. El dinero y los cargos nunca son "un solo valor". La consigna de la síntesis dice que no se hable de diferencias salvo para lo marcado en conflicto, que los datos de clases distintas no se contradicen y que un importe se cuenta con la otra parte.
+- **Dónde se aplica:** `claims.rs`, `pages.rs` (`synthesis_question`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q2 de la tanda desatendida del 17 oct.
+
+### D-253 · La muestra de atribución: 40 afirmaciones al azar, juzgadas a ciegas
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Forma de trabajo
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la hoja de respuestas mide si se encontró un dato, no si quedó atribuido a quien corresponde. Hacía falta medir la atribución de forma repetible para comparar esta etapa y las variantes de modelo de la Q4.
+- **Qué se decidió:** se toman con semilla fija 40 afirmaciones de una base (14 de dinero, 13 de domicilio y 13 de relaciones) con su cita y el texto completo de su documento; las muestras que se comparan se mezclan sin decir su origen y las juzga un revisor (un sub-agente) contra el documento: correcta, sujeto equivocado, dirección o naturaleza equivocada, objeto equivocado, o el documento no lo dice. Los scripts quedan fuera del repositorio porque las muestras nombran personas reales (`desatendido-3\Q2-muestra-atribucion.py`, `Q2-mezclar-muestras.py`, `Q2-contar-juicios.py`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q2 de la tanda desatendida del 17 oct.
