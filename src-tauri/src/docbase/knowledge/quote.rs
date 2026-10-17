@@ -76,6 +76,11 @@ impl Located {
         found
     }
 
+    /// The page of the word at `position`.
+    pub fn page_at(&self, position: usize) -> Option<i64> {
+        self.pages.get(position).copied().flatten()
+    }
+
     /// The places (word positions) where `quote` starts.
     pub fn starts(&self, quote: &[String]) -> Vec<usize> {
         let Some(head) = quote.first() else {

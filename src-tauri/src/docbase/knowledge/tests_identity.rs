@@ -5,7 +5,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::decide::IdentityDecision;
-use super::tests::{answer, amount, base_with, claim, empty_answer, is_knowledge, mention, refresh, type_answer, FakeModel};
+use super::tests::{answer, base_with, claim, empty_answer, is_knowledge, mention, refresh, type_answer, FakeModel};
 use crate::docbase::testing::TempDir;
 use crate::docbase::{DocBase, Visible};
 

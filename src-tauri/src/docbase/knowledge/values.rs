@@ -72,7 +72,14 @@ pub fn fits(vocabulary: &Vocabulary, shape: &str, value: &str, subject: &str) ->
             let words = quote::words(value);
             own.is_empty() || !own.iter().all(|w| words.contains(w))
         }
-        "address" => digits > 0 && letters >= 3 && !value.contains('@'),
+        // A street and a number: a postal code alone ("C1429BNO") or a
+        // number with no word is not where someone is (D-247).
+        "address" => {
+            digits > 0
+                && letters >= 3
+                && !value.contains('@')
+                && quote::words(value).iter().any(|w| w.chars().count() >= 3 && w.chars().all(char::is_alphabetic))
+        }
         // A mail address, or a telephone: not a name.
         "contact" => value.contains('@') || digits >= 6,
         _ => !value.trim().is_empty(),
@@ -131,7 +138,7 @@ mod tests {
         assert!(fits(&v, "address", "Calle Uno 100, piso 3", "x"));
         assert!(fits(&v, "contact", "alguien@ejemplo.com", "x") && fits(&v, "contact", "+54 11 4444-5555", "x"));
         assert!(!fits(&v, "contact", "Atención: Persona Dos", "persona dos"));
-        for not in ["22.222.222", "Islas del Norte"] {
+        for not in ["22.222.222", "Islas del Norte", "C1429ABC", "CP 1000"] {
             assert!(!fits(&v, "address", not, "x"), "{not}");
         }
     }

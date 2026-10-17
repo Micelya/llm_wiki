@@ -201,3 +201,24 @@ fn domiciles_at_different_dates_or_of_different_classes_are_not_a_conflict() {
     let detail = base.knowledge_entity(&Visible::All, &entity).unwrap().unwrap();
     assert!(detail.claims.iter().all(|c| c.state == "supported"));
 }
+
+const INVOICE: &str = "FACTURA\nCUIT: Ingresos brutos: Inicio de actividades:\n30-11111111-1 901-123456 01/01/2010\nEjemplo Uno S.A.";
+
+#[test]
+fn a_label_and_its_value_apart_in_the_text_are_one_quote() {
+    let reading = read(
+        INVOICE,
+        serde_json::json!({
+            "menciones": [mention("o", "organizacion", "Ejemplo Uno S.A.", "emisor", "Ejemplo Uno S.A.",
+                ids("cuit", "30-11111111-1", "CUIT: 30-11111111-1"))],
+            "afirmaciones": [
+                claim("o", "inicio_de_vinculo", None, Some("01/01/2010"), "Inicio de actividades: 01/01/2010", None),
+                // Too far apart, or not in the text: not found.
+                claim("o", "inicio_de_vinculo", None, Some("01/01/2011"), "Inicio de actividades: 01/01/2011", None),
+            ]
+        }),
+    );
+    let ids: Vec<&str> = reading.mentions[0].identifiers.iter().map(|i| i.value.as_str()).collect();
+    assert_eq!(ids, ["30-11111111-1"], "{:?}", reading.discarded);
+    assert_eq!(reading.evidence.len(), 1, "{:?}", reading.discarded);
+}

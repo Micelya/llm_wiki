@@ -640,25 +640,57 @@ fn applies(types: &[String], kind: &str) -> bool {
     types.is_empty() || types.iter().any(|t| t == kind)
 }
 
-/// Where a value is, given its quote and, for a form, its label apart
-/// (D-248): the page of the quote, when the quote is in the text and the
-/// label (if any) comes before it, at most `window` words before.
-fn locate_with_label(text: &Located, quote_text: &str, label: Option<&str>, page: Option<i64>, window: usize) -> Option<Option<i64>> {
-    let found = text.locate(quote_text, page)?;
+/// Where a quote of a label and its value is when the text has them apart
+/// (a form or an invoice laid out in columns: "CUIT:" in one place and the
+/// number in another, D-248): the value as one run of the text, and what
+/// the quote has before it (the label) and after it, each as one run, at
+/// most `window` words away on its side. `None` when it is not so.
+fn locate_apart(text: &Located, quote_text: &str, value: &[String], window: usize) -> Option<Option<i64>> {
+    let quote_words = quote::words(quote_text);
+    let at = read_checks::positions(&quote_words, value).into_iter().next()?;
+    let (before, after) = (&quote_words[..at], &quote_words[at + value.len()..]);
+    if before.is_empty() && after.is_empty() {
+        return None;
+    }
+    let befores = text.starts(before);
+    let afters = text.starts(after);
+    text.starts(value)
+        .into_iter()
+        .find(|&s| {
+            let end = s + value.len();
+            (before.is_empty() || befores.iter().any(|&l| l + before.len() <= s && s - (l + before.len()) <= window))
+                && (after.is_empty() || afters.iter().any(|&r| r >= end && r - end <= window))
+        })
+        .map(|s| text.page_at(s))
+}
+
+/// A quote found, or found with its value apart.
+fn locate_value(text: &Located, quote_text: &str, value: &[String], page: Option<i64>, window: usize) -> Option<Option<i64>> {
+    text.locate(quote_text, page).or_else(|| locate_apart(text, quote_text, value, window))
+}
+
+/// Whether the label of a form the model gave apart is the value's: in its
+/// quote, or in the text at most `window` words before it. A label that is
+/// not is ignored (the value stands on its own quote).
+fn label_verified(text: &Located, quote_text: &str, value: &[String], label: Option<&str>, window: usize) -> bool {
     let Some(label) = label.map(str::trim).filter(|l| !l.is_empty()) else {
-        return Some(found);
+        return false;
     };
     let label_words = quote::words(label);
     let quote_words = quote::words(quote_text);
-    if label_words.is_empty() || quote_words.is_empty() {
-        return Some(found);
+    if label_words.is_empty() {
+        return false;
     }
-    let starts = text.starts(&quote_words);
-    let labels = text.starts(&label_words);
-    labels
+    if quote::contains(&quote_words, &label_words) {
+        return true;
+    }
+    let mut starts = text.starts(&quote_words);
+    if starts.is_empty() {
+        starts = text.starts(value);
+    }
+    text.starts(&label_words)
         .iter()
         .any(|&l| starts.iter().any(|&s| s >= l + label_words.len() && s - (l + label_words.len()) <= window))
-        .then_some(found)
 }
 
 /// Checks the answers about the parts of one document against its text,
@@ -689,7 +721,7 @@ pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &
             };
             let written = said.escrito.trim().to_string();
             let name = quote::words(&written);
-            let Some(page) = text.locate(&said.cita, said.pagina) else {
+            let Some(page) = locate_value(&text, &said.cita, &name, said.pagina, window) else {
                 discard(&mut reading, "mention", "cita-no-encontrada", &written, &said.cita);
                 continue;
             };
@@ -726,7 +758,7 @@ pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &
             for identifier in &said.identificadores {
                 let value = identifier.valor.trim().to_string();
                 let value_words = quote::words(&value);
-                let Some(id_page) = locate_with_label(&text, &identifier.cita, identifier.rotulo.as_deref(), said.pagina, window) else {
+                let Some(id_page) = locate_value(&text, &identifier.cita, &value_words, said.pagina, window) else {
                     discard(&mut reading, "identifier", "cita-no-encontrada", &value, &identifier.cita);
                     continue;
                 };
@@ -743,7 +775,7 @@ pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &
                 // The label the text puts right before the number says its
                 // kind (D-249); the label of a form apart, too.
                 let labelled = read_checks::kind_by_label(vocabulary, &quote_words, &value_words).or_else(|| {
-                    identifier.rotulo.as_deref().and_then(|r| {
+                    identifier.rotulo.as_deref().filter(|r| label_verified(&text, &identifier.cita, &value_words, Some(r), window)).and_then(|r| {
                         let mut words = quote::words(r);
                         words.extend(value_words.iter().cloned());
                         read_checks::kind_by_label(vocabulary, &words, &value_words)
@@ -837,7 +869,8 @@ pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &
                 discard(&mut reading, "claim", "no-corresponde-al-tipo", &said.predicado, &said.cita);
                 continue;
             }
-            let Some(page) = locate_with_label(&text, &said.cita, said.rotulo.as_deref(), said.pagina, window) else {
+            let value_words = if predicate.takes_entity() { Vec::new() } else { quote::words(said.objeto_valor.as_deref().unwrap_or_default()) };
+            let Some(page) = locate_value(&text, &said.cita, &value_words, said.pagina, window) else {
                 discard(&mut reading, "claim", "cita-no-encontrada", &said.predicado, &said.cita);
                 continue;
             };
@@ -883,7 +916,7 @@ pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &
             if let Some(class) = &class {
                 detail.insert("clase".into(), class.clone().into());
             }
-            if let Some(label) = said.rotulo.as_deref().map(str::trim).filter(|l| !l.is_empty()) {
+            if let Some(label) = said.rotulo.as_deref().map(str::trim).filter(|l| label_verified(&text, &said.cita, &value_words, Some(l), window)) {
                 detail.insert("rotulo".into(), label.into());
             }
             let evidence = Evidence {
@@ -1076,8 +1109,13 @@ fn define_terms(vocabulary: &Vocabulary, body: &str, answers: &[Answer], text: &
             };
             let named = names.get(&target).is_some_and(|(_, n)| read_checks::name_in_quote(&quote_words, n));
             let term_words: Vec<String> = term.split_whitespace().map(str::to_string).collect();
-            if term.is_empty() || text.locate(&said.cita, None).is_none() || !quote::contains(&quote_words, &term_words) || !named {
+            if term.is_empty() || text.locate(&said.cita, None).is_none() || !quote::contains(&quote_words, &term_words) {
                 discard(reading, "definition", "cita-no-encontrada", &said.termino, &said.cita);
+                continue;
+            }
+            if !named {
+                // A term of something that is not a mention ("los Servicios").
+                discard(reading, "definition", "definicion-sin-nombre", &said.termino, &said.cita);
                 continue;
             }
             targets.entry(term).or_insert(target);
@@ -1164,7 +1202,7 @@ fn amount_evidence(
         discard(reading, "amount", "mismas-partes", &what, &said.cita);
         return;
     }
-    let Some(page) = text.locate(&said.cita, said.pagina) else {
+    let Some(page) = locate_value(text, &said.cita, &quote::words(said.importe.trim()), said.pagina, vocabulary.reading.label_window) else {
         discard(reading, "amount", "cita-no-encontrada", &what, &said.cita);
         return;
     };
