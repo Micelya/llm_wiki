@@ -799,6 +799,13 @@ pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &
                 if normalized_value.is_empty() {
                     continue;
                 }
+                // A number of one to three digits ("N° 2") is too short to
+                // be anyone's DNI, CUIT or registration: it would join
+                // whoever has the same (D-288).
+                if term.is_some_and(|t| t.strong) && normalized_value.chars().filter(|c| c.is_ascii_digit()).count() < 4 {
+                    discard(&mut reading, "identifier", "no-identifica", &value, &identifier.cita);
+                    continue;
+                }
                 if !identifiers.iter().any(|i: &Identifier| i.kind == id_kind && i.normalized == normalized_value) {
                     identifiers.push(Identifier {
                         kind: id_kind,

@@ -523,6 +523,19 @@ pub fn misread(a: &str, b: &str) -> bool {
 /// a name read wrong in a scan that does not hold the anchor's words never
 /// does. Without any name, the most used one.
 pub fn most_specific<'a>(vocabulary: &Vocabulary, kind: &str, candidates: &[(&'a str, &'a str, usize)]) -> Option<&'a str> {
+    let forms: Vec<(&str, usize)> = candidates.iter().map(|&(_, written, count)| (written, count)).collect();
+    most_specific_with(vocabulary, kind, candidates, &forms)
+}
+
+/// The same, counting how much of what the documents write each name
+/// holds over all the ways the entity is written (`forms`, with how many
+/// mentions write each), not only over the principal names.
+pub fn most_specific_with<'a>(
+    vocabulary: &Vocabulary,
+    kind: &str,
+    candidates: &[(&'a str, &'a str, usize)],
+    forms: &[(&str, usize)],
+) -> Option<&'a str> {
     // (normalized, written, mentions)
     let keyed: Vec<(&'a str, NameKey, usize, bool)> = candidates
         .iter()
@@ -544,9 +557,10 @@ pub fn most_specific<'a>(vocabulary: &Vocabulary, kind: &str, candidates: &[(&'a
     // form split in two fields ("Nombres: Uno Dos", "Apellidos: Tres")
     // gives way to the one that joins a given name with the surname
     // written apart ("Uno Tres"), even if the split one is as used (D-288).
+    let written: Vec<(BTreeSet<String>, usize)> = forms.iter().map(|&(w, count)| (key(vocabulary, kind, w).complete_set(), count)).collect();
     let covered = |k: &(&'a str, NameKey, usize, bool)| -> usize {
         let set = k.1.complete_set();
-        keyed.iter().filter(|o| !o.1.complete_set().is_empty() && o.1.complete_set().is_subset(&set)).map(|o| o.2).sum()
+        written.iter().filter(|(o, _)| !o.is_empty() && o.is_subset(&set)).map(|(_, count)| count).sum()
     };
     let anchor = named.iter().copied().max_by(|a, b| covered(a).cmp(&covered(b)).then_with(|| by_use(a, b)))?;
     let anchor_set = anchor.1.complete_set();
@@ -696,6 +710,10 @@ mod tests {
         // form that joins a given name with that surname names the person.
         let split = [("uno dos", "UNO DOS", 1), ("tres", "TRES", 1), ("uno tres", "Uno Tres", 1)];
         assert_eq!(most_specific(&v, PERSON, &split), Some("uno tres"));
+        // The surname may be only a form of the entity, not a principal name.
+        let principal = [("uno dos", "UNO DOS", 1), ("uno tres", "Uno Tres", 1)];
+        let forms = [("UNO DOS", 1), ("TRES", 1), ("Uno Tres", 1)];
+        assert_eq!(most_specific_with(&v, PERSON, &principal, &forms), Some("uno tres"));
         // A form read apart in a scan does not hold them: the most used.
         let list = [("ejemplo s a", "Ejemplo S.A.", 5), ("ejem plo", "Ejem plo", 1)];
         assert_eq!(most_specific(&v, ORGANIZATION, &list), Some("ejemplo s a"));

@@ -62,7 +62,7 @@ pub const IDENTITY_PROMPT: &str = "identidad-4";
 /// the program's or the vocabulary's change, the record is computed again.
 const RESOLUTION_SETTING: &str = "knowledge-resolution";
 /// Raised when a change in the program changes what a resolution gives.
-const RESOLUTION_VERSION: &str = "resolucion-7";
+const RESOLUTION_VERSION: &str = "resolucion-8";
 
 fn resolution_basis() -> String {
     format!("{RESOLUTION_VERSION}|{IDENTITY_PROMPT}|{}", vocabulary().digest)
@@ -2101,7 +2101,8 @@ pub(crate) fn write(base: &DocBase, outcome: &Outcome, report: &mut ResolveRepor
         // not the most repeated one (D-259).
         let shown: Vec<(String, String, usize)> = proper.iter().map(|n| (n.to_string(), written_of(n), count(n))).collect();
         let candidates: Vec<(&str, &str, usize)> = shown.iter().map(|(n, w, c)| (n.as_str(), w.as_str(), *c)).collect();
-        let chosen = names::most_specific(vocabulary, kind, &candidates).unwrap_or_default().to_string();
+        let forms: Vec<(&str, usize)> = aliases.values().flat_map(|forms| forms.iter().map(|(w, c)| (*w, *c))).collect();
+        let chosen = names::most_specific_with(vocabulary, kind, &candidates, &forms).unwrap_or_default().to_string();
         let chosen = chosen.as_str();
         // On one line, and in the form of a proper name when the documents
         // write it some other way than in capitals (D-239).

@@ -111,6 +111,27 @@ fn a_form_keeps_each_value_with_its_field_and_its_person() {
     }
 }
 
+#[test]
+fn a_number_too_short_identifies_no_one() {
+    // D-288: "Registro N° 2" would join everyone with a registration 2.
+    let text = "Persona Seis, inscripta en el Registro N° 2, DNI 66.666.666.";
+    let reading = read(
+        text,
+        serde_json::json!({
+            "menciones": [
+                mention("p", "persona", "Persona Seis", "parte", "Persona Seis, inscripta en el Registro N° 2",
+                    serde_json::json!([
+                        { "clase": "matricula", "valor": "2", "cita": "Registro N° 2", "rotulo": null },
+                        { "clase": "dni", "valor": "66.666.666", "cita": "DNI 66.666.666", "rotulo": null },
+                    ])),
+            ],
+            "afirmaciones": []
+        }),
+    );
+    let ids: Vec<String> = reading.mentions[0].identifiers.iter().map(|i| i.normalized.clone()).collect();
+    assert_eq!(ids, ["66666666"], "{:?}", reading.discarded);
+}
+
 const LETTER: &str = "## Page 1\n\nPersona Tres, por Ejemplo Uno S.A., con domicilio en Calle Dos 200, representa a la sociedad. \
 Persona Tres es apoderada.\n\n## Page 2\n\nCertificate Of Completion\nEnvelope Summary Events\nSigner Events\n\
 Persona Tres firmó el sobre.";
