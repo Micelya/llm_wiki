@@ -430,7 +430,8 @@ pub(crate) fn localized_dates(vocabulary: &Vocabulary, text: &str) -> String {
     };
     let tokens: Vec<&str> = text.split(' ').collect();
     let day = |t: &str| -> Option<u32> {
-        let t = t.trim_end_matches(',').trim_end_matches("st").trim_end_matches("nd").trim_end_matches("rd").trim_end_matches("th");
+        // "1st", "1°", "1º" (D-283).
+        let t = t.trim_end_matches(',').trim_end_matches(['°', 'º']).trim_end_matches("st").trim_end_matches("nd").trim_end_matches("rd").trim_end_matches("th");
         t.parse::<u32>().ok().filter(|d| (1..=31).contains(d))
     };
     let year = |t: &str| -> Option<(String, String)> {
@@ -496,8 +497,11 @@ fn has_page(vocabulary: &Vocabulary, entity: &Entity) -> bool {
     if entity.documents.values().flatten().any(|role| rule.roles.iter().any(|r| r == role)) {
         return true;
     }
-    // What the documents say of it is reason enough (D-266).
-    if rule.with_claims && entity.claims.iter().any(|c| !c.mirrored) {
+    // What the documents say of it is reason enough (D-266), but not its
+    // contact data alone: a list of telephones and addresses of offices in
+    // a form names no one the archive is about (D-284).
+    let substantive = |c: &&Claim| !c.mirrored && vocabulary.predicate(&c.predicate).is_none_or(|p| p.shape != "contact");
+    if rule.with_claims && entity.claims.iter().any(|c| substantive(&c)) {
         return true;
     }
     rule.strong_identifier && entity.has_strong_identifier(vocabulary)
@@ -841,7 +845,12 @@ fn amount_text(vocabulary: &Vocabulary, claim: &Claim) -> String {
         }
     }
     if let Some(concept) = claim.detail.as_ref().and_then(|d| d.get("concepto")).and_then(|c| c.as_str()) {
-        notes.push(one_line(concept));
+        // A concept that only repeats the kind ("intereses; intereses") is
+        // said once (D-283).
+        let concept = one_line(concept);
+        if !notes.iter().any(|n| quote::words(n) == quote::words(&concept)) {
+            notes.push(concept);
+        }
     }
     if notes.is_empty() {
         amount
@@ -2407,6 +2416,13 @@ mod page_rule_tests {
             mirrored: false,
         });
         assert!(has_page(&v, &said));
+        // Its telephone and mail on a form are not (D-284).
+        let mut contact = passing.clone();
+        let mut phone = said.claims[0].clone();
+        phone.predicate = "contacto".into();
+        phone.object_value = Some("0800-000-0000".into());
+        contact.claims.push(phone);
+        assert!(!has_page(&v, &contact));
         // A group of companies always has its page.
         let mut group = with("organizacion", "Ejemplo", &[(1, "otro")]);
         group.members.push(("ent-y".into(), vec!["misma-casilla".into()]));

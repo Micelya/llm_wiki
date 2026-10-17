@@ -286,6 +286,36 @@ fn apart_in_document(vocabulary: &Vocabulary, a: &NameKey, b: &NameKey, ids_a: &
     })
 }
 
+/// The way of writing a name the most mentions use. An abbreviation left
+/// without its last dot ("Ejemplo S.A") counts for the same name with it
+/// ("Ejemplo S.A."), which is the one shown (D-282).
+pub(crate) fn most_written(forms: &BTreeMap<&str, usize>) -> String {
+    let completed = |w: &str| -> Option<String> {
+        let last = w.split_whitespace().last()?;
+        (!w.ends_with('.') && last.contains('.') && last.chars().last().is_some_and(char::is_alphabetic)).then(|| format!("{w}."))
+    };
+    let mut counts: BTreeMap<String, usize> = BTreeMap::new();
+    for (written, count) in forms {
+        let target = completed(written).filter(|c| forms.contains_key(c.as_str())).unwrap_or_else(|| written.to_string());
+        *counts.entry(target).or_default() += count;
+    }
+    counts.into_iter().max_by(|a, b| a.1.cmp(&b.1).then_with(|| b.0.cmp(&a.0))).map(|(w, _)| w).unwrap_or_default()
+}
+
+/// Whether the model's "the same" within a document joins the complete
+/// name of a company with an organization's name that has nothing in
+/// common with it (P-134, D-281): a trade name written with another
+/// company's name in parentheses ("Marca (Sociedad S.A.)") is at most
+/// related to it, never that company. Names that share words, an acronym
+/// or a typo still join.
+fn unrelated_company_names(kind: &str, a: &NameKey, b: &NameKey) -> bool {
+    kind == ORGANIZATION
+        && (a.form.is_some() || b.form.is_some())
+        && a.has_name()
+        && b.has_name()
+        && names::compare(kind, a, b) == Likeness::Unlike
+}
+
 /// The groups of mentions of each document, in canonical order.
 pub(crate) fn clusters(
     vocabulary: &Vocabulary,
@@ -345,7 +375,13 @@ pub(crate) fn clusters(
         }
         for i in start..end {
             let Some(j) = rows[i].same_as.as_deref().and_then(|s| by_ref.get(s)).copied() else { continue };
-            if rows[i].kind == rows[j].kind && !apart_in_document(vocabulary, &keys[i], &keys[j], &ids[i], &ids[j]) {
+            // What a defined term stands for is said by the definition; any
+            // other "the same" of the model has to fit the names (D-281).
+            let by_definition = rows[i].defined || rows[j].defined;
+            if rows[i].kind == rows[j].kind
+                && !apart_in_document(vocabulary, &keys[i], &keys[j], &ids[i], &ids[j])
+                && (by_definition || !unrelated_company_names(&rows[i].kind, &keys[i], &keys[j]))
+            {
                 sets.union(i, j);
             }
         }
@@ -2054,9 +2090,7 @@ pub(crate) fn write(base: &DocBase, outcome: &Outcome, report: &mut ResolveRepor
             }
         }
         let count = |n: &str| aliases[n].values().sum::<usize>();
-        let written_of = |n: &str| -> String {
-            aliases[n].iter().max_by(|a, b| a.1.cmp(b.1).then_with(|| b.0.cmp(a.0))).map(|(w, _)| w.to_string()).unwrap_or_default()
-        };
+        let written_of = |n: &str| -> String { most_written(&aliases[n]) };
         // A group of companies of one name is named by that name (D-260).
         let group_name = outcome
             .groups

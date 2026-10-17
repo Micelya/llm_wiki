@@ -252,6 +252,8 @@ fn a_date_in_english_is_written_in_the_language_of_the_pages() {
     assert_eq!(pages::localized_dates(&words, "Firmado el December 30, 2021 en Ciudad."), "Firmado el 30 de diciembre de 2021 en Ciudad.");
     assert_eq!(pages::localized_dates(&words, "vence el 1 March 2024, sin prórroga"), "vence el 1 de marzo de 2024, sin prórroga");
     assert_eq!(pages::localized_dates(&words, "pagó $ 30 May be"), "pagó $ 30 May be");
+    // An ordinal day, as Spanish writing in English puts it (D-283).
+    assert_eq!(pages::localized_dates(&words, "rige desde el JANUARY 1°, 2026 (inicio)"), "rige desde el 1 de enero de 2026 (inicio)");
 }
 
 #[test]

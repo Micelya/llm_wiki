@@ -240,6 +240,51 @@ fn a_matter_is_named_by_the_claim_between_its_parties_and_a_number_in_the_text_j
     assert_eq!(name, "Reclamo de Muestra Uno S.A. a Muestra Dos S.R.L.", "by the claim, never by the invoice (D-267)");
 }
 
+#[test]
+fn an_abbreviation_without_its_last_dot_is_shown_with_it() {
+    use super::resolve::most_written;
+    let forms: std::collections::BTreeMap<&str, usize> = [("Ejemplo S.A", 5), ("Ejemplo S.A.", 2), ("EJEMPLO SA", 1)].into_iter().collect();
+    assert_eq!(most_written(&forms), "Ejemplo S.A.");
+    // Without the complete form, the most used one stays.
+    let forms: std::collections::BTreeMap<&str, usize> = [("Ejemplo S.A", 5), ("EJEMPLO SA", 6)].into_iter().collect();
+    assert_eq!(most_written(&forms), "EJEMPLO SA");
+    let forms: std::collections::BTreeMap<&str, usize> = [("Ejemplo S.A", 5), ("EJEMPLO SA", 1)].into_iter().collect();
+    assert_eq!(most_written(&forms), "Ejemplo S.A");
+}
+
+const T1: &str ="DOC-T1. Propuesta de servicios de brillo (Fabrica Ejemplo S.A.) para Ejemplar S.A. Firma EJEMPLAR, por su apoderado.";
+
+#[test]
+fn a_trade_name_with_another_company_in_parentheses_is_not_that_company() {
+    let with_same = |mut m: serde_json::Value, same: &str| {
+        m["misma_que"] = serde_json::json!(same);
+        m
+    };
+    let reading = move |prompt: &str| -> String {
+        if !prompt.contains("DOC-T1.") {
+            return empty_answer();
+        }
+        answer(
+            vec![
+                mention("b", "organizacion", "brillo", "remitente", "Propuesta de servicios de brillo", none()),
+                // The model says the company in parentheses is the trade name.
+                with_same(mention("f", "organizacion", "Fabrica Ejemplo S.A.", "otro", "brillo (Fabrica Ejemplo S.A.)", none()), "b"),
+                mention("s", "organizacion", "Ejemplar S.A.", "destinatario", "para Ejemplar S.A.", none()),
+                // A name that fits the complete form still joins.
+                with_same(mention("o", "organizacion", "EJEMPLAR", "firmante", "Firma EJEMPLAR", none()), "s"),
+            ],
+            vec![],
+        )
+    };
+    let asker = FakeModel::new("falso:1", move |prompt| if is_knowledge(prompt) { reading(prompt) } else { type_answer("contrato") });
+    let (_dir, base) = base_with(&[("t1.txt", T1)]);
+    run(&base, &asker);
+    let trade = entity(&base, "t1.txt", "brillo").unwrap();
+    let company = entity(&base, "t1.txt", "Fabrica Ejemplo S.A.").unwrap();
+    assert_ne!(trade, company, "names with nothing in common are not joined by the model's word (D-281)");
+    assert_eq!(entity(&base, "t1.txt", "EJEMPLAR"), entity(&base, "t1.txt", "Ejemplar S.A."));
+}
+
 const S1: &str = "DOC-S1. Acuerdo de servicios entre las partes.\nPor la empresa: Ejemplar Norte S.A.\nNombre: Persona Ocho\nCargo: Apoderado\nPor el cliente: Persona Nueve\nFecha: hoy, en dos ejemplares.";
 
 #[test]

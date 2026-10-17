@@ -46,7 +46,7 @@ use sha2::{Digest, Sha256};
 
 use super::changes;
 use super::names;
-
+use super::quote;
 use super::values;
 use super::vocabulary::Vocabulary;
 use crate::docbase::similar::classify::Question;
@@ -553,14 +553,50 @@ fn matter_name(conn: &Connection, vocabulary: &Vocabulary, contents: &[i64]) -> 
         }
     }
     let between = parties.join(words.word("partiesAnd"));
+    let own = |name: &str| sentence_case(&own_name(vocabulary, &one_line(name), &parties));
     Ok(match (named.first(), parties.len()) {
-        (Some((_, _, name)), 0) => sentence_case(&one_line(name)),
-        (Some((_, _, name)), 1) => format!("{} {} {between}", sentence_case(&one_line(name)), words.word("matterOfOne")),
-        (Some((_, _, name)), _) => words.word("matterTyped").replace("{matter}", &sentence_case(&one_line(name))).replace("{parties}", &between),
+        (Some((_, _, name)), 0) => own(name),
+        (Some((_, _, name)), 1) => format!("{} {} {between}", own(name), words.word("matterOfOne")),
+        (Some((_, _, name)), _) => words.word("matterTyped").replace("{matter}", &own(name)).replace("{parties}", &between),
         (None, 0) => words.word("matterUnnamed").to_string(),
         (None, 1) => format!("{} {} {between}", words.word("matterOf"), words.word("matterOfOne")),
         (None, _) => format!("{} {between}", words.word("matterBetween")),
     })
+}
+
+/// What its documents name a matter, as the start of its name (D-285):
+/// without a leading determiner ("This Agreement", "El presente
+/// contrato") and without a piece after a dash or a colon that only
+/// names one of its parties, which the name says after it ("Acuerdo de
+/// terminación - Persona Uno" between Persona Uno and a company).
+fn own_name(vocabulary: &Vocabulary, name: &str, parties: &[String]) -> String {
+    let mut name = name.trim().to_string();
+    for separator in [" - ", " – ", " — ", ": ", " | "] {
+        if let Some((head, tail)) = name.split_once(separator) {
+            let tail_words = quote::words(tail);
+            let names_a_party = !tail_words.is_empty()
+                && parties.iter().any(|p| {
+                    let party = quote::words(p);
+                    !party.is_empty() && tail_words.iter().all(|w| party.contains(w))
+                });
+            if names_a_party && !quote::words(head).is_empty() {
+                name = head.trim().to_string();
+                break;
+            }
+        }
+    }
+    let determiners = &vocabulary.identity.determiners;
+    let mut words: Vec<&str> = name.split_whitespace().collect();
+    while words.len() > 1 && determiners.iter().any(|d| quote::words(words[0]) == [d.clone()]) {
+        words.remove(0);
+    }
+    let rest = words.join(" ");
+    let mut chars = rest.chars();
+    match chars.next() {
+        Some(first) if !rest.chars().any(char::is_lowercase) || first.is_uppercase() => rest,
+        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+        None => name,
+    }
 }
 
 /// A name of a matter written all in capitals ("ACUERDO DE TERMINACIÓN"),
@@ -983,4 +1019,21 @@ fn separated_documents(conn: &Connection) -> Result<BTreeSet<(i64, i64)>, String
         }
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod name_tests {
+    use super::*;
+
+    #[test]
+    fn the_own_name_of_a_matter_drops_a_determiner_and_a_party_after_a_dash() {
+        let v = Vocabulary::builtin();
+        let parties = vec!["Persona Uno".to_string(), "Ejemplo LLC".to_string()];
+        assert_eq!(own_name(&v, "This Consent and Assignment Agreement", &parties), "Consent and Assignment Agreement");
+        assert_eq!(own_name(&v, "el presente contrato de obra", &parties), "Presente contrato de obra");
+        assert_eq!(own_name(&v, "ACUERDO DE TERMINACIÓN - Persona Uno", &parties), "ACUERDO DE TERMINACIÓN");
+        // A piece that says something else stays.
+        assert_eq!(own_name(&v, "Contrato de obra - Etapa dos", &parties), "Contrato de obra - Etapa dos");
+        assert_eq!(sentence_case(&own_name(&v, "ACUERDO DE TERMINACIÓN - Persona Uno", &parties)), "Acuerdo de terminación");
+    }
 }
