@@ -48,7 +48,7 @@ pub const SYNTHESIS_PROMPT: &str = "sintesis-1";
 /// Raised when a change in the program changes what a projection writes
 /// (which names have a page, what a block lists): every page is written
 /// again from the record, without asking more.
-const PROJECTION_VERSION: &str = "proyeccion-2";
+const PROJECTION_VERSION: &str = "proyeccion-3";
 /// The task its answers are kept under in `model_answer`.
 pub const TASK: &str = "synthesis";
 /// The words of the vocabulary (`pages.words`) a page is written with.
@@ -59,6 +59,8 @@ pub const WORDS: &[&str] = &[
     "saysPending",
     "conflicts",
     "references",
+    "saidList",
+    "saidOthers",
     "documents",
     "withoutMatter",
     "related",
@@ -651,8 +653,13 @@ fn set_setting(conn: &Connection, key: &str, value: &str) -> Result<(), String> 
     Ok(())
 }
 
-/// The claims of an entity in the order they are numbered, at most
-/// `MAX_CLAIMS`.
+/// The claims the synthesis is written from: the first `MAX_CLAIMS` in
+/// their order. The rest are still listed on the page (D-236).
+fn synthesized(claims: &[Claim]) -> &[Claim] {
+    &claims[..claims.len().min(MAX_CLAIMS)]
+}
+
+/// The claims of an entity in the order they are numbered: all of them.
 fn numbered(vocabulary: &Vocabulary, entity: &Entity) -> Vec<Claim> {
     let order = |predicate: &str| vocabulary.predicates.iter().position(|p| p.id == predicate).unwrap_or(usize::MAX);
     let mut claims = entity.claims.clone();
@@ -664,7 +671,6 @@ fn numbered(vocabulary: &Vocabulary, entity: &Entity) -> Vec<Claim> {
             .then_with(|| a.object_entity.cmp(&b.object_entity))
             .then_with(|| a.context.cmp(&b.context))
     });
-    claims.truncate(MAX_CLAIMS);
     claims
 }
 
@@ -934,7 +940,7 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
         match answer {
             Some((key, text)) => {
                 synthesis = Some(key.to_string());
-                let (kept, thrown) = checked(record, entity, claims, text);
+                let (kept, thrown) = checked(record, entity, synthesized(claims), text);
                 discarded = thrown;
                 sentences = kept.len();
                 let lines: Vec<String> = kept
@@ -974,25 +980,39 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
             }
             out.push('\n');
         }
+        let reference = |index: usize| -> String {
+            let claim = &claims[index];
+            let quotes: Vec<String> = claim
+                .evidence
+                .iter()
+                .map(|(content, quote, page)| {
+                    let at = page.map(|p| format!(", {} {p}", words.word("page"))).unwrap_or_default();
+                    format!("«{}» ({}{at})", one_line(quote), document_link(record, *content))
+                })
+                .collect();
+            format!(
+                "- [{}] {}: {} — {}\n",
+                index + 1,
+                vocabulary.predicate_label(&claim.predicate),
+                one_line(&object_text(record, claim)),
+                quotes.join("; ")
+            )
+        };
         if !used.is_empty() {
             out.push_str(&format!("### {}\n\n", words.word("references")));
             for index in &used {
-                let claim = &claims[*index];
-                let quotes: Vec<String> = claim
-                    .evidence
-                    .iter()
-                    .map(|(content, quote, page)| {
-                        let at = page.map(|p| format!(", {} {p}", words.word("page"))).unwrap_or_default();
-                        format!("«{}» ({}{at})", one_line(quote), document_link(record, *content))
-                    })
-                    .collect();
-                out.push_str(&format!(
-                    "- [{}] {}: {} — {}\n",
-                    index + 1,
-                    vocabulary.predicate_label(&claim.predicate),
-                    one_line(&object_text(record, claim)),
-                    quotes.join("; ")
-                ));
+                out.push_str(&reference(*index));
+            }
+            out.push('\n');
+        }
+        // What the synthesis did not use, left out or could not be asked
+        // about is listed as it is, with its quote: nothing in the record
+        // goes missing from the page (D-236).
+        let unused: Vec<usize> = (0..claims.len()).filter(|i| !used.contains(i)).collect();
+        if !unused.is_empty() {
+            out.push_str(&format!("### {}\n\n", words.word(if used.is_empty() { "saidList" } else { "saidOthers" })));
+            for index in unused {
+                out.push_str(&reference(index));
             }
             out.push('\n');
         }
@@ -1378,9 +1398,6 @@ fn write_page(
     Ok(())
 }
 
-/// Facts of a matter shown in its page, at most.
-const MATTER_FACTS: usize = 60;
-
 /// The page of a matter (a group of documents, D-213): its parties and the
 /// people around it, what its documents say of them, its documents and
 /// why each one is in it. Written by the app, without the model.
@@ -1483,13 +1500,11 @@ fn render_matter(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<Stri
         }
     }
     if !said.is_empty() {
+        // All of them: nothing in the record goes missing from the page
+        // (D-236).
         out.push_str(&format!("## {}\n\n", words.word("matterFacts")));
-        let total = said.len();
-        for line in said.into_iter().take(MATTER_FACTS) {
+        for line in said {
             out.push_str(&line);
-        }
-        if total > MATTER_FACTS {
-            out.push_str(&format!("- … ({} más)\n", total - MATTER_FACTS));
         }
         out.push('\n');
     }
@@ -1774,7 +1789,7 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
         let claims = numbered(vocabulary, entity);
         let mut answer: Option<(String, String)> = None;
         if !claims.is_empty() {
-            let question = synthesis_question(vocabulary, &record, entity, &claims, language.as_deref());
+            let question = synthesis_question(vocabulary, &record, entity, synthesized(&claims), language.as_deref());
             let cached = cached_answer(&base.conn(), &question.key, asking.engine.as_deref())?;
             match cached {
                 Some(text) => answer = Some((question.key.clone(), text)),

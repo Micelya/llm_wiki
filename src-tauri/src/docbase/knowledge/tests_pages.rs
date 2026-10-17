@@ -278,11 +278,36 @@ fn without_a_model_the_pages_are_written_and_the_synthesis_waits() {
     assert_eq!(report.left, 1, "{report:?}");
     let person = page_of(&entity_pages(&project), "Persona Dos").to_string();
     assert!(person.contains("La síntesis todavía no está escrita"), "{person}");
+    // Meanwhile what the documents say is listed as it is, with its quote.
+    assert!(person.contains("### Lo que dicen, dato por dato"), "{person}");
+    assert!(person.contains("«a favor de Ejemplo Uno S.A. por $ 5.000»") && person.contains("Calle Uno 100 —"), "{person}");
     assert!(person.contains("## Documentos (2)"));
     // The next run with a model writes it.
     let report = base.knowledge_project(Some(&asker), 5).unwrap();
     assert_eq!((report.asked, report.written), (1, 1), "{report:?}");
     assert!(!page_of(&entity_pages(&project), "Persona Dos").contains("La síntesis todavía no está escrita"));
+}
+
+#[test]
+fn a_claim_the_synthesis_leaves_out_is_still_on_the_page() {
+    let (_dir, base, project, _) = archive(&[("a.txt", A), ("b.txt", B)]);
+    // A synthesis that only writes about the first claim.
+    let terse = FakeModel::new("falso:1", |prompt| {
+        if is_synthesis(prompt) {
+            serde_json::json!({ "oraciones": [{ "texto": "Tiene un dato.", "afirmaciones": [1] }] }).to_string()
+        } else {
+            reading(prompt)
+        }
+    });
+    base.knowledge_project(Some(&terse), 5).unwrap();
+    let person = page_of(&entity_pages(&project), "Persona Dos").to_string();
+    assert!(person.contains("Tiene un dato. [1]"), "{person}");
+    let references = person.find("### Referencias").expect("references");
+    let others = person.find("### Otros datos de los documentos").unwrap_or_else(|| panic!("{person}"));
+    assert!(references < others, "{person}");
+    // The second claim, not written: listed with its number and quote.
+    assert!(person[others..].contains("- [2] "), "{person}");
+    assert!(!person[references..others].contains("- [2] "), "{person}");
 }
 
 #[test]

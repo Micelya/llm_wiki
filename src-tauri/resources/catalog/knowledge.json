@@ -105,6 +105,8 @@
       "saysPending": "La síntesis todavía no está escrita: se arma desde las afirmaciones de los documentos.",
       "conflicts": "Datos en los que los documentos difieren",
       "references": "Referencias",
+      "saidList": "Lo que dicen, dato por dato",
+      "saidOthers": "Otros datos de los documentos",
       "documents": "Documentos",
       "withoutMatter": "Sin asunto identificado",
       "related": "Relacionados",

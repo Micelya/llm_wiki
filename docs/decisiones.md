@@ -3260,3 +3260,16 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** `src-tauri/src/docbase/knowledge/extract.rs` (`knowledge_run`, `knowledge_read_again_failed`), `vocabulary.rs`, `resources/catalog/knowledge.json` (`attention`), comando `docbase_knowledge_read_again_failed`, `src/components/attention/sources/knowledge.ts`.
 - **Quién decidió:** agente sin consulta.
 - **Fuente:** etapa Q1 de la tanda desatendida del 17 oct.
+
+### D-236 · Lo que la síntesis no usa se lista igual en la página
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la página de una entidad mostraba solo las afirmaciones que la síntesis del modelo citaba. Las que el modelo no usó, o las de una oración descartada por la comprobación, desaparecían de la página aunque estaban en el registro con su cita: en la revisión del 17 de octubre se perdieron así los reclamos de la contraparte. Lo mismo pasaba con las afirmaciones después de la número 120 de una entidad y con los datos de un asunto después del número 60.
+- **Qué se decidió:** después de las referencias de la síntesis, una sección "Otros datos de los documentos" lista, sin redactar, cada afirmación que la síntesis no usó, con su número, su dato y su cita con el documento. Si todavía no hay síntesis, la misma lista se llama "Lo que dicen, dato por dato" y tiene todas. La síntesis se sigue escribiendo desde las primeras 120 afirmaciones (para no agrandar la pregunta), pero ninguna queda fuera de la página. La página de un asunto lista todos sus datos, sin tope. La versión de la proyección pasó a `proyeccion-3`, así que todas las páginas se vuelven a escribir sin preguntar nada.
+- **Por qué:** una página que parece completa y omite en silencio lo que el registro sabe es peor que una página sin síntesis (R-23); la cita a la vista permite que una persona vea lo que el modelo dejó de lado.
+- **Alternativas descartadas:** volver a preguntar la síntesis hasta que use todo (no garantiza nada y repite preguntas); listar todo dos veces, en la síntesis y aparte (ruido).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/pages.rs` (`render`, `render_matter`, `numbered`), `resources/catalog/knowledge.json` (`pages.words.saidList`, `saidOthers`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q1 de la tanda desatendida del 17 oct.
