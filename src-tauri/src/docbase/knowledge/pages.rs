@@ -48,7 +48,7 @@ pub const SYNTHESIS_PROMPT: &str = "sintesis-2";
 /// Raised when a change in the program changes what a projection writes
 /// (which names have a page, what a block lists): every page is written
 /// again from the record, without asking more.
-const PROJECTION_VERSION: &str = "proyeccion-6";
+const PROJECTION_VERSION: &str = "proyeccion-7";
 /// The task its answers are kept under in `model_answer`.
 pub const TASK: &str = "synthesis";
 /// The words of the vocabulary (`pages.words`) a page is written with.

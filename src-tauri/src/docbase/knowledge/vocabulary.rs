@@ -671,6 +671,14 @@ impl Vocabulary {
         if words.is_empty() || self.is_generic(&words.join(" ")) {
             return false;
         }
+        // A field of a form written with abbreviations ("N° A.R. (Troquel
+        // T&T)"): initials and a number sign, and every word of two
+        // letters or more generic, is a label, not a name (D-288).
+        let abbreviated = text.contains(['°', 'º']) || text.as_bytes().windows(2).any(|w| w[0].is_ascii_alphabetic() && w[1] == b'.');
+        let long: Vec<String> = words.iter().filter(|w| w.chars().count() >= 2).cloned().collect();
+        if abbreviated && !long.is_empty() && self.is_generic(&long.join(" ")) {
+            return false;
+        }
         if self.is_a_phrase(text) {
             return false;
         }
@@ -857,6 +865,7 @@ mod tests {
             "presente contrato",
             "accionistas",
             "los tribunales ordinarios de Ejemplo",
+            "N° A.R. (Troquel T&T)",
         ] {
             assert!(!v.is_a_name("organizacion", not_a_name), "{not_a_name}");
         }
