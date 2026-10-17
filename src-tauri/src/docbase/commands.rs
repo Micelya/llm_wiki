@@ -11,6 +11,13 @@ use serde::Serialize;
 use tauri::{Emitter, Manager, State};
 
 use super::bridge::{self, GeneralProject, WikiSource};
+use super::knowledge::extract::{KnowledgePlan, KnowledgeReport};
+use super::knowledge::decide::{DecisionView, IdentityDecision};
+use super::knowledge::entities::{DoubtView, EntityDetail, EntitySummary};
+use super::knowledge::pages::ProjectReport;
+use super::knowledge::resolve::ResolveReport;
+use super::knowledge::screens::{DocumentEntities, KnowledgeAttention, MatterDetail, MatterSummary};
+use super::knowledge::{DocumentKnowledge, KnowledgeStatus};
 use super::labels::{Label, LabelGroup, LabelRule};
 use super::origins::Origin;
 use super::similar::{self, Decision, OpenPair, PairDecision, SimilarDocument, SimilarGroup, SimilarPending};
@@ -26,6 +33,9 @@ use super::{DocBase, Visible, PRIVATE_DB_FILE};
 
 /// Event the screens listen to in order to refresh.
 pub const CHANGED_EVENT: &str = "docbase://changed";
+/// Event sent when the knowledge layer wrote pages of the archive's wiki
+/// (the wiki brings its index and its tree up to date).
+pub const PAGES_EVENT: &str = "docbase://knowledge-pages";
 
 /// The base of the private space, or why it could not be opened.
 pub struct DocBaseState {
@@ -49,6 +59,8 @@ pub fn start(app: &tauri::AppHandle) {
     // shape in the data folder (similar/types.rs).
     if let Ok(dir) = app.path().app_data_dir() {
         similar::types::install_from(&dir.join("docbase/document-types.json"));
+        // And so can the vocabulary of the knowledge layer.
+        super::knowledge::vocabulary::install_from(&dir.join("docbase/knowledge.json"));
     }
     let base = app
         .path()
@@ -64,9 +76,16 @@ pub fn start(app: &tauri::AppHandle) {
                 let _ = handle.emit(CHANGED_EVENT, ());
             });
             let handle = app.clone();
-            worker::spawn_asking(base.clone(), move || {
-                let _ = handle.emit(CHANGED_EVENT, ());
-            });
+            let pages = app.clone();
+            worker::spawn_asking(
+                base.clone(),
+                move || {
+                    let _ = handle.emit(CHANGED_EVENT, ());
+                },
+                move || {
+                    let _ = pages.emit(PAGES_EVENT, ());
+                },
+            );
         }
         Err(error) => eprintln!("[docbase] {error}"),
     }
@@ -583,6 +602,227 @@ pub struct DocTypeView {
 
 /// Questions a run started by the user asks at most (R-16).
 const RUN_LIMIT: usize = 60;
+
+/// How far the knowledge layer read the archive: documents read, still
+/// to read and failed, mentions, identifiers and claims kept, and what
+/// the check of the quotes discarded.
+#[tauri::command(async)]
+pub fn docbase_knowledge_status(state: State<'_, DocBaseState>) -> Result<KnowledgeStatus, String> {
+    state.base()?.knowledge_status(&Visible::All)
+}
+
+/// What the knowledge layer read in the document at this location: its
+/// mentions with their role, identifiers and quotes, its claims, and what
+/// was discarded.
+#[tauri::command(async)]
+pub fn docbase_knowledge_document(state: State<'_, DocBaseState>, location_id: i64) -> Result<DocumentKnowledge, String> {
+    state.base()?.knowledge_of(&Visible::All, location_id)
+}
+
+/// What a reading for the knowledge layer would ask now: documents still
+/// to read, the questions that takes, and those waiting for their type.
+#[tauri::command(async)]
+pub fn docbase_knowledge_plan(state: State<'_, DocBaseState>) -> Result<KnowledgePlan, String> {
+    state.base()?.knowledge_plan()
+}
+
+/// Reads the pending documents for the knowledge layer, asking at most
+/// `max_questions` questions, with this engine. Only on an explicit action
+/// of the user: it costs the provider's quota. The engine is also kept as
+/// the one that answers while the archive's wiki is active.
+#[tauri::command(async)]
+pub fn docbase_knowledge_run(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    engine: AskConfig,
+    max_questions: Option<usize>,
+) -> Result<KnowledgeReport, String> {
+    let base = state.base()?.clone();
+    let asker = asker_for(&engine)?;
+    base.set_ask_engine(Some(&engine))?;
+    let report = base.knowledge_run(asker.as_ref(), max_questions.unwrap_or(RUN_LIMIT))?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(report)
+}
+
+/// Resolves the identities of what the knowledge layer read: without a
+/// model, or asking at most `max_questions` questions to this engine (only
+/// on an explicit action of the user: it costs the provider's quota).
+#[tauri::command(async)]
+pub fn docbase_knowledge_resolve(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    engine: Option<AskConfig>,
+    max_questions: Option<usize>,
+) -> Result<ResolveReport, String> {
+    let base = state.base()?.clone();
+    let report = match engine {
+        Some(engine) => {
+            let asker = asker_for(&engine)?;
+            base.knowledge_resolve(Some(asker.as_ref()), max_questions.unwrap_or(RUN_LIMIT))?
+        }
+        None => base.knowledge_resolve(None, 0)?,
+    };
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(report)
+}
+
+/// Projects the record into the archive's wiki now: the pages of the
+/// entities, the blocks of the pages of documents and the overview. Without
+/// an engine, what the documents say is left as it is (or pending); with
+/// one, at most `max_questions` questions (only on an explicit action of
+/// the user: it costs the provider's quota).
+#[tauri::command(async)]
+pub fn docbase_knowledge_project(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    engine: Option<AskConfig>,
+    max_questions: Option<usize>,
+) -> Result<ProjectReport, String> {
+    let base = state.base()?.clone();
+    let report = match engine {
+        Some(engine) => {
+            let asker = asker_for(&engine)?;
+            base.knowledge_project(Some(asker.as_ref()), max_questions.unwrap_or(RUN_LIMIT))?
+        }
+        None => base.knowledge_project(None, 0)?,
+    };
+    if report.wrote() {
+        let _ = app.emit(CHANGED_EVENT, ());
+        let _ = app.emit(PAGES_EVENT, ());
+    }
+    Ok(report)
+}
+
+/// The language the archive's wiki is written in ("auto" or none: the
+/// language of the documents), for the pages the knowledge layer writes.
+#[tauri::command(async)]
+pub fn docbase_set_wiki_language(state: State<'_, DocBaseState>, language: Option<String>) -> Result<(), String> {
+    state.base()?.set_wiki_language(language.as_deref())
+}
+
+/// The entities of the record, of one kind or all, whose names contain
+/// the words of `query`.
+#[tauri::command(async)]
+pub fn docbase_knowledge_entities(
+    state: State<'_, DocBaseState>,
+    kind: Option<String>,
+    query: Option<String>,
+) -> Result<Vec<EntitySummary>, String> {
+    state.base()?.knowledge_entities(&Visible::All, kind.as_deref(), query.as_deref())
+}
+
+/// One entity with its aliases, identifiers, mentions, claims and doubts.
+#[tauri::command(async)]
+pub fn docbase_knowledge_entity(state: State<'_, DocBaseState>, id: String) -> Result<Option<EntityDetail>, String> {
+    state.base()?.knowledge_entity(&Visible::All, &id)
+}
+
+/// The pairs of mentions the resolution left for a person.
+#[tauri::command(async)]
+pub fn docbase_knowledge_doubts(state: State<'_, DocBaseState>) -> Result<Vec<DoubtView>, String> {
+    state.base()?.knowledge_doubts(&Visible::All)
+}
+
+/// Every decision about identities, the latest first.
+#[tauri::command(async)]
+pub fn docbase_knowledge_decisions(state: State<'_, DocBaseState>) -> Result<Vec<DecisionView>, String> {
+    state.base()?.knowledge_decisions()
+}
+
+/// Keeps and applies a decision of the user about identities (join,
+/// separate, wrong datum), with the evidence the screen showed.
+#[tauri::command(async)]
+pub fn docbase_knowledge_decide(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    decision: IdentityDecision,
+    note: Option<String>,
+    shown_evidence: Option<String>,
+) -> Result<i64, String> {
+    let id = state.base()?.knowledge_decide(&decision, note.as_deref(), shown_evidence.as_deref())?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(id)
+}
+
+/// Undoes a decision about identities.
+#[tauri::command(async)]
+pub fn docbase_knowledge_undo(app: tauri::AppHandle, state: State<'_, DocBaseState>, id: i64) -> Result<(), String> {
+    state.base()?.knowledge_undo(id)?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(())
+}
+
+/// Keeps and applies several decisions of the user at once, with one
+/// resolution (taking a document out of a matter, confirming a family).
+#[tauri::command(async)]
+pub fn docbase_knowledge_decide_many(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    decisions: Vec<IdentityDecision>,
+    note: Option<String>,
+) -> Result<Vec<i64>, String> {
+    let ids = state.base()?.knowledge_decide_many(&decisions, note.as_deref())?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(ids)
+}
+
+/// What the knowledge layer brings to the attention view: failed and noisy
+/// readings, conflicts, recent joins by identifier, matters the model
+/// proposed, pages kept and how far the work went.
+#[tauri::command(async)]
+pub fn docbase_knowledge_attention(state: State<'_, DocBaseState>) -> Result<KnowledgeAttention, String> {
+    state.base()?.knowledge_attention(&Visible::All)
+}
+
+/// The matters of the archive, the largest first.
+#[tauri::command(async)]
+pub fn docbase_knowledge_matters(state: State<'_, DocBaseState>) -> Result<Vec<MatterSummary>, String> {
+    state.base()?.knowledge_matters(&Visible::All)
+}
+
+/// One matter with its documents, why each is in it, its parties and the
+/// decisions about it.
+#[tauri::command(async)]
+pub fn docbase_knowledge_matter(state: State<'_, DocBaseState>, id: String) -> Result<Option<MatterDetail>, String> {
+    state.base()?.knowledge_matter(&Visible::All, &id)
+}
+
+/// The entities the document at this location names, with their roles,
+/// and its matter.
+#[tauri::command(async)]
+pub fn docbase_knowledge_document_entities(state: State<'_, DocBaseState>, location_id: i64) -> Result<DocumentEntities, String> {
+    state.base()?.knowledge_document_entities(&Visible::All, location_id)
+}
+
+/// Takes a document (`content:<id>` or `location:<id>`) out of a matter,
+/// or turns down the model's proposal of it.
+#[tauri::command(async)]
+pub fn docbase_knowledge_leave_matter(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    document: String,
+    matter_id: String,
+    note: Option<String>,
+) -> Result<Vec<i64>, String> {
+    let ids = state.base()?.knowledge_leave_matter(&document, &matter_id, note.as_deref())?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(ids)
+}
+
+/// Puts a document in a matter, or confirms the model's proposal of it.
+#[tauri::command(async)]
+pub fn docbase_knowledge_join_matter(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    document: String,
+    matter_id: String,
+    note: Option<String>,
+) -> Result<i64, String> {
+    let id = state.base()?.knowledge_join_matter(&document, &matter_id, note.as_deref())?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(id)
+}
 
 /// Up to `count` paths of nested folders under `root`, `depth` levels
 /// deep at most, following the first folders in name order.

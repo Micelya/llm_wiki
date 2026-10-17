@@ -428,6 +428,8 @@ interface WikiState {
     | "home" | "origins" | "documents"
     // What needs a person, and the screens made to resolve it.
     | "attention" | "similar" | "document-types"
+    // Who and what the documents name (the knowledge layer).
+    | "entities" | "identity-doubts" | "matters"
   llmConfig: LlmConfig
   /** Persisted global/default config, kept separate while a project override is effective. */
   globalLlmConfig: LlmConfig

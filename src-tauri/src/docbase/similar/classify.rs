@@ -52,9 +52,11 @@ const ASK_ENGINE_SETTING: &str = "ask-engine";
 
 /// One run that asks at a time: the background one and the one a person
 /// starts never ask the same question together.
-static ASKING: Mutex<()> = Mutex::new(());
+pub(crate) static ASKING: Mutex<()> = Mutex::new(());
 
 /// The fingerprint a question is kept by: its version and its whole text.
+/// An answer is kept by this fingerprint and by the engine and model that
+/// gave it (`model_answer`): another model asks again.
 pub fn question_key(version: &str, prompt: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(version.as_bytes());
@@ -204,7 +206,7 @@ struct TypeRow {
 
 /// A question still to ask.
 #[derive(Debug, Clone)]
-pub(super) struct Question {
+pub(crate) struct Question {
     pub key: String,
     pub version: &'static str,
     pub task: &'static str,
@@ -620,7 +622,7 @@ struct MemberStage {
 }
 
 /// The JSON of an answer, even when the engine wrapped it in a code block.
-fn parse_json<T: for<'de> Deserialize<'de>>(answer: &str) -> Result<T, String> {
+pub(crate) fn parse_json<T: for<'de> Deserialize<'de>>(answer: &str) -> Result<T, String> {
     let trimmed = answer.trim();
     if let Ok(value) = serde_json::from_str(trimmed) {
         return Ok(value);
@@ -767,20 +769,54 @@ fn read_proposed_types(conn: &Connection) -> Result<Vec<ProposedType>, String> {
     Ok(rows)
 }
 
-fn cached_answer(conn: &Connection, key: &str) -> Result<Option<String>, String> {
-    conn.query_row("SELECT answer FROM model_answer WHERE question = ?1", [key], |row| row.get(0))
-        .optional()
-        .map_err(sql_err)
+/// The answer kept for a question. With an engine, only the answer that
+/// engine and model gave; without one (no engine was chosen yet), the
+/// latest answer any engine gave.
+pub(crate) fn cached_answer(conn: &Connection, key: &str, engine: Option<&str>) -> Result<Option<String>, String> {
+    match engine {
+        Some(engine) => conn
+            .query_row("SELECT answer FROM model_answer WHERE question = ?1 AND engine = ?2", params![key, engine], |row| {
+                row.get(0)
+            })
+            .optional()
+            .map_err(sql_err),
+        None => conn
+            .query_row(
+                "SELECT answer FROM model_answer WHERE question = ?1 ORDER BY asked_at DESC LIMIT 1",
+                [key],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(sql_err),
+    }
 }
 
-fn body_of(conn: &Connection, content_id: i64) -> Result<String, String> {
+/// Keeps an answer of the model with its question and the engine that
+/// gave it.
+pub(crate) fn keep_answer(conn: &Connection, question: &Question, engine: &str, answer: &str) -> Result<(), String> {
+    conn.execute(
+        "INSERT OR REPLACE INTO model_answer (question, task, prompt_version, engine, content_id, prompt, answer, asked_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        params![question.key, question.task, question.version, engine, question.content_id, question.prompt, answer, now_ms()],
+    )
+    .map_err(sql_err)?;
+    Ok(())
+}
+
+/// The engine whose answers the passes use without asking: the one chosen
+/// for the archive, when there is one.
+fn answering_engine(conn: &Connection) -> Result<Option<String>, String> {
+    Ok(ask_engine(conn)?.map(|config| crate::source_volume::asking::engine_id(&config)))
+}
+
+pub(crate) fn body_of(conn: &Connection, content_id: i64) -> Result<String, String> {
     conn.query_row("SELECT body FROM derivative WHERE content_id = ?1 AND kind = 'text'", [content_id], |row| row.get(0))
         .optional()
         .map_err(sql_err)
         .map(Option::unwrap_or_default)
 }
 
-fn name_of(conn: &Connection, content_id: i64) -> Result<String, String> {
+pub(crate) fn name_of(conn: &Connection, content_id: i64) -> Result<String, String> {
     conn.query_row(
         "SELECT l.name FROM location l JOIN file f ON f.hash = l.file_hash WHERE f.content_id = ?1
          ORDER BY l.rel_path COLLATE NOCASE LIMIT 1",
@@ -888,6 +924,7 @@ impl DocBase {
     fn pass4_refresh(&self) -> Result<(usize, Vec<PendingType>), String> {
         let catalog = types::catalog();
         let conn = self.conn();
+        let engine = answering_engine(&conn)?;
         let docs = load_docs(&conn)?;
         let units = load_units(&conn, &docs)?;
         let decisions = read_type_decisions(&conn)?;
@@ -920,7 +957,7 @@ impl DocBase {
                 continue;
             }
             let question = type_question(&conn, catalog, &decisions, &unit, &docs)?;
-            match cached_answer(&conn, &question.key)? {
+            match cached_answer(&conn, &question.key, engine.as_deref())? {
                 Some(answer) => match rows_from_answer(catalog, &decisions, &unit, &docs, &answer, &question.key) {
                     Ok(rows) => written += write_type_rows(&conn, &rows, &basis)?,
                     Err(error) => eprintln!("[docbase] stored answer {}: {error}", question.key),
@@ -937,6 +974,7 @@ impl DocBase {
     fn pass5_refresh(&self) -> Result<(usize, Vec<PendingData>), String> {
         let catalog = types::catalog();
         let conn = self.conn();
+        let engine = answering_engine(&conn)?;
         let docs = load_docs(&conn)?;
         let typed: Vec<(i64, String, bool)> = {
             let mut statement = conn.prepare("SELECT content_id, doc_type, proposed FROM document_type").map_err(sql_err)?;
@@ -967,7 +1005,7 @@ impl DocBase {
                 if old == &basis {
                     // Unchanged; it may still wait for its question.
                     if let Some(key) = question {
-                        if cached_answer(&conn, key)?.is_none() {
+                        if cached_answer(&conn, key, engine.as_deref())?.is_none() {
                             if let Some(question) = data_question(&conn, catalog, content_id, own, &doc.marks, &rules)? {
                                 pending.push(PendingData { content_id, question });
                             }
@@ -982,7 +1020,7 @@ impl DocBase {
             if !missing.is_empty() {
                 if let Some(question) = data_question(&conn, catalog, content_id, own, &doc.marks, &rules)? {
                     question_key = Some(question.key.clone());
-                    match cached_answer(&conn, &question.key)? {
+                    match cached_answer(&conn, &question.key, engine.as_deref())? {
                         Some(answer) => {
                             let fields: Vec<&DataRule> = rules.iter().copied().filter(|r| missing.contains(&r.id)).collect();
                             match data_from_answer(&fields, &answer) {
@@ -1254,29 +1292,17 @@ impl DocBase {
 
     /// Sends one question and keeps its answer.
     fn ask(&self, asker: &dyn DocumentAsker, question: &Question) -> Result<String, String> {
-        if let Some(answer) = cached_answer(&self.conn(), &question.key)? {
-            return Ok(answer);
-        }
-        let answer = asker.ask(&question.prompt, &question.schema)?;
-        // Only an answer of the shape asked for is kept.
-        parse_json::<serde_json::Value>(&answer)?;
-        self.conn()
-            .execute(
-                "INSERT OR REPLACE INTO model_answer (question, task, prompt_version, engine, content_id, prompt, answer, asked_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-                params![
-                    question.key,
-                    question.task,
-                    question.version,
-                    asker.engine_id(),
-                    question.content_id,
-                    question.prompt,
-                    answer,
-                    now_ms()
-                ],
-            )
-            .map_err(sql_err)?;
-        Ok(answer)
+        ask_and_keep(self, asker, question)
+    }
+
+    /// The contents whose type and stage are still to be asked: what the
+    /// layers that use the type as a hint wait for.
+    pub(crate) fn contents_waiting_for_type(&self) -> Result<BTreeSet<i64>, String> {
+        let (_, pending) = self.pass4_refresh()?;
+        Ok(pending
+            .iter()
+            .flat_map(|p| std::iter::once(p.unit.principal).chain(p.unit.members.iter().map(|(m, _)| *m)))
+            .collect())
     }
 
     /// The type of the document at this location, and its data.
@@ -1339,7 +1365,20 @@ impl DocBase {
     }
 }
 
-fn ask_engine(conn: &Connection) -> Result<Option<AskConfig>, String> {
+/// Sends one question, unless this engine and model already answered it,
+/// and keeps the answer. Only an answer of the shape asked for is kept.
+pub(crate) fn ask_and_keep(base: &DocBase, asker: &dyn DocumentAsker, question: &Question) -> Result<String, String> {
+    let engine = asker.engine_id();
+    if let Some(answer) = cached_answer(&base.conn(), &question.key, Some(&engine))? {
+        return Ok(answer);
+    }
+    let answer = asker.ask(&question.prompt, &question.schema)?;
+    parse_json::<serde_json::Value>(&answer)?;
+    keep_answer(&base.conn(), question, &engine, &answer)?;
+    Ok(answer)
+}
+
+pub(crate) fn ask_engine(conn: &Connection) -> Result<Option<AskConfig>, String> {
     let value: Option<String> = conn
         .query_row("SELECT value FROM docbase_setting WHERE key = ?1", [ASK_ENGINE_SETTING], |row| row.get(0))
         .optional()

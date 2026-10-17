@@ -14,6 +14,9 @@ import { DocumentsView } from "@/components/docbase/documents-view"
 import { AttentionView } from "@/components/attention/attention-view"
 import { SimilarView } from "@/components/docbase/similar-view"
 import { DocumentTypesReview } from "@/components/docbase/document-types-review"
+import { EntitiesView } from "@/components/knowledge/entities-view"
+import { IdentityDoubtsView } from "@/components/knowledge/doubts-view"
+import { MattersView } from "@/components/knowledge/matters-view"
 import { PreviewPanel } from "./preview-panel"
 
 export function ContentArea() {
@@ -81,6 +84,12 @@ function ActiveContent({
       return <SimilarView />
     case "document-types":
       return <DocumentTypesReview />
+    case "entities":
+      return <EntitiesView />
+    case "identity-doubts":
+      return <IdentityDoubtsView />
+    case "matters":
+      return <MattersView />
     default:
       return <PreviewPanel />
   }

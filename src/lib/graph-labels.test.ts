@@ -14,9 +14,9 @@ describe("shortenLabel", () => {
   })
 
   it("cuts long titles to the limit and marks the cut", () => {
-    const short = shortenLabel("Carta documento de Extrimian a BGH Tech Partner del 31/07/2026")
+    const short = shortenLabel("Carta documento de Ventisca a Zentora Servicios del 31/07/2026")
     expect(Array.from(short).length).toBeLessThanOrEqual(MAX_LABEL_CHARS)
-    expect(short.startsWith("Carta documento de Extrimian")).toBe(true)
+    expect(short.startsWith("Carta documento de Ventisca")).toBe(true)
     expect(short.endsWith("…")).toBe(true)
   })
 

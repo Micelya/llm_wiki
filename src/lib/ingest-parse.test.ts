@@ -30,7 +30,6 @@ import {
   rewriteIngestPathFromTitleForTargetLanguage,
   canonicalizeSourcesField,
   isAppManagedAggregatePath,
-  updateBoundedRecentIndexSection,
   filterTruncatedFileRepairOutput,
 } from "./ingest"
 
@@ -603,9 +602,9 @@ describe("generated ingest dates", () => {
     const analysisPrompt = buildAnalysisPrompt("", "", "CREATE TABLE users (id BIGINT PRIMARY KEY);")
 
     expect(prompt).toContain("Preserve structured source data verbatim")
-    expect(prompt).toContain("DDL")
+    expect(prompt).toContain("invoice line items")
     expect(analysisPrompt).toContain("Preserve structured source data verbatim")
-    expect(analysisPrompt).toContain("constraints, keys, or indexes")
+    expect(analysisPrompt).toContain("every figure, date and number as written")
   })
 })
 
@@ -746,22 +745,5 @@ describe("application-managed aggregate boundaries", () => {
     expect(isAppManagedAggregatePath("wiki/INDEX.md")).toBe(true)
     expect(isAppManagedAggregatePath("wiki\\overview.MD")).toBe(true)
     expect(isAppManagedAggregatePath("wiki/entities/index.md")).toBe(false)
-  })
-
-  it("bounds recent entries and preserves following sections", () => {
-    const existing = [
-      "# Wiki Index",
-      "",
-      "## Recently Updated",
-      ...Array.from({ length: 205 }, (_, index) => `- [[old-${index}]] — Old ${index}`),
-      "",
-      "## Other",
-      "Keep me",
-    ].join("\n")
-    const result = updateBoundedRecentIndexSection(existing, ["- [[new]] — New"])
-    const recent = result.split("## Recently Updated")[1].split("## Other")[0]
-    expect(recent.match(/^- \[\[/gm)).toHaveLength(200)
-    expect(recent).toContain("[[new]]")
-    expect(result).toContain("## Other\nKeep me")
   })
 })

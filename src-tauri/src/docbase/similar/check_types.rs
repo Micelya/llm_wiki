@@ -65,7 +65,7 @@ struct AnswerDocument {
     stage: Option<String>,
 }
 
-fn key(path: &str) -> String {
+pub(crate) fn key(path: &str) -> String {
     path.replace('\\', "/").trim_end_matches('/').to_lowercase()
 }
 
@@ -107,7 +107,7 @@ fn copy_seed(seeds: &str, cache: &Path, hash: &str) {
 }
 
 /// Reads the folders into a scratch base, with the text of images.
-fn prepare(folders: &str) -> (TempDir, DocBase) {
+pub(crate) fn prepare(folders: &str) -> (TempDir, DocBase) {
     let scratch = TempDir::new();
     let base = DocBase::open(&scratch.path().join(PRIVATE_DB_FILE)).unwrap();
     for (index, folder) in folders.split(';').filter(|f| !f.trim().is_empty()).enumerate() {
@@ -178,7 +178,7 @@ fn prepare(folders: &str) -> (TempDir, DocBase) {
     (scratch, base)
 }
 
-fn paths_by_content(base: &DocBase) -> (HashMap<String, i64>, BTreeMap<i64, Vec<String>>) {
+pub(crate) fn paths_by_content(base: &DocBase) -> (HashMap<String, i64>, BTreeMap<i64, Vec<String>>) {
     let conn = base.conn();
     let mut statement = conn
         .prepare(
@@ -273,7 +273,7 @@ impl DocumentAsker for Recorded {
     }
 }
 
-fn is_limit(error: &str) -> bool {
+pub(crate) fn is_limit(error: &str) -> bool {
     let error = error.to_lowercase();
     ["rate limit", "usage limit", "429", "too many requests", "quota"].iter().any(|w| error.contains(w))
 }

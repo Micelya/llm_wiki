@@ -486,33 +486,55 @@ const GENERIC: &[&str] = &[
     "dos", "tres", "todas", "mes", "dia", "sociedad", "anonima", "cloud", "safe",
 ];
 
+/// Words the program uses for its own reasons that a case happens to share:
+/// the vendors and models it talks to (a search provider, the model of the
+/// reading), ordinary English words of the tests brought from the original
+/// project, and a letter of the Greek alphabet. They say nothing about a
+/// case.
+const NOT_OF_CASES: &[&str] = &["google", "luna", "tea", "foundation", "grant", "iota"];
+
 /// Words in a text, normalized as everywhere else.
 fn tokens(text: &str) -> Vec<String> {
     super::text::normalized(text).split(' ').filter(|w| !w.is_empty()).map(str::to_string).collect()
 }
 
 /// What a case can leak into the program: words of the file names and
-/// of the sheet's notes that are not generic, and long numbers.
-fn case_terms(answers: &Answers, catalog: &Catalog) -> BTreeMap<String, String> {
+/// of the sheet's notes that are not generic, long numbers, and the
+/// identifiers of the entity sheet.
+/// Words that say nothing about a case: the generic list, the words of
+/// the design texts written in general terms (R-24), and the companies
+/// that issue forms, which may be named.
+fn generic_words(catalog: &Catalog) -> BTreeSet<String> {
     let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let mut generic: BTreeSet<String> = GENERIC.iter().map(|w| w.to_string()).collect();
-    // The rules and the catalog are written in general terms (R-24):
-    // their words are generic by definition.
-    for doc in ["reglas-de-procesamiento.md", "catalogo-de-tipos.md", "parecidos-propuesta.md"] {
+    let mut generic: BTreeSet<String> = GENERIC.iter().chain(NOT_OF_CASES).map(|w| w.to_string()).collect();
+    for doc in ["reglas-de-procesamiento.md", "catalogo-de-tipos.md", "parecidos-propuesta.md", "conocimiento-propuesta.md"] {
         let text = std::fs::read_to_string(manifest.join("../docs/design").join(doc)).unwrap_or_default();
         generic.extend(tokens(&text));
     }
-    // The companies that issue forms may be named.
     for issuer in catalog.issuers() {
         generic.extend(tokens(&issuer));
     }
+    generic
+}
 
+fn case_terms(
+    answers: &Answers,
+    entities: Option<&crate::docbase::knowledge::check::Sheet>,
+    catalog: &Catalog,
+) -> BTreeMap<String, String> {
+    let generic = generic_words(catalog);
     let mut names: Vec<String> = Vec::new();
     for pair in &answers.pairs {
         names.push(pair.a.clone());
         names.push(pair.b.clone());
     }
     names.extend(answers.documents.iter().map(|d| d.path.clone()));
+    // Of an identifier, only its numbers: its words ("number") are generic.
+    for entity in entities.map(|s| s.entities.as_slice()).unwrap_or_default() {
+        for identifier in &entity.identifiers {
+            names.extend(tokens(&identifier.value).into_iter().filter(|w| w.chars().any(|c| c.is_ascii_digit())));
+        }
+    }
     for entry in walkdir::WalkDir::new(&answers.root).into_iter().flatten() {
         if let Ok(relative) = entry.path().strip_prefix(&answers.root) {
             names.push(relative.to_string_lossy().to_string());
@@ -552,13 +574,31 @@ fn case_terms(answers: &Answers, catalog: &Catalog) -> BTreeMap<String, String> 
     terms
 }
 
+/// The names of people and organizations of the entity sheet, as phrases
+/// of two words or more with one that is not generic: a single word of a
+/// name is often an ordinary word (a plan, a city), a whole name is not.
+fn entity_phrases(entities: &crate::docbase::knowledge::check::Sheet, catalog: &Catalog) -> BTreeMap<String, String> {
+    let generic = generic_words(catalog);
+    let mut phrases = BTreeMap::new();
+    for entity in entities.entities.iter().filter(|e| e.kind != "asunto") {
+        let names = std::iter::once(&entity.name).chain(&entity.aliases).chain(entity.mentions.iter().map(|m| &m.as_written));
+        for name in names {
+            let words = tokens(name);
+            if words.len() >= 2 && words.iter().any(|w| w.len() >= 3 && !generic.contains(w)) {
+                phrases.entry(format!(" {} ", words.join(" "))).or_insert_with(|| entity.id.clone());
+            }
+        }
+    }
+    phrases
+}
+
 fn files_under(root: &Path, out: &mut Vec<PathBuf>) {
     for entry in walkdir::WalkDir::new(root).into_iter().flatten() {
         let path = entry.path();
         let wanted = path
             .extension()
             .and_then(|e| e.to_str())
-            .is_some_and(|e| matches!(e, "rs" | "ts" | "tsx" | "json"));
+            .is_some_and(|e| matches!(e, "rs" | "ts" | "tsx" | "json" | "md"));
         if entry.file_type().is_file() && wanted {
             out.push(path.to_path_buf());
         }
@@ -573,7 +613,12 @@ fn no_case_of_the_answer_sheet_is_in_the_program() {
         return;
     };
     let catalog = Catalog::builtin();
-    let terms = case_terms(&answers, &catalog);
+    let entities = crate::docbase::knowledge::check::sheet();
+    if entities.is_none() {
+        println!("MICELYA_ENTITY_ANSWERS is not set or not readable: the entity sheet is not checked");
+    }
+    let terms = case_terms(&answers, entities.as_ref(), &catalog);
+    let phrases = entities.as_ref().map(|e| entity_phrases(e, &catalog)).unwrap_or_default();
     println!(
         "case terms looked for: {}: {}",
         terms.len(),
@@ -581,11 +626,14 @@ fn no_case_of_the_answer_sheet_is_in_the_program() {
     );
 
     let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+    // The whole program, its tests and its catalogs, and the design texts.
+    // Not the records of what happened (`docs/sessions/`, the register of
+    // decisions, the pending list): they are history and are not rewritten.
     let mut files = Vec::new();
-    files_under(&manifest.join("src/docbase"), &mut files);
-    files_under(&manifest.join("../src/components/docbase"), &mut files);
-    files_under(&manifest.join("../src/vocabulary"), &mut files);
-    files.push(manifest.join("resources/catalog/document-types.json"));
+    files_under(&manifest.join("src"), &mut files);
+    files_under(&manifest.join("resources"), &mut files);
+    files_under(&manifest.join("../src"), &mut files);
+    files_under(&manifest.join("../docs/design"), &mut files);
 
     let mut found = Vec::new();
     for file in &files {
@@ -594,6 +642,12 @@ fn no_case_of_the_answer_sheet_is_in_the_program() {
             for word in tokens(line) {
                 if let Some(source) = terms.get(&word) {
                     found.push(format!("{}:{}: '{word}' (from: {source})", file.display(), number + 1));
+                }
+            }
+            let padded = super::text::padded(line);
+            for (phrase, entity) in &phrases {
+                if padded.contains(phrase.as_str()) {
+                    found.push(format!("{}:{}: '{}' (a name of entity {entity})", file.display(), number + 1, phrase.trim()));
                 }
             }
         }

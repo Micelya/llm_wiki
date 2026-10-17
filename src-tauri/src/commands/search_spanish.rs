@@ -41,8 +41,8 @@ mod tests {
 
     #[test]
     fn spanish_question_keeps_only_the_meaningful_words() {
-        let tokens = tokenize_query("¿Qué facturas reclama BGH y por qué monto?");
-        assert_eq!(tokens, vec!["bgh", "facturas", "monto", "reclama"]);
+        let tokens = tokenize_query("¿Qué facturas reclama Zentora y por qué monto?");
+        assert_eq!(tokens, vec!["facturas", "monto", "reclama", "zentora"]);
     }
 
     #[test]
@@ -53,7 +53,7 @@ mod tests {
 
     #[test]
     fn opening_marks_and_guillemets_do_not_stick_to_words() {
-        assert_eq!(tokenize_query("¡«Extrimian»!"), vec!["extrimian"]);
+        assert_eq!(tokenize_query("¡«Ventisca»!"), vec!["ventisca"]);
     }
 
     #[test]

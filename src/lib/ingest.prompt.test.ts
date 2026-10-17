@@ -46,16 +46,17 @@ describe("buildAnalysisPrompt language directive", () => {
 
   it("contains structural analysis sections", () => {
     const prompt = buildAnalysisPrompt("", "", "")
-    expect(prompt).toContain("## Key Entities")
-    expect(prompt).toContain("## Key Concepts")
-    expect(prompt).toContain("## Main Arguments & Findings")
+    expect(prompt).toContain("## Document")
+    expect(prompt).toContain("## Parties and Named Entities")
+    expect(prompt).toContain("## Key Facts")
+    expect(prompt).toContain("## Legal Concepts")
     expect(prompt).toContain("## Recommendations")
   })
 
   it("requires claims to stay attached to their named subject", () => {
     const prompt = buildAnalysisPrompt("", "", "")
-    expect(prompt).toContain("Which named subject is each claim about")
-    expect(prompt).toContain("Do not transfer claims, limits, or evaluations")
+    expect(prompt).toContain("Which named party is each fact about")
+    expect(prompt).toContain("Do not transfer facts, amounts, obligations, or claims")
   })
 
   it("applies a significance and canonical-name threshold to entities", () => {
@@ -63,7 +64,7 @@ describe("buildAnalysisPrompt language directive", () => {
 
     expect(prompt).toContain("standalone-page significance threshold")
     expect(prompt).toContain("passing mentions")
-    expect(prompt).toContain("ordinary story props")
+    expect(prompt).toContain("letterheads")
     expect(prompt).toContain("unnamed or generic-role people")
     expect(prompt).toContain("Page-worthy: yes")
     expect(prompt).toContain("reuse the exact title of an existing wiki page first")
@@ -141,11 +142,10 @@ describe("buildGenerationPrompt language directive", () => {
     useWikiStore.getState().setOutputLanguage("Chinese")
     const prompt = buildGenerationPrompt("", "", "", "source.pdf")
 
-    expect(prompt).toContain("proper nouns and technical identifiers take precedence")
-    expect(prompt).toContain("GPT-5")
-    expect(prompt).toContain("Transformer")
+    expect(prompt).toContain("proper names and identifiers take precedence")
+    expect(prompt).toContain("case and file numbers")
     expect(prompt).toContain("standard original form")
-    expect(prompt).toContain("Do not put raw URLs, citation strings, or full paper titles directly into file paths")
+    expect(prompt).toContain("Do not put raw URLs, citation strings, or full document titles directly into file paths")
     expect(prompt).toContain("technical terms with no widely-used localized equivalent")
     expect(prompt).not.toContain("No exceptions — not even for page names")
   })
@@ -163,9 +163,9 @@ describe("buildGenerationPrompt language directive", () => {
 
     expect(prompt).toContain("only for a candidate explicitly marked `Page-worthy: yes`")
     expect(prompt).toContain("wikilinks only when the target already exists")
-    expect(prompt).toContain("opening paragraph of every entity page must answer what the subject is")
-    expect(prompt).toContain("stable, high-confidence public knowledge")
-    expect(prompt).toContain("independently verifiable background in the mandatory output language")
+    expect(prompt).toContain("opening paragraph of every entity page must say who or what the subject is")
+    expect(prompt).toContain("Never add public or general knowledge about a person")
+    expect(prompt).not.toContain("high-confidence public knowledge")
     expect(prompt).toContain("do not create the standalone page")
     expect(prompt).toContain("reuse the exact title of an existing wiki page first")
     expect(prompt).toContain("Final Global Digest is authoritative")

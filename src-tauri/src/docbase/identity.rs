@@ -122,7 +122,13 @@ impl DocBase {
                     .map_err(sql_err)?;
                 if known.is_none() {
                     tx.execute(
-                        "INSERT INTO content (state, first_seen_at) VALUES ('pending', ?1)",
+                        // An id is never given twice: what a person decided
+                        // about a document that went away names it by its id
+                        // (`knowledge_gone`).
+                        "INSERT INTO content (id, state, first_seen_at) VALUES (
+                             (SELECT max(n) + 1 FROM (SELECT coalesce(max(id), 0) AS n FROM content
+                                                      UNION ALL SELECT coalesce(max(content_id), 0) FROM knowledge_gone)),
+                             'pending', ?1)",
                         [now],
                     )
                     .map_err(sql_err)?;
