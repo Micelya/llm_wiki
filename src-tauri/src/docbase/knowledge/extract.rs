@@ -874,6 +874,13 @@ pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &
                 discard(&mut reading, "claim", "cita-no-encontrada", &said.predicado, &said.cita);
                 continue;
             };
+            // The record of a signing service says who signed, when and
+            // with what title and address, not when a bond starts or who
+            // is a party of the act (D-288): only what it can say is kept.
+            if certificate.contains(&page) && !vocabulary.reading.certificate_claims.iter().any(|p| p == &predicate.id) {
+                discard(&mut reading, "claim", "dato-de-la-constancia-de-firma", &said.predicado, &said.cita);
+                continue;
+            }
             let quote_words = quote::words(&said.cita);
             let (object_mention, object_value) = if predicate.takes_entity() {
                 match said.objeto_ref.as_ref().and_then(|r| refs.get(&(part, r.clone()))) {

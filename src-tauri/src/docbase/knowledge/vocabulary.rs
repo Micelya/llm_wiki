@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 /// The version of the program's check of a reading (`extract::verify`).
-const READING_CHECK: &str = "lectura-7";
+const READING_CHECK: &str = "lectura-8";
 
 const BUILTIN: &str = include_str!("../../../resources/catalog/knowledge.json");
 
@@ -303,6 +303,9 @@ pub struct ReadingRules {
     /// On such a page, the role a role becomes.
     #[serde(default)]
     pub certificate_roles: std::collections::BTreeMap<String, String>,
+    /// The predicates a claim read on such a page may have (D-288).
+    #[serde(default)]
+    pub certificate_claims: Vec<String>,
     /// Words there can be between the label of a form and its value.
     #[serde(default = "sixty")]
     pub label_window: usize,
@@ -338,6 +341,10 @@ pub struct ValueWords {
     /// "ciudad", "provincia").
     #[serde(default)]
     pub address_noise: Vec<String>,
+    /// Words of a timetable ("9 hs a 18 hs", "GMT-3"): a value with one of
+    /// them is when, not where (D-288).
+    #[serde(default)]
+    pub schedule: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

@@ -62,7 +62,7 @@ pub const IDENTITY_PROMPT: &str = "identidad-4";
 /// the program's or the vocabulary's change, the record is computed again.
 const RESOLUTION_SETTING: &str = "knowledge-resolution";
 /// Raised when a change in the program changes what a resolution gives.
-const RESOLUTION_VERSION: &str = "resolucion-6";
+const RESOLUTION_VERSION: &str = "resolucion-7";
 
 fn resolution_basis() -> String {
     format!("{RESOLUTION_VERSION}|{IDENTITY_PROMPT}|{}", vocabulary().digest)
@@ -2106,6 +2106,7 @@ pub(crate) fn write(base: &DocBase, outcome: &Outcome, report: &mut ResolveRepor
         // On one line, and in the form of a proper name when the documents
         // write it some other way than in capitals (D-239).
         let name = super::names::shown_name(&group_name.unwrap_or_else(|| written_of(chosen)), aliases.values().flat_map(|forms| forms.keys().copied()));
+        let name = if kind == names::PERSON { names::person_case(&name) } else { name };
         let now_members = mention_ids(list);
         match existing.get(id) {
             Some(old) => {

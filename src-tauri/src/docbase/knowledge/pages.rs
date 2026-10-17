@@ -48,7 +48,7 @@ pub const SYNTHESIS_PROMPT: &str = "sintesis-2";
 /// Raised when a change in the program changes what a projection writes
 /// (which names have a page, what a block lists): every page is written
 /// again from the record, without asking more.
-const PROJECTION_VERSION: &str = "proyeccion-5";
+const PROJECTION_VERSION: &str = "proyeccion-6";
 /// The task its answers are kept under in `model_answer`.
 pub const TASK: &str = "synthesis";
 /// The words of the vocabulary (`pages.words`) a page is written with.
@@ -384,8 +384,22 @@ impl Entity {
         let own = quote::words(&self.name).join(" ");
         let mut seen = BTreeSet::from([own]);
         let vocabulary = vocabulary();
+        // A form that is another one with a note in parentheses ("Persona
+        // Uno (Presidente)") says nothing more (D-289).
+        let bare = |w: &str| -> String {
+            let w = w.trim();
+            match (w.ends_with(')'), w.rfind('(')) {
+                (true, Some(open)) if open > 0 => quote::words(&w[..open]).join(" "),
+                _ => quote::words(w).join(" "),
+            }
+        };
+        let forms: BTreeSet<String> = list.iter().map(|(w, _)| quote::words(w).join(" ")).chain(seen.iter().cloned()).collect();
         list.into_iter()
             .filter(|(w, _)| vocabulary.is_a_name(&self.kind, w))
+            .filter(|(w, _)| {
+                let b = bare(w);
+                b == quote::words(w).join(" ") || !forms.contains(&b)
+            })
             .filter(|(w, _)| seen.insert(quote::words(w).join(" ")))
             .map(|(w, _)| w.clone())
             .collect()
@@ -393,6 +407,21 @@ impl Entity {
 
     fn has_strong_identifier(&self, vocabulary: &Vocabulary) -> bool {
         self.identifiers.keys().any(|(kind, _)| vocabulary.is_strong(kind))
+    }
+}
+
+/// The same number given once with its kind and once as just "another
+/// number" is one identifier: the one with its kind, with the documents
+/// of both (D-289).
+fn one_value_once(identifiers: &mut BTreeMap<(String, String), (String, BTreeSet<i64>)>, fallback: &str) {
+    let loose: Vec<(String, String)> = identifiers.keys().filter(|(kind, _)| kind == fallback).cloned().collect();
+    for key in loose {
+        let kinded = identifiers.keys().find(|(kind, normalized)| kind != fallback && *normalized == key.1).cloned();
+        if let Some(kinded) = kinded {
+            if let Some((_, documents)) = identifiers.remove(&key) {
+                identifiers.get_mut(&kinded).expect("found").1.extend(documents);
+            }
+        }
     }
 }
 
@@ -509,8 +538,10 @@ fn has_page(vocabulary: &Vocabulary, entity: &Entity) -> bool {
     }
     // What the documents say of it is reason enough (D-266), but not its
     // contact data alone: a list of telephones and addresses of offices in
-    // a form names no one the archive is about (D-284).
-    let substantive = |c: &&Claim| !c.mirrored && vocabulary.predicate(&c.predicate).is_none_or(|p| p.shape != "contact");
+    // a form names no one the archive is about (D-284), nor does the
+    // address of each office of a list of jurisdictions (D-288).
+    let substantive =
+        |c: &&Claim| !c.mirrored && vocabulary.predicate(&c.predicate).is_none_or(|p| p.shape != "contact" && p.shape != "address");
     if rule.with_claims && entity.claims.iter().any(|c| substantive(&c)) {
         return true;
     }
@@ -582,9 +613,16 @@ fn load(conn: &Connection, project_id: &str, identities: &HashMap<i64, String>) 
             .map_err(sql_err)?;
         for row in rows {
             let (entity, kind, value, normalized, content) = row.map_err(sql_err)?;
+            // A mail address is a contact, not an identifier (D-289).
+            if value.contains('@') {
+                continue;
+            }
             if let Some(entity) = entities.get_mut(&entity) {
                 entity.identifiers.entry((kind, normalized)).or_insert_with(|| (value, BTreeSet::new())).1.insert(fold(content));
             }
+        }
+        for entity in entities.values_mut() {
+            one_value_once(&mut entity.identifiers, vocabulary().identifiers.last().map(|t| t.id.as_str()).unwrap_or_default());
         }
     }
     {
@@ -1706,9 +1744,11 @@ fn render_matter(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<Stri
     let mut aliases: Vec<String> = named_as
         .iter()
         .map(|e| one_line(&e.name))
-        .filter(|n| *n != matter.name && vocabulary.is_a_matter_name(n))
+        .filter(|n| quote::words(n) != quote::words(&matter.name) && vocabulary.is_a_matter_name(n))
         .collect();
-    aliases.dedup();
+    // The same name in capitals and not is one (D-289).
+    let mut named_once = BTreeSet::new();
+    aliases.retain(|a| named_once.insert(quote::words(a).join(" ")));
     let mut out = String::from("---\ntype: entity\n");
     out.push_str(&format!("title: {}\n", yaml_string(&matter.name)));
     out.push_str(&format!("entity_kind: {}\n", vocabulary.matters.kind));
@@ -1724,8 +1764,10 @@ fn render_matter(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<Stri
     if !aliases.is_empty() {
         facts.push(format!("{}: {}", words.word("matterNamed"), aliases.join(" · ")));
     }
+    // Only what names a matter by itself (a case number): the number of
+    // an invoice, an envelope or a shipment is of one of its documents.
     for entity in &named_as {
-        for ((kind, _), (value, _)) in &entity.identifiers {
+        for ((kind, _), (value, _)) in entity.identifiers.iter().filter(|((kind, _), _)| vocabulary.is_strong(kind)) {
             facts.push(format!("{} {value}", vocabulary.identifier_label(kind)));
         }
     }
@@ -2402,6 +2444,17 @@ mod page_rule_tests {
     }
 
     #[test]
+    fn one_number_given_with_its_kind_and_as_another_number_is_shown_once() {
+        let mut ids: BTreeMap<(String, String), (String, BTreeSet<i64>)> = BTreeMap::new();
+        ids.insert(("dni".into(), "22222222".into()), ("22.222.222".into(), BTreeSet::from([1])));
+        ids.insert(("otro".into(), "22222222".into()), ("22222222".into(), BTreeSet::from([2])));
+        ids.insert(("otro".into(), "999".into()), ("999".into(), BTreeSet::from([3])));
+        one_value_once(&mut ids, "otro");
+        assert_eq!(ids.len(), 2);
+        assert_eq!(ids[&("dni".to_string(), "22222222".to_string())].1, BTreeSet::from([1, 2]));
+    }
+
+    #[test]
     fn a_page_needs_a_role_of_substance_or_something_said() {
         let v = Vocabulary::builtin();
         // Named in passing in many documents (a bank on invoices, a
@@ -2425,6 +2478,11 @@ mod page_rule_tests {
             detail: None,
             mirrored: false,
         });
+        // Its address alone is not: the offices of a list of
+        // jurisdictions on a form (D-288).
+        assert!(!has_page(&v, &said));
+        said.claims[0].predicate = "inicio_de_vinculo".into();
+        said.claims[0].object_value = Some("1 de marzo de 2020".into());
         assert!(has_page(&v, &said));
         // Its telephone and mail on a form are not (D-284).
         let mut contact = passing.clone();

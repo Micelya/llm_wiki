@@ -539,7 +539,16 @@ pub fn most_specific<'a>(vocabulary: &Vocabulary, kind: &str, candidates: &[(&'a
     if named.is_empty() {
         return keyed.iter().max_by(by_use).map(|k| k.0);
     }
-    let anchor = named.iter().copied().max_by(by_use)?;
+    // The anchor is the name that holds most of what the documents write:
+    // its own mentions and those of every form whose words it holds. A
+    // form split in two fields ("Nombres: Uno Dos", "Apellidos: Tres")
+    // gives way to the one that joins a given name with the surname
+    // written apart ("Uno Tres"), even if the split one is as used (D-288).
+    let covered = |k: &(&'a str, NameKey, usize, bool)| -> usize {
+        let set = k.1.complete_set();
+        keyed.iter().filter(|o| !o.1.complete_set().is_empty() && o.1.complete_set().is_subset(&set)).map(|o| o.2).sum()
+    };
+    let anchor = named.iter().copied().max_by(|a, b| covered(a).cmp(&covered(b)).then_with(|| by_use(a, b)))?;
     let anchor_set = anchor.1.complete_set();
     named
         .iter()
@@ -547,6 +556,43 @@ pub fn most_specific<'a>(vocabulary: &Vocabulary, kind: &str, candidates: &[(&'a
         .filter(|k| k.1.complete_set().is_superset(&anchor_set))
         .max_by(|a, b| a.1.complete_set().len().cmp(&b.1.complete_set().len()).then_with(|| by_use(a, b)))
         .map(|k| k.0)
+}
+
+/// A person's name with words in capitals and no other way of writing them
+/// ("PERSONA DOS", "Uno Dos TRES"): each such word as a proper name
+/// ("Persona Dos", "Uno Dos Tres"), with the particles of a surname ("de",
+/// "del", "la", "y") in lower case after the first word. A person's name
+/// has no acronyms; an organization's name is left as it is (D-289).
+pub fn person_case(name: &str) -> String {
+    let particles = ["de", "del", "la", "las", "los", "y", "van", "von"];
+    let mut out: Vec<String> = Vec::new();
+    for (i, word) in name.split_whitespace().enumerate() {
+        let letters: Vec<char> = word.chars().filter(|c| c.is_alphabetic()).collect();
+        if letters.len() >= 2 && letters.iter().all(|c| c.is_uppercase()) {
+            let lower = word.to_lowercase();
+            if i > 0 && particles.contains(&lower.as_str()) {
+                out.push(lower);
+                continue;
+            }
+            let mut cased = String::new();
+            let mut start = true;
+            for c in lower.chars() {
+                if start && c.is_alphabetic() {
+                    cased.extend(c.to_uppercase());
+                    start = false;
+                } else {
+                    cased.push(c);
+                    if c == '-' || c == '\'' {
+                        start = true;
+                    }
+                }
+            }
+            out.push(cased);
+        } else {
+            out.push(word.to_string());
+        }
+    }
+    out.join(" ")
 }
 
 /// The name an entity is shown with: on one line, and a name written all in
@@ -626,6 +672,11 @@ mod tests {
         // Not in capitals, or no other form: as it is, on one line.
         assert_eq!(shown_name("Persona\n Dos", ["PERSONA DOS"]), "Persona Dos");
         assert_eq!(shown_name("ACME", Vec::<&str>::new()), "ACME");
+        // A person's name has no acronyms (D-289).
+        assert_eq!(person_case("PERSONA DOS"), "Persona Dos");
+        assert_eq!(person_case("Uno Dos TRES"), "Uno Dos Tres");
+        assert_eq!(person_case("ANA DE LA FUENTE-PAZ"), "Ana de la Fuente-Paz");
+        assert_eq!(person_case("Uno J. Dos"), "Uno J. Dos");
     }
 
     fn k(kind: &str, name: &str) -> NameKey {
@@ -641,6 +692,10 @@ mod tests {
         // The complete form holds the words of the most used one.
         let list = [("persona dos", "Persona Dos", 9), ("persona uno dos", "Persona Uno Dos", 1)];
         assert_eq!(most_specific(&v, PERSON, &list), Some("persona uno dos"));
+        // A given name and a surname read from two fields of a form: the
+        // form that joins a given name with that surname names the person.
+        let split = [("uno dos", "UNO DOS", 1), ("tres", "TRES", 1), ("uno tres", "Uno Tres", 1)];
+        assert_eq!(most_specific(&v, PERSON, &split), Some("uno tres"));
         // A form read apart in a scan does not hold them: the most used.
         let list = [("ejemplo s a", "Ejemplo S.A.", 5), ("ejem plo", "Ejem plo", 1)];
         assert_eq!(most_specific(&v, ORGANIZATION, &list), Some("ejemplo s a"));

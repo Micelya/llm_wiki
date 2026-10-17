@@ -483,7 +483,8 @@ fn matter_name(conn: &Connection, vocabulary: &Vocabulary, contents: &[i64]) -> 
     let rules = &vocabulary.matters;
     let list = contents.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(",");
     let mut named: BTreeMap<String, (usize, usize, String)> = BTreeMap::new();
-    let mut parties: BTreeMap<String, (usize, String)> = BTreeMap::new();
+    // (documents as a party, documents in any party role, name)
+    let mut parties: BTreeMap<String, (usize, usize, String)> = BTreeMap::new();
     let mut statement = conn
         .prepare(&format!(
             "SELECT DISTINCT m.content_id, m.kind, m.role, e.id, e.name FROM knowledge_mention m JOIN knowledge_entity e ON e.id = m.entity_id
@@ -496,9 +497,12 @@ fn matter_name(conn: &Connection, vocabulary: &Vocabulary, contents: &[i64]) -> 
         })
         .map_err(sql_err)?;
     let mut seen: BTreeSet<(i64, String)> = BTreeSet::new();
+    // Every way a document names a matter, by document.
+    let mut written: BTreeSet<(i64, Vec<String>)> = BTreeSet::new();
     for row in rows {
         let (content, kind, role, id, name) = row.map_err(sql_err)?;
         if kind == rules.kind {
+            written.insert((content, quote::words(&name)));
             if !vocabulary.is_a_matter_name(&name) {
                 continue;
             }
@@ -510,18 +514,37 @@ fn matter_name(conn: &Connection, vocabulary: &Vocabulary, contents: &[i64]) -> 
                 entry.1 += 1;
             }
         } else if rules.party_roles.iter().any(|r| r == &role) && vocabulary.is_a_name(&kind, &name) {
-            let entry = parties.entry(id).or_insert((0, name));
-            if seen.insert((content, format!("party:{}", entry.1))) {
+            let entry = parties.entry(id).or_insert((0, 0, name));
+            if seen.insert((content, format!("party:{}", entry.2))) {
+                entry.1 += 1;
+            }
+            // Who is a party of the act names it before who only sends,
+            // receives or issues one of its documents (D-288).
+            if rules.party_roles.first().is_some_and(|r| r == &role) && seen.insert((content, format!("own-party:{}", entry.2))) {
                 entry.0 += 1;
             }
         }
     }
     let party_ids: BTreeSet<String> = parties.keys().cloned().collect();
-    let mut parties: Vec<(usize, String)> = parties.into_values().collect();
-    parties.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
-    let parties: Vec<String> = parties.into_iter().take(rules.parties_in_name).map(|(_, n)| one_line(&n)).collect();
+    let mut parties: Vec<(usize, usize, String)> = parties.into_values().collect();
+    parties.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| b.1.cmp(&a.1)).then_with(|| a.2.cmp(&b.2)));
+    let parties: Vec<String> = parties.into_iter().take(rules.parties_in_name).map(|(_, _, n)| one_line(&n)).collect();
     let mut named: Vec<(usize, usize, String)> = named.into_values().collect();
-    named.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| b.0.cmp(&a.0)).then_with(|| b.2.len().cmp(&a.2.len())).then_with(|| a.2.cmp(&b.2)));
+    // In how many documents some name holds all of its words: the act
+    // named in the agreement and in its signing record ("Ejemplo
+    // Agreement" and "EJEMPLO AGREEMENT (EA)") before the
+    // title of the record's own form (D-288).
+    let naming = |name: &str| -> usize {
+        let words = quote::words(name);
+        written.iter().filter(|(_, w)| !words.is_empty() && words.iter().all(|x| w.contains(x))).map(|(c, _)| *c).collect::<BTreeSet<i64>>().len()
+    };
+    named.sort_by(|a, b| {
+        b.1.cmp(&a.1)
+            .then_with(|| naming(&b.2).cmp(&naming(&a.2)))
+            .then_with(|| b.0.cmp(&a.0))
+            .then_with(|| b.2.len().cmp(&a.2.len()))
+            .then_with(|| a.2.cmp(&b.2))
+    });
     let words = &vocabulary.pages;
     // A claim between two of its parties: who claims from whom, by the
     // amounts its documents say are claimed.
@@ -559,9 +582,31 @@ fn matter_name(conn: &Connection, vocabulary: &Vocabulary, contents: &[i64]) -> 
         (Some((_, _, name)), 1) => format!("{} {} {between}", own(name), words.word("matterOfOne")),
         (Some((_, _, name)), _) => words.word("matterTyped").replace("{matter}", &own(name)).replace("{parties}", &between),
         (None, 0) => words.word("matterUnnamed").to_string(),
-        (None, 1) => format!("{} {} {between}", words.word("matterOf"), words.word("matterOfOne")),
-        (None, _) => format!("{} {between}", words.word("matterBetween")),
+        // Without a name of its own, what all its documents are, when they
+        // are of one kind ("Boleta de Persona Uno"), not "Asunto de" (D-288).
+        (None, n) => match common_type(conn, contents) {
+            Some(kind) if n == 1 => format!("{kind} {} {between}", words.word("matterOfOne")),
+            Some(kind) => words.word("matterTyped").replace("{matter}", &kind).replace("{parties}", &between),
+            None if n == 1 => format!("{} {} {between}", words.word("matterOf"), words.word("matterOfOne")),
+            None => format!("{} {between}", words.word("matterBetween")),
+        },
     })
+}
+
+/// The kind of document all of these are, in sentence case ("Boleta"),
+/// when they are all of one known kind.
+fn common_type(conn: &Connection, contents: &[i64]) -> Option<String> {
+    let mut kinds = BTreeSet::new();
+    for content in contents {
+        let kind: String = conn.query_row("SELECT doc_type FROM document_type WHERE content_id = ?1", [content], |row| row.get(0)).ok()?;
+        kinds.insert(kind);
+    }
+    if kinds.len() != 1 {
+        return None;
+    }
+    let spaced = kinds.into_iter().next()?.replace('-', " ");
+    let mut chars = spaced.chars();
+    chars.next().map(|first| first.to_uppercase().collect::<String>() + chars.as_str())
 }
 
 /// What its documents name a matter, as the start of its name (D-285):

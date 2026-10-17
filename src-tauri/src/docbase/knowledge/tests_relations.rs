@@ -155,8 +155,9 @@ fn documents_of_one_matter_go_together_by_what_is_specific_to_it() {
     assert!(matter.contains("$ 1.234,56"), "{matter}");
     // The person's documents, by matter; the note of another subject apart.
     let person = page_of(&pages, "Persona Dos");
-    // Named by its parties, never by the invoice (D-267).
-    assert!(person.contains("### [[asunto-entre-ejemplo-uno-s-a-y-persona-dos-"), "{person}");
+    // Named by its parties, never by the invoice (D-267); its documents
+    // are all of one kind here, which names it (D-288).
+    assert!(person.contains("### [[contrato-entre-ejemplo-uno-s-a-y-persona-dos-"), "{person}");
     assert!(person.contains("### Sin asunto identificado") && person.contains("o.txt"), "{person}");
     // No page for a matter named in one document only.
     assert!(!pages.iter().any(|(_, t)| t.contains("entity_kind: asunto") && t.contains("entity_id: ent-")));
