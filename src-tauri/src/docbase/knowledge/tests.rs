@@ -59,6 +59,21 @@ pub(crate) fn mention(reference: &str, kind: &str, written: &str, role: &str, qu
     })
 }
 
+/// An amount between two parties (D-244), as the model gives it.
+pub(crate) fn amount(debtor: &str, creditor: &str, value: &str, kind: &str, quote: &str, date: Option<&str>) -> serde_json::Value {
+    serde_json::json!({
+        "deudor": debtor, "acreedor": creditor, "importe": value, "moneda": null, "tipo": kind, "concepto": null,
+        "fecha": date, "cita": quote, "pagina": null
+    })
+}
+
+/// An answer of the reading: the amounts given among the claims go to
+/// their own list.
+pub(crate) fn answer(mentions: Vec<serde_json::Value>, claims: Vec<serde_json::Value>) -> String {
+    let (amounts, claims): (Vec<serde_json::Value>, Vec<serde_json::Value>) = claims.into_iter().partition(|c| c.get("deudor").is_some());
+    serde_json::json!({ "menciones": mentions, "afirmaciones": claims, "importes": amounts }).to_string()
+}
+
 pub(crate) fn claim(subject: &str, predicate: &str, object_ref: Option<&str>, value: Option<&str>, quote: &str, time: Option<&str>) -> serde_json::Value {
     serde_json::json!({
         "sujeto": subject, "predicado": predicate, "objeto_ref": object_ref, "objeto_valor": value,
@@ -82,11 +97,13 @@ fn lease_answer() -> String {
             // The name is not inside its quote.
             mention("e", "persona", "Persona Cinco", "parte", "en adelante la locadora", serde_json::json!([])),
         ],
+        "importes": [
+            amount("c", "a", "$ 100.000", "precio", "El canon mensual es de $ 100.000 a partir del 1 de marzo", Some("a partir del 1 de marzo")),
+        ],
         "afirmaciones": [
             claim("b", "cargo", None, Some("presidente"), "representada por su presidente Persona Dos", None),
             claim("b", "representa_a", Some("a"), None, "Ejemplo Uno S.A., CUIT 30-11111111-1, representada por su presidente Persona Dos", None),
             claim("c", "domicilio", None, Some("Calle Inventada 456"), "El locatario constituye domicilio en Calle Inventada 456", None),
-            claim("c", "monto_adeudado", None, Some("$ 100.000"), "El canon mensual es de $ 100.000 a partir del 1 de marzo", Some("a partir del 1 de marzo")),
             // Said twice: kept once.
             claim("c", "domicilio", None, Some("calle inventada 456"), "constituye domicilio en Calle Inventada 456", None),
             // A position is said of a person, not of a company.
@@ -193,7 +210,7 @@ fn only_what_is_in_the_text_is_kept() {
             ("cargo", Some("presidente"), None),
             ("representa_a", None, Some(company)),
             ("domicilio", Some("Calle Inventada 456"), None),
-            ("monto_adeudado", Some("$ 100.000"), None),
+            ("importe", None, Some(company)),
         ]
     );
     assert_eq!(found.evidence[3].fact_time.as_deref(), Some("a partir del 1 de marzo"));

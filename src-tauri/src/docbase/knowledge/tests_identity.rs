@@ -5,7 +5,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::decide::IdentityDecision;
-use super::tests::{base_with, claim, empty_answer, is_knowledge, mention, refresh, type_answer, FakeModel};
+use super::tests::{answer, amount, base_with, claim, empty_answer, is_knowledge, mention, refresh, type_answer, FakeModel};
 use crate::docbase::testing::TempDir;
 use crate::docbase::{DocBase, Visible};
 
@@ -71,7 +71,7 @@ fn reading(prompt: &str) -> String {
     } else {
         return empty_answer();
     };
-    serde_json::json!({ "menciones": mentions, "afirmaciones": claims }).to_string()
+    answer(mentions, claims)
 }
 
 fn is_identity(prompt: &str) -> bool {
@@ -307,14 +307,15 @@ fn what_a_person_decides_is_firm_and_can_be_undone() {
     base.knowledge_decide(&IdentityDecision::Join { a: format!("entity:{other}"), b: format!("entity:{two}") }, None, None).unwrap();
     assert_eq!(entity(&base, "c.txt", "Persona Dos"), entity(&base, "a.txt", "Persona Dos"));
     assert_eq!(resolved_by(&base, "c.txt", "Persona Dos").as_deref(), Some("persona"));
-    // Two domiciles for the same person now, with no time: a conflict.
+    // Two domiciles for the same person now, with no time: two values, not
+    // a conflict (a conflict needs the same time, D-252).
     let joined = entity(&base, "a.txt", "Persona Dos").unwrap();
     let detail = base.knowledge_entity(&Visible::All, &joined).unwrap().unwrap();
     let domiciles: Vec<(&str, usize)> =
         detail.claims.iter().filter(|c| c.predicate == "domicilio").map(|c| (c.state.as_str(), c.evidence.len())).collect();
     assert_eq!(domiciles.len(), 2, "{domiciles:?}");
-    assert!(domiciles.iter().all(|(state, _)| *state == "conflict"));
-    assert!(domiciles.contains(&("conflict", 2)), "the same domicile in two documents is one claim");
+    assert!(domiciles.iter().all(|(state, _)| *state == "supported"));
+    assert!(domiciles.contains(&("supported", 2)), "the same domicile in two documents is one claim");
 
     // A mention marked wrong is no entity; a claim marked wrong is retired.
     base.knowledge_decide(&IdentityDecision::Wrong { a: format!("mention:{}", mention_id(&base, "d.txt", "Persona Dos")) }, None, None)

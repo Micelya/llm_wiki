@@ -41,13 +41,13 @@ fn problems_model() -> FakeModel {
         if prompt.contains("DOC-H.") {
             serde_json::json!({
                 "menciones": [mention("p", "persona", "Persona Seis", "parte", "Constancia de Persona Seis, DNI 33.333.333", ids("33.333.333"))],
-                "afirmaciones": [claim("p", "domicilio", None, Some("Calle Tres 300"), "con domicilio en Calle Tres 300", None)]
+                "afirmaciones": [claim("p", "domicilio", None, Some("Calle Tres 300"), "con domicilio en Calle Tres 300, para el trámite de inscripción que corresponde a este año", Some("este año"))]
             })
             .to_string()
         } else if prompt.contains("DOC-J.") {
             serde_json::json!({
                 "menciones": [mention("p", "persona", "Persona Seis", "firmante", "firmada por Persona Seis, DNI 33.333.333", ids("33.333.333"))],
-                "afirmaciones": [claim("p", "domicilio", None, Some("Calle Cuatro 400"), "con domicilio en Calle Cuatro 400", None)]
+                "afirmaciones": [claim("p", "domicilio", None, Some("Calle Cuatro 400"), "con domicilio en Calle Cuatro 400, para el mismo trámite de inscripción de este año", Some("este año"))]
             })
             .to_string()
         } else if prompt.contains("DOC-K.") {

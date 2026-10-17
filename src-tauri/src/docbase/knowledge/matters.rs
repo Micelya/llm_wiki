@@ -285,8 +285,8 @@ pub(crate) fn group(conn: &Connection, vocabulary: &Vocabulary, joins: &[(String
     {
         let mut statement = conn
             .prepare(
-                "SELECT e.content_id, e.predicate, e.object_value, s.normalized FROM knowledge_evidence e
-                 JOIN knowledge_mention s ON s.id = e.subject_mention WHERE e.object_value IS NOT NULL",
+                "SELECT e.content_id, e.predicate, coalesce(e.amount, e.object_value), s.normalized FROM knowledge_evidence e
+                 JOIN knowledge_mention s ON s.id = e.subject_mention WHERE coalesce(e.amount, e.object_value) IS NOT NULL",
             )
             .map_err(sql_err)?;
         let rows = statement
@@ -294,7 +294,8 @@ pub(crate) fn group(conn: &Connection, vocabulary: &Vocabulary, joins: &[(String
             .map_err(sql_err)?;
         for row in rows {
             let (content, predicate, value, subject) = row.map_err(sql_err)?;
-            if vocabulary.predicate(&predicate).is_none_or(|p| p.shape != "amount") || !values::fits(vocabulary, "amount", &value, &subject) {
+            // An amount said as a value, or between two parties (D-244).
+            if vocabulary.predicate(&predicate).is_none_or(|p| p.shape != "amount" && !p.is_money()) || !values::fits(vocabulary, "amount", &value, &subject) {
                 continue;
             }
             if let (Some(key), Some(&i)) = (amount_key(rules, &value), index.get(&content)) {
@@ -614,7 +615,8 @@ fn describe_document(conn: &Connection, vocabulary: &Vocabulary, content: i64) -
     }
     let mut statement = conn
         .prepare(
-            "SELECT e.predicate, coalesce(e.object_value, o.written), e.quote FROM knowledge_evidence e
+            "SELECT e.predicate, coalesce(e.object_value, CASE WHEN e.amount IS NOT NULL THEN e.amount || ' — ' || o.written ELSE o.written END), e.quote
+             FROM knowledge_evidence e
              LEFT JOIN knowledge_mention o ON o.id = e.object_mention WHERE e.content_id = ?1 ORDER BY e.id LIMIT ?2",
         )
         .map_err(sql_err)?;

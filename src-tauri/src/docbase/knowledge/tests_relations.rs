@@ -5,7 +5,7 @@
 use std::path::PathBuf;
 
 use super::decide::IdentityDecision;
-use super::tests::{base_with, claim, empty_answer, is_knowledge, mention, type_answer, FakeModel};
+use super::tests::{answer, amount, base_with, claim, empty_answer, is_knowledge, mention, type_answer, FakeModel};
 use super::tests_pages::{entity_pages, is_synthesis, page_of, read, synthesis};
 use crate::docbase::testing::TempDir;
 use crate::docbase::{DocBase, Visible};
@@ -49,17 +49,17 @@ fn reading(prompt: &str) -> String {
                 company("emisor", "de Ejemplo Uno S.A. a Persona Dos"),
                 two("destinatario", "a Persona Dos por $ 1.234,56"),
             ],
-            vec![claim("p", "monto_adeudado", None, Some("$ 1.234,56"), "a Persona Dos por $ 1.234,56", None)],
+            vec![amount("p", "o", "$ 1.234,56", "factura", "a Persona Dos por $ 1.234,56", None)],
         )
     } else if prompt.contains("DOC-R.") {
         (
             vec![two("emisor", "Recibo de Persona Dos"), company("destinatario", "a Ejemplo Uno S.A. por $ 1.234,56")],
-            vec![claim("p", "monto_adeudado", None, Some("$ 1.234,56"), "a Ejemplo Uno S.A. por $ 1.234,56", None)],
+            vec![amount("p", "o", "$ 1.234,56", "cuota", "a Ejemplo Uno S.A. por $ 1.234,56", None)],
         )
     } else if prompt.contains("DOC-O.") {
         (
             vec![two("remitente", "Nota de Persona Dos"), company("destinatario", "a Ejemplo Uno S.A. sobre otro tema")],
-            vec![claim("p", "monto_adeudado", None, Some("$ 10.000"), "por $ 10.000 de anticipo", None)],
+            vec![amount("p", "o", "$ 10.000", "cuota", "por $ 10.000 de anticipo", None)],
         )
     } else if prompt.contains("DOC-P.") {
         (
@@ -67,7 +67,7 @@ fn reading(prompt: &str) -> String {
             // The same tie said from both sides.
             vec![
                 claim("p", "deudor_de", Some("o"), None, "Persona Dos a Ejemplo Uno S.A. para coordinar el pago pendiente", None),
-                claim("o", "acreedor_de", Some("p"), None, "Persona Dos a Ejemplo Uno S.A. para coordinar el pago pendiente", None),
+                claim("p", "deudor_de", Some("o"), None, "Correo de Persona Dos a Ejemplo Uno S.A. para coordinar el pago pendiente", None),
             ],
         )
     } else if prompt.contains("DOC-G.") {
@@ -81,7 +81,7 @@ fn reading(prompt: &str) -> String {
     } else {
         return empty_answer();
     };
-    serde_json::json!({ "menciones": mentions, "afirmaciones": claims }).to_string()
+    answer(mentions, claims)
 }
 
 pub(crate) fn model() -> FakeModel {

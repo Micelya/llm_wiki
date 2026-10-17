@@ -44,11 +44,11 @@ use crate::docbase::{now_ms, sql_err, DocBase, Visible};
 use crate::source_volume::asking::DocumentAsker;
 
 /// Version of the question that writes what the documents say.
-pub const SYNTHESIS_PROMPT: &str = "sintesis-1";
+pub const SYNTHESIS_PROMPT: &str = "sintesis-2";
 /// Raised when a change in the program changes what a projection writes
 /// (which names have a page, what a block lists): every page is written
 /// again from the record, without asking more.
-const PROJECTION_VERSION: &str = "proyeccion-3";
+const PROJECTION_VERSION: &str = "proyeccion-4";
 /// The task its answers are kept under in `model_answer`.
 pub const TASK: &str = "synthesis";
 /// The words of the vocabulary (`pages.words`) a page is written with.
@@ -182,6 +182,13 @@ struct Claim {
     valid_from: Option<String>,
     /// (content, quote, page)
     evidence: Vec<(i64, String, Option<i64>)>,
+    /// An amount between two parties (D-244): the amount as written and
+    /// what else its reading says (kind, currency, concept).
+    amount: Option<String>,
+    detail: Option<serde_json::Value>,
+    /// The same amount listed on the page of its creditor: `object_entity`
+    /// is then the debtor.
+    mirrored: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -501,20 +508,24 @@ fn load(conn: &Connection, project_id: &str, identities: &HashMap<i64, String>) 
     {
         let mut statement = conn
             .prepare(&format!(
-                "SELECT m.entity_id, m.content_id, m.role, m.written FROM knowledge_mention m
+                "SELECT m.entity_id, m.content_id, m.role, m.written, m.defined FROM knowledge_mention m
                  WHERE m.entity_id IS NOT NULL AND {visible}"
             ))
             .map_err(sql_err)?;
         let rows = statement
             .query_map(rusqlite::params_from_iter(params.iter()), |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?, row.get::<_, String>(2)?, row.get::<_, String>(3)?))
+                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?, row.get::<_, String>(2)?, row.get::<_, String>(3)?, row.get::<_, bool>(4)?))
             })
             .map_err(sql_err)?;
         for row in rows {
-            let (entity, content, role, written) = row.map_err(sql_err)?;
+            let (entity, content, role, written, defined) = row.map_err(sql_err)?;
             if let Some(entity) = entities.get_mut(&entity) {
                 entity.documents.entry(fold(content)).or_default().insert(role);
-                *entity.written.entry(written).or_default() += 1;
+                // A term a document defines ("la Empresa") is a local alias:
+                // it is neither a name nor an alias of the entity (D-245).
+                if !defined {
+                    *entity.written.entry(written).or_default() += 1;
+                }
             }
         }
     }
@@ -557,7 +568,8 @@ fn load(conn: &Connection, project_id: &str, identities: &HashMap<i64, String>) 
         }
         let mut statement = conn
             .prepare(
-                "SELECT id, subject, predicate, object_entity, object_value, state, valid_from, context_entity, qualifier FROM knowledge_claim
+                "SELECT id, subject, predicate, object_entity, object_value, state, valid_from, context_entity, qualifier, amount, detail
+                 FROM knowledge_claim
                  WHERE state != 'retired' ORDER BY subject, predicate, coalesce(valid_from, ''), coalesce(object_normalized, object_entity, ''), id",
             )
             .map_err(sql_err)?;
@@ -575,6 +587,9 @@ fn load(conn: &Connection, project_id: &str, identities: &HashMap<i64, String>) 
                         context: row.get(7)?,
                         qualifier: row.get(8)?,
                         evidence: Vec::new(),
+                        amount: row.get(9)?,
+                        detail: row.get::<_, Option<String>>(10)?.and_then(|d| serde_json::from_str(&d).ok()),
+                        mirrored: false,
                     },
                 ))
             })
@@ -584,6 +599,16 @@ fn load(conn: &Connection, project_id: &str, identities: &HashMap<i64, String>) 
             claim.evidence = evidence.remove(&claim.id).unwrap_or_default();
             if claim.evidence.is_empty() {
                 continue;
+            }
+            // An amount between two parties is told on both pages, each
+            // from its side ("Debe a", "Le debe").
+            if claim.amount.is_some() {
+                if let Some(creditor) = claim.object_entity.clone().filter(|c| entities.contains_key(c)) {
+                    let mut mirror = claim.clone();
+                    mirror.object_entity = Some(subject.clone());
+                    mirror.mirrored = true;
+                    entities.get_mut(&creditor).expect("listed").claims.push(mirror);
+                }
             }
             if let Some(entity) = entities.get_mut(&subject) {
                 entity.claims.push(claim);
@@ -745,7 +770,43 @@ fn numbered(vocabulary: &Vocabulary, entity: &Entity) -> Vec<Claim> {
     claims
 }
 
+/// How a claim is named on a page: the label of its predicate or, for an
+/// amount between two parties, how it is told from this side, with the
+/// other party ("Debe a Ejemplo Uno S.A.", "Le reclama Persona Dos").
+fn claim_label(vocabulary: &Vocabulary, record: &Record, claim: &Claim) -> String {
+    if claim.amount.is_none() {
+        return vocabulary.predicate_label(&claim.predicate).to_string();
+    }
+    let kind = claim.qualifier.as_deref().and_then(|k| vocabulary.money_kind(k)).or_else(|| vocabulary.money.kinds.last());
+    let phrase = kind.map(|k| if claim.mirrored { k.creditor.as_str() } else { k.debtor.as_str() }).unwrap_or_default();
+    let other = claim.object_entity.as_ref().and_then(|id| record.entities.get(id)).map(|e| e.name.clone()).unwrap_or_default();
+    format!("{phrase} {other}").trim().to_string()
+}
+
+/// What an amount between two parties says besides its parties: the
+/// amount, its kind and its concept.
+fn amount_text(vocabulary: &Vocabulary, claim: &Claim) -> String {
+    let amount = one_line(claim.amount.as_deref().unwrap_or_default());
+    let mut notes: Vec<String> = Vec::new();
+    if let Some(kind) = claim.qualifier.as_deref().and_then(|k| vocabulary.money_kind(k)) {
+        if !kind.label.is_empty() {
+            notes.push(kind.label.clone());
+        }
+    }
+    if let Some(concept) = claim.detail.as_ref().and_then(|d| d.get("concepto")).and_then(|c| c.as_str()) {
+        notes.push(one_line(concept));
+    }
+    if notes.is_empty() {
+        amount
+    } else {
+        format!("{amount} ({})", notes.join("; "))
+    }
+}
+
 fn object_text(record: &Record, claim: &Claim) -> String {
+    if claim.amount.is_some() {
+        return amount_text(vocabulary(), claim);
+    }
     let text = match (&claim.object_value, &claim.object_entity) {
         (Some(value), _) => one_line(value),
         (None, Some(id)) => record.entities.get(id).map(|e| e.name.clone()).unwrap_or_else(|| id.clone()),
@@ -772,7 +833,7 @@ fn synthesis_question(vocabulary: &Vocabulary, record: &Record, entity: &Entity,
     let kind = vocabulary.type_label(&entity.kind);
     let mut listed = Vec::new();
     for (index, claim) in claims.iter().enumerate() {
-        let mut line = format!("[{}] {}: {}", index + 1, vocabulary.predicate_label(&claim.predicate), object_text(record, claim));
+        let mut line = format!("[{}] {}: {}", index + 1, claim_label(vocabulary, record, claim), object_text(record, claim));
         if let Some(from) = &claim.valid_from {
             line.push_str(&format!(" (tiempo: {from})"));
         }
@@ -803,8 +864,13 @@ dos afirmaciones (si una persona representa a una sociedad y la sociedad firmó 
 obligaciones y plazos. Agrupá lo que se relaciona; no repitas.\n\
 - Cada oración lleva los números de las afirmaciones que la respaldan (al menos uno). No escribas los números dentro del texto.\n\
 - Copiá importes, fechas, números y nombres tal como están en las afirmaciones.\n\
-- Si una afirmación dice un tiempo, decilo. Si las afirmaciones de un mismo dato dicen tiempos distintos, contalo como una historia.\n\
-- Las afirmaciones EN CONFLICTO no se resuelven: decí que los documentos difieren y nombrá cada valor con su número.\n\
+- Si una afirmación dice un tiempo, decilo. Si las afirmaciones de un mismo dato dicen tiempos distintos, contalo como una historia \
+(primero un valor, después otro). Datos de clases distintas (un domicilio real y uno constituido, un domicilio laboral y uno de la \
+sociedad) no se contradicen: decí cada uno con su clase.\n\
+- Un importe dice quién debe, paga o reclama a quién, con el tipo de importe: decilo así («debe a…», «reclama a…», «pagó a…»), \
+nunca como un monto suelto sin la otra parte.\n\
+- No digas que los documentos difieren, se contradicen o no coinciden, salvo para las afirmaciones marcadas EN CONFLICTO: esas no \
+se resuelven; nombrá cada valor con su número.\n\
 - {language}\n\n\
 {kind}: {name}\n\
 Afirmaciones:\n{claims}\n\n\
@@ -1061,10 +1127,11 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
                     format!("«{}» ({}{at})", one_line(quote), document_link(record, *content))
                 })
                 .collect();
+            let time = claim.valid_from.as_deref().map(|t| format!(" ({})", localized_dates(vocabulary, &one_line(t)))).unwrap_or_default();
             format!(
-                "- [{}] {}: {} — {}\n",
+                "- [{}] {}: {}{time} — {}\n",
                 index + 1,
-                vocabulary.predicate_label(&claim.predicate),
+                claim_label(vocabulary, record, claim),
                 localized_dates(vocabulary, &one_line(&object_text(record, claim))),
                 quotes.join("; ")
             )
@@ -1197,6 +1264,10 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
             .collect()
     };
     for claim in &entity.claims {
+        // An amount between two parties is in the claims of both pages.
+        if claim.amount.is_some() {
+            continue;
+        }
         if let Some(object) = &claim.object_entity {
             if record.entities.get(object).is_some_and(|o| o.kind != "asunto") {
                 tie(vocabulary.predicate_label(&claim.predicate), object, quotes_of(claim));
@@ -1204,7 +1275,7 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
         }
     }
     for other in record.entities.values().filter(|o| o.id != entity.id && o.state == "active") {
-        for claim in other.claims.iter().filter(|c| c.object_entity.as_deref() == Some(entity.id.as_str())) {
+        for claim in other.claims.iter().filter(|c| c.amount.is_none() && c.object_entity.as_deref() == Some(entity.id.as_str())) {
             let Some(inverse) = vocabulary.predicate(&claim.predicate).map(|p| p.inverse_label.as_str()).filter(|l| !l.is_empty()) else { continue };
             if other.kind == "asunto" {
                 continue;
@@ -1587,7 +1658,7 @@ fn render_matter(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<Stri
     // What its documents say of whom appears in them, with the quotes.
     let mut said: Vec<String> = Vec::new();
     for (entity, _, _) in &people {
-        for claim in &entity.claims {
+        for claim in entity.claims.iter().filter(|c| !c.mirrored) {
             let quotes: Vec<String> = claim
                 .evidence
                 .iter()
@@ -1603,11 +1674,12 @@ fn render_matter(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<Stri
             }
             let subject = paths.get(&entity.id).map(|p| link(p, &entity.name)).unwrap_or_else(|| entity.name.clone());
             let object = match claim.object_entity.as_deref() {
+                Some(_) if claim.amount.is_some() => object_text(record, claim),
                 Some(id) => paths.get(id).map(|p| link(p, &object_text(record, claim))).unwrap_or_else(|| object_text(record, claim)),
                 None => localized_dates(vocabulary, &object_text(record, claim)),
             };
             let conflict = if claim.state == "conflict" { format!(" ({})", words.word("conflicts").to_lowercase()) } else { String::new() };
-            said.push(format!("- {subject} — {}: {object}{conflict} — {}\n", vocabulary.predicate_label(&claim.predicate), quotes.join("; ")));
+            said.push(format!("- {subject} — {}: {object}{conflict} — {}\n", claim_label(vocabulary, record, claim), quotes.join("; ")));
         }
     }
     if !said.is_empty() {

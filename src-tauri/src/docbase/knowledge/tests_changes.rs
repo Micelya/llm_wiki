@@ -5,7 +5,7 @@
 use std::path::PathBuf;
 
 use super::decide::IdentityDecision;
-use super::tests::{base_with, claim, empty_answer, is_knowledge, mention, refresh, type_answer, FakeModel};
+use super::tests::{answer, amount, base_with, claim, empty_answer, is_knowledge, mention, refresh, type_answer, FakeModel};
 use super::tests_pages::{entity_pages, is_synthesis, page_of, read, synthesis};
 use crate::docbase::testing::TempDir;
 use crate::docbase::{DocBase, Visible};
@@ -38,7 +38,7 @@ fn reading(prompt: &str) -> String {
                 mention("o", "organizacion", "Ejemplo Uno S.A.", "destinatario", "a favor de Ejemplo Uno S.A.", none.clone()),
                 mention("t", "persona", "Persona Siete", "testigo", "ante Persona Siete como testigo", none.clone()),
             ],
-            vec![claim("p", "monto_adeudado", None, Some("$ 5.000"), "a favor de Ejemplo Uno S.A. por $ 5.000", None)],
+            vec![amount("p", "o", "$ 5.000", "cuota", "a favor de Ejemplo Uno S.A. por $ 5.000", None)],
         )
     } else if prompt.contains("DOC-C.") {
         (
@@ -51,7 +51,7 @@ fn reading(prompt: &str) -> String {
     } else {
         return empty_answer();
     };
-    serde_json::json!({ "menciones": mentions, "afirmaciones": claims }).to_string()
+    answer(mentions, claims)
 }
 
 fn model() -> FakeModel {
@@ -261,7 +261,7 @@ fn a_new_version_keeps_its_entities_and_what_a_person_decided() {
     assert_eq!(archive.entity("Persona Dos").0, two);
     // The decision about the old version holds for the new one.
     assert!(!archive.claims_of(&two).iter().any(|c| c.starts_with("domicilio")), "{:?}", archive.claims_of(&two));
-    assert!(archive.claims_of(&two).iter().any(|c| c.starts_with("monto_adeudado")));
+    assert!(archive.claims_of(&two).iter().any(|c| c.starts_with("importe")));
     // Nothing of the old version is left.
     let old_mentions: i64 = archive
         .base

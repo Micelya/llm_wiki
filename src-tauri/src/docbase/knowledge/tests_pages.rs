@@ -5,7 +5,7 @@
 use std::path::PathBuf;
 
 use super::pages::{self, BLOCK_END, BLOCK_START, NOTES_MARK};
-use super::tests::{base_with, claim, empty_answer, is_knowledge, mention, type_answer, FakeModel};
+use super::tests::{answer, amount, base_with, claim, empty_answer, is_knowledge, mention, type_answer, FakeModel};
 use crate::docbase::testing::TempDir;
 use crate::docbase::DocBase;
 
@@ -36,7 +36,7 @@ fn reading(prompt: &str) -> String {
                 mention("p", "persona", "Persona Dos", "firmante", "Recibo firmado por Persona Dos, DNI 22.222.222", ids("dni", "22.222.222", "DNI 22.222.222")),
                 mention("o", "organizacion", "Ejemplo Uno S.A.", "destinatario", "a favor de Ejemplo Uno S.A.", none.clone()),
             ],
-            vec![claim("p", "monto_adeudado", None, Some("$ 5.000"), "a favor de Ejemplo Uno S.A. por $ 5.000", None)],
+            vec![amount("p", "o", "$ 5.000", "cuota", "a favor de Ejemplo Uno S.A. por $ 5.000", None)],
         )
     } else if prompt.contains("DOC-E.") {
         // An address, a pronoun and a role read as names.
@@ -63,7 +63,7 @@ fn reading(prompt: &str) -> String {
     } else {
         return empty_answer();
     };
-    serde_json::json!({ "menciones": mentions, "afirmaciones": claims }).to_string()
+    answer(mentions, claims)
 }
 
 pub(crate) fn is_synthesis(prompt: &str) -> bool {
@@ -185,10 +185,11 @@ fn every_entity_with_a_page_has_all_its_documents_and_only_verified_sentences() 
     // The notes, last, under their mark.
     assert!(person.trim_end().ends_with("-->"), "{person}");
     assert!(person.contains(NOTES_MARK));
-    // A company without claims says so, and asks nothing.
+    // The amount is told on both pages, each from its side (D-244).
+    assert!(person.contains("Pagó a Ejemplo Uno S.A.: $ 5.000 (cuota pagada)"), "{person}");
     let company = page_of(&pages, "Ejemplo Uno S.A.");
-    assert!(company.contains("Los documentos no dicen de esta entidad nada más que su nombre y su rol."), "{company}");
-    assert_eq!(synthesis_calls(&asker), 1);
+    assert!(company.contains("Cobró de Persona Dos: $ 5.000 (cuota pagada)"), "{company}");
+    assert_eq!(synthesis_calls(&asker), 2);
     // The overview, from the record, in the words of the vocabulary.
     let overview = std::fs::read_to_string(project.join("wiki/overview.md")).unwrap();
     assert!(overview.contains("# Resumen del archivo") && overview.contains("[[persona-dos-"), "{overview}");
@@ -202,7 +203,7 @@ fn every_entity_with_a_page_has_all_its_documents_and_only_verified_sentences() 
     let again = base.knowledge_project(Some(&asker), 50).unwrap();
     assert!(again.skipped || (again.written == 0 && again.asked == 0), "{again:?}");
     assert_eq!(entity_pages(&project), pages);
-    assert_eq!(synthesis_calls(&asker), 1);
+    assert_eq!(synthesis_calls(&asker), 2);
 }
 
 #[test]
@@ -302,7 +303,7 @@ fn a_document_page_written_before_or_after_gets_its_block() {
 fn without_a_model_the_pages_are_written_and_the_synthesis_waits() {
     let (_dir, base, project, asker) = archive(&[("a.txt", A), ("b.txt", B)]);
     let report = base.knowledge_project(None, 0).unwrap();
-    assert_eq!(report.left, 1, "{report:?}");
+    assert_eq!(report.left, 2, "{report:?}");
     let person = page_of(&entity_pages(&project), "Persona Dos").to_string();
     assert!(person.contains("La síntesis todavía no está escrita"), "{person}");
     // Meanwhile what the documents say is listed as it is, with its quote.
@@ -311,7 +312,7 @@ fn without_a_model_the_pages_are_written_and_the_synthesis_waits() {
     assert!(person.contains("## Documentos (2)"));
     // The next run with a model writes it.
     let report = base.knowledge_project(Some(&asker), 5).unwrap();
-    assert_eq!((report.asked, report.written), (1, 1), "{report:?}");
+    assert_eq!((report.asked, report.written), (2, 2), "{report:?}");
     assert!(!page_of(&entity_pages(&project), "Persona Dos").contains("La síntesis todavía no está escrita"));
 }
 
@@ -341,7 +342,7 @@ fn a_claim_the_synthesis_leaves_out_is_still_on_the_page() {
 fn a_page_with_nothing_more_to_say_does_not_wait_for_a_synthesis() {
     // The company of these documents has a page but no claim: it never
     // gets a synthesis, so the attention view must not wait for one.
-    let (_dir, base, project, asker) = archive(&[("a.txt", A), ("b.txt", B)]);
+    let (_dir, base, project, asker) = archive(&[("a.txt", A)]);
     base.knowledge_project(None, 0).unwrap();
     assert_eq!(base.knowledge_attention(&crate::docbase::Visible::All).unwrap().synthesis_pending, 1);
     base.knowledge_project(Some(&asker), 5).unwrap();
@@ -411,14 +412,14 @@ fn file_names_are_readable_and_carry_the_id() {
 fn the_questions_are_kept_and_counted_once() {
     let (_dir, base, _project, asker) = archive(&[("a.txt", A), ("b.txt", B)]);
     let questions = base.synthesis_questions("falso:1").unwrap();
-    assert_eq!(questions.len(), 1);
+    assert_eq!(questions.len(), 2);
     assert!(questions[0].prompt.contains("Escribí en el idioma en que están escritas las citas."));
     base.set_wiki_language(Some("Spanish")).unwrap();
     let questions = base.synthesis_questions("falso:1").unwrap();
     assert!(questions[0].prompt.contains("Escribí en este idioma: Spanish."));
     base.knowledge_project(Some(&asker), 50).unwrap();
     assert!(base.synthesis_questions("falso:1").unwrap().is_empty());
-    assert_eq!(synthesis_calls(&asker), 1);
+    assert_eq!(synthesis_calls(&asker), 2);
 }
 
 #[test]

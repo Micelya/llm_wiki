@@ -345,7 +345,7 @@ impl DocBase {
 fn claims_of(conn: &Connection, visible: &Visible, id: &str, cache: &mut HashMap<i64, (Option<i64>, String)>) -> Result<Vec<ClaimView>, String> {
     let mut statement = conn
         .prepare(
-            "SELECT c.id, c.predicate, c.object_entity, o.name, c.object_value, c.state, c.valid_from FROM knowledge_claim c
+            "SELECT c.id, c.predicate, c.object_entity, o.name, coalesce(c.object_value, c.amount), c.state, c.valid_from FROM knowledge_claim c
              LEFT JOIN knowledge_entity o ON o.id = c.object_entity WHERE c.subject = ?1 ORDER BY c.predicate, c.id",
         )
         .map_err(sql_err)?;

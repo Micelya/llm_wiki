@@ -96,7 +96,7 @@ describe("words", () => {
   })
 
   it("names the roles with the vocabulary", () => {
-    expect(rolesInWords(["domicilio", "parte"], words)).toBe("domicilio constituido, parte")
+    expect(rolesInWords(["domicilio_constituido", "parte"], words)).toBe("domicilio constituido, parte")
     expect(rolesInWords(["rol-nuevo"], words)).toBe("rol nuevo")
   })
 
