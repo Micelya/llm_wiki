@@ -766,6 +766,11 @@ fn numbered(vocabulary: &Vocabulary, entity: &Entity) -> Vec<Claim> {
             .then_with(|| a.object_value.cmp(&b.object_value))
             .then_with(|| a.object_entity.cmp(&b.object_entity))
             .then_with(|| a.context.cmp(&b.context))
+            // Two amounts between the same parties: by their amount and kind,
+            // never by when their claims were written (R-13).
+            .then_with(|| a.mirrored.cmp(&b.mirrored))
+            .then_with(|| a.qualifier.cmp(&b.qualifier))
+            .then_with(|| a.amount.cmp(&b.amount))
     });
     claims
 }
