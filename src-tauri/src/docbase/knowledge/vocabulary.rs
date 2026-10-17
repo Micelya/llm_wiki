@@ -83,6 +83,25 @@ pub struct IdentityWords {
     /// phrase, not a proper name (D-259).
     #[serde(default)]
     pub determiners: Vec<String>,
+    /// Words of an area or a mailbox of an organization ("legales",
+    /// "finance", "cobranzas", "noreply"): a name without a legal form with
+    /// one of them, or a mail address whose user is one, is a contact of
+    /// an organization, never joined by its name (D-262).
+    #[serde(default)]
+    pub area_words: Vec<String>,
+    /// Words of a group of companies (D-260): a name that starts with one
+    /// ("Grupo Ejemplo") names a group; a quote with the start of one of
+    /// `affiliateWords` ("afiliada", "subsidiaria") in a document that
+    /// names two companies of the same name says they are of one group.
+    #[serde(default)]
+    pub group_words: Vec<String>,
+    #[serde(default)]
+    pub affiliate_words: Vec<String>,
+    /// Relations that link a person to a company as one of its people (a
+    /// director, an attorney, a partner): the same person so linked to two
+    /// companies of the same name is a sign of a group.
+    #[serde(default)]
+    pub group_links: Vec<String>,
     /// Legal forms of organizations, each with the ways it is written
     /// (normalized words). The same name with another form is another
     /// organization.
@@ -358,6 +377,10 @@ pub struct PageRule {
     /// one of the matter (group of documents) they are in (`matters.rs`).
     #[serde(default)]
     pub by_matter: bool,
+    /// An entity of this type with claims of its own (what the documents
+    /// say of it) has a page too (D-266).
+    #[serde(default)]
+    pub with_claims: bool,
 }
 
 impl Pages {

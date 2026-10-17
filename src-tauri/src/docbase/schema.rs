@@ -10,7 +10,22 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14];
+
+/// Groups of companies (D-260): `knowledge_group` says which entities are
+/// the companies of a group entity (several companies with the same name
+/// and another legal form, and another sign that links them; or a group
+/// the documents name), with the reasons. Computed again on every
+/// resolution, like the entities.
+const V14: &str = "
+CREATE TABLE knowledge_group (
+    group_id   TEXT NOT NULL REFERENCES knowledge_entity (id) ON DELETE CASCADE,
+    member_id  TEXT NOT NULL REFERENCES knowledge_entity (id) ON DELETE CASCADE,
+    reasons    TEXT NOT NULL DEFAULT '[]',
+    PRIMARY KEY (group_id, member_id)
+);
+CREATE INDEX knowledge_group_by_member ON knowledge_group (member_id);
+";
 
 /// What the second question of the reading brings (D-244 to D-252):
 ///

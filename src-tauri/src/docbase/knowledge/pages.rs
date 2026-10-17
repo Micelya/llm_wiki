@@ -48,7 +48,7 @@ pub const SYNTHESIS_PROMPT: &str = "sintesis-2";
 /// Raised when a change in the program changes what a projection writes
 /// (which names have a page, what a block lists): every page is written
 /// again from the record, without asking more.
-const PROJECTION_VERSION: &str = "proyeccion-4";
+const PROJECTION_VERSION: &str = "proyeccion-5";
 /// The task its answers are kept under in `model_answer`.
 pub const TASK: &str = "synthesis";
 /// The words of the vocabulary (`pages.words`) a page is written with.
@@ -102,6 +102,14 @@ pub const WORDS: &[&str] = &[
     "matterProposedNote",
     "proposed",
     "relations",
+    "groupKind",
+    "groupMembers",
+    "groupOf",
+    "groupWhy-mismas-personas",
+    "groupWhy-misma-casilla",
+    "groupWhy-lo-dice-un-documento",
+    "groupWhy-nombrado-como-grupo",
+    "groupWhy-mismo-nombre",
 ];
 /// Claims of one entity described in its question; the rest are left
 /// out of the synthesis (the list of documents is always complete).
@@ -205,6 +213,10 @@ struct Entity {
     /// (kind, normalized) -> (value as shown, documents)
     identifiers: BTreeMap<(String, String), (String, BTreeSet<i64>)>,
     claims: Vec<Claim>,
+    /// A group of companies (D-260): its companies, with the reasons.
+    members: Vec<(String, Vec<String>)>,
+    /// The groups a company is in.
+    groups: Vec<String>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -460,6 +472,10 @@ fn has_page(vocabulary: &Vocabulary, entity: &Entity) -> bool {
     if entity.state != "active" || entity.documents.is_empty() || !vocabulary.is_a_name(&entity.kind, &entity.name) {
         return false;
     }
+    // A group of companies is the page that ties them (D-260).
+    if !entity.members.is_empty() {
+        return true;
+    }
     let Some(rule) = vocabulary.pages.rule(&entity.kind) else { return false };
     if rule.by_matter {
         return false;
@@ -473,6 +489,10 @@ fn has_page(vocabulary: &Vocabulary, entity: &Entity) -> bool {
         return true;
     }
     if entity.documents.values().flatten().any(|role| rule.roles.iter().any(|r| r == role)) {
+        return true;
+    }
+    // What the documents say of it is reason enough (D-266).
+    if rule.with_claims && entity.claims.iter().any(|c| !c.mirrored) {
         return true;
     }
     rule.strong_identifier && entity.has_strong_identifier(vocabulary)
@@ -613,6 +633,23 @@ fn load(conn: &Connection, project_id: &str, identities: &HashMap<i64, String>) 
             if let Some(entity) = entities.get_mut(&subject) {
                 entity.claims.push(claim);
             }
+        }
+    }
+    // Groups of companies (D-260).
+    {
+        let mut statement = conn.prepare("SELECT group_id, member_id, reasons FROM knowledge_group ORDER BY group_id, member_id").map_err(sql_err)?;
+        let rows = statement
+            .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)))
+            .map_err(sql_err)?;
+        for row in rows {
+            let (group, member, reasons) = row.map_err(sql_err)?;
+            let active = |id: &str| entities.get(id).is_some_and(|e| e.state == "active");
+            if !active(&group) || !active(&member) {
+                continue;
+            }
+            let reasons: Vec<String> = serde_json::from_str(&reasons).unwrap_or_default();
+            entities.get_mut(&group).expect("active").members.push((member.clone(), reasons));
+            entities.get_mut(&member).expect("active").groups.push(group);
         }
     }
     // A name the record took from a mail address or a number (contact data
@@ -1059,7 +1096,8 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
     out.push_str(&format!("generated_by: {GENERATED_BY}\n"));
     out.push_str("---\n\n");
     out.push_str(&format!("# {}\n\n", entity.name));
-    let mut facts = vec![format!("*{}*", vocabulary.type_label(&entity.kind))];
+    let kind_label = if entity.members.is_empty() { vocabulary.type_label(&entity.kind) } else { words.word("groupKind") };
+    let mut facts = vec![format!("*{kind_label}*")];
     if !aliases.is_empty() {
         facts.push(format!("{}: {}", words.word("aliases"), aliases.join(" · ")));
     }
@@ -1068,6 +1106,33 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
     }
     out.push_str(&facts.join(" · "));
     out.push_str("\n\n");
+    // The companies of a group, and the group of a company (D-260).
+    let entity_link = |id: &str| -> Option<String> {
+        let other = record.entities.get(id)?;
+        Some(match paths.get(id) {
+            Some(path) => link(path, &other.name),
+            None => other.name.clone(),
+        })
+    };
+    if !entity.members.is_empty() {
+        let list: Vec<String> = entity
+            .members
+            .iter()
+            .filter_map(|(member, reasons)| {
+                let why: Vec<String> = reasons
+                    .iter()
+                    .filter_map(|r| words.words.get(&format!("groupWhy-{r}")).cloned())
+                    .collect();
+                let shown = entity_link(member)?;
+                Some(if why.is_empty() { shown } else { format!("{shown} ({})", why.join(", ")) })
+            })
+            .collect();
+        out.push_str(&format!("{}: {}\n\n", words.word("groupMembers"), list.join(" · ")));
+    }
+    if !entity.groups.is_empty() {
+        let list: Vec<String> = entity.groups.iter().filter_map(|g| entity_link(g)).collect();
+        out.push_str(&format!("{}: {}\n\n", words.word("groupOf"), list.join(" · ")));
+    }
 
     // What the documents say.
     let mut synthesis = None;
@@ -2274,4 +2339,48 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
         base.index_wiki()?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod page_rule_tests {
+    use super::*;
+
+    fn with(kind: &str, name: &str, roles: &[(i64, &str)]) -> Entity {
+        let mut entity = Entity { id: "ent-x".into(), kind: kind.into(), name: name.into(), state: "active".into(), ..Default::default() };
+        for (content, role) in roles {
+            entity.documents.entry(*content).or_default().insert(role.to_string());
+        }
+        entity
+    }
+
+    #[test]
+    fn a_page_needs_a_role_of_substance_or_something_said() {
+        let v = Vocabulary::builtin();
+        // Named in passing in many documents (a bank on invoices, a
+        // jurisdiction on a form): no page (D-266).
+        let passing = with("organizacion", "Banco de Ejemplo", &[(1, "otro"), (2, "otro"), (3, "otro")]);
+        assert!(!has_page(&v, &passing));
+        assert!(has_page(&v, &with("organizacion", "Ejemplo Uno S.A.", &[(1, "parte")])));
+        // What the documents say of it is reason enough.
+        let mut said = passing.clone();
+        said.claims.push(Claim {
+            id: 1,
+            predicate: "domicilio".into(),
+            context: None,
+            qualifier: None,
+            object_entity: None,
+            object_value: Some("Calle Uno 100".into()),
+            state: "supported".into(),
+            valid_from: None,
+            evidence: vec![(1, "Calle Uno 100".into(), None)],
+            amount: None,
+            detail: None,
+            mirrored: false,
+        });
+        assert!(has_page(&v, &said));
+        // A group of companies always has its page.
+        let mut group = with("organizacion", "Ejemplo", &[(1, "otro")]);
+        group.members.push(("ent-y".into(), vec!["misma-casilla".into()]));
+        assert!(has_page(&v, &group));
+    }
 }

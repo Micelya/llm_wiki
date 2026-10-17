@@ -57,6 +57,8 @@ mod tests_changes;
 #[cfg(test)]
 mod tests_identity;
 #[cfg(test)]
+mod tests_groups;
+#[cfg(test)]
 pub(crate) mod tests_pages;
 #[cfg(test)]
 mod tests_relations;

@@ -326,6 +326,10 @@ fn organizations(a: &NameKey, b: &NameKey) -> Likeness {
             Likeness::Maybe("letra-distinta")
         } else if acronym(short, long) || acronym(&a.words, &b.full) || acronym(&b.words, &a.full) {
             Likeness::Maybe("sigla")
+        } else if a.words.concat() == b.words.concat() {
+            // The same letters cut in other words: a scan that read a
+            // space inside a word ("Ejem plo").
+            Likeness::Maybe("letra-distinta")
         } else {
             Likeness::Unlike
         }
@@ -334,6 +338,56 @@ fn organizations(a: &NameKey, b: &NameKey) -> Likeness {
         return Likeness::OtherForm;
     }
     likeness
+}
+
+/// A name that is an area or a mailbox of an organization (D-262): what is
+/// left of the name without the words of the area ("Legales Ejemplo" is
+/// "ejemplo"; "Cobranzas", nothing), and the domain of a mailbox whose
+/// user is one of those words ("legal@ejemplo.com" is "ejemplo").
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Area {
+    pub inner: Vec<String>,
+    pub domain: Option<String>,
+}
+
+pub fn area(vocabulary: &Vocabulary, kind: &str, key: &NameKey) -> Option<Area> {
+    let words = &vocabulary.identity.area_words;
+    let is_area = |w: &str| words.iter().any(|a| a == w);
+    let domain = key.email.as_ref().and_then(|address| {
+        let (user, domain) = address.split_once('@')?;
+        let user: String = user.chars().filter(|c| c.is_alphanumeric()).collect();
+        let label: String = domain.split('.').next().unwrap_or_default().chars().filter(|c| c.is_alphanumeric()).collect();
+        (is_area(&user) && !label.is_empty()).then_some(label)
+    });
+    if kind == PERSON {
+        // A person is never an area; a general mailbox with no name is not
+        // a person.
+        return (domain.is_some() && !key.has_name()).then(|| Area { inner: Vec::new(), domain });
+    }
+    if kind != ORGANIZATION || key.form.is_some() {
+        return None;
+    }
+    let has_area_word = key.words.iter().any(|w| is_area(w));
+    if !has_area_word && domain.is_none() {
+        return None;
+    }
+    let inner: Vec<String> = key.words.iter().filter(|w| !is_area(w)).cloned().collect();
+    Some(Area { inner, domain })
+}
+
+/// Whether the words of an area name this organization: the same words,
+/// its initials, or the letters of its name joined (a mail domain).
+pub fn area_names(area: &Area, target: &NameKey) -> bool {
+    if target.words.is_empty() {
+        return false;
+    }
+    let inner = &area.inner;
+    if !inner.is_empty() {
+        if inner == &target.words || (inner.len() == 1 && (inner[0] == initials(&target.words) || (target.full.len() >= 2 && inner[0] == initials(&target.full)))) {
+            return true;
+        }
+    }
+    area.domain.as_ref().is_some_and(|d| *d == target.words.concat() || (target.full.len() >= 2 && *d == target.full.concat()))
 }
 
 /// How two names of matters compare. A matter is never joined by its name
@@ -650,6 +704,28 @@ mod tests {
         assert_eq!(same("Correo Ejemplar", "Correo Oficial del Ejemplor"), Likeness::Maybe("nombre-parcial"));
         assert_eq!(same("MEA", "Mundo Ejemplo Association"), Likeness::Maybe("sigla"));
         assert_eq!(same("Ejemplonia S.A.", "Ejemplo S.A."), Likeness::Maybe("letra-distinta"));
+    }
+
+    #[test]
+    fn an_area_or_a_general_mailbox_names_its_organization_apart() {
+        let v = Vocabulary::builtin();
+        let a = |kind: &str, name: &str| area(&v, kind, &k(kind, name));
+        let legal = a(ORGANIZATION, "Legales Ejemplo").unwrap();
+        assert_eq!(legal.inner, ["ejemplo"]);
+        assert!(area_names(&legal, &k(ORGANIZATION, "Ejemplo S.A.")));
+        assert!(!area_names(&legal, &k(ORGANIZATION, "Ejemplo Uno S.A.")));
+        // Initials, a mail domain, an ethics line of a group.
+        assert!(area_names(&a(ORGANIZATION, "MEA Finance").unwrap(), &k(ORGANIZATION, "Mundo Ejemplo Association")));
+        assert!(area_names(&a(ORGANIZATION, "noreply@ejemplotech.com").unwrap(), &k(ORGANIZATION, "Ejemplo Tech S.A.")));
+        assert!(area_names(&a(ORGANIZATION, "Línea Ética de Grupo Ejemplo").unwrap(), &k(ORGANIZATION, "Grupo Ejemplo")));
+        assert_eq!(a(ORGANIZATION, "Cobranzas").unwrap().inner, Vec::<String>::new());
+        // A company with its form, a person, a personal mailbox: not areas.
+        assert_eq!(a(ORGANIZATION, "Ventas Ejemplo S.A."), None);
+        assert_eq!(a(PERSON, "puno@ejemplo.com"), None);
+        assert!(a(PERSON, "legal@ejemplo.com").is_some());
+        assert_eq!(a(ORGANIZATION, "Ejemplo Uno"), None);
+        // A word read apart in a scan.
+        assert_eq!(compare(ORGANIZATION, &k(ORGANIZATION, "Ejem plo"), &k(ORGANIZATION, "Ejemplo")), Likeness::Maybe("letra-distinta"));
     }
 
     #[test]
