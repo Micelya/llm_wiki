@@ -391,6 +391,7 @@ pub(crate) fn clusters(
             }
         }
         let area = if first.defined { None } else { names::area(vocabulary, &first.kind, &name) };
+        let mailbox_person = first.kind == PERSON && area.is_some();
         out.push(Cluster {
             keys: cluster_keys,
             roles: list.iter().map(|&i| rows[i].role.clone()).collect(),
@@ -404,6 +405,9 @@ pub(crate) fn clusters(
             excluded: if first.defined {
                 // Only terms the document defines, without what they define.
                 Some("termino-definido")
+            } else if mailbox_person {
+                // A general mailbox read as a person is no one (D-262).
+                Some("casilla")
             } else {
                 (!name.has_name() && name.email.is_none()).then_some("sin-nombre")
             },
@@ -672,6 +676,10 @@ impl<'a> Resolver<'a> {
         if a == b {
             return Ok(false);
         }
+        // A person and an organization are never one entity.
+        if self.clusters[x].kind != self.clusters[y].kind {
+            return Err("otro-tipo");
+        }
         if let Some(why) = self.apart(a, b, by == "persona") {
             return Err(why);
         }
@@ -896,8 +904,8 @@ impl<'a> Resolver<'a> {
         for (i, cluster) in clusters.iter().enumerate() {
             let Some(area) = cluster.area.as_ref().filter(|_| cluster.excluded.is_none()) else { continue };
             let key = match &cluster.name.email {
-                Some(email) => format!("@{email}"),
-                None => cluster.name.exact_key(ORGANIZATION),
+                Some(email) => format!("{}|@{email}", cluster.kind),
+                None => cluster.name.exact_key(&cluster.kind),
             };
             let mut named: BTreeSet<usize> = BTreeSet::new();
             for &o in by_content.get(&cluster.content_id).into_iter().flatten() {
@@ -1596,9 +1604,24 @@ pub(crate) fn resolve(base: &DocBase, asking: &mut Asking, report: &mut ResolveR
             _ => report.by_model += 1,
         }
     }
+    // An area that names no organization of its documents ("Cobranzas"
+    // alone) is a contact of no one known: not an entity (D-262).
+    let mut alone: BTreeSet<usize> = BTreeSet::new();
+    for (list, named) in loose_areas.values() {
+        if named.is_empty() {
+            for &i in list {
+                if (0..clusters.len()).filter(|&j| root[j] == root[i]).all(|j| clusters[j].area.is_some() || clusters[j].excluded.is_some()) {
+                    alone.insert(i);
+                }
+            }
+        }
+    }
     let mut doubts = std::mem::take(&mut resolver.doubts);
-    doubts.retain(|&(x, y), _| root[x] != root[y] && clusters[x].excluded.is_none() && clusters[y].excluded.is_none());
     drop(resolver);
+    for &i in &alone {
+        clusters[i].excluded = Some("casilla");
+    }
+    doubts.retain(|&(x, y), _| root[x] != root[y] && clusters[x].excluded.is_none() && clusters[y].excluded.is_none());
     Ok(Outcome { rows, clusters, root, by, doubts, groups })
 }
 

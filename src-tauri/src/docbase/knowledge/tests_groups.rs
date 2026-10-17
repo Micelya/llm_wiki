@@ -9,7 +9,7 @@ use crate::docbase::DocBase;
 
 const G1: &str = "DOC-G1. Contrato entre Ejemplar S.A. y un cliente, firmado por Persona Cinco, apoderado de Ejemplar S.A. Sobre enviado por Legales Ejemplar (legal@ejemplar.com).";
 const G2: &str = "DOC-G2. Acuerdo de Ejemplar LLC firmado por Persona Cinco en representación de Ejemplar LLC. Sobre enviado por Legales Ejemplar (legal@ejemplar.com).";
-const G3: &str = "DOC-G3. Correo de EJEMPLAR sobre una deuda pendiente con un proveedor.";
+const G3: &str = "DOC-G3. Correo de EJEMPLAR sobre una deuda pendiente con un proveedor. Para: Cobranzas. Copia: legal@ejemplar.com.";
 const G4: &str = "DOC-G4. Carta de Ejemplar S.A. a un proveedor. Firma EJEMPLAR, por su apoderado.";
 const G5: &str = "DOC-G5. Factura de Muestra Tecno S.A., empresa de Grupo Muestra. Denuncias: Línea Ética de Grupo Muestra.";
 const G6: &str = "DOC-G6. Acuerdo de terminación entre Ejemplar LLC y Persona Seis, con un pago final.";
@@ -43,7 +43,14 @@ fn reading(prompt: &str) -> String {
             vec![claim("p", "representa_a", Some("s"), None, "Persona Cinco en representación de Ejemplar LLC", None)],
         )
     } else if prompt.contains("DOC-G3.") {
-        (vec![mention("o", "organizacion", "EJEMPLAR", "otro", "Correo de EJEMPLAR", none())], vec![])
+        (
+            vec![
+                mention("o", "organizacion", "EJEMPLAR", "otro", "Correo de EJEMPLAR", none()),
+                mention("c", "organizacion", "Cobranzas", "destinatario", "Para: Cobranzas", none()),
+                mention("m", "persona", "legal@ejemplar.com", "destinatario", "Copia: legal@ejemplar.com", none()),
+            ],
+            vec![],
+        )
     } else if prompt.contains("DOC-G4.") {
         (
             vec![
@@ -135,6 +142,10 @@ fn companies_of_one_name_areas_and_their_group() {
     assert_eq!(mailbox, lone);
     assert!(mailbox != sa && mailbox != llc);
     assert_eq!(name(&base, &lone), "Ejemplar", "the group is named by the shared name, not by its mailbox");
+    // A general mailbox read as a person is no one; an area that names no
+    // organization is not an entity (D-262).
+    assert_eq!(entity(&base, "g3.txt", "legal@ejemplar.com"), None);
+    assert_eq!(entity(&base, "g3.txt", "Cobranzas"), None);
     let members: Vec<(String, String)> = {
         let conn = base.conn();
         let mut statement = conn.prepare("SELECT member_id, reasons FROM knowledge_group WHERE group_id = ?1 ORDER BY member_id").unwrap();
