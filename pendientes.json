@@ -1431,7 +1431,7 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "Separaciones falsas 4,7 % (luna medio en Q3 1,6 %, luna alto en Q4 2,2 %): la misma organización con su nombre oficial largo y el corto (el correo postal), un nombre de una palabra escrito con y sin mayúscula en documentos distintos (no se une por nombre a propósito), un término definido de un contrato tomado como otra organización, áreas de una asociación, y un asunto partido entre sus dos formas de nombre. Ver una señal general para cada una.",
+      "detalle": "Separaciones falsas 4,7 % (luna medio en Q3 1,6 %, luna alto en Q4 2,2 %): la misma organización con su nombre oficial largo y el corto (el correo postal), un nombre de una palabra escrito con y sin mayúscula en documentos distintos (no se une por nombre a propósito), un término definido de un contrato tomado como otra organización, áreas de una asociación, y un asunto partido entre sus dos formas de nombre. Ver una señal general para cada una. Regresiones de las rondas de Q5 a revisar: una organización nombrada al pasar cuyo único dato es su domicilio perdió su página (D-288 la trata como una oficina de una lista); los correos de personas que se mostraban como \"otro número\" no pasan a contacto (D-289); el encabezado de un asunto ya no muestra números de cliente, de cuenta o de envío que la hoja espera como suyos.",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/knowledge/resolve.rs",
       "creado": "2026-10-17",
