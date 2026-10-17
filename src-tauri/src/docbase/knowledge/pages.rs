@@ -441,7 +441,17 @@ pub(crate) fn localized_dates(vocabulary: &Vocabulary, text: &str) -> String {
     let render = |d: u32, m: usize, y: &str| format.replace("{day}", &d.to_string()).replace("{month}", months[m]).replace("{year}", y);
     let mut out: Vec<String> = Vec::new();
     let mut i = 0;
+    let own_month = |word: &str| months.iter().position(|m| quote::words(m) == quote::words(word));
     while i < tokens.len() {
+        // "23 días del mes de Octubre de 2025", as deeds write it (D-283).
+        if i + 7 < tokens.len() {
+            let filler = quote::words(&tokens[i + 1..i + 5].join(" ")) == ["dias", "del", "mes", "de"] && quote::words(tokens[i + 6]) == ["de"];
+            if let (true, Some(d), Some(m), Some((y, rest))) = (filler, day(tokens[i]), own_month(tokens[i + 5]), year(tokens[i + 7])) {
+                out.push(format!("{}{rest}", render(d, m, &y)));
+                i += 8;
+                continue;
+            }
+        }
         // "December 30, 2021"
         if i + 2 < tokens.len() {
             if let (Some(m), Some(d), Some((y, rest))) = (month_of(tokens[i]), day(tokens[i + 1]), year(tokens[i + 2])) {

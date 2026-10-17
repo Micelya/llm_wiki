@@ -80,8 +80,17 @@ pub fn fits(vocabulary: &Vocabulary, shape: &str, value: &str, subject: &str) ->
                 && !value.contains('@')
                 && quote::words(value).iter().any(|w| w.chars().count() >= 3 && w.chars().all(char::is_alphabetic))
         }
-        // A mail address, or a telephone: not a name.
-        "contact" => value.contains('@') || digits >= 6,
+        // A mail address, or a telephone: not a name. A telephone has seven
+        // digits or more; a postal code ("CP 326000") or a number written
+        // with dots every three digits (a DNI) is not one (D-287).
+        "contact" => {
+            let trimmed = value.trim();
+            let dotted = trimmed.split('.').count() > 1
+                && trimmed.split('.').enumerate().all(|(i, p)| {
+                    p.chars().all(|c| c.is_ascii_digit()) && if i == 0 { (1..=3).contains(&p.len()) } else { p.len() == 3 }
+                });
+            value.contains('@') || (digits >= 7 && !dotted)
+        }
         _ => !value.trim().is_empty(),
     }
 }
@@ -138,6 +147,10 @@ mod tests {
         assert!(fits(&v, "address", "Calle Uno 100, piso 3", "x"));
         assert!(fits(&v, "contact", "alguien@ejemplo.com", "x") && fits(&v, "contact", "+54 11 4444-5555", "x"));
         assert!(!fits(&v, "contact", "Atención: Persona Dos", "persona dos"));
+        assert!(fits(&v, "contact", "0800-000-0000", "x") && fits(&v, "contact", "4444555", "x"));
+        for not in ["123456", "22.222.222"] {
+            assert!(!fits(&v, "contact", not, "x"), "{not}");
+        }
         for not in ["22.222.222", "Islas del Norte", "C1429ABC", "CP 1000"] {
             assert!(!fits(&v, "address", not, "x"), "{not}");
         }
