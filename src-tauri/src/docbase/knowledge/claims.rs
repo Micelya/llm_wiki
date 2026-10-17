@@ -205,7 +205,10 @@ fn says(vocabulary: &Vocabulary, piece: &Piece, identifiers: &HashSet<String>) -
     if (!definition.cues.is_empty() && !has(&definition.cues)) || has(not_cues) {
         return false;
     }
-    if let Some(object) = &piece.object_name {
+    // An amount between two parties names them by the reading of the whole
+    // document ("Ud. adeuda la suma de…": the debtor is whom the letter is
+    // addressed to); its direction was checked against its quote (D-244).
+    if let Some(object) = piece.object_name.as_ref().filter(|_| !definition.is_money()) {
         let named = |name: &str| {
             let words: Vec<String> = name.split_whitespace().map(str::to_string).collect();
             quote::contains(&quote, &words)
