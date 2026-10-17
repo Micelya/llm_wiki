@@ -102,6 +102,11 @@ pub const WORDS: &[&str] = &[
     "matterProposedNote",
     "proposed",
     "relations",
+    "matterClaim",
+    "matterTyped",
+    "partiesAnd",
+    "matterOfOne",
+    "matterWhyMany",
     "groupKind",
     "groupMembers",
     "groupOf",
@@ -1682,7 +1687,7 @@ fn render_matter(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<Stri
     let mut aliases: Vec<String> = named_as
         .iter()
         .map(|e| one_line(&e.name))
-        .filter(|n| *n != matter.name && !vocabulary.is_generic(&quote::words(n).join(" ")))
+        .filter(|n| *n != matter.name && vocabulary.is_a_matter_name(n))
         .collect();
     aliases.dedup();
     let mut out = String::from("---\ntype: entity\n");
@@ -1811,9 +1816,33 @@ fn render_matter(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<Stri
         why.push(format!("- {} — {}\n", document_link(record, *content), parts.join("; ")));
     }
     if !why.is_empty() {
-        out.push_str(&format!("### {}\n\n", words.word("matterWhy")));
+        // Summarized and folded (D-268): how many documents each kind of
+        // reason holds, and the detail under the fold.
+        let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
+        for reasons in matter.documents.values() {
+            let kinds: BTreeSet<&str> = reasons.iter().map(|r| r.kind.as_str()).collect();
+            for kind in kinds {
+                *counts.entry(kind).or_default() += 1;
+            }
+        }
+        let label = |kind: &str| -> &str {
+            match kind {
+                "persona" => words.word("matterByPerson"),
+                "documento" => words.word("matterSameDocument"),
+                "asunto" => words.word("matterSameMatter"),
+                "numero" => words.word("matterSameNumber"),
+                _ => words.word("matterSameAmount"),
+            }
+        };
+        let summary: Vec<String> = counts.iter().map(|(kind, n)| format!("{} ({n})", label(kind))).collect();
+        out.push_str(&format!(
+            "> [!info]- {} — {}: {}\n",
+            words.word("matterWhy"),
+            words.word("matterWhyMany").replace("{n}", &contents.len().to_string()),
+            summary.join(", ")
+        ));
         for line in why {
-            out.push_str(&line);
+            out.push_str(&format!("> {line}"));
         }
         out.push('\n');
     }

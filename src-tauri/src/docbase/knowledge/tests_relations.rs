@@ -150,12 +150,13 @@ fn documents_of_one_matter_go_together_by_what_is_specific_to_it() {
     let matter = pages.iter().find(|(_, t)| t.contains("entity_id: mat-")).map(|(_, t)| t.as_str()).expect("a page of the matter");
     assert!(matter.contains("entity_kind: asunto") && matter.contains("## Documentos (3)"), "{matter}");
     assert!(matter.contains("## Partes y personas") && matter.contains("Persona Dos") && matter.contains("Ejemplo Uno S.A."), "{matter}");
-    assert!(matter.contains("### Por qué estos documentos van juntos"), "{matter}");
+    assert!(matter.contains("> [!info]- Por qué estos documentos van juntos — 3 documentos:"), "{matter}");
     assert!(matter.contains("comparten el número 000100012345") && matter.contains("comparten el importe 1 234 56"), "{matter}");
     assert!(matter.contains("$ 1.234,56"), "{matter}");
     // The person's documents, by matter; the note of another subject apart.
     let person = page_of(&pages, "Persona Dos");
-    assert!(person.contains("### [[factura-0001-00012345-"), "{person}");
+    // Named by its parties, never by the invoice (D-267).
+    assert!(person.contains("### [[asunto-entre-ejemplo-uno-s-a-y-persona-dos-"), "{person}");
     assert!(person.contains("### Sin asunto identificado") && person.contains("o.txt"), "{person}");
     // No page for a matter named in one document only.
     assert!(!pages.iter().any(|(_, t)| t.contains("entity_kind: asunto") && t.contains("entity_id: ent-")));

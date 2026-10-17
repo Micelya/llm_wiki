@@ -165,3 +165,66 @@ fn companies_of_one_name_areas_and_their_group() {
     let second = entity(&base, "g7.txt", "Acuerdo de terminación").unwrap();
     assert_ne!(first, second);
 }
+
+const M1: &str = "DOC-M1. Carta documento: Muestra Uno S.A. reclama a Muestra Dos S.R.L. el pago de la factura 0001-00099999 por $ 12.345,67 dentro de las 48 horas.";
+const M2: &str = "DOC-M2. Factura 0001-00099999 emitida por Muestra Uno S.A. a Muestra Dos S.R.L. por servicios de mantenimiento. Total $ 12.345,67.";
+const M3: &str = "DOC-M3. Cronología interna del reclamo: el primero de marzo se envió la factura 0001-00099999 y no hubo respuesta del cliente hasta hoy.";
+
+fn matter_reading(prompt: &str) -> String {
+    let ids = |value: &str, quote: &str| serde_json::json!([{ "clase": "factura", "valor": value, "cita": quote }]);
+    let (mentions, claims) = if prompt.contains("DOC-M1.") {
+        (
+            vec![
+                mention("u", "organizacion", "Muestra Uno S.A.", "remitente", "Muestra Uno S.A. reclama", none()),
+                mention("d", "organizacion", "Muestra Dos S.R.L.", "destinatario", "a Muestra Dos S.R.L.", none()),
+                mention("f", "asunto", "la factura 0001-00099999", "referido", "la factura 0001-00099999", ids("0001-00099999", "factura 0001-00099999")),
+            ],
+            vec![super::tests::amount("d", "u", "$ 12.345,67", "reclamo", "Muestra Uno S.A. reclama a Muestra Dos S.R.L. el pago de la factura 0001-00099999 por $ 12.345,67", None)],
+        )
+    } else if prompt.contains("DOC-M2.") {
+        (
+            vec![
+                mention("u", "organizacion", "Muestra Uno S.A.", "emisor", "emitida por Muestra Uno S.A.", none()),
+                mention("d", "organizacion", "Muestra Dos S.R.L.", "destinatario", "a Muestra Dos S.R.L.", none()),
+                mention("f", "asunto", "Factura 0001-00099999", "referido", "Factura 0001-00099999", ids("0001-00099999", "Factura 0001-00099999")),
+            ],
+            vec![],
+        )
+    } else {
+        // The chronology is read with nothing in it: its number is in the
+        // text all the same.
+        return empty_answer();
+    };
+    answer(mentions, claims)
+}
+
+#[test]
+fn a_matter_is_named_by_the_claim_between_its_parties_and_a_number_in_the_text_joins_it() {
+    // Other documents, so that the number is not in most of the archive.
+    let mut files: Vec<(&str, &str)> = vec![("m1.txt", M1), ("m2.txt", M2), ("m3.txt", M3)];
+    files.extend_from_slice(FILES);
+    let (_dir, base) = base_with(&files);
+    let asker = FakeModel::new("falso:1", |prompt| {
+        if is_knowledge(prompt) && prompt.contains("DOC-G") {
+            reading(prompt)
+        } else if is_knowledge(prompt) {
+            matter_reading(prompt)
+        } else if prompt.contains("Hay que decidir si cada candidato es la misma entidad") {
+            serde_json::json!({ "respuestas": [] }).to_string()
+        } else {
+            type_answer("contrato")
+        }
+    });
+    run(&base, &asker);
+    let conn = base.conn();
+    let (name, documents): (String, i64) = conn
+        .query_row(
+            "SELECT m.name, count(d.content_id) FROM knowledge_matter m JOIN knowledge_matter_document d ON d.matter_id = m.id
+             WHERE m.state = 'active' AND m.name LIKE '%Muestra Dos%' GROUP BY m.id",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(documents, 3, "the chronology cites the invoice by its number (D-268)");
+    assert_eq!(name, "Reclamo de Muestra Uno S.A. a Muestra Dos S.R.L.", "by the claim, never by the invoice (D-267)");
+}

@@ -188,6 +188,11 @@
       "proposed": "propuesto",
       "relations": "Vínculos",
       "relationsInverse": "(de otro lado)",
+      "matterClaim": "Reclamo de {creditor} a {debtor}",
+      "matterTyped": "{matter} entre {parties}",
+      "partiesAnd": " y ",
+      "matterOfOne": "de",
+      "matterWhyMany": "{n} documentos",
       "groupKind": "Grupo de sociedades",
       "groupMembers": "Sociedades del grupo",
       "groupOf": "Del grupo",
@@ -199,7 +204,7 @@
     }
   },
   "matters": {
-    "about": "Cómo se agrupan los documentos en asuntos: los une lo que decidió una persona, dos documentos que una persona unió con una de estas relaciones, el mismo asunto nombrado por los dos, el mismo número de un asunto (de al menos minLength caracteres y minDigits dígitos) o el mismo importe (de al menos amountDigits dígitos, con decimales o miles). Un número o importe que está en más de maxShare de los documentos no dice nada. Compartir una persona no es compartir un asunto. Un asunto con minDocuments documentos o más tiene página.",
+    "about": "Cómo se agrupan los documentos en asuntos: los une lo que decidió una persona, dos documentos que una persona unió con una de estas relaciones, el mismo asunto nombrado por los dos, el mismo número de un asunto (de al menos minLength caracteres y minDigits dígitos) o el mismo importe (de al menos amountDigits dígitos, con decimales o miles). Un número o importe que está en más de maxShare de los documentos no dice nada. Compartir una persona no es compartir un asunto. Un asunto con minDocuments documentos o más tiene página. Un número de un asunto escrito en el texto de otro documento (las facturas que cita una cronología) también lo pone en el asunto. El nombre del asunto sale de la relación entre sus partes y su objeto: un reclamo entre dos de sus partes (claimKinds) es «Reclamo de X a Y»; si no, lo que sus documentos lo nombran, entre sus partes; nunca un comprobante, un número ni un archivo.",
     "kind": "asunto",
     "relations": ["same-document", "near-identical", "signed-copy", "version", "preview", "contained-in", "reply-to", "signing-certificate-of", "delivery-receipt-of", "same-matter", "translation-of"],
     "identifierKinds": ["expediente", "factura", "envio", "sobre", "otro"],
@@ -208,8 +213,9 @@
     "amountDigits": 4,
     "maxShare": 0.5,
     "subjectRoles": ["referido"],
-    "partyRoles": ["parte"],
+    "partyRoles": ["parte", "emisor", "remitente", "destinatario"],
     "partiesInName": 2,
+    "claimKinds": ["reclamo"],
     "proposeWithShared": 2,
     "proposeCandidates": 3,
     "minDocuments": 2

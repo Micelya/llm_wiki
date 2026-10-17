@@ -147,6 +147,10 @@ pub struct MatterRules {
     /// Roles of the parties of a matter, and how many name it.
     #[serde(default)]
     pub party_roles: Vec<String>,
+    /// The kinds of amount that make a matter a claim of one party to
+    /// another, which names it (D-267).
+    #[serde(default)]
+    pub claim_kinds: Vec<String>,
     pub parties_in_name: usize,
     /// Documents a matter needs for a page of its own.
     pub min_documents: usize,
@@ -180,6 +184,7 @@ impl Default for MatterRules {
             max_share: 0.5,
             subject_roles: Vec::new(),
             party_roles: Vec::new(),
+            claim_kinds: Vec::new(),
             parties_in_name: 2,
             min_documents: 2,
             propose_with_shared: 2,
@@ -664,6 +669,40 @@ impl Vocabulary {
         lower(first) && lower(second) && self.identity.determiners.iter().any(|d| d == &determiner)
     }
 
+    /// Whether a way of writing can name a matter on its page or as an
+    /// alias (D-267): a name (not a file, not only common words, not a
+    /// phrase) without a number of four digits or more (a voucher, an
+    /// envelope or a file number is an identifier of the matter, shown
+    /// apart) and of eight words at most (a title or a sentence is not a
+    /// name).
+    pub fn is_a_matter_name(&self, text: &str) -> bool {
+        let words = super::quote::words(text);
+        // The number of a case after its label ("Expediente 1234/2020")
+        // is how a case is named; a voucher's is not.
+        let captioned = self.identifiers.iter().filter(|i| i.strong && (i.types.is_empty() || i.types.iter().any(|t| t == "asunto"))).any(|i| {
+            i.labels.iter().any(|label| {
+                let label = super::quote::words(label);
+                !label.is_empty() && words.starts_with(&label)
+            })
+        });
+        let long_number = !captioned && words.iter().any(|w| w.chars().filter(|c| c.is_ascii_digit()).count() >= 4);
+        // A voucher named by its label ("Factura A", "Facturas enviadas",
+        // "Carta documento"): the labels of what identifies no one.
+        let voucher = self.identifiers.iter().filter(|i| !i.identifies).any(|i| {
+            i.labels.iter().any(|label| {
+                let label = super::quote::words(label);
+                match label.as_slice() {
+                    [one] => words.first().is_some_and(|w| w == one || (one.chars().count() >= 4 && w.starts_with(one.as_str()))),
+                    many => !many.is_empty() && words.starts_with(many),
+                }
+            })
+        });
+        if voucher {
+            return false;
+        }
+        self.is_a_name("asunto", text) && !self.is_a_phrase(text) && !long_number && !words.is_empty() && words.len() <= 8
+    }
+
     /// Whether this kind of identifier names one entity only.
     pub fn is_strong(&self, identifier: &str) -> bool {
         self.identifier(identifier).is_some_and(|t| t.strong)
@@ -795,6 +834,23 @@ mod tests {
         }
         // A matter is often named by its number.
         assert!(v.is_a_name("asunto", "1234/2020") && v.is_a_name("asunto", "Calle Uno 100"));
+        // What names a matter on its page (D-267): not a voucher, a file,
+        // a number, a phrase or a title; a case caption does.
+        for name in ["Acuerdo de terminación", "Contrato de locación", "Expediente 1234/2020", "Partnership Agreement"] {
+            assert!(v.is_a_matter_name(name), "{name}");
+        }
+        for not_a_name in [
+            "Factura A",
+            "Facturas enviadas",
+            "Carta Documento",
+            "BOLETA N° 0024928963",
+            "2020-01-01_Ejemplo.pdf",
+            "la renovación de la suscripción anual",
+            "Acuerdo",
+            "1234 - Firmar con un servicio: Ejemplo Uno LLC - Memorando de entendimiento entre partes",
+        ] {
+            assert!(!v.is_a_matter_name(not_a_name), "{not_a_name}");
+        }
     }
 
     #[test]
