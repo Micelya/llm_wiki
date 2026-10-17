@@ -3273,3 +3273,29 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** `src-tauri/src/docbase/knowledge/pages.rs` (`render`, `render_matter`, `numbered`), `resources/catalog/knowledge.json` (`pages.words.saidList`, `saidOthers`).
 - **Quién decidió:** agente sin consulta.
 - **Fuente:** etapa Q1 de la tanda desatendida del 17 oct.
+
+### D-237 · Lo que escribe el modelo del wiki pasa por un último control antes de guardarse
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Wiki
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** en el wiki generado el 16 de octubre había 5 conceptos guardados sin `.md` (el lector y el índice no los ven), 2 páginas tituladas "Source: <ruta>", 51 páginas de documento con campos de referencia académica (`authors`, `year`, `url`, `venue`) heredados de la plantilla de investigación, 25 oraciones en 17 páginas que hablaban del propio wiki o "del material" ("ya figura en el wiki", "no está incluida en el material proporcionado", "el índice del wiki incluye…") y 30 enlaces en 24 páginas que no llevaban a ninguna página. Además, 3 páginas tenían restos de bloques `---FILE: …---` dentro del texto.
+- **Qué se decidió:** cada página que escribe el modelo del wiki, después de la fusión con la que ya existía y antes de guardarse, pasa por un control determinista (`src/lib/ingest-legal-finish.ts`): la ruta siempre termina en `.md`; el título del encabezado es el primer `#` de la página (y un "Source: <ruta>" se vuelve el nombre del documento); se quitan los campos académicos; se quita cada oración que habla del wiki o de su material, y cuando solo la cola de la oración lo hace ("…las facturas ya registradas en el wiki") se quita la cola y queda lo que dice de los documentos; se quitan las líneas `---FILE:` sueltas; un enlace `[[…]]` que no lleva a una página del wiki en disco ni a una que se escribe en la misma respuesta queda como su texto. Lo quitado se anota en los avisos de la incorporación. Las instrucciones al modelo dicen lo mismo, para que lo haga bien de entrada. Las páginas de reserva que arma la app cuando falla el modelo se titulan con el nombre del documento, no "Source: …".
+- **Por qué:** son defectos de forma que el programa detecta sin dudas; dejarlos al modelo no alcanzó. Una página que habla de "el material" o del wiki le habla al sistema, no al abogado. Las oraciones de ese tipo se buscan con frases acotadas para no tocar texto jurídico ("defectos en el material entregado" se conserva).
+- **Medición:** sobre el wiki del 16 de octubre (sin escribir nada, `desatendido-3\Q1-medir-incorporacion.mjs`), el control habría corregido las 152 páginas que escribió el modelo así: 5 rutas sin `.md`, 4 títulos (2 "Source:" y 2 que no coincidían con su encabezado), 51 páginas con campos académicos, 25 oraciones sobre el wiki en 17 páginas (revisadas a mano: ninguna era texto jurídico) y 30 enlaces rotos en 24 páginas. Los 5 conceptos sin extensión del wiki actual se arreglan al regenerarlo (etapa Q5).
+- **Alternativas descartadas:** pedírselo solo al modelo (ya estaba en parte y no alcanzó); crear páginas vacías para los enlaces rotos (agrega páginas sin contenido, que la revisión del 17 ya marcó como problema).
+- **Dónde se aplica:** `src/lib/ingest-legal-finish.ts`, `src/lib/ingest.ts` (`writeFileBlocks`, `buildGenerationPrompt`, `buildFallbackSourceSummary`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q1 de la tanda desatendida del 17 oct.
+
+### D-238 · El esquema de un proyecto nuevo es el de un estudio jurídico
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Wiki
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el `schema.md` que la app escribe al crear un proyecto (también el proyecto general del archivo) era la plantilla de investigación del proyecto original, en inglés: hablaba de papers, pedía `authors`, `year`, `url` y `venue` en cada fuente y nombres de archivo `autor-año`. El modelo del wiki lo lee como instrucción, y de ahí salieron los campos académicos de 51 páginas (P-114).
+- **Qué se decidió:** el esquema nuevo, en español, describe el wiki de un estudio jurídico: páginas de documento, conceptos jurídicos, entidades que escribe la app, encabezado sin campos académicos, enlaces solo a páginas que existen, que las páginas hablan de los documentos y no del wiki, y que los datos que difieren se muestran con sus dos valores. La tabla de tipos conserva su forma (la lee el programa para saber en qué carpeta va cada tipo).
+- **Por qué:** el esquema es parte de la pregunta al modelo; una plantilla de otro dominio empuja al modelo hacia ese dominio.
+- **Dónde se aplica:** `src-tauri/src/commands/project.rs` (`create_project_impl`). Vale para los proyectos que se creen desde ahora; el wiki del archivo se regenera en la etapa Q5 y recibe el esquema nuevo.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q1 de la tanda desatendida del 17 oct.

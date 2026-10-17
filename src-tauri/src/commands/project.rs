@@ -40,80 +40,57 @@ pub(crate) fn create_project_impl(name: String, path: String) -> Result<WikiProj
 
     // schema.md
     let schema_content = format!(
-        r#"# Wiki Schema
+        r#"# Esquema del wiki
+
+Wiki de un estudio jurídico: lo escribe la app desde los documentos del archivo. Cada página dice lo que dicen los documentos, con sus fuentes; nunca conocimiento general ni opiniones que los documentos no contienen.
 
 ## Page Types
 
 | Type | Directory | Purpose |
 |------|-----------|---------|
-| entity | wiki/entities/ | Named things (models, companies, people, datasets) |
-| concept | wiki/concepts/ | Ideas, techniques, phenomena |
-| source | wiki/sources/ | Papers, articles, talks, blog posts |
-| query | wiki/queries/ | Open questions under investigation |
-| comparison | wiki/comparisons/ | Side-by-side analysis of related entities |
-| synthesis | wiki/synthesis/ | Cross-cutting summaries and conclusions |
+| entity | wiki/entities/ | Personas, organizaciones y asuntos (las escribe la app desde su registro) |
+| concept | wiki/concepts/ | Figuras jurídicas, cláusulas, obligaciones y trámites que usan los documentos |
+| source | wiki/sources/ | Una página por documento del archivo: qué es, fecha, partes y hechos clave |
+| query | wiki/queries/ | Preguntas abiertas del estudio |
+| comparison | wiki/comparisons/ | Comparaciones entre documentos o versiones |
+| synthesis | wiki/synthesis/ | Resúmenes transversales |
 
-## Naming Conventions
+## Nombres de archivo
 
-- Files: `kebab-case.md`
-- Entities: match official name where possible (e.g., `gpt-4.md`, `openai.md`)
-- Concepts: descriptive noun phrases (e.g., `chain-of-thought.md`)
-- Sources: `author-year-slug.md` (e.g., `wei-2022-chain-of-thought.md`)
-- Queries: question as slug (e.g., `does-scale-improve-reasoning.md`)
+- Archivos: `kebab-case.md`, siempre con `.md`.
+- Conceptos: la figura jurídica como frase (por ejemplo, `intereses-por-mora.md`).
+- Documentos: la app decide la ruta de la página de cada documento.
 
-## Frontmatter
+## Encabezado
 
-All pages must include YAML frontmatter:
+Todas las páginas empiezan con un encabezado YAML:
 
 ```yaml
 ---
 type: entity | concept | source | query | comparison | synthesis | overview
-title: Human-readable title
+title: El mismo título que el primer encabezado de la página
 tags: []
 related: []
-created: YYYY-MM-DD
-updated: YYYY-MM-DD
+sources: []
+created: AAAA-MM-DD
+updated: AAAA-MM-DD
 ---
 ```
 
-Source pages also include:
-```yaml
-authors: []
-year: YYYY
-url: ""
-venue: ""
-```
+Sin campos de referencia académica (`authors`, `year`, `url`, `venue`).
 
-## Index Format
+## Índice y registro
 
-`wiki/index.md` lists all pages grouped by type. Each entry:
-```
-- [[page-slug]] — one-line description
-```
+`wiki/index.md` y `wiki/overview.md` los arma la app. `wiki/log.md` registra lo que se incorporó, del más reciente al más viejo.
 
-## Log Format
+## Enlaces
 
-`wiki/log.md` records research activity in reverse chronological order:
-```
-## YYYY-MM-DD
+- `[[nombre-de-pagina]]` solo hacia páginas que existen; un nombre sin página queda como texto.
+- Las páginas hablan de los documentos, nunca del propio wiki ni del material que recibió.
 
-- Action taken / finding noted
-```
+## Datos que difieren
 
-## Cross-referencing Rules
-
-- Use `[[page-slug]]` syntax to link between wiki pages
-- Every entity and concept should appear in `wiki/index.md`
-- Queries link to the sources and concepts they draw on
-- Synthesis pages cite all contributing sources via `related:`
-
-## Contradiction Handling
-
-When sources contradict each other:
-1. Note the contradiction in the relevant concept or entity page
-2. Create or update a query page to track the open question
-3. Link both sources from the query page
-4. Resolve in a synthesis page once sufficient evidence exists
+Cuando dos documentos dicen cosas distintas del mismo dato, la página muestra los dos valores con su documento; no elige uno.
 "#
     );
     write_file_inner(root.join("schema.md"), &schema_content)?;
