@@ -1394,10 +1394,84 @@
       "titulo": "Nombre comercial con la sociedad entre paréntesis",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "La única unión falsa que queda es la misma en las cuatro variantes de D-276: un nombre comercial escrito con la razón social de otra sociedad entre paréntesis (\"Marca (Sociedad S.A.)\") termina uniendo dos organizaciones distintas. Es del programa, no del modelo: un paréntesis con una razón social completa distinta del nombre no debería hacerlas la misma, sino a lo sumo vincularlas.",
+      "estado": "hecho",
+      "detalle": "La única unión falsa que queda es la misma en las cuatro variantes de D-276: un nombre comercial escrito con la razón social de otra sociedad entre paréntesis (\"Marca (Sociedad S.A.)\") termina uniendo dos organizaciones distintas. Es del programa, no del modelo: un paréntesis con una razón social completa distinta del nombre no debería hacerlas la misma, sino a lo sumo vincularlas. Resuelto por D-281: 0 uniones falsas contra la hoja en el wiki regenerado (Q5).",
       "depende_de": [],
       "referencia": "src/lib/codex-reasoning.ts; src-tauri/src/source_volume/asking.rs; src-tauri/src/docbase/knowledge/resolve.rs",
+      "creado": "2026-10-17",
+      "actualizado": "2026-10-17"
+    },
+    {
+      "id": "P-135",
+      "titulo": "Casillas de los formularios",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "En las fichas de cliente el texto extraído trae los rótulos impresos (\"Es o fue PPE: SI/NO\", \"beneficiario final\") pero no qué casilla está marcada; el modelo del wiki los lee como respuestas y escribe datos jurídicos falsos (6 a 8 afirmaciones en 3 fichas). Extraer el estado de las casillas (campos del PDF o la imagen) o, si no se puede, avisar que no se sabe.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/source_volume; src/lib/ingest.ts",
+      "creado": "2026-10-17",
+      "actualizado": "2026-10-17"
+    },
+    {
+      "id": "P-136",
+      "titulo": "Naturaleza y estado de un importe",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "La dirección del dinero quedó bien, pero unas 20 afirmaciones de importe tienen mal la naturaleza: ejemplos de una propuesta tomados como facturas, créditos promocionales como inversión, descuentos del 100 % como precio, cuotas con vencimiento futuro como \"pagó\". Agregar al importe un estado (previsto, pagado, ejemplo, condicionado) y una regla de fecha (vencimiento posterior al documento no es un pago).",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/knowledge/claims.rs; src-tauri/resources/catalog/knowledge.json",
+      "creado": "2026-10-17",
+      "actualizado": "2026-10-17"
+    },
+    {
+      "id": "P-137",
+      "titulo": "Separaciones que quedan",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Separaciones falsas 4,7 % (luna medio en Q3 1,6 %, luna alto en Q4 2,2 %): la misma organización con su nombre oficial largo y el corto (el correo postal), un nombre de una palabra escrito con y sin mayúscula en documentos distintos (no se une por nombre a propósito), un término definido de un contrato tomado como otra organización, áreas de una asociación, y un asunto partido entre sus dos formas de nombre. Ver una señal general para cada una.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/knowledge/resolve.rs",
+      "creado": "2026-10-17",
+      "actualizado": "2026-10-17"
+    },
+    {
+      "id": "P-138",
+      "titulo": "Asuntos que no se forman",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "16 de 66 documentos quedan sin asunto (préstamo, contrato de consultoría, acuerdos de terminación de un solo documento, teletrabajo, convenios) y la hoja tiene 18 asuntos frente a 7: un asunto necesita dos documentos para tener página. Ver si un acuerdo de un solo documento con sus partes es un asunto con página, y limpiar los alias de asunto que son frases del texto.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/knowledge/matters.rs",
+      "creado": "2026-10-17",
+      "actualizado": "2026-10-17"
+    },
+    {
+      "id": "P-139",
+      "titulo": "Lo que escribe el modelo del wiki",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Quedan del lado de la incorporación: encabezados \"## Embedded Images / ### Page N\" y `log.md` en inglés; referencias `related:` con tilde o inventadas que no apuntan a ninguna página (14); un nombre de archivo de concepto con tilde; conceptos duplicados y 56 de 85 conceptos de un solo documento; frases sobre \"el nombre del archivo\" o \"la transcripción\"; vistas previas y borradores no dichos como tales. Corregir con reglas del programa lo determinista y ajustar la consigna en lo demás.",
+      "depende_de": [],
+      "referencia": "src/lib/ingest.ts; src/lib/ingest-legal-finish.ts; src/lib/extract-source-images.ts",
+      "creado": "2026-10-17",
+      "actualizado": "2026-10-17"
+    },
+    {
+      "id": "P-140",
+      "titulo": "Modelo y razonamiento por paso del pipeline",
+      "tipo": "decision",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "detalle": "Pedido del dueño: elegir modelo y nivel de razonamiento por paso (reconocimiento de imágenes con un servicio de lectura, extracción, identidad, síntesis, wiki) en vez de uno solo para todo; un servicio de lectura no sirve para lo que requiere inferencia. Refinamiento posterior; hoy, gpt-6-luna alto para todo (D-279).",
+      "depende_de": [
+        "P-026"
+      ],
+      "referencia": "src/lib/codex-reasoning.ts; src-tauri/src/source_volume/asking.rs",
       "creado": "2026-10-17",
       "actualizado": "2026-10-17"
     }

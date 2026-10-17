@@ -272,6 +272,16 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-277 | 17 oct | Conocimiento | El mismo modelo cambia entre corridas: una corrida no alcanza para juzgar un cambio fino | en revisión |
 | D-278 | 17 oct | Conocimiento | gpt-6.1-sol queda como alternativa; alto se descarta por tiempo | en revisión |
 | D-279 | 17 oct | Conocimiento | Por defecto, gpt-6-luna con razonamiento alto | en revisión |
+| D-280 | 17 oct | Desktop | Una carpeta nueva tiene un solo id de proyecto y su cola nunca queda huérfana | en revisión |
+| D-281 | 17 oct | Conocimiento | Un nombre comercial con otra sociedad entre paréntesis no es esa sociedad | en revisión |
+| D-282 | 17 oct | Conocimiento | Una abreviatura sin su último punto cuenta por la forma con punto | en revisión |
+| D-283 | 17 oct | Conocimiento | Fechas en el idioma del wiki también con ordinales en inglés y con la forma de las escrituras | en revisión |
+| D-284 | 17 oct | Conocimiento | Los datos de contacto solos no le dan página a una entidad | en revisión |
+| D-285 | 17 oct | Conocimiento | El nombre propio de un asunto sin artículo inicial ni el nombre de una parte detrás de un guion | en revisión |
+| D-286 | 17 oct | Conocimiento | Más palabras genéricas y de áreas en el vocabulario | en revisión |
+| D-287 | 17 oct | Conocimiento | Un código postal o un DNI no es un teléfono | en revisión |
+| D-288 | 17 oct | Conocimiento | Ronda 1 de la revisión del wiki regenerado: valores que no lo son, constancias de firma, nombres y asuntos | en revisión |
+| D-289 | 17 oct | Conocimiento | Presentación de identificadores, alias y nombres de personas | en revisión |
 
 ---
 
@@ -3661,3 +3671,103 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Qué se decidió:** por defecto, `gpt-6-luna` con razonamiento alto (`DEFAULT_CODEX_REASONING`, `defaultModel` del preset de Codex). Por calidad primero: atribución 97,5 % en dos corridas (empata con sol medio, 98 %, y supera a luna medio, 82 %, y a sol alto, 95 %), la misma única unión falsa que todas, separaciones falsas 2,2 %; entre las que empatan, por tiempo (13,8 segundos por respuesta, frente a 22,9 de sol medio) y por asuntos (76 % frente a 56 %). Lo que cede: menos afirmaciones que sol (61 % frente a 74 %) y más variación entre corridas que luna medio (D-277). El motor guardado en `docbase_setting` y el modelo del wiki se fijan al regenerar el wiki (etapa Q5).
 - **Quién decidió:** agente sin consulta.
 - **Fuente:** etapa Q4 de la tanda desatendida del 17 oct.
+
+### D-280 · Una carpeta nueva tiene un solo id de proyecto y su cola nunca queda huérfana
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Desktop
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** Al regenerar el wiki, las 77 incorporaciones fallaron todas con "Project not found in registry". El arranque de la app corre dos veces en desarrollo y el proyecto por defecto se abre desde más de un lugar: dos aperturas a la vez de una carpeta sin `.llm-wiki/project.json` crearon dos id; la cola se quedó con uno y el registro con el otro, y además dos escrituras del registro a la vez perdieron una entrada.
+- **Qué se decidió:** Las consultas del id de una misma carpeta comparten una sola promesa (`ensureProjectId`), las escrituras del registro van de a una (`upsertProjectInfo`), y al restaurar la cola de una carpeta se adoptan las tareas de su propio archivo encoladas con otro id: las que fallaron solo por "proyecto no encontrado" vuelven a esperar. Así se recuperaron las 77 sin clic, con una recarga de la página. Commit 6f47009, con prueba.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q5 de la tanda desatendida del 17 oct.
+
+### D-281 · Un nombre comercial con otra sociedad entre paréntesis no es esa sociedad
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** La única unión falsa que quedaba en las cuatro variantes de D-276 (P-134): "Marca (Sociedad S.A.)" unía dos organizaciones por el "es la misma" del modelo.
+- **Qué se decidió:** Dentro de un documento, el "es la misma" del modelo ya no une un nombre completo de sociedad con un nombre de organización que no tiene nada en común con él; los términos definidos siguen a su definición. Uniones falsas contra la hoja: 0. Commit 5e6fb20.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q5 de la tanda desatendida del 17 oct.
+
+### D-282 · Una abreviatura sin su último punto cuenta por la forma con punto
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** "S.A" y "S.A." se mostraban como dos formas de escribir.
+- **Qué se decidió:** Se cuentan como una y se muestra la forma con punto. Commit 5e6fb20.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q5 de la tanda desatendida del 17 oct.
+
+### D-283 · Fechas en el idioma del wiki también con ordinales en inglés y con la forma de las escrituras
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** Quedaban fechas como "30th of December" o "23 días del mes de Octubre de 2025" sin llevar al idioma del wiki, y el concepto de un importe repetía su tipo.
+- **Qué se decidió:** Los días ordinales en inglés y la forma de las escrituras se muestran como "23 de octubre de 2025"; el concepto de un importe que repite su tipo se dice una vez. Commits 5e6fb20 y 988c04d.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q5 de la tanda desatendida del 17 oct.
+
+### D-284 · Los datos de contacto solos no le dan página a una entidad
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** Las listas de teléfonos y oficinas de un formulario creaban páginas de organizaciones que el archivo no trata.
+- **Qué se decidió:** Una afirmación de contacto no es razón para tener página (criterio de D-266). Commit 5e6fb20; ampliada en D-288 al domicilio.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q5 de la tanda desatendida del 17 oct.
+
+### D-285 · El nombre propio de un asunto sin artículo inicial ni el nombre de una parte detrás de un guion
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** Asuntos llamados "This Agreement" o "Acuerdo de terminación - <persona> entre … y <persona>".
+- **Qué se decidió:** Se quita el determinante inicial y el tramo después de un guion o dos puntos que solo nombra a una de sus partes, que el nombre ya dice después. Commit 5e6fb20.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q5 de la tanda desatendida del 17 oct.
+
+### D-286 · Más palabras genéricas y de áreas en el vocabulario
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** "cada", "cualquier" o "each" pasaban como nombres; "payroll" o "sueldos" no se reconocían como áreas.
+- **Qué se decidió:** Se agregan como determinantes y genéricos, y como palabras de área, en `knowledge.json`. Commit 5e6fb20.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q5 de la tanda desatendida del 17 oct.
+
+### D-287 · Un código postal o un DNI no es un teléfono
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** Un código postal junto a un domicilio o un DNI escrito con puntos aparecían como contacto de la persona.
+- **Qué se decidió:** Un contacto es un correo o un número de siete dígitos o más que no esté escrito con puntos cada tres dígitos (`lectura-7`). Commit 988c04d.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q5 de la tanda desatendida del 17 oct.
+
+### D-288 · Ronda 1 de la revisión del wiki regenerado: valores que no lo son, constancias de firma, nombres y asuntos
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** La revisión del wiki regenerado con luna alto (Q5) encontró errores generales del programa: "By: ____" como cargo, un horario ("días hábiles de 9 hs a 18 hs") como domicilio, la fecha y hora de emisión de una boleta como teléfono, la fecha de firma electrónica como inicio de un vínculo, el título del formulario de un servicio de firma como nombre de un asunto, asuntos nombrados por un firmante en vez de la otra parte o como "Asunto de <persona>", el nombre de pila y el apellido de dos campos de una ficha que dejaban a una persona nombrada solo por sus nombres, y páginas de jurisdicciones de una boleta que solo tenían la dirección de una oficina.
+- **Qué se decidió:** Reglas generales, sin nombrar casos: una línea para completar no es valor de nada; un domicilio no es un horario (palabras `schedule` del vocabulario, zona horaria); una fecha u hora no es un teléfono (`lectura-8`). En una página que es la constancia de un servicio de firma solo se toman contacto, cargo y domicilio (`certificateClaims`), y el asunto que se lee ahí no es el asunto del documento (`certificateRoles`). El domicilio solo tampoco da página (amplía D-284). El nombre de una entidad es el que contiene más de lo que escriben los documentos (la forma que junta nombre y apellido gana a la que solo tiene los nombres). El nombre de un asunto pone primero a quien es parte del acto, prefiere el nombre que contienen más de sus documentos y, sin nombre propio, usa el tipo común de todos sus documentos ("Boleta de …") (`resolucion-7`). Medido sin preguntar al modelo sobre una copia de la base de la app (`Q5-R1-eval.txt`): identidad igual (separaciones falsas 4,7 %, uniones falsas 0), asuntos 75,9 % sin agrupaciones falsas, roles 73 → 75 %, afirmaciones de la hoja 67 % igual; desaparecen los 4 tipos de valor falso y los 7 asuntos quedan bien nombrados. Commit f29dab7.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q5 de la tanda desatendida del 17 oct.
+
+### D-289 · Presentación de identificadores, alias y nombres de personas
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** Las páginas mostraban correos como "Otro número", el mismo DNI dos veces (con su tipo y como "otro número"), alias como "<nombre> (President)", sobres de firma y facturas como si nombraran un asunto, y nombres de personas en mayúsculas ("PERSONA UNO", "Persona Dos TRES") cuando no había otra forma escrita.
+- **Qué se decidió:** Un correo no es identificador; un número dado con su tipo y como "otro número" se muestra una vez, con el tipo; una forma que es otra más una nota entre paréntesis no es alias; en un asunto solo se muestran los números que lo nombran por sí solos (los fuertes, como un expediente); el nombre de una persona escrito en mayúsculas se muestra como nombre propio (una persona no tiene siglas; el de una organización queda como está) (`proyeccion-6`). Commit f29dab7.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q5 de la tanda desatendida del 17 oct.
