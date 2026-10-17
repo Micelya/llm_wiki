@@ -253,7 +253,9 @@ flowchart LR
 | Conocimiento | Una capa propia dentro de la base del espacio: entidades con identificador estable, menciones con rol y afirmaciones con cita verificada por cálculo (D-170, D-171) |
 | Tipos de entidad | Persona, organización y asunto; tipos, roles y predicados son datos, no código (D-172) |
 | Identidad de entidades | En cascada, con abstención: mismo identificador une solo y se puede deshacer, identificador distinto nunca une, lo dudoso va a una persona (D-173, D-174) |
-| Páginas de entidad | Proyección del registro: documentos agrupados por asunto y síntesis solo desde afirmaciones verificadas; la incorporación del wiki deja de crearlas (D-175) |
+| Páginas de entidad | Proyección del registro: documentos agrupados por asunto y síntesis solo desde afirmaciones verificadas; lo que la síntesis no usa se lista igual con su cita; la incorporación del wiki deja de crearlas (D-175, D-236) |
+| Páginas que escribe el modelo del wiki | Pasan por un control antes de guardarse: siempre `.md`, título igual al encabezado, sin campos académicos, sin hablar del propio wiki ni de "el material", enlaces solo a páginas que existen (D-237); el esquema de un proyecto nuevo es el de un estudio jurídico (D-238) |
+| Importes en el lector | Un `$` suelto es el signo de moneda, nunca una fórmula (D-234) |
 | Correcciones de entidades | Siempre como decisiones de una persona sobre el registro (unir, separar, dato incorrecto, sacar de un asunto), reversibles; nunca editando una página. La fusión de duplicados de Mantenimiento también, para las páginas del registro (D-219, D-220) |
 
 ## 10. Decisiones abiertas y lista de espera

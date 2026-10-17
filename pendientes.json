@@ -1172,6 +1172,54 @@
       "referencia": "src/App.tsx; src/lib/default-project.ts; src-tauri/src/commands/project.rs; src-tauri/src/docbase/knowledge/pages.rs",
       "creado": "2026-10-16",
       "actualizado": "2026-10-16"
+    },
+    {
+      "id": "P-116",
+      "titulo": "Ver en la app la lectura vacía de un documento largo y la acción «Volver a leer»",
+      "tipo": "verificacion",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "D-235 se probó con un modelo de prueba y sobre una copia de la base. Falta verlo en la app con el modelo real: que los documentos largos que volvían vacíos se pregunten de nuevo, que si siguen vacíos aparezcan en Atención con su motivo, y que «Volver a leer» los vuelva a pedir.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/knowledge/extract.rs; src/components/attention/sources/knowledge.ts",
+      "creado": "2026-10-17",
+      "actualizado": "2026-10-17"
+    },
+    {
+      "id": "P-117",
+      "titulo": "Comprobar en la app que una página que se mueve por cambio de nombre no deja rastros",
+      "tipo": "verificacion",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "D-239 mueve el archivo de una página de entidad cuando cambia el nombre y redirige los enlaces de todas las páginas. Falta ver en la app que el árbol de archivos, el índice, la búsqueda y las incrustaciones del wiki toman la ruta nueva y olvidan la vieja, y que una pestaña abierta en la ruta vieja no queda rota.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/knowledge/pages.rs (redirect_links, write_page)",
+      "creado": "2026-10-17",
+      "actualizado": "2026-10-17"
+    },
+    {
+      "id": "P-118",
+      "titulo": "Frases sobre el propio wiki y abreviaturas como datos por idioma",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "El control de D-237 reconoce las oraciones que hablan del wiki o de «el material» con frases fijas en español e inglés, y corta oraciones con una lista fija de abreviaturas. Si el wiki se escribe en otro idioma no las reconoce: conviene llevarlas al vocabulario por idioma (R-26).",
+      "depende_de": [],
+      "referencia": "src/lib/ingest-legal-finish.ts",
+      "creado": "2026-10-17",
+      "actualizado": "2026-10-17"
+    },
+    {
+      "id": "P-119",
+      "titulo": "Fechas en el idioma del wiki más allá del inglés",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "D-239 escribe en el idioma de las páginas solo las fechas en inglés con el mes en letras («December 30, 2021»). Las fechas numéricas ambiguas (12/30/2021) y las de otros idiomas quedan como están; tampoco se tocan las páginas que escribe el modelo del wiki.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/knowledge/pages.rs (localized_dates)",
+      "creado": "2026-10-17",
+      "actualizado": "2026-10-17"
     }
   ]
 }
