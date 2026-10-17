@@ -168,6 +168,11 @@ impl DocumentAsker for Recorded {
         if let Some(answer) = self.saved.lock().unwrap().get(&key) {
             return Ok(answer.clone());
         }
+        // `MICELYA_ASK_OFFLINE`: only the answers kept count (a provider
+        // at its usage limit for hours); a question not kept fails at once.
+        if std::env::var("MICELYA_ASK_OFFLINE").is_ok() {
+            return Err("the answer is not kept and asking is off (MICELYA_ASK_OFFLINE)".to_string());
+        }
         // A provider at its usage limit is waited for, a few times.
         let mut attempt = 0;
         let answer = loop {
