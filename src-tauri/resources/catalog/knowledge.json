@@ -193,10 +193,12 @@
     ]
   },
   "attention": {
-    "about": "Qué lleva la capa a la vista de atención. Un documento cuya lectura perdió muchas citas (al menos noisyMin descartes con alguno de los motivos de noisyReasons, y más de noisyShare de todo lo que el modelo dijo) puede tener mal reconocido el escaneo. Una unión por identificador de nombres distintos se muestra para revisarla, si se quiere, cuando el documento que la trajo se leyó hace menos de recentJoinDays días.",
+    "about": "Qué lleva la capa a la vista de atención. Un documento cuya lectura perdió muchas citas (al menos noisyMin descartes con alguno de los motivos de noisyReasons, y más de noisyShare de todo lo que el modelo dijo) puede tener mal reconocido el escaneo. Una unión por identificador de nombres distintos se muestra para revisarla, si se quiere, cuando el documento que la trajo se leyó hace menos de recentJoinDays días. Una parte de un documento de al menos emptyMinWords palabras que el modelo lee sin nombrar a nadie ni decir nada no es un documento vacío: se vuelve a preguntar hasta emptyAttempts veces en la misma tanda y, si sigue vacía, la lectura queda fallida y se muestra como problema.",
     "noisyReasons": ["cita-no-encontrada", "nombre-fuera-de-la-cita", "valor-fuera-de-la-cita"],
     "noisyMin": 4,
     "noisyShare": 0.4,
-    "recentJoinDays": 30
+    "recentJoinDays": 30,
+    "emptyMinWords": 300,
+    "emptyAttempts": 3
   }
 }

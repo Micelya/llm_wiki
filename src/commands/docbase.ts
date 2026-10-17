@@ -1222,6 +1222,11 @@ export function undoIdentityDecision(id: number): Promise<void> {
   return invoke<void>("docbase_knowledge_undo", { id })
 }
 
+/** Reads again the documents whose reading failed; returns how many. */
+export function knowledgeReadAgainFailed(): Promise<number> {
+  return invoke<number>("docbase_knowledge_read_again_failed")
+}
+
 export function getKnowledgeAttention(): Promise<KnowledgeAttention> {
   return invoke<KnowledgeAttention>("docbase_knowledge_attention")
 }

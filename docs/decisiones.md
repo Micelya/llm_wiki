@@ -3247,3 +3247,16 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** `src/lib/markdown-math.ts`, `wiki-reader.tsx`, `file-preview.tsx`, `chat-message.tsx`, `research-panel.tsx`.
 - **Quién decidió:** agente sin consulta.
 - **Fuente:** etapa Q1 de la tanda desatendida del 17 oct.
+
+### D-235 · Una lectura vacía de un texto largo es una lectura fallida
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** tres documentos largos (entre 1.300 y 3.800 palabras, uno de ellos la cronología del reclamo) volvieron del modelo sin ninguna mención ni afirmación y quedaron como leídos ("done"). Nadie se enteró: sus personas y sus datos faltan en el registro y en las páginas, y la respuesta vacía quedó guardada, así que nunca se volvían a leer.
+- **Qué se decidió:** una parte de un documento con al menos 300 palabras (`attention.emptyMinWords` del vocabulario de la capa) que el modelo lee sin nombrar a nadie ni decir nada no cuenta como lectura. Se vuelve a preguntar en la misma tanda, hasta 3 veces (`attention.emptyAttempts`), sin mirar la respuesta guardada. Una respuesta vacía no se guarda, y una vacía que ya estaba guardada de antes no cuenta. Si después de los intentos sigue vacía, la lectura queda **fallida** con el motivo ("el modelo leyó el texto sin encontrar a nadie, aunque es largo; se preguntó 3 veces") y aparece en Atención como problema, con una acción "Volver a leer" que olvida las lecturas fallidas para que la próxima tanda las vuelva a pedir (lo que el modelo contestó bien de las otras partes se conserva y no se pregunta de nuevo). La versión de la comprobación de lectura pasó a `lectura-3`: las lecturas se vuelven a comprobar desde las respuestas guardadas, sin preguntar, salvo las partes que habían vuelto vacías.
+- **Por qué:** en un estudio jurídico un documento largo sin nadie nombrado es casi siempre una falla del modelo, no un documento vacío; callarlo es una pérdida silenciosa (R-23: lo que falta es un resultado). Reintentar con un tope evita tanto la pérdida como un bucle de preguntas. Un documento corto sin nombres (una receta, una constancia) sí puede ser vacío y sigue valiendo.
+- **Alternativas descartadas:** reintentar en cada arranque sin tope (preguntas sin fin si el documento de verdad no nombra a nadie); guardar las otras partes como leídas y marcar solo la parte vacía (la lectura parecería completa y no lo es).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/extract.rs` (`knowledge_run`, `knowledge_read_again_failed`), `vocabulary.rs`, `resources/catalog/knowledge.json` (`attention`), comando `docbase_knowledge_read_again_failed`, `src/components/attention/sources/knowledge.ts`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q1 de la tanda desatendida del 17 oct.

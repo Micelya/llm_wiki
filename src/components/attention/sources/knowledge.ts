@@ -1,6 +1,7 @@
 import {
   getKnowledgeAttention,
   joinMatter,
+  knowledgeReadAgainFailed,
   leaveMatter,
   listIdentityDoubts,
   type DoubtView,
@@ -58,10 +59,10 @@ export function knowledgeNotices(facts: KnowledgeFacts, words: Vocabulary = voca
           "documento no se pudo leer para saber a quiénes nombra",
           "documentos no se pudieron leer para saber a quiénes nombran",
         ),
-        explanation: `La respuesta del modelo no se pudo usar: sus ${who} no están en el registro ni en sus páginas.`,
-        todo: "Mirá el motivo de cada uno. Se vuelve a leer cuando cambia su texto o la pregunta de lectura.",
+        explanation: `La respuesta del modelo no se pudo usar, o volvió vacía de un texto largo: sus ${who} no están en el registro ni en sus páginas.`,
+        todo: "Mirá el motivo de cada uno. Se vuelve a leer cuando cambia su texto o la pregunta de lectura, o cuando pedís volver a leerlos.",
         resolvedWhen: "Desaparece cuando una lectura nueva del documento sale bien.",
-        actions: [],
+        actions: [{ kind: "run", label: "Volver a leer", run: () => knowledgeReadAgainFailed() }],
         cases: list.map((item) => ({
           id: `failed:${item.document.contentId}`,
           title: item.document.name || `Documento ${item.document.contentId}`,

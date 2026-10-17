@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 /// The version of the program's check of a reading (`extract::verify`).
-const READING_CHECK: &str = "lectura-2";
+const READING_CHECK: &str = "lectura-3";
 
 const BUILTIN: &str = include_str!("../../../resources/catalog/knowledge.json");
 
@@ -174,11 +174,36 @@ pub struct AttentionRules {
     /// Joins by identifier of different names are shown when the document
     /// that brought them was read less than this many days ago.
     pub recent_join_days: i64,
+    /// A part of a document with at least this many words that the model
+    /// reads as naming nobody and saying nothing is taken as a failed
+    /// reading, not as an empty document.
+    #[serde(default = "default_empty_min_words")]
+    pub empty_min_words: usize,
+    /// How many times such a part is asked in one run before the reading
+    /// is written as failed.
+    #[serde(default = "default_empty_attempts")]
+    pub empty_attempts: usize,
+}
+
+fn default_empty_min_words() -> usize {
+    300
+}
+
+fn default_empty_attempts() -> usize {
+    3
 }
 
 impl Default for AttentionRules {
     fn default() -> Self {
-        Self { about: String::new(), noisy_reasons: Vec::new(), noisy_min: 4, noisy_share: 0.4, recent_join_days: 30 }
+        Self {
+            about: String::new(),
+            noisy_reasons: Vec::new(),
+            noisy_min: 4,
+            noisy_share: 0.4,
+            recent_join_days: 30,
+            empty_min_words: default_empty_min_words(),
+            empty_attempts: default_empty_attempts(),
+        }
     }
 }
 

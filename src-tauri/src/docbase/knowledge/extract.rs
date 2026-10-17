@@ -32,7 +32,7 @@ use super::vocabulary::{vocabulary, Vocabulary};
 use super::{mark_dirty, visible_content, Discarded};
 use crate::docbase::similar::changes::{classify as kind_of_token, Kind};
 use crate::docbase::similar::classify::{
-    self as classify, ask_and_keep, cached_answer, parse_json, stops_the_run, Question, ASKING, MIN_TYPE_WORDS,
+    self as classify, cached_answer, parse_json, stops_the_run, Question, ASKING, MIN_TYPE_WORDS,
 };
 use crate::docbase::similar::data::Datum;
 use crate::docbase::similar::text::{pages, Prepared};
@@ -951,14 +951,35 @@ impl DocBase {
         let (pending, waiting) = self.knowledge_pending()?;
         let conn = self.conn();
         let mut count = 0;
+        let min_words = vocabulary().attention.empty_min_words;
         for item in &pending {
-            for question in questions(&conn, vocabulary(), item.content_id, &item.body)?.0 {
-                if cached_answer(&conn, &question.key, engine_id.as_deref())?.is_none() {
+            let part_words: Vec<usize> = parts(&item.body).iter().map(|p| p.split_whitespace().count()).collect();
+            for (index, question) in questions(&conn, vocabulary(), item.content_id, &item.body)?.0.into_iter().enumerate() {
+                let long = part_words.get(index).copied().unwrap_or(0) >= min_words;
+                let kept = cached_answer(&conn, &question.key, engine_id.as_deref())?.filter(|a| !(long && is_empty_answer(a)));
+                if kept.is_none() {
                     count += 1;
                 }
             }
         }
         Ok(KnowledgePlan { documents: pending.len(), questions: count, waiting_for_type: waiting, engine })
+    }
+
+    /// Forgets the readings that failed (over what `visible` lets see), so
+    /// that the next run reads those documents again. What the model
+    /// answered well for some of their parts is kept and not asked again.
+    pub fn knowledge_read_again_failed(&self, visible: &Visible) -> Result<usize, String> {
+        let failed: Vec<i64> = standings(&self.conn(), visible, None)?
+            .into_iter()
+            .filter(|s| s.reading.as_ref().is_some_and(|r| r.state == "failed"))
+            .map(|s| s.content_id)
+            .collect();
+        let conn = self.conn();
+        for content_id in &failed {
+            conn.execute("DELETE FROM knowledge_extraction WHERE content_id = ?1 AND state = 'failed'", [content_id])
+                .map_err(sql_err)?;
+        }
+        Ok(failed.len())
     }
 
     /// Reads what is pending, asking the model at most `max_questions`
@@ -978,29 +999,59 @@ impl DocBase {
                 continue;
             }
             let (item_questions, shapes) = questions(&self.conn(), vocabulary, item.content_id, &item.body)?;
+            let part_words: Vec<usize> = parts(&item.body).iter().map(|p| p.split_whitespace().count()).collect();
+            let rules = &vocabulary.attention;
             let mut answers: Vec<String> = Vec::new();
-            for question in &item_questions {
-                if let Some(answer) = cached_answer(&self.conn(), &question.key, Some(&engine))? {
+            let mut empty_parts = 0;
+            for (index, question) in item_questions.iter().enumerate() {
+                // An empty answer about a long part is not a reading: the
+                // kept one does not count, and it is asked again (D-235).
+                let long = part_words.get(index).copied().unwrap_or(0) >= rules.empty_min_words;
+                let usable = |answer: &str| !(long && is_empty_answer(answer));
+                if let Some(answer) = cached_answer(&self.conn(), &question.key, Some(&engine))?.filter(|a| usable(a)) {
                     answers.push(answer);
                     continue;
                 }
-                if budget == 0 || stopped {
-                    break;
-                }
-                budget -= 1;
-                report.asked += 1;
-                match ask_and_keep(self, asker, question) {
-                    Ok(answer) => answers.push(answer),
-                    Err(error) => {
-                        report.failed += 1;
-                        stopped = stops_the_run(&error);
-                        report.errors.push(format!("{error} ({})", item.content_id));
-                        break;
+                let mut got: Option<String> = None;
+                let mut attempts = 0;
+                while attempts < rules.empty_attempts.max(1) && budget > 0 && !stopped {
+                    attempts += 1;
+                    budget -= 1;
+                    report.asked += 1;
+                    match ask_fresh(self, asker, question, &engine, &usable) {
+                        Ok(Some(answer)) => {
+                            got = Some(answer);
+                            break;
+                        }
+                        Ok(None) => {}
+                        Err(error) => {
+                            report.failed += 1;
+                            stopped = stops_the_run(&error);
+                            report.errors.push(format!("{error} ({})", item.content_id));
+                            attempts = usize::MAX;
+                        }
                     }
+                }
+                match got {
+                    Some(answer) => answers.push(answer),
+                    // Asked as many times as allowed and still empty.
+                    None if attempts != usize::MAX && attempts >= rules.empty_attempts.max(1) => {
+                        empty_parts += 1;
+                        answers.push(String::new());
+                    }
+                    None => break,
                 }
             }
             if answers.len() < item_questions.len() {
                 report.left += 1;
+                continue;
+            }
+            if empty_parts > 0 {
+                let error = empty_reading_error(empty_parts, item_questions.len(), rules.empty_attempts.max(1));
+                let mut conn = self.conn();
+                write_reading(&mut conn, &item, &item_questions, &engine, Err(&error))?;
+                report.unusable += 1;
+                report.errors.push(format!("{error} ({})", item.content_id));
                 continue;
             }
             let parsed: Result<Vec<Answer>, String> = answers.iter().map(|a| parse_json::<Answer>(a)).collect();
@@ -1024,6 +1075,52 @@ impl DocBase {
         Ok(report)
     }
 }
+
+/// Whether an answer names nobody and says nothing. An answer that does
+/// not have the shape asked for is not empty: it is unusable.
+fn is_empty_answer(answer: &str) -> bool {
+    parse_json::<Answer>(answer).is_ok_and(|a| a.menciones.is_empty() && a.afirmaciones.is_empty())
+}
+
+/// Asks a question again, without looking at the answer kept for it, and
+/// keeps the new answer only when it is usable. `None`: the model answered,
+/// but with an answer that does not count.
+fn ask_fresh(
+    base: &DocBase,
+    asker: &dyn DocumentAsker,
+    question: &Question,
+    engine: &str,
+    usable: &dyn Fn(&str) -> bool,
+) -> Result<Option<String>, String> {
+    if let Some(answer) = cached_answer(&base.conn(), &question.key, Some(engine))?.filter(|a| usable(a)) {
+        return Ok(Some(answer));
+    }
+    let answer = asker.ask(&question.prompt, &question.schema)?;
+    parse_json::<serde_json::Value>(&answer)?;
+    if !usable(&answer) {
+        return Ok(None);
+    }
+    classify::keep_answer(&base.conn(), question, engine, &answer)?;
+    Ok(Some(answer))
+}
+
+/// The reason of a reading written as failed because the model read a long
+/// text as naming nobody (shown in the attention view).
+fn empty_reading_error(empty: usize, parts: usize, attempts: usize) -> String {
+    let which = if parts == 1 {
+        "El modelo leyó el texto sin encontrar a nadie".to_string()
+    } else if empty == 1 {
+        format!("El modelo leyó una de las {parts} partes del texto sin encontrar a nadie")
+    } else {
+        format!("El modelo leyó {empty} de las {parts} partes del texto sin encontrar a nadie")
+    };
+    let times = if attempts == 1 { "1 vez".to_string() } else { format!("{attempts} veces") };
+    format!("{which}, aunque es largo; se preguntó {times}. {EMPTY_READING_MARK}")
+}
+
+/// Ends the reason of a reading that came back empty (for the attention
+/// view and the evaluation).
+pub const EMPTY_READING_MARK: &str = "(lectura vacía)";
 
 #[cfg(test)]
 mod tests {

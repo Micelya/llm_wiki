@@ -753,6 +753,15 @@ pub fn docbase_knowledge_undo(app: tauri::AppHandle, state: State<'_, DocBaseSta
     Ok(())
 }
 
+/// Reads again the documents whose reading failed (an answer of another
+/// shape, or an empty reading of a long text). Returns how many.
+#[tauri::command(async)]
+pub fn docbase_knowledge_read_again_failed(app: tauri::AppHandle, state: State<'_, DocBaseState>) -> Result<usize, String> {
+    let count = state.base()?.knowledge_read_again_failed(&Visible::All)?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(count)
+}
+
 /// Keeps and applies several decisions of the user at once, with one
 /// resolution (taking a document out of a matter, confirming a family).
 #[tauri::command(async)]

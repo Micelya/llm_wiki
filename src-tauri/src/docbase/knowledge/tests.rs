@@ -349,3 +349,67 @@ fn the_same_mention_in_two_parts_is_one() {
         .collect();
     assert_eq!(kept, [("m1", "firmante", Some(1), None), ("m2", "apoderado", Some(1), Some("m1"))]);
 }
+
+/// A long text with nobody in it as far as a lazy model is concerned.
+fn long_text() -> String {
+    let mut text = String::from("CRONOLOGÍA DEL RECLAMO\n");
+    for i in 1..=60 {
+        text.push_str(&format!("Punto {i}: se envió una nota con el detalle de lo ocurrido en la semana.\n"));
+    }
+    text
+}
+
+#[test]
+fn an_empty_reading_of_a_long_text_is_a_failure_asked_again_and_not_kept() {
+    let long = long_text();
+    let (_dir, base) = base_with(&[("cronologia.txt", long.as_str()), ("receta.txt", RECIPE)]);
+    let lazy = model("falso:1");
+    let report = run(&base, &lazy);
+    // The recipe is short: empty is its reading. The long text is asked
+    // three times and written as failed.
+    assert_eq!((report.asked, report.extracted, report.unusable), (4, 1, 1), "{report:?}");
+    let found = base.knowledge_of(&Visible::All, location(&base, "cronologia.txt")).unwrap();
+    assert_eq!(found.state, "failed");
+    let error = found.error.unwrap();
+    assert!(error.contains(super::extract::EMPTY_READING_MARK) && error.contains("3 veces"), "{error}");
+    assert_eq!(base.knowledge_of(&Visible::All, location(&base, "receta.txt")).unwrap().state, "done");
+    // The empty answers were not kept, so they cannot pass for a reading.
+    let kept: i64 = base
+        .conn()
+        .query_row("SELECT count(*) FROM model_answer WHERE task = 'knowledge'", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(kept, 1, "only the recipe's answer");
+    // Not asked again on its own: it is in the attention view.
+    assert_eq!(run(&base, &lazy).asked, 0);
+    let attention = base.knowledge_attention(&Visible::All).unwrap();
+    assert_eq!(attention.failed.len(), 1);
+
+    // A person asks to read the failed ones again.
+    assert_eq!(base.knowledge_read_again_failed(&Visible::All).unwrap(), 1);
+    let careful = FakeModel::new("falso:1", |prompt| {
+        if !is_knowledge(prompt) {
+            return type_answer("nota");
+        }
+        serde_json::json!({
+            "menciones": [mention("a", "persona", "Persona Seis", "remitente", "Punto 1: se envió una nota", serde_json::json!([]))],
+            "afirmaciones": []
+        })
+        .to_string()
+    });
+    let report = run(&base, &careful);
+    assert_eq!((report.asked, report.extracted), (1, 1), "{report:?}");
+}
+
+#[test]
+fn an_empty_answer_kept_from_before_is_not_a_reading_of_a_long_text() {
+    let long = long_text();
+    let (_dir, base) = base_with(&[("cronologia.txt", long.as_str())]);
+    let lazy = model("falso:1");
+    base.types_run(&lazy, 50).unwrap();
+    // What an older version kept: an empty answer for the question.
+    let questions = base.knowledge_questions().unwrap();
+    assert_eq!(questions.len(), 1);
+    crate::docbase::similar::classify::keep_answer(&base.conn(), &questions[0], "falso:1", &super::tests::empty_answer()).unwrap();
+    let report = base.knowledge_run(&lazy, 50).unwrap();
+    assert_eq!(report.asked, 3, "the kept empty answer does not count: {report:?}");
+}
