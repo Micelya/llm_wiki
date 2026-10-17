@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { CODEX_REASONING_LEVELS, DEFAULT_CODEX_REASONING, codexReasoningEffort } from "./codex-reasoning"
 import { resolveConfig } from "@/components/settings/preset-resolver"
-import type { LlmPreset } from "@/components/settings/llm-presets"
+import { findLlmPreset, type LlmPreset } from "@/components/settings/llm-presets"
 import type { LlmConfig } from "@/stores/wiki-store"
 import { useWikiStore } from "@/stores/wiki-store"
 import { getAskConfig } from "./document-asking"
@@ -25,6 +25,13 @@ describe("Codex reasoning level", () => {
     for (const value of [undefined, "", "xhigh", "max", 3]) {
       expect(codexReasoningEffort(value)).toBe(DEFAULT_CODEX_REASONING)
     }
+  })
+
+  it("defaults to the variant that won the comparison (D-279)", () => {
+    expect(DEFAULT_CODEX_REASONING).toBe("high")
+    const preset = findLlmPreset("codex-cli")
+    expect(preset?.defaultModel).toBe("gpt-6-luna")
+    expect(preset?.suggestedModels).toEqual(["gpt-6-luna", "gpt-6.1-sol"])
   })
 
   it("is kept for the Codex preset only", () => {

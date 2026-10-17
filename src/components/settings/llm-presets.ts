@@ -104,14 +104,10 @@ export const LLM_PRESETS: LlmPreset[] = [
     label: "Codex CLI (local)",
     hint: "Uses the local `codex` binary — no API key needed",
     provider: "codex-cli",
-    defaultModel: "gpt-5.4-mini",
-    suggestedModels: [
-      "gpt-5.4-mini",
-      "gpt-5.4",
-      "gpt-5.3-codex",
-      "gpt-5.3-codex-spark",
-      "gpt-5.2",
-    ],
+    // The model that won the comparison of the questions about documents
+    // (D-279), with the other one allowed (D-278).
+    defaultModel: "gpt-6-luna",
+    suggestedModels: ["gpt-6-luna", "gpt-6.1-sol"],
     suggestedContextSize: 200000,
   },
   {

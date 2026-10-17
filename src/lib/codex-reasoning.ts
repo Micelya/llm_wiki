@@ -14,7 +14,7 @@ export const CODEX_REASONING_LEVELS = ["low", "medium", "high"] as const
 export type CodexReasoningEffort = (typeof CODEX_REASONING_LEVELS)[number]
 
 /** The level used when none was chosen: the variant that won the comparison (D-279). */
-export const DEFAULT_CODEX_REASONING: CodexReasoningEffort = "medium"
+export const DEFAULT_CODEX_REASONING: CodexReasoningEffort = "high"
 
 /** A saved level, or the default when it is missing or not offered. */
 export function codexReasoningEffort(value: unknown): CodexReasoningEffort {
