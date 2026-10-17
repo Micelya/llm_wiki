@@ -875,6 +875,45 @@ describe("ingest-queue — restoreQueue", () => {
     expect(mockAutoIngest).toHaveBeenCalledTimes(1)
   })
 
+  it("adopts the tasks of its own file queued under a lost id, and revives 'project not found'", async () => {
+    const saved = [
+      {
+        id: "ingest-lost-1",
+        projectId: "an-id-the-folder-lost",
+        sourcePath: "raw/sources/a.pdf",
+        folderContext: "",
+        status: "failed",
+        addedAt: 0,
+        error: "Project not found in registry (was it deleted?)",
+        retryCount: 0,
+      },
+      {
+        id: "ingest-lost-2",
+        projectId: "an-id-the-folder-lost",
+        sourcePath: "raw/sources/b.pdf",
+        folderContext: "",
+        status: "failed",
+        addedAt: 1,
+        error: "the model said no",
+        retryCount: 3,
+      },
+    ]
+    mockReadFile.mockResolvedValue(JSON.stringify(saved))
+    mockAutoIngest.mockImplementation(() => new Promise(() => {}))
+    await restoreQueue(TEST_ID, TEST_PATH)
+    await flushMicrotasks(2)
+
+    const queue = getQueue()
+    expect(queue).toHaveLength(2)
+    expect(queue.every((task) => task.projectId === TEST_ID)).toBe(true)
+    const revived = queue.find((task) => task.id === "ingest-lost-1")!
+    expect(revived.status).toBe("processing")
+    expect(revived.error).toBeNull()
+    // A failure of its own stays a failure.
+    expect(queue.find((task) => task.id === "ingest-lost-2")!.status).toBe("failed")
+    expect(mockAutoIngest).toHaveBeenCalledTimes(1)
+  })
+
   it("leaves 'failed' tasks as failed on restore", async () => {
     const saved = [
       {
