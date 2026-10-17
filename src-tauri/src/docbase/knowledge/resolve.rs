@@ -1582,7 +1582,9 @@ pub(crate) fn write(base: &DocBase, outcome: &Outcome, report: &mut ResolveRepor
         let written_of = |n: &str| -> String {
             aliases[n].iter().max_by(|a, b| a.1.cmp(b.1).then_with(|| b.0.cmp(a.0))).map(|(w, _)| w.to_string()).unwrap_or_default()
         };
-        let name = written_of(chosen);
+        // On one line, and in the form of a proper name when the documents
+        // write it some other way than in capitals (D-239).
+        let name = super::names::shown_name(&written_of(chosen), aliases.values().flat_map(|forms| forms.keys().copied()));
         let now_members = mention_ids(list);
         match existing.get(id) {
             Some(old) => {

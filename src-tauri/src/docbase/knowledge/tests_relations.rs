@@ -62,7 +62,14 @@ fn reading(prompt: &str) -> String {
             vec![claim("p", "monto_adeudado", None, Some("$ 10.000"), "por $ 10.000 de anticipo", None)],
         )
     } else if prompt.contains("DOC-P.") {
-        (vec![two("remitente", "Correo de Persona Dos"), company("destinatario", "a Ejemplo Uno S.A. para coordinar")], vec![])
+        (
+            vec![two("remitente", "Correo de Persona Dos"), company("destinatario", "a Ejemplo Uno S.A. para coordinar")],
+            // The same tie said from both sides.
+            vec![
+                claim("p", "deudor_de", Some("o"), None, "Persona Dos a Ejemplo Uno S.A. para coordinar el pago pendiente", None),
+                claim("o", "acreedor_de", Some("p"), None, "Persona Dos a Ejemplo Uno S.A. para coordinar el pago pendiente", None),
+            ],
+        )
     } else if prompt.contains("DOC-G.") {
         (
             vec![
@@ -191,6 +198,10 @@ fn a_relation_is_shown_on_both_sides_with_its_quote() {
     let company = page_of(&pages, "Ejemplo Uno S.A.");
     assert!(company.contains("## Vínculos") && company.contains("Representada por [[persona-nueve-"), "{company}");
     assert!(company.contains("«firmada por Persona Nueve, presidente de Ejemplo Uno S.A.»"), "{company}");
+    // A tie and its inverse from the other side are one line (D-239).
+    let two = page_of(&pages, "Persona Dos");
+    assert_eq!(two.matches("- Deudor de [[ejemplo-uno-s-a-").count(), 1, "{two}");
+    assert_eq!(company.matches("- Acreedor de [[persona-dos-").count(), 1, "{company}");
 }
 
 #[test]

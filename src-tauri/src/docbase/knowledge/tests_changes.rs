@@ -345,22 +345,20 @@ fn processing_again_without_changes_changes_nothing() {
 }
 
 #[test]
-fn a_page_another_page_links_to_stays_in_place_when_its_entity_leaves() {
+fn a_page_whose_entity_leaves_goes_and_the_links_to_it_become_text() {
     let archive = Archive::new(&[("a.txt", A), ("b.txt", B), ("c.txt", C)]);
     let (six, _) = archive.entity("Persona Seis");
     let path = archive.page_file(&six).unwrap();
     let stem = path.rsplit('/').next().unwrap().trim_end_matches(".md").to_string();
     // A page of the wiki, not written by the app, links to it.
-    archive.dir.write("General/wiki/sources/nota.md", format!("---\ntype: source\ntitle: Nota\n---\n\nVer [[{stem}|la persona]].\n").as_bytes());
+    archive.dir.write("General/wiki/sources/nota.md", format!("---\ntype: source\ntitle: Nota\n---\n\nVer [[{stem}|la persona]] y [[{stem}]].\n").as_bytes());
     std::fs::remove_file(archive.dir.path().join("o/c.txt")).unwrap();
     archive.refresh();
     let report = archive.project();
-    assert_eq!((report.removed, report.kept), (0, 1), "{report:?}");
-    let kept = std::fs::read_to_string(archive.project.join(&path)).unwrap();
-    assert!(kept.contains("state: kept") && kept.contains("dejó el registro"), "{kept}");
-    // The link goes: so does the page.
-    archive.dir.write("General/wiki/sources/nota.md", b"---\ntype: source\ntitle: Nota\n---\n\nSin enlaces.\n");
-    let report = archive.project();
-    assert_eq!(report.removed, 1, "{report:?}");
+    // Without notes, the page goes even if another page links to it: the
+    // link is left as its text (D-239).
+    assert_eq!((report.removed, report.kept), (1, 0), "{report:?}");
     assert!(!archive.project.join(&path).exists());
+    let note = std::fs::read_to_string(archive.project.join("wiki/sources/nota.md")).unwrap();
+    assert!(note.contains("Ver la persona y Persona Seis."), "{note}");
 }

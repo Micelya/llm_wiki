@@ -448,9 +448,84 @@ pub fn misread(a: &str, b: &str) -> bool {
     a != b && a.chars().count().min(b.chars().count()) >= 6 && distance(a, b, 1) <= 1
 }
 
+/// The name an entity is shown with: on one line, and a name written all in
+/// capitals ("PERSONA DOS, UNO") in the form of a proper name when the
+/// documents write each of its words some other way ("Uno Persona Dos"):
+/// its order and punctuation, the case of the other forms (D-239). A word
+/// of two letters or more that no other form writes leaves it as it is.
+pub fn shown_name<'a>(name: &str, forms: impl IntoIterator<Item = &'a str>) -> String {
+    let name = name.split_whitespace().collect::<Vec<_>>().join(" ");
+    let letters: Vec<char> = name.chars().filter(|c| c.is_alphabetic()).collect();
+    if letters.len() < 2 || letters.iter().any(|c| c.is_lowercase()) {
+        return name;
+    }
+    let fold = |word: &str| -> String { quote::words(word).join("") };
+    // Each word as the other forms write it, when they do not shout it.
+    let mut cased: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    for form in forms {
+        if !form.chars().any(|c| c.is_lowercase()) {
+            continue;
+        }
+        for word in form.split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty()) {
+            let key = fold(word);
+            let mixed = word.chars().any(|c| c.is_lowercase());
+            match cased.get(&key) {
+                Some(seen) if seen.chars().any(|c| c.is_lowercase()) || !mixed => {}
+                _ => {
+                    cased.insert(key, word.to_string());
+                }
+            }
+        }
+    }
+    let mut out = String::new();
+    let mut word = String::new();
+    let mut complete = true;
+    let flush = |word: &mut String, out: &mut String, complete: &mut bool| {
+        if word.is_empty() {
+            return;
+        }
+        match cased.get(&fold(word)) {
+            Some(form) => out.push_str(form),
+            None => {
+                if word.chars().filter(|c| c.is_alphabetic()).count() >= 2 {
+                    *complete = false;
+                }
+                out.push_str(word);
+            }
+        }
+        word.clear();
+    };
+    for c in name.chars() {
+        if c.is_alphanumeric() {
+            word.push(c);
+        } else {
+            flush(&mut word, &mut out, &mut complete);
+            out.push(c);
+        }
+    }
+    flush(&mut word, &mut out, &mut complete);
+    if complete {
+        out
+    } else {
+        name
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_name_in_capitals_takes_the_case_the_other_forms_write() {
+        assert_eq!(shown_name("PERSONA DOS, UNO", ["Uno Persona Dos", "PERSONA DOS, UNO"]), "Persona Dos, Uno");
+        assert_eq!(shown_name("EJEMPLO UNO S.A.", ["Ejemplo Uno S.A."]), "Ejemplo Uno S.A.");
+        assert_eq!(shown_name("PEREZ, ANA", ["Ana Pérez"]), "Pérez, Ana");
+        // A word no other form writes: as it is.
+        assert_eq!(shown_name("PERSONA TRES CUATRO", ["Persona Tres"]), "PERSONA TRES CUATRO");
+        // Not in capitals, or no other form: as it is, on one line.
+        assert_eq!(shown_name("Persona\n Dos", ["PERSONA DOS"]), "Persona Dos");
+        assert_eq!(shown_name("ACME", Vec::<&str>::new()), "ACME");
+    }
 
     fn k(kind: &str, name: &str) -> NameKey {
         key(&Vocabulary::builtin(), kind, name)

@@ -244,6 +244,11 @@ pub struct Pages {
     pub folder: String,
     #[serde(default)]
     pub kinds: Vec<PageRule>,
+    /// The roles that make an entity one of "the most named" of the
+    /// overview: a document where it has one of them counts; a mention in
+    /// passing does not (D-240).
+    #[serde(default)]
+    pub most_named_roles: Vec<String>,
     /// Headings and phrases of the pages, by key.
     #[serde(default)]
     pub words: std::collections::BTreeMap<String, String>,

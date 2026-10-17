@@ -2712,7 +2712,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 - **Fecha:** 16 oct 2026
 - **Tema:** Conocimiento
-- **Estado:** en revisión (agente sin consulta, P-066)
+- **Estado:** en revisión (agente sin consulta, P-066); reemplazada en parte por D-239 (el archivo sigue al nombre de la entidad)
 - **El problema:** la página de una entidad tiene que tener un nombre de archivo que no se rompa: los enlaces del wiki apuntan al nombre del archivo, y el nombre visible de una entidad puede cambiar (otra forma de escribirla pasa a ser la más usada, o una persona la corrige).
 - **Qué se decidió:** el archivo es `wiki/entities/<nombre legible>-<8 caracteres del identificador>.md`. El nombre legible sale del nombre visible la primera vez que se escribe la página (palabras sin acentos unidas por guiones) y queda guardado en `knowledge_page.path`; si la entidad cambia de nombre, cambia el título dentro de la página, no el archivo. Los enlaces se escriben `[[archivo|Nombre]]`. Si dos entidades darían el mismo archivo, la segunda lleva el identificador entero.
 - **Por qué:** el identificador hace único al archivo y no depende del nombre; la parte legible deja reconocer el archivo en una carpeta. Renombrar el archivo con el nombre rompería los enlaces de las páginas que la app no escribe.
@@ -2861,7 +2861,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 - **Fecha:** 16 oct 2026
 - **Tema:** Conocimiento
-- **Estado:** en revisión (agente sin consulta, P-066)
+- **Estado:** en revisión (agente sin consulta, P-066); reemplazada en parte por D-239 (una página sin notas no se conserva por un enlace)
 - **El problema:** cuando una entidad se retira (sus documentos se fueron) o se une con otra, su página ya no tiene que estar; pero otra página puede enlazarla, y un enlace roto en el wiki confunde.
 - **Qué se decidió:** las páginas que escribe la app (las de entidades y asuntos, el resumen y el bloque de entidades de cada página de documento) se rehacen sin esa entidad, así que sus enlaces no se rompen. La página se **borra** salvo que tenga notas de una persona o que la enlace una página que la app no escribe (por ejemplo, el texto que escribió el wiki en la página de un documento, fuera del bloque de la app). En esos casos queda una **página mínima** en el mismo lugar que dice que la entidad dejó el registro, o con quién se unió (con el enlace), y las notas. Cuando ese enlace desaparece y no hay notas, la página mínima también se va.
 - **Por qué:** quitar lo que ya no corresponde sin perder nada que haya escrito una persona ni dejar enlaces muertos.
@@ -3297,5 +3297,36 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Qué se decidió:** el esquema nuevo, en español, describe el wiki de un estudio jurídico: páginas de documento, conceptos jurídicos, entidades que escribe la app, encabezado sin campos académicos, enlaces solo a páginas que existen, que las páginas hablan de los documentos y no del wiki, y que los datos que difieren se muestran con sus dos valores. La tabla de tipos conserva su forma (la lee el programa para saber en qué carpeta va cada tipo).
 - **Por qué:** el esquema es parte de la pregunta al modelo; una plantilla de otro dominio empuja al modelo hacia ese dominio.
 - **Dónde se aplica:** `src-tauri/src/commands/project.rs` (`create_project_impl`). Vale para los proyectos que se creen desde ahora; el wiki del archivo se regenera en la etapa Q5 y recibe el esquema nuevo.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q1 de la tanda desatendida del 17 oct.
+
+### D-239 · Cómo se presentan las páginas de entidad: nombre, archivo, vínculos, fechas y plurales
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la revisión del 17 de octubre encontró en las páginas que escribe la app: archivos cuyo nombre no coincide con el título (la entidad cambió de nombre y el archivo quedó con el de la primera proyección, D-195); páginas "conservadas" sin notas de nadie, solo porque otra página las enlazaba, y alguna con el id como título; "1 documentos en común" (197 veces); el mismo vínculo dos veces ("Deudor de X" dicho por la entidad y "Deudor de X" como inversa de lo que dice X); fechas en inglés ("December 30, 2021") en el texto de la página; nombres en mayúsculas ("APELLIDO, NOMBRE") cuando otros documentos los escriben como nombre propio; nombres partidos en dos líneas.
+- **Qué se decidió:**
+  - Cuando el nombre de una entidad o de un asunto cambia, su página pasa al archivo del nombre nuevo (con el mismo id corto al final), con las notas que tenía, y los enlaces de todas las páginas del wiki al archivo viejo (también en `related:`) pasan al nuevo. Reemplaza en parte a D-195 (nombre de archivo fijo).
+  - Una página cuya entidad ya no tiene página se conserva **solo si una persona escribió notas** en ella; se titula con el nombre de la entidad (o el título que tenía), nunca con su id. Si no tiene notas se borra aunque otra página la enlace: esos enlaces pasan a la página de la entidad con la que se unió o, si no hay, quedan como texto. Reemplaza en parte a D-206.
+  - "1 documento en común" en singular (`pages.words.inCommonOne`).
+  - Un vínculo y su inversa dicha desde la otra entidad van en una sola línea, con las citas de los dos lados sin repetir.
+  - Una fecha en inglés de un dato o de una oración de la síntesis se escribe en el idioma de las páginas ("30 de diciembre de 2021"), con los meses y la forma del vocabulario (`pages.words.months`, `dateFormat`). Las citas no se tocan nunca: quedan como las escribe el documento.
+  - El nombre de una entidad va siempre en una línea, y un nombre escrito todo en mayúsculas toma la forma de nombre propio cuando los documentos escriben de otra manera cada una de sus palabras (se respeta su orden y su puntuación; si alguna palabra solo aparece en mayúsculas, queda como está). Se aplica al elegir el nombre en la resolución y al armar las páginas.
+- **Por qué:** son defectos de presentación que hacen dudar de todo lo demás (R-23) y que el programa resuelve sin dudas. Mover el archivo con sus enlaces mantiene la regla de que ningún enlace se rompe; conservar páginas vacías por un enlace dejaba huérfanas en el wiki.
+- **Medición:** ver el reporte de la etapa Q1 (evaluación sobre una copia de la base del 16 de octubre, `desatendido-3\Q1-eval-*.txt`).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/pages.rs` (`project`, `write_page`, `render`, `redirect_links`, `localized_dates`), `names.rs` (`shown_name`), `resolve.rs`, `resources/catalog/knowledge.json`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q1 de la tanda desatendida del 17 oct.
+
+### D-240 · El resumen del archivo cuenta lo leído y ordena a los más nombrados por su papel
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el resumen decía "63 documentos leídos" de 66: contaba los documentos que nombran a alguien, no los leídos. Y "los más nombrados" se ordenaban por cantidad de documentos en que aparecen, aunque fuera de pasada (un servicio de correo o una jurisdicción nombrada en cada boleta subían a la cabeza).
+- **Qué se decidió:** "Documentos leídos" cuenta los documentos cuya lectura de la capa salió bien; si alguna falló, una línea aparte dice cuántas (y remite a Atención). "Los más nombrados" se ordenan por la cantidad de documentos en que la entidad tiene un papel de sustancia (parte, apoderado, firmante, remitente, destinatario, emisor: `pages.mostNamedRoles` del vocabulario); quien solo aparece de pasada no entra en esa lista, y el número que se muestra es el de esos documentos.
+- **Por qué:** el resumen es lo primero que se lee del archivo; tiene que decir la verdad sobre lo procesado y destacar a quienes los documentos tratan, no a quienes mencionan.
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/pages.rs` (`overview`), `vocabulary.rs`, `resources/catalog/knowledge.json`.
 - **Quién decidió:** agente sin consulta.
 - **Fuente:** etapa Q1 de la tanda desatendida del 17 oct.

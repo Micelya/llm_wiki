@@ -65,6 +65,9 @@ pub const WORDS: &[&str] = &[
     "withoutMatter",
     "related",
     "inCommon",
+    "inCommonOne",
+    "months",
+    "dateFormat",
     "notes",
     "notesMark",
     "aliases",
@@ -78,6 +81,7 @@ pub const WORDS: &[&str] = &[
     "overviewTitle",
     "overviewIntro",
     "overviewDocuments",
+    "overviewFailed",
     "overviewEntities",
     "overviewMost",
     "overviewMatters",
@@ -139,6 +143,10 @@ pub struct ProjectReport {
     /// notes), and pages kept only for their notes.
     pub removed: usize,
     pub kept: usize,
+    /// Pages moved to the file of their entity's new name, and pages of
+    /// the wiki whose links were redirected (D-239).
+    pub moved: usize,
+    pub redirected: usize,
     /// Questions sent to the model, failed, and left for another run.
     pub asked: usize,
     pub failed: usize,
@@ -156,7 +164,7 @@ pub struct ProjectReport {
 impl ProjectReport {
     /// Whether a file of the wiki changed.
     pub fn wrote(&self) -> bool {
-        self.written + self.removed + self.blocks_written > 0 || self.overview_written
+        self.written + self.removed + self.blocks_written + self.redirected > 0 || self.overview_written
     }
 }
 
@@ -373,6 +381,66 @@ pub fn name_like(kind: &str, text: &str) -> bool {
     !text.contains('@') && (kind == "asunto" || (letters > 0 && letters >= digits))
 }
 
+/// English months, as documents in English write them.
+const ENGLISH_MONTHS: [&str; 12] =
+    ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+
+/// A date a document wrote in English ("December 30, 2021", "30 Dec
+/// 2021") written in the language of the pages, with the months and the
+/// form of the vocabulary (`pages.words.months`, `dateFormat`). Quotes are
+/// never passed through this: they stay as the document writes them
+/// (D-239).
+pub(crate) fn localized_dates(vocabulary: &Vocabulary, text: &str) -> String {
+    let words = &vocabulary.pages;
+    let months: Vec<&str> = words.word("months").split(',').map(str::trim).filter(|m| !m.is_empty()).collect();
+    let format = words.word("dateFormat");
+    if months.len() != 12 || !format.contains("{month}") {
+        return text.to_string();
+    }
+    let month_of = |word: &str| -> Option<usize> {
+        let w = word.trim_end_matches('.').to_lowercase();
+        if w.len() < 3 {
+            return None;
+        }
+        ENGLISH_MONTHS.iter().position(|m| *m == w || (w.len() == 3 && m.starts_with(&w)) || (w == "sept" && *m == "september"))
+    };
+    let tokens: Vec<&str> = text.split(' ').collect();
+    let day = |t: &str| -> Option<u32> {
+        let t = t.trim_end_matches(',').trim_end_matches("st").trim_end_matches("nd").trim_end_matches("rd").trim_end_matches("th");
+        t.parse::<u32>().ok().filter(|d| (1..=31).contains(d))
+    };
+    let year = |t: &str| -> Option<(String, String)> {
+        let digits: String = t.chars().take_while(|c| c.is_ascii_digit()).collect();
+        (digits.len() == 4).then(|| (digits.clone(), t[digits.len()..].to_string()))
+    };
+    let render = |d: u32, m: usize, y: &str| format.replace("{day}", &d.to_string()).replace("{month}", months[m]).replace("{year}", y);
+    let mut out: Vec<String> = Vec::new();
+    let mut i = 0;
+    while i < tokens.len() {
+        // "December 30, 2021"
+        if i + 2 < tokens.len() {
+            if let (Some(m), Some(d), Some((y, rest))) = (month_of(tokens[i]), day(tokens[i + 1]), year(tokens[i + 2])) {
+                if tokens[i + 1].ends_with(',') || tokens[i + 1].chars().all(|c| c.is_ascii_alphanumeric()) {
+                    out.push(format!("{}{rest}", render(d, m, &y)));
+                    i += 3;
+                    continue;
+                }
+            }
+            // "30 December 2021"
+            if let (Some(d), Some(m), Some((y, rest))) = (day(tokens[i]), month_of(tokens[i + 1]), year(tokens[i + 2])) {
+                if !tokens[i].ends_with(',') {
+                    out.push(format!("{}{rest}", render(d, m, &y)));
+                    i += 3;
+                    continue;
+                }
+            }
+        }
+        out.push(tokens[i].to_string());
+        i += 1;
+    }
+    out.join(" ")
+}
+
 /// A quote on one line, as a list item needs it.
 fn one_line(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
@@ -534,6 +602,9 @@ fn load(conn: &Connection, project_id: &str, identities: &HashMap<i64, String>) 
                 entity.name = one_line(name);
             }
         }
+        // On one line, and a name in capitals as the documents write it
+        // otherwise (D-239).
+        entity.name = super::names::shown_name(&entity.name, entity.written.keys().map(String::as_str));
     }
     let mut matters: BTreeMap<String, Matter> = BTreeMap::new();
     let mut matter_of: BTreeMap<i64, BTreeSet<String>> = BTreeMap::new();
@@ -550,7 +621,7 @@ fn load(conn: &Connection, project_id: &str, identities: &HashMap<i64, String>) 
         for row in rows {
             let (id, name, content, reasons) = row.map_err(sql_err)?;
             let content = fold(content);
-            let matter = matters.entry(id.clone()).or_insert_with(|| Matter { id: id.clone(), name, ..Default::default() });
+            let matter = matters.entry(id.clone()).or_insert_with(|| Matter { id: id.clone(), name: one_line(&name), ..Default::default() });
             matter.documents.entry(content).or_default().extend(serde_json::from_str::<Vec<super::matters::Reason>>(&reasons).unwrap_or_default());
             matter_of.entry(content).or_default().insert(id);
         }
@@ -948,7 +1019,7 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
                     .map(|(text, refs)| {
                         used.extend(refs.iter().copied());
                         let numbers: Vec<String> = refs.iter().map(|r| (r + 1).to_string()).collect();
-                        format!("{text} [{}]", numbers.join(", "))
+                        format!("{} [{}]", localized_dates(vocabulary, text), numbers.join(", "))
                     })
                     .collect();
                 if lines.is_empty() {
@@ -974,7 +1045,7 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
             out.push_str(&format!("**{}**\n\n", words.word("conflicts")));
             for (predicate, indexes) in &conflicts {
                 let values: Vec<String> =
-                    indexes.iter().map(|i| format!("«{}» [{}]", one_line(&object_text(record, &claims[*i])), i + 1)).collect();
+                    indexes.iter().map(|i| format!("«{}» [{}]", localized_dates(vocabulary, &one_line(&object_text(record, &claims[*i]))), i + 1)).collect();
                 used.extend(indexes.iter().copied());
                 out.push_str(&format!("- {}: {}\n", vocabulary.predicate_label(predicate), values.join(" · ")));
             }
@@ -994,7 +1065,7 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
                 "- [{}] {}: {} — {}\n",
                 index + 1,
                 vocabulary.predicate_label(&claim.predicate),
-                one_line(&object_text(record, claim)),
+                localized_dates(vocabulary, &one_line(&object_text(record, claim))),
                 quotes.join("; ")
             )
         };
@@ -1094,7 +1165,22 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
 
     // Its relations with other entities, both ways (D-214): what the
     // documents say, each with its quote. Nothing is derived (R-02).
-    let mut ties: Vec<String> = Vec::new();
+    // A claim and its inverse said from the other side ("deudor de" here,
+    // "acreedor de" there) are one line, with the quotes of both (D-239).
+    let mut ties: Vec<((String, String), Vec<String>)> = Vec::new();
+    let mut tie = |label: &str, other: &str, quotes: Vec<String>| {
+        let key = (label.to_string(), other.to_string());
+        match ties.iter_mut().find(|(k, _)| *k == key) {
+            Some((_, list)) => {
+                for quote in quotes {
+                    if !list.contains(&quote) {
+                        list.push(quote);
+                    }
+                }
+            }
+            None => ties.push((key, quotes)),
+        }
+    };
     let name_of = |id: &str| -> String {
         match (record.entities.get(id), paths.get(id)) {
             (Some(e), Some(path)) => link(path, &e.name),
@@ -1102,19 +1188,18 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
             _ => id.to_string(),
         }
     };
-    let quote_of = |claim: &Claim| -> String {
+    let quotes_of = |claim: &Claim| -> Vec<String> {
         claim
             .evidence
             .iter()
             .take(QUOTES_PER_CLAIM)
             .map(|(content, quote, _)| format!("«{}» ({})", one_line(quote), document_link(record, *content)))
-            .collect::<Vec<_>>()
-            .join("; ")
+            .collect()
     };
     for claim in &entity.claims {
         if let Some(object) = &claim.object_entity {
             if record.entities.get(object).is_some_and(|o| o.kind != "asunto") {
-                ties.push(format!("- {} {} — {}\n", vocabulary.predicate_label(&claim.predicate), name_of(object), quote_of(claim)));
+                tie(vocabulary.predicate_label(&claim.predicate), object, quotes_of(claim));
             }
         }
     }
@@ -1124,13 +1209,13 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
             if other.kind == "asunto" {
                 continue;
             }
-            ties.push(format!("- {inverse} {} — {}\n", name_of(&other.id), quote_of(claim)));
+            tie(inverse, &other.id, quotes_of(claim));
         }
     }
     if !ties.is_empty() {
         out.push_str(&format!("## {}\n\n", words.word("relations")));
-        for tie in ties {
-            out.push_str(&tie);
+        for ((label, other), quotes) in &ties {
+            out.push_str(&format!("- {label} {} — {}\n", name_of(other), quotes.join("; ")));
         }
         out.push('\n');
     }
@@ -1139,7 +1224,7 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
         out.push_str(&format!("## {}\n\n", words.word("related")));
         for (other, shared) in &related {
             let together =
-                if *shared > 0 { format!(" — {shared} {}", words.word("inCommon")) } else { String::new() };
+                if *shared > 0 { format!(" — {shared} {}", words.word(if *shared == 1 { "inCommonOne" } else { "inCommon" })) } else { String::new() };
             out.push_str(&format!("- {} · {}{together}\n", link(&paths[&other.id], &other.name), vocabulary.type_label(&other.kind)));
         }
         out.push('\n');
@@ -1314,8 +1399,11 @@ fn file_meta(path: &Path) -> (i64, i64) {
     }
 }
 
-/// The overview of the archive, from the record.
-fn overview(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, String>, documents: usize) -> String {
+/// The overview of the archive, from the record: how many documents were
+/// read (and how many readings failed), who has a page, the most named by
+/// the documents where they have a role of substance, and the matters
+/// (D-240).
+fn overview(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, String>, documents: usize, failed: usize) -> String {
     let words = &vocabulary.pages;
     let mut out = format!(
         "---\ntype: overview\ntitle: {}\ngenerated_by: {GENERATED_BY}\n---\n\n# {}\n\n{}\n\n",
@@ -1324,6 +1412,9 @@ fn overview(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, S
         words.word("overviewIntro")
     );
     out.push_str(&format!("- {}: {documents}\n", words.word("overviewDocuments")));
+    if failed > 0 {
+        out.push_str(&format!("- {}: {failed}\n", words.word("overviewFailed")));
+    }
     let mut by_kind: BTreeMap<usize, (&str, usize)> = BTreeMap::new();
     for entity in record.entities.values().filter(|e| paths.contains_key(&e.id)) {
         let order = vocabulary.entity_types.iter().position(|t| t.id == entity.kind).unwrap_or(usize::MAX);
@@ -1331,13 +1422,23 @@ fn overview(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, S
     }
     let counts: Vec<String> = by_kind.values().map(|(label, n)| format!("{label}: {n}")).collect();
     out.push_str(&format!("- {}: {}\n\n", words.word("overviewEntities"), counts.join(" · ")));
-    let mut most: Vec<&Entity> =
-        record.entities.values().filter(|e| paths.contains_key(&e.id) && e.kind != "asunto").collect();
-    most.sort_by(|a, b| b.documents.len().cmp(&a.documents.len()).then_with(|| a.name.cmp(&b.name)));
+    // By the documents where they have a role of substance; a mention in
+    // passing does not count.
+    let substantive = |entity: &Entity| -> usize {
+        let roles = &vocabulary.pages.most_named_roles;
+        entity.documents.values().filter(|r| roles.is_empty() || r.iter().any(|role| roles.contains(role))).count()
+    };
+    let mut most: Vec<(&Entity, usize)> = record
+        .entities
+        .values()
+        .filter(|e| paths.contains_key(&e.id) && e.kind != "asunto")
+        .map(|e| (e, substantive(e)))
+        .filter(|(_, n)| *n > 0)
+        .collect();
+    most.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| b.0.documents.len().cmp(&a.0.documents.len())).then_with(|| a.0.name.cmp(&b.0.name)));
     if !most.is_empty() {
         out.push_str(&format!("## {}\n\n", words.word("overviewMost")));
-        for entity in most.into_iter().take(MOST_NAMED) {
-            let n = entity.documents.len();
+        for (entity, n) in most.into_iter().take(MOST_NAMED) {
             out.push_str(&format!(
                 "- {} · {} — {n} {}\n",
                 link(&paths[&entity.id], &entity.name),
@@ -1374,6 +1475,7 @@ fn write_page(
     root: &Path,
     id: &str,
     path: &str,
+    moved_from: Option<&str>,
     rendered: &Rendered,
     vocabulary: &Vocabulary,
     report: &mut ProjectReport,
@@ -1381,12 +1483,21 @@ fn write_page(
     let fingerprint = hash(&[&rendered.text]);
     let file = root.join(path);
     let known = record.pages.get(id);
-    if known.is_some_and(|p| p.fingerprint == fingerprint && p.state == "projected") && file.is_file() {
+    if moved_from.is_none() && known.is_some_and(|p| p.fingerprint == fingerprint && p.state == "projected") && file.is_file() {
         report.unchanged += 1;
         return Ok(());
     }
-    let notes = read_file(&file).map(|t| notes_of(&t, vocabulary.pages.word("notes"))).unwrap_or_default();
+    // The notes, from the page itself or, when it moves, from where it was.
+    let old = moved_from.map(|from| root.join(from));
+    let notes = read_file(&file)
+        .or_else(|| old.as_deref().and_then(read_file))
+        .map(|t| notes_of(&t, vocabulary.pages.word("notes")))
+        .unwrap_or_default();
     write_file(&file, &with_notes(vocabulary, &dated(&rendered.text), &notes))?;
+    if let Some(old) = old.filter(|o| *o != file && o.is_file()) {
+        std::fs::remove_file(&old).map_err(|e| format!("No se pudo borrar '{}': {e}", old.display()))?;
+        report.moved += 1;
+    }
     base.conn()
         .execute(
             "INSERT OR REPLACE INTO knowledge_page (entity_id, path, state, fingerprint, synthesis, sentences, discarded, written_at)
@@ -1493,7 +1604,7 @@ fn render_matter(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<Stri
             let subject = paths.get(&entity.id).map(|p| link(p, &entity.name)).unwrap_or_else(|| entity.name.clone());
             let object = match claim.object_entity.as_deref() {
                 Some(id) => paths.get(id).map(|p| link(p, &object_text(record, claim))).unwrap_or_else(|| object_text(record, claim)),
-                None => object_text(record, claim),
+                None => localized_dates(vocabulary, &object_text(record, claim)),
             };
             let conflict = if claim.state == "conflict" { format!(" ({})", words.word("conflicts").to_lowercase()) } else { String::new() };
             said.push(format!("- {subject} — {}: {object}{conflict} — {}\n", vocabulary.predicate_label(&claim.predicate), quotes.join("; ")));
@@ -1567,42 +1678,155 @@ fn render_matter(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<Stri
     Rendered { text: out, synthesis: None, sentences: 0, discarded: 0 }
 }
 
-/// The pages (by the name links use, in lower case) that a page the app
-/// does not write links to: a page of the wiki other than the entity pages
-/// and the overview, outside the block of entities the app keeps in it.
-fn linked_from_outside(base: &DocBase, project_id: &str, root: &Path) -> Result<BTreeSet<String>, String> {
-    let linking: Vec<(String, String)> = {
-        let conn = base.conn();
-        let mut statement = conn
-            .prepare(
-                "SELECT DISTINCT p.path, t.path FROM wiki_link k
-                 JOIN wiki_page p ON p.id = k.from_page JOIN wiki_page t ON t.id = k.to_page
-                 WHERE p.project_id = ?1 AND p.id != t.id",
-            )
-            .map_err(sql_err)?;
-        let rows = statement.query_map([project_id], |row| Ok((row.get(0)?, row.get(1)?))).map_err(sql_err)?;
-        rows.collect::<Result<_, _>>().map_err(sql_err)?
+/// Where the links to a page that moved or went lead now: another page,
+/// or nowhere (the link is left as `text`, or as its own label).
+struct Redirect {
+    to: Option<String>,
+    text: String,
+}
+
+/// The path of a page that exists: the file of its entity's name now when
+/// the name changed and that file is free (the page moves, D-239); its
+/// own path otherwise.
+fn renamed_path(
+    folder: &str,
+    id: &str,
+    page: &PageRow,
+    name: &str,
+    kind: &str,
+    taken: &mut BTreeSet<String>,
+    moved: &mut BTreeMap<String, String>,
+) -> String {
+    let wanted = page_path(folder, id, name, kind);
+    if page.state == "projected" && wanted.to_lowercase() != page.path.to_lowercase() && !taken.contains(&wanted.to_lowercase()) {
+        taken.insert(wanted.to_lowercase());
+        moved.insert(id.to_string(), page.path.clone());
+        return wanted;
+    }
+    page.path.clone()
+}
+
+/// The title in the header of a page on disk.
+fn title_of(text: &str) -> Option<String> {
+    let text = text.replace("\r\n", "\n");
+    let header = text.strip_prefix("---\n")?.split("\n---").next()?;
+    let line = header.lines().find(|l| l.starts_with("title:"))?;
+    let value = line.trim_start_matches("title:").trim();
+    let value = serde_json::from_str::<String>(value).unwrap_or_else(|_| value.trim_matches('"').trim_matches('\'').to_string());
+    Some(value).filter(|v| !v.trim().is_empty())
+}
+
+/// The readable part of a page's file name, without the id at its end:
+/// "persona-dos-1a2b3c4d.md" is "persona dos".
+fn readable_stem(path: &str) -> String {
+    let stem = stem(path);
+    let readable = match stem.rsplit_once('-') {
+        Some((head, tail)) if tail.len() >= 8 && tail.chars().all(|c| c.is_ascii_hexdigit()) => head.to_string(),
+        _ => stem.clone(),
     };
-    let mut texts: HashMap<String, Option<String>> = HashMap::new();
-    let mut out = BTreeSet::new();
-    for (from, to) in linking {
-        let text = texts
-            .entry(from.clone())
-            .or_insert_with(|| {
-                read_file(&root.join(&from))
-                    .filter(|t| !t.contains(&format!("generated_by: {GENERATED_BY}")))
-                    .map(|t| with_block(&t, None).to_lowercase())
-            })
-            .clone();
-        let target = stem(&to).to_lowercase();
-        let Some(text) = text else { continue };
-        if [format!("[[{target}]]"), format!("[[{target}|"), format!("[[{target}#")].iter().any(|l| text.contains(l.as_str()))
-            || text.lines().any(|l| l.starts_with("related:") && l.contains(target.as_str()))
-        {
-            out.insert(target);
+    readable.replace('-', " ")
+}
+
+/// Rewrites, in every page of the wiki, the links to a page that moved or
+/// went: `[[old|text]]` leads to the new page, or is left as `text`. The
+/// `related:` lists follow too. Returns how many pages changed.
+fn redirect_links(root: &Path, redirects: &BTreeMap<String, Redirect>) -> Result<usize, String> {
+    fn pages(dir: &Path, out: &mut Vec<PathBuf>) {
+        let Ok(entries) = std::fs::read_dir(dir) else { return };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                pages(&path, out);
+            } else if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("md")) {
+                out.push(path);
+            }
         }
     }
-    Ok(out)
+    let mut files = Vec::new();
+    pages(&root.join("wiki"), &mut files);
+    let mut changed = 0;
+    for file in files {
+        let Some(text) = read_file(&file) else { continue };
+        let next = with_redirects(&text, redirects);
+        if next != text {
+            write_file(&file, &next)?;
+            changed += 1;
+        }
+    }
+    Ok(changed)
+}
+
+/// A text with its links redirected (see `redirect_links`).
+fn with_redirects(text: &str, redirects: &BTreeMap<String, Redirect>) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(start) = rest.find("[[") {
+        let after = &rest[start + 2..];
+        let Some(end) = after.find("]]") else { break };
+        let inner = &after[..end];
+        let (target, label) = match inner.split_once('|') {
+            Some((t, l)) => (t, Some(l)),
+            None => (inner, None),
+        };
+        let (bare, anchor) = match target.split_once('#') {
+            Some((b, a)) => (b, Some(a)),
+            None => (target, None),
+        };
+        let key = bare.trim().rsplit('/').next().unwrap_or(bare).trim_end_matches(".md").to_lowercase();
+        let embed = rest[..start].ends_with('!');
+        out.push_str(&rest[..start]);
+        match redirects.get(&key) {
+            Some(redirect) if !embed => match &redirect.to {
+                Some(to) => {
+                    out.push_str("[[");
+                    out.push_str(to);
+                    if let Some(anchor) = anchor {
+                        out.push('#');
+                        out.push_str(anchor);
+                    }
+                    if let Some(label) = label {
+                        out.push('|');
+                        out.push_str(label);
+                    }
+                    out.push_str("]]");
+                }
+                None => out.push_str(label.map(str::trim).filter(|l| !l.is_empty()).unwrap_or(&redirect.text)),
+            },
+            _ => {
+                out.push_str("[[");
+                out.push_str(inner);
+                out.push_str("]]");
+            }
+        }
+        rest = &after[end + 2..];
+    }
+    out.push_str(rest);
+    // The bare names of the `related:` list of the header; a line no
+    // redirect touches stays as it is.
+    out.split('\n')
+        .map(|line| {
+            let (body, cr) = match line.strip_suffix('\r') {
+                Some(body) => (body, "\r"),
+                None => (line, ""),
+            };
+            let Some(list) = body.strip_prefix("related:") else { return line.to_string() };
+            let Some(inner) = list.trim().strip_prefix('[').and_then(|l| l.strip_suffix(']')) else { return line.to_string() };
+            let items: Vec<&str> = inner.split(',').map(str::trim).filter(|i| !i.is_empty()).collect();
+            if !items.iter().any(|item| redirects.contains_key(&item.trim_matches('"').to_lowercase())) {
+                return line.to_string();
+            }
+            let items: Vec<String> = items
+                .into_iter()
+                .filter_map(|item| match redirects.get(&item.trim_matches('"').to_lowercase()) {
+                    Some(Redirect { to: Some(to), .. }) => Some(to.clone()),
+                    Some(Redirect { to: None, .. }) => None,
+                    None => Some(item.to_string()),
+                })
+                .collect();
+            format!("related: [{}]{cr}", items.join(", "))
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// The entity a merged one went into, following the chain.
@@ -1739,12 +1963,15 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
     let folder = vocabulary.pages.folder().to_string();
     let mut paths: BTreeMap<String, String> = BTreeMap::new();
     let mut taken: BTreeSet<String> = record.pages.values().map(|p| p.path.to_lowercase()).collect();
+    // A page whose entity changed its name moves to the file of the new
+    // name (the same id at its end); the links to the old one follow (D-239).
+    let mut moved: BTreeMap<String, String> = BTreeMap::new();
     for entity in record.entities.values() {
         if !has_page(vocabulary, entity) {
             continue;
         }
         let path = match record.pages.get(&entity.id) {
-            Some(page) => page.path.clone(),
+            Some(page) => renamed_path(&folder, &entity.id, page, &entity.name, &entity.kind, &mut taken, &mut moved),
             None => {
                 let mut path = page_path(&folder, &entity.id, &entity.name, &entity.kind);
                 if taken.contains(&path.to_lowercase()) {
@@ -1762,7 +1989,7 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
             continue;
         }
         let path = match record.pages.get(&matter.id) {
-            Some(page) => page.path.clone(),
+            Some(page) => renamed_path(&folder, &matter.id, page, &matter.name, &vocabulary.matters.kind, &mut taken, &mut moved),
             None => {
                 let mut path = page_path(&folder, &matter.id, &matter.name, &vocabulary.matters.kind);
                 if taken.contains(&path.to_lowercase()) {
@@ -1782,7 +2009,7 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
             let Some(matter) = record.matters.get(id) else { continue };
             let rendered = render_matter(vocabulary, &record, &paths, matter);
             if !dry {
-                write_page(base, &record, &root, id, path, &rendered, vocabulary, report)?;
+                write_page(base, &record, &root, id, path, moved.get(id).map(String::as_str), &rendered, vocabulary, report)?;
             }
             continue;
         };
@@ -1821,39 +2048,64 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
         if dry {
             continue;
         }
-        write_page(base, &record, &root, id, path, &rendered, vocabulary, report)?;
+        write_page(base, &record, &root, id, path, moved.get(id).map(String::as_str), &rendered, vocabulary, report)?;
     }
     if dry {
         return Ok(());
     }
 
+    // Where the links to a page that moved or went now lead: the page of
+    // its new name, the page of the entity it went into, or nowhere (the
+    // link is left as its text).
+    let mut redirects: BTreeMap<String, Redirect> = BTreeMap::new();
+    for (id, old) in &moved {
+        if let Some(new) = paths.get(id) {
+            let text = record
+                .entities
+                .get(id)
+                .map(|e| e.name.clone())
+                .or_else(|| record.matters.get(id).map(|m| m.name.clone()))
+                .unwrap_or_else(|| readable_stem(new));
+            redirects.insert(stem(old).to_lowercase(), Redirect { to: Some(stem(new)), text });
+        }
+    }
+
     // Pages whose entity has no page any more (it left the record, went
     // into another one or no longer meets the rule): gone, unless a person
-    // wrote notes in them (R-09) or a page the app does not write links to
-    // them. Then a short page stays in their place, saying where the
-    // entity went: no link breaks (D-206).
-    let outside = linked_from_outside(base, &general.id, &root)?;
+    // wrote notes in them (R-09). Then a short page stays in their place,
+    // under the entity's name, saying where it went. The links to a page
+    // that goes lead to the entity it went into, or are left as text
+    // (D-239, replaces in part D-206).
     for (id, page) in &record.pages {
         if paths.contains_key(id) {
             continue;
         }
         let file = root.join(&page.path);
-        let notes = read_file(&file).map(|t| notes_of(&t, vocabulary.pages.word("notes"))).unwrap_or_default();
-        if notes.trim().is_empty() && !outside.contains(&stem(&page.path).to_lowercase()) {
+        let on_disk = read_file(&file);
+        let notes = on_disk.as_deref().map(|t| notes_of(t, vocabulary.pages.word("notes"))).unwrap_or_default();
+        let into = survivor(&record, id).filter(|s| s.id != *id).and_then(|s| paths.get(&s.id).map(|p| (s, p)));
+        // Its name; never its id.
+        let name = record
+            .entities
+            .get(id)
+            .map(|e| e.name.clone())
+            .or_else(|| record.matters.get(id).map(|m| m.name.clone()))
+            .or_else(|| on_disk.as_deref().and_then(title_of))
+            .unwrap_or_else(|| readable_stem(&page.path));
+        if notes.trim().is_empty() {
             if file.is_file() {
                 std::fs::remove_file(&file).map_err(|e| format!("No se pudo borrar '{}': {e}", file.display()))?;
             }
             base.conn().execute("DELETE FROM knowledge_page WHERE entity_id = ?1", [id]).map_err(sql_err)?;
+            redirects.insert(stem(&page.path).to_lowercase(), Redirect { to: into.map(|(_, path)| stem(path)), text: name });
             report.removed += 1;
             continue;
         }
-        let entity = record.entities.get(id);
-        let name = entity.map(|e| e.name.clone()).unwrap_or_else(|| id.clone());
         let mut text = format!(
             "---\ntype: entity\ntitle: {}\nentity_id: {id}\nstate: kept\ngenerated_by: {GENERATED_BY}\n---\n\n# {name}\n\n",
             yaml_string(&name)
         );
-        match survivor(&record, id).filter(|s| s.id != *id).and_then(|s| paths.get(&s.id).map(|p| (s, p))) {
+        match into {
             Some((into, path)) => text.push_str(&format!("{} {}.\n", vocabulary.pages.word("keptMerged"), link(path, &into.name))),
             None => text.push_str(&format!("{}\n", vocabulary.pages.word("kept"))),
         }
@@ -1869,6 +2121,9 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
             )
             .map_err(sql_err)?;
         report.kept += 1;
+    }
+    if !redirects.is_empty() {
+        report.redirected += redirect_links(&root, &redirects)?;
     }
 
     // The block of entities of each document's page.
@@ -1914,8 +2169,13 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
 
     // The overview.
     {
-        let documents = record.entities.values().flat_map(|e| e.documents.keys()).collect::<BTreeSet<_>>().len();
-        let text = overview(vocabulary, &record, &paths, documents);
+        // What was read, not only the documents that name someone (D-240).
+        let (documents, failed) = {
+            let standings = super::extract::standings(&base.conn(), &Visible::All, None)?;
+            let state = |wanted: &str| standings.iter().filter(|s| s.reading.as_ref().is_some_and(|r| r.current && r.state == wanted)).count();
+            (state("done"), state("failed"))
+        };
+        let text = overview(vocabulary, &record, &paths, documents, failed);
         let fingerprint = hash(&[&text]);
         let file = root.join(OVERVIEW_PATH);
         let before = setting(&base.conn(), OVERVIEW_SETTING)?;

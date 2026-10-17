@@ -94,6 +94,7 @@
   "pages": {
     "about": "Qué entidad tiene página en el wiki del archivo y con qué palabras se arma. Se decide mirando el archivo entero, no documento por documento: una entidad tiene página si aparece en al menos minDocuments documentos, si en alguno tiene uno de los roles de la lista, o (cuando strongIdentifier es verdadero) si algún documento le da un identificador fuerte, como un número de expediente. Si rolesRequired nombra roles, además alguna mención tiene que tener uno de ellos: un asunto tiene página cuando al menos un documento trata de él, no cuando solo lo cita. Un nombre que es una dirección de correo o un número no es un nombre: no tiene página.",
     "folder": "wiki/entities",
+    "mostNamedRoles": ["parte", "apoderado", "firmante", "remitente", "destinatario", "emisor"],
     "kinds": [
       { "type": "persona", "minDocuments": 2, "roles": ["parte", "apoderado", "firmante", "remitente", "destinatario", "emisor", "domicilio", "testigo"] },
       { "type": "organizacion", "minDocuments": 2, "roles": ["parte", "apoderado", "firmante", "remitente", "destinatario", "emisor", "domicilio", "testigo"] },
@@ -111,6 +112,9 @@
       "withoutMatter": "Sin asunto identificado",
       "related": "Relacionados",
       "inCommon": "documentos en común",
+      "inCommonOne": "documento en común",
+      "months": "enero, febrero, marzo, abril, mayo, junio, julio, agosto, septiembre, octubre, noviembre, diciembre",
+      "dateFormat": "{day} de {month} de {year}",
       "notes": "Notas",
       "notesMark": "lo que se escriba debajo de esta línea la app no lo reescribe nunca",
       "aliases": "También escrito como",
@@ -124,6 +128,7 @@
       "overviewTitle": "Resumen del archivo",
       "overviewIntro": "Lo que el registro sabe del archivo, armado por la app desde los documentos.",
       "overviewDocuments": "Documentos leídos",
+      "overviewFailed": "Documentos cuya lectura falló (ver Atención)",
       "overviewEntities": "Con página",
       "overviewMost": "Los más nombrados",
       "overviewMatters": "Asuntos",

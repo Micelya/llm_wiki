@@ -758,6 +758,9 @@ export interface KnowledgeProjectReport {
   unchanged: number
   removed: number
   kept: number
+  /** Pages moved to the file of their entity's new name, and pages whose links followed. */
+  moved: number
+  redirected: number
   asked: number
   failed: number
   left: number
