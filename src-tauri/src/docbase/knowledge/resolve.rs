@@ -56,7 +56,7 @@ use crate::docbase::{now_ms, sql_err, DocBase};
 use crate::source_volume::asking::DocumentAsker;
 
 /// Version of the question about identities.
-pub const IDENTITY_PROMPT: &str = "identidad-3";
+pub const IDENTITY_PROMPT: &str = "identidad-4";
 
 /// The rules the record was last computed with (`docbase_setting`): when
 /// the program's or the vocabulary's change, the record is computed again.
@@ -1285,7 +1285,10 @@ escribirse con o sin su segundo nombre: otro cargo u otra organización no alcan
 de correo personal en las dos (no una casilla general como legales@, info@ o cobranzas@) es un dato fuerte de que es la misma \
 persona.\n\
 - \"dudosa\" si con esto no se puede saber. Una letra distinta en un nombre puede ser un error o una persona distinta: si el \
-contexto no lo resuelve, \"dudosa\". Ante la duda, \"dudosa\": unir dos entidades distintas es mucho peor que dejarlas separadas.\n\
+contexto no lo resuelve, \"dudosa\". En una organización, una razón social con la misma forma societaria que difiere en una o \
+dos letras (una letra que falta o sobra, una sílaba repetida), en documentos donde aparecen las mismas otras partes (la misma \
+contraparte, los mismos firmantes, el mismo asunto), es la misma: el error es del documento; si alguno de los documentos muestra \
+otra organización con ese nombre, \"dudosa\". Ante la duda, \"dudosa\": unir dos entidades distintas es mucho peor que dejarlas separadas.\n\
 - Si es \"misma\", en \"certeza\" poné \"alta\" solo si un dato de los documentos lo deja fuera de duda (el mismo \
 identificador, el mismo nombre completo con la misma organización o el mismo cargo, una cita que dice que son la misma); si \
 no, \"media\". Para \"distinta\" y \"dudosa\", la que corresponda.\n\
@@ -1605,6 +1608,31 @@ pub(crate) fn resolve(base: &DocBase, asking: &mut Asking, report: &mut ResolveR
 pub(crate) struct Group {
     pub group: usize,
     pub members: Vec<(usize, Vec<String>)>,
+    /// The shared name of its companies, as one of them writes it (a group
+    /// of companies of one name), which names the group (D-260).
+    pub name: Option<String>,
+}
+
+/// The words of a written name up to its shared words ("Ejemplo Uno S.A."
+/// and "ejemplo uno" give "Ejemplo Uno").
+fn shared_written(written: &str, shared: &[String]) -> Option<String> {
+    let mut taken: Vec<&str> = Vec::new();
+    let mut words: Vec<String> = Vec::new();
+    for token in written.split_whitespace() {
+        let folded = super::quote::words(token);
+        if folded.is_empty() {
+            continue;
+        }
+        taken.push(token);
+        words.extend(folded);
+        if words == shared {
+            return Some(taken.join(" ").trim_end_matches([',', '.', ';']).to_string());
+        }
+        if words.len() >= shared.len() {
+            break;
+        }
+    }
+    None
 }
 
 /// The relations between two mentions: (subject, predicate, object).
@@ -1743,11 +1771,14 @@ fn groups(
         for &other in &gathered[1..] {
             let _ = resolver.join(first, other, "grupo");
         }
+        let shared = (0..clusters.len())
+            .filter(|&i| organization(&clusters[i]) && clusters[i].name.form.is_some() && clusters[i].name.words == name)
+            .find_map(|i| shared_written(&rows[clusters[i].principal].written, &name));
         let members: Vec<(usize, Vec<String>)> = members
             .iter()
             .map(|&m| (m, reasons.get(&m).map(|r| r.iter().cloned().collect()).unwrap_or_else(|| vec!["mismo-nombre".into()])))
             .collect();
-        out.push(Group { group: first, members });
+        out.push(Group { group: first, members, name: shared });
     }
 
     // A group the documents name.
@@ -1782,7 +1813,7 @@ fn groups(
             continue;
         }
         let members: Vec<(usize, Vec<String>)> = members.into_iter().map(|m| (m, vec!["nombrado-como-grupo".to_string()])).collect();
-        out.push(Group { group: i, members });
+        out.push(Group { group: i, members, name: None });
     }
     out
 }
@@ -2003,6 +2034,12 @@ pub(crate) fn write(base: &DocBase, outcome: &Outcome, report: &mut ResolveRepor
         let written_of = |n: &str| -> String {
             aliases[n].iter().max_by(|a, b| a.1.cmp(b.1).then_with(|| b.0.cmp(a.0))).map(|(w, _)| w.to_string()).unwrap_or_default()
         };
+        // A group of companies of one name is named by that name (D-260).
+        let group_name = outcome
+            .groups
+            .iter()
+            .filter(|g| list.iter().any(|&c| outcome.root[c] == outcome.root[g.group]))
+            .find_map(|g| g.name.clone());
         // By specificity: the most complete form that is a proper name,
         // not the most repeated one (D-259).
         let shown: Vec<(String, String, usize)> = proper.iter().map(|n| (n.to_string(), written_of(n), count(n))).collect();
@@ -2011,7 +2048,7 @@ pub(crate) fn write(base: &DocBase, outcome: &Outcome, report: &mut ResolveRepor
         let chosen = chosen.as_str();
         // On one line, and in the form of a proper name when the documents
         // write it some other way than in capitals (D-239).
-        let name = super::names::shown_name(&written_of(chosen), aliases.values().flat_map(|forms| forms.keys().copied()));
+        let name = super::names::shown_name(&group_name.unwrap_or_else(|| written_of(chosen)), aliases.values().flat_map(|forms| forms.keys().copied()));
         let now_members = mention_ids(list);
         match existing.get(id) {
             Some(old) => {
