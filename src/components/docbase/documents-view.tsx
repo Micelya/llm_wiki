@@ -185,7 +185,7 @@ function DocumentList() {
             <option value="">Todos los tipos</option>
             {(documentTypes.data ?? []).map((docType) => (
               <option key={docType.id} value={docType.id}>
-                {documentTypeName(docType.id, null, words)}
+                {documentTypeName(docType.id, docType.name, words)}
               </option>
             ))}
             <option value="none">Sin tipo todavía</option>

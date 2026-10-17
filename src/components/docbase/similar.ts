@@ -1,12 +1,12 @@
 import type {
+  OpenPair,
+  PairDecision,
   RelationDef,
   RelationId,
   SimilarDocument,
   SimilarGroup,
-  SimilarPending,
 } from "@/commands/docbase"
 import { relationName, vocabulary, type Vocabulary } from "@/vocabulary"
-import type { AttentionItem } from "./attention"
 import { formatCount, plural } from "./format"
 
 /**
@@ -140,60 +140,77 @@ export function passedOverNotice(items: SimilarDocument[]): string | null {
     : `Este documento no alimenta el wiki: se unió con ${list}, que son las fuentes elegidas.`
 }
 
-/** How many families get a line of their own in Inicio; the rest go in one line. */
-export const ATTENTION_GROUP_LINES = 5
-
-/**
- * The lines of "requiere atención" for similar documents: one per family
- * with something to decide, the largest first, and one more for what is
- * left (pairs outside families, or families past the first few). Each
- * line leads to Documentos filtered.
- */
-export function buildSimilarAttention(
-  pending: SimilarPending,
-  groups: SimilarGroup[],
-  maxGroups: number = ATTENTION_GROUP_LINES,
-): AttentionItem[] {
-  const waiting = groups.filter((group) => group.pending > 0)
-  const shown = waiting.slice(0, maxGroups)
-  const items: AttentionItem[] = shown.map((group) => ({
-    id: `similar-group:${group.principal.contentId}`,
-    tone: "busy",
-    title: plural(
-      group.pending,
-      `documento parecido a «${group.principal.name}» espera una decisión`,
-      `documentos parecidos a «${group.principal.name}» esperan una decisión`,
-    ),
-    detail: groupDetail(group),
-    target: { view: "documents", similarGroup: group.principal.contentId },
-  }))
-  const inShown = shown.reduce((sum, group) => sum + group.pending, 0)
-  const rest = Math.max(0, pending.pairs - inShown)
-  if (rest > 0) {
-    const more = shown.length > 0 ? " más" : ""
-    items.push({
-      id: "similar-pending",
-      tone: "busy",
-      title: plural(
-        rest,
-        `par de documentos parecidos${more} espera una decisión`,
-        `pares de documentos parecidos${more} esperan una decisión`,
-      ),
-      detail: "En el detalle de cada documento se ven sus parecidos: unilos con la relación que corresponda o descartalos.",
-      target: { view: "documents", similarPending: true },
-    })
-  }
-  return items
-}
-
-function groupDetail(group: SimilarGroup): string {
-  const parts = [`Una familia de ${formatCount(group.members.length)} documentos con el mismo texto de base.`]
-  if (group.flags.includes("large")) parts.push("Creció mucho: conviene revisarla con cuidado.")
-  if (group.flags.includes("dispersed")) parts.push("Algunos documentos se parecen entre sí pero no al principal.")
-  return parts.join(" ")
-}
-
 /** How a family is named in a list: its principal, with how many documents it has. */
 export function groupLabel(group: SimilarGroup): string {
   return `${group.principal.name} (${formatCount(group.members.length)})`
+}
+
+// ── The similar documents screen ────────────────────────────────────────
+
+/**
+ * The families in the order of the screen: first those where two could
+ * be the same document (what changes what goes to the wiki), the most
+ * first; then those with something else to decide; then the decided
+ * ones. Inside each, as the base gave them (largest first).
+ */
+export function orderFamilies(groups: readonly SimilarGroup[]): SimilarGroup[] {
+  const rank = (group: SimilarGroup) => (group.pendingSameDocument > 0 ? 0 : group.pending > 0 ? 1 : 2)
+  return groups
+    .map((group, index) => ({ group, index }))
+    .sort(
+      (a, b) =>
+        rank(a.group) - rank(b.group) ||
+        b.group.pendingSameDocument - a.group.pendingSameDocument ||
+        a.index - b.index,
+    )
+    .map(({ group }) => group)
+}
+
+/**
+ * The pairs of a family seen from its principal (`items` are the
+ * principal's similar documents): only its members, those that could be
+ * the same document first, then the rest waiting, then the decided ones.
+ */
+export function familyPairs(
+  items: readonly SimilarDocument[],
+  group: SimilarGroup,
+  definitions: RelationDef[],
+): SimilarDocument[] {
+  const members = new Set(group.members.map((member) => member.doc.contentId))
+  const rank = (item: SimilarDocument) =>
+    item.state !== "proposed" ? 2 : makesOneDocument(item.relation, definitions) ? 0 : 1
+  return items
+    .filter((item) => members.has(item.other.contentId))
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => rank(a.item) - rank(b.item) || a.index - b.index)
+    .map(({ item }) => item)
+}
+
+/**
+ * What confirming a family as "same template" decides: every pair of its
+ * principal with a member still proposed as "same template" is joined as
+ * such, with the evidence the person saw. Pairs proposed as anything else
+ * are left for one by one.
+ */
+export function templateConfirmations(items: readonly SimilarDocument[], group: SimilarGroup): PairDecision[] {
+  return familyPairs(items, group, [])
+    .filter((item) => item.state === "proposed" && item.relation === TEMPLATE_RELATION)
+    .map((item) => ({
+      contentId: item.contentId,
+      otherContentId: item.other.contentId,
+      decision: { kind: "join", relation: TEMPLATE_RELATION, wikiSource: null },
+      evidenceHash: item.evidenceHash,
+    }))
+}
+
+/** The relation a family is confirmed with in one click. */
+export const TEMPLATE_RELATION = "same-template"
+
+/** The pairs outside the families' principals, those that could be the same document first. */
+export function orderOpenPairs(pairs: readonly OpenPair[], definitions: RelationDef[]): OpenPair[] {
+  const rank = (pair: OpenPair) => (makesOneDocument(pair.similar.relation, definitions) ? 0 : 1)
+  return pairs
+    .map((pair, index) => ({ pair, index }))
+    .sort((a, b) => rank(a.pair) - rank(b.pair) || a.index - b.index)
+    .map(({ pair }) => pair)
 }

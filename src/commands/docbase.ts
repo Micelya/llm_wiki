@@ -121,6 +121,8 @@ export interface DocumentRow {
   docStage: string | null
   /** The type is a proposal of the model that no one confirmed yet. */
   docTypeProposed: boolean
+  /** The name of a type outside the catalog: proposed by the model, or given by a person who confirmed it. */
+  docTypeName: string | null
 }
 
 /** A label: an answer ("BGH") to its group's question ("Cliente"), or standing alone. */
@@ -535,6 +537,12 @@ export interface SimilarPending {
   pairs: number
   /** Families with at least one such pair. */
   groups: number
+  /**
+   * Of `pairs`, those whose proposed relation makes both one document
+   * (practically the same, signed copy, version): deciding them changes
+   * which one feeds the wiki. The rest are information.
+   */
+  sameDocumentPairs: number
 }
 
 export interface SimilarGroupMember {
@@ -551,6 +559,8 @@ export interface SimilarGroup {
   /** "large" (grew too much) or "dispersed" (a chain the principal does not hold). */
   flags: string[]
   pending: number
+  /** Of `pending`, those whose proposed relation makes both one document. */
+  pendingSameDocument: number
 }
 
 /** The documents similar to the one at this location. */
@@ -566,6 +576,35 @@ export function decideSimilar(
   evidenceHash?: string,
 ): Promise<void> {
   return invoke<void>("docbase_decide_similar", { contentId, otherContentId, decision, evidenceHash: evidenceHash ?? null })
+}
+
+/** One decision of `decideSimilarMany`. */
+export interface PairDecision {
+  contentId: number
+  otherContentId: number
+  decision: SimilarDecision
+  /** Fingerprint of the evidence the person saw. */
+  evidenceHash?: string | null
+}
+
+/**
+ * Several decisions at once, recorded in order with one regrouping (a
+ * family confirmed in one click). Returns how many were recorded; when
+ * one fails, the error says how many were saved before it.
+ */
+export function decideSimilarMany(decisions: PairDecision[]): Promise<number> {
+  return invoke<number>("docbase_decide_similar_many", { decisions })
+}
+
+/** A pair waiting for a decision outside the families' principals, seen from `doc`. */
+export interface OpenPair {
+  doc: DocRef
+  similar: SimilarDocument
+}
+
+/** The pairs that wait outside the families' principals: outside families, or between two members. */
+export function listOpenSimilarPairs(): Promise<OpenPair[]> {
+  return invoke<OpenPair[]>("docbase_similar_open_pairs")
 }
 
 export function getSimilarPending(): Promise<SimilarPending> {
@@ -652,10 +691,44 @@ export interface DocTypeDef {
   id: string
   stages: string[]
   data: string[]
+  /** For a type a person confirmed from the model's proposals: its name. */
+  name: string | null
 }
 
 export function getTypesPlan(): Promise<TypesPlan> {
   return invoke<TypesPlan>("docbase_types_plan")
+}
+
+/** What a person decides about a type the model proposed (R-22). */
+export type TypeDecision =
+  /** It joins the closed list with this name: the model's, or another one (rename). */
+  | { kind: "confirm"; name: string; description?: string | null }
+  /** Its documents lose it and are asked again, telling the model not to propose it. */
+  | { kind: "reject" }
+  | { kind: "undo" }
+
+export function decideType(typeId: string, decision: TypeDecision): Promise<void> {
+  return invoke<void>("docbase_decide_type", { typeId, decision })
+}
+
+/** A type a person confirmed or rejected. */
+export interface DecidedType {
+  id: string
+  decision: "confirmed" | "rejected"
+  name: string | null
+  description: string | null
+  decidedAt: number
+  /** Documents that have it now. */
+  documents: number
+}
+
+export function listDecidedTypes(): Promise<DecidedType[]> {
+  return invoke<DecidedType[]>("docbase_decided_types")
+}
+
+/** The types the model proposed that wait for a person. Computes nothing. */
+export function listProposedTypes(): Promise<ProposedType[]> {
+  return invoke<ProposedType[]>("docbase_proposed_types")
 }
 
 /** Asks the model what is pending. Costs the provider's quota: only on an explicit action. */

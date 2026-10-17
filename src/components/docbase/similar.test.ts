@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest"
 import { vocabularyFor } from "@/vocabulary"
-import { buildAttention } from "./attention"
 import {
-  buildSimilarAttention,
   currentRelation,
+  familyPairs,
+  orderFamilies,
+  orderOpenPairs,
+  templateConfirmations,
   makesOneDocument,
   measuresInWords,
   passedOverNotice,
@@ -114,53 +116,6 @@ describe("the wiki's source the app suggests", () => {
   })
 })
 
-describe("what Inicio says about similar documents", () => {
-  const principal = docRef(10, "Acuerdo modelo.docx")
-
-  it("says nothing when nothing waits", () => {
-    expect(buildSimilarAttention({ pairs: 0, groups: 0 }, [similarGroup(principal, [docRef(11, "a.docx")], 0)])).toEqual([])
-  })
-
-  it("has one line per family that waits, leading to Documentos filtered by it", () => {
-    const groups = [similarGroup(principal, [docRef(11, "a.docx"), docRef(12, "b.docx"), docRef(13, "c.docx")], 2, ["large"])]
-    const items = buildSimilarAttention({ pairs: 2, groups: 1 }, groups)
-    expect(items).toHaveLength(1)
-    expect(items[0].title).toBe("2 documentos parecidos a «Acuerdo modelo.docx» esperan una decisión")
-    expect(items[0].detail).toContain("Una familia de 4 documentos")
-    expect(items[0].detail).toContain("Creció mucho")
-    expect(items[0].target).toEqual({ view: "documents", similarGroup: 10 })
-  })
-
-  it("puts what is left in one more line, filtered by pending similar documents", () => {
-    const groups = [1, 2, 3].map((n) => similarGroup(docRef(n * 100, `Modelo ${n}.docx`), [docRef(n * 100 + 1, "x.docx")], 1))
-    const items = buildSimilarAttention({ pairs: 5, groups: 3 }, groups, 2)
-    expect(items.map((item) => item.id)).toEqual(["similar-group:100", "similar-group:200", "similar-pending"])
-    expect(items[2].title).toBe("3 pares de documentos parecidos más esperan una decisión")
-    expect(items[2].target).toEqual({ view: "documents", similarPending: true })
-  })
-
-  it("speaks of pairs alone when no family waits", () => {
-    const items = buildSimilarAttention({ pairs: 1, groups: 0 }, [])
-    expect(items[0].title).toBe("1 par de documentos parecidos espera una decisión")
-  })
-
-  it("is ordered with the other lines of Inicio by how urgent each one is", () => {
-    const health = {
-      origins: 1,
-      unreachableOrigins: 0,
-      locations: 3,
-      documents: 3,
-      byState: { processed: 2, unreadable: 1 },
-      copies: 0,
-      words: 0,
-      lastScanAt: null,
-    }
-    const similar = buildSimilarAttention({ pairs: 1, groups: 0 }, [])
-    const items = buildAttention(health, [], 0, { pages: 0, links: 0, broken: 2 }, similar)
-    expect(items.map((item) => item.id)).toEqual(["unreadable", "similar-pending", "broken-links"])
-  })
-})
-
 describe("a document joined with another as the same one", () => {
   const joined = (wikiSource: number, other = docRef(2, "Contrato de servicios firmado.pdf")) =>
     similarDocument({ state: "joined", chosenRelation: "signed-copy", wikiSource, other })
@@ -182,5 +137,57 @@ describe("a document joined with another as the same one", () => {
     expect(passedOverNotice([joined(2), joined(3, docRef(3, "Contrato definitivo.pdf"))])).toBe(
       "Este documento no alimenta el wiki: se unió con «Contrato de servicios firmado.pdf» y «Contrato definitivo.pdf», que son las fuentes elegidas.",
     )
+  })
+})
+
+describe("the similar documents screen", () => {
+  const principal = docRef(10, "Modelo.docx")
+
+  it("puts first the families where two could be the same document, then what else waits, then the decided ones", () => {
+    const template = similarGroup(docRef(20, "Facturas.pdf"), [docRef(21, "x.pdf")], 1)
+    const decided = similarGroup(docRef(30, "Recibos.pdf"), [docRef(31, "y.pdf")], 0)
+    const signed = similarGroup(principal, [docRef(11, "a.docx"), docRef(12, "b.docx")], 2, [], "signed-copy")
+    const versions = similarGroup(docRef(40, "Escrito.docx"), [docRef(41, "z.docx")], 1, [], "version")
+    expect(orderFamilies([decided, template, versions, signed]).map((g) => g.principal.name)).toEqual([
+      "Modelo.docx",
+      "Escrito.docx",
+      "Facturas.pdf",
+      "Recibos.pdf",
+    ])
+  })
+
+  it("shows a family's pairs from its principal: only its members, what makes one document first", () => {
+    const group = similarGroup(principal, [docRef(11, "a.docx"), docRef(12, "b.docx")], 2)
+    const items = [
+      similarDocument({ contentId: 10, other: docRef(11, "a.docx"), relation: "same-template" }),
+      similarDocument({ contentId: 10, other: docRef(99, "fuera.docx"), relation: "contained-in" }),
+      similarDocument({ contentId: 10, other: docRef(12, "b.docx"), relation: "near-identical" }),
+    ]
+    expect(familyPairs(items, group, RELATIONS).map((item) => item.other.name)).toEqual(["b.docx", "a.docx"])
+  })
+
+  it("confirms a family as same template with the evidence seen, leaving the other relations for one by one", () => {
+    const group = similarGroup(principal, [docRef(11, "a.docx"), docRef(12, "b.docx"), docRef(13, "c.docx")], 3)
+    const items = [
+      similarDocument({ contentId: 10, other: docRef(11, "a.docx"), relation: "same-template", evidenceHash: "h11" }),
+      similarDocument({ contentId: 10, other: docRef(12, "b.docx"), relation: "version" }),
+      similarDocument({ contentId: 10, other: docRef(13, "c.docx"), relation: "same-template", state: "discarded" }),
+    ]
+    expect(templateConfirmations(items, group)).toEqual([
+      {
+        contentId: 10,
+        otherContentId: 11,
+        decision: { kind: "join", relation: "same-template", wikiSource: null },
+        evidenceHash: "h11",
+      },
+    ])
+  })
+
+  it("puts first the loose pairs that could be the same document", () => {
+    const pair = (relation: string, other: number) => ({
+      doc: docRef(1, "uno.pdf"),
+      similar: similarDocument({ relation, other: docRef(other, `${other}.pdf`) }),
+    })
+    expect(orderOpenPairs([pair("contained-in", 2), pair("signed-copy", 3)], RELATIONS).map((p) => p.similar.other.contentId)).toEqual([3, 2])
   })
 })

@@ -81,6 +81,9 @@ pub struct DocumentRow {
     pub doc_type: Option<String>,
     pub doc_stage: Option<String>,
     pub doc_type_proposed: bool,
+    /// The name of a type outside the catalog: the one the model proposed,
+    /// or the one a person gave it when confirming it.
+    pub doc_type_name: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -554,7 +557,8 @@ pub(crate) fn rows_sql(visible: &Visible, only: Option<i64>) -> (String, Vec<Val
                     SELECT count(*) FROM location l2 JOIN file f2 ON f2.hash = l2.file_hash
                     WHERE f2.content_id = f.content_id AND {visible_l2}
                 ) END AS copies,
-                dt.doc_type AS doc_type, dt.stage AS doc_stage, coalesce(dt.proposed, 0) AS doc_type_proposed
+                dt.doc_type AS doc_type, dt.stage AS doc_stage, coalesce(dt.proposed, 0) AS doc_type_proposed,
+                dt.proposed_name AS doc_type_name
          FROM location l
          JOIN origin o ON o.id = l.origin_id
          LEFT JOIN file f ON f.hash = l.file_hash
@@ -588,6 +592,7 @@ pub(crate) fn read_rows(conn: &Connection, sql: &str, bound: Vec<Value>) -> Resu
                 doc_type: row.get("doc_type")?,
                 doc_stage: row.get("doc_stage")?,
                 doc_type_proposed: row.get("doc_type_proposed")?,
+                doc_type_name: row.get("doc_type_name")?,
             })
         })
         .map_err(sql_err)?;

@@ -145,6 +145,12 @@ fn the_same_form_for_two_people_is_the_same_template() {
     assert!(similar.description.contains("cambia un nombre"), "{}", similar.description);
     let marks: Vec<String> = serde_json::from_value(similar.evidence["marks"]["a"].clone()).unwrap();
     assert!(marks.contains(&"form".to_string()));
+    // Two different documents: it waits for a person, but it is not
+    // escalated as something that changes the wiki.
+    let pending = base.similar_pending(&Visible::All).unwrap();
+    assert_eq!((pending.pairs, pending.same_document_pairs), (1, 0));
+    let groups = base.similar_groups(&Visible::All).unwrap();
+    assert_eq!((groups[0].pending, groups[0].pending_same_document), (1, 0));
 }
 
 #[test]
@@ -155,6 +161,10 @@ fn a_draft_and_its_final_wording_are_versions() {
     assert!(similar.description.starts_with("Mismo texto de base; cambian la redacción en"), "{}", similar.description);
     assert!(similar.cover >= 0.8 && similar.cover < 0.97, "{}", similar.cover);
     assert_eq!(similar.evidence["changes"]["dataTokens"], 0);
+    // Versions are one document: deciding them changes what the wiki reads.
+    let pending = base.similar_pending(&Visible::All).unwrap();
+    assert_eq!((pending.pairs, pending.same_document_pairs), (1, 1));
+    assert_eq!(base.similar_groups(&Visible::All).unwrap()[0].pending_same_document, 1);
 }
 
 #[test]
@@ -476,4 +486,55 @@ fn the_documents_screen_filters_by_pending_similar_and_by_family() {
     let parsed: DocumentFilter = serde_json::from_str(r#"{"similarPending": true, "similarGroup": 4}"#).unwrap();
     assert!(parsed.similar_pending);
     assert_eq!(parsed.similar_group, Some(4));
+}
+
+#[test]
+fn a_family_of_the_same_template_is_confirmed_at_once_and_the_rest_stays_open() {
+    let may = invoice("0003-00001377", "15/05/2026", "01/04/2026", "30/04/2026", "98.000,00", "20.580,00", "118.580,00", "25/05/2026");
+    let (_dir, base, _) = base_with(&[
+        ("marzo.md", march().into_bytes()),
+        ("abril.md", april().into_bytes()),
+        ("mayo.md", may.into_bytes()),
+    ]);
+    let groups = base.similar_groups(&Visible::All).unwrap();
+    assert_eq!(groups.len(), 1, "the three invoices are one family");
+    let group = &groups[0];
+    assert_eq!((group.members.len(), group.pending, group.pending_same_document), (3, 2, 0));
+
+    // The pair between the two members is not the principal's: it stays open.
+    let open = base.similar_open_pairs(&Visible::All).unwrap();
+    assert_eq!(open.len(), 1);
+    assert_eq!(open[0].similar.relation, "same-template");
+    assert_ne!(open[0].doc.content_id, group.principal.content_id);
+    assert_ne!(open[0].similar.other.content_id, group.principal.content_id);
+
+    // Confirming the family joins every member with its principal, in one go.
+    let principal = group.principal.content_id;
+    let decisions: Vec<super::PairDecision> = base
+        .similar_of(&Visible::All, group.principal.location_id)
+        .unwrap()
+        .into_iter()
+        .filter(|similar| similar.state == "proposed" && similar.relation == "same-template")
+        .map(|similar| super::PairDecision {
+            content_id: principal,
+            other_content_id: similar.other.content_id,
+            decision: Decision::Join { relation: "same-template".into(), wiki_source: None },
+            evidence_hash: Some(similar.evidence_hash),
+        })
+        .collect();
+    assert_eq!(decisions.len(), 2);
+    assert_eq!(base.decide_similar_many(&decisions).unwrap(), 2);
+    let after = base.similar_groups(&Visible::All).unwrap();
+    assert_eq!(after[0].pending, 0);
+    assert_eq!(base.similar_open_pairs(&Visible::All).unwrap().len(), 1);
+
+    // A batch that fails part way keeps what it saved and says so.
+    let bad = vec![super::PairDecision {
+        content_id: principal,
+        other_content_id: 999_999,
+        decision: Decision::Discard,
+        evidence_hash: None,
+    }];
+    let error = base.decide_similar_many(&bad).unwrap_err();
+    assert!(error.starts_with("Se guardaron 0 de 1"), "{error}");
 }

@@ -20,6 +20,12 @@ vi.mock("./sweep-reviews", () => ({
   sweepResolvedReviews: vi.fn().mockResolvedValue(0),
 }))
 
+// The structural link review that follows the sweep reads the wiki; here
+// we only confirm it runs when the queue drains.
+vi.mock("./auto-structural-lint", () => ({
+  refreshStructuralLint: vi.fn().mockResolvedValue(0),
+}))
+
 // Mock the centralized page cascade used by cleanupWrittenFiles.
 const cascadeDeleteWikiPageMock = vi.fn<(projectPath: string, filePath: string) => Promise<void>>(
   async () => {},
@@ -71,10 +77,12 @@ import {
   isQueuePaused,
   setIngestWorkerLimit,
   getIngestWorkerLimit,
+  removeStoppedTasks,
 } from "./ingest-queue"
 import { autoIngest } from "./ingest"
 import { deleteFile, readFile, writeFile } from "@/commands/fs"
 import { sweepResolvedReviews } from "./sweep-reviews"
+import { refreshStructuralLint } from "./auto-structural-lint"
 import { useWikiStore } from "@/stores/wiki-store"
 
 const mockAutoIngest = vi.mocked(autoIngest)
@@ -82,6 +90,7 @@ const mockReadFile = vi.mocked(readFile)
 const mockWriteFile = vi.mocked(writeFile)
 const mockDeleteFile = vi.mocked(deleteFile)
 const mockSweep = vi.mocked(sweepResolvedReviews)
+const mockStructuralLint = vi.mocked(refreshStructuralLint)
 
 /** Simulate the app having opened `TEST_ID` at `TEST_PATH` so the queue
  *  module's `currentProjectId` / `currentProjectPath` are set. Most
@@ -100,6 +109,8 @@ beforeEach(async () => {
   mockDeleteFile.mockResolvedValue(undefined as unknown as void)
   mockSweep.mockReset()
   mockSweep.mockResolvedValue(0)
+  mockStructuralLint.mockReset()
+  mockStructuralLint.mockResolvedValue(0)
   cascadeDeleteWikiPageMock.mockReset()
   cascadeDeleteWikiPageMock.mockImplementation(async (_projectPath, filePath) => {
     const { deleteFile } = await import("@/commands/fs")
@@ -728,6 +739,18 @@ describe("ingest-queue — clearCompletedTasks & summary", () => {
     expect(getQueueSummary()).toMatchObject({ completed: 1, failed: 0, total: 1 })
   })
 
+  it("removeStoppedTasks takes out only the stopped tasks asked for", async () => {
+    mockAutoIngest.mockRejectedValue(new Error("fail"))
+    await enqueueBatch(TEST_ID, [
+      { sourcePath: "a.md", folderContext: "" },
+      { sourcePath: "b.md", folderContext: "" },
+    ])
+    await waitFor(() => getQueueSummary().failed === 2)
+    const [first, second] = getQueue()
+    expect(await removeStoppedTasks([first.id, "unknown"])).toBe(1)
+    expect(getQueue().map((task) => task.id)).toEqual([second.id])
+  })
+
   it("clearCompletedTasks drops failed tasks", async () => {
     mockAutoIngest.mockRejectedValue(new Error("fail"))
     await enqueueIngest(TEST_ID, "f.md")
@@ -748,6 +771,16 @@ describe("ingest-queue — queue-drain triggers review sweep", () => {
 
     expect(mockSweep).toHaveBeenCalledOnce()
     expect(mockSweep).toHaveBeenCalledWith("/project", expect.any(AbortSignal))
+  })
+
+  it("then runs the structural link review by itself, once per drain", async () => {
+    mockAutoIngest.mockResolvedValue(["wiki/sources/foo.md"])
+
+    await enqueueIngest(TEST_ID, "ok.md")
+    await waitFor(() => mockStructuralLint.mock.calls.length === 1)
+    expect(mockStructuralLint).toHaveBeenCalledWith("/project", expect.any(AbortSignal))
+    await flushMicrotasks(20)
+    expect(mockStructuralLint).toHaveBeenCalledTimes(1)
   })
 
   it("does NOT trigger sweep when no task has been processed since the last drain", async () => {

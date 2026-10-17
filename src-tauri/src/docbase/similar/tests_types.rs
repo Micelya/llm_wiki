@@ -314,3 +314,73 @@ fn a_delivery_receipt_is_joined_to_its_letter_by_the_shipment_number() {
     assert_eq!(found.subject_content_id, Some(type_of(&base, "acuse.md").unwrap().content_id));
     assert_eq!(found.state, "proposed");
 }
+
+fn proposing(name: &'static str) -> FakeModel {
+    FakeModel::new(move |prompt| {
+        // A model that proposes the same new type until it is told not to.
+        let rejected = prompt.contains("rechazó");
+        serde_json::json!({
+            "tipo": if rejected { "otro-tipo" } else { name }, "etapa": null, "nuevo": true,
+            "nombre": if rejected { "Otro tipo" } else { "Receta de cocina" },
+            "descripcion": "Instrucciones para preparar una comida.", "confianza": 0.7, "razon": "x", "otros": []
+        })
+        .to_string()
+    })
+}
+
+#[test]
+fn a_confirmed_type_joins_the_closed_list_with_its_name_and_the_answers_stay() {
+    let (_dir, base) = base_with(&[("receta.md", RECIPE.to_string())]);
+    let model = proposing("receta-de-cocina");
+    base.types_run(&model, 10).unwrap();
+    assert_eq!(base.proposed_types().unwrap().len(), 1);
+
+    let confirm = super::classify::TypeDecision::Confirm { name: "Receta".into(), description: None };
+    base.decide_type("receta-de-cocina", &confirm).unwrap();
+    let found = type_of(&base, "receta.md").unwrap();
+    assert!(!found.proposed);
+    assert_eq!(found.proposed_name.as_deref(), Some("Receta"));
+    assert!(base.proposed_types().unwrap().is_empty());
+    let row = base.documents(&Visible::All, &DocumentFilter::default()).unwrap().rows.into_iter().find(|r| r.name == "receta.md").unwrap();
+    assert_eq!((row.doc_type_proposed, row.doc_type_name.as_deref()), (false, Some("Receta")));
+
+    // Nothing is asked again: the question already answered is the same.
+    base.types_run(&model, 10).unwrap();
+    assert_eq!(model.calls(), 1);
+    assert_eq!(base.types_plan().unwrap().type_questions, 0);
+
+    // Undone, it is a proposal again.
+    base.decide_type("receta-de-cocina", &super::classify::TypeDecision::Undo).unwrap();
+    assert!(type_of(&base, "receta.md").unwrap().proposed);
+    assert_eq!(base.proposed_types().unwrap().len(), 1);
+}
+
+#[test]
+fn a_rejected_type_is_asked_again_telling_the_model_not_to_propose_it() {
+    let (_dir, base) = base_with(&[("receta.md", RECIPE.to_string())]);
+    let model = proposing("receta-de-cocina");
+    base.types_run(&model, 10).unwrap();
+    base.decide_type("receta-de-cocina", &super::classify::TypeDecision::Reject).unwrap();
+    assert!(type_of(&base, "receta.md").is_none(), "its documents lose the rejected type");
+    assert_eq!(base.types_plan().unwrap().type_questions, 1, "and wait for a new question");
+
+    base.types_run(&model, 10).unwrap();
+    assert_eq!(model.calls(), 2);
+    assert!(model.questions()[1].contains("receta-de-cocina (Receta de cocina)"));
+    assert_eq!(type_of(&base, "receta.md").unwrap().doc_type, "otro-tipo");
+    let decided = base.decided_types().unwrap();
+    assert_eq!((decided[0].id.as_str(), decided[0].decision.as_str(), decided[0].documents), ("receta-de-cocina", "rejected", 0));
+}
+
+#[test]
+fn only_proposed_types_can_be_decided_and_a_name_is_needed() {
+    let (_dir, base) = base_with(&[("enero.md", invoice("0003-00001001", "15/01/2026", "120.000,00", true))]);
+    let confirm = |name: &str| super::classify::TypeDecision::Confirm { name: name.into(), description: None };
+    assert!(base.decide_type("factura", &confirm("Factura")).unwrap_err().contains("catálogo"));
+    assert!(base.decide_type("no-existe", &confirm("X")).is_err());
+    assert!(base.decide_type("no-existe", &super::classify::TypeDecision::Undo).is_err());
+    let model = proposing("receta-de-cocina");
+    let (_dir2, other) = base_with(&[("receta.md", RECIPE.to_string())]);
+    other.types_run(&model, 10).unwrap();
+    assert!(other.decide_type("receta-de-cocina", &confirm("  ")).is_err());
+}

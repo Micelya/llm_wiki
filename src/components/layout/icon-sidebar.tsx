@@ -2,7 +2,7 @@ import { useState, useEffect } from "react"
 import { PRODUCT_NAME } from "@/lib/app-identity"
 import {
   FileText, FolderOpen, Search, Network, ClipboardCheck, Settings, ArrowLeftRight, ClipboardList, Globe, MessageSquare, Sparkles,
-  HardDrive, Files, Home,
+  HardDrive, Files, Home, BellDot,
 } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useWikiStore } from "@/stores/wiki-store"
@@ -16,6 +16,9 @@ import {
   isResearchPanelVisible,
   nextResearchPanelNavState,
 } from "./research-panel-nav"
+import { navigationCount } from "@/lib/attention/order"
+import { useAttention } from "@/components/attention/use-attention"
+import { vocabulary } from "@/vocabulary"
 
 type NavView = WikiState["activeView"]
 
@@ -30,12 +33,16 @@ const NAV_ITEMS: { view: NavView; icon: typeof FileText; labelKey: string }[] = 
 ]
 
 // The document base screens are written in Spanish only for now, so their
-// labels are not translation keys.
-const DOCBASE_NAV_ITEMS: { view: NavView; icon: typeof FileText; label: string }[] = [
-  { view: "home", icon: Home, label: "Inicio" },
-  { view: "documents", icon: Files, label: "Documentos" },
-  { view: "origins", icon: HardDrive, label: "Orígenes" },
-]
+// labels are not translation keys; the attention view is named by the
+// vocabulary of the vertical.
+function docbaseNavItems(): { view: NavView; icon: typeof FileText; label: string }[] {
+  return [
+    { view: "home", icon: Home, label: "Inicio" },
+    { view: "attention", icon: BellDot, label: vocabulary().attention.name },
+    { view: "documents", icon: Files, label: "Documentos" },
+    { view: "origins", icon: HardDrive, label: "Orígenes" },
+  ]
+}
 
 interface IconSidebarProps {
   onSwitchProject: () => void
@@ -46,6 +53,7 @@ export function IconSidebar({ onSwitchProject }: IconSidebarProps) {
   const activeView = useWikiStore((s) => s.activeView)
   const setActiveView = useWikiStore((s) => s.setActiveView)
   const pendingCount = useReviewStore((s) => s.items.filter((i) => !i.resolved).length)
+  const attentionCount = navigationCount(useAttention().counts)
   const researchPanelOpen = useResearchStore((s) => s.panelOpen)
   const researchActiveCount = useResearchStore((s) => s.tasks.filter((t) => t.status !== "done" && t.status !== "error").length)
   const toggleResearchPanel = useResearchStore((s) => s.setPanelOpen)
@@ -94,7 +102,7 @@ export function IconSidebar({ onSwitchProject }: IconSidebarProps) {
         </div>
         {/* Top: main nav items + Deep Research */}
         <div className="flex flex-1 flex-col items-center gap-1">
-          {DOCBASE_NAV_ITEMS.map(({ view, icon: Icon, label }) => (
+          {docbaseNavItems().map(({ view, icon: Icon, label }) => (
             <Tooltip key={view}>
               <TooltipTrigger
                 onClick={() => setActiveView(view)}
@@ -105,8 +113,16 @@ export function IconSidebar({ onSwitchProject }: IconSidebarProps) {
                 }`}
               >
                 <Icon className="h-5 w-5" />
+                {view === "attention" && attentionCount > 0 && (
+                  <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                    {attentionCount > 99 ? "99+" : attentionCount}
+                  </span>
+                )}
               </TooltipTrigger>
-              <TooltipContent side="right">{label}</TooltipContent>
+              <TooltipContent side="right">
+                {label}
+                {view === "attention" && attentionCount > 0 && ` (${attentionCount})`}
+              </TooltipContent>
             </Tooltip>
           ))}
           <div className="my-1 h-px w-6 bg-border" />

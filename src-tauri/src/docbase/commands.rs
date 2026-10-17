@@ -13,8 +13,8 @@ use tauri::{Emitter, Manager, State};
 use super::bridge::{self, GeneralProject, WikiSource};
 use super::labels::{Label, LabelGroup, LabelRule};
 use super::origins::Origin;
-use super::similar::{self, Decision, SimilarDocument, SimilarGroup, SimilarPending};
-use super::similar::classify::{DocumentType, RunReport, TypesPlan};
+use super::similar::{self, Decision, OpenPair, PairDecision, SimilarDocument, SimilarGroup, SimilarPending};
+use super::similar::classify::{DecidedType, DocumentType, ProposedType, RunReport, TypeDecision, TypesPlan};
 use super::similar::data::Datum;
 use super::similar::types::RelationDef;
 use crate::source_volume::asking::{asker_for, AskConfig};
@@ -437,6 +437,25 @@ pub fn docbase_decide_similar(
     Ok(())
 }
 
+/// Several decisions about similar documents at once (a family confirmed
+/// in one click). Returns how many were recorded.
+#[tauri::command(async)]
+pub fn docbase_decide_similar_many(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    decisions: Vec<PairDecision>,
+) -> Result<usize, String> {
+    let result = state.base()?.decide_similar_many(&decisions);
+    let _ = app.emit(CHANGED_EVENT, ());
+    result
+}
+
+/// The pairs that wait for a decision outside the families' principals.
+#[tauri::command(async)]
+pub fn docbase_similar_open_pairs(state: State<'_, DocBaseState>) -> Result<Vec<OpenPair>, String> {
+    state.base()?.similar_open_pairs(&Visible::All)
+}
+
 /// How many similar documents and families wait for a decision (Inicio).
 #[tauri::command(async)]
 pub fn docbase_similar_pending(state: State<'_, DocBaseState>) -> Result<SimilarPending, String> {
@@ -462,6 +481,33 @@ pub fn docbase_similar_relations() -> Vec<RelationDef> {
 #[tauri::command(async)]
 pub fn docbase_types_plan(state: State<'_, DocBaseState>) -> Result<TypesPlan, String> {
     state.base()?.types_plan()
+}
+
+/// The types the model proposed that wait for a person, without
+/// computing anything (the attention view asks it on every change).
+#[tauri::command(async)]
+pub fn docbase_proposed_types(state: State<'_, DocBaseState>) -> Result<Vec<ProposedType>, String> {
+    state.base()?.proposed_types()
+}
+
+/// Confirms (with the name it keeps), renames, rejects or undoes the
+/// decision about a type the model proposed (R-22).
+#[tauri::command(async)]
+pub fn docbase_decide_type(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    type_id: String,
+    decision: TypeDecision,
+) -> Result<(), String> {
+    state.base()?.decide_type(&type_id, &decision)?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(())
+}
+
+/// The types people confirmed or rejected.
+#[tauri::command(async)]
+pub fn docbase_decided_types(state: State<'_, DocBaseState>) -> Result<Vec<DecidedType>, String> {
+    state.base()?.decided_types()
 }
 
 /// Asks the model the pending questions about type, stage and data, at
@@ -503,14 +549,26 @@ pub fn docbase_document_type(state: State<'_, DocBaseState>, location_id: i64) -
     Ok(DocumentTypeView { doc_type, data })
 }
 
-/// The document types of the catalog, with their stages, for the
-/// screens: their names come from the vocabulary.
+/// The closed list of document types, for the screens: the catalog's,
+/// whose names come from the vocabulary, and then the ones a person
+/// confirmed from the model's proposals, with the name they were given.
 #[tauri::command(async)]
-pub fn docbase_document_types() -> Vec<DocTypeView> {
-    similar::types::catalog()
+pub fn docbase_document_types(state: State<'_, DocBaseState>) -> Result<Vec<DocTypeView>, String> {
+    let mut out: Vec<DocTypeView> = similar::types::catalog()
         .document_types()
-        .map(|t| DocTypeView { id: t.id.clone(), stages: t.stages.clone(), data: t.data.iter().map(|d| d.id.clone()).collect() })
-        .collect()
+        .map(|t| DocTypeView {
+            id: t.id.clone(),
+            stages: t.stages.clone(),
+            data: t.data.iter().map(|d| d.id.clone()).collect(),
+            name: None,
+        })
+        .collect();
+    for decided in state.base()?.decided_types()? {
+        if decided.decision == "confirmed" {
+            out.push(DocTypeView { id: decided.id, stages: Vec::new(), data: Vec::new(), name: decided.name });
+        }
+    }
+    Ok(out)
 }
 
 #[derive(Debug, Serialize)]
@@ -519,6 +577,8 @@ pub struct DocTypeView {
     pub id: String,
     pub stages: Vec<String>,
     pub data: Vec<String>,
+    /// For a type a person confirmed: its name. The catalog's are named by the vocabulary.
+    pub name: Option<String>,
 }
 
 /// Questions a run started by the user asks at most (R-16).

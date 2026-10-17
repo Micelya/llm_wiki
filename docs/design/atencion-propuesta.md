@@ -1,6 +1,6 @@
 # Vista única de atención — propuesta
 
-**Estado:** propuesta para revisar · 16 de octubre de 2026 · nada de esto está construido
+**Estado:** aprobada por el dueño y construida el 16 de octubre de 2026 en la rama `feat/attention-view` (sin integrar a `main`); lo firme pasó a la sección 13 del [documento de diseño](base-documental.md). Lo que quedó sin hacer está en `pendientes.json` (P-084 a P-089).
 **Alcance:** dónde y cómo le avisa la app a una persona que algo requiere su atención, y cómo lo resuelve. Precisa la sección 13 del [documento de diseño](base-documental.md) ("la lista de lo que requiere atención es una sola"). No describe código.
 
 Cuando esta propuesta esté acordada, lo que quede firme pasa al documento de diseño.
@@ -109,6 +109,8 @@ Algunas decisiones no se resuelven bien de a una fila. Para esas, la vista de at
 Hoy cada aviso sale de un lugar distinto: la base documental, la cola del wiki, el archivo de revisión de cada proyecto, la revisión de enlaces. La propuesta es que **cada parte de la app siga detectando lo suyo**, pero lo entregue con la misma forma: clase, tema, título, explicación, qué hacer, la acción y cuándo deja de ser cierto. La vista solo junta y ordena. Así, sumar más adelante plazos, tareas o aprobaciones es agregar una fuente, no rehacer la vista.
 
 ## 8. Decisiones abiertas
+
+*Resueltas por el dueño el 16 de octubre: (1) se llama "Atención", desde el vocabulario; (2) "misma plantilla" se confirma de a una familia, con un clic, en la vista de parecidos, sin escalarse; (3) la revisión estructural de enlaces corre sola al vaciarse la cola del wiki (solo la estructural, sin modelo); (4) la vista muestra los avisos del archivo y los del proyecto abierto; (5) por ahora no se puede posponer.*
 
 1. **El nombre de la vista** ("Atención", "Pendientes", "Bandeja"). Sale del vocabulario, así que puede cambiar por vertical.
 2. **"Misma plantilla" en el proceso.** No requiere una decisión urgente, pero las pasadas que vienen (mismo asunto, series y faltantes) solo se apoyan en lo que confirmó una persona (R-03). Dos caminos: confirmarla de a una familia por vez, con un clic, en la vista de parecidos, sin escalarla; o tratar "misma plantilla" como dato calculado que no necesita confirmación para esas pasadas, lo que exige revisar R-03.

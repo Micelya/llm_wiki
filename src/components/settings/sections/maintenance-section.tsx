@@ -232,7 +232,7 @@ export function MaintenanceSection() {
   // Poll the queue at 1Hz so the UI reflects pending → processing →
   // failed transitions and cross-window queue activity (e.g. a merge
   // that completed while the user was on a different settings tab).
-  // Same pattern activity-panel uses for ingest-queue.
+  // Same pattern the wiki queue source of the attention view uses.
   const [tasks, setTasks] = useState<readonly DedupTask[]>([])
   const [queueSummary, setQueueSummary] = useState(() => getQueueSummary())
   useEffect(() => {

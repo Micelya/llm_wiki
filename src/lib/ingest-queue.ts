@@ -626,6 +626,28 @@ export async function discardTasksForSources(
 }
 
 /**
+ * Takes these failed or cancelled tasks of the active project out of the
+ * queue for good: their documents are not incorporated until they are
+ * queued again. Pending and running tasks are left alone (cancel them
+ * first). Returns how many were removed.
+ */
+export async function removeStoppedTasks(taskIds: readonly string[]): Promise<number> {
+  const selected = new Set(taskIds)
+  const before = queue.length
+  queue = queue.filter(
+    (task) =>
+      !(
+        task.projectId === currentProjectId &&
+        selected.has(task.id) &&
+        (task.status === "failed" || task.status === "cancelled")
+      ),
+  )
+  const removed = before - queue.length
+  if (removed > 0) await saveQueue(currentProjectPath)
+  return removed
+}
+
+/**
  * Clear all done/failed tasks from the active project's queue.
  */
 export async function clearCompletedTasks(): Promise<void> {
@@ -977,6 +999,16 @@ async function onQueueDrained(projectId: string, projectPath: string, epoch: num
     await sweepResolvedReviews(projectPath, signal)
   } catch (err) {
     console.error("[Ingest Queue] Failed to load sweep-reviews:", err)
+  }
+  // The structural review of the wiki's links runs by itself once the
+  // queue empties (no model): the broken links the attention view counts
+  // are then the ones the link review shows.
+  try {
+    if (currentProjectId !== projectId || queueEpoch !== epoch || signal.aborted) return
+    const { refreshStructuralLint } = await import("@/lib/auto-structural-lint")
+    await refreshStructuralLint(projectPath, signal)
+  } catch (err) {
+    console.error("[Ingest Queue] Structural link review failed:", err)
   } finally {
     if (sweepAbortController && sweepAbortController.signal === signal) {
       sweepAbortController = null
