@@ -623,6 +623,8 @@ export function listSimilarRelations(): Promise<RelationDef[]> {
 export interface AskConfig {
   engine: "codex-cli"
   model: string
+  /** How much the model reasons; part of the engine's name in the base (D-274). */
+  reasoning?: "low" | "medium" | "high"
 }
 
 /** What a document is and in what stage (pass 4). */

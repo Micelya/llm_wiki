@@ -580,6 +580,13 @@
         "codexCliTimeout": "Timeout della CLI Codex",
         "codexCliTimeoutUnit": "minuti",
         "codexCliTimeoutHint": "Timeout complessivo di una singola richiesta alla CLI Codex. Aumentalo per l'elaborazione di PDF lunghi o per sessioni locali o di rete più lente.",
+        "codexReasoning": "Ragionamento di Codex",
+        "codexReasoningHint": "Quanto ragiona il modello prima di rispondere, per il wiki e per le domande sui documenti. Cambiarlo rifà le domande sui documenti con il nuovo livello.",
+        "codexReasoningLevel": {
+          "low": "Basso",
+          "medium": "Medio",
+          "high": "Alto"
+        },
         "requestTimeout": "Timeout delle richieste (minuti)",
         "requestTimeoutHint": "Aumentalo per i modelli locali su CPU lente. Il valore predefinito è 30 minuti.",
         "streamingOutput": "Risposte in streaming",

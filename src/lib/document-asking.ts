@@ -9,9 +9,10 @@
  */
 import type { AskConfig } from "@/commands/docbase"
 import { useWikiStore } from "@/stores/wiki-store"
+import { codexReasoningEffort } from "@/lib/codex-reasoning"
 
 export function getAskConfig(): AskConfig | null {
   const { llmConfig } = useWikiStore.getState()
   if (llmConfig.provider !== "codex-cli") return null
-  return { engine: "codex-cli", model: llmConfig.model }
+  return { engine: "codex-cli", model: llmConfig.model, reasoning: codexReasoningEffort(llmConfig.codexReasoningEffort) }
 }

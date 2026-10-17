@@ -1,3 +1,4 @@
+import { CODEX_REASONING_LEVELS, codexReasoningEffort } from "@/lib/codex-reasoning"
 import { useEffect, useMemo, useState } from "react"
 import { ChevronDown, ChevronRight, AlertCircle, CheckCircle2, Loader2, XCircle, Plus, Trash2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
@@ -384,6 +385,7 @@ function PresetRow({
   const ingestReasoning = ov.ingestReasoning ?? { mode: "off" as const }
   const localCliIsolation = ov.localCliIsolation === true
   const codexCliTimeoutMinutes = Math.max(1, Math.min(240, ov.codexCliTimeoutMinutes ?? 10))
+  const codexReasoning = codexReasoningEffort(ov.codexReasoningEffort)
   const requestTimeoutMinutes = Math.max(1, Math.min(1440, ov.requestTimeoutMinutes ?? 30))
   const streamingEnabled = ov.streamingEnabled !== false
   const [headersText, setHeadersText] = useState(() => llmHeadersToText(ov.customHeaders))
@@ -650,6 +652,27 @@ function PresetRow({
               </div>
               <p className="text-xs text-muted-foreground">
                 {t("settings.sections.llm.codexCliTimeoutHint")}
+              </p>
+            </div>
+          )}
+
+          {preset.provider === "codex-cli" && (
+            <div className="space-y-2 rounded-md border p-3">
+              <Label htmlFor={`codex-reasoning-${preset.id}`}>{t("settings.sections.llm.codexReasoning")}</Label>
+              <select
+                id={`codex-reasoning-${preset.id}`}
+                className="h-9 w-40 rounded-md border bg-background px-2 text-sm"
+                value={codexReasoning}
+                onChange={(e) => onChange({ codexReasoningEffort: codexReasoningEffort(e.target.value) })}
+              >
+                {CODEX_REASONING_LEVELS.map((level) => (
+                  <option key={level} value={level}>
+                    {t(`settings.sections.llm.codexReasoningLevel.${level}`)}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                {t("settings.sections.llm.codexReasoningHint")}
               </p>
             </div>
           )}
