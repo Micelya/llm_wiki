@@ -4142,3 +4142,68 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** Fuera del repositorio: `desatendido-4/N3-correr.sh`, `N3-resumenes.py`, `N3-juicio/`, `N3-resumenes/`.
 - **Quién decidió:** agente sin consulta.
 - **Fuente:** etapa N3 de la tanda desatendida del 18 oct.
+
+### D-340 · Una página por documento o por familia de versiones, escrita por la base
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Wiki
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** Cada archivo tenía su página de documento: una copia en Word y en PDF, un borrador y su ejemplar firmado eran páginas distintas que repetían lo mismo, y la página dependía de que la incorporación la hubiera creado. Lo acordado con el dueño (D-293, punto 4) es una página común solo para versiones del mismo documento, y que cada dato diga de qué versión sale.
+- **Qué se decidió:** La proyección de la capa escribe la página de cada documento del wiki del archivo, haya o no página previa. Los documentos unidos por una relación de `pages.versionRelations` (mismo documento, prácticamente el mismo, ejemplar firmado, versión, vista previa), propuesta por el cálculo de parecidos —de certeza alta o baja— o confirmada por una persona, y nunca descartada, comparten una página (también dos que una persona unió eligiendo cuál lee el wiki). La página lleva el nombre del archivo de la versión elegida por la persona, o de la que es sujeto de una relación de `pages.principalRelations` (el ejemplar firmado), o de la primera; su identificador es `doc-<número del primer contenido>`, y su archivo es el que ya tenía (o la página vieja de una de sus versiones, para que no se rompan enlaces ni notas) o uno nuevo con su título. Contenido, solo desde la base: título, tema del resumen, tipo, etapa y fecha, el bloque de personas, organizaciones y asunto con su rol (enlazados), las versiones con su tipo, fecha, ubicaciones y relación entre ellas (con «propuesta por el cálculo de parecidos, sin confirmar» o «confirmada por una persona»), las ubicaciones (si es una sola versión), los datos del tipo, «Lo esencial», los importes del registro, los documentos relacionados que no son versiones (misma plantilla, contenido en, constancia de firma…) enlazados a su página, y las notas. Los documentos de la misma plantilla son páginas distintas. Proyección versión 10; el cálculo de lo que cambió incluye las familias, resúmenes, tipos y datos.
+- **Por qué:** Principios 1 y 3 de la propuesta, D-293 y D-294. Medido sobre `N3-base` contra la hoja de parecidos: con solo certeza alta, 16 de 19 pares de «mismo documento» quedan juntos; con certeza alta y baja, 18 de 19, y en los dos casos 0 de 60 pares distintos unidos. La certeza baja se muestra en la página y una persona la descarta con la acción de parecidos que ya existe (las versiones vuelven a páginas separadas).
+- **Alternativas descartadas:** Solo relaciones de certeza alta (dos pares de la hoja quedan partidos); incluir «contenido en» y «misma plantilla» (no son versiones: D-293); páginas armadas al mostrarse (D-294: archivo generado por ahora).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/pages/family.rs` (familias, ruta, texto), `pages.rs` (proyección, bloque de varias versiones), `resources/catalog/knowledge.json` (`pages.documentsFolder`, `versionRelations`, `principalRelations`, palabras `doc…` y `rel-…`), `vocabulary.rs`; pruebas `tests_pages.rs`. Reemplaza en parte D-331 (ya no se conserva la página vieja hasta la relectura; el bloque va arriba, debajo de lo que es el documento).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N4 de la tanda desatendida del 18 oct.
+
+### D-341 · Cada punto, dato e importe de una página de versiones dice de qué versión sale
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Wiki
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** En una página común de versiones hay que ver de dónde sale cada cosa, y si dos versiones difieren en un dato, ver los dos (D-293).
+- **Qué se decidió:** Las versiones se nombran por su etapa (con un número si dos tienen la misma) o «versión». Un punto del resumen aparece una vez y lleva entre paréntesis las versiones cuyo texto tiene su cita, salvo que estén todas; un punto de otra versión del mismo pasaje no se repite. Los datos del tipo van en una línea por campo con cada valor y sus versiones; los importes, con las versiones de su evidencia. Una nota bajo la lista de versiones explica que lo que no dice versión está en todas.
+- **Por qué:** D-293, punto 4: si las versiones dicen cosas distintas se muestran las dos.
+- **Alternativas descartadas:** Un resumen completo por versión (repite casi todo, porque las versiones comparten casi todo el texto); mostrar solo la versión principal (esconde lo que cambia).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/pages/family.rs` (`render_document`); prueba `the_versions_of_a_document_share_a_page_and_say_which_version_says_what`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N4 de la tanda desatendida del 18 oct.
+
+### D-342 · La página de un documento solo tiene lo que sabe la base y las notas; las páginas viejas se absorben
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Wiki
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** El wiki tenía una página por archivo escrita por la incorporación anterior, con texto del modelo, y la incorporación nueva crea una página mínima por archivo. Había que pasar a una página por documento sin perder notas ni enlaces, y comprobar que nada en el wiki diga algo que no sale de la base (principio 1).
+- **Qué se decidió:** En cada proyección, una página de documento del wiki que no es la de su familia (la página vieja de una copia o versión, la página mínima que crea la incorporación para otra copia, la de una versión que se unió a otra) se borra: sus notas pasan a las notas de la página del documento y los enlaces a ella se redirigen ahí. El texto que no es notas se reescribe siempre con lo que dice la base: un cambio a mano fuera de las notas se pierde en la proyección siguiente. La incorporación sigue creando la página mínima de un archivo nuevo (así el documento tiene página enseguida); si es otra copia de un documento que ya tiene página, la base la absorbe.
+- **Por qué:** Principio 1 y especificación de N4 (migración sin perder notas, prueba automática de redundancia). Medido sobre `N3-base` con el wiki real de partida copiado: 66 páginas de documento → 59 (6 con versiones, 7 absorbidas, 9 enlaces redirigidos), 0 páginas no escritas por la base y 0 reescritas al proyectar otra vez. Prueba `a_document_page_holds_only_what_the_base_knows_and_the_notes`.
+- **Alternativas descartadas:** Conservar el texto viejo como nota (mezclaría texto del modelo con las notas de una persona para siempre); que la incorporación deje de crear la página mínima (el documento quedaría sin página hasta la proyección y cambiaba más código de TypeScript con el ciclo de vida de los archivos).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/pages.rs` (`project`), `check_pages.rs` (medición), `src/lib/ingest.ts` (comentario de `ingestIntoArchiveWiki`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N4 de la tanda desatendida del 18 oct.
+
+### D-343 · El resumen de la lectura trae importes, fechas clave y números, y en una constancia de firma qué se firmó
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Capa de conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** El revisor a ciegas de N3 encontró los resúmenes fieles pero incompletos (completitud 1,9 de 3): faltaban totales, fechas de emisión y vencimiento, el número de la factura que se rechaza, y en una constancia de firma qué se firmó y quiénes (P-171).
+- **Qué se decidió:** La consigna de la lectura (`conocimiento-5`) pide que los puntos traigan, tal como están escritos, los importes (el total y cómo se compone), las fechas clave y los números que identifican el documento, cada uno en un punto cuya cita lo tenga (dos datos en lugares distintos, dos puntos), que no diga «la factura mencionada» si el texto dice cuál, y que en la constancia de un servicio de firma electrónica diga qué documento se firmó, quiénes, cuándo y si quedó completo. Hasta ocho puntos. Todos los documentos se releen con la consigna nueva (en N6).
+- **Por qué:** Medido sin lectura completa: 7 documentos releídos con `gpt-6-luna` alto sobre una copia de `N3-base` (los demás con su respuesta anterior trasplantada), revisor a ciegas (otro agente, sin la clave): fieles 7 de 7 las dos; completitud 1,71 → 2,57 de 3; utilidad 1,86 → 2,71; prefirió la nueva en 6 y empató en 1 (una boleta donde ninguna da total ni vencimiento). Casos críticos de esa copia 33 de 46 (igual). Las dos lecturas completas de N6 miden el resto.
+- **Alternativas descartadas:** Agregar los importes al resumen por cálculo (ya están en la página desde el registro, D-331; el resumen es para quien no leyó el documento); una pregunta aparte para el resumen (rompe la lectura única).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/extract.rs` (consigna y `KNOWLEDGE_PROMPT`). Medición fuera del repositorio: `desatendido-4/N4-trasplante.py`, `N4-p171-comparar.py`, `N4-p171-juicio/`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N4 de la tanda desatendida del 18 oct.
+
+### D-344 · La carta en Word y en PDF propuesta como «parecido» está bien: no se cambia la regla (P-210)
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Base documental
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** N7 anotó que una carta en Word y otra en PDF con cobertura 0,94 quedaban como «parecido» y no como versión, y pidió revisar la regla de propuesta del cálculo de parecidos (P-210).
+- **Qué se decidió:** No cambiar la regla. Revisado contra los textos y la hoja de parecidos: las dos cartas rechazan facturas distintas con fechas distintas; la hoja las tiene como «misma plantilla», confirmado por una persona. La regla del tipo («si cambia el número de factura son documentos distintos») acierta; el juicio de N7 fue el que se equivocó. Ninguno de los pares de «mismo documento» de la hoja queda mal por esta regla (18 de 19 juntos; el que falta es una vista previa que el cálculo propone como «contenido en», P-180).
+- **Por qué:** R-17: un arreglo sin mejora medida no entra; acá empeoraría (uniría dos documentos distintos).
+- **Alternativas descartadas:** Proponer versión por cobertura alta aunque cambie un dato que distingue documentos (uniría dos cartas sobre facturas distintas).
+- **Dónde se aplica:** Ningún cambio de código. Medición: `desatendido-4/N4-familias.py`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N4 de la tanda desatendida del 18 oct.
