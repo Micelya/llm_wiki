@@ -277,6 +277,8 @@ fn store(tx: &Transaction<'_>, content_id: i64, text: &str, engine: &str, state:
                 .map_err(sql_err)?;
             tx.execute("DELETE FROM content_fts WHERE rowid = ?1", [content_id])
                 .map_err(sql_err)?;
+            tx.execute("DELETE FROM content_search WHERE rowid = ?1", [content_id])
+                .map_err(sql_err)?;
             tx.execute("DELETE FROM content WHERE id = ?1", [content_id])
                 .map_err(sql_err)?;
             return Ok(twin);
@@ -301,6 +303,7 @@ fn store(tx: &Transaction<'_>, content_id: i64, text: &str, engine: &str, state:
         .map_err(sql_err)?;
     tx.execute("INSERT INTO content_fts (rowid, body) VALUES (?1, ?2)", params![content_id, text])
         .map_err(sql_err)?;
+    super::search::index_content(tx, content_id)?;
     Ok(content_id)
 }
 

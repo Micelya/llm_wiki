@@ -413,6 +413,14 @@ pub async fn search_project_inner(
             }
         }
     }
+    // The wiki of the archive: its search comes from the base (D-350).
+    if let Some(base) = crate::docbase::bridge::base_for_project(&project_path) {
+        match search_from_base(base, &project_path, &query, limit, include_content, &results) {
+            Ok(Some(response)) => return Ok(response),
+            Ok(None) => {}
+            Err(err) => eprintln!("[Search] the base could not search; using the pages: {err}"),
+        }
+    }
     let legacy_page_paths = legacy_stem_candidates
         .into_iter()
         .filter_map(|(stem, paths)| (paths.len() == 1).then(|| (stem, paths[0].clone())))
@@ -493,6 +501,100 @@ pub async fn search_project_inner(
         graph_hits,
         results,
     })
+}
+
+/// Pages of entities the question names that the results carry, at most
+/// (the most specific first): the documents keep the other places. One
+/// page costs one document of 104 in the questions of the test folder and
+/// brings what the record knows of the entity (D-352).
+const NAMED_ENTITY_PAGES: usize = 1;
+
+/// The search of the wiki of the archive (D-350): the base searches the
+/// text, numbers and summaries of every visible document, and the graph of
+/// the base orders and widens what it finds without taking anything out.
+/// Each document is answered with its page (versions share one, D-340);
+/// the person, organization or matter the question names most
+/// specifically adds its page after the documents. `None` while no document has a page yet.
+fn search_from_base(
+    base: &crate::docbase::DocBase,
+    project_path: &str,
+    query: &str,
+    limit: usize,
+    include_content: bool,
+    wiki_hits: &[ProjectSearchResult],
+) -> Result<Option<ProjectSearchResponse>, String> {
+    let pages = base.document_pages()?;
+    if pages.is_empty() {
+        return Ok(None);
+    }
+    // Every screen of the private space sees the whole base today; the
+    // shared space will pass the set of each person here.
+    let visible = crate::docbase::Visible::All;
+    let found = base.search_documents(&visible, query, (limit * 4).max(40), None)?;
+    let entity_pages = base.entity_pages(&found.named)?;
+    let entity_slots = entity_pages.len().min(NAMED_ENTITY_PAGES).min(limit.saturating_sub(1));
+    let titles: BTreeMap<String, String> =
+        wiki_hits.iter().map(|hit| (normalize_path(&hit.path), hit.title.clone())).collect();
+    let mut results: Vec<ProjectSearchResult> = Vec::new();
+    let mut seen = BTreeSet::new();
+    let related_names = |entities: &[String]| -> Vec<String> {
+        entities.iter().filter_map(|id| found.names.get(id).cloned()).collect()
+    };
+    for hit in &found.hits {
+        if results.len() >= limit - entity_slots {
+            break;
+        }
+        let Some(path) = pages.get(&hit.content_id) else { continue };
+        if !seen.insert(normalize_path(path)) {
+            continue;
+        }
+        results.push(page_result(project_path, path, &titles, &hit.snippet, hit.score, include_content, related_names(&hit.entities)));
+    }
+    let lowest = results.last().map(|r| r.score).unwrap_or(1.0);
+    for id in &found.named {
+        if results.len() >= limit {
+            break;
+        }
+        let Some(path) = entity_pages.get(id) else { continue };
+        if !seen.insert(normalize_path(path)) {
+            continue;
+        }
+        let name = found.names.get(id).cloned().unwrap_or_default();
+        results.push(page_result(project_path, path, &titles, "", lowest * 0.99, include_content, vec![name]));
+    }
+    let graph_hits = results.iter().filter(|r| !r.graph_related_to.is_empty()).count();
+    Ok(Some(ProjectSearchResponse {
+        mode: "base".to_string(),
+        token_hits: found.hits.len(),
+        vector_hits: 0,
+        graph_hits,
+        results,
+    }))
+}
+
+fn page_result(
+    project_path: &str,
+    path: &str,
+    titles: &BTreeMap<String, String>,
+    snippet: &str,
+    score: f64,
+    include_content: bool,
+    related: Vec<String>,
+) -> ProjectSearchResult {
+    let content = fs::read_to_string(Path::new(project_path).join(path)).unwrap_or_default();
+    let file_name = Path::new(path).file_name().and_then(|n| n.to_str()).unwrap_or_default().to_string();
+    let title = titles.get(&normalize_path(path)).cloned().unwrap_or_else(|| extract_title(&content, &file_name));
+    ProjectSearchResult {
+        path: path.to_string(),
+        title,
+        snippet: snippet.to_string(),
+        title_match: false,
+        score,
+        vector_score: None,
+        images: extract_image_refs(&content),
+        content: include_content.then_some(content),
+        graph_related_to: related,
+    }
 }
 
 fn apply_rrf_scores(
@@ -2462,6 +2564,8 @@ mod tests {
     /// - `MICELYA_SEARCH_PROJECT`: the wiki project folder (the one with `wiki/`).
     /// - `MICELYA_SEARCH_OUT`: where to write the results (JSON).
     /// - `MICELYA_SEARCH_TOPK`: results per question (default 10, as the chat asks).
+    /// - `MICELYA_SEARCH_BASE`: a copy of a base whose general project becomes
+    ///   `MICELYA_SEARCH_PROJECT`, to measure the search from the base.
     #[tokio::test]
     #[ignore]
     async fn search_questions_from_env() {
@@ -2473,6 +2577,15 @@ mod tests {
             .ok()
             .and_then(|value| value.parse::<usize>().ok())
             .unwrap_or(10);
+        // With MICELYA_SEARCH_BASE (a COPY of a base), the project is its
+        // general project's wiki and the search comes from the base (D-350).
+        if let Ok(base_path) = std::env::var("MICELYA_SEARCH_BASE") {
+            let base = crate::docbase::DocBase::open(Path::new(&base_path)).unwrap();
+            base.conn()
+                .execute("UPDATE project SET path = ?1 WHERE kind = 'general'", [&project])
+                .unwrap();
+            crate::docbase::bridge::share(std::sync::Arc::new(base));
+        }
         let sheet: Value =
             serde_json::from_str(&fs::read_to_string(&questions_path).unwrap()).unwrap();
         let mut rows = Vec::new();

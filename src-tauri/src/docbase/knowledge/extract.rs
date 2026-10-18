@@ -1834,6 +1834,8 @@ fn write_reading(
     .map_err(sql_err)?;
     // Its mentions changed: the resolution of identities looks at it again.
     mark_dirty(&tx, "resolve", &pending.content_id.to_string())?;
+    // Its summary changed: the search finds it by its summary (D-350).
+    crate::docbase::search::index_content(&tx, pending.content_id)?;
     tx.commit().map_err(sql_err)
 }
 

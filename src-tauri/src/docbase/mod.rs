@@ -25,6 +25,7 @@ pub mod knowledge;
 pub mod labels;
 pub mod origins;
 pub mod query;
+pub mod search;
 mod scan;
 mod schema;
 pub mod similar;
@@ -122,6 +123,7 @@ impl DocBase {
         conn.pragma_update(None, "foreign_keys", "ON")
             .map_err(|e| format!("Failed to enable foreign keys: {e}"))?;
         schema::migrate(&mut conn)?;
+        search::fill_missing(&conn)?;
         let base = Self {
             conn: Mutex::new(conn),
         };

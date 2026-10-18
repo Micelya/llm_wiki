@@ -10,7 +10,20 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14, V15, V16];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14, V15, V16, V17];
+
+/// What the search keeps of each document besides its text (D-350): its
+/// numbers and identifiers as digits alone (`numbers`, so "12.345.678"
+/// and "12345678" are one) and its summary in the language of the archive
+/// (`summary`). The rowid is the content id; `search::fill_missing` fills
+/// it on opening and `search::index_content` keeps it up to date.
+const V17: &str = "
+CREATE VIRTUAL TABLE content_search USING fts5 (
+    numbers,
+    summary,
+    tokenize = 'unicode61 remove_diacritics 2'
+);
+";
 
 /// The summary of each document (D-330): one more thing the one reading
 /// of the knowledge layer gives, written and replaced with it. `points` is

@@ -229,6 +229,7 @@ impl DocBase {
         let dropped = tx
             .execute("DELETE FROM content WHERE id NOT IN (SELECT content_id FROM file)", [])
             .map_err(sql_err)?;
+        super::search::forget_gone(&tx)?;
         tx.commit().map_err(sql_err)?;
         Ok(dropped)
     }
