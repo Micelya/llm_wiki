@@ -1474,6 +1474,30 @@
       "referencia": "src/lib/codex-reasoning.ts; src-tauri/src/source_volume/asking.rs",
       "creado": "2026-10-17",
       "actualizado": "2026-10-17"
+    },
+    {
+      "id": "P-141",
+      "titulo": "Aislar la configuración y el uso de los servicios de IA",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Pedido del dueño del 2026-10-17 (D-291): Micelya Core va a ofrecer los servicios de IA (preguntas, lectura de imágenes, vectores) con sus proveedores configurables; la app debe poder usarlo y mantener proveedores propios. Agrupar la configuración y el uso en un solo lugar, con un contrato por servicio, para que Core sea un proveedor más. No es el foco ahora; hacerlo cuando se toque esa parte.",
+      "depende_de": [],
+      "referencia": "docs/design/wiki-sobre-la-base-propuesta.md (sección 9); D-291; P-063; P-140",
+      "creado": "2026-10-17",
+      "actualizado": "2026-10-17"
+    },
+    {
+      "id": "P-142",
+      "titulo": "Revisar la propuesta del wiki como presentación de la base",
+      "tipo": "decision",
+      "responsable": "usuario",
+      "estado": "pendiente",
+      "detalle": "Propuesta escrita el 2026-10-17: una sola lectura del modelo por documento, páginas desde la base (una por documento o familia), grafo y enlaces desde la base, búsqueda con el índice de texto de la base, vectores y grafo combinados, conceptos propuestos por cálculo (hipótesis a medir), y qué procesos heredados se quitan. Cuatro decisiones abiertas en su sección 11.",
+      "depende_de": [],
+      "referencia": "docs/design/wiki-sobre-la-base-propuesta.md; D-290",
+      "creado": "2026-10-17",
+      "actualizado": "2026-10-17"
     }
   ]
 }
