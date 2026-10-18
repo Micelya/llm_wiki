@@ -25,18 +25,18 @@ Una **capa de conocimiento** dentro de la base del espacio, con un registro prop
 
 El wiki pasa a ser una **proyección** de ese registro: la página de una entidad se arma desde él y se rehace cuando cambia lo que se sabe de ella.
 
-**El control que ordena todo:** toda mención y toda afirmación que extrae el modelo trae su cita textual, y **un cálculo comprueba que la cita está en el texto del documento**, con la misma normalización que usa la base (sin mayúsculas, acentos ni puntuación). Lo que no se encuentra se descarta y se cuenta. Así todo queda anclado a una fuente (R-01), y escribir páginas desde afirmaciones verificadas no es inferir sobre lo inferido (R-02): cada frase de la página remite a una cita comprobada.
+**El control que ordena todo:** toda mención y toda afirmación que extrae el modelo trae su cita textual, y **un cálculo comprueba que la cita está en el texto del documento**, con la misma normalización que usa la base (sin mayúsculas, acentos ni puntuación). Lo que no se encuentra se descarta y se cuenta. Así todo queda anclado a una fuente (R-01), y escribir páginas desde afirmaciones con cita comprobada no es inferir sobre lo inferido (R-02): cada frase de la página remite a una cita comprobada. La cita comprobada prueba que el texto existe, no que la lectura sea correcta: por eso cada afirmación lleva además su certeza y quién la confirmó (D-293).
 
 ## 3. Definiciones del dueño del producto
 
 Acordadas el 16 de octubre de 2026 (D-170 a D-176):
 
 - **Una capa nueva, con registro propio** (alternativa B), dentro de la base del espacio. Es una divergencia fuerte con el proyecto original, y está bien (D-151).
-- **Toda afirmación lleva cita verificada por cálculo.** Varias evidencias para lo mismo no la duplican. Las contradicciones se guardan y se muestran; nunca gana el último.
+- **Toda afirmación lleva cita comprobada por cálculo, su certeza y quién la confirmó** (el modelo, una regla, una persona; D-293). La cita no prueba la lectura: lo dudoso se muestra como dudoso. Varias evidencias para lo mismo no la duplican. Las contradicciones se guardan y se muestran; nunca gana el último.
 - **Tipos iniciales: persona, organización y asunto** (expediente, caso, contrato marco), con el rol de cada mención. Los tipos, roles y predicados son datos, no código. Conceptos, productos y eventos quedan para después.
 - **La identidad se resuelve en cascada y con abstención:** mismo identificador (DNI, CUIT, matrícula, número de expediente) se une solo y se puede deshacer; identificador distinto no se une nunca; lo demás, por nombre y contexto, y el modelo para lo difícil; lo dudoso va a una persona. Ante la duda no se une (R-07).
 - **Lo que decide una persona** se guarda como en los parecidos: firme, reversible, con la evidencia que se le mostró, nunca pisado por un recálculo (R-08, R-09).
-- **La página de una entidad es una proyección del registro:** la lista completa de sus documentos agrupada por asunto, sin modelo; y una síntesis escrita por el modelo solo desde afirmaciones verificadas. Las notas de una persona van en una sección que la app nunca reescribe. La incorporación del wiki deja de crear páginas de entidad y se adapta a un estudio jurídico. No se busca compatibilidad con Obsidian.
+- **La página de una entidad es una proyección del registro:** la lista completa de sus documentos agrupada por asunto, sin modelo; y una síntesis escrita por el modelo solo desde afirmaciones con cita comprobada, que escribe lo dudoso como dudoso. Las notas de una persona van en una sección que la app nunca reescribe. La incorporación del wiki deja de crear páginas de entidad y se adapta a un estudio jurídico. No se busca compatibilidad con Obsidian.
 - **Sin derivaciones por reglas en esta etapa,** y todo incremental: un documento nuevo, cambiado o borrado toca solo lo suyo. El costo de modelo aprobado: una lectura por documento, preguntas sueltas para lo dudoso y un texto por entidad tocada.
 
 ## 4. Conceptos
@@ -54,7 +54,7 @@ erDiagram
     DECISION }o--o{ ENTIDAD : "une o separa"
 
     MENCION { string escrito "como lo escribe el documento" }
-    EVIDENCIA { string cita "verificada en el texto" }
+    EVIDENCIA { string cita "comprobada en el texto" }
     AFIRMACION { string estado "respaldada, en conflicto, retirada, pendiente" }
 ```
 
@@ -139,7 +139,7 @@ Una **hoja de respuestas de entidades** hecha leyendo los documentos de la carpe
 
 Se mide por separado (R-17):
 
-- **Extracción:** menciones encontradas y acertadas por documento (por nombre normalizado y tipo), roles acertados, afirmaciones encontradas, citas verificadas y descartadas.
+- **Extracción:** menciones encontradas y acertadas por documento (por nombre normalizado y tipo), roles acertados, afirmaciones encontradas, citas comprobadas y descartadas.
 - **Identidad:** uniones falsas y separaciones falsas, por separado. Una unión falsa pesa mucho más.
 - **Proyección:** que cada página tenga todos los documentos de su entidad y que cada frase remita a una cita.
 - **Cambios:** que borrar un documento retire lo suyo y nada más; que reprocesar sin cambios no cambie nada. Sobre el archivo real: excluir el documento que más entidades nombra y devolverlo (D-208).
@@ -151,7 +151,7 @@ Una prueba comprueba además que ni el programa ni el vocabulario de la capa con
 ## 10. Límites
 
 - **Lo que el modelo no ve, no está.** Una mención que el modelo no extrae no se recupera con cálculo. La hoja dice cuánto se escapa.
-- **La cita verificada prueba que el texto existe, no que la lectura sea correcta.** El modelo puede atribuir una cita a la persona equivocada; la cita a la vista permite que una persona lo note.
+- **La cita comprobada prueba que el texto existe, no que la lectura sea correcta.** El modelo puede atribuir una cita a la persona equivocada; la cita a la vista permite que una persona lo note.
 - **Los escaneos traen errores de lectura.** Un identificador mal leído separa a una persona (el error menos grave) y aparece como dudoso.
 - **Una sola página por cita.** El texto de la base ubica por página, no por párrafo.
 - **Sin derivaciones:** "A dirige B" y "B firmó C" no dan "A firmó C".
@@ -166,7 +166,7 @@ Una prueba comprueba además que ni el programa ni el vocabulario de la capa con
 
 ## 12. Etapas
 
-1. **Extracción** (construida): modelo de datos, vocabulario, extracción con cita verificada, trabajo de fondo, estado para las pantallas y evaluación contra la hoja. Sin pantallas.
+1. **Extracción** (construida): modelo de datos, vocabulario, extracción con cita comprobada, trabajo de fondo, estado para las pantallas y evaluación contra la hoja. Sin pantallas.
 2. **Resolución de identidad** (construida) con abstención, decisiones de una persona, consolidación de afirmaciones y evaluación de uniones y separaciones falsas. Sin pantallas: deja los comandos para consultar entidades y dudas y para decidir.
 3. **Proyección** (construida): páginas de entidad desde el registro, bloque de entidades en la página de cada documento, resumen del archivo e índice completo por tipo; la incorporación del wiki deja de crear páginas de entidad en el archivo y sus instrucciones son las de un estudio jurídico (D-195 a D-204).
 4. **Cambios y borrados** (construida): retiro de evidencia, lo que pasa al documento que toma el lugar de otro, lo excluido y lo unido, y rehacer solo lo afectado (D-205 a D-208).

@@ -1,6 +1,6 @@
 # Registro de decisiones
 
-**Proyecto:** Micelya Desktop (repositorio `Micelya/llm_wiki`) · **Al 16 de octubre de 2026**
+**Proyecto:** Micelya Desktop (repositorio `Micelya/llm_wiki`) · **Al 18 de octubre de 2026**
 
 ## Qué es y cómo usarlo
 
@@ -285,6 +285,10 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-290 | 17 oct | Producto | Chat, búsqueda y grafo se conservan, sin redundancias ni usos del modelo innecesarios; revisar los procesos heredados | vigente |
 | D-291 | 17 oct | IA | Micelya Core ofrecerá los servicios de IA (también vectores); la app mantiene proveedores configurables y aísla su configuración | vigente |
 | D-292 | 18 oct | Proceso de trabajo | La comprobación de los PR corre en todo PR, apunte a la rama que apunte; no apilar PR salvo que sea inevitable | vigente |
+| D-293 | 18 oct | Wiki | Ajustes al rediseño: certeza y quién confirmó cada afirmación; el grafo ordena y no recorta; una extracción principal; página común solo para versiones; asunto sin mínimo de documentos | vigente |
+| D-294 | 18 oct | Wiki | Decisiones abiertas resueltas: página del documento generada por ahora; asunto según P-061, no se construye aún; internet aparte y a pedido; vectores sin decidir | vigente |
+| D-295 | 18 oct | Conocimiento | Conceptos por cálculo: por ahora solo medición de pasajes repetidos, fuera del repositorio | vigente |
+| D-296 | 18 oct | Proceso de trabajo | Prioridad: atribución, importes y uniones falsas primero; en errores críticos hay que demostrar mejora con dos corridas comparables | vigente |
 
 ---
 
@@ -3813,3 +3817,55 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** `.github/workflows/ci.yml`; `CLAUDE.md`.
 - **Quién decidió:** dueño del producto.
 - **Fuente:** conversación del 18 oct.
+
+### D-293 · Ajustes al rediseño del wiki sobre la base
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Wiki
+- **Estado:** vigente
+- **El problema:** la propuesta "el wiki como presentación de la base" (P-142) prometía más de lo que garantizaba en varios puntos: llamaba "verificadas" a afirmaciones cuya cita existe pero cuya lectura puede estar mal; dejaba que el grafo recortara la búsqueda, con lo que un documento relevante sin relación cargada desaparecería; hablaba de "una sola lectura" sin decir qué se reutiliza ni qué pasa con las correcciones de una persona en una relectura; juntaba en una página documentos que no son versiones de uno; y ataba el asunto a la cantidad de documentos.
+- **Qué se decidió:** (1) Cada afirmación lleva su certeza y quién la confirmó; la síntesis escribe lo dudoso como dudoso; se dice "con cita comprobada", no "verificada"; una corrección hecha una vez se propaga porque las páginas se arman desde el registro. (2) El grafo ordena y amplía, no recorta: la búsqueda siempre recorre todo lo visible, salvo que la persona elija a propósito un conjunto (por ejemplo, un asunto); se mide cuántos documentos relevantes se perderían si el grafo recortara. (3) "Una lectura" quiere decir no repetir trabajo: una extracción principal por contenido y configuración, reutilizada por todo; una comprobación extra con el modelo solo si su mejora está medida; las decisiones de una persona (unir, separar, incorrecto) sobreviven a una relectura. (4) Página común solo para versiones del mismo documento (borrador, firmado, vista previa); cada afirmación dice de qué versión sale y, si difieren, se ven las dos; documentos de la misma plantilla son páginas distintas. (5) El asunto no depende de cuántos documentos tiene (la regla de dos documentos vale solo para la agrupación automática); un solo concepto de asunto (P-061) que lo propone la extracción, lo crea una persona o lo propone una regla de carpeta.
+- **Por qué:** que el producto no prometa más de lo que garantiza, que la búsqueda no pierda documentos por una relación faltante y que el trabajo del modelo y de las personas no se repita ni se pierda.
+- **Alternativas descartadas:** la propuesta del 17 oct tal como estaba (grafo que acota, "afirmaciones verificadas", asunto solo con dos o más documentos).
+- **Dónde se aplica:** `docs/design/wiki-sobre-la-base-propuesta.md` (secciones 2, 3, 5, 7 y 10); `docs/design/conocimiento-propuesta.md`; P-142; P-061.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 18 oct (análisis externo revisado contra el código).
+
+### D-294 · Decisiones abiertas del rediseño del wiki, resueltas
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Wiki
+- **Estado:** vigente
+- **El problema:** la propuesta del 17 oct dejaba cuatro decisiones abiertas (sección 11) que bloqueaban su construcción: cómo existe la página del documento, cómo nace un asunto, qué pasa con la investigación en internet y con qué proveedor de vectores se empieza.
+- **Qué se decidió:** (1) La página del documento es por ahora un archivo generado, como las de entidad (regenerable, notas protegidas); pasa a armarse al mostrarse cuando la búsqueda y el grafo lean de la base. (2) El asunto queda como en D-293, punto 5; no se construye todavía. (3) La investigación en internet es una herramienta aparte, a pedido, que nunca escribe en la base ni en el wiki del archivo; por ahora solo se desconecta de la generación del wiki. (4) El proveedor de vectores no se decide todavía; los vectores no entran en esta etapa.
+- **Por qué:** destrabar la construcción con lo que hoy se puede medir, sin adelantar decisiones que dependen de Micelya Core o de cómo se usa el asunto.
+- **Alternativas descartadas:** armar la página del documento al mostrarse desde ya (requiere que la búsqueda y el grafo lean de la base primero); quitar la investigación en internet.
+- **Dónde se aplica:** `docs/design/wiki-sobre-la-base-propuesta.md` (secciones 4, 5 y 11); P-142; P-061.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 18 oct (análisis externo revisado contra el código).
+
+### D-295 · Conceptos por cálculo: por ahora solo medición de pasajes repetidos
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** vigente
+- **El problema:** la propuesta quita los conceptos por documento (casi todos cláusulas de un solo contrato) y plantea, como hipótesis, conceptos propuestos por cálculo: pasajes que se repiten en documentos distintos y la misma idea dicha con otras palabras. La segunda mitad necesita vectores, que no entran todavía.
+- **Qué se decidió:** por ahora solo se mide la mitad de los pasajes repetidos, fuera del repositorio y sin pantallas: cuántos grupos salen y cuántos son cláusulas o figuras reconocibles. La mitad "la misma idea con otras palabras" espera a los vectores.
+- **Por qué:** decidir con números si los conceptos por cálculo valen la pena antes de construirlos.
+- **Alternativas descartadas:** construir los conceptos por cálculo ya; conservar los conceptos por documento.
+- **Dónde se aplica:** `docs/design/wiki-sobre-la-base-propuesta.md` (sección 8); P-142.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 18 oct (análisis externo revisado contra el código).
+
+### D-296 · Orden de prioridad y criterio "demostrar mejora"
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Proceso de trabajo
+- **Estado:** vigente
+- **El problema:** el wiki generado el 17 oct tiene errores críticos (atribución a la persona equivocada, importes mal leídos, uniones falsas) junto con mejoras de forma pendientes. Medir solo que algo "no empeora" no alcanza para saber si un error crítico quedó corregido.
+- **Qué se decidió:** el orden de prioridad es (1) atribución, importes y uniones falsas; (2) estabilidad y documentos perdidos en la búsqueda; (3) corregir y deshacer visibles en la app; (4) presentación. Para los errores críticos conocidos hay que demostrar mejora con casos de aceptación concretos y dos corridas comparables (mismo modelo, nivel y carpeta), antes y después; no basta con no empeorar.
+- **Por qué:** lo que más daña la confianza de un estudio es un dato mal atribuido o un importe equivocado; la mejora tiene que poder mostrarse con números.
+- **Alternativas descartadas:** priorizar la presentación del wiki; aceptar una corrección sin casos de aceptación.
+- **Dónde se aplica:** `docs/design/wiki-sobre-la-base-propuesta.md` (secciones 10 y 11); R-17.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 18 oct (análisis externo revisado contra el código).

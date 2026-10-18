@@ -540,14 +540,12 @@
       "titulo": "Cómo nace un 'caso': extraído de los documentos o creado desde la interfaz",
       "tipo": "decision",
       "responsable": "ambos",
-      "estado": "en-espera",
-      "detalle": "Definido el 2026-10-11: 'caso' y 'cliente' son etiquetas, no proyectos. El cliente probablemente se extraiga como entidad y tenga su página en el wiki. Del caso no hay certeza de que se pueda extraer; tal vez haya que crearlo desde la interfaz. Se ve más adelante. Con el modelo de etiquetas del PR #31 un caso es una etiqueta del grupo que el usuario elija: nace de una regla de carpeta ('cada subcarpeta de acá es un caso') o se crea a mano escribiendo 'Caso: nombre'. Queda abierto si además se extrae del contenido.",
-      "depende_de": [
-        "P-049"
-      ],
-      "referencia": "docs/design/base-documental.md (sección 3, etiquetas)",
+      "estado": "pendiente",
+      "detalle": "Definido el 2026-10-11: 'caso' y 'cliente' son etiquetas, no proyectos. El cliente probablemente se extraiga como entidad y tenga su página en el wiki. Del caso no hay certeza de que se pueda extraer; tal vez haya que crearlo desde la interfaz. Se ve más adelante. Con el modelo de etiquetas del PR #31 un caso es una etiqueta del grupo que el usuario elija: nace de una regla de carpeta ('cada subcarpeta de acá es un caso') o se crea a mano escribiendo 'Caso: nombre'. Queda abierto si además se extrae del contenido. Recomendación aprobada el 2026-10-18 (D-293, D-294): un solo concepto de asunto con tres formas de nacer: lo propone la extracción, lo crea una persona (la etiqueta 'Caso' es una forma de crearlo) o lo propone una regla de carpeta. El asunto no depende de cuántos documentos tiene: la regla de dos documentos vale solo para la agrupación automática. No se construye todavía.",
+      "depende_de": [],
+      "referencia": "docs/design/base-documental.md (sección 3, etiquetas); docs/design/wiki-sobre-la-base-propuesta.md (secciones 5 y 11)",
       "creado": "2026-10-11",
-      "actualizado": "2026-10-12"
+      "actualizado": "2026-10-18"
     },
     {
       "id": "P-062",
@@ -778,18 +776,6 @@
       "actualizado": "2026-10-16"
     },
     {
-      "id": "P-084",
-      "titulo": "Renumerar la versión 8 del esquema si otra rama también la usa",
-      "tipo": "codigo",
-      "responsable": "claude",
-      "estado": "hecho",
-      "detalle": "La rama feat/attention-view agrega la versión 8 del esquema de la base (tabla type_decision, src-tauri/src/docbase/schema.rs). Si feat/knowledge-layer (u otra rama) también agrega una versión 8, al integrar la segunda hay que pasarla a 9 y revisar que la migración corra sobre una base que ya tenga la otra. Hecho en K6: al rebasar feat/knowledge-layer sobre feat/attention-view, la V8 queda para type_decision y las de la capa pasan a V9, V10 y V11; una prueba migra una base en V8 con tipos decididos.",
-      "depende_de": [],
-      "referencia": "src-tauri/src/docbase/schema.rs",
-      "creado": "2026-10-16",
-      "actualizado": "2026-10-16"
-    },
-    {
       "id": "P-085",
       "titulo": "Pasar al español el resto de las pantallas del wiki",
       "tipo": "codigo",
@@ -900,18 +886,6 @@
       "detalle": "La hoja de entidades usa predicados libres (más de cuarenta); el vocabulario de la capa tiene dieciséis (D-183) y la evaluación los compara con una tabla de equivalencias. Decidir qué predicados agregar al vocabulario (por ejemplo, cesión, cliente de, cónyuge de) y llevar la hoja a esa lista.",
       "depende_de": [],
       "referencia": "docs/decisiones.md (D-183); src-tauri/resources/catalog/knowledge.json",
-      "creado": "2026-10-16",
-      "actualizado": "2026-10-16"
-    },
-    {
-      "id": "P-094",
-      "titulo": "Volver a numerar la migración de la capa al rebasar sobre la vista de atención",
-      "tipo": "codigo",
-      "responsable": "claude",
-      "estado": "hecho",
-      "detalle": "La etapa K3 agregó además la V9 (páginas de la capa): al rebasar sobre la rama de atención, V8 y V9 de esta rama pasan a V9 y V10. La rama feat/attention-view agregó su propia versión 8 del esquema (tabla type_decision) y la app de desarrollo ya la aplicó a la base real. Al rebasar feat/knowledge-layer sobre ella, la migración de la capa tiene que pasar a ser la versión 9; si no, una base en versión 8 nunca recibe las tablas de la capa. La etapa K4/K5 agregó la V10 (cambios y borrados, contexto de las afirmaciones, asuntos como grupos): al rebasar, V8, V9 y V10 de esta rama pasan a V9, V10 y V11. Hecho en K6 (rebase sobre feat/attention-view): V9 a V11 son de la capa; prueba a_base_at_the_attention_views_version_gets_the_layer_and_keeps_its_type_decisions.",
-      "depende_de": [],
-      "referencia": "src-tauri/src/docbase/schema.rs",
       "creado": "2026-10-16",
       "actualizado": "2026-10-16"
     },
@@ -1079,13 +1053,13 @@
       "id": "P-108",
       "titulo": "Ver en la app las pantallas de la capa de conocimiento",
       "tipo": "verificacion",
-      "responsable": "claude",
+      "responsable": "usuario",
       "estado": "pendiente",
-      "detalle": "La etapa K6 se probó con pruebas, sin levantar la app: falta ver en la app real la vista Atención con la fuente de conocimiento, Personas y organizaciones (lista, detalle, unir, separar, marcar incorrecto, deshacer), Identidades dudosas, Asuntos, la sección de entidades del detalle de un documento, los enlaces dentro de las páginas de documentos y que el lector ya no muestre las marcas de la app. Le toca a la etapa W. Etapa W: la app corrió con la base real y la capa completa, y lo que la vista Atención y las pantallas leen se comprobó con la misma consulta del motor (18 dudas, 3 conflictos, 10 uniones por identificador, 1 propuesta de asunto, 2 páginas conservadas); las pantallas no se pudieron mirar (sin herramienta de capturas en la tanda).",
+      "detalle": "La etapa K6 se probó con pruebas, sin levantar la app: falta ver en la app real la vista Atención con la fuente de conocimiento, Personas y organizaciones (lista, detalle, unir, separar, marcar incorrecto, deshacer), Identidades dudosas, Asuntos, la sección de entidades del detalle de un documento, los enlaces dentro de las páginas de documentos y que el lector ya no muestre las marcas de la app. Le toca a la etapa W. Etapa W: la app corrió con la base real y la capa completa, y lo que la vista Atención y las pantallas leen se comprobó con la misma consulta del motor (18 dudas, 3 conflictos, 10 uniones por identificador, 1 propuesta de asunto, 2 páginas conservadas); las pantallas no se pudieron mirar (sin herramienta de capturas en la tanda). Desde el 2026-10-18 le toca al dueño mirar las pantallas en la app.",
       "depende_de": [],
       "referencia": "src/components/knowledge/; docs/decisiones.md (D-216 a D-221)",
       "creado": "2026-10-16",
-      "actualizado": "2026-10-16"
+      "actualizado": "2026-10-18"
     },
     {
       "id": "P-109",
@@ -1390,18 +1364,6 @@
       "actualizado": "2026-10-17"
     },
     {
-      "id": "P-134",
-      "titulo": "Nombre comercial con la sociedad entre paréntesis",
-      "tipo": "codigo",
-      "responsable": "claude",
-      "estado": "hecho",
-      "detalle": "La única unión falsa que queda es la misma en las cuatro variantes de D-276: un nombre comercial escrito con la razón social de otra sociedad entre paréntesis (\"Marca (Sociedad S.A.)\") termina uniendo dos organizaciones distintas. Es del programa, no del modelo: un paréntesis con una razón social completa distinta del nombre no debería hacerlas la misma, sino a lo sumo vincularlas. Resuelto por D-281: 0 uniones falsas contra la hoja en el wiki regenerado (Q5).",
-      "depende_de": [],
-      "referencia": "src/lib/codex-reasoning.ts; src-tauri/src/source_volume/asking.rs; src-tauri/src/docbase/knowledge/resolve.rs",
-      "creado": "2026-10-17",
-      "actualizado": "2026-10-17"
-    },
-    {
       "id": "P-135",
       "titulo": "Casillas de los formularios",
       "tipo": "codigo",
@@ -1489,15 +1451,15 @@
     },
     {
       "id": "P-142",
-      "titulo": "Revisar la propuesta del wiki como presentación de la base",
-      "tipo": "decision",
-      "responsable": "usuario",
-      "estado": "pendiente",
-      "detalle": "Propuesta escrita el 2026-10-17: una sola lectura del modelo por documento, páginas desde la base (una por documento o familia), grafo y enlaces desde la base, búsqueda con el índice de texto de la base, vectores y grafo combinados, conceptos propuestos por cálculo (hipótesis a medir), y qué procesos heredados se quitan. Cuatro decisiones abiertas en su sección 11.",
+      "titulo": "Construir el wiki como presentación de la base",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "en-curso",
+      "detalle": "Propuesta aprobada con ajustes el 2026-10-18 (D-293 a D-296): certeza y quién confirmó cada afirmación, el grafo ordena y amplía sin recortar, una extracción principal por contenido y configuración, página común solo para versiones del mismo documento, asunto sin mínimo de documentos. Las cuatro decisiones abiertas quedaron resueltas (D-294). En construcción en la rama feat/wiki-on-docbase (tanda desatendida del 18 oct); vectores, conceptos por cálculo (solo medición, D-295), asuntos según P-061 y P-141 quedan fuera de esta tanda.",
       "depende_de": [],
-      "referencia": "docs/design/wiki-sobre-la-base-propuesta.md; D-290",
+      "referencia": "docs/design/wiki-sobre-la-base-propuesta.md; D-290; D-293 a D-296",
       "creado": "2026-10-17",
-      "actualizado": "2026-10-17"
+      "actualizado": "2026-10-18"
     }
   ]
 }

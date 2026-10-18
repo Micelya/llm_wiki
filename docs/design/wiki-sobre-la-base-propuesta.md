@@ -1,6 +1,7 @@
 # El wiki como presentación de la base — propuesta
 
-**Estado:** propuesta para revisar · 17 de octubre de 2026 · nada de esto está construido
+**Estado:** aprobada con ajustes el 18 de octubre de 2026; en construcción (rama `feat/wiki-on-docbase`, P-142) · propuesta del 17 de octubre de 2026
+**Ajustes del dueño (18 oct, D-293 a D-296):** certeza y quién confirmó cada afirmación ("con cita comprobada", no "verificada"); el grafo ordena y amplía, no recorta; una extracción principal por contenido y configuración; página común solo para versiones del mismo documento; el asunto no depende de cuántos documentos tiene; prioridad a los errores críticos con mejora demostrada. Las decisiones abiertas quedaron resueltas (sección 11).
 **Alcance:** qué partes heredadas del wiki original se conservan, cuáles se rehacen sobre la base documental y la capa de conocimiento, y cuáles se quitan, para que el chat, la búsqueda y el grafo sigan funcionando sin redundancias y sin usos del modelo que no hacen falta. No describe código.
 
 Cuando esta propuesta esté acordada, lo que quede firme pasa al [documento de diseño](base-documental.md).
@@ -25,13 +26,13 @@ Lo medido sobre el wiki generado el 17 de octubre (carpeta de prueba, 66 documen
 
 - **El chat, la búsqueda y el grafo.** Son valiosos para un estudio. Cambia de dónde toman la información, no lo que ofrecen.
 - **Las páginas como forma de leer.** Una persona lee un documento, una persona, una organización o un asunto como una página con forma de artículo (sección 13 del diseño).
-- **La síntesis en prosa** de lo que dicen los documentos, escrita por el modelo solo desde afirmaciones verificadas.
+- **La síntesis en prosa** de lo que dicen los documentos, escrita por el modelo solo desde afirmaciones **con cita comprobada**. Que la cita exista en el documento no prueba que la lectura sea correcta: cada afirmación lleva su **certeza** y **quién la confirmó** (el modelo, una regla, una persona), y la síntesis escribe lo dudoso como dudoso. Una corrección hecha una vez se propaga a todas las páginas, porque se arman desde el registro (D-293).
 - **Las notas de una persona** en cada página, que la app nunca reescribe.
 
 ## 3. Principios
 
 1. **Una sola fuente de verdad por cada cosa.** Lo que la base sabe (documentos, copias, versiones, tipo, datos, entidades, relaciones, asuntos) se guarda solo en la base. El wiki lo muestra; no lo vuelve a calcular ni lo guarda de otra forma.
-2. **Una sola lectura del modelo por documento y por espacio.** De esa lectura salen las menciones, las afirmaciones, los datos y el resumen del documento. Nada vuelve a leer un documento con el modelo salvo que cambie su texto o la pregunta.
+2. **Una extracción principal por contenido y configuración.** "Una lectura" quiere decir no repetir trabajo: de esa extracción salen las menciones, las afirmaciones, los datos y el resumen del documento, y todo lo demás la reutiliza. Nada vuelve a leer un documento con el modelo salvo que cambie su texto o la configuración (modelo, pregunta, vocabulario). Una comprobación extra con el modelo (por ejemplo, de importes o de atribución) se suma solo si su mejora está medida contra las hojas de respuestas (D-293). Las decisiones de una persona (unir, separar, dato incorrecto) sobreviven a una relectura.
 3. **Una página por documento, no por copia ni por versión.** Las copias y las versiones unidas son una sola página, que las lista.
 4. **Las relaciones viven en la base, con tipo, cita y estado.** Los enlaces de una página se arman al mostrarla, a partir de esas relaciones.
 5. **El modelo, donde agrega valor** (D-150): leer, resolver lo dudoso y redactar. No para recalcular lo que la base ya sabe.
@@ -40,15 +41,15 @@ Lo medido sobre el wiki generado el 17 de octubre (carpeta de prueba, 66 documen
 
 | Proceso de hoy | Qué hace | Propuesta |
 |---|---|---|
-| Análisis y generación del wiki por documento (2 o 3 llamadas) | Lee el documento y escribe su página, conceptos y avisos | **Se reemplaza** por la lectura única de la capa (principio 2), que suma el resumen del documento como un derivado más |
-| Lectura de la capa de conocimiento | Menciones, afirmaciones, datos | **Se conserva** y pasa a ser la única lectura |
+| Análisis y generación del wiki por documento (2 o 3 llamadas) | Lee el documento y escribe su página, conceptos y avisos | **Se reemplaza** por la extracción principal de la capa (principio 2), que suma el resumen del documento como un derivado más |
+| Lectura de la capa de conocimiento | Menciones, afirmaciones, datos | **Se conserva** y pasa a ser la extracción principal |
 | Página de fuente escrita por el modelo | Resumen con enlaces | **Se rehace** como página del documento armada desde la base (sección 5) |
 | Conceptos por documento | Una página por cláusula de un contrato | **Se quitan.** Vuelven, si la medición lo justifica, como conceptos propuestos por cálculo (sección 8) |
 | Consultas que el modelo inventa al incorporar | "Preguntas abiertas" sobre lo que falta | **Se quitan.** Lo que falta es un aviso de la base en Atención (R-23). Se conserva guardar en el wiki una respuesta del chat, a pedido de una persona |
 | Avisos de revisión del wiki (contradicciones, duplicados, páginas que faltan) y su limpieza con el modelo | Avisos de texto libre | **Se quitan.** Las contradicciones y los duplicados ya los detecta la capa con evidencia y van a Atención |
 | Combinación de páginas con el modelo | Une una página existente con una nueva | **Se quita** para las páginas que salen de la base; queda solo si una persona escribió la página a mano |
 | Unión de duplicados de Ajustes | Ya convertida en decisiones del registro | Se conserva así |
-| Búsqueda en internet e investigación web | Trae información externa | **Fuera del wiki del archivo** (contradice "sin conocimiento externo"); puede quedar como herramienta aparte, a pedido |
+| Búsqueda en internet e investigación web | Trae información externa | **Fuera del wiki del archivo** (contradice "sin conocimiento externo"): queda como herramienta aparte, a pedido, que nunca escribe en la base ni en el wiki; por ahora solo se desconecta de la generación del wiki (D-294) |
 | Revisión de enlaces | Estructural sin modelo y, opcional, con el modelo | Se conserva la estructural para las notas; **se quita** la del modelo |
 | Reconocimiento de texto de imágenes | Una vez por documento; el texto vuelve a la base | Se conserva |
 | Síntesis de entidades y resumen general | Una pregunta por entidad tocada; resumen sin modelo | Se conserva |
@@ -56,9 +57,9 @@ Lo medido sobre el wiki generado el 17 de octubre (carpeta de prueba, 66 documen
 
 ## 5. Las páginas
 
-- **Documento.** Una por documento o familia de versiones. Arriba, lo que sabe la base: tipo y etapa, fecha, partes con su rol (enlazadas a sus páginas), asunto, copias y ubicaciones, versiones y su relación (ejemplar firmado, vista previa…), datos del tipo. Abajo, el resumen en prosa que salió de la lectura única, con referencias a las afirmaciones. Notas protegidas.
+- **Documento.** Una por documento o familia de versiones. La página común es **solo para versiones del mismo documento** (borrador, ejemplar firmado, vista previa, copias); documentos distintos hechos con la misma plantilla son páginas distintas. Cada afirmación dice de qué versión sale, y si las versiones dicen cosas distintas se muestran las dos (D-293). Por ahora es un **archivo generado**, como las de entidad: regenerable; pasa a armarse al mostrarse cuando la búsqueda y el grafo lean de la base (D-294). Arriba, lo que sabe la base: tipo y etapa, fecha, partes con su rol (enlazadas a sus páginas), asunto, copias y ubicaciones, versiones y su relación (ejemplar firmado, vista previa…), datos del tipo. Abajo, el resumen en prosa que salió de la extracción principal, con referencias a las afirmaciones. Notas protegidas.
 - **Persona y organización.** La que ya proyecta la capa, unificada con la pantalla Personas y organizaciones: una sola página con forma de artículo y las acciones de corrección (unir, separar, dato incorrecto) en una pestaña.
-- **Asunto.** Solo cuando junta documentos distintos (no versiones de uno, que son una familia del documento). Se muestra como lo que es, el caso, no como un tipo de entidad. Está atado a cómo nace un caso (P-061): extraído de los documentos, creado desde la interfaz, o las dos cosas.
+- **Asunto.** Junta documentos distintos (no versiones de uno, que son una familia del documento). Se muestra como lo que es, el caso, no como un tipo de entidad. **No depende de cuántos documentos tiene:** la regla de al menos dos documentos vale solo para la agrupación automática; un asunto que crea una persona puede tener uno solo. Hay **un solo concepto de asunto** (P-061) con tres formas de nacer: lo propone la extracción, lo crea una persona (la etiqueta "Caso" es una forma de crearlo) o lo propone una regla de carpeta. No se construye en esta etapa (D-293, D-294).
 - **Grupo.** Las sociedades que lo forman y lo que no se puede atribuir a una sola.
 - **Índice y resumen general.** Desde la base, sin modelo, como ya se hace.
 - **Consultas guardadas.** Solo las que una persona guarda desde el chat.
@@ -76,15 +77,18 @@ Combina tres fuentes, todas en la base:
 
 1. **Índice de texto de SQLite**, que la base ya tiene sobre el texto de cada documento: palabras exactas, nombres, números, identificadores.
 2. **Vectores** de cada fragmento del texto (párrafo o cláusula), calculados una vez por documento y por espacio como un derivado más, incrementales, en un índice reconstruible (LanceDB, sección 9 del diseño): lo dicho con otras palabras.
-3. **El grafo**, para acotar y para ampliar:
-   - **Acotar.** Una pregunta que nombra entidades o un asunto se resuelve primero en el grafo, y la búsqueda de texto y vectores corre solo sobre esos documentos. Es más rápido y más preciso que buscar en todo el archivo.
+3. **El grafo**, para **ordenar y ampliar, nunca para recortar** (D-293):
+   - **Ordenar.** Una pregunta que nombra entidades o un asunto sube en el orden los documentos que el grafo relaciona con ellos. La búsqueda de texto (y de vectores, cuando estén) **siempre recorre todo lo visible**: un documento relevante que el grafo no conoce, porque una relación falta o está mal, igual aparece.
    - **Ampliar.** De los fragmentos hallados se pasa a sus entidades y asuntos, y de ahí a los documentos relacionados con evidencia.
+   - **Recortar solo a propósito.** La búsqueda se limita a un conjunto únicamente si la persona lo elige (por ejemplo, un asunto). Se mide cuántos documentos relevantes se perderían si el grafo recortara (sección 10).
 
 El modelo entra solo al final, para redactar la respuesta del chat con lo hallado y sus citas. Toda consulta recibe el conjunto de lo visible, como el resto de la base.
 
 Los mismos vectores sirven además para proponer conceptos (sección 8), para la pasada "dice lo mismo con otras palabras" y para los candidatos difíciles de identidad: se calculan una vez y se usan cuatro veces.
 
 ## 8. Conceptos propuestos por cálculo (hipótesis a medir)
+
+**Alcance acordado (D-295):** por ahora solo la mitad de los **pasajes repetidos**, y solo como medición fuera del repositorio (cuántos grupos salen y cuántos son cláusulas reconocibles). La mitad "la misma idea con otras palabras" espera a los vectores. No se construyen pantallas.
 
 Idea del dueño, para trabajar y verificar, no una definición:
 
@@ -103,20 +107,24 @@ Idea del dueño, para trabajar y verificar, no una definición:
 
 - **Preguntas típicas:** 20 a 30 preguntas de un abogado sobre la carpeta de prueba, con los documentos que deberían aparecer en cada una. Se compara: búsqueda por palabras sola; con el grafo de enlaces de hoy; con el grafo de la base; con vectores (cuando estén). La primera medición decide si los enlaces guardados en archivos aportan algo.
 - **Costo:** preguntas al modelo por documento antes y después (hoy unas 3 del wiki más las de la capa; objetivo: una lectura).
-- **Calidad:** la hoja de respuestas de entidades y el juicio de atribución a ciegas no deben empeorar.
+- **Calidad:** la hoja de respuestas de entidades y el juicio de atribución a ciegas no deben empeorar; las uniones falsas siguen en 0.
+- **Errores críticos: demostrar mejora, no solo no empeorar** (D-296). Para los errores conocidos (atribución, importes, uniones falsas; después estabilidad y documentos perdidos en la búsqueda) hay casos de aceptación concretos y se comparan **dos corridas comparables** (mismo modelo, nivel y carpeta), antes y después.
+- **Documentos perdidos por el grafo:** para cada pregunta típica se cuenta cuántos documentos relevantes quedarían afuera si el grafo recortara la búsqueda. Es la medida que justifica que el grafo ordene y no recorte (sección 7).
 - **Redundancia:** cada dato se guarda en un solo lugar (se comprueba con una prueba automática que el wiki no tenga datos que no salgan de la base, salvo las notas).
 
-## 11. Decisiones abiertas
+## 11. Decisiones (resueltas el 18 de octubre, D-294)
 
-1. Si la página del documento es un archivo generado (como las de entidad) o se arma solo al mostrarse.
-2. Cómo nace un asunto (P-061), antes de seguir mejorando su extracción.
-3. Si la investigación en internet queda como herramienta aparte o se quita.
-4. Con qué proveedor de vectores se empieza mientras no esté Core (local o configurable).
+1. **Página del documento:** archivo generado por ahora (como las de entidad; regenerable; notas protegidas). Se arma al mostrarse cuando la búsqueda y el grafo lean de la base.
+2. **Cómo nace un asunto:** un solo concepto de asunto (P-061) que lo propone la extracción, lo crea una persona o lo propone una regla de carpeta; la etiqueta "Caso" es una forma de crearlo; no depende de cuántos documentos tiene. No se construye todavía.
+3. **Investigación en internet:** herramienta aparte, a pedido, que nunca escribe en la base ni en el wiki del archivo. Por ahora solo se desconecta de la generación del wiki.
+4. **Proveedor de vectores:** no se decide todavía; los vectores no entran en esta etapa.
+
+**Orden de prioridad (D-296):** (1) atribución, importes y uniones falsas; (2) estabilidad y documentos perdidos en la búsqueda; (3) corregir y deshacer visibles en la app; (4) presentación.
 
 ## 12. Etapas
 
 1. **Medir** con las preguntas típicas la búsqueda y el grafo de hoy (línea de base).
-2. **Una sola lectura:** la lectura de la capa produce también el resumen del documento; el wiki deja de leer documentos con el modelo; se quitan conceptos por documento, consultas inventadas y avisos de revisión del wiki.
+2. **Una extracción principal:** la lectura de la capa produce también el resumen del documento; el wiki deja de leer documentos con el modelo; se quitan conceptos por documento, consultas inventadas y avisos de revisión del wiki.
 3. **Páginas desde la base:** documento (una por familia), persona y organización unificadas con su pantalla, asunto y grupo.
 4. **Grafo y enlaces desde la base;** la búsqueda usa el índice de texto de la base.
 5. **Vectores** como derivado de la base y búsqueda combinada; servicios de IA agrupados con contrato por servicio.
