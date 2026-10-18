@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 /// The version of the program's check of a reading (`extract::verify`).
-const READING_CHECK: &str = "lectura-2";
+const READING_CHECK: &str = "lectura-9";
 
 const BUILTIN: &str = include_str!("../../../resources/catalog/knowledge.json");
 
@@ -48,6 +48,12 @@ pub struct Vocabulary {
     /// What the layer brings to the attention view (`screens.rs`).
     #[serde(default)]
     pub attention: AttentionRules,
+    /// Money as a relation between a debtor and a creditor (D-244).
+    #[serde(default)]
+    pub money: MoneyRules,
+    /// The program's checks of a reading (D-245 to D-250).
+    #[serde(default)]
+    pub reading: ReadingRules,
     /// Fingerprint of the vocabulary text.
     #[serde(skip)]
     pub digest: String,
@@ -71,6 +77,31 @@ pub struct IdentityWords {
     /// Titles and forms of address before a person's name ("dr", "sr"…).
     #[serde(default)]
     pub titles: Vec<String>,
+    /// Articles, possessives and demonstratives: a way of writing that
+    /// starts with one in lowercase and goes on with a common word ("la
+    /// provincia", "su carta documento", "los tribunales ordinarios") is a
+    /// phrase, not a proper name (D-259).
+    #[serde(default)]
+    pub determiners: Vec<String>,
+    /// Words of an area or a mailbox of an organization ("legales",
+    /// "finance", "cobranzas", "noreply"): a name without a legal form with
+    /// one of them, or a mail address whose user is one, is a contact of
+    /// an organization, never joined by its name (D-262).
+    #[serde(default)]
+    pub area_words: Vec<String>,
+    /// Words of a group of companies (D-260): a name that starts with one
+    /// ("Grupo Ejemplo") names a group; a quote with the start of one of
+    /// `affiliateWords` ("afiliada", "subsidiaria") in a document that
+    /// names two companies of the same name says they are of one group.
+    #[serde(default)]
+    pub group_words: Vec<String>,
+    #[serde(default)]
+    pub affiliate_words: Vec<String>,
+    /// Relations that link a person to a company as one of its people (a
+    /// director, an attorney, a partner): the same person so linked to two
+    /// companies of the same name is a sign of a group.
+    #[serde(default)]
+    pub group_links: Vec<String>,
     /// Legal forms of organizations, each with the ways it is written
     /// (normalized words). The same name with another form is another
     /// organization.
@@ -116,6 +147,10 @@ pub struct MatterRules {
     /// Roles of the parties of a matter, and how many name it.
     #[serde(default)]
     pub party_roles: Vec<String>,
+    /// The kinds of amount that make a matter a claim of one party to
+    /// another, which names it (D-267).
+    #[serde(default)]
+    pub claim_kinds: Vec<String>,
     pub parties_in_name: usize,
     /// Documents a matter needs for a page of its own.
     pub min_documents: usize,
@@ -149,6 +184,7 @@ impl Default for MatterRules {
             max_share: 0.5,
             subject_roles: Vec::new(),
             party_roles: Vec::new(),
+            claim_kinds: Vec::new(),
             parties_in_name: 2,
             min_documents: 2,
             propose_with_shared: 2,
@@ -174,12 +210,122 @@ pub struct AttentionRules {
     /// Joins by identifier of different names are shown when the document
     /// that brought them was read less than this many days ago.
     pub recent_join_days: i64,
+    /// A part of a document with at least this many words that the model
+    /// reads as naming nobody and saying nothing is taken as a failed
+    /// reading, not as an empty document.
+    #[serde(default = "default_empty_min_words")]
+    pub empty_min_words: usize,
+    /// How many times such a part is asked in one run before the reading
+    /// is written as failed.
+    #[serde(default = "default_empty_attempts")]
+    pub empty_attempts: usize,
+}
+
+fn default_empty_min_words() -> usize {
+    300
+}
+
+fn default_empty_attempts() -> usize {
+    3
 }
 
 impl Default for AttentionRules {
     fn default() -> Self {
-        Self { about: String::new(), noisy_reasons: Vec::new(), noisy_min: 4, noisy_share: 0.4, recent_join_days: 30 }
+        Self {
+            about: String::new(),
+            noisy_reasons: Vec::new(),
+            noisy_min: 4,
+            noisy_share: 0.4,
+            recent_join_days: 30,
+            empty_min_words: default_empty_min_words(),
+            empty_attempts: default_empty_attempts(),
+        }
     }
+}
+
+/// Money as a relation (D-244): the kinds of amount, each with how a page
+/// tells it from each side, and the words the direction of a quote is
+/// checked with (normalized beginnings of words).
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MoneyRules {
+    #[serde(default)]
+    pub about: String,
+    /// Beginnings of the verbs of whoever pays or owes ("adeud", "pagar").
+    #[serde(default)]
+    pub payer_cues: Vec<String>,
+    /// Beginnings of the verbs of whoever is paid or claims ("reclam").
+    #[serde(default)]
+    pub payee_cues: Vec<String>,
+    /// Words right before the creditor ("a favor de").
+    #[serde(default)]
+    pub creditor_markers: Vec<String>,
+    /// Words there can be between a name and the verb.
+    #[serde(default = "eight")]
+    pub window: usize,
+    #[serde(default)]
+    pub kinds: Vec<MoneyKind>,
+}
+
+fn eight() -> usize {
+    8
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MoneyKind {
+    pub id: String,
+    #[serde(default)]
+    pub label: String,
+    #[serde(default)]
+    pub description: String,
+    /// How the debtor's page tells it ("Debe a"), and the creditor's.
+    #[serde(default)]
+    pub debtor: String,
+    #[serde(default)]
+    pub creditor: String,
+}
+
+/// The program's checks of a reading (D-245 to D-250).
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReadingRules {
+    #[serde(default)]
+    pub about: String,
+    /// Beginnings of words of a label that puts a datum under another
+    /// person of a form ("cónyuge").
+    #[serde(default)]
+    pub other_person_labels: Vec<String>,
+    /// Marks of the catalog of document types that say a page is the
+    /// record of an electronic signing service.
+    #[serde(default)]
+    pub certificate_marks: Vec<String>,
+    /// On such a page, the role a role becomes.
+    #[serde(default)]
+    pub certificate_roles: std::collections::BTreeMap<String, String>,
+    /// The predicates a claim read on such a page may have (D-288).
+    #[serde(default)]
+    pub certificate_claims: Vec<String>,
+    /// Words there can be between the label of a form and its value.
+    #[serde(default = "sixty")]
+    pub label_window: usize,
+    /// Predicates whose object, when the quote does not name it, may be
+    /// the organization the text names last before the quote, within
+    /// `objectWindow` words (a signature block, "X S.A., representada por
+    /// Y"): P-122, D-269.
+    #[serde(default)]
+    pub object_before: Vec<String>,
+    #[serde(default)]
+    pub object_window: usize,
+    /// Beginnings of words of a quote that says how someone acts for a
+    /// company ("apoderado", "Title", "representada por"): without one, the
+    /// organization before the quote is not taken as its object.
+    #[serde(default)]
+    pub representation_cues: Vec<String>,
+}
+
+fn sixty() -> usize {
+    60
 }
 
 /// The words the shapes of values are checked with (normalized).
@@ -195,6 +341,10 @@ pub struct ValueWords {
     /// "ciudad", "provincia").
     #[serde(default)]
     pub address_noise: Vec<String>,
+    /// Words of a timetable ("9 hs a 18 hs", "GMT-3"): a value with one of
+    /// them is when, not where (D-288).
+    #[serde(default)]
+    pub schedule: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -219,6 +369,11 @@ pub struct Pages {
     pub folder: String,
     #[serde(default)]
     pub kinds: Vec<PageRule>,
+    /// The roles that make an entity one of "the most named" of the
+    /// overview: a document where it has one of them counts; a mention in
+    /// passing does not (D-240).
+    #[serde(default)]
+    pub most_named_roles: Vec<String>,
     /// Headings and phrases of the pages, by key.
     #[serde(default)]
     pub words: std::collections::BTreeMap<String, String>,
@@ -247,6 +402,10 @@ pub struct PageRule {
     /// one of the matter (group of documents) they are in (`matters.rs`).
     #[serde(default)]
     pub by_matter: bool,
+    /// An entity of this type with claims of its own (what the documents
+    /// say of it) has a page too (D-266).
+    #[serde(default)]
+    pub with_claims: bool,
 }
 
 impl Pages {
@@ -285,6 +444,27 @@ pub struct Term {
     /// one joins two mentions by itself, a different one keeps them apart.
     #[serde(default)]
     pub strong: bool,
+    /// For a kind of identifier: whether it identifies who it is given to
+    /// at all. A number of an invoice, of a shipment or of a signing
+    /// envelope does not: it is kept only on a mention of one of `types`
+    /// (the matter of the document), never on a person or an organization.
+    #[serde(default = "yes")]
+    pub identifies: bool,
+    /// For a kind of identifier: the labels a text writes it with
+    /// (normalized words). The label right before a number says its kind,
+    /// whatever kind the model gave (D-249).
+    #[serde(default)]
+    pub labels: Vec<String>,
+    /// For a kind of identifier whose first digits say what it is given
+    /// to (a CUIT of a person and one of a company start differently): by
+    /// type of entity, the prefixes of its numbers. A number with the
+    /// prefix of another type is not this mention's (D-277).
+    #[serde(default)]
+    pub prefixes: std::collections::BTreeMap<String, Vec<String>>,
+}
+
+fn yes() -> bool {
+    true
 }
 
 /// What a claim can say of an entity.
@@ -337,6 +517,15 @@ pub struct Predicate {
     /// proceeding): values of different kinds are not in conflict.
     #[serde(default)]
     pub qualifiers: Vec<Qualifier>,
+    /// A relation whose object must be named in the quote, not only the
+    /// subject: what has legal consequences (represents, is a party, is
+    /// the beneficial owner of) is kept only when the quote says of whom.
+    #[serde(default)]
+    pub object_in_quote: bool,
+    /// A value whose time, when the quote does not say one, is the date of
+    /// its document: two values at different dates are a history.
+    #[serde(default)]
+    pub time_from_document: bool,
 }
 
 /// A kind of value, told by words of the quote (normalized, each a run of
@@ -347,6 +536,9 @@ pub struct Qualifier {
     pub id: String,
     #[serde(default)]
     pub label: String,
+    /// What the model reads to tell it (the "clase" of a claim).
+    #[serde(default)]
+    pub description: String,
     #[serde(default)]
     pub words: Vec<String>,
 }
@@ -354,6 +546,17 @@ pub struct Qualifier {
 impl Predicate {
     pub fn takes_entity(&self) -> bool {
         self.object == "entity"
+    }
+
+    /// An amount between a debtor and a creditor (D-244): read in its own
+    /// list, with its kind and the amount besides the other party.
+    pub fn is_money(&self) -> bool {
+        self.shape == "money"
+    }
+
+    /// The kinds of value the model is asked to tell ("clase").
+    pub fn classes(&self) -> impl Iterator<Item = &Qualifier> {
+        self.qualifiers.iter().filter(|q| !q.description.is_empty())
     }
 }
 
@@ -368,20 +571,29 @@ impl Vocabulary {
             if predicate.object != "entity" && predicate.object != "value" {
                 return Err(format!("Predicate '{}': object must be \"entity\" or \"value\"", predicate.id));
             }
+            if predicate.is_money() && !predicate.takes_entity() {
+                return Err(format!("Predicate '{}': an amount between two parties takes an entity as object", predicate.id));
+            }
         }
         let digest = Sha256::digest(text.as_bytes());
         vocabulary.digest = format!("v{}-{}", vocabulary.version, digest.iter().take(8).map(|b| format!("{b:02x}")).collect::<String>());
         let read = serde_json::json!({
             "types": vocabulary.entity_types.iter().map(|t| (&t.id, &t.description, &t.types)).collect::<Vec<_>>(),
             "roles": vocabulary.roles.iter().map(|t| (&t.id, &t.description, &t.types)).collect::<Vec<_>>(),
-            "identifiers": vocabulary.identifiers.iter().map(|t| (&t.id, &t.description, &t.types)).collect::<Vec<_>>(),
+            "identifiers": vocabulary.identifiers.iter().map(|t| (&t.id, &t.description, &t.types, &t.labels, t.identifies)).collect::<Vec<_>>(),
             "predicates": vocabulary
                 .predicates
                 .iter()
-                .map(|p| (&p.id, &p.description, &p.subject, &p.object, &p.object_types))
+                .map(|p| (&p.id, &p.description, &p.subject, &p.object, &p.object_types, &p.shape, &p.qualifiers, p.object_in_quote))
                 .collect::<Vec<_>>(),
+            // The kinds of amount are asked; the direction of a quote and
+            // the other checks of a reading are computed from these words.
+            "money": &vocabulary.money,
+            "reading": &vocabulary.reading,
             // The check of a reading drops what is part of an address.
             "addressWords": &vocabulary.identity.address_words,
+            // The check of a reading moves a number with another type's prefix.
+            "identifierPrefixes": vocabulary.identifiers.iter().map(|t| (&t.id, &t.prefixes)).collect::<Vec<_>>(),
             // Raised when the program's check of a reading changes: every
             // document is checked again from the answers kept.
             "check": READING_CHECK,
@@ -444,13 +656,30 @@ impl Vocabulary {
             return false;
         }
         if kind == "asunto" {
-            return true;
+            // A matter is often named by its number, so a number names it;
+            // a file's name ("2020-01-01_Acuerdo.pdf") or only common words
+            // ("el acuerdo", "this Agreement") do not (D-259).
+            let file = lower.contains('_')
+                || lower.rsplit_once('.').is_some_and(|(_, ext)| (2..=4).contains(&ext.len()) && ext.chars().all(|c| c.is_ascii_lowercase()));
+            let words = super::quote::words(text);
+            return !file && !(words.iter().any(|w| w.chars().any(char::is_alphabetic)) && self.is_generic(&words.join(" ")));
         }
         if letters == 0 || letters < digits || text.contains(['[', ']']) {
             return false;
         }
         let words = super::quote::words(text);
         if words.is_empty() || self.is_generic(&words.join(" ")) {
+            return false;
+        }
+        // A field of a form written with abbreviations ("N° A.R. (Troquel
+        // T&T)"): initials and a number sign, and every word of two
+        // letters or more generic, is a label, not a name (D-288).
+        let abbreviated = text.contains(['°', 'º']) || text.as_bytes().windows(2).any(|w| w[0].is_ascii_alphabetic() && w[1] == b'.');
+        let long: Vec<String> = words.iter().filter(|w| w.chars().count() >= 2).cloned().collect();
+        if abbreviated && !long.is_empty() && self.is_generic(&long.join(" ")) {
+            return false;
+        }
+        if self.is_a_phrase(text) {
             return false;
         }
         if digits > 0 && words.iter().any(|w| self.identity.address_words.iter().any(|a| a == w)) {
@@ -464,9 +693,64 @@ impl Vocabulary {
         })
     }
 
+    /// Whether a way of writing is a phrase rather than a proper name: it
+    /// starts with an article, a possessive or a demonstrative written in
+    /// lowercase, and the next word is in lowercase too ("la provincia",
+    /// "su carta documento"), D-259. "la República Argentina" is not one.
+    pub fn is_a_phrase(&self, text: &str) -> bool {
+        let mut tokens = text.split(|c: char| c.is_whitespace() || c == ',').filter(|t| !t.is_empty());
+        let (Some(first), Some(second)) = (tokens.next(), tokens.next()) else { return false };
+        let lower = |t: &str| t.chars().find(|c| c.is_alphabetic()).is_some_and(char::is_lowercase);
+        let determiner = super::quote::words(first).join(" ");
+        lower(first) && lower(second) && self.identity.determiners.iter().any(|d| d == &determiner)
+    }
+
+    /// Whether a way of writing can name a matter on its page or as an
+    /// alias (D-267): a name (not a file, not only common words, not a
+    /// phrase) without a number of four digits or more (a voucher, an
+    /// envelope or a file number is an identifier of the matter, shown
+    /// apart) and of eight words at most (a title or a sentence is not a
+    /// name).
+    pub fn is_a_matter_name(&self, text: &str) -> bool {
+        let words = super::quote::words(text);
+        // The number of a case after its label ("Expediente 1234/2020")
+        // is how a case is named; a voucher's is not.
+        let captioned = self.identifiers.iter().filter(|i| i.strong && (i.types.is_empty() || i.types.iter().any(|t| t == "asunto"))).any(|i| {
+            i.labels.iter().any(|label| {
+                let label = super::quote::words(label);
+                !label.is_empty() && words.starts_with(&label)
+            })
+        });
+        let long_number = !captioned && words.iter().any(|w| w.chars().filter(|c| c.is_ascii_digit()).count() >= 4);
+        // A voucher named by its label ("Factura A", "Facturas enviadas",
+        // "Carta documento"): the labels of what identifies no one.
+        let voucher = self.identifiers.iter().filter(|i| !i.identifies).any(|i| {
+            i.labels.iter().any(|label| {
+                let label = super::quote::words(label);
+                match label.as_slice() {
+                    [one] => words.first().is_some_and(|w| w == one || (one.chars().count() >= 4 && w.starts_with(one.as_str()))),
+                    many => !many.is_empty() && words.starts_with(many),
+                }
+            })
+        });
+        if voucher {
+            return false;
+        }
+        self.is_a_name("asunto", text) && !self.is_a_phrase(text) && !long_number && !words.is_empty() && words.len() <= 8
+    }
+
     /// Whether this kind of identifier names one entity only.
     pub fn is_strong(&self, identifier: &str) -> bool {
         self.identifier(identifier).is_some_and(|t| t.strong)
+    }
+
+    /// The predicate of an amount between two parties, when there is one.
+    pub fn money_predicate(&self) -> Option<&Predicate> {
+        self.predicates.iter().find(|p| p.is_money())
+    }
+
+    pub fn money_kind(&self, id: &str) -> Option<&MoneyKind> {
+        self.money.kinds.iter().find(|k| k.id == id)
     }
 
     /// The role kept when the model gave one that is not in the list, or
@@ -559,7 +843,7 @@ mod tests {
     #[test]
     fn what_is_not_a_name_gets_no_page() {
         let v = Vocabulary::builtin();
-        for name in ["Persona Dos", "Ejemplo Uno S.A.", "Banco de Ejemplo", "Provincia de Ejemplo", "Ejemplo 3 S.R.L.", "S.A.", "J.P. Ejemplo"] {
+        for name in ["Persona Dos", "Ejemplo Uno S.A.", "Banco de Ejemplo", "Provincia de Ejemplo", "Ejemplo 3 S.R.L.", "S.A.", "J.P. Ejemplo", "la República Ejemplar"] {
             assert!(v.is_a_name("persona", name) && v.is_a_name("organizacion", name), "{name}");
         }
         for not_a_name in [
@@ -575,11 +859,35 @@ mod tests {
             "www.ejemplo.com.ar",
             "ejemplo.com",
             "(011) 4444-5555",
+            "PROVINCIA",
+            "la provincia",
+            "su carta documento",
+            "presente contrato",
+            "accionistas",
+            "los tribunales ordinarios de Ejemplo",
+            "N° A.R. (Troquel T&T)",
         ] {
             assert!(!v.is_a_name("organizacion", not_a_name), "{not_a_name}");
         }
         // A matter is often named by its number.
         assert!(v.is_a_name("asunto", "1234/2020") && v.is_a_name("asunto", "Calle Uno 100"));
+        // What names a matter on its page (D-267): not a voucher, a file,
+        // a number, a phrase or a title; a case caption does.
+        for name in ["Acuerdo de terminación", "Contrato de locación", "Expediente 1234/2020", "Partnership Agreement"] {
+            assert!(v.is_a_matter_name(name), "{name}");
+        }
+        for not_a_name in [
+            "Factura A",
+            "Facturas enviadas",
+            "Carta Documento",
+            "BOLETA N° 0024928963",
+            "2020-01-01_Ejemplo.pdf",
+            "la renovación de la suscripción anual",
+            "Acuerdo",
+            "1234 - Firmar con un servicio: Ejemplo Uno LLC - Memorando de entendimiento entre partes",
+        ] {
+            assert!(!v.is_a_matter_name(not_a_name), "{not_a_name}");
+        }
     }
 
     #[test]

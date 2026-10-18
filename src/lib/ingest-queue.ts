@@ -912,14 +912,12 @@ export async function restoreQueue(
 
   if (saved.length === 0) return
 
-  // Drop any cross-project contamination (shouldn't happen in practice
-  // but defends against a corrupt queue file).
-  const mine = saved.filter((t) => t.projectId === projectId)
-  if (mine.length !== saved.length) {
-    console.warn(
-      `[Ingest Queue] Dropped ${saved.length - mine.length} cross-project tasks during restore`,
-    )
-  }
+  // The file lives inside the project, so every task in it is this
+  // project's, whatever id it was queued under: an id the folder lost
+  // (two ids made at once for a new folder) left its tasks failed as
+  // "project not found". They are adopted, and those failures go back to
+  // waiting, so a fresh project never loses its whole queue.
+  const mine = adoptProjectTasks(saved, projectId)
 
   // Reset any "processing" tasks back to "pending" (interrupted by app close)
   let restored = 0
@@ -953,6 +951,35 @@ export async function restoreQueue(
     console.log(`[Ingest Queue] Restored: ${pending} pending resumed automatically, ${failed} failed, ${restored} reset from interrupted`)
     processNext(projectId)
   }
+}
+
+const PROJECT_NOT_FOUND = "Project not found in registry (was it deleted?)"
+
+/**
+ * The tasks of a project's own queue file, all under its id now. A task
+ * that failed only because its project could not be found waits again.
+ */
+export function adoptProjectTasks(saved: IngestTask[], projectId: string): IngestTask[] {
+  let adopted = 0
+  let revived = 0
+  const tasks = saved.map((task) => {
+    const next = { ...task }
+    if (next.projectId !== projectId) {
+      next.projectId = projectId
+      adopted++
+    }
+    if (next.status === "failed" && next.error === PROJECT_NOT_FOUND) {
+      next.status = "pending"
+      next.error = null
+      next.retryCount = 0
+      revived++
+    }
+    return next
+  })
+  if (adopted > 0 || revived > 0) {
+    console.warn(`[Ingest Queue] Adopted ${adopted} task(s) queued under another id; ${revived} wait again`)
+  }
+  return tasks
 }
 
 // ── Processing ────────────────────────────────────────────────────────────
@@ -1127,7 +1154,7 @@ async function startTask(projectId: string, task: IngestTask): Promise<boolean> 
   if (currentProjectId !== projectId || queueEpoch !== startEpoch) return false
   if (!projectPath) {
     task.status = "failed"
-    task.error = "Project not found in registry (was it deleted?)"
+    task.error = PROJECT_NOT_FOUND
     await saveQueue(currentProjectPath)
     return true
   }

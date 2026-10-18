@@ -253,6 +253,13 @@ fn pages_against_the_entity_sheet() {
             let _ = std::fs::copy(source.path(), sample.join(format!("documento-{}", source.file_name().to_string_lossy())));
         }
         println!("   a sample of the pages: {}", sample.display());
+        // All the pages the app wrote, to measure how they read.
+        if std::env::var("MICELYA_PAGES_COPY_ALL").is_ok() {
+            let all = sample.join("entidades");
+            let copied = copy_dir(&project.path().join("wiki/entities"), &all);
+            let _ = std::fs::copy(project.path().join("wiki/overview.md"), all.join("overview.md"));
+            println!("   all the pages of entities ({copied}): {}", all.display());
+        }
     }
     changes(&base, &asker, project.path());
 }

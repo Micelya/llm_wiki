@@ -580,6 +580,13 @@
         "codexCliTimeout": "Codex CLI 超时时间",
         "codexCliTimeoutUnit": "分钟",
         "codexCliTimeoutHint": "单次 Codex CLI 请求的总超时时间。长 PDF 摄取或较慢的本地 / 网络会话可适当调大。",
+        "codexReasoning": "Codex 推理强度",
+        "codexReasoningHint": "模型回答前的推理程度，用于 wiki 和关于文档的提问。更改后会以新的强度重新提问文档。",
+        "codexReasoningLevel": {
+          "low": "低",
+          "medium": "中",
+          "high": "高"
+        },
         "requestTimeout": "请求超时时间（分钟）",
         "requestTimeoutHint": "本地 CPU 模型响应较慢时可适当调高，默认 30 分钟。",
         "streamingOutput": "启用流式输出",

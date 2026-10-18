@@ -54,11 +54,22 @@ impl NameKey {
     }
 
     /// How specific the name is, to choose the principal name of a group
-    /// of mentions: a name before a number or an address, more words
-    /// with letters first, then a legal form.
-    pub fn weight(&self) -> (bool, usize, bool) {
+    /// of mentions: a name before a number or an address, then a legal
+    /// form (the company's name, not a word read apart in a scan: D-259),
+    /// then more words with letters.
+    pub fn weight(&self) -> (bool, bool, usize) {
         let lettered = self.words.iter().filter(|w| w.chars().any(char::is_alphabetic)).count();
-        (lettered > 0, lettered, self.form.is_some())
+        (lettered > 0, self.form.is_some(), lettered)
+    }
+
+    /// The words that tell how complete a name is: its words and its legal
+    /// form, without order.
+    pub fn complete_set(&self) -> BTreeSet<String> {
+        let mut set: BTreeSet<String> = self.words.iter().cloned().collect();
+        if let Some(form) = &self.form {
+            set.insert(format!("form:{form}"));
+        }
+        set
     }
 }
 
@@ -315,6 +326,10 @@ fn organizations(a: &NameKey, b: &NameKey) -> Likeness {
             Likeness::Maybe("letra-distinta")
         } else if acronym(short, long) || acronym(&a.words, &b.full) || acronym(&b.words, &a.full) {
             Likeness::Maybe("sigla")
+        } else if a.words.concat() == b.words.concat() {
+            // The same letters cut in other words: a scan that read a
+            // space inside a word ("Ejem plo").
+            Likeness::Maybe("letra-distinta")
         } else {
             Likeness::Unlike
         }
@@ -323,6 +338,56 @@ fn organizations(a: &NameKey, b: &NameKey) -> Likeness {
         return Likeness::OtherForm;
     }
     likeness
+}
+
+/// A name that is an area or a mailbox of an organization (D-262): what is
+/// left of the name without the words of the area ("Legales Ejemplo" is
+/// "ejemplo"; "Cobranzas", nothing), and the domain of a mailbox whose
+/// user is one of those words ("legal@ejemplo.com" is "ejemplo").
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Area {
+    pub inner: Vec<String>,
+    pub domain: Option<String>,
+}
+
+pub fn area(vocabulary: &Vocabulary, kind: &str, key: &NameKey) -> Option<Area> {
+    let words = &vocabulary.identity.area_words;
+    let is_area = |w: &str| words.iter().any(|a| a == w);
+    let domain = key.email.as_ref().and_then(|address| {
+        let (user, domain) = address.split_once('@')?;
+        let user: String = user.chars().filter(|c| c.is_alphanumeric()).collect();
+        let label: String = domain.split('.').next().unwrap_or_default().chars().filter(|c| c.is_alphanumeric()).collect();
+        (is_area(&user) && !label.is_empty()).then_some(label)
+    });
+    if kind == PERSON {
+        // A person is never an area; a general mailbox with no name is not
+        // a person.
+        return (domain.is_some() && !key.has_name()).then(|| Area { inner: Vec::new(), domain });
+    }
+    if kind != ORGANIZATION || key.form.is_some() {
+        return None;
+    }
+    let has_area_word = key.words.iter().any(|w| is_area(w));
+    if !has_area_word && domain.is_none() {
+        return None;
+    }
+    let inner: Vec<String> = key.words.iter().filter(|w| !is_area(w)).cloned().collect();
+    Some(Area { inner, domain })
+}
+
+/// Whether the words of an area name this organization: the same words,
+/// its initials, or the letters of its name joined (a mail domain).
+pub fn area_names(area: &Area, target: &NameKey) -> bool {
+    if target.words.is_empty() {
+        return false;
+    }
+    let inner = &area.inner;
+    if !inner.is_empty() {
+        if inner == &target.words || (inner.len() == 1 && (inner[0] == initials(&target.words) || (target.full.len() >= 2 && inner[0] == initials(&target.full)))) {
+            return true;
+        }
+    }
+    area.domain.as_ref().is_some_and(|d| *d == target.words.concat() || (target.full.len() >= 2 && *d == target.full.concat()))
 }
 
 /// How two names of matters compare. A matter is never joined by its name
@@ -448,12 +513,219 @@ pub fn misread(a: &str, b: &str) -> bool {
     a != b && a.chars().count().min(b.chars().count()) >= 6 && distance(a, b, 1) <= 1
 }
 
+/// The name an entity is named by, among the principal names of its groups
+/// (each with how many mentions write it): the most complete form that is
+/// a proper name, not the most repeated one (D-259). The most used name
+/// that is a name is the anchor; among the names that hold all of its
+/// words (and its legal form), the one with most words wins, then the most
+/// used. "Gobierno de la Provincia de Ejemplo" names the entity before
+/// "PROVINCIA" (not a name) and "Persona Uno Dos" before "Persona Dos";
+/// a name read wrong in a scan that does not hold the anchor's words never
+/// does. Without any name, the most used one.
+pub fn most_specific<'a>(vocabulary: &Vocabulary, kind: &str, candidates: &[(&'a str, &'a str, usize)]) -> Option<&'a str> {
+    let forms: Vec<(&str, usize)> = candidates.iter().map(|&(_, written, count)| (written, count)).collect();
+    most_specific_with(vocabulary, kind, candidates, &forms)
+}
+
+/// The same, counting how much of what the documents write each name
+/// holds over all the ways the entity is written (`forms`, with how many
+/// mentions write each), not only over the principal names.
+pub fn most_specific_with<'a>(
+    vocabulary: &Vocabulary,
+    kind: &str,
+    candidates: &[(&'a str, &'a str, usize)],
+    forms: &[(&str, usize)],
+) -> Option<&'a str> {
+    // (normalized, written, mentions)
+    let keyed: Vec<(&'a str, NameKey, usize, bool)> = candidates
+        .iter()
+        .map(|&(normalized, written, count)| {
+            let key = key(vocabulary, kind, written);
+            let named = key.has_name() && vocabulary.is_a_name(kind, written);
+            (normalized, key, count, named)
+        })
+        .collect();
+    let by_use = |a: &&(&'a str, NameKey, usize, bool), b: &&(&'a str, NameKey, usize, bool)| {
+        a.2.cmp(&b.2).then_with(|| a.1.words.len().cmp(&b.1.words.len())).then_with(|| b.0.cmp(a.0))
+    };
+    let named: Vec<&(&'a str, NameKey, usize, bool)> = keyed.iter().filter(|k| k.3).collect();
+    if named.is_empty() {
+        return keyed.iter().max_by(by_use).map(|k| k.0);
+    }
+    // The anchor is the name that holds most of what the documents write:
+    // its own mentions and those of every form whose words it holds. A
+    // form split in two fields ("Nombres: Uno Dos", "Apellidos: Tres")
+    // gives way to the one that joins a given name with the surname
+    // written apart ("Uno Tres"), even if the split one is as used (D-288).
+    let written: Vec<(BTreeSet<String>, usize)> = forms.iter().map(|&(w, count)| (key(vocabulary, kind, w).complete_set(), count)).collect();
+    let covered = |k: &(&'a str, NameKey, usize, bool)| -> usize {
+        let set = k.1.complete_set();
+        written.iter().filter(|(o, _)| !o.is_empty() && o.is_subset(&set)).map(|(_, count)| count).sum()
+    };
+    let anchor = named.iter().copied().max_by(|a, b| covered(a).cmp(&covered(b)).then_with(|| by_use(a, b)))?;
+    let anchor_set = anchor.1.complete_set();
+    named
+        .iter()
+        .copied()
+        .filter(|k| k.1.complete_set().is_superset(&anchor_set))
+        .max_by(|a, b| a.1.complete_set().len().cmp(&b.1.complete_set().len()).then_with(|| by_use(a, b)))
+        .map(|k| k.0)
+}
+
+/// A person's name with words in capitals and no other way of writing them
+/// ("PERSONA DOS", "Uno Dos TRES"): each such word as a proper name
+/// ("Persona Dos", "Uno Dos Tres"), with the particles of a surname ("de",
+/// "del", "la", "y") in lower case after the first word. A person's name
+/// has no acronyms; an organization's name is left as it is (D-289).
+pub fn person_case(name: &str) -> String {
+    let particles = ["de", "del", "la", "las", "los", "y", "van", "von"];
+    let mut out: Vec<String> = Vec::new();
+    for (i, word) in name.split_whitespace().enumerate() {
+        let letters: Vec<char> = word.chars().filter(|c| c.is_alphabetic()).collect();
+        if letters.len() >= 2 && letters.iter().all(|c| c.is_uppercase()) {
+            let lower = word.to_lowercase();
+            if i > 0 && particles.contains(&lower.as_str()) {
+                out.push(lower);
+                continue;
+            }
+            let mut cased = String::new();
+            let mut start = true;
+            for c in lower.chars() {
+                if start && c.is_alphabetic() {
+                    cased.extend(c.to_uppercase());
+                    start = false;
+                } else {
+                    cased.push(c);
+                    if c == '-' || c == '\'' {
+                        start = true;
+                    }
+                }
+            }
+            out.push(cased);
+        } else {
+            out.push(word.to_string());
+        }
+    }
+    out.join(" ")
+}
+
+/// The name an entity is shown with: on one line, and a name written all in
+/// capitals ("PERSONA DOS, UNO") in the form of a proper name when the
+/// documents write each of its words some other way ("Uno Persona Dos"):
+/// its order and punctuation, the case of the other forms (D-239). A word
+/// of two letters or more that no other form writes leaves it as it is.
+pub fn shown_name<'a>(name: &str, forms: impl IntoIterator<Item = &'a str>) -> String {
+    let name = name.split_whitespace().collect::<Vec<_>>().join(" ");
+    let letters: Vec<char> = name.chars().filter(|c| c.is_alphabetic()).collect();
+    if letters.len() < 2 || letters.iter().any(|c| c.is_lowercase()) {
+        return name;
+    }
+    let fold = |word: &str| -> String { quote::words(word).join("") };
+    // Each word as the other forms write it, when they do not shout it.
+    let mut cased: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    for form in forms {
+        if !form.chars().any(|c| c.is_lowercase()) {
+            continue;
+        }
+        for word in form.split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty()) {
+            let key = fold(word);
+            let mixed = word.chars().any(|c| c.is_lowercase());
+            match cased.get(&key) {
+                Some(seen) if seen.chars().any(|c| c.is_lowercase()) || !mixed => {}
+                _ => {
+                    cased.insert(key, word.to_string());
+                }
+            }
+        }
+    }
+    let mut out = String::new();
+    let mut word = String::new();
+    let mut complete = true;
+    let flush = |word: &mut String, out: &mut String, complete: &mut bool| {
+        if word.is_empty() {
+            return;
+        }
+        match cased.get(&fold(word)) {
+            Some(form) => out.push_str(form),
+            None => {
+                if word.chars().filter(|c| c.is_alphabetic()).count() >= 2 {
+                    *complete = false;
+                }
+                out.push_str(word);
+            }
+        }
+        word.clear();
+    };
+    for c in name.chars() {
+        if c.is_alphanumeric() {
+            word.push(c);
+        } else {
+            flush(&mut word, &mut out, &mut complete);
+            out.push(c);
+        }
+    }
+    flush(&mut word, &mut out, &mut complete);
+    if complete {
+        out
+    } else {
+        name
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    #[test]
+    fn a_name_in_capitals_takes_the_case_the_other_forms_write() {
+        assert_eq!(shown_name("PERSONA DOS, UNO", ["Uno Persona Dos", "PERSONA DOS, UNO"]), "Persona Dos, Uno");
+        assert_eq!(shown_name("EJEMPLO UNO S.A.", ["Ejemplo Uno S.A."]), "Ejemplo Uno S.A.");
+        assert_eq!(shown_name("PEREZ, ANA", ["Ana Pérez"]), "Pérez, Ana");
+        // A word no other form writes: as it is.
+        assert_eq!(shown_name("PERSONA TRES CUATRO", ["Persona Tres"]), "PERSONA TRES CUATRO");
+        // Not in capitals, or no other form: as it is, on one line.
+        assert_eq!(shown_name("Persona\n Dos", ["PERSONA DOS"]), "Persona Dos");
+        assert_eq!(shown_name("ACME", Vec::<&str>::new()), "ACME");
+        // A person's name has no acronyms (D-289).
+        assert_eq!(person_case("PERSONA DOS"), "Persona Dos");
+        assert_eq!(person_case("Uno Dos TRES"), "Uno Dos Tres");
+        assert_eq!(person_case("ANA DE LA FUENTE-PAZ"), "Ana de la Fuente-Paz");
+        assert_eq!(person_case("Uno J. Dos"), "Uno J. Dos");
+    }
+
     fn k(kind: &str, name: &str) -> NameKey {
         key(&Vocabulary::builtin(), kind, name)
+    }
+
+    #[test]
+    fn an_entity_is_named_by_its_most_complete_proper_name() {
+        let v = Vocabulary::builtin();
+        // The most repeated is not a name; the complete one is.
+        let list = [("provincia", "PROVINCIA", 2), ("gobierno de la provincia de ejemplo", "Gobierno de la Provincia de Ejemplo", 1)];
+        assert_eq!(most_specific(&v, ORGANIZATION, &list), Some("gobierno de la provincia de ejemplo"));
+        // The complete form holds the words of the most used one.
+        let list = [("persona dos", "Persona Dos", 9), ("persona uno dos", "Persona Uno Dos", 1)];
+        assert_eq!(most_specific(&v, PERSON, &list), Some("persona uno dos"));
+        // A given name and a surname read from two fields of a form: the
+        // form that joins a given name with that surname names the person.
+        let split = [("uno dos", "UNO DOS", 1), ("tres", "TRES", 1), ("uno tres", "Uno Tres", 1)];
+        assert_eq!(most_specific(&v, PERSON, &split), Some("uno tres"));
+        // The surname may be only a form of the entity, not a principal name.
+        let principal = [("uno dos", "UNO DOS", 1), ("uno tres", "Uno Tres", 1)];
+        let forms = [("UNO DOS", 1), ("TRES", 1), ("Uno Tres", 1)];
+        assert_eq!(most_specific_with(&v, PERSON, &principal, &forms), Some("uno tres"));
+        // A form read apart in a scan does not hold them: the most used.
+        let list = [("ejemplo s a", "Ejemplo S.A.", 5), ("ejem plo", "Ejem plo", 1)];
+        assert_eq!(most_specific(&v, ORGANIZATION, &list), Some("ejemplo s a"));
+        // A matter is not named by a file's name or by common words.
+        let list = [
+            ("2020 01 01 ejemplo agreement pdf", "2020-01-01_Ejemplo_Agreement.pdf", 1),
+            ("ejemplo agreement", "Ejemplo Agreement", 1),
+            ("acuerdo", "Acuerdo", 4),
+        ];
+        assert_eq!(most_specific(&v, "asunto", &list), Some("ejemplo agreement"));
+        // The legal form wins the group's principal name over more words.
+        assert!(k(ORGANIZATION, "Ejemplo S.A.").weight() > k(ORGANIZATION, "Ejem plo").weight());
     }
 
     #[test]
@@ -505,6 +777,28 @@ mod tests {
         assert_eq!(same("Correo Ejemplar", "Correo Oficial del Ejemplor"), Likeness::Maybe("nombre-parcial"));
         assert_eq!(same("MEA", "Mundo Ejemplo Association"), Likeness::Maybe("sigla"));
         assert_eq!(same("Ejemplonia S.A.", "Ejemplo S.A."), Likeness::Maybe("letra-distinta"));
+    }
+
+    #[test]
+    fn an_area_or_a_general_mailbox_names_its_organization_apart() {
+        let v = Vocabulary::builtin();
+        let a = |kind: &str, name: &str| area(&v, kind, &k(kind, name));
+        let legal = a(ORGANIZATION, "Legales Ejemplo").unwrap();
+        assert_eq!(legal.inner, ["ejemplo"]);
+        assert!(area_names(&legal, &k(ORGANIZATION, "Ejemplo S.A.")));
+        assert!(!area_names(&legal, &k(ORGANIZATION, "Ejemplo Uno S.A.")));
+        // Initials, a mail domain, an ethics line of a group.
+        assert!(area_names(&a(ORGANIZATION, "MEA Finance").unwrap(), &k(ORGANIZATION, "Mundo Ejemplo Association")));
+        assert!(area_names(&a(ORGANIZATION, "noreply@ejemplotech.com").unwrap(), &k(ORGANIZATION, "Ejemplo Tech S.A.")));
+        assert!(area_names(&a(ORGANIZATION, "Línea Ética de Grupo Ejemplo").unwrap(), &k(ORGANIZATION, "Grupo Ejemplo")));
+        assert_eq!(a(ORGANIZATION, "Cobranzas").unwrap().inner, Vec::<String>::new());
+        // A company with its form, a person, a personal mailbox: not areas.
+        assert_eq!(a(ORGANIZATION, "Ventas Ejemplo S.A."), None);
+        assert_eq!(a(PERSON, "puno@ejemplo.com"), None);
+        assert!(a(PERSON, "legal@ejemplo.com").is_some());
+        assert_eq!(a(ORGANIZATION, "Ejemplo Uno"), None);
+        // A word read apart in a scan.
+        assert_eq!(compare(ORGANIZATION, &k(ORGANIZATION, "Ejem plo"), &k(ORGANIZATION, "Ejemplo")), Likeness::Maybe("letra-distinta"));
     }
 
     #[test]

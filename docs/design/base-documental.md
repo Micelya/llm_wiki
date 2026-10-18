@@ -253,7 +253,9 @@ flowchart LR
 | Conocimiento | Una capa propia dentro de la base del espacio: entidades con identificador estable, menciones con rol y afirmaciones con cita verificada por cálculo (D-170, D-171) |
 | Tipos de entidad | Persona, organización y asunto; tipos, roles y predicados son datos, no código (D-172) |
 | Identidad de entidades | En cascada, con abstención: mismo identificador une solo y se puede deshacer, identificador distinto nunca une, lo dudoso va a una persona (D-173, D-174) |
-| Páginas de entidad | Proyección del registro: documentos agrupados por asunto y síntesis solo desde afirmaciones verificadas; la incorporación del wiki deja de crearlas (D-175) |
+| Páginas de entidad | Proyección del registro: documentos agrupados por asunto y síntesis solo desde afirmaciones verificadas; lo que la síntesis no usa se lista igual con su cita; la incorporación del wiki deja de crearlas (D-175, D-236) |
+| Páginas que escribe el modelo del wiki | Pasan por un control antes de guardarse: siempre `.md`, título igual al encabezado, sin campos académicos, sin hablar del propio wiki ni de "el material", enlaces solo a páginas que existen (D-237); el esquema de un proyecto nuevo es el de un estudio jurídico (D-238) |
+| Importes en el lector | Un `$` suelto es el signo de moneda, nunca una fórmula (D-234) |
 | Correcciones de entidades | Siempre como decisiones de una persona sobre el registro (unir, separar, dato incorrecto, sacar de un asunto), reversibles; nunca editando una página. La fusión de duplicados de Mantenimiento también, para las páginas del registro (D-219, D-220) |
 
 ## 10. Decisiones abiertas y lista de espera
@@ -297,7 +299,7 @@ Se empieza por el espacio privado y un solo usuario. El espacio compartido multi
 
 Dentro de `src-tauri/src/source_volume/`, todo por proyecto: montaje de carpetas, detección de cambios segura ante orígenes desconectados, catálogo de duplicados exactos, huella del archivo y texto reconocido guardado por huella. Es la semilla del componente: los conceptos son los de este documento; cambia dónde viven los datos y a quién pertenecen.
 
-La capa de conocimiento ocupa las versiones 9 a 11 del esquema de la base, después de la 8 de la vista de atención (las decisiones sobre tipos); una base en la versión 8 recibe las tablas de la capa sin perder nada (D-215).
+La capa de conocimiento ocupa las versiones 9 a 11 del esquema de la base, después de la 8 de la vista de atención (las decisiones sobre tipos); una base en la versión 8 recibe las tablas de la capa sin perder nada (D-215). La versión 13 agrega lo que trae la segunda pregunta de lectura: el importe y su detalle en evidencias y afirmaciones, la marca de término definido de una mención y la fecha del documento (D-244 a D-247). La versión 14, los grupos de sociedades (`knowledge_group`, D-260).
 
 Hoy cada proyecto guarda esos datos en su propia carpeta. Con la base, pasan a guardarse una vez por espacio: el mismo escaneo usado en dos proyectos se lee una sola vez.
 

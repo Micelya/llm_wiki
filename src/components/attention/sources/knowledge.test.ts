@@ -100,6 +100,7 @@ describe("knowledgeNotices", () => {
     expect(failed?.kind).toBe("problem")
     expect(failed?.cases?.[0]).toMatchObject({ title: "carta.pdf", detail: "La respuesta no tiene la forma pedida" })
     expect(failed?.cases?.[0].actions?.[0]).toMatchObject({ target: { view: "document", locationId: 101 } })
+    expect(failed?.actions?.[0]).toMatchObject({ kind: "run", label: "Volver a leer" })
     const noisy = notices.find((n) => n.topic === "reading-noisy")
     expect(noisy?.cases?.[0].detail).toContain("9 citas descartadas")
     expect(attentionCounts(notices).problems).toBe(2)

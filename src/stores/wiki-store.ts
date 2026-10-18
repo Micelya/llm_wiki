@@ -1,3 +1,4 @@
+import type { CodexReasoningEffort } from "@/lib/codex-reasoning"
 import { create } from "zustand"
 import type { WikiProject, FileNode } from "@/types/wiki"
 import { DEFAULT_SOURCE_WATCH_CONFIG } from "@/lib/source-watch-config"
@@ -52,6 +53,8 @@ interface LlmConfig {
   localCliIsolation?: boolean
   /** Codex CLI provider only. Overall subprocess timeout in minutes. */
   codexCliTimeoutMinutes?: number
+  /** Codex CLI provider only. How much the model reasons (D-274); missing means the default. */
+  codexReasoningEffort?: CodexReasoningEffort
   /** HTTP LLM request backstop. Defaults to 30 minutes for legacy configs. */
   requestTimeoutMinutes?: number
   /** Defaults to true. HTTP providers use a non-streaming wire when false. */
@@ -346,6 +349,7 @@ export interface ProviderOverride {
   ingestReasoning?: ReasoningConfig
   localCliIsolation?: boolean
   codexCliTimeoutMinutes?: number
+  codexReasoningEffort?: CodexReasoningEffort
   requestTimeoutMinutes?: number
   streamingEnabled?: boolean
   customHeaders?: Record<string, string>

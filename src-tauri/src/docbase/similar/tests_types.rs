@@ -395,11 +395,11 @@ fn once_an_engine_is_chosen_only_its_answers_count() {
     forget();
     assert_eq!(base.types_plan().unwrap().type_questions, 0);
     // The engine and model that answered it.
-    base.set_ask_engine(Some(&AskConfig { engine: "falso".into(), model: "1".into() })).unwrap();
+    base.set_ask_engine(Some(&AskConfig { engine: "falso".into(), model: "1".into(), ..Default::default() })).unwrap();
     forget();
     assert_eq!(base.types_plan().unwrap().type_questions, 0);
     // Another model: the question is asked again, and its answer kept apart.
-    base.set_ask_engine(Some(&AskConfig { engine: "falso".into(), model: "2".into() })).unwrap();
+    base.set_ask_engine(Some(&AskConfig { engine: "falso".into(), model: "2".into(), ..Default::default() })).unwrap();
     forget();
     assert_eq!(base.types_plan().unwrap().type_questions, 1);
     let other = FakeModel::new(|_| type_answer("factura", None, &[]));

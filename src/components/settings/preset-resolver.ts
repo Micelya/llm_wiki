@@ -2,6 +2,7 @@ import type { LlmConfig } from "@/stores/wiki-store"
 import type { ProviderOverride } from "@/stores/wiki-store"
 import { AZURE_OPENAI_API_VERSION } from "@/lib/azure-openai"
 import type { LlmPreset } from "./llm-presets"
+import { codexReasoningEffort } from "@/lib/codex-reasoning"
 
 /**
  * Build the deliberately unusable sentinel config persisted when every
@@ -122,6 +123,7 @@ export function resolveConfig(
       ingestReasoning,
       localCliIsolation,
       codexCliTimeoutMinutes: preset.provider === "codex-cli" ? codexCliTimeoutMinutes : undefined,
+      codexReasoningEffort: preset.provider === "codex-cli" ? codexReasoningEffort(ov.codexReasoningEffort) : undefined,
       requestTimeoutMinutes,
       ...streamingConfig,
     }

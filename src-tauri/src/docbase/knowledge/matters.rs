@@ -285,8 +285,8 @@ pub(crate) fn group(conn: &Connection, vocabulary: &Vocabulary, joins: &[(String
     {
         let mut statement = conn
             .prepare(
-                "SELECT e.content_id, e.predicate, e.object_value, s.normalized FROM knowledge_evidence e
-                 JOIN knowledge_mention s ON s.id = e.subject_mention WHERE e.object_value IS NOT NULL",
+                "SELECT e.content_id, e.predicate, coalesce(e.amount, e.object_value), s.normalized FROM knowledge_evidence e
+                 JOIN knowledge_mention s ON s.id = e.subject_mention WHERE coalesce(e.amount, e.object_value) IS NOT NULL",
             )
             .map_err(sql_err)?;
         let rows = statement
@@ -294,11 +294,32 @@ pub(crate) fn group(conn: &Connection, vocabulary: &Vocabulary, joins: &[(String
             .map_err(sql_err)?;
         for row in rows {
             let (content, predicate, value, subject) = row.map_err(sql_err)?;
-            if vocabulary.predicate(&predicate).is_none_or(|p| p.shape != "amount") || !values::fits(vocabulary, "amount", &value, &subject) {
+            // An amount said as a value, or between two parties (D-244).
+            if vocabulary.predicate(&predicate).is_none_or(|p| p.shape != "amount" && !p.is_money()) || !values::fits(vocabulary, "amount", &value, &subject) {
                 continue;
             }
             if let (Some(key), Some(&i)) = (amount_key(rules, &value), index.get(&content)) {
                 shared.entry((4, "importe".into(), key)).or_default().insert(i);
+            }
+        }
+    }
+    // A number of a matter written in the text of another document (the
+    // invoices a chronology cites, the letter a reply answers) puts it in
+    // the matter too, even when its reading did not take it (D-268).
+    {
+        let known: BTreeSet<String> = shared.keys().filter(|(_, kind, _)| kind == "numero").map(|(_, _, digits)| digits.clone()).collect();
+        if !known.is_empty() {
+            let mut statement = conn.prepare("SELECT content_id, body FROM derivative WHERE kind = 'text'").map_err(sql_err)?;
+            let rows = statement.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))).map_err(sql_err)?;
+            for row in rows {
+                let (content, body) = row.map_err(sql_err)?;
+                let Some(&i) = index.get(&content) else { continue };
+                for token in body.split(|c: char| c.is_whitespace() || ",;()[]«»\"'".contains(c)) {
+                    let digits = digits_of(token);
+                    if digits.len() >= rules.min_digits && known.contains(&digits) {
+                        shared.entry((3, "numero".into(), digits)).or_default().insert(i);
+                    }
+                }
             }
         }
     }
@@ -453,14 +474,17 @@ pub(crate) fn group(conn: &Connection, vocabulary: &Vocabulary, joins: &[(String
     Ok(out)
 }
 
-/// The name of a matter: the matter its documents name in most documents
-/// (as the document's subject first), and its parties; with no matter
-/// named, its parties alone.
+/// The name of a matter (D-267): by the relation between its parties and
+/// what it is about, never by a voucher or a file. A claim between two of
+/// its parties ("Reclamo de X a Y"); else what its documents name it, most
+/// as their subject, between its parties ("Acuerdo de terminación entre X
+/// e Y"); else its parties alone.
 fn matter_name(conn: &Connection, vocabulary: &Vocabulary, contents: &[i64]) -> Result<String, String> {
     let rules = &vocabulary.matters;
     let list = contents.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(",");
     let mut named: BTreeMap<String, (usize, usize, String)> = BTreeMap::new();
-    let mut parties: BTreeMap<String, (usize, String)> = BTreeMap::new();
+    // (documents as a party, documents in any party role, name)
+    let mut parties: BTreeMap<String, (usize, usize, String)> = BTreeMap::new();
     let mut statement = conn
         .prepare(&format!(
             "SELECT DISTINCT m.content_id, m.kind, m.role, e.id, e.name FROM knowledge_mention m JOIN knowledge_entity e ON e.id = m.entity_id
@@ -473,10 +497,13 @@ fn matter_name(conn: &Connection, vocabulary: &Vocabulary, contents: &[i64]) -> 
         })
         .map_err(sql_err)?;
     let mut seen: BTreeSet<(i64, String)> = BTreeSet::new();
+    // Every way a document names a matter, by document.
+    let mut written: BTreeSet<(i64, Vec<String>)> = BTreeSet::new();
     for row in rows {
         let (content, kind, role, id, name) = row.map_err(sql_err)?;
         if kind == rules.kind {
-            if vocabulary.is_generic(&quote::words(&name).join(" ")) {
+            written.insert((content, quote::words(&name)));
+            if !vocabulary.is_a_matter_name(&name) {
                 continue;
             }
             let entry = named.entry(id).or_insert((0, 0, name));
@@ -487,24 +514,150 @@ fn matter_name(conn: &Connection, vocabulary: &Vocabulary, contents: &[i64]) -> 
                 entry.1 += 1;
             }
         } else if rules.party_roles.iter().any(|r| r == &role) && vocabulary.is_a_name(&kind, &name) {
-            let entry = parties.entry(id).or_insert((0, name));
-            if seen.insert((content, format!("party:{}", entry.1))) {
+            let entry = parties.entry(id).or_insert((0, 0, name));
+            if seen.insert((content, format!("party:{}", entry.2))) {
+                entry.1 += 1;
+            }
+            // Who is a party of the act names it before who only sends,
+            // receives or issues one of its documents (D-288).
+            if rules.party_roles.first().is_some_and(|r| r == &role) && seen.insert((content, format!("own-party:{}", entry.2))) {
                 entry.0 += 1;
             }
         }
     }
-    let mut parties: Vec<(usize, String)> = parties.into_values().collect();
-    parties.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
-    let parties: Vec<String> = parties.into_iter().take(rules.parties_in_name).map(|(_, n)| one_line(&n)).collect();
+    let party_ids: BTreeSet<String> = parties.keys().cloned().collect();
+    let mut parties: Vec<(usize, usize, String)> = parties.into_values().collect();
+    parties.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| b.1.cmp(&a.1)).then_with(|| a.2.cmp(&b.2)));
+    let parties: Vec<String> = parties.into_iter().take(rules.parties_in_name).map(|(_, _, n)| one_line(&n)).collect();
     let mut named: Vec<(usize, usize, String)> = named.into_values().collect();
-    named.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| b.0.cmp(&a.0)).then_with(|| b.2.len().cmp(&a.2.len())).then_with(|| a.2.cmp(&b.2)));
+    // In how many documents some name holds all of its words: the act
+    // named in the agreement and in its signing record ("Ejemplo
+    // Agreement" and "EJEMPLO AGREEMENT (EA)") before the
+    // title of the record's own form (D-288).
+    let naming = |name: &str| -> usize {
+        let words = quote::words(name);
+        written.iter().filter(|(_, w)| !words.is_empty() && words.iter().all(|x| w.contains(x))).map(|(c, _)| *c).collect::<BTreeSet<i64>>().len()
+    };
+    named.sort_by(|a, b| {
+        b.1.cmp(&a.1)
+            .then_with(|| naming(&b.2).cmp(&naming(&a.2)))
+            .then_with(|| b.0.cmp(&a.0))
+            .then_with(|| b.2.len().cmp(&a.2.len()))
+            .then_with(|| a.2.cmp(&b.2))
+    });
     let words = &vocabulary.pages;
-    Ok(match (named.first(), parties.is_empty()) {
-        (Some((_, _, name)), true) => one_line(name),
-        (Some((_, _, name)), false) => format!("{} — {}", one_line(name), parties.join(", ")),
-        (None, false) => format!("{} {}", words.word("matterBetween"), parties.join(", ")),
-        (None, true) => words.word("matterUnnamed").to_string(),
+    // A claim between two of its parties: who claims from whom, by the
+    // amounts its documents say are claimed.
+    let mut claims: BTreeMap<(String, String), usize> = BTreeMap::new();
+    {
+        let mut statement = conn
+            .prepare(&format!(
+                "SELECT DISTINCT c.id, c.subject, c.object_entity FROM knowledge_claim c JOIN knowledge_evidence e ON e.claim_id = c.id
+                 WHERE e.content_id IN ({list}) AND c.amount IS NOT NULL AND c.object_entity IS NOT NULL AND c.state != 'retired'
+                 AND coalesce(c.qualifier, '') IN ({claimed})",
+                claimed = rules.claim_kinds.iter().map(|k| format!("'{}'", k.replace('\'', ""))).collect::<Vec<_>>().join(",")
+            ))
+            .map_err(sql_err)?;
+        let rows = statement.query_map([], |row| Ok((row.get::<_, String>(1)?, row.get::<_, String>(2)?))).map_err(sql_err)?;
+        for row in rows {
+            let (debtor, creditor) = row.map_err(sql_err)?;
+            if party_ids.contains(&debtor) && party_ids.contains(&creditor) && debtor != creditor {
+                *claims.entry((creditor, debtor)).or_default() += 1;
+            }
+        }
+    }
+    let claim = claims.into_iter().max_by(|a, b| a.1.cmp(&b.1).then_with(|| b.0.cmp(&a.0))).map(|(pair, _)| pair);
+    let entity_name = |id: &str| -> Option<String> {
+        conn.query_row("SELECT name FROM knowledge_entity WHERE id = ?1", [id], |row| row.get::<_, String>(0)).ok().map(|n| one_line(&n))
+    };
+    if let Some((creditor, debtor)) = claim {
+        if let (Some(creditor), Some(debtor)) = (entity_name(&creditor), entity_name(&debtor)) {
+            return Ok(words.word("matterClaim").replace("{creditor}", &creditor).replace("{debtor}", &debtor));
+        }
+    }
+    let between = parties.join(words.word("partiesAnd"));
+    let own = |name: &str| sentence_case(&own_name(vocabulary, &one_line(name), &parties));
+    Ok(match (named.first(), parties.len()) {
+        (Some((_, _, name)), 0) => own(name),
+        (Some((_, _, name)), 1) => format!("{} {} {between}", own(name), words.word("matterOfOne")),
+        (Some((_, _, name)), _) => words.word("matterTyped").replace("{matter}", &own(name)).replace("{parties}", &between),
+        (None, 0) => words.word("matterUnnamed").to_string(),
+        // Without a name of its own, what all its documents are, when they
+        // are of one kind ("Boleta de Persona Uno"), not "Asunto de" (D-288).
+        (None, n) => match common_type(conn, contents) {
+            Some(kind) if n == 1 => format!("{kind} {} {between}", words.word("matterOfOne")),
+            Some(kind) => words.word("matterTyped").replace("{matter}", &kind).replace("{parties}", &between),
+            None if n == 1 => format!("{} {} {between}", words.word("matterOf"), words.word("matterOfOne")),
+            None => format!("{} {between}", words.word("matterBetween")),
+        },
     })
+}
+
+/// The kind of document all of these are, in sentence case ("Boleta"),
+/// when they are all of one known kind.
+fn common_type(conn: &Connection, contents: &[i64]) -> Option<String> {
+    let mut kinds = BTreeSet::new();
+    for content in contents {
+        let kind: String = conn.query_row("SELECT doc_type FROM document_type WHERE content_id = ?1", [content], |row| row.get(0)).ok()?;
+        kinds.insert(kind);
+    }
+    if kinds.len() != 1 {
+        return None;
+    }
+    let spaced = kinds.into_iter().next()?.replace('-', " ");
+    let mut chars = spaced.chars();
+    chars.next().map(|first| first.to_uppercase().collect::<String>() + chars.as_str())
+}
+
+/// What its documents name a matter, as the start of its name (D-285):
+/// without a leading determiner ("This Agreement", "El presente
+/// contrato") and without a piece after a dash or a colon that only
+/// names one of its parties, which the name says after it ("Acuerdo de
+/// terminación - Persona Uno" between Persona Uno and a company).
+fn own_name(vocabulary: &Vocabulary, name: &str, parties: &[String]) -> String {
+    let mut name = name.trim().to_string();
+    for separator in [" - ", " – ", " — ", ": ", " | "] {
+        if let Some((head, tail)) = name.split_once(separator) {
+            let tail_words = quote::words(tail);
+            let names_a_party = !tail_words.is_empty()
+                && parties.iter().any(|p| {
+                    let party = quote::words(p);
+                    !party.is_empty() && tail_words.iter().all(|w| party.contains(w))
+                });
+            if names_a_party && !quote::words(head).is_empty() {
+                name = head.trim().to_string();
+                break;
+            }
+        }
+    }
+    let determiners = &vocabulary.identity.determiners;
+    let mut words: Vec<&str> = name.split_whitespace().collect();
+    while words.len() > 1 && determiners.iter().any(|d| quote::words(words[0]) == [d.clone()]) {
+        words.remove(0);
+    }
+    let rest = words.join(" ");
+    let mut chars = rest.chars();
+    match chars.next() {
+        Some(first) if !rest.chars().any(char::is_lowercase) || first.is_uppercase() => rest,
+        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+        None => name,
+    }
+}
+
+/// A name of a matter written all in capitals ("ACUERDO DE TERMINACIÓN"),
+/// of two words or more, in sentence case: what kind of matter it is, not
+/// a proper name to keep as written.
+fn sentence_case(name: &str) -> String {
+    let letters: Vec<char> = name.chars().filter(|c| c.is_alphabetic()).collect();
+    if name.split_whitespace().count() < 2 || letters.is_empty() || letters.iter().any(|c| c.is_lowercase()) {
+        return name.to_string();
+    }
+    let lower = name.to_lowercase();
+    let mut chars = lower.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+        None => String::new(),
+    }
 }
 
 fn one_line(text: &str) -> String {
@@ -614,7 +767,8 @@ fn describe_document(conn: &Connection, vocabulary: &Vocabulary, content: i64) -
     }
     let mut statement = conn
         .prepare(
-            "SELECT e.predicate, coalesce(e.object_value, o.written), e.quote FROM knowledge_evidence e
+            "SELECT e.predicate, coalesce(e.object_value, CASE WHEN e.amount IS NOT NULL THEN e.amount || ' — ' || o.written ELSE o.written END), e.quote
+             FROM knowledge_evidence e
              LEFT JOIN knowledge_mention o ON o.id = e.object_mention WHERE e.content_id = ?1 ORDER BY e.id LIMIT ?2",
         )
         .map_err(sql_err)?;
@@ -910,4 +1064,21 @@ fn separated_documents(conn: &Connection) -> Result<BTreeSet<(i64, i64)>, String
         }
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod name_tests {
+    use super::*;
+
+    #[test]
+    fn the_own_name_of_a_matter_drops_a_determiner_and_a_party_after_a_dash() {
+        let v = Vocabulary::builtin();
+        let parties = vec!["Persona Uno".to_string(), "Ejemplo LLC".to_string()];
+        assert_eq!(own_name(&v, "This Consent and Assignment Agreement", &parties), "Consent and Assignment Agreement");
+        assert_eq!(own_name(&v, "el presente contrato de obra", &parties), "Presente contrato de obra");
+        assert_eq!(own_name(&v, "ACUERDO DE TERMINACIÓN - Persona Uno", &parties), "ACUERDO DE TERMINACIÓN");
+        // A piece that says something else stays.
+        assert_eq!(own_name(&v, "Contrato de obra - Etapa dos", &parties), "Contrato de obra - Etapa dos");
+        assert_eq!(sentence_case(&own_name(&v, "ACUERDO DE TERMINACIÓN - Persona Uno", &parties)), "Acuerdo de terminación");
+    }
 }

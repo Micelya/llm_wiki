@@ -53,10 +53,13 @@ pub(crate) fn evidence_key(content_id: i64, subject: &str, predicate: &str, obje
 }
 
 /// The key of a claim: its subject entity, predicate and object.
+/// An amount between two parties has both: the other party and the
+/// amount (D-244).
 pub(crate) fn claim_key(subject: &str, predicate: &str, object_entity: Option<&str>, object_normalized: Option<&str>) -> String {
-    match object_entity {
-        Some(entity) => format!("claim:{subject}:{predicate}:entity:{entity}"),
-        None => format!("claim:{subject}:{predicate}:value:{}", object_normalized.unwrap_or_default()),
+    match (object_entity, object_normalized.filter(|n| !n.is_empty())) {
+        (Some(entity), Some(amount)) => format!("claim:{subject}:{predicate}:entity:{entity}:value:{amount}"),
+        (Some(entity), None) => format!("claim:{subject}:{predicate}:entity:{entity}"),
+        (None, normalized) => format!("claim:{subject}:{predicate}:value:{}", normalized.unwrap_or_default()),
     }
 }
 
@@ -135,6 +138,10 @@ struct Draft {
     object_entity: Option<String>,
     object_value: Option<String>,
     object_normalized: Option<String>,
+    /// The amount of an amount between two parties, and what else its
+    /// reading says (kind, currency, concept), from its first evidence.
+    amount: Option<String>,
+    detail: Option<String>,
     evidence: BTreeSet<i64>,
     times: BTreeMap<String, String>,
     valid_from: Option<String>,
@@ -163,6 +170,10 @@ struct Piece {
     value: Option<String>,
     normalized: Option<String>,
     time: Option<String>,
+    amount: Option<String>,
+    detail: Option<serde_json::Value>,
+    /// The date of its document, as its text writes it.
+    doc_date: Option<String>,
 }
 
 /// The values given as identifiers in any document (normalized): a
@@ -188,10 +199,16 @@ fn says(vocabulary: &Vocabulary, piece: &Piece, identifiers: &HashSet<String>) -
     let quote = quote::words(&piece.quote);
     let Some(definition) = vocabulary.predicate(&piece.predicate) else { return true };
     let has = |list: &[String]| quote.iter().any(|w| list.iter().any(|c| w.starts_with(c.as_str())));
-    if (!definition.cues.is_empty() && !has(&definition.cues)) || has(&definition.not_cues) {
+    // The words of a tax next to an amount between parties are checked
+    // next to its amount, when it is read (D-244).
+    let not_cues = if definition.is_money() { &[][..] } else { &definition.not_cues[..] };
+    if (!definition.cues.is_empty() && !has(&definition.cues)) || has(not_cues) {
         return false;
     }
-    if let Some(object) = &piece.object_name {
+    // An amount between two parties names them by the reading of the whole
+    // document ("Ud. adeuda la suma de…": the debtor is whom the letter is
+    // addressed to); its direction was checked against its quote (D-244).
+    if let Some(object) = piece.object_name.as_ref().filter(|_| !definition.is_money()) {
         let named = |name: &str| {
             let words: Vec<String> = name.split_whitespace().map(str::to_string).collect();
             quote::contains(&quote, &words)
@@ -203,10 +220,10 @@ fn says(vocabulary: &Vocabulary, piece: &Piece, identifiers: &HashSet<String>) -
     }
     if definition.shape == "contact" {
         let value = piece.normalized.clone().unwrap_or_else(|| quote::words(piece.value.as_deref().unwrap_or_default()).join(" "));
-        let words: Vec<String> = value.split_whitespace().map(str::to_string).collect();
+        let compact = super::names::identifier_value(&value);
         let is_identifier = identifiers.iter().any(|id| {
-            let id: Vec<String> = id.split_whitespace().map(str::to_string).collect();
-            id.iter().map(|w| w.chars().filter(char::is_ascii_digit).count()).sum::<usize>() >= 6 && quote::contains(&words, &id)
+            let id = super::names::identifier_value(id);
+            id.chars().filter(char::is_ascii_digit).count() >= 6 && compact.contains(&id)
         });
         if is_identifier {
             return false;
@@ -219,10 +236,11 @@ fn load_pieces(conn: &Connection) -> Result<Vec<Piece>, String> {
     let mut statement = conn
         .prepare(
             "SELECT e.id, e.content_id, s.entity_id, s.normalized, e.predicate, o.entity_id, o.normalized,
-                    e.object_value, e.object_normalized, e.fact_time, e.subject_mention, e.quote
+                    e.object_value, e.object_normalized, e.fact_time, e.subject_mention, e.quote, e.amount, e.detail, k.doc_date
              FROM knowledge_evidence e
              JOIN knowledge_mention s ON s.id = e.subject_mention
              LEFT JOIN knowledge_mention o ON o.id = e.object_mention
+             LEFT JOIN knowledge_extraction k ON k.content_id = e.content_id
              ORDER BY e.content_id, e.id",
         )
         .map_err(sql_err)?;
@@ -241,6 +259,9 @@ fn load_pieces(conn: &Connection) -> Result<Vec<Piece>, String> {
                 time: row.get(9)?,
                 subject_mention: row.get(10)?,
                 quote: row.get(11)?,
+                amount: row.get(12)?,
+                detail: row.get::<_, Option<String>>(13)?.and_then(|d| serde_json::from_str(&d).ok()),
+                doc_date: row.get(14)?,
             })
         })
         .map_err(sql_err)?
@@ -309,7 +330,17 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, wrong: &BT
             .then(|| context_of(&named, &related, within, piece.content, piece.subject_mention, &piece.quote))
             .flatten()
             .filter(|c| c != subject);
-        let qualifier = definition.and_then(|p| qualifier_of(&p.qualifiers, &piece.quote));
+        // The kind of value: what the words of the quote say (a domicile
+        // "constituido"), else the class the reading gave ("real",
+        // "sede"); the kind of an amount (D-244, D-247).
+        let said_class = |key: &str| piece.detail.as_ref().and_then(|d| d.get(key)).and_then(|c| c.as_str()).map(str::to_string);
+        let qualifier = if definition.is_some_and(|p| p.is_money()) {
+            said_class("tipo")
+        } else {
+            definition
+                .and_then(|p| qualifier_of(&p.qualifiers, &piece.quote))
+                .or_else(|| said_class("clase").filter(|c| definition.is_some_and(|p| p.qualifiers.iter().any(|q| &q.id == c))))
+        };
         contexts.insert(piece.id, (context.clone(), qualifier.clone()));
         if piece.object_name.is_none() {
             let shape = definition.map(|p| p.shape.as_str()).unwrap_or_default();
@@ -376,7 +407,8 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, wrong: &BT
         let (value, normalized) = match (&object_entity, written_as.get(&piece.id)) {
             (None, Some((value, normalized))) => (Some(value.clone()), Some(normalized.clone())),
             (None, None) => continue,
-            (Some(_), _) => (None, None),
+            // An amount between two parties keys on its amount too.
+            (Some(_), _) => (None, piece.amount.as_deref().map(|a| values::digit_runs(a).join(" ")).filter(|a| !a.is_empty())),
         };
         if object_entity.is_none() && normalized.as_deref().map_or(true, str::is_empty) {
             continue;
@@ -392,6 +424,8 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, wrong: &BT
             object_value: value.clone(),
             object_entity: object_entity.clone(),
             object_normalized: normalized.clone(),
+            amount: piece.amount.clone(),
+            detail: piece.detail.as_ref().map(|d| d.to_string()),
             evidence: BTreeSet::new(),
             times: BTreeMap::new(),
             valid_from: None,
@@ -401,7 +435,15 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, wrong: &BT
         if wrong.contains(&plain) {
             draft.state = "retired";
         }
-        if let Some(time) = piece.time.as_deref().filter(|t| !t.trim().is_empty()) {
+        // Its time: the one the quote says, or the date of its document for
+        // a value whose time is its document's (a domicile, D-247).
+        let from_document = vocabulary.predicate(&piece.predicate).is_some_and(|p| p.time_from_document);
+        let time = piece
+            .time
+            .as_deref()
+            .filter(|t| !t.trim().is_empty())
+            .or_else(|| from_document.then_some(piece.doc_date.as_deref()).flatten().filter(|t| !t.trim().is_empty()));
+        if let Some(time) = time {
             draft.times.entry(quote::words(time).join(" ")).or_insert_with(|| time.trim().to_string());
         }
         evidence_claim.insert(piece.id, key);
@@ -411,9 +453,10 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, wrong: &BT
             draft.valid_from = draft.times.values().next().cloned();
         }
     }
-    // One value at a time: different values for the same time (or no
-    // time) are a conflict; each with its own time, a history. Values
-    // within different entities are not compared.
+    // One value at a time: different values of the same kind, for the
+    // same holder and the same time, are a conflict; each with its own
+    // time, a history; without a time, values that are not compared
+    // (D-252). Values within different entities are not compared.
     let mut by_subject: BTreeMap<(String, String, Option<String>, Option<String>), Vec<String>> = BTreeMap::new();
     for (key, draft) in &drafts {
         if draft.object_entity.is_none() && draft.state != "retired" && vocabulary.predicate(&draft.predicate).is_some_and(|p| p.single) {
@@ -435,8 +478,8 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, wrong: &BT
         }
         for key in keys {
             let draft = drafts.get_mut(key).expect("listed");
-            let alone = draft.valid_from.as_ref().is_some_and(|t| times[&quote::words(t).join(" ")] == 1);
-            if !alone {
+            let shared = draft.valid_from.as_ref().is_some_and(|t| times[&quote::words(t).join(" ")] > 1);
+            if shared {
                 draft.state = "conflict";
             }
         }
@@ -504,9 +547,10 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, wrong: &BT
                 let value_changed = draft.object_value.is_some() && old.object_value != draft.object_value;
                 if old.valid_from != draft.valid_from || old.state != draft.state || old.evidence != draft.evidence || value_changed {
                     conn.execute(
-                        "UPDATE knowledge_claim SET valid_from = ?2, state = ?3, object_value = coalesce(?4, object_value), computed_at = ?5
+                        "UPDATE knowledge_claim SET valid_from = ?2, state = ?3, object_value = coalesce(?4, object_value), computed_at = ?5,
+                         amount = ?6, detail = ?7
                          WHERE id = ?1",
-                        params![old.id, draft.valid_from, draft.state, draft.object_value, now],
+                        params![old.id, draft.valid_from, draft.state, draft.object_value, now, draft.amount, draft.detail],
                     )
                     .map_err(sql_err)?;
                     out.touched.insert(draft.subject.clone());
@@ -517,8 +561,8 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, wrong: &BT
                 conn.execute(
                     "INSERT INTO knowledge_claim
                         (subject, predicate, object_entity, object_value, object_normalized, valid_from, state, computed_at, context_entity,
-                         qualifier)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                         qualifier, amount, detail)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
                     params![
                         draft.subject,
                         draft.predicate,
@@ -529,7 +573,9 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, wrong: &BT
                         draft.state,
                         now,
                         draft.context,
-                        draft.qualifier
+                        draft.qualifier,
+                        draft.amount,
+                        draft.detail
                     ],
                 )
                 .map_err(sql_err)?;

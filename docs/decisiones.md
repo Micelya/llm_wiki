@@ -211,7 +211,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-188 | 16 oct | Conocimiento | El modelo decide los candidatos difíciles contra una entidad principal; su veredicto se guarda por par; un nombre sin forma que comparten varias sociedades queda dudoso | en revisión; reemplazada en parte por D-212 |
 | D-189 | 16 oct | Conocimiento | Las decisiones de una persona (unir, separar, dato incorrecto, deshacer) se guardan sobre claves estables y se aplican al instante | en revisión |
 | D-190 | 16 oct | Conocimiento | El identificador de una entidad lo conserva la que se queda con más menciones; la que se vacía queda unida a otra o retirada | en revisión |
-| D-191 | 16 oct | Conocimiento | Afirmaciones: lo mismo dicho varias veces es una sola; un dato de un valor a la vez con valores distintos es un conflicto o una historia | en revisión; reemplazada en parte por D-209 |
+| D-191 | 16 oct | Conocimiento | Afirmaciones: lo mismo dicho varias veces es una sola; un dato de un valor a la vez con valores distintos es un conflicto o una historia | en revisión; reemplazada en parte por D-209 y D-252 |
 | D-192 | 16 oct | Conocimiento | La resolución se recalcula entera sin modelo, escribe solo lo que cambió y corre en el hilo de preguntas después de la lectura | en revisión |
 | D-193 | 16 oct | Conocimiento | Cambiar las palabras de la resolución no vuelve a leer el archivo: la lectura depende solo de lo que usa la pregunta | en revisión |
 | D-194 | 16 oct | Conocimiento | Cómo se evalúa la identidad contra la hoja: pares de menciones, uniones y separaciones falsas por separado | en revisión |
@@ -245,6 +245,43 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-222 | 16 oct | Proceso de trabajo | La prueba de R-24 revisa todo el programa, sus pruebas y los textos de diseño | en revisión |
 | D-223 | 16 oct | Interfaz | Los nombres de tipos, roles, predicados e identificadores de la capa, en el vocabulario de cada vertical | en revisión |
 | D-224 | 16 oct | Conocimiento | Una decisión sobre una identidad guarda lo que la pantalla mostró de cada lado | en revisión |
+| D-244 | 17 oct | Conocimiento | El dinero es una relación entre un deudor y un acreedor, con control de dirección por la cita | en revisión |
+| D-245 | 17 oct | Conocimiento | Los términos definidos y los rótulos de formulario son alias locales, no nombres | en revisión |
+| D-246 | 17 oct | Conocimiento | Una pregunta de lectura nueva: se vuelve a leer el archivo entero | en revisión |
+| D-247 | 17 oct | Conocimiento | El domicilio tiene clase, tiempo y titular | en revisión |
+| D-248 | 17 oct | Conocimiento | Formularios: cada valor con su campo y su persona, y el rótulo aparte | en revisión |
+| D-249 | 17 oct | Conocimiento | Los identificadores por su rótulo; los números que no identifican a nadie | en revisión |
+| D-250 | 17 oct | Conocimiento | Lo que tiene consecuencias jurídicas nombra a su objeto en la cita | en revisión |
+| D-251 | 17 oct | Conocimiento | El rol "domicilio constituido" y los roles de una constancia de firma | en revisión |
+| D-252 | 17 oct | Conocimiento | Un conflicto es el mismo dato, de la misma clase, del mismo titular y del mismo tiempo | en revisión |
+| D-253 | 17 oct | Proceso de trabajo | La muestra de atribución: 40 afirmaciones al azar, juzgadas a ciegas | en revisión |
+| D-259 | 17 oct | Conocimiento | Una entidad se nombra por su forma más completa que sea nombre propio, no por la más repetida | en revisión |
+| D-260 | 17 oct | Conocimiento | Grupos de sociedades: mismo nombre, otra forma y otra señal que las vincule; lo no atribuible va al grupo | en revisión |
+| D-261 | 17 oct | Conocimiento | Dentro de un documento, la sociedad sin forma es la única forma completa que escribe el documento | en revisión |
+| D-262 | 17 oct | Conocimiento | Áreas y casillas generales no se unen por nombre: son contacto de la organización que indica el documento o de su grupo | en revisión |
+| D-263 | 17 oct | Conocimiento | Dos asuntos del mismo nombre entre otras partes no se le preguntan al modelo | en revisión |
+| D-264 | 17 oct | Conocimiento | Todos los nombres de un grupo de menciones cuentan para unir y comparar, no solo el principal | en revisión |
+| D-265 | 17 oct | Conocimiento | La pregunta de identidad trata la errata de una razón social entre las mismas partes (identidad-4) | en revisión |
+| D-266 | 17 oct | Conocimiento | Página de persona u organización: con un rol de sustancia o con algo que los documentos dicen de ella | en revisión |
+| D-267 | 17 oct | Conocimiento | El asunto se nombra por la relación entre sus partes, nunca por un comprobante, un número o un archivo | en revisión |
+| D-268 | 17 oct | Conocimiento | El número de un asunto en el texto de otro documento lo suma al asunto; el porqué, resumido y plegado | en revisión |
+| D-269 | 17 oct | Conocimiento | Una representación vale con la sociedad en la línea anterior y la cita que dice cómo actúa (P-122) | en revisión |
+| D-274 | 17 oct | Conocimiento | El nivel de razonamiento va a Codex (solo bajo, medio y alto) y es parte del nombre del motor | en revisión |
+| D-275 | 17 oct | Conocimiento | Un CUIT con prefijo de persona dado a una sociedad es de la persona (lectura-6) | en revisión |
+| D-276 | 17 oct | Conocimiento | Cómo se comparan modelos: cuatro variantes con su caché, la hoja, atribución a ciegas y tiempo | en revisión |
+| D-277 | 17 oct | Conocimiento | El mismo modelo cambia entre corridas: una corrida no alcanza para juzgar un cambio fino | en revisión |
+| D-278 | 17 oct | Conocimiento | gpt-6.1-sol queda como alternativa; alto se descarta por tiempo | en revisión |
+| D-279 | 17 oct | Conocimiento | Por defecto, gpt-6-luna con razonamiento alto | en revisión |
+| D-280 | 17 oct | Desktop | Una carpeta nueva tiene un solo id de proyecto y su cola nunca queda huérfana | en revisión |
+| D-281 | 17 oct | Conocimiento | Un nombre comercial con otra sociedad entre paréntesis no es esa sociedad | en revisión |
+| D-282 | 17 oct | Conocimiento | Una abreviatura sin su último punto cuenta por la forma con punto | en revisión |
+| D-283 | 17 oct | Conocimiento | Fechas en el idioma del wiki también con ordinales en inglés y con la forma de las escrituras | en revisión |
+| D-284 | 17 oct | Conocimiento | Los datos de contacto solos no le dan página a una entidad | en revisión |
+| D-285 | 17 oct | Conocimiento | El nombre propio de un asunto sin artículo inicial ni el nombre de una parte detrás de un guion | en revisión |
+| D-286 | 17 oct | Conocimiento | Más palabras genéricas y de áreas en el vocabulario | en revisión |
+| D-287 | 17 oct | Conocimiento | Un código postal o un DNI no es un teléfono | en revisión |
+| D-288 | 17 oct | Conocimiento | Ronda 1 de la revisión del wiki regenerado: valores que no lo son, constancias de firma, nombres y asuntos | en revisión |
+| D-289 | 17 oct | Conocimiento | Presentación de identificadores, alias y nombres de personas | en revisión |
 
 ---
 
@@ -2660,7 +2697,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 - **Fecha:** 16 oct 2026
 - **Tema:** Conocimiento
-- **Estado:** en revisión (agente sin consulta, P-066); reemplazada en parte por D-209 (cargo y monto reclamado ya no son de un valor a la vez; la forma de los valores)
+- **Estado:** en revisión (agente sin consulta, P-066); reemplazada en parte por D-209 (cargo y monto reclamado ya no son de un valor a la vez; la forma de los valores) y por D-252 (sin tiempo no hay conflicto; la clase y el tiempo del documento)
 - **El problema:** la etapa 1 guarda evidencias entre menciones de un documento; las páginas necesitan afirmaciones sobre entidades, sin repetir lo mismo y mostrando las contradicciones (D-171).
 - **Qué se decidió:** cada evidencia se pasa a términos de entidades: sujeto, predicado y objeto (otra entidad, o un valor comparado por sus palabras normalizadas). Las que dicen lo mismo son **una afirmación** con varias evidencias. Los predicados de un valor a la vez se marcan en el vocabulario (`single`: cargo, domicilio, monto reclamado, nacionalidad, estado civil); si una entidad tiene valores distintos de uno de ellos, son una **historia** cuando cada valor tiene su propio tiempo, y un **conflicto** cuando el tiempo es el mismo o no se dice: el conflicto se guarda y se muestra, nunca gana el último. Una afirmación marcada como incorrecta queda retirada; una evidencia marcada no cuenta. Una relación de una entidad consigo misma (después de unir) no se guarda. Se recalculan en cada resolución y se escribe solo lo que cambió.
 - **Por qué:** es lo que pide D-171; marcar en el vocabulario qué predicados tienen un valor a la vez evita llamar conflicto a dos montos adeudados de facturas distintas.
@@ -2712,7 +2749,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 - **Fecha:** 16 oct 2026
 - **Tema:** Conocimiento
-- **Estado:** en revisión (agente sin consulta, P-066)
+- **Estado:** en revisión (agente sin consulta, P-066); reemplazada en parte por D-239 (el archivo sigue al nombre de la entidad)
 - **El problema:** la página de una entidad tiene que tener un nombre de archivo que no se rompa: los enlaces del wiki apuntan al nombre del archivo, y el nombre visible de una entidad puede cambiar (otra forma de escribirla pasa a ser la más usada, o una persona la corrige).
 - **Qué se decidió:** el archivo es `wiki/entities/<nombre legible>-<8 caracteres del identificador>.md`. El nombre legible sale del nombre visible la primera vez que se escribe la página (palabras sin acentos unidas por guiones) y queda guardado en `knowledge_page.path`; si la entidad cambia de nombre, cambia el título dentro de la página, no el archivo. Los enlaces se escriben `[[archivo|Nombre]]`. Si dos entidades darían el mismo archivo, la segunda lleva el identificador entero.
 - **Por qué:** el identificador hace único al archivo y no depende del nombre; la parte legible deja reconocer el archivo en una carpeta. Renombrar el archivo con el nombre rompería los enlaces de las páginas que la app no escribe.
@@ -2861,7 +2898,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 - **Fecha:** 16 oct 2026
 - **Tema:** Conocimiento
-- **Estado:** en revisión (agente sin consulta, P-066)
+- **Estado:** en revisión (agente sin consulta, P-066); reemplazada en parte por D-239 (una página sin notas no se conserva por un enlace)
 - **El problema:** cuando una entidad se retira (sus documentos se fueron) o se une con otra, su página ya no tiene que estar; pero otra página puede enlazarla, y un enlace roto en el wiki confunde.
 - **Qué se decidió:** las páginas que escribe la app (las de entidades y asuntos, el resumen y el bloque de entidades de cada página de documento) se rehacen sin esa entidad, así que sus enlaces no se rompen. La página se **borra** salvo que tenga notas de una persona o que la enlace una página que la app no escribe (por ejemplo, el texto que escribió el wiki en la página de un documento, fuera del bloque de la app). En esos casos queda una **página mínima** en el mismo lugar que dice que la entidad dejó el registro, o con quién se unió (con el enlace), y las notas. Cuando ese enlace desaparece y no hay notas, la página mínima también se va.
 - **Por qué:** quitar lo que ya no corresponde sin perder nada que haya escrito una persona ni dejar enlaces muertos.
@@ -3234,3 +3271,503 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** carpetas de la tanda (fuera del repositorio).
 - **Quién decidió:** agente sin consulta.
 - **Fuente:** etapa W de la tanda desatendida del 16 oct.
+
+### D-234 · Un `$` suelto es siempre el signo de moneda en los lectores
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Wiki
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** los lectores del wiki, de la vista previa, del chat y del panel de investigación dibujaban como fórmula todo lo que quedaba entre dos `$` de una misma línea. En un archivo jurídico eso son justo los importes ("reclama $ 1.500 y $ 300 de intereses"): el texto del medio perdía los espacios y las palabras aparecían pegadas. La revisión del 17 de octubre contó 39 casos en 21 páginas.
+- **Qué se decidió:** en los cuatro lectores solo `$$…$$` es una fórmula; el `$` simple no abre fórmula nunca (opción `singleDollarTextMath: false`, en un único lugar compartido, `src/lib/markdown-math.ts`). El chat dejó de tratar `$…$` como fórmula al convertir LaTeX a texto.
+- **Por qué:** arreglarlo en el lector cubre de una vez todas las páginas: las que proyecta la app, las que escribe el modelo del wiki (que no controla el programa) y las notas que escribe una persona, también las ya escritas. Escapar al escribir habría dejado afuera las páginas del modelo y las notas, y obligaría a volver a escribir todo el wiki. En un estudio jurídico la fórmula en línea con `$` simple no se usa; quien la necesite tiene `$$`.
+- **Alternativas descartadas:** escapar `$` al escribir las páginas (no cubre lo que escribe el modelo ni lo que escribe una persona).
+- **Dónde se aplica:** `src/lib/markdown-math.ts`, `wiki-reader.tsx`, `file-preview.tsx`, `chat-message.tsx`, `research-panel.tsx`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q1 de la tanda desatendida del 17 oct.
+
+### D-235 · Una lectura vacía de un texto largo es una lectura fallida
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** tres documentos largos (entre 1.300 y 3.800 palabras, uno de ellos la cronología del reclamo) volvieron del modelo sin ninguna mención ni afirmación y quedaron como leídos ("done"). Nadie se enteró: sus personas y sus datos faltan en el registro y en las páginas, y la respuesta vacía quedó guardada, así que nunca se volvían a leer.
+- **Qué se decidió:** una parte de un documento con al menos 300 palabras (`attention.emptyMinWords` del vocabulario de la capa) que el modelo lee sin nombrar a nadie ni decir nada no cuenta como lectura. Se vuelve a preguntar en la misma tanda, hasta 3 veces (`attention.emptyAttempts`), sin mirar la respuesta guardada. Una respuesta vacía no se guarda, y una vacía que ya estaba guardada de antes no cuenta. Si después de los intentos sigue vacía, la lectura queda **fallida** con el motivo ("el modelo leyó el texto sin encontrar a nadie, aunque es largo; se preguntó 3 veces") y aparece en Atención como problema, con una acción "Volver a leer" que olvida las lecturas fallidas para que la próxima tanda las vuelva a pedir (lo que el modelo contestó bien de las otras partes se conserva y no se pregunta de nuevo). La versión de la comprobación de lectura pasó a `lectura-3`: las lecturas se vuelven a comprobar desde las respuestas guardadas, sin preguntar, salvo las partes que habían vuelto vacías.
+- **Por qué:** en un estudio jurídico un documento largo sin nadie nombrado es casi siempre una falla del modelo, no un documento vacío; callarlo es una pérdida silenciosa (R-23: lo que falta es un resultado). Reintentar con un tope evita tanto la pérdida como un bucle de preguntas. Un documento corto sin nombres (una receta, una constancia) sí puede ser vacío y sigue valiendo.
+- **Alternativas descartadas:** reintentar en cada arranque sin tope (preguntas sin fin si el documento de verdad no nombra a nadie); guardar las otras partes como leídas y marcar solo la parte vacía (la lectura parecería completa y no lo es).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/extract.rs` (`knowledge_run`, `knowledge_read_again_failed`), `vocabulary.rs`, `resources/catalog/knowledge.json` (`attention`), comando `docbase_knowledge_read_again_failed`, `src/components/attention/sources/knowledge.ts`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q1 de la tanda desatendida del 17 oct.
+
+### D-236 · Lo que la síntesis no usa se lista igual en la página
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la página de una entidad mostraba solo las afirmaciones que la síntesis del modelo citaba. Las que el modelo no usó, o las de una oración descartada por la comprobación, desaparecían de la página aunque estaban en el registro con su cita: en la revisión del 17 de octubre se perdieron así los reclamos de la contraparte. Lo mismo pasaba con las afirmaciones después de la número 120 de una entidad y con los datos de un asunto después del número 60.
+- **Qué se decidió:** después de las referencias de la síntesis, una sección "Otros datos de los documentos" lista, sin redactar, cada afirmación que la síntesis no usó, con su número, su dato y su cita con el documento. Si todavía no hay síntesis, la misma lista se llama "Lo que dicen, dato por dato" y tiene todas. La síntesis se sigue escribiendo desde las primeras 120 afirmaciones (para no agrandar la pregunta), pero ninguna queda fuera de la página. La página de un asunto lista todos sus datos, sin tope. La versión de la proyección pasó a `proyeccion-3`, así que todas las páginas se vuelven a escribir sin preguntar nada.
+- **Por qué:** una página que parece completa y omite en silencio lo que el registro sabe es peor que una página sin síntesis (R-23); la cita a la vista permite que una persona vea lo que el modelo dejó de lado.
+- **Alternativas descartadas:** volver a preguntar la síntesis hasta que use todo (no garantiza nada y repite preguntas); listar todo dos veces, en la síntesis y aparte (ruido).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/pages.rs` (`render`, `render_matter`, `numbered`), `resources/catalog/knowledge.json` (`pages.words.saidList`, `saidOthers`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q1 de la tanda desatendida del 17 oct.
+
+### D-237 · Lo que escribe el modelo del wiki pasa por un último control antes de guardarse
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Wiki
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** en el wiki generado el 16 de octubre había 5 conceptos guardados sin `.md` (el lector y el índice no los ven), 2 páginas tituladas "Source: <ruta>", 51 páginas de documento con campos de referencia académica (`authors`, `year`, `url`, `venue`) heredados de la plantilla de investigación, 25 oraciones en 17 páginas que hablaban del propio wiki o "del material" ("ya figura en el wiki", "no está incluida en el material proporcionado", "el índice del wiki incluye…") y 30 enlaces en 24 páginas que no llevaban a ninguna página. Además, 3 páginas tenían restos de bloques `---FILE: …---` dentro del texto.
+- **Qué se decidió:** cada página que escribe el modelo del wiki, después de la fusión con la que ya existía y antes de guardarse, pasa por un control determinista (`src/lib/ingest-legal-finish.ts`): la ruta siempre termina en `.md`; el título del encabezado es el primer `#` de la página (y un "Source: <ruta>" se vuelve el nombre del documento); se quitan los campos académicos; se quita cada oración que habla del wiki o de su material, y cuando solo la cola de la oración lo hace ("…las facturas ya registradas en el wiki") se quita la cola y queda lo que dice de los documentos; se quitan las líneas `---FILE:` sueltas; un enlace `[[…]]` que no lleva a una página del wiki en disco ni a una que se escribe en la misma respuesta queda como su texto. Lo quitado se anota en los avisos de la incorporación. Las instrucciones al modelo dicen lo mismo, para que lo haga bien de entrada. Las páginas de reserva que arma la app cuando falla el modelo se titulan con el nombre del documento, no "Source: …".
+- **Por qué:** son defectos de forma que el programa detecta sin dudas; dejarlos al modelo no alcanzó. Una página que habla de "el material" o del wiki le habla al sistema, no al abogado. Las oraciones de ese tipo se buscan con frases acotadas para no tocar texto jurídico ("defectos en el material entregado" se conserva).
+- **Medición:** sobre el wiki del 16 de octubre (sin escribir nada, `desatendido-3\Q1-medir-incorporacion.mjs`), el control habría corregido las 152 páginas que escribió el modelo así: 5 rutas sin `.md`, 4 títulos (2 "Source:" y 2 que no coincidían con su encabezado), 51 páginas con campos académicos, 25 oraciones sobre el wiki en 17 páginas (revisadas a mano: ninguna era texto jurídico) y 30 enlaces rotos en 24 páginas. Los 5 conceptos sin extensión del wiki actual se arreglan al regenerarlo (etapa Q5).
+- **Alternativas descartadas:** pedírselo solo al modelo (ya estaba en parte y no alcanzó); crear páginas vacías para los enlaces rotos (agrega páginas sin contenido, que la revisión del 17 ya marcó como problema).
+- **Dónde se aplica:** `src/lib/ingest-legal-finish.ts`, `src/lib/ingest.ts` (`writeFileBlocks`, `buildGenerationPrompt`, `buildFallbackSourceSummary`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q1 de la tanda desatendida del 17 oct.
+
+### D-238 · El esquema de un proyecto nuevo es el de un estudio jurídico
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Wiki
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el `schema.md` que la app escribe al crear un proyecto (también el proyecto general del archivo) era la plantilla de investigación del proyecto original, en inglés: hablaba de papers, pedía `authors`, `year`, `url` y `venue` en cada fuente y nombres de archivo `autor-año`. El modelo del wiki lo lee como instrucción, y de ahí salieron los campos académicos de 51 páginas (P-114).
+- **Qué se decidió:** el esquema nuevo, en español, describe el wiki de un estudio jurídico: páginas de documento, conceptos jurídicos, entidades que escribe la app, encabezado sin campos académicos, enlaces solo a páginas que existen, que las páginas hablan de los documentos y no del wiki, y que los datos que difieren se muestran con sus dos valores. La tabla de tipos conserva su forma (la lee el programa para saber en qué carpeta va cada tipo).
+- **Por qué:** el esquema es parte de la pregunta al modelo; una plantilla de otro dominio empuja al modelo hacia ese dominio.
+- **Dónde se aplica:** `src-tauri/src/commands/project.rs` (`create_project_impl`). Vale para los proyectos que se creen desde ahora; el wiki del archivo se regenera en la etapa Q5 y recibe el esquema nuevo.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q1 de la tanda desatendida del 17 oct.
+
+### D-239 · Cómo se presentan las páginas de entidad: nombre, archivo, vínculos, fechas y plurales
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la revisión del 17 de octubre encontró en las páginas que escribe la app: archivos cuyo nombre no coincide con el título (la entidad cambió de nombre y el archivo quedó con el de la primera proyección, D-195); páginas "conservadas" sin notas de nadie, solo porque otra página las enlazaba, y alguna con el id como título; "1 documentos en común" (197 veces); el mismo vínculo dos veces ("Deudor de X" dicho por la entidad y "Deudor de X" como inversa de lo que dice X); fechas en inglés ("December 30, 2021") en el texto de la página; nombres en mayúsculas ("APELLIDO, NOMBRE") cuando otros documentos los escriben como nombre propio; nombres partidos en dos líneas.
+- **Qué se decidió:**
+  - Cuando el nombre de una entidad o de un asunto cambia, su página pasa al archivo del nombre nuevo (con el mismo id corto al final), con las notas que tenía, y los enlaces de todas las páginas del wiki al archivo viejo (también en `related:`) pasan al nuevo. Reemplaza en parte a D-195 (nombre de archivo fijo).
+  - Una página cuya entidad ya no tiene página se conserva **solo si una persona escribió notas** en ella; se titula con el nombre de la entidad (o el título que tenía), nunca con su id. Si no tiene notas se borra aunque otra página la enlace: esos enlaces pasan a la página de la entidad con la que se unió o, si no hay, quedan como texto. Reemplaza en parte a D-206.
+  - "1 documento en común" en singular (`pages.words.inCommonOne`).
+  - Un vínculo y su inversa dicha desde la otra entidad van en una sola línea, con las citas de los dos lados sin repetir.
+  - Una fecha en inglés de un dato o de una oración de la síntesis se escribe en el idioma de las páginas ("30 de diciembre de 2021"), con los meses y la forma del vocabulario (`pages.words.months`, `dateFormat`). Las citas no se tocan nunca: quedan como las escribe el documento.
+  - El nombre de una entidad va siempre en una línea, y un nombre escrito todo en mayúsculas toma la forma de nombre propio cuando los documentos escriben de otra manera cada una de sus palabras (se respeta su orden y su puntuación; si alguna palabra solo aparece en mayúsculas, queda como está). Se aplica al elegir el nombre en la resolución y al armar las páginas.
+- **Por qué:** son defectos de presentación que hacen dudar de todo lo demás (R-23) y que el programa resuelve sin dudas. Mover el archivo con sus enlaces mantiene la regla de que ningún enlace se rompe; conservar páginas vacías por un enlace dejaba huérfanas en el wiki.
+- **Medición:** ver el reporte de la etapa Q1 (evaluación sobre una copia de la base del 16 de octubre, `desatendido-3\Q1-eval-*.txt`).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/pages.rs` (`project`, `write_page`, `render`, `redirect_links`, `localized_dates`), `names.rs` (`shown_name`), `resolve.rs`, `resources/catalog/knowledge.json`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q1 de la tanda desatendida del 17 oct.
+
+### D-240 · El resumen del archivo cuenta lo leído y ordena a los más nombrados por su papel
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el resumen decía "63 documentos leídos" de 66: contaba los documentos que nombran a alguien, no los leídos. Y "los más nombrados" se ordenaban por cantidad de documentos en que aparecen, aunque fuera de pasada (un servicio de correo o una jurisdicción nombrada en cada boleta subían a la cabeza).
+- **Qué se decidió:** "Documentos leídos" cuenta los documentos cuya lectura de la capa salió bien; si alguna falló, una línea aparte dice cuántas (el detalle está en la vista de atención). "Los más nombrados" se ordenan por la cantidad de documentos en que la entidad tiene un papel de sustancia (parte, apoderado, firmante, remitente, destinatario, emisor: `pages.mostNamedRoles` del vocabulario); quien solo aparece de pasada no entra en esa lista, y el número que se muestra es el de esos documentos.
+- **Por qué:** el resumen es lo primero que se lee del archivo; tiene que decir la verdad sobre lo procesado y destacar a quienes los documentos tratan, no a quienes mencionan.
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/pages.rs` (`overview`), `vocabulary.rs`, `resources/catalog/knowledge.json`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q1 de la tanda desatendida del 17 oct.
+
+### D-244 · El dinero es una relación entre un deudor y un acreedor
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la revisión del 17 de octubre encontró que cerca de 20 de 38 afirmaciones de dinero tenían mal el sujeto, la dirección o la naturaleza del importe. Los predicados `monto_adeudado` y `monto_reclamado` guardaban un importe suelto, sin la otra parte: la página decía "consta un monto adeudado" sin decir a quién, y faltaba la relación central del reclamo (quién le debe a quién).
+- **Qué se decidió:**
+  - La pregunta de lectura tiene una lista propia, `importes`: deudor (quien debe, paga o pone el dinero), acreedor (quien lo recibe, lo cobra o lo reclama), importe, moneda, tipo (total de factura, saldo, reclamo, cuota pagada, intereses, precio, honorarios, préstamo, inversión, otro), concepto y fecha, con su cita. Pide quién debe a quién **después de resolver los términos definidos** ("la Empresa" es la sociedad que el documento definió así).
+  - Se guarda como una afirmación `importe` cuyo sujeto es el deudor y cuyo objeto es el acreedor, con el importe y su tipo (esquema V13: `amount` y `detail` en la evidencia y en la afirmación). Dos importes entre las mismas partes son dos afirmaciones. Se eliminan `monto_adeudado`, `monto_reclamado` y `acreedor_de` (que era la inversa de `deudor_de`); `deudor_de` queda para una deuda sin importe.
+  - **Control de dirección, por regla general:** si la cita pone al deudor delante de un verbo de quien cobra ("X reclama a Y") o al acreedor delante de un verbo de quien paga ("Y le adeuda a X"), o al deudor detrás de "a favor de", el programa da vuelta las partes y lo cuenta (`direccion-invertida`). Un verbo en voz pasiva o dos verbos que dicen cosas distintas no deciden nada. Los verbos son datos del vocabulario (`money.payerCues`, `payeeCues`, `creditorMarkers`).
+  - Un importe sin una de las partes no se guarda (`sin-contraparte`), tampoco uno con una palabra de impuesto justo antes ("Percepción IVA", `es-un-impuesto`) ni uno entre dos menciones de la misma entidad.
+  - Como las partes salen de la lectura del documento entero ("Ud. adeuda la suma de…": el deudor es el destinatario), no se exige que la cita nombre a las dos.
+  - Las páginas lo cuentan desde cada lado, con las palabras de cada tipo ("Debe a X", "Le debe X", "Reclama a X", "Le reclama X", "Pagó a X", "Cobró de X"…: `money.kinds` del vocabulario): el importe figura en la página del deudor y en la del acreedor, y no se repite en "Vínculos".
+- **Por qué:** para un abogado el importe sin las partes no sirve, y la dirección es lo que más se equivocaba.
+- **Medición:** sobre una copia de la base del 16 de octubre, con `gpt-6-luna` y una caché nueva (`desatendido-3\Q2-eval-*.txt`): vínculos de la hoja hallados entre las mismas entidades del registro, de 8 de 30 (26,7 %) a 21 de 32 (65,6 %); "acreedor de" de 0 a 7 de 8 y "deudor de" de 0 a 3 de 3. Muestra de atribución juzgada a ciegas: ver el reporte de la etapa Q2.
+- **Dónde se aplica:** `src-tauri/resources/catalog/knowledge.json` (`importe`, `money`), `knowledge/extract.rs` (`amount_evidence`), `read_checks.rs` (`money_direction`, `amount_about_else`), `claims.rs`, `pages.rs` (`claim_label`, `amount_text`), `matters.rs`, `schema.rs` (V13).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q2 de la tanda desatendida del 17 oct.
+
+### D-245 · Los términos definidos y los rótulos de formulario son alias locales, no nombres
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** "Empresa", "Cliente", "Trabajadora", "Contratista" quedaban como alias de entidades y se filtraban al texto de las páginas; "PROVINCIA" (el rótulo de un formulario) llegó a ser el nombre de una entidad con página.
+- **Qué se decidió:** la pregunta pide los términos definidos ("en adelante «la Empresa»", "(«la Locataria»)", "hereinafter the «Company»") en una lista `definiciones`, con la mención que definen y una cita que tenga el término y el nombre. El programa además los busca por su forma en el texto (un término entre comillas precedido de "en adelante", "denominado", "hereinafter" o de un paréntesis) y, si el modelo no dijo a qué se refieren, toma el nombre más cercano antes de la definición. Una mención escrita como un término definido queda marcada (`knowledge_mention.defined`) y se une, dentro del documento, con lo que define: nunca da nombre a la entidad, no es alias en las páginas y no se compara con otros documentos. Una forma de escribir de una sola palabra que el texto escribe siempre seguida de dos puntos ("PROVINCIA:") es un rótulo de formulario y se descarta (`rotulo-de-formulario`).
+- **Por qué:** un término definido vale solo dentro de su documento; tomarlo como nombre une o nombra mal.
+- **Dónde se aplica:** `knowledge/extract.rs` (`define_terms`), `read_checks.rs` (`defined_terms`, `is_form_label`), `resolve.rs` (el principal de un grupo nunca es un término definido), `pages.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q2 de la tanda desatendida del 17 oct.
+
+### D-246 · Una pregunta de lectura nueva: se vuelve a leer el archivo entero
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** los arreglos de esta etapa cambian lo que se le pide al modelo (importes, definiciones, clase de un dato, rótulo apartado, fecha del documento) y lo que el programa comprueba.
+- **Qué se decidió:** versión de la pregunta `conocimiento-2` y comprobación `lectura-4`; el vocabulario de lectura incluye ahora las clases de los datos, los rótulos de los identificadores, los tipos de importe y los controles de lectura. Todo el archivo se vuelve a leer una vez (66 documentos, 75 preguntas). La síntesis pasa a `sintesis-2` y la proyección a `proyeccion-4`.
+- **Por qué:** la regla de siempre (R-20): una pregunta distinta es otra pregunta.
+- **Medición:** la relectura con `gpt-6-luna` tardó unos 10 minutos con 3 preguntas a la vez; ninguna lectura vacía ni fallida (antes, 2 fallidas).
+- **Dónde se aplica:** `knowledge/extract.rs`, `vocabulary.rs`, `pages.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q2 de la tanda desatendida del 17 oct.
+
+### D-247 · El domicilio tiene clase, tiempo y titular
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** 7 páginas de entidad y 2 de asunto decían "los documentos difieren sobre su domicilio" por un cambio en el tiempo, el domicilio de la sociedad por la que se firma, un domicilio laboral o constituido, o el mismo dato escrito distinto. El domicilio no tenía clase ni tiempo, y la lectura le daba al firmante la dirección del bloque de firma.
+- **Qué se decidió:**
+  - El modelo dice la **clase** de un domicilio (real, legal o sede, laboral, fiscal, constituido; "ninguna" si el texto no la dice). Las palabras de la cita ("constituye domicilio") siguen mandando para "constituido". Domicilios de clases distintas no se comparan.
+  - El **tiempo** es el que dice la cita o, si no dice, la **fecha del documento**, que la lectura ahora pide (`fecha_documento`, comprobada en el texto; esquema V13). Dos domicilios con fechas distintas son una historia.
+  - **Titular:** un domicilio que el modelo le dio a una persona, cuando entre su nombre y la dirección la cita nombra a una sola organización del documento ("X, por Ejemplo S.A., con domicilio en…"), pasa a la organización (`domicilio-de-la-sociedad`). La descripción del predicado dice que la dirección de un bloque de firma o de un membrete es de la organización.
+  - Un código postal solo no es un domicilio.
+- **Medición:** páginas con "los documentos difieren": de 8 a 2 (las dos de la misma persona, por dos direcciones del mismo documento que el modelo le dio como reales: la revisión ciega dice que una es de la sociedad que firma, ver P-121).
+- **Dónde se aplica:** `knowledge.json` (`domicilio`), `extract.rs` (`signature_block`), `claims.rs`, `values.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q2 de la tanda desatendida del 17 oct.
+
+### D-248 · Formularios: cada valor con su campo y su persona, y el rótulo aparte
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** las fichas de cliente perdían casi todo: el nombre está en dos campos ("Apellidos" y "Nombres") y ninguna cita lo contiene como una sola frase; en una factura o un formulario en columnas el rótulo ("CUIT:") y su valor quedan separados en el texto. Y un dato del cónyuge quedaba en el cliente.
+- **Qué se decidió:**
+  - El nombre de una mención está en su cita si están todas sus palabras (dos o más), aunque no en orden.
+  - Una cita de rótulo y valor que no está seguida en el texto vale si el valor está en el texto y el rótulo, a lo sumo a `reading.labelWindow` palabras antes (y lo que siga, a lo sumo a esa distancia después). El modelo puede dar el rótulo aparte (`rotulo`); un rótulo que no está cerca del valor se ignora, nunca hace perder el valor.
+  - Un dato o un identificador que la cita pone bajo un rótulo de otra persona (`reading.otherPersonLabels`: "cónyuge", "concubino") pasa a la única persona del documento nombrada con ese rótulo; si no hay una sola, no queda en nadie. Lo mismo para un número que el texto escribe siempre después del nombre de otra persona.
+- **Medición:** identificadores de la hoja hallados, de 19 de 26 (73 %) a 21 de 26 (81 %); la primera versión, sin la cita en dos partes, perdía 116 identificadores por "cita no encontrada" (bajaron a 21 en total, contando todo).
+- **Dónde se aplica:** `extract.rs` (`locate_apart`, `label_verified`, `other_person`), `read_checks.rs` (`name_in_quote`), `quote.rs`, `knowledge.json` (`reading`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q2 de la tanda desatendida del 17 oct.
+
+### D-249 · Los identificadores por su rótulo; los números que no identifican a nadie
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** ~12 identificadores mal asignados: números de carta documento, de cliente, de sobre de firma, códigos postales, un EIN rotulado como CUIT, números de factura tomados como "expediente" (que es identificador fuerte y une). Y el mismo número escrito con y sin guiones se mostraba dos veces.
+- **Qué se decidió:** clases nuevas de identificador, cada una con sus rótulos (datos del vocabulario): EIN (fuerte), número de cliente, número de factura, número de envío o carta documento, sobre de firma y código postal. El rótulo que el texto pone justo antes del número decide la clase, sea cual sea la que dijo el modelo (`clase-por-su-rotulo`); entre un rótulo débil y uno fuerte seguidos ("CUIT del cliente") gana el fuerte. Factura, envío, sobre y código postal **no identifican** a una persona ni a una organización: solo se guardan en la mención del asunto del documento (y sirven para agrupar asuntos, `matters.identifierKinds`); en una persona u organización se descartan (`no-identifica`). El valor de un identificador se compara y se muestra por sus letras y dígitos, sin separadores.
+- **Medición:** uniones falsas de entidades de la hoja: de 89 pares de menciones (2 pares de entidades de la hoja unidas: la sociedad anónima con la LLC y la empresa de la contraparte con su grupo) a 5 pares (0 entidades de la hoja unidas). Separaciones falsas: de 10,4 % a 13,2 % de los pares (ver P-120).
+- **Dónde se aplica:** `knowledge.json` (`identifiers`), `read_checks.rs` (`kind_by_label`), `extract.rs`, `vocabulary.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q2 de la tanda desatendida del 17 oct.
+
+### D-250 · Lo que tiene consecuencias jurídicas nombra a su objeto en la cita
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** "beneficiario final de la operación" leído como de la sociedad; "representa a" sacado de una frase sobre un dominio de correo; la provincia como "parte".
+- **Qué se decidió:** predicados nuevos `beneficiario_final_de` y `conyuge_de`. "Representa a", "socio de", "beneficiario final de", "cónyuge de" y "parte en" (`objectInQuote` en el vocabulario) se guardan solo si la cita nombra al objeto (por cualquiera de sus nombres en el documento, también un término definido); si no, se descartan (`objeto-fuera-de-la-cita`).
+- **Por qué:** son los datos que un abogado usa para actuar; sin el objeto en la cita no hay cómo comprobarlos.
+- **Costo:** se pierden representaciones reales cuyo bloque de firma pone la sociedad en otra línea (46 descartes de este tipo). Ver P-122.
+- **Dónde se aplica:** `knowledge.json`, `extract.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q2 de la tanda desatendida del 17 oct.
+
+### D-251 · El rol "domicilio constituido" y los roles de una constancia de firma
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el rol "domicilio" se usaba para "tiene domicilio" (17 menciones, 3 o 4 reales), y los roles salidos de la constancia de un servicio de firma (quién firmó el sobre, quién lo envió) se tomaban como los del acto.
+- **Qué se decidió:** el rol pasa a `domicilio_constituido`, descrito como el lugar donde otra parte constituye domicilio, distinto de tener un domicilio (que es una afirmación). En las páginas del texto que tienen las marcas de una constancia de firma del catálogo de tipos (`reading.certificateMarks`), parte, remitente, destinatario y apoderado pasan a firmante (o a "otro" para una organización), según `reading.certificateRoles`.
+- **Medición:** menciones con ese rol, de 17 a 3; 3 papeles corregidos por la constancia.
+- **Dónde se aplica:** `knowledge.json`, `extract.rs`, `read_checks.rs` (`certificate_pages`), `src/vocabulary/legal.ts`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q2 de la tanda desatendida del 17 oct.
+
+### D-252 · Un conflicto es el mismo dato, de la misma clase, del mismo titular y del mismo tiempo
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066) · reemplaza en parte a D-191
+- **El problema:** D-191 marcaba en conflicto dos valores de un dato de un valor a la vez cuando no tenían tiempo, y la síntesis decía "los documentos difieren" también para historias y datos de distinta clase.
+- **Qué se decidió:** hay conflicto solo con el mismo predicado, la misma clase, el mismo titular, el mismo tiempo y valores distintos. Sin tiempo, los valores se muestran todos, sin compararlos. El dinero y los cargos nunca son "un solo valor". La consigna de la síntesis dice que no se hable de diferencias salvo para lo marcado en conflicto, que los datos de clases distintas no se contradicen y que un importe se cuenta con la otra parte.
+- **Dónde se aplica:** `claims.rs`, `pages.rs` (`synthesis_question`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q2 de la tanda desatendida del 17 oct.
+
+### D-253 · La muestra de atribución: 40 afirmaciones al azar, juzgadas a ciegas
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Forma de trabajo
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la hoja de respuestas mide si se encontró un dato, no si quedó atribuido a quien corresponde. Hacía falta medir la atribución de forma repetible para comparar esta etapa y las variantes de modelo de la Q4.
+- **Qué se decidió:** se toman con semilla fija 40 afirmaciones de una base (14 de dinero, 13 de domicilio y 13 de relaciones) con su cita y el texto completo de su documento; las muestras que se comparan se mezclan sin decir su origen y las juzga un revisor (un sub-agente) contra el documento: correcta, sujeto equivocado, dirección o naturaleza equivocada, objeto equivocado, o el documento no lo dice. Los scripts quedan fuera del repositorio porque las muestras nombran personas reales (`desatendido-3\Q2-muestra-atribucion.py`, `Q2-mezclar-muestras.py`, `Q2-contar-juicios.py`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q2 de la tanda desatendida del 17 oct.
+
+### D-259 · Una entidad se nombra por su forma más completa que sea nombre propio
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el nombre visible de una entidad era el más repetido de sus nombres, y "PROVINCIA" (dos veces, un rótulo de formulario) le ganaba a "Gobierno de la Provincia de …" (una vez); un nombre partido por un escaneo ("Ejem plo", dos palabras) le ganaba como nombre principal del grupo de menciones a la razón social con su forma; y quedaban como nombres frases y palabras de rol ("la Provincia", "accionistas", "su carta documento").
+- **Qué se decidió:** el nombre de una entidad es el más completo que sea nombre propio: el más usado de los que son nombres es el ancla, y entre los que tienen todas sus palabras (y su forma societaria) gana el de más palabras. Las palabras genéricas se amplían como datos del vocabulario (jurisdicciones como provincia, ciudad, estado o gobierno; plurales y palabras de rol; posesivos y demostrativos; nombres de documento como factura, carta o recibo). Un nombre que empieza con un artículo, un posesivo o un demostrativo en minúscula seguido de una palabra en minúscula es una frase (`identity.determiners`). Un asunto no se nombra por el nombre de un archivo ni por palabras comunes. En un grupo de menciones, la forma societaria pesa antes que la cantidad de palabras.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q3 de la tanda desatendida del 17 oct.
+
+### D-260 · Grupos de sociedades
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la empresa propia aparece como tres sociedades (S.A., LLC, LTD) con el mismo nombre: está bien que sean tres, pero lo que se nombra sin forma y la casilla de firma que usan todas terminaban unidos a una sola, que heredaba documentos de las otras; y un grupo nombrado en el texto ("Grupo X") no tenía relación con sus sociedades.
+- **Qué se decidió:** varias organizaciones con el mismo nombre propio que difieren solo en la forma societaria (formas del vocabulario) y con al menos otra señal que las vincule (la misma persona como su representante, socia o empleada, `identity.groupLinks`, o como apoderada en documentos de cada una; la misma casilla general en documentos de varias; un documento que nombra a dos y dice grupo o afiliada, `identity.affiliateWords`) son las sociedades de un grupo: lo que se nombra sin forma y no se pudo atribuir a una sola, y esa casilla, son del grupo, que se nombra por el nombre compartido. Solo el nombre compartido no alcanza: quedan las dudas para una persona (R-07). Un grupo nombrado en los documentos (`identity.groupWords`) existe por su cita, y sus sociedades son las que empiezan con el resto de su nombre y aparecen con él en un documento. Se guarda en `knowledge_group` (esquema V14) con los motivos; la página del grupo lista sus sociedades con el porqué y la de cada sociedad dice de qué grupo es. El grupo existe como entidad solo cuando hay algo que atribuirle (P-128).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q3 de la tanda desatendida del 17 oct.
+
+### D-261 · La sociedad sin forma, dentro de un documento, es la única forma completa del documento
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** dentro de un mismo documento, "X" y "X S.A." quedaban como dos grupos de menciones cuando el modelo no las había dado como la misma, y "X" iba después a una duda entre todas las sociedades de ese nombre.
+- **Qué se decidió:** dentro de un documento, el nombre de una organización sin forma societaria se une con la única forma completa de ese nombre que escribe el documento (las mismas palabras con forma, o un nombre más largo que empieza con ellas), cuando ninguna otra organización del documento tiene esas palabras y ningún identificador fuerte los separa. Si el documento escribe dos formas, no se une.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q3 de la tanda desatendida del 17 oct.
+
+### D-262 · Áreas y casillas generales
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** "Legales X", "X Finance", "Línea Ética de X", `legal@…` o `noreply@…` se comparaban por su nombre con las sociedades: la casilla de firma del grupo se unió con una de ellas, y las áreas de una organización quedaban como organizaciones aparte.
+- **Qué se decidió:** un nombre sin forma societaria con palabras de un área (`identity.areaWords`) o una casilla cuyo usuario es una de ellas es un contacto: nunca se une por nombre. Va a la organización que nombra su mismo documento (las palabras que quedan sin las del área, sus iniciales o las letras del dominio de la casilla) o, si el documento no nombra ninguna, a la única organización del archivo con el nombre de su dominio. La misma área en varios documentos es una: si todos dicen la misma organización, es de ella; si dicen varias, es de su grupo (D-260). Un área que no nombra a nadie ("Cobranzas" sola) y una casilla general leída como persona no son entidades (motivo `casilla`). Una persona y una organización no se unen nunca. Un área o una casilla no da nombre a la entidad a la que pertenece.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q3 de la tanda desatendida del 17 oct.
+
+### D-263 · Dos asuntos del mismo nombre entre otras partes no se preguntan
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el modelo de identidad unía asuntos que se llaman igual ("Acuerdo de terminación") en documentos de personas distintas, y eso armaba un asunto con documentos de tres acuerdos (P-123).
+- **Qué se decidió:** dos menciones de asunto de documentos distintos no son candidatas cuando cada documento tiene dos partes o más (con rol de parte, emisor, remitente o destinatario) y las de ninguno están dentro de las del otro: un contrato es entre sus partes. Un recibo de cuota y su acuerdo, con las mismas partes, siguen siendo candidatos.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q3 de la tanda desatendida del 17 oct.
+
+### D-264 · Todos los nombres de un grupo de menciones
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la resolución comparaba y buscaba candidatos solo por el nombre principal de cada grupo de menciones; el nombre corto que el propio documento da a una organización ("Universidad de Ejemplo (UDE)") no servía para encontrarla en otro documento que solo escribe el corto.
+- **Qué se decidió:** un grupo de menciones se une por nombre exacto con cualquiera de sus nombres (salvo los términos que define el documento), se encuentra por las claves de todos ellos y se compara por el principal o, si no se parecen, por el mejor par de sus otros nombres. La sigla, la errata o el nombre corto quedan como candidatos para el modelo, nunca unidos solos.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q3 de la tanda desatendida del 17 oct.
+
+### D-265 · La errata de una razón social
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** una razón social con una letra de menos en dos cartas documento quedaba separada: el modelo decía "dudosa" aunque los documentos tenían las mismas partes.
+- **Qué se decidió:** la pregunta de identidad (identidad-4) dice que una razón social con la misma forma societaria que difiere en una o dos letras, en documentos donde aparecen las mismas otras partes, es la misma (el error es del documento), salvo que algún documento muestre otra organización con ese nombre. Medido: separaciones falsas 6,9 % → 1,6 % de los pares, sin uniones falsas.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q3 de la tanda desatendida del 17 oct.
+
+### D-266 · Qué persona u organización tiene página
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** una entidad tenía página si aparecía en dos documentos, aunque solo se la nombrara al pasar: bancos de las facturas, jurisdicciones de las boletas, servicios de correo, productos.
+- **Qué se decidió:** una persona o una organización tiene página si en algún documento tiene un rol de sustancia (parte, apoderado, firmante, remitente, destinatario, emisor, domicilio constituido, testigo) o si los documentos dicen algo de ella (`withClaims`); aparecer en muchos documentos no alcanza (`minDocuments` 0). Un grupo de sociedades tiene página siempre. Se dejaron emisor, domicilio constituido y testigo además de los cinco roles que nombra la especificación porque son papeles del acto (quien factura, el estudio donde se constituye domicilio, el escribano).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q3 de la tanda desatendida del 17 oct.
+
+### D-267 · El nombre de un asunto
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** los asuntos se llamaban por un comprobante ("Carta Documento — …", "BOLETA N° …", "factura N° …"), por el título de un sobre de firma o por una frase, con alias que eran números y frases.
+- **Qué se decidió:** un asunto se nombra por la relación entre sus partes y su objeto: si sus documentos dicen que una de sus partes le reclama a otra (`matters.claimKinds`), "Reclamo de X a Y"; si no, lo que sus documentos lo nombran, entre sus partes ("Acuerdo de terminación entre X y Y", en minúscula si estaba todo en mayúsculas); si no, "Asunto entre X y Y". Un nombre de asunto no es un archivo, una frase, un título de más de ocho palabras, un comprobante por su rótulo ni un nombre con un número de cuatro dígitos o más, salvo la carátula de una causa ("Expediente 1234/2020"); lo mismo vale para sus alias. Las partes de un documento para los asuntos incluyen emisor, remitente y destinatario.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q3 de la tanda desatendida del 17 oct.
+
+### D-268 · Documentos centrales por evidencia y el porqué plegado
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** documentos centrales de un reclamo (la cronología, correos) quedaban fuera del asunto cuando su lectura no tomaba el número que comparten; y la explicación de por qué van juntos era una lista larga e ilegible.
+- **Qué se decidió:** un número de un asunto (uno que ya une documentos por su identificador o por los datos de su tipo) escrito en el texto de otro documento también lo pone en el asunto. En la página del asunto, el porqué se resume (cuántos documentos por cada clase de motivo) y el detalle queda plegado, con la sintaxis de llamada plegada de Obsidian (`> [!info]- …`), que el lector del wiki dibuja como un desplegable cerrado (`src/lib/markdown-fold.ts`, sin leer HTML de la página).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q3 de la tanda desatendida del 17 oct.
+
+### D-269 · Una representación con la sociedad en la línea anterior
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** D-250 descartaba "representa a" cuando la cita no nombraba a la representada; en un bloque de firma ("Por: X S.A." / "Nombre: Y" / "Cargo: Apoderado") o en "X S.A., representada por Y" la sociedad está en otra línea, y se perdían representaciones reales (P-122).
+- **Qué se decidió:** vale si la última organización que el texto nombra antes de la cita, a menos de 30 palabras (`reading.objectWindow`), es la representada y la cita dice cómo actúa por ella (`reading.representationCues`: apoderado, representante, representada, cargo, title, by…). Se vuelve a comprobar desde las respuestas guardadas (lectura-5). Medido: 3 de las 12 representaciones descartadas vuelven, las tres correctas; ninguna inventada.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q3 de la tanda desatendida del 17 oct.
+
+### D-274 · El razonamiento de Codex, parte del motor
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** para comparar modelos con distinto razonamiento hacía falta pasarle el nivel a Codex y que las respuestas de un nivel no se mezclaran con las de otro en la base ni en las cachés de evaluación.
+- **Qué se decidió:** el nivel va a Codex como `-c model_reasoning_effort=<nivel>` (en las preguntas sobre documentos, `source_volume/asking.rs`, y en las llamadas del wiki, `codex-cli-transport.ts`), y forma parte del nombre del motor: `codex-cli:modelo@nivel`. Solo se ofrecen `low`, `medium` y `high` (por decisión del dueño, el proceso se mejora ajustando las preguntas, no gastando más en cada respuesta); otro nivel es un error. Ajustes tiene un selector para el preset de Codex (`src/lib/codex-reasoning.ts`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q4 de la tanda desatendida del 17 oct.
+
+### D-275 · Un CUIT con prefijo de persona dado a una sociedad
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** en una segunda corrida del mismo modelo, una sociedad recibió el CUIT de su apoderada (el número de la persona, escrito junto a su DNI). Con dos identificadores fuertes distintos la sociedad ya no se unía por nombre y quedó partida en diez.
+- **Qué se decidió:** el vocabulario dice qué primeros dígitos del CUIT son de persona y cuáles de sociedad; la comprobación de una lectura (lectura-6) pasa ese número a la única mención del otro tipo que lo contiene (el DNI dentro del CUIT) o lo descarta. Medido en la corrida que lo mostró: la sociedad vuelve a ser una.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q4 de la tanda desatendida del 17 oct.
+
+### D-276 · Cómo se comparan modelos
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** elegir modelo y razonamiento por impresión no sirve: hay que medir lo mismo para todos.
+- **Qué se decidió:** cuatro variantes (`gpt-6-luna` y `gpt-6.1-sol`, con razonamiento medio y alto), cada una con lectura, identidad, asuntos y síntesis completas sobre la carpeta de prueba y su propia caché de respuestas. Se mide contra la hoja (menciones, roles, afirmaciones, uniones y separaciones falsas, asuntos), con una muestra de atribución de 40 afirmaciones de dinero, domicilio y relación por variante juzgada contra el documento por un revisor que no sabe de qué variante sale cada una (las muestras mezcladas), con los casos de control y con el tiempo por respuesta. Para volver a medir con el programa nuevo sin volver a preguntar, el arnés puede correr solo con las respuestas guardadas (`MICELYA_ASK_OFFLINE=1`).
+- **Resultados** (atribución a ciegas, dos lotes): luna medio 33/40 (82 %; dinero 71 %); luna alto 40/40 y 38/40 en su segunda corrida (97,5 % entre las dos); sol medio 39/40 (98 %); sol alto 38/40 (95 %). Uniones falsas: la misma única unión falsa en las cuatro (P-134). Separaciones falsas: luna medio 2,5 %, luna alto 2,2 %, sol medio 1,3 %. Menciones 84/92/92/92 %; afirmaciones 56/61/74/77 %; asuntos agrupados 70/76/56/56 %, sin agrupaciones falsas. Segundos por respuesta: 9,6 / 13,8 / 22,9 / ~64.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q4 de la tanda desatendida del 17 oct.
+
+### D-277 · El mismo modelo cambia entre corridas
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** dos corridas desde cero de la misma variante no dan lo mismo.
+- **Qué se decidió:** se mide y se tiene en cuenta: con luna alto, 9,6 % de los pares de menciones presentes en las dos corridas quedan juntos en una y separados en la otra (luna medio, 2,0 %), y solo 26 a 31 % de las afirmaciones son las mismas. La segunda corrida de luna alto mostró además la sociedad partida por un CUIT mal atribuido (D-275). Una diferencia de un par de puntos entre variantes o entre versiones de una pregunta, medida en una sola corrida, no alcanza para decidir; las respuestas guardadas hacen que el resultado de un archivo ya leído no cambie mientras no cambie la pregunta (R-20). Cómo hacerlo más estable queda en P-133.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q4 de la tanda desatendida del 17 oct.
+
+### D-278 · gpt-6.1-sol como alternativa
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** sol medio empata en atribución con luna alto y encuentra más afirmaciones; sol alto es el que más encuentra, pero es muy lento.
+- **Qué se decidió:** `gpt-6.1-sol` queda como el otro modelo que ofrece el preset de Codex, no como el de por defecto. Sol alto se descarta por tiempo: unos 64 segundos por respuesta (4,6 veces luna alto), y en el tiempo de la comparación no llegó a completar la identidad (116 de 146 preguntas sin responder), así que sus uniones y separaciones no están medidas del todo (P-132). Sol medio agrupa peor los asuntos (56 % frente a 76 %) y tarda 1,7 veces más que luna alto.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q4 de la tanda desatendida del 17 oct.
+
+### D-279 · Por defecto, gpt-6-luna alto
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la app usaba por defecto un modelo de Codex que no es de los permitidos y razonamiento medio.
+- **Qué se decidió:** por defecto, `gpt-6-luna` con razonamiento alto (`DEFAULT_CODEX_REASONING`, `defaultModel` del preset de Codex). Por calidad primero: atribución 97,5 % en dos corridas (empata con sol medio, 98 %, y supera a luna medio, 82 %, y a sol alto, 95 %), la misma única unión falsa que todas, separaciones falsas 2,2 %; entre las que empatan, por tiempo (13,8 segundos por respuesta, frente a 22,9 de sol medio) y por asuntos (76 % frente a 56 %). Lo que cede: menos afirmaciones que sol (61 % frente a 74 %) y más variación entre corridas que luna medio (D-277). El motor guardado en `docbase_setting` y el modelo del wiki se fijan al regenerar el wiki (etapa Q5).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q4 de la tanda desatendida del 17 oct.
+
+### D-280 · Una carpeta nueva tiene un solo id de proyecto y su cola nunca queda huérfana
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Desktop
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** Al regenerar el wiki, las 77 incorporaciones fallaron todas con "Project not found in registry". El arranque de la app corre dos veces en desarrollo y el proyecto por defecto se abre desde más de un lugar: dos aperturas a la vez de una carpeta sin `.llm-wiki/project.json` crearon dos id; la cola se quedó con uno y el registro con el otro, y además dos escrituras del registro a la vez perdieron una entrada.
+- **Qué se decidió:** Las consultas del id de una misma carpeta comparten una sola promesa (`ensureProjectId`), las escrituras del registro van de a una (`upsertProjectInfo`), y al restaurar la cola de una carpeta se adoptan las tareas de su propio archivo encoladas con otro id: las que fallaron solo por "proyecto no encontrado" vuelven a esperar. Así se recuperaron las 77 sin clic, con una recarga de la página. Commit 6f47009, con prueba.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q5 de la tanda desatendida del 17 oct.
+
+### D-281 · Un nombre comercial con otra sociedad entre paréntesis no es esa sociedad
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** La única unión falsa que quedaba en las cuatro variantes de D-276 (P-134): "Marca (Sociedad S.A.)" unía dos organizaciones por el "es la misma" del modelo.
+- **Qué se decidió:** Dentro de un documento, el "es la misma" del modelo ya no une un nombre completo de sociedad con un nombre de organización que no tiene nada en común con él; los términos definidos siguen a su definición. Uniones falsas contra la hoja: 0. Commit 5e6fb20.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q5 de la tanda desatendida del 17 oct.
+
+### D-282 · Una abreviatura sin su último punto cuenta por la forma con punto
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** "S.A" y "S.A." se mostraban como dos formas de escribir.
+- **Qué se decidió:** Se cuentan como una y se muestra la forma con punto. Commit 5e6fb20.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q5 de la tanda desatendida del 17 oct.
+
+### D-283 · Fechas en el idioma del wiki también con ordinales en inglés y con la forma de las escrituras
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** Quedaban fechas como "30th of December" o "23 días del mes de Octubre de 2025" sin llevar al idioma del wiki, y el concepto de un importe repetía su tipo.
+- **Qué se decidió:** Los días ordinales en inglés y la forma de las escrituras se muestran como "23 de octubre de 2025"; el concepto de un importe que repite su tipo se dice una vez. Commits 5e6fb20 y 988c04d.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q5 de la tanda desatendida del 17 oct.
+
+### D-284 · Los datos de contacto solos no le dan página a una entidad
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** Las listas de teléfonos y oficinas de un formulario creaban páginas de organizaciones que el archivo no trata.
+- **Qué se decidió:** Una afirmación de contacto no es razón para tener página (criterio de D-266). Commit 5e6fb20; ampliada en D-288 al domicilio.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q5 de la tanda desatendida del 17 oct.
+
+### D-285 · El nombre propio de un asunto sin artículo inicial ni el nombre de una parte detrás de un guion
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** Asuntos llamados "This Agreement" o "Acuerdo de terminación - <persona> entre … y <persona>".
+- **Qué se decidió:** Se quita el determinante inicial y el tramo después de un guion o dos puntos que solo nombra a una de sus partes, que el nombre ya dice después. Commit 5e6fb20.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q5 de la tanda desatendida del 17 oct.
+
+### D-286 · Más palabras genéricas y de áreas en el vocabulario
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** "cada", "cualquier" o "each" pasaban como nombres; "payroll" o "sueldos" no se reconocían como áreas.
+- **Qué se decidió:** Se agregan como determinantes y genéricos, y como palabras de área, en `knowledge.json`. Commit 5e6fb20.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q5 de la tanda desatendida del 17 oct.
+
+### D-287 · Un código postal o un DNI no es un teléfono
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** Un código postal junto a un domicilio o un DNI escrito con puntos aparecían como contacto de la persona.
+- **Qué se decidió:** Un contacto es un correo o un número de siete dígitos o más que no esté escrito con puntos cada tres dígitos (`lectura-7`). Commit 988c04d.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q5 de la tanda desatendida del 17 oct.
+
+### D-288 · Ronda 1 de la revisión del wiki regenerado: valores que no lo son, constancias de firma, nombres y asuntos
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** La revisión del wiki regenerado con luna alto (Q5) encontró errores generales del programa: "By: ____" como cargo, un horario ("días hábiles de 9 hs a 18 hs") como domicilio, la fecha y hora de emisión de una boleta como teléfono, la fecha de firma electrónica como inicio de un vínculo, el título del formulario de un servicio de firma como nombre de un asunto, asuntos nombrados por un firmante en vez de la otra parte o como "Asunto de <persona>", el nombre de pila y el apellido de dos campos de una ficha que dejaban a una persona nombrada solo por sus nombres, y páginas de jurisdicciones de una boleta que solo tenían la dirección de una oficina.
+- **Qué se decidió:** Reglas generales, sin nombrar casos: una línea para completar no es valor de nada; un domicilio no es un horario (palabras `schedule` del vocabulario, zona horaria); una fecha u hora no es un teléfono (`lectura-8`). En una página que es la constancia de un servicio de firma solo se toman contacto, cargo y domicilio (`certificateClaims`), y el asunto que se lee ahí no es el asunto del documento (`certificateRoles`). El domicilio solo tampoco da página (amplía D-284). El nombre de una entidad es el que contiene más de lo que escriben los documentos (la forma que junta nombre y apellido gana a la que solo tiene los nombres). El nombre de un asunto pone primero a quien es parte del acto, prefiere el nombre que contienen más de sus documentos y, sin nombre propio, usa el tipo común de todos sus documentos ("Boleta de …") (`resolucion-7`). Medido sin preguntar al modelo sobre una copia de la base de la app (`Q5-R1-eval.txt`): identidad igual (separaciones falsas 4,7 %, uniones falsas 0), asuntos 75,9 % sin agrupaciones falsas, roles 73 → 75 %, afirmaciones de la hoja 67 % igual; desaparecen los 4 tipos de valor falso y los 7 asuntos quedan bien nombrados. Commit f29dab7.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q5 de la tanda desatendida del 17 oct.
+
+### D-289 · Presentación de identificadores, alias y nombres de personas
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** Las páginas mostraban correos como "Otro número", el mismo DNI dos veces (con su tipo y como "otro número"), alias como "<nombre> (President)", sobres de firma y facturas como si nombraran un asunto, y nombres de personas en mayúsculas ("PERSONA UNO", "Persona Dos TRES") cuando no había otra forma escrita.
+- **Qué se decidió:** Un correo no es identificador; un número dado con su tipo y como "otro número" se muestra una vez, con el tipo; una forma que es otra más una nota entre paréntesis no es alias; en un asunto solo se muestran los números que lo nombran por sí solos (los fuertes, como un expediente); el nombre de una persona escrito en mayúsculas se muestra como nombre propio (una persona no tiene siglas; el de una organización queda como está) (`proyeccion-6`). Commit f29dab7.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa Q5 de la tanda desatendida del 17 oct.

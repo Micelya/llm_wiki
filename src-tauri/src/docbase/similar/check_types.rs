@@ -303,6 +303,7 @@ fn types_in_real_folders() {
         inner: crate::source_volume::asking::asker_for(&AskConfig {
             engine: "codex-cli".into(),
             model: std::env::var("MICELYA_ASK_MODEL").unwrap_or_default(),
+            reasoning: std::env::var("MICELYA_ASK_REASONING").unwrap_or_default(),
         })
         .unwrap(),
         file,

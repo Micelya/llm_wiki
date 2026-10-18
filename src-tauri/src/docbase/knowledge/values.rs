@@ -42,6 +42,11 @@ fn lettered(text: &str) -> Vec<String> {
 /// the shape its predicate asks for. A predicate without a shape takes
 /// anything that is not empty.
 pub fn fits(vocabulary: &Vocabulary, shape: &str, value: &str, subject: &str) -> bool {
+    // A line to fill in ("By: ______", "Firma: ........") is not a value
+    // of anything (D-288).
+    if is_a_blank(value) {
+        return false;
+    }
     let digits: usize = value.chars().filter(|c| c.is_ascii_digit()).count();
     let letters: usize = value.chars().filter(|c| c.is_alphabetic()).count();
     match shape {
@@ -72,11 +77,75 @@ pub fn fits(vocabulary: &Vocabulary, shape: &str, value: &str, subject: &str) ->
             let words = quote::words(value);
             own.is_empty() || !own.iter().all(|w| words.contains(w))
         }
-        "address" => digits > 0 && letters >= 3 && !value.contains('@'),
-        // A mail address, or a telephone: not a name.
-        "contact" => value.contains('@') || digits >= 6,
+        // A street and a number: a postal code alone ("C1429BNO") or a
+        // number with no word is not where someone is (D-247).
+        // A timetable ("días hábiles de 9 hs a 18 hs") is when, not where.
+        "address" => {
+            let words = quote::words(value);
+            digits > 0
+                && letters >= 3
+                && !value.contains('@')
+                && words.iter().any(|w| w.chars().count() >= 3 && w.chars().all(char::is_alphabetic))
+                && !words.iter().any(|w| vocabulary.values.schedule.iter().any(|s| s == w) || is_a_time_zone(w))
+        }
+        // A mail address, or a telephone: not a name. A telephone has seven
+        // digits or more; a postal code ("CP 326000") or a number written
+        // with dots every three digits (a DNI) is not one (D-287).
+        "contact" => {
+            let trimmed = value.trim();
+            let dotted = trimmed.split('.').count() > 1
+                && trimmed.split('.').enumerate().all(|(i, p)| {
+                    p.chars().all(|c| c.is_ascii_digit()) && if i == 0 { (1..=3).contains(&p.len()) } else { p.len() == 3 }
+                });
+            // A date or a time ("11/08/2024 20:59:06") is not a telephone.
+            value.contains('@') || (digits >= 7 && !dotted && !is_a_date_or_time(trimmed))
+        }
         _ => !value.trim().is_empty(),
     }
+}
+
+/// A line to fill in: a run of three or more underscores or dots, with at
+/// most a label before it.
+fn is_a_blank(value: &str) -> bool {
+    let mut run = 0;
+    let mut longest = 0;
+    let mut previous = ' ';
+    for c in value.chars() {
+        if (c == '_' || c == '.' || c == '…') && (run == 0 || c == previous) {
+            run += 1;
+        } else if c == '_' || c == '.' || c == '…' {
+            run = 1;
+        } else {
+            run = 0;
+        }
+        previous = c;
+        longest = longest.max(run);
+    }
+    longest >= 3 && quote::words(value).len() <= 2
+}
+
+/// A time zone written as a word with its offset ("gmt-3" reads "gmt").
+fn is_a_time_zone(word: &str) -> bool {
+    ["gmt", "utc"].iter().any(|z| word.starts_with(z) && word[z.len()..].chars().all(|c| c.is_ascii_digit()))
+}
+
+/// Whether a value is written as a date ("11/08/2024", "2024-08-11") or a
+/// time ("20:59", "20:59:06"): digits split by slashes, dashes or colons
+/// in the shape of one, and nothing else but spaces and those.
+fn is_a_date_or_time(value: &str) -> bool {
+    let date = |t: &str| {
+        let parts: Vec<&str> = t.split(|c| c == '/' || c == '-').collect();
+        parts.len() == 3
+            && parts.iter().all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()))
+            && (parts[0].len() == 4 || parts[2].len() == 4 || parts[2].len() == 2)
+            && parts.iter().filter(|p| p.len() <= 2).count() >= 2
+    };
+    let time = |t: &str| {
+        let parts: Vec<&str> = t.split(':').collect();
+        (2..=3).contains(&parts.len()) && parts.iter().all(|p| (1..=2).contains(&p.len()) && p.chars().all(|c| c.is_ascii_digit()))
+    };
+    let tokens: Vec<&str> = value.split_whitespace().collect();
+    !tokens.is_empty() && tokens.iter().any(|t| date(t) || time(t)) && tokens.iter().all(|t| date(t) || time(t))
 }
 
 /// Whether two values of a predicate of this shape are the same value
@@ -131,8 +200,34 @@ mod tests {
         assert!(fits(&v, "address", "Calle Uno 100, piso 3", "x"));
         assert!(fits(&v, "contact", "alguien@ejemplo.com", "x") && fits(&v, "contact", "+54 11 4444-5555", "x"));
         assert!(!fits(&v, "contact", "Atención: Persona Dos", "persona dos"));
-        for not in ["22.222.222", "Islas del Norte"] {
+        assert!(fits(&v, "contact", "0800-000-0000", "x") && fits(&v, "contact", "4444555", "x"));
+        for not in ["123456", "22.222.222"] {
+            assert!(!fits(&v, "contact", not, "x"), "{not}");
+        }
+        for not in ["22.222.222", "Islas del Norte", "C1429ABC", "CP 1000"] {
             assert!(!fits(&v, "address", not, "x"), "{not}");
+        }
+    }
+
+    #[test]
+    fn a_blank_a_timetable_and_a_date_are_not_values_of_their_kind() {
+        let v = Vocabulary::builtin();
+        // D-288: a line to fill in is no position; a timetable is no
+        // address; a date with its time is no telephone.
+        for blank in ["By: ________________________________", "________", "Firma: ..........."] {
+            assert!(!fits(&v, "text", blank, "persona dos"), "{blank}");
+        }
+        assert!(fits(&v, "text", "Socio gerente", "persona dos"));
+        for timetable in ["Días hábiles de 9 hs a 18 hs. (GMT-3)", "Lunes a viernes de 9 a 18 horas"] {
+            assert!(!fits(&v, "address", timetable, "x"), "{timetable}");
+        }
+        assert!(fits(&v, "address", "Calle Uno 100, piso 3", "x"));
+        assert!(fits(&v, "address", "Ruta 9 km 1500", "x"));
+        for date in ["11/08/2024 20:59:06", "2024-08-11", "20:59:06"] {
+            assert!(!fits(&v, "contact", date, "x"), "{date}");
+        }
+        for telephone in ["+54 11 4444-5555", "011 4444-5555", "4444-5555 int. 22"] {
+            assert!(fits(&v, "contact", telephone, "x"), "{telephone}");
         }
     }
 

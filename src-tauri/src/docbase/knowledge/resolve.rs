@@ -56,13 +56,13 @@ use crate::docbase::{now_ms, sql_err, DocBase};
 use crate::source_volume::asking::DocumentAsker;
 
 /// Version of the question about identities.
-pub const IDENTITY_PROMPT: &str = "identidad-3";
+pub const IDENTITY_PROMPT: &str = "identidad-4";
 
 /// The rules the record was last computed with (`docbase_setting`): when
 /// the program's or the vocabulary's change, the record is computed again.
 const RESOLUTION_SETTING: &str = "knowledge-resolution";
 /// Raised when a change in the program changes what a resolution gives.
-const RESOLUTION_VERSION: &str = "resolucion-5";
+const RESOLUTION_VERSION: &str = "resolucion-9";
 
 fn resolution_basis() -> String {
     format!("{RESOLUTION_VERSION}|{IDENTITY_PROMPT}|{}", vocabulary().digest)
@@ -130,6 +130,9 @@ pub(crate) struct Row {
     pub role: String,
     pub quote: String,
     pub entity: Option<String>,
+    /// A term the document defines ("la Empresa"): never what names its
+    /// group (D-245).
+    pub defined: bool,
     /// The entity this name of the document had before its mentions went
     /// away (read again, or the document it took the place of).
     pub hint: Option<String>,
@@ -155,6 +158,15 @@ pub(crate) struct Cluster {
     pub strong: BTreeMap<String, BTreeSet<String>>,
     /// Left out of the entities: why.
     pub excluded: Option<&'static str>,
+    /// The names of its mentions as compared (the principal's first),
+    /// without the terms the document defines: the long name and the short
+    /// one the document gives it are both its names (D-264).
+    pub keys: Vec<NameKey>,
+    /// The roles of its mentions.
+    pub roles: BTreeSet<String>,
+    /// An area or a mailbox of an organization: joined to the organization
+    /// its document names, never by its name (D-262).
+    pub area: Option<names::Area>,
 }
 
 pub(crate) fn cluster_key(content_id: i64, kind: &str, normalized: &str) -> String {
@@ -181,7 +193,7 @@ fn hash(parts: &[&str]) -> String {
 pub(crate) fn load_rows(conn: &Connection) -> Result<Vec<Row>, String> {
     let mut statement = conn
         .prepare(&format!(
-            "SELECT m.id, m.content_id, m.ref, m.same_as, m.kind, m.written, m.normalized, m.role, m.quote, m.entity_id
+            "SELECT m.id, m.content_id, m.ref, m.same_as, m.kind, m.written, m.normalized, m.role, m.quote, m.entity_id, m.defined
              FROM knowledge_mention m JOIN knowledge_extraction k ON k.content_id = m.content_id AND k.state = 'done'
              WHERE {}
              ORDER BY m.content_id, m.id",
@@ -202,6 +214,7 @@ pub(crate) fn load_rows(conn: &Connection) -> Result<Vec<Row>, String> {
                 role: row.get(7)?,
                 quote: row.get(8)?,
                 entity: row.get(9)?,
+                defined: row.get(10)?,
                 hint: None,
             })
         })
@@ -273,6 +286,36 @@ fn apart_in_document(vocabulary: &Vocabulary, a: &NameKey, b: &NameKey, ids_a: &
     })
 }
 
+/// The way of writing a name the most mentions use. An abbreviation left
+/// without its last dot ("Ejemplo S.A") counts for the same name with it
+/// ("Ejemplo S.A."), which is the one shown (D-282).
+pub(crate) fn most_written(forms: &BTreeMap<&str, usize>) -> String {
+    let completed = |w: &str| -> Option<String> {
+        let last = w.split_whitespace().last()?;
+        (!w.ends_with('.') && last.contains('.') && last.chars().last().is_some_and(char::is_alphabetic)).then(|| format!("{w}."))
+    };
+    let mut counts: BTreeMap<String, usize> = BTreeMap::new();
+    for (written, count) in forms {
+        let target = completed(written).filter(|c| forms.contains_key(c.as_str())).unwrap_or_else(|| written.to_string());
+        *counts.entry(target).or_default() += count;
+    }
+    counts.into_iter().max_by(|a, b| a.1.cmp(&b.1).then_with(|| b.0.cmp(&a.0))).map(|(w, _)| w).unwrap_or_default()
+}
+
+/// Whether the model's "the same" within a document joins the complete
+/// name of a company with an organization's name that has nothing in
+/// common with it (P-134, D-281): a trade name written with another
+/// company's name in parentheses ("Marca (Sociedad S.A.)") is at most
+/// related to it, never that company. Names that share words, an acronym
+/// or a typo still join.
+fn unrelated_company_names(kind: &str, a: &NameKey, b: &NameKey) -> bool {
+    kind == ORGANIZATION
+        && (a.form.is_some() || b.form.is_some())
+        && a.has_name()
+        && b.has_name()
+        && names::compare(kind, a, b) == Likeness::Unlike
+}
+
 /// The groups of mentions of each document, in canonical order.
 pub(crate) fn clusters(
     vocabulary: &Vocabulary,
@@ -332,7 +375,13 @@ pub(crate) fn clusters(
         }
         for i in start..end {
             let Some(j) = rows[i].same_as.as_deref().and_then(|s| by_ref.get(s)).copied() else { continue };
-            if rows[i].kind == rows[j].kind && !apart_in_document(vocabulary, &keys[i], &keys[j], &ids[i], &ids[j]) {
+            // What a defined term stands for is said by the definition; any
+            // other "the same" of the model has to fit the names (D-281).
+            let by_definition = rows[i].defined || rows[j].defined;
+            if rows[i].kind == rows[j].kind
+                && !apart_in_document(vocabulary, &keys[i], &keys[j], &ids[i], &ids[j])
+                && (by_definition || !unrelated_company_names(&rows[i].kind, &keys[i], &keys[j]))
+            {
                 sets.union(i, j);
             }
         }
@@ -349,9 +398,9 @@ pub(crate) fn clusters(
         let principal = *list
             .iter()
             .max_by(|&&a, &&b| {
-                keys[a]
-                    .weight()
-                    .cmp(&keys[b].weight())
+                (!rows[a].defined)
+                    .cmp(&!rows[b].defined)
+                    .then_with(|| keys[a].weight().cmp(&keys[b].weight()))
                     .then_with(|| count(&rows[a].normalized).cmp(&count(&rows[b].normalized)))
                     .then_with(|| rows[b].normalized.cmp(&rows[a].normalized))
                     .then_with(|| rows[b].id.cmp(&rows[a].id))
@@ -371,19 +420,43 @@ pub(crate) fn clusters(
                 }
             }
         }
+        let mut cluster_keys: Vec<NameKey> = vec![name.clone()];
+        for &i in &list {
+            if !rows[i].defined && keys[i].has_name() && !cluster_keys.iter().any(|k| k.exact_key(&first.kind) == keys[i].exact_key(&first.kind)) {
+                cluster_keys.push(keys[i].clone());
+            }
+        }
+        let area = if first.defined { None } else { names::area(vocabulary, &first.kind, &name) };
+        let mailbox_person = first.kind == PERSON && area.is_some();
         out.push(Cluster {
+            keys: cluster_keys,
+            roles: list.iter().map(|&i| rows[i].role.clone()).collect(),
+            area,
             content_id: first.content_id,
             kind: first.kind.clone(),
             principal,
             key: cluster_key(first.content_id, &first.kind, &first.normalized),
             canon: format!("{}|{}|{}", hashes.get(&first.content_id).map(String::as_str).unwrap_or(""), first.kind, first.normalized),
             names: list.iter().map(|&i| rows[i].normalized.clone()).collect(),
-            excluded: (!name.has_name() && name.email.is_none()).then_some("sin-nombre"),
+            excluded: if first.defined {
+                // Only terms the document defines, without what they define.
+                Some("termino-definido")
+            } else if mailbox_person {
+                // A general mailbox read as a person is no one (D-262).
+                Some("casilla")
+            } else {
+                (!name.has_name() && name.email.is_none()).then_some("sin-nombre")
+            },
             name,
             strong,
             rows: list,
         });
     }
+    // Within a document, a name of an organization without its legal form
+    // is the one complete form of it the document writes (D-261): the same
+    // words with a form, or a longer name that starts with them, when no
+    // other organization of the document has those words.
+    coreference(vocabulary, &mut out);
     // An identifier given to mentions of two kinds, or to two groups of
     // one document, was attributed to the wrong mention: it does not join.
     let mut kinds: HashMap<(String, String), BTreeSet<String>> = HashMap::new();
@@ -407,6 +480,70 @@ pub(crate) fn clusters(
     }
     out.sort_by(|a, b| a.canon.cmp(&b.canon).then_with(|| a.key.cmp(&b.key)));
     out
+}
+
+/// Joins, within each document, a group of an organization named without
+/// its legal form to the one complete form of the same name (D-261).
+fn coreference(vocabulary: &Vocabulary, out: &mut Vec<Cluster>) {
+    let mut by_content: BTreeMap<i64, Vec<usize>> = BTreeMap::new();
+    for (i, cluster) in out.iter().enumerate() {
+        if cluster.kind == ORGANIZATION && cluster.excluded.is_none() {
+            by_content.entry(cluster.content_id).or_default().push(i);
+        }
+    }
+    let mut gone: BTreeSet<usize> = BTreeSet::new();
+    for list in by_content.values() {
+        for &short in list {
+            let name = &out[short].name;
+            if gone.contains(&short) || name.form.is_some() || name.words.is_empty() || out[short].area.is_some() {
+                continue;
+            }
+            let words = &name.words;
+            // The organizations of the document whose name holds these
+            // words (any of their names).
+            let holders: Vec<usize> = list
+                .iter()
+                .copied()
+                .filter(|&o| o != short && !gone.contains(&o) && out[o].area.is_none())
+                .filter(|&o| out[o].keys.iter().any(|k| k.words.len() >= words.len() && k.words.windows(words.len()).any(|w| w == words.as_slice())))
+                .collect();
+            let complete: Vec<usize> = holders
+                .iter()
+                .copied()
+                .filter(|&o| out[o].keys.iter().any(|k| (k.form.is_some() && &k.words == words) || (k.words.len() > words.len() && k.words.starts_with(words))))
+                .collect();
+            // Two ways of writing the same complete name are one form.
+            let distinct = |list: &[usize]| list.iter().map(|&o| out[o].name.exact_key(ORGANIZATION)).collect::<BTreeSet<_>>().len();
+            if complete.is_empty() || distinct(&holders) != 1 || distinct(&complete) != 1 {
+                continue;
+            }
+            let target = complete[0];
+            let apart = out[short].strong.iter().any(|(kind, values)| out[target].strong.get(kind).is_some_and(|other| values.is_disjoint(other)));
+            if apart || !vocabulary.is_a_name(ORGANIZATION, &out[target].name.joined()) {
+                continue;
+            }
+            let moved = out[short].clone();
+            let into = &mut out[target];
+            into.rows.extend(moved.rows);
+            into.names.extend(moved.names);
+            for (kind, values) in moved.strong {
+                into.strong.entry(kind).or_default().extend(values);
+            }
+            for key in moved.keys {
+                if !into.keys.iter().any(|k| k.exact_key(ORGANIZATION) == key.exact_key(ORGANIZATION)) {
+                    into.keys.push(key);
+                }
+            }
+            into.roles.extend(moved.roles);
+            gone.insert(short);
+        }
+    }
+    let mut index = 0;
+    out.retain(|_| {
+        let keep = !gone.contains(&index);
+        index += 1;
+        keep
+    });
 }
 
 /// The group of each name of a document: what a key of a group refers to.
@@ -575,6 +712,10 @@ impl<'a> Resolver<'a> {
         if a == b {
             return Ok(false);
         }
+        // A person and an organization are never one entity.
+        if self.clusters[x].kind != self.clusters[y].kind {
+            return Err("otro-tipo");
+        }
         if let Some(why) = self.apart(a, b, by == "persona") {
             return Err(why);
         }
@@ -705,18 +846,25 @@ impl<'a> Resolver<'a> {
     fn same_names(&mut self) {
         let mut index: BTreeMap<String, Vec<usize>> = BTreeMap::new();
         for (i, cluster) in self.clusters.iter().enumerate() {
-            if cluster.excluded.is_some() {
+            if cluster.excluded.is_some() || cluster.area.is_some() {
                 continue;
             }
-            let name = &cluster.name;
-            let exact = match cluster.kind.as_str() {
-                PERSON => name.words.len() >= 2,
-                ORGANIZATION => name.words.len() >= 2 || (name.form.is_some() && !name.words.is_empty()),
-                _ => false,
-            };
-            if exact && name.has_name() {
-                index.entry(name.exact_key(&cluster.kind)).or_default().push(i);
+            // Every name of the group (the long name and the short one the
+            // document gives it), not only its principal one (D-264).
+            for name in &cluster.keys {
+                let exact = match cluster.kind.as_str() {
+                    PERSON => name.words.len() >= 2,
+                    ORGANIZATION => name.words.len() >= 2 || (name.form.is_some() && !name.words.is_empty()),
+                    _ => false,
+                };
+                if exact && name.has_name() {
+                    let list = index.entry(name.exact_key(&cluster.kind)).or_default();
+                    if !list.contains(&i) {
+                        list.push(i);
+                    }
+                }
             }
+            let name = &cluster.name;
             if let Some(email) = &name.email {
                 if cluster.kind != PERSON && cluster.kind != ORGANIZATION {
                     continue;
@@ -771,6 +919,81 @@ impl<'a> Resolver<'a> {
     }
 }
 
+impl<'a> Resolver<'a> {
+    /// 2b. Areas and general mailboxes (D-262): each is a contact of the
+    /// organization its own document names (the words left without the
+    /// area's, its initials, its mail domain), or of the one organization
+    /// of the archive with the name of its domain. The same area in several
+    /// documents is one: joined to its organization when all of them say
+    /// the same one; when they say several, it is theirs in common (their
+    /// group, D-260), and left apart here. Returns the areas left without
+    /// an organization, by their key, with the organizations they name.
+    fn areas(&mut self) -> BTreeMap<String, (Vec<usize>, BTreeSet<usize>)> {
+        let clusters = self.clusters;
+        let mut by_content: HashMap<i64, Vec<usize>> = HashMap::new();
+        for (i, cluster) in clusters.iter().enumerate() {
+            if cluster.excluded.is_none() && cluster.area.is_none() && cluster.kind == ORGANIZATION {
+                by_content.entry(cluster.content_id).or_default().push(i);
+            }
+        }
+        let mut areas: BTreeMap<String, (Vec<usize>, BTreeSet<usize>)> = BTreeMap::new();
+        for (i, cluster) in clusters.iter().enumerate() {
+            let Some(area) = cluster.area.as_ref().filter(|_| cluster.excluded.is_none()) else { continue };
+            let key = match &cluster.name.email {
+                Some(email) => format!("{}|@{email}", cluster.kind),
+                None => cluster.name.exact_key(&cluster.kind),
+            };
+            let mut named: BTreeSet<usize> = BTreeSet::new();
+            for &o in by_content.get(&cluster.content_id).into_iter().flatten() {
+                if clusters[o].keys.iter().any(|k| names::area_names(area, k)) {
+                    named.insert(o);
+                }
+            }
+            if named.is_empty() && area.domain.is_some() {
+                // The domain of the mailbox names one organization of the
+                // archive (its words joined).
+                let domain = names::Area { inner: Vec::new(), domain: area.domain.clone() };
+                for (o, other) in clusters.iter().enumerate() {
+                    if other.kind == ORGANIZATION && other.excluded.is_none() && other.area.is_none() && other.keys.iter().any(|k| names::area_names(&domain, k)) {
+                        named.insert(o);
+                    }
+                }
+            }
+            let entry = areas.entry(key).or_default();
+            entry.0.push(i);
+            entry.1.extend(named);
+        }
+        let mut left: BTreeMap<String, (Vec<usize>, BTreeSet<usize>)> = BTreeMap::new();
+        for (key, (list, named)) in areas {
+            let roots: BTreeSet<usize> = named.iter().map(|&o| self.find(o)).collect();
+            // One name of one organization (written with its form or not,
+            // not yet joined): it is that one.
+            let words: BTreeSet<&Vec<String>> = named.iter().map(|&o| &clusters[o].name.words).collect();
+            let forms: BTreeSet<&String> = named.iter().filter_map(|&o| clusters[o].name.form.as_ref()).collect();
+            let one_name = words.len() == 1 && forms.len() <= 1;
+            if roots.len() == 1 || one_name {
+                let target = named
+                    .iter()
+                    .copied()
+                    .find(|&o| clusters[o].name.form.is_some())
+                    .unwrap_or_else(|| *named.iter().next().unwrap());
+                for &i in &list {
+                    if let Err(why) = self.join(target, i, "area") {
+                        self.doubt(target, i, why, None);
+                    }
+                }
+                continue;
+            }
+            // The same area in several documents is one, whoever it is of.
+            for &i in &list[1..] {
+                let _ = self.join(list[0], i, "nombre");
+            }
+            left.insert(key, (list, named));
+        }
+        left
+    }
+}
+
 impl Sets {
     /// The root of `x` without compressing (for a shared borrow).
     fn parent_of(&self, x: usize) -> usize {
@@ -788,11 +1011,25 @@ fn candidates(resolver: &mut Resolver, common: &mut usize, formless: &mut BTreeM
     let clusters = resolver.clusters;
     let mut index: BTreeMap<String, Vec<usize>> = BTreeMap::new();
     for (i, cluster) in clusters.iter().enumerate() {
-        if cluster.excluded.is_some() {
+        if cluster.excluded.is_some() || cluster.area.is_some() {
             continue;
         }
-        for key in names::block_keys(&cluster.name) {
+        let mut keys: BTreeSet<String> = BTreeSet::new();
+        for name in &cluster.keys {
+            keys.extend(names::block_keys(name));
+        }
+        for key in keys {
             index.entry(format!("{}|{key}", cluster.kind)).or_default().push(i);
+        }
+    }
+    // The parties of each document (its groups with a party's role), to
+    // tell two matters of the same name apart: a contract is between its
+    // parties (D-263).
+    let party_roles = &vocabulary().matters.party_roles;
+    let mut parties: HashMap<i64, BTreeSet<usize>> = HashMap::new();
+    for (i, cluster) in clusters.iter().enumerate() {
+        if cluster.excluded.is_none() && cluster.kind != "asunto" && cluster.area.is_none() && cluster.roles.iter().any(|r| party_roles.contains(r)) {
+            parties.entry(cluster.content_id).or_default().insert(i);
         }
     }
     // Names of organizations with their legal form: a name without a form
@@ -847,11 +1084,22 @@ fn candidates(resolver: &mut Resolver, common: &mut usize, formless: &mut BTreeM
                 if rx == ry {
                     continue;
                 }
-                let Likeness::Maybe(reason) = names::compare(&clusters[x].kind, &clusters[x].name, &clusters[y].name) else {
+                let Likeness::Maybe(reason) = compare_groups(&clusters[x], &clusters[y]) else {
                     continue;
                 };
                 if resolver.apart(rx, ry, false).is_some() {
                     continue;
+                }
+                if clusters[x].kind == "asunto" && clusters[x].content_id != clusters[y].content_id {
+                    // Two documents with two parties or more each, neither
+                    // within the other: another contract between others.
+                    let mut of = |c: usize| -> BTreeSet<usize> {
+                        parties.get(&clusters[c].content_id).into_iter().flatten().map(|&p| resolver.find(p)).collect()
+                    };
+                    let (px, py) = (of(x), of(y));
+                    if px.len() >= 2 && py.len() >= 2 && !px.is_subset(&py) && !py.is_subset(&px) {
+                        continue;
+                    }
                 }
                 let key = (rx.min(ry), rx.max(ry));
                 let formless_against_formed = |a: usize, b: usize| clusters[a].name.form.is_none() && clusters[b].name.form.is_some();
@@ -887,6 +1135,25 @@ fn candidates(resolver: &mut Resolver, common: &mut usize, formless: &mut BTreeM
         }
     }
     edges
+}
+
+/// How two groups of mentions compare: their principal names, or else the
+/// best of their other names (D-264).
+fn compare_groups(a: &Cluster, b: &Cluster) -> Likeness {
+    let principal = names::compare(&a.kind, &a.name, &b.name);
+    if principal != Likeness::Unlike {
+        return principal;
+    }
+    for x in &a.keys {
+        for y in &b.keys {
+            match names::compare(&a.kind, x, y) {
+                Likeness::Exact => return Likeness::Maybe("otro-nombre"),
+                Likeness::Maybe(reason) => return Likeness::Maybe(reason),
+                _ => {}
+            }
+        }
+    }
+    Likeness::Unlike
 }
 
 /// What the question shows of the documents.
@@ -1062,7 +1329,10 @@ escribirse con o sin su segundo nombre: otro cargo u otra organización no alcan
 de correo personal en las dos (no una casilla general como legales@, info@ o cobranzas@) es un dato fuerte de que es la misma \
 persona.\n\
 - \"dudosa\" si con esto no se puede saber. Una letra distinta en un nombre puede ser un error o una persona distinta: si el \
-contexto no lo resuelve, \"dudosa\". Ante la duda, \"dudosa\": unir dos entidades distintas es mucho peor que dejarlas separadas.\n\
+contexto no lo resuelve, \"dudosa\". En una organización, una razón social con la misma forma societaria que difiere en una o \
+dos letras (una letra que falta o sobra, una sílaba repetida), en documentos donde aparecen las mismas otras partes (la misma \
+contraparte, los mismos firmantes, el mismo asunto), es la misma: el error es del documento; si alguno de los documentos muestra \
+otra organización con ese nombre, \"dudosa\". Ante la duda, \"dudosa\": unir dos entidades distintas es mucho peor que dejarlas separadas.\n\
 - Si es \"misma\", en \"certeza\" poné \"alta\" solo si un dato de los documentos lo deja fuera de duda (el mismo \
 identificador, el mismo nombre completo con la misma organización o el mismo cargo, una cita que dice que son la misma); si \
 no, \"media\". Para \"distinta\" y \"dudosa\", la que corresponda.\n\
@@ -1133,6 +1403,9 @@ struct AnswerItem {
 pub(crate) struct Outcome {
     pub rows: Vec<Row>,
     pub clusters: Vec<Cluster>,
+    /// Groups of companies (D-260): the group (a group of mentions of it)
+    /// and its companies, each with the reasons.
+    pub groups: Vec<Group>,
     /// The entity (index of its first group) of each group.
     pub root: Vec<usize>,
     /// What joined each group to its entity ("sola" when alone).
@@ -1188,6 +1461,7 @@ pub(crate) fn resolve(base: &DocBase, asking: &mut Asking, report: &mut ResolveR
     resolver.persons(&decided);
     resolver.identifiers();
     resolver.same_names();
+    let loose_areas = resolver.areas();
 
     // 3. The model, for the candidates left, against each principal.
     let mut common = 0;
@@ -1337,13 +1611,20 @@ pub(crate) fn resolve(base: &DocBase, asking: &mut Asking, report: &mut ResolveR
         }
     }
 
+    // 4. Groups of companies (D-260).
+    let evidence = {
+        let conn = base.conn();
+        load_links(&conn)?
+    };
+    let groups = groups(vocabulary, &mut resolver, &rows, &evidence, &loose_areas);
+
     let root: Vec<usize> = (0..clusters.len()).map(|i| resolver.find(i)).collect();
     let mut by: Vec<&'static str> = vec!["sola"; clusters.len()];
     let rank_of = |by: &str| match by {
         "persona" => 4,
         "identificador" => 3,
-        "nombre" => 2,
-        "modelo" => 1,
+        "nombre" | "area" => 2,
+        "modelo" | "grupo" => 1,
         _ => 0,
     };
     for &(x, y, how) in &resolver.links {
@@ -1355,14 +1636,245 @@ pub(crate) fn resolve(base: &DocBase, asking: &mut Asking, report: &mut ResolveR
         match how {
             "persona" => report.by_person += 1,
             "identificador" => report.by_identifier += 1,
-            "nombre" => report.by_name += 1,
+            "nombre" | "area" => report.by_name += 1,
             _ => report.by_model += 1,
         }
     }
+    // An area that names no organization of its documents ("Cobranzas"
+    // alone) is a contact of no one known: not an entity (D-262).
+    let mut alone: BTreeSet<usize> = BTreeSet::new();
+    for (list, named) in loose_areas.values() {
+        if named.is_empty() {
+            for &i in list {
+                if (0..clusters.len()).filter(|&j| root[j] == root[i]).all(|j| clusters[j].area.is_some() || clusters[j].excluded.is_some()) {
+                    alone.insert(i);
+                }
+            }
+        }
+    }
     let mut doubts = std::mem::take(&mut resolver.doubts);
-    doubts.retain(|&(x, y), _| root[x] != root[y] && clusters[x].excluded.is_none() && clusters[y].excluded.is_none());
     drop(resolver);
-    Ok(Outcome { rows, clusters, root, by, doubts })
+    for &i in &alone {
+        clusters[i].excluded = Some("casilla");
+    }
+    doubts.retain(|&(x, y), _| root[x] != root[y] && clusters[x].excluded.is_none() && clusters[y].excluded.is_none());
+    Ok(Outcome { rows, clusters, root, by, doubts, groups })
+}
+
+/// A group of companies: one of its groups of mentions, and its companies
+/// (a group of mentions of each), with the reasons.
+#[derive(Debug, Clone)]
+pub(crate) struct Group {
+    pub group: usize,
+    pub members: Vec<(usize, Vec<String>)>,
+    /// The shared name of its companies, as one of them writes it (a group
+    /// of companies of one name), which names the group (D-260).
+    pub name: Option<String>,
+}
+
+/// The words of a written name up to its shared words ("Ejemplo Uno S.A."
+/// and "ejemplo uno" give "Ejemplo Uno").
+fn shared_written(written: &str, shared: &[String]) -> Option<String> {
+    let mut taken: Vec<&str> = Vec::new();
+    let mut words: Vec<String> = Vec::new();
+    for token in written.split_whitespace() {
+        let folded = super::quote::words(token);
+        if folded.is_empty() {
+            continue;
+        }
+        taken.push(token);
+        words.extend(folded);
+        if words == shared {
+            return Some(taken.join(" ").trim_end_matches([',', '.', ';']).to_string());
+        }
+        if words.len() >= shared.len() {
+            break;
+        }
+    }
+    None
+}
+
+/// The relations between two mentions: (subject, predicate, object).
+fn load_links(conn: &Connection) -> Result<Vec<(i64, String, i64)>, String> {
+    let mut statement = conn
+        .prepare("SELECT subject_mention, predicate, object_mention FROM knowledge_evidence WHERE object_mention IS NOT NULL ORDER BY id")
+        .map_err(sql_err)?;
+    let rows = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?))).map_err(sql_err)?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(sql_err)
+}
+
+/// 4. Groups of companies (D-260). Several organizations with the same
+/// name and another legal form are the companies of one group when
+/// something else links them: the same person as the representative,
+/// partner or employee of two of them (`groupLinks`), or as the attorney in
+/// documents of each; the same general mailbox in documents of several; a
+/// document that names two of them and says "group" or "affiliate"
+/// (`affiliateWords`). What is named without a form and could not be told
+/// to be one of them, and that mailbox, are the group's. The shared name
+/// alone is not enough (R-07): it stays a doubt for a person. A group the
+/// documents name ("Grupo Ejemplo") exists by its quote: its companies are
+/// the ones whose name starts with the rest of its name and that appear
+/// with it in a document.
+fn groups(
+    vocabulary: &Vocabulary,
+    resolver: &mut Resolver,
+    rows: &[Row],
+    links: &[(i64, String, i64)],
+    loose_areas: &BTreeMap<String, (Vec<usize>, BTreeSet<usize>)>,
+) -> Vec<Group> {
+    let clusters = resolver.clusters;
+    let words = &vocabulary.identity;
+    let organization = |c: &Cluster| c.kind == ORGANIZATION && c.excluded.is_none() && c.area.is_none() && !c.name.words.is_empty();
+    // The group of mentions of each mention.
+    let mut cluster_of: HashMap<i64, usize> = HashMap::new();
+    for (i, cluster) in clusters.iter().enumerate() {
+        for &r in &cluster.rows {
+            cluster_of.insert(rows[r].id, i);
+        }
+    }
+    // The organizations of each document, by root.
+    let mut in_document: BTreeMap<i64, BTreeSet<usize>> = BTreeMap::new();
+    for (i, cluster) in clusters.iter().enumerate() {
+        if organization(cluster) {
+            in_document.entry(cluster.content_id).or_default().insert(resolver.find(i));
+        }
+    }
+    let mut out: Vec<Group> = Vec::new();
+
+    // Companies of the same name with another legal form.
+    let mut formed: BTreeMap<Vec<String>, BTreeMap<String, BTreeSet<usize>>> = BTreeMap::new();
+    for (i, cluster) in clusters.iter().enumerate() {
+        if let (true, Some(form)) = (organization(cluster), &cluster.name.form) {
+            formed.entry(cluster.name.words.clone()).or_default().entry(form.clone()).or_default().insert(resolver.find(i));
+        }
+    }
+    for (name, by_form) in formed {
+        if by_form.len() < 2 {
+            continue;
+        }
+        let members: BTreeSet<usize> = by_form.values().flatten().copied().collect();
+        let mut reasons: BTreeMap<usize, BTreeSet<String>> = BTreeMap::new();
+        // The same person linked to two of them.
+        let mut people: BTreeMap<usize, BTreeSet<usize>> = BTreeMap::new();
+        for (subject, predicate, object) in links {
+            if !words.group_links.iter().any(|p| p == predicate) {
+                continue;
+            }
+            let (Some(&s), Some(&o)) = (cluster_of.get(subject), cluster_of.get(object)) else { continue };
+            let (s, o) = (resolver.find(s), resolver.find(o));
+            if clusters[s].kind == PERSON && members.contains(&o) {
+                people.entry(s).or_default().insert(o);
+            }
+        }
+        // The attorney of a document where only one of them appears.
+        for (i, cluster) in clusters.iter().enumerate() {
+            if cluster.kind != PERSON || cluster.excluded.is_some() || !cluster.roles.contains("apoderado") {
+                continue;
+            }
+            let theirs: Vec<usize> = in_document.get(&cluster.content_id).into_iter().flatten().copied().filter(|r| members.contains(r)).collect();
+            if theirs.len() == 1 {
+                let person = resolver.find(i);
+                people.entry(person).or_default().insert(theirs[0]);
+            }
+        }
+        for linked in people.values().filter(|l| l.len() >= 2) {
+            for &m in linked {
+                reasons.entry(m).or_default().insert("mismas-personas".into());
+            }
+        }
+        // The same general mailbox in documents of several.
+        for (list, named) in loose_areas.values() {
+            let theirs: BTreeSet<usize> = named.iter().map(|&o| resolver.find(o)).filter(|r| members.contains(r)).collect();
+            if theirs.len() >= 2 && !list.is_empty() {
+                for &m in &theirs {
+                    reasons.entry(m).or_default().insert("misma-casilla".into());
+                }
+            }
+        }
+        // A document that names two of them and says they are of a group.
+        for (content, present) in &in_document {
+            let theirs: Vec<usize> = present.iter().copied().filter(|r| members.contains(r)).collect();
+            if theirs.len() < 2 {
+                continue;
+            }
+            let says = clusters.iter().filter(|c| c.content_id == *content).flat_map(|c| c.rows.iter()).any(|&r| {
+                let quote = super::quote::words(&rows[r].quote).join(" ");
+                words.affiliate_words.iter().any(|a| {
+                    let a = super::quote::words(a).join(" ");
+                    quote.split(' ').any(|w| w.starts_with(a.as_str())) || (a.contains(' ') && quote.contains(a.as_str()))
+                })
+            });
+            if says {
+                for &m in &theirs {
+                    reasons.entry(m).or_default().insert("lo-dice-un-documento".into());
+                }
+            }
+        }
+        if reasons.len() < 2 {
+            continue;
+        }
+        // The group: what is named so without a form and is no company's,
+        // and the mailboxes of several of them.
+        let lone: Vec<usize> = (0..clusters.len())
+            .filter(|&i| organization(&clusters[i]) && clusters[i].name.form.is_none() && clusters[i].name.words == name)
+            .filter(|&i| !members.contains(&resolver.find(i)))
+            .collect();
+        let mut gathered: Vec<usize> = lone.clone();
+        for (list, named) in loose_areas.values() {
+            let theirs: BTreeSet<usize> = named.iter().map(|&o| resolver.find(o)).collect();
+            if !theirs.is_empty() && theirs.iter().all(|r| members.contains(r)) && theirs.len() >= 2 {
+                gathered.extend(list.iter().copied());
+            }
+        }
+        let Some(&first) = gathered.first() else { continue };
+        for &other in &gathered[1..] {
+            let _ = resolver.join(first, other, "grupo");
+        }
+        let shared = (0..clusters.len())
+            .filter(|&i| organization(&clusters[i]) && clusters[i].name.form.is_some() && clusters[i].name.words == name)
+            .find_map(|i| shared_written(&rows[clusters[i].principal].written, &name));
+        let members: Vec<(usize, Vec<String>)> = members
+            .iter()
+            .map(|&m| (m, reasons.get(&m).map(|r| r.iter().cloned().collect()).unwrap_or_else(|| vec!["mismo-nombre".into()])))
+            .collect();
+        out.push(Group { group: first, members, name: shared });
+    }
+
+    // A group the documents name.
+    let is_group_word = |w: &str| words.group_words.iter().any(|g| g == w);
+    for (i, cluster) in clusters.iter().enumerate() {
+        if !organization(cluster) || cluster.name.form.is_some() || cluster.name.words.len() < 2 || !is_group_word(&cluster.name.words[0]) {
+            continue;
+        }
+        let group = resolver.find(i);
+        if out.iter().any(|g| resolver.find(g.group) == group) {
+            continue;
+        }
+        let inner = &cluster.name.words[1..];
+        let mut members: BTreeSet<usize> = BTreeSet::new();
+        for (j, other) in clusters.iter().enumerate() {
+            if j == i || !organization(other) || other.name.form.is_none() || !other.name.words.starts_with(inner) || other.name.words.len() <= inner.len() {
+                continue;
+            }
+            let root = resolver.find(j);
+            if root == group {
+                continue;
+            }
+            let together = clusters
+                .iter()
+                .enumerate()
+                .any(|(g, c)| resolver.sets.parent_of(g) == group && in_document.get(&c.content_id).is_some_and(|present| present.contains(&root)));
+            if together {
+                members.insert(root);
+            }
+        }
+        if members.is_empty() {
+            continue;
+        }
+        let members: Vec<(usize, Vec<String>)> = members.into_iter().map(|m| (m, vec!["nombrado-como-grupo".to_string()])).collect();
+        out.push(Group { group: i, members, name: None });
+    }
+    out
 }
 
 /// Asks a question about identities (or takes its answer kept): the
@@ -1565,24 +2077,37 @@ pub(crate) fn write(base: &DocBase, outcome: &Outcome, report: &mut ResolveRepor
         // Aliases: each normalized name with its most used way of writing.
         let mut aliases: BTreeMap<&str, BTreeMap<&str, usize>> = BTreeMap::new();
         let mut proper: BTreeSet<&str> = BTreeSet::new();
+        // An area or a mailbox never names the organization it is of, nor
+        // its group (D-262), unless there is nothing else.
+        let named_by_area = list.iter().all(|&c| clusters[c].area.is_some());
         for &c in list {
-            proper.insert(rows[clusters[c].principal].normalized.as_str());
+            if named_by_area || clusters[c].area.is_none() {
+                proper.insert(rows[clusters[c].principal].normalized.as_str());
+            }
             for &r in &clusters[c].rows {
                 *aliases.entry(rows[r].normalized.as_str()).or_default().entry(rows[r].written.as_str()).or_default() += 1;
                 entity_of_row.insert(rows[r].id, (id.clone(), outcome.by[c]));
             }
         }
         let count = |n: &str| aliases[n].values().sum::<usize>();
-        let words = |n: &str| n.split(' ').count();
-        let chosen = proper
+        let written_of = |n: &str| -> String { most_written(&aliases[n]) };
+        // A group of companies of one name is named by that name (D-260).
+        let group_name = outcome
+            .groups
             .iter()
-            .max_by(|a, b| count(a).cmp(&count(b)).then_with(|| words(a).cmp(&words(b))).then_with(|| b.cmp(a)))
-            .copied()
-            .unwrap_or_default();
-        let written_of = |n: &str| -> String {
-            aliases[n].iter().max_by(|a, b| a.1.cmp(b.1).then_with(|| b.0.cmp(a.0))).map(|(w, _)| w.to_string()).unwrap_or_default()
-        };
-        let name = written_of(chosen);
+            .filter(|g| list.iter().any(|&c| outcome.root[c] == outcome.root[g.group]))
+            .find_map(|g| g.name.clone());
+        // By specificity: the most complete form that is a proper name,
+        // not the most repeated one (D-259).
+        let shown: Vec<(String, String, usize)> = proper.iter().map(|n| (n.to_string(), written_of(n), count(n))).collect();
+        let candidates: Vec<(&str, &str, usize)> = shown.iter().map(|(n, w, c)| (n.as_str(), w.as_str(), *c)).collect();
+        let forms: Vec<(&str, usize)> = aliases.values().flat_map(|forms| forms.iter().map(|(w, c)| (*w, *c))).collect();
+        let chosen = names::most_specific_with(vocabulary, kind, &candidates, &forms).unwrap_or_default().to_string();
+        let chosen = chosen.as_str();
+        // On one line, and in the form of a proper name when the documents
+        // write it some other way than in capitals (D-239).
+        let name = super::names::shown_name(&group_name.unwrap_or_else(|| written_of(chosen)), aliases.values().flat_map(|forms| forms.keys().copied()));
+        let name = if kind == names::PERSON { names::person_case(&name) } else { name };
         let now_members = mention_ids(list);
         match existing.get(id) {
             Some(old) => {
@@ -1679,6 +2204,37 @@ pub(crate) fn write(base: &DocBase, outcome: &Outcome, report: &mut ResolveRepor
             params![clusters[a].key, clusters[b].key, clusters[a].kind, entity(a), entity(b), doubt.reason, doubt.detail, evidence, now],
         )
         .map_err(sql_err)?;
+    }
+    // Groups of companies (D-260), written again; a change marks the
+    // pages of the group and of its companies.
+    let mut before_groups: BTreeSet<(String, String, String)> = BTreeSet::new();
+    {
+        let mut statement = tx.prepare("SELECT group_id, member_id, reasons FROM knowledge_group").map_err(sql_err)?;
+        let found = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?))).map_err(sql_err)?;
+        for item in found {
+            before_groups.insert(item.map_err(sql_err)?);
+        }
+    }
+    let mut now_groups: BTreeSet<(String, String, String)> = BTreeSet::new();
+    for group in &outcome.groups {
+        let entity = |c: usize| entity_of_row.get(&rows[clusters[c].principal].id).map(|(id, _)| id.clone());
+        let Some(group_id) = entity(group.group) else { continue };
+        for (member, reasons) in &group.members {
+            if let Some(member_id) = entity(*member).filter(|m| *m != group_id) {
+                now_groups.insert((group_id.clone(), member_id, serde_json::to_string(reasons).unwrap_or_else(|_| "[]".into())));
+            }
+        }
+    }
+    if before_groups != now_groups {
+        tx.execute("DELETE FROM knowledge_group", []).map_err(sql_err)?;
+        for (group, member, reasons) in &now_groups {
+            tx.execute("INSERT INTO knowledge_group (group_id, member_id, reasons) VALUES (?1, ?2, ?3)", params![group, member, reasons])
+                .map_err(sql_err)?;
+        }
+        for (group, member, _) in before_groups.symmetric_difference(&now_groups) {
+            changed.insert(group.clone());
+            changed.insert(member.clone());
+        }
     }
     report.doubts = outcome.doubts.len();
     report.groups = clusters.iter().filter(|c| c.excluded.is_none()).count();

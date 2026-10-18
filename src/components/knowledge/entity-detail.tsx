@@ -132,9 +132,13 @@ function Claims({ entity, run, busy }: { entity: EntityDetail; run: Run; busy: b
 
   const value = (claim: ClaimView): ReactNode =>
     claim.objectEntity ? (
-      <button className="text-primary hover:underline" onClick={() => openEntity(claim.objectEntity)}>
-        {claim.objectName ?? claim.objectEntity}
-      </button>
+      <>
+        <button className="text-primary hover:underline" onClick={() => openEntity(claim.objectEntity)}>
+          {claim.objectName ?? claim.objectEntity}
+        </button>
+        {/* An amount between two parties: the other party and the amount. */}
+        {claim.objectValue ? <span> · {claim.objectValue}</span> : null}
+      </>
     ) : (
       <span>{claim.objectValue}</span>
     )

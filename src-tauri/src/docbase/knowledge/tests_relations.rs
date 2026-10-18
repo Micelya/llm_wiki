@@ -5,7 +5,7 @@
 use std::path::PathBuf;
 
 use super::decide::IdentityDecision;
-use super::tests::{base_with, claim, empty_answer, is_knowledge, mention, type_answer, FakeModel};
+use super::tests::{answer, amount, base_with, claim, empty_answer, is_knowledge, mention, type_answer, FakeModel};
 use super::tests_pages::{entity_pages, is_synthesis, page_of, read, synthesis};
 use crate::docbase::testing::TempDir;
 use crate::docbase::{DocBase, Visible};
@@ -49,20 +49,27 @@ fn reading(prompt: &str) -> String {
                 company("emisor", "de Ejemplo Uno S.A. a Persona Dos"),
                 two("destinatario", "a Persona Dos por $ 1.234,56"),
             ],
-            vec![claim("p", "monto_adeudado", None, Some("$ 1.234,56"), "a Persona Dos por $ 1.234,56", None)],
+            vec![amount("p", "o", "$ 1.234,56", "factura", "a Persona Dos por $ 1.234,56", None)],
         )
     } else if prompt.contains("DOC-R.") {
         (
             vec![two("emisor", "Recibo de Persona Dos"), company("destinatario", "a Ejemplo Uno S.A. por $ 1.234,56")],
-            vec![claim("p", "monto_adeudado", None, Some("$ 1.234,56"), "a Ejemplo Uno S.A. por $ 1.234,56", None)],
+            vec![amount("p", "o", "$ 1.234,56", "cuota", "a Ejemplo Uno S.A. por $ 1.234,56", None)],
         )
     } else if prompt.contains("DOC-O.") {
         (
             vec![two("remitente", "Nota de Persona Dos"), company("destinatario", "a Ejemplo Uno S.A. sobre otro tema")],
-            vec![claim("p", "monto_adeudado", None, Some("$ 10.000"), "por $ 10.000 de anticipo", None)],
+            vec![amount("p", "o", "$ 10.000", "cuota", "por $ 10.000 de anticipo", None)],
         )
     } else if prompt.contains("DOC-P.") {
-        (vec![two("remitente", "Correo de Persona Dos"), company("destinatario", "a Ejemplo Uno S.A. para coordinar")], vec![])
+        (
+            vec![two("remitente", "Correo de Persona Dos"), company("destinatario", "a Ejemplo Uno S.A. para coordinar")],
+            // The same tie said from both sides.
+            vec![
+                claim("p", "deudor_de", Some("o"), None, "Persona Dos a Ejemplo Uno S.A. para coordinar el pago pendiente", None),
+                claim("p", "deudor_de", Some("o"), None, "Correo de Persona Dos a Ejemplo Uno S.A. para coordinar el pago pendiente", None),
+            ],
+        )
     } else if prompt.contains("DOC-G.") {
         (
             vec![
@@ -74,7 +81,7 @@ fn reading(prompt: &str) -> String {
     } else {
         return empty_answer();
     };
-    serde_json::json!({ "menciones": mentions, "afirmaciones": claims }).to_string()
+    answer(mentions, claims)
 }
 
 pub(crate) fn model() -> FakeModel {
@@ -143,12 +150,14 @@ fn documents_of_one_matter_go_together_by_what_is_specific_to_it() {
     let matter = pages.iter().find(|(_, t)| t.contains("entity_id: mat-")).map(|(_, t)| t.as_str()).expect("a page of the matter");
     assert!(matter.contains("entity_kind: asunto") && matter.contains("## Documentos (3)"), "{matter}");
     assert!(matter.contains("## Partes y personas") && matter.contains("Persona Dos") && matter.contains("Ejemplo Uno S.A."), "{matter}");
-    assert!(matter.contains("### Por qué estos documentos van juntos"), "{matter}");
+    assert!(matter.contains("> [!info]- Por qué estos documentos van juntos — 3 documentos:"), "{matter}");
     assert!(matter.contains("comparten el número 000100012345") && matter.contains("comparten el importe 1 234 56"), "{matter}");
     assert!(matter.contains("$ 1.234,56"), "{matter}");
     // The person's documents, by matter; the note of another subject apart.
     let person = page_of(&pages, "Persona Dos");
-    assert!(person.contains("### [[factura-0001-00012345-"), "{person}");
+    // Named by its parties, never by the invoice (D-267); its documents
+    // are all of one kind here, which names it (D-288).
+    assert!(person.contains("### [[contrato-entre-ejemplo-uno-s-a-y-persona-dos-"), "{person}");
     assert!(person.contains("### Sin asunto identificado") && person.contains("o.txt"), "{person}");
     // No page for a matter named in one document only.
     assert!(!pages.iter().any(|(_, t)| t.contains("entity_kind: asunto") && t.contains("entity_id: ent-")));
@@ -191,6 +200,10 @@ fn a_relation_is_shown_on_both_sides_with_its_quote() {
     let company = page_of(&pages, "Ejemplo Uno S.A.");
     assert!(company.contains("## Vínculos") && company.contains("Representada por [[persona-nueve-"), "{company}");
     assert!(company.contains("«firmada por Persona Nueve, presidente de Ejemplo Uno S.A.»"), "{company}");
+    // A tie and its inverse from the other side are one line (D-239).
+    let two = page_of(&pages, "Persona Dos");
+    assert_eq!(two.matches("- Deudor de [[ejemplo-uno-s-a-").count(), 1, "{two}");
+    assert_eq!(company.matches("- Acreedor de [[persona-dos-").count(), 1, "{company}");
 }
 
 #[test]

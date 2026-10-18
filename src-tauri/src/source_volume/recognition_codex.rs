@@ -102,13 +102,22 @@ impl TextRecognizer for CodexRecognizer {
 /// `--output-schema`.
 pub struct CodexAsker {
     model: String,
+    /// `low`, `medium` or `high` (checked by `asking::asker_for`); empty
+    /// leaves the model's default.
+    reasoning: String,
 }
 
 impl CodexAsker {
     pub fn new(model: &str) -> Self {
         Self {
             model: model.trim().to_string(),
+            reasoning: String::new(),
         }
+    }
+
+    pub fn with_reasoning(mut self, reasoning: &str) -> Self {
+        self.reasoning = reasoning.trim().to_lowercase();
+        self
     }
 
     fn args(&self, schema_file: &Path, answer_file: &Path) -> Vec<std::ffi::OsString> {
@@ -127,6 +136,11 @@ impl CodexAsker {
             args.push("--model".into());
             args.push((&self.model).into());
         }
+        if !self.reasoning.is_empty() {
+            // Codex's own setting; a bare word is taken as a string.
+            args.push("-c".into());
+            args.push(format!("model_reasoning_effort={}", self.reasoning).into());
+        }
         args.push("-o".into());
         args.push(answer_file.into());
         args.push("-".into());
@@ -136,10 +150,11 @@ impl CodexAsker {
 
 impl DocumentAsker for CodexAsker {
     fn engine_id(&self) -> String {
-        if self.model.is_empty() {
+        let model = super::asking::model_with_reasoning(&self.model, &self.reasoning);
+        if model.is_empty() {
             "codex-cli".to_string()
         } else {
-            format!("codex-cli:{}", self.model)
+            format!("codex-cli:{model}")
         }
     }
 
@@ -276,6 +291,20 @@ mod tests {
         assert_eq!(args.last().unwrap(), "-");
         assert_eq!(asker.engine_id(), "codex-cli:gpt-6-luna");
         assert_eq!(CodexAsker::new(" ").engine_id(), "codex-cli");
+        assert!(!args.iter().any(|a| a == "-c"));
+    }
+
+    #[test]
+    fn a_question_carries_the_reasoning_level_to_codex() {
+        let asker = CodexAsker::new("gpt-6-luna").with_reasoning("high");
+        let args = asker
+            .args(Path::new("forma.json"), Path::new("out.json"))
+            .into_iter()
+            .map(|a| a.to_string_lossy().to_string())
+            .collect::<Vec<_>>();
+        assert!(args.windows(2).any(|w| w == ["-c", "model_reasoning_effort=high"]));
+        assert_eq!(args.last().unwrap(), "-");
+        assert_eq!(asker.engine_id(), "codex-cli:gpt-6-luna@high");
     }
 
     #[test]

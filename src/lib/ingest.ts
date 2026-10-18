@@ -33,6 +33,7 @@ import {
   releaseCataloguedContent,
 } from "@/lib/source-catalog"
 import { sanitizeIngestedFileContent } from "@/lib/ingest-sanitize"
+import { finishLegalPage, wikiPageKeys, withMdExtension } from "@/lib/ingest-legal-finish"
 import { mergePageContent, type MergeFn } from "@/lib/page-merge"
 import { withProjectLock } from "@/lib/project-mutex"
 import { parseFrontmatter } from "@/lib/frontmatter"
@@ -1967,7 +1968,7 @@ export function buildFallbackSourceSummary(
   return [
     "---",
     "type: source",
-    `title: "Source: ${sourceIdentity}"`,
+    `title: ${JSON.stringify(documentTitle(sourceIdentity))}`,
     `created: ${date}`,
     `updated: ${date}`,
     `sources: ["${sourceIdentity}"]`,
@@ -1975,7 +1976,7 @@ export function buildFallbackSourceSummary(
     "related: []",
     "---",
     "",
-    `# Source: ${sourceIdentity}`,
+    `# ${documentTitle(sourceIdentity)}`,
     "",
     // This is a recovery page, so preserving the complete analysis matters
     // more than keeping the page short. Truncating here used to create
@@ -2052,10 +2053,16 @@ async function writeFileBlocks(
 
   const targetLang = useWikiStore.getState().outputLanguage
   const today = currentWikiDate()
+  // The pages a link may point to: the wiki on disk and what this answer
+  // writes (D-237).
+  const pageKeys = wikiPageKeys([
+    ...(await wikiPagePaths(projectPath)),
+    ...blocks.map((b) => withMdExtension(sourceSummaryPath && b.path.startsWith("wiki/sources/") ? sourceSummaryPath : b.path)),
+  ])
 
   for (const { path: rawRelativePath, content: rawContent } of blocks) {
     throwIfIngestAborted(signal, activityId)
-    let relativePath = rawRelativePath
+    let relativePath = withMdExtension(rawRelativePath)
     if (sourceSummaryPath && relativePath.startsWith("wiki/sources/")) {
       relativePath = sourceSummaryPath
     }
@@ -2203,8 +2210,11 @@ async function writeFileBlocks(
         )
         // The merge unions existing frontmatter arrays, so sanitize again to
         // remove legacy/generated paths that may already be stored on disk.
-        const toWrite = canonicalizeSourcesField(merged, sourceFileName)
-        await writeFile(fullPath, toWrite)
+        // Then the last touch of a law firm's page (D-237), after the
+        // merge so that nothing from the old page brings back what it fixes.
+        const finished = finishLegalPage(relativePath, canonicalizeSourcesField(merged, sourceFileName), pageKeys)
+        warnings.push(...finished.warnings)
+        await writeFile(fullPath, finished.content)
       }
       writtenPaths.push(relativePath)
       completedInputPaths.push(rawRelativePath)
@@ -2224,6 +2234,36 @@ async function writeFileBlocks(
     hardFailures,
     truncatedPaths,
   }
+}
+
+/** The pages of the wiki on disk, as paths relative to the project. */
+async function wikiPagePaths(projectPath: string): Promise<string[]> {
+  const root = `${normalizePath(projectPath).replace(/\/+$/, "")}/`
+  let nodes: FileNode[]
+  try {
+    nodes = await listDirectory(`${root}wiki`)
+  } catch {
+    return []
+  }
+  const out: string[] = []
+  const visit = (items: FileNode[]) => {
+    for (const item of items) {
+      if (item.is_dir) {
+        if (item.children) visit(item.children)
+        continue
+      }
+      const path = normalizePath(item.path)
+      if (path.toLowerCase().endsWith(".md")) out.push(path.startsWith(root) ? path.slice(root.length) : path)
+    }
+  }
+  visit(nodes)
+  return out
+}
+
+/** The title of a document's page when the model wrote none: its file name. */
+export function documentTitle(sourceIdentity: string): string {
+  const name = getFileName(sourceIdentity)
+  return name.replace(/\.[A-Za-z0-9]{1,5}$/, "").replace(/\.[A-Za-z0-9]{1,5}$/, "") || name
 }
 
 function isOwnedOnlyBySource(content: string, sourceIdentity: string): boolean {
@@ -2342,6 +2382,18 @@ const LAYER_ENTITY_ANALYSIS_RULES = [
 const LAYER_ENTITY_PAGE_RULES = [
   "Do not create pages for people, organizations or matters, and do not write any file under wiki/entities/: the application writes those pages from its own record of the whole archive and adds, at the end of the source summary, a block that links each one with its role in the document. Such FILE blocks are discarded.",
   "In the source summary, name people, organizations and matters in plain text as the document writes them, without [[wikilinks]].",
+] as const
+
+/**
+ * How a law firm's page speaks (D-237): of the documents and what they
+ * say, never of the wiki, its pages or the material it was given. The
+ * program also drops such sentences, links to no page and academic fields.
+ */
+const LEGAL_VOICE_RULES = [
+  "Write about the documents and what they say. Never write about the wiki itself, its pages or its index, nor about \"the material\" or what was or was not provided (no \"already in the wiki\", \"not included in the material\"): if the document does not say something, write that the document does not say it.",
+  "Every file path ends in `.md`. The `title` in the frontmatter is the same as the page's first `#` heading, in the output language; never \"Source: …\".",
+  "Do not write academic reference fields (`authors`, `year`, `url`, `venue`) in any frontmatter: the documents of a law firm are not papers.",
+  "Use [[wikilinks]] only to pages listed in the current wiki index or written in this same answer; any other name stays as plain text.",
 ] as const
 
 /** How an ingest prompt is built for its project. */
@@ -2532,6 +2584,7 @@ export function buildGenerationPrompt(
     "- Use kebab-case for Latin-script filenames; for Chinese/Japanese/Korean titles keep the CJK characters (do NOT romanize to pinyin/romaji or translate to English)",
     "- Derive filenames from the page title in the mandatory output language, but proper names and identifiers take precedence: preserve names of people, companies, courts and agencies, case and file numbers, statutes, and contract or invoice numbers in their standard original form. Do not put raw URLs, citation strings, or full document titles directly into file paths; convert surrounding descriptive prose to a safe readable title. For Chinese/Japanese/Korean prose titles, keep readable CJK characters in the filename instead of translating the slug to English.",
     "- Preserve structured source data verbatim: copy tables of amounts, invoice line items, payment schedules, deadlines and similar data into Markdown tables in the source summary page instead of paraphrasing them. Every figure, date, number and name must survive exactly as written — a prose-only summary that drops them loses what the firm keeps the document for.",
+    ...LEGAL_VOICE_RULES.map((rule) => `- ${rule}`),
     "- Follow the analysis recommendations on what to emphasize",
     "- If the analysis found connections to existing pages, add cross-references",
     "",
@@ -3482,7 +3535,7 @@ async function injectImagesIntoSourceSummary(
       const stubFrontmatter = [
         "---",
         "type: source",
-        `title: "Source: ${sourceIdentity}"`,
+        `title: ${JSON.stringify(documentTitle(sourceIdentity))}`,
         `created: ${date}`,
         `updated: ${date}`,
         `sources: ["${sourceIdentity}"]`,
@@ -3490,7 +3543,7 @@ async function injectImagesIntoSourceSummary(
         "related: []",
         "---",
         "",
-        `# Source: ${sourceIdentity}`,
+        `# ${documentTitle(sourceIdentity)}`,
         "",
       ].join("\n")
       await writeFile(sourceSummaryFullPath, stubFrontmatter + wrapped)

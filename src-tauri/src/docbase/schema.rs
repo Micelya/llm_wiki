@@ -10,7 +10,44 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14];
+
+/// Groups of companies (D-260): `knowledge_group` says which entities are
+/// the companies of a group entity (several companies with the same name
+/// and another legal form, and another sign that links them; or a group
+/// the documents name), with the reasons. Computed again on every
+/// resolution, like the entities.
+const V14: &str = "
+CREATE TABLE knowledge_group (
+    group_id   TEXT NOT NULL REFERENCES knowledge_entity (id) ON DELETE CASCADE,
+    member_id  TEXT NOT NULL REFERENCES knowledge_entity (id) ON DELETE CASCADE,
+    reasons    TEXT NOT NULL DEFAULT '[]',
+    PRIMARY KEY (group_id, member_id)
+);
+CREATE INDEX knowledge_group_by_member ON knowledge_group (member_id);
+";
+
+/// What the second question of the reading brings (D-244 to D-252):
+///
+/// - `amount` and `detail` of a piece of evidence and of a claim: an amount
+///   between two parties is a relation (the debtor is the subject, the
+///   creditor the object entity) with the amount as written, and its kind,
+///   currency and concept in `detail` (JSON). The kind of amount is the
+///   claim's `qualifier` and its normalized amount its `object_normalized`,
+///   so that two amounts between the same parties are two claims.
+/// - `knowledge_mention.defined`: the mention is a term the document
+///   defines ("en adelante «la Empresa»"): a local alias of the entity it
+///   defines, which gives it neither name nor alias.
+/// - `knowledge_extraction.doc_date`: the date of the document as its text
+///   writes it, the time of a value whose quote says none.
+const V13: &str = "
+ALTER TABLE knowledge_evidence ADD COLUMN amount TEXT;
+ALTER TABLE knowledge_evidence ADD COLUMN detail TEXT;
+ALTER TABLE knowledge_claim ADD COLUMN amount TEXT;
+ALTER TABLE knowledge_claim ADD COLUMN detail TEXT;
+ALTER TABLE knowledge_mention ADD COLUMN defined INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE knowledge_extraction ADD COLUMN doc_date TEXT;
+";
 
 /// What the model was shown of the two sides when it said a verdict on a
 /// pair of groups (`knowledge_verdict.evidence`, a fingerprint): a verdict

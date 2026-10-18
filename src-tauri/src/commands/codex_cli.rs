@@ -143,6 +143,7 @@ pub async fn codex_cli_spawn(
     isolate_local_config: bool,
     timeout_minutes: Option<u64>,
     working_directory: Option<String>,
+    reasoning_effort: Option<String>,
 ) -> Result<(), String> {
     if prompt.trim().is_empty() {
         return Err("No prompt to send to codex CLI".to_string());
@@ -157,7 +158,8 @@ pub async fn codex_cli_spawn(
     if let Some(path_env) = child_path_env().await {
         cmd.env("PATH", path_env);
     }
-    cmd.args(build_codex_cli_args(&model, isolate_local_config));
+    let reasoning = crate::source_volume::asking::reasoning_level(reasoning_effort.as_deref().unwrap_or(""))?;
+    cmd.args(build_codex_cli_args(&model, isolate_local_config, &reasoning));
     cmd.current_dir(&working_directory);
 
     cmd.stdin(Stdio::piped())
@@ -296,7 +298,9 @@ fn codex_spawn_timeout_minutes(value: Option<u64>) -> u64 {
     )
 }
 
-fn build_codex_cli_args(model: &str, isolate_local_config: bool) -> Vec<String> {
+/// `reasoning`: `low`, `medium` or `high` (already checked), or empty for
+/// the model's default.
+fn build_codex_cli_args(model: &str, isolate_local_config: bool, reasoning: &str) -> Vec<String> {
     let mut args = vec!["-a".to_string(), "never".to_string(), "exec".to_string()];
 
     if isolate_local_config {
@@ -314,8 +318,11 @@ fn build_codex_cli_args(model: &str, isolate_local_config: bool) -> Vec<String> 
         "--ephemeral".to_string(),
         "--model".to_string(),
         model.to_string(),
-        "-".to_string(),
     ]);
+    if !reasoning.is_empty() {
+        args.extend(["-c".to_string(), format!("model_reasoning_effort={reasoning}")]);
+    }
+    args.push("-".to_string());
     args
 }
 
@@ -414,8 +421,9 @@ mod tests {
 
     #[test]
     fn codex_args_do_not_isolate_local_config_by_default() {
-        let args = build_codex_cli_args("gpt-5", false);
+        let args = build_codex_cli_args("gpt-5", false, "");
 
+        assert!(!args.contains(&"-c".to_string()));
         assert!(args
             .windows(3)
             .any(|pair| pair[0] == "-a" && pair[1] == "never" && pair[2] == "exec"));
@@ -427,7 +435,7 @@ mod tests {
 
     #[test]
     fn codex_args_can_isolate_user_config_and_rules() {
-        let args = build_codex_cli_args("gpt-5", true);
+        let args = build_codex_cli_args("gpt-5", true, "");
         let exec_pos = args.iter().position(|arg| arg == "exec").expect("exec arg");
         let ignore_config_pos = args
             .iter()
@@ -440,6 +448,14 @@ mod tests {
 
         assert!(ignore_config_pos > exec_pos);
         assert!(ignore_rules_pos > exec_pos);
+    }
+
+    #[test]
+    fn codex_args_carry_the_reasoning_level_before_the_prompt() {
+        let args = build_codex_cli_args("gpt-5", false, "high");
+        let level = args.iter().position(|arg| arg == "model_reasoning_effort=high").expect("reasoning arg");
+        assert_eq!(args[level - 1], "-c");
+        assert_eq!(args.last().unwrap(), "-");
     }
 
     struct TestDir(PathBuf);

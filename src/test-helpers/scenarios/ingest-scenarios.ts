@@ -109,7 +109,9 @@ export const ingestScenarios: IngestScenario[] = [
       fileContains: {
         "wiki/concepts/rope.md": [
           "title: Rotary Position Embedding",
-          "[[attention]]",
+          // The index names it but no page exists: the link is left as
+          // its text (D-237).
+          "rotates pairs of dimensions in attention queries",
         ],
         "wiki/sources/rope-paper.md": ["rope-paper.md"],
       },
@@ -262,7 +264,8 @@ export const ingestScenarios: IngestScenario[] = [
       fileContains: {
         "wiki/concepts/transformer.md": [
           "title: Transformer",
-          "[[注意力机制]]",
+          // No page for it on disk: left as text (D-237).
+          "基于 注意力机制 的",
         ],
       },
     },

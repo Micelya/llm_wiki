@@ -623,6 +623,8 @@ export function listSimilarRelations(): Promise<RelationDef[]> {
 export interface AskConfig {
   engine: "codex-cli"
   model: string
+  /** How much the model reasons; part of the engine's name in the base (D-274). */
+  reasoning?: "low" | "medium" | "high"
 }
 
 /** What a document is and in what stage (pass 4). */
@@ -758,6 +760,9 @@ export interface KnowledgeProjectReport {
   unchanged: number
   removed: number
   kept: number
+  /** Pages moved to the file of their entity's new name, and pages whose links followed. */
+  moved: number
+  redirected: number
   asked: number
   failed: number
   left: number
@@ -1220,6 +1225,11 @@ export function decideIdentityMany(decisions: IdentityDecision[], note: string |
 
 export function undoIdentityDecision(id: number): Promise<void> {
   return invoke<void>("docbase_knowledge_undo", { id })
+}
+
+/** Reads again the documents whose reading failed; returns how many. */
+export function knowledgeReadAgainFailed(): Promise<number> {
+  return invoke<number>("docbase_knowledge_read_again_failed")
 }
 
 export function getKnowledgeAttention(): Promise<KnowledgeAttention> {

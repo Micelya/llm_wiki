@@ -168,6 +168,11 @@ impl DocumentAsker for Recorded {
         if let Some(answer) = self.saved.lock().unwrap().get(&key) {
             return Ok(answer.clone());
         }
+        // `MICELYA_ASK_OFFLINE`: only the answers kept count (a provider
+        // at its usage limit for hours); a question not kept fails at once.
+        if std::env::var("MICELYA_ASK_OFFLINE").is_ok() {
+            return Err("the answer is not kept and asking is off (MICELYA_ASK_OFFLINE)".to_string());
+        }
         // A provider at its usage limit is waited for, a few times.
         let mut attempt = 0;
         let answer = loop {
@@ -283,6 +288,7 @@ pub(crate) fn recorded() -> Recorded {
         inner: crate::source_volume::asking::asker_for(&AskConfig {
             engine: "codex-cli".into(),
             model: std::env::var("MICELYA_ASK_MODEL").unwrap_or_default(),
+            reasoning: std::env::var("MICELYA_ASK_REASONING").unwrap_or_default(),
         })
         .unwrap(),
         file,
@@ -588,7 +594,7 @@ fn extraction_against_the_entity_sheet() {
                 .unwrap_or_default();
             if IDENTIFIER_PREDICATES.contains(&claim.predicate.as_str()) {
                 id_claims += 1;
-                let value = normalized(claim.object.as_str().unwrap_or_default());
+                let value = super::names::identifier_value(claim.object.as_str().unwrap_or_default());
                 let hit = mentions.iter().any(|m| identifiers.get(m).is_some_and(|ids| ids.iter().any(|i| i == &value)));
                 if hit {
                     id_hits += 1;
@@ -662,11 +668,12 @@ pub(crate) fn vocabulary_predicates(sheet: &str) -> Option<&'static [&'static st
         "cargo" => &["cargo"],
         "domicilio" | "domicilio_constituido" | "domicilio_constituido_por" => &["domicilio"],
         "representa_a" | "representada_por" | "apoderado_de" => &["representa_a"],
+        "beneficiario_final_de" => &["beneficiario_final_de"],
+        "conyuge_de" | "conyuge" => &["conyuge_de"],
         "socio_de" => &["socio_de"],
         "empleado_de" | "trabaja_en" | "contratista_de" | "integra_equipo_de" | "pertenece_a" => &["empleado_de"],
-        "deudor_de" => &["deudor_de", "acreedor_de"],
-        "acreedor_de" => &["acreedor_de", "deudor_de"],
-        "monto" | "monto_reclamado" | "saldo_pendiente" | "monto_adeudado" => &["monto_reclamado", "monto_adeudado"],
+        "deudor_de" | "acreedor_de" => &["deudor_de", "importe"],
+        "monto" | "monto_reclamado" | "saldo_pendiente" | "monto_adeudado" => &["importe"],
         "parte_en" => &["parte_en"],
         "fecha" | "plazo" | "inicio_de_vinculo" | "fin_de_vinculo" => &["inicio_de_vinculo", "fin_de_vinculo"],
         "profesion" => &["profesion"],

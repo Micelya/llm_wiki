@@ -6,6 +6,7 @@
  * over stdin, and emits each JSONL stdout line back as `codex-cli:{streamId}`.
  */
 
+import { codexReasoningEffort, type CodexReasoningEffort } from "@/lib/codex-reasoning"
 import { invoke } from "@tauri-apps/api/core"
 import { listen, type UnlistenFn } from "@tauri-apps/api/event"
 import type { LlmConfig } from "@/stores/wiki-store"
@@ -65,6 +66,7 @@ type SpawnPayload = Record<string, unknown> & {
   isolateLocalConfig: boolean
   timeoutMinutes?: number
   workingDirectory?: string
+  reasoningEffort: CodexReasoningEffort
 }
 
 export async function streamCodexCli(
@@ -208,6 +210,7 @@ export async function streamCodexCli(
       isolateLocalConfig: config.localCliIsolation === true,
       timeoutMinutes: config.codexCliTimeoutMinutes,
       workingDirectory,
+      reasoningEffort: codexReasoningEffort(config.codexReasoningEffort),
     }
     await invoke("codex_cli_spawn", payload)
     if (aborted || signal?.aborted) {

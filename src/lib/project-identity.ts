@@ -40,11 +40,29 @@ function identityPath(projectPath: string): string {
   return `${normalizePath(projectPath)}/.llm-wiki/project.json`
 }
 
+/** Identity lookups under way, by folder: one folder never gets two ids. */
+const idsUnderWay = new Map<string, Promise<string>>()
+
 /**
  * Return the project's stable UUID. Generates + writes one on first call
  * for a project that doesn't have `.llm-wiki/project.json` yet.
+ *
+ * Two opens of a new folder at the same time (the app's start runs twice
+ * in development, and the default project is opened from more than one
+ * place) used to make two ids: the queue took one and the registry kept
+ * the other, so every document of a fresh project failed as "project not
+ * found". Calls for the same folder now share one lookup.
  */
-export async function ensureProjectId(projectPath: string): Promise<string> {
+export function ensureProjectId(projectPath: string): Promise<string> {
+  const key = normalizePath(projectPath).replace(/\/+$/, "").toLowerCase()
+  const underWay = idsUnderWay.get(key)
+  if (underWay) return underWay
+  const lookup = readOrCreateProjectId(projectPath).finally(() => idsUnderWay.delete(key))
+  idsUnderWay.set(key, lookup)
+  return lookup
+}
+
+async function readOrCreateProjectId(projectPath: string): Promise<string> {
   const path = identityPath(projectPath)
   try {
     const raw = await readFile(path)
@@ -88,23 +106,30 @@ async function saveRegistry(registry: ProjectRegistry): Promise<void> {
   await store.set(REGISTRY_KEY, registry)
 }
 
+let registryWrites: Promise<void> = Promise.resolve()
+
 /**
  * Create or update the registry entry for this project. Call on open /
  * create / switch so the path always reflects the latest known location.
  */
-export async function upsertProjectInfo(
+export function upsertProjectInfo(
   id: string,
   path: string,
   name: string,
 ): Promise<void> {
-  const registry = await loadRegistry()
-  registry[id] = {
-    id,
-    path: normalizePath(path),
-    name,
-    lastOpened: Date.now(),
-  }
-  await saveRegistry(registry)
+  // One change at a time: two read-modify-write rounds at once lost an entry.
+  const change = registryWrites.then(async () => {
+    const registry = await loadRegistry()
+    registry[id] = {
+      id,
+      path: normalizePath(path),
+      name,
+      lastOpened: Date.now(),
+    }
+    await saveRegistry(registry)
+  })
+  registryWrites = change.catch(() => {})
+  return change
 }
 
 /**

@@ -5,7 +5,7 @@
 use std::path::PathBuf;
 
 use super::pages::{self, BLOCK_END, BLOCK_START, NOTES_MARK};
-use super::tests::{base_with, claim, empty_answer, is_knowledge, mention, type_answer, FakeModel};
+use super::tests::{answer, amount, base_with, claim, empty_answer, is_knowledge, mention, type_answer, FakeModel};
 use crate::docbase::testing::TempDir;
 use crate::docbase::DocBase;
 
@@ -36,7 +36,7 @@ fn reading(prompt: &str) -> String {
                 mention("p", "persona", "Persona Dos", "firmante", "Recibo firmado por Persona Dos, DNI 22.222.222", ids("dni", "22.222.222", "DNI 22.222.222")),
                 mention("o", "organizacion", "Ejemplo Uno S.A.", "destinatario", "a favor de Ejemplo Uno S.A.", none.clone()),
             ],
-            vec![claim("p", "monto_adeudado", None, Some("$ 5.000"), "a favor de Ejemplo Uno S.A. por $ 5.000", None)],
+            vec![amount("p", "o", "$ 5.000", "cuota", "a favor de Ejemplo Uno S.A. por $ 5.000", None)],
         )
     } else if prompt.contains("DOC-E.") {
         // An address, a pronoun and a role read as names.
@@ -63,7 +63,7 @@ fn reading(prompt: &str) -> String {
     } else {
         return empty_answer();
     };
-    serde_json::json!({ "menciones": mentions, "afirmaciones": claims }).to_string()
+    answer(mentions, claims)
 }
 
 pub(crate) fn is_synthesis(prompt: &str) -> bool {
@@ -185,45 +185,76 @@ fn every_entity_with_a_page_has_all_its_documents_and_only_verified_sentences() 
     // The notes, last, under their mark.
     assert!(person.trim_end().ends_with("-->"), "{person}");
     assert!(person.contains(NOTES_MARK));
-    // A company without claims says so, and asks nothing.
+    // The amount is told on both pages, each from its side (D-244).
+    assert!(person.contains("Pagó a Ejemplo Uno S.A.: $ 5.000 (cuota pagada)"), "{person}");
     let company = page_of(&pages, "Ejemplo Uno S.A.");
-    assert!(company.contains("Los documentos no dicen de esta entidad nada más que su nombre y su rol."), "{company}");
-    assert_eq!(synthesis_calls(&asker), 1);
+    assert!(company.contains("Cobró de Persona Dos: $ 5.000 (cuota pagada)"), "{company}");
+    assert_eq!(synthesis_calls(&asker), 2);
     // The overview, from the record, in the words of the vocabulary.
     let overview = std::fs::read_to_string(project.join("wiki/overview.md")).unwrap();
     assert!(overview.contains("# Resumen del archivo") && overview.contains("[[persona-dos-"), "{overview}");
+    // Every document read counts, also one that names nobody with a page
+    // (D-240); the most named, by the documents where they have a role.
+    assert!(overview.contains("- Documentos leídos: 3\n"), "{overview}");
+    assert!(!overview.contains("lectura falló"), "{overview}");
+    assert!(overview.contains("· Persona — 2 documentos"), "{overview}");
 
     // Projecting again changes nothing and asks nothing (R-13).
     let again = base.knowledge_project(Some(&asker), 50).unwrap();
     assert!(again.skipped || (again.written == 0 && again.asked == 0), "{again:?}");
     assert_eq!(entity_pages(&project), pages);
-    assert_eq!(synthesis_calls(&asker), 1);
+    assert_eq!(synthesis_calls(&asker), 2);
 }
 
 #[test]
-fn notes_of_a_person_survive_and_the_file_name_never_changes() {
+fn a_renamed_entity_moves_its_page_with_its_notes_and_the_links_follow() {
     let (dir, base, project, asker) = archive(&[("a.txt", A), ("b.txt", B)]);
     base.knowledge_project(Some(&asker), 50).unwrap();
     let pages = entity_pages(&project);
     let (file, text) = pages.iter().find(|(_, t)| t.contains("title: \"Persona Dos\"")).unwrap().clone();
     std::fs::write(project.join("wiki/entities").join(&file), format!("{text}Cliente desde hace años; llamar antes de ir.\n")).unwrap();
+    let old_stem = file.trim_end_matches(".md").to_string();
+    let id_part = old_stem.rsplit('-').next().unwrap().to_string();
+    // A page the app does not write links to it.
+    dir.write("General/wiki/concepts/nota.md", format!("---\ntype: concept\ntitle: Nota\nrelated: [{old_stem}]\n---\n\nVer [[{old_stem}|el cliente]].\n").as_bytes());
 
-    // The entity is renamed (another way of writing it is now the most
-    // used) and gets another document: the page is written again, at the
-    // same path, with the notes as they were.
+    // The entity is renamed and gets another document: the page moves to
+    // the file of the new name (the same id at its end), with the notes as
+    // they were, and the links to the old file follow (D-239).
     dir.write("o/d.txt", "DOC-D. Otra nota de Persona Dos, DNI 22.222.222, sobre el mismo contrato y sus pagos.".as_bytes());
     let origin = base.origins(&crate::docbase::Visible::All).unwrap()[0].id.clone();
     super::tests::refresh(&base, &origin);
     read(&base, &asker);
-    base.conn().execute("UPDATE knowledge_entity SET name = 'DOS, Persona' WHERE name = 'Persona Dos'", []).unwrap();
+    base.conn().execute("UPDATE knowledge_entity SET name = 'Persona Dos Bis' WHERE name = 'Persona Dos'", []).unwrap();
     super::mark_dirty(&base.conn(), "project", "test").unwrap();
-    base.knowledge_project(Some(&asker), 50).unwrap();
+    let report = base.knowledge_project(Some(&asker), 50).unwrap();
+    assert_eq!(report.moved, 1, "{report:?}");
     let after = entity_pages(&project);
-    let renamed = after.iter().find(|(f, _)| *f == file).map(|(_, t)| t.as_str()).unwrap_or_else(|| panic!("{after:?}"));
-    assert!(renamed.contains("title: \"DOS, Persona\""), "{renamed}");
+    assert!(!after.iter().any(|(f, _)| *f == file), "{:?}", after.iter().map(|p| &p.0).collect::<Vec<_>>());
+    let new_file = format!("persona-dos-bis-{id_part}.md");
+    let renamed = after.iter().find(|(f, _)| *f == new_file).map(|(_, t)| t.as_str()).unwrap_or_else(|| panic!("{after:?}"));
+    assert!(renamed.contains("title: \"Persona Dos Bis\""), "{renamed}");
     assert!(renamed.trim_end().ends_with("Cliente desde hace años; llamar antes de ir."), "{renamed}");
     assert_eq!(renamed.matches(NOTES_MARK).count(), 1);
     assert!(renamed.contains("## Documentos (3)"), "{renamed}");
+    let note = std::fs::read_to_string(project.join("wiki/concepts/nota.md")).unwrap();
+    let new_stem = new_file.trim_end_matches(".md");
+    assert!(note.contains(&format!("[[{new_stem}|el cliente]]")) && note.contains(&format!("related: [{new_stem}]")), "{note}");
+    // Nothing moves again.
+    super::mark_dirty(&base.conn(), "project", "test").unwrap();
+    assert_eq!(base.knowledge_project(Some(&asker), 50).unwrap().moved, 0);
+}
+
+#[test]
+fn a_date_in_english_is_written_in_the_language_of_the_pages() {
+    use super::vocabulary::Vocabulary;
+    let words = Vocabulary::builtin();
+    assert_eq!(pages::localized_dates(&words, "Firmado el December 30, 2021 en Ciudad."), "Firmado el 30 de diciembre de 2021 en Ciudad.");
+    assert_eq!(pages::localized_dates(&words, "vence el 1 March 2024, sin prórroga"), "vence el 1 de marzo de 2024, sin prórroga");
+    assert_eq!(pages::localized_dates(&words, "pagó $ 30 May be"), "pagó $ 30 May be");
+    assert_eq!(pages::localized_dates(&words, "el 23 días del mes de Octubre de 2025, tenía"), "el 23 de octubre de 2025, tenía");
+    // An ordinal day, as Spanish writing in English puts it (D-283).
+    assert_eq!(pages::localized_dates(&words, "rige desde el JANUARY 1°, 2026 (inicio)"), "rige desde el 1 de enero de 2026 (inicio)");
 }
 
 #[test]
@@ -275,21 +306,46 @@ fn a_document_page_written_before_or_after_gets_its_block() {
 fn without_a_model_the_pages_are_written_and_the_synthesis_waits() {
     let (_dir, base, project, asker) = archive(&[("a.txt", A), ("b.txt", B)]);
     let report = base.knowledge_project(None, 0).unwrap();
-    assert_eq!(report.left, 1, "{report:?}");
+    assert_eq!(report.left, 2, "{report:?}");
     let person = page_of(&entity_pages(&project), "Persona Dos").to_string();
     assert!(person.contains("La síntesis todavía no está escrita"), "{person}");
+    // Meanwhile what the documents say is listed as it is, with its quote.
+    assert!(person.contains("### Lo que dicen, dato por dato"), "{person}");
+    assert!(person.contains("«a favor de Ejemplo Uno S.A. por $ 5.000»") && person.contains("Calle Uno 100 —"), "{person}");
     assert!(person.contains("## Documentos (2)"));
     // The next run with a model writes it.
     let report = base.knowledge_project(Some(&asker), 5).unwrap();
-    assert_eq!((report.asked, report.written), (1, 1), "{report:?}");
+    assert_eq!((report.asked, report.written), (2, 2), "{report:?}");
     assert!(!page_of(&entity_pages(&project), "Persona Dos").contains("La síntesis todavía no está escrita"));
+}
+
+#[test]
+fn a_claim_the_synthesis_leaves_out_is_still_on_the_page() {
+    let (_dir, base, project, _) = archive(&[("a.txt", A), ("b.txt", B)]);
+    // A synthesis that only writes about the first claim.
+    let terse = FakeModel::new("falso:1", |prompt| {
+        if is_synthesis(prompt) {
+            serde_json::json!({ "oraciones": [{ "texto": "Tiene un dato.", "afirmaciones": [1] }] }).to_string()
+        } else {
+            reading(prompt)
+        }
+    });
+    base.knowledge_project(Some(&terse), 5).unwrap();
+    let person = page_of(&entity_pages(&project), "Persona Dos").to_string();
+    assert!(person.contains("Tiene un dato. [1]"), "{person}");
+    let references = person.find("### Referencias").expect("references");
+    let others = person.find("### Otros datos de los documentos").unwrap_or_else(|| panic!("{person}"));
+    assert!(references < others, "{person}");
+    // The second claim, not written: listed with its number and quote.
+    assert!(person[others..].contains("- [2] "), "{person}");
+    assert!(!person[references..others].contains("- [2] "), "{person}");
 }
 
 #[test]
 fn a_page_with_nothing_more_to_say_does_not_wait_for_a_synthesis() {
     // The company of these documents has a page but no claim: it never
     // gets a synthesis, so the attention view must not wait for one.
-    let (_dir, base, project, asker) = archive(&[("a.txt", A), ("b.txt", B)]);
+    let (_dir, base, project, asker) = archive(&[("a.txt", A)]);
     base.knowledge_project(None, 0).unwrap();
     assert_eq!(base.knowledge_attention(&crate::docbase::Visible::All).unwrap().synthesis_pending, 1);
     base.knowledge_project(Some(&asker), 5).unwrap();
@@ -359,14 +415,14 @@ fn file_names_are_readable_and_carry_the_id() {
 fn the_questions_are_kept_and_counted_once() {
     let (_dir, base, _project, asker) = archive(&[("a.txt", A), ("b.txt", B)]);
     let questions = base.synthesis_questions("falso:1").unwrap();
-    assert_eq!(questions.len(), 1);
+    assert_eq!(questions.len(), 2);
     assert!(questions[0].prompt.contains("Escribí en el idioma en que están escritas las citas."));
     base.set_wiki_language(Some("Spanish")).unwrap();
     let questions = base.synthesis_questions("falso:1").unwrap();
     assert!(questions[0].prompt.contains("Escribí en este idioma: Spanish."));
     base.knowledge_project(Some(&asker), 50).unwrap();
     assert!(base.synthesis_questions("falso:1").unwrap().is_empty());
-    assert_eq!(synthesis_calls(&asker), 1);
+    assert_eq!(synthesis_calls(&asker), 2);
 }
 
 #[test]
