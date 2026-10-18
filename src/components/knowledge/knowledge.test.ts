@@ -93,6 +93,7 @@ describe("words", () => {
     expect(doubtReason("identificador-parecido", "dni: 1 / 2")).toContain("dni: 1 / 2")
     expect(doubtReason("modelo-dudosa", "faltan datos")).toContain("«faltan datos»")
     expect(doubtReason("algo-nuevo")).toBe("La app no pudo decidir si son la misma.")
+    expect(doubtReason("modelo-misma-nombre-distinto", "certeza media: una letra")).toContain("difieren en una letra")
   })
 
   it("names the roles with the vocabulary", () => {

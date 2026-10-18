@@ -112,6 +112,11 @@ export function doubtReason(reason: string, detail: string | null = null): strin
       return "El nombre aparece sin forma societaria y hay varias sociedades con ese nombre."
     case "modelo-dudosa":
       return "El modelo no pudo decidir con lo que dicen los documentos." + (detail ? ` Dijo: «${detail}».` : "")
+    case "modelo-misma-nombre-distinto":
+      return (
+        "El modelo cree que son la misma, pero los nombres difieren en una letra y nada más los une: puede ser un error de escritura o dos personas distintas con el mismo apellido." +
+        (detail ? ` Dijo: «${detail}».` : "")
+      )
     case "separadas-por-una-persona":
     case "modelo-misma-separadas-por-una-persona":
       return "El modelo dice que son la misma, pero una persona ya decidió que no."

@@ -405,3 +405,60 @@ fn a_name_without_a_form_joins_the_one_company_the_model_names() {
     let (_, doubts) = partition(&base);
     assert_eq!(doubts.iter().filter(|(_, reason)| reason == "sin-forma-varias-sociedades").count(), 2, "{doubts:?}");
 }
+
+/// Two documents of one family: a person in each, the same surname and a
+/// first name one letter apart, nothing else in common.
+const G: &str = "DOC-G. Correo de Marina Ejemplar, del equipo de operaciones, sobre los pagos pendientes de marzo.";
+const H: &str = "DOC-H. Anexo con la dotación del proyecto: MARIANA EJEMPLAR, DNI 33.333.333, analista.";
+
+/// The model reads G and H and says the two are the same, as sure as told.
+fn relatives(certainty: &'static str) -> FakeModel {
+    FakeModel::new("falso:1", move |prompt| {
+        if is_identity(prompt) {
+            let candidates = prompt.split("Candidatos:\n").nth(1).unwrap_or_default();
+            let answers: Vec<serde_json::Value> = candidates
+                .split("\n[")
+                .enumerate()
+                .map(|(index, _)| {
+                    serde_json::json!({ "candidato": index + 1, "decision": "misma", "certeza": certainty, "razon": "puede ser un error de escritura" })
+                })
+                .collect();
+            serde_json::json!({ "respuestas": answers }).to_string()
+        } else if is_knowledge(prompt) && prompt.contains("DOC-G.") {
+            answer(vec![mention("p", "persona", "Marina Ejemplar", "remitente", "Correo de Marina Ejemplar", serde_json::json!([]))], vec![])
+        } else if is_knowledge(prompt) && prompt.contains("DOC-H.") {
+            answer(
+                vec![mention("p", "persona", "MARIANA EJEMPLAR", "otro", "MARIANA EJEMPLAR, DNI 33.333.333", ids("dni", "33.333.333", "DNI 33.333.333"))],
+                vec![],
+            )
+        } else if is_knowledge(prompt) {
+            empty_answer()
+        } else {
+            type_answer("correo")
+        }
+    })
+}
+
+#[test]
+fn people_whose_first_names_differ_by_a_letter_join_only_when_the_model_is_sure() {
+    let files: &[(&str, &str)] = &[("g.txt", G), ("h.txt", H)];
+    // Not sure: they may be relatives; a doubt, not one person.
+    let (_dir, base) = base_with(files);
+    run(&base, &relatives("media"));
+    let one = entity(&base, "g.txt", "Marina Ejemplar").unwrap();
+    assert_ne!(entity(&base, "h.txt", "MARIANA EJEMPLAR").as_ref(), Some(&one));
+    let (_, doubts) = partition(&base);
+    assert!(doubts.iter().any(|(_, reason)| reason == "modelo-misma-nombre-distinto"), "{doubts:?}");
+    // Kept and resolved again: still apart, nothing asked.
+    super::mark_dirty(&base.conn(), "resolve", "otra vez").unwrap();
+    let again = base.knowledge_resolve(None, 50).unwrap();
+    assert_eq!(again.asked, 0);
+    assert_ne!(entity(&base, "h.txt", "MARIANA EJEMPLAR"), entity(&base, "g.txt", "Marina Ejemplar"));
+
+    // Sure: one person.
+    let (_dir, base) = base_with(files);
+    run(&base, &relatives("alta"));
+    assert_eq!(entity(&base, "h.txt", "MARIANA EJEMPLAR"), entity(&base, "g.txt", "Marina Ejemplar"));
+    let by = [resolved_by(&base, "g.txt", "Marina Ejemplar"), resolved_by(&base, "h.txt", "MARIANA EJEMPLAR")];
+    assert!(by.iter().any(|b| b.as_deref() == Some("modelo")), "{by:?}");
+}
