@@ -349,6 +349,16 @@ pub(crate) fn ask_in_parallel(asker: &Recorded, mut questions: Vec<classify::Que
 /// document, with the questions warmed in the cache a few at a time.
 pub(crate) fn read_all(base: &DocBase, asker: &Recorded) -> KnowledgeReport {
     let started = Instant::now();
+    // As the app's worker does first: texts an older extraction wrote that
+    // the current one reads better are extracted again.
+    let mut refreshed = 0;
+    while base.refresh_extraction(50).unwrap() > 0 {}
+    while base.extract_pending(50).unwrap() > 0 {
+        refreshed += 1;
+    }
+    if refreshed > 0 {
+        println!("texts extracted again by the current extraction: {:.1}s", started.elapsed().as_secs_f32());
+    }
     loop {
         let report = base.types_run(asker, 100).unwrap();
         if report.asked + report.data_asked == 0 {
@@ -656,6 +666,34 @@ fn extraction_against_the_entity_sheet() {
     for line in &false_found {
         println!("   {line}");
     }
+}
+
+/// Writes the reading questions the documents of the copy in
+/// `MICELYA_DOCBASE_COPY` take now (after the texts an older extraction
+/// wrote are extracted again) to the file in `MICELYA_QUESTIONS_OUT`, as
+/// `[{"content_id", "part", "key", "prompt"}]`: a measurement that only
+/// reads again the documents a change can touch uses it to keep the
+/// earlier answers of the others (outside the repository).
+#[test]
+#[ignore = "reads a real base"]
+fn reading_questions_to_a_file() {
+    let Ok(out) = std::env::var("MICELYA_QUESTIONS_OUT") else { return };
+    let Some((_scratch, base)) = open_base() else { return };
+    while base.refresh_extraction(50).unwrap() > 0 {}
+    while base.extract_pending(50).unwrap() > 0 {}
+    let mut part: BTreeMap<i64, usize> = BTreeMap::new();
+    let list: Vec<serde_json::Value> = base
+        .knowledge_questions()
+        .unwrap()
+        .into_iter()
+        .map(|q| {
+            let index = part.entry(q.content_id).or_default();
+            *index += 1;
+            serde_json::json!({ "content_id": q.content_id, "part": *index - 1, "key": q.key, "prompt": q.prompt })
+        })
+        .collect();
+    std::fs::write(&out, serde_json::to_string(&list).unwrap()).unwrap();
+    println!("{} questions of {} documents written to {out}", list.len(), part.len());
 }
 
 /// The sheet's predicates that are an identifier of the entity.
