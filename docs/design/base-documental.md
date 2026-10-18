@@ -1,6 +1,6 @@
 # Base documental — documento de diseño
 
-**Estado:** dirección acordada · consolidado el 11 de octubre de 2026 · ajustado el 16 de octubre de 2026
+**Estado:** dirección acordada · consolidado el 11 de octubre de 2026 · ajustado el 16 de octubre de 2026 (sección 13: vista de atención)
 **Alcance:** qué vamos a construir y en qué orden. No describe código.
 
 ## 1. Propósito
@@ -293,12 +293,23 @@ Hacia dónde va la interfaz. El detalle visual se define en una pasada de diseñ
 
 - **Marco común a toda la app:** una barra superior con la marca, el buscador global y el usuario; una franja que dice en qué estudio y en qué caso se está, y si es privado; navegación a la izquierda, con texto y contadores.
 - **Páginas con forma de artículo de enciclopedia:** pestañas, índice a la izquierda, ficha de datos a la derecha, enlaces entre páginas y referencias numeradas a las fuentes. Es una forma que cualquier persona ya sabe leer.
-- **Pantalla de inicio:** la salud del archivo, lo que requiere atención y la actividad reciente. La lista de lo que requiere atención es una sola, y la alimentan la base documental, el wiki y, más adelante, plazos, tareas y aprobaciones.
+- **Pantalla de inicio:** la salud del archivo, un resumen de lo que requiere atención ("2 problemas · 9 decisiones", con las primeras líneas) que lleva a la vista de atención, y la actividad reciente.
+- **Vista de atención** (su nombre sale del vocabulario; en el vertical jurídico, "Atención"). Es el único lugar de lo que requiere a una persona, sea cual sea la parte de la app que lo detectó: la base documental, el wiki y, más adelante, plazos, tareas, aprobaciones y la capa de entidades. Detalle en la [propuesta](atencion-propuesta.md), construida el 16 de octubre.
+  - **Tres clases que no se mezclan,** en este orden: *problemas* (algo no funciona y la app no lo puede arreglar sola), *decisiones* (algo espera el criterio de una persona) y *en curso* (lo que la app está haciendo; no requiere atención, se muestra para saber qué pasa y para pausarlo).
+  - **Cada línea agrupa un tema** y dice qué pasa, por qué importa y qué hacer; trae la acción en la fila o lleva al lugar exacto donde se hace, nunca a una lista para buscar. Al abrirla se ven los casos uno por uno, cada uno con su acción.
+  - **Se escala solo lo que requiere una acción.** De los documentos parecidos, solo los que podrían ser el mismo documento (prácticamente el mismo, ejemplar firmado, versión), porque deciden qué va al wiki. "Misma plantilla", "contenido en" y "parecidos" se ven en el documento y en la vista de parecidos.
+  - **Un aviso se va solo cuando deja de ser cierto.** No se marca como leído y, por ahora, no se puede posponer.
+  - **El contador** de la navegación suma problemas y decisiones, no lo que está en curso. Un problema cuenta una vez por línea; una decisión cuenta por cada decisión que hay que tomar (una familia de documentos es una). Las líneas de baja prioridad ("puede esperar") se muestran pero no cuentan.
+  - **"En curso" reemplaza al panel de actividad** del wiki: la cola de incorporación y su control, los cambios de archivos, lo que el wiki hace con el modelo. Al pie del costado del wiki queda una sola línea que lleva a la vista.
+  - **Muestra los avisos del archivo y los del proyecto abierto.** Si el proyecto abierto no es el archivo, sus líneas dicen de qué proyecto son, y las del wiki del archivo se muestran sin botones.
+  - **Fuentes enchufables.** Cada parte de la app sigue detectando lo suyo y lo entrega con la misma forma (clase, tema, título, por qué importa, qué hacer, acción o destino, cuándo deja de ser cierto); la vista solo junta y ordena. Sumar una parte nueva es agregar una fuente, no rehacer la vista.
+  - **La revisión estructural de los enlaces del wiki corre sola** cada vez que la cola del wiki termina (sin modelo), así el número de enlaces rotos de la vista coincide con el de la revisión de enlaces.
+- **Vistas para resolver en bloque,** a las que lleva la vista de atención: los documentos parecidos por familia (unir, elegir otra relación, descartar, ver los dos textos lado a lado, y confirmar de un clic una familia de la misma plantilla, para que las pasadas que vienen tengan una base confirmada, R-03); los tipos de documento que propuso el modelo (confirmar, cambiar el nombre o rechazar; lo confirmado pasa a la lista cerrada, R-22); y la revisión del wiki, en español.
 - **Marca propia:** colores, tipografías y logo de Micelya.
 - **Idioma:** las pantallas de la base documental nacen en español.
 - **Vocabulario por vertical.** Cómo se llama cada cosa del dominio (el archivo, los grupos sugeridos, más adelante los tipos de documento) depende de la profesión: no es lo mismo un estudio jurídico que una escribanía o un estudio contable. Esos términos salen de un vocabulario, uno por vertical y dentro de él uno por idioma, y no van escritos en las pantallas. Los nombres técnicos (carpetas en disco, identificadores) son neutros y no cambian con la vertical.
 - **Orígenes como árbol.** Cada origen se recorre como un árbol de carpetas y archivos. En cada fila: abrir, incorporar al wiki (si está activo), excluir y, en las carpetas, volver a barrer y definir reglas de etiquetas.
 
-**En el producto mínimo** las pantallas de la base son cuatro: Inicio, Orígenes, Documentos y Detalle de un documento. Se construyen con el estilo que la app tiene hoy; el marco común y la marca se aplican después, a toda la app de una vez.
+**En el producto mínimo** las pantallas de la base son Inicio, Atención, Orígenes, Documentos y Detalle de un documento, más las dos vistas para resolver en bloque (parecidos y tipos de documento). Se construyen con el estilo que la app tiene hoy; el marco común y la marca se aplican después, a toda la app de una vez.
 
 "Cliente" y "caso" son grupos de etiquetas (sección 3), no proyectos; cada vertical sugiere los suyos y el usuario los nombra como quiera.

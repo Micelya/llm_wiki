@@ -426,6 +426,8 @@ interface WikiState {
     | "chat" | "wiki" | "sources" | "search" | "graph" | "lint" | "review" | "skills" | "settings"
     // Document base screens.
     | "home" | "origins" | "documents"
+    // What needs a person, and the screens made to resolve it.
+    | "attention" | "similar" | "document-types"
   llmConfig: LlmConfig
   /** Persisted global/default config, kept separate while a project override is effective. */
   globalLlmConfig: LlmConfig

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
-import type { Health, OriginSummary } from "@/commands/docbase"
-import { buildAttention, pendingCount, processedPercent } from "./attention"
+import type { Health } from "@/commands/docbase"
+import { pendingCount, processedPercent } from "./attention"
 
 function health(byState: Health["byState"], locations: number): Health {
   return {
@@ -14,63 +14,6 @@ function health(byState: Health["byState"], locations: number): Health {
     lastScanAt: null,
   }
 }
-
-function origin(patch: Partial<OriginSummary>): OriginSummary {
-  return {
-    id: "o1",
-    name: "Casos",
-    provider: "local-folder",
-    location: "C:/casos",
-    addedAt: 0,
-    lastScanAt: 0,
-    reachable: true,
-    files: 0,
-    pending: 0,
-    errors: 0,
-    links: 0,
-    ...patch,
-  }
-}
-
-describe("what needs attention", () => {
-  it("is empty when everything is in order", () => {
-    expect(buildAttention(health({ processed: 10 }, 10), [origin({})], 0)).toEqual([])
-  })
-
-  it("puts errors first and says where to go for each", () => {
-    const items = buildAttention(
-      health({ processed: 5, link: 74, "needs-recognition": 3, unreadable: 1 }, 83),
-      [origin({ reachable: false })],
-      2,
-    )
-    expect(items.map((item) => item.id)).toEqual([
-      "unreadable",
-      "origin:o1",
-      "needs-recognition",
-      "review",
-      "link",
-    ])
-    expect(items[0].title).toBe("1 archivo no se pudo leer")
-    expect(items[0].target).toEqual({ view: "documents", state: "unreadable" })
-    expect(items[2].title).toBe("3 documentos tienen el texto en imagen")
-    expect(items[3].target).toEqual({ view: "review" })
-    expect(items[4].title).toBe("74 documentos de un disco en la nube quedaron afuera")
-  })
-
-  it("mentions the wiki's broken links last", () => {
-    const items = buildAttention(health({ processed: 3, unreadable: 1 }, 4), [origin({})], 0, {
-      pages: 12,
-      links: 40,
-      broken: 3,
-    })
-    expect(items.map((item) => item.id)).toEqual(["unreadable", "broken-links"])
-    expect(items[1].target).toEqual({ view: "lint" })
-  })
-
-  it("does not count an origin never swept as unreachable", () => {
-    expect(buildAttention(health({}, 0), [origin({ reachable: null })], 0)).toEqual([])
-  })
-})
 
 describe("archive health figures", () => {
   it("measures progress over what can be processed", () => {

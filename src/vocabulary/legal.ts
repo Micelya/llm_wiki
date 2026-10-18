@@ -14,6 +14,10 @@ export const legal: Vertical = {
         wikiDescription:
           "El wiki que se arma con todos los documentos de las carpetas incorporadas.",
       },
+      attention: {
+        name: "Atención",
+        description: "Lo que requiere a una persona: problemas, decisiones y lo que la app está haciendo.",
+      },
       suggestedGroups: ["Cliente", "Caso"],
       wikiLanguage: "Spanish",
       relations: {
@@ -78,6 +82,10 @@ export const legal: Vertical = {
         health: "Archive health",
         wiki: "Archive wiki",
         wikiDescription: "The wiki built from every document in the incorporated folders.",
+      },
+      attention: {
+        name: "Attention",
+        description: "What needs a person: problems, decisions and what the app is doing.",
       },
       suggestedGroups: ["Client", "Matter"],
       wikiLanguage: "English",

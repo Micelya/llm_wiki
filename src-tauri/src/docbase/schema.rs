@@ -10,7 +10,22 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8];
+
+/// What a person decided about the document types the model proposed
+/// (R-22). `confirmed`: the type joins the closed list the model chooses
+/// from, with the `name` (and `description`) the person gave it.
+/// `rejected`: the type is not used; its documents are typed again, with
+/// the model told not to propose it. A decision is undone by deleting it.
+const V8: &str = "
+CREATE TABLE type_decision (
+    type_id      TEXT PRIMARY KEY,
+    decision     TEXT NOT NULL CHECK (decision IN ('confirmed', 'rejected')),
+    name         TEXT,
+    description  TEXT,
+    decided_at   INTEGER NOT NULL
+);
+";
 
 /// Type, stage and data of each document, and the relations the type
 /// corrects (passes 4 to 6 of `similar/`).

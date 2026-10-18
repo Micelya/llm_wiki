@@ -56,8 +56,9 @@ describe("the similar documents section", () => {
     expect(shown).not.toContain("Deshacer")
   })
 
-  it("leaves the side by side differences visible but disabled until they exist", () => {
-    expect(card()).toMatch(/<button[^>]*disabled=""[^>]*title="Todavía no está disponible[^"]*"[^>]*>.*?Ver diferencias/)
+  it("offers the side by side differences when it knows where this document is", () => {
+    expect(card()).toMatch(/<button[^>]*disabled=""[^>]*>(?:(?!<\/button>).)*Ver diferencias/)
+    expect(card({ selfLocationId: 10 })).not.toMatch(/<button[^>]*disabled=""[^>]*>(?:(?!<\/button>).)*Ver diferencias/)
   })
 
   it("asks which one stays as the wiki's source when the relation makes them one document, suggesting one", () => {

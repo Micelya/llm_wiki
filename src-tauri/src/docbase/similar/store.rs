@@ -142,6 +142,11 @@ pub struct SimilarPending {
     pub pairs: i64,
     /// Families with at least one such pair.
     pub groups: i64,
+    /// Of `pairs`, those whose proposed relation makes both one document
+    /// (practically the same, the signed copy, a version): deciding them
+    /// changes which one feeds the wiki. Only these need a person soon;
+    /// the rest (same template, contained in) are information.
+    pub same_document_pairs: i64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -165,6 +170,65 @@ pub struct SimilarGroup {
     pub flags: Vec<String>,
     /// Members whose pair with the principal waits for a decision.
     pub pending: i64,
+    /// Of `pending`, those whose proposed relation makes both one document.
+    pub pending_same_document: i64,
+}
+
+/// One decision of `decide_similar_many`.
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PairDecision {
+    pub content_id: i64,
+    pub other_content_id: i64,
+    pub decision: Decision,
+    /// The fingerprint of the evidence the person saw (R-08).
+    #[serde(default)]
+    pub evidence_hash: Option<String>,
+}
+
+/// A pair that waits for a decision outside the families' principals.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenPair {
+    /// The document the pair is seen from (`similar.content_id`).
+    pub doc: DocRef,
+    pub similar: SimilarDocument,
+}
+
+/// The columns `pair_from_row` reads, in its order.
+const PAIR_COLUMNS: &str = "a, b, relation, subject, certainty, description, jaccard, containment, cover, similarity, \
+     suggested_source, evidence, evidence_hash, computed_at, state, chosen_relation, wiki_source, decided_at";
+
+/// A row of `similar_pair` (`PAIR_COLUMNS`) seen from `seen_from`, with
+/// the other document still to be filled in.
+fn pair_from_row(row: &rusqlite::Row<'_>, seen_from: i64) -> rusqlite::Result<(i64, i64, SimilarDocument)> {
+    let a: i64 = row.get(0)?;
+    let b: i64 = row.get(1)?;
+    let evidence: String = row.get(11)?;
+    Ok((
+        a,
+        b,
+        SimilarDocument {
+            content_id: seen_from,
+            other: DocRef { content_id: 0, location_id: 0, origin_name: String::new(), rel_path: String::new(), name: String::new(), copies: 0 },
+            relation: row.get(2)?,
+            subject_content_id: row.get(3)?,
+            certainty: row.get(4)?,
+            description: row.get(5)?,
+            jaccard: row.get(6)?,
+            containment: row.get(7)?,
+            cover: row.get(8)?,
+            similarity: row.get(9)?,
+            suggested_source: row.get(10)?,
+            evidence: serde_json::from_str(&evidence).unwrap_or(serde_json::Value::Null),
+            evidence_hash: row.get(12)?,
+            computed_at: row.get(13)?,
+            state: row.get(14)?,
+            chosen_relation: row.get(15)?,
+            wiki_source: row.get(16)?,
+            decided_at: row.get(17)?,
+        },
+    ))
 }
 
 /// What a person decided about a pair.
@@ -477,41 +541,15 @@ impl DocBase {
             return Ok(Vec::new());
         };
         let mut statement = conn
-            .prepare(
-                "SELECT a, b, relation, subject, certainty, description, jaccard, containment, cover, similarity,
-                        suggested_source, evidence, evidence_hash, computed_at, state, chosen_relation, wiki_source, decided_at
-                 FROM similar_pair WHERE a = ?1 OR b = ?1
-                 ORDER BY (state = 'discarded'), (relation = 'similar'), cover DESC",
-            )
+            .prepare(&format!(
+                "SELECT {PAIR_COLUMNS} FROM similar_pair WHERE a = ?1 OR b = ?1
+                 ORDER BY (state = 'discarded'), (relation = 'similar'), cover DESC"
+            ))
             .map_err(sql_err)?;
         let rows = statement
             .query_map([content_id], |row| {
-                let a: i64 = row.get(0)?;
-                let b: i64 = row.get(1)?;
-                let evidence: String = row.get(11)?;
-                Ok((
-                    if a == content_id { b } else { a },
-                    SimilarDocument {
-                        content_id,
-                        other: DocRef { content_id: 0, location_id: 0, origin_name: String::new(), rel_path: String::new(), name: String::new(), copies: 0 },
-                        relation: row.get(2)?,
-                        subject_content_id: row.get(3)?,
-                        certainty: row.get(4)?,
-                        description: row.get(5)?,
-                        jaccard: row.get(6)?,
-                        containment: row.get(7)?,
-                        cover: row.get(8)?,
-                        similarity: row.get(9)?,
-                        suggested_source: row.get(10)?,
-                        evidence: serde_json::from_str(&evidence).unwrap_or(serde_json::Value::Null),
-                        evidence_hash: row.get(12)?,
-                        computed_at: row.get(13)?,
-                        state: row.get(14)?,
-                        chosen_relation: row.get(15)?,
-                        wiki_source: row.get(16)?,
-                        decided_at: row.get(17)?,
-                    },
-                ))
+                let (a, b, similar) = pair_from_row(row, content_id)?;
+                Ok((if a == content_id { b } else { a }, similar))
             })
             .map_err(sql_err)?
             .collect::<Result<Vec<_>, _>>()
@@ -532,6 +570,79 @@ impl DocBase {
     /// documents. `shown_evidence` is the fingerprint of the evidence the
     /// person saw (R-08); the current one when not given.
     pub fn decide_similar(
+        &self,
+        content_id: i64,
+        other_content_id: i64,
+        decision: &Decision,
+        shown_evidence: Option<&str>,
+    ) -> Result<(), String> {
+        self.record_decision(content_id, other_content_id, decision, shown_evidence)?;
+        self.similar_regroup()
+    }
+
+    /// Several decisions at once, as one: a family confirmed in one click.
+    /// They are recorded in order and the families are made again once.
+    /// When one fails, the ones before it stay recorded and the error
+    /// says how many were saved.
+    pub fn decide_similar_many(&self, decisions: &[PairDecision]) -> Result<usize, String> {
+        let mut done = 0;
+        let mut failure = None;
+        for item in decisions {
+            match self.record_decision(item.content_id, item.other_content_id, &item.decision, item.evidence_hash.as_deref()) {
+                Ok(()) => done += 1,
+                Err(error) => {
+                    failure = Some(error);
+                    break;
+                }
+            }
+        }
+        if done > 0 {
+            self.similar_regroup()?;
+        }
+        match failure {
+            Some(error) => Err(format!("Se guardaron {done} de {} decisiones. {error}", decisions.len())),
+            None => Ok(done),
+        }
+    }
+
+    /// The pairs that wait for a decision and are not between a family's
+    /// principal and one of its members (those are resolved from the
+    /// family): pairs outside families, and pairs between two members.
+    /// Each is seen from its smaller content (`similar.content_id`), whose
+    /// document is `doc`. Plain "similar" (no relation found) is left out.
+    pub fn similar_open_pairs(&self, visible: &Visible) -> Result<Vec<OpenPair>, String> {
+        let conn = self.conn();
+        let mut statement = conn
+            .prepare(&format!(
+                "SELECT {PAIR_COLUMNS} FROM similar_pair p
+                 WHERE p.state = 'proposed' AND p.relation != 'similar' AND NOT EXISTS (
+                    SELECT 1 FROM similar_group_member m
+                    WHERE m.principal != m.content_id
+                      AND ((m.principal = p.a AND m.content_id = p.b) OR (m.principal = p.b AND m.content_id = p.a)))
+                 ORDER BY p.cover DESC, p.a, p.b"
+            ))
+            .map_err(sql_err)?;
+        let rows = statement
+            .query_map([], |row| {
+                let a: i64 = row.get(0)?;
+                pair_from_row(row, a)
+            })
+            .map_err(sql_err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(sql_err)?;
+        drop(statement);
+        let mut out = Vec::new();
+        for (a, b, mut similar) in rows {
+            let (Some(doc), Some(other)) = (doc_ref(&conn, visible, a)?, doc_ref(&conn, visible, b)?) else {
+                continue;
+            };
+            similar.other = other;
+            out.push(OpenPair { doc, similar });
+        }
+        Ok(out)
+    }
+
+    fn record_decision(
         &self,
         content_id: i64,
         other_content_id: i64,
@@ -595,7 +706,7 @@ impl DocBase {
                 }
             }
         }
-        self.similar_regroup()
+        Ok(())
     }
 
     /// What waits for a decision.
@@ -627,7 +738,18 @@ impl DocBase {
                 |row| row.get(0),
             )
             .map_err(sql_err)?;
-        Ok(SimilarPending { pairs, groups })
+        let one = same_document_sql("p.relation");
+        let (seen_a, mut bound) = visible_content(visible, "p.a");
+        let (seen_b, bound_b) = visible_content(visible, "p.b");
+        bound.extend(bound_b);
+        let same_document_pairs: i64 = conn
+            .query_row(
+                &format!("SELECT count(*) FROM similar_pair p WHERE p.state = 'proposed' AND {one} AND {seen_a} AND {seen_b}"),
+                params_from_iter(bound.iter()),
+                |row| row.get(0),
+            )
+            .map_err(sql_err)?;
+        Ok(SimilarPending { pairs, groups, same_document_pairs })
     }
 
     /// The provisional families, largest first.
@@ -666,9 +788,13 @@ impl DocBase {
             };
             let mut list = Vec::new();
             let mut pending = 0;
+            let mut pending_same_document = 0;
             for (content_id, relation, cover, state) in members {
                 if state.as_deref() == Some("proposed") {
                     pending += 1;
+                    if relation.as_deref().is_some_and(makes_one_document) {
+                        pending_same_document += 1;
+                    }
                 }
                 if let Some(doc) = doc_ref(&conn, visible, content_id)? {
                     list.push(GroupMember { doc, relation, cover, state });
@@ -679,6 +805,7 @@ impl DocBase {
                 members: list,
                 flags: serde_json::from_str(&flags).unwrap_or_default(),
                 pending,
+                pending_same_document,
             });
         }
         Ok(out)
@@ -726,6 +853,28 @@ fn joined_without_source(conn: &Connection, a: i64, b: i64, source: i64) -> Resu
         .map(|&(x, y, chosen)| if chosen == x { y } else { x })
         .collect();
     Ok((passed_over.len() == joined.len()).then_some(joined.len()))
+}
+
+/// Whether joining with this relation leaves only one of the two as the
+/// wiki's source (catalog: `sameDocument`). The automatic one is done by
+/// the base itself and never waits for a person.
+pub fn makes_one_document(relation: &str) -> bool {
+    types::catalog().relation(relation).is_some_and(|r| r.same_document && !r.automatic)
+}
+
+/// SQL condition: the relation in `column` makes both one document.
+fn same_document_sql(column: &str) -> String {
+    let ids: Vec<String> = types::catalog()
+        .relations
+        .iter()
+        .filter(|r| r.same_document && !r.automatic)
+        .map(|r| format!("'{}'", r.id.replace('\'', "''")))
+        .collect();
+    if ids.is_empty() {
+        "0".to_string()
+    } else {
+        format!("{column} IN ({})", ids.join(", "))
+    }
 }
 
 /// The relations a person can choose from, as the catalog lists them.

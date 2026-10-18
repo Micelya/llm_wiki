@@ -14,6 +14,7 @@ import { useDocbaseStore } from "@/stores/docbase-store"
 import { useWikiStore } from "@/stores/wiki-store"
 import { relationName, vocabulary, type Vocabulary } from "@/vocabulary"
 import { formatDate } from "./format"
+import { DiffPanel } from "./diff-panel"
 import { StatusBadge } from "./page"
 import {
   currentRelation,
@@ -49,22 +50,7 @@ export function SimilarDocuments({
   const openDocument = useDocbaseStore((s) => s.openDocument)
 
   async function decide(item: SimilarDocument, decision: SimilarDecision) {
-    onProblem(null)
-    try {
-      await decideSimilar(item.contentId, item.other.contentId, decision, item.evidenceHash)
-      similar.reload()
-    } catch (cause) {
-      onProblem(String(cause))
-      return
-    }
-    // The wiki follows the decision: the one not chosen stops feeding it,
-    // and what is a source now and was never ingested is queued.
-    try {
-      const { followSimilarDecision } = await import("@/lib/docbase-wiki-bridge")
-      await followSimilarDecision(useWikiStore.getState().project, [item.contentId, item.other.contentId])
-    } catch (cause) {
-      onProblem(`La decisión quedó guardada, pero el wiki no se pudo actualizar: ${String(cause)}`)
-    }
+    await decideAndFollow(item, decision, onProblem, similar.reload)
   }
 
   if (!similar.data) return null
@@ -73,10 +59,38 @@ export function SimilarDocuments({
       items={similar.data}
       relations={relations.data ?? []}
       name={name}
+      locationId={locationId}
       onOpen={openDocument}
       onDecide={decide}
     />
   )
+}
+
+/**
+ * Records what a person decided about a pair, and has the wiki follow:
+ * the one not chosen stops feeding it, and what is a source now and was
+ * never ingested is queued. Problems go to `onProblem`.
+ */
+export async function decideAndFollow(
+  item: SimilarDocument,
+  decision: SimilarDecision,
+  onProblem: (problem: string | null) => void,
+  onDecided: () => void = () => {},
+): Promise<void> {
+  onProblem(null)
+  try {
+    await decideSimilar(item.contentId, item.other.contentId, decision, item.evidenceHash)
+    onDecided()
+  } catch (cause) {
+    onProblem(String(cause))
+    return
+  }
+  try {
+    const { followSimilarDecision } = await import("@/lib/docbase-wiki-bridge")
+    await followSimilarDecision(useWikiStore.getState().project, [item.contentId, item.other.contentId])
+  } catch (cause) {
+    onProblem(`La decisión quedó guardada, pero el wiki no se pudo actualizar: ${String(cause)}`)
+  }
 }
 
 /** The section itself, apart from where its data comes from. */
@@ -84,6 +98,7 @@ export function SimilarList({
   items,
   relations,
   name,
+  locationId,
   onOpen,
   onDecide,
   words = vocabulary(),
@@ -91,6 +106,8 @@ export function SimilarList({
   items: SimilarDocument[]
   relations: RelationDef[]
   name: string
+  /** Where the document shown is, to compare its text with each similar one. */
+  locationId?: number
   onOpen: (locationId: number) => void
   onDecide: (item: SimilarDocument, decision: SimilarDecision) => Promise<void> | void
   words?: Vocabulary
@@ -121,6 +138,7 @@ export function SimilarList({
                   item={item}
                   relations={relations}
                   name={name}
+                  selfLocationId={locationId}
                   words={words}
                   onOpen={onOpen}
                   onDecide={onDecide}
@@ -146,6 +164,7 @@ export function SimilarCard({
   item,
   relations,
   name,
+  selfLocationId,
   words,
   onOpen,
   onDecide,
@@ -154,6 +173,8 @@ export function SimilarCard({
   item: SimilarDocument
   relations: RelationDef[]
   name: string
+  /** Where "this document" is: with it, the two texts can be seen side by side. */
+  selfLocationId?: number
   words: Vocabulary
   onOpen: (locationId: number) => void
   onDecide: (item: SimilarDocument, decision: SimilarDecision) => Promise<void> | void
@@ -162,6 +183,7 @@ export function SimilarCard({
 }) {
   const [joining, setJoining] = useState<Joining | null>(initialJoining)
   const [busy, setBusy] = useState(false)
+  const [comparing, setComparing] = useState(false)
   const relation = currentRelation(item)
   const proposedNothing = item.relation === "similar"
   const sentence = relationSentence(item, relation, words)
@@ -289,12 +311,21 @@ export function SimilarCard({
           <Button
             size="sm"
             variant="ghost"
-            disabled
-            title="Todavía no está disponible: los dos textos lado a lado, con lo que cambia resaltado."
+            disabled={selfLocationId === undefined}
+            aria-pressed={comparing}
+            title="Los dos textos lado a lado, con lo que cambia resaltado."
+            onClick={() => setComparing(!comparing)}
           >
-            <Columns2 /> Ver diferencias
+            <Columns2 /> {comparing ? "Ocultar diferencias" : "Ver diferencias"}
           </Button>
         </div>
+      )}
+
+      {comparing && selfLocationId !== undefined && (
+        <DiffPanel
+          left={{ locationId: selfLocationId, name }}
+          right={{ locationId: item.other.locationId, name: item.other.name }}
+        />
       )}
     </li>
   )

@@ -180,6 +180,16 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-152 | 16 oct | Proceso de trabajo | `FORK_CHANGES.md` se congela: sin sincronización, ya no hace falta | vigente |
 | D-153 | 16 oct | Proceso de trabajo | Estado "a verificar" para lo construido que solo espera que el dueño lo vea en la app | vigente |
 | D-154 | 16 oct | Producto | El producto mínimo no está cerrado: el wiki generado es inservible y la experiencia de uso no alcanza | vigente |
+| D-155 | 16 oct | Interfaz | El contador de Atención cuenta problemas por línea y decisiones por decisión; lo de baja prioridad no cuenta | en revisión (agente sin consulta, P-066) |
+| D-156 | 16 oct | Interfaz | Las fuentes de la vista de atención son piezas de la pantalla, con una forma común; el motor da los datos | en revisión (agente sin consulta, P-066) |
+| D-157 | 16 oct | Interfaz | El panel de actividad del wiki queda reducido a una línea que lleva a Atención | en revisión (agente sin consulta, P-066) |
+| D-158 | 16 oct | Interfaz | En qué clase y con qué prioridad va cada aviso que no fijaba la propuesta | en revisión (agente sin consulta, P-066) |
+| D-159 | 16 oct | Base documental | La vista de parecidos separa los pares fuera de las familias; confirmar una familia une solo al principal con sus miembros | en revisión (agente sin consulta, P-066) |
+| D-160 | 16 oct | Base documental | Las diferencias lado a lado se calculan en la pantalla, palabra por palabra, sin guardarse | en revisión (agente sin consulta, P-066) |
+| D-161 | 16 oct | Base documental | Los tipos confirmados se guardan en la base y se suman a la lista cerrada solo en las preguntas nuevas | en revisión (agente sin consulta, P-066) |
+| D-162 | 16 oct | Base documental | Rechazar un tipo propuesto deja sus documentos sin tipo y se vuelven a preguntar diciendo que no lo proponga | en revisión (agente sin consulta, P-066) |
+| D-163 | 16 oct | Wiki | La revisión de enlaces que corre sola reemplaza los resultados estructurales y conserva los del modelo | en revisión (agente sin consulta, P-066) |
+| D-164 | 16 oct | Interfaz | Con otro proyecto abierto, los avisos del wiki del archivo se muestran sin botones | en revisión (agente sin consulta, P-066) |
 
 ---
 
@@ -2188,3 +2198,133 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** P-049 y los pendientes que dependen de él.
 - **Quién decidió:** dueño del producto.
 - **Fuente:** conversación del 16 oct.
+
+### D-155 · Cómo cuenta el contador de Atención
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Interfaz
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la propuesta de la vista de atención dice que el contador suma problemas y decisiones, pero no dice qué es "uno". Contar documentos infla el número (una familia de trece facturas serían trece), y hay avisos que no se pueden resolver (74 accesos directos de un disco en la nube) que dejarían el contador siempre encendido.
+- **Qué se decidió:** un problema cuenta una vez por línea (cada línea es algo que no funciona). Una decisión cuenta por cada decisión que hay que tomar: una familia de parecidos es una, un par suelto es una, cada tipo propuesto es una, cada propuesta del wiki es una, cada enlace roto es uno. Las líneas de baja prioridad (documentos demasiado grandes, accesos directos de la nube, enlaces rotos, documentos cancelados en la cola) se muestran marcadas "puede esperar" y no cuentan. Inicio dice lo mismo que el contador ("2 problemas · 9 decisiones").
+- **Por qué:** sigue el principio 6 de la propuesta (lo que se resuelve en bloque es una decisión) y el ejemplo de su sección 4; un contador que nunca baja deja de servir.
+- **Alternativas descartadas:** contar líneas también en las decisiones (esconde cuánto trabajo hay); contar documentos (infla); contar todo (el contador no se apaga nunca).
+- **Dónde se aplica:** `src/lib/attention/order.ts` (`attentionCounts`); sección 13 de `base-documental.md`.
+- **Quién decidió:** agente sin consulta (tanda desatendida del 16 oct; P-066).
+- **Fuente:** construcción de la vista de atención (P-083), rama `feat/attention-view`.
+
+### D-156 · Las fuentes de avisos son piezas de la pantalla con una forma común
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Interfaz
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la vista de atención tiene que juntar avisos de partes que viven en lugares distintos: unos en el motor (la base documental), otros solo en la pantalla (la cola del wiki, su revisión, los cambios de archivos). Y la capa de entidades que viene tiene que sumar los suyos sin rehacer la vista.
+- **Qué se decidió:** cada fuente es una pieza de la pantalla registrada en una lista (`src/components/attention/sources/index.ts`): lee lo que su parte guarda y entrega sus avisos con una forma común (`src/lib/attention/types.ts`: clase, tema, prioridad, cantidad, título, por qué importa, qué hacer, cuándo deja de ser cierto, acciones, casos). Cada vez que algo cambia entrega la lista entera: lo que deja de entregar desaparece. Las partes del motor exponen una consulta y su fuente arma los textos en la pantalla, donde está el vocabulario. Una fuente que falla se muestra como un problema propio sin tirar a las demás.
+- **Por qué:** los textos llevan términos del vertical, que viven en el vocabulario de la pantalla (D-072); y la mitad de las fuentes no está en el motor.
+- **Alternativas descartadas:** que el motor entregue los avisos ya redactados (los términos del dominio quedarían escritos en el motor); una sola consulta que lo calcule todo (cada parte nueva obligaría a tocarla).
+- **Dónde se aplica:** `src/components/attention/`; `src/stores/attention-store.ts`.
+- **Quién decidió:** agente sin consulta (tanda desatendida del 16 oct; P-066).
+- **Fuente:** construcción de la vista de atención (P-083), rama `feat/attention-view`.
+
+### D-157 · El panel de actividad del wiki queda reducido a una línea
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Interfaz
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la sección "En curso" de Atención reemplaza al panel de actividad del costado del wiki. Había que decidir si el panel se quitaba del todo o quedaba como enlace.
+- **Qué se decidió:** queda una sola línea al pie del costado del wiki, solo cuando hay algo: dice el primer problema de la cola o de los cambios de archivos o, si no hay, lo que está en curso ("Incorporando al wiki: 12 de 40 documentos"), y al hacer clic lleva a Atención, donde se controla. Los controles del panel viejo (pausar, reanudar, reintentar, cancelar, subir en la cola, reintentar o ignorar un cambio) pasaron a Atención; la selección múltiple de la cola y la lista de páginas escritas por cada incorporación no pasaron (P-089).
+- **Por qué:** quien trabaja en el wiki miraba ese lugar para saber si la cola avanzaba; "En curso" no suma al contador, así que sin la línea no se enteraría. Duplicar los controles en dos lugares contradice "un solo lugar".
+- **Alternativas descartadas:** quitarlo del todo (se pierde de vista el avance desde el wiki); dejarlo completo (dos lugares para lo mismo, uno en inglés).
+- **Dónde se aplica:** `src/components/layout/activity-link.tsx`; se borró `activity-panel.tsx`.
+- **Quién decidió:** agente sin consulta (tanda desatendida del 16 oct; P-066).
+- **Fuente:** construcción de la vista de atención (P-083), rama `feat/attention-view`.
+
+### D-158 · Clase y prioridad de los avisos que la propuesta no fijaba
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Interfaz
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la tabla de la sección 5 de la propuesta clasifica los avisos de hoy, pero no todos los que aparecieron al construirla, ni su prioridad dentro de la clase.
+- **Qué se decidió:** prioridad alta para lo que frena todo lo demás (un origen que no se puede leer, archivos que no se pudieron leer o sin texto, falta configurar el modelo); normal para el resto; baja para lo que queda afuera sin que se pueda hacer mucho o lo que puede esperar. Los documentos cancelados en la cola van a "En curso" con prioridad baja, con "Volver a encolar" y "Quitar de la cola" (acción nueva: saca de la cola, para siempre, un documento fallido o cancelado). Lo que la base todavía está leyendo y lo que el wiki hace con el modelo fuera de la cola (una revisión con el modelo, el repaso de propuestas resueltas) van a "En curso". Los errores de la incorporación se dicen en palabras (límite de uso, sin conexión, clave rechazada, tardó demasiado, archivo no encontrado); los que no se reconocen se muestran como vinieron.
+- **Por qué:** ordenar por lo que bloquea primero; no dejar en la cola cosas que nadie puede sacar.
+- **Alternativas descartadas:** una sola prioridad por clase (los accesos directos de la nube quedarían a la par de un origen desconectado).
+- **Dónde se aplica:** `src/components/attention/sources/` (docbase, wiki-queue, file-sync); `removeStoppedTasks` en `src/lib/ingest-queue.ts`.
+- **Quién decidió:** agente sin consulta (tanda desatendida del 16 oct; P-066).
+- **Fuente:** construcción de la vista de atención (P-083), rama `feat/attention-view`.
+
+### D-159 · Pares fuera de las familias y confirmación de una familia
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Base documental
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la vista de parecidos se ordena por familia, pero hay pares que no son entre el principal de una familia y uno de sus miembros: dos miembros de la misma familia entre sí, o un documento contenido en otro (esa relación no arma familias). Y "confirmar una familia de la misma plantilla de un clic" podía entenderse como unir todos los pares de la familia o solo los del principal.
+- **Qué se decidió:** la vista muestra las familias (primero las que tienen dos que podrían ser el mismo documento, después las que tienen otra cosa por decidir, al final las ya decididas, plegadas) y aparte los "pares fuera de las familias". Confirmar la familia une como "misma plantilla" solo los pares del principal con sus miembros que siguen propuestos como "misma plantilla", con la evidencia que se vio (R-08); los pares propuestos con otra relación quedan para decidirlos de a uno. Las decisiones se guardan juntas y las familias se rehacen una sola vez. Cada unión se puede deshacer desde su par.
+- **Por qué:** las familias se arman contra el principal (R-14); unir dos miembros entre sí por estar en la misma familia sería inferir sobre lo inferido (R-02).
+- **Alternativas descartadas:** unir todos los pares de la familia; esconder los pares sueltos (no se podrían decidir desde la vista).
+- **Dónde se aplica:** `src/components/docbase/similar-view.tsx`; `decide_similar_many` y `similar_open_pairs` en `src-tauri/src/docbase/similar/store.rs`.
+- **Quién decidió:** agente sin consulta (tanda desatendida del 16 oct; P-066).
+- **Fuente:** construcción de la vista de atención (P-083), rama `feat/attention-view`.
+
+### D-160 · Las diferencias lado a lado se calculan en la pantalla
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Base documental
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** P-077 pedía mostrar los dos textos de un par lado a lado, con lo que cambia resaltado y los datos aparte de la redacción. El motor alinea los textos al medir, pero no guarda la alineación.
+- **Qué se decidió:** la pantalla compara, a pedido, los dos textos que la base ya tiene, palabra por palabra (algoritmo de Myers: su costo crece con cuánto difieren, no con cuán largos son). Un cambio es un dato cuando todas sus palabras tienen un dígito (importes, fechas, números, identificadores); si no, es redacción. Los tramos iguales largos se pliegan. Pasadas las 2.500 diferencias no se muestra y se dice por qué. No se guarda nada.
+- **Por qué:** es determinista y da el mismo resultado que el motor para mostrar; no necesita otro comando ni espacio en la base.
+- **Alternativas descartadas:** un comando del motor que devuelva su alineación (más trabajo para el mismo resultado en pantalla); clasificar los datos como el motor (identificador, importe, fecha, nombre) en la pantalla (duplicaría su lógica; queda como mejora si hace falta).
+- **Dónde se aplica:** `src/components/docbase/text-diff.ts` y `diff-panel.tsx`; P-077.
+- **Quién decidió:** agente sin consulta (tanda desatendida del 16 oct; P-066).
+- **Fuente:** construcción de la vista de atención (P-083), rama `feat/attention-view`.
+
+### D-161 · Dónde viven los tipos confirmados y cuándo los ve el modelo
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Base documental
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** al confirmar un tipo propuesto, tiene que pasar a la lista cerrada (R-22). El catálogo de tipos es un archivo que viene con la app, y la lista entra en cada pregunta al modelo: si cambiara la pregunta de todos los documentos, se volverían a preguntar todos (la misma pregunta no se hace dos veces, R-20, pero una pregunta distinta sí).
+- **Qué se decidió:** las decisiones sobre tipos se guardan en la base (tabla `type_decision`, versión 8 del esquema), con el nombre que les dio la persona. Al confirmar, los documentos de ese tipo dejan de ser propuestas y la pantalla los nombra con ese nombre. La lista cerrada de la pregunta suma los tipos confirmados, pero solo para las preguntas que se hacen de nuevo (documentos nuevos o que cambiaron): lo ya respondido no se vuelve a preguntar. Sin decisiones, la pregunta es palabra por palabra la de antes. Cambiar el nombre es confirmar con otro nombre; el identificador neutro no cambia. Todo se puede deshacer (R-09).
+- **Por qué:** cumplir R-22 sin volver a preguntar el archivo entero cada vez que alguien confirma un tipo.
+- **Alternativas descartadas:** escribir el tipo en el catálogo del disco (es de la app y se reemplaza con cada versión); volver a preguntar todo con la lista nueva (costo sin ganancia: lo ya clasificado no cambia).
+- **Dónde se aplica:** `src-tauri/src/docbase/similar/classify.rs` (`decide_type`, `type_list`); `src-tauri/src/docbase/schema.rs` (V8); `document-types-review.tsx`; P-080.
+- **Quién decidió:** agente sin consulta (tanda desatendida del 16 oct; P-066).
+- **Fuente:** construcción de la vista de atención (P-083), rama `feat/attention-view`.
+
+### D-162 · Qué pasa al rechazar un tipo propuesto
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Base documental
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** un "no" de una persona tiene que bloquear (R-08), pero un documento sin tipo vuelve a preguntarse, y el modelo, con la misma pregunta, daría la misma respuesta.
+- **Qué se decidió:** al rechazar, los documentos de ese tipo lo pierden (y sus datos), y su pregunta se vuelve a hacer con una línea más: los tipos que una persona rechazó y que no tiene que proponer. Se hace en la próxima vuelta de preguntas (sola, si el wiki del archivo está activo; o desde Orígenes). Si el modelo insiste con un tipo rechazado, la respuesta no se usa y el documento queda sin tipo.
+- **Por qué:** la decisión de la persona es evidencia nueva, y sin decírsela al modelo se repetiría la respuesta.
+- **Alternativas descartadas:** dejar los documentos con el tipo marcado como rechazado (seguiría apareciendo como tipo); asignarles "sin tipo" para siempre (no se clasificarían nunca).
+- **Dónde se aplica:** `src-tauri/src/docbase/similar/classify.rs` (`rows_from_answer`, `rejected_text`).
+- **Quién decidió:** agente sin consulta (tanda desatendida del 16 oct; P-066).
+- **Fuente:** construcción de la vista de atención (P-083), rama `feat/attention-view`.
+
+### D-163 · La revisión de enlaces que corre sola
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Wiki
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el dueño decidió que la revisión estructural de enlaces corra sola al vaciarse la cola del wiki, para que su número coincida con el de la vista. La revisión de enlaces también guarda lo que encuentra el modelo cuando una persona lo pide, y había que decidir qué pasa con eso.
+- **Qué se decidió:** cada vez que la cola del wiki termina (después del repaso de propuestas resueltas), se revisan los enlaces sin modelo, con la configuración de la revisión de enlaces del proyecto, y sus resultados reemplazan a los estructurales anteriores; lo que encontró el modelo queda como estaba. La vista de atención cuenta los enlaces rotos de esa revisión, no los del índice de la base, y lleva a la revisión de enlaces.
+- **Por qué:** así la vista y la revisión dicen siempre lo mismo, sin gastar modelo.
+- **Alternativas descartadas:** borrar todo y volver a revisar (se perdería lo que el modelo encontró a pedido); seguir contando el índice de la base (no coincide con la revisión).
+- **Dónde se aplica:** `src/lib/auto-structural-lint.ts`; `onQueueDrained` en `src/lib/ingest-queue.ts`.
+- **Quién decidió:** agente sin consulta (tanda desatendida del 16 oct; P-066).
+- **Fuente:** construcción de la vista de atención (P-083), rama `feat/attention-view`.
+
+### D-164 · Los avisos del wiki del archivo con otro proyecto abierto
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Interfaz
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el dueño decidió que la vista muestre los avisos del archivo y los del proyecto abierto. La revisión y los enlaces rotos del wiki del archivo se resuelven con el archivo abierto, y la app trabaja con un proyecto abierto a la vez.
+- **Qué se decidió:** las líneas del proyecto abierto dicen de qué proyecto son cuando no es el archivo. Mientras tanto, la vista lee del disco las propuestas y los enlaces rotos del wiki del archivo (cada 30 segundos) y los muestra marcados "Wiki del archivo", sin botones, diciendo que se resuelven abriendo el archivo. Lo de la base documental es siempre del archivo.
+- **Por qué:** cumplir la decisión sin abrir dos proyectos a la vez.
+- **Alternativas descartadas:** un botón que cambie de proyecto desde la línea (cambiar de proyecto detiene la cola y recarga todo; no es algo para un clic de paso).
+- **Dónde se aplica:** `src/components/attention/sources/wiki.ts`.
+- **Quién decidió:** agente sin consulta (tanda desatendida del 16 oct; P-066).
+- **Fuente:** construcción de la vista de atención (P-083), rama `feat/attention-view`.

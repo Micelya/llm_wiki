@@ -2,7 +2,14 @@ import type { WikiState } from "@/stores/wiki-store"
 
 /** The document base screens: full width, about the space rather than one project. */
 export function isDocbaseView(view: WikiState["activeView"]): boolean {
-  return view === "home" || view === "origins" || view === "documents"
+  return (
+    view === "home" ||
+    view === "origins" ||
+    view === "documents" ||
+    view === "attention" ||
+    view === "similar" ||
+    view === "document-types"
+  )
 }
 
 export function isStandaloneView(view: WikiState["activeView"]): boolean {
