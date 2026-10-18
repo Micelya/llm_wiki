@@ -825,6 +825,16 @@ async function autoIngestImpl(
       )
     }
   }
+  // The archive's wiki is a presentation of the base (D-332): the base
+  // reads each document once (the knowledge layer) and writes its page
+  // from that reading. Ingest asks the model nothing here: it only makes
+  // sure the document has its page, for the base to fill.
+  if (entitiesFromLayer) {
+    return runCommit(() =>
+      ingestIntoArchiveWiki(pp, sourceIdentity, sourceSummaryPath, sourceContent, activityId, signal, onFileWritten),
+    )
+  }
+
   if (isPdf && mineruSavedImages.length === 0 && hasMineruImageRefs(sourceContent, sourceSummarySlug)) {
     mineruSavedImages = await savedImagesFromMineruMarkdown(pp, sourceSummarySlug, sourceContent)
     if (mineruSavedImages.length > 0) {
@@ -1639,6 +1649,83 @@ async function autoIngestImpl(
 
   return writtenPaths
   })
+}
+
+/** The mark of the pages the base writes (as `GENERATED_BY` in pages.rs). */
+export const BASE_PAGE_MARK = "micelya-conocimiento"
+
+/**
+ * The page of a document of the archive's wiki before the base writes it
+ * (D-332): its frontmatter, which ties it to its document, and its title.
+ * The knowledge layer writes the rest from its reading.
+ */
+export function buildArchiveSourcePage(sourceIdentity: string, date: string): string {
+  const title = documentTitle(sourceIdentity)
+  return [
+    "---",
+    "type: source",
+    `title: ${JSON.stringify(title)}`,
+    `created: ${date}`,
+    `sources: [${JSON.stringify(sourceIdentity)}]`,
+    `generated_by: ${BASE_PAGE_MARK}`,
+    "---",
+    "",
+    `# ${title}`,
+    "",
+  ].join("\n")
+}
+
+/**
+ * Ingest of a document of the archive's wiki: no model call (D-332). The
+ * page of the document is made when it has none; a page that is there
+ * (the base's, or one written before) is left to the base. The index and
+ * the log are written without a model, and the result is cached so the
+ * same text is not processed again.
+ */
+async function ingestIntoArchiveWiki(
+  pp: string,
+  sourceIdentity: string,
+  sourceSummaryPath: string,
+  sourceContent: string,
+  activityId: string,
+  signal: AbortSignal | undefined,
+  onFileWritten: ((relativePath: string) => void) | undefined,
+): Promise<string[]> {
+  const activity = useActivityStore.getState()
+  throwIfIngestAborted(signal, activityId)
+  const written: string[] = []
+  const fullPath = `${pp}/${sourceSummaryPath}`
+  if (!(await tryReadFile(fullPath)).trim()) {
+    await writeFile(fullPath, buildArchiveSourcePage(sourceIdentity, currentWikiDate()))
+    written.push(sourceSummaryPath)
+    onFileWritten?.(sourceSummaryPath)
+  }
+  try {
+    if (written.length > 0 && await updateWikiIndexDeterministically(pp, written)) {
+      onFileWritten?.("wiki/index.md")
+    }
+    const logPath = `${pp}/wiki/log.md`
+    await writeFile(logPath, buildDeterministicIngestLog(await tryReadFile(logPath), sourceIdentity))
+    onFileWritten?.("wiki/log.md")
+  } catch (err) {
+    await appendIngestWarningLog(pp, sourceIdentity, [
+      `Deterministic index or log update failed: ${err instanceof Error ? err.message : String(err)}`,
+    ])
+  }
+  const files = [sourceSummaryPath]
+  await saveIngestCache(pp, sourceIdentity, sourceContent, files)
+  await recordCataloguedIngest(pp, sourceIdentity, files)
+  try {
+    await refreshProjectFileTree(pp, { bumpDataVersion: true })
+  } catch {
+    // ignore
+  }
+  activity.updateItem(activityId, {
+    status: "done",
+    detail: written.length > 0 ? "Página del documento creada; la base la completa al leerlo" : "La base mantiene la página del documento",
+    filesWritten: files,
+  })
+  return files
 }
 
 /**

@@ -22,7 +22,7 @@ vi.mock("./llm-client", () => ({
   }),
 }))
 
-import { runStructuralLint, runSemanticLint, type LintResult } from "./lint"
+import { runStructuralLint, type LintResult } from "./lint"
 import { useWikiStore } from "@/stores/wiki-store"
 import { useActivityStore } from "@/stores/activity-store"
 
@@ -117,33 +117,6 @@ function assertStructural(
   }
 }
 
-function assertSemantic(
-  scenario: LintScenario,
-  actual: LintResult[],
-): void {
-  const expected = scenario.expected.semantic ?? []
-  try {
-    expect(actual.length).toBe(expected.length)
-    for (const e of expected) {
-      const match = actual.find(
-        (a) =>
-          a.type === e.type &&
-          a.severity === (e.severity as "warning" | "info") &&
-          (e.titleContains === undefined || a.detail.includes(e.titleContains) ||
-            a.page.includes(e.titleContains)),
-      )
-      expect(match, `no semantic finding matching ${JSON.stringify(e)}`).toBeTruthy()
-    }
-  } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error(
-      `\n[lint: ${scenario.name}] semantic mismatch. Actual findings:\n` +
-        JSON.stringify(actual, null, 2),
-    )
-    throw err
-  }
-}
-
 // ── Tests ───────────────────────────────────────────────────────────────────
 
 describe("lint scenarios (fixture-driven)", () => {
@@ -155,13 +128,6 @@ describe("lint scenarios (fixture-driven)", () => {
       const structural = await runStructuralLint(ctx.tmp.path)
       assertStructural(scenario, structural)
 
-      if (scenario.llmResponse !== undefined) {
-        const semantic = await runSemanticLint(
-          ctx.tmp.path,
-          useWikiStore.getState().llmConfig,
-        )
-        assertSemantic(scenario, semantic)
-      }
     },
   )
 })

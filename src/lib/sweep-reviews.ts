@@ -10,6 +10,7 @@
  * that need human judgment.
  */
 
+import { usesKnowledgeLayer } from "@/lib/knowledge-layer"
 import { listDirectory, readFile } from "@/commands/fs"
 import { useReviewStore, type ReviewItem } from "@/stores/review-store"
 import { useActivityStore } from "@/stores/activity-store"
@@ -402,7 +403,10 @@ export async function sweepResolvedReviews(
   const activity = useActivityStore.getState()
   let activityId: string | null = null
 
-  if (stillPending.length > 0 && !signal?.aborted && matchesCurrentProject(projectPath)) {
+  // The archive's wiki asks the model nothing to clean its notices
+  // (D-333): what is still pending stays for a person.
+  const archiveWiki = await usesKnowledgeLayer(projectPath)
+  if (!archiveWiki && stillPending.length > 0 && !signal?.aborted && matchesCurrentProject(projectPath)) {
     // Surface a running indicator so a multi-second LLM judgment doesn't
     // feel like the app froze.
     activityId = activity.addItem({

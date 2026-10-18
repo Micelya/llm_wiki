@@ -102,45 +102,4 @@ export const lintScenarios: LintScenario[] = [
       structural: [{ type: "no-outlinks", page: "leaf.md" }],
     },
   },
-
-  // 5. semantic-contradiction (LLM-backed)
-  {
-    name: "semantic/contradiction-found",
-    description:
-      "Two cross-linked pages make conflicting claims. Structural lint " +
-      "sees no issues, but the mocked semantic LLM response emits a LINT " +
-      "block that the parser extracts into a contradiction finding.",
-    initialWiki: {
-      "wiki/index.md": "# Index\n\n- [[attention]]\n- [[transformer]]\n",
-      "wiki/attention.md": page(
-        "Attention",
-        "Attention ALWAYS uses the softmax function. See [[transformer]].",
-      ),
-      "wiki/transformer.md": page(
-        "Transformer",
-        "The transformer's [[attention]] layer uses a linear kernel, not softmax.",
-      ),
-    },
-    llmResponse: [
-      "Reviewing the pages I found one contradiction:",
-      "",
-      "---LINT: contradiction | warning | Attention function differs between pages---",
-      "attention.md claims softmax is always used, but transformer.md describes a",
-      "linear attention kernel. One page needs correction.",
-      "PAGES: attention.md, transformer.md",
-      "---END LINT---",
-    ].join("\n"),
-    expected: {
-      structural: [],
-      semantic: [
-        {
-          // Parser collapses all semantic findings to type="semantic";
-          // the original LLM-declared type ("contradiction") lives in detail.
-          type: "semantic",
-          severity: "warning",
-          titleContains: "Attention function differs",
-        },
-      ],
-    },
-  },
 ]

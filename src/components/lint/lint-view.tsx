@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button"
 import { useWikiStore } from "@/stores/wiki-store"
 import { useReviewStore } from "@/stores/review-store"
 import { useLintStore, type LintItem } from "@/stores/lint-store"
-import { runStructuralLint, runSemanticLint } from "@/lib/lint"
+import { runStructuralLint } from "@/lib/lint"
 import { hasUsableLlm } from "@/lib/has-usable-llm"
 import { readFile, writeFile } from "@/commands/fs"
 import { normalizePath } from "@/lib/path-utils"
@@ -81,7 +81,6 @@ export function LintView() {
   const [running, setRunning] = useState(false)
   const [lintProgress, setLintProgress] = useState<{ completed: number; total: number } | null>(null)
   const [hasRun, setHasRun] = useState(false)
-  const [runSemantic, setRunSemantic] = useState(false)
   const [showRuleSettings, setShowRuleSettings] = useState(false)
   const [lintConfig, setLintConfig] = useState<LintConfig>(DEFAULT_LINT_CONFIG)
   const [ignoredPagesDraft, setIgnoredPagesDraft] = useState("")
@@ -159,14 +158,7 @@ export function LintView() {
         },
         onProgress: (completed, total) => setLintProgress({ completed, total }),
       })
-      let all = structural
-
-      if (runSemantic && hasUsableLlm(llmConfig)) {
-        const semantic = await runSemanticLint(pp, llmConfig, controller.signal)
-        all = [...structural, ...semantic]
-      }
-
-      addLintItems(all)
+      addLintItems(structural)
       setHasRun(true)
     } catch (err) {
       if (!(err instanceof DOMException && err.name === "AbortError")) {
@@ -183,7 +175,6 @@ export function LintView() {
     lintConfig,
     ignoredPagesDraft,
     running,
-    runSemantic,
     addLintItems,
     clearLintItems,
   ])
@@ -482,15 +473,6 @@ export function LintView() {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
-            <input
-              type="checkbox"
-              className="h-3 w-3"
-              checked={runSemantic}
-              onChange={(e) => setRunSemantic(e.target.checked)}
-            />
-            {t("lint.semantic")}
-          </label>
           <Button
             size="sm"
             variant={running ? "outline" : "default"}
