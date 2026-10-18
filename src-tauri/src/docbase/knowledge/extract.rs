@@ -1369,6 +1369,42 @@ fn define_terms(vocabulary: &Vocabulary, body: &str, answers: &[Answer], text: &
             mention.same_as = target;
         }
     }
+    // A term the document defines names one thing in it: a later mention
+    // of the term that the model made "the same as" another party ("If to
+    // Term:" next to the other party's name) loses that link, and keeps
+    // only its name, which joins it to the term's first mention. Nothing is
+    // joined that the name did not already join.
+    let chains: HashMap<String, String> =
+        reading.mentions.iter().filter_map(|m| m.same_as.clone().map(|s| (m.reference.clone(), s))).collect();
+    let root = |reference: &str| -> String {
+        let mut at = reference.to_string();
+        for _ in 0..=chains.len() {
+            match chains.get(&at) {
+                Some(next) if *next != at => at = next.clone(),
+                _ => break,
+            }
+        }
+        at
+    };
+    let mut first_of_term: HashMap<(String, String), String> = HashMap::new();
+    let mut undo: BTreeSet<String> = BTreeSet::new();
+    for mention in reading.mentions.iter().filter(|m| m.defined) {
+        let key = (mention.kind.clone(), read_checks::without_article(&mention.normalized));
+        match first_of_term.get(&key) {
+            None => {
+                first_of_term.insert(key, mention.reference.clone());
+            }
+            Some(first) if root(first) != root(&mention.reference) && mention.same_as.is_some() => {
+                undo.insert(mention.reference.clone());
+            }
+            _ => {}
+        }
+    }
+    for mention in &mut reading.mentions {
+        if undo.contains(&mention.reference) {
+            mention.same_as = None;
+        }
+    }
     // What a term defines is not itself a defined term.
     let defined: BTreeSet<String> = reading.mentions.iter().filter(|m| m.defined).map(|m| m.reference.clone()).collect();
     for mention in &mut reading.mentions {

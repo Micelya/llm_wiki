@@ -67,6 +67,44 @@ fn an_amount_is_between_two_parties_and_its_direction_is_the_quotes() {
     assert!(reasons(&reading).contains(&("amount".to_string(), "sin-contraparte".to_string())));
 }
 
+const NOTICES: &str = "Ejemplo Uno LLC (en adelante, «Alfa») y Otra Asociación (en adelante, «Beta») acuerdan lo siguiente. \
+Notificaciones. Si a Beta: Otra Asociación, Calle Uno 100. Si a Alfa: Ejemplo Uno LLC, Calle Dos 200.";
+
+#[test]
+fn a_defined_term_names_one_thing_in_its_document() {
+    // The model made the notice's "Beta" the same as the first party.
+    let link = |mut m: serde_json::Value, to: &str| {
+        m["misma_que"] = serde_json::Value::String(to.to_string());
+        m
+    };
+    for with_definitions in [true, false] {
+        let mut said = serde_json::json!({
+            "menciones": [
+                mention("a", "organizacion", "Ejemplo Uno LLC", "parte", "Ejemplo Uno LLC (en adelante, «Alfa»)", serde_json::json!([])),
+                mention("b", "organizacion", "Otra Asociación", "parte", "y Otra Asociación (en adelante, «Beta»)", serde_json::json!([])),
+                link(mention("c", "organizacion", "Alfa", "parte", "Ejemplo Uno LLC (en adelante, «Alfa»)", serde_json::json!([])), "a"),
+                link(mention("d", "organizacion", "Beta", "parte", "Otra Asociación (en adelante, «Beta»)", serde_json::json!([])), "b"),
+                link(mention("e", "organizacion", "Beta", "destinatario", "Si a Beta: Otra Asociación", serde_json::json!([])), "a"),
+                link(mention("f", "organizacion", "Alfa", "destinatario", "Si a Alfa: Ejemplo Uno LLC", serde_json::json!([])), "a"),
+            ]
+        });
+        if with_definitions {
+            said["definiciones"] = serde_json::json!([
+                { "termino": "Alfa", "ref": "a", "cita": "Ejemplo Uno LLC (en adelante, «Alfa»)" },
+                { "termino": "Beta", "ref": "b", "cita": "Otra Asociación (en adelante, «Beta»)" }
+            ]);
+        }
+        let reading = read(NOTICES, said);
+        let by_ref = |r: &str| reading.mentions.iter().find(|m| m.reference == r).unwrap();
+        assert!(by_ref("m5").defined, "{:?}", reading.mentions);
+        assert_ne!(by_ref("m5").same_as.as_deref(), Some("m1"), "a term names one thing: {:?}", reading.mentions);
+        // What agrees with the term's first mention stays.
+        assert_eq!(by_ref("m3").same_as.as_deref(), Some("m1"));
+        assert_eq!(by_ref("m4").same_as.as_deref(), Some("m2"));
+        assert_eq!(by_ref("m6").same_as.as_deref(), Some("m1"));
+    }
+}
+
 const BRAND: &str = "CARTA DE ACEPTACIÓN\nSres.\nmarcainventada (Ejemplo Uno S.A.)\nPRESENTE\nAceptamos la propuesta.";
 
 #[test]
