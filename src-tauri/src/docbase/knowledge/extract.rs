@@ -43,7 +43,7 @@ use crate::source_volume::catalog::{is_page_heading, RECOGNIZED_MARKER_START};
 
 /// Version of the question. Changing the prompt changes it, and every
 /// document is read again.
-pub const KNOWLEDGE_PROMPT: &str = "conocimiento-4";
+pub const KNOWLEDGE_PROMPT: &str = "conocimiento-5";
 /// The task the answers are kept under in `model_answer`.
 pub const TASK: &str = "knowledge";
 /// Words of text in one question; a longer document is read in parts of
@@ -377,11 +377,17 @@ del acto: allí, quien aparece es \"firmante\" u \"otro\".\n\
 - \"fecha_documento\" es la fecha del documento (de su firma, emisión o envío) tal como está escrita, o null.\n\
 - \"pagina\" es el número de la página (los encabezados \"## Page N\" del texto) donde está la cita, o null si el texto no tiene páginas.\n\
 - \"resumen\" cuenta de qué trata el documento a quien no lo leyó{summary_note}. En \"tema\", una oración: qué documento es, entre \
-quiénes y para qué. En \"puntos\", de dos a seis oraciones con lo esencial (lo que se acuerda, se pide, se paga, se decide o se \
+quiénes y para qué. En \"puntos\", de dos a ocho oraciones con lo esencial (lo que se acuerda, se pide, se paga, se decide o se \
 informa; plazos y condiciones), cada una con una cita copiada del texto que la respalda (las mismas reglas de las citas), su \
-\"pagina\" y en \"menciones\" las \"ref\" de las menciones que nombra. Un punto no trae números, fechas ni nombres que no estén en \
-su cita. Lo que el documento deja abierto (un borrador, una propuesta, algo sin firmar o condicionado) se dice así. Escribí el \
-resumen en castellano aunque el documento esté en otro idioma.\n\
+\"pagina\" y en \"menciones\" las \"ref\" de las menciones que nombra. Los puntos traen los datos que alguien buscaría en el \
+documento, tal como están escritos: los importes (el total y, si el documento lo dice, cómo se compone), las fechas clave \
+(emisión, firma, vencimiento, plazos, pagos) y los números que lo identifican (de factura, de carta documento, de expediente); \
+no escribas «la factura mencionada» o «el importe acordado» si el texto dice cuál es. Un punto no trae números, fechas ni \
+nombres que no estén en su cita: si dos datos están en lugares distintos del texto, van en dos puntos, cada uno con su cita. En \
+la constancia de un servicio de firma electrónica, lo esencial es qué documento se firmó, quiénes lo firmaron, cuándo y si quedó \
+completo; lo demás (el consentimiento para firmar en forma electrónica, los datos técnicos) es secundario. Lo que el documento \
+deja abierto (un borrador, una propuesta, algo sin firmar o condicionado) se dice así. Escribí el resumen en castellano aunque \
+el documento esté en otro idioma.\n\
 - La sección \"### Form fields\", si está, trae los campos completados de un formulario: son parte del texto. Una casilla \
 marcada figura allí con su pregunta y la opción elegida seguida de \"(marcada)\". Las opciones impresas junto a una pregunta \
 (\"SI NO\", \"Por cuenta propia\", \"Por cuenta de un tercero\") son rótulos, no respuestas: si el texto no dice cuál está marcada, \
