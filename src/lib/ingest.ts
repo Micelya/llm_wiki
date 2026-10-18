@@ -1678,7 +1678,10 @@ export function buildArchiveSourcePage(sourceIdentity: string, date: string): st
 /**
  * Ingest of a document of the archive's wiki: no model call (D-332). The
  * page of the document is made when it has none; a page that is there
- * (the base's, or one written before) is left to the base. The index and
+ * (the base's, or one written before) is left to the base. The base keeps
+ * one page per document or family of versions (D-340): the page made here
+ * for another copy or version of a document that has its page already is
+ * taken over by that one, with its notes. The index and
  * the log are written without a model, and the result is cached so the
  * same text is not processed again.
  */

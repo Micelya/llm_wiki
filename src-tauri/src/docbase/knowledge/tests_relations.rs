@@ -216,10 +216,10 @@ fn the_model_proposes_the_matter_of_a_loose_document_and_it_stays_a_proposal() {
     assert_eq!(asked(&asker), 2);
     let pages = entity_pages(&project);
     let matter = pages.iter().find(|(_, t)| t.contains("entity_id: mat-")).map(|(_, t)| t.as_str()).unwrap();
-    assert!(matter.contains("### Posiblemente de este asunto") && matter.contains("p.txt — certeza media: por los hechos"), "{matter}");
+    assert!(matter.contains("### Posiblemente de este asunto") && matter.contains("|p.txt]] — certeza media: por los hechos"), "{matter}");
     assert!(matter.contains("## Documentos (3)"), "{matter}");
     let person = page_of(&pages, "Persona Dos");
-    assert!(person.contains("p.txt — remitente · contrato (propuesto)"), "{person}");
+    assert!(person.contains("|p.txt]] — remitente · contrato (propuesto)"), "{person}");
     // Asking again asks nothing.
     base.knowledge_propose_matters(Some(&asker), 50).unwrap();
     assert_eq!(asked(&asker), 2);

@@ -401,6 +401,18 @@ pub struct Pages {
     /// passing does not (D-240).
     #[serde(default)]
     pub most_named_roles: Vec<String>,
+    /// Folder of the pages of documents inside the wiki project.
+    #[serde(default)]
+    pub documents_folder: String,
+    /// The relations between two documents that make them versions of one
+    /// same document (a draft and its signed copy, a preview): they share
+    /// one page (D-340). Documents of one template are pages apart.
+    #[serde(default)]
+    pub version_relations: Vec<String>,
+    /// The relations whose subject is the version a page of versions is
+    /// named after (the signed copy, not the draft).
+    #[serde(default)]
+    pub principal_relations: Vec<String>,
     /// Headings and phrases of the pages, by key.
     #[serde(default)]
     pub words: std::collections::BTreeMap<String, String>,
@@ -450,6 +462,14 @@ impl Pages {
             "wiki/entities"
         } else {
             self.folder.trim().trim_end_matches('/')
+        }
+    }
+
+    pub fn documents_folder(&self) -> &str {
+        if self.documents_folder.trim().is_empty() {
+            "wiki/sources"
+        } else {
+            self.documents_folder.trim().trim_end_matches('/')
         }
     }
 }

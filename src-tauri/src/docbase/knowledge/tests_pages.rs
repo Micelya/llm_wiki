@@ -166,7 +166,8 @@ fn every_entity_with_a_page_has_all_its_documents_and_only_verified_sentences() 
     // Every document that names it, in its header and in its list, with its roles.
     assert!(person.contains(&identity_of(&base, "a.txt")) && person.contains(&identity_of(&base, "b.txt")), "{person}");
     assert!(person.contains("## Documentos (2)"), "{person}");
-    assert!(person.contains("a.txt — parte") && person.contains("b.txt — firmante"), "{person}");
+    // Each document with a link to its page (D-340).
+    assert!(person.contains("|a.txt]] — parte") && person.contains("|b.txt]] — firmante"), "{person}");
     // Grouped by matter: the lease under its file number, the receipt apart.
     assert!(person.contains("### [[expediente-1234-2020-"), "{person}");
     assert!(person.contains("### Sin asunto identificado"), "{person}");
@@ -276,30 +277,49 @@ fn a_page_whose_entity_leaves_goes_unless_it_has_notes() {
 }
 
 #[test]
-fn a_document_page_written_before_or_after_gets_its_block() {
+fn every_document_gets_its_page_from_the_base_and_an_older_one_is_taken_over() {
     let (dir, base, project, asker) = archive(&[("a.txt", A), ("b.txt", B)]);
-    let source = |name: &str| format!("---\ntype: source\ntitle: {name}\nsources: [\"{}\"]\n---\n\nResumen del documento.\n", identity_of(&base, name));
-    // One page of a document before the projection, one after.
+    let source = |name: &str| format!("---\ntype: source\ntitle: {name}\nsources: [\"{}\"]\n---\n\nResumen del documento.\n\n## Notas\n\nNota vieja.\n", identity_of(&base, name));
+    // A page the old ingest wrote of one document; none of the other.
     dir.write("General/wiki/sources/a.md", source("a.txt").as_bytes());
-    base.knowledge_project(Some(&asker), 50).unwrap();
-    let a = std::fs::read_to_string(project.join("wiki/sources/a.md")).unwrap();
-    assert!(a.contains(BLOCK_START) && a.contains(BLOCK_END), "{a}");
-    assert!(a.contains("[[persona-dos-") && a.contains("· Persona — parte"), "{a}");
-    assert!(a.starts_with("---\ntype: source") && a.contains("Resumen del documento."), "{a}");
-
-    dir.write("General/wiki/sources/b.md", source("b.txt").as_bytes());
     let report = base.knowledge_project(Some(&asker), 50).unwrap();
-    assert_eq!(report.blocks_written, 1, "{report:?}");
+    assert_eq!((report.source_pages, report.blocks_written), (2, 2), "{report:?}");
+    let a = std::fs::read_to_string(project.join("wiki/sources/a.md")).unwrap();
+    assert!(a.starts_with("---\ntype: source\ntitle: \"a\"\ndocument_id: doc-") && a.contains("generated_by: micelya-conocimiento"), "{a}");
+    assert!(a.contains(BLOCK_START) && a.contains("[[persona-dos-") && a.contains("· Persona — parte"), "{a}");
+    // What the old ingest wrote goes; the notes of a person stay.
+    assert!(!a.contains("Resumen del documento.") && a.trim_end().ends_with("Nota vieja."), "{a}");
+    // Where the document is, from the base.
+    assert!(a.contains("## Ubicaciones") && a.contains(&format!("`{}`", identity_of(&base, "a.txt"))), "{a}");
     let b = std::fs::read_to_string(project.join("wiki/sources/b.md")).unwrap();
     assert!(b.contains("[[persona-dos-") && b.contains("firmante"), "{b}");
 
-    // The wiki writes the page again, keeping the old block in a merge:
-    // there is still one block.
-    let twice = format!("{b}\n{b}");
-    std::fs::write(project.join("wiki/sources/b.md"), twice).unwrap();
+    // Projecting again writes nothing.
+    super::mark_dirty(&base.conn(), "project", "test").unwrap();
+    assert_eq!(base.knowledge_project(Some(&asker), 50).unwrap().blocks_written, 0);
+    assert_eq!(std::fs::read_to_string(project.join("wiki/sources/b.md")).unwrap(), b);
+}
+
+/// Nothing on a document's page but what the base knows and the notes of
+/// a person (D-340): a line written by hand outside the notes goes on the
+/// next projection, the notes stay, and a page left as the base wrote it
+/// is not written again.
+#[test]
+fn a_document_page_holds_only_what_the_base_knows_and_the_notes() {
+    let (_dir, base, project, asker) = archive(&[("a.txt", A)]);
     base.knowledge_project(Some(&asker), 50).unwrap();
-    let b = std::fs::read_to_string(project.join("wiki/sources/b.md")).unwrap();
-    assert_eq!(b.matches(BLOCK_START).count(), 1, "{b}");
+    let file = project.join("wiki/sources/a.md");
+    let a = std::fs::read_to_string(&file).unwrap();
+    let tampered = a.replacen("## Ubicaciones", "Un dato que no sale de la base.\n\n## Ubicaciones", 1);
+    std::fs::write(&file, format!("{}Mi nota.\n", tampered)).unwrap();
+    super::mark_dirty(&base.conn(), "project", "test").unwrap();
+    let report = base.knowledge_project(Some(&asker), 50).unwrap();
+    assert_eq!(report.blocks_written, 1, "{report:?}");
+    let after = std::fs::read_to_string(&file).unwrap();
+    assert!(!after.contains("Un dato que no sale de la base."), "{after}");
+    assert_eq!(after, format!("{a}Mi nota.\n"));
+    super::mark_dirty(&base.conn(), "project", "test").unwrap();
+    assert_eq!(base.knowledge_project(Some(&asker), 50).unwrap().blocks_written, 0);
 }
 
 #[test]
@@ -426,37 +446,29 @@ fn the_questions_are_kept_and_counted_once() {
 }
 
 #[test]
-fn a_document_page_links_the_names_its_text_writes_as_the_document_does() {
-    let (dir, base, project, asker) = archive(&[("a.txt", A), ("b.txt", B)]);
-    let text = "Recibo de Persona Dos a favor de Ejemplo Uno S.A. por un pago. Persona Dos lo firma.";
-    let page = format!("---\ntype: source\ntitle: b.txt\nsources: [\"{}\"]\n---\n\n# Persona Dos\n\n{text}\n", identity_of(&base, "b.txt"));
-    dir.write("General/wiki/sources/b.md", page.as_bytes());
-    base.knowledge_project(Some(&asker), 50).unwrap();
-    let b = std::fs::read_to_string(project.join("wiki/sources/b.md")).unwrap();
-    // The first place in the running text, once, with the app's mark; not the heading.
-    assert!(b.contains("Recibo de [[persona-dos-"), "{b}");
-    assert!(b.contains("|Persona Dos]]<!--micelya--> a favor de [[ejemplo-uno-s-a-"), "{b}");
-    assert!(b.contains("# Persona Dos\n") && b.contains("pago. Persona Dos lo firma."), "{b}");
-    // Projecting again changes nothing; without the app's part, the wiki's text.
-    let report = base.knowledge_project(Some(&asker), 50).unwrap();
-    assert_eq!(report.blocks_written, 0, "{report:?}");
-    assert!(pages::with_block(&b, None).contains(text));
-    // The links are not links a page the app does not write makes.
-    assert_eq!(std::fs::read_to_string(project.join("wiki/sources/b.md")).unwrap(), b);
-}
-
-/// With the summary of the one reading, the page of a document is the
-/// base's (D-331): what it is, its points with their quotes, the notes of
-/// a person kept and the block at the end; nothing is asked to write it,
-/// and projecting again changes nothing.
-#[test]
-fn the_page_of_a_document_is_written_from_its_summary() {
+fn a_document_page_links_the_names_its_summary_writes() {
     let (dir, base) = base_with(&[("a.txt", A)]);
     dir.folder("General/wiki/sources");
     dir.write("General/schema.md", b"# schema");
     let project = dir.path().join("General");
     base.link_general_project(&project, "General").unwrap();
-    let asker = FakeModel::new("falso:1", |prompt| {
+    let asker = summary_model();
+    read(&base, &asker);
+    base.knowledge_project(Some(&asker), 50).unwrap();
+    let a = std::fs::read_to_string(project.join("wiki/sources/a.md")).unwrap();
+    // The first place in the running text, once, with the app's mark; not the heading.
+    assert!(a.contains("Contrato de locación entre [[ejemplo-uno-s-a-") && a.contains("y [[persona-dos-"), "{a}");
+    assert!(a.contains("|Persona Dos]]<!--micelya-->.") && a.contains("\n- Persona Dos tiene domicilio"), "{a}");
+    // Projecting again changes nothing.
+    super::mark_dirty(&base.conn(), "project", "test").unwrap();
+    let report = base.knowledge_project(Some(&asker), 50).unwrap();
+    assert_eq!(report.blocks_written, 0, "{report:?}");
+    assert_eq!(std::fs::read_to_string(project.join("wiki/sources/a.md")).unwrap(), a);
+}
+
+/// The model of a test whose reading of DOC-A also sums it up.
+fn summary_model() -> FakeModel {
+    FakeModel::new("falso:1", |prompt| {
         if is_synthesis(prompt) {
             synthesis(prompt)
         } else if is_knowledge(prompt) {
@@ -475,7 +487,21 @@ fn the_page_of_a_document_is_written_from_its_summary() {
         } else {
             type_answer("contrato")
         }
-    });
+    })
+}
+
+/// With the summary of the one reading, the page of a document is the
+/// base's (D-331): what it is, its points with their quotes, the notes of
+/// a person kept and the block at the end; nothing is asked to write it,
+/// and projecting again changes nothing.
+#[test]
+fn the_page_of_a_document_is_written_from_its_summary() {
+    let (dir, base) = base_with(&[("a.txt", A)]);
+    dir.folder("General/wiki/sources");
+    dir.write("General/schema.md", b"# schema");
+    let project = dir.path().join("General");
+    base.link_general_project(&project, "General").unwrap();
+    let asker = summary_model();
     read(&base, &asker);
     let page = format!(
         "---\ntype: source\ntitle: a.txt\nsources: [\"{}\"]\n---\n\nLo que escribió el modelo antes.\n\n## Notas\n\nUna nota mía.\n",
@@ -485,16 +511,142 @@ fn the_page_of_a_document_is_written_from_its_summary() {
     let asked_before = asker.asked.lock().unwrap().len();
     base.knowledge_project(Some(&asker), 50).unwrap();
     let a = std::fs::read_to_string(project.join("wiki/sources/a.md")).unwrap();
-    assert!(a.starts_with("---\ntype: source\ntitle: a.txt\nsources:") && a.contains("generated_by: micelya-conocimiento"), "{a}");
+    assert!(a.starts_with("---\ntype: source\ntitle: \"a\"\ndocument_id: doc-") && a.contains("generated_by: micelya-conocimiento"), "{a}");
     assert!(a.contains("Contrato de locación entre") && a.contains("## Lo esencial"), "{a}");
     assert!(a.contains("Calle Uno 100. — dice: «Persona Dos, DNI 22.222.222, con domicilio en Calle Uno 100»"), "{a}");
+    assert!(!a.contains("## Versiones de este documento"), "one version: {a}");
     assert!(!a.contains("Lo que escribió el modelo antes."), "{a}");
     assert!(!a.contains("Importes entre las partes"), "no amount in this document: {a}");
     assert!(a.contains("Una nota mía.") && a.contains(BLOCK_START), "{a}");
-    assert!(a.find("Una nota mía.").unwrap() < a.find(BLOCK_START).unwrap());
+    // The block of entities under what the document is; the notes last.
+    assert!(a.find(BLOCK_START).unwrap() < a.find("## Lo esencial").unwrap(), "{a}");
+    assert!(a.trim_end().ends_with("Una nota mía."), "{a}");
     // Writing it asked nothing about the document (only syntheses of entities).
     assert!(asker.asked.lock().unwrap()[asked_before..].iter().all(|q| is_synthesis(q)));
     let report = base.knowledge_project(Some(&asker), 50).unwrap();
     assert_eq!(report.blocks_written, 0, "{report:?}");
     assert_eq!(std::fs::read_to_string(project.join("wiki/sources/a.md")).unwrap(), a);
+}
+
+const V1: &str = "DOC-V1. Borrador del contrato de servicios entre Ejemplo Uno S.A. y Persona Dos. Precio total $ 1.000. Plazo de doce meses.";
+const V2: &str = "DOC-V2. Contrato de servicios entre Ejemplo Uno S.A. y Persona Dos, firmado por las dos. Precio total $ 1.200. Plazo de doce meses.";
+const T: &str = "DOC-T. Contrato de servicios entre Ejemplo Uno S.A. y Persona Seis. Precio total $ 3.000. Plazo de doce meses.";
+
+/// The reading of the versions: a summary point of each price and one of
+/// the term all of them say.
+fn versions_model() -> FakeModel {
+    FakeModel::new("falso:1", |prompt| {
+        if is_synthesis(prompt) {
+            synthesis(prompt)
+        } else if is_knowledge(prompt) {
+            let price = ["$ 1.000", "$ 1.200", "$ 3.000"].into_iter().find(|p| prompt.contains(&format!("Precio total {p}")));
+            let mut said: serde_json::Value = serde_json::from_str(&empty_answer()).unwrap();
+            if let Some(price) = price {
+                said["resumen"] = serde_json::json!({
+                    "tema": "Contrato de servicios.",
+                    "puntos": [
+                        { "texto": format!("El precio es {price}."), "menciones": [], "cita": format!("Precio total {price}"), "pagina": null },
+                        { "texto": "El plazo es de doce meses.", "menciones": [], "cita": "Plazo de doce meses", "pagina": null }
+                    ]
+                });
+            }
+            said.to_string()
+        } else if prompt.contains("Hay que decidir si cada candidato es la misma entidad") {
+            serde_json::json!({ "respuestas": [] }).to_string()
+        } else {
+            type_answer("contrato")
+        }
+    })
+}
+
+fn content_of(base: &DocBase, name: &str) -> i64 {
+    base.conn()
+        .query_row("SELECT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.name = ?1", [name], |row| row.get(0))
+        .unwrap()
+}
+
+fn relate(base: &DocBase, one: i64, other: i64, relation: &str, subject: Option<i64>) {
+    let (a, b) = (one.min(other), one.max(other));
+    base.conn()
+        .execute(
+            "INSERT INTO similar_pair (a, b, relation, subject, certainty, jaccard, containment, cover, similarity, description,
+                 evidence, evidence_hash, engine, computed_at) VALUES (?1, ?2, ?3, ?4, 'high', 0.9, 0.9, 0.9, 0.9, '', '{}', 'x', 'prueba', 0)",
+            rusqlite::params![a, b, relation, subject],
+        )
+        .unwrap();
+}
+
+/// The versions of one document share a page (D-340): named after the
+/// signed one, each point and datum says which version it is from when not
+/// all say it, and two versions that differ show both. A document of the
+/// same template is a page apart, linked. The page the wiki had of a
+/// version goes, its notes and its links to the page of the document; a
+/// relation a person discards puts the versions on pages apart again.
+#[test]
+fn the_versions_of_a_document_share_a_page_and_say_which_version_says_what() {
+    let (dir, base) = base_with(&[("v1.txt", V1), ("v2.txt", V2), ("t.txt", T)]);
+    dir.folder("General/wiki/sources");
+    dir.write("General/schema.md", b"# schema");
+    let project = dir.path().join("General");
+    base.link_general_project(&project, "General").unwrap();
+    let asker = versions_model();
+    read(&base, &asker);
+    let (v1, v2, t) = (content_of(&base, "v1.txt"), content_of(&base, "v2.txt"), content_of(&base, "t.txt"));
+    {
+        let conn = base.conn();
+        conn.execute("DELETE FROM similar_pair", []).unwrap();
+        conn.execute("UPDATE document_type SET stage = 'borrador' WHERE content_id = ?1", [v1]).unwrap();
+        conn.execute("UPDATE document_type SET stage = 'firmado' WHERE content_id = ?1", [v2]).unwrap();
+        for (content, price) in [(v1, "$ 1.000"), (v2, "$ 1.200")] {
+            conn.execute(
+                "INSERT OR REPLACE INTO document_data (content_id, doc_type, data, missing, question, basis, computed_at)
+                 VALUES (?1, 'contrato', ?2, '[]', NULL, 'prueba', 0)",
+                rusqlite::params![content, serde_json::json!([{ "field": "precio", "value": price }, { "field": "plazo", "value": "doce meses" }]).to_string()],
+            )
+            .unwrap();
+        }
+    }
+    relate(&base, v1, v2, "signed-copy", Some(v2));
+    relate(&base, v1, t, "same-template", None);
+    // The page the old ingest wrote of the draft, with a note.
+    let old = format!("---\ntype: source\ntitle: v1\nsources: [\"{}\"]\n---\n\nTexto viejo.\n\n## Notas\n\nNota del borrador.\n", identity_of(&base, "v1.txt"));
+    dir.write("General/wiki/sources/viejo-v1.md", old.as_bytes());
+    dir.write("General/wiki/concepts/nota.md", b"---\ntype: concept\ntitle: Nota\n---\n\nVer [[viejo-v1]].\n");
+
+    let report = base.knowledge_project(Some(&asker), 50).unwrap();
+    assert_eq!(report.source_pages, 2, "{report:?}");
+    let sources = |dir: &PathBuf| {
+        let mut names: Vec<String> = std::fs::read_dir(dir.join("wiki/sources")).unwrap().filter_map(Result::ok).map(|e| e.file_name().to_string_lossy().to_string()).collect();
+        names.sort();
+        names
+    };
+    // The old page of the draft is the page of the document now (its
+    // notes and the links to it stay), named after the signed one.
+    assert_eq!(sources(&project), vec!["t.md".to_string(), "viejo-v1.md".to_string()]);
+    let page = std::fs::read_to_string(project.join("wiki/sources/viejo-v1.md")).unwrap();
+    assert!(page.contains("title: \"v2\"") && page.contains("# v2\n"), "{page}");
+    assert!(page.contains(&identity_of(&base, "v1.txt")) && page.contains(&identity_of(&base, "v2.txt")), "{page}");
+    assert!(page.contains("## Versiones de este documento") && page.contains("- **firmado**") && page.contains("- **borrador**"), "{page}");
+    assert!(page.contains("- firmado es el ejemplar firmado de borrador"), "{page}");
+    // Each price with its version; the term both say, once and without one.
+    assert!(page.contains("El precio es $ 1.200. — dice: «Precio total $ 1.200» (firmado)"), "{page}");
+    assert!(page.contains("El precio es $ 1.000. — dice: «Precio total $ 1.000» (borrador)"), "{page}");
+    assert_eq!(page.matches("El plazo es de doce meses.").count(), 1, "{page}");
+    assert!(page.contains("«Plazo de doce meses»\n"), "{page}");
+    assert!(page.contains("- precio: $ 1.200 (firmado), $ 1.000 (borrador)\n") && page.contains("- plazo: doce meses\n"), "{page}");
+    // The document of the same template: its own page, linked.
+    assert!(page.contains("## Documentos relacionados") && page.contains("- misma plantilla: [[t|t]]"), "{page}");
+    let template = std::fs::read_to_string(project.join("wiki/sources/t.md")).unwrap();
+    assert!(template.contains("- misma plantilla: [[viejo-v1|v2]]") && !template.contains("Versiones"), "{template}");
+    assert!(page.trim_end().ends_with("Nota del borrador."), "{page}");
+    assert!(!page.contains("Texto viejo."), "{page}");
+
+    // A person discards the relation: the versions are pages apart again,
+    // the first one keeps the page.
+    base.conn().execute("UPDATE similar_pair SET state = 'discarded' WHERE relation = 'signed-copy'", []).unwrap();
+    let report = base.knowledge_project(Some(&asker), 50).unwrap();
+    assert_eq!(report.source_pages, 3, "{report:?}");
+    assert_eq!(sources(&project), vec!["t.md".to_string(), "v2.md".to_string(), "viejo-v1.md".to_string()]);
+    let draft = std::fs::read_to_string(project.join("wiki/sources/viejo-v1.md")).unwrap();
+    assert!(draft.contains("title: \"v1\"") && !draft.contains("Versiones") && draft.trim_end().ends_with("Nota del borrador."), "{draft}");
 }

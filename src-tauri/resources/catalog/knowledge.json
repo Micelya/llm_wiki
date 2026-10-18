@@ -146,8 +146,11 @@
     "representationCues": ["apoderad", "representant", "representad", "title", "cargo", "director", "president", "ceo", "gerente", "by", "signator", "firmante"]
   },
   "pages": {
-    "about": "Qué entidad tiene página en el wiki del archivo y con qué palabras se arma. Se decide mirando el archivo entero, no documento por documento: una persona o una organización tiene página si en algún documento tiene un rol de sustancia (parte, apoderado, firmante, remitente, destinatario, emisor, domicilio constituido, testigo), si los documentos dicen algo de ella (withClaims), o si aparece en al menos minDocuments documentos cuando minDocuments no es cero; nombrarla al pasar en muchos documentos (un banco de una factura, una jurisdicción de una boleta) no alcanza. Un grupo de sociedades tiene página siempre. Con strongIdentifier verdadero, un identificador fuerte también da página. Si rolesRequired nombra roles, además alguna mención tiene que tener uno de ellos: un asunto tiene página cuando al menos un documento trata de él, no cuando solo lo cita. Un nombre que es una dirección de correo o un número no es un nombre: no tiene página.",
+    "about": "Qué entidad tiene página en el wiki del archivo y con qué palabras se arma. Se decide mirando el archivo entero, no documento por documento: una persona o una organización tiene página si en algún documento tiene un rol de sustancia (parte, apoderado, firmante, remitente, destinatario, emisor, domicilio constituido, testigo), si los documentos dicen algo de ella (withClaims), o si aparece en al menos minDocuments documentos cuando minDocuments no es cero; nombrarla al pasar en muchos documentos (un banco de una factura, una jurisdicción de una boleta) no alcanza. Un grupo de sociedades tiene página siempre. Con strongIdentifier verdadero, un identificador fuerte también da página. Si rolesRequired nombra roles, además alguna mención tiene que tener uno de ellos: un asunto tiene página cuando al menos un documento trata de él, no cuando solo lo cita. Un nombre que es una dirección de correo o un número no es un nombre: no tiene página. Cada documento tiene una página (en documentsFolder), y las versiones de un mismo documento (las relaciones de versionRelations entre ellos, propuestas por el cálculo de parecidos o confirmadas por una persona, nunca las descartadas) comparten una: cada punto y cada dato dice de qué versión sale. La página lleva el nombre de la versión que es sujeto de una relación de principalRelations (el ejemplar firmado). Los documentos hechos con la misma plantilla son páginas distintas, enlazadas.",
     "folder": "wiki/entities",
+    "documentsFolder": "wiki/sources",
+    "versionRelations": ["same-document", "near-identical", "signed-copy", "version", "preview"],
+    "principalRelations": ["signed-copy"],
     "mostNamedRoles": ["parte", "apoderado", "firmante", "remitente", "destinatario", "emisor"],
     "kinds": [
       { "type": "persona", "minDocuments": 0, "roles": ["parte", "apoderado", "firmante", "remitente", "destinatario", "emisor", "domicilio_constituido", "testigo"], "withClaims": true },
@@ -231,7 +234,31 @@
       "docDate": "Fecha",
       "docPending": "Este documento todavía no se leyó: la app arma esta página cuando lo lea.",
       "docQuote": "dice",
-      "docAmounts": "Importes entre las partes"
+      "docAmounts": "Importes entre las partes",
+      "docVersions": "Versiones de este documento",
+      "docVersionsNote": "Un punto o un dato sin versión está en todas; uno con versión, solo en las que dice.",
+      "docVersion": "versión",
+      "docLocations": "Ubicaciones",
+      "docData": "Datos del documento",
+      "docRelated": "Documentos relacionados",
+      "docThis": "Este documento",
+      "docProposed": "propuesta por el cálculo de parecidos, sin confirmar",
+      "docJoined": "confirmada por una persona",
+      "rel-same-document": "mismo documento",
+      "rel-near-identical": "prácticamente el mismo documento",
+      "rel-signed-copy": "es el ejemplar firmado de",
+      "rel-version": "otra versión del mismo documento",
+      "rel-preview": "es una vista previa de",
+      "rel-contained-in": "está contenido en",
+      "rel-same-template": "misma plantilla",
+      "rel-similar": "parecido",
+      "rel-same-meaning": "lo mismo con otras palabras",
+      "rel-translation-of": "es una traducción de",
+      "rel-reply-to": "responde a",
+      "rel-signing-certificate-of": "es la constancia de firma de",
+      "rel-delivery-receipt-of": "es el acuse de recibo de",
+      "rel-same-matter": "mismo asunto",
+      "rel-same-person-other-matter": "misma persona, otro asunto"
     }
   },
   "matters": {

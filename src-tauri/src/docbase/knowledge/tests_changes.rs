@@ -170,7 +170,8 @@ fn a_deleted_document_takes_what_it_said_and_gives_it_back_when_it_returns() {
     assert_eq!(archive.entity("Persona Seis"), (six.clone(), "retired".to_string()));
     assert_eq!(archive.page_file(&six), None);
     assert!(!archive.project.join(&six_page).exists());
-    assert_eq!(report.removed, 1, "{report:?}");
+    // Its page and the page of the document go.
+    assert_eq!(report.removed, 2, "{report:?}");
     // Only the pages that change are written: the company loses a document;
     // the person is not touched and no synthesis is asked again.
     assert_eq!(report.written, 1, "{report:?}");
@@ -317,7 +318,7 @@ fn a_copy_joined_with_the_chosen_one_counts_but_the_page_names_the_chosen_one() 
     let person = archive.page("Persona Dos");
     // Listed once, as the chosen one; its evidence still counts.
     assert!(person.contains("## Documentos (2)"), "{person}");
-    assert!(person.contains("a.txt — parte") && !person.contains("copia.txt — parte"), "{person}");
+    assert!(person.contains("|a.txt]] — parte") && !person.contains("copia.txt — parte"), "{person}");
     assert!(person.contains("copia.txt → "), "{person}");
 }
 
@@ -357,7 +358,8 @@ fn a_page_whose_entity_leaves_goes_and_the_links_to_it_become_text() {
     let report = archive.project();
     // Without notes, the page goes even if another page links to it: the
     // link is left as its text (D-239).
-    assert_eq!((report.removed, report.kept), (1, 0), "{report:?}");
+    // (And the page of the document that went.)
+    assert_eq!((report.removed, report.kept), (2, 0), "{report:?}");
     assert!(!archive.project.join(&path).exists());
     let note = std::fs::read_to_string(archive.project.join("wiki/sources/nota.md")).unwrap();
     assert!(note.contains("Ver la persona y Persona Seis."), "{note}");

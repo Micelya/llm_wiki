@@ -26,6 +26,7 @@
 pub const APP_LINK_MARK: &str = "<!--micelya-->";
 
 /// The page without the links the app added: each one back to its text.
+#[cfg(test)]
 pub fn strip_app_links(text: &str) -> String {
     let close = format!("]]{APP_LINK_MARK}");
     let mut out = String::with_capacity(text.len());
