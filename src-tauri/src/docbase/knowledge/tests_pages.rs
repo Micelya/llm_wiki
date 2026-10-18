@@ -489,6 +489,7 @@ fn the_page_of_a_document_is_written_from_its_summary() {
     assert!(a.contains("Contrato de locación entre") && a.contains("## Lo esencial"), "{a}");
     assert!(a.contains("Calle Uno 100. — dice: «Persona Dos, DNI 22.222.222, con domicilio en Calle Uno 100»"), "{a}");
     assert!(!a.contains("Lo que escribió el modelo antes."), "{a}");
+    assert!(!a.contains("Importes entre las partes"), "no amount in this document: {a}");
     assert!(a.contains("Una nota mía.") && a.contains(BLOCK_START), "{a}");
     assert!(a.find("Una nota mía.").unwrap() < a.find(BLOCK_START).unwrap());
     // Writing it asked nothing about the document (only syntheses of entities).

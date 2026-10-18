@@ -128,6 +128,7 @@ pub const WORDS: &[&str] = &[
     "docDate",
     "docPending",
     "docQuote",
+    "docAmounts",
 ];
 /// Claims of one entity described in its question; the rest are left
 /// out of the synthesis (the list of documents is always complete).
@@ -1649,7 +1650,9 @@ fn document_page(conn: &Connection, vocabulary: &Vocabulary, record: &Record, co
         .unwrap_or_default();
     let mut lines: Vec<String> = front
         .lines()
-        .filter(|l| !l.starts_with("generated_by:") && !l.starts_with("updated:"))
+        // What the old ingest's model wrote in it (tags, related pages) is
+        // not the base's (P-139).
+        .filter(|l| !["generated_by:", "updated:", "tags:", "related:"].iter().any(|k| l.starts_with(k)))
         .map(str::to_string)
         .collect();
     if !lines.iter().any(|l| l.starts_with("type:")) {
@@ -1730,6 +1733,26 @@ fn document_page(conn: &Connection, vocabulary: &Vocabulary, record: &Record, co
             out.push_str(&format!("- {}{} — {}: «{}»{page}\n", point.text, marks.concat(), words.word("docQuote"), one_line(&point.quote)));
         }
         out.push('\n');
+    }
+    // The amounts between parties the record keeps from this document,
+    // whatever the summary chose to say (D-331).
+    let mut amounts: Vec<String> = Vec::new();
+    for entity in record.entities.values().filter(|e| e.state == "active") {
+        for claim in entity.claims.iter().filter(|c| c.amount.is_some() && !c.mirrored) {
+            if !claim.evidence.iter().any(|(c, ..)| contents.contains(c)) {
+                continue;
+            }
+            let other = claim.object_entity.as_ref().and_then(|o| record.entities.get(o)).map(|o| o.name.clone()).unwrap_or_default();
+            let when = claim.valid_from.as_deref().map(|t| format!(" · {}", one_line(t))).unwrap_or_default();
+            amounts.push(format!("- {} → {other}: {}{when}{}\n", entity.name, amount_text(vocabulary, claim), certainty_mark(vocabulary, claim)));
+        }
+    }
+    if !amounts.is_empty() {
+        amounts.sort();
+        amounts.dedup();
+        out.push_str(&format!("## {}\n\n{}\n", words.word("docAmounts"), amounts.concat()));
+    }
+    if !points.is_empty() || !amounts.is_empty() {
         out.push_str(&format!("*{}*\n", words.word("certainLegend")));
     }
     Ok(Some(out))

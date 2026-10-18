@@ -230,7 +230,8 @@
       "docKind": "Tipo",
       "docDate": "Fecha",
       "docPending": "Este documento todavía no se leyó: la app arma esta página cuando lo lea.",
-      "docQuote": "dice"
+      "docQuote": "dice",
+      "docAmounts": "Importes entre las partes"
     }
   },
   "matters": {

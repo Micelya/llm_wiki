@@ -259,6 +259,9 @@ fn pages_against_the_entity_sheet() {
             let copied = copy_dir(&project.path().join("wiki/entities"), &all);
             let _ = std::fs::copy(project.path().join("wiki/overview.md"), all.join("overview.md"));
             println!("   all the pages of entities ({copied}): {}", all.display());
+            let wiki = sample.join("wiki");
+            let copied: usize = ["sources", "entities"].iter().map(|f| copy_dir(&project.path().join("wiki").join(f), &wiki.join(f))).sum();
+            println!("   the pages of documents and entities ({copied}): {}", wiki.display());
         }
     }
     changes(&base, &asker, project.path());
