@@ -611,6 +611,17 @@ pub fn docbase_knowledge_status(state: State<'_, DocBaseState>) -> Result<Knowle
     state.base()?.knowledge_status(&Visible::All)
 }
 
+/// The graph of the wiki at `project_path` from the base (D-351), when it
+/// is the wiki of the archive; `None` for any other project, whose graph
+/// still comes from the links of its pages.
+#[tauri::command(async)]
+pub fn docbase_graph(project_path: String) -> Result<Option<super::graph::BaseGraph>, String> {
+    match super::bridge::base_for_project(&project_path) {
+        Some(base) => base.graph(&Visible::All).map(Some),
+        None => Ok(None),
+    }
+}
+
 /// What the knowledge layer read in the document at this location: its
 /// mentions with their role, identifiers and quotes, its claims, and what
 /// was discarded.

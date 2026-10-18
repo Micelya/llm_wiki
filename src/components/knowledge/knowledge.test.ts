@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { DocumentMatter, DoubtView, EntityMention, IdentityDecisionView } from "@/commands/docbase"
 import { vocabularyFor } from "@/vocabulary"
-import { decisionInWords, documentsByMatter, doubtReason, groupDoubts, rolesInWords } from "./knowledge"
+import { certaintyInWords, decisionInWords, documentsByMatter, doubtReason, groupDoubts, reviewInWords, rolesInWords } from "./knowledge"
 
 const words = vocabularyFor("legal", "es")
 
@@ -93,6 +93,7 @@ describe("words", () => {
     expect(doubtReason("identificador-parecido", "dni: 1 / 2")).toContain("dni: 1 / 2")
     expect(doubtReason("modelo-dudosa", "faltan datos")).toContain("«faltan datos»")
     expect(doubtReason("algo-nuevo")).toBe("La app no pudo decidir si son la misma.")
+    expect(doubtReason("modelo-misma-nombre-distinto", "certeza media: una letra")).toContain("difieren en una letra")
   })
 
   it("names the roles with the vocabulary", () => {
@@ -119,5 +120,28 @@ describe("words", () => {
     expect(decisionInWords(decision("separate", "cluster:7:persona:uno", "cluster:8:persona:otra"), entity)).toContain("(en acta.pdf)")
     expect(decisionInWords(decision("wrong", "claim:ent-1:cargo:value:x", null), entity)).toBe("Un dato marcado como incorrecto")
     expect(decisionInWords(decision("wrong", "cluster:7:persona:mi", null), entity)).toBe("Una mención que no es una entidad (en acta.pdf)")
+  })
+})
+
+describe("certaintyInWords", () => {
+  it("says a claim has its quote checked, never that it is verified", () => {
+    expect(certaintyInWords({ certainty: "quoted", reasons: [] })).toEqual({ label: "con cita comprobada", tone: "plain", why: "" })
+  })
+
+  it("says why a doubtful claim is not confirmed", () => {
+    const said = certaintyInWords({ certainty: "doubtful", reasons: ["attribution", "by-person"] })
+    expect(said.label).toBe("sin confirmar")
+    expect(said.tone).toBe("doubt")
+    expect(said.why).toBe("la cita nombra a otra persona u organización")
+  })
+
+  it("names the word of a person", () => {
+    expect(certaintyInWords({ certainty: "confirmed", reasons: [] }).label).toBe("confirmado por una persona")
+    expect(certaintyInWords({ certainty: "corrected", reasons: ["by-person"] }).tone).toBe("person")
+  })
+
+  it("tells why a decision waits for a review", () => {
+    expect(reviewInWords("no-encontrada")).toContain("ya no aparece")
+    expect(reviewInWords("varias")).toContain("más de una")
   })
 })

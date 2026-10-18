@@ -365,6 +365,8 @@ function GraphLoader({
             color,
             size,
             weight: edge.weight,
+            // The relations of the base it stands for (wiki of the archive, D-351).
+            label: edge.relations ? Array.from(new Set(edge.relations.map((r) => r.label))).join(" · ") : undefined,
             normalizedWeight,
             sourceNode: edge.source,
             targetNode: edge.target,

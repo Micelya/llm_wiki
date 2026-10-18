@@ -617,8 +617,11 @@ function SaveToWikiButton({ content, visible }: { content: string; visible: bool
       setTimeout(() => setSaved(false), 2000)
 
       // Full auto-ingest: extract entities, concepts, cross-references from saved content
+      // In the archive's wiki a saved answer is kept as it is: nothing
+      // reads it again with the model (D-332).
       const llmConfig = getTaskLlmConfig("ingest")
-      if (hasUsableLlm(llmConfig)) {
+      const { usesKnowledgeLayer } = await import("@/lib/knowledge-layer")
+      if (hasUsableLlm(llmConfig) && !(await usesKnowledgeLayer(pp))) {
         const { autoIngest } = await import("@/lib/ingest")
         autoIngest(pp, filePath, llmConfig).catch((err) =>
           console.error("Failed to auto-ingest saved query:", err)

@@ -62,7 +62,7 @@ pub(crate) fn mention(reference: &str, kind: &str, written: &str, role: &str, qu
 /// An amount between two parties (D-244), as the model gives it.
 pub(crate) fn amount(debtor: &str, creditor: &str, value: &str, kind: &str, quote: &str, date: Option<&str>) -> serde_json::Value {
     serde_json::json!({
-        "deudor": debtor, "acreedor": creditor, "importe": value, "moneda": null, "tipo": kind, "concepto": null,
+        "deudor": debtor, "acreedor": creditor, "importe": value, "moneda": null, "tipo": kind, "estado": "no-dice", "concepto": null,
         "fecha": date, "cita": quote, "pagina": null
     })
 }

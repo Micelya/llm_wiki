@@ -962,6 +962,14 @@ export interface ClaimView {
   state: "supported" | "conflict" | "retired"
   validFrom: string | null
   evidence: ClaimEvidence[]
+  /**
+   * How sure the record is of it: "quoted" (its quote is in the document,
+   * nobody confirmed it), "confirmed" or "corrected" by a person, or
+   * "doubtful".
+   */
+  certainty: "quoted" | "confirmed" | "doubtful" | "corrected"
+  /** Why: "conflict", "identity", "attribution", "states", "by-person". */
+  reasons: string[]
 }
 
 /** Two groups of mentions the resolution left for a person. */
@@ -981,7 +989,7 @@ export interface DoubtView {
 
 export interface IdentityDecisionView {
   id: number
-  /** "join", "separate" or "wrong". */
+  /** "join", "separate", "wrong" or "confirm". */
   kind: string
   a: string
   b: string | null
@@ -990,6 +998,13 @@ export interface IdentityDecisionView {
   state: "active" | "undone"
   decidedAt: number
   undoneAt: number | null
+  /**
+   * Why an active decision no longer finds what it named in the documents
+   * read again ("no-encontrada", "varias"): a person reviews it.
+   */
+  review: string | null
+  /** The keys it applies to now, when what it named is written another way (JSON). */
+  appliedAs: string | null
 }
 
 export interface DocumentMatter {
@@ -1037,6 +1052,7 @@ export type IdentityDecision =
   | { kind: "join"; a: string; b: string }
   | { kind: "separate"; a: string; b: string }
   | { kind: "wrong"; a: string }
+  | { kind: "confirm"; a: string }
   | { kind: "sameMatter"; a: string; b: string }
   | { kind: "otherMatter"; a: string; b: string }
 
@@ -1110,6 +1126,15 @@ export interface KnowledgeAttention {
   discardedSentences: number
   keptPages: KnowledgeKeptPage[]
   leftWithDocuments: KnowledgeLeftWithDocuments[]
+  /** Decisions of a person that no longer find what they named. */
+  decisionsToReview: KnowledgeDecisionReview[]
+}
+
+export interface KnowledgeDecisionReview {
+  decision: IdentityDecisionView
+  document: KnowledgeDocumentRef | null
+  /** "no-encontrada" or "varias". */
+  reason: string
 }
 
 export interface MatterSummary {

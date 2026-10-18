@@ -1,8 +1,9 @@
+import { usesKnowledgeLayer } from "@/lib/knowledge-layer"
 import { anyTxtSearchSmart, hasConfiguredAnyTxt } from "./anytxt-search"
 import { hasConfiguredSearchProvider, resolveSearchConfig, webSearch } from "./web-search"
 import { streamChat } from "./llm-client"
 import { currentWikiDate } from "./ingest"
-import { fileExists, writeFile, readFile } from "@/commands/fs"
+import { createDirectory, fileExists, writeFile, readFile } from "@/commands/fs"
 import { useWikiStore, type LlmConfig, type SearchApiConfig } from "@/stores/wiki-store"
 import { useResearchStore } from "@/stores/research-store"
 import { normalizePath } from "@/lib/path-utils"
@@ -652,7 +653,12 @@ async function executeResearch(
 
     const { fileName, date } = makeDeepResearchFileName(topic)
     const taskFileName = addResearchTaskDiscriminator(fileName, taskId)
-    const filePath = await makeAvailableResearchFilePath(`${pp}/wiki/queries`, taskFileName)
+    // Research on the internet is a tool apart: in the archive's wiki it
+    // never writes a page (D-294, D-334); it is kept outside the wiki.
+    const archiveWiki = await usesKnowledgeLayer(pp)
+    const folder = archiveWiki ? `${pp}/.llm-wiki/research` : `${pp}/wiki/queries`
+    if (archiveWiki) await createDirectory(folder)
+    const filePath = await makeAvailableResearchFilePath(folder, taskFileName)
 
     // Persist only sources cited by the synthesis. Search providers can return
     // broad candidates; listing every candidate makes unused, off-topic hits
@@ -690,7 +696,7 @@ async function executeResearch(
     // directly. This keeps freshly generated research available to hybrid
     // search without recreating the review-amplifying ingest loop.
     const embeddingConfig = useWikiStore.getState().embeddingConfig
-    if (embeddingConfig.enabled && embeddingConfig.model) {
+    if (!archiveWiki && embeddingConfig.enabled && embeddingConfig.model) {
       try {
         const { embedPage, wikiPageIdFromPath } = await import("@/lib/embedding")
         await embedPage(

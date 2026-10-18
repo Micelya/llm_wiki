@@ -540,14 +540,12 @@
       "titulo": "Cómo nace un 'caso': extraído de los documentos o creado desde la interfaz",
       "tipo": "decision",
       "responsable": "ambos",
-      "estado": "en-espera",
-      "detalle": "Definido el 2026-10-11: 'caso' y 'cliente' son etiquetas, no proyectos. El cliente probablemente se extraiga como entidad y tenga su página en el wiki. Del caso no hay certeza de que se pueda extraer; tal vez haya que crearlo desde la interfaz. Se ve más adelante. Con el modelo de etiquetas del PR #31 un caso es una etiqueta del grupo que el usuario elija: nace de una regla de carpeta ('cada subcarpeta de acá es un caso') o se crea a mano escribiendo 'Caso: nombre'. Queda abierto si además se extrae del contenido.",
-      "depende_de": [
-        "P-049"
-      ],
-      "referencia": "docs/design/base-documental.md (sección 3, etiquetas)",
+      "estado": "pendiente",
+      "detalle": "Definido el 2026-10-11: 'caso' y 'cliente' son etiquetas, no proyectos. El cliente probablemente se extraiga como entidad y tenga su página en el wiki. Del caso no hay certeza de que se pueda extraer; tal vez haya que crearlo desde la interfaz. Se ve más adelante. Con el modelo de etiquetas del PR #31 un caso es una etiqueta del grupo que el usuario elija: nace de una regla de carpeta ('cada subcarpeta de acá es un caso') o se crea a mano escribiendo 'Caso: nombre'. Queda abierto si además se extrae del contenido. Recomendación aprobada el 2026-10-18 (D-293, D-294): un solo concepto de asunto con tres formas de nacer: lo propone la extracción, lo crea una persona (la etiqueta 'Caso' es una forma de crearlo) o lo propone una regla de carpeta. El asunto no depende de cuántos documentos tiene: la regla de dos documentos vale solo para la agrupación automática. No se construye todavía.",
+      "depende_de": [],
+      "referencia": "docs/design/base-documental.md (sección 3, etiquetas); docs/design/wiki-sobre-la-base-propuesta.md (secciones 5 y 11)",
       "creado": "2026-10-11",
-      "actualizado": "2026-10-12"
+      "actualizado": "2026-10-18"
     },
     {
       "id": "P-062",
@@ -608,14 +606,14 @@
       "titulo": "Que el grafo, la búsqueda y el lint usen el índice de enlaces",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "La base ya lleva un índice de páginas, enlaces y página-documento (PR #31), pero el grafo, la búsqueda, el panel de enlaces y el lint siguen releyendo todas las páginas, cada uno con su propia regla para decidir a qué página apunta un enlace (hay al menos seis). Pasarlos de a uno al índice, que es código original y conviene tocarlo con cuidado. También: actualizar los enlaces cuando se renombra una página, que hoy no se hace. Pregunta del usuario del 2026-10-12: por qué no pasar los enlaces a la base con identificadores en vez de mantener las páginas como verdad y un índice aparte. Respuesta dada, sin confirmación suya: las páginas las escribe el modelo como texto y toda la capa de wiki lee y escribe esos archivos; se recomendó dejarlas como verdad y que este pendiente cubra lo que se busca con identificadores (que renombrar una página no rompa enlaces). Reabrir si el usuario prefiere el otro camino.",
+      "estado": "a-verificar",
+      "detalle": "La base ya lleva un índice de páginas, enlaces y página-documento (PR #31), pero el grafo, la búsqueda, el panel de enlaces y el lint siguen releyendo todas las páginas, cada uno con su propia regla para decidir a qué página apunta un enlace (hay al menos seis). Pasarlos de a uno al índice, que es código original y conviene tocarlo con cuidado. También: actualizar los enlaces cuando se renombra una página, que hoy no se hace. Pregunta del usuario del 2026-10-12: por qué no pasar los enlaces a la base con identificadores en vez de mantener las páginas como verdad y un índice aparte. Respuesta dada, sin confirmación suya: las páginas las escribe el modelo como texto y toda la capa de wiki lee y escribe esos archivos; se recomendó dejarlas como verdad y que este pendiente cubra lo que se busca con identificadores (que renombrar una página no rompa enlaces). Reabrir si el usuario prefiere el otro camino. N5 (D-350, D-351): reformulado y hecho para el wiki del archivo: el grafo, la búsqueda y el panel de enlaces salen de las relaciones de la base, no de los enlaces de los archivos; los enlaces de las notas se resuelven contra la base. Los demás proyectos siguen con los enlaces de sus páginas; lo que todavía lee archivos queda en P-192.",
       "depende_de": [
         "P-049"
       ],
       "referencia": "src-tauri/src/docbase/wiki.rs; src/lib/wiki-graph.ts; src-tauri/src/commands/search.rs; src/lib/lint.ts",
       "creado": "2026-10-12",
-      "actualizado": "2026-10-12"
+      "actualizado": "2026-10-18"
     },
     {
       "id": "P-069",
@@ -778,18 +776,6 @@
       "actualizado": "2026-10-16"
     },
     {
-      "id": "P-084",
-      "titulo": "Renumerar la versión 8 del esquema si otra rama también la usa",
-      "tipo": "codigo",
-      "responsable": "claude",
-      "estado": "hecho",
-      "detalle": "La rama feat/attention-view agrega la versión 8 del esquema de la base (tabla type_decision, src-tauri/src/docbase/schema.rs). Si feat/knowledge-layer (u otra rama) también agrega una versión 8, al integrar la segunda hay que pasarla a 9 y revisar que la migración corra sobre una base que ya tenga la otra. Hecho en K6: al rebasar feat/knowledge-layer sobre feat/attention-view, la V8 queda para type_decision y las de la capa pasan a V9, V10 y V11; una prueba migra una base en V8 con tipos decididos.",
-      "depende_de": [],
-      "referencia": "src-tauri/src/docbase/schema.rs",
-      "creado": "2026-10-16",
-      "actualizado": "2026-10-16"
-    },
-    {
       "id": "P-085",
       "titulo": "Pasar al español el resto de las pantallas del wiki",
       "tipo": "codigo",
@@ -900,18 +886,6 @@
       "detalle": "La hoja de entidades usa predicados libres (más de cuarenta); el vocabulario de la capa tiene dieciséis (D-183) y la evaluación los compara con una tabla de equivalencias. Decidir qué predicados agregar al vocabulario (por ejemplo, cesión, cliente de, cónyuge de) y llevar la hoja a esa lista.",
       "depende_de": [],
       "referencia": "docs/decisiones.md (D-183); src-tauri/resources/catalog/knowledge.json",
-      "creado": "2026-10-16",
-      "actualizado": "2026-10-16"
-    },
-    {
-      "id": "P-094",
-      "titulo": "Volver a numerar la migración de la capa al rebasar sobre la vista de atención",
-      "tipo": "codigo",
-      "responsable": "claude",
-      "estado": "hecho",
-      "detalle": "La etapa K3 agregó además la V9 (páginas de la capa): al rebasar sobre la rama de atención, V8 y V9 de esta rama pasan a V9 y V10. La rama feat/attention-view agregó su propia versión 8 del esquema (tabla type_decision) y la app de desarrollo ya la aplicó a la base real. Al rebasar feat/knowledge-layer sobre ella, la migración de la capa tiene que pasar a ser la versión 9; si no, una base en versión 8 nunca recibe las tablas de la capa. La etapa K4/K5 agregó la V10 (cambios y borrados, contexto de las afirmaciones, asuntos como grupos): al rebasar, V8, V9 y V10 de esta rama pasan a V9, V10 y V11. Hecho en K6 (rebase sobre feat/attention-view): V9 a V11 son de la capa; prueba a_base_at_the_attention_views_version_gets_the_layer_and_keeps_its_type_decisions.",
-      "depende_de": [],
-      "referencia": "src-tauri/src/docbase/schema.rs",
       "creado": "2026-10-16",
       "actualizado": "2026-10-16"
     },
@@ -1079,13 +1053,13 @@
       "id": "P-108",
       "titulo": "Ver en la app las pantallas de la capa de conocimiento",
       "tipo": "verificacion",
-      "responsable": "claude",
+      "responsable": "usuario",
       "estado": "pendiente",
-      "detalle": "La etapa K6 se probó con pruebas, sin levantar la app: falta ver en la app real la vista Atención con la fuente de conocimiento, Personas y organizaciones (lista, detalle, unir, separar, marcar incorrecto, deshacer), Identidades dudosas, Asuntos, la sección de entidades del detalle de un documento, los enlaces dentro de las páginas de documentos y que el lector ya no muestre las marcas de la app. Le toca a la etapa W. Etapa W: la app corrió con la base real y la capa completa, y lo que la vista Atención y las pantallas leen se comprobó con la misma consulta del motor (18 dudas, 3 conflictos, 10 uniones por identificador, 1 propuesta de asunto, 2 páginas conservadas); las pantallas no se pudieron mirar (sin herramienta de capturas en la tanda).",
+      "detalle": "La etapa K6 se probó con pruebas, sin levantar la app: falta ver en la app real la vista Atención con la fuente de conocimiento, Personas y organizaciones (lista, detalle, unir, separar, marcar incorrecto, deshacer), Identidades dudosas, Asuntos, la sección de entidades del detalle de un documento, los enlaces dentro de las páginas de documentos y que el lector ya no muestre las marcas de la app. Le toca a la etapa W. Etapa W: la app corrió con la base real y la capa completa, y lo que la vista Atención y las pantallas leen se comprobó con la misma consulta del motor (18 dudas, 3 conflictos, 10 uniones por identificador, 1 propuesta de asunto, 2 páginas conservadas); las pantallas no se pudieron mirar (sin herramienta de capturas en la tanda). Desde el 2026-10-18 le toca al dueño mirar las pantallas en la app.",
       "depende_de": [],
       "referencia": "src/components/knowledge/; docs/decisiones.md (D-216 a D-221)",
       "creado": "2026-10-16",
-      "actualizado": "2026-10-16"
+      "actualizado": "2026-10-18"
     },
     {
       "id": "P-109",
@@ -1154,12 +1128,12 @@
       "titulo": "Enlaces rotos y conceptos de más en las páginas que escribe el wiki",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "En el wiki generado de cero, las páginas de documentos y de conceptos que escribe el modelo tienen 30 enlaces a páginas que no existen (títulos inventados) y hay 85 conceptos, varios solapados. Revisar la generación del wiki (no la capa): enlazar solo a páginas del índice y agrupar conceptos.",
+      "estado": "a-verificar",
+      "detalle": "En el wiki generado de cero, las páginas de documentos y de conceptos que escribe el modelo tienen 30 enlaces a páginas que no existen (títulos inventados) y hay 85 conceptos, varios solapados. Revisar la generación del wiki (no la capa): enlazar solo a páginas del índice y agrupar conceptos. (18 oct, N3: en el wiki del archivo el modelo ya no escribe páginas de documentos ni conceptos, D-332; las páginas de documentos las escribe la base sin enlaces inventados, D-331. Verificar en la regeneración de N6.)",
       "depende_de": [],
       "referencia": "src/lib/ingest.ts",
       "creado": "2026-10-16",
-      "actualizado": "2026-10-16"
+      "actualizado": "2026-10-18"
     },
     {
       "id": "P-115",
@@ -1383,47 +1357,35 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "Dos corridas desde cero de luna alto difieren en 9,6 % de los pares de menciones y comparten solo 26 a 31 % de las afirmaciones (D-277); sol medio encuentra más afirmaciones (74 % frente a 61 %) y no se le midió la estabilidad. Ver cómo hacer más estable la lectura (por ejemplo, más de una pasada sobre el archivo y quedarse con lo que se repite) y medir sol medio dos veces antes de descartarlo del todo.",
+      "detalle": "Dos corridas desde cero de luna alto difieren en 9,6 % de los pares de menciones y comparten solo 26 a 31 % de las afirmaciones (D-277); sol medio encuentra más afirmaciones (74 % frente a 61 %) y no se le midió la estabilidad. Ver cómo hacer más estable la lectura (por ejemplo, más de una pasada sobre el archivo y quedarse con lo que se repite) y medir sol medio dos veces antes de descartarlo del todo. 18 oct (N6a, luna high, dos lecturas completas): pares de identidad en una sola lectura 5,8 % (antes 9,6 %), afirmaciones idénticas 38 % (antes 26-31 %); sigue en P-200.",
       "depende_de": [],
       "referencia": "src/lib/codex-reasoning.ts; src-tauri/src/source_volume/asking.rs; src-tauri/src/docbase/knowledge/resolve.rs",
       "creado": "2026-10-17",
-      "actualizado": "2026-10-17"
-    },
-    {
-      "id": "P-134",
-      "titulo": "Nombre comercial con la sociedad entre paréntesis",
-      "tipo": "codigo",
-      "responsable": "claude",
-      "estado": "hecho",
-      "detalle": "La única unión falsa que queda es la misma en las cuatro variantes de D-276: un nombre comercial escrito con la razón social de otra sociedad entre paréntesis (\"Marca (Sociedad S.A.)\") termina uniendo dos organizaciones distintas. Es del programa, no del modelo: un paréntesis con una razón social completa distinta del nombre no debería hacerlas la misma, sino a lo sumo vincularlas. Resuelto por D-281: 0 uniones falsas contra la hoja en el wiki regenerado (Q5).",
-      "depende_de": [],
-      "referencia": "src/lib/codex-reasoning.ts; src-tauri/src/source_volume/asking.rs; src-tauri/src/docbase/knowledge/resolve.rs",
-      "creado": "2026-10-17",
-      "actualizado": "2026-10-17"
+      "actualizado": "2026-10-18"
     },
     {
       "id": "P-135",
       "titulo": "Casillas de los formularios",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "En las fichas de cliente el texto extraído trae los rótulos impresos (\"Es o fue PPE: SI/NO\", \"beneficiario final\") pero no qué casilla está marcada; el modelo del wiki los lee como respuestas y escribe datos jurídicos falsos (6 a 8 afirmaciones en 3 fichas). Extraer el estado de las casillas (campos del PDF o la imagen) o, si no se puede, avisar que no se sabe.",
+      "estado": "a-verificar",
+      "detalle": "En las fichas de cliente el texto extraído trae los rótulos impresos (\"Es o fue PPE: SI/NO\", \"beneficiario final\") pero no qué casilla está marcada; el modelo del wiki los lee como respuestas y escribe datos jurídicos falsos (6 a 8 afirmaciones en 3 fichas). Extraer el estado de las casillas (campos del PDF o la imagen) o, si no se puede, avisar que no se sabe. Dato de N1: en dos fichas las casillas son campos del formulario PDF (que el texto extraído no trae) y en la tercera, firmada y aplanada, el texto tiene las marcas sin posición; la imagen las muestra. Casos de aceptación en conjunto-prueba/casos-criticos.json (fuera del repositorio, D-300); se comprueban con desatendido-4/N1-comprobar-casos.py. (K01-K09) N2a (D-314 a D-316): la extracción escribe la opción marcada con «(marcada)», lee las marcas de un formulario aplanado por su celda y vuelve a extraer los textos viejos; casos K01-K09: 9 de 9 en la base (antes 0). Falta que el dueño lo vea; las fichas escaneadas solo imagen siguen en P-160 y el wiki heredado en P-162.",
       "depende_de": [],
       "referencia": "src-tauri/src/source_volume; src/lib/ingest.ts",
       "creado": "2026-10-17",
-      "actualizado": "2026-10-17"
+      "actualizado": "2026-10-18"
     },
     {
       "id": "P-136",
       "titulo": "Naturaleza y estado de un importe",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "La dirección del dinero quedó bien, pero unas 20 afirmaciones de importe tienen mal la naturaleza: ejemplos de una propuesta tomados como facturas, créditos promocionales como inversión, descuentos del 100 % como precio, cuotas con vencimiento futuro como \"pagó\". Agregar al importe un estado (previsto, pagado, ejemplo, condicionado) y una regla de fecha (vencimiento posterior al documento no es un pago).",
+      "estado": "a-verificar",
+      "detalle": "La dirección del dinero quedó bien, pero unas 20 afirmaciones de importe tienen mal la naturaleza: ejemplos de una propuesta tomados como facturas, créditos promocionales como inversión, descuentos del 100 % como precio, cuotas con vencimiento futuro como \"pagó\". Agregar al importe un estado (previsto, pagado, ejemplo, condicionado) y una regla de fecha (vencimiento posterior al documento no es un pago). Casos de aceptación en conjunto-prueba/casos-criticos.json (fuera del repositorio, D-300); se comprueban con desatendido-4/N1-comprobar-casos.py. (I01-I16; I14-I16 son de control) N2a (D-310 a D-313): estado del importe en el vocabulario, ejemplos descartados, regla de fecha; casos I01-I16: 13 de 16 (antes 3), controles bien. Quedan I04-I06 (P-161). Falta que el dueño lo vea.",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/knowledge/claims.rs; src-tauri/resources/catalog/knowledge.json",
       "creado": "2026-10-17",
-      "actualizado": "2026-10-17"
+      "actualizado": "2026-10-18"
     },
     {
       "id": "P-137",
@@ -1431,11 +1393,11 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "Separaciones falsas 4,7 % (luna medio en Q3 1,6 %, luna alto en Q4 2,2 %): la misma organización con su nombre oficial largo y el corto (el correo postal), un nombre de una palabra escrito con y sin mayúscula en documentos distintos (no se une por nombre a propósito), un término definido de un contrato tomado como otra organización, áreas de una asociación, y un asunto partido entre sus dos formas de nombre. Ver una señal general para cada una. Regresiones de las rondas de Q5 a revisar: una organización nombrada al pasar cuyo único dato es su domicilio perdió su página (D-288 la trata como una oficina de una lista); los correos de personas que se mostraban como \"otro número\" no pasan a contacto (D-289); el encabezado de un asunto ya no muestra números de cliente, de cuenta o de envío que la hoja espera como suyos.",
+      "detalle": "Separaciones falsas 4,7 % (luna medio en Q3 1,6 %, luna alto en Q4 2,2 %): la misma organización con su nombre oficial largo y el corto (el correo postal), un nombre de una palabra escrito con y sin mayúscula en documentos distintos (no se une por nombre a propósito), un término definido de un contrato tomado como otra organización, áreas de una asociación, y un asunto partido entre sus dos formas de nombre. Ver una señal general para cada una. Regresiones de las rondas de Q5 a revisar: una organización nombrada al pasar cuyo único dato es su domicilio perdió su página (D-288 la trata como una oficina de una lista); los correos de personas que se mostraban como \"otro número\" no pasan a contacto (D-289); el encabezado de un asunto ya no muestra números de cliente, de cuenta o de envío que la hoja espera como suyos. Casos de aceptación en conjunto-prueba/casos-criticos.json (fuera del repositorio, D-300); se comprueban con desatendido-4/N1-comprobar-casos.py. (S01-S08 entidades partidas, R01-R05 regresiones y páginas)",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/knowledge/resolve.rs",
       "creado": "2026-10-17",
-      "actualizado": "2026-10-17"
+      "actualizado": "2026-10-18"
     },
     {
       "id": "P-138",
@@ -1455,11 +1417,11 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "Quedan del lado de la incorporación: encabezados \"## Embedded Images / ### Page N\" y `log.md` en inglés; referencias `related:` con tilde o inventadas que no apuntan a ninguna página (14); un nombre de archivo de concepto con tilde; conceptos duplicados y 56 de 85 conceptos de un solo documento; frases sobre \"el nombre del archivo\" o \"la transcripción\"; vistas previas y borradores no dichos como tales. Corregir con reglas del programa lo determinista y ajustar la consigna en lo demás.",
+      "detalle": "Reformulado el 18 oct (N3): en el wiki del archivo el modelo ya no escribe páginas (D-332), así que conceptos, `related` inventados, encabezados de imágenes y frases sobre el archivo dejan de existir allí; la base dice borradores y vistas previas en el resumen (D-330). Queda: `log.md` sigue con su encabezado y sus entradas en inglés («# Wiki Log», «ingest |»); escribirlo en el idioma del wiki.",
       "depende_de": [],
       "referencia": "src/lib/ingest.ts; src/lib/ingest-legal-finish.ts; src/lib/extract-source-images.ts",
       "creado": "2026-10-17",
-      "actualizado": "2026-10-17"
+      "actualizado": "2026-10-18"
     },
     {
       "id": "P-140",
@@ -1489,15 +1451,402 @@
     },
     {
       "id": "P-142",
-      "titulo": "Revisar la propuesta del wiki como presentación de la base",
-      "tipo": "decision",
-      "responsable": "usuario",
-      "estado": "pendiente",
-      "detalle": "Propuesta escrita el 2026-10-17: una sola lectura del modelo por documento, páginas desde la base (una por documento o familia), grafo y enlaces desde la base, búsqueda con el índice de texto de la base, vectores y grafo combinados, conceptos propuestos por cálculo (hipótesis a medir), y qué procesos heredados se quitan. Cuatro decisiones abiertas en su sección 11.",
+      "titulo": "Construir el wiki como presentación de la base",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "en-curso",
+      "detalle": "Propuesta aprobada con ajustes el 2026-10-18 (D-293 a D-296): certeza y quién confirmó cada afirmación, el grafo ordena y amplía sin recortar, una extracción principal por contenido y configuración, página común solo para versiones del mismo documento, asunto sin mínimo de documentos. Las cuatro decisiones abiertas quedaron resueltas (D-294). En construcción en la rama feat/wiki-on-docbase (tanda desatendida del 18 oct); vectores, conceptos por cálculo (solo medición, D-295), asuntos según P-061 y P-141 quedan fuera de esta tanda. N4: página de cada documento desde la base, una por familia de versiones, cada punto y dato con su versión (D-340 a D-342).",
       "depende_de": [],
-      "referencia": "docs/design/wiki-sobre-la-base-propuesta.md; D-290",
+      "referencia": "docs/design/wiki-sobre-la-base-propuesta.md; D-290; D-293 a D-296",
       "creado": "2026-10-17",
-      "actualizado": "2026-10-17"
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-150",
+      "titulo": "Agujeros de la búsqueda por texto de la base",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "a-verificar",
+      "detalle": "La línea de base de N1 (D-301) muestra que el índice de texto de la base encuentra más documentos que la búsqueda del wiki (79 contra 61 de 104 en los 10 primeros) pero no encuentra documentos en inglés con preguntas en castellano, parte los números escritos con puntos (un DNI con puntos no encuentra la forma sin puntos) y en preguntas genéricas premia documentos largos. Resolverlo al construir la búsqueda desde la base (normalizar números en índice y consulta, indexar el resumen del documento en castellano, ampliar por entidades y asuntos) y medir con desatendido-4/N1-medir-busqueda.py. N5 (D-350): resuelto y medido: números en cualquier forma, resumen en el idioma del archivo, raíz de palabras largas y entidades nombradas; 79 → 96 de 104 en los 10 primeros (el chat, por páginas, 61 → 95). Queda verificarlo en la app (N6). N6a (dos lecturas completas con consigna conocimiento-5): los resúmenes completos desplazaban a las preguntas con número (DNI con puntos 9 → 6); D-361 lo arregla: chat 96 y 95 de 104 (por documento 97 y 97).",
+      "depende_de": [],
+      "referencia": "src-tauri/src/commands/search.rs; desatendido-4/N1-linea-de-base.md (fuera del repositorio); D-301; P-142",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-151",
+      "titulo": "Afirmaciones mal atribuidas que quedan",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Con la base del 18 oct quedan atribuciones equivocadas por el lugar del dato en el documento: el domicilio del destinatario de un aviso de recibo asignado al remitente (formulario en dos columnas), el domicilio de una sociedad asignado a quien firma por ella, 'representa a' sacado de una frase que lo niega, el DNI del titular de una ficha guardado en su cónyuge, el DNI del apoderado guardado en la sociedad, el domicilio constituido de la sociedad asignado a su apoderado y el origen de fondos como profesión. Buscar la señal general de cada uno (columna o bloque del formulario, negación, persona que firma por otra). Casos de aceptación en conjunto-prueba/casos-criticos.json (fuera del repositorio, D-300); se comprueban con desatendido-4/N1-comprobar-casos.py. (A01-A08) Desde N2b (D-320) tres de las cinco que quedan se muestran «sin confirmar» (la cita nombra a otra organización, o los documentos difieren); siguen en el registro.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/knowledge/claims.rs; src-tauri/src/docbase/knowledge/resolve.rs; D-300",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-160",
+      "titulo": "Casillas de fichas escaneadas o sin tabla",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Las casillas se leen de los campos del PDF y de las marcas de un formulario aplanado con tabla (D-315). Una ficha escaneada (solo imagen) o una marca sin tabla con opciones a los dos lados queda sin respuesta: pedir el estado de las casillas en la lectura de imagen con el modelo y mostrar en Atención el aviso «no se sabe qué casilla está marcada» cuando no se pueda.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/commands/pdf_form.rs; src-tauri/src/source_volume/recognition; D-315",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-161",
+      "titulo": "Importes con descuento total y totales de créditos",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Tras N2a, en una propuesta el precio de lista bonificado al 100 % se lee como «pactado» (no como condicionado ni bonificado), y el total de 12 meses de un crédito promocional como «total acumulado» sin decir que es un crédito. Buscar la señal general (una línea de descuento que anula a otra; el total de un importe de otro tipo hereda su naturaleza). Casos I04-I06 de conjunto-prueba/casos-criticos.json (fuera del repositorio). N6a: I05/I06 pasan en una de dos lecturas completas y fallan en la otra (ver P-202).",
+      "depende_de": [],
+      "referencia": "src-tauri/resources/catalog/knowledge.json; src-tauri/src/docbase/knowledge/extract.rs; D-310",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-162",
+      "titulo": "El wiki heredado sigue leyendo las fichas por su cuenta",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Las páginas de fuente y de concepto del wiki las escribe todavía la lectura propia del wiki (src/lib/ingest.ts) sobre el texto anterior: dicen «NO» de beneficiario final y «SI» de PPE. Se corrige cuando el wiki deje de leer con el modelo y tome la extracción de la base (N3, P-142); verificar con N1-comprobar-casos.py --wiki.",
+      "depende_de": [
+        "P-142"
+      ],
+      "referencia": "src/lib/ingest.ts; D-314; P-142",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-165",
+      "titulo": "Certeza de los identificadores",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "La certeza (D-320) es de las afirmaciones; los identificadores (DNI, CUIT) del encabezado de una página no la tienen. Un DNI cuya cita nombra a otra persona (el del cónyuge en una ficha, el del apoderado en la sociedad) se muestra como firme: aplicar la misma señal de atribución a los identificadores y marcarlos en páginas y pantallas.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/knowledge/claims.rs; src-tauri/src/docbase/knowledge/pages.rs; D-320; P-151",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-166",
+      "titulo": "Volver a decidir una decisión que quedó para revisar",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Una decisión que ya no encuentra lo que nombraba queda en Atención con abrir el documento y deshacerla (D-321). Falta ofrecer ahí mismo los candidatos de su documento (lo que hay ahora del mismo tipo) para elegir a cuál aplicarla, sin tener que buscar la entidad.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/knowledge/anchors.rs; src/components/attention/sources/knowledge.ts; D-321",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-167",
+      "titulo": "Precisión de la duda por atribución",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "En la carpeta de prueba la señal «la cita nombra a otra persona u organización y no al sujeto» marca 5 afirmaciones: 3 son errores reales y 2 falsas alarmas (una profesión que nombra al empleador, un domicilio laboral que nombra a la sociedad). Afinarla (por ejemplo, el predicado que admite nombrar una organización, como empleo o domicilio laboral) y medirla contra la hoja antes de usarla para algo más que marcar.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/knowledge/claims.rs (names_someone_else); D-320",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-170",
+      "titulo": "La incorporación del wiki del archivo todavía exige un modelo configurado",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "La cola y la importación siguen frenando si no hay un modelo de incorporación configurado (hasUsableLlm), aunque en el wiki del archivo la incorporación ya no le pregunta nada (D-332). Quitar esa condición para el wiki del archivo.",
+      "depende_de": [],
+      "referencia": "src/lib/ingest-queue.ts; src/lib/source-lifecycle.ts; D-332",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-171",
+      "titulo": "Resúmenes más completos: importes, fechas y números del documento",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "a-verificar",
+      "detalle": "Consigna conocimiento-5 (D-343): los puntos traen importes, fechas clave y números con su cita, y en una constancia de firma qué se firmó, quiénes y cuándo. Medido en N4 sobre 7 documentos releídos (revisor a ciegas): fieles 7/7 en las dos; completitud 1,71 → 2,57 de 3; utilidad 1,86 → 2,71; prefirió la nueva en 6 y empató en 1 (una boleta de infracciones: ninguna trae el total ni el vencimiento). Falta medir los 66 en las lecturas completas de N6 (completitud, descartes por número fuera de la cita) y la boleta. N6a: dos lecturas completas con conocimiento-5: 66/66 resúmenes con tema, 380 y 379 puntos (5,8 por documento); 70 y 73 puntos descartados por el cálculo (número fuera de la cita o cita no hallada).",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/knowledge/extract.rs; D-330; D-343; desatendido-4/N4-p171-juicio/",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-172",
+      "titulo": "Quitar el código de la incorporación con el modelo si solo queda el wiki del archivo",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Los proyectos que no son el wiki del archivo conservan la incorporación anterior (análisis, generación, revisión, combinación de páginas, conceptos, avisos). Decidir si esos proyectos siguen existiendo; si no, borrar ese código y sus pruebas.",
+      "depende_de": [],
+      "referencia": "src/lib/ingest.ts; src/lib/page-merge.ts; src/lib/sweep-reviews.ts; D-332",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-173",
+      "titulo": "Descripción de imágenes de los documentos en la base",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "En el wiki del archivo la incorporación ya no describe las imágenes con el modelo (escribía en la página, no en la base). Si hace falta, que la descripción vuelva a la base como el reconocimiento de texto y la lectura la use.",
+      "depende_de": [],
+      "referencia": "src/lib/ingest.ts; src/lib/image-caption-pipeline.ts; D-332",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-174",
+      "titulo": "Domicilios atribuidos a otra parte y entidades partidas por variación del modelo",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Tras la lectura completa de N3: atribución a ciegas de domicilios 13 → 10 de 13 (el domicilio de una sociedad dado a la persona que firma o a la otra parte: casos A02 y A08); S01 y S02 volvieron a partirse porque el modelo dudó o dijo distintas en la identidad (una sociedad nombrada como revendedora de otra; una sociedad con y sin su forma jurídica en el mismo documento). Medir de nuevo en las dos regeneraciones de N6 y, si se repite, una regla por señales generales.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/knowledge/extract.rs; src-tauri/src/docbase/knowledge/resolve.rs; desatendido-4/N3-juicio/",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-180",
+      "titulo": "Una vista previa que el cálculo propone como «contenido en» queda en otra página",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Hoja de parecidos sobre N3-base: 18 de 19 pares de «mismo documento» comparten página (D-340); el que falta es un borrador y la carta enviada que la hoja llama vista previa y el cálculo propone como «contenido en» de certeza baja (una página la nombra como relacionada). Revisar si «contenido en» con texto casi entero y etapas de un mismo documento debería proponerse como vista previa, midiendo que no una documentos distintos.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/similar/by_type.rs; D-340; desatendido-4/N4-familias.py",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-181",
+      "titulo": "Verificar en la app las páginas de documento con renombres y borrados de archivos",
+      "tipo": "verificacion",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "La base escribe una página por documento o familia (D-340) y absorbe las páginas de otras copias (D-342), pero TypeScript sigue moviendo o borrando wiki/sources/<archivo>.md cuando un archivo se renombra o se borra. La proyección lo repara (vuelve a escribir la página y absorbe la movida), pero no se probó en la app: hacerlo en N6 con un renombre y un borrado de una versión.",
+      "depende_de": [],
+      "referencia": "src/lib/source-lifecycle.ts; src-tauri/src/docbase/knowledge/pages.rs; D-342",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-182",
+      "titulo": "Título legible de la página de un documento",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "La página de un documento se titula con el nombre del archivo de su versión principal, sin extensión (D-340): es dato de la base pero a veces no dice qué es («Summary», «Screenshot …»). Evaluar un título desde el tipo y las partes (sin modelo) o desde el tema del resumen, y cómo afecta enlaces y búsqueda (N5).",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/knowledge/pages/family.rs (title_of); D-340",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-190",
+      "titulo": "Mostrar en el grafo el tipo, la cita y el estado de cada relación",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "El grafo del wiki del archivo ya trae de la base cada relación con su tipo, etiqueta del vocabulario, cita y estado (D-351), y cada arista lleva la etiqueta, pero la vista no la dibuja (las etiquetas de aristas están apagadas) ni muestra la cita al pasar el puntero. Mostrarlo, y distinguir lo propuesto de lo confirmado.",
+      "depende_de": [],
+      "referencia": "src/components/graph/graph-view.tsx; src/lib/wiki-graph.ts; D-351",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-191",
+      "titulo": "Página del documento armada al mostrarse",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "D-294 dejó la página del documento como archivo generado hasta que la búsqueda y el grafo leyeran de la base; desde N5 (D-350, D-351) lo hacen para el wiki del archivo. Evaluar armarla al mostrarse (y qué pasa con las notas y con el chat, que lee archivos).",
+      "depende_de": [],
+      "referencia": "docs/design/wiki-sobre-la-base-propuesta.md (sección 5); D-294; D-350; D-351",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-192",
+      "titulo": "Lo que todavía lee los enlaces de los archivos en el wiki del archivo",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Tras N5 el grafo, la búsqueda y el panel de enlaces del wiki del archivo salen de la base, pero el lint estructural, la relevancia del grafo (graph-relevance.ts) y el contexto que el chat agrega a cada resultado (build_knowledge_context_index) siguen leyendo las páginas; la búsqueda además recorre los archivos para títulos y para páginas que no son de documento (155 ms por pregunta en el binario de depuración con 185 páginas). Pasarlos a la base o medir que no hace falta. También: las preguntas genéricas por relaciones («a quiénes les debe») siguen en 6 a 7 de 8.",
+      "depende_de": [],
+      "referencia": "src/lib/lint.ts; src/lib/graph-relevance.ts; src-tauri/src/agent/tools.rs; src-tauri/src/commands/search.rs; D-350",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-200",
+      "titulo": "Variación del modelo entre dos lecturas completas",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Dos lecturas completas desde cero (N6a) con el mismo código: separaciones falsas 1,3 % y 6,6 %; menciones iguales 65 %, afirmaciones 38 %, importes 45 %; 28 casos críticos pasan en las dos y 8 en una sola. En la segunda, la sociedad propia por su nombre corto y la otra parte por frases de cargo («COO de …», «reseller de …») quedaron como entidades aparte. Buscar señales generales que hagan la identidad menos dependiente de la lectura (nombre corto de una parte del documento, frase de cargo que no es un nombre) y medir con dos lecturas.",
+      "depende_de": [
+        "P-133"
+      ],
+      "referencia": "D-362; desatendido-4/N6-resultados.md; P-133",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-201",
+      "titulo": "Relaciones que el documento no dice y dirección del dinero en acuerdos de fondos",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Juicio a ciegas de N6a (40 por lectura): 37 y 33 de 40 bien (el 17 oct, 38). Errores: «representa a» o «parte en» que el documento no dice (un revendedor que «representa» a su cliente, un anexo de personal tomado como acto), objeto equivocado (cargo o firma de otra sociedad), un acuerdo de fondos con la dirección invertida (quien aporta paga a la sociedad) y un préstamo recibido marcado «pagado» cuando su devolución está pendiente. Prioridad 1 (atribución).",
+      "depende_de": [
+        "P-151"
+      ],
+      "referencia": "D-362; desatendido-4/N6-juicio; P-151",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-202",
+      "titulo": "Importes que dependen de la lectura y preguntas que fallan por un error del motor",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "En N6a los casos I05/I06 (precio bonificado al 100 %) pasan en una lectura y fallan en la otra, e I13 al revés (P-161). Además una pregunta de identidad falló porque Codex salió con código 1 y la corrida la respondió en la pasada siguiente: verificar en la app que una pregunta fallida se reintenta y no deja un par sin unir.",
+      "depende_de": [
+        "P-161"
+      ],
+      "referencia": "D-362; P-161",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-203",
+      "titulo": "Regresiones y entidades partidas que fallan en las dos lecturas",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "En las dos lecturas de N6a fallan: R01 (una fundación sin página), R02 (correos de la otra parte como identificador, 0 a 2 de 5), R03 (el encabezado del reclamo sin sus números), S02 (empresa con y sin forma jurídica), S05 (nombre de pila solo), S07/S08 (contratos nombrados por títulos distintos), A02/A04/A08 (domicilio o identificador de otra parte). No dependen de la variación: son del programa.",
+      "depende_de": [
+        "P-137"
+      ],
+      "referencia": "desatendido-4/N6-resultados.md; P-137; P-174",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-204",
+      "titulo": "El destino de un término por su forma en el texto puede ser la empresa de un domicilio",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "define_terms toma como destino de un término sin definición del modelo el nombre más cercano antes de la definición; en un contrato ese nombre era la empresa de un domicilio «c/o», no la parte. Hoy solo se usa si el modelo no dio enlace (D-360 no lo usa para corregir). Revisar la regla (saltar nombres dentro de un domicilio, o preferir el sujeto de la oración) y medir con dos lecturas.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/knowledge/extract.rs (define_terms); D-360",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-205",
+      "titulo": "Atribución en el wiki regenerado con los datos reales: dinero, roles, fechas de cartas, estado de firma",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Revisión final de N6b (revisor sobre el wiki de la app, 70 filas verificadas contra el original: 39 bien, 31 mal, muestra dirigida a lo sospechoso): dirección del dinero invertida en un borrador de acuerdo de fondos y en un recibo de cuotas, un préstamo con el que declara haber recibido cambiado y la devolución como «pagado», un total estimado de un resumen de facturas como deuda acumulada sin moneda, personas de una sociedad dadas como de otra o como su representante, el identificador de una persona en la página de su cónyuge, un escribano como «testigo», cartas documento con la fecha de la carta que contestan y vistas previas sin decirlo, estado de firma equivocado en tres acuerdos firmados. Prioridad 1. Detalle fuera del repositorio: desatendido-4/N6-defectos.md y N6b-revision.md.",
+      "depende_de": [
+        "P-201",
+        "P-151"
+      ],
+      "referencia": "D-364; desatendido-4/N6-defectos.md",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-206",
+      "titulo": "Unión falsa de dos personas con el mismo apellido y nombres casi iguales, sin identificador común",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "a-verificar",
+      "detalle": "En la regeneración con los datos reales (N6b) la identidad juntó a dos personas de la misma familia cuyo nombre de pila difiere en una letra (7 pares falsos contra la hoja; L1 y L2 de N6a tuvieron 0). Un nombre de pila distinto, aunque parecido, no debería unir sin un identificador o una relación que lo diga. Prioridad 1 (uniones falsas). N6c: la unión venía del modelo («la misma, certeza media», por la misma organización y «puede ser un error de escritura»), no del nombre. Arreglo D-365: si la primera palabra del nombre difiere en una letra y nada más los une, el «la misma» del modelo une solo con certeza alta; si no, queda una duda para una persona. Medido con las respuestas guardadas: uniones falsas 7 → 0 en la copia de la app y 0 → 0 en las dos lecturas de N6a, separaciones iguales; en la base real después de reabrir la app (D-366): uniones falsas 0, separaciones 5,3 %, casos críticos 34 de 46, sin preguntas al modelo. Falta que el dueño vea la duda en Atención.",
+      "depende_de": [],
+      "referencia": "D-364, D-365, D-366; desatendido-4/N6c-real-eval.txt",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-207",
+      "titulo": "Documentos que quedan en la entidad del grupo y faltan en la de la sociedad; entidad sobrante",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "N6b: correos de un reclamo, una copia de carta y una captura del correo quedan en la entidad del grupo empresario y faltan en la página de la sociedad; el perfil de una persona no se enlaza a su página; sobra una entidad que junta dos empresas con una barra; la cronología del reclamo queda como «posiblemente de este asunto». Documentos de cada entidad en su página 245 de 290 (N6a: 249 y 257). Prioridad 2.",
+      "depende_de": [
+        "P-137"
+      ],
+      "referencia": "D-364; desatendido-4/N6-defectos.md",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-208",
+      "titulo": "Presentación del wiki regenerado: frase sobre el modelo, fechas en inglés, rótulos de formulario como datos",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "N6b: queda una frase sobre el programa («lo propuso el modelo por su contenido») y cientos de «propuesta por el cálculo de parecidos»; fechas y fragmentos en inglés en la redacción; rótulos de formulario tomados como datos y como asuntos; un título de página partido por un acento; formatos de números y fechas mezclados. Prioridad 4.",
+      "depende_de": [],
+      "referencia": "D-364; desatendido-4/N6-defectos.md",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-209",
+      "titulo": "El arranque no crea el proyecto por defecto si su carpeta existe vacía",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Con la carpeta del proyecto por defecto vacía, el arranque falla con «Directory already exists» y la app queda sin proyecto (N6b, 18 oct). Hubo que borrar la carpeta y recargar. Una carpeta vacía debería aceptarse como proyecto nuevo. Prioridad 3 (lo que se ve en la app).",
+      "depende_de": [],
+      "referencia": "D-364",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-210",
+      "titulo": "La misma carta en Word y en PDF propuesta como «parecido» y no como versión",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "hecho",
+      "detalle": "N7 vio dos cartas casi idénticas propuestas como «parecido». N4 lo revisó: la hoja de parecidos, confirmada por una persona, las tiene como «misma plantilla» (rechazan facturas distintas con fechas distintas), así que el cálculo acierta y no se cambia la regla (D-344).",
+      "depende_de": [],
+      "referencia": "D-344; desatendido-4/N7-conceptos.md",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-211",
+      "titulo": "Decidir si se construyen los grupos de pasajes repetidos (conceptos por cálculo)",
+      "tipo": "decision",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "detalle": "Medición N7 (D-295, D-370 a D-372) sobre la carpeta de prueba: 69 grupos de pasajes; 23 reconocibles para el agente y el modelo (37 de 66 documentos, 11 cruzan asuntos); de esos, los 8 con 3 o más documentos son hermanos de plantilla (facturas, acuerdos de terminación, recibos) y las cláusulas repetidas entre contratos distintos son 9 grupos de 2 documentos. Recomendación del agente: construirlo en chico y sin páginas nuevas (grupos en la base junto a los parecidos, sin corte de rutina; clase del modelo una vez por grupo; mostrar primero dentro de las familias de plantilla «esta cláusula está también en N documentos» y la comparación cláusula por cláusula); páginas de concepto solo con confirmación de una persona y más adelante con vectores. Antes de construir páginas, repetir la medición en una carpeta con muchos contratos.",
+      "depende_de": [],
+      "referencia": "D-295, D-370 a D-372; desatendido-4/N7-conceptos.md",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
     }
   ]
 }

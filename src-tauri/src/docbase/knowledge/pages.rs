@@ -15,11 +15,12 @@
 //!   none of its claims carries (D-197). Claims in conflict are listed as
 //!   such, all values in view. The answer is kept like any other
 //!   (`model_answer`): the same claims ask nothing again.
-//! - **The block of entities of each document's page** (the pages the
-//!   wiki writes from each document): who and what the document names,
-//!   with its role and a link to its page. Written by the app, without the
-//!   model, between two marks; a page the wiki writes again gets its
-//!   block back (D-198).
+//! - **The page of each document** (`pages/family.rs`, D-340), one per
+//!   document or family of versions: what the base knows of it, its block
+//!   of entities (who and what it names, with its role and a link to its
+//!   page, between two marks), its versions, its data, the summary of the
+//!   one reading and its amounts, each saying which version it comes
+//!   from; the notes of a person are kept and nothing else is.
 //! - **The overview** of the archive (`wiki/overview.md`), from the
 //!   record, in the words of the vocabulary.
 //!
@@ -43,12 +44,14 @@ use crate::docbase::similar::classify::{self as classify, ask_and_keep, cached_a
 use crate::docbase::{now_ms, sql_err, DocBase, Visible};
 use crate::source_volume::asking::DocumentAsker;
 
+mod family;
+
 /// Version of the question that writes what the documents say.
-pub const SYNTHESIS_PROMPT: &str = "sintesis-2";
+pub const SYNTHESIS_PROMPT: &str = "sintesis-3";
 /// Raised when a change in the program changes what a projection writes
 /// (which names have a page, what a block lists): every page is written
 /// again from the record, without asking more.
-const PROJECTION_VERSION: &str = "proyeccion-7";
+const PROJECTION_VERSION: &str = "proyeccion-10";
 /// The task its answers are kept under in `model_answer`.
 pub const TASK: &str = "synthesis";
 /// The words of the vocabulary (`pages.words`) a page is written with.
@@ -115,6 +118,29 @@ pub const WORDS: &[&str] = &[
     "groupWhy-lo-dice-un-documento",
     "groupWhy-nombrado-como-grupo",
     "groupWhy-mismo-nombre",
+    "certainDoubtful",
+    "certainConfirmed",
+    "certainCorrected",
+    "certainLegend",
+    "doubtWhy-conflict",
+    "doubtWhy-identity",
+    "doubtWhy-attribution",
+    "doubtWhy-states",
+    "docSummary",
+    "docKind",
+    "docDate",
+    "docPending",
+    "docQuote",
+    "docAmounts",
+    "docVersions",
+    "docVersionsNote",
+    "docVersion",
+    "docLocations",
+    "docData",
+    "docRelated",
+    "docThis",
+    "docProposed",
+    "docJoined",
 ];
 /// Claims of one entity described in its question; the rest are left
 /// out of the synthesis (the list of documents is always complete).
@@ -202,6 +228,58 @@ struct Claim {
     /// The same amount listed on the page of its creditor: `object_entity`
     /// is then the debtor.
     mirrored: bool,
+    /// How sure the record is of it (D-320): "quoted", "confirmed",
+    /// "doubtful" or "corrected", and why.
+    certainty: String,
+    reasons: Vec<String>,
+}
+
+impl Claim {
+    fn doubtful(&self) -> bool {
+        self.certainty == super::claims::DOUBTFUL
+    }
+
+    /// Doubtful for a reason the page does not already show apart: a
+    /// conflict is listed with all its values.
+    fn doubtful_beyond_conflict(&self) -> bool {
+        self.doubtful() && self.reasons.iter().any(|r| r != "conflict" && r != "by-person")
+    }
+}
+
+/// The level and reasons of a certainty as the record keeps it.
+fn certainty_of(json: Option<&str>) -> (String, Vec<String>) {
+    let value: serde_json::Value = json.and_then(|j| serde_json::from_str(j).ok()).unwrap_or_default();
+    let level = value.get("level").and_then(|l| l.as_str()).unwrap_or(super::claims::QUOTED).to_string();
+    let reasons = value
+        .get("reasons")
+        .and_then(|r| r.as_array())
+        .map(|list| list.iter().filter_map(|r| r.as_str().map(str::to_string)).collect())
+        .unwrap_or_default();
+    (level, reasons)
+}
+
+/// What a page says after a claim of how sure the record is of it: nothing
+/// for a claim with its quote and nobody's word on it; "(sin confirmar:
+/// …)" for a doubtful one, with why; who confirmed or corrected it.
+fn certainty_mark(vocabulary: &Vocabulary, claim: &Claim) -> String {
+    let words = &vocabulary.pages;
+    match claim.certainty.as_str() {
+        super::claims::DOUBTFUL => {
+            let why: Vec<&str> = claim
+                .reasons
+                .iter()
+                .filter_map(|r| words.words.get(&format!("doubtWhy-{r}")).map(String::as_str))
+                .collect();
+            if why.is_empty() {
+                format!(" *({})*", words.word("certainDoubtful"))
+            } else {
+                format!(" *({}: {})*", words.word("certainDoubtful"), why.join("; "))
+            }
+        }
+        super::claims::CONFIRMED => format!(" *({})*", words.word("certainConfirmed")),
+        super::claims::CORRECTED => format!(" *({})*", words.word("certainCorrected")),
+        _ => String::new(),
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -342,7 +420,7 @@ fn today() -> String {
 }
 
 /// The digits of a text, by runs: "$ 100.000" has "100" and "000".
-fn digit_runs(text: &str) -> BTreeSet<String> {
+pub(crate) fn digit_runs(text: &str) -> BTreeSet<String> {
     let mut out = BTreeSet::new();
     let mut run = String::new();
     for c in text.chars().chain(std::iter::once(' ')) {
@@ -506,7 +584,7 @@ pub(crate) fn localized_dates(vocabulary: &Vocabulary, text: &str) -> String {
 }
 
 /// A quote on one line, as a list item needs it.
-fn one_line(text: &str) -> String {
+pub(crate) fn one_line(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
@@ -645,7 +723,8 @@ fn load(conn: &Connection, project_id: &str, identities: &HashMap<i64, String>) 
         }
         let mut statement = conn
             .prepare(
-                "SELECT id, subject, predicate, object_entity, object_value, state, valid_from, context_entity, qualifier, amount, detail
+                "SELECT id, subject, predicate, object_entity, object_value, state, valid_from, context_entity, qualifier, amount, detail,
+                        certainty
                  FROM knowledge_claim
                  WHERE state != 'retired' ORDER BY subject, predicate, coalesce(valid_from, ''), coalesce(object_normalized, object_entity, ''), id",
             )
@@ -667,12 +746,24 @@ fn load(conn: &Connection, project_id: &str, identities: &HashMap<i64, String>) 
                         amount: row.get(9)?,
                         detail: row.get::<_, Option<String>>(10)?.and_then(|d| serde_json::from_str(&d).ok()),
                         mirrored: false,
+                        certainty: String::new(),
+                        reasons: Vec::new(),
                     },
                 ))
             })
             .map_err(sql_err)?;
+        let mut certainties: HashMap<i64, Option<String>> = HashMap::new();
+        {
+            let mut statement = conn.prepare("SELECT id, certainty FROM knowledge_claim WHERE state != 'retired'").map_err(sql_err)?;
+            let found = statement.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, Option<String>>(1)?))).map_err(sql_err)?;
+            for row in found {
+                let (id, certainty) = row.map_err(sql_err)?;
+                certainties.insert(id, certainty);
+            }
+        }
         for row in rows {
             let (subject, mut claim) = row.map_err(sql_err)?;
+            (claim.certainty, claim.reasons) = certainty_of(certainties.get(&claim.id).cloned().flatten().as_deref());
             claim.evidence = evidence.remove(&claim.id).unwrap_or_default();
             if claim.evidence.is_empty() {
                 continue;
@@ -883,10 +974,28 @@ fn claim_label(vocabulary: &Vocabulary, record: &Record, claim: &Claim) -> Strin
 }
 
 /// What an amount between two parties says besides its parties: the
-/// amount, its kind and its concept.
+/// amount, its state (paid, due, conditioned…: P-136), its kind and its
+/// concept.
 fn amount_text(vocabulary: &Vocabulary, claim: &Claim) -> String {
     let amount = one_line(claim.amount.as_deref().unwrap_or_default());
     let mut notes: Vec<String> = Vec::new();
+    let detail = claim.detail.as_ref();
+    let states: Vec<String> = match detail.and_then(|d| d.get("estado")).and_then(|s| s.as_str()) {
+        Some(one) => vec![one.to_string()],
+        None => detail
+            .and_then(|d| d.get("estados"))
+            .and_then(|s| s.as_array())
+            .map(|list| list.iter().filter_map(|s| s.as_str().map(str::to_string)).collect())
+            .unwrap_or_default(),
+    };
+    let labels: Vec<String> = states
+        .iter()
+        .map(|s| vocabulary.money_state(s).map(|m| if m.label.is_empty() { m.id.clone() } else { m.label.clone() }).unwrap_or_else(|| s.clone()))
+        .collect();
+    if !labels.is_empty() {
+        // Several states: each document says one (due in one, paid later).
+        notes.push(labels.join(&format!(" {} ", vocabulary.pages.word("or"))));
+    }
     if let Some(kind) = claim.qualifier.as_deref().and_then(|k| vocabulary.money_kind(k)) {
         if !kind.label.is_empty() {
             notes.push(kind.label.clone());
@@ -944,6 +1053,19 @@ fn synthesis_question(vocabulary: &Vocabulary, record: &Record, entity: &Entity,
         if claim.state == "conflict" {
             line.push_str(" — EN CONFLICTO con otra afirmación del mismo dato");
         }
+        if claim.doubtful_beyond_conflict() {
+            let why: Vec<&str> = claim
+                .reasons
+                .iter()
+                .filter_map(|r| match r.as_str() {
+                    "identity" => Some("no es seguro de quién se habla"),
+                    "attribution" => Some("la cita nombra a otra persona u organización"),
+                    "states" => Some("los documentos dicen estados distintos"),
+                    _ => None,
+                })
+                .collect();
+            line.push_str(&format!(" — DUDOSA ({})", why.join("; ")));
+        }
         let documents: BTreeSet<i64> =
             claim.evidence.iter().map(|(c, ..)| record.documents.get(c).and_then(|d| d.chosen).unwrap_or(*c)).collect();
         line.push_str(&format!(" — en {} documento(s)", documents.len()));
@@ -956,6 +1078,14 @@ fn synthesis_question(vocabulary: &Vocabulary, record: &Record, entity: &Entity,
     let language = match language {
         Some(language) => format!("Escribí en este idioma: {language}."),
         None => "Escribí en el idioma en que están escritas las citas.".to_string(),
+    };
+    // Only a question with a doubtful claim says how to write it: the
+    // others keep their question, and their answer (D-322).
+    let doubtful = if claims.iter().any(Claim::doubtful_beyond_conflict) {
+        "- Las afirmaciones marcadas DUDOSA no son hechos firmes: escribilas como dudosas («según un documento…, sin confirmar»), \
+en oraciones aparte de los hechos firmes, y nunca como algo seguro.\n"
+    } else {
+        ""
     };
     let prompt = format!(
         "Sos asistente de un estudio jurídico. Redactá lo que dicen los documentos del archivo sobre {kind} «{name}», \
@@ -972,9 +1102,11 @@ obligaciones y plazos. Agrupá lo que se relaciona; no repitas.\n\
 (primero un valor, después otro). Datos de clases distintas (un domicilio real y uno constituido, un domicilio laboral y uno de la \
 sociedad) no se contradicen: decí cada uno con su clase.\n\
 - Un importe dice quién debe, paga o reclama a quién, con el tipo de importe: decilo así («debe a…», «reclama a…», «pagó a…»), \
-nunca como un monto suelto sin la otra parte.\n\
+nunca como un monto suelto sin la otra parte. Si dice su estado (pagado, a pagar, pactado, propuesto, condicionado), decilo con \
+él: no digas que se pagó lo que no dice «pagado», ni que se debe lo que dice «pactado» o «propuesto».\n\
 - No digas que los documentos difieren, se contradicen o no coinciden, salvo para las afirmaciones marcadas EN CONFLICTO: esas no \
 se resuelven; nombrá cada valor con su número.\n\
+{doubtful}\
 - {language}\n\n\
 {kind}: {name}\n\
 Afirmaciones:\n{claims}\n\n\
@@ -1038,8 +1170,13 @@ fn checked(record: &Record, entity: &Entity, claims: &[Claim], answer: &str) -> 
                 let claim = &claims[r];
                 backed.extend(digit_runs(&object_text(record, claim)));
                 backed.extend(digit_runs(claim.valid_from.as_deref().unwrap_or_default()));
-                for (_, quote, _) in &claim.evidence {
+                for (content, quote, _) in &claim.evidence {
                     backed.extend(digit_runs(quote));
+                    // A sentence may name the document a claim comes from
+                    // ("según «Carta 26-06-26.pdf»", D-322).
+                    if let Some(document) = record.documents.get(content) {
+                        backed.extend(digit_runs(&document.name));
+                    }
                 }
             }
             bad = digit_runs(&text).iter().any(|run| !backed.contains(run));
@@ -1065,12 +1202,12 @@ struct Rendered {
 
 fn document_link(record: &Record, content: i64) -> String {
     match record.documents.get(&content) {
-        Some(Document { page: Some(page), name, .. }) => link(page, name),
         // A copy joined with the chosen one: its own name (the quote is in
         // its text), and the one the wiki reads.
         Some(Document { chosen: Some(chosen), name, .. }) if *chosen != content => {
             format!("{name} → {}", document_link(record, *chosen))
         }
+        Some(Document { page: Some(page), name, .. }) => link(page, name),
         Some(document) => document.name.clone(),
         None => format!("#{content}"),
     }
@@ -1212,12 +1349,18 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
                 let (kept, thrown) = checked(record, entity, synthesized(claims), text);
                 discarded = thrown;
                 sentences = kept.len();
+                let unsure = words.word("certainDoubtful");
                 let lines: Vec<String> = kept
                     .iter()
                     .map(|(text, refs)| {
                         used.extend(refs.iter().copied());
                         let numbers: Vec<String> = refs.iter().map(|r| (r + 1).to_string()).collect();
-                        format!("{} [{}]", localized_dates(vocabulary, text), numbers.join(", "))
+                        // Never as a firm fact (D-322): a sentence that rests
+                        // on a doubtful claim is marked, unless it says so.
+                        let doubtful = refs.iter().any(|r| claims[*r].doubtful_beyond_conflict());
+                        let said = text.to_lowercase().contains(&unsure.to_lowercase());
+                        let mark = if doubtful && !said { format!(" *({unsure})*") } else { String::new() };
+                        format!("{}{mark} [{}]", localized_dates(vocabulary, text), numbers.join(", "))
                     })
                     .collect();
                 if lines.is_empty() {
@@ -1232,6 +1375,7 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
                 out.push_str("\n\n");
             }
         }
+        out.push_str(&format!("*{}*\n\n", words.word("certainLegend")));
         // Conflicts are always in view, all their values.
         let mut conflicts: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
         for (index, claim) in claims.iter().enumerate() {
@@ -1261,10 +1405,11 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
                 .collect();
             let time = claim.valid_from.as_deref().map(|t| format!(" ({})", localized_dates(vocabulary, &one_line(t)))).unwrap_or_default();
             format!(
-                "- [{}] {}: {}{time} — {}\n",
+                "- [{}] {}: {}{time}{} — {}\n",
                 index + 1,
                 claim_label(vocabulary, record, claim),
                 localized_dates(vocabulary, &one_line(&object_text(record, claim))),
+                certainty_mark(vocabulary, claim),
                 quotes.join("; ")
             )
         };
@@ -1402,7 +1547,8 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
         }
         if let Some(object) = &claim.object_entity {
             if record.entities.get(object).is_some_and(|o| o.kind != "asunto") {
-                tie(vocabulary.predicate_label(&claim.predicate), object, quotes_of(claim));
+                let label = format!("{}{}", vocabulary.predicate_label(&claim.predicate), certainty_mark(vocabulary, claim));
+                tie(&label, object, quotes_of(claim));
             }
         }
     }
@@ -1412,7 +1558,8 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
             if other.kind == "asunto" {
                 continue;
             }
-            tie(inverse, &other.id, quotes_of(claim));
+            let label = format!("{inverse}{}", certainty_mark(vocabulary, claim));
+            tie(&label, &other.id, quotes_of(claim));
         }
     }
     if !ties.is_empty() {
@@ -1482,27 +1629,36 @@ fn read_file(path: &Path) -> Option<String> {
 }
 
 /// The block of entities a document's page ends with.
-fn source_block(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, String>, content: i64) -> Option<String> {
+fn source_block(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, String>, contents: &[i64]) -> Option<String> {
     let order = |kind: &str| vocabulary.entity_types.iter().position(|t| t.id == kind).unwrap_or(usize::MAX);
-    let mut named: Vec<(&Entity, &BTreeSet<String>)> = record
+    let roles_in: Vec<(&Entity, BTreeSet<String>)> = record
         .entities
         .values()
         .filter(|e| e.state == "active")
-        .filter_map(|e| e.documents.get(&content).map(|roles| (e, roles)))
+        .filter_map(|e| {
+            let roles: BTreeSet<String> = contents.iter().filter_map(|c| e.documents.get(c)).flatten().cloned().collect();
+            (!roles.is_empty()).then_some((e, roles))
+        })
+        .collect();
+    let mut named: Vec<(&Entity, &BTreeSet<String>)> = roles_in
+        .iter()
+        .map(|(e, roles)| (*e, roles))
         // Who has no page and was only named in passing is left out, and
         // so is what is not a name (an address, a blank of a form).
         .filter(|(e, roles)| paths.contains_key(&e.id) || roles.iter().any(|r| r != vocabulary.fallback_role()))
         .filter(|(e, _)| vocabulary.is_a_name(&e.kind, &e.name))
         .collect();
-    let matters: Vec<&Matter> = record
-        .matter_of
-        .get(&content)
-        .into_iter()
+    let mut matters: Vec<&Matter> = contents
+        .iter()
+        .filter_map(|c| record.matter_of.get(c))
         .flatten()
         .filter_map(|id| record.matters.get(id))
         .filter(|m| paths.contains_key(&m.id))
         .collect();
-    if named.is_empty() && matters.is_empty() && !record.proposed.contains_key(&content) {
+    matters.sort_by(|a, b| a.id.cmp(&b.id));
+    matters.dedup_by(|a, b| a.id == b.id);
+    let proposed: Vec<&(String, Option<String>)> = contents.iter().filter_map(|c| record.proposed.get(c)).flatten().collect();
+    if named.is_empty() && matters.is_empty() && proposed.is_empty() {
         return None;
     }
     named.sort_by(|a, b| order(&a.0.kind).cmp(&order(&b.0.kind)).then_with(|| a.0.name.cmp(&b.0.name)));
@@ -1511,7 +1667,11 @@ fn source_block(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<Strin
     for matter in matters {
         out.push_str(&format!("- {}: {}\n", words.word("matterOf"), link(&paths[&matter.id], &matter.name)));
     }
-    for (id, _) in record.proposed.get(&content).into_iter().flatten() {
+    let mut listed: BTreeSet<&str> = BTreeSet::new();
+    for (id, _) in proposed {
+        if !listed.insert(id.as_str()) {
+            continue;
+        }
         if let (Some(matter), Some(path)) = (record.matters.get(id), paths.get(id)) {
             out.push_str(&format!("- {} ({}): {}\n", words.word("matterOf"), words.word("proposed"), link(path, &matter.name)));
         }
@@ -1565,6 +1725,7 @@ fn link_forms(
 /// The page with its block of entities in place of the one it had (or at
 /// its end); with none, without any. The links the app added inside its
 /// text go too (`links.rs`): what is left is what the wiki wrote.
+#[cfg(test)]
 pub(crate) fn with_block(text: &str, block: Option<&str>) -> String {
     place_block(&super::links::strip_app_links(text), block)
 }
@@ -1586,20 +1747,6 @@ fn place_block(text: &str, block: Option<&str>) -> String {
     }
     out.push('\n');
     out
-}
-
-fn file_meta(path: &Path) -> (i64, i64) {
-    match std::fs::metadata(path) {
-        Ok(meta) => (
-            meta.len() as i64,
-            meta.modified()
-                .ok()
-                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                .map(|d| d.as_millis() as i64)
-                .unwrap_or(0),
-        ),
-        Err(_) => (-1, -1),
-    }
 }
 
 /// The overview of the archive, from the record: how many documents were
@@ -1815,7 +1962,8 @@ fn render_matter(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<Stri
                 None => localized_dates(vocabulary, &object_text(record, claim)),
             };
             let conflict = if claim.state == "conflict" { format!(" ({})", words.word("conflicts").to_lowercase()) } else { String::new() };
-            said.push(format!("- {subject} — {}: {object}{conflict} — {}\n", claim_label(vocabulary, record, claim), quotes.join("; ")));
+            let mark = certainty_mark(vocabulary, claim);
+            said.push(format!("- {subject} — {}: {object}{conflict}{mark} — {}\n", claim_label(vocabulary, record, claim), quotes.join("; ")));
         }
     }
     if !said.is_empty() {
@@ -2077,8 +2225,19 @@ fn survivor<'a>(record: &'a Record, id: &str) -> Option<&'a Entity> {
 /// What a projection is computed on besides the record: the pages of
 /// documents of the wiki (path, size, date), the vocabulary, the language
 /// and the folder of the wiki.
-fn basis_of(base: &DocBase, project_id: &str, vocabulary: &Vocabulary, language: Option<&str>, root: &Path) -> Result<String, String> {
+fn basis_of(base: &DocBase, project_id: &str, vocabulary: &Vocabulary, language: Option<&str>, root: &Path, documents: &str) -> Result<String, String> {
     let conn = base.conn();
+    // What the pages of documents are written from besides the record:
+    // their summaries, types and data (D-340).
+    let written_from: String = conn
+        .query_row(
+            "SELECT coalesce((SELECT group_concat(content_id || ':' || coalesce(topic, '') || ':' || length(points), '|') FROM knowledge_summary), '')
+                 || '#' || coalesce((SELECT group_concat(content_id || ':' || doc_type || ':' || coalesce(stage, ''), '|') FROM document_type), '')
+                 || '#' || coalesce((SELECT group_concat(content_id || ':' || basis || ':' || length(data), '|') FROM document_data), '')",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(sql_err)?;
     let mut statement = conn
         .prepare("SELECT path, size, mtime_ms FROM wiki_page WHERE project_id = ?1 AND type = 'source' ORDER BY path")
         .map_err(sql_err)?;
@@ -2087,7 +2246,7 @@ fn basis_of(base: &DocBase, project_id: &str, vocabulary: &Vocabulary, language:
         .map_err(sql_err)?
         .collect::<Result<_, _>>()
         .map_err(sql_err)?;
-    Ok(hash(&[PROJECTION_VERSION, &vocabulary.digest, language.unwrap_or(""), &root.to_string_lossy(), &rows.join("
+    Ok(hash(&[PROJECTION_VERSION, &vocabulary.digest, language.unwrap_or(""), &root.to_string_lossy(), documents, &written_from, &rows.join("
 ")]))
 }
 
@@ -2175,7 +2334,7 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
         }
         out
     };
-    let (record, language, basis_before, dirty) = {
+    let (mut record, language, basis_before, dirty) = {
         let conn = base.conn();
         let record = load(&conn, &general.id, &identities)?;
         let dirty: i64 =
@@ -2184,7 +2343,10 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
     };
     // What the pages are computed on, besides the record: the pages of
     // documents the wiki wrote, the vocabulary and the language.
-    let basis = basis_of(base, &general.id, vocabulary, language.as_deref(), &root)?;
+    // The documents and their versions (D-340).
+    let families = family::families(base, vocabulary)?;
+    let documents_digest = families.digest();
+    let basis = basis_of(base, &general.id, vocabulary, language.as_deref(), &root, &documents_digest)?;
     if !dry && dirty == 0 && basis_before.as_deref() == Some(basis.as_str()) {
         report.skipped = true;
         report.reason = Some("unchanged".into());
@@ -2234,6 +2396,19 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
         paths.insert(matter.id.clone(), path);
     }
     report.pages = paths.len();
+    // The page of each document or family of versions; the documents of
+    // the record link to it.
+    let document_paths = family::page_paths(&base.conn(), vocabulary, &record, &families)?;
+    for family in &families.list {
+        let path = &document_paths[&family.id];
+        for content in &family.members {
+            if let Some(document) = record.documents.get_mut(content) {
+                document.page = Some(path.clone());
+            }
+        }
+    }
+    paths.extend(document_paths.clone());
+    report.source_pages = families.list.len();
 
     // The page of each entity.
     for (id, path) in &paths {
@@ -2308,13 +2483,36 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
     // under the entity's name, saying where it went. The links to a page
     // that goes lead to the entity it went into, or are left as text
     // (D-239, replaces in part D-206).
+    // Notes of a person in pages of documents that go, for the page of
+    // their document (D-340).
+    let mut carried: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let notes_word = vocabulary.pages.word("notes");
     for (id, page) in &record.pages {
         if paths.contains_key(id) {
             continue;
         }
         let file = root.join(&page.path);
         let on_disk = read_file(&file);
-        let notes = on_disk.as_deref().map(|t| notes_of(t, vocabulary.pages.word("notes"))).unwrap_or_default();
+        let notes = on_disk.as_deref().map(|t| notes_of(&place_block(t, None), notes_word)).unwrap_or_default();
+        // A page of a document that is now a version on another page:
+        // its notes and its links go there.
+        let into_family = id.strip_prefix("doc-").and_then(|n| n.parse::<i64>().ok()).and_then(|c| families.family_of(c));
+        if let Some(into) = into_family {
+            let target = &paths[&into.id];
+            if *target != page.path {
+                if !notes.trim().is_empty() {
+                    carried.entry(into.id.clone()).or_default().push(notes.clone());
+                }
+                if file.is_file() {
+                    std::fs::remove_file(&file).map_err(|e| format!("No se pudo borrar '{}': {e}", file.display()))?;
+                }
+                let text = on_disk.as_deref().and_then(title_of).unwrap_or_else(|| readable_stem(&page.path));
+                redirects.insert(stem(&page.path).to_lowercase(), Redirect { to: Some(stem(target)), text });
+                report.removed += 1;
+            }
+            base.conn().execute("DELETE FROM knowledge_page WHERE entity_id = ?1", [id]).map_err(sql_err)?;
+            continue;
+        }
         let into = survivor(&record, id).filter(|s| s.id != *id).and_then(|s| paths.get(&s.id).map(|p| (s, p)));
         // Its name; never its id.
         let name = record
@@ -2354,47 +2552,60 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
             .map_err(sql_err)?;
         report.kept += 1;
     }
+    // The pages of documents the wiki wrote before, one per file or per
+    // version: each document has one page now (D-340). Their notes go to
+    // it, and so do the links to them.
+    let owned: BTreeSet<&str> = document_paths.values().map(String::as_str).collect();
+    for (path, content) in &record.source_pages {
+        if owned.contains(path.as_str()) {
+            continue;
+        }
+        let Some(into) = families.family_of(*content) else { continue };
+        let file = root.join(path);
+        let Some(text) = read_file(&file) else { continue };
+        let notes = notes_of(&place_block(&text, None), notes_word);
+        if !notes.trim().is_empty() {
+            carried.entry(into.id.clone()).or_default().push(notes);
+        }
+        std::fs::remove_file(&file).map_err(|e| format!("No se pudo borrar '{}': {e}", file.display()))?;
+        let target = &document_paths[&into.id];
+        redirects.insert(stem(path).to_lowercase(), Redirect { to: Some(stem(target)), text: title_of(&text).unwrap_or_else(|| readable_stem(path)) });
+        report.removed += 1;
+    }
     if !redirects.is_empty() {
         report.redirected += redirect_links(&root, &redirects)?;
     }
 
-    // The block of entities of each document's page.
-    let blocks: BTreeMap<String, (String, i64, i64)> = {
-        let conn = base.conn();
-        let mut statement = conn.prepare("SELECT path, block_hash, size, mtime_ms FROM knowledge_source_block").map_err(sql_err)?;
-        let rows = statement
-            .query_map([], |row| Ok((row.get::<_, String>(0)?, (row.get::<_, String>(1)?, row.get::<_, i64>(2)?, row.get::<_, i64>(3)?))))
-            .map_err(sql_err)?;
-        rows.collect::<Result<_, _>>().map_err(sql_err)?
-    };
-    let mut by_page: BTreeMap<&str, Vec<i64>> = BTreeMap::new();
-    for (path, content) in &record.source_pages {
-        by_page.entry(path.as_str()).or_default().push(*content);
-    }
-    report.source_pages = by_page.len();
-    for (path, contents) in &by_page {
-        let block = source_block(vocabulary, &record, &paths, contents[0]);
-        let forms = link_forms(base, vocabulary, &record, &paths, contents)?;
-        let forms_key: Vec<String> = forms.iter().map(|f| format!("{}\u{1}{}", f.written, f.stem)).collect();
-        let block_hash = hash(&[block.as_deref().unwrap_or(""), &forms_key.join("\u{2}")]);
+    // The page of each document (D-340): what the base knows of it and of
+    // its versions, the block of entities, the notes of a person.
+    for family in &families.list {
+        let path = &document_paths[&family.id];
         let file = root.join(path);
-        let (size, mtime) = file_meta(&file);
-        if blocks.get(*path).is_some_and(|(h, s, m)| *h == block_hash && *s == size && *m == mtime) {
-            continue;
+        let on_disk = read_file(&file);
+        let mut notes = on_disk.as_deref().map(|t| notes_of(&place_block(t, None), notes_word)).unwrap_or_default();
+        for more in carried.get(&family.id).into_iter().flatten() {
+            if !notes.contains(more.trim()) {
+                notes = if notes.trim().is_empty() { more.clone() } else { format!("{}\n\n{}", notes.trim_end(), more.trim_matches('\n')) };
+            }
         }
-        let Some(text) = read_file(&file) else { continue };
-        // What the wiki wrote, with the app's links in its text and its
-        // block at the end (D-221).
-        let next = place_block(&super::links::with_links(&with_block(&text, None), &forms), block.as_deref());
-        if next != text {
+        let generated = family::render_document(&base.conn(), vocabulary, &record, &paths, &families, family)?;
+        let block = source_block(vocabulary, &record, &paths, &family.members);
+        let forms = link_forms(base, vocabulary, &record, &paths, &family.members)?;
+        let linked = super::links::with_links(&generated, &forms);
+        let placed = match &block {
+            Some(block) => linked.replacen(family::BLOCK_PLACE, block.trim_end(), 1),
+            None => linked.replacen(&format!("{}\n\n", family::BLOCK_PLACE), "", 1),
+        };
+        let next = with_notes(vocabulary, &placed, &notes);
+        if on_disk.as_deref() != Some(next.as_str()) {
             write_file(&file, &next)?;
             report.blocks_written += 1;
         }
-        let (size, mtime) = file_meta(&file);
         base.conn()
             .execute(
-                "INSERT OR REPLACE INTO knowledge_source_block (path, block_hash, size, mtime_ms) VALUES (?1, ?2, ?3, ?4)",
-                params![path, block_hash, size, mtime],
+                "INSERT OR REPLACE INTO knowledge_page (entity_id, path, state, fingerprint, synthesis, sentences, discarded, written_at)
+                 VALUES (?1, ?2, 'projected', ?3, NULL, 0, 0, ?4)",
+                params![family.id, path, hash(&[&next]), now_ms()],
             )
             .map_err(sql_err)?;
     }
@@ -2423,7 +2634,7 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
         // What the next projection compares with: the pages of documents
         // as they are now, blocks included.
         base.index_wiki()?;
-        let basis = basis_of(base, &general.id, vocabulary, language.as_deref(), &root)?;
+        let basis = basis_of(base, &general.id, vocabulary, language.as_deref(), &root, &documents_digest)?;
         set_setting(&base.conn(), BASIS_SETTING, &basis)?;
     } else if report.wrote() {
         base.index_wiki()?;
@@ -2477,6 +2688,8 @@ mod page_rule_tests {
             amount: None,
             detail: None,
             mirrored: false,
+            certainty: "quoted".into(),
+            reasons: Vec::new(),
         });
         // Its address alone is not: the offices of a list of
         // jurisdictions on a form (D-288).

@@ -1,5 +1,6 @@
 //! What a person decides about identities (D-189): "these two are the
-//! same", "these two are not", "this datum is wrong", and undoing any of
+//! same", "these two are not", "this datum is wrong", "this datum is right"
+//! (a claim, D-320), and undoing any of
 //! them, the automatic joins included (a separation undoes them).
 //!
 //! A decision is kept with the evidence that was shown and its digest, as
@@ -37,6 +38,8 @@ pub enum IdentityDecision {
     /// `a` is wrong: a mention that is not an entity, a piece of evidence
     /// or a claim that the document does not say.
     Wrong { a: String },
+    /// `a`, a claim, is right: a person read it in its document (D-320).
+    Confirm { a: String },
     /// Two documents (`content:<id>` or `location:<id>`) are of the same
     /// matter.
     SameMatter { a: String, b: String },
@@ -74,6 +77,13 @@ pub struct DecisionView {
     pub state: String,
     pub decided_at: i64,
     pub undone_at: Option<i64>,
+    /// Why an active decision no longer finds what it named in the
+    /// documents read again ("no-encontrada", "varias"): for a person to
+    /// review (D-321).
+    pub review: Option<String>,
+    /// The keys it applies to now, when what it named is written another
+    /// way (JSON `{"a", "b"}`).
+    pub applied_as: Option<String>,
 }
 
 /// The group of mentions that stands for an entity: its most used name,
@@ -204,6 +214,13 @@ fn record(conn: &Connection, decision: &IdentityDecision, note: Option<&str>, sh
             (kind, first, Some(second))
         }
         IdentityDecision::Wrong { a } => ("wrong", wrong_key(conn, a)?, None),
+        IdentityDecision::Confirm { a } => {
+            let key = wrong_key(conn, a)?;
+            if !key.starts_with("claim:") {
+                return Err("Solo se puede confirmar una afirmación".to_string());
+            }
+            ("confirm", key, None)
+        }
         IdentityDecision::SameMatter { a, b } | IdentityDecision::OtherMatter { a, b } => {
             let (first, second) = (document_key(conn, a)?, document_key(conn, b)?);
             if first == second {
@@ -280,7 +297,7 @@ impl DocBase {
         let conn = self.conn();
         let mut statement = conn
             .prepare(
-                "SELECT id, kind, a, b, note, shown_evidence, state, decided_at, undone_at FROM knowledge_decision
+                "SELECT id, kind, a, b, note, shown_evidence, state, decided_at, undone_at, review, applied_as FROM knowledge_decision
                  ORDER BY decided_at DESC, id DESC",
             )
             .map_err(sql_err)?;
@@ -296,6 +313,8 @@ impl DocBase {
                     state: row.get(6)?,
                     decided_at: row.get(7)?,
                     undone_at: row.get(8)?,
+                    review: row.get(9)?,
+                    applied_as: row.get(10)?,
                 })
             })
             .map_err(sql_err)?;

@@ -89,6 +89,25 @@ fn pages_against_the_entity_sheet() {
     super::mark_dirty(&base.conn(), "project", "check").unwrap();
     let again = base.knowledge_project(Some(&asker), 0).unwrap();
     println!("   projecting again: written {}, asked {}, blocks {}, overview {}", again.written, again.asked, again.blocks_written, again.overview_written);
+    // One page per document or family of versions, and nothing on them
+    // that the base does not know (D-340): the files of documents, those
+    // not written by the base, and those the base wrote again because
+    // they said something else (projecting again above).
+    let files: Vec<String> = std::fs::read_dir(project.path().join("wiki/sources"))
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|e| std::fs::read_to_string(e.path()).ok())
+        .collect();
+    let foreign = files.iter().filter(|t| !t.contains(&format!("generated_by: {}", super::pages::GENERATED_BY))).count();
+    let families = files.iter().filter(|t| t.contains("## Versiones de este documento")).count();
+    println!(
+        "   pages of documents: {} (files {}, with versions {families}, removed or merged {}); not written by the base: {foreign}; written again: {}",
+        report.source_pages,
+        files.len(),
+        report.removed,
+        again.blocks_written
+    );
     save_copy(&base);
 
     // The pages on disk.
@@ -259,6 +278,9 @@ fn pages_against_the_entity_sheet() {
             let copied = copy_dir(&project.path().join("wiki/entities"), &all);
             let _ = std::fs::copy(project.path().join("wiki/overview.md"), all.join("overview.md"));
             println!("   all the pages of entities ({copied}): {}", all.display());
+            let wiki = sample.join("wiki");
+            let copied: usize = ["sources", "entities"].iter().map(|f| copy_dir(&project.path().join("wiki").join(f), &wiki.join(f))).sum();
+            println!("   the pages of documents and entities ({copied}): {}", wiki.display());
         }
     }
     changes(&base, &asker, project.path());

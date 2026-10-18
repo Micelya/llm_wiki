@@ -280,6 +280,18 @@ fn people(a: &NameKey, b: &NameKey) -> Likeness {
     Likeness::Maybe("nombre-parcial")
 }
 
+/// Whether the first word of one of two people's names, as written (most
+/// often a first name), is not in the other name but one letter apart from
+/// a word of it: "Ana Ejemplo" and "Anna Ejemplo" may be two relatives as
+/// well as one name misspelled (P-206). A name written surname first only
+/// makes it count here too, which is the careful side.
+pub fn first_word_a_letter_apart(a: &NameKey, b: &NameKey) -> bool {
+    let apart = |one: &NameKey, other: &NameKey| {
+        one.words.first().is_some_and(|first| !other.words.contains(first) && other.words.iter().any(|w| typo(first, w)))
+    };
+    apart(a, b) || apart(b, a)
+}
+
 /// Whether two lists of words are the same but for one word, and those
 /// two start with the same four letters (a word misspelled further on).
 fn one_word_apart_by_its_start(a: &[String], b: &[String]) -> bool {
@@ -695,6 +707,17 @@ mod tests {
 
     fn k(kind: &str, name: &str) -> NameKey {
         key(&Vocabulary::builtin(), kind, name)
+    }
+
+    #[test]
+    fn a_first_name_a_letter_apart_is_told_from_a_surname_misspelled() {
+        // The first word differs by a letter: maybe two relatives.
+        assert!(first_word_a_letter_apart(&k(PERSON, "Marina Ejemplar"), &k(PERSON, "MARIANA EJEMPLAR")));
+        assert!(first_word_a_letter_apart(&k(PERSON, "EJEMPLAR, Mariana"), &k(PERSON, "Marina Ejemplar")));
+        // The same first names and a surname misspelled; or the same name.
+        assert!(!first_word_a_letter_apart(&k(PERSON, "Uno Dos Ejemplar"), &k(PERSON, "Uno Dos Ejemplares")));
+        assert!(!first_word_a_letter_apart(&k(PERSON, "Marina Ejemplar"), &k(PERSON, "Marina Ejemplar")));
+        assert!(!first_word_a_letter_apart(&k(PERSON, "Marina Ejemplar"), &k(PERSON, "Rosa Ejemplar")));
     }
 
     #[test]

@@ -18,7 +18,7 @@ import { entityTypeName, identifierName, predicateName, roleName, vocabulary } f
 import { EmptyNote, ErrorNote, StatusBadge } from "@/components/docbase/page"
 import { formatDate, plural } from "@/components/docbase/format"
 import { useDocbaseQuery } from "@/components/docbase/use-docbase-query"
-import { decisionInWords, documentsByMatter, resolvedByName, rolesInWords } from "./knowledge"
+import { certaintyInWords, decisionInWords, documentsByMatter, resolvedByName, reviewInWords, rolesInWords } from "./knowledge"
 import { Quote, Section, useAction, useArchivePage, useOpenDocument, useOpenMatter } from "./shared"
 
 /**
@@ -130,6 +130,16 @@ function Claims({ entity, run, busy }: { entity: EntityDetail; run: Run; busy: b
     if (confirmed) await run(() => decideIdentity({ kind: "wrong", a: reference }, null, JSON.stringify({ entity: entity.name, what })))
   }
 
+  async function confirm(claim: ClaimView, what: string) {
+    const confirmed = await dialog.confirm({
+      title: "Confirmar el dato",
+      message: `${what}: leíste el documento y el dato es correcto. Las páginas lo dicen como confirmado por una persona. Queda guardado como decisión tuya y se puede deshacer.`,
+      confirmLabel: "Confirmar",
+      cancelLabel: "Cancelar",
+    })
+    if (confirmed) await run(() => decideIdentity({ kind: "confirm", a: `claim:${claim.id}` }, null, JSON.stringify({ entity: entity.name, what })))
+  }
+
   const value = (claim: ClaimView): ReactNode =>
     claim.objectEntity ? (
       <>
@@ -149,8 +159,18 @@ function Claims({ entity, run, busy }: { entity: EntityDetail; run: Run; busy: b
         <span className="text-xs font-medium text-muted-foreground">{predicateName(claim.predicate, false, words)}</span>
         <span className="font-medium">{value(claim)}</span>
         {claim.validFrom && <span className="text-xs text-muted-foreground">desde {claim.validFrom}</span>}
+        <Certainty claim={claim} />
+        {claim.certainty !== "confirmed" && (
+          <button
+            className="ml-auto text-xs text-muted-foreground hover:text-foreground"
+            disabled={busy}
+            onClick={() => void confirm(claim, `«${predicateName(claim.predicate, false, words)}: ${claim.objectName ?? claim.objectValue ?? ""}»`)}
+          >
+            Confirmar
+          </button>
+        )}
         <button
-          className="ml-auto text-xs text-muted-foreground hover:text-destructive"
+          className={`${claim.certainty === "confirmed" ? "ml-auto " : ""}text-xs text-muted-foreground hover:text-destructive`}
           disabled={busy}
           onClick={() => void markWrong(`claim:${claim.id}`, `«${predicateName(claim.predicate, false, words)}: ${claim.objectName ?? claim.objectValue ?? ""}»`)}
         >
@@ -202,6 +222,23 @@ function Claims({ entity, run, busy }: { entity: EntityDetail; run: Run; busy: b
         )}
       </Section>
     </>
+  )
+}
+
+/** How sure the record is of a claim: doubtful in amber, with why; a person's word named. */
+function Certainty({ claim }: { claim: ClaimView }) {
+  const said = certaintyInWords(claim)
+  const tone =
+    said.tone === "doubt"
+      ? "border-amber-500/50 text-amber-700 dark:text-amber-400"
+      : said.tone === "person"
+        ? "border-primary/40 text-primary"
+        : "border-transparent text-muted-foreground"
+  return (
+    <span className={`rounded border px-1.5 text-xs ${tone}`} title={said.why || undefined}>
+      {said.label}
+      {said.why && `: ${said.why}`}
+    </span>
   )
 }
 
@@ -353,6 +390,9 @@ function Decisions({ entity, run, busy }: { entity: EntityDetail; run: Run; busy
                 {decision.note && ` · ${decision.note}`}
                 {decision.state === "undone" && decision.undoneAt && ` · deshecha el ${formatDate(decision.undoneAt)}`}
               </span>
+              {decision.state === "active" && decision.review && (
+                <span className="block text-xs text-amber-700 dark:text-amber-400">{reviewInWords(decision.review)}</span>
+              )}
             </span>
             {decision.state === "active" && (
               <Button size="sm" variant="ghost" disabled={busy} onClick={() => void run(() => undoIdentityDecision(decision.id))}>

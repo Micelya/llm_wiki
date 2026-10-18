@@ -15,9 +15,17 @@
 //!
 //! When the field itself has a placeholder name ("Check Box12"), the
 //! text printed on the same row before the buttons (the question) is used
-//! as the field name instead. Unticked boxes and unchosen options are not
-//! written: the label of the chosen one, plus the question, already says
-//! which answer was given.
+//! as the field name instead: its first sentence, when it goes on with
+//! instructions ("… de la Operación. En caso negativo, …"). Unticked boxes
+//! and unchosen options are not written: the label of the chosen one, plus
+//! the question, already says which answer was given; the label of a
+//! ticked box says so ("SI (marcada)"), so that nobody takes the printed
+//! label of an option for the answer.
+//!
+//! A form filled and then flattened (printed to PDF, or signed by an
+//! electronic signature service) has no fields left: a ticked box is a
+//! tick glyph ("✔") printed where the box was. Those glyphs are read the
+//! same way, as ticked boxes at their place on the page (P-135).
 
 use pdfium_render::prelude::*;
 
@@ -30,6 +38,10 @@ const MAX_LABEL_GAP: f32 = 36.0;
 const MAX_LABEL_WORDS: usize = 8;
 /// Longest question used as the name of a field, in characters.
 const MAX_QUESTION_CHARS: usize = 200;
+/// What a ticked box or a chosen option is written with, after its label.
+const TICKED: &str = "(marcada)";
+/// Glyphs a flattened form prints where a box was ticked.
+const TICK_GLYPHS: &[char] = &['✔', '✓', '☑', '☒', '✗', '✘', '🗸'];
 
 #[derive(Clone, Copy, Debug)]
 struct Rect {
@@ -45,6 +57,9 @@ impl Rect {
     }
     fn center_y(&self) -> f32 {
         (self.bottom + self.top) / 2.0
+    }
+    fn center_x(&self) -> f32 {
+        (self.left + self.right) / 2.0
     }
     fn height(&self) -> f32 {
         (self.top - self.bottom).abs().max(1.0)
@@ -114,8 +129,10 @@ pub(crate) fn page_form_fields(page: &PdfPage<'_>) -> Vec<(String, String)> {
         }
     }
 
-    // Reading the words of the page costs something: only when a box is ticked.
-    let words = if buttons.iter().any(|button| button.on) { page_words(page) } else { Vec::new() };
+    // Reading the words of the page costs something: only when a box is
+    // ticked, or when the page may be a flattened form (no box at all).
+    let has_ticks = buttons.is_empty() && page.text().is_ok_and(|text| text.all().chars().any(|c| TICK_GLYPHS.contains(&c)));
+    let words = if buttons.iter().any(|button| button.on) || has_ticks { page_words(page) } else { Vec::new() };
     let mut fields = Vec::new();
     for item in items {
         match item {
@@ -127,11 +144,133 @@ pub(crate) fn page_form_fields(page: &PdfPage<'_>) -> Vec<(String, String)> {
             }
         }
     }
+    if has_ticks {
+        fields.extend(tick_fields(&words, &vertical_rules(page)));
+    }
     fields
 }
 
-/// The filled-in fields of a fillable PDF form, page after page; empty
-/// for a PDF that is not a form or was left blank.
+/// What a tick glyph says when the option it ticks cannot be told: it is
+/// written, with the options it may be, so that nobody reads either one.
+const TICK_UNKNOWN: &str = "marcada, sin saber cuál de las opciones";
+/// Name of a tick with no question printed on its row.
+const TICK_NO_QUESTION: &str = "Casilla marcada";
+
+/// The x of the thin vertical lines of the page (the rules of a table),
+/// with the heights they span: they split a row into cells.
+fn vertical_rules(page: &PdfPage<'_>) -> Vec<Rect> {
+    page.objects()
+        .iter()
+        .filter(|object| object.object_type() == PdfPageObjectType::Path)
+        .filter_map(|object| object.bounds().ok().map(|b| Rect::from_pdf(b.to_rect())))
+        .filter(|r| (r.right - r.left).abs() <= 2.5 && (r.top - r.bottom).abs() >= 8.0)
+        .collect()
+}
+
+/// The ticks printed on a page that has no tick boxes (a flattened form),
+/// each as (question, chosen option). The option is the label printed in
+/// the cell next to the tick, on the side where every option of the row
+/// has its box (an empty cell); without the rules of a table, the only
+/// label within reach. When it cannot be told, the tick says so and names
+/// the options it may be: it never takes one by guessing (P-135).
+fn tick_fields(words: &[Word], rules: &[Rect]) -> Vec<(String, String)> {
+    let ticks: Vec<&Word> = words.iter().filter(|word| is_tick(&word.text)).collect();
+    let others: Vec<&Word> = words.iter().filter(|word| !is_tick(&word.text)).collect();
+    let mut out = Vec::new();
+    for tick in ticks {
+        let y = tick.rect.center_y();
+        let line: Vec<&Word> = others.iter().copied().filter(|word| word.rect.spans_y(y) || tick.rect.spans_y(word.rect.center_y())).collect();
+        // The cells of the row, between the rules that cross it.
+        let mut xs: Vec<f32> = rules.iter().filter(|r| r.spans_y(y)).map(|r| (r.left + r.right) / 2.0).collect();
+        xs.sort_by(f32::total_cmp);
+        xs.dedup_by(|a, b| (*a - *b).abs() < 3.0);
+        let (label, options, limit) = if xs.len() >= 3 {
+            label_by_cells(tick, &line, &xs)
+        } else {
+            label_by_reach(tick, &line)
+        };
+        // The question: what is printed before the options, on the lines
+        // around the tick (a question can take two or three lines).
+        let height = tick.rect.height();
+        let around = Rect { left: tick.rect.left, right: tick.rect.right, bottom: tick.rect.bottom - 2.0 * height, top: tick.rect.top + 2.0 * height };
+        let near: Vec<Word> = others
+            .iter()
+            .filter(|word| word.rect.right <= limit && around.spans_y(word.rect.center_y()))
+            .map(|word| Word { text: word.text.clone(), rect: word.rect })
+            .collect();
+        let probe = Button { name: String::new(), on: true, state: None, rect: around };
+        let question = question_before(&probe, limit, &near).map(|q| first_sentence(&q)).filter(|q| !q.is_empty());
+        let value = match label {
+            Some(label) => format!("{label} {TICKED}"),
+            None if !options.is_empty() => format!("{TICK_UNKNOWN}: {}", options.iter().map(|o| format!("«{o}»")).collect::<Vec<_>>().join(", ")),
+            None => "marcada".to_string(),
+        };
+        out.push((question.unwrap_or_else(|| TICK_NO_QUESTION.to_string()), value));
+    }
+    out
+}
+
+/// The label of a tick in a table: the text of each cell of its row; the
+/// first one with text is the question; the others are the options. The
+/// options are left of their boxes when the cell after each one is empty,
+/// right of them when the cell before each one is (and is not the
+/// question's). Returns the label (when exactly one reading gives one),
+/// the options next to the tick, and where the options start.
+fn label_by_cells(tick: &Word, line: &[&Word], xs: &[f32]) -> (Option<String>, Vec<String>, f32) {
+    let cells = xs.len() - 1;
+    let cell_of = |x: f32| (0..cells).find(|&i| xs[i] <= x && x < xs[i + 1]);
+    let mut texts: Vec<Vec<&Word>> = vec![Vec::new(); cells];
+    for word in line {
+        if let Some(i) = cell_of(word.rect.center_x()) {
+            texts[i].push(word);
+        }
+    }
+    let text = |i: usize| -> String {
+        let mut list = texts[i].clone();
+        list.sort_by(|a, b| a.rect.left.total_cmp(&b.rect.left));
+        list.iter().map(|w| w.text.as_str()).collect::<Vec<_>>().join(" ")
+    };
+    let Some(t) = cell_of(tick.rect.center_x()) else { return (None, Vec::new(), tick.rect.left) };
+    let with_text: Vec<usize> = (0..cells).filter(|&i| !texts[i].is_empty()).collect();
+    let question = if with_text.len() >= 2 { with_text.first().copied() } else { None };
+    let labels: Vec<usize> = with_text.iter().copied().filter(|i| Some(*i) != question).collect();
+    let empty = |i: usize| texts[i].is_empty();
+    let left_ok = !labels.is_empty() && labels.iter().all(|&i| i + 1 < cells && empty(i + 1));
+    let right_ok = !labels.is_empty() && labels.iter().all(|&i| i >= 1 && Some(i - 1) != question && empty(i - 1));
+    let before = (t >= 1 && labels.contains(&(t - 1))).then(|| text(t - 1));
+    let after = (labels.contains(&(t + 1))).then(|| text(t + 1));
+    let options: Vec<String> = [before.clone(), after.clone()].into_iter().flatten().collect();
+    let label = match (left_ok.then_some(before).flatten(), right_ok.then_some(after).flatten()) {
+        (Some(one), None) | (None, Some(one)) => Some(one),
+        _ => None,
+    };
+    let limit = labels.first().map(|&i| xs[i]).unwrap_or(tick.rect.left).min(tick.rect.left);
+    (label, options, limit)
+}
+
+/// The label of a tick with no table: the words right next to it, when
+/// only one side has any within reach.
+fn label_by_reach(tick: &Word, line: &[&Word]) -> (Option<String>, Vec<String>, f32) {
+    let words: Vec<Word> = line.iter().map(|w| Word { text: w.text.clone(), rect: w.rect }).collect();
+    let probe = Button { name: String::new(), on: true, state: None, rect: tick.rect };
+    let row = [&probe];
+    let left = label_beside(&row, 0, tick.rect.center_y(), &words, Side::Left);
+    let right = label_beside(&row, 0, tick.rect.center_y(), &words, Side::Right);
+    match (left, right) {
+        (Some(l), None) => (Some(l.text), Vec::new(), l.left),
+        (None, Some(r)) => (Some(r.text), Vec::new(), tick.rect.left),
+        (Some(l), Some(r)) => (None, vec![l.text, r.text], l.left),
+        (None, None) => (None, Vec::new(), tick.rect.left),
+    }
+}
+
+/// Whether a word is only tick glyphs.
+fn is_tick(text: &str) -> bool {
+    !text.is_empty() && text.chars().all(|c| TICK_GLYPHS.contains(&c))
+}
+
+/// The filled-in fields of a PDF form, page after page (also the ticks of
+/// a flattened one); empty for a PDF that is not a form or was left blank.
 ///
 /// Takes the global pdfium lock, like
 /// [`crate::commands::extract_images::extract_pdf_markdown`].
@@ -141,9 +280,6 @@ pub fn pdf_form_fields(path: &str) -> Result<Vec<(String, String)>, String> {
     let doc = pdfium
         .load_pdf_from_file(path, None)
         .map_err(|e| format!("Failed to open PDF '{path}': {e}"))?;
-    if doc.form().is_none() {
-        return Ok(Vec::new());
-    }
     let mut fields = Vec::new();
     for page in doc.pages().iter() {
         fields.extend(page_form_fields(&page));
@@ -168,8 +304,9 @@ fn describe_buttons(name: &str, buttons: &[Button], words: &[Word]) -> Option<(S
     let chosen: Vec<(usize, &Button)> = group.iter().copied().enumerate().filter(|(_, button)| button.on).collect();
     let (_, first) = *chosen.first()?;
     let (label, question) = label_and_question(first, buttons, words);
+    let question = question.map(|question| first_sentence(&question)).filter(|question| !question.is_empty());
     let field_name = if is_placeholder_name(name) {
-        question.clone().filter(|question| !question.is_empty())
+        question.clone()
     } else {
         None
     }
@@ -181,8 +318,8 @@ fn describe_buttons(name: &str, buttons: &[Button], words: &[Word]) -> Option<(S
         if !is_placeholder_name(name) {
             return Some((field_name, "marcado".to_string()));
         }
-        return Some(match (question.filter(|question| !question.is_empty()), label) {
-            (Some(question), Some(label)) => (question, label),
+        return Some(match (question, label) {
+            (Some(question), Some(label)) => (question, format!("{label} {TICKED}")),
             (None, Some(label)) => (label, "marcado".to_string()),
             (Some(question), None) => (question, "marcado".to_string()),
             (None, None) => (field_name, "marcado".to_string()),
@@ -193,10 +330,10 @@ fn describe_buttons(name: &str, buttons: &[Button], words: &[Word]) -> Option<(S
         .iter()
         .map(|(index, button)| {
             if let Some(state) = button.state.as_deref().filter(|state| is_option_name(state)) {
-                return state.to_string();
+                return format!("{state} {TICKED}");
             }
             let (label, _) = label_and_question(button, buttons, words);
-            label.unwrap_or_else(|| format!("opción {} de {}", index + 1, group.len()))
+            label.map(|label| format!("{label} {TICKED}")).unwrap_or_else(|| format!("opción {} de {}", index + 1, group.len()))
         })
         .collect();
     Some((field_name, values.join(", ")))
@@ -371,6 +508,25 @@ fn page_words(page: &PdfPage<'_>) -> Vec<Word> {
     words
 }
 
+/// The first sentence of a question printed before a row of boxes, when
+/// what follows it is another sentence (instructions): "Indique si es X de
+/// la Operación. En caso negativo, complete…" is "Indique si es X de la
+/// Operación". The end of the sentence is left out.
+fn first_sentence(question: &str) -> String {
+    let chars: Vec<char> = question.chars().collect();
+    let mut end = chars.len();
+    for i in 0..chars.len() {
+        let stop = matches!(chars[i], '.' | '?' | '!');
+        let next_upper = chars.get(i + 1) == Some(&' ') && chars.get(i + 2).is_some_and(|c| c.is_uppercase());
+        if stop && next_upper && chars[..i].iter().filter(|c| **c == ' ').count() >= 2 {
+            end = i;
+            break;
+        }
+    }
+    let sentence: String = chars[..end].iter().collect();
+    sentence.trim().trim_end_matches([':', ';', '.']).trim().to_string()
+}
+
 fn clean(value: &str) -> String {
     value.split_whitespace().collect::<Vec<_>>().join(" ")
 }
@@ -418,6 +574,50 @@ fn is_option_name(state: &str) -> bool {
 mod tests {
     use super::*;
 
+    /// Prints what pdfium says of every button of the PDF in
+    /// `MICELYA_FORM_PDF` (a real form, outside the repository).
+    #[test]
+    #[ignore = "reads a real PDF named in MICELYA_FORM_PDF"]
+    fn probe_buttons_of_a_real_form() {
+        let Ok(path) = std::env::var("MICELYA_FORM_PDF") else { return };
+        let _guard = crate::commands::fs::lock_pdfium();
+        let pdfium = crate::commands::fs::pdfium().unwrap();
+        let doc = pdfium.load_pdf_from_file(&path, None).unwrap();
+        println!("form: {:?}", doc.form().map(|f| f.form_type()));
+        for (index, page) in doc.pages().iter().enumerate() {
+            for annotation in page.annotations().iter() {
+                let kind = annotation.annotation_type();
+                let Some(field) = annotation.as_form_field() else {
+                    println!("page {index}: {kind:?} without field");
+                    continue;
+                };
+                println!(
+                    "page {index}: {kind:?} {:?} {:?} as={:?} bounds={:?}",
+                    field.field_type(),
+                    field.name(),
+                    field.appearance_stream(),
+                    annotation.bounds().ok()
+                );
+            }
+            println!("page {index} fields: {:?}", page_form_fields(&page));
+            let words = page_words(&page);
+            for tick in words.iter().filter(|w| is_tick(&w.text)) {
+                println!("  tick at {:?}", tick.rect);
+                for word in words.iter().filter(|w| (w.rect.center_y() - tick.rect.center_y()).abs() < 25.0) {
+                    println!("    word {:?} {:?}", word.text, word.rect);
+                }
+                for object in page.objects().iter() {
+                    if let Ok(b) = object.bounds() {
+                        let r = Rect::from_pdf(b.to_rect());
+                        if (r.center_y() - tick.rect.center_y()).abs() < 25.0 && (r.right - r.left) < 80.0 {
+                            println!("    object {:?} {:?}", object.object_type(), r);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     #[test]
     fn placeholder_names_are_told_from_real_ones() {
         assert!(is_placeholder_name("Check Box12"));
@@ -425,6 +625,56 @@ mod tests {
         assert!(is_placeholder_name("Group1"));
         assert!(!is_placeholder_name("Beneficiario final"));
         assert!(!is_placeholder_name("Acepta notificaciones"));
+    }
+
+    #[test]
+    fn a_question_is_named_by_its_first_sentence() {
+        assert_eq!(
+            first_sentence("Indique si es el titular de la cuenta. En caso negativo, complete otro formulario."),
+            "Indique si es el titular de la cuenta"
+        );
+        assert_eq!(first_sentence("Sírvase indicar si operará"), "Sírvase indicar si operará");
+        assert_eq!(first_sentence("Estado civil:"), "Estado civil");
+        // An abbreviation at the start is not the end of a sentence.
+        assert_eq!(first_sentence("Sr. Pérez declara si es residente"), "Sr. Pérez declara si es residente");
+    }
+
+    fn word(text: &str, left: f32, right: f32, bottom: f32) -> Word {
+        Word { text: text.to_string(), rect: Rect { left, right, bottom, top: bottom + 12.0 } }
+    }
+
+    fn rule(x: f32) -> Rect {
+        Rect { left: x, right: x + 1.0, bottom: 0.0, top: 400.0 }
+    }
+
+    #[test]
+    fn a_tick_in_a_table_takes_the_option_whose_box_it_is_in() {
+        // | Es cliente del estudio? | SI | ✔ | NO |   |
+        let words = vec![
+            word("Es", 40.0, 50.0, 100.0),
+            word("cliente", 52.0, 80.0, 100.0),
+            word("del", 82.0, 92.0, 100.0),
+            word("estudio?", 94.0, 130.0, 100.0),
+            word("SI", 210.0, 220.0, 100.0),
+            word("✔", 240.0, 248.0, 101.0),
+            word("NO", 270.0, 284.0, 100.0),
+        ];
+        let rules: Vec<Rect> = [30.0, 200.0, 230.0, 260.0, 290.0, 320.0].iter().map(|&x| rule(x)).collect();
+        assert_eq!(tick_fields(&words, &rules), vec![("Es cliente del estudio?".to_string(), "SI (marcada)".to_string())]);
+        // The same tick with no table: an option on each side, it is not
+        // known which one it is.
+        let fields = tick_fields(&words, &[]);
+        assert!(fields[0].1.starts_with(TICK_UNKNOWN), "{fields:?}");
+        assert!(fields[0].1.contains("«SI»") && fields[0].1.contains("«NO»"), "{fields:?}");
+    }
+
+    #[test]
+    fn a_tick_glyph_is_a_ticked_box() {
+        assert!(is_tick("✔"));
+        assert!(is_tick("✓✓"));
+        assert!(!is_tick("X"));
+        assert!(!is_tick(""));
+        assert!(!is_tick("SI"));
     }
 
     #[test]

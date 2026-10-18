@@ -180,9 +180,97 @@ pub fn fullest<'a>(values: impl Iterator<Item = &'a str>) -> Option<&'a str> {
     values.max_by(|a, b| quote::words(a).len().cmp(&quote::words(b).len()).then_with(|| b.cmp(a)))
 }
 
+/// Names of the months (normalized, Spanish and English), by number.
+const MONTHS: &[(&str, u32)] = &[
+    ("enero", 1), ("febrero", 2), ("marzo", 3), ("abril", 4), ("mayo", 5), ("junio", 6), ("julio", 7), ("agosto", 8),
+    ("septiembre", 9), ("setiembre", 9), ("octubre", 10), ("noviembre", 11), ("diciembre", 12), ("january", 1),
+    ("february", 2), ("march", 3), ("april", 4), ("may", 5), ("june", 6), ("july", 7), ("august", 8), ("september", 9),
+    ("october", 10), ("november", 11), ("december", 12),
+];
+
+fn day_number(year: u32, month: u32, day: u32) -> u32 {
+    year * 400 + month * 32 + day
+}
+
+/// The days a written date may be, as (first, last) numbers that compare
+/// like the dates: "30 de abril de 2026" is one day, "Febrero 2025" the
+/// whole month, "02/03/2025" both the 2nd of March and the 3rd of February
+/// (the order of day and month is not known), "2026-04-30" one day. `None`
+/// when the text has no year or no month.
+pub fn date_span(text: &str) -> Option<(u32, u32)> {
+    let words = quote::words(text);
+    let number = |w: &str| w.parse::<u32>().ok().filter(|_| w.chars().all(|c| c.is_ascii_digit()));
+    // Digits split by slashes, dashes or dots: day, month and year in
+    // either order, or year first.
+    for token in text.split_whitespace() {
+        let parts: Vec<&str> = token.trim_matches(|c: char| !c.is_ascii_digit()).split(['/', '-', '.']).collect();
+        if parts.len() != 3 || parts.iter().any(|p| p.is_empty() || number(p).is_none()) {
+            continue;
+        }
+        let n: Vec<u32> = parts.iter().filter_map(|p| number(p)).collect();
+        let (year, a, b) = if parts[0].len() == 4 {
+            (n[0], n[1], n[2])
+        } else {
+            let year = if parts[2].len() == 2 { 2000 + n[2] } else { n[2] };
+            (year, n[0], n[1])
+        };
+        if !(1900..=2200).contains(&year) {
+            continue;
+        }
+        // (month, day) readings that are possible.
+        let readings: Vec<(u32, u32)> = if parts[0].len() == 4 {
+            vec![(a, b)]
+        } else {
+            vec![(b, a), (a, b)]
+        };
+        let days: Vec<u32> = readings
+            .into_iter()
+            .filter(|(m, d)| (1..=12).contains(m) && (1..=31).contains(d))
+            .map(|(m, d)| day_number(year, m, d))
+            .collect();
+        if let (Some(first), Some(last)) = (days.iter().min(), days.iter().max()) {
+            return Some((*first, *last));
+        }
+    }
+    // A month in words, with its year and maybe its day.
+    let month_at = words.iter().position(|w| MONTHS.iter().any(|(name, _)| name == w))?;
+    let month = MONTHS.iter().find(|(name, _)| *name == words[month_at])?.1;
+    let year = words.iter().filter_map(|w| number(w)).find(|y| (1900..=2200).contains(y) && *y > 31)?;
+    let day = words[..month_at]
+        .iter()
+        .rev()
+        .take(2)
+        .chain(words[month_at + 1..].iter().take(1))
+        .filter_map(|w| number(w))
+        .find(|d| (1..=31).contains(d));
+    Some(match day {
+        Some(day) => (day_number(year, month, day), day_number(year, month, day)),
+        None => (day_number(year, month, 1), day_number(year, month, 31)),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_written_date_is_the_days_it_may_be() {
+        let day = |y, m, d| day_number(y, m, d);
+        assert_eq!(date_span("30 de abril de 2026"), Some((day(2026, 4, 30), day(2026, 4, 30))));
+        assert_eq!(date_span("Febrero 2025"), Some((day(2025, 2, 1), day(2025, 2, 31))));
+        assert_eq!(date_span("April 30, 2026"), Some((day(2026, 4, 30), day(2026, 4, 30))));
+        assert_eq!(date_span("2026-04-30"), Some((day(2026, 4, 30), day(2026, 4, 30))));
+        // Day and month in an order that is not known: both readings.
+        assert_eq!(date_span("02/03/2025"), Some((day(2025, 2, 3), day(2025, 3, 2))));
+        assert_eq!(date_span("26/02/2025"), Some((day(2025, 2, 26), day(2025, 2, 26))));
+        assert_eq!(date_span("2/17/2025"), Some((day(2025, 2, 17), day(2025, 2, 17))));
+        assert_eq!(date_span("el 1/4/26"), Some((day(2026, 1, 4), day(2026, 4, 1))));
+        assert_eq!(date_span("mensual"), None);
+        assert_eq!(date_span("12 meses"), None);
+        // A month in words is after a day of the month before.
+        assert!(date_span("Junio 2025").unwrap().0 > date_span("26/05/2025").unwrap().1);
+        assert!(date_span("Febrero 2025").unwrap().0 <= date_span("26/02/2025").unwrap().1);
+    }
 
     #[test]
     fn a_value_counts_only_with_its_shape() {

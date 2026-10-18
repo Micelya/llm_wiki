@@ -253,6 +253,11 @@ fn step(base: &DocBase) -> Result<bool, String> {
     if base.hash_pending(HASH_BATCH)? > 0 {
         return Ok(true);
     }
+    // Texts an older extraction wrote that the current one reads better
+    // (a form's ticked boxes) go back to be extracted, once per version.
+    if base.refresh_extraction(TEXT_BATCH)? > 0 {
+        return Ok(true);
+    }
     if base.extract_pending(TEXT_BATCH)? > 0 {
         return Ok(true);
     }

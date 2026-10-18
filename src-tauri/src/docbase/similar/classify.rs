@@ -283,8 +283,22 @@ pub(super) fn load_docs(conn: &Connection) -> Result<BTreeMap<i64, DocInfo>, Str
     Ok(out)
 }
 
+/// Whether the current type of `principal` has a `different-data` rule
+/// whose relation is not one that keeps documents in a family.
+fn principal_type_parts_family(conn: &Connection, catalog: &Catalog, principal: i64) -> Result<bool, String> {
+    let doc_type: Option<String> = conn
+        .query_row("SELECT doc_type FROM document_type WHERE content_id = ?1", [principal], |r| r.get(0))
+        .optional()
+        .map_err(sql_err)?;
+    Ok(doc_type.and_then(|t| catalog.doc_type(&t)).is_some_and(|t| {
+        t.rules
+            .iter()
+            .any(|r| r.kind == "different-data" && !super::store::GROUP_RELATIONS.contains(&r.relation.as_str()))
+    }))
+}
+
 /// Families against their principal, then every document left alone.
-fn load_units(conn: &Connection, docs: &BTreeMap<i64, DocInfo>) -> Result<Vec<Unit>, String> {
+fn load_units(conn: &Connection, catalog: &Catalog, docs: &BTreeMap<i64, DocInfo>) -> Result<Vec<Unit>, String> {
     let mut families: BTreeMap<i64, Vec<(i64, Option<String>)>> = BTreeMap::new();
     {
         let mut statement = conn
@@ -307,7 +321,20 @@ fn load_units(conn: &Connection, docs: &BTreeMap<i64, DocInfo>) -> Result<Vec<Un
         if !docs.contains_key(&principal) {
             continue;
         }
-        let members: Vec<(i64, Option<String>)> = members.into_iter().filter(|(m, _)| docs.contains_key(m)).collect();
+        // A document that only shares the template of the principal is
+        // typed on its own when the principal's type has a rule that can
+        // take that family apart (two letters with different shipment
+        // numbers are only similar). Otherwise the member would get the
+        // type from the family, the rule would undo the family with that
+        // type, the member alone would get its own type, the rule would
+        // stop applying and the family would come back: the type and
+        // every page that shows it would change on each pass, forever.
+        let parted = principal_type_parts_family(conn, catalog, principal)?;
+        let members: Vec<(i64, Option<String>)> = members
+            .into_iter()
+            .filter(|(m, _)| docs.contains_key(m))
+            .filter(|(_, relation)| !(parted && relation.as_deref() == Some("same-template")))
+            .collect();
         placed.insert(principal);
         placed.extend(members.iter().map(|(m, _)| *m));
         units.push(Unit { principal, members });
@@ -926,7 +953,7 @@ impl DocBase {
         let conn = self.conn();
         let engine = answering_engine(&conn)?;
         let docs = load_docs(&conn)?;
-        let units = load_units(&conn, &docs)?;
+        let units = load_units(&conn, catalog, &docs)?;
         let decisions = read_type_decisions(&conn)?;
         let current: HashMap<i64, String> = {
             let mut statement = conn.prepare("SELECT content_id, basis FROM document_type").map_err(sql_err)?;

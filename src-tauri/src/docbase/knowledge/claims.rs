@@ -43,7 +43,27 @@ pub(crate) struct Consolidated {
     pub touched: BTreeSet<String>,
     /// Pieces of evidence whose value has not the shape of its predicate.
     pub unfit: usize,
+    /// The keys of claims a person decided about (wrong, confirmed), with
+    /// the key of the claim they apply to now; `None`: not found while its
+    /// entity is still in the record (for a person to review, `anchors.rs`).
+    pub placed: BTreeMap<String, Option<String>>,
 }
+
+/// How sure the record is of a claim (D-320): with its quote checked in the
+/// document and nobody's word on it (`quoted`); confirmed by a person;
+/// doubtful (`reasons`: the documents differ, the identity of its subject
+/// or object is in doubt, its quote names someone else, its documents say
+/// different states of an amount); corrected by a person (a piece of its
+/// evidence marked wrong, or a mention of it joined or separated by a
+/// person). A confirmation wins; a doubt wins over a correction.
+pub(crate) fn certainty_json(level: &str, reasons: &BTreeSet<&str>) -> String {
+    serde_json::json!({ "level": level, "reasons": reasons.iter().collect::<Vec<_>>() }).to_string()
+}
+
+pub(crate) const QUOTED: &str = "quoted";
+pub(crate) const CONFIRMED: &str = "confirmed";
+pub(crate) const DOUBTFUL: &str = "doubtful";
+pub(crate) const CORRECTED: &str = "corrected";
 
 /// The key a person marks a piece of evidence as wrong by: its document,
 /// the name of its subject, the predicate and the object. It survives
@@ -142,10 +162,16 @@ struct Draft {
     /// reading says (kind, currency, concept), from its first evidence.
     amount: Option<String>,
     detail: Option<String>,
+    /// The states of an amount its evidence says (P-136): one, the
+    /// claim's; several (a document says it is due, a later one that it was
+    /// paid), all of them, so that no page tells only one.
+    amount_states: BTreeSet<String>,
     evidence: BTreeSet<i64>,
     times: BTreeMap<String, String>,
     valid_from: Option<String>,
     state: &'static str,
+    /// Its certainty (`certainty_json`).
+    certainty: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -155,6 +181,7 @@ struct Stored {
     valid_from: Option<String>,
     state: String,
     evidence: BTreeSet<i64>,
+    certainty: Option<String>,
 }
 
 struct Piece {
@@ -174,6 +201,10 @@ struct Piece {
     detail: Option<serde_json::Value>,
     /// The date of its document, as its text writes it.
     doc_date: Option<String>,
+    object_mention: Option<i64>,
+    /// What joined its subject and its object mention to their entities.
+    subject_by: Option<String>,
+    object_by: Option<String>,
 }
 
 /// The values given as identifiers in any document (normalized): a
@@ -236,7 +267,8 @@ fn load_pieces(conn: &Connection) -> Result<Vec<Piece>, String> {
     let mut statement = conn
         .prepare(
             "SELECT e.id, e.content_id, s.entity_id, s.normalized, e.predicate, o.entity_id, o.normalized,
-                    e.object_value, e.object_normalized, e.fact_time, e.subject_mention, e.quote, e.amount, e.detail, k.doc_date
+                    e.object_value, e.object_normalized, e.fact_time, e.subject_mention, e.quote, e.amount, e.detail, k.doc_date,
+                    e.object_mention, s.resolved_by, o.resolved_by
              FROM knowledge_evidence e
              JOIN knowledge_mention s ON s.id = e.subject_mention
              LEFT JOIN knowledge_mention o ON o.id = e.object_mention
@@ -262,6 +294,9 @@ fn load_pieces(conn: &Connection) -> Result<Vec<Piece>, String> {
                 amount: row.get(12)?,
                 detail: row.get::<_, Option<String>>(13)?.and_then(|d| serde_json::from_str(&d).ok()),
                 doc_date: row.get(14)?,
+                object_mention: row.get(15)?,
+                subject_by: row.get(16)?,
+                object_by: row.get(17)?,
             })
         })
         .map_err(sql_err)?
@@ -305,9 +340,11 @@ fn load_context(conn: &Connection) -> Result<(Named, HashMap<i64, BTreeSet<Strin
     Ok((named, related))
 }
 
-pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, wrong: &BTreeSet<String>) -> Result<Consolidated, String> {
+pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, decided: &super::resolve::Decided) -> Result<Consolidated, String> {
+    let wrong = &decided.wrong;
     let pieces = load_pieces(conn)?;
     let (named, related) = load_context(conn)?;
+    let doubted = doubted_mentions(conn)?;
 
     // The context of each piece, and its value once its shape is checked
     // and its ways of writing are put together, by (subject, predicate,
@@ -385,6 +422,7 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, wrong: &BT
     }
 
     let mut drafts: BTreeMap<String, Draft> = BTreeMap::new();
+    let mut corrected: BTreeSet<String> = BTreeSet::new();
     let mut evidence_claim: BTreeMap<i64, String> = BTreeMap::new();
     for piece in &pieces {
         let Some(subject) = &piece.subject_entity else { continue };
@@ -396,9 +434,7 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, wrong: &BT
             (None, Some(value)) => value.clone(),
             _ => String::new(),
         };
-        if wrong.contains(&evidence_key(piece.content, &piece.subject_name, &piece.predicate, &object_word)) {
-            continue;
-        }
+        let marked_wrong = wrong.contains(&evidence_key(piece.content, &piece.subject_name, &piece.predicate, &object_word));
         let object_entity = match (&piece.object_name, &piece.object_entity) {
             (Some(_), Some(entity)) if entity != subject => Some(entity.clone()),
             (Some(_), _) => continue,
@@ -414,8 +450,13 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, wrong: &BT
             continue;
         }
         let (context, qualifier) = contexts.get(&piece.id).cloned().unwrap_or_default();
-        let plain = claim_key(subject, &piece.predicate, object_entity.as_deref(), normalized.as_deref());
         let key = draft_key(subject, &piece.predicate, object_entity.as_deref(), normalized.as_deref(), context.as_deref(), qualifier.as_deref());
+        if marked_wrong {
+            // What a person took out of a claim: the rest of it, if any, is
+            // corrected.
+            corrected.insert(key);
+            continue;
+        }
         let draft = drafts.entry(key.clone()).or_insert_with(|| Draft {
             subject: subject.clone(),
             predicate: piece.predicate.clone(),
@@ -426,14 +467,16 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, wrong: &BT
             object_normalized: normalized.clone(),
             amount: piece.amount.clone(),
             detail: piece.detail.as_ref().map(|d| d.to_string()),
+            amount_states: BTreeSet::new(),
             evidence: BTreeSet::new(),
             times: BTreeMap::new(),
             valid_from: None,
             state: "supported",
+            certainty: String::new(),
         });
         draft.evidence.insert(piece.id);
-        if wrong.contains(&plain) {
-            draft.state = "retired";
+        if let Some(amount_state) = piece.detail.as_ref().and_then(|d| d.get("estado")).and_then(|s| s.as_str()) {
+            draft.amount_states.insert(amount_state.to_string());
         }
         // Its time: the one the quote says, or the date of its document for
         // a value whose time is its document's (a domicile, D-247).
@@ -451,6 +494,31 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, wrong: &BT
     for draft in drafts.values_mut() {
         if draft.times.len() == 1 {
             draft.valid_from = draft.times.values().next().cloned();
+        }
+        if !draft.amount_states.is_empty() {
+            let detail = draft.detail.as_deref().and_then(|d| serde_json::from_str::<serde_json::Value>(d).ok());
+            if let Some(mut detail) = detail.filter(|d| d.is_object()) {
+                let object = detail.as_object_mut().expect("an object");
+                object.remove("estado");
+                if draft.amount_states.len() == 1 {
+                    object.insert("estado".into(), draft.amount_states.iter().next().cloned().into());
+                } else {
+                    object.insert("estados".into(), draft.amount_states.iter().cloned().collect::<Vec<_>>().into());
+                }
+                draft.detail = Some(detail.to_string());
+            }
+        }
+    }
+    // What a person decided about claims (wrong, confirmed), placed on the
+    // claims computed now: the same claim, or the only one of its entity
+    // and predicate whose value is the same written another way.
+    let placed = place_claim_decisions(conn, vocabulary, &drafts, wrong.iter().chain(decided.confirmed.iter()))?;
+    let found = |key: &String| placed.get(key).cloned().flatten();
+    let retired: BTreeSet<String> = wrong.iter().filter_map(found).collect();
+    let confirmed: BTreeSet<String> = decided.confirmed.iter().filter_map(found).collect();
+    for draft in drafts.values_mut() {
+        if retired.contains(&plain_key(draft)) {
+            draft.state = "retired";
         }
     }
     // One value at a time: different values of the same kind, for the
@@ -485,12 +553,54 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, wrong: &BT
         }
     }
 
+    // How sure each claim is (D-320).
+    let by_id: HashMap<i64, &Piece> = pieces.iter().map(|p| (p.id, p)).collect();
+    for (key, draft) in drafts.iter_mut() {
+        let mut reasons: BTreeSet<&str> = BTreeSet::new();
+        if draft.state == "conflict" {
+            reasons.insert("conflict");
+        }
+        if draft.amount_states.len() > 1 {
+            reasons.insert("states");
+        }
+        let list: Vec<&Piece> = draft.evidence.iter().filter_map(|id| by_id.get(id).copied()).collect();
+        if !list.is_empty()
+            && list.iter().all(|p| doubted.contains(&p.subject_mention) || p.object_mention.is_some_and(|o| doubted.contains(&o)))
+        {
+            reasons.insert("identity");
+        }
+        let money = vocabulary.predicate(&draft.predicate).is_some_and(|p| p.is_money());
+        if draft.object_entity.is_none()
+            && !money
+            && !list.is_empty()
+            && list.iter().all(|p| names_someone_else(vocabulary, &named, p, draft.subject.as_str(), draft.context.as_deref()))
+        {
+            reasons.insert("attribution");
+        }
+        let by_person = corrected.contains(key)
+            || list.iter().any(|p| p.subject_by.as_deref() == Some("persona") || p.object_by.as_deref() == Some("persona"));
+        let level = if confirmed.contains(&plain_key(draft)) {
+            CONFIRMED
+        } else if !reasons.is_empty() {
+            DOUBTFUL
+        } else if by_person {
+            CORRECTED
+        } else {
+            QUOTED
+        };
+        if by_person {
+            reasons.insert("by-person");
+        }
+        draft.certainty = certainty_json(level, &reasons);
+    }
+
     // What is stored, to write only what changed.
     let mut stored: BTreeMap<String, Stored> = BTreeMap::new();
     {
         let mut statement = conn
             .prepare(
-                "SELECT id, subject, predicate, object_entity, object_normalized, valid_from, state, context_entity, object_value, qualifier
+                "SELECT id, subject, predicate, object_entity, object_normalized, valid_from, state, context_entity, object_value, qualifier,
+                        certainty
                  FROM knowledge_claim",
             )
             .map_err(sql_err)?;
@@ -507,13 +617,15 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, wrong: &BT
                     row.get::<_, Option<String>>(7)?,
                     row.get::<_, Option<String>>(8)?,
                     row.get::<_, Option<String>>(9)?,
+                    row.get::<_, Option<String>>(10)?,
                 ))
             })
             .map_err(sql_err)?;
         for row in rows {
-            let (id, subject, predicate, entity, normalized, valid_from, state, context, object_value, qualifier) = row.map_err(sql_err)?;
+            let (id, subject, predicate, entity, normalized, valid_from, state, context, object_value, qualifier, certainty) =
+                row.map_err(sql_err)?;
             let key = draft_key(&subject, &predicate, entity.as_deref(), normalized.as_deref(), context.as_deref(), qualifier.as_deref());
-            stored.insert(key, Stored { id, object_value, valid_from, state, evidence: BTreeSet::new() });
+            stored.insert(key, Stored { id, object_value, valid_from, state, evidence: BTreeSet::new(), certainty });
         }
         let mut statement = conn.prepare("SELECT id, claim_id FROM knowledge_evidence WHERE claim_id IS NOT NULL").map_err(sql_err)?;
         let rows = statement.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?))).map_err(sql_err)?;
@@ -526,7 +638,7 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, wrong: &BT
         }
     }
     let now = now_ms();
-    let mut out = Consolidated { unfit, ..Default::default() };
+    let mut out = Consolidated { unfit, placed, ..Default::default() };
     let mut ids: HashMap<String, i64> = HashMap::new();
     // What goes first, so a claim that takes the place of another one
     // never meets it in the unique index.
@@ -545,12 +657,18 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, wrong: &BT
             Some(old) => {
                 ids.insert(key.clone(), old.id);
                 let value_changed = draft.object_value.is_some() && old.object_value != draft.object_value;
-                if old.valid_from != draft.valid_from || old.state != draft.state || old.evidence != draft.evidence || value_changed {
+                let certainty_changed = old.certainty.as_deref() != Some(draft.certainty.as_str());
+                if old.valid_from != draft.valid_from
+                    || old.state != draft.state
+                    || old.evidence != draft.evidence
+                    || value_changed
+                    || certainty_changed
+                {
                     conn.execute(
                         "UPDATE knowledge_claim SET valid_from = ?2, state = ?3, object_value = coalesce(?4, object_value), computed_at = ?5,
-                         amount = ?6, detail = ?7
+                         amount = ?6, detail = ?7, certainty = ?8
                          WHERE id = ?1",
-                        params![old.id, draft.valid_from, draft.state, draft.object_value, now, draft.amount, draft.detail],
+                        params![old.id, draft.valid_from, draft.state, draft.object_value, now, draft.amount, draft.detail, draft.certainty],
                     )
                     .map_err(sql_err)?;
                     out.touched.insert(draft.subject.clone());
@@ -561,8 +679,8 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, wrong: &BT
                 conn.execute(
                     "INSERT INTO knowledge_claim
                         (subject, predicate, object_entity, object_value, object_normalized, valid_from, state, computed_at, context_entity,
-                         qualifier, amount, detail)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                         qualifier, amount, detail, certainty)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
                     params![
                         draft.subject,
                         draft.predicate,
@@ -575,7 +693,8 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, wrong: &BT
                         draft.context,
                         draft.qualifier,
                         draft.amount,
-                        draft.detail
+                        draft.detail,
+                        draft.certainty
                     ],
                 )
                 .map_err(sql_err)?;
@@ -593,4 +712,159 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, wrong: &BT
     out.claims = drafts.values().filter(|d| d.state != "retired").count();
     out.conflicts = drafts.values().filter(|d| d.state == "conflict").count();
     Ok(out)
+}
+
+/// The key a person decides a claim by (`claim_key`), of a draft.
+fn plain_key(draft: &Draft) -> String {
+    claim_key(&draft.subject, &draft.predicate, draft.object_entity.as_deref(), draft.object_normalized.as_deref())
+}
+
+/// `claim:<subject>:<predicate>:entity:<e>[:value:<amount>]` or
+/// `claim:<subject>:<predicate>:value:<value>`: (subject, predicate,
+/// object entity, value).
+fn parse_claim_key(key: &str) -> Option<(String, String, Option<String>, Option<String>)> {
+    let rest = key.strip_prefix("claim:")?;
+    let (subject, rest) = rest.split_once(':')?;
+    let (predicate, rest) = rest.split_once(':')?;
+    if let Some(value) = rest.strip_prefix("value:") {
+        return Some((subject.into(), predicate.into(), None, Some(value.into())));
+    }
+    let rest = rest.strip_prefix("entity:")?;
+    match rest.split_once(":value:") {
+        Some((entity, amount)) => Some((subject.into(), predicate.into(), Some(entity.into()), Some(amount.into()))),
+        None => Some((subject.into(), predicate.into(), Some(rest.into()), None)),
+    }
+}
+
+/// Where each key of a claim a person decided about lands among the claims
+/// computed now (D-321): the same key; else, on the entity its entity went
+/// into, the only claim of the same predicate and object whose value is
+/// the same written another way. `None` when there is none (or several)
+/// while its entity is active; keys of an entity that left the record are
+/// not listed (they wait for its documents to come back).
+fn place_claim_decisions<'a>(
+    conn: &Connection,
+    vocabulary: &Vocabulary,
+    drafts: &BTreeMap<String, Draft>,
+    keys: impl Iterator<Item = &'a String>,
+) -> Result<BTreeMap<String, Option<String>>, String> {
+    let mut out = BTreeMap::new();
+    let keys: Vec<&String> = keys.filter(|k| k.starts_with("claim:")).collect();
+    if keys.is_empty() {
+        return Ok(out);
+    }
+    let plain: BTreeSet<String> = drafts.values().map(plain_key).collect();
+    let entities: HashMap<String, (String, Option<String>)> = {
+        let mut statement = conn.prepare("SELECT id, state, merged_into FROM knowledge_entity").map_err(sql_err)?;
+        let rows = statement
+            .query_map([], |row| Ok((row.get::<_, String>(0)?, (row.get::<_, String>(1)?, row.get::<_, Option<String>>(2)?))))
+            .map_err(sql_err)?;
+        rows.collect::<Result<_, _>>().map_err(sql_err)?
+    };
+    // The entity an id stands for now: itself while active, else the one it
+    // went into. An entity being created by this resolution is active.
+    let follow = |id: &str| -> Option<String> {
+        let mut at = id.to_string();
+        for _ in 0..8 {
+            match entities.get(&at) {
+                None => return Some(at),
+                Some((state, _)) if state == "active" => return Some(at),
+                Some((_, Some(next))) => at = next.clone(),
+                Some((_, None)) => return None,
+            }
+        }
+        None
+    };
+    for key in keys {
+        if plain.contains(key.as_str()) {
+            out.insert(key.clone(), Some(key.clone()));
+            continue;
+        }
+        let Some((subject, predicate, entity, value)) = parse_claim_key(key) else { continue };
+        let Some(subject) = follow(&subject) else { continue };
+        let entity = match entity {
+            Some(e) => match follow(&e) {
+                Some(e) => Some(e),
+                None => continue,
+            },
+            None => None,
+        };
+        let shape = vocabulary.predicate(&predicate).map(|p| p.shape.as_str()).unwrap_or_default();
+        let same_value = |draft: &Draft| match (&value, &draft.object_normalized) {
+            (None, None) => true,
+            (Some(a), Some(b)) => {
+                a == b
+                    || values::same(vocabulary, shape, a, b)
+                    || draft.object_value.as_deref().is_some_and(|v| values::same(vocabulary, shape, v, a))
+                    || super::anchors::same_digits(a, b)
+            }
+            _ => false,
+        };
+        let found: BTreeSet<String> = drafts
+            .values()
+            .filter(|d| d.subject == subject && d.predicate == predicate && d.object_entity == entity && same_value(d))
+            .map(plain_key)
+            .collect();
+        out.insert(key.clone(), (found.len() == 1).then(|| found.into_iter().next().expect("one")));
+    }
+    Ok(out)
+}
+
+/// The mentions in a doubt about identity (`knowledge_doubt`): the
+/// mentions of the group each side names, in its document.
+fn doubted_mentions(conn: &Connection) -> Result<HashSet<i64>, String> {
+    let sides: Vec<(String, Option<String>)> = {
+        let mut statement =
+            conn.prepare("SELECT a, entity_a FROM knowledge_doubt UNION SELECT b, entity_b FROM knowledge_doubt").map_err(sql_err)?;
+        let rows = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?))).map_err(sql_err)?;
+        rows.collect::<Result<_, _>>().map_err(sql_err)?
+    };
+    let mut out = HashSet::new();
+    let mut statement = conn
+        .prepare(
+            "SELECT id FROM knowledge_mention WHERE content_id = ?1 AND kind = ?2 AND (normalized = ?3 OR (?4 IS NOT NULL AND entity_id = ?4))",
+        )
+        .map_err(sql_err)?;
+    for (key, entity) in sides {
+        let Some((content, kind, name)) = super::resolve::parse_cluster_key(&key) else { continue };
+        let rows = statement.query_map(params![content, kind, name, entity], |row| row.get::<_, i64>(0)).map_err(sql_err)?;
+        for row in rows {
+            out.insert(row.map_err(sql_err)?);
+        }
+    }
+    Ok(out)
+}
+
+/// Whether the quote of a piece names another person or organization of
+/// its document, and not its subject: the value may be someone else's
+/// (a spouse's identity number next to the holder's name in a form).
+fn names_someone_else(vocabulary: &Vocabulary, named: &Named, piece: &Piece, subject: &str, context: Option<&str>) -> bool {
+    // A mail address does not name its domain's organization.
+    let without_mail: Vec<&str> = piece.quote.split_whitespace().filter(|w| !w.contains('@')).collect();
+    let quote_words = quote::words(&without_mail.join(" "));
+    let mentions = named.get(&piece.content).map(Vec::as_slice).unwrap_or_default();
+    // Other people or organizations its quote names in full.
+    let others: Vec<&Vec<String>> = mentions
+        .iter()
+        .filter(|(_, kind, entity, words)| {
+            entity != subject
+                && Some(entity.as_str()) != context
+                && (kind == super::names::PERSON || kind == super::names::ORGANIZATION)
+                && !words.is_empty()
+                && !vocabulary.is_generic(&words.join(" "))
+                && quote::contains(&quote_words, words)
+        })
+        .map(|(_, _, _, words)| words)
+        .collect();
+    if others.is_empty() {
+        return false;
+    }
+    // The subject is named too: in full, or by a word of its own that is
+    // not a word of the others (a surname they share does not count).
+    let own = mentions.iter().filter(|(_, _, entity, _)| entity == subject);
+    let named_too = own.clone().any(|(_, _, _, words)| !words.is_empty() && quote::contains(&quote_words, words))
+        || own.flat_map(|(_, _, _, words)| words.iter()).any(|w| {
+            w.chars().count() >= 4 && !vocabulary.is_generic(w) && quote_words.contains(w) && !others.iter().any(|o| o.contains(w))
+        });
+    !named_too
 }

@@ -62,7 +62,7 @@ pub const IDENTITY_PROMPT: &str = "identidad-4";
 /// the program's or the vocabulary's change, the record is computed again.
 const RESOLUTION_SETTING: &str = "knowledge-resolution";
 /// Raised when a change in the program changes what a resolution gives.
-const RESOLUTION_VERSION: &str = "resolucion-9";
+const RESOLUTION_VERSION: &str = "resolucion-10";
 
 fn resolution_basis() -> String {
     format!("{RESOLUTION_VERSION}|{IDENTITY_PROMPT}|{}", vocabulary().digest)
@@ -564,28 +564,32 @@ pub(crate) struct Decided {
     pub separations: Vec<(String, String)>,
     /// Keys of groups, evidence or claims marked as wrong.
     pub wrong: BTreeSet<String>,
+    /// Keys of claims a person confirmed.
+    pub confirmed: BTreeSet<String>,
+    /// Every active decision, placed on what the documents say now
+    /// (`anchors.rs`): the keys above are the ones placed.
+    pub anchored: Vec<super::anchors::Anchored>,
 }
 
 pub(crate) fn load_decided(conn: &Connection) -> Result<Decided, String> {
-    let mut statement =
-        conn.prepare("SELECT kind, a, b FROM knowledge_decision WHERE state = 'active' ORDER BY decided_at, id").map_err(sql_err)?;
-    let rows = statement
-        .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<String>>(2)?)))
-        .map_err(sql_err)?;
-    let successors = changes::successors(conn)?;
-    let moved = |key: String| changes::translate(&key, &successors);
+    let anchored = super::anchors::place_all(conn, vocabulary())?;
     let mut out = Decided::default();
-    for row in rows {
-        let (kind, a, b) = row.map_err(sql_err)?;
-        match (kind, moved(a), b.map(moved)) {
-            (kind, a, Some(b)) if kind == "join" => out.joins.push((a, b)),
-            (kind, a, Some(b)) if kind == "separate" => out.separations.push((a, b)),
-            (kind, a, _) if kind == "wrong" => {
+    for decision in &anchored {
+        let a = decision.a.key().to_string();
+        let b = decision.b.as_ref().map(|b| b.key().to_string());
+        match (decision.kind.as_str(), a, b) {
+            ("join", a, Some(b)) => out.joins.push((a, b)),
+            ("separate", a, Some(b)) => out.separations.push((a, b)),
+            ("wrong", a, _) => {
                 out.wrong.insert(a);
+            }
+            ("confirm", a, _) => {
+                out.confirmed.insert(a);
             }
             _ => {}
         }
     }
+    out.anchored = anchored;
     Ok(out)
 }
 
@@ -730,6 +734,39 @@ impl<'a> Resolver<'a> {
         self.size[keep] += self.size[gone];
         self.links.push((x, y, by));
         Ok(true)
+    }
+
+    /// Whether two groups of people are alike only by names whose first
+    /// word (most often the first name) differs in a letter: no name of one
+    /// is the same as, or part of, a name of the other, nor shares its
+    /// mailbox, nor differs from it only further on (a surname misspelled),
+    /// and some pair differs so. A mailbox without a name, one word or an
+    /// initial fits both ways of writing the name, so it tells nothing.
+    fn alike_only_by_a_letter(&mut self, x: usize, y: usize) -> bool {
+        if self.clusters[x].kind != PERSON {
+            return false;
+        }
+        let (a, b) = (self.find(x), self.find(y));
+        let all: Vec<usize> = (0..self.clusters.len()).collect();
+        let roots: Vec<usize> = all.iter().map(|&i| self.find(i)).collect();
+        let (xs, ys): (Vec<usize>, Vec<usize>) =
+            (all.iter().copied().filter(|&i| roots[i] == a).collect(), all.iter().copied().filter(|&i| roots[i] == b).collect());
+        let mut a_letter = false;
+        for &i in &xs {
+            for &j in &ys {
+                for p in &self.clusters[i].keys {
+                    for q in &self.clusters[j].keys {
+                        match names::compare(PERSON, p, q) {
+                            Likeness::Maybe("letra-distinta") if names::first_word_a_letter_apart(p, q) => a_letter = true,
+                            Likeness::Maybe("letra-distinta") => return false,
+                            Likeness::Exact | Likeness::Maybe("nombre-parcial" | "misma-casilla") => return false,
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+        a_letter
     }
 
     fn doubt(&mut self, x: usize, y: usize, reason: &str, detail: Option<String>) {
@@ -1970,6 +2007,13 @@ fn apply(
     _report: &mut ResolveReport,
 ) {
     match verdict {
+        // Two people whose first names differ by a letter and nothing else
+        // in common (an identifier or a mailbox would have joined them
+        // before) may be relatives with the same surname as well as a typo:
+        // the model's "the same" joins them only when it is sure (P-206).
+        "same" if !said_with_high_certainty(reason.as_deref()) && resolver.alike_only_by_a_letter(principal, candidate) => {
+            resolver.doubt(principal, candidate, "modelo-misma-nombre-distinto", reason)
+        }
         "same" => match resolver.join(principal, candidate, "modelo") {
             Ok(_) => {
                 absorbed.insert(candidate);
@@ -1979,6 +2023,12 @@ fn apply(
         "doubtful" => resolver.doubt(principal, candidate, "modelo-dudosa", reason),
         _ => {}
     }
+}
+
+/// Whether the model's reason for "the same" starts with a high certainty
+/// (as `ask_question` keeps it: "certeza alta: …").
+fn said_with_high_certainty(reason: Option<&str>) -> bool {
+    reason.is_some_and(|r| r.starts_with("certeza alta"))
 }
 
 /// An existing entity, as the writing finds it.
@@ -2243,7 +2293,10 @@ pub(crate) fn write(base: &DocBase, outcome: &Outcome, report: &mut ResolveRepor
     let left_out = changes::left_out(&tx)?;
     changed.extend(changes::leave_out(&tx, &left_out)?);
     // Claims: the evidence in terms of entities.
-    let consolidated = claims::consolidate(&tx, vocabulary, &decided.wrong)?;
+    let consolidated = claims::consolidate(&tx, vocabulary, &decided)?;
+    // What each decision of a person applies to now, and those left for a
+    // person to review (never dropped in silence).
+    super::anchors::keep(&tx, &decided.anchored, &consolidated.placed)?;
     report.claims = consolidated.claims;
     report.conflicts = consolidated.conflicts;
     report.unfit = consolidated.unfit;

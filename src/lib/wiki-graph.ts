@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core"
 import { readFile, listDirectory } from "@/commands/fs"
 import type { FileNode } from "@/types/wiki"
 import { buildRetrievalGraph, calculateRelevance } from "./graph-relevance"
@@ -18,6 +19,30 @@ export interface GraphEdge {
   source: string
   target: string
   weight: number // relevance score between source and target
+  /** The relations of the base between the two pages (wiki of the archive). */
+  relations?: GraphRelation[]
+}
+
+/** A relation of the base: its type, how the vocabulary names it, its quote and state. */
+export interface GraphRelation {
+  family: string
+  kind: string
+  label: string
+  quote?: string | null
+  state: string
+}
+
+interface BaseGraphNode {
+  id: string
+  label: string
+  pageType: string
+  kind: string
+  path: string
+}
+
+interface BaseGraphEdge extends GraphRelation {
+  source: string
+  target: string
 }
 
 export interface CommunityInfo {
@@ -203,7 +228,65 @@ export async function buildWikiGraph(
   return result
 }
 
+/**
+ * The graph of the wiki of the archive comes from the base (D-351): its
+ * documents, people, organizations, groups and matters, and the relations
+ * the base keeps between them, each with its type, quote and state. `null`
+ * for any other project (its graph comes from the links of its pages).
+ */
+async function buildGraphFromBase(projectPath: string): Promise<WikiGraphResult | null> {
+  let graph: { nodes: BaseGraphNode[]; edges: BaseGraphEdge[] } | null
+  try {
+    graph = await invoke<{ nodes: BaseGraphNode[]; edges: BaseGraphEdge[] } | null>("docbase_graph", {
+      projectPath,
+    })
+  } catch {
+    return null
+  }
+  if (!graph || graph.nodes.length === 0) return null
+  const linkCounts = new Map<string, number>(graph.nodes.map((n) => [n.id, 0]))
+  // One edge per pair of pages, carrying every relation between them.
+  const pairs = new Map<string, GraphEdge>()
+  for (const edge of graph.edges) {
+    if (!linkCounts.has(edge.source) || !linkCounts.has(edge.target)) continue
+    const key = [edge.source, edge.target].sort().join(":::")
+    const relation: GraphRelation = {
+      family: edge.family,
+      kind: edge.kind,
+      label: edge.label,
+      quote: edge.quote,
+      state: edge.state,
+    }
+    const existing = pairs.get(key)
+    if (existing) {
+      existing.relations?.push(relation)
+      existing.weight = existing.relations?.length ?? existing.weight
+      continue
+    }
+    pairs.set(key, { source: edge.source, target: edge.target, weight: 1, relations: [relation] })
+    linkCounts.set(edge.source, (linkCounts.get(edge.source) ?? 0) + 1)
+    linkCounts.set(edge.target, (linkCounts.get(edge.target) ?? 0) + 1)
+  }
+  const edges = Array.from(pairs.values())
+  const prelimNodes = graph.nodes.map((n) => ({ id: n.id, label: n.label, linkCount: linkCounts.get(n.id) ?? 0 }))
+  const { assignments, communities } = await analyzeCommunities(prelimNodes, edges).catch(() =>
+    detectCommunities(prelimNodes, edges),
+  )
+  const root = normalizePath(projectPath)
+  const nodes: GraphNode[] = graph.nodes.map((n) => ({
+    id: n.id,
+    label: n.label,
+    type: n.pageType,
+    path: `${root}/${normalizePath(n.path).replace(/^\/+/, "")}`,
+    linkCount: linkCounts.get(n.id) ?? 0,
+    community: assignments.get(n.id) ?? 0,
+  }))
+  return { nodes, edges, communities }
+}
+
 async function buildWikiGraphUncached(projectPath: string): Promise<WikiGraphResult> {
+  const fromBase = await buildGraphFromBase(projectPath)
+  if (fromBase) return fromBase
   const wikiRoot = `${normalizePath(projectPath)}/wiki`
 
   let tree: FileNode[]

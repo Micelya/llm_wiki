@@ -1,6 +1,6 @@
 # Registro de decisiones
 
-**Proyecto:** Micelya Desktop (repositorio `Micelya/llm_wiki`) · **Al 16 de octubre de 2026**
+**Proyecto:** Micelya Desktop (repositorio `Micelya/llm_wiki`) · **Al 18 de octubre de 2026**
 
 ## Qué es y cómo usarlo
 
@@ -285,6 +285,49 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-290 | 17 oct | Producto | Chat, búsqueda y grafo se conservan, sin redundancias ni usos del modelo innecesarios; revisar los procesos heredados | vigente |
 | D-291 | 17 oct | IA | Micelya Core ofrecerá los servicios de IA (también vectores); la app mantiene proveedores configurables y aísla su configuración | vigente |
 | D-292 | 18 oct | Proceso de trabajo | La comprobación de los PR corre en todo PR, apunte a la rama que apunte; no apilar PR salvo que sea inevitable | vigente |
+| D-293 | 18 oct | Wiki | Ajustes al rediseño: certeza y quién confirmó cada afirmación; el grafo ordena y no recorta; una extracción principal; página común solo para versiones; asunto sin mínimo de documentos | vigente |
+| D-294 | 18 oct | Wiki | Decisiones abiertas resueltas: página del documento generada por ahora; asunto según P-061, no se construye aún; internet aparte y a pedido; vectores sin decidir | vigente |
+| D-295 | 18 oct | Conocimiento | Conceptos por cálculo: por ahora solo medición de pasajes repetidos, fuera del repositorio | vigente |
+| D-296 | 18 oct | Proceso de trabajo | Prioridad: atribución, importes y uniones falsas primero; en errores críticos hay que demostrar mejora con dos corridas comparables | vigente |
+| D-300 | 18 oct | Proceso de trabajo | Casos de aceptación de los errores críticos, comprobables sobre cualquier base | en revisión |
+| D-301 | 18 oct | Wiki | Línea de base de la búsqueda con preguntas de un abogado | en revisión |
+| D-310 | 18 oct | Capa de conocimiento | Cada importe lleva su estado, leído por el modelo y listado en el vocabulario | en revisión |
+| D-311 | 18 oct | Capa de conocimiento | Un importe que el documento da como ejemplo no se guarda como relación entre las partes | en revisión |
+| D-312 | 18 oct | Capa de conocimiento | Regla de fecha: un pago con fecha posterior al documento no está pagado | en revisión |
+| D-313 | 18 oct | Capa de conocimiento | Una afirmación de importe con estados distintos según el documento los muestra todos | en revisión |
+| D-314 | 18 oct | Base documental | Una casilla marcada se escribe con «(marcada)» y su pregunta por la primera oración | en revisión |
+| D-315 | 18 oct | Base documental | Las marcas de un formulario aplanado se leen por su lugar en la tabla, y si no se puede se dice | en revisión |
+| D-316 | 18 oct | Base documental | Versión de la extracción de texto: lo extraído con una versión vieja se revisa una vez | en revisión |
+| D-317 | 18 oct | Capa de conocimiento | Una definición con forma jurídica es un nombre, no un término; los términos se reconocen aunque tengan marcas de énfasis | en revisión |
+| D-318 | 18 oct | Proceso de trabajo | Medición de N2a: releer solo los documentos afectados reutilizando las respuestas de los demás | en revisión |
+| D-320 | 18 oct | Capa de conocimiento | Cada afirmación lleva su certeza: con cita comprobada, confirmada, dudosa o corregida | en revisión |
+| D-321 | 18 oct | Capa de conocimiento | Las decisiones de una persona se colocan sobre lo que dicen los documentos en cada resolución; lo que ya no encuentran queda para revisar | en revisión |
+| D-322 | 18 oct | Capa de conocimiento | La síntesis y las páginas escriben lo dudoso como dudoso; se dice «con cita comprobada» | en revisión |
+| D-323 | 18 oct | Proceso de trabajo | Medición de N2b: sin preguntar salvo las síntesis cuya pregunta cambió | en revisión |
+| D-330 | 18 oct | Capa de conocimiento | El resumen del documento sale de la lectura de la capa: tema y puntos, cada punto con su cita comprobada | en revisión |
+| D-331 | 18 oct | Wiki | La página de cada documento la escribe la base desde el resumen, sin modelo, hasta que N4 la arme como página del documento | en revisión |
+| D-332 | 18 oct | Wiki | En el wiki del archivo la incorporación no llama al modelo: solo crea la página del documento para que la base la complete | en revisión |
+| D-333 | 18 oct | Wiki | Se quitan la revisión del wiki con el modelo y el enriquecimiento de enlaces; la limpieza de avisos con el modelo no corre en el wiki del archivo | en revisión |
+| D-334 | 18 oct | Wiki | La investigación en internet guarda su resultado fuera del wiki del archivo | en revisión |
+| D-335 | 18 oct | Proceso de trabajo | Medición de N3: lectura completa desde la base de partida, sin trasplantes | en revisión |
+| D-340 | 18 oct | Wiki | Una página por documento o por familia de versiones, escrita por la base | en revisión |
+| D-341 | 18 oct | Wiki | Cada punto, dato e importe de una página de versiones dice de qué versión sale | en revisión |
+| D-342 | 18 oct | Wiki | La página de un documento solo tiene lo que sabe la base y las notas; las páginas viejas se absorben | en revisión |
+| D-343 | 18 oct | Capa de conocimiento | El resumen de la lectura trae importes, fechas clave y números, y en una constancia de firma qué se firmó | en revisión |
+| D-344 | 18 oct | Base documental | La carta en Word y en PDF propuesta como «parecido» está bien: no se cambia la regla (P-210) | en revisión |
+| D-350 | 18 oct | Búsqueda | La búsqueda del wiki del archivo sale de la base: el texto recorre todo lo visible y el grafo ordena y amplía, nunca recorta | en revisión |
+| D-351 | 18 oct | Wiki | El grafo y los enlaces del wiki del archivo son las relaciones de la base | en revisión |
+| D-352 | 18 oct | Búsqueda | El chat recibe una página por documento y la de la entidad más específica que nombra la pregunta | en revisión |
+| D-360 | 18 oct | Capa de conocimiento | Un término que el documento define nombra una sola cosa en él | en revisión |
+| D-361 | 18 oct | Búsqueda | Con un número en la pregunta, el resumen solo ordena los documentos que lo tienen | en revisión |
+| D-362 | 18 oct | Medición | La medición de referencia del 18 de octubre son dos lecturas completas desde cero | en revisión |
+| D-363 | 18 oct | Tipos de documento | Un documento que solo comparte la plantilla se tipa solo si el tipo del principal puede separar la familia | en revisión |
+| D-364 | 18 oct | Operación | Regeneración con los datos reales el 18 de octubre | en revisión |
+| D-365 | 18 oct | Identidad de entidades | Dos personas cuyo nombre de pila difiere en una letra se unen solo si el modelo está seguro | en revisión |
+| D-366 | 18 oct | Operación | La identidad corregida se reaplica en la app con los datos reales | en revisión |
+| D-370 | 18 oct | Conocimiento | Para medir conceptos, una «unidad» junta las versiones y copias de un documento | en revisión |
+| D-371 | 18 oct | Conocimiento | Qué es un pasaje repetido | en revisión |
+| D-372 | 18 oct | Conocimiento | Tres clases para un grupo de pasajes | en revisión |
 
 ---
 
@@ -3813,3 +3856,557 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** `.github/workflows/ci.yml`; `CLAUDE.md`.
 - **Quién decidió:** dueño del producto.
 - **Fuente:** conversación del 18 oct.
+
+### D-293 · Ajustes al rediseño del wiki sobre la base
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Wiki
+- **Estado:** vigente
+- **El problema:** la propuesta "el wiki como presentación de la base" (P-142) prometía más de lo que garantizaba en varios puntos: llamaba "verificadas" a afirmaciones cuya cita existe pero cuya lectura puede estar mal; dejaba que el grafo recortara la búsqueda, con lo que un documento relevante sin relación cargada desaparecería; hablaba de "una sola lectura" sin decir qué se reutiliza ni qué pasa con las correcciones de una persona en una relectura; juntaba en una página documentos que no son versiones de uno; y ataba el asunto a la cantidad de documentos.
+- **Qué se decidió:** (1) Cada afirmación lleva su certeza y quién la confirmó; la síntesis escribe lo dudoso como dudoso; se dice "con cita comprobada", no "verificada"; una corrección hecha una vez se propaga porque las páginas se arman desde el registro. (2) El grafo ordena y amplía, no recorta: la búsqueda siempre recorre todo lo visible, salvo que la persona elija a propósito un conjunto (por ejemplo, un asunto); se mide cuántos documentos relevantes se perderían si el grafo recortara. (3) "Una lectura" quiere decir no repetir trabajo: una extracción principal por contenido y configuración, reutilizada por todo; una comprobación extra con el modelo solo si su mejora está medida; las decisiones de una persona (unir, separar, incorrecto) sobreviven a una relectura. (4) Página común solo para versiones del mismo documento (borrador, firmado, vista previa); cada afirmación dice de qué versión sale y, si difieren, se ven las dos; documentos de la misma plantilla son páginas distintas. (5) El asunto no depende de cuántos documentos tiene (la regla de dos documentos vale solo para la agrupación automática); un solo concepto de asunto (P-061) que lo propone la extracción, lo crea una persona o lo propone una regla de carpeta.
+- **Por qué:** que el producto no prometa más de lo que garantiza, que la búsqueda no pierda documentos por una relación faltante y que el trabajo del modelo y de las personas no se repita ni se pierda.
+- **Alternativas descartadas:** la propuesta del 17 oct tal como estaba (grafo que acota, "afirmaciones verificadas", asunto solo con dos o más documentos).
+- **Dónde se aplica:** `docs/design/wiki-sobre-la-base-propuesta.md` (secciones 2, 3, 5, 7 y 10); `docs/design/conocimiento-propuesta.md`; P-142; P-061.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 18 oct (análisis externo revisado contra el código).
+
+### D-294 · Decisiones abiertas del rediseño del wiki, resueltas
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Wiki
+- **Estado:** vigente
+- **El problema:** la propuesta del 17 oct dejaba cuatro decisiones abiertas (sección 11) que bloqueaban su construcción: cómo existe la página del documento, cómo nace un asunto, qué pasa con la investigación en internet y con qué proveedor de vectores se empieza.
+- **Qué se decidió:** (1) La página del documento es por ahora un archivo generado, como las de entidad (regenerable, notas protegidas); pasa a armarse al mostrarse cuando la búsqueda y el grafo lean de la base. (2) El asunto queda como en D-293, punto 5; no se construye todavía. (3) La investigación en internet es una herramienta aparte, a pedido, que nunca escribe en la base ni en el wiki del archivo; por ahora solo se desconecta de la generación del wiki. (4) El proveedor de vectores no se decide todavía; los vectores no entran en esta etapa.
+- **Por qué:** destrabar la construcción con lo que hoy se puede medir, sin adelantar decisiones que dependen de Micelya Core o de cómo se usa el asunto.
+- **Alternativas descartadas:** armar la página del documento al mostrarse desde ya (requiere que la búsqueda y el grafo lean de la base primero); quitar la investigación en internet.
+- **Dónde se aplica:** `docs/design/wiki-sobre-la-base-propuesta.md` (secciones 4, 5 y 11); P-142; P-061.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 18 oct (análisis externo revisado contra el código).
+
+### D-295 · Conceptos por cálculo: por ahora solo medición de pasajes repetidos
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** vigente
+- **El problema:** la propuesta quita los conceptos por documento (casi todos cláusulas de un solo contrato) y plantea, como hipótesis, conceptos propuestos por cálculo: pasajes que se repiten en documentos distintos y la misma idea dicha con otras palabras. La segunda mitad necesita vectores, que no entran todavía.
+- **Qué se decidió:** por ahora solo se mide la mitad de los pasajes repetidos, fuera del repositorio y sin pantallas: cuántos grupos salen y cuántos son cláusulas o figuras reconocibles. La mitad "la misma idea con otras palabras" espera a los vectores.
+- **Por qué:** decidir con números si los conceptos por cálculo valen la pena antes de construirlos.
+- **Alternativas descartadas:** construir los conceptos por cálculo ya; conservar los conceptos por documento.
+- **Dónde se aplica:** `docs/design/wiki-sobre-la-base-propuesta.md` (sección 8); P-142.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 18 oct (análisis externo revisado contra el código).
+
+### D-296 · Orden de prioridad y criterio "demostrar mejora"
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Proceso de trabajo
+- **Estado:** vigente
+- **El problema:** el wiki generado el 17 oct tiene errores críticos (atribución a la persona equivocada, importes mal leídos, uniones falsas) junto con mejoras de forma pendientes. Medir solo que algo "no empeora" no alcanza para saber si un error crítico quedó corregido.
+- **Qué se decidió:** el orden de prioridad es (1) atribución, importes y uniones falsas; (2) estabilidad y documentos perdidos en la búsqueda; (3) corregir y deshacer visibles en la app; (4) presentación. Para los errores críticos conocidos hay que demostrar mejora con casos de aceptación concretos y dos corridas comparables (mismo modelo, nivel y carpeta), antes y después; no basta con no empeorar.
+- **Por qué:** lo que más daña la confianza de un estudio es un dato mal atribuido o un importe equivocado; la mejora tiene que poder mostrarse con números.
+- **Alternativas descartadas:** priorizar la presentación del wiki; aceptar una corrección sin casos de aceptación.
+- **Dónde se aplica:** `docs/design/wiki-sobre-la-base-propuesta.md` (secciones 10 y 11); R-17.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 18 oct (análisis externo revisado contra el código).
+
+### D-300 · Casos de aceptación de los errores críticos, comprobables sobre cualquier base
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Proceso de trabajo
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** D-296 pide demostrar mejora en los errores críticos con casos concretos y dos corridas comparables, pero los errores conocidos (importes con naturaleza mal, casillas de las fichas, afirmaciones mal atribuidas, entidades partidas, regresiones de Q5) solo estaban descritos en prosa, y la lista de importes de la revisión de Q5 no estaba detallada.
+- **Qué se decidió:** una hoja de casos de aceptación fuera del repositorio (`conjunto-prueba/casos-criticos.json`, nombra personas reales) con 46 casos: documento, cita textual comprobada contra el texto de la base, lo correcto, lo que sale mal y una regla que se comprueba sola sobre cualquier base (por ruta del documento, no por número interno; lee columnas nuevas de las afirmaciones sin cambiar el comprobador). Tipos de regla: naturaleza de un importe, casilla de un formulario, afirmación ausente o presente, identificador ausente, menciones en el mismo ente, ente con página, correos como contacto y encabezado de página. Un script fuera del repositorio da "n de m casos pasan" por categoría. Tres casos de importes son de control (lo que hoy está bien no puede romperse). Con la base de partida pasan 3 de 46.
+- **Por qué:** que N2a, N3 y N6 midan los mismos casos antes y después, con números, sin depender de una revisión a mano.
+- **Alternativas descartadas:** pruebas en el repositorio con los casos reales (R-24 lo prohíbe); medir solo con la hoja de entidades (no cubre importes, casillas ni atribuciones).
+- **Dónde se aplica:** fuera del repositorio (`llm_wiki_mi/conjunto-prueba/casos-criticos.json`, `desatendido-4/N1-comprobar-casos.py`); P-135, P-136, P-137, P-151.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N1 de la tanda desatendida del 18 oct.
+
+### D-301 · Línea de base de la búsqueda con preguntas de un abogado
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Wiki
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el rediseño (D-293) cambia la búsqueda a la base con el grafo que ordena y amplía, pero no había forma de saber cuántos documentos relevantes encuentra la búsqueda de hoy ni de comparar la nueva.
+- **Qué se decidió:** una hoja de 30 preguntas fuera del repositorio (`conjunto-prueba/preguntas.json`) con sus documentos esperados, mezclando formas de nombrar (exacta, parcial, otra forma escrita, sin nombre) y categorías (entidades partidas, contradicciones y versiones, documentos sin asunto, importes, identificadores, cláusulas, relaciones). La medida es por documento (las copias cuentan como uno): esperados en los primeros 5 y 10, cuáles faltan y tiempo. Variantes de hoy: la búsqueda del wiki que usa el chat contando solo páginas de documento (61 de 104 en los 10 primeros), el índice de texto de la base (79 de 104) y el índice más el grafo de hoy (81 de 104). Para medir la búsqueda del chat sin copiarla, una prueba ignorada del repositorio la corre sobre las preguntas que le pasa una variable de entorno (sin ningún caso en el código).
+- **Por qué:** fijar el piso que la búsqueda desde la base (N5) tiene que superar y contar los documentos perdidos con números.
+- **Alternativas descartadas:** reimplementar la búsqueda del wiki fuera del repositorio (podía divergir de la real); contar como encontrado todo documento que figure en cualquier página devuelta (una página de entidad lista decenas: se informa aparte como cota).
+- **Dónde se aplica:** `src-tauri/src/commands/search.rs` (`search_questions_from_env`, ignorada); fuera del repositorio `desatendido-4/N1-medir-busqueda.py` y `N1-linea-de-base.md`; P-142, P-150.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N1 de la tanda desatendida del 18 oct.
+
+### D-310 · Cada importe lleva su estado, leído por el modelo y listado en el vocabulario
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Capa de conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** El tipo de un importe mezclaba qué es con qué pasó con él: «cuota» quería decir «cuota pagada», y no había forma de decir que un importe era un ejemplo, un precio pactado, una propuesta, un tope o una deuda a vencer. Las páginas decían «pagó» de cuotas que vencían meses después del documento (P-136).
+- **Qué se decidió:** Al importe se le agrega un estado, que la lectura pregunta con su lista cerrada del vocabulario (`money.states`): pagado, a pagar, pactado, propuesto, condicionado y ejemplo (más «no lo dice»). El tipo deja de decir el estado («cuota» ya no es «cuota pagada») y se suman dos tipos: bonificación o crédito (un descuento o crédito promocional, que no es un pago ni una inversión) y total acumulado (la suma de otros importes del documento, que no es un pago aparte). El estado va en el detalle de la evidencia y de la afirmación; las páginas lo muestran junto al tipo y la síntesis tiene la regla de decirlo y de no decir «pagó» de lo que no dice «pagado».
+- **Por qué:** Es la información que un abogado necesita de un importe (debe, pagó, se pactó, es un ejemplo) y estaba mal en 13 de los 16 casos de aceptación. Lista en el vocabulario (R-26), no en el código.
+- **Alternativas descartadas:** Deducir el estado solo por palabras de la cita (no distingue un recibo de un acuerdo de pago en cuotas); cambiar solo las descripciones de los tipos (seguían mezclando dos cosas).
+- **Dónde se aplica:** `src-tauri/resources/catalog/knowledge.json` (`money.states`, `money.kinds`); `knowledge/extract.rs`, `claims.rs`, `pages.rs`; P-136.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N2a de la tanda desatendida del 18 oct.
+
+### D-311 · Un importe que el documento da como ejemplo no se guarda como relación entre las partes
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Capa de conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** Una propuesta comercial explicaba con un ejemplo cómo se facturaría («se factura de la siguiente manera: USD …»); la lectura lo guardó como una factura entre las partes y la página decía «Facturó a …». Los importes además sirven para agrupar asuntos (R-05: los mismos importes).
+- **Qué se decidió:** Un importe con estado de ejemplo (`notAFact` en el vocabulario) se descarta de la lectura con el motivo «no-es-un-hecho», como un impuesto o una cita que no está en el texto. Queda contado en los descartes del documento.
+- **Por qué:** Un ejemplo no dice nada de las partes (R-01): guardarlo como relación lo muestra en sus páginas y puede unir asuntos por un importe que nunca existió.
+- **Alternativas descartadas:** Guardarlo con el estado «ejemplo» (seguiría en las páginas de las partes y en la agrupación por importes).
+- **Dónde se aplica:** `knowledge/extract.rs` (`amount_evidence`); `knowledge.json`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N2a de la tanda desatendida del 18 oct.
+
+### D-312 · Regla de fecha: un pago con fecha posterior al documento no está pagado
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Capa de conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** El modelo puede decir «pagado» de un pago que el documento programa para más adelante (una cuota que vence meses después de la firma).
+- **Qué se decidió:** Después de la lectura, el programa compara la fecha del importe con la fecha del documento: si el estado es de pago hecho (`paid`) y la fecha del importe es con seguridad posterior, el estado pasa a `dueState` (a pagar) y se cuenta como corrección («vence-despues-del-documento»). Las fechas se leen como el intervalo de días que pueden ser: un mes sin día es el mes entero y una fecha numérica con día y mes en orden desconocido cubre las dos lecturas; si los intervalos se tocan, no se cambia nada.
+- **Por qué:** Es una regla general y verificable sin el modelo; ante la duda no corrige (una cuota de «febrero» en un documento del 26 de febrero no se toca).
+- **Alternativas descartadas:** Confiar solo en el modelo; comparar fechas con un orden de día y mes supuesto.
+- **Dónde se aplica:** `knowledge/extract.rs` (`due_after_the_document`), `knowledge/values.rs` (`date_span`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N2a de la tanda desatendida del 18 oct.
+
+### D-313 · Una afirmación de importe con estados distintos según el documento los muestra todos
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Capa de conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** La misma cuota, entre las mismas partes, aparece como «a pagar» en un acuerdo y como «pagada» en un recibo posterior; la afirmación es una sola (mismo importe, partes y tipo) y mostraba el estado de la primera evidencia.
+- **Qué se decidió:** La afirmación guarda el estado si todas sus evidencias dicen el mismo y, si difieren, la lista de estados (`estados`); la página los muestra juntos («a pagar o pagado»). El estado no entra en la clave de la afirmación (el índice único y los asuntos usan el tipo).
+- **Por qué:** No esconder un dato que un documento dice; separar afirmaciones por estado habría cambiado el índice único y la agrupación de asuntos.
+- **Alternativas descartadas:** Separar una afirmación por estado.
+- **Dónde se aplica:** `knowledge/claims.rs`, `knowledge/pages.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N2a de la tanda desatendida del 18 oct.
+
+### D-314 · Una casilla marcada se escribe con «(marcada)» y su pregunta por la primera oración
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Base documental
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** En las fichas de cliente, el texto guardado en la base no decía qué casilla estaba marcada: la extracción que lo dice existía desde el 14 de octubre, pero los textos se habían extraído antes. Además, la lectura y el wiki tomaban el rótulo impreso («SI NO») como respuesta (P-135).
+- **Qué se decidió:** Cada casilla marcada u opción elegida se escribe en la sección de campos del formulario con su rótulo seguido de «(marcada)», y una pregunta impresa que sigue con instrucciones («… de la Operación. En caso negativo, …») se nombra por su primera oración. La consigna de la lectura dice que las opciones impresas son rótulos y que, si el texto no dice cuál está marcada, no se afirma la respuesta.
+- **Por qué:** Que nadie (persona ni modelo) confunda el rótulo impreso de una opción con la respuesta, y que la pregunta y la respuesta queden juntas.
+- **Alternativas descartadas:** Escribir solo la opción (no distingue un valor tipeado de una casilla marcada).
+- **Dónde se aplica:** `src-tauri/src/commands/pdf_form.rs`; `knowledge/extract.rs` (consigna).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N2a de la tanda desatendida del 18 oct.
+
+### D-315 · Las marcas de un formulario aplanado se leen por su lugar en la tabla, y si no se puede se dice
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Base documental
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** Un formulario completado y después firmado con un servicio de firma electrónica queda sin campos: cada casilla marcada es un «✔» impreso donde estaba la casilla, y el texto los trae sueltos al final de la página, sin decir a qué pregunta corresponden.
+- **Qué se decidió:** Cada glifo de marca (✔ ✓ ☑ ☒ ✗ ✘) de una página sin casillas se lee como una casilla marcada en su lugar: su opción es el texto de la celda vecina de la tabla del lado donde todas las opciones de esa fila tienen su casilla (una celda vacía), usando las líneas verticales de la tabla; la pregunta es lo impreso antes de las opciones, en las líneas alrededor. Sin tabla, vale el único rótulo al alcance. Si no se puede saber, el campo dice «marcada, sin saber cuál de las opciones» y nombra las opciones posibles: nunca se elige una adivinando.
+- **Por qué:** Es determinista, general y no inventa: en la carpeta de prueba lee bien las tres preguntas de la ficha aplanada; donde la geometría no alcanza, se abstiene (P-135 pide no afirmar lo que no se sabe).
+- **Alternativas descartadas:** Leer la imagen con el modelo (queda para las fichas escaneadas, P-160); tomar el rótulo más cercano (en la ficha de prueba elegía la opción equivocada).
+- **Dónde se aplica:** `src-tauri/src/commands/pdf_form.rs` (`tick_fields`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N2a de la tanda desatendida del 18 oct.
+
+### D-316 · Versión de la extracción de texto: lo extraído con una versión vieja se revisa una vez
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Base documental
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** El texto de un documento se extrae una sola vez; cuando la extracción mejora (leer las casillas), los documentos ya extraídos se quedan con el texto viejo para siempre.
+- **Qué se decidió:** La base guarda la versión de la extracción con la que están sus textos (`docbase_setting`). Si es anterior a la del programa, el trabajador revisa de a poco los documentos extraídos sin reconocimiento: a un PDF cuyos campos de formulario ahora se leen distinto lo vuelve a extraer (su texto cambia y lo que depende de él se rehace); a los demás no los toca. Al terminar guarda la versión nueva. Una base sin textos queda en la versión actual. La evaluación hace lo mismo antes de leer.
+- **Por qué:** Que una mejora de la extracción llegue a lo que ya está en la base sin volver a extraer todo el archivo.
+- **Alternativas descartadas:** Volver a extraer todos los textos (cambia la fecha de todos y rehace parecidos); dejarlo a mano.
+- **Dónde se aplica:** `src-tauri/src/docbase/text.rs` (`refresh_extraction`), `worker.rs`, `knowledge/check.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N2a de la tanda desatendida del 18 oct.
+
+### D-317 · Una definición con forma jurídica es un nombre, no un término; los términos se reconocen aunque tengan marcas de énfasis
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Capa de conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** Al releer, el modelo dio como «término definido» un nombre de sociedad entre paréntesis después de una marca comercial, y el programa unió las dos menciones sin mirar los nombres (una unión falsa); en otro documento un término definido entre marcas de negrita («(**“X**”)») no se reconoció como término y se unió por nombre a otra organización.
+- **Qué se decidió:** Una definición cuyo término tiene forma jurídica (S.A., LLC…) se descarta («termino-con-forma-juridica») y la unión de las dos menciones queda sujeta a la comprobación de nombres (D-281). La forma de un término definido ignora los asteriscos y guiones bajos de énfasis.
+- **Por qué:** R-07: ante la duda no se une. Con los dos cambios, las uniones falsas vuelven a 0.
+- **Alternativas descartadas:** Volver a preguntar esos documentos hasta que el modelo no lo haga (no corrige la causa).
+- **Dónde se aplica:** `knowledge/extract.rs` (`define_terms`), `knowledge/read_checks.rs` (`defined_terms`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N2a de la tanda desatendida del 18 oct.
+
+### D-318 · Medición de N2a: releer solo los documentos afectados reutilizando las respuestas de los demás
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Proceso de trabajo
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** La consigna nueva cambia la pregunta de todos los documentos, pero solo puede cambiar el resultado de los que tienen importes o un texto nuevo; releer todo (75 preguntas) no estaba pedido y mezcla la variación del modelo.
+- **Qué se decidió:** Para medir, fuera del repositorio, se releyeron 40 documentos (48 preguntas: 37 con importes en su lectura anterior y las 3 fichas cuyo texto cambió) y a los otros 26 se les copió la respuesta anterior bajo la pregunta nueva, marcada como trasplante (`N2a-trasplante.py`). Una prueba ignorada del repositorio lista las preguntas nuevas de una copia de la base. La base resultante no se usa en la app.
+- **Por qué:** Medir el cambio con el menor ruido y costo, como pide la especificación.
+- **Alternativas descartadas:** Releer todo el archivo (lo hace N3 con su lectura completa).
+- **Dónde se aplica:** Fuera del repositorio: `desatendido-4/N2a-trasplante.py`, `N2a-correr.sh`; `knowledge/check.rs` (`reading_questions_to_a_file`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N2a de la tanda desatendida del 18 oct.
+
+### D-320 · Cada afirmación lleva su certeza: con cita comprobada, confirmada, dudosa o corregida
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Capa de conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** Que la cita de una afirmación esté en el documento no prueba que la lectura sea correcta (D-293): el modelo puede atribuir un dato a quien no es, la identidad del sujeto puede estar en duda o dos documentos pueden decir cosas distintas. Las páginas y las pantallas mostraban todo igual, como hecho firme.
+- **Qué se decidió:** Cada afirmación tiene una certeza calculada en cada resolución, sin el modelo, desde lo que ya guarda la base: **con cita comprobada** (la cita está en el texto y nadie la confirmó), **confirmada** por una persona (decisión nueva «confirmar», que se deshace como las otras), **dudosa** (motivos: los documentos difieren, que es el conflicto de siempre; la identidad del sujeto o del objeto está en duda en todas sus evidencias, por las dudas de identidad; la cita nombra a otra persona u organización del documento y no a su sujeto, en todas sus evidencias (una dirección de correo no nombra a la organización de su dominio, y un apellido que comparten no nombra al sujeto); los documentos dicen estados distintos de un importe) y **corregida** (una persona marcó como incorrecta una de sus evidencias o unió o separó una de sus menciones). Gana la confirmación; una duda gana sobre una corrección. Se guarda como resumen calculado en `knowledge_claim.certainty` (nivel y motivos) para que páginas, pantallas y chat lean lo mismo; la confirmación es un tipo más de `knowledge_decision` (migración V15).
+- **Por qué:** El dueño pidió que cada afirmación lleve certeza y quién la confirmó, y que lo dudoso nunca se presente como hecho firme. Las señales son generales (R-24) y reutilizan el estado de la afirmación, las dudas y las decisiones; la única columna nueva es el resumen, para no recalcularlo en cuatro lectores.
+- **Alternativas descartadas:** Calcularla al mostrar en cada pantalla (tres copias de la misma regla); ampliar `knowledge_claim.state` (mezcla el conflicto entre documentos con la palabra de una persona y obliga a reconstruir la tabla); preguntarle al modelo cuán seguro está (no es verificable).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/claims.rs` (`certainty_json`, `names_someone_else`, `doubted_mentions`), `decide.rs` (`Confirm`), `schema.rs` (V15), `entities.rs`; `src/components/knowledge/entity-detail.tsx`, `knowledge.ts` (`certaintyInWords`); P-142.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N2b de la tanda desatendida del 18 oct.
+
+### D-321 · Las decisiones de una persona se colocan sobre lo que dicen los documentos en cada resolución; lo que ya no encuentran queda para revisar
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Capa de conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** Una decisión (unir, separar, marcar incorrecto) nombra un grupo de menciones por su documento y su nombre, o una evidencia por su documento, sujeto, predicado y objeto. Al releer un documento con otra consigna, el modelo puede escribir el mismo nombre o valor de otra forma («Nueve Ejemplo» por «Persona Nueve Ejemplo», «Calle Siete 700» por «Calle Siete 700 piso 3»): la decisión dejaba de aplicarse sin aviso (una separación se perdía y las dos menciones volvían a unirse por su identificador). La prueba nueva lo mostró fallando antes del arreglo.
+- **Qué se decidió:** Antes de cada resolución cada decisión activa se coloca: **se aplica** (lo que nombra está, o está en el documento que tomó el lugar del suyo); **se movió** (no está igual, pero en su documento hay una sola cosa del mismo tipo con un nombre que puede ser el mismo, o una sola evidencia del mismo predicado con el mismo valor escrito de otra forma: la decisión sigue con ella y se guarda a qué se aplica, `applied_as`); **espera** (su documento no está o no se leyó todavía: vuelve sola cuando vuelve el documento); **para revisar** (el documento está leído y lo que nombraba no aparece, o aparece más de una vez). Nunca se aplica a una adivinanza ni se pierde en silencio: Atención muestra «decisión tuya ya no encuentra lo que decidía» con el documento y un botón para deshacerla, y la pantalla de la entidad lo dice en su lista de decisiones. Las decisiones sobre afirmaciones se colocan igual, siguiendo además a la entidad en la que se unió la suya.
+- **Por qué:** Pedido del dueño (las decisiones tienen que sobrevivir a una relectura, D-293) y R-08/R-09: lo que decide una persona no lo pisa un cálculo, y si deja de aplicarse alguien tiene que saberlo.
+- **Alternativas descartadas:** Guardar las decisiones por identificador de mención (cambian en cada lectura); aplicar la decisión al candidato más parecido aunque haya varios (puede unir o separar a quien no es); borrar las decisiones que no encuentran nada.
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/anchors.rs` (nuevo), `resolve.rs` (`load_decided`), `claims.rs` (`place_claim_decisions`), `screens.rs` (`decisions_to_review`); `src/components/attention/sources/knowledge.ts`; prueba `tests_survive.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N2b de la tanda desatendida del 18 oct.
+
+### D-322 · La síntesis y las páginas escriben lo dudoso como dudoso; se dice «con cita comprobada»
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Capa de conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** La síntesis del modelo redactaba todas las afirmaciones como hechos, y las páginas no distinguían un dato dudoso de uno firme.
+- **Qué se decidió:** En la pregunta de la síntesis, cada afirmación dudosa por un motivo que no sea solo el conflicto (que ya tiene su bloque y su regla) lleva «DUDOSA (motivo)», y solo en esas preguntas se agrega la regla de escribirlas como dudosas («según un documento…, sin confirmar»), en oraciones aparte y nunca como algo seguro: las demás entidades conservan su pregunta y su respuesta. Además, un cálculo marca «(sin confirmar)» toda oración que se apoye en una afirmación dudosa y no lo diga. Las cifras del nombre del documento de una afirmación respaldan la oración que lo nombra («según «Carta 26-06-26.pdf»»): sin eso, la comprobación de números descartaba justo las oraciones dudosas. En la página, cada dato listado lleva su marca («sin confirmar: motivo», «confirmado por una persona», «corregido por una persona»), también en los vínculos y en lo que dicen los documentos de un asunto, y debajo de la síntesis una línea explica que cada dato tiene su cita comprobada, que eso no garantiza que la lectura sea correcta y qué quiere decir «sin confirmar». En la interfaz se dice «con cita comprobada», nunca «verificado» (también en el origen del tipo de un documento: «marcas comprobadas»). Las palabras están en el vocabulario de las páginas.
+- **Por qué:** Pedido del dueño (D-293): lo dudoso nunca como hecho firme. La marca calculada lo garantiza aunque el modelo no siga la regla; limitar la regla a las preguntas con dudas evita volver a pedir todas las síntesis por un cambio que no les toca.
+- **Alternativas descartadas:** Cambiar la consigna de todas las síntesis (las mismas respuestas, todas preguntadas de nuevo); sacar las afirmaciones dudosas de la síntesis (se perderían datos que pueden ser ciertos; siguen listadas con su marca).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/pages.rs` (`synthesis_question`, `render`, `certainty_mark`, versión de proyección 8), `resources/catalog/knowledge.json` (`pages.words`); `src/components/docbase/document-types.ts`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N2b de la tanda desatendida del 18 oct.
+
+### D-323 · Medición de N2b: sin preguntar salvo las síntesis cuya pregunta cambió
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Proceso de trabajo
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** La certeza no cambia lo que se lee ni cómo se resuelven las identidades, pero sí la pregunta de la síntesis de las entidades con datos dudosos y el texto de todas las páginas.
+- **Qué se decidió:** Se midió sobre una copia de la base de N2a con las respuestas guardadas; solo se preguntó a `gpt-6-luna` alto la síntesis de las entidades cuya pregunta cambió (5 en la primera medición y 2 que faltaban después del ajuste del correo: 7 preguntas en total), por `con-modelo.sh`. Las páginas antes y después de esas entidades quedaron fuera del repositorio (`desatendido-4/N2b-muestra/`).
+- **Por qué:** Lo pide la especificación de la etapa: medir el cambio sin ruido del modelo en lo que no cambió.
+- **Alternativas descartadas:** Volver a escribir todas las síntesis (las demás preguntas no cambiaron).
+- **Dónde se aplica:** Fuera del repositorio: `desatendido-4/N2b-correr.sh`, `N2b-muestra.py`, `N2b-medicion.md`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N2b de la tanda desatendida del 18 oct.
+
+### D-330 · El resumen del documento sale de la lectura de la capa: tema y puntos, cada punto con su cita comprobada
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Capa de conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** El resumen de cada documento lo escribía el wiki en una segunda y tercera lectura con el modelo (análisis y generación), sin cita y sin comprobación, mientras la capa ya leía el documento entero (P-142, principio 2: una extracción principal).
+- **Qué se decidió:** La pregunta de la lectura (versión `conocimiento-4`) pide además un `resumen`: un `tema` (una oración: qué documento es, entre quiénes y para qué) y de dos a seis `puntos` con lo esencial, cada uno con una cita copiada del texto, su página y las menciones que nombra; lo abierto (borrador, propuesta, sin firmar, condicionado) se dice así; en castellano aunque el documento esté en otro idioma. Un cálculo conserva un punto solo si su cita está en el texto y todos sus números están en su cita; un tema solo si sus números están en el texto. Lo descartado se cuenta con motivos propios (`resumen-…`) que no cuentan como lectura ruidosa. Se guarda en la base (`knowledge_summary`, migración V16) con la lectura y se reemplaza con ella: cada punto apunta a las menciones que nombra y a las evidencias del mismo pasaje (una cita contiene a la otra o comparten 8 palabras seguidas), y por ellas a las afirmaciones y su certeza. Un documento largo da un tema (el de la primera parte que lo da) y hasta 10 puntos de todas sus partes.
+- **Por qué:** Pedido del dueño (D-293, una lectura por contenido y configuración) y R-17: medido sobre la lectura completa de los 66 documentos, 66 resúmenes (289 puntos, 4,4 por documento; 38 puntos descartados por el cálculo: 26 con números fuera de su cita, 12 con cita que no está). Revisor a ciegas sobre 10: los 10 fieles; completitud 1,9 de 3 y utilidad 2,4 de 3 (faltan importes y fechas clave: P-171).
+- **Alternativas descartadas:** Una pregunta aparte para el resumen (otra lectura del mismo documento); resumir desde las afirmaciones ya guardadas (pierde lo que no es una afirmación: de qué trata, qué se pide); guardar el resumen sin cita.
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/extract.rs` (`prompt`, `schema`, `summarize`, `same_passage`, `write_reading`), `src-tauri/src/docbase/schema.rs` (V16); pruebas `tests_reading.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N3 de la tanda desatendida del 18 oct.
+
+### D-331 · La página de cada documento la escribe la base desde el resumen, sin modelo, hasta que N4 la arme como página del documento
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Wiki
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** Si el wiki deja de leer documentos con el modelo, nadie escribe la página de cada documento.
+- **Qué se decidió:** La proyección de la capa escribe el texto de cada página de documento del wiki del archivo: título (el de su encabezado o el nombre del archivo), tema, tipo y etapa, fecha del documento, «Lo esencial» (cada punto con la cita que lo respalda, su página y la marca de certeza de las afirmaciones del mismo pasaje: «sin confirmar», «confirmado», «corregido»), «Importes entre las partes» (los importes que el registro guarda de ese documento, con su estado y certeza, aunque el resumen no los diga) y la línea que explica qué es una cita comprobada. Conserva el encabezado de la página (sus fuentes) con la marca `generated_by: micelya-conocimiento` y quita `tags` y `related` que había escrito el modelo; las notas de una persona se conservan y el bloque de entidades queda al final. Una página que escribió la incorporación anterior queda como está hasta que su documento se lee con la pregunta nueva. Versión de proyección 9.
+- **Por qué:** D-293 y la decisión abierta 1 resuelta (D-294): página del documento como archivo generado por ahora. Los importes se agregan sin modelo porque el revisor a ciegas marcó que los resúmenes los omiten.
+- **Alternativas descartadas:** Dejar la página del modelo hasta N4 (seguiría habiendo dos lecturas); escribirla desde TypeScript (no sabe cuándo terminó la lectura).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/pages.rs` (`document_page`, proyección), `resources/catalog/knowledge.json` (`pages.words`: `docSummary`, `docKind`, `docDate`, `docPending`, `docQuote`, `docAmounts`); prueba `tests_pages.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N3 de la tanda desatendida del 18 oct.
+
+### D-332 · En el wiki del archivo la incorporación no llama al modelo: solo crea la página del documento para que la base la complete
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Wiki
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** La incorporación heredada leía cada documento con el modelo 2 o 3 veces (análisis, generación y revisión, más fragmentos, combinación de páginas y reparación de truncados): escribía la página de fuente, conceptos por documento, consultas inventadas y avisos de revisión.
+- **Qué se decidió:** En el wiki del archivo (el proyecto general) la incorporación hace el reconocimiento de texto (sin cambios), crea la página del documento si no existe (encabezado con su fuente y la marca de la base; si ya existe no la toca), actualiza índice y registro sin modelo y guarda su caché. No hay análisis, generación, revisión, conceptos, consultas, avisos de revisión, combinación con el modelo ni descripción de imágenes. Una respuesta del chat guardada en ese wiki se guarda tal cual, sin releerla con el modelo. Los demás proyectos conservan la incorporación anterior.
+- **Por qué:** Principio 2 de la propuesta y especificación de N3. Medido: llamadas del modelo por documento al leer, antes unas 3,1 a 4,1 (2 o 3 del wiki, unas 200 en total, más 75 de la capa para 66 documentos) y ahora 1,14 (75 preguntas para 66 documentos: una lectura, en partes los largos), 0 del wiki.
+- **Alternativas descartadas:** Borrar todo el código de la incorporación anterior (los otros proyectos quedarían sin wiki; queda como P-172); conservar la descripción de imágenes (escribía en la página, no en la base: P-173).
+- **Dónde se aplica:** `src/lib/ingest.ts` (`ingestIntoArchiveWiki`, `buildArchiveSourcePage`), `src/components/chat/chat-message.tsx`; prueba `src/lib/ingest-knowledge-layer.test.ts`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N3 de la tanda desatendida del 18 oct.
+
+### D-333 · Se quitan la revisión del wiki con el modelo y el enriquecimiento de enlaces; la limpieza de avisos con el modelo no corre en el wiki del archivo
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Wiki
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** La revisión de enlaces tenía una parte con el modelo (contradicciones, páginas que faltan) y la limpieza de avisos de revisión preguntaba al modelo; el enriquecimiento de enlaces con el modelo ya no tenía quién lo llamara.
+- **Qué se decidió:** Se quita la revisión con el modelo (la opción de la pantalla y su código); queda la estructural, sin modelo. Se borra el enriquecimiento de enlaces (código muerto). La limpieza de avisos de revisión con el modelo no corre en el wiki del archivo: lo pendiente queda para una persona. Las contradicciones y los duplicados los detecta la capa con evidencia y van a Atención.
+- **Por qué:** Sección 4 de la propuesta.
+- **Alternativas descartadas:** Dejar la revisión con el modelo como opción (lee páginas que ya salen de la base y repite lo que la capa hace con evidencia).
+- **Dónde se aplica:** `src/lib/lint.ts`, `src/components/lint/lint-view.tsx`, `src/lib/sweep-reviews.ts`; borrados `src/lib/enrich-wikilinks*.ts` y `lint.real-llm.test.ts`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N3 de la tanda desatendida del 18 oct.
+
+### D-334 · La investigación en internet guarda su resultado fuera del wiki del archivo
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Wiki
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** La investigación en internet escribía su resultado como página de consulta del wiki y lo indexaba para la búsqueda, mezclando conocimiento externo con el del archivo (D-294).
+- **Qué se decidió:** En el wiki del archivo el resultado se guarda en `.llm-wiki/research/` y no se indexa; la herramienta sigue disponible a pedido. En otros proyectos, como antes.
+- **Por qué:** D-294: herramienta aparte que nunca escribe en la base ni en el wiki del archivo.
+- **Alternativas descartadas:** Quitar la herramienta (la persona la puede querer a pedido).
+- **Dónde se aplica:** `src/lib/deep-research.ts`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N3 de la tanda desatendida del 18 oct.
+
+### D-335 · Medición de N3: lectura completa desde la base de partida, sin trasplantes
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Proceso de trabajo
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** La pregunta de la lectura cambió para todos los documentos: hacía falta leerlos todos y medir sin las respuestas trasplantadas de N2a.
+- **Qué se decidió:** Una lectura completa de los 66 documentos con `gpt-6-luna` alto desde una copia de `base-partida.sqlite3` y un caché vacío (75 preguntas de lectura, 27 de identidad, 43 síntesis; 18 minutos), por `con-modelo.sh`; luego dos corridas sin preguntar con los cambios de páginas. La base queda como `desatendido-4/N3-base.sqlite3` con su caché `N3-cache.json`, base de N4 a N6. Resultados: casos críticos 29 → 33 de 46 (importes 13 → 16 de 16, atribución 3 → 4 de 8, casillas 9 de 9, partidas 3 → 2, regresiones 1 → 2); uniones falsas 0; separaciones falsas 201 → 185; menciones de la hoja 370 → 373; afirmaciones de la hoja 69 → 66. Atribución a ciegas (40 y 40 al azar, mezcladas): 35 → 34 correctas (88 % → 85 %; dinero 10 → 12 de 14, domicilios 13 → 10 de 13).
+- **Por qué:** R-17 y la especificación de la etapa.
+- **Alternativas descartadas:** Medir sobre las bases de N2a/N2b (tienen respuestas trasplantadas); otra lectura completa para ajustar el resumen (excede las lecturas autorizadas de la tanda: queda para N6, P-171).
+- **Dónde se aplica:** Fuera del repositorio: `desatendido-4/N3-correr.sh`, `N3-resumenes.py`, `N3-juicio/`, `N3-resumenes/`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N3 de la tanda desatendida del 18 oct.
+
+### D-340 · Una página por documento o por familia de versiones, escrita por la base
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Wiki
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** Cada archivo tenía su página de documento: una copia en Word y en PDF, un borrador y su ejemplar firmado eran páginas distintas que repetían lo mismo, y la página dependía de que la incorporación la hubiera creado. Lo acordado con el dueño (D-293, punto 4) es una página común solo para versiones del mismo documento, y que cada dato diga de qué versión sale.
+- **Qué se decidió:** La proyección de la capa escribe la página de cada documento del wiki del archivo, haya o no página previa. Los documentos unidos por una relación de `pages.versionRelations` (mismo documento, prácticamente el mismo, ejemplar firmado, versión, vista previa), propuesta por el cálculo de parecidos —de certeza alta o baja— o confirmada por una persona, y nunca descartada, comparten una página (también dos que una persona unió eligiendo cuál lee el wiki). La página lleva el nombre del archivo de la versión elegida por la persona, o de la que es sujeto de una relación de `pages.principalRelations` (el ejemplar firmado), o de la primera; su identificador es `doc-<número del primer contenido>`, y su archivo es el que ya tenía (o la página vieja de una de sus versiones, para que no se rompan enlaces ni notas) o uno nuevo con su título. Contenido, solo desde la base: título, tema del resumen, tipo, etapa y fecha, el bloque de personas, organizaciones y asunto con su rol (enlazados), las versiones con su tipo, fecha, ubicaciones y relación entre ellas (con «propuesta por el cálculo de parecidos, sin confirmar» o «confirmada por una persona»), las ubicaciones (si es una sola versión), los datos del tipo, «Lo esencial», los importes del registro, los documentos relacionados que no son versiones (misma plantilla, contenido en, constancia de firma…) enlazados a su página, y las notas. Los documentos de la misma plantilla son páginas distintas. Proyección versión 10; el cálculo de lo que cambió incluye las familias, resúmenes, tipos y datos.
+- **Por qué:** Principios 1 y 3 de la propuesta, D-293 y D-294. Medido sobre `N3-base` contra la hoja de parecidos: con solo certeza alta, 16 de 19 pares de «mismo documento» quedan juntos; con certeza alta y baja, 18 de 19, y en los dos casos 0 de 60 pares distintos unidos. La certeza baja se muestra en la página y una persona la descarta con la acción de parecidos que ya existe (las versiones vuelven a páginas separadas).
+- **Alternativas descartadas:** Solo relaciones de certeza alta (dos pares de la hoja quedan partidos); incluir «contenido en» y «misma plantilla» (no son versiones: D-293); páginas armadas al mostrarse (D-294: archivo generado por ahora).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/pages/family.rs` (familias, ruta, texto), `pages.rs` (proyección, bloque de varias versiones), `resources/catalog/knowledge.json` (`pages.documentsFolder`, `versionRelations`, `principalRelations`, palabras `doc…` y `rel-…`), `vocabulary.rs`; pruebas `tests_pages.rs`. Reemplaza en parte D-331 (ya no se conserva la página vieja hasta la relectura; el bloque va arriba, debajo de lo que es el documento).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N4 de la tanda desatendida del 18 oct.
+
+### D-341 · Cada punto, dato e importe de una página de versiones dice de qué versión sale
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Wiki
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** En una página común de versiones hay que ver de dónde sale cada cosa, y si dos versiones difieren en un dato, ver los dos (D-293).
+- **Qué se decidió:** Las versiones se nombran por su etapa (con un número si dos tienen la misma) o «versión». Un punto del resumen aparece una vez y lleva entre paréntesis las versiones cuyo texto tiene su cita, salvo que estén todas; un punto de otra versión del mismo pasaje no se repite. Los datos del tipo van en una línea por campo con cada valor y sus versiones; los importes, con las versiones de su evidencia. Una nota bajo la lista de versiones explica que lo que no dice versión está en todas.
+- **Por qué:** D-293, punto 4: si las versiones dicen cosas distintas se muestran las dos.
+- **Alternativas descartadas:** Un resumen completo por versión (repite casi todo, porque las versiones comparten casi todo el texto); mostrar solo la versión principal (esconde lo que cambia).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/pages/family.rs` (`render_document`); prueba `the_versions_of_a_document_share_a_page_and_say_which_version_says_what`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N4 de la tanda desatendida del 18 oct.
+
+### D-342 · La página de un documento solo tiene lo que sabe la base y las notas; las páginas viejas se absorben
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Wiki
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** El wiki tenía una página por archivo escrita por la incorporación anterior, con texto del modelo, y la incorporación nueva crea una página mínima por archivo. Había que pasar a una página por documento sin perder notas ni enlaces, y comprobar que nada en el wiki diga algo que no sale de la base (principio 1).
+- **Qué se decidió:** En cada proyección, una página de documento del wiki que no es la de su familia (la página vieja de una copia o versión, la página mínima que crea la incorporación para otra copia, la de una versión que se unió a otra) se borra: sus notas pasan a las notas de la página del documento y los enlaces a ella se redirigen ahí. El texto que no es notas se reescribe siempre con lo que dice la base: un cambio a mano fuera de las notas se pierde en la proyección siguiente. La incorporación sigue creando la página mínima de un archivo nuevo (así el documento tiene página enseguida); si es otra copia de un documento que ya tiene página, la base la absorbe.
+- **Por qué:** Principio 1 y especificación de N4 (migración sin perder notas, prueba automática de redundancia). Medido sobre `N3-base` con el wiki real de partida copiado: 66 páginas de documento → 59 (6 con versiones, 7 absorbidas, 9 enlaces redirigidos), 0 páginas no escritas por la base y 0 reescritas al proyectar otra vez. Prueba `a_document_page_holds_only_what_the_base_knows_and_the_notes`.
+- **Alternativas descartadas:** Conservar el texto viejo como nota (mezclaría texto del modelo con las notas de una persona para siempre); que la incorporación deje de crear la página mínima (el documento quedaría sin página hasta la proyección y cambiaba más código de TypeScript con el ciclo de vida de los archivos).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/pages.rs` (`project`), `check_pages.rs` (medición), `src/lib/ingest.ts` (comentario de `ingestIntoArchiveWiki`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N4 de la tanda desatendida del 18 oct.
+
+### D-343 · El resumen de la lectura trae importes, fechas clave y números, y en una constancia de firma qué se firmó
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Capa de conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** El revisor a ciegas de N3 encontró los resúmenes fieles pero incompletos (completitud 1,9 de 3): faltaban totales, fechas de emisión y vencimiento, el número de la factura que se rechaza, y en una constancia de firma qué se firmó y quiénes (P-171).
+- **Qué se decidió:** La consigna de la lectura (`conocimiento-5`) pide que los puntos traigan, tal como están escritos, los importes (el total y cómo se compone), las fechas clave y los números que identifican el documento, cada uno en un punto cuya cita lo tenga (dos datos en lugares distintos, dos puntos), que no diga «la factura mencionada» si el texto dice cuál, y que en la constancia de un servicio de firma electrónica diga qué documento se firmó, quiénes, cuándo y si quedó completo. Hasta ocho puntos. Todos los documentos se releen con la consigna nueva (en N6).
+- **Por qué:** Medido sin lectura completa: 7 documentos releídos con `gpt-6-luna` alto sobre una copia de `N3-base` (los demás con su respuesta anterior trasplantada), revisor a ciegas (otro agente, sin la clave): fieles 7 de 7 las dos; completitud 1,71 → 2,57 de 3; utilidad 1,86 → 2,71; prefirió la nueva en 6 y empató en 1 (una boleta donde ninguna da total ni vencimiento). Casos críticos de esa copia 33 de 46 (igual). Las dos lecturas completas de N6 miden el resto.
+- **Alternativas descartadas:** Agregar los importes al resumen por cálculo (ya están en la página desde el registro, D-331; el resumen es para quien no leyó el documento); una pregunta aparte para el resumen (rompe la lectura única).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/extract.rs` (consigna y `KNOWLEDGE_PROMPT`). Medición fuera del repositorio: `desatendido-4/N4-trasplante.py`, `N4-p171-comparar.py`, `N4-p171-juicio/`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N4 de la tanda desatendida del 18 oct.
+
+### D-344 · La carta en Word y en PDF propuesta como «parecido» está bien: no se cambia la regla (P-210)
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Base documental
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** N7 anotó que una carta en Word y otra en PDF con cobertura 0,94 quedaban como «parecido» y no como versión, y pidió revisar la regla de propuesta del cálculo de parecidos (P-210).
+- **Qué se decidió:** No cambiar la regla. Revisado contra los textos y la hoja de parecidos: las dos cartas rechazan facturas distintas con fechas distintas; la hoja las tiene como «misma plantilla», confirmado por una persona. La regla del tipo («si cambia el número de factura son documentos distintos») acierta; el juicio de N7 fue el que se equivocó. Ninguno de los pares de «mismo documento» de la hoja queda mal por esta regla (18 de 19 juntos; el que falta es una vista previa que el cálculo propone como «contenido en», P-180).
+- **Por qué:** R-17: un arreglo sin mejora medida no entra; acá empeoraría (uniría dos documentos distintos).
+- **Alternativas descartadas:** Proponer versión por cobertura alta aunque cambie un dato que distingue documentos (uniría dos cartas sobre facturas distintas).
+- **Dónde se aplica:** Ningún cambio de código. Medición: `desatendido-4/N4-familias.py`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N4 de la tanda desatendida del 18 oct.
+
+### D-350 · La búsqueda del wiki del archivo sale de la base: el texto recorre todo lo visible y el grafo ordena y amplía, nunca recorta
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Búsqueda
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** La búsqueda del chat leía las páginas del wiki y perdía un tercio de los documentos (61 de 104 esperados en los 10 primeros, D-301); el índice de texto de la base encontraba más (79) pero no hallaba documentos en inglés con preguntas en castellano ni números escritos con puntos (P-150). La propuesta (sección 7, D-293) pide que el grafo ordene y amplíe sin recortar y que toda consulta reciba lo visible.
+- **Qué se decidió:** `DocBase::search_documents(visible, pregunta, límite, conjunto elegido)` fusiona por rango recíproco (k = 10) tres listas de la base, siempre restringidas a los documentos con una ubicación visible: (1) las palabras de la pregunta en el texto (bm25; las de seis letras o más también por su raíz, la palabra sin sus dos últimas letras); (2) sus números e identificadores en cualquier forma, en una columna nueva que guarda cada número escrito con puntos, guiones, barras, coma de miles o hasta dos letras como solo sus dígitos (y los importes con centavos también sin ellos); (3) sus palabras en el resumen de cada documento (tema y puntos, en el idioma del archivo). Después el grafo: las personas, organizaciones y asuntos que la pregunta nombra (por los nombres que el registro conoce) suben sus documentos y los suman aunque el texto no los halle, con menos peso si la entidad está en muchos documentos; un nombre que aparece en muchos más documentos que su entidad («acuerdo», «cliente») o una entidad presente en la mitad del archivo no cuentan. Los primeros cinco documentos suman con peso 0,03 los que la base relaciona con ellos (parecidos no descartados). El grafo nunca saca un documento; solo un conjunto que una persona elige a propósito (`within`) achica la búsqueda. Esquema V17: `content_search (numbers, summary)`, que se llena al abrir la base y se actualiza cuando cambian el texto o el resumen.
+- **Por qué:** Medido con las 30 preguntas de N1 (104 esperados, en los 10 primeros, sobre la base de N4): solo texto 79; con números 88; con resumen 93; con raíz 94; con entidades y familias 94 (en los 5 primeros 73 → 78); con la ampliación 96 (en 5: 79). En la base de la consigna `conocimiento-5` da 95. El chat (páginas) pasa de 61 a 95 y la variante «el grafo recorta» perdería 4 esperados (1 en la otra base): no se recorta.
+- **Alternativas descartadas:** Premiar cuántas palabras de la pregunta tiene el documento (bajó de 94 a 93); ampliar con más peso (0,1: 93; 0,2: 91, desplaza resultados de texto); el grafo de hoy (páginas proyectadas a documentos en los últimos lugares, 81); recortar a los documentos de las entidades nombradas (pierde 4); sinónimos o traducción de la pregunta (el resumen en el idioma del archivo alcanzó: las dos preguntas en otro idioma pasan de 0 a 1 de 1, sin modelo).
+- **Dónde se aplica:** `src-tauri/src/docbase/search.rs`, `schema.rs` (V17), `text.rs`, `identity.rs`, `knowledge/extract.rs`; `src-tauri/src/commands/search.rs` (`search_from_base`). Medición fuera del repositorio: `desatendido-4/N5-proto.py`, `N5-busqueda.md`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N5 de la tanda desatendida del 18 oct.
+
+### D-351 · El grafo y los enlaces del wiki del archivo son las relaciones de la base
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Wiki
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** El grafo y el panel de enlaces releían todas las páginas y convertían todo enlace en la misma flecha sin tipo (P-068); la propuesta (sección 6) pide que salgan de la base, con tipo, cita y estado, y reemplaza D-076 para lo que sale de la base.
+- **Qué se decidió:** `DocBase::graph(visible)`: nodos = las páginas que escribe la base (documento o familia de versiones, persona, organización, grupo, asunto), con el nombre de archivo como id (el que ya usa la vista); aristas = un documento y las entidades que nombra (por rol), lo que dicen documentos visibles entre dos entidades (por predicado, con la certeza de la afirmación), dos documentos que el cálculo de parecidos relaciona (nunca los descartados), un asunto y sus documentos, un grupo y sus sociedades; cada una con su tipo, su etiqueta del vocabulario, una cita si la tiene y su estado. La vista del grafo (`wiki-graph.ts`) lo pide con `docbase_graph` y, si el proyecto no es el wiki del archivo, sigue con los enlaces de sus páginas; varias relaciones entre dos páginas son una arista con todas (su cantidad es el peso). El panel de enlaces de una página del wiki del archivo da salientes y entrantes desde esas relaciones (con la relación y la cita como texto), y los enlaces que una persona escribe en las notas se resuelven por la página que nombran o, si no, por un nombre que conoce el registro (una entidad renombrada se sigue encontrando); un enlace de notas que no nombra nada queda como faltante.
+- **Por qué:** Un enlace existe solo si existe la relación; el resto de la página ya se escribe desde la base (D-342), así que no puede haber enlaces rotos fuera de las notas.
+- **Alternativas descartadas:** Seguir con el índice de enlaces de las páginas (P-068 tal como estaba): mantiene dos verdades.
+- **Dónde se aplica:** `src-tauri/src/docbase/graph.rs`, `commands.rs` (`docbase_graph`), `src-tauri/src/commands/search.rs` (`links_from_base`), `src/lib/wiki-graph.ts`, `src/components/graph/graph-view.tsx`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N5 de la tanda desatendida del 18 oct.
+
+### D-352 · El chat recibe una página por documento y la de la entidad más específica que nombra la pregunta
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Búsqueda
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** El chat lee páginas, no documentos: hay que traducir lo que halla la base a páginas sin perder lugares.
+- **Qué se decidió:** Cada documento hallado se contesta con la página de su familia de versiones (dos versiones ocupan un lugar); el último lugar es para la página de la persona, organización o asunto que la pregunta nombra con más especificidad (la que está en menos documentos), si tiene página. Los vínculos con entidades nombradas viajan en `graph_related_to`. Toda consulta usa el conjunto de lo visible; hoy todas las pantallas del espacio privado ven toda la base (`Visible::All`) y el espacio compartido lo calculará por persona en ese mismo lugar.
+- **Por qué:** Medido con el binario de pruebas sobre la base y las páginas de N4: sin página de entidad 96 documentos en las páginas devueltas; con una 95 (y 101 contando las fuentes de toda página); con dos 93. Una página de entidad trae lo que el registro sabe de esa persona con sus citas.
+- **Alternativas descartadas:** Dos páginas de entidad (pierde 3 documentos); ninguna (el chat tendría que abrir la página de la entidad por un enlace).
+- **Dónde se aplica:** `src-tauri/src/commands/search.rs` (`search_from_base`, `NAMED_ENTITY_PAGES`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N5 de la tanda desatendida del 18 oct.
+
+### D-360 · Un término que el documento define nombra una sola cosa en él
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Capa de conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** En una lectura completa (N6), en un contrato el modelo dijo que la línea de notificaciones "Si a <término de la otra parte>:" era "la misma que" la sociedad propia. Una mención escrita como término definido salta el control de nombres (D-281), así que las dos partes del contrato quedaron en una sola entidad (16 pares de menciones unidos por error; antes de esta etapa siempre 0).
+- **Qué se decidió:** Después de marcar los términos definidos, si una mención posterior del mismo término (misma clase) quedó enlazada por el modelo a otro grupo que el de la primera mención del término, pierde ese enlace y conserva solo su nombre, que ya la junta con la primera mención. Nunca se une algo que el nombre no juntaba.
+- **Por qué:** Un término definido en un documento nombra una sola cosa en él; ante la duda no se une (R-07). Medido con las respuestas guardadas de las dos lecturas de N6: uniones falsas 16 → 0 y separaciones 88 → 66 en la primera; la segunda queda idéntica.
+- **Alternativas descartadas:** Reemplazar el enlace del modelo por el destino de la definición: cuando la definición se conoce solo por su forma en el texto (el nombre más cercano antes), ese nombre puede ser el de la empresa de un domicilio "c/o" y deshizo un enlace correcto (separaciones de la segunda lectura 363 → 395).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/extract.rs` (`define_terms`); prueba `tests_reading.rs` (`a_defined_term_names_one_thing_in_its_document`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N6a de la tanda desatendida del 18 oct.
+
+### D-361 · Con un número en la pregunta, el resumen solo ordena los documentos que lo tienen
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Búsqueda
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** Con los resúmenes completos de la consigna `conocimiento-5` (P-171), palabras como "número", "cliente" o "DNI" aparecen en los resúmenes de muchos documentos; en una pregunta con un número, la lista del resumen desplazaba a los documentos que el número encuentra (DNI con puntos 9 → 6 de 9; número de cliente 10 → 6 de 13).
+- **Qué se decidió:** Si la pregunta tiene un número (en cualquiera de sus formas), la lista del resumen se queda solo con los documentos que la lista de números halló; el resto de las listas no cambia.
+- **Por qué:** Una pregunta con un número pide los documentos que lo tienen. Medido sobre las dos lecturas completas de N6 (30 preguntas, 104 esperados, primeros 10): chat 89 → 96 y 87 → 95; por documento 90/89 → 97/97; sobre la base de N4, 95 → 96.
+- **Alternativas descartadas:** Bajar el peso del resumen (0,7; 0,5; 0,3; 0): no recupera las preguntas con número y pierde las de otro idioma.
+- **Dónde se aplica:** `src-tauri/src/docbase/search.rs` (`search_documents`); prueba `search_tests.rs` (`a_question_with_a_number_is_not_pushed_out_by_summaries_without_it`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N6a de la tanda desatendida del 18 oct.
+
+### D-362 · La medición de referencia del 18 de octubre son dos lecturas completas desde cero
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Medición
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** El modelo varía entre corridas (P-133): una sola lectura no dice si un resultado es del programa o de la lectura.
+- **Qué se decidió:** Los números del 18 oct se dan como dos lecturas completas desde una copia de la base de partida (luna high, una después de la otra) con el código de la rama, y los arreglos posteriores se miden con las respuestas guardadas de esas dos lecturas; solo se pregunta al modelo lo que el arreglo cambia (preguntas de identidad de grupos nuevos). Cada indicador se informa para las dos, más la estabilidad (pares de identidad, afirmaciones e importes iguales, casos críticos que pasan en las dos, en una o en ninguna). El juicio de atribución a ciegas mezcla 40 afirmaciones de cada lectura y de la base del 17 (misma semilla) para el mismo revisor.
+- **Por qué:** Separa lo que mejora el programa de lo que cambia el modelo. Resultado (detalle fuera del repositorio, `desatendido-4/N6-resultados.md`): casos críticos 3 → 31 y 33 de 46 (28 en las dos); uniones falsas 0; separaciones 4,2 % → 1,3 % y 6,6 %; atribución a ciegas 38 → 37 y 33 de 40; búsqueda 61 → 96 y 95 de 104; llamadas de lectura 1,14 por documento.
+- **Dónde se aplica:** Arneses fuera del repositorio (`desatendido-4/N6-correr.sh`, `N6-estabilidad.py`, `N6-indicadores.py`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N6a de la tanda desatendida del 18 oct.
+
+### D-363 · Un documento que solo comparte la plantilla se tipa solo si el tipo del principal puede separar la familia
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Tipos de documento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** En la app, con los datos reales, el tipo de un documento y ocho páginas cambiaban cada medio minuto sin fin. El documento compartía la plantilla de una carta documento: como miembro de esa familia recibía el tipo de la carta; con ese tipo, la regla «distinto número de envío, documentos distintos» deshacía la familia; solo, el modelo lo leía como acuse de recibo; la regla dejaba de aplicar y la familia volvía.
+- **Qué se decidió:** Un miembro unido al principal solo por la plantilla (`same-template`) se tipa por su cuenta cuando el tipo actual del principal tiene una regla de datos distintos cuya relación no forma familia (hoy, la carta documento). Los demás miembros siguen recibiendo el tipo de la familia (una pregunta por familia).
+- **Por qué:** Corta la dependencia circular entre el tipo y la familia sin cambiar las demás familias (facturas, recibos, acuerdos de la misma plantilla siguen con una sola pregunta). El tipo que el modelo lee en el documento solo es el correcto en el caso visto. Prueba: `a_member_of_the_template_whose_rule_parts_the_family_is_typed_alone_and_it_settles` (sin el arreglo, el tipo y la relación alternan en cada vuelta).
+- **Dónde se aplica:** `src-tauri/src/docbase/similar/classify.rs` (`load_units`, `principal_type_parts_family`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N6b de la tanda desatendida del 18 oct.
+
+### D-364 · Regeneración con los datos reales el 18 de octubre
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Operación
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** El cierre de la tanda pedía aplicar el rediseño a la base y al wiki reales, con respaldo, y dejar la app abierta.
+- **Qué se decidió:** Respaldo con sha256 de los datos de la app y del wiki (idéntico al de N0: nada había cambiado), wiki anterior apartado fuera del repositorio, carpeta del proyecto por defecto borrada (si existe vacía el arranque falla, P-209) y app abierta desde `llm_wiki_wt` con Codex `gpt-6-luna` `high`. La app migró la base a V17, releyó los 66 documentos con `conocimiento-5` (42 min), identidad y síntesis (10 min) y proyectó 59 páginas de documento y 60 de entidad. La app de desarrollo se abre con el puerto de depuración de WebView2 (`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222`) para comprobar sin pantalla (búsqueda en modo base, grafo de la base) y sacar capturas.
+- **Por qué:** Resultado medido sobre una copia (detalle fuera del repositorio, `desatendido-4/N6-defectos.md`): casos críticos 34 de 46; búsqueda del chat 94 de 104 en los diez primeros; uniones falsas 7 pares (P-206); separaciones 5,3 %; revisión final con 27 defectos de prioridad 1 (P-205).
+- **Dónde se aplica:** datos de la app y `llm-wiki-workspace/default`; cómo volver atrás en `desatendido-4/N6-defectos.md`.
+- **Quién decidió:** agente sin consulta (autorizado por el dueño en el plan de la tanda).
+- **Fuente:** etapa N6b de la tanda desatendida del 18 oct.
+
+### D-365 · Dos personas cuyo nombre de pila difiere en una letra se unen solo si el modelo está seguro
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Identidad de entidades
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** Con los datos reales, la identidad unió a dos personas de una misma familia: el mismo apellido, nombres de pila que difieren en una letra y ningún identificador ni casilla en común (P-206, 7 pares falsos contra la hoja). La unión no salió del nombre (un nombre con una letra distinta nunca une solo) sino del modelo: a la pregunta de identidad respondió «la misma, certeza media» porque las dos aparecían en documentos de la misma organización y «la diferencia de una letra puede ser un error de escritura». Otras versiones de la pregunta, sobre los mismos grupos, habían dicho «dudosa».
+- **Qué se decidió:** Cuando el modelo dice «la misma» de dos grupos de personas que se parecen solo por nombres cuya primera palabra (casi siempre el nombre de pila) está a una letra de una palabra del otro y no está en él, la unión exige certeza alta; con certeza media o baja el par queda como duda para que lo decida una persona (`modelo-misma-nombre-distinto`, con el texto «puede ser un error de escritura o dos personas distintas con el mismo apellido»). No cuentan como parecido una casilla sin nombre, una sola palabra ni una inicial (sirven para los dos nombres); sí lo anulan un nombre igual o contenido en el otro, la misma casilla o un apellido mal escrito con los mismos nombres de pila (ahí sigue valiendo lo que dice el modelo). Se sube la versión de la resolución (`resolucion-10`) para recalcular el registro con los veredictos guardados, sin preguntas nuevas.
+- **Por qué:** Un apellido compartido con un nombre de pila casi igual es justo lo que tienen dos parientes; sin un identificador o una relación que lo diga, juntarlos es adivinar, y una unión falsa mezcla datos de dos personas en una página (prioridad 1). Un nombre escrito con el apellido primero también cae en la regla, que es el lado prudente: queda una duda, no una unión. Medido sin preguntar al modelo (respuestas guardadas): uniones falsas en la copia de la app 7 → 0, en las dos lecturas completas de N6a 0 → 0; separaciones falsas iguales (5,3 %, 1,3 %, 6,6 %); casos críticos iguales (34 de 46 en la app). La primera versión de la regla (cualquier palabra a una letra) separaba además un apellido mal escrito y subía las separaciones 0,1 punto: se acotó a la primera palabra. Pruebas: `people_whose_first_names_differ_by_a_letter_join_only_when_the_model_is_sure` (sin el arreglo, la certeza media los une) y `a_first_name_a_letter_apart_is_told_from_a_surname_misspelled`.
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/resolve.rs` (`apply`, `alike_only_by_a_letter`, `said_with_high_certainty`), `names.rs` (`first_word_a_letter_apart`), `src/components/knowledge/knowledge.ts` (`doubtReason`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N6c de la tanda desatendida del 18 oct.
+
+### D-366 · La identidad corregida se reaplica en la app con los datos reales
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Operación
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** El arreglo D-365 cambia el registro de los datos reales (dos personas separadas), que la app ya tenía regenerado (D-364).
+- **Qué se decidió:** Cerrar la app, compilar el arreglo y reabrirla desde `llm_wiki_wt` (mismo puerto de depuración), con el candado del modelo tomado a mano. Con la versión de la resolución nueva, la app recalcula la identidad desde los veredictos guardados al abrir y reescribe solo las páginas afectadas; no hace falta respaldo nuevo (el de N6b sigue valiendo para volver al 18 a las 00:48) ni relectura.
+- **Por qué:** Medido en una copia de la base real después de reabrir (detalle fuera del repositorio, `desatendido-4/N6c-real-eval.txt`): uniones falsas 0 (antes 7 pares), separaciones 5,3 % (igual), casos críticos 34 de 46 (igual), ninguna pregunta al modelo; el par queda como duda en Atención.
+- **Dónde se aplica:** datos de la app y `llm-wiki-workspace/default`.
+- **Quién decidió:** agente sin consulta (autorizado por el dueño en el plan de la tanda).
+- **Fuente:** etapa N6c de la tanda desatendida del 18 oct.
+
+### D-370 · Para medir conceptos, una «unidad» junta las versiones y copias de un documento
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** al buscar pasajes que se repiten en documentos distintos (D-295), un pasaje repetido entre dos versiones o dos copias de un mismo documento no es un concepto: es el mismo texto.
+- **Qué se decidió:** para la medición, los documentos unidos por relaciones que significan «el mismo documento» (mismo documento, prácticamente el mismo, ejemplar firmado, versión), más vista previa y «contenido en», cuentan como una sola unidad. «Misma plantilla» queda aparte y señalada: dos contratos de la misma plantilla son documentos distintos.
+- **Por qué:** sin eso, casi todos los grupos de pasajes serían versiones del mismo documento.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** medición N7, fuera del repositorio (`desatendido-4/N7-*`); P-211.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N7 de la tanda desatendida del 18 oct.
+
+### D-371 · Qué es un pasaje repetido
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el cálculo de parecidos cuenta secuencias de cinco palabras; un concepto necesita pasajes, no secuencias sueltas.
+- **Qué se decidió:** un pasaje son al menos 8 secuencias contiguas (unas 12 palabras), admitiendo huecos de hasta 3. Dos pasajes se agrupan si se solapan en un 50 % o comparten secuencias. Las secuencias se cuentan **sin** el corte de «texto de rutina» del cálculo de parecidos, porque en un archivo grande ese corte se llevaría justamente las cláusulas estándar.
+- **Por qué:** con distintos largos mínimos salen 82, 69, 47 y 42 grupos (4, 8, 15 y 30 secuencias); 8 conserva las cláusulas cortas sin llenarse de ruido.
+- **Alternativas descartadas:** usar el corte de rutina del cálculo de parecidos.
+- **Dónde se aplica:** medición N7; P-211.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N7 de la tanda desatendida del 18 oct.
+
+### D-372 · Tres clases para un grupo de pasajes
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** no todo pasaje repetido es un concepto: hay membretes, rótulos de formularios y copias no detectadas.
+- **Qué se decidió:** cada grupo es *reconocible* (una cláusula o figura con nombre), *formulario* (texto fijo de un formulario, una plataforma de firma o una boleta) o *ruido* (copias no detectadas, listas de importes). Una regla general hace un primer filtro; la clase final la da el modelo, una vez por grupo.
+- **Por qué:** medido: la regla sola marcó como formulario 7 cláusulas reales; el modelo y el juicio del agente coincidieron en el 81 %.
+- **Alternativas descartadas:** solo la regla, sin el modelo.
+- **Dónde se aplica:** medición N7; P-211.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N7 de la tanda desatendida del 18 oct.

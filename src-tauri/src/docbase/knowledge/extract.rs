@@ -43,7 +43,7 @@ use crate::source_volume::catalog::{is_page_heading, RECOGNIZED_MARKER_START};
 
 /// Version of the question. Changing the prompt changes it, and every
 /// document is read again.
-pub const KNOWLEDGE_PROMPT: &str = "conocimiento-2";
+pub const KNOWLEDGE_PROMPT: &str = "conocimiento-5";
 /// The task the answers are kept under in `model_answer`.
 pub const TASK: &str = "knowledge";
 /// Words of text in one question; a longer document is read in parts of
@@ -307,6 +307,14 @@ pub fn prompt(vocabulary: &Vocabulary, hints: &Hints, part: &str, index: usize, 
     }));
     let money = vocabulary.money_predicate().map(|p| p.description.trim().to_string()).unwrap_or_default();
     let kinds = list(vocabulary.money.kinds.iter().map(|k| (k.id.clone(), k.description.clone())));
+    let states = list(
+        vocabulary
+            .money
+            .states
+            .iter()
+            .map(|s| (s.id.clone(), s.description.clone()))
+            .chain(std::iter::once((NO_STATE.to_string(), "el documento no lo dice".to_string()))),
+    );
     let mut known = Vec::new();
     if let Some(doc_type) = &hints.doc_type {
         known.push(format!(
@@ -327,6 +335,7 @@ pub fn prompt(vocabulary: &Vocabulary, hints: &Hints, part: &str, index: usize, 
     } else {
         String::new()
     };
+    let summary_note = if total > 1 { " (de esta parte; el tema, del documento según lo que se ve en ella)" } else { "" };
     format!(
         "Sos asistente de un estudio jurídico. Leé el documento de abajo y registrá las personas, organizaciones y asuntos \
 que nombra, con qué papel aparece cada uno, y lo que el documento dice de ellos.{part_note}\n\n\
@@ -356,7 +365,10 @@ si la cita nombra a los dos: quién y de quién.\n\
 u organizaciones de este documento, ya resueltos los términos definidos (si el texto dice «la Empresa adeuda a la Locadora», el \
 deudor es la mención que el documento definió como «la Empresa»). Si el texto no dice una de las dos partes, el importe no va. \
 \"importe\" copiado del texto, dentro de la cita; \"moneda\" y \"concepto\" como los dice la cita, o null; \"fecha\" del pago, \
-de la deuda o del reclamo si la cita la dice, o null. Un impuesto, una percepción o un subtotal no son un importe entre partes.\n\
+de la deuda, del vencimiento o del reclamo si la cita la dice, o null. Un impuesto, una percepción o un subtotal no son un importe \
+entre partes. \"estado\" dice qué es el importe para las partes según el documento (pagado, a pagar, pactado, propuesto, \
+condicionado, un ejemplo): leelo en el texto, no lo supongas por el tipo; un pago o una cuota que vence o se hará después de la \
+fecha del documento no está pagado.\n\
 - En un formulario cada valor va con su campo y con la persona de su rótulo: lo que está bajo \"cónyuge\" es del cónyuge, no de \
 quien completa el formulario. Si el rótulo y el valor están separados en el texto, \"cita\" tiene el valor y \"rotulo\" el rótulo \
 copiado del texto; si no, \"rotulo\" es null.\n\
@@ -364,10 +376,25 @@ copiado del texto; si no, \"rotulo\" es null.\n\
 del acto: allí, quien aparece es \"firmante\" u \"otro\".\n\
 - \"fecha_documento\" es la fecha del documento (de su firma, emisión o envío) tal como está escrita, o null.\n\
 - \"pagina\" es el número de la página (los encabezados \"## Page N\" del texto) donde está la cita, o null si el texto no tiene páginas.\n\
-- La sección \"### Form fields\", si está, trae los campos completados de un formulario: son parte del texto.\n\
+- \"resumen\" cuenta de qué trata el documento a quien no lo leyó{summary_note}. En \"tema\", una oración: qué documento es, entre \
+quiénes y para qué. En \"puntos\", de dos a ocho oraciones con lo esencial (lo que se acuerda, se pide, se paga, se decide o se \
+informa; plazos y condiciones), cada una con una cita copiada del texto que la respalda (las mismas reglas de las citas), su \
+\"pagina\" y en \"menciones\" las \"ref\" de las menciones que nombra. Los puntos traen los datos que alguien buscaría en el \
+documento, tal como están escritos: los importes (el total y, si el documento lo dice, cómo se compone), las fechas clave \
+(emisión, firma, vencimiento, plazos, pagos) y los números que lo identifican (de factura, de carta documento, de expediente); \
+no escribas «la factura mencionada» o «el importe acordado» si el texto dice cuál es. Un punto no trae números, fechas ni \
+nombres que no estén en su cita: si dos datos están en lugares distintos del texto, van en dos puntos, cada uno con su cita. En \
+la constancia de un servicio de firma electrónica, lo esencial es qué documento se firmó, quiénes lo firmaron, cuándo y si quedó \
+completo; lo demás (el consentimiento para firmar en forma electrónica, los datos técnicos) es secundario. Lo que el documento \
+deja abierto (un borrador, una propuesta, algo sin firmar o condicionado) se dice así. Escribí el resumen en castellano aunque \
+el documento esté en otro idioma.\n\
+- La sección \"### Form fields\", si está, trae los campos completados de un formulario: son parte del texto. Una casilla \
+marcada figura allí con su pregunta y la opción elegida seguida de \"(marcada)\". Las opciones impresas junto a una pregunta \
+(\"SI NO\", \"Por cuenta propia\", \"Por cuenta de un tercero\") son rótulos, no respuestas: si el texto no dice cuál está marcada, \
+no sabés qué se respondió y no lo afirmes.\n\
 - El nombre del archivo es una pista, no una prueba.\n\n\
 Tipos de entidad:\n{types}\n\nPapeles (\"rol\"):\n{roles}\n\nIdentificadores (\"clase\"):\n{identifiers}\n\n\
-Predicados:\n{predicates}\n\nTipos de importe (\"tipo\"):\n{kinds}\n\n\
+Predicados:\n{predicates}\n\nTipos de importe (\"tipo\"):\n{kinds}\n\nEstados de un importe (\"estado\"):\n{states}\n\n\
 Lo que ya se sabe del documento sin leerlo:\n- {known}\n\n\
 Archivo: «{}»\n\nTexto del documento:\n\"\"\"\n{part}\n\"\"\"\n\n\
 Respondé solo con el JSON pedido.",
@@ -390,15 +417,38 @@ pub fn schema(vocabulary: &Vocabulary) -> serde_json::Value {
     }
     let classes = ids(classes);
     let kinds = ids(vocabulary.money.kinds.iter().map(|k| k.id.clone()).collect());
+    let states = ids(vocabulary.money.states.iter().map(|s| s.id.clone()).chain(std::iter::once(NO_STATE.to_string())).collect());
     let text = serde_json::json!({ "type": "string" });
     let maybe = serde_json::json!({ "type": ["string", "null"] });
     let page = serde_json::json!({ "type": ["integer", "null"] });
     serde_json::json!({
         "type": "object",
         "additionalProperties": false,
-        "required": ["fecha_documento", "menciones", "definiciones", "afirmaciones", "importes"],
+        "required": ["fecha_documento", "menciones", "definiciones", "afirmaciones", "importes", "resumen"],
         "properties": {
             "fecha_documento": maybe,
+            "resumen": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["tema", "puntos"],
+                "properties": {
+                    "tema": text,
+                    "puntos": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": ["texto", "cita", "pagina", "menciones"],
+                            "properties": {
+                                "texto": text,
+                                "cita": text,
+                                "pagina": page,
+                                "menciones": { "type": "array", "items": text }
+                            }
+                        }
+                    }
+                }
+            },
             "definiciones": {
                 "type": "array",
                 "items": {
@@ -413,13 +463,14 @@ pub fn schema(vocabulary: &Vocabulary) -> serde_json::Value {
                 "items": {
                     "type": "object",
                     "additionalProperties": false,
-                    "required": ["deudor", "acreedor", "importe", "moneda", "tipo", "concepto", "fecha", "cita", "pagina"],
+                    "required": ["deudor", "acreedor", "importe", "moneda", "tipo", "estado", "concepto", "fecha", "cita", "pagina"],
                     "properties": {
                         "deudor": maybe,
                         "acreedor": maybe,
                         "importe": text,
                         "moneda": maybe,
                         "tipo": kinds,
+                        "estado": states,
                         "concepto": maybe,
                         "fecha": maybe,
                         "cita": text,
@@ -478,6 +529,8 @@ pub fn schema(vocabulary: &Vocabulary) -> serde_json::Value {
 
 /// The class of a claim when the text says none.
 pub const NO_CLASS: &str = "ninguna";
+/// The state of an amount when the text says none (P-136).
+pub const NO_STATE: &str = "no-dice";
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Answer {
@@ -491,6 +544,27 @@ pub struct Answer {
     pub afirmaciones: Vec<AnswerClaim>,
     #[serde(default)]
     pub importes: Vec<AnswerAmount>,
+    /// What the document is about, for its page (N3, D-330).
+    #[serde(default)]
+    pub resumen: Option<AnswerSummary>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct AnswerSummary {
+    #[serde(default)]
+    pub tema: String,
+    #[serde(default)]
+    pub puntos: Vec<AnswerPoint>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct AnswerPoint {
+    pub texto: String,
+    pub cita: String,
+    #[serde(default)]
+    pub pagina: Option<i64>,
+    #[serde(default)]
+    pub menciones: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -556,6 +630,9 @@ pub struct AnswerAmount {
     pub moneda: Option<String>,
     #[serde(default)]
     pub tipo: String,
+    /// What the amount is for the parties: paid, due, an example (P-136).
+    #[serde(default)]
+    pub estado: Option<String>,
     #[serde(default)]
     pub concepto: Option<String>,
     #[serde(default)]
@@ -617,7 +694,34 @@ pub struct Reading {
     pub discarded: Vec<Discarded>,
     /// The date of the document as its text writes it (D-247).
     pub doc_date: Option<String>,
+    /// What the document is about (D-330): its topic and its points, each
+    /// with a quote that is in the text.
+    pub summary: Summary,
 }
+
+/// The summary of a document, as the reading gave it and the computation
+/// kept it.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct Summary {
+    pub topic: Option<String>,
+    pub points: Vec<SummaryPoint>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SummaryPoint {
+    pub text: String,
+    pub quote: String,
+    pub page: Option<i64>,
+    /// The kept mentions it names (`Mention::reference`, while reading;
+    /// ids of `knowledge_mention` once written).
+    pub mentions: Vec<String>,
+    /// The ids of the document's evidence its quote backs (once written).
+    #[serde(default)]
+    pub evidence: Vec<i64>,
+}
+
+/// Points of a summary kept at most (the parts of a long document add up).
+pub const MAX_SUMMARY_POINTS: usize = 10;
 
 fn discard(reading: &mut Reading, what: &str, reason: &str, said: &str, quote: &str) {
     reading.discarded.push(Discarded { what: what.into(), reason: reason.into(), said: said.trim().into(), quote: quote.trim().into() });
@@ -964,6 +1068,7 @@ pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &
         }
     }
     other_person(vocabulary, body, &mut reading);
+    due_after_the_document(vocabulary, &mut reading);
     owner_by_prefix(vocabulary, &mut reading);
     signature_block(vocabulary, &group_names, &mut reading);
     // A part of an address read as a number that identifies someone (a
@@ -1052,8 +1157,76 @@ pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &
     for (value, quote) in dropped {
         discard(&mut reading, "identifier", "de-otra-persona", &value, &quote);
     }
+    summarize(body, &text, answers, &refs, &mut reading);
     reading
 }
+
+/// The summary of the document (D-330): the topic of the first part that
+/// gives one, and the points of every part whose quote is in the text and
+/// whose numbers are all in its quote; a topic with a number the text does
+/// not have is left out. What is left out is counted as discarded.
+fn summarize(body: &str, text: &Located, answers: &[Answer], refs: &HashMap<(usize, String), String>, reading: &mut Reading) {
+    use super::pages::digit_runs;
+    let in_body = digit_runs(body);
+    for (part, answer) in answers.iter().enumerate() {
+        let Some(said) = &answer.resumen else { continue };
+        let topic = one_line(&said.tema);
+        if reading.summary.topic.is_none() && !topic.is_empty() {
+            if digit_runs(&topic).iter().all(|run| in_body.contains(run)) {
+                reading.summary.topic = Some(topic);
+            } else {
+                discard(reading, "summary", "resumen-numero-fuera-del-texto", &topic, "");
+            }
+        }
+        for point in &said.puntos {
+            let sentence = one_line(&point.texto);
+            if sentence.is_empty() {
+                continue;
+            }
+            let Some(page) = text.locate(&point.cita, point.pagina) else {
+                discard(reading, "summary", "resumen-cita-no-encontrada", &sentence, &point.cita);
+                continue;
+            };
+            let backed = digit_runs(&point.cita);
+            if !digit_runs(&sentence).iter().all(|run| backed.contains(run)) {
+                discard(reading, "summary", "resumen-numero-fuera-de-la-cita", &sentence, &point.cita);
+                continue;
+            }
+            if reading.summary.points.len() >= MAX_SUMMARY_POINTS {
+                continue;
+            }
+            let mut mentions: Vec<String> = Vec::new();
+            for said_ref in &point.menciones {
+                if let Some(kept) = refs.get(&(part, said_ref.clone())) {
+                    if !mentions.contains(kept) {
+                        mentions.push(kept.clone());
+                    }
+                }
+            }
+            reading.summary.points.push(SummaryPoint { text: sentence, quote: point.cita.trim().to_string(), page, mentions, evidence: Vec::new() });
+        }
+    }
+}
+
+fn one_line(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Whether two quotes of a document are about the same passage: one has
+/// the other, or they share a run of at least `SHARED_RUN` words.
+pub(crate) fn same_passage(a: &str, b: &str) -> bool {
+    let (a, b) = (quote::words(a), quote::words(b));
+    if a.is_empty() || b.is_empty() {
+        return false;
+    }
+    if quote::contains(&a, &b) || quote::contains(&b, &a) {
+        return true;
+    }
+    a.windows(SHARED_RUN).any(|w| quote::contains(&b, w))
+}
+
+/// Words two quotes share in a row to be about the same passage.
+const SHARED_RUN: usize = 8;
 
 fn push_evidence(reading: &mut Reading, evidence: Evidence) {
     let same = |e: &Evidence| {
@@ -1146,6 +1319,13 @@ fn define_terms(vocabulary: &Vocabulary, body: &str, answers: &[Answer], text: &
                 discard(reading, "definition", "definicion-sin-nombre", &said.termino, &said.cita);
                 continue;
             }
+            // A "term" with a legal form ("Otra Empresa S.A.") is the name of
+            // a company, not a term the document defines: a name next to
+            // another in parentheses is not a definition of it.
+            if names::key(vocabulary, ORGANIZATION_KIND, &said.termino).form.is_some() {
+                discard(reading, "definition", "termino-con-forma-juridica", &said.termino, &said.cita);
+                continue;
+            }
             targets.entry(term).or_insert(target);
         }
     }
@@ -1187,6 +1367,42 @@ fn define_terms(vocabulary: &Vocabulary, body: &str, answers: &[Answer], text: &
         let target = target.filter(|t| *t != mention.reference && kinds.get(t) == Some(&mention.kind));
         if mention.same_as.is_none() {
             mention.same_as = target;
+        }
+    }
+    // A term the document defines names one thing in it: a later mention
+    // of the term that the model made "the same as" another party ("If to
+    // Term:" next to the other party's name) loses that link, and keeps
+    // only its name, which joins it to the term's first mention. Nothing is
+    // joined that the name did not already join.
+    let chains: HashMap<String, String> =
+        reading.mentions.iter().filter_map(|m| m.same_as.clone().map(|s| (m.reference.clone(), s))).collect();
+    let root = |reference: &str| -> String {
+        let mut at = reference.to_string();
+        for _ in 0..=chains.len() {
+            match chains.get(&at) {
+                Some(next) if *next != at => at = next.clone(),
+                _ => break,
+            }
+        }
+        at
+    };
+    let mut first_of_term: HashMap<(String, String), String> = HashMap::new();
+    let mut undo: BTreeSet<String> = BTreeSet::new();
+    for mention in reading.mentions.iter().filter(|m| m.defined) {
+        let key = (mention.kind.clone(), read_checks::without_article(&mention.normalized));
+        match first_of_term.get(&key) {
+            None => {
+                first_of_term.insert(key, mention.reference.clone());
+            }
+            Some(first) if root(first) != root(&mention.reference) && mention.same_as.is_some() => {
+                undo.insert(mention.reference.clone());
+            }
+            _ => {}
+        }
+    }
+    for mention in &mut reading.mentions {
+        if undo.contains(&mention.reference) {
+            mention.same_as = None;
         }
     }
     // What a term defines is not itself a defined term.
@@ -1254,12 +1470,22 @@ fn amount_evidence(
         corrected(reading, "direccion-invertida", &what, &said.cita);
         std::mem::swap(&mut debtor, &mut creditor);
     }
+    // An example the document gives (a simulation of an invoice) says
+    // nothing of the parties: it is not a relation between them (P-136).
+    let state = said.estado.as_deref().and_then(|s| vocabulary.money_state(s.trim()));
+    if state.is_some_and(|s| s.not_a_fact) {
+        discard(reading, "amount", "no-es-un-hecho", &what, &said.cita);
+        return;
+    }
     let kind = vocabulary.money_kind(&said.tipo).or_else(|| vocabulary.money.kinds.last()).map(|k| k.id.clone()).unwrap_or_default();
     let in_quote = |v: &Option<String>| -> Option<String> {
         v.as_deref().map(str::trim).filter(|v| !v.is_empty() && quote::contains(&quote_words, &quote::words(v))).map(str::to_string)
     };
     let mut detail = serde_json::Map::new();
     detail.insert("tipo".into(), kind.into());
+    if let Some(state) = state {
+        detail.insert("estado".into(), state.id.clone().into());
+    }
     let currency = in_quote(&said.moneda).or_else(|| {
         let words = quote::words(&amount);
         let sign = amount.contains('$') || amount.contains('€');
@@ -1285,6 +1511,32 @@ fn amount_evidence(
             detail: Some(serde_json::Value::Object(detail)),
         },
     );
+}
+
+/// A payment dated after its document is not made yet (P-136): an amount
+/// the reading gave a paid state, whose date is surely later than the date
+/// of the document, takes the vocabulary's `dueState` instead, counted as
+/// a correction. Dates that cannot be read, or that may be the same day
+/// or month as the document's, are left as the reading said.
+fn due_after_the_document(vocabulary: &Vocabulary, reading: &mut Reading) {
+    let due = vocabulary.money.due_state.trim();
+    let Some(document) = reading.doc_date.as_deref().and_then(values::date_span) else { return };
+    if vocabulary.money_state(due).is_none() {
+        return;
+    }
+    let mut changed: Vec<(String, String)> = Vec::new();
+    for item in reading.evidence.iter_mut() {
+        let Some(detail) = item.detail.as_mut().and_then(|d| d.as_object_mut()) else { continue };
+        let paid = detail.get("estado").and_then(|s| s.as_str()).and_then(|s| vocabulary.money_state(s)).is_some_and(|s| s.paid);
+        let later = item.fact_time.as_deref().and_then(values::date_span).is_some_and(|(first, _)| first > document.1);
+        if paid && later {
+            detail.insert("estado".into(), due.into());
+            changed.push((item.amount.clone().unwrap_or_default(), item.quote.clone()));
+        }
+    }
+    for (amount, quote) in changed {
+        corrected(reading, "vence-despues-del-documento", &amount, &quote);
+    }
 }
 
 /// A number whose prefix says it belongs to another type of entity (a
@@ -1490,6 +1742,7 @@ fn write_reading(
     let tx = conn.transaction().map_err(sql_err)?;
     tx.execute("DELETE FROM knowledge_mention WHERE content_id = ?1", [pending.content_id]).map_err(sql_err)?;
     tx.execute("DELETE FROM knowledge_evidence WHERE content_id = ?1", [pending.content_id]).map_err(sql_err)?;
+    tx.execute("DELETE FROM knowledge_summary WHERE content_id = ?1", [pending.content_id]).map_err(sql_err)?;
     let keys: Vec<&str> = questions.iter().map(|q| q.key.as_str()).collect();
     let doc_date = reading.ok().and_then(|r| r.doc_date.clone());
     let (state, mentions, evidence, discarded, error) = match reading {
@@ -1546,6 +1799,34 @@ fn write_reading(
                 )
                 .map_err(sql_err)?;
             }
+            // The summary, its mentions and the evidence its quotes back
+            // by the ids just written (D-330).
+            let evidence_ids: Vec<(i64, String)> = {
+                let mut statement = tx.prepare("SELECT id, quote FROM knowledge_evidence WHERE content_id = ?1 ORDER BY id").map_err(sql_err)?;
+                let rows = statement
+                    .query_map([pending.content_id], |row| Ok((row.get(0)?, row.get(1)?)))
+                    .map_err(sql_err)?
+                    .collect::<Result<_, _>>()
+                    .map_err(sql_err)?;
+                rows
+            };
+            let points: Vec<SummaryPoint> = reading
+                .summary
+                .points
+                .iter()
+                .map(|point| SummaryPoint {
+                    mentions: point.mentions.iter().filter_map(|m| ids.get(m.as_str()).map(|id| id.to_string())).collect(),
+                    evidence: evidence_ids.iter().filter(|(_, quote)| same_passage(quote, &point.quote)).map(|(id, _)| *id).collect(),
+                    ..point.clone()
+                })
+                .collect();
+            if reading.summary.topic.is_some() || !points.is_empty() {
+                tx.execute(
+                    "INSERT INTO knowledge_summary (content_id, topic, points) VALUES (?1, ?2, ?3)",
+                    params![pending.content_id, reading.summary.topic, serde_json::to_string(&points).map_err(|e| e.to_string())?],
+                )
+                .map_err(sql_err)?;
+            }
             (
                 "done",
                 reading.mentions.len(),
@@ -1589,6 +1870,8 @@ fn write_reading(
     .map_err(sql_err)?;
     // Its mentions changed: the resolution of identities looks at it again.
     mark_dirty(&tx, "resolve", &pending.content_id.to_string())?;
+    // Its summary changed: the search finds it by its summary (D-350).
+    crate::docbase::search::index_content(&tx, pending.content_id)?;
     tx.commit().map_err(sql_err)
 }
 

@@ -31,6 +31,16 @@ pub const EXTRACTION_ENGINE: &str = "extraction";
 /// Kind of the derivative that holds the filled-in fields of a form.
 pub const FIELDS_KIND: &str = "fields";
 
+/// Version of what plain extraction reads of a file. Raised when it reads
+/// more than before; the documents it would now read differently are then
+/// extracted again (`refresh_extraction`). 2: which box of a form is
+/// ticked, and the tick glyphs of a flattened form (P-135).
+pub const EXTRACTION_VERSION: i64 = 2;
+/// Where the version the texts of the base were extracted with is kept
+/// (`docbase_setting`), and how far the check of the older ones went.
+const EXTRACTION_VERSION_SETTING: &str = "text-extraction-version";
+const EXTRACTION_REFRESH_SETTING: &str = "text-extraction-refreshed-to";
+
 enum Outcome {
     /// Its whole text.
     Text(String),
@@ -49,6 +59,100 @@ impl DocBase {
             let outcome = run_guarded("docbase_extract_text", || extract(path));
             let fields = run_guarded("docbase_form_fields", || form_fields(path)).unwrap_or_default();
             self.apply_text(*content_id, outcome, &fields)?;
+        }
+        Ok(jobs.len())
+    }
+
+    /// Looks again, up to `limit` at a time, at the documents whose text an
+    /// older version of the extraction wrote: a PDF whose form now reads
+    /// differently (a ticked box it did not see) is marked to be extracted
+    /// again, and its text changes with it; the others are left alone.
+    /// Once all were looked at, the base keeps the current version and this
+    /// does nothing. A base with no text yet is at the current version.
+    /// Returns how many were looked at.
+    pub fn refresh_extraction(&self, limit: usize) -> Result<usize, String> {
+        self.refresh_extraction_with(limit, |path| form_fields(path).unwrap_or_default())
+    }
+
+    fn refresh_extraction_with(&self, limit: usize, read_fields: impl Fn(&Path) -> Vec<(String, String)>) -> Result<usize, String> {
+        let setting = |conn: &rusqlite::Connection, key: &str| -> Result<Option<i64>, String> {
+            conn.query_row("SELECT value FROM docbase_setting WHERE key = ?1", [key], |row| row.get::<_, String>(0))
+                .optional()
+                .map_err(sql_err)
+                .map(|v| v.and_then(|v| v.parse().ok()))
+        };
+        let jobs: Vec<(i64, PathBuf, Option<String>)> = {
+            let conn = self.conn();
+            if setting(&conn, EXTRACTION_VERSION_SETTING)?.unwrap_or(1) >= EXTRACTION_VERSION {
+                return Ok(0);
+            }
+            let from = setting(&conn, EXTRACTION_REFRESH_SETTING)?.unwrap_or(0);
+            let mut statement = conn
+                .prepare(&format!(
+                    "SELECT c.id, o.location, min(l.rel_path), fd.body
+                     FROM content c
+                     JOIN derivative d ON d.content_id = c.id AND d.kind = 'text' AND d.engine = ?3
+                     LEFT JOIN derivative fd ON fd.content_id = c.id AND fd.kind = ?4
+                     JOIN file f ON f.content_id = c.id
+                     JOIN location l ON l.file_hash = f.hash AND l.hash_state = 'done'
+                     JOIN origin o ON o.id = l.origin_id AND o.reachable = 1
+                     WHERE c.state = 'processed' AND c.id > ?1 AND NOT {}
+                     GROUP BY c.id
+                     ORDER BY c.id
+                     LIMIT ?2",
+                    super::excluded_sql!()
+                ))
+                .map_err(sql_err)?;
+            let rows = statement
+                .query_map(params![from, limit as i64, EXTRACTION_ENGINE, FIELDS_KIND], |row| {
+                    Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, Option<String>>(3)?))
+                })
+                .map_err(sql_err)?;
+            let mut jobs = Vec::new();
+            for row in rows {
+                let (content_id, root, rel_path, fields) = row.map_err(sql_err)?;
+                // A path that cannot be reached now is looked at as none.
+                let path = LocalFolderProvider::new(root).local_path(&rel_path).unwrap_or_default();
+                jobs.push((content_id, path, fields));
+            }
+            jobs
+        };
+        let mut marked = Vec::new();
+        for (content_id, path, kept) in &jobs {
+            let fields = run_guarded("docbase_form_fields", || Ok::<_, String>(read_fields(path))).unwrap_or_default();
+            let kept: Vec<(String, String)> = kept
+                .as_deref()
+                .and_then(|body| serde_json::from_str::<Vec<serde_json::Value>>(body).ok())
+                .unwrap_or_default()
+                .iter()
+                .map(|f| (f["name"].as_str().unwrap_or_default().to_string(), f["value"].as_str().unwrap_or_default().to_string()))
+                .collect();
+            if fields != kept {
+                marked.push(*content_id);
+            }
+        }
+        let conn = self.conn();
+        for content_id in &marked {
+            conn.execute("UPDATE content SET state = 'pending' WHERE id = ?1 AND state = 'processed'", [content_id])
+                .map_err(sql_err)?;
+        }
+        let last = jobs.last().map(|(id, ..)| *id);
+        match last {
+            Some(last) if jobs.len() >= limit => {
+                conn.execute(
+                    "INSERT OR REPLACE INTO docbase_setting (key, value) VALUES (?1, ?2)",
+                    params![EXTRACTION_REFRESH_SETTING, last.to_string()],
+                )
+                .map_err(sql_err)?;
+            }
+            _ => {
+                conn.execute(
+                    "INSERT OR REPLACE INTO docbase_setting (key, value) VALUES (?1, ?2)",
+                    params![EXTRACTION_VERSION_SETTING, EXTRACTION_VERSION.to_string()],
+                )
+                .map_err(sql_err)?;
+                conn.execute("DELETE FROM docbase_setting WHERE key = ?1", [EXTRACTION_REFRESH_SETTING]).map_err(sql_err)?;
+            }
         }
         Ok(jobs.len())
     }
@@ -173,6 +277,8 @@ fn store(tx: &Transaction<'_>, content_id: i64, text: &str, engine: &str, state:
                 .map_err(sql_err)?;
             tx.execute("DELETE FROM content_fts WHERE rowid = ?1", [content_id])
                 .map_err(sql_err)?;
+            tx.execute("DELETE FROM content_search WHERE rowid = ?1", [content_id])
+                .map_err(sql_err)?;
             tx.execute("DELETE FROM content WHERE id = ?1", [content_id])
                 .map_err(sql_err)?;
             return Ok(twin);
@@ -197,6 +303,7 @@ fn store(tx: &Transaction<'_>, content_id: i64, text: &str, engine: &str, state:
         .map_err(sql_err)?;
     tx.execute("INSERT INTO content_fts (rowid, body) VALUES (?1, ?2)", params![content_id, text])
         .map_err(sql_err)?;
+    super::search::index_content(tx, content_id)?;
     Ok(content_id)
 }
 
@@ -318,6 +425,50 @@ mod tests {
         assert_eq!(detail.text.as_deref(), Some(CONTRACT));
         assert_eq!(detail.text_engine.as_deref(), Some(EXTRACTION_ENGINE));
         assert!(detail.word_count.unwrap() > 30);
+    }
+
+    #[test]
+    fn a_form_read_better_by_a_newer_extraction_is_extracted_again() {
+        let dir = TempDir::new();
+        dir.write("o/ficha.md", CONTRACT.as_bytes());
+        dir.write("o/otro.md", "Un texto distinto de cualquier otro, con palabras suficientes para ser un documento entero.".as_bytes());
+        let base = DocBase::in_memory().unwrap();
+        let origin = base.add_origin("O", &dir.path().join("o"), &[]).unwrap();
+        settle(&base, &origin.id);
+        let read = |path: &Path| -> Vec<(String, String)> {
+            if path.ends_with("ficha.md") {
+                vec![("Pregunta impresa".to_string(), "SI (marcada)".to_string())]
+            } else {
+                Vec::new()
+            }
+        };
+        // One at a time: the form is marked, the other is left alone.
+        let mut looked = 0;
+        loop {
+            let n = base.refresh_extraction_with(1, read).unwrap();
+            if n == 0 {
+                break;
+            }
+            looked += n;
+        }
+        assert_eq!(looked, 2);
+        assert_eq!(count(&base, "SELECT count(*) FROM content WHERE state = 'pending'"), 1);
+        assert_eq!(state_of(&base, "otro.md"), "processed");
+        // Once done, the base is at the current version: nothing else.
+        assert_eq!(base.refresh_extraction_with(10, |_: &Path| vec![("x".to_string(), "y".to_string())]).unwrap(), 0);
+        while base.extract_pending(50).unwrap() > 0 {}
+        assert_eq!(state_of(&base, "ficha.md"), "processed");
+    }
+
+    #[test]
+    fn a_base_with_no_text_yet_is_at_the_current_extraction() {
+        let base = DocBase::in_memory().unwrap();
+        assert_eq!(base.refresh_extraction(10).unwrap(), 0);
+        let version: String = base
+            .conn()
+            .query_row("SELECT value FROM docbase_setting WHERE key = ?1", [EXTRACTION_VERSION_SETTING], |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, EXTRACTION_VERSION.to_string());
     }
 
     #[test]
@@ -567,9 +718,9 @@ mod tests {
             &[7],
         );
         let (text, fields) = read_form(&pdf);
-        assert!(text.contains("- Beneficiario final: NO"), "{text}");
+        assert!(text.contains("- Beneficiario final: NO (marcada)"), "{text}");
         assert!(!text.contains("SI"), "{text}");
-        assert_eq!(fields, r#"[{"name":"Beneficiario final","value":"NO"}]"#);
+        assert_eq!(fields, r#"[{"name":"Beneficiario final","value":"NO (marcada)"}]"#);
     }
 
     #[test]
@@ -619,12 +770,12 @@ mod tests {
             &[7, 8, 9, 10],
         );
         let (text, fields) = read_form(&pdf);
-        assert!(text.contains("- Es cliente habitual del estudio?: NO"), "{text}");
-        assert!(text.contains("- Tiene deudas pendientes?: SI"), "{text}");
+        assert!(text.contains("- Es cliente habitual del estudio?: NO (marcada)"), "{text}");
+        assert!(text.contains("- Tiene deudas pendientes?: SI (marcada)"), "{text}");
         assert!(!text.contains("Check Box"), "{text}");
         assert_eq!(
             fields,
-            r#"[{"name":"Es cliente habitual del estudio?","value":"NO"},{"name":"Tiene deudas pendientes?","value":"SI"}]"#
+            r#"[{"name":"Es cliente habitual del estudio?","value":"NO (marcada)"},{"name":"Tiene deudas pendientes?","value":"SI (marcada)"}]"#
         );
     }
 

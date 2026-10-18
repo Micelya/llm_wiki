@@ -215,6 +215,13 @@ fn get_page_links_inner(project_path: &str, file_path: &str) -> Result<PageLinks
     let current = pages
         .get(&current_path)
         .ok_or_else(|| "Page is not available in the current wiki index".to_string())?;
+    // The wiki of the archive: its links are the relations of the base.
+    if let Some(base) = crate::docbase::bridge::base_for_project(project_path) {
+        match links_from_base(base, &pages, &current_path, current) {
+            Ok(response) => return Ok(response),
+            Err(err) => eprintln!("[Links] the base could not answer; using the pages: {err}"),
+        }
+    }
     let mut outgoing = Vec::new();
     let mut missing = Vec::new();
     for link in &current.links {
@@ -266,6 +273,92 @@ fn get_page_links_inner(project_path: &str, file_path: &str) -> Result<PageLinks
         backlinks,
         missing,
     })
+}
+
+/// The links of a page of the wiki of the archive (D-351): every relation
+/// the base keeps between its page and another (the relation's label and
+/// quote as the snippet), plus the links a person wrote in the notes of a
+/// page, resolved by the page they name or, failing that, by a name the
+/// base knows (so a renamed entity is still found). A link written in
+/// notes that names nothing is missing; the rest of the page is written
+/// from the base and cannot have broken links.
+fn links_from_base(
+    base: &crate::docbase::DocBase,
+    pages: &BTreeMap<String, GraphPage>,
+    current_path: &str,
+    current: &GraphPage,
+) -> Result<PageLinksResponse, String> {
+    use crate::docbase::knowledge::pages::NOTES_MARK;
+    let graph = base.graph(&crate::docbase::Visible::All)?;
+    let here = file_stem(current_path).to_lowercase();
+    let path_of: BTreeMap<String, (String, String)> = graph
+        .nodes
+        .iter()
+        .map(|n| (n.id.to_lowercase(), (n.path.clone(), n.label.clone())))
+        .collect();
+    let describe = |edge: &crate::docbase::graph::BaseGraphEdge| -> String {
+        match edge.quote.as_deref().filter(|q| !q.trim().is_empty()) {
+            Some(quote) => format!("{} — «{}»", edge.label, quote),
+            None => edge.label.clone(),
+        }
+    };
+    let mut outgoing: Vec<PageLinkEntry> = Vec::new();
+    let mut backlinks: Vec<PageLinkEntry> = Vec::new();
+    for edge in &graph.edges {
+        let (source, target) = (edge.source.to_lowercase(), edge.target.to_lowercase());
+        let (other, list) = if source == here {
+            (target, &mut outgoing)
+        } else if target == here {
+            (source, &mut backlinks)
+        } else {
+            continue;
+        };
+        if let Some((path, label)) = path_of.get(&other) {
+            list.push(PageLinkEntry { title: label.clone(), path: Some(path.clone()), snippet: Some(describe(edge)) });
+        }
+    }
+    // Links written by a person in the notes of a page.
+    let notes_links = |page: &GraphPage| -> Vec<String> {
+        page.content.find(NOTES_MARK).map(|at| extract_graph_links(&page.content[at..])).unwrap_or_default()
+    };
+    let resolve = |link: &str| -> Option<String> {
+        if let Some(path) = resolve_reader_wikilink(pages, link) {
+            return Some(path.clone());
+        }
+        let name = crate::docbase::knowledge::quote::words(link).join(" ");
+        base.page_named(&name).ok().flatten().map(|p| normalize_path(&p))
+    };
+    let mut missing = Vec::new();
+    for link in notes_links(current) {
+        match resolve(&link) {
+            Some(target) if target != current_path => {
+                if let Some(page) = pages.get(&target) {
+                    outgoing.push(PageLinkEntry { title: page.title.clone(), path: Some(page.path.clone()), snippet: None });
+                }
+            }
+            Some(_) => {}
+            None => missing.push(PageLinkEntry { title: link.clone(), path: None, snippet: None }),
+        }
+    }
+    for (path, page) in pages {
+        if path == current_path {
+            continue;
+        }
+        if notes_links(page).iter().any(|link| resolve(link).is_some_and(|t| t == current_path)) {
+            backlinks.push(PageLinkEntry {
+                title: page.title.clone(),
+                path: Some(page.path.clone()),
+                snippet: Some(build_snippet(&page.content, &current.title)),
+            });
+        }
+    }
+    for list in [&mut outgoing, &mut backlinks] {
+        list.sort_by(|a, b| a.title.cmp(&b.title).then(a.path.cmp(&b.path)));
+        list.dedup_by(|a, b| a.path == b.path);
+    }
+    missing.sort_by(|a, b| a.title.cmp(&b.title));
+    missing.dedup_by(|a, b| a.title == b.title);
+    Ok(PageLinksResponse { outgoing, backlinks, missing })
 }
 
 /// Mirror `resolveRelatedSlug` in the frontend reader. Path-shaped links must
@@ -413,6 +506,14 @@ pub async fn search_project_inner(
             }
         }
     }
+    // The wiki of the archive: its search comes from the base (D-350).
+    if let Some(base) = crate::docbase::bridge::base_for_project(&project_path) {
+        match search_from_base(base, &project_path, &query, limit, include_content, &results) {
+            Ok(Some(response)) => return Ok(response),
+            Ok(None) => {}
+            Err(err) => eprintln!("[Search] the base could not search; using the pages: {err}"),
+        }
+    }
     let legacy_page_paths = legacy_stem_candidates
         .into_iter()
         .filter_map(|(stem, paths)| (paths.len() == 1).then(|| (stem, paths[0].clone())))
@@ -493,6 +594,100 @@ pub async fn search_project_inner(
         graph_hits,
         results,
     })
+}
+
+/// Pages of entities the question names that the results carry, at most
+/// (the most specific first): the documents keep the other places. One
+/// page costs one document of 104 in the questions of the test folder and
+/// brings what the record knows of the entity (D-352).
+const NAMED_ENTITY_PAGES: usize = 1;
+
+/// The search of the wiki of the archive (D-350): the base searches the
+/// text, numbers and summaries of every visible document, and the graph of
+/// the base orders and widens what it finds without taking anything out.
+/// Each document is answered with its page (versions share one, D-340);
+/// the person, organization or matter the question names most
+/// specifically adds its page after the documents. `None` while no document has a page yet.
+fn search_from_base(
+    base: &crate::docbase::DocBase,
+    project_path: &str,
+    query: &str,
+    limit: usize,
+    include_content: bool,
+    wiki_hits: &[ProjectSearchResult],
+) -> Result<Option<ProjectSearchResponse>, String> {
+    let pages = base.document_pages()?;
+    if pages.is_empty() {
+        return Ok(None);
+    }
+    // Every screen of the private space sees the whole base today; the
+    // shared space will pass the set of each person here.
+    let visible = crate::docbase::Visible::All;
+    let found = base.search_documents(&visible, query, (limit * 4).max(40), None)?;
+    let entity_pages = base.entity_pages(&found.named)?;
+    let entity_slots = entity_pages.len().min(NAMED_ENTITY_PAGES).min(limit.saturating_sub(1));
+    let titles: BTreeMap<String, String> =
+        wiki_hits.iter().map(|hit| (normalize_path(&hit.path), hit.title.clone())).collect();
+    let mut results: Vec<ProjectSearchResult> = Vec::new();
+    let mut seen = BTreeSet::new();
+    let related_names = |entities: &[String]| -> Vec<String> {
+        entities.iter().filter_map(|id| found.names.get(id).cloned()).collect()
+    };
+    for hit in &found.hits {
+        if results.len() >= limit - entity_slots {
+            break;
+        }
+        let Some(path) = pages.get(&hit.content_id) else { continue };
+        if !seen.insert(normalize_path(path)) {
+            continue;
+        }
+        results.push(page_result(project_path, path, &titles, &hit.snippet, hit.score, include_content, related_names(&hit.entities)));
+    }
+    let lowest = results.last().map(|r| r.score).unwrap_or(1.0);
+    for id in &found.named {
+        if results.len() >= limit {
+            break;
+        }
+        let Some(path) = entity_pages.get(id) else { continue };
+        if !seen.insert(normalize_path(path)) {
+            continue;
+        }
+        let name = found.names.get(id).cloned().unwrap_or_default();
+        results.push(page_result(project_path, path, &titles, "", lowest * 0.99, include_content, vec![name]));
+    }
+    let graph_hits = results.iter().filter(|r| !r.graph_related_to.is_empty()).count();
+    Ok(Some(ProjectSearchResponse {
+        mode: "base".to_string(),
+        token_hits: found.hits.len(),
+        vector_hits: 0,
+        graph_hits,
+        results,
+    }))
+}
+
+fn page_result(
+    project_path: &str,
+    path: &str,
+    titles: &BTreeMap<String, String>,
+    snippet: &str,
+    score: f64,
+    include_content: bool,
+    related: Vec<String>,
+) -> ProjectSearchResult {
+    let content = fs::read_to_string(Path::new(project_path).join(path)).unwrap_or_default();
+    let file_name = Path::new(path).file_name().and_then(|n| n.to_str()).unwrap_or_default().to_string();
+    let title = titles.get(&normalize_path(path)).cloned().unwrap_or_else(|| extract_title(&content, &file_name));
+    ProjectSearchResult {
+        path: path.to_string(),
+        title,
+        snippet: snippet.to_string(),
+        title_match: false,
+        score,
+        vector_score: None,
+        images: extract_image_refs(&content),
+        content: include_content.then_some(content),
+        graph_related_to: related,
+    }
 }
 
 fn apply_rrf_scores(
@@ -1782,6 +1977,69 @@ fn vector_page_id(path: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn page(path: &str, title: &str, content: &str) -> (String, GraphPage) {
+        (
+            path.to_string(),
+            GraphPage {
+                path: path.to_string(),
+                title: title.to_string(),
+                content: content.to_string(),
+                links: extract_graph_links(content),
+            },
+        )
+    }
+
+    #[test]
+    fn the_links_of_the_wiki_of_the_archive_are_the_relations_of_the_base() {
+        let base = crate::docbase::DocBase::in_memory().unwrap();
+        {
+            let conn = base.conn();
+            for sql in [
+                "INSERT INTO origin (id, name, provider, location, added_at) VALUES ('o1', 'o1', 'local', 'o1', 0)",
+                "INSERT INTO content (id, state, first_seen_at) VALUES (1, 'done', 0)",
+                "INSERT INTO file (hash, content_id, size) VALUES ('h1', 1, 1)",
+                "INSERT INTO location (origin_id, rel_path, folder, name, ext, size, mtime_ms, file_hash, first_seen_at, last_seen_at)
+                 VALUES ('o1', 'c.pdf', '', 'c.pdf', 'pdf', 1, 0, 'h1', 0, 0)",
+                "INSERT INTO knowledge_entity (id, kind, name, created_at, updated_at) VALUES ('ent-a', 'persona', 'Ana Prueba', 0, 0)",
+                "INSERT INTO knowledge_alias (entity_id, normalized, written) VALUES ('ent-a', 'ana prueba', 'Ana Prueba')",
+                "INSERT INTO knowledge_mention (content_id, ref, kind, written, normalized, role, quote, entity_id)
+                 VALUES (1, 'm1', 'persona', 'Ana Prueba', 'ana prueba', 'parte', 'Ana Prueba, por derecho propio', 'ent-a')",
+                "INSERT INTO knowledge_page (entity_id, path, fingerprint, written_at) VALUES ('doc-1', 'wiki/sources/contrato.md', '', 0)",
+                "INSERT INTO knowledge_page (entity_id, path, fingerprint, written_at) VALUES ('ent-a', 'wiki/entities/ana-prueba-1.md', '', 0)",
+            ] {
+                conn.execute(sql, []).unwrap();
+            }
+        }
+        let pages: BTreeMap<String, GraphPage> = [
+            page("wiki/sources/contrato.md", "Contrato", "# Contrato
+
+[[un-enlace-viejo]]
+"),
+            page("wiki/entities/ana-prueba-1.md", "Ana Prueba", "# Ana Prueba
+"),
+            // A person wrote a link by name in the notes of another page.
+            page("wiki/otra.md", "Otra", "# Otra
+
+<!-- micelya:notas -->
+Ver [[Ana Prueba]] y [[Nadie Conocido]].
+"),
+        ]
+        .into_iter()
+        .collect();
+        let doc = links_from_base(&base, &pages, "wiki/sources/contrato.md", &pages["wiki/sources/contrato.md"]).unwrap();
+        assert_eq!(doc.outgoing.len(), 1);
+        assert_eq!(doc.outgoing[0].path.as_deref(), Some("wiki/entities/ana-prueba-1.md"));
+        assert!(doc.outgoing[0].snippet.as_deref().unwrap().contains("Ana Prueba, por derecho propio"));
+        // Outside the notes, a link the page wrote is not read: no relation, no link.
+        assert!(doc.missing.is_empty());
+        let ana = links_from_base(&base, &pages, "wiki/entities/ana-prueba-1.md", &pages["wiki/entities/ana-prueba-1.md"]).unwrap();
+        let back: BTreeSet<&str> = ana.backlinks.iter().filter_map(|l| l.path.as_deref()).collect();
+        assert_eq!(back, BTreeSet::from(["wiki/sources/contrato.md", "wiki/otra.md"]));
+        let other = links_from_base(&base, &pages, "wiki/otra.md", &pages["wiki/otra.md"]).unwrap();
+        assert_eq!(other.outgoing.iter().filter_map(|l| l.path.as_deref()).collect::<Vec<_>>(), vec!["wiki/entities/ana-prueba-1.md"]);
+        assert_eq!(other.missing.iter().map(|l| l.title.as_str()).collect::<Vec<_>>(), vec!["Nadie Conocido"]);
+    }
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -2451,5 +2709,68 @@ mod tests {
         assert!(parse_embedding_batch_values(&response, 2)
             .unwrap_err()
             .contains("duplicate"));
+    }
+
+    /// Runs the wiki search the chat uses over a list of questions and
+    /// writes what it returned, so a harness outside the repository can
+    /// measure which documents each question reaches. Ignored: it needs a
+    /// wiki project and a questions file, both outside the repository.
+    ///
+    /// - `MICELYA_SEARCH_QUESTIONS`: JSON with `preguntas: [{id, pregunta}]`.
+    /// - `MICELYA_SEARCH_PROJECT`: the wiki project folder (the one with `wiki/`).
+    /// - `MICELYA_SEARCH_OUT`: where to write the results (JSON).
+    /// - `MICELYA_SEARCH_TOPK`: results per question (default 10, as the chat asks).
+    /// - `MICELYA_SEARCH_BASE`: a copy of a base whose general project becomes
+    ///   `MICELYA_SEARCH_PROJECT`, to measure the search from the base.
+    #[tokio::test]
+    #[ignore]
+    async fn search_questions_from_env() {
+        let questions_path =
+            std::env::var("MICELYA_SEARCH_QUESTIONS").expect("MICELYA_SEARCH_QUESTIONS");
+        let project = std::env::var("MICELYA_SEARCH_PROJECT").expect("MICELYA_SEARCH_PROJECT");
+        let out_path = std::env::var("MICELYA_SEARCH_OUT").expect("MICELYA_SEARCH_OUT");
+        let top_k = std::env::var("MICELYA_SEARCH_TOPK")
+            .ok()
+            .and_then(|value| value.parse::<usize>().ok())
+            .unwrap_or(10);
+        // With MICELYA_SEARCH_BASE (a COPY of a base), the project is its
+        // general project's wiki and the search comes from the base (D-350).
+        if let Ok(base_path) = std::env::var("MICELYA_SEARCH_BASE") {
+            let base = crate::docbase::DocBase::open(Path::new(&base_path)).unwrap();
+            base.conn()
+                .execute("UPDATE project SET path = ?1 WHERE kind = 'general'", [&project])
+                .unwrap();
+            crate::docbase::bridge::share(std::sync::Arc::new(base));
+        }
+        let sheet: Value =
+            serde_json::from_str(&fs::read_to_string(&questions_path).unwrap()).unwrap();
+        let mut rows = Vec::new();
+        for question in sheet["preguntas"].as_array().expect("preguntas") {
+            let id = question["id"].as_str().unwrap_or_default().to_string();
+            let text = question["pregunta"].as_str().unwrap_or_default().to_string();
+            let start = std::time::Instant::now();
+            let response = search_project_inner(project.clone(), text, top_k, false, None).await;
+            let ms = start.elapsed().as_secs_f64() * 1000.0;
+            rows.push(match response {
+                Ok(found) => json!({
+                    "id": id,
+                    "ms": ms,
+                    "mode": found.mode,
+                    "results": found
+                        .results
+                        .iter()
+                        .map(|result| json!({
+                            "path": result.path,
+                            "title": result.title,
+                            "score": result.score,
+                            "graph": !result.graph_related_to.is_empty(),
+                        }))
+                        .collect::<Vec<_>>(),
+                }),
+                Err(error) => json!({ "id": id, "ms": ms, "error": error }),
+            });
+        }
+        let report = json!({ "top_k": top_k, "project": project, "rows": rows });
+        fs::write(&out_path, serde_json::to_string_pretty(&report).unwrap()).unwrap();
     }
 }

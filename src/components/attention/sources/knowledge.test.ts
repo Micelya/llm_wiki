@@ -49,6 +49,7 @@ function attention(patch: Partial<KnowledgeAttention> = {}): KnowledgeAttention 
     discardedSentences: 0,
     keptPages: [],
     leftWithDocuments: [],
+    decisionsToReview: [],
     ...patch,
   }
 }
@@ -131,6 +132,35 @@ describe("knowledgeNotices", () => {
     expect(notices.find((n) => n.topic === "identifier-joins")?.priority).toBe("low")
     expect(notices.find((n) => n.topic === "kept-pages")?.priority).toBe("low")
     expect(attentionCounts(notices).decisions).toBe(2)
+  })
+
+  it("lists the decisions of a person that no longer find what they named, and undoes one from its line", async () => {
+    vi.mocked(invoke).mockResolvedValue(undefined)
+    const decision = {
+      id: 7,
+      kind: "join",
+      a: "cluster:3:persona:persona uno",
+      b: "cluster:4:persona:persona bis",
+      note: null,
+      shownEvidence: "[]",
+      state: "active" as const,
+      decidedAt: 0,
+      undoneAt: null,
+      review: "no-encontrada",
+      appliedAs: null,
+    }
+    const notices = knowledgeNotices(
+      { attention: attention({ decisionsToReview: [{ decision, document: doc(3, "nota.pdf"), reason: "no-encontrada" }] }), doubts: [] },
+      words,
+    )
+    const review = notices.find((n) => n.topic === "decisions-to-review")
+    expect(review?.kind).toBe("decision")
+    expect(review?.cases?.[0].title).toBe("Son la misma: «persona uno» y «persona bis» (en nota.pdf)")
+    expect(review?.cases?.[0].detail).toContain("ya no aparece")
+    expect(review?.cases?.[0].actions?.map((a) => a.label)).toEqual(["Abrir", "Deshacer la decisión"])
+    const undo = review?.cases?.[0].actions?.[1]
+    if (undo?.kind === "run") await undo.run()
+    expect(invoke).toHaveBeenCalledWith("docbase_knowledge_undo", { id: 7 })
   })
 
   it("confirms or turns down a proposal from its line", async () => {

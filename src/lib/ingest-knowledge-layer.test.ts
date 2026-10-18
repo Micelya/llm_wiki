@@ -1,8 +1,9 @@
 /**
- * Ingest in the archive's wiki, where the knowledge layer writes the
- * pages of people, organizations and matters (D-200): ingest writes the
- * page of the document and the concepts, never an entity page, and its
- * instructions are those of a law firm. Invented names only (R-24).
+ * Ingest in the archive's wiki, a presentation of the base (D-200, D-332):
+ * the knowledge layer reads each document once and writes every page;
+ * ingest asks the model nothing there and only makes the page of the
+ * document for the base to fill. Any other project keeps the old
+ * pipeline. Invented names only (R-24).
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest"
 import path from "node:path"
@@ -31,7 +32,7 @@ vi.mock("./llm-client", () => ({
   }),
 }))
 
-import { autoIngest, buildAnalysisPrompt, buildChunkAnalysisSystemPrompt, buildGenerationPrompt } from "./ingest"
+import { autoIngest, BASE_PAGE_MARK, buildAnalysisPrompt, buildChunkAnalysisSystemPrompt, buildGenerationPrompt } from "./ingest"
 import { tellWikiLanguage } from "@/lib/knowledge-layer"
 import { useWikiStore } from "@/stores/wiki-store"
 import { useReviewStore } from "@/stores/review-store"
@@ -126,16 +127,27 @@ async function ingest(): Promise<void> {
 }
 
 describe("ingest in the archive's wiki", () => {
-  it("writes the page of the document and the concepts, never an entity page", async () => {
+  it("asks the model nothing: no analysis, no generation, no concepts, no review items", async () => {
     await ingest()
-    expect(await fileExists(path.join(tmp!.path, "wiki", "sources", "contrato.md"))).toBe(true)
-    expect(await fileExists(path.join(tmp!.path, "wiki", "concepts", "locacion.md"))).toBe(true)
+    expect(prompts).toHaveLength(0)
+    const page = await fs.readFile(path.join(tmp!.path, "wiki", "sources", "contrato.md"), "utf8")
+    expect(page).toContain("type: source")
+    expect(page).toContain('sources: ["contrato.txt"]')
+    expect(page).toContain(`generated_by: ${BASE_PAGE_MARK}`)
+    expect(await fileExists(path.join(tmp!.path, "wiki", "concepts", "locacion.md"))).toBe(false)
     expect(await fileExists(path.join(tmp!.path, "wiki", "entities", "persona-dos.md"))).toBe(false)
-    expect(await fileExists(path.join(tmp!.path, "wiki", "people", "ejemplo-uno.md"))).toBe(false)
-    // The instructions said so, and the language went to the base.
-    expect(prompts[1]).toContain("do not write any file under wiki/entities/")
-    expect(prompts[0]).toContain("Do not decide or recommend pages for them")
+    expect(useReviewStore.getState().items).toHaveLength(0)
     expect(tellWikiLanguage).toHaveBeenCalledWith("Spanish")
+  })
+
+  it("leaves a page that is there to the base", async () => {
+    const page = path.join(tmp!.path, "wiki", "sources", "contrato.md")
+    await fs.mkdir(path.dirname(page), { recursive: true })
+    const written = "---\ntype: source\ntitle: \"Contrato\"\nsources: [\"contrato.txt\"]\ngenerated_by: micelya-conocimiento\n---\n\n# Contrato\n\nLo esencial.\n"
+    await fs.writeFile(page, written)
+    await ingest()
+    expect(await fs.readFile(page, "utf8")).toBe(written)
+    expect(prompts).toHaveLength(0)
   })
 
   it("lists every page in the index, by type, in the wiki's language", async () => {
@@ -146,13 +158,12 @@ describe("ingest in the archive's wiki", () => {
     await ingest()
     const index = await fs.readFile(path.join(tmp!.path, "wiki", "index.md"), "utf8")
     expect(index).toContain("# Índice del wiki")
-    expect(index).toContain("## Documentos (1)\n\n- [[sources/contrato|Contrato de locación]]")
+    expect(index).toContain("## Documentos (1)\n\n- [[sources/contrato|contrato]]")
     expect(index).toContain("## Personas, organizaciones y asuntos (1)\n\n### Personas (1)\n\n- [[entities/persona-dos-0123abcd|Persona Dos]]")
-    expect(index).toContain("## Conceptos (1)")
     expect(index).not.toContain("## Entities")
   })
 
-  it("keeps writing entity pages in any other project", async () => {
+  it("keeps the old pipeline, entity pages included, in any other project", async () => {
     archive = false
     await ingest()
     expect(await fileExists(path.join(tmp!.path, "wiki", "entities", "persona-dos.md"))).toBe(true)

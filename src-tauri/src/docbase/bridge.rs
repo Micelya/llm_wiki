@@ -36,6 +36,20 @@ fn shared() -> Option<&'static Arc<DocBase>> {
     SHARED.get()
 }
 
+/// The base, when `project_path` is the folder of the general project's
+/// wiki: its search and its graph come from the base (D-350).
+pub fn base_for_project(project_path: &str) -> Option<&'static Arc<DocBase>> {
+    let base = shared()?;
+    let path: Option<String> = base
+        .conn()
+        .query_row("SELECT path FROM project WHERE kind = 'general'", [], |row| row.get(0))
+        .optional()
+        .ok()
+        .flatten()
+        .flatten();
+    path.filter(|path| same_folder(path, project_path)).map(|_| base)
+}
+
 /// An origin as the general project's wiki sees it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
