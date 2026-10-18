@@ -67,6 +67,26 @@ fn an_amount_is_between_two_parties_and_its_direction_is_the_quotes() {
     assert!(reasons(&reading).contains(&("amount".to_string(), "sin-contraparte".to_string())));
 }
 
+const BRAND: &str = "CARTA DE ACEPTACIÓN\nSres.\nmarcainventada (Ejemplo Uno S.A.)\nPRESENTE\nAceptamos la propuesta.";
+
+#[test]
+fn a_company_name_in_parentheses_is_not_a_defined_term() {
+    let reading = read(
+        BRAND,
+        serde_json::json!({
+            "menciones": [
+                mention("a", "organizacion", "marcainventada", "destinatario", "marcainventada (Ejemplo Uno S.A.)", serde_json::json!([])),
+                mention("b", "organizacion", "Ejemplo Uno S.A.", "parte", "marcainventada (Ejemplo Uno S.A.)", serde_json::json!([])),
+            ],
+            "definiciones": [
+                { "termino": "Ejemplo Uno S.A.", "ref": "a", "cita": "marcainventada (Ejemplo Uno S.A.)" }
+            ]
+        }),
+    );
+    assert!(reading.mentions.iter().all(|m| !m.defined), "{:?}", reading.mentions);
+    assert!(reasons(&reading).contains(&("definition".to_string(), "termino-con-forma-juridica".to_string())));
+}
+
 const INSTALMENTS: &str = "Buenos Aires, 10 de marzo de 2025. Ejemplo Uno S.A. (en adelante, la «Empresa») y Persona Dos \
 acuerdan que la Empresa pagará a Persona Dos la suma de USD 3.000 en dos cuotas: USD 1.500 con vencimiento el 30 de abril de 2025 \
 y USD 1.500 el 31 de mayo de 2025. Persona Dos recibió de la Empresa USD 700 el 1 de marzo de 2025. A modo de ejemplo, si el \

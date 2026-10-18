@@ -141,7 +141,9 @@ pub fn defined_terms(body: &str) -> Vec<(String, usize)> {
             Some((at, c)) => &before[at + c.len_utf8()..],
             None => &before[..],
         };
-        let mut tail = open_part.trim_end().to_string();
+        // Emphasis marks of a text converted from a word processor
+        // ("(**“Term**”)") are not part of the shape.
+        let mut tail = open_part.trim_end().trim_end_matches(['*', '_']).trim_end().to_string();
         for article in ARTICLES {
             if let Some(cut) = tail.strip_suffix(article) {
                 if cut.is_empty() || cut.ends_with(|c: char| !c.is_alphanumeric()) {
@@ -406,6 +408,10 @@ mod tests {
                     Otro Ejemplo LLC (hereinafter the “Company”). Dijo «hola» al pasar.";
         let terms: Vec<String> = defined_terms(body).into_iter().map(|(t, _)| t).collect();
         assert_eq!(terms, vec!["empresa", "trabajadora", "company"]);
+        // With the emphasis marks of a converted text.
+        let body = "Una Asociación Inventada, registrada en Suiza (**“ASOC**”); y Otra LLC.";
+        let terms: Vec<String> = defined_terms(body).into_iter().map(|(t, _)| t).collect();
+        assert_eq!(terms, vec!["asoc"]);
     }
 
     #[test]

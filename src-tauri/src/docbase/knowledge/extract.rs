@@ -1168,6 +1168,13 @@ fn define_terms(vocabulary: &Vocabulary, body: &str, answers: &[Answer], text: &
                 discard(reading, "definition", "definicion-sin-nombre", &said.termino, &said.cita);
                 continue;
             }
+            // A "term" with a legal form ("Otra Empresa S.A.") is the name of
+            // a company, not a term the document defines: a name next to
+            // another in parentheses is not a definition of it.
+            if names::key(vocabulary, ORGANIZATION_KIND, &said.termino).form.is_some() {
+                discard(reading, "definition", "termino-con-forma-juridica", &said.termino, &said.cita);
+                continue;
+            }
             targets.entry(term).or_insert(target);
         }
     }

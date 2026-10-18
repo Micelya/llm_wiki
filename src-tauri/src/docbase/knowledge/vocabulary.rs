@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 /// The version of the program's check of a reading (`extract::verify`).
-const READING_CHECK: &str = "lectura-10";
+const READING_CHECK: &str = "lectura-11";
 
 const BUILTIN: &str = include_str!("../../../resources/catalog/knowledge.json");
 
