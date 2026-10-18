@@ -1152,8 +1152,13 @@ fn checked(record: &Record, entity: &Entity, claims: &[Claim], answer: &str) -> 
                 let claim = &claims[r];
                 backed.extend(digit_runs(&object_text(record, claim)));
                 backed.extend(digit_runs(claim.valid_from.as_deref().unwrap_or_default()));
-                for (_, quote, _) in &claim.evidence {
+                for (content, quote, _) in &claim.evidence {
                     backed.extend(digit_runs(quote));
+                    // A sentence may name the document a claim comes from
+                    // ("según «Carta 26-06-26.pdf»", D-322).
+                    if let Some(document) = record.documents.get(content) {
+                        backed.extend(digit_runs(&document.name));
+                    }
                 }
             }
             bad = digit_runs(&text).iter().any(|run| !backed.contains(run));

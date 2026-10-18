@@ -839,7 +839,9 @@ fn doubted_mentions(conn: &Connection) -> Result<HashSet<i64>, String> {
 /// its document, and not its subject: the value may be someone else's
 /// (a spouse's identity number next to the holder's name in a form).
 fn names_someone_else(vocabulary: &Vocabulary, named: &Named, piece: &Piece, subject: &str, context: Option<&str>) -> bool {
-    let quote_words = quote::words(&piece.quote);
+    // A mail address does not name its domain's organization.
+    let without_mail: Vec<&str> = piece.quote.split_whitespace().filter(|w| !w.contains('@')).collect();
+    let quote_words = quote::words(&without_mail.join(" "));
     let mentions = named.get(&piece.content).map(Vec::as_slice).unwrap_or_default();
     // Other people or organizations its quote names in full.
     let others: Vec<&Vec<String>> = mentions
