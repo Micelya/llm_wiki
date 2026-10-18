@@ -4308,3 +4308,27 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** datos de la app y `llm-wiki-workspace/default`; cómo volver atrás en `desatendido-4/N6-defectos.md`.
 - **Quién decidió:** agente sin consulta (autorizado por el dueño en el plan de la tanda).
 - **Fuente:** etapa N6b de la tanda desatendida del 18 oct.
+
+### D-365 · Dos personas cuyo nombre de pila difiere en una letra se unen solo si el modelo está seguro
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Identidad de entidades
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** Con los datos reales, la identidad unió a dos personas de una misma familia: el mismo apellido, nombres de pila que difieren en una letra y ningún identificador ni casilla en común (P-206, 7 pares falsos contra la hoja). La unión no salió del nombre (un nombre con una letra distinta nunca une solo) sino del modelo: a la pregunta de identidad respondió «la misma, certeza media» porque las dos aparecían en documentos de la misma organización y «la diferencia de una letra puede ser un error de escritura». Otras versiones de la pregunta, sobre los mismos grupos, habían dicho «dudosa».
+- **Qué se decidió:** Cuando el modelo dice «la misma» de dos grupos de personas que se parecen solo por nombres cuya primera palabra (casi siempre el nombre de pila) está a una letra de una palabra del otro y no está en él, la unión exige certeza alta; con certeza media o baja el par queda como duda para que lo decida una persona (`modelo-misma-nombre-distinto`, con el texto «puede ser un error de escritura o dos personas distintas con el mismo apellido»). No cuentan como parecido una casilla sin nombre, una sola palabra ni una inicial (sirven para los dos nombres); sí lo anulan un nombre igual o contenido en el otro, la misma casilla o un apellido mal escrito con los mismos nombres de pila (ahí sigue valiendo lo que dice el modelo). Se sube la versión de la resolución (`resolucion-10`) para recalcular el registro con los veredictos guardados, sin preguntas nuevas.
+- **Por qué:** Un apellido compartido con un nombre de pila casi igual es justo lo que tienen dos parientes; sin un identificador o una relación que lo diga, juntarlos es adivinar, y una unión falsa mezcla datos de dos personas en una página (prioridad 1). Un nombre escrito con el apellido primero también cae en la regla, que es el lado prudente: queda una duda, no una unión. Medido sin preguntar al modelo (respuestas guardadas): uniones falsas en la copia de la app 7 → 0, en las dos lecturas completas de N6a 0 → 0; separaciones falsas iguales (5,3 %, 1,3 %, 6,6 %); casos críticos iguales (34 de 46 en la app). La primera versión de la regla (cualquier palabra a una letra) separaba además un apellido mal escrito y subía las separaciones 0,1 punto: se acotó a la primera palabra. Pruebas: `people_whose_first_names_differ_by_a_letter_join_only_when_the_model_is_sure` (sin el arreglo, la certeza media los une) y `a_first_name_a_letter_apart_is_told_from_a_surname_misspelled`.
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/resolve.rs` (`apply`, `alike_only_by_a_letter`, `said_with_high_certainty`), `names.rs` (`first_word_a_letter_apart`), `src/components/knowledge/knowledge.ts` (`doubtReason`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N6c de la tanda desatendida del 18 oct.
+
+### D-366 · La identidad corregida se reaplica en la app con los datos reales
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Operación
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** El arreglo D-365 cambia el registro de los datos reales (dos personas separadas), que la app ya tenía regenerado (D-364).
+- **Qué se decidió:** Cerrar la app, compilar el arreglo y reabrirla desde `llm_wiki_wt` (mismo puerto de depuración), con el candado del modelo tomado a mano. Con la versión de la resolución nueva, la app recalcula la identidad desde los veredictos guardados al abrir y reescribe solo las páginas afectadas; no hace falta respaldo nuevo (el de N6b sigue valiendo para volver al 18 a las 00:48) ni relectura.
+- **Por qué:** Medido en una copia de la base real después de reabrir (detalle fuera del repositorio, `desatendido-4/N6c-real-eval.txt`): uniones falsas 0 (antes 7 pares), separaciones 5,3 % (igual), casos críticos 34 de 46 (igual), ninguna pregunta al modelo; el par queda como duda en Atención.
+- **Dónde se aplica:** datos de la app y `llm-wiki-workspace/default`.
+- **Quién decidió:** agente sin consulta (autorizado por el dueño en el plan de la tanda).
+- **Fuente:** etapa N6c de la tanda desatendida del 18 oct.

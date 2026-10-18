@@ -1779,10 +1779,10 @@
       "titulo": "Unión falsa de dos personas con el mismo apellido y nombres casi iguales, sin identificador común",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "En la regeneración con los datos reales (N6b) la identidad juntó a dos personas de la misma familia cuyo nombre de pila difiere en una letra (7 pares falsos contra la hoja; L1 y L2 de N6a tuvieron 0). Un nombre de pila distinto, aunque parecido, no debería unir sin un identificador o una relación que lo diga. Prioridad 1 (uniones falsas).",
+      "estado": "a-verificar",
+      "detalle": "En la regeneración con los datos reales (N6b) la identidad juntó a dos personas de la misma familia cuyo nombre de pila difiere en una letra (7 pares falsos contra la hoja; L1 y L2 de N6a tuvieron 0). Un nombre de pila distinto, aunque parecido, no debería unir sin un identificador o una relación que lo diga. Prioridad 1 (uniones falsas). N6c: la unión venía del modelo («la misma, certeza media», por la misma organización y «puede ser un error de escritura»), no del nombre. Arreglo D-365: si la primera palabra del nombre difiere en una letra y nada más los une, el «la misma» del modelo une solo con certeza alta; si no, queda una duda para una persona. Medido con las respuestas guardadas: uniones falsas 7 → 0 en la copia de la app y 0 → 0 en las dos lecturas de N6a, separaciones iguales; en la base real después de reabrir la app (D-366): uniones falsas 0, separaciones 5,3 %, casos críticos 34 de 46, sin preguntas al modelo. Falta que el dueño vea la duda en Atención.",
       "depende_de": [],
-      "referencia": "D-364; desatendido-4/N6b-app-eval.txt",
+      "referencia": "D-364, D-365, D-366; desatendido-4/N6c-real-eval.txt",
       "creado": "2026-10-18",
       "actualizado": "2026-10-18"
     },
