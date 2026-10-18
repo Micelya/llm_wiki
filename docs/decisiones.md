@@ -4284,3 +4284,27 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** Arneses fuera del repositorio (`desatendido-4/N6-correr.sh`, `N6-estabilidad.py`, `N6-indicadores.py`).
 - **Quién decidió:** agente sin consulta.
 - **Fuente:** etapa N6a de la tanda desatendida del 18 oct.
+
+### D-363 · Un documento que solo comparte la plantilla se tipa solo si el tipo del principal puede separar la familia
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Tipos de documento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** En la app, con los datos reales, el tipo de un documento y ocho páginas cambiaban cada medio minuto sin fin. El documento compartía la plantilla de una carta documento: como miembro de esa familia recibía el tipo de la carta; con ese tipo, la regla «distinto número de envío, documentos distintos» deshacía la familia; solo, el modelo lo leía como acuse de recibo; la regla dejaba de aplicar y la familia volvía.
+- **Qué se decidió:** Un miembro unido al principal solo por la plantilla (`same-template`) se tipa por su cuenta cuando el tipo actual del principal tiene una regla de datos distintos cuya relación no forma familia (hoy, la carta documento). Los demás miembros siguen recibiendo el tipo de la familia (una pregunta por familia).
+- **Por qué:** Corta la dependencia circular entre el tipo y la familia sin cambiar las demás familias (facturas, recibos, acuerdos de la misma plantilla siguen con una sola pregunta). El tipo que el modelo lee en el documento solo es el correcto en el caso visto. Prueba: `a_member_of_the_template_whose_rule_parts_the_family_is_typed_alone_and_it_settles` (sin el arreglo, el tipo y la relación alternan en cada vuelta).
+- **Dónde se aplica:** `src-tauri/src/docbase/similar/classify.rs` (`load_units`, `principal_type_parts_family`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N6b de la tanda desatendida del 18 oct.
+
+### D-364 · Regeneración con los datos reales el 18 de octubre
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Operación
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** El cierre de la tanda pedía aplicar el rediseño a la base y al wiki reales, con respaldo, y dejar la app abierta.
+- **Qué se decidió:** Respaldo con sha256 de los datos de la app y del wiki (idéntico al de N0: nada había cambiado), wiki anterior apartado fuera del repositorio, carpeta del proyecto por defecto borrada (si existe vacía el arranque falla, P-209) y app abierta desde `llm_wiki_wt` con Codex `gpt-6-luna` `high`. La app migró la base a V17, releyó los 66 documentos con `conocimiento-5` (42 min), identidad y síntesis (10 min) y proyectó 59 páginas de documento y 60 de entidad. La app de desarrollo se abre con el puerto de depuración de WebView2 (`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222`) para comprobar sin pantalla (búsqueda en modo base, grafo de la base) y sacar capturas.
+- **Por qué:** Resultado medido sobre una copia (detalle fuera del repositorio, `desatendido-4/N6-defectos.md`): casos críticos 34 de 46; búsqueda del chat 94 de 104 en los diez primeros; uniones falsas 7 pares (P-206); separaciones 5,3 %; revisión final con 27 defectos de prioridad 1 (P-205).
+- **Dónde se aplica:** datos de la app y `llm-wiki-workspace/default`; cómo volver atrás en `desatendido-4/N6-defectos.md`.
+- **Quién decidió:** agente sin consulta (autorizado por el dueño en el plan de la tanda).
+- **Fuente:** etapa N6b de la tanda desatendida del 18 oct.

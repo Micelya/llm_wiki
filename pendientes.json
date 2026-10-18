@@ -1758,6 +1758,71 @@
       "referencia": "src-tauri/src/docbase/knowledge/extract.rs (define_terms); D-360",
       "creado": "2026-10-18",
       "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-205",
+      "titulo": "Atribución en el wiki regenerado con los datos reales: dinero, roles, fechas de cartas, estado de firma",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Revisión final de N6b (revisor sobre el wiki de la app, 70 filas verificadas contra el original: 39 bien, 31 mal, muestra dirigida a lo sospechoso): dirección del dinero invertida en un borrador de acuerdo de fondos y en un recibo de cuotas, un préstamo con el que declara haber recibido cambiado y la devolución como «pagado», un total estimado de un resumen de facturas como deuda acumulada sin moneda, personas de una sociedad dadas como de otra o como su representante, el identificador de una persona en la página de su cónyuge, un escribano como «testigo», cartas documento con la fecha de la carta que contestan y vistas previas sin decirlo, estado de firma equivocado en tres acuerdos firmados. Prioridad 1. Detalle fuera del repositorio: desatendido-4/N6-defectos.md y N6b-revision.md.",
+      "depende_de": [
+        "P-201",
+        "P-151"
+      ],
+      "referencia": "D-364; desatendido-4/N6-defectos.md",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-206",
+      "titulo": "Unión falsa de dos personas con el mismo apellido y nombres casi iguales, sin identificador común",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "En la regeneración con los datos reales (N6b) la identidad juntó a dos personas de la misma familia cuyo nombre de pila difiere en una letra (7 pares falsos contra la hoja; L1 y L2 de N6a tuvieron 0). Un nombre de pila distinto, aunque parecido, no debería unir sin un identificador o una relación que lo diga. Prioridad 1 (uniones falsas).",
+      "depende_de": [],
+      "referencia": "D-364; desatendido-4/N6b-app-eval.txt",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-207",
+      "titulo": "Documentos que quedan en la entidad del grupo y faltan en la de la sociedad; entidad sobrante",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "N6b: correos de un reclamo, una copia de carta y una captura del correo quedan en la entidad del grupo empresario y faltan en la página de la sociedad; el perfil de una persona no se enlaza a su página; sobra una entidad que junta dos empresas con una barra; la cronología del reclamo queda como «posiblemente de este asunto». Documentos de cada entidad en su página 245 de 290 (N6a: 249 y 257). Prioridad 2.",
+      "depende_de": [
+        "P-137"
+      ],
+      "referencia": "D-364; desatendido-4/N6-defectos.md",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-208",
+      "titulo": "Presentación del wiki regenerado: frase sobre el modelo, fechas en inglés, rótulos de formulario como datos",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "N6b: queda una frase sobre el programa («lo propuso el modelo por su contenido») y cientos de «propuesta por el cálculo de parecidos»; fechas y fragmentos en inglés en la redacción; rótulos de formulario tomados como datos y como asuntos; un título de página partido por un acento; formatos de números y fechas mezclados. Prioridad 4.",
+      "depende_de": [],
+      "referencia": "D-364; desatendido-4/N6-defectos.md",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-209",
+      "titulo": "El arranque no crea el proyecto por defecto si su carpeta existe vacía",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Con la carpeta del proyecto por defecto vacía, el arranque falla con «Directory already exists» y la app queda sin proyecto (N6b, 18 oct). Hubo que borrar la carpeta y recargar. Una carpeta vacía debería aceptarse como proyecto nuevo. Prioridad 3 (lo que se ve en la app).",
+      "depende_de": [],
+      "referencia": "D-364",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
     }
   ]
 }
