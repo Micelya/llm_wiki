@@ -48,7 +48,7 @@ pub const SYNTHESIS_PROMPT: &str = "sintesis-3";
 /// Raised when a change in the program changes what a projection writes
 /// (which names have a page, what a block lists): every page is written
 /// again from the record, without asking more.
-const PROJECTION_VERSION: &str = "proyeccion-8";
+const PROJECTION_VERSION: &str = "proyeccion-9";
 /// The task its answers are kept under in `model_answer`.
 pub const TASK: &str = "synthesis";
 /// The words of the vocabulary (`pages.words`) a page is written with.
@@ -123,6 +123,11 @@ pub const WORDS: &[&str] = &[
     "doubtWhy-identity",
     "doubtWhy-attribution",
     "doubtWhy-states",
+    "docSummary",
+    "docKind",
+    "docDate",
+    "docPending",
+    "docQuote",
 ];
 /// Claims of one entity described in its question; the rest are left
 /// out of the synthesis (the list of documents is always complete).
@@ -566,7 +571,7 @@ pub(crate) fn localized_dates(vocabulary: &Vocabulary, text: &str) -> String {
 }
 
 /// A quote on one line, as a list item needs it.
-fn one_line(text: &str) -> String {
+pub(crate) fn one_line(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
@@ -1610,6 +1615,126 @@ fn read_file(path: &Path) -> Option<String> {
     std::fs::read_to_string(path).ok()
 }
 
+/// The text of a document's page the base writes (D-331, until the page
+/// of the document is built from the base, N4): its header (what the
+/// document is, its type, stage and date), what the one reading summed up
+/// of it, each point with its quote and the certainty of the claims of
+/// the same passage. Its frontmatter is the page's own, marked as the
+/// app's. `None`: a page the base does not write yet (a page the old
+/// ingest wrote, of a document not read on this question yet), left as
+/// it is.
+fn document_page(conn: &Connection, vocabulary: &Vocabulary, record: &Record, contents: &[i64], existing: &str) -> Result<Option<String>, String> {
+    let words = &vocabulary.pages;
+    let mut summary: Option<(i64, Option<String>, Vec<super::extract::SummaryPoint>)> = None;
+    for &content in contents {
+        let row: Option<(Option<String>, String)> = conn
+            .query_row("SELECT topic, points FROM knowledge_summary WHERE content_id = ?1", [content], |row| Ok((row.get(0)?, row.get(1)?)))
+            .optional()
+            .map_err(sql_err)?;
+        if let Some((topic, points)) = row {
+            summary = Some((content, topic, serde_json::from_str(&points).unwrap_or_default()));
+            break;
+        }
+    }
+    let ours = existing.contains(&format!("generated_by: {GENERATED_BY}"));
+    if summary.is_none() && !ours {
+        return Ok(None);
+    }
+    let content = summary.as_ref().map(|(c, ..)| *c).unwrap_or(contents[0]);
+    // The frontmatter of the page, with the app's mark.
+    let text = existing.replace("\r\n", "\n");
+    let front = text
+        .strip_prefix("---\n")
+        .and_then(|rest| rest.find("\n---").map(|end| rest[..end].to_string()))
+        .unwrap_or_default();
+    let mut lines: Vec<String> = front
+        .lines()
+        .filter(|l| !l.starts_with("generated_by:") && !l.starts_with("updated:"))
+        .map(str::to_string)
+        .collect();
+    if !lines.iter().any(|l| l.starts_with("type:")) {
+        lines.insert(0, "type: source".to_string());
+    }
+    let name = match record.documents.get(&content) {
+        Some(document) => document.name.clone(),
+        None => classify::name_of(conn, content)?,
+    };
+    let title = lines
+        .iter()
+        .find_map(|l| l.strip_prefix("title:"))
+        .map(|t| t.trim().trim_matches('"').trim_matches('\'').to_string())
+        .filter(|t| !t.is_empty())
+        .unwrap_or_else(|| name.clone());
+    if !lines.iter().any(|l| l.starts_with("title:")) {
+        lines.push(format!("title: {}", yaml_string(&title)));
+    }
+    lines.push(format!("generated_by: {GENERATED_BY}"));
+    let mut out = format!("---\n{}\n---\n\n# {title}\n\n", lines.join("\n"));
+    // What the base knows of it.
+    let (doc_type, stage): (Option<String>, Option<String>) = conn
+        .query_row("SELECT doc_type, stage FROM document_type WHERE content_id = ?1", [content], |row| Ok((row.get(0)?, row.get(1)?)))
+        .optional()
+        .map_err(sql_err)?
+        .unwrap_or((None, None));
+    let date: Option<String> = conn
+        .query_row("SELECT doc_date FROM knowledge_extraction WHERE content_id = ?1", [content], |row| row.get(0))
+        .optional()
+        .map_err(sql_err)?
+        .flatten();
+    let mut facts: Vec<String> = Vec::new();
+    if let Some(kind) = doc_type {
+        let kind = kind.replace('-', " ");
+        facts.push(format!("{}: {}", words.word("docKind"), stage.map(|s| format!("{kind} ({})", s.replace('-', " "))).unwrap_or(kind)));
+    }
+    if let Some(date) = date {
+        facts.push(format!("{}: {date}", words.word("docDate")));
+    }
+    let Some((_, topic, points)) = summary else {
+        if !facts.is_empty() {
+            out.push_str(&format!("{}\n\n", facts.join(" · ")));
+        }
+        out.push_str(&format!("{}\n", words.word("docPending")));
+        return Ok(Some(out));
+    };
+    if let Some(topic) = topic {
+        out.push_str(&format!("{topic}\n\n"));
+    }
+    if !facts.is_empty() {
+        out.push_str(&format!("{}\n\n", facts.join(" · ")));
+    }
+    if !points.is_empty() {
+        // The claims of the passage of each point, by their evidence.
+        let claims: HashMap<i64, &Claim> = record.entities.values().flat_map(|e| e.claims.iter().map(|c| (c.id, c))).collect();
+        let mut of_evidence: HashMap<i64, i64> = HashMap::new();
+        {
+            let mut statement =
+                conn.prepare("SELECT id, claim_id FROM knowledge_evidence WHERE content_id = ?1 AND claim_id IS NOT NULL").map_err(sql_err)?;
+            let rows = statement.query_map([content], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?))).map_err(sql_err)?;
+            for row in rows {
+                let (evidence, claim) = row.map_err(sql_err)?;
+                of_evidence.insert(evidence, claim);
+            }
+        }
+        out.push_str(&format!("## {}\n\n", words.word("docSummary")));
+        for point in &points {
+            let mut marks: Vec<String> = Vec::new();
+            for evidence in &point.evidence {
+                if let Some(claim) = of_evidence.get(evidence).and_then(|c| claims.get(c)) {
+                    let mark = certainty_mark(vocabulary, claim);
+                    if !mark.is_empty() && !marks.contains(&mark) {
+                        marks.push(mark);
+                    }
+                }
+            }
+            let page = point.page.map(|p| format!(", {} {p}", words.word("page"))).unwrap_or_default();
+            out.push_str(&format!("- {}{} — {}: «{}»{page}\n", point.text, marks.concat(), words.word("docQuote"), one_line(&point.quote)));
+        }
+        out.push('\n');
+        out.push_str(&format!("*{}*\n", words.word("certainLegend")));
+    }
+    Ok(Some(out))
+}
+
 /// The block of entities a document's page ends with.
 fn source_block(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, String>, content: i64) -> Option<String> {
     let order = |kind: &str| vocabulary.entity_types.iter().position(|t| t.id == kind).unwrap_or(usize::MAX);
@@ -2506,16 +2631,27 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
         let block = source_block(vocabulary, &record, &paths, contents[0]);
         let forms = link_forms(base, vocabulary, &record, &paths, contents)?;
         let forms_key: Vec<String> = forms.iter().map(|f| format!("{}\u{1}{}", f.written, f.stem)).collect();
-        let block_hash = hash(&[block.as_deref().unwrap_or(""), &forms_key.join("\u{2}")]);
         let file = root.join(path);
+        let Some(text) = read_file(&file) else { continue };
+        // The text the base writes of the document (D-331), or none.
+        let written = document_page(&base.conn(), vocabulary, &record, contents, &text)?;
+        let block_hash = hash(&[block.as_deref().unwrap_or(""), &forms_key.join("\u{2}"), written.as_deref().unwrap_or("")]);
         let (size, mtime) = file_meta(&file);
         if blocks.get(*path).is_some_and(|(h, s, m)| *h == block_hash && *s == size && *m == mtime) {
             continue;
         }
-        let Some(text) = read_file(&file) else { continue };
-        // What the wiki wrote, with the app's links in its text and its
-        // block at the end (D-221).
-        let next = place_block(&super::links::with_links(&with_block(&text, None), &forms), block.as_deref());
+        let next = match &written {
+            // The base's text, with the app's links, the notes of a person
+            // and the block at the end.
+            Some(generated) => {
+                let notes = notes_of(&place_block(&text, None), vocabulary.pages.word("notes"));
+                let linked = super::links::with_links(generated, &forms);
+                place_block(&with_notes(vocabulary, &linked, &notes), block.as_deref())
+            }
+            // What the wiki wrote, with the app's links in its text and its
+            // block at the end (D-221).
+            None => place_block(&super::links::with_links(&with_block(&text, None), &forms), block.as_deref()),
+        };
         if next != text {
             write_file(&file, &next)?;
             report.blocks_written += 1;

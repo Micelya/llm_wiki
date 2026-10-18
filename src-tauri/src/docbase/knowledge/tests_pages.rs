@@ -444,3 +444,56 @@ fn a_document_page_links_the_names_its_text_writes_as_the_document_does() {
     // The links are not links a page the app does not write makes.
     assert_eq!(std::fs::read_to_string(project.join("wiki/sources/b.md")).unwrap(), b);
 }
+
+/// With the summary of the one reading, the page of a document is the
+/// base's (D-331): what it is, its points with their quotes, the notes of
+/// a person kept and the block at the end; nothing is asked to write it,
+/// and projecting again changes nothing.
+#[test]
+fn the_page_of_a_document_is_written_from_its_summary() {
+    let (dir, base) = base_with(&[("a.txt", A)]);
+    dir.folder("General/wiki/sources");
+    dir.write("General/schema.md", b"# schema");
+    let project = dir.path().join("General");
+    base.link_general_project(&project, "General").unwrap();
+    let asker = FakeModel::new("falso:1", |prompt| {
+        if is_synthesis(prompt) {
+            synthesis(prompt)
+        } else if is_knowledge(prompt) {
+            let mut said: serde_json::Value = serde_json::from_str(&reading(prompt)).unwrap();
+            said["resumen"] = serde_json::json!({
+                "tema": "Contrato de locación entre Ejemplo Uno S.A. y Persona Dos.",
+                "puntos": [
+                    { "texto": "Persona Dos tiene domicilio en Calle Uno 100.", "menciones": ["p"],
+                      "cita": "Persona Dos, DNI 22.222.222, con domicilio en Calle Uno 100", "pagina": null },
+                    { "texto": "Se cita el expediente 1234/2020.", "menciones": ["x"], "cita": "Expediente 1234/2020 del juzgado", "pagina": null }
+                ]
+            });
+            said.to_string()
+        } else if prompt.contains("Hay que decidir si cada candidato es la misma entidad") {
+            serde_json::json!({ "respuestas": [] }).to_string()
+        } else {
+            type_answer("contrato")
+        }
+    });
+    read(&base, &asker);
+    let page = format!(
+        "---\ntype: source\ntitle: a.txt\nsources: [\"{}\"]\n---\n\nLo que escribió el modelo antes.\n\n## Notas\n\nUna nota mía.\n",
+        identity_of(&base, "a.txt")
+    );
+    dir.write("General/wiki/sources/a.md", page.as_bytes());
+    let asked_before = asker.asked.lock().unwrap().len();
+    base.knowledge_project(Some(&asker), 50).unwrap();
+    let a = std::fs::read_to_string(project.join("wiki/sources/a.md")).unwrap();
+    assert!(a.starts_with("---\ntype: source\ntitle: a.txt\nsources:") && a.contains("generated_by: micelya-conocimiento"), "{a}");
+    assert!(a.contains("Contrato de locación entre") && a.contains("## Lo esencial"), "{a}");
+    assert!(a.contains("Calle Uno 100. — dice: «Persona Dos, DNI 22.222.222, con domicilio en Calle Uno 100»"), "{a}");
+    assert!(!a.contains("Lo que escribió el modelo antes."), "{a}");
+    assert!(a.contains("Una nota mía.") && a.contains(BLOCK_START), "{a}");
+    assert!(a.find("Una nota mía.").unwrap() < a.find(BLOCK_START).unwrap());
+    // Writing it asked nothing about the document (only syntheses of entities).
+    assert!(asker.asked.lock().unwrap()[asked_before..].iter().all(|q| is_synthesis(q)));
+    let report = base.knowledge_project(Some(&asker), 50).unwrap();
+    assert_eq!(report.blocks_written, 0, "{report:?}");
+    assert_eq!(std::fs::read_to_string(project.join("wiki/sources/a.md")).unwrap(), a);
+}

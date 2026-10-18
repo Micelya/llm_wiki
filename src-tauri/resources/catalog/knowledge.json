@@ -225,7 +225,12 @@
       "doubtWhy-conflict": "los documentos difieren",
       "doubtWhy-identity": "no es seguro de quién se habla",
       "doubtWhy-attribution": "la cita nombra a otra persona u organización",
-      "doubtWhy-states": "los documentos dicen estados distintos del importe"
+      "doubtWhy-states": "los documentos dicen estados distintos del importe",
+      "docSummary": "Lo esencial",
+      "docKind": "Tipo",
+      "docDate": "Fecha",
+      "docPending": "Este documento todavía no se leyó: la app arma esta página cuando lo lea.",
+      "docQuote": "dice"
     }
   },
   "matters": {
