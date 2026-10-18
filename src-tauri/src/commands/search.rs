@@ -2452,4 +2452,56 @@ mod tests {
             .unwrap_err()
             .contains("duplicate"));
     }
+
+    /// Runs the wiki search the chat uses over a list of questions and
+    /// writes what it returned, so a harness outside the repository can
+    /// measure which documents each question reaches. Ignored: it needs a
+    /// wiki project and a questions file, both outside the repository.
+    ///
+    /// - `MICELYA_SEARCH_QUESTIONS`: JSON with `preguntas: [{id, pregunta}]`.
+    /// - `MICELYA_SEARCH_PROJECT`: the wiki project folder (the one with `wiki/`).
+    /// - `MICELYA_SEARCH_OUT`: where to write the results (JSON).
+    /// - `MICELYA_SEARCH_TOPK`: results per question (default 10, as the chat asks).
+    #[tokio::test]
+    #[ignore]
+    async fn search_questions_from_env() {
+        let questions_path =
+            std::env::var("MICELYA_SEARCH_QUESTIONS").expect("MICELYA_SEARCH_QUESTIONS");
+        let project = std::env::var("MICELYA_SEARCH_PROJECT").expect("MICELYA_SEARCH_PROJECT");
+        let out_path = std::env::var("MICELYA_SEARCH_OUT").expect("MICELYA_SEARCH_OUT");
+        let top_k = std::env::var("MICELYA_SEARCH_TOPK")
+            .ok()
+            .and_then(|value| value.parse::<usize>().ok())
+            .unwrap_or(10);
+        let sheet: Value =
+            serde_json::from_str(&fs::read_to_string(&questions_path).unwrap()).unwrap();
+        let mut rows = Vec::new();
+        for question in sheet["preguntas"].as_array().expect("preguntas") {
+            let id = question["id"].as_str().unwrap_or_default().to_string();
+            let text = question["pregunta"].as_str().unwrap_or_default().to_string();
+            let start = std::time::Instant::now();
+            let response = search_project_inner(project.clone(), text, top_k, false, None).await;
+            let ms = start.elapsed().as_secs_f64() * 1000.0;
+            rows.push(match response {
+                Ok(found) => json!({
+                    "id": id,
+                    "ms": ms,
+                    "mode": found.mode,
+                    "results": found
+                        .results
+                        .iter()
+                        .map(|result| json!({
+                            "path": result.path,
+                            "title": result.title,
+                            "score": result.score,
+                            "graph": !result.graph_related_to.is_empty(),
+                        }))
+                        .collect::<Vec<_>>(),
+                }),
+                Err(error) => json!({ "id": id, "ms": ms, "error": error }),
+            });
+        }
+        let report = json!({ "top_k": top_k, "project": project, "rows": rows });
+        fs::write(&out_path, serde_json::to_string_pretty(&report).unwrap()).unwrap();
+    }
 }
