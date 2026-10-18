@@ -215,6 +215,13 @@ fn get_page_links_inner(project_path: &str, file_path: &str) -> Result<PageLinks
     let current = pages
         .get(&current_path)
         .ok_or_else(|| "Page is not available in the current wiki index".to_string())?;
+    // The wiki of the archive: its links are the relations of the base.
+    if let Some(base) = crate::docbase::bridge::base_for_project(project_path) {
+        match links_from_base(base, &pages, &current_path, current) {
+            Ok(response) => return Ok(response),
+            Err(err) => eprintln!("[Links] the base could not answer; using the pages: {err}"),
+        }
+    }
     let mut outgoing = Vec::new();
     let mut missing = Vec::new();
     for link in &current.links {
@@ -266,6 +273,92 @@ fn get_page_links_inner(project_path: &str, file_path: &str) -> Result<PageLinks
         backlinks,
         missing,
     })
+}
+
+/// The links of a page of the wiki of the archive (D-351): every relation
+/// the base keeps between its page and another (the relation's label and
+/// quote as the snippet), plus the links a person wrote in the notes of a
+/// page, resolved by the page they name or, failing that, by a name the
+/// base knows (so a renamed entity is still found). A link written in
+/// notes that names nothing is missing; the rest of the page is written
+/// from the base and cannot have broken links.
+fn links_from_base(
+    base: &crate::docbase::DocBase,
+    pages: &BTreeMap<String, GraphPage>,
+    current_path: &str,
+    current: &GraphPage,
+) -> Result<PageLinksResponse, String> {
+    use crate::docbase::knowledge::pages::NOTES_MARK;
+    let graph = base.graph(&crate::docbase::Visible::All)?;
+    let here = file_stem(current_path).to_lowercase();
+    let path_of: BTreeMap<String, (String, String)> = graph
+        .nodes
+        .iter()
+        .map(|n| (n.id.to_lowercase(), (n.path.clone(), n.label.clone())))
+        .collect();
+    let describe = |edge: &crate::docbase::graph::BaseGraphEdge| -> String {
+        match edge.quote.as_deref().filter(|q| !q.trim().is_empty()) {
+            Some(quote) => format!("{} — «{}»", edge.label, quote),
+            None => edge.label.clone(),
+        }
+    };
+    let mut outgoing: Vec<PageLinkEntry> = Vec::new();
+    let mut backlinks: Vec<PageLinkEntry> = Vec::new();
+    for edge in &graph.edges {
+        let (source, target) = (edge.source.to_lowercase(), edge.target.to_lowercase());
+        let (other, list) = if source == here {
+            (target, &mut outgoing)
+        } else if target == here {
+            (source, &mut backlinks)
+        } else {
+            continue;
+        };
+        if let Some((path, label)) = path_of.get(&other) {
+            list.push(PageLinkEntry { title: label.clone(), path: Some(path.clone()), snippet: Some(describe(edge)) });
+        }
+    }
+    // Links written by a person in the notes of a page.
+    let notes_links = |page: &GraphPage| -> Vec<String> {
+        page.content.find(NOTES_MARK).map(|at| extract_graph_links(&page.content[at..])).unwrap_or_default()
+    };
+    let resolve = |link: &str| -> Option<String> {
+        if let Some(path) = resolve_reader_wikilink(pages, link) {
+            return Some(path.clone());
+        }
+        let name = crate::docbase::knowledge::quote::words(link).join(" ");
+        base.page_named(&name).ok().flatten().map(|p| normalize_path(&p))
+    };
+    let mut missing = Vec::new();
+    for link in notes_links(current) {
+        match resolve(&link) {
+            Some(target) if target != current_path => {
+                if let Some(page) = pages.get(&target) {
+                    outgoing.push(PageLinkEntry { title: page.title.clone(), path: Some(page.path.clone()), snippet: None });
+                }
+            }
+            Some(_) => {}
+            None => missing.push(PageLinkEntry { title: link.clone(), path: None, snippet: None }),
+        }
+    }
+    for (path, page) in pages {
+        if path == current_path {
+            continue;
+        }
+        if notes_links(page).iter().any(|link| resolve(link).is_some_and(|t| t == current_path)) {
+            backlinks.push(PageLinkEntry {
+                title: page.title.clone(),
+                path: Some(page.path.clone()),
+                snippet: Some(build_snippet(&page.content, &current.title)),
+            });
+        }
+    }
+    for list in [&mut outgoing, &mut backlinks] {
+        list.sort_by(|a, b| a.title.cmp(&b.title).then(a.path.cmp(&b.path)));
+        list.dedup_by(|a, b| a.path == b.path);
+    }
+    missing.sort_by(|a, b| a.title.cmp(&b.title));
+    missing.dedup_by(|a, b| a.title == b.title);
+    Ok(PageLinksResponse { outgoing, backlinks, missing })
 }
 
 /// Mirror `resolveRelatedSlug` in the frontend reader. Path-shaped links must
@@ -1884,6 +1977,69 @@ fn vector_page_id(path: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn page(path: &str, title: &str, content: &str) -> (String, GraphPage) {
+        (
+            path.to_string(),
+            GraphPage {
+                path: path.to_string(),
+                title: title.to_string(),
+                content: content.to_string(),
+                links: extract_graph_links(content),
+            },
+        )
+    }
+
+    #[test]
+    fn the_links_of_the_wiki_of_the_archive_are_the_relations_of_the_base() {
+        let base = crate::docbase::DocBase::in_memory().unwrap();
+        {
+            let conn = base.conn();
+            for sql in [
+                "INSERT INTO origin (id, name, provider, location, added_at) VALUES ('o1', 'o1', 'local', 'o1', 0)",
+                "INSERT INTO content (id, state, first_seen_at) VALUES (1, 'done', 0)",
+                "INSERT INTO file (hash, content_id, size) VALUES ('h1', 1, 1)",
+                "INSERT INTO location (origin_id, rel_path, folder, name, ext, size, mtime_ms, file_hash, first_seen_at, last_seen_at)
+                 VALUES ('o1', 'c.pdf', '', 'c.pdf', 'pdf', 1, 0, 'h1', 0, 0)",
+                "INSERT INTO knowledge_entity (id, kind, name, created_at, updated_at) VALUES ('ent-a', 'persona', 'Ana Prueba', 0, 0)",
+                "INSERT INTO knowledge_alias (entity_id, normalized, written) VALUES ('ent-a', 'ana prueba', 'Ana Prueba')",
+                "INSERT INTO knowledge_mention (content_id, ref, kind, written, normalized, role, quote, entity_id)
+                 VALUES (1, 'm1', 'persona', 'Ana Prueba', 'ana prueba', 'parte', 'Ana Prueba, por derecho propio', 'ent-a')",
+                "INSERT INTO knowledge_page (entity_id, path, fingerprint, written_at) VALUES ('doc-1', 'wiki/sources/contrato.md', '', 0)",
+                "INSERT INTO knowledge_page (entity_id, path, fingerprint, written_at) VALUES ('ent-a', 'wiki/entities/ana-prueba-1.md', '', 0)",
+            ] {
+                conn.execute(sql, []).unwrap();
+            }
+        }
+        let pages: BTreeMap<String, GraphPage> = [
+            page("wiki/sources/contrato.md", "Contrato", "# Contrato
+
+[[un-enlace-viejo]]
+"),
+            page("wiki/entities/ana-prueba-1.md", "Ana Prueba", "# Ana Prueba
+"),
+            // A person wrote a link by name in the notes of another page.
+            page("wiki/otra.md", "Otra", "# Otra
+
+<!-- micelya:notas -->
+Ver [[Ana Prueba]] y [[Nadie Conocido]].
+"),
+        ]
+        .into_iter()
+        .collect();
+        let doc = links_from_base(&base, &pages, "wiki/sources/contrato.md", &pages["wiki/sources/contrato.md"]).unwrap();
+        assert_eq!(doc.outgoing.len(), 1);
+        assert_eq!(doc.outgoing[0].path.as_deref(), Some("wiki/entities/ana-prueba-1.md"));
+        assert!(doc.outgoing[0].snippet.as_deref().unwrap().contains("Ana Prueba, por derecho propio"));
+        // Outside the notes, a link the page wrote is not read: no relation, no link.
+        assert!(doc.missing.is_empty());
+        let ana = links_from_base(&base, &pages, "wiki/entities/ana-prueba-1.md", &pages["wiki/entities/ana-prueba-1.md"]).unwrap();
+        let back: BTreeSet<&str> = ana.backlinks.iter().filter_map(|l| l.path.as_deref()).collect();
+        assert_eq!(back, BTreeSet::from(["wiki/sources/contrato.md", "wiki/otra.md"]));
+        let other = links_from_base(&base, &pages, "wiki/otra.md", &pages["wiki/otra.md"]).unwrap();
+        assert_eq!(other.outgoing.iter().filter_map(|l| l.path.as_deref()).collect::<Vec<_>>(), vec!["wiki/entities/ana-prueba-1.md"]);
+        assert_eq!(other.missing.iter().map(|l| l.title.as_str()).collect::<Vec<_>>(), vec!["Nadie Conocido"]);
+    }
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicU64, Ordering};
 
