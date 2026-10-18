@@ -4012,3 +4012,55 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** Fuera del repositorio: `desatendido-4/N2a-trasplante.py`, `N2a-correr.sh`; `knowledge/check.rs` (`reading_questions_to_a_file`).
 - **Quién decidió:** agente sin consulta.
 - **Fuente:** etapa N2a de la tanda desatendida del 18 oct.
+
+### D-320 · Cada afirmación lleva su certeza: con cita comprobada, confirmada, dudosa o corregida
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Capa de conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** Que la cita de una afirmación esté en el documento no prueba que la lectura sea correcta (D-293): el modelo puede atribuir un dato a quien no es, la identidad del sujeto puede estar en duda o dos documentos pueden decir cosas distintas. Las páginas y las pantallas mostraban todo igual, como hecho firme.
+- **Qué se decidió:** Cada afirmación tiene una certeza calculada en cada resolución, sin el modelo, desde lo que ya guarda la base: **con cita comprobada** (la cita está en el texto y nadie la confirmó), **confirmada** por una persona (decisión nueva «confirmar», que se deshace como las otras), **dudosa** (motivos: los documentos difieren, que es el conflicto de siempre; la identidad del sujeto o del objeto está en duda en todas sus evidencias, por las dudas de identidad; la cita nombra a otra persona u organización del documento y no a su sujeto, en todas sus evidencias (una dirección de correo no nombra a la organización de su dominio, y un apellido que comparten no nombra al sujeto); los documentos dicen estados distintos de un importe) y **corregida** (una persona marcó como incorrecta una de sus evidencias o unió o separó una de sus menciones). Gana la confirmación; una duda gana sobre una corrección. Se guarda como resumen calculado en `knowledge_claim.certainty` (nivel y motivos) para que páginas, pantallas y chat lean lo mismo; la confirmación es un tipo más de `knowledge_decision` (migración V15).
+- **Por qué:** El dueño pidió que cada afirmación lleve certeza y quién la confirmó, y que lo dudoso nunca se presente como hecho firme. Las señales son generales (R-24) y reutilizan el estado de la afirmación, las dudas y las decisiones; la única columna nueva es el resumen, para no recalcularlo en cuatro lectores.
+- **Alternativas descartadas:** Calcularla al mostrar en cada pantalla (tres copias de la misma regla); ampliar `knowledge_claim.state` (mezcla el conflicto entre documentos con la palabra de una persona y obliga a reconstruir la tabla); preguntarle al modelo cuán seguro está (no es verificable).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/claims.rs` (`certainty_json`, `names_someone_else`, `doubted_mentions`), `decide.rs` (`Confirm`), `schema.rs` (V15), `entities.rs`; `src/components/knowledge/entity-detail.tsx`, `knowledge.ts` (`certaintyInWords`); P-142.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N2b de la tanda desatendida del 18 oct.
+
+### D-321 · Las decisiones de una persona se colocan sobre lo que dicen los documentos en cada resolución; lo que ya no encuentran queda para revisar
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Capa de conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** Una decisión (unir, separar, marcar incorrecto) nombra un grupo de menciones por su documento y su nombre, o una evidencia por su documento, sujeto, predicado y objeto. Al releer un documento con otra consigna, el modelo puede escribir el mismo nombre o valor de otra forma («Nueve Ejemplo» por «Persona Nueve Ejemplo», «Calle Siete 700» por «Calle Siete 700 piso 3»): la decisión dejaba de aplicarse sin aviso (una separación se perdía y las dos menciones volvían a unirse por su identificador). La prueba nueva lo mostró fallando antes del arreglo.
+- **Qué se decidió:** Antes de cada resolución cada decisión activa se coloca: **se aplica** (lo que nombra está, o está en el documento que tomó el lugar del suyo); **se movió** (no está igual, pero en su documento hay una sola cosa del mismo tipo con un nombre que puede ser el mismo, o una sola evidencia del mismo predicado con el mismo valor escrito de otra forma: la decisión sigue con ella y se guarda a qué se aplica, `applied_as`); **espera** (su documento no está o no se leyó todavía: vuelve sola cuando vuelve el documento); **para revisar** (el documento está leído y lo que nombraba no aparece, o aparece más de una vez). Nunca se aplica a una adivinanza ni se pierde en silencio: Atención muestra «decisión tuya ya no encuentra lo que decidía» con el documento y un botón para deshacerla, y la pantalla de la entidad lo dice en su lista de decisiones. Las decisiones sobre afirmaciones se colocan igual, siguiendo además a la entidad en la que se unió la suya.
+- **Por qué:** Pedido del dueño (las decisiones tienen que sobrevivir a una relectura, D-293) y R-08/R-09: lo que decide una persona no lo pisa un cálculo, y si deja de aplicarse alguien tiene que saberlo.
+- **Alternativas descartadas:** Guardar las decisiones por identificador de mención (cambian en cada lectura); aplicar la decisión al candidato más parecido aunque haya varios (puede unir o separar a quien no es); borrar las decisiones que no encuentran nada.
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/anchors.rs` (nuevo), `resolve.rs` (`load_decided`), `claims.rs` (`place_claim_decisions`), `screens.rs` (`decisions_to_review`); `src/components/attention/sources/knowledge.ts`; prueba `tests_survive.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N2b de la tanda desatendida del 18 oct.
+
+### D-322 · La síntesis y las páginas escriben lo dudoso como dudoso; se dice «con cita comprobada»
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Capa de conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** La síntesis del modelo redactaba todas las afirmaciones como hechos, y las páginas no distinguían un dato dudoso de uno firme.
+- **Qué se decidió:** En la pregunta de la síntesis, cada afirmación dudosa por un motivo que no sea solo el conflicto (que ya tiene su bloque y su regla) lleva «DUDOSA (motivo)», y solo en esas preguntas se agrega la regla de escribirlas como dudosas («según un documento…, sin confirmar»), en oraciones aparte y nunca como algo seguro: las demás entidades conservan su pregunta y su respuesta. Además, un cálculo marca «(sin confirmar)» toda oración que se apoye en una afirmación dudosa y no lo diga. Las cifras del nombre del documento de una afirmación respaldan la oración que lo nombra («según «Carta 26-06-26.pdf»»): sin eso, la comprobación de números descartaba justo las oraciones dudosas. En la página, cada dato listado lleva su marca («sin confirmar: motivo», «confirmado por una persona», «corregido por una persona»), también en los vínculos y en lo que dicen los documentos de un asunto, y debajo de la síntesis una línea explica que cada dato tiene su cita comprobada, que eso no garantiza que la lectura sea correcta y qué quiere decir «sin confirmar». En la interfaz se dice «con cita comprobada», nunca «verificado» (también en el origen del tipo de un documento: «marcas comprobadas»). Las palabras están en el vocabulario de las páginas.
+- **Por qué:** Pedido del dueño (D-293): lo dudoso nunca como hecho firme. La marca calculada lo garantiza aunque el modelo no siga la regla; limitar la regla a las preguntas con dudas evita volver a pedir todas las síntesis por un cambio que no les toca.
+- **Alternativas descartadas:** Cambiar la consigna de todas las síntesis (las mismas respuestas, todas preguntadas de nuevo); sacar las afirmaciones dudosas de la síntesis (se perderían datos que pueden ser ciertos; siguen listadas con su marca).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/pages.rs` (`synthesis_question`, `render`, `certainty_mark`, versión de proyección 8), `resources/catalog/knowledge.json` (`pages.words`); `src/components/docbase/document-types.ts`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N2b de la tanda desatendida del 18 oct.
+
+### D-323 · Medición de N2b: sin preguntar salvo las síntesis cuya pregunta cambió
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Proceso de trabajo
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** La certeza no cambia lo que se lee ni cómo se resuelven las identidades, pero sí la pregunta de la síntesis de las entidades con datos dudosos y el texto de todas las páginas.
+- **Qué se decidió:** Se midió sobre una copia de la base de N2a con las respuestas guardadas; solo se preguntó a `gpt-6-luna` alto la síntesis de las entidades cuya pregunta cambió (5 en la primera medición y 2 que faltaban después del ajuste del correo: 7 preguntas en total), por `con-modelo.sh`. Las páginas antes y después de esas entidades quedaron fuera del repositorio (`desatendido-4/N2b-muestra/`).
+- **Por qué:** Lo pide la especificación de la etapa: medir el cambio sin ruido del modelo en lo que no cambió.
+- **Alternativas descartadas:** Volver a escribir todas las síntesis (las demás preguntas no cambiaron).
+- **Dónde se aplica:** Fuera del repositorio: `desatendido-4/N2b-correr.sh`, `N2b-muestra.py`, `N2b-medicion.md`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N2b de la tanda desatendida del 18 oct.

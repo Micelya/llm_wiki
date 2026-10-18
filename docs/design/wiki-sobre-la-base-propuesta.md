@@ -26,7 +26,7 @@ Lo medido sobre el wiki generado el 17 de octubre (carpeta de prueba, 66 documen
 
 - **El chat, la búsqueda y el grafo.** Son valiosos para un estudio. Cambia de dónde toman la información, no lo que ofrecen.
 - **Las páginas como forma de leer.** Una persona lee un documento, una persona, una organización o un asunto como una página con forma de artículo (sección 13 del diseño).
-- **La síntesis en prosa** de lo que dicen los documentos, escrita por el modelo solo desde afirmaciones **con cita comprobada**. Que la cita exista en el documento no prueba que la lectura sea correcta: cada afirmación lleva su **certeza** y **quién la confirmó** (el modelo, una regla, una persona), y la síntesis escribe lo dudoso como dudoso. Una corrección hecha una vez se propaga a todas las páginas, porque se arman desde el registro (D-293).
+- **La síntesis en prosa** de lo que dicen los documentos, escrita por el modelo solo desde afirmaciones **con cita comprobada**. Que la cita exista en el documento no prueba que la lectura sea correcta: cada afirmación lleva su **certeza** y **quién la confirmó** (el modelo, una regla, una persona), y la síntesis escribe lo dudoso como dudoso. Una corrección hecha una vez se propaga a todas las páginas, porque se arman desde el registro (D-293). Construido en N2b (D-320 a D-322): cuatro niveles (con cita comprobada, confirmada, dudosa con su motivo, corregida), la síntesis escribe lo dudoso como dudoso y un cálculo lo marca si no lo hace, y las decisiones de una persona se vuelven a colocar después de cada relectura o quedan para revisar en Atención.
 - **Las notas de una persona** en cada página, que la app nunca reescribe.
 
 ## 3. Principios

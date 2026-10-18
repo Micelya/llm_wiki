@@ -1479,7 +1479,7 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "Con la base del 18 oct quedan atribuciones equivocadas por el lugar del dato en el documento: el domicilio del destinatario de un aviso de recibo asignado al remitente (formulario en dos columnas), el domicilio de una sociedad asignado a quien firma por ella, 'representa a' sacado de una frase que lo niega, el DNI del titular de una ficha guardado en su cónyuge, el DNI del apoderado guardado en la sociedad, el domicilio constituido de la sociedad asignado a su apoderado y el origen de fondos como profesión. Buscar la señal general de cada uno (columna o bloque del formulario, negación, persona que firma por otra). Casos de aceptación en conjunto-prueba/casos-criticos.json (fuera del repositorio, D-300); se comprueban con desatendido-4/N1-comprobar-casos.py. (A01-A08)",
+      "detalle": "Con la base del 18 oct quedan atribuciones equivocadas por el lugar del dato en el documento: el domicilio del destinatario de un aviso de recibo asignado al remitente (formulario en dos columnas), el domicilio de una sociedad asignado a quien firma por ella, 'representa a' sacado de una frase que lo niega, el DNI del titular de una ficha guardado en su cónyuge, el DNI del apoderado guardado en la sociedad, el domicilio constituido de la sociedad asignado a su apoderado y el origen de fondos como profesión. Buscar la señal general de cada uno (columna o bloque del formulario, negación, persona que firma por otra). Casos de aceptación en conjunto-prueba/casos-criticos.json (fuera del repositorio, D-300); se comprueban con desatendido-4/N1-comprobar-casos.py. (A01-A08) Desde N2b (D-320) tres de las cinco que quedan se muestran «sin confirmar» (la cita nombra a otra organización, o los documentos difieren); siguen en el registro.",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/knowledge/claims.rs; src-tauri/src/docbase/knowledge/resolve.rs; D-300",
       "creado": "2026-10-18",
@@ -1520,6 +1520,42 @@
         "P-142"
       ],
       "referencia": "src/lib/ingest.ts; D-314; P-142",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-165",
+      "titulo": "Certeza de los identificadores",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "La certeza (D-320) es de las afirmaciones; los identificadores (DNI, CUIT) del encabezado de una página no la tienen. Un DNI cuya cita nombra a otra persona (el del cónyuge en una ficha, el del apoderado en la sociedad) se muestra como firme: aplicar la misma señal de atribución a los identificadores y marcarlos en páginas y pantallas.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/knowledge/claims.rs; src-tauri/src/docbase/knowledge/pages.rs; D-320; P-151",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-166",
+      "titulo": "Volver a decidir una decisión que quedó para revisar",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Una decisión que ya no encuentra lo que nombraba queda en Atención con abrir el documento y deshacerla (D-321). Falta ofrecer ahí mismo los candidatos de su documento (lo que hay ahora del mismo tipo) para elegir a cuál aplicarla, sin tener que buscar la entidad.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/knowledge/anchors.rs; src/components/attention/sources/knowledge.ts; D-321",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-167",
+      "titulo": "Precisión de la duda por atribución",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "En la carpeta de prueba la señal «la cita nombra a otra persona u organización y no al sujeto» marca 5 afirmaciones: 3 son errores reales y 2 falsas alarmas (una profesión que nombra al empleador, un domicilio laboral que nombra a la sociedad). Afinarla (por ejemplo, el predicado que admite nombrar una organización, como empleo o domicilio laboral) y medirla contra la hoja antes de usarla para algo más que marcar.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/knowledge/claims.rs (names_someone_else); D-320",
       "creado": "2026-10-18",
       "actualizado": "2026-10-18"
     }
