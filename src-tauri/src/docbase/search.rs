@@ -18,6 +18,7 @@
 //! - the words of the question in the summary of each document
 //!   (`content_search.summary`), which is written in the language of the
 //!   archive: a question in Spanish finds a contract written in English;
+//!   when the question has a number, only among the documents that have it;
 //! - the graph: the people, organizations and matters the question names
 //!   (by the names the record knows them by) raise the documents they appear
 //!   in, and add them when the text did not find them; a name that appears
@@ -414,11 +415,19 @@ impl DocBase {
         } else {
             ranked(&conn, "content_search", &format!("numbers : ({})", numbers.join(" OR ")), &keep_rowid)?
         };
-        let by_summary = if words.is_empty() {
+        let mut by_summary = if words.is_empty() {
             Vec::new()
         } else {
             ranked(&conn, "content_search", &format!("summary : ({})", words.join(" OR ")), &keep_rowid)?
         };
+        // A question with a number asks for the documents that have it: the
+        // summary only orders those. Its other words ("número", "cliente")
+        // are in the summaries of many documents that do not have it, and
+        // would push out the ones the number finds.
+        if !numbers.is_empty() {
+            let with_number: HashSet<i64> = by_number.iter().copied().collect();
+            by_summary.retain(|content| with_number.contains(content));
+        }
         let mut score: HashMap<i64, f64> = HashMap::new();
         let mut found_by: HashMap<i64, Vec<String>> = HashMap::new();
         for (list, why) in [(&text, "text"), (&by_number, "number"), (&by_summary, "summary")] {

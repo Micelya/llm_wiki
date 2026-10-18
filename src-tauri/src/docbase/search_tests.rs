@@ -91,6 +91,21 @@ fn a_number_with_dots_finds_it_written_without_them_and_back() {
 }
 
 #[test]
+fn a_question_with_a_number_is_not_pushed_out_by_summaries_without_it() {
+    let base = base();
+    // Ten documents have the number; ten others only say in their summary
+    // that they carry "un número de cliente" (not this one).
+    for id in 1..=10 {
+        document(&base, id, "o1", &format!("Período {id}. Cuenta 4.444.555. Total a pagar."), Some("Factura mensual"));
+    }
+    for id in 11..=20 {
+        document(&base, id, "o1", "Texto de otra cosa.", Some("Constancia con el número de cliente y el número de envío"));
+    }
+    let hits = found(&base, &Visible::All, "Número de cliente 4444555");
+    assert_eq!(hits.iter().filter(|&&h| h <= 10).count(), 10, "{hits:?}");
+}
+
+#[test]
 fn a_document_in_another_language_is_found_by_its_summary() {
     let base = base();
     document(
