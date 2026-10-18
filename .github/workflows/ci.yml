@@ -3,8 +3,10 @@ name: CI
 on:
   push:
     branches: [main]
+  # Every pull request is checked, whatever branch it targets: a pull
+  # request stacked on another one already has its check when its base
+  # becomes main, so it is never left waiting for a check that never starts.
   pull_request:
-    branches: [main]
 
 permissions:
   contents: read
