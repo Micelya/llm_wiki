@@ -4064,3 +4064,81 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** Fuera del repositorio: `desatendido-4/N2b-correr.sh`, `N2b-muestra.py`, `N2b-medicion.md`.
 - **Quién decidió:** agente sin consulta.
 - **Fuente:** etapa N2b de la tanda desatendida del 18 oct.
+
+### D-330 · El resumen del documento sale de la lectura de la capa: tema y puntos, cada punto con su cita comprobada
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Capa de conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** El resumen de cada documento lo escribía el wiki en una segunda y tercera lectura con el modelo (análisis y generación), sin cita y sin comprobación, mientras la capa ya leía el documento entero (P-142, principio 2: una extracción principal).
+- **Qué se decidió:** La pregunta de la lectura (versión `conocimiento-4`) pide además un `resumen`: un `tema` (una oración: qué documento es, entre quiénes y para qué) y de dos a seis `puntos` con lo esencial, cada uno con una cita copiada del texto, su página y las menciones que nombra; lo abierto (borrador, propuesta, sin firmar, condicionado) se dice así; en castellano aunque el documento esté en otro idioma. Un cálculo conserva un punto solo si su cita está en el texto y todos sus números están en su cita; un tema solo si sus números están en el texto. Lo descartado se cuenta con motivos propios (`resumen-…`) que no cuentan como lectura ruidosa. Se guarda en la base (`knowledge_summary`, migración V16) con la lectura y se reemplaza con ella: cada punto apunta a las menciones que nombra y a las evidencias del mismo pasaje (una cita contiene a la otra o comparten 8 palabras seguidas), y por ellas a las afirmaciones y su certeza. Un documento largo da un tema (el de la primera parte que lo da) y hasta 10 puntos de todas sus partes.
+- **Por qué:** Pedido del dueño (D-293, una lectura por contenido y configuración) y R-17: medido sobre la lectura completa de los 66 documentos, 66 resúmenes (289 puntos, 4,4 por documento; 38 puntos descartados por el cálculo: 26 con números fuera de su cita, 12 con cita que no está). Revisor a ciegas sobre 10: los 10 fieles; completitud 1,9 de 3 y utilidad 2,4 de 3 (faltan importes y fechas clave: P-171).
+- **Alternativas descartadas:** Una pregunta aparte para el resumen (otra lectura del mismo documento); resumir desde las afirmaciones ya guardadas (pierde lo que no es una afirmación: de qué trata, qué se pide); guardar el resumen sin cita.
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/extract.rs` (`prompt`, `schema`, `summarize`, `same_passage`, `write_reading`), `src-tauri/src/docbase/schema.rs` (V16); pruebas `tests_reading.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N3 de la tanda desatendida del 18 oct.
+
+### D-331 · La página de cada documento la escribe la base desde el resumen, sin modelo, hasta que N4 la arme como página del documento
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Wiki
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** Si el wiki deja de leer documentos con el modelo, nadie escribe la página de cada documento.
+- **Qué se decidió:** La proyección de la capa escribe el texto de cada página de documento del wiki del archivo: título (el de su encabezado o el nombre del archivo), tema, tipo y etapa, fecha del documento, «Lo esencial» (cada punto con la cita que lo respalda, su página y la marca de certeza de las afirmaciones del mismo pasaje: «sin confirmar», «confirmado», «corregido»), «Importes entre las partes» (los importes que el registro guarda de ese documento, con su estado y certeza, aunque el resumen no los diga) y la línea que explica qué es una cita comprobada. Conserva el encabezado de la página (sus fuentes) con la marca `generated_by: micelya-conocimiento` y quita `tags` y `related` que había escrito el modelo; las notas de una persona se conservan y el bloque de entidades queda al final. Una página que escribió la incorporación anterior queda como está hasta que su documento se lee con la pregunta nueva. Versión de proyección 9.
+- **Por qué:** D-293 y la decisión abierta 1 resuelta (D-294): página del documento como archivo generado por ahora. Los importes se agregan sin modelo porque el revisor a ciegas marcó que los resúmenes los omiten.
+- **Alternativas descartadas:** Dejar la página del modelo hasta N4 (seguiría habiendo dos lecturas); escribirla desde TypeScript (no sabe cuándo terminó la lectura).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/pages.rs` (`document_page`, proyección), `resources/catalog/knowledge.json` (`pages.words`: `docSummary`, `docKind`, `docDate`, `docPending`, `docQuote`, `docAmounts`); prueba `tests_pages.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N3 de la tanda desatendida del 18 oct.
+
+### D-332 · En el wiki del archivo la incorporación no llama al modelo: solo crea la página del documento para que la base la complete
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Wiki
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** La incorporación heredada leía cada documento con el modelo 2 o 3 veces (análisis, generación y revisión, más fragmentos, combinación de páginas y reparación de truncados): escribía la página de fuente, conceptos por documento, consultas inventadas y avisos de revisión.
+- **Qué se decidió:** En el wiki del archivo (el proyecto general) la incorporación hace el reconocimiento de texto (sin cambios), crea la página del documento si no existe (encabezado con su fuente y la marca de la base; si ya existe no la toca), actualiza índice y registro sin modelo y guarda su caché. No hay análisis, generación, revisión, conceptos, consultas, avisos de revisión, combinación con el modelo ni descripción de imágenes. Una respuesta del chat guardada en ese wiki se guarda tal cual, sin releerla con el modelo. Los demás proyectos conservan la incorporación anterior.
+- **Por qué:** Principio 2 de la propuesta y especificación de N3. Medido: llamadas del modelo por documento al leer, antes unas 3,1 a 4,1 (2 o 3 del wiki, unas 200 en total, más 75 de la capa para 66 documentos) y ahora 1,14 (75 preguntas para 66 documentos: una lectura, en partes los largos), 0 del wiki.
+- **Alternativas descartadas:** Borrar todo el código de la incorporación anterior (los otros proyectos quedarían sin wiki; queda como P-172); conservar la descripción de imágenes (escribía en la página, no en la base: P-173).
+- **Dónde se aplica:** `src/lib/ingest.ts` (`ingestIntoArchiveWiki`, `buildArchiveSourcePage`), `src/components/chat/chat-message.tsx`; prueba `src/lib/ingest-knowledge-layer.test.ts`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N3 de la tanda desatendida del 18 oct.
+
+### D-333 · Se quitan la revisión del wiki con el modelo y el enriquecimiento de enlaces; la limpieza de avisos con el modelo no corre en el wiki del archivo
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Wiki
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** La revisión de enlaces tenía una parte con el modelo (contradicciones, páginas que faltan) y la limpieza de avisos de revisión preguntaba al modelo; el enriquecimiento de enlaces con el modelo ya no tenía quién lo llamara.
+- **Qué se decidió:** Se quita la revisión con el modelo (la opción de la pantalla y su código); queda la estructural, sin modelo. Se borra el enriquecimiento de enlaces (código muerto). La limpieza de avisos de revisión con el modelo no corre en el wiki del archivo: lo pendiente queda para una persona. Las contradicciones y los duplicados los detecta la capa con evidencia y van a Atención.
+- **Por qué:** Sección 4 de la propuesta.
+- **Alternativas descartadas:** Dejar la revisión con el modelo como opción (lee páginas que ya salen de la base y repite lo que la capa hace con evidencia).
+- **Dónde se aplica:** `src/lib/lint.ts`, `src/components/lint/lint-view.tsx`, `src/lib/sweep-reviews.ts`; borrados `src/lib/enrich-wikilinks*.ts` y `lint.real-llm.test.ts`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N3 de la tanda desatendida del 18 oct.
+
+### D-334 · La investigación en internet guarda su resultado fuera del wiki del archivo
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Wiki
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** La investigación en internet escribía su resultado como página de consulta del wiki y lo indexaba para la búsqueda, mezclando conocimiento externo con el del archivo (D-294).
+- **Qué se decidió:** En el wiki del archivo el resultado se guarda en `.llm-wiki/research/` y no se indexa; la herramienta sigue disponible a pedido. En otros proyectos, como antes.
+- **Por qué:** D-294: herramienta aparte que nunca escribe en la base ni en el wiki del archivo.
+- **Alternativas descartadas:** Quitar la herramienta (la persona la puede querer a pedido).
+- **Dónde se aplica:** `src/lib/deep-research.ts`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N3 de la tanda desatendida del 18 oct.
+
+### D-335 · Medición de N3: lectura completa desde la base de partida, sin trasplantes
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Proceso de trabajo
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** La pregunta de la lectura cambió para todos los documentos: hacía falta leerlos todos y medir sin las respuestas trasplantadas de N2a.
+- **Qué se decidió:** Una lectura completa de los 66 documentos con `gpt-6-luna` alto desde una copia de `base-partida.sqlite3` y un caché vacío (75 preguntas de lectura, 27 de identidad, 43 síntesis; 18 minutos), por `con-modelo.sh`; luego dos corridas sin preguntar con los cambios de páginas. La base queda como `desatendido-4/N3-base.sqlite3` con su caché `N3-cache.json`, base de N4 a N6. Resultados: casos críticos 29 → 33 de 46 (importes 13 → 16 de 16, atribución 3 → 4 de 8, casillas 9 de 9, partidas 3 → 2, regresiones 1 → 2); uniones falsas 0; separaciones falsas 201 → 185; menciones de la hoja 370 → 373; afirmaciones de la hoja 69 → 66. Atribución a ciegas (40 y 40 al azar, mezcladas): 35 → 34 correctas (88 % → 85 %; dinero 10 → 12 de 14, domicilios 13 → 10 de 13).
+- **Por qué:** R-17 y la especificación de la etapa.
+- **Alternativas descartadas:** Medir sobre las bases de N2a/N2b (tienen respuestas trasplantadas); otra lectura completa para ajustar el resumen (excede las lecturas autorizadas de la tanda: queda para N6, P-171).
+- **Dónde se aplica:** Fuera del repositorio: `desatendido-4/N3-correr.sh`, `N3-resumenes.py`, `N3-juicio/`, `N3-resumenes/`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N3 de la tanda desatendida del 18 oct.

@@ -1128,12 +1128,12 @@
       "titulo": "Enlaces rotos y conceptos de más en las páginas que escribe el wiki",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "En el wiki generado de cero, las páginas de documentos y de conceptos que escribe el modelo tienen 30 enlaces a páginas que no existen (títulos inventados) y hay 85 conceptos, varios solapados. Revisar la generación del wiki (no la capa): enlazar solo a páginas del índice y agrupar conceptos.",
+      "estado": "a-verificar",
+      "detalle": "En el wiki generado de cero, las páginas de documentos y de conceptos que escribe el modelo tienen 30 enlaces a páginas que no existen (títulos inventados) y hay 85 conceptos, varios solapados. Revisar la generación del wiki (no la capa): enlazar solo a páginas del índice y agrupar conceptos. (18 oct, N3: en el wiki del archivo el modelo ya no escribe páginas de documentos ni conceptos, D-332; las páginas de documentos las escribe la base sin enlaces inventados, D-331. Verificar en la regeneración de N6.)",
       "depende_de": [],
       "referencia": "src/lib/ingest.ts",
       "creado": "2026-10-16",
-      "actualizado": "2026-10-16"
+      "actualizado": "2026-10-18"
     },
     {
       "id": "P-115",
@@ -1417,11 +1417,11 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "Quedan del lado de la incorporación: encabezados \"## Embedded Images / ### Page N\" y `log.md` en inglés; referencias `related:` con tilde o inventadas que no apuntan a ninguna página (14); un nombre de archivo de concepto con tilde; conceptos duplicados y 56 de 85 conceptos de un solo documento; frases sobre \"el nombre del archivo\" o \"la transcripción\"; vistas previas y borradores no dichos como tales. Corregir con reglas del programa lo determinista y ajustar la consigna en lo demás.",
+      "detalle": "Reformulado el 18 oct (N3): en el wiki del archivo el modelo ya no escribe páginas (D-332), así que conceptos, `related` inventados, encabezados de imágenes y frases sobre el archivo dejan de existir allí; la base dice borradores y vistas previas en el resumen (D-330). Queda: `log.md` sigue con su encabezado y sus entradas en inglés («# Wiki Log», «ingest |»); escribirlo en el idioma del wiki.",
       "depende_de": [],
       "referencia": "src/lib/ingest.ts; src/lib/ingest-legal-finish.ts; src/lib/extract-source-images.ts",
       "creado": "2026-10-17",
-      "actualizado": "2026-10-17"
+      "actualizado": "2026-10-18"
     },
     {
       "id": "P-140",
@@ -1556,6 +1556,66 @@
       "detalle": "En la carpeta de prueba la señal «la cita nombra a otra persona u organización y no al sujeto» marca 5 afirmaciones: 3 son errores reales y 2 falsas alarmas (una profesión que nombra al empleador, un domicilio laboral que nombra a la sociedad). Afinarla (por ejemplo, el predicado que admite nombrar una organización, como empleo o domicilio laboral) y medirla contra la hoja antes de usarla para algo más que marcar.",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/knowledge/claims.rs (names_someone_else); D-320",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-170",
+      "titulo": "La incorporación del wiki del archivo todavía exige un modelo configurado",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "La cola y la importación siguen frenando si no hay un modelo de incorporación configurado (hasUsableLlm), aunque en el wiki del archivo la incorporación ya no le pregunta nada (D-332). Quitar esa condición para el wiki del archivo.",
+      "depende_de": [],
+      "referencia": "src/lib/ingest-queue.ts; src/lib/source-lifecycle.ts; D-332",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-171",
+      "titulo": "Resúmenes más completos: importes, fechas y números del documento",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Revisor a ciegas sobre 10 resúmenes de N3: los 10 fieles, completitud 1,9 de 3, utilidad 2,4 de 3. Faltan el total de una factura, fechas de emisión y vencimiento, el número de la factura que se rechaza; un certificado de firma no dice qué se firmó ni quiénes. 26 puntos se descartaron por traer números fuera de su cita. Ajustar la consigna del resumen (pedir importes, fechas y números con su cita, y qué se firmó en una constancia) en la próxima lectura completa (N6), y medir con el mismo revisor.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/knowledge/extract.rs; D-330; desatendido-4/N3-resumenes/",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-172",
+      "titulo": "Quitar el código de la incorporación con el modelo si solo queda el wiki del archivo",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Los proyectos que no son el wiki del archivo conservan la incorporación anterior (análisis, generación, revisión, combinación de páginas, conceptos, avisos). Decidir si esos proyectos siguen existiendo; si no, borrar ese código y sus pruebas.",
+      "depende_de": [],
+      "referencia": "src/lib/ingest.ts; src/lib/page-merge.ts; src/lib/sweep-reviews.ts; D-332",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-173",
+      "titulo": "Descripción de imágenes de los documentos en la base",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "En el wiki del archivo la incorporación ya no describe las imágenes con el modelo (escribía en la página, no en la base). Si hace falta, que la descripción vuelva a la base como el reconocimiento de texto y la lectura la use.",
+      "depende_de": [],
+      "referencia": "src/lib/ingest.ts; src/lib/image-caption-pipeline.ts; D-332",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-174",
+      "titulo": "Domicilios atribuidos a otra parte y entidades partidas por variación del modelo",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Tras la lectura completa de N3: atribución a ciegas de domicilios 13 → 10 de 13 (el domicilio de una sociedad dado a la persona que firma o a la otra parte: casos A02 y A08); S01 y S02 volvieron a partirse porque el modelo dudó o dijo distintas en la identidad (una sociedad nombrada como revendedora de otra; una sociedad con y sin su forma jurídica en el mismo documento). Medir de nuevo en las dos regeneraciones de N6 y, si se repite, una regla por señales generales.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/knowledge/extract.rs; src-tauri/src/docbase/knowledge/resolve.rs; desatendido-4/N3-juicio/",
       "creado": "2026-10-18",
       "actualizado": "2026-10-18"
     }
