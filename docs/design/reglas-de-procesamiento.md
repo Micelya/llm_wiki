@@ -49,7 +49,7 @@ Nacieron del diseño de los documentos parecidos ([propuesta](parecidos-propuest
 
 ## 4. Sobre el modelo de inteligencia artificial
 
-**R-18 · Se usa donde agrega valor.** Se reduce su uso, no se elimina. Ahorrar cupo nunca justifica una solución peor; se puede postergar un uso solo si usarlo ahora traba la medición.
+**R-18 · Se usa donde agrega valor o donde el proceso la necesita.** Lo determinista se prefiere solo si iguala o mejora el resultado, con la misma eficiencia o una mejor. Ahorrar cupo nunca justifica una solución peor. *(Reemplaza, el 16 de octubre de 2026, a la versión que decía "se reduce su uso, no se elimina": se leía como una orden de evitar el modelo. Ver D-150 en el [registro de decisiones](../decisiones.md).)*
 
 **R-19 · Cálculo y modelo se alternan, cada uno con un propósito.** El cálculo encuentra y mide; el modelo lee, clasifica y explica. Una pasada del modelo puede ir antes de una de cálculo cuando lo que produce (por ejemplo, el tipo de documento) mejora la medición siguiente.
 

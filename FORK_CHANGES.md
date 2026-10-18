@@ -1,5 +1,7 @@
 # Diferencias con upstream
 
+> **Congelado el 16 de octubre de 2026.** El proyecto ya no se sincroniza con upstream (D-151), así que este registro perdió su función y no se actualiza más (D-152). Queda como historia de lo que el fork cambió hasta esa fecha. Lo que se cambia desde entonces queda en el [registro de decisiones](docs/decisiones.md), en `pendientes.json` y en git.
+
 Registro de lo que este fork hace distinto de [nashsu/llm_wiki](https://github.com/nashsu/llm_wiki) y **para qué**.
 El detalle de cada cambio (qué líneas, qué pruebas) está en su PR; acá no se repite.
 

@@ -1,6 +1,6 @@
 # Registro de decisiones
 
-**Proyecto:** Micelya Desktop (repositorio `Micelya/llm_wiki`) · **Al 14 de octubre de 2026**
+**Proyecto:** Micelya Desktop (repositorio `Micelya/llm_wiki`) · **Al 16 de octubre de 2026**
 
 ## Qué es y cómo usarlo
 
@@ -37,7 +37,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-009 | 5 al 8 oct | IA | Proveedor de IA: Codex en desarrollo; para clientes, suscripción propia o servicio de Amazon detrás de Micelya | vigente, con P-029 abierto |
 | D-010 | 5 al 8 oct | IA | Leer con un motor intercambiable las páginas escaneadas y las fotos | vigente |
 | D-011 | 5 al 8 oct | Upstream | La arquitectura pesa más que evitar choques con upstream | reemplazada por D-034 |
-| D-012 | 5 al 8 oct | Proceso de trabajo | Registros: diferencias con upstream, pendientes, traspasos de sesión | vigente |
+| D-012 | 5 al 8 oct | Proceso de trabajo | Registros: diferencias con upstream, pendientes, traspasos de sesión | reemplazada en parte por D-152 |
 | D-013 | 5 al 8 oct | Proceso de trabajo | Todo cambio entra por PR contra el fork, con `main` protegida | vigente |
 | D-014 | 5 al 8 oct | Proceso de trabajo | Explicaciones en español, simples, autocontenidas y verificadas | vigente |
 | D-015 | 5 al 8 oct | Seguridad | Endurecer los procesos automáticos de GitHub | vigente |
@@ -59,7 +59,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-031 | 8 oct | Interfaz | Aviso de importación informativo cuando no hubo error | vigente |
 | D-032 | 8 oct | Proceso de trabajo | Programar en una carpeta separada de la que corre la app | vigente |
 | D-033 | 9 oct | Producto | Cambio de rumbo: la base documental es el cimiento | vigente |
-| D-034 | 9 oct | Upstream | Las necesidades propias pesan más que la compatibilidad con upstream | vigente |
+| D-034 | 9 oct | Upstream | Las necesidades propias pesan más que la compatibilidad con upstream | reemplazada por D-151 |
 | D-035 | 9 oct | Base documental | La unidad es el espacio (privado o compartido), no el proyecto | vigente |
 | D-036 | 9 oct | Base documental | La base documental es un componente separado | vigente |
 | D-037 | 9 oct | Seguridad | Autorización al estilo UMA 2.0 | reemplazada por D-045 |
@@ -67,7 +67,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-039 | 9 al 11 oct | Base documental | Cuatro capas; el wiki le pregunta a la base solo tres cosas | vigente |
 | D-040 | 9 al 11 oct | Base documental | SQLite local como fuente de verdad; búsqueda por significado aparte | vigente |
 | D-041 | 9 al 11 oct | Base documental | Orígenes admitidos; documentos nativos de Google detectados, no procesados | vigente |
-| D-042 | 9 al 11 oct | IA | Determinista primero; IA una vez por grupo | vigente |
+| D-042 | 9 al 11 oct | IA | Determinista primero; IA una vez por grupo | reemplazada en parte por D-150 |
 | D-043 | 9 al 11 oct | Base documental | Sin ninguna ubicación, se borran los derivados | vigente |
 | D-044 | 9 al 11 oct | Seguridad | Reglas de los espacios privado y compartido | vigente |
 | D-045 | 11 oct | Seguridad | Autorización: el origen es el techo y el proyecto es el alcance | vigente |
@@ -83,7 +83,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-055 | 11 oct | Interfaz | Marco visual y marca: para toda la app, en un turno dedicado | vigente |
 | D-056 | 11 oct | Interfaz | Pantallas nuevas en español; traducción completa aparte | vigente |
 | D-057 | 11 oct | Etiquetas | "Cliente" y "caso" son etiquetas, no proyectos | vigente |
-| D-058 | 11 oct | Upstream | No proponer contribuciones a upstream hasta nuevo aviso | vigente |
+| D-058 | 11 oct | Upstream | No proponer contribuciones a upstream hasta nuevo aviso | reemplazada por D-151 |
 | D-059 | 11 oct | IA | La base no le manda nada al modelo por su cuenta | vigente |
 | D-060 | 11 oct | Wiki | Asignar el proyecto general apaga su incorporación automática | reemplazada por D-071 |
 | D-061 | 11 oct | Wiki | El proyecto general se elige entre los existentes | reemplazada por D-069 |
@@ -124,7 +124,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-096 | 13 oct | Parecidos | Se muestran en el detalle del documento, con botones para unir | vigente |
 | D-097 | 13 oct | Parecidos | Relaciones ampliables y con nombres configurables | vigente |
 | D-098 | 13 oct | Parecidos | Al unir como el mismo documento, queda una sola fuente del wiki | vigente |
-| D-099 | 13 oct | IA | Reducir el uso de IA, no eliminarlo | vigente |
+| D-099 | 13 oct | IA | Reducir el uso de IA, no eliminarlo | reemplazada en parte por D-150 |
 | D-100 | 13 oct | Base documental | Procesar en pasadas sobre todo el archivo | en revisión |
 | D-101 | 13 oct | Parecidos | El conjunto de prueba lo arma el asistente y lo corrige el dueño | vigente |
 | D-102 | 13–14 oct | Proceso de trabajo | Esfuerzo estimado solo en términos relativos, nunca en tiempo | vigente |
@@ -175,6 +175,11 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-147 | 14 oct | Base documental | El preprocesado recibe la ruta completa de la fuente, la misma que lee el ingest | en revisión |
 | D-148 | 14 oct | Parecidos | Una elección de fuente que dejaría sin ninguna fuente a documentos unidos como el mismo se rechaza, con un mensaje que dice cómo salir | en revisión |
 | D-149 | 15 oct | Distribución | La comprobación de los PR y los instaladores, solo en Windows por ahora | vigente |
+| D-150 | 15 oct | IA | La IA se usa donde agrega valor o el proceso la necesita; lo determinista, solo si iguala o mejora el resultado | vigente |
+| D-151 | 15 oct | Upstream | No se sincroniza con upstream: el proyecto diverge y la compatibilidad deja de ser un criterio | vigente |
+| D-152 | 16 oct | Proceso de trabajo | `FORK_CHANGES.md` se congela: sin sincronización, ya no hace falta | vigente |
+| D-153 | 16 oct | Proceso de trabajo | Estado "a verificar" para lo construido que solo espera que el dueño lo vea en la app | vigente |
+| D-154 | 16 oct | Producto | El producto mínimo no está cerrado: el wiki generado es inservible y la experiencia de uso no alcanza | vigente |
 
 ---
 
@@ -327,7 +332,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 - **Fecha:** 5 al 8 oct 2026
 - **Tema:** Proceso de trabajo
-- **Estado:** vigente
+- **Estado:** reemplazada en parte por D-152 (el registro de diferencias con upstream se congela; los pendientes y los traspasos siguen)
 - **El problema:** cada conversación con el asistente empieza sin memoria de las anteriores; sin registros escritos se pierde qué se hizo y qué falta.
 - **Qué se decidió:** cada cambio respecto del original se anota por propósito en `FORK_CHANGES.md`; cada tarea que no se resuelve en el momento, en `pendientes.json`; cada sesión cierra con un documento de traspaso en `docs/sessions/`; `CLAUDE.md` le indica al asistente que al empezar lea el último traspaso, el diseño y los pendientes, y liste los pendientes abiertos.
 - **Por qué:** continuidad entre sesiones sin releer conversaciones.
@@ -614,7 +619,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 - **Fecha:** 9 oct 2026
 - **Tema:** Upstream
-- **Estado:** vigente (reemplaza a D-011)
+- **Estado:** reemplazada por D-151 (antes reemplazó a D-011)
 - **El problema:** con el cambio de rumbo, el fork se aleja mucho del original; cuidar la compatibilidad empezaba a condicionar el diseño.
 - **Qué se decidió:** las necesidades propias pesan más que la compatibilidad. Las novedades del original se analizan una por una; ya no se da por hecho que entren con las herramientas automáticas de GitHub. El original no condiciona el diseño.
 - **Por qué:** el producto propio es lo prioritario.
@@ -718,7 +723,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 - **Fecha:** 9 al 11 oct 2026
 - **Tema:** IA
-- **Estado:** vigente (precisado por D-099)
+- **Estado:** reemplazada en parte por D-150. Sigue valiendo: cuando un grupo de documentos comparte la respuesta, se le pregunta al modelo una vez por grupo. Deja de valer: "determinista primero" como orden; ahora el principio es usar la herramienta que da el mejor resultado
 - **El problema:** la IA cuesta, tarda e inventa; muchas cosas se pueden saber con cálculo exacto.
 - **Qué se decidió:** primero herramientas deterministas (cálculo que da siempre el mismo resultado). La IA entra donde el cálculo no alcanza, y una vez por grupo de documentos, no por documento. La clasificación por tipo de documento se hace con IA, una vez por grupo.
 - **Por qué:** costo, velocidad y certeza.
@@ -926,7 +931,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 - **Fecha:** 11 oct 2026
 - **Tema:** Upstream
-- **Estado:** vigente
+- **Estado:** reemplazada por D-151
 - **El problema:** algunos arreglos propios (por ejemplo F-001 y F-003) también servirían al original; proponérselos ahorra mantenerlos, pero lleva trabajo y expone el proyecto.
 - **Qué se decidió:** no se proponen contribuciones al original hasta nuevo aviso. P-008 queda en suspenso.
 - **Por qué:** No registrado.
@@ -1459,7 +1464,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 - **Fecha:** 13 oct 2026
 - **Tema:** IA
-- **Estado:** vigente (precisa D-042)
+- **Estado:** reemplazada en parte por D-150. Sigue valiendo: ahorrar cupo nunca es razón para elegir un camino peor. Deja de valer: "reducir" el uso de la IA y "primero medir el cálculo y después sumar usos del modelo" como regla general
 - **El problema:** "determinista primero" (D-042) podía leerse como "evitar la IA a toda costa", incluso cuando aporta.
 - **Qué se decidió:** el uso de IA se reduce, no se elimina. Se usa donde agrega valor y de la forma más conveniente. Ahorrar cupo nunca es razón para elegir un camino peor; el modelo solo se posterga si usarlo ahora retrasa medir. Primero se mide hasta dónde llega el cálculo y después se suman usos del modelo; el primer candidato es describir qué cambió entre dos documentos, a pedido y de a un par.
 - **Por qué:** la calidad es lo prioritario; medir primero muestra dónde aporta la IA.
@@ -2117,3 +2122,69 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** `.github/workflows/ci.yml`, `.github/workflows/build.yml`, regla `proteger-main`; P-082.
 - **Quién decidió:** el dueño del producto.
 - **Fuente:** conversación del 15 oct; PR #49.
+- **Nota del 16 oct:** las Actions del repositorio volvieron a funcionar; el 15 de octubre ya había corridas terminadas bien. La decisión no cambia.
+
+### D-150 · La IA se usa donde agrega valor o el proceso la necesita
+
+- **Fecha:** 15 oct 2026
+- **Tema:** IA
+- **Estado:** vigente (reemplaza en parte a D-099; precisa D-042)
+- **El problema:** en distintas sesiones, los agentes que programan el proyecto leyeron "determinista primero" (D-042) y "reducir el uso de IA" (D-099) como una regla para evitar la IA, y llegaron a conclusiones como "esto no debería usar el modelo" aun cuando el proceso lo necesitaba o el modelo daba un resultado mejor.
+- **Qué se decidió:** la IA se usa donde agrega valor y donde el proceso la necesita. Se prefiere una herramienta determinista solo si logra la misma eficacia o una mejor, con la misma eficiencia o una mejor. Eso no limita de ninguna manera el uso de la IA cuando el proceso la requiere o cuando logra un resultado superior al de las herramientas deterministas. El costo o el cupo no son argumentos para elegir un camino peor; antes de una prueba que consuma cupo se avisa al dueño, y avisar no es evitar.
+- **Por qué:** la calidad del resultado es lo que importa; el sesgo contra la IA producía procesos que no cumplían su función.
+- **Alternativas descartadas:** mantener "reducir el uso de IA" como regla general.
+- **Dónde se aplica:** `CLAUDE.md` (sección "Uso de la inteligencia artificial"); principio 5 de `base-documental.md`; R-18 de `reglas-de-procesamiento.md`; sección 3 de `parecidos-propuesta.md`; toda propuesta y pasada de la base documental.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 15 oct.
+
+### D-151 · No se sincroniza con upstream
+
+- **Fecha:** 15 oct 2026
+- **Tema:** Upstream
+- **Estado:** vigente (reemplaza a D-034 y D-058)
+- **El problema:** D-034 ya decía que las necesidades propias pesan más que la compatibilidad con upstream, pero la compatibilidad seguía apareciendo como criterio al diseñar y programar (tocar poco los archivos originales, analizar cada novedad de upstream).
+- **Qué se decidió:** no se sincroniza con upstream (`nashsu/llm_wiki`). El proyecto diverge de forma definitiva; lo que haga upstream ya no interesa. El código se cambia según nuestros requerimientos, en cualquier archivo, y cuánto nos alejemos de upstream no importa ni preocupa. No se proponen contribuciones a upstream.
+- **Por qué:** una regla simple, sin matices, que no se pueda leer como una restricción.
+- **Alternativas descartadas:** seguir analizando las novedades de upstream una por una (D-034).
+- **Dónde se aplica:** `CLAUDE.md` (sección "Upstream"); principio 8 y sección 9 de `base-documental.md`; P-008; `FORK_CHANGES.md` (D-152).
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 15 oct.
+
+### D-152 · `FORK_CHANGES.md` se congela
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Proceso de trabajo
+- **Estado:** vigente (reemplaza en parte a D-012: los demás registros siguen)
+- **El problema:** `FORK_CHANGES.md` anotaba, por propósito, qué archivos del original tocaba el fork y si convenía proponer cada cambio al original. Servía para que traer novedades de upstream fuera barato. Desde D-151 no se sincroniza con upstream, así que mantenerlo es trabajo sin uso, y lo que cambió ya queda en este registro, en `pendientes.json` y en git.
+- **Qué se decidió:** el archivo queda congelado, con una nota al principio que lo explica, como historia de lo que el fork cambió hasta el 16 de octubre. No se actualiza más y `CLAUDE.md` deja de pedirlo.
+- **Por qué:** sin sincronización, el registro perdió su función.
+- **Alternativas descartadas:** borrarlo (se pierde la historia sin ganar nada); seguir manteniéndolo como lista de funciones propias (ya la dan este registro y el documento de diseño).
+- **Dónde se aplica:** `FORK_CHANGES.md`; `CLAUDE.md`.
+- **Quién decidió:** dueño del producto, sobre la recomendación del agente.
+- **Fuente:** conversación del 15 y 16 oct.
+
+### D-153 · Estado "a verificar" en los pendientes
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Proceso de trabajo
+- **Estado:** vigente
+- **El problema:** once pendientes figuraban "en curso" aunque su código estaba terminado e integrado; solo faltaba que el dueño lo viera en la app. Mezclados con el trabajo que de verdad está en marcha, daban la impresión de que había mucho más a medio hacer, y no se veía qué le tocaba mirar al dueño.
+- **Qué se decidió:** un estado propio, `a-verificar`, para lo construido e integrado que espera que el dueño lo vea en la app. Si lo aprueba pasa a `hecho`; si pide cambios, vuelve a `pendiente` o `en-curso`.
+- **Por qué:** separar lo que espera al dueño de lo que espera al agente.
+- **Alternativas descartadas:** dejarlos "en curso".
+- **Dónde se aplica:** `pendientes.json` (valores y reglas; P-011, P-014, P-021, P-023, P-031 a P-034, P-037, P-038, P-047).
+- **Quién decidió:** dueño del producto, sobre la propuesta del agente.
+- **Fuente:** conversación del 16 oct.
+
+### D-154 · El producto mínimo no está cerrado
+
+- **Fecha:** 16 oct 2026
+- **Tema:** Producto
+- **Estado:** vigente
+- **El problema:** todo lo que lista el pendiente del producto mínimo (P-049) está construido y el wiki del archivo ya se generó, y el agente propuso darlo por cerrado.
+- **Qué se decidió:** no se cierra. Hay una primera versión construida, pero la experiencia de uso deja mucho que desear y el wiki que generó es inservible. Que algo esté construido no lo hace terminado: un paso se cierra cuando cumple su función para quien lo usa. El dueño va a traer una propuesta de diseño para revisarla, ajustarla e implementarla.
+- **Por qué:** el producto mínimo tiene que servir a un estudio, no solo existir.
+- **Alternativas descartadas:** cerrarlo porque las tareas que listaba estaban hechas.
+- **Dónde se aplica:** P-049 y los pendientes que dependen de él.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 16 oct.
