@@ -15,11 +15,12 @@
 //!   none of its claims carries (D-197). Claims in conflict are listed as
 //!   such, all values in view. The answer is kept like any other
 //!   (`model_answer`): the same claims ask nothing again.
-//! - **The block of entities of each document's page** (the pages the
-//!   wiki writes from each document): who and what the document names,
-//!   with its role and a link to its page. Written by the app, without the
-//!   model, between two marks; a page the wiki writes again gets its
-//!   block back (D-198).
+//! - **The page of each document** (`pages/family.rs`, D-340), one per
+//!   document or family of versions: what the base knows of it, its block
+//!   of entities (who and what it names, with its role and a link to its
+//!   page, between two marks), its versions, its data, the summary of the
+//!   one reading and its amounts, each saying which version it comes
+//!   from; the notes of a person are kept and nothing else is.
 //! - **The overview** of the archive (`wiki/overview.md`), from the
 //!   record, in the words of the vocabulary.
 //!
