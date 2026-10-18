@@ -43,7 +43,7 @@ use crate::source_volume::catalog::{is_page_heading, RECOGNIZED_MARKER_START};
 
 /// Version of the question. Changing the prompt changes it, and every
 /// document is read again.
-pub const KNOWLEDGE_PROMPT: &str = "conocimiento-2";
+pub const KNOWLEDGE_PROMPT: &str = "conocimiento-3";
 /// The task the answers are kept under in `model_answer`.
 pub const TASK: &str = "knowledge";
 /// Words of text in one question; a longer document is read in parts of
@@ -307,6 +307,14 @@ pub fn prompt(vocabulary: &Vocabulary, hints: &Hints, part: &str, index: usize, 
     }));
     let money = vocabulary.money_predicate().map(|p| p.description.trim().to_string()).unwrap_or_default();
     let kinds = list(vocabulary.money.kinds.iter().map(|k| (k.id.clone(), k.description.clone())));
+    let states = list(
+        vocabulary
+            .money
+            .states
+            .iter()
+            .map(|s| (s.id.clone(), s.description.clone()))
+            .chain(std::iter::once((NO_STATE.to_string(), "el documento no lo dice".to_string()))),
+    );
     let mut known = Vec::new();
     if let Some(doc_type) = &hints.doc_type {
         known.push(format!(
@@ -356,7 +364,10 @@ si la cita nombra a los dos: quién y de quién.\n\
 u organizaciones de este documento, ya resueltos los términos definidos (si el texto dice «la Empresa adeuda a la Locadora», el \
 deudor es la mención que el documento definió como «la Empresa»). Si el texto no dice una de las dos partes, el importe no va. \
 \"importe\" copiado del texto, dentro de la cita; \"moneda\" y \"concepto\" como los dice la cita, o null; \"fecha\" del pago, \
-de la deuda o del reclamo si la cita la dice, o null. Un impuesto, una percepción o un subtotal no son un importe entre partes.\n\
+de la deuda, del vencimiento o del reclamo si la cita la dice, o null. Un impuesto, una percepción o un subtotal no son un importe \
+entre partes. \"estado\" dice qué es el importe para las partes según el documento (pagado, a pagar, pactado, propuesto, \
+condicionado, un ejemplo): leelo en el texto, no lo supongas por el tipo; un pago o una cuota que vence o se hará después de la \
+fecha del documento no está pagado.\n\
 - En un formulario cada valor va con su campo y con la persona de su rótulo: lo que está bajo \"cónyuge\" es del cónyuge, no de \
 quien completa el formulario. Si el rótulo y el valor están separados en el texto, \"cita\" tiene el valor y \"rotulo\" el rótulo \
 copiado del texto; si no, \"rotulo\" es null.\n\
@@ -364,10 +375,13 @@ copiado del texto; si no, \"rotulo\" es null.\n\
 del acto: allí, quien aparece es \"firmante\" u \"otro\".\n\
 - \"fecha_documento\" es la fecha del documento (de su firma, emisión o envío) tal como está escrita, o null.\n\
 - \"pagina\" es el número de la página (los encabezados \"## Page N\" del texto) donde está la cita, o null si el texto no tiene páginas.\n\
-- La sección \"### Form fields\", si está, trae los campos completados de un formulario: son parte del texto.\n\
+- La sección \"### Form fields\", si está, trae los campos completados de un formulario: son parte del texto. Una casilla \
+marcada figura allí con su pregunta y la opción elegida seguida de \"(marcada)\". Las opciones impresas junto a una pregunta \
+(\"SI NO\", \"Por cuenta propia\", \"Por cuenta de un tercero\") son rótulos, no respuestas: si el texto no dice cuál está marcada, \
+no sabés qué se respondió y no lo afirmes.\n\
 - El nombre del archivo es una pista, no una prueba.\n\n\
 Tipos de entidad:\n{types}\n\nPapeles (\"rol\"):\n{roles}\n\nIdentificadores (\"clase\"):\n{identifiers}\n\n\
-Predicados:\n{predicates}\n\nTipos de importe (\"tipo\"):\n{kinds}\n\n\
+Predicados:\n{predicates}\n\nTipos de importe (\"tipo\"):\n{kinds}\n\nEstados de un importe (\"estado\"):\n{states}\n\n\
 Lo que ya se sabe del documento sin leerlo:\n- {known}\n\n\
 Archivo: «{}»\n\nTexto del documento:\n\"\"\"\n{part}\n\"\"\"\n\n\
 Respondé solo con el JSON pedido.",
@@ -390,6 +404,7 @@ pub fn schema(vocabulary: &Vocabulary) -> serde_json::Value {
     }
     let classes = ids(classes);
     let kinds = ids(vocabulary.money.kinds.iter().map(|k| k.id.clone()).collect());
+    let states = ids(vocabulary.money.states.iter().map(|s| s.id.clone()).chain(std::iter::once(NO_STATE.to_string())).collect());
     let text = serde_json::json!({ "type": "string" });
     let maybe = serde_json::json!({ "type": ["string", "null"] });
     let page = serde_json::json!({ "type": ["integer", "null"] });
@@ -413,13 +428,14 @@ pub fn schema(vocabulary: &Vocabulary) -> serde_json::Value {
                 "items": {
                     "type": "object",
                     "additionalProperties": false,
-                    "required": ["deudor", "acreedor", "importe", "moneda", "tipo", "concepto", "fecha", "cita", "pagina"],
+                    "required": ["deudor", "acreedor", "importe", "moneda", "tipo", "estado", "concepto", "fecha", "cita", "pagina"],
                     "properties": {
                         "deudor": maybe,
                         "acreedor": maybe,
                         "importe": text,
                         "moneda": maybe,
                         "tipo": kinds,
+                        "estado": states,
                         "concepto": maybe,
                         "fecha": maybe,
                         "cita": text,
@@ -478,6 +494,8 @@ pub fn schema(vocabulary: &Vocabulary) -> serde_json::Value {
 
 /// The class of a claim when the text says none.
 pub const NO_CLASS: &str = "ninguna";
+/// The state of an amount when the text says none (P-136).
+pub const NO_STATE: &str = "no-dice";
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Answer {
@@ -556,6 +574,9 @@ pub struct AnswerAmount {
     pub moneda: Option<String>,
     #[serde(default)]
     pub tipo: String,
+    /// What the amount is for the parties: paid, due, an example (P-136).
+    #[serde(default)]
+    pub estado: Option<String>,
     #[serde(default)]
     pub concepto: Option<String>,
     #[serde(default)]
@@ -964,6 +985,7 @@ pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &
         }
     }
     other_person(vocabulary, body, &mut reading);
+    due_after_the_document(vocabulary, &mut reading);
     owner_by_prefix(vocabulary, &mut reading);
     signature_block(vocabulary, &group_names, &mut reading);
     // A part of an address read as a number that identifies someone (a
@@ -1254,12 +1276,22 @@ fn amount_evidence(
         corrected(reading, "direccion-invertida", &what, &said.cita);
         std::mem::swap(&mut debtor, &mut creditor);
     }
+    // An example the document gives (a simulation of an invoice) says
+    // nothing of the parties: it is not a relation between them (P-136).
+    let state = said.estado.as_deref().and_then(|s| vocabulary.money_state(s.trim()));
+    if state.is_some_and(|s| s.not_a_fact) {
+        discard(reading, "amount", "no-es-un-hecho", &what, &said.cita);
+        return;
+    }
     let kind = vocabulary.money_kind(&said.tipo).or_else(|| vocabulary.money.kinds.last()).map(|k| k.id.clone()).unwrap_or_default();
     let in_quote = |v: &Option<String>| -> Option<String> {
         v.as_deref().map(str::trim).filter(|v| !v.is_empty() && quote::contains(&quote_words, &quote::words(v))).map(str::to_string)
     };
     let mut detail = serde_json::Map::new();
     detail.insert("tipo".into(), kind.into());
+    if let Some(state) = state {
+        detail.insert("estado".into(), state.id.clone().into());
+    }
     let currency = in_quote(&said.moneda).or_else(|| {
         let words = quote::words(&amount);
         let sign = amount.contains('$') || amount.contains('€');
@@ -1285,6 +1317,32 @@ fn amount_evidence(
             detail: Some(serde_json::Value::Object(detail)),
         },
     );
+}
+
+/// A payment dated after its document is not made yet (P-136): an amount
+/// the reading gave a paid state, whose date is surely later than the date
+/// of the document, takes the vocabulary's `dueState` instead, counted as
+/// a correction. Dates that cannot be read, or that may be the same day
+/// or month as the document's, are left as the reading said.
+fn due_after_the_document(vocabulary: &Vocabulary, reading: &mut Reading) {
+    let due = vocabulary.money.due_state.trim();
+    let Some(document) = reading.doc_date.as_deref().and_then(values::date_span) else { return };
+    if vocabulary.money_state(due).is_none() {
+        return;
+    }
+    let mut changed: Vec<(String, String)> = Vec::new();
+    for item in reading.evidence.iter_mut() {
+        let Some(detail) = item.detail.as_mut().and_then(|d| d.as_object_mut()) else { continue };
+        let paid = detail.get("estado").and_then(|s| s.as_str()).and_then(|s| vocabulary.money_state(s)).is_some_and(|s| s.paid);
+        let later = item.fact_time.as_deref().and_then(values::date_span).is_some_and(|(first, _)| first > document.1);
+        if paid && later {
+            detail.insert("estado".into(), due.into());
+            changed.push((item.amount.clone().unwrap_or_default(), item.quote.clone()));
+        }
+    }
+    for (amount, quote) in changed {
+        corrected(reading, "vence-despues-del-documento", &amount, &quote);
+    }
 }
 
 /// A number whose prefix says it belongs to another type of entity (a

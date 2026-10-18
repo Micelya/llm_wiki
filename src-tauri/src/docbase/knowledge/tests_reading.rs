@@ -67,6 +67,52 @@ fn an_amount_is_between_two_parties_and_its_direction_is_the_quotes() {
     assert!(reasons(&reading).contains(&("amount".to_string(), "sin-contraparte".to_string())));
 }
 
+const INSTALMENTS: &str = "Buenos Aires, 10 de marzo de 2025. Ejemplo Uno S.A. (en adelante, la «Empresa») y Persona Dos \
+acuerdan que la Empresa pagará a Persona Dos la suma de USD 3.000 en dos cuotas: USD 1.500 con vencimiento el 30 de abril de 2025 \
+y USD 1.500 el 31 de mayo de 2025. Persona Dos recibió de la Empresa USD 700 el 1 de marzo de 2025. A modo de ejemplo, si el \
+consumo fuera de USD 9.000, la Empresa le facturaría a Persona Dos USD 720.";
+
+fn with_state(mut amount: serde_json::Value, state: &str) -> serde_json::Value {
+    amount["estado"] = serde_json::Value::String(state.to_string());
+    amount
+}
+
+#[test]
+fn an_amount_keeps_its_state_and_a_payment_due_after_the_document_is_not_paid() {
+    let reading = read(
+        INSTALMENTS,
+        serde_json::json!({
+            "fecha_documento": "10 de marzo de 2025",
+            "menciones": [
+                mention("o", "organizacion", "Ejemplo Uno S.A.", "parte", "Ejemplo Uno S.A. (en adelante, la «Empresa»)", serde_json::json!([])),
+                mention("p", "persona", "Persona Dos", "parte", "y Persona Dos acuerdan", serde_json::json!([])),
+            ],
+            "importes": [
+                with_state(amount("o", "p", "USD 3.000", "saldo", "la Empresa pagará a Persona Dos la suma de USD 3.000 en dos cuotas", None), "pendiente"),
+                // The model said it was paid: it falls due after the document.
+                with_state(amount("o", "p", "USD 1.500", "cuota", "USD 1.500 con vencimiento el 30 de abril de 2025", Some("30 de abril de 2025")), "pagado"),
+                // Paid before the document: it stays paid.
+                with_state(amount("o", "p", "USD 700", "cuota", "Persona Dos recibió de la Empresa USD 700 el 1 de marzo de 2025", Some("1 de marzo de 2025")), "pagado"),
+                // An example says nothing of the parties.
+                with_state(amount("p", "o", "USD 720", "factura", "la Empresa le facturaría a Persona Dos USD 720", None), "ejemplo"),
+            ]
+        }),
+    );
+    let state_of = |value: &str| {
+        reading
+            .evidence
+            .iter()
+            .find(|e| e.amount.as_deref() == Some(value))
+            .map(|e| e.detail.as_ref().unwrap().get("estado").and_then(|s| s.as_str()).unwrap_or("").to_string())
+    };
+    assert_eq!(state_of("USD 3.000").as_deref(), Some("pendiente"));
+    assert_eq!(state_of("USD 1.500").as_deref(), Some("pendiente"));
+    assert_eq!(state_of("USD 700").as_deref(), Some("pagado"));
+    assert_eq!(state_of("USD 720"), None, "an example is not kept");
+    assert!(reasons(&reading).contains(&(CORRECTION.to_string(), "vence-despues-del-documento".to_string())));
+    assert!(reasons(&reading).contains(&("amount".to_string(), "no-es-un-hecho".to_string())));
+}
+
 const FORM: &str = "FICHA\nPROVINCIA: Ejemplo\nApellidos: DOS\nNombres: PERSONA\nDomicilio particular:\n\nCalle Uno 100\n\
 Cónyuge: Persona Cinco DNI 55.555.555\nEmpleador: Otra LLC\nEIN: 12-3456789\nCD Nro. 123456789 AR\nNúmero de cliente 4444";
 

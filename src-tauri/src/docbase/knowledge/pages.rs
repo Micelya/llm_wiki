@@ -44,7 +44,7 @@ use crate::docbase::{now_ms, sql_err, DocBase, Visible};
 use crate::source_volume::asking::DocumentAsker;
 
 /// Version of the question that writes what the documents say.
-pub const SYNTHESIS_PROMPT: &str = "sintesis-2";
+pub const SYNTHESIS_PROMPT: &str = "sintesis-3";
 /// Raised when a change in the program changes what a projection writes
 /// (which names have a page, what a block lists): every page is written
 /// again from the record, without asking more.
@@ -883,10 +883,28 @@ fn claim_label(vocabulary: &Vocabulary, record: &Record, claim: &Claim) -> Strin
 }
 
 /// What an amount between two parties says besides its parties: the
-/// amount, its kind and its concept.
+/// amount, its state (paid, due, conditioned…: P-136), its kind and its
+/// concept.
 fn amount_text(vocabulary: &Vocabulary, claim: &Claim) -> String {
     let amount = one_line(claim.amount.as_deref().unwrap_or_default());
     let mut notes: Vec<String> = Vec::new();
+    let detail = claim.detail.as_ref();
+    let states: Vec<String> = match detail.and_then(|d| d.get("estado")).and_then(|s| s.as_str()) {
+        Some(one) => vec![one.to_string()],
+        None => detail
+            .and_then(|d| d.get("estados"))
+            .and_then(|s| s.as_array())
+            .map(|list| list.iter().filter_map(|s| s.as_str().map(str::to_string)).collect())
+            .unwrap_or_default(),
+    };
+    let labels: Vec<String> = states
+        .iter()
+        .map(|s| vocabulary.money_state(s).map(|m| if m.label.is_empty() { m.id.clone() } else { m.label.clone() }).unwrap_or_else(|| s.clone()))
+        .collect();
+    if !labels.is_empty() {
+        // Several states: each document says one (due in one, paid later).
+        notes.push(labels.join(&format!(" {} ", vocabulary.pages.word("or"))));
+    }
     if let Some(kind) = claim.qualifier.as_deref().and_then(|k| vocabulary.money_kind(k)) {
         if !kind.label.is_empty() {
             notes.push(kind.label.clone());
@@ -972,7 +990,8 @@ obligaciones y plazos. Agrupá lo que se relaciona; no repitas.\n\
 (primero un valor, después otro). Datos de clases distintas (un domicilio real y uno constituido, un domicilio laboral y uno de la \
 sociedad) no se contradicen: decí cada uno con su clase.\n\
 - Un importe dice quién debe, paga o reclama a quién, con el tipo de importe: decilo así («debe a…», «reclama a…», «pagó a…»), \
-nunca como un monto suelto sin la otra parte.\n\
+nunca como un monto suelto sin la otra parte. Si dice su estado (pagado, a pagar, pactado, propuesto, condicionado), decilo con \
+él: no digas que se pagó lo que no dice «pagado», ni que se debe lo que dice «pactado» o «propuesto».\n\
 - No digas que los documentos difieren, se contradicen o no coinciden, salvo para las afirmaciones marcadas EN CONFLICTO: esas no \
 se resuelven; nombrá cada valor con su número.\n\
 - {language}\n\n\

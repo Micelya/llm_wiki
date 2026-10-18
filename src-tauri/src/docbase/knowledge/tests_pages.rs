@@ -186,9 +186,9 @@ fn every_entity_with_a_page_has_all_its_documents_and_only_verified_sentences() 
     assert!(person.trim_end().ends_with("-->"), "{person}");
     assert!(person.contains(NOTES_MARK));
     // The amount is told on both pages, each from its side (D-244).
-    assert!(person.contains("Pagó a Ejemplo Uno S.A.: $ 5.000 (cuota pagada)"), "{person}");
+    assert!(person.contains("Paga cuotas a Ejemplo Uno S.A.: $ 5.000 (cuota)"), "{person}");
     let company = page_of(&pages, "Ejemplo Uno S.A.");
-    assert!(company.contains("Cobró de Persona Dos: $ 5.000 (cuota pagada)"), "{company}");
+    assert!(company.contains("Cobra cuotas de Persona Dos: $ 5.000 (cuota)"), "{company}");
     assert_eq!(synthesis_calls(&asker), 2);
     // The overview, from the record, in the words of the vocabulary.
     let overview = std::fs::read_to_string(project.join("wiki/overview.md")).unwrap();

@@ -105,7 +105,7 @@
     { "id": "contacto", "label": "Contacto", "shape": "contact", "description": "Un correo electrónico o un teléfono suyo, no el de otra persona u organización del mismo documento. Un DNI o un CUIT es un identificador, no un contacto.", "subject": ["persona", "organizacion"], "object": "value" }
   ],
   "money": {
-    "about": "El dinero es una relación entre dos partes del documento: el deudor (quien debe, paga o pone el dinero) y el acreedor (quien lo recibe, lo cobra o lo reclama), con el importe, la moneda, el tipo, el concepto y la fecha, después de resolver los términos definidos («la Empresa» es la sociedad que el documento definió así). La dirección se controla por la cita: si la cita pone al deudor delante de un verbo de quien cobra («X reclama a Y») o al acreedor delante de un verbo de quien paga («Y le adeuda a X»), el programa da vuelta a las partes y lo cuenta. payerCues y payeeCues son los comienzos de los verbos de quien paga y de quien cobra; creditorMarkers, palabras que ponen al acreedor justo después («a favor de»); window, cuántas palabras puede haber entre un nombre y el verbo. Cada tipo dice cómo lo cuenta la página desde cada lado.",
+    "about": "El dinero es una relación entre dos partes del documento: el deudor (quien debe, paga o pone el dinero) y el acreedor (quien lo recibe, lo cobra o lo reclama), con el importe, la moneda, el tipo, el concepto y la fecha, después de resolver los términos definidos («la Empresa» es la sociedad que el documento definió así). La dirección se controla por la cita: si la cita pone al deudor delante de un verbo de quien cobra («X reclama a Y») o al acreedor delante de un verbo de quien paga («Y le adeuda a X»), el programa da vuelta a las partes y lo cuenta. payerCues y payeeCues son los comienzos de los verbos de quien paga y de quien cobra; creditorMarkers, palabras que ponen al acreedor justo después («a favor de»); window, cuántas palabras puede haber entre un nombre y el verbo. Cada tipo dice cómo lo cuenta la página desde cada lado. Cada importe lleva además su estado (states, P-136): pagado, a pagar, pactado, propuesto, condicionado o un ejemplo; un ejemplo (notAFact) no dice nada de las partes y no se guarda. Un importe pagado cuya fecha es posterior a la fecha del documento no está pagado todavía: el programa le pone dueState y lo cuenta.",
     "payerCues": ["adeud", "debe", "deben", "debera", "deberan", "pagar", "pagara", "pagaran", "paga", "pagan", "pago", "abon", "transfier", "transfer", "invier", "deposit", "owe", "owes", "shall pay", "will pay", "pays", "paid", "agrees to pay"],
     "payeeCues": ["reclam", "intim", "cobr", "factur", "percib", "recib", "requier", "acreed", "claims", "invoic", "receiv", "charg"],
     "creditorMarkers": ["a favor de", "a la orden de", "in favor of", "payable to"],
@@ -114,14 +114,25 @@
       { "id": "factura", "label": "total de factura", "description": "el total de una factura o comprobante: el acreedor es quien la emite, el deudor quien la recibe", "debtor": "Recibió una factura de", "creditor": "Facturó a" },
       { "id": "saldo", "label": "saldo adeudado", "description": "lo que se debe, un saldo impago o una deuda", "debtor": "Debe a", "creditor": "Le debe" },
       { "id": "reclamo", "label": "reclamo", "description": "lo que una parte le reclama o intima a pagar a otra: el acreedor es quien reclama", "debtor": "Le reclama", "creditor": "Reclama a" },
-      { "id": "cuota", "label": "cuota pagada", "description": "una cuota o un pago hecho: el deudor es quien pagó, el acreedor quien cobró", "debtor": "Pagó a", "creditor": "Cobró de" },
+      { "id": "cuota", "label": "cuota", "description": "una cuota o una parte de un pago en varias veces (si ya se pagó o se pagará después lo dice el estado, no el tipo): el deudor es quien la paga, el acreedor quien la cobra", "debtor": "Paga cuotas a", "creditor": "Cobra cuotas de" },
       { "id": "intereses", "label": "intereses", "description": "intereses o recargos", "debtor": "Debe intereses a", "creditor": "Le debe intereses" },
       { "id": "precio", "label": "precio", "description": "el precio de una compra, de un servicio o de un contrato: el deudor es quien lo paga", "debtor": "Paga como precio a", "creditor": "Cobra como precio de" },
       { "id": "honorarios", "label": "honorarios", "description": "honorarios o remuneración de un profesional o de un contratado: el acreedor es quien los cobra", "debtor": "Paga honorarios a", "creditor": "Cobra honorarios de" },
       { "id": "prestamo", "label": "préstamo", "description": "un préstamo o mutuo: el deudor es quien lo recibe y debe devolverlo, el acreedor quien prestó", "debtor": "Recibió en préstamo de", "creditor": "Prestó a" },
       { "id": "inversion", "label": "inversión", "description": "una inversión o un aporte: el deudor es quien pone el dinero, el acreedor quien lo recibe", "debtor": "Invierte en", "creditor": "Recibe la inversión de" },
+      { "id": "bonificacion", "label": "bonificación o crédito", "description": "un descuento, una bonificación o un crédito promocional que una parte le otorga a otra: se descuenta de un precio o de un consumo, no es un pago ni una inversión; el deudor es quien lo otorga, el acreedor quien lo aprovecha", "debtor": "Otorga una bonificación a", "creditor": "Recibe una bonificación de" },
+      { "id": "total", "label": "total acumulado", "description": "un total o un acumulado que suma otros importes del mismo documento (lo recibido a la fecha, el total de las cuotas, el total a pagar): no es un pago aparte", "debtor": "Importe total a", "creditor": "Importe total de" },
       { "id": "otro", "label": "importe", "description": "otro importe entre las dos partes", "debtor": "Importe a", "creditor": "Importe de" }
-    ]
+    ],
+    "states": [
+      { "id": "pagado", "label": "pagado", "paid": true, "description": "ya se pagó, se cobró o se percibió: el documento lo da por hecho (un recibo, «recibí», «abonó», «pagó», «transfirió»)" },
+      { "id": "pendiente", "label": "a pagar", "description": "se debe y todavía no se pagó: una deuda, un saldo, un reclamo, o un pago o una cuota que vence o se hará después de la fecha del documento («será abonado», «con vencimiento el», «se obliga a pagar»)" },
+      { "id": "pactado", "label": "pactado", "description": "convenido en un contrato o un acuerdo (un precio, honorarios, un préstamo), sin que el documento diga si ya se pagó" },
+      { "id": "propuesto", "label": "propuesto", "description": "ofrecido en una propuesta, un presupuesto o una cotización que el documento no muestra aceptada" },
+      { "id": "condicionado", "label": "condicionado", "description": "depende de una condición, es variable o es un máximo («hasta», «tope», «sujeto a», «si el cliente no…»)" },
+      { "id": "ejemplo", "label": "a modo de ejemplo", "notAFact": true, "description": "un ejemplo, una simulación o un cálculo ilustrativo («por ejemplo», «supongamos», «se facturaría así»): no es un importe real entre las partes" }
+    ],
+    "dueState": "pendiente"
   },
   "reading": {
     "about": "Controles de la lectura de un documento. Una forma de escribir de una sola palabra que en el texto aparece siempre seguida de dos puntos es un rótulo de formulario («PROVINCIA:»), no una entidad. Un término definido («en adelante «la Empresa»») es un alias local de la entidad que define, solo dentro de ese documento: no le da nombre ni alias a la entidad. Un dato que la cita pone bajo un rótulo de otra persona (otherPersonLabels: «cónyuge») es de esa otra persona. Las páginas del texto que tienen alguna de las marcas certificateMarks del catálogo de tipos (la constancia de un servicio de firma) no dan papeles del acto: allí, los papeles de certificateRoles pasan a ser el de la derecha. labelWindow es cuántas palabras puede haber entre el rótulo de un formulario y su valor. Una representación cuya cita no nombra a la representada vale si la última organización que el texto nombra antes de la cita, a menos de objectWindow palabras, es ella y la cita dice cómo actúa por ella (representationCues: «Apoderado», «Title», «representada por»; un bloque de firma «Por: X S.A. / Nombre: Y», o «X S.A., representada por Y»).",
@@ -176,6 +187,7 @@
       "overviewMost": "Los más nombrados",
       "overviewMatters": "Asuntos",
       "within": "en",
+      "or": "o",
       "matterBetween": "Asunto entre",
       "matterUnnamed": "Asunto sin nombre",
       "matterParties": "Partes y personas",

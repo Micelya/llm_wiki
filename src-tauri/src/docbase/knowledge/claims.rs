@@ -142,6 +142,10 @@ struct Draft {
     /// reading says (kind, currency, concept), from its first evidence.
     amount: Option<String>,
     detail: Option<String>,
+    /// The states of an amount its evidence says (P-136): one, the
+    /// claim's; several (a document says it is due, a later one that it was
+    /// paid), all of them, so that no page tells only one.
+    amount_states: BTreeSet<String>,
     evidence: BTreeSet<i64>,
     times: BTreeMap<String, String>,
     valid_from: Option<String>,
@@ -426,12 +430,16 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, wrong: &BT
             object_normalized: normalized.clone(),
             amount: piece.amount.clone(),
             detail: piece.detail.as_ref().map(|d| d.to_string()),
+            amount_states: BTreeSet::new(),
             evidence: BTreeSet::new(),
             times: BTreeMap::new(),
             valid_from: None,
             state: "supported",
         });
         draft.evidence.insert(piece.id);
+        if let Some(amount_state) = piece.detail.as_ref().and_then(|d| d.get("estado")).and_then(|s| s.as_str()) {
+            draft.amount_states.insert(amount_state.to_string());
+        }
         if wrong.contains(&plain) {
             draft.state = "retired";
         }
@@ -451,6 +459,19 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, wrong: &BT
     for draft in drafts.values_mut() {
         if draft.times.len() == 1 {
             draft.valid_from = draft.times.values().next().cloned();
+        }
+        if !draft.amount_states.is_empty() {
+            let detail = draft.detail.as_deref().and_then(|d| serde_json::from_str::<serde_json::Value>(d).ok());
+            if let Some(mut detail) = detail.filter(|d| d.is_object()) {
+                let object = detail.as_object_mut().expect("an object");
+                object.remove("estado");
+                if draft.amount_states.len() == 1 {
+                    object.insert("estado".into(), draft.amount_states.iter().next().cloned().into());
+                } else {
+                    object.insert("estados".into(), draft.amount_states.iter().cloned().collect::<Vec<_>>().into());
+                }
+                draft.detail = Some(detail.to_string());
+            }
         }
     }
     // One value at a time: different values of the same kind, for the

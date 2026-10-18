@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 /// The version of the program's check of a reading (`extract::verify`).
-const READING_CHECK: &str = "lectura-9";
+const READING_CHECK: &str = "lectura-10";
 
 const BUILTIN: &str = include_str!("../../../resources/catalog/knowledge.json");
 
@@ -265,6 +265,33 @@ pub struct MoneyRules {
     pub window: usize,
     #[serde(default)]
     pub kinds: Vec<MoneyKind>,
+    /// What stands of an amount (P-136): paid, due, agreed, offered,
+    /// conditioned, an example... The reading asks it with the kind.
+    #[serde(default)]
+    pub states: Vec<MoneyState>,
+    /// The state a paid amount takes when its date is after the date of
+    /// its document: a payment that falls due later is not made yet.
+    #[serde(default)]
+    pub due_state: String,
+}
+
+/// A state of an amount, with how pages tell it.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MoneyState {
+    pub id: String,
+    #[serde(default)]
+    pub label: String,
+    #[serde(default)]
+    pub description: String,
+    /// The amount was paid (or received): a date after the document's
+    /// cannot be one of these.
+    #[serde(default)]
+    pub paid: bool,
+    /// The document does not say it of the parties (an example, a
+    /// simulation): it is not a relation between them and is not kept.
+    #[serde(default)]
+    pub not_a_fact: bool,
 }
 
 fn eight() -> usize {
@@ -751,6 +778,10 @@ impl Vocabulary {
 
     pub fn money_kind(&self, id: &str) -> Option<&MoneyKind> {
         self.money.kinds.iter().find(|k| k.id == id)
+    }
+
+    pub fn money_state(&self, id: &str) -> Option<&MoneyState> {
+        self.money.states.iter().find(|s| s.id == id)
     }
 
     /// The role kept when the model gave one that is not in the list, or
