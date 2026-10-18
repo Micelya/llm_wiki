@@ -282,6 +282,8 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-287 | 17 oct | Conocimiento | Un código postal o un DNI no es un teléfono | en revisión |
 | D-288 | 17 oct | Conocimiento | Ronda 1 de la revisión del wiki regenerado: valores que no lo son, constancias de firma, nombres y asuntos | en revisión |
 | D-289 | 17 oct | Conocimiento | Presentación de identificadores, alias y nombres de personas | en revisión |
+| D-290 | 17 oct | Producto | Chat, búsqueda y grafo se conservan, sin redundancias ni usos del modelo innecesarios; revisar los procesos heredados | vigente |
+| D-291 | 17 oct | IA | Micelya Core ofrecerá los servicios de IA (también vectores); la app mantiene proveedores configurables y aísla su configuración | vigente |
 
 ---
 
@@ -3771,3 +3773,29 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Qué se decidió:** Un correo no es identificador; un número dado con su tipo y como "otro número" se muestra una vez, con el tipo; una forma que es otra más una nota entre paréntesis no es alias; en un asunto solo se muestran los números que lo nombran por sí solos (los fuertes, como un expediente); el nombre de una persona escrito en mayúsculas se muestra como nombre propio (una persona no tiene siglas; el de una organización queda como está) (`proyeccion-6`). Commit f29dab7.
 - **Quién decidió:** agente sin consulta.
 - **Fuente:** etapa Q5 de la tanda desatendida del 17 oct.
+
+### D-290 · Chat, búsqueda y grafo se conservan, sin redundancias
+
+- **Fecha:** 17 oct 2026
+- **Tema:** Producto
+- **Estado:** vigente
+- **El problema:** al revisar el wiki generado aparecieron partes heredadas del proyecto original (conceptos por documento, páginas de fuente, consultas, enlaces escritos en las páginas) que repiten lo que ya hacen la base documental y la capa de conocimiento, algunas con usos del modelo.
+- **Qué se decidió:** el chat, la búsqueda y el grafo son valiosos y se conservan. Hay que ajustar todo para que no haya redundancias, ni en la interfaz ni en el proceso, y para que no se haga procesamiento innecesario, en particular con el modelo. Lo que tenía sentido en el proyecto original y ya no lo tiene en el nuestro se quita. La propuesta está en `docs/design/wiki-sobre-la-base-propuesta.md`, para revisar.
+- **Por qué:** cada dato en un solo lugar; menos costo y menos errores.
+- **Alternativas descartadas:** quitar el chat, la búsqueda o el grafo.
+- **Dónde se aplica:** `wiki-sobre-la-base-propuesta.md`; P-142.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 17 oct.
+
+### D-291 · Servicios de IA con proveedor configurable, preparados para Micelya Core
+
+- **Fecha:** 17 oct 2026
+- **Tema:** IA
+- **Estado:** vigente
+- **El problema:** la búsqueda por significado necesita calcular vectores, y Micelya Core va a ofrecer ese y los demás servicios de IA, con sus proveedores y modelos configurables allí.
+- **Qué se decidió:** la app tiene que poder usar Core y, a la vez, mantener la posibilidad de configurar el proveedor de cada servicio de IA (generativa y no generativa). Conviene empezar a aislar toda la configuración y el uso de servicios de IA en un solo lugar, con un contrato por servicio, para que la integración con Core sea sencilla. No es el foco ahora.
+- **Por qué:** Core será la vía principal, pero la app no debe depender de un solo proveedor.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** `wiki-sobre-la-base-propuesta.md` (sección 9); P-141; P-063; P-140.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 17 oct.
