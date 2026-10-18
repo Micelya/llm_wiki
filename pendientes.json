@@ -1368,8 +1368,8 @@
       "titulo": "Casillas de los formularios",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "En las fichas de cliente el texto extraído trae los rótulos impresos (\"Es o fue PPE: SI/NO\", \"beneficiario final\") pero no qué casilla está marcada; el modelo del wiki los lee como respuestas y escribe datos jurídicos falsos (6 a 8 afirmaciones en 3 fichas). Extraer el estado de las casillas (campos del PDF o la imagen) o, si no se puede, avisar que no se sabe. Dato de N1: en dos fichas las casillas son campos del formulario PDF (que el texto extraído no trae) y en la tercera, firmada y aplanada, el texto tiene las marcas sin posición; la imagen las muestra. Casos de aceptación en conjunto-prueba/casos-criticos.json (fuera del repositorio, D-300); se comprueban con desatendido-4/N1-comprobar-casos.py. (K01-K09)",
+      "estado": "a-verificar",
+      "detalle": "En las fichas de cliente el texto extraído trae los rótulos impresos (\"Es o fue PPE: SI/NO\", \"beneficiario final\") pero no qué casilla está marcada; el modelo del wiki los lee como respuestas y escribe datos jurídicos falsos (6 a 8 afirmaciones en 3 fichas). Extraer el estado de las casillas (campos del PDF o la imagen) o, si no se puede, avisar que no se sabe. Dato de N1: en dos fichas las casillas son campos del formulario PDF (que el texto extraído no trae) y en la tercera, firmada y aplanada, el texto tiene las marcas sin posición; la imagen las muestra. Casos de aceptación en conjunto-prueba/casos-criticos.json (fuera del repositorio, D-300); se comprueban con desatendido-4/N1-comprobar-casos.py. (K01-K09) N2a (D-314 a D-316): la extracción escribe la opción marcada con «(marcada)», lee las marcas de un formulario aplanado por su celda y vuelve a extraer los textos viejos; casos K01-K09: 9 de 9 en la base (antes 0). Falta que el dueño lo vea; las fichas escaneadas solo imagen siguen en P-160 y el wiki heredado en P-162.",
       "depende_de": [],
       "referencia": "src-tauri/src/source_volume; src/lib/ingest.ts",
       "creado": "2026-10-17",
@@ -1380,8 +1380,8 @@
       "titulo": "Naturaleza y estado de un importe",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "La dirección del dinero quedó bien, pero unas 20 afirmaciones de importe tienen mal la naturaleza: ejemplos de una propuesta tomados como facturas, créditos promocionales como inversión, descuentos del 100 % como precio, cuotas con vencimiento futuro como \"pagó\". Agregar al importe un estado (previsto, pagado, ejemplo, condicionado) y una regla de fecha (vencimiento posterior al documento no es un pago). Casos de aceptación en conjunto-prueba/casos-criticos.json (fuera del repositorio, D-300); se comprueban con desatendido-4/N1-comprobar-casos.py. (I01-I16; I14-I16 son de control)",
+      "estado": "a-verificar",
+      "detalle": "La dirección del dinero quedó bien, pero unas 20 afirmaciones de importe tienen mal la naturaleza: ejemplos de una propuesta tomados como facturas, créditos promocionales como inversión, descuentos del 100 % como precio, cuotas con vencimiento futuro como \"pagó\". Agregar al importe un estado (previsto, pagado, ejemplo, condicionado) y una regla de fecha (vencimiento posterior al documento no es un pago). Casos de aceptación en conjunto-prueba/casos-criticos.json (fuera del repositorio, D-300); se comprueban con desatendido-4/N1-comprobar-casos.py. (I01-I16; I14-I16 son de control) N2a (D-310 a D-313): estado del importe en el vocabulario, ejemplos descartados, regla de fecha; casos I01-I16: 13 de 16 (antes 3), controles bien. Quedan I04-I06 (P-161). Falta que el dueño lo vea.",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/knowledge/claims.rs; src-tauri/resources/catalog/knowledge.json",
       "creado": "2026-10-17",
@@ -1482,6 +1482,44 @@
       "detalle": "Con la base del 18 oct quedan atribuciones equivocadas por el lugar del dato en el documento: el domicilio del destinatario de un aviso de recibo asignado al remitente (formulario en dos columnas), el domicilio de una sociedad asignado a quien firma por ella, 'representa a' sacado de una frase que lo niega, el DNI del titular de una ficha guardado en su cónyuge, el DNI del apoderado guardado en la sociedad, el domicilio constituido de la sociedad asignado a su apoderado y el origen de fondos como profesión. Buscar la señal general de cada uno (columna o bloque del formulario, negación, persona que firma por otra). Casos de aceptación en conjunto-prueba/casos-criticos.json (fuera del repositorio, D-300); se comprueban con desatendido-4/N1-comprobar-casos.py. (A01-A08)",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/knowledge/claims.rs; src-tauri/src/docbase/knowledge/resolve.rs; D-300",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-160",
+      "titulo": "Casillas de fichas escaneadas o sin tabla",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Las casillas se leen de los campos del PDF y de las marcas de un formulario aplanado con tabla (D-315). Una ficha escaneada (solo imagen) o una marca sin tabla con opciones a los dos lados queda sin respuesta: pedir el estado de las casillas en la lectura de imagen con el modelo y mostrar en Atención el aviso «no se sabe qué casilla está marcada» cuando no se pueda.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/commands/pdf_form.rs; src-tauri/src/source_volume/recognition; D-315",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-161",
+      "titulo": "Importes con descuento total y totales de créditos",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Tras N2a, en una propuesta el precio de lista bonificado al 100 % se lee como «pactado» (no como condicionado ni bonificado), y el total de 12 meses de un crédito promocional como «total acumulado» sin decir que es un crédito. Buscar la señal general (una línea de descuento que anula a otra; el total de un importe de otro tipo hereda su naturaleza). Casos I04-I06 de conjunto-prueba/casos-criticos.json (fuera del repositorio).",
+      "depende_de": [],
+      "referencia": "src-tauri/resources/catalog/knowledge.json; src-tauri/src/docbase/knowledge/extract.rs; D-310",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-162",
+      "titulo": "El wiki heredado sigue leyendo las fichas por su cuenta",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Las páginas de fuente y de concepto del wiki las escribe todavía la lectura propia del wiki (src/lib/ingest.ts) sobre el texto anterior: dicen «NO» de beneficiario final y «SI» de PPE. Se corrige cuando el wiki deje de leer con el modelo y tome la extracción de la base (N3, P-142); verificar con N1-comprobar-casos.py --wiki.",
+      "depende_de": [
+        "P-142"
+      ],
+      "referencia": "src/lib/ingest.ts; D-314; P-142",
       "creado": "2026-10-18",
       "actualizado": "2026-10-18"
     }

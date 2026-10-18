@@ -3895,3 +3895,120 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** `src-tauri/src/commands/search.rs` (`search_questions_from_env`, ignorada); fuera del repositorio `desatendido-4/N1-medir-busqueda.py` y `N1-linea-de-base.md`; P-142, P-150.
 - **Quién decidió:** agente sin consulta.
 - **Fuente:** etapa N1 de la tanda desatendida del 18 oct.
+
+### D-310 · Cada importe lleva su estado, leído por el modelo y listado en el vocabulario
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Capa de conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** El tipo de un importe mezclaba qué es con qué pasó con él: «cuota» quería decir «cuota pagada», y no había forma de decir que un importe era un ejemplo, un precio pactado, una propuesta, un tope o una deuda a vencer. Las páginas decían «pagó» de cuotas que vencían meses después del documento (P-136).
+- **Qué se decidió:** Al importe se le agrega un estado, que la lectura pregunta con su lista cerrada del vocabulario (`money.states`): pagado, a pagar, pactado, propuesto, condicionado y ejemplo (más «no lo dice»). El tipo deja de decir el estado («cuota» ya no es «cuota pagada») y se suman dos tipos: bonificación o crédito (un descuento o crédito promocional, que no es un pago ni una inversión) y total acumulado (la suma de otros importes del documento, que no es un pago aparte). El estado va en el detalle de la evidencia y de la afirmación; las páginas lo muestran junto al tipo y la síntesis tiene la regla de decirlo y de no decir «pagó» de lo que no dice «pagado».
+- **Por qué:** Es la información que un abogado necesita de un importe (debe, pagó, se pactó, es un ejemplo) y estaba mal en 13 de los 16 casos de aceptación. Lista en el vocabulario (R-26), no en el código.
+- **Alternativas descartadas:** Deducir el estado solo por palabras de la cita (no distingue un recibo de un acuerdo de pago en cuotas); cambiar solo las descripciones de los tipos (seguían mezclando dos cosas).
+- **Dónde se aplica:** `src-tauri/resources/catalog/knowledge.json` (`money.states`, `money.kinds`); `knowledge/extract.rs`, `claims.rs`, `pages.rs`; P-136.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N2a de la tanda desatendida del 18 oct.
+
+### D-311 · Un importe que el documento da como ejemplo no se guarda como relación entre las partes
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Capa de conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** Una propuesta comercial explicaba con un ejemplo cómo se facturaría («se factura de la siguiente manera: USD …»); la lectura lo guardó como una factura entre las partes y la página decía «Facturó a …». Los importes además sirven para agrupar asuntos (R-05: los mismos importes).
+- **Qué se decidió:** Un importe con estado de ejemplo (`notAFact` en el vocabulario) se descarta de la lectura con el motivo «no-es-un-hecho», como un impuesto o una cita que no está en el texto. Queda contado en los descartes del documento.
+- **Por qué:** Un ejemplo no dice nada de las partes (R-01): guardarlo como relación lo muestra en sus páginas y puede unir asuntos por un importe que nunca existió.
+- **Alternativas descartadas:** Guardarlo con el estado «ejemplo» (seguiría en las páginas de las partes y en la agrupación por importes).
+- **Dónde se aplica:** `knowledge/extract.rs` (`amount_evidence`); `knowledge.json`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N2a de la tanda desatendida del 18 oct.
+
+### D-312 · Regla de fecha: un pago con fecha posterior al documento no está pagado
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Capa de conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** El modelo puede decir «pagado» de un pago que el documento programa para más adelante (una cuota que vence meses después de la firma).
+- **Qué se decidió:** Después de la lectura, el programa compara la fecha del importe con la fecha del documento: si el estado es de pago hecho (`paid`) y la fecha del importe es con seguridad posterior, el estado pasa a `dueState` (a pagar) y se cuenta como corrección («vence-despues-del-documento»). Las fechas se leen como el intervalo de días que pueden ser: un mes sin día es el mes entero y una fecha numérica con día y mes en orden desconocido cubre las dos lecturas; si los intervalos se tocan, no se cambia nada.
+- **Por qué:** Es una regla general y verificable sin el modelo; ante la duda no corrige (una cuota de «febrero» en un documento del 26 de febrero no se toca).
+- **Alternativas descartadas:** Confiar solo en el modelo; comparar fechas con un orden de día y mes supuesto.
+- **Dónde se aplica:** `knowledge/extract.rs` (`due_after_the_document`), `knowledge/values.rs` (`date_span`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N2a de la tanda desatendida del 18 oct.
+
+### D-313 · Una afirmación de importe con estados distintos según el documento los muestra todos
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Capa de conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** La misma cuota, entre las mismas partes, aparece como «a pagar» en un acuerdo y como «pagada» en un recibo posterior; la afirmación es una sola (mismo importe, partes y tipo) y mostraba el estado de la primera evidencia.
+- **Qué se decidió:** La afirmación guarda el estado si todas sus evidencias dicen el mismo y, si difieren, la lista de estados (`estados`); la página los muestra juntos («a pagar o pagado»). El estado no entra en la clave de la afirmación (el índice único y los asuntos usan el tipo).
+- **Por qué:** No esconder un dato que un documento dice; separar afirmaciones por estado habría cambiado el índice único y la agrupación de asuntos.
+- **Alternativas descartadas:** Separar una afirmación por estado.
+- **Dónde se aplica:** `knowledge/claims.rs`, `knowledge/pages.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N2a de la tanda desatendida del 18 oct.
+
+### D-314 · Una casilla marcada se escribe con «(marcada)» y su pregunta por la primera oración
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Base documental
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** En las fichas de cliente, el texto guardado en la base no decía qué casilla estaba marcada: la extracción que lo dice existía desde el 14 de octubre, pero los textos se habían extraído antes. Además, la lectura y el wiki tomaban el rótulo impreso («SI NO») como respuesta (P-135).
+- **Qué se decidió:** Cada casilla marcada u opción elegida se escribe en la sección de campos del formulario con su rótulo seguido de «(marcada)», y una pregunta impresa que sigue con instrucciones («… de la Operación. En caso negativo, …») se nombra por su primera oración. La consigna de la lectura dice que las opciones impresas son rótulos y que, si el texto no dice cuál está marcada, no se afirma la respuesta.
+- **Por qué:** Que nadie (persona ni modelo) confunda el rótulo impreso de una opción con la respuesta, y que la pregunta y la respuesta queden juntas.
+- **Alternativas descartadas:** Escribir solo la opción (no distingue un valor tipeado de una casilla marcada).
+- **Dónde se aplica:** `src-tauri/src/commands/pdf_form.rs`; `knowledge/extract.rs` (consigna).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N2a de la tanda desatendida del 18 oct.
+
+### D-315 · Las marcas de un formulario aplanado se leen por su lugar en la tabla, y si no se puede se dice
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Base documental
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** Un formulario completado y después firmado con un servicio de firma electrónica queda sin campos: cada casilla marcada es un «✔» impreso donde estaba la casilla, y el texto los trae sueltos al final de la página, sin decir a qué pregunta corresponden.
+- **Qué se decidió:** Cada glifo de marca (✔ ✓ ☑ ☒ ✗ ✘) de una página sin casillas se lee como una casilla marcada en su lugar: su opción es el texto de la celda vecina de la tabla del lado donde todas las opciones de esa fila tienen su casilla (una celda vacía), usando las líneas verticales de la tabla; la pregunta es lo impreso antes de las opciones, en las líneas alrededor. Sin tabla, vale el único rótulo al alcance. Si no se puede saber, el campo dice «marcada, sin saber cuál de las opciones» y nombra las opciones posibles: nunca se elige una adivinando.
+- **Por qué:** Es determinista, general y no inventa: en la carpeta de prueba lee bien las tres preguntas de la ficha aplanada; donde la geometría no alcanza, se abstiene (P-135 pide no afirmar lo que no se sabe).
+- **Alternativas descartadas:** Leer la imagen con el modelo (queda para las fichas escaneadas, P-160); tomar el rótulo más cercano (en la ficha de prueba elegía la opción equivocada).
+- **Dónde se aplica:** `src-tauri/src/commands/pdf_form.rs` (`tick_fields`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N2a de la tanda desatendida del 18 oct.
+
+### D-316 · Versión de la extracción de texto: lo extraído con una versión vieja se revisa una vez
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Base documental
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** El texto de un documento se extrae una sola vez; cuando la extracción mejora (leer las casillas), los documentos ya extraídos se quedan con el texto viejo para siempre.
+- **Qué se decidió:** La base guarda la versión de la extracción con la que están sus textos (`docbase_setting`). Si es anterior a la del programa, el trabajador revisa de a poco los documentos extraídos sin reconocimiento: a un PDF cuyos campos de formulario ahora se leen distinto lo vuelve a extraer (su texto cambia y lo que depende de él se rehace); a los demás no los toca. Al terminar guarda la versión nueva. Una base sin textos queda en la versión actual. La evaluación hace lo mismo antes de leer.
+- **Por qué:** Que una mejora de la extracción llegue a lo que ya está en la base sin volver a extraer todo el archivo.
+- **Alternativas descartadas:** Volver a extraer todos los textos (cambia la fecha de todos y rehace parecidos); dejarlo a mano.
+- **Dónde se aplica:** `src-tauri/src/docbase/text.rs` (`refresh_extraction`), `worker.rs`, `knowledge/check.rs`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N2a de la tanda desatendida del 18 oct.
+
+### D-317 · Una definición con forma jurídica es un nombre, no un término; los términos se reconocen aunque tengan marcas de énfasis
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Capa de conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** Al releer, el modelo dio como «término definido» un nombre de sociedad entre paréntesis después de una marca comercial, y el programa unió las dos menciones sin mirar los nombres (una unión falsa); en otro documento un término definido entre marcas de negrita («(**“X**”)») no se reconoció como término y se unió por nombre a otra organización.
+- **Qué se decidió:** Una definición cuyo término tiene forma jurídica (S.A., LLC…) se descarta («termino-con-forma-juridica») y la unión de las dos menciones queda sujeta a la comprobación de nombres (D-281). La forma de un término definido ignora los asteriscos y guiones bajos de énfasis.
+- **Por qué:** R-07: ante la duda no se une. Con los dos cambios, las uniones falsas vuelven a 0.
+- **Alternativas descartadas:** Volver a preguntar esos documentos hasta que el modelo no lo haga (no corrige la causa).
+- **Dónde se aplica:** `knowledge/extract.rs` (`define_terms`), `knowledge/read_checks.rs` (`defined_terms`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N2a de la tanda desatendida del 18 oct.
+
+### D-318 · Medición de N2a: releer solo los documentos afectados reutilizando las respuestas de los demás
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Proceso de trabajo
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** La consigna nueva cambia la pregunta de todos los documentos, pero solo puede cambiar el resultado de los que tienen importes o un texto nuevo; releer todo (75 preguntas) no estaba pedido y mezcla la variación del modelo.
+- **Qué se decidió:** Para medir, fuera del repositorio, se releyeron 40 documentos (48 preguntas: 37 con importes en su lectura anterior y las 3 fichas cuyo texto cambió) y a los otros 26 se les copió la respuesta anterior bajo la pregunta nueva, marcada como trasplante (`N2a-trasplante.py`). Una prueba ignorada del repositorio lista las preguntas nuevas de una copia de la base. La base resultante no se usa en la app.
+- **Por qué:** Medir el cambio con el menor ruido y costo, como pide la especificación.
+- **Alternativas descartadas:** Releer todo el archivo (lo hace N3 con su lectura completa).
+- **Dónde se aplica:** Fuera del repositorio: `desatendido-4/N2a-trasplante.py`, `N2a-correr.sh`; `knowledge/check.rs` (`reading_questions_to_a_file`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N2a de la tanda desatendida del 18 oct.
