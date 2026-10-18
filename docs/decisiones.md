@@ -3869,3 +3869,29 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** `docs/design/wiki-sobre-la-base-propuesta.md` (secciones 10 y 11); R-17.
 - **Quién decidió:** dueño del producto.
 - **Fuente:** conversación del 18 oct (análisis externo revisado contra el código).
+
+### D-300 · Casos de aceptación de los errores críticos, comprobables sobre cualquier base
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Proceso de trabajo
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** D-296 pide demostrar mejora en los errores críticos con casos concretos y dos corridas comparables, pero los errores conocidos (importes con naturaleza mal, casillas de las fichas, afirmaciones mal atribuidas, entidades partidas, regresiones de Q5) solo estaban descritos en prosa, y la lista de importes de la revisión de Q5 no estaba detallada.
+- **Qué se decidió:** una hoja de casos de aceptación fuera del repositorio (`conjunto-prueba/casos-criticos.json`, nombra personas reales) con 46 casos: documento, cita textual comprobada contra el texto de la base, lo correcto, lo que sale mal y una regla que se comprueba sola sobre cualquier base (por ruta del documento, no por número interno; lee columnas nuevas de las afirmaciones sin cambiar el comprobador). Tipos de regla: naturaleza de un importe, casilla de un formulario, afirmación ausente o presente, identificador ausente, menciones en el mismo ente, ente con página, correos como contacto y encabezado de página. Un script fuera del repositorio da "n de m casos pasan" por categoría. Tres casos de importes son de control (lo que hoy está bien no puede romperse). Con la base de partida pasan 3 de 46.
+- **Por qué:** que N2a, N3 y N6 midan los mismos casos antes y después, con números, sin depender de una revisión a mano.
+- **Alternativas descartadas:** pruebas en el repositorio con los casos reales (R-24 lo prohíbe); medir solo con la hoja de entidades (no cubre importes, casillas ni atribuciones).
+- **Dónde se aplica:** fuera del repositorio (`llm_wiki_mi/conjunto-prueba/casos-criticos.json`, `desatendido-4/N1-comprobar-casos.py`); P-135, P-136, P-137, P-151.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N1 de la tanda desatendida del 18 oct.
+
+### D-301 · Línea de base de la búsqueda con preguntas de un abogado
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Wiki
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el rediseño (D-293) cambia la búsqueda a la base con el grafo que ordena y amplía, pero no había forma de saber cuántos documentos relevantes encuentra la búsqueda de hoy ni de comparar la nueva.
+- **Qué se decidió:** una hoja de 30 preguntas fuera del repositorio (`conjunto-prueba/preguntas.json`) con sus documentos esperados, mezclando formas de nombrar (exacta, parcial, otra forma escrita, sin nombre) y categorías (entidades partidas, contradicciones y versiones, documentos sin asunto, importes, identificadores, cláusulas, relaciones). La medida es por documento (las copias cuentan como uno): esperados en los primeros 5 y 10, cuáles faltan y tiempo. Variantes de hoy: la búsqueda del wiki que usa el chat contando solo páginas de documento (61 de 104 en los 10 primeros), el índice de texto de la base (79 de 104) y el índice más el grafo de hoy (81 de 104). Para medir la búsqueda del chat sin copiarla, una prueba ignorada del repositorio la corre sobre las preguntas que le pasa una variable de entorno (sin ningún caso en el código).
+- **Por qué:** fijar el piso que la búsqueda desde la base (N5) tiene que superar y contar los documentos perdidos con números.
+- **Alternativas descartadas:** reimplementar la búsqueda del wiki fuera del repositorio (podía divergir de la real); contar como encontrado todo documento que figure en cualquier página devuelta (una página de entidad lista decenas: se informa aparte como cota).
+- **Dónde se aplica:** `src-tauri/src/commands/search.rs` (`search_questions_from_env`, ignorada); fuera del repositorio `desatendido-4/N1-medir-busqueda.py` y `N1-linea-de-base.md`; P-142, P-150.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N1 de la tanda desatendida del 18 oct.
