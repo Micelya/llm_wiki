@@ -10,7 +10,20 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14, V15];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14, V15, V16];
+
+/// The summary of each document (D-330): one more thing the one reading
+/// of the knowledge layer gives, written and replaced with it. `points` is
+/// JSON: `[{text, quote, page, mentions, evidence}]`, `mentions` being ids
+/// of `knowledge_mention` and `evidence` ids of `knowledge_evidence` whose
+/// quote is the point's passage.
+const V16: &str = "
+CREATE TABLE knowledge_summary (
+    content_id  INTEGER PRIMARY KEY REFERENCES content (id) ON DELETE CASCADE,
+    topic       TEXT,
+    points      TEXT NOT NULL DEFAULT '[]'
+);
+";
 
 /// How sure the record is of each claim, and decisions that survive a
 /// reading again (D-320, D-321):
@@ -901,6 +914,68 @@ mod tests {
         // same model, only one.
         conn.execute(insert, ["codex-cli:n"]).unwrap();
         assert!(conn.execute(insert, ["codex-cli:m"]).is_err());
+    }
+
+    /// V15 rebuilds `knowledge_decision` to admit `confirm`: every decision
+    /// a person took before (join, separate, wrong; active and undone)
+    /// stays as it was, field by field, with its id.
+    #[test]
+    fn the_decisions_taken_before_v15_are_all_kept() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+        for (index, migration) in MIGRATIONS.iter().enumerate().take(14) {
+            conn.execute_batch(migration).unwrap();
+            conn.pragma_update(None, "user_version", index as i64 + 1).unwrap();
+        }
+        type Row = (i64, String, String, Option<String>, Option<String>, String, String, String, i64, Option<i64>);
+        let rows: Vec<Row> = vec![
+            (3, "join".into(), "ent-a".into(), Some("ent-b".into()), Some("la misma".into()), "[1,2]".into(), "h1".into(), "active".into(), 10, None),
+            (5, "separate".into(), "cluster:1:persona:uno".into(), Some("cluster:2:persona:uno".into()), None, "[]".into(), "h2".into(), "active".into(), 20, None),
+            (7, "wrong".into(), "claim:9".into(), None, Some("no es su domicilio".into()), "[3]".into(), "h3".into(), "active".into(), 30, None),
+            (8, "join".into(), "ent-c".into(), Some("ent-d".into()), None, "[]".into(), "h4".into(), "undone".into(), 40, Some(50)),
+            (9, "wrong".into(), "content:4".into(), None, None, "[]".into(), "h5".into(), "undone".into(), 60, Some(70)),
+        ];
+        for r in &rows {
+            conn.execute(
+                "INSERT INTO knowledge_decision (id, kind, a, b, note, shown_evidence, shown_evidence_hash, state, decided_at, undone_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                rusqlite::params![r.0, r.1, r.2, r.3, r.4, r.5, r.6, r.7, r.8, r.9],
+            )
+            .unwrap();
+        }
+        migrate(&mut conn).unwrap();
+        let mut statement = conn
+            .prepare(
+                "SELECT id, kind, a, b, note, shown_evidence, shown_evidence_hash, state, decided_at, undone_at, review, applied_as
+                 FROM knowledge_decision ORDER BY id",
+            )
+            .unwrap();
+        let kept: Vec<(Row, Option<String>, Option<String>)> = statement
+            .query_map([], |row| {
+                Ok((
+                    (row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?, row.get(7)?, row.get(8)?, row.get(9)?),
+                    row.get(10)?,
+                    row.get(11)?,
+                ))
+            })
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(kept.len(), rows.len());
+        for ((row, review, applied), before) in kept.iter().zip(&rows) {
+            assert_eq!(row, before);
+            assert!(review.is_none() && applied.is_none());
+        }
+        // The new kind is admitted, and the indexes are there.
+        conn.execute(
+            "INSERT INTO knowledge_decision (kind, a, shown_evidence, shown_evidence_hash, decided_at) VALUES ('confirm', 'claim:1', '[]', 'h', 1)",
+            [],
+        )
+        .unwrap();
+        let indexes: i64 = conn
+            .query_row("SELECT count(*) FROM sqlite_master WHERE type = 'index' AND tbl_name = 'knowledge_decision'", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(indexes, 2);
     }
 
     /// The owner's base is at version 8 (the type decisions of the

@@ -43,7 +43,7 @@ use crate::source_volume::catalog::{is_page_heading, RECOGNIZED_MARKER_START};
 
 /// Version of the question. Changing the prompt changes it, and every
 /// document is read again.
-pub const KNOWLEDGE_PROMPT: &str = "conocimiento-3";
+pub const KNOWLEDGE_PROMPT: &str = "conocimiento-4";
 /// The task the answers are kept under in `model_answer`.
 pub const TASK: &str = "knowledge";
 /// Words of text in one question; a longer document is read in parts of
@@ -335,6 +335,7 @@ pub fn prompt(vocabulary: &Vocabulary, hints: &Hints, part: &str, index: usize, 
     } else {
         String::new()
     };
+    let summary_note = if total > 1 { " (de esta parte; el tema, del documento según lo que se ve en ella)" } else { "" };
     format!(
         "Sos asistente de un estudio jurídico. Leé el documento de abajo y registrá las personas, organizaciones y asuntos \
 que nombra, con qué papel aparece cada uno, y lo que el documento dice de ellos.{part_note}\n\n\
@@ -375,6 +376,12 @@ copiado del texto; si no, \"rotulo\" es null.\n\
 del acto: allí, quien aparece es \"firmante\" u \"otro\".\n\
 - \"fecha_documento\" es la fecha del documento (de su firma, emisión o envío) tal como está escrita, o null.\n\
 - \"pagina\" es el número de la página (los encabezados \"## Page N\" del texto) donde está la cita, o null si el texto no tiene páginas.\n\
+- \"resumen\" cuenta de qué trata el documento a quien no lo leyó{summary_note}. En \"tema\", una oración: qué documento es, entre \
+quiénes y para qué. En \"puntos\", de dos a seis oraciones con lo esencial (lo que se acuerda, se pide, se paga, se decide o se \
+informa; plazos y condiciones), cada una con una cita copiada del texto que la respalda (las mismas reglas de las citas), su \
+\"pagina\" y en \"menciones\" las \"ref\" de las menciones que nombra. Un punto no trae números, fechas ni nombres que no estén en \
+su cita. Lo que el documento deja abierto (un borrador, una propuesta, algo sin firmar o condicionado) se dice así. Escribí el \
+resumen en castellano aunque el documento esté en otro idioma.\n\
 - La sección \"### Form fields\", si está, trae los campos completados de un formulario: son parte del texto. Una casilla \
 marcada figura allí con su pregunta y la opción elegida seguida de \"(marcada)\". Las opciones impresas junto a una pregunta \
 (\"SI NO\", \"Por cuenta propia\", \"Por cuenta de un tercero\") son rótulos, no respuestas: si el texto no dice cuál está marcada, \
@@ -411,9 +418,31 @@ pub fn schema(vocabulary: &Vocabulary) -> serde_json::Value {
     serde_json::json!({
         "type": "object",
         "additionalProperties": false,
-        "required": ["fecha_documento", "menciones", "definiciones", "afirmaciones", "importes"],
+        "required": ["fecha_documento", "menciones", "definiciones", "afirmaciones", "importes", "resumen"],
         "properties": {
             "fecha_documento": maybe,
+            "resumen": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["tema", "puntos"],
+                "properties": {
+                    "tema": text,
+                    "puntos": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": ["texto", "cita", "pagina", "menciones"],
+                            "properties": {
+                                "texto": text,
+                                "cita": text,
+                                "pagina": page,
+                                "menciones": { "type": "array", "items": text }
+                            }
+                        }
+                    }
+                }
+            },
             "definiciones": {
                 "type": "array",
                 "items": {
@@ -509,6 +538,27 @@ pub struct Answer {
     pub afirmaciones: Vec<AnswerClaim>,
     #[serde(default)]
     pub importes: Vec<AnswerAmount>,
+    /// What the document is about, for its page (N3, D-330).
+    #[serde(default)]
+    pub resumen: Option<AnswerSummary>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct AnswerSummary {
+    #[serde(default)]
+    pub tema: String,
+    #[serde(default)]
+    pub puntos: Vec<AnswerPoint>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct AnswerPoint {
+    pub texto: String,
+    pub cita: String,
+    #[serde(default)]
+    pub pagina: Option<i64>,
+    #[serde(default)]
+    pub menciones: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -638,7 +688,34 @@ pub struct Reading {
     pub discarded: Vec<Discarded>,
     /// The date of the document as its text writes it (D-247).
     pub doc_date: Option<String>,
+    /// What the document is about (D-330): its topic and its points, each
+    /// with a quote that is in the text.
+    pub summary: Summary,
 }
+
+/// The summary of a document, as the reading gave it and the computation
+/// kept it.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct Summary {
+    pub topic: Option<String>,
+    pub points: Vec<SummaryPoint>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SummaryPoint {
+    pub text: String,
+    pub quote: String,
+    pub page: Option<i64>,
+    /// The kept mentions it names (`Mention::reference`, while reading;
+    /// ids of `knowledge_mention` once written).
+    pub mentions: Vec<String>,
+    /// The ids of the document's evidence its quote backs (once written).
+    #[serde(default)]
+    pub evidence: Vec<i64>,
+}
+
+/// Points of a summary kept at most (the parts of a long document add up).
+pub const MAX_SUMMARY_POINTS: usize = 10;
 
 fn discard(reading: &mut Reading, what: &str, reason: &str, said: &str, quote: &str) {
     reading.discarded.push(Discarded { what: what.into(), reason: reason.into(), said: said.trim().into(), quote: quote.trim().into() });
@@ -1074,8 +1151,76 @@ pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &
     for (value, quote) in dropped {
         discard(&mut reading, "identifier", "de-otra-persona", &value, &quote);
     }
+    summarize(body, &text, answers, &refs, &mut reading);
     reading
 }
+
+/// The summary of the document (D-330): the topic of the first part that
+/// gives one, and the points of every part whose quote is in the text and
+/// whose numbers are all in its quote; a topic with a number the text does
+/// not have is left out. What is left out is counted as discarded.
+fn summarize(body: &str, text: &Located, answers: &[Answer], refs: &HashMap<(usize, String), String>, reading: &mut Reading) {
+    use super::pages::digit_runs;
+    let in_body = digit_runs(body);
+    for (part, answer) in answers.iter().enumerate() {
+        let Some(said) = &answer.resumen else { continue };
+        let topic = one_line(&said.tema);
+        if reading.summary.topic.is_none() && !topic.is_empty() {
+            if digit_runs(&topic).iter().all(|run| in_body.contains(run)) {
+                reading.summary.topic = Some(topic);
+            } else {
+                discard(reading, "summary", "resumen-numero-fuera-del-texto", &topic, "");
+            }
+        }
+        for point in &said.puntos {
+            let sentence = one_line(&point.texto);
+            if sentence.is_empty() {
+                continue;
+            }
+            let Some(page) = text.locate(&point.cita, point.pagina) else {
+                discard(reading, "summary", "resumen-cita-no-encontrada", &sentence, &point.cita);
+                continue;
+            };
+            let backed = digit_runs(&point.cita);
+            if !digit_runs(&sentence).iter().all(|run| backed.contains(run)) {
+                discard(reading, "summary", "resumen-numero-fuera-de-la-cita", &sentence, &point.cita);
+                continue;
+            }
+            if reading.summary.points.len() >= MAX_SUMMARY_POINTS {
+                continue;
+            }
+            let mut mentions: Vec<String> = Vec::new();
+            for said_ref in &point.menciones {
+                if let Some(kept) = refs.get(&(part, said_ref.clone())) {
+                    if !mentions.contains(kept) {
+                        mentions.push(kept.clone());
+                    }
+                }
+            }
+            reading.summary.points.push(SummaryPoint { text: sentence, quote: point.cita.trim().to_string(), page, mentions, evidence: Vec::new() });
+        }
+    }
+}
+
+fn one_line(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Whether two quotes of a document are about the same passage: one has
+/// the other, or they share a run of at least `SHARED_RUN` words.
+pub(crate) fn same_passage(a: &str, b: &str) -> bool {
+    let (a, b) = (quote::words(a), quote::words(b));
+    if a.is_empty() || b.is_empty() {
+        return false;
+    }
+    if quote::contains(&a, &b) || quote::contains(&b, &a) {
+        return true;
+    }
+    a.windows(SHARED_RUN).any(|w| quote::contains(&b, w))
+}
+
+/// Words two quotes share in a row to be about the same passage.
+const SHARED_RUN: usize = 8;
 
 fn push_evidence(reading: &mut Reading, evidence: Evidence) {
     let same = |e: &Evidence| {
@@ -1555,6 +1700,7 @@ fn write_reading(
     let tx = conn.transaction().map_err(sql_err)?;
     tx.execute("DELETE FROM knowledge_mention WHERE content_id = ?1", [pending.content_id]).map_err(sql_err)?;
     tx.execute("DELETE FROM knowledge_evidence WHERE content_id = ?1", [pending.content_id]).map_err(sql_err)?;
+    tx.execute("DELETE FROM knowledge_summary WHERE content_id = ?1", [pending.content_id]).map_err(sql_err)?;
     let keys: Vec<&str> = questions.iter().map(|q| q.key.as_str()).collect();
     let doc_date = reading.ok().and_then(|r| r.doc_date.clone());
     let (state, mentions, evidence, discarded, error) = match reading {
@@ -1608,6 +1754,34 @@ fn write_reading(
                         item.amount,
                         item.detail.as_ref().map(|d| d.to_string())
                     ],
+                )
+                .map_err(sql_err)?;
+            }
+            // The summary, its mentions and the evidence its quotes back
+            // by the ids just written (D-330).
+            let evidence_ids: Vec<(i64, String)> = {
+                let mut statement = tx.prepare("SELECT id, quote FROM knowledge_evidence WHERE content_id = ?1 ORDER BY id").map_err(sql_err)?;
+                let rows = statement
+                    .query_map([pending.content_id], |row| Ok((row.get(0)?, row.get(1)?)))
+                    .map_err(sql_err)?
+                    .collect::<Result<_, _>>()
+                    .map_err(sql_err)?;
+                rows
+            };
+            let points: Vec<SummaryPoint> = reading
+                .summary
+                .points
+                .iter()
+                .map(|point| SummaryPoint {
+                    mentions: point.mentions.iter().filter_map(|m| ids.get(m.as_str()).map(|id| id.to_string())).collect(),
+                    evidence: evidence_ids.iter().filter(|(_, quote)| same_passage(quote, &point.quote)).map(|(id, _)| *id).collect(),
+                    ..point.clone()
+                })
+                .collect();
+            if reading.summary.topic.is_some() || !points.is_empty() {
+                tx.execute(
+                    "INSERT INTO knowledge_summary (content_id, topic, points) VALUES (?1, ?2, ?3)",
+                    params![pending.content_id, reading.summary.topic, serde_json::to_string(&points).map_err(|e| e.to_string())?],
                 )
                 .map_err(sql_err)?;
             }

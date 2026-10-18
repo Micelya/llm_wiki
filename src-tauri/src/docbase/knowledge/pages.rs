@@ -402,7 +402,7 @@ fn today() -> String {
 }
 
 /// The digits of a text, by runs: "$ 100.000" has "100" and "000".
-fn digit_runs(text: &str) -> BTreeSet<String> {
+pub(crate) fn digit_runs(text: &str) -> BTreeSet<String> {
     let mut out = BTreeSet::new();
     let mut run = String::new();
     for c in text.chars().chain(std::iter::once(' ')) {

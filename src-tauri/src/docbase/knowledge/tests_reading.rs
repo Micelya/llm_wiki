@@ -351,3 +351,87 @@ fn a_number_with_the_prefix_of_a_person_given_to_a_company_is_the_person_s() {
     assert!(alone.mentions[0].identifiers.is_empty());
     assert!(reasons(&alone).contains(&("identifier".to_string(), "de-otra-persona".to_string())));
 }
+
+/// The summary of a document comes with its reading (D-330): a point
+/// stays when its quote is in the text and its numbers are in its quote;
+/// its mentions are the kept ones.
+#[test]
+fn the_summary_comes_with_the_reading_and_each_point_with_its_quote() {
+    let reading = read(
+        LOAN,
+        serde_json::json!({
+            "menciones": [
+                mention("o", "organizacion", "Ejemplo Uno S.A.", "parte", "Ejemplo Uno S.A. (en adelante, la «Empresa»)", serde_json::json!([])),
+                mention("p", "persona", "Persona Dos", "parte", "y Persona Dos (en adelante, la «Prestamista»)", serde_json::json!([])),
+            ],
+            "afirmaciones": [],
+            "importes": [],
+            "resumen": {
+                "tema": "Acuerdo entre Ejemplo Uno S.A. y Persona Dos sobre un saldo.",
+                "puntos": [
+                    { "texto": "La prestamista le debe a la empresa USD 5.000 de saldo.", "menciones": ["p", "o", "x"],
+                      "cita": "la Prestamista le adeuda a la Empresa la suma de USD 5.000 en concepto de saldo", "pagina": null },
+                    // A number its quote does not have.
+                    { "texto": "La deuda vence en 2031.", "menciones": [],
+                      "cita": "la Prestamista le adeuda a la Empresa la suma de USD 5.000", "pagina": null },
+                    // A quote that is not in the text.
+                    { "texto": "Las partes se reconcilian.", "menciones": [], "cita": "las partes se reconcilian", "pagina": null },
+                ]
+            }
+        }),
+    );
+    assert_eq!(reading.summary.topic.as_deref(), Some("Acuerdo entre Ejemplo Uno S.A. y Persona Dos sobre un saldo."));
+    assert_eq!(reading.summary.points.len(), 1);
+    let point = &reading.summary.points[0];
+    assert_eq!(point.mentions.len(), 2, "the unknown ref goes");
+    let reasons = reasons(&reading);
+    assert!(reasons.contains(&("summary".to_string(), "resumen-numero-fuera-de-la-cita".to_string())));
+    assert!(reasons.contains(&("summary".to_string(), "resumen-cita-no-encontrada".to_string())));
+    // A topic with a number the text does not have is left out.
+    let reading = read(LOAN, serde_json::json!({ "menciones": [], "resumen": { "tema": "Préstamo de 1999.", "puntos": [] } }));
+    assert_eq!(reading.summary.topic, None);
+}
+
+/// The summary is kept in the base with the reading, its points pointing
+/// at the evidence of the same passage; reading the document again
+/// replaces it, and nothing else asks the model about the document.
+#[test]
+fn the_summary_is_kept_with_the_reading_and_points_at_its_evidence() {
+    let body = "CONTRATO DE MUTUO\n\nEjemplo Uno S.A. presta a Persona Dos la suma de $ 50.000, que Persona Dos devolverá en diez cuotas.";
+    let (_dir, base) = base_with(&[("mutuo.txt", body)]);
+    let asker = FakeModel::new("fake:1", |prompt| {
+        if !is_knowledge(prompt) {
+            return type_answer("contrato");
+        }
+        serde_json::json!({
+            "menciones": [
+                mention("o", "organizacion", "Ejemplo Uno S.A.", "parte", "Ejemplo Uno S.A. presta a Persona Dos", serde_json::json!([])),
+                mention("p", "persona", "Persona Dos", "parte", "presta a Persona Dos la suma de $ 50.000", serde_json::json!([])),
+            ],
+            "afirmaciones": [],
+            "importes": [amount("p", "o", "$ 50.000", "precio", "Ejemplo Uno S.A. presta a Persona Dos la suma de $ 50.000", None)],
+            "resumen": {
+                "tema": "Contrato de mutuo.",
+                "puntos": [{ "texto": "Ejemplo Uno S.A. le presta $ 50.000 a Persona Dos.", "menciones": ["o", "p"],
+                             "cita": "Ejemplo Uno S.A. presta a Persona Dos la suma de $ 50.000", "pagina": null }]
+            }
+        })
+        .to_string()
+    });
+    base.types_run(&asker, 50).unwrap();
+    base.knowledge_run(&asker, 50).unwrap();
+    let knowledge_questions = asker.asked.lock().unwrap().iter().filter(|q| is_knowledge(q)).count();
+    assert_eq!(knowledge_questions, 1, "one reading per document");
+    let conn = base.conn();
+    let (topic, points): (Option<String>, String) =
+        conn.query_row("SELECT topic, points FROM knowledge_summary", [], |row| Ok((row.get(0)?, row.get(1)?))).unwrap();
+    assert_eq!(topic.as_deref(), Some("Contrato de mutuo."));
+    let points: Vec<super::extract::SummaryPoint> = serde_json::from_str(&points).unwrap();
+    assert_eq!(points.len(), 1);
+    let evidence: i64 = conn.query_row("SELECT id FROM knowledge_evidence WHERE amount IS NOT NULL", [], |row| row.get(0)).unwrap();
+    assert_eq!(points[0].evidence, vec![evidence]);
+    let mentions: i64 = conn
+        .query_row(&format!("SELECT count(*) FROM knowledge_mention WHERE id IN ({})", points[0].mentions.join(",")), [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(mentions, 2);
+}
