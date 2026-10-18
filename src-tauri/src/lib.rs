@@ -702,6 +702,7 @@ pub fn run() {
             docbase::commands::docbase_document_type,
             docbase::commands::docbase_document_types,
             docbase::commands::docbase_knowledge_status,
+            docbase::commands::docbase_graph,
             docbase::commands::docbase_knowledge_plan,
             docbase::commands::docbase_knowledge_document,
             docbase::commands::docbase_knowledge_run,
