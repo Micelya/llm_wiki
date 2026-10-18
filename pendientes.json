@@ -1357,11 +1357,11 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "Dos corridas desde cero de luna alto difieren en 9,6 % de los pares de menciones y comparten solo 26 a 31 % de las afirmaciones (D-277); sol medio encuentra más afirmaciones (74 % frente a 61 %) y no se le midió la estabilidad. Ver cómo hacer más estable la lectura (por ejemplo, más de una pasada sobre el archivo y quedarse con lo que se repite) y medir sol medio dos veces antes de descartarlo del todo.",
+      "detalle": "Dos corridas desde cero de luna alto difieren en 9,6 % de los pares de menciones y comparten solo 26 a 31 % de las afirmaciones (D-277); sol medio encuentra más afirmaciones (74 % frente a 61 %) y no se le midió la estabilidad. Ver cómo hacer más estable la lectura (por ejemplo, más de una pasada sobre el archivo y quedarse con lo que se repite) y medir sol medio dos veces antes de descartarlo del todo. 18 oct (N6a, luna high, dos lecturas completas): pares de identidad en una sola lectura 5,8 % (antes 9,6 %), afirmaciones idénticas 38 % (antes 26-31 %); sigue en P-200.",
       "depende_de": [],
       "referencia": "src/lib/codex-reasoning.ts; src-tauri/src/source_volume/asking.rs; src-tauri/src/docbase/knowledge/resolve.rs",
       "creado": "2026-10-17",
-      "actualizado": "2026-10-17"
+      "actualizado": "2026-10-18"
     },
     {
       "id": "P-135",
@@ -1467,7 +1467,7 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "a-verificar",
-      "detalle": "La línea de base de N1 (D-301) muestra que el índice de texto de la base encuentra más documentos que la búsqueda del wiki (79 contra 61 de 104 en los 10 primeros) pero no encuentra documentos en inglés con preguntas en castellano, parte los números escritos con puntos (un DNI con puntos no encuentra la forma sin puntos) y en preguntas genéricas premia documentos largos. Resolverlo al construir la búsqueda desde la base (normalizar números en índice y consulta, indexar el resumen del documento en castellano, ampliar por entidades y asuntos) y medir con desatendido-4/N1-medir-busqueda.py. N5 (D-350): resuelto y medido: números en cualquier forma, resumen en el idioma del archivo, raíz de palabras largas y entidades nombradas; 79 → 96 de 104 en los 10 primeros (el chat, por páginas, 61 → 95). Queda verificarlo en la app (N6).",
+      "detalle": "La línea de base de N1 (D-301) muestra que el índice de texto de la base encuentra más documentos que la búsqueda del wiki (79 contra 61 de 104 en los 10 primeros) pero no encuentra documentos en inglés con preguntas en castellano, parte los números escritos con puntos (un DNI con puntos no encuentra la forma sin puntos) y en preguntas genéricas premia documentos largos. Resolverlo al construir la búsqueda desde la base (normalizar números en índice y consulta, indexar el resumen del documento en castellano, ampliar por entidades y asuntos) y medir con desatendido-4/N1-medir-busqueda.py. N5 (D-350): resuelto y medido: números en cualquier forma, resumen en el idioma del archivo, raíz de palabras largas y entidades nombradas; 79 → 96 de 104 en los 10 primeros (el chat, por páginas, 61 → 95). Queda verificarlo en la app (N6). N6a (dos lecturas completas con consigna conocimiento-5): los resúmenes completos desplazaban a las preguntas con número (DNI con puntos 9 → 6); D-361 lo arregla: chat 96 y 95 de 104 (por documento 97 y 97).",
       "depende_de": [],
       "referencia": "src-tauri/src/commands/search.rs; desatendido-4/N1-linea-de-base.md (fuera del repositorio); D-301; P-142",
       "creado": "2026-10-18",
@@ -1503,7 +1503,7 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "Tras N2a, en una propuesta el precio de lista bonificado al 100 % se lee como «pactado» (no como condicionado ni bonificado), y el total de 12 meses de un crédito promocional como «total acumulado» sin decir que es un crédito. Buscar la señal general (una línea de descuento que anula a otra; el total de un importe de otro tipo hereda su naturaleza). Casos I04-I06 de conjunto-prueba/casos-criticos.json (fuera del repositorio).",
+      "detalle": "Tras N2a, en una propuesta el precio de lista bonificado al 100 % se lee como «pactado» (no como condicionado ni bonificado), y el total de 12 meses de un crédito promocional como «total acumulado» sin decir que es un crédito. Buscar la señal general (una línea de descuento que anula a otra; el total de un importe de otro tipo hereda su naturaleza). Casos I04-I06 de conjunto-prueba/casos-criticos.json (fuera del repositorio). N6a: I05/I06 pasan en una de dos lecturas completas y fallan en la otra (ver P-202).",
       "depende_de": [],
       "referencia": "src-tauri/resources/catalog/knowledge.json; src-tauri/src/docbase/knowledge/extract.rs; D-310",
       "creado": "2026-10-18",
@@ -1577,7 +1577,7 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "a-verificar",
-      "detalle": "Consigna conocimiento-5 (D-343): los puntos traen importes, fechas clave y números con su cita, y en una constancia de firma qué se firmó, quiénes y cuándo. Medido en N4 sobre 7 documentos releídos (revisor a ciegas): fieles 7/7 en las dos; completitud 1,71 → 2,57 de 3; utilidad 1,86 → 2,71; prefirió la nueva en 6 y empató en 1 (una boleta de infracciones: ninguna trae el total ni el vencimiento). Falta medir los 66 en las lecturas completas de N6 (completitud, descartes por número fuera de la cita) y la boleta.",
+      "detalle": "Consigna conocimiento-5 (D-343): los puntos traen importes, fechas clave y números con su cita, y en una constancia de firma qué se firmó, quiénes y cuándo. Medido en N4 sobre 7 documentos releídos (revisor a ciegas): fieles 7/7 en las dos; completitud 1,71 → 2,57 de 3; utilidad 1,86 → 2,71; prefirió la nueva en 6 y empató en 1 (una boleta de infracciones: ninguna trae el total ni el vencimiento). Falta medir los 66 en las lecturas completas de N6 (completitud, descartes por número fuera de la cita) y la boleta. N6a: dos lecturas completas con conocimiento-5: 66/66 resúmenes con tema, 380 y 379 puntos (5,8 por documento); 70 y 73 puntos descartados por el cálculo (número fuera de la cita o cita no hallada).",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/knowledge/extract.rs; D-330; D-343; desatendido-4/N4-p171-juicio/",
       "creado": "2026-10-18",
@@ -1688,6 +1688,74 @@
       "detalle": "Tras N5 el grafo, la búsqueda y el panel de enlaces del wiki del archivo salen de la base, pero el lint estructural, la relevancia del grafo (graph-relevance.ts) y el contexto que el chat agrega a cada resultado (build_knowledge_context_index) siguen leyendo las páginas; la búsqueda además recorre los archivos para títulos y para páginas que no son de documento (155 ms por pregunta en el binario de depuración con 185 páginas). Pasarlos a la base o medir que no hace falta. También: las preguntas genéricas por relaciones («a quiénes les debe») siguen en 6 a 7 de 8.",
       "depende_de": [],
       "referencia": "src/lib/lint.ts; src/lib/graph-relevance.ts; src-tauri/src/agent/tools.rs; src-tauri/src/commands/search.rs; D-350",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-200",
+      "titulo": "Variación del modelo entre dos lecturas completas",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Dos lecturas completas desde cero (N6a) con el mismo código: separaciones falsas 1,3 % y 6,6 %; menciones iguales 65 %, afirmaciones 38 %, importes 45 %; 28 casos críticos pasan en las dos y 8 en una sola. En la segunda, la sociedad propia por su nombre corto y la otra parte por frases de cargo («COO de …», «reseller de …») quedaron como entidades aparte. Buscar señales generales que hagan la identidad menos dependiente de la lectura (nombre corto de una parte del documento, frase de cargo que no es un nombre) y medir con dos lecturas.",
+      "depende_de": [
+        "P-133"
+      ],
+      "referencia": "D-362; desatendido-4/N6-resultados.md; P-133",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-201",
+      "titulo": "Relaciones que el documento no dice y dirección del dinero en acuerdos de fondos",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Juicio a ciegas de N6a (40 por lectura): 37 y 33 de 40 bien (el 17 oct, 38). Errores: «representa a» o «parte en» que el documento no dice (un revendedor que «representa» a su cliente, un anexo de personal tomado como acto), objeto equivocado (cargo o firma de otra sociedad), un acuerdo de fondos con la dirección invertida (quien aporta paga a la sociedad) y un préstamo recibido marcado «pagado» cuando su devolución está pendiente. Prioridad 1 (atribución).",
+      "depende_de": [
+        "P-151"
+      ],
+      "referencia": "D-362; desatendido-4/N6-juicio; P-151",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-202",
+      "titulo": "Importes que dependen de la lectura y preguntas que fallan por un error del motor",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "En N6a los casos I05/I06 (precio bonificado al 100 %) pasan en una lectura y fallan en la otra, e I13 al revés (P-161). Además una pregunta de identidad falló porque Codex salió con código 1 y la corrida la respondió en la pasada siguiente: verificar en la app que una pregunta fallida se reintenta y no deja un par sin unir.",
+      "depende_de": [
+        "P-161"
+      ],
+      "referencia": "D-362; P-161",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-203",
+      "titulo": "Regresiones y entidades partidas que fallan en las dos lecturas",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "En las dos lecturas de N6a fallan: R01 (una fundación sin página), R02 (correos de la otra parte como identificador, 0 a 2 de 5), R03 (el encabezado del reclamo sin sus números), S02 (empresa con y sin forma jurídica), S05 (nombre de pila solo), S07/S08 (contratos nombrados por títulos distintos), A02/A04/A08 (domicilio o identificador de otra parte). No dependen de la variación: son del programa.",
+      "depende_de": [
+        "P-137"
+      ],
+      "referencia": "desatendido-4/N6-resultados.md; P-137; P-174",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-204",
+      "titulo": "El destino de un término por su forma en el texto puede ser la empresa de un domicilio",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "define_terms toma como destino de un término sin definición del modelo el nombre más cercano antes de la definición; en un contrato ese nombre era la empresa de un domicilio «c/o», no la parte. Hoy solo se usa si el modelo no dio enlace (D-360 no lo usa para corregir). Revisar la regla (saltar nombres dentro de un domicilio, o preferir el sujeto de la oración) y medir con dos lecturas.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/knowledge/extract.rs (define_terms); D-360",
       "creado": "2026-10-18",
       "actualizado": "2026-10-18"
     }

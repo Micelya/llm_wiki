@@ -4246,3 +4246,41 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** `src-tauri/src/commands/search.rs` (`search_from_base`, `NAMED_ENTITY_PAGES`).
 - **Quién decidió:** agente sin consulta.
 - **Fuente:** etapa N5 de la tanda desatendida del 18 oct.
+
+### D-360 · Un término que el documento define nombra una sola cosa en él
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Capa de conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** En una lectura completa (N6), en un contrato el modelo dijo que la línea de notificaciones "Si a <término de la otra parte>:" era "la misma que" la sociedad propia. Una mención escrita como término definido salta el control de nombres (D-281), así que las dos partes del contrato quedaron en una sola entidad (16 pares de menciones unidos por error; antes de esta etapa siempre 0).
+- **Qué se decidió:** Después de marcar los términos definidos, si una mención posterior del mismo término (misma clase) quedó enlazada por el modelo a otro grupo que el de la primera mención del término, pierde ese enlace y conserva solo su nombre, que ya la junta con la primera mención. Nunca se une algo que el nombre no juntaba.
+- **Por qué:** Un término definido en un documento nombra una sola cosa en él; ante la duda no se une (R-07). Medido con las respuestas guardadas de las dos lecturas de N6: uniones falsas 16 → 0 y separaciones 88 → 66 en la primera; la segunda queda idéntica.
+- **Alternativas descartadas:** Reemplazar el enlace del modelo por el destino de la definición: cuando la definición se conoce solo por su forma en el texto (el nombre más cercano antes), ese nombre puede ser el de la empresa de un domicilio "c/o" y deshizo un enlace correcto (separaciones de la segunda lectura 363 → 395).
+- **Dónde se aplica:** `src-tauri/src/docbase/knowledge/extract.rs` (`define_terms`); prueba `tests_reading.rs` (`a_defined_term_names_one_thing_in_its_document`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N6a de la tanda desatendida del 18 oct.
+
+### D-361 · Con un número en la pregunta, el resumen solo ordena los documentos que lo tienen
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Búsqueda
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** Con los resúmenes completos de la consigna `conocimiento-5` (P-171), palabras como "número", "cliente" o "DNI" aparecen en los resúmenes de muchos documentos; en una pregunta con un número, la lista del resumen desplazaba a los documentos que el número encuentra (DNI con puntos 9 → 6 de 9; número de cliente 10 → 6 de 13).
+- **Qué se decidió:** Si la pregunta tiene un número (en cualquiera de sus formas), la lista del resumen se queda solo con los documentos que la lista de números halló; el resto de las listas no cambia.
+- **Por qué:** Una pregunta con un número pide los documentos que lo tienen. Medido sobre las dos lecturas completas de N6 (30 preguntas, 104 esperados, primeros 10): chat 89 → 96 y 87 → 95; por documento 90/89 → 97/97; sobre la base de N4, 95 → 96.
+- **Alternativas descartadas:** Bajar el peso del resumen (0,7; 0,5; 0,3; 0): no recupera las preguntas con número y pierde las de otro idioma.
+- **Dónde se aplica:** `src-tauri/src/docbase/search.rs` (`search_documents`); prueba `search_tests.rs` (`a_question_with_a_number_is_not_pushed_out_by_summaries_without_it`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N6a de la tanda desatendida del 18 oct.
+
+### D-362 · La medición de referencia del 18 de octubre son dos lecturas completas desde cero
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Medición
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** El modelo varía entre corridas (P-133): una sola lectura no dice si un resultado es del programa o de la lectura.
+- **Qué se decidió:** Los números del 18 oct se dan como dos lecturas completas desde una copia de la base de partida (luna high, una después de la otra) con el código de la rama, y los arreglos posteriores se miden con las respuestas guardadas de esas dos lecturas; solo se pregunta al modelo lo que el arreglo cambia (preguntas de identidad de grupos nuevos). Cada indicador se informa para las dos, más la estabilidad (pares de identidad, afirmaciones e importes iguales, casos críticos que pasan en las dos, en una o en ninguna). El juicio de atribución a ciegas mezcla 40 afirmaciones de cada lectura y de la base del 17 (misma semilla) para el mismo revisor.
+- **Por qué:** Separa lo que mejora el programa de lo que cambia el modelo. Resultado (detalle fuera del repositorio, `desatendido-4/N6-resultados.md`): casos críticos 3 → 31 y 33 de 46 (28 en las dos); uniones falsas 0; separaciones 4,2 % → 1,3 % y 6,6 %; atribución a ciegas 38 → 37 y 33 de 40; búsqueda 61 → 96 y 95 de 104; llamadas de lectura 1,14 por documento.
+- **Dónde se aplica:** Arneses fuera del repositorio (`desatendido-4/N6-correr.sh`, `N6-estabilidad.py`, `N6-indicadores.py`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N6a de la tanda desatendida del 18 oct.
