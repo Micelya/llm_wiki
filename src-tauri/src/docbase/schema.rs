@@ -10,7 +10,42 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14, V15];
+
+/// How sure the record is of each claim, and decisions that survive a
+/// reading again (D-320, D-321):
+///
+/// - `knowledge_claim.certainty`: computed on every resolution from what is
+///   already kept (its state, the doubts, the decisions): `{"level",
+///   "reasons"}`, the level being `quoted` (its quote is in the document,
+///   nobody confirmed it), `confirmed`, `doubtful` or `corrected`.
+/// - `knowledge_decision`: a person can also confirm a claim (`confirm`);
+///   `review` says why an active decision no longer finds what it named
+///   (for a person to review, never dropped in silence) and `applied_as`
+///   the keys it applies to when what it named is written another way.
+const V15: &str = "
+ALTER TABLE knowledge_claim ADD COLUMN certainty TEXT;
+CREATE TABLE knowledge_decision_v15 (
+    id                   INTEGER PRIMARY KEY,
+    kind                 TEXT NOT NULL CHECK (kind IN ('join', 'separate', 'wrong', 'confirm')),
+    a                    TEXT NOT NULL,
+    b                    TEXT,
+    note                 TEXT,
+    shown_evidence       TEXT NOT NULL,
+    shown_evidence_hash  TEXT NOT NULL,
+    state                TEXT NOT NULL DEFAULT 'active' CHECK (state IN ('active', 'undone')),
+    decided_at           INTEGER NOT NULL,
+    undone_at            INTEGER,
+    review               TEXT,
+    applied_as           TEXT
+);
+INSERT INTO knowledge_decision_v15 (id, kind, a, b, note, shown_evidence, shown_evidence_hash, state, decided_at, undone_at)
+    SELECT id, kind, a, b, note, shown_evidence, shown_evidence_hash, state, decided_at, undone_at FROM knowledge_decision;
+DROP TABLE knowledge_decision;
+ALTER TABLE knowledge_decision_v15 RENAME TO knowledge_decision;
+CREATE INDEX knowledge_decision_by_a ON knowledge_decision (a);
+CREATE INDEX knowledge_decision_by_b ON knowledge_decision (b);
+";
 
 /// Groups of companies (D-260): `knowledge_group` says which entities are
 /// the companies of a group entity (several companies with the same name

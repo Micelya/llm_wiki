@@ -48,7 +48,7 @@ pub const SYNTHESIS_PROMPT: &str = "sintesis-3";
 /// Raised when a change in the program changes what a projection writes
 /// (which names have a page, what a block lists): every page is written
 /// again from the record, without asking more.
-const PROJECTION_VERSION: &str = "proyeccion-7";
+const PROJECTION_VERSION: &str = "proyeccion-8";
 /// The task its answers are kept under in `model_answer`.
 pub const TASK: &str = "synthesis";
 /// The words of the vocabulary (`pages.words`) a page is written with.
@@ -115,6 +115,14 @@ pub const WORDS: &[&str] = &[
     "groupWhy-lo-dice-un-documento",
     "groupWhy-nombrado-como-grupo",
     "groupWhy-mismo-nombre",
+    "certainDoubtful",
+    "certainConfirmed",
+    "certainCorrected",
+    "certainLegend",
+    "doubtWhy-conflict",
+    "doubtWhy-identity",
+    "doubtWhy-attribution",
+    "doubtWhy-states",
 ];
 /// Claims of one entity described in its question; the rest are left
 /// out of the synthesis (the list of documents is always complete).
@@ -202,6 +210,58 @@ struct Claim {
     /// The same amount listed on the page of its creditor: `object_entity`
     /// is then the debtor.
     mirrored: bool,
+    /// How sure the record is of it (D-320): "quoted", "confirmed",
+    /// "doubtful" or "corrected", and why.
+    certainty: String,
+    reasons: Vec<String>,
+}
+
+impl Claim {
+    fn doubtful(&self) -> bool {
+        self.certainty == super::claims::DOUBTFUL
+    }
+
+    /// Doubtful for a reason the page does not already show apart: a
+    /// conflict is listed with all its values.
+    fn doubtful_beyond_conflict(&self) -> bool {
+        self.doubtful() && self.reasons.iter().any(|r| r != "conflict" && r != "by-person")
+    }
+}
+
+/// The level and reasons of a certainty as the record keeps it.
+fn certainty_of(json: Option<&str>) -> (String, Vec<String>) {
+    let value: serde_json::Value = json.and_then(|j| serde_json::from_str(j).ok()).unwrap_or_default();
+    let level = value.get("level").and_then(|l| l.as_str()).unwrap_or(super::claims::QUOTED).to_string();
+    let reasons = value
+        .get("reasons")
+        .and_then(|r| r.as_array())
+        .map(|list| list.iter().filter_map(|r| r.as_str().map(str::to_string)).collect())
+        .unwrap_or_default();
+    (level, reasons)
+}
+
+/// What a page says after a claim of how sure the record is of it: nothing
+/// for a claim with its quote and nobody's word on it; "(sin confirmar:
+/// …)" for a doubtful one, with why; who confirmed or corrected it.
+fn certainty_mark(vocabulary: &Vocabulary, claim: &Claim) -> String {
+    let words = &vocabulary.pages;
+    match claim.certainty.as_str() {
+        super::claims::DOUBTFUL => {
+            let why: Vec<&str> = claim
+                .reasons
+                .iter()
+                .filter_map(|r| words.words.get(&format!("doubtWhy-{r}")).map(String::as_str))
+                .collect();
+            if why.is_empty() {
+                format!(" *({})*", words.word("certainDoubtful"))
+            } else {
+                format!(" *({}: {})*", words.word("certainDoubtful"), why.join("; "))
+            }
+        }
+        super::claims::CONFIRMED => format!(" *({})*", words.word("certainConfirmed")),
+        super::claims::CORRECTED => format!(" *({})*", words.word("certainCorrected")),
+        _ => String::new(),
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -645,7 +705,8 @@ fn load(conn: &Connection, project_id: &str, identities: &HashMap<i64, String>) 
         }
         let mut statement = conn
             .prepare(
-                "SELECT id, subject, predicate, object_entity, object_value, state, valid_from, context_entity, qualifier, amount, detail
+                "SELECT id, subject, predicate, object_entity, object_value, state, valid_from, context_entity, qualifier, amount, detail,
+                        certainty
                  FROM knowledge_claim
                  WHERE state != 'retired' ORDER BY subject, predicate, coalesce(valid_from, ''), coalesce(object_normalized, object_entity, ''), id",
             )
@@ -667,12 +728,24 @@ fn load(conn: &Connection, project_id: &str, identities: &HashMap<i64, String>) 
                         amount: row.get(9)?,
                         detail: row.get::<_, Option<String>>(10)?.and_then(|d| serde_json::from_str(&d).ok()),
                         mirrored: false,
+                        certainty: String::new(),
+                        reasons: Vec::new(),
                     },
                 ))
             })
             .map_err(sql_err)?;
+        let mut certainties: HashMap<i64, Option<String>> = HashMap::new();
+        {
+            let mut statement = conn.prepare("SELECT id, certainty FROM knowledge_claim WHERE state != 'retired'").map_err(sql_err)?;
+            let found = statement.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, Option<String>>(1)?))).map_err(sql_err)?;
+            for row in found {
+                let (id, certainty) = row.map_err(sql_err)?;
+                certainties.insert(id, certainty);
+            }
+        }
         for row in rows {
             let (subject, mut claim) = row.map_err(sql_err)?;
+            (claim.certainty, claim.reasons) = certainty_of(certainties.get(&claim.id).cloned().flatten().as_deref());
             claim.evidence = evidence.remove(&claim.id).unwrap_or_default();
             if claim.evidence.is_empty() {
                 continue;
@@ -962,6 +1035,19 @@ fn synthesis_question(vocabulary: &Vocabulary, record: &Record, entity: &Entity,
         if claim.state == "conflict" {
             line.push_str(" — EN CONFLICTO con otra afirmación del mismo dato");
         }
+        if claim.doubtful_beyond_conflict() {
+            let why: Vec<&str> = claim
+                .reasons
+                .iter()
+                .filter_map(|r| match r.as_str() {
+                    "identity" => Some("no es seguro de quién se habla"),
+                    "attribution" => Some("la cita nombra a otra persona u organización"),
+                    "states" => Some("los documentos dicen estados distintos"),
+                    _ => None,
+                })
+                .collect();
+            line.push_str(&format!(" — DUDOSA ({})", why.join("; ")));
+        }
         let documents: BTreeSet<i64> =
             claim.evidence.iter().map(|(c, ..)| record.documents.get(c).and_then(|d| d.chosen).unwrap_or(*c)).collect();
         line.push_str(&format!(" — en {} documento(s)", documents.len()));
@@ -974,6 +1060,14 @@ fn synthesis_question(vocabulary: &Vocabulary, record: &Record, entity: &Entity,
     let language = match language {
         Some(language) => format!("Escribí en este idioma: {language}."),
         None => "Escribí en el idioma en que están escritas las citas.".to_string(),
+    };
+    // Only a question with a doubtful claim says how to write it: the
+    // others keep their question, and their answer (D-322).
+    let doubtful = if claims.iter().any(Claim::doubtful_beyond_conflict) {
+        "- Las afirmaciones marcadas DUDOSA no son hechos firmes: escribilas como dudosas («según un documento…, sin confirmar»), \
+en oraciones aparte de los hechos firmes, y nunca como algo seguro.\n"
+    } else {
+        ""
     };
     let prompt = format!(
         "Sos asistente de un estudio jurídico. Redactá lo que dicen los documentos del archivo sobre {kind} «{name}», \
@@ -994,6 +1088,7 @@ nunca como un monto suelto sin la otra parte. Si dice su estado (pagado, a pagar
 él: no digas que se pagó lo que no dice «pagado», ni que se debe lo que dice «pactado» o «propuesto».\n\
 - No digas que los documentos difieren, se contradicen o no coinciden, salvo para las afirmaciones marcadas EN CONFLICTO: esas no \
 se resuelven; nombrá cada valor con su número.\n\
+{doubtful}\
 - {language}\n\n\
 {kind}: {name}\n\
 Afirmaciones:\n{claims}\n\n\
@@ -1231,12 +1326,18 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
                 let (kept, thrown) = checked(record, entity, synthesized(claims), text);
                 discarded = thrown;
                 sentences = kept.len();
+                let unsure = words.word("certainDoubtful");
                 let lines: Vec<String> = kept
                     .iter()
                     .map(|(text, refs)| {
                         used.extend(refs.iter().copied());
                         let numbers: Vec<String> = refs.iter().map(|r| (r + 1).to_string()).collect();
-                        format!("{} [{}]", localized_dates(vocabulary, text), numbers.join(", "))
+                        // Never as a firm fact (D-322): a sentence that rests
+                        // on a doubtful claim is marked, unless it says so.
+                        let doubtful = refs.iter().any(|r| claims[*r].doubtful_beyond_conflict());
+                        let said = text.to_lowercase().contains(&unsure.to_lowercase());
+                        let mark = if doubtful && !said { format!(" *({unsure})*") } else { String::new() };
+                        format!("{}{mark} [{}]", localized_dates(vocabulary, text), numbers.join(", "))
                     })
                     .collect();
                 if lines.is_empty() {
@@ -1251,6 +1352,7 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
                 out.push_str("\n\n");
             }
         }
+        out.push_str(&format!("*{}*\n\n", words.word("certainLegend")));
         // Conflicts are always in view, all their values.
         let mut conflicts: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
         for (index, claim) in claims.iter().enumerate() {
@@ -1280,10 +1382,11 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
                 .collect();
             let time = claim.valid_from.as_deref().map(|t| format!(" ({})", localized_dates(vocabulary, &one_line(t)))).unwrap_or_default();
             format!(
-                "- [{}] {}: {}{time} — {}\n",
+                "- [{}] {}: {}{time}{} — {}\n",
                 index + 1,
                 claim_label(vocabulary, record, claim),
                 localized_dates(vocabulary, &one_line(&object_text(record, claim))),
+                certainty_mark(vocabulary, claim),
                 quotes.join("; ")
             )
         };
@@ -1421,7 +1524,8 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
         }
         if let Some(object) = &claim.object_entity {
             if record.entities.get(object).is_some_and(|o| o.kind != "asunto") {
-                tie(vocabulary.predicate_label(&claim.predicate), object, quotes_of(claim));
+                let label = format!("{}{}", vocabulary.predicate_label(&claim.predicate), certainty_mark(vocabulary, claim));
+                tie(&label, object, quotes_of(claim));
             }
         }
     }
@@ -1431,7 +1535,8 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
             if other.kind == "asunto" {
                 continue;
             }
-            tie(inverse, &other.id, quotes_of(claim));
+            let label = format!("{inverse}{}", certainty_mark(vocabulary, claim));
+            tie(&label, &other.id, quotes_of(claim));
         }
     }
     if !ties.is_empty() {
@@ -1834,7 +1939,8 @@ fn render_matter(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<Stri
                 None => localized_dates(vocabulary, &object_text(record, claim)),
             };
             let conflict = if claim.state == "conflict" { format!(" ({})", words.word("conflicts").to_lowercase()) } else { String::new() };
-            said.push(format!("- {subject} — {}: {object}{conflict} — {}\n", claim_label(vocabulary, record, claim), quotes.join("; ")));
+            let mark = certainty_mark(vocabulary, claim);
+            said.push(format!("- {subject} — {}: {object}{conflict}{mark} — {}\n", claim_label(vocabulary, record, claim), quotes.join("; ")));
         }
     }
     if !said.is_empty() {
@@ -2496,6 +2602,8 @@ mod page_rule_tests {
             amount: None,
             detail: None,
             mirrored: false,
+            certainty: "quoted".into(),
+            reasons: Vec::new(),
         });
         // Its address alone is not: the offices of a list of
         // jurisdictions on a form (D-288).

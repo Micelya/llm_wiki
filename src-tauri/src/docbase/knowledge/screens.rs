@@ -121,6 +121,19 @@ pub struct LeftWithDocuments {
     pub documents: Vec<DocumentRef>,
 }
 
+/// A decision of a person that no longer finds what it named in the
+/// documents read again (D-321): it is not applied to a guess, and it is
+/// not dropped in silence.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DecisionReview {
+    pub decision: DecisionView,
+    /// The document it was about, when it names one the caller can see.
+    pub document: Option<DocumentRef>,
+    /// "no-encontrada" or "varias".
+    pub reason: String,
+}
+
 /// What the layer brings to the attention view.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -137,6 +150,9 @@ pub struct KnowledgeAttention {
     pub discarded_sentences: usize,
     pub kept_pages: Vec<KeptPage>,
     pub left_with_documents: Vec<LeftWithDocuments>,
+    /// Decisions of a person to review: what they named is not in the
+    /// documents as they read now.
+    pub decisions_to_review: Vec<DecisionReview>,
 }
 
 /// A matter in the list of matters.
@@ -291,7 +307,7 @@ fn matter_decisions(conn: &Connection) -> Result<Vec<(DecisionView, i64, Option<
 fn decisions(conn: &Connection) -> Result<Vec<DecisionView>, String> {
     let mut statement = conn
         .prepare(
-            "SELECT id, kind, a, b, note, shown_evidence, state, decided_at, undone_at FROM knowledge_decision
+            "SELECT id, kind, a, b, note, shown_evidence, state, decided_at, undone_at, review, applied_as FROM knowledge_decision
              ORDER BY decided_at DESC, id DESC",
         )
         .map_err(sql_err)?;
@@ -307,6 +323,8 @@ fn decisions(conn: &Connection) -> Result<Vec<DecisionView>, String> {
                 state: row.get(6)?,
                 decided_at: row.get(7)?,
                 undone_at: row.get(8)?,
+                review: row.get(9)?,
+                applied_as: row.get(10)?,
             })
         })
         .map_err(sql_err)?;
@@ -356,6 +374,33 @@ impl DocBase {
             let said = kept + discarded.len();
             if lost >= rules.noisy_min && said > 0 && lost as f64 > rules.noisy_share * said as f64 {
                 noisy.push(NoisyReading { document: document_ref(&conn, visible, standing.content_id, &mut names)?, kept, discarded: lost });
+            }
+        }
+
+        // Decisions of a person that no longer find what they named.
+        let mut decisions_to_review = Vec::new();
+        {
+            let successors = changes::successors(&conn)?;
+            for decision in decisions(&conn)? {
+                let Some(reason) = decision.review.clone().filter(|_| decision.state == "active") else { continue };
+                let key = changes::translate(&decision.a, &successors);
+                let content = key
+                    .strip_prefix("cluster:")
+                    .or_else(|| key.strip_prefix("evidence:"))
+                    .and_then(|rest| rest.split(':').next())
+                    .and_then(|c| c.parse::<i64>().ok());
+                let document = match content {
+                    Some(content) => {
+                        let found = document_ref(&conn, visible, content, &mut names)?;
+                        if found.location_id.is_none() {
+                            // A document the caller cannot see: nor its decision.
+                            continue;
+                        }
+                        Some(found)
+                    }
+                    None => None,
+                };
+                decisions_to_review.push(DecisionReview { decision, document, reason });
             }
         }
 
@@ -562,6 +607,7 @@ impl DocBase {
             discarded_sentences: discarded_sentences as usize,
             kept_pages,
             left_with_documents,
+            decisions_to_review,
         })
     }
 

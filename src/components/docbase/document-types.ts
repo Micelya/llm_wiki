@@ -31,7 +31,7 @@ export function rowTypeLabel(row: DocumentRow, words: Vocabulary = vocabulary())
 export function typeSourceText(found: DocumentType): string {
   switch (found.source) {
     case "marks":
-      return "Lo dicen marcas verificadas en el documento, sin el modelo."
+      return "Lo dicen marcas comprobadas en el documento, sin el modelo."
     case "model":
       return "Lo propuso el modelo al leer este documento."
     case "family":

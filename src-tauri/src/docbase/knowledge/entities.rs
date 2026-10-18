@@ -79,6 +79,12 @@ pub struct ClaimView {
     pub state: String,
     pub valid_from: Option<String>,
     pub evidence: Vec<ClaimEvidence>,
+    /// How sure the record is of it (D-320): "quoted" (its quote is in the
+    /// document, nobody confirmed it), "confirmed", "doubtful" or
+    /// "corrected"; and why ("conflict", "identity", "attribution",
+    /// "states", "by-person").
+    pub certainty: String,
+    pub reasons: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -345,7 +351,8 @@ impl DocBase {
 fn claims_of(conn: &Connection, visible: &Visible, id: &str, cache: &mut HashMap<i64, (Option<i64>, String)>) -> Result<Vec<ClaimView>, String> {
     let mut statement = conn
         .prepare(
-            "SELECT c.id, c.predicate, c.object_entity, o.name, coalesce(c.object_value, c.amount), c.state, c.valid_from FROM knowledge_claim c
+            "SELECT c.id, c.predicate, c.object_entity, o.name, coalesce(c.object_value, c.amount), c.state, c.valid_from, c.certainty
+             FROM knowledge_claim c
              LEFT JOIN knowledge_entity o ON o.id = c.object_entity WHERE c.subject = ?1 ORDER BY c.predicate, c.id",
         )
         .map_err(sql_err)?;
@@ -360,6 +367,19 @@ fn claims_of(conn: &Connection, visible: &Visible, id: &str, cache: &mut HashMap
                 state: row.get(5)?,
                 valid_from: row.get(6)?,
                 evidence: Vec::new(),
+                certainty: String::new(),
+                reasons: Vec::new(),
+            })
+            .map(|mut claim| {
+                let value: serde_json::Value =
+                    row.get::<_, Option<String>>(7).ok().flatten().and_then(|j| serde_json::from_str(&j).ok()).unwrap_or_default();
+                claim.certainty = value.get("level").and_then(|l| l.as_str()).unwrap_or("quoted").to_string();
+                claim.reasons = value
+                    .get("reasons")
+                    .and_then(|r| r.as_array())
+                    .map(|list| list.iter().filter_map(|r| r.as_str().map(str::to_string)).collect())
+                    .unwrap_or_default();
+                claim
             })
         })
         .map_err(sql_err)?

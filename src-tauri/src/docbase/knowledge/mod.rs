@@ -36,6 +36,7 @@ mod check_identity;
 mod check_attention;
 #[cfg(test)]
 mod check_pages;
+pub(crate) mod anchors;
 pub(crate) mod changes;
 pub(crate) mod claims;
 pub mod decide;
@@ -66,6 +67,8 @@ mod tests_relations;
 mod tests_screens;
 #[cfg(test)]
 mod tests_says;
+#[cfg(test)]
+mod tests_survive;
 #[cfg(test)]
 mod tests_reading;
 pub mod vocabulary;

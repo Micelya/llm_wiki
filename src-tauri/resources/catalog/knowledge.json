@@ -217,7 +217,15 @@
       "groupWhy-misma-casilla": "usa la misma casilla",
       "groupWhy-lo-dice-un-documento": "un documento dice que son del mismo grupo",
       "groupWhy-nombrado-como-grupo": "aparece con el grupo que nombran los documentos",
-      "groupWhy-mismo-nombre": "mismo nombre"
+      "groupWhy-mismo-nombre": "mismo nombre",
+      "certainDoubtful": "sin confirmar",
+      "certainConfirmed": "confirmado por una persona",
+      "certainCorrected": "corregido por una persona",
+      "certainLegend": "Cada dato tiene su cita, comprobada en el texto del documento; eso no garantiza que la lectura sea correcta. Lo marcado «sin confirmar» es dudoso hasta que una persona lo confirme.",
+      "doubtWhy-conflict": "los documentos difieren",
+      "doubtWhy-identity": "no es seguro de quién se habla",
+      "doubtWhy-attribution": "la cita nombra a otra persona u organización",
+      "doubtWhy-states": "los documentos dicen estados distintos del importe"
     }
   },
   "matters": {

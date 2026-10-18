@@ -564,28 +564,32 @@ pub(crate) struct Decided {
     pub separations: Vec<(String, String)>,
     /// Keys of groups, evidence or claims marked as wrong.
     pub wrong: BTreeSet<String>,
+    /// Keys of claims a person confirmed.
+    pub confirmed: BTreeSet<String>,
+    /// Every active decision, placed on what the documents say now
+    /// (`anchors.rs`): the keys above are the ones placed.
+    pub anchored: Vec<super::anchors::Anchored>,
 }
 
 pub(crate) fn load_decided(conn: &Connection) -> Result<Decided, String> {
-    let mut statement =
-        conn.prepare("SELECT kind, a, b FROM knowledge_decision WHERE state = 'active' ORDER BY decided_at, id").map_err(sql_err)?;
-    let rows = statement
-        .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<String>>(2)?)))
-        .map_err(sql_err)?;
-    let successors = changes::successors(conn)?;
-    let moved = |key: String| changes::translate(&key, &successors);
+    let anchored = super::anchors::place_all(conn, vocabulary())?;
     let mut out = Decided::default();
-    for row in rows {
-        let (kind, a, b) = row.map_err(sql_err)?;
-        match (kind, moved(a), b.map(moved)) {
-            (kind, a, Some(b)) if kind == "join" => out.joins.push((a, b)),
-            (kind, a, Some(b)) if kind == "separate" => out.separations.push((a, b)),
-            (kind, a, _) if kind == "wrong" => {
+    for decision in &anchored {
+        let a = decision.a.key().to_string();
+        let b = decision.b.as_ref().map(|b| b.key().to_string());
+        match (decision.kind.as_str(), a, b) {
+            ("join", a, Some(b)) => out.joins.push((a, b)),
+            ("separate", a, Some(b)) => out.separations.push((a, b)),
+            ("wrong", a, _) => {
                 out.wrong.insert(a);
+            }
+            ("confirm", a, _) => {
+                out.confirmed.insert(a);
             }
             _ => {}
         }
     }
+    out.anchored = anchored;
     Ok(out)
 }
 
@@ -2243,7 +2247,10 @@ pub(crate) fn write(base: &DocBase, outcome: &Outcome, report: &mut ResolveRepor
     let left_out = changes::left_out(&tx)?;
     changed.extend(changes::leave_out(&tx, &left_out)?);
     // Claims: the evidence in terms of entities.
-    let consolidated = claims::consolidate(&tx, vocabulary, &decided.wrong)?;
+    let consolidated = claims::consolidate(&tx, vocabulary, &decided)?;
+    // What each decision of a person applies to now, and those left for a
+    // person to review (never dropped in silence).
+    super::anchors::keep(&tx, &decided.anchored, &consolidated.placed)?;
     report.claims = consolidated.claims;
     report.conflicts = consolidated.conflicts;
     report.unfit = consolidated.unfit;

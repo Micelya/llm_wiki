@@ -49,7 +49,7 @@ describe("the type of a document in words", () => {
   })
 
   it("says where the type came from", () => {
-    expect(typeSourceText(found({ source: "marks" }))).toContain("marcas verificadas")
+    expect(typeSourceText(found({ source: "marks" }))).toContain("marcas comprobadas")
     expect(typeSourceText(found({ source: "family" }))).toContain("documento principal de su familia")
     expect(confidenceText(found())).toBe("Seguridad del modelo: 87 %")
     expect(confidenceText(found({ source: "marks", confidence: null }))).toBeNull()

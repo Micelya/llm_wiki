@@ -1,4 +1,5 @@
 import {
+  undoIdentityDecision,
   getKnowledgeAttention,
   joinMatter,
   knowledgeReadAgainFailed,
@@ -11,7 +12,7 @@ import type { AttentionCase, AttentionNotice } from "@/lib/attention/types"
 import { entityTypeName, predicateName, vocabulary, type Vocabulary } from "@/vocabulary"
 import { formatCount, plural } from "@/components/docbase/format"
 import { useDocbaseQuery } from "@/components/docbase/use-docbase-query"
-import { doubtReason, groupDoubts } from "@/components/knowledge/knowledge"
+import { decisionInWords, doubtReason, groupDoubts, reviewInWords } from "@/components/knowledge/knowledge"
 
 /**
  * What the knowledge layer raises: readings that failed or lost many
@@ -239,6 +240,37 @@ export function knowledgeNotices(facts: KnowledgeFacts, words: Vocabulary = voca
           title: item.names.map((name) => `«${name}»`).join(" = "),
           detail: [item.identifiers.join(", "), plural(item.documents, "documento", "documentos")].filter(Boolean).join(" · "),
           actions: [{ kind: "go", label: "Ver", target: { view: "entities", entityId: item.entityId } }],
+        })),
+        moreCases: more,
+      }),
+    )
+  }
+  if (attention.decisionsToReview.length > 0) {
+    const { list, more } = cut(attention.decisionsToReview)
+    out.push(
+      notice({
+        kind: "decision",
+        topic: "decisions-to-review",
+        priority: "normal",
+        count: attention.decisionsToReview.length,
+        title: plural(
+          attention.decisionsToReview.length,
+          "decisión tuya ya no encuentra lo que decidía",
+          "decisiones tuyas ya no encuentran lo que decidían",
+        ),
+        explanation:
+          "Se volvió a leer un documento y lo que nombraba la decisión ya no está (o está más de una vez). La app no la aplica a ciegas ni la borra: queda para que la mires.",
+        todo: "Abrí el documento y volvé a decidir sobre lo que dice ahora; después deshacé la decisión vieja.",
+        resolvedWhen: "Desaparece cuando la decisión vuelve a encontrar lo que nombraba o cuando la deshacés.",
+        actions: [],
+        cases: list.map((item) => ({
+          id: `review:${item.decision.id}`,
+          title: `${decisionInWords(item.decision, { mentions: [] })}${item.document ? ` (en ${item.document.name})` : ""}`,
+          detail: reviewInWords(item.reason),
+          actions: [
+            ...openDocument(item.document?.locationId ?? null),
+            { kind: "run" as const, label: "Deshacer la decisión", run: () => undoIdentityDecision(item.decision.id) },
+          ],
         })),
         moreCases: more,
       }),

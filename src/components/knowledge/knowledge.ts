@@ -1,4 +1,5 @@
 import type {
+  ClaimView,
   DocumentMatter,
   DoubtView,
   EntityDetail,
@@ -227,6 +228,8 @@ export function decisionInWords(decision: IdentityDecisionView, entity: Pick<Ent
       const where = documentOf(decision.a)
       return a && b ? `No son la misma: «${a}»${where ? ` (en ${where})` : ""} y «${b}»` : "No son la misma"
     }
+    case "confirm":
+      return "Un dato confirmado"
     case "wrong": {
       const where = documentOf(decision.a)
       if (decision.a.startsWith("claim:")) return "Un dato marcado como incorrecto"
@@ -244,4 +247,50 @@ export function countByKind(byKind: Record<string, number>, words: Vocabulary = 
     .filter(([, n]) => n > 0)
     .map(([kind, n]) => plural(n, entityTypeName(kind, false, words).toLowerCase(), entityTypeName(kind, true, words).toLowerCase()))
     .join(", ")
+}
+
+/**
+ * How sure the record is of a claim, in words. Every claim has its quote,
+ * checked in the text of its document; that does not make the reading
+ * right, so the screens say "con cita comprobada", never "verificado".
+ */
+export function certaintyInWords(claim: Pick<ClaimView, "certainty" | "reasons">): {
+  label: string
+  tone: "plain" | "doubt" | "person"
+  why: string
+} {
+  const why = claim.reasons
+    .map((reason) => {
+      switch (reason) {
+        case "conflict":
+          return "los documentos difieren"
+        case "identity":
+          return "no es seguro de quién se habla"
+        case "attribution":
+          return "la cita nombra a otra persona u organización"
+        case "states":
+          return "los documentos dicen estados distintos del importe"
+        default:
+          return null
+      }
+    })
+    .filter((text): text is string => text !== null)
+    .join("; ")
+  switch (claim.certainty) {
+    case "confirmed":
+      return { label: "confirmado por una persona", tone: "person", why: "" }
+    case "corrected":
+      return { label: "corregido por una persona", tone: "person", why: "" }
+    case "doubtful":
+      return { label: "sin confirmar", tone: "doubt", why }
+    default:
+      return { label: "con cita comprobada", tone: "plain", why: "" }
+  }
+}
+
+/** Why a decision of a person waits for a review, in words. */
+export function reviewInWords(reason: string): string {
+  return reason === "varias"
+    ? "Al volver a leer el documento, lo que decidiste coincide con más de una cosa: la app no elige."
+    : "Al volver a leer el documento, ya no aparece lo que decidiste: la decisión no se está aplicando."
 }
