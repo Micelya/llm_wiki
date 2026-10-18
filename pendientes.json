@@ -606,14 +606,14 @@
       "titulo": "Que el grafo, la búsqueda y el lint usen el índice de enlaces",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "La base ya lleva un índice de páginas, enlaces y página-documento (PR #31), pero el grafo, la búsqueda, el panel de enlaces y el lint siguen releyendo todas las páginas, cada uno con su propia regla para decidir a qué página apunta un enlace (hay al menos seis). Pasarlos de a uno al índice, que es código original y conviene tocarlo con cuidado. También: actualizar los enlaces cuando se renombra una página, que hoy no se hace. Pregunta del usuario del 2026-10-12: por qué no pasar los enlaces a la base con identificadores en vez de mantener las páginas como verdad y un índice aparte. Respuesta dada, sin confirmación suya: las páginas las escribe el modelo como texto y toda la capa de wiki lee y escribe esos archivos; se recomendó dejarlas como verdad y que este pendiente cubra lo que se busca con identificadores (que renombrar una página no rompa enlaces). Reabrir si el usuario prefiere el otro camino.",
+      "estado": "a-verificar",
+      "detalle": "La base ya lleva un índice de páginas, enlaces y página-documento (PR #31), pero el grafo, la búsqueda, el panel de enlaces y el lint siguen releyendo todas las páginas, cada uno con su propia regla para decidir a qué página apunta un enlace (hay al menos seis). Pasarlos de a uno al índice, que es código original y conviene tocarlo con cuidado. También: actualizar los enlaces cuando se renombra una página, que hoy no se hace. Pregunta del usuario del 2026-10-12: por qué no pasar los enlaces a la base con identificadores en vez de mantener las páginas como verdad y un índice aparte. Respuesta dada, sin confirmación suya: las páginas las escribe el modelo como texto y toda la capa de wiki lee y escribe esos archivos; se recomendó dejarlas como verdad y que este pendiente cubra lo que se busca con identificadores (que renombrar una página no rompa enlaces). Reabrir si el usuario prefiere el otro camino. N5 (D-350, D-351): reformulado y hecho para el wiki del archivo: el grafo, la búsqueda y el panel de enlaces salen de las relaciones de la base, no de los enlaces de los archivos; los enlaces de las notas se resuelven contra la base. Los demás proyectos siguen con los enlaces de sus páginas; lo que todavía lee archivos queda en P-192.",
       "depende_de": [
         "P-049"
       ],
       "referencia": "src-tauri/src/docbase/wiki.rs; src/lib/wiki-graph.ts; src-tauri/src/commands/search.rs; src/lib/lint.ts",
       "creado": "2026-10-12",
-      "actualizado": "2026-10-12"
+      "actualizado": "2026-10-18"
     },
     {
       "id": "P-069",
@@ -1466,8 +1466,8 @@
       "titulo": "Agujeros de la búsqueda por texto de la base",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "La línea de base de N1 (D-301) muestra que el índice de texto de la base encuentra más documentos que la búsqueda del wiki (79 contra 61 de 104 en los 10 primeros) pero no encuentra documentos en inglés con preguntas en castellano, parte los números escritos con puntos (un DNI con puntos no encuentra la forma sin puntos) y en preguntas genéricas premia documentos largos. Resolverlo al construir la búsqueda desde la base (normalizar números en índice y consulta, indexar el resumen del documento en castellano, ampliar por entidades y asuntos) y medir con desatendido-4/N1-medir-busqueda.py.",
+      "estado": "a-verificar",
+      "detalle": "La línea de base de N1 (D-301) muestra que el índice de texto de la base encuentra más documentos que la búsqueda del wiki (79 contra 61 de 104 en los 10 primeros) pero no encuentra documentos en inglés con preguntas en castellano, parte los números escritos con puntos (un DNI con puntos no encuentra la forma sin puntos) y en preguntas genéricas premia documentos largos. Resolverlo al construir la búsqueda desde la base (normalizar números en índice y consulta, indexar el resumen del documento en castellano, ampliar por entidades y asuntos) y medir con desatendido-4/N1-medir-busqueda.py. N5 (D-350): resuelto y medido: números en cualquier forma, resumen en el idioma del archivo, raíz de palabras largas y entidades nombradas; 79 → 96 de 104 en los 10 primeros (el chat, por páginas, 61 → 95). Queda verificarlo en la app (N6).",
       "depende_de": [],
       "referencia": "src-tauri/src/commands/search.rs; desatendido-4/N1-linea-de-base.md (fuera del repositorio); D-301; P-142",
       "creado": "2026-10-18",
@@ -1652,6 +1652,42 @@
       "detalle": "La página de un documento se titula con el nombre del archivo de su versión principal, sin extensión (D-340): es dato de la base pero a veces no dice qué es («Summary», «Screenshot …»). Evaluar un título desde el tipo y las partes (sin modelo) o desde el tema del resumen, y cómo afecta enlaces y búsqueda (N5).",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/knowledge/pages/family.rs (title_of); D-340",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-190",
+      "titulo": "Mostrar en el grafo el tipo, la cita y el estado de cada relación",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "El grafo del wiki del archivo ya trae de la base cada relación con su tipo, etiqueta del vocabulario, cita y estado (D-351), y cada arista lleva la etiqueta, pero la vista no la dibuja (las etiquetas de aristas están apagadas) ni muestra la cita al pasar el puntero. Mostrarlo, y distinguir lo propuesto de lo confirmado.",
+      "depende_de": [],
+      "referencia": "src/components/graph/graph-view.tsx; src/lib/wiki-graph.ts; D-351",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-191",
+      "titulo": "Página del documento armada al mostrarse",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "D-294 dejó la página del documento como archivo generado hasta que la búsqueda y el grafo leyeran de la base; desde N5 (D-350, D-351) lo hacen para el wiki del archivo. Evaluar armarla al mostrarse (y qué pasa con las notas y con el chat, que lee archivos).",
+      "depende_de": [],
+      "referencia": "docs/design/wiki-sobre-la-base-propuesta.md (sección 5); D-294; D-350; D-351",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-192",
+      "titulo": "Lo que todavía lee los enlaces de los archivos en el wiki del archivo",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Tras N5 el grafo, la búsqueda y el panel de enlaces del wiki del archivo salen de la base, pero el lint estructural, la relevancia del grafo (graph-relevance.ts) y el contexto que el chat agrega a cada resultado (build_knowledge_context_index) siguen leyendo las páginas; la búsqueda además recorre los archivos para títulos y para páginas que no son de documento (155 ms por pregunta en el binario de depuración con 185 páginas). Pasarlos a la base o medir que no hace falta. También: las preguntas genéricas por relaciones («a quiénes les debe») siguen en 6 a 7 de 8.",
+      "depende_de": [],
+      "referencia": "src/lib/lint.ts; src/lib/graph-relevance.ts; src-tauri/src/agent/tools.rs; src-tauri/src/commands/search.rs; D-350",
       "creado": "2026-10-18",
       "actualizado": "2026-10-18"
     }

@@ -4207,3 +4207,42 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** Ningún cambio de código. Medición: `desatendido-4/N4-familias.py`.
 - **Quién decidió:** agente sin consulta.
 - **Fuente:** etapa N4 de la tanda desatendida del 18 oct.
+
+### D-350 · La búsqueda del wiki del archivo sale de la base: el texto recorre todo lo visible y el grafo ordena y amplía, nunca recorta
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Búsqueda
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** La búsqueda del chat leía las páginas del wiki y perdía un tercio de los documentos (61 de 104 esperados en los 10 primeros, D-301); el índice de texto de la base encontraba más (79) pero no hallaba documentos en inglés con preguntas en castellano ni números escritos con puntos (P-150). La propuesta (sección 7, D-293) pide que el grafo ordene y amplíe sin recortar y que toda consulta reciba lo visible.
+- **Qué se decidió:** `DocBase::search_documents(visible, pregunta, límite, conjunto elegido)` fusiona por rango recíproco (k = 10) tres listas de la base, siempre restringidas a los documentos con una ubicación visible: (1) las palabras de la pregunta en el texto (bm25; las de seis letras o más también por su raíz, la palabra sin sus dos últimas letras); (2) sus números e identificadores en cualquier forma, en una columna nueva que guarda cada número escrito con puntos, guiones, barras, coma de miles o hasta dos letras como solo sus dígitos (y los importes con centavos también sin ellos); (3) sus palabras en el resumen de cada documento (tema y puntos, en el idioma del archivo). Después el grafo: las personas, organizaciones y asuntos que la pregunta nombra (por los nombres que el registro conoce) suben sus documentos y los suman aunque el texto no los halle, con menos peso si la entidad está en muchos documentos; un nombre que aparece en muchos más documentos que su entidad («acuerdo», «cliente») o una entidad presente en la mitad del archivo no cuentan. Los primeros cinco documentos suman con peso 0,03 los que la base relaciona con ellos (parecidos no descartados). El grafo nunca saca un documento; solo un conjunto que una persona elige a propósito (`within`) achica la búsqueda. Esquema V17: `content_search (numbers, summary)`, que se llena al abrir la base y se actualiza cuando cambian el texto o el resumen.
+- **Por qué:** Medido con las 30 preguntas de N1 (104 esperados, en los 10 primeros, sobre la base de N4): solo texto 79; con números 88; con resumen 93; con raíz 94; con entidades y familias 94 (en los 5 primeros 73 → 78); con la ampliación 96 (en 5: 79). En la base de la consigna `conocimiento-5` da 95. El chat (páginas) pasa de 61 a 95 y la variante «el grafo recorta» perdería 4 esperados (1 en la otra base): no se recorta.
+- **Alternativas descartadas:** Premiar cuántas palabras de la pregunta tiene el documento (bajó de 94 a 93); ampliar con más peso (0,1: 93; 0,2: 91, desplaza resultados de texto); el grafo de hoy (páginas proyectadas a documentos en los últimos lugares, 81); recortar a los documentos de las entidades nombradas (pierde 4); sinónimos o traducción de la pregunta (el resumen en el idioma del archivo alcanzó: las dos preguntas en otro idioma pasan de 0 a 1 de 1, sin modelo).
+- **Dónde se aplica:** `src-tauri/src/docbase/search.rs`, `schema.rs` (V17), `text.rs`, `identity.rs`, `knowledge/extract.rs`; `src-tauri/src/commands/search.rs` (`search_from_base`). Medición fuera del repositorio: `desatendido-4/N5-proto.py`, `N5-busqueda.md`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N5 de la tanda desatendida del 18 oct.
+
+### D-351 · El grafo y los enlaces del wiki del archivo son las relaciones de la base
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Wiki
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** El grafo y el panel de enlaces releían todas las páginas y convertían todo enlace en la misma flecha sin tipo (P-068); la propuesta (sección 6) pide que salgan de la base, con tipo, cita y estado, y reemplaza D-076 para lo que sale de la base.
+- **Qué se decidió:** `DocBase::graph(visible)`: nodos = las páginas que escribe la base (documento o familia de versiones, persona, organización, grupo, asunto), con el nombre de archivo como id (el que ya usa la vista); aristas = un documento y las entidades que nombra (por rol), lo que dicen documentos visibles entre dos entidades (por predicado, con la certeza de la afirmación), dos documentos que el cálculo de parecidos relaciona (nunca los descartados), un asunto y sus documentos, un grupo y sus sociedades; cada una con su tipo, su etiqueta del vocabulario, una cita si la tiene y su estado. La vista del grafo (`wiki-graph.ts`) lo pide con `docbase_graph` y, si el proyecto no es el wiki del archivo, sigue con los enlaces de sus páginas; varias relaciones entre dos páginas son una arista con todas (su cantidad es el peso). El panel de enlaces de una página del wiki del archivo da salientes y entrantes desde esas relaciones (con la relación y la cita como texto), y los enlaces que una persona escribe en las notas se resuelven por la página que nombran o, si no, por un nombre que conoce el registro (una entidad renombrada se sigue encontrando); un enlace de notas que no nombra nada queda como faltante.
+- **Por qué:** Un enlace existe solo si existe la relación; el resto de la página ya se escribe desde la base (D-342), así que no puede haber enlaces rotos fuera de las notas.
+- **Alternativas descartadas:** Seguir con el índice de enlaces de las páginas (P-068 tal como estaba): mantiene dos verdades.
+- **Dónde se aplica:** `src-tauri/src/docbase/graph.rs`, `commands.rs` (`docbase_graph`), `src-tauri/src/commands/search.rs` (`links_from_base`), `src/lib/wiki-graph.ts`, `src/components/graph/graph-view.tsx`.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N5 de la tanda desatendida del 18 oct.
+
+### D-352 · El chat recibe una página por documento y la de la entidad más específica que nombra la pregunta
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Búsqueda
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** El chat lee páginas, no documentos: hay que traducir lo que halla la base a páginas sin perder lugares.
+- **Qué se decidió:** Cada documento hallado se contesta con la página de su familia de versiones (dos versiones ocupan un lugar); el último lugar es para la página de la persona, organización o asunto que la pregunta nombra con más especificidad (la que está en menos documentos), si tiene página. Los vínculos con entidades nombradas viajan en `graph_related_to`. Toda consulta usa el conjunto de lo visible; hoy todas las pantallas del espacio privado ven toda la base (`Visible::All`) y el espacio compartido lo calculará por persona en ese mismo lugar.
+- **Por qué:** Medido con el binario de pruebas sobre la base y las páginas de N4: sin página de entidad 96 documentos en las páginas devueltas; con una 95 (y 101 contando las fuentes de toda página); con dos 93. Una página de entidad trae lo que el registro sabe de esa persona con sus citas.
+- **Alternativas descartadas:** Dos páginas de entidad (pierde 3 documentos); ninguna (el chat tendría que abrir la página de la entidad por un enlace).
+- **Dónde se aplica:** `src-tauri/src/commands/search.rs` (`search_from_base`, `NAMED_ENTITY_PAGES`).
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N5 de la tanda desatendida del 18 oct.

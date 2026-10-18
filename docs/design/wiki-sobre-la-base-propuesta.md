@@ -73,6 +73,8 @@ Lo medido sobre el wiki generado el 17 de octubre (carpeta de prueba, 66 documen
 - **Las notas de una persona** pueden tener enlaces escritos a mano; se resuelven contra la base al mostrarse.
 - **Esto reemplaza D-076** (las páginas son la verdad y la base lleva un índice reconstruible) para todo lo que sale de la base. El motivo de D-076 era que el modelo escribía todas las páginas como texto; eso ya no es así. Resuelve también P-068.
 
+**Construido en N5 (D-351):** el grafo del wiki del archivo sale de la base (`docbase_graph`): nodos = las páginas que escribe la base; aristas = documento y entidades que nombra (por rol), lo que dicen documentos visibles entre dos entidades (por predicado, con su certeza), documentos que relaciona el cálculo de parecidos (nunca los descartados), asunto y documentos, grupo y sociedades, cada una con tipo, etiqueta del vocabulario, cita y estado. El panel de enlaces de una página también sale de esas relaciones; los enlaces escritos en las notas se resuelven por la página que nombran o por un nombre que conoce el registro. Los demás proyectos siguen con los enlaces de sus páginas. Falta dibujar en la vista el tipo y la cita de cada arista (P-190) y pasar a la base lo que todavía lee los archivos, como el lint (P-192).
+
 ## 7. La búsqueda
 
 Combina tres fuentes, todas en la base:
@@ -87,6 +89,8 @@ Combina tres fuentes, todas en la base:
 El modelo entra solo al final, para redactar la respuesta del chat con lo hallado y sus citas. Toda consulta recibe el conjunto de lo visible, como el resto de la base.
 
 Los mismos vectores sirven además para proponer conceptos (sección 8), para la pasada "dice lo mismo con otras palabras" y para los candidatos difíciles de identidad: se calculan una vez y se usan cuatro veces.
+
+**Construido en N5 (D-350, D-352), sin vectores:** el chat y la pantalla de búsqueda del wiki del archivo buscan en la base, siempre sobre lo visible: palabras del texto (las largas también por su raíz), números e identificadores en cualquier forma escrita (una columna con solo sus dígitos: con o sin puntos es el mismo número), y palabras en el resumen de cada documento, escrito en el idioma del archivo (así una pregunta en castellano encuentra un contrato en inglés). El grafo ordena y amplía: las entidades y asuntos que nombra la pregunta suben y suman sus documentos (un nombre genérico no cuenta) y los primeros hallados suman, con poco peso, los documentos que la base relaciona con ellos. Nunca recorta; solo un conjunto que elige una persona achica la búsqueda. El chat recibe una página por documento o familia de versiones y la página de la entidad más específica nombrada. Medido con las 30 preguntas de N1 (104 documentos esperados, en los 10 primeros): wiki de antes 61, índice de texto 79, índice más grafo de antes 81, búsqueda nueva 96 por documento y 95 en el chat; si el grafo recortara se perderían 4.
 
 ## 8. Conceptos propuestos por cálculo (hipótesis a medir)
 
