@@ -1823,6 +1823,30 @@
       "referencia": "D-364",
       "creado": "2026-10-18",
       "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-210",
+      "titulo": "La misma carta en Word y en PDF propuesta como «parecido» y no como versión",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "hecho",
+      "detalle": "N7 vio dos cartas casi idénticas propuestas como «parecido». N4 lo revisó: la hoja de parecidos, confirmada por una persona, las tiene como «misma plantilla» (rechazan facturas distintas con fechas distintas), así que el cálculo acierta y no se cambia la regla (D-344).",
+      "depende_de": [],
+      "referencia": "D-344; desatendido-4/N7-conceptos.md",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-211",
+      "titulo": "Decidir si se construyen los grupos de pasajes repetidos (conceptos por cálculo)",
+      "tipo": "decision",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "detalle": "Medición N7 (D-295, D-370 a D-372) sobre la carpeta de prueba: 69 grupos de pasajes; 23 reconocibles para el agente y el modelo (37 de 66 documentos, 11 cruzan asuntos); de esos, los 8 con 3 o más documentos son hermanos de plantilla (facturas, acuerdos de terminación, recibos) y las cláusulas repetidas entre contratos distintos son 9 grupos de 2 documentos. Recomendación del agente: construirlo en chico y sin páginas nuevas (grupos en la base junto a los parecidos, sin corte de rutina; clase del modelo una vez por grupo; mostrar primero dentro de las familias de plantilla «esta cláusula está también en N documentos» y la comparación cláusula por cláusula); páginas de concepto solo con confirmación de una persona y más adelante con vectores. Antes de construir páginas, repetir la medición en una carpeta con muchos contratos.",
+      "depende_de": [],
+      "referencia": "D-295, D-370 a D-372; desatendido-4/N7-conceptos.md",
+      "creado": "2026-10-18",
+      "actualizado": "2026-10-18"
     }
   ]
 }

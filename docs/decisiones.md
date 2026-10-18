@@ -289,6 +289,45 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-294 | 18 oct | Wiki | Decisiones abiertas resueltas: página del documento generada por ahora; asunto según P-061, no se construye aún; internet aparte y a pedido; vectores sin decidir | vigente |
 | D-295 | 18 oct | Conocimiento | Conceptos por cálculo: por ahora solo medición de pasajes repetidos, fuera del repositorio | vigente |
 | D-296 | 18 oct | Proceso de trabajo | Prioridad: atribución, importes y uniones falsas primero; en errores críticos hay que demostrar mejora con dos corridas comparables | vigente |
+| D-300 | 18 oct | Proceso de trabajo | Casos de aceptación de los errores críticos, comprobables sobre cualquier base | en revisión |
+| D-301 | 18 oct | Wiki | Línea de base de la búsqueda con preguntas de un abogado | en revisión |
+| D-310 | 18 oct | Capa de conocimiento | Cada importe lleva su estado, leído por el modelo y listado en el vocabulario | en revisión |
+| D-311 | 18 oct | Capa de conocimiento | Un importe que el documento da como ejemplo no se guarda como relación entre las partes | en revisión |
+| D-312 | 18 oct | Capa de conocimiento | Regla de fecha: un pago con fecha posterior al documento no está pagado | en revisión |
+| D-313 | 18 oct | Capa de conocimiento | Una afirmación de importe con estados distintos según el documento los muestra todos | en revisión |
+| D-314 | 18 oct | Base documental | Una casilla marcada se escribe con «(marcada)» y su pregunta por la primera oración | en revisión |
+| D-315 | 18 oct | Base documental | Las marcas de un formulario aplanado se leen por su lugar en la tabla, y si no se puede se dice | en revisión |
+| D-316 | 18 oct | Base documental | Versión de la extracción de texto: lo extraído con una versión vieja se revisa una vez | en revisión |
+| D-317 | 18 oct | Capa de conocimiento | Una definición con forma jurídica es un nombre, no un término; los términos se reconocen aunque tengan marcas de énfasis | en revisión |
+| D-318 | 18 oct | Proceso de trabajo | Medición de N2a: releer solo los documentos afectados reutilizando las respuestas de los demás | en revisión |
+| D-320 | 18 oct | Capa de conocimiento | Cada afirmación lleva su certeza: con cita comprobada, confirmada, dudosa o corregida | en revisión |
+| D-321 | 18 oct | Capa de conocimiento | Las decisiones de una persona se colocan sobre lo que dicen los documentos en cada resolución; lo que ya no encuentran queda para revisar | en revisión |
+| D-322 | 18 oct | Capa de conocimiento | La síntesis y las páginas escriben lo dudoso como dudoso; se dice «con cita comprobada» | en revisión |
+| D-323 | 18 oct | Proceso de trabajo | Medición de N2b: sin preguntar salvo las síntesis cuya pregunta cambió | en revisión |
+| D-330 | 18 oct | Capa de conocimiento | El resumen del documento sale de la lectura de la capa: tema y puntos, cada punto con su cita comprobada | en revisión |
+| D-331 | 18 oct | Wiki | La página de cada documento la escribe la base desde el resumen, sin modelo, hasta que N4 la arme como página del documento | en revisión |
+| D-332 | 18 oct | Wiki | En el wiki del archivo la incorporación no llama al modelo: solo crea la página del documento para que la base la complete | en revisión |
+| D-333 | 18 oct | Wiki | Se quitan la revisión del wiki con el modelo y el enriquecimiento de enlaces; la limpieza de avisos con el modelo no corre en el wiki del archivo | en revisión |
+| D-334 | 18 oct | Wiki | La investigación en internet guarda su resultado fuera del wiki del archivo | en revisión |
+| D-335 | 18 oct | Proceso de trabajo | Medición de N3: lectura completa desde la base de partida, sin trasplantes | en revisión |
+| D-340 | 18 oct | Wiki | Una página por documento o por familia de versiones, escrita por la base | en revisión |
+| D-341 | 18 oct | Wiki | Cada punto, dato e importe de una página de versiones dice de qué versión sale | en revisión |
+| D-342 | 18 oct | Wiki | La página de un documento solo tiene lo que sabe la base y las notas; las páginas viejas se absorben | en revisión |
+| D-343 | 18 oct | Capa de conocimiento | El resumen de la lectura trae importes, fechas clave y números, y en una constancia de firma qué se firmó | en revisión |
+| D-344 | 18 oct | Base documental | La carta en Word y en PDF propuesta como «parecido» está bien: no se cambia la regla (P-210) | en revisión |
+| D-350 | 18 oct | Búsqueda | La búsqueda del wiki del archivo sale de la base: el texto recorre todo lo visible y el grafo ordena y amplía, nunca recorta | en revisión |
+| D-351 | 18 oct | Wiki | El grafo y los enlaces del wiki del archivo son las relaciones de la base | en revisión |
+| D-352 | 18 oct | Búsqueda | El chat recibe una página por documento y la de la entidad más específica que nombra la pregunta | en revisión |
+| D-360 | 18 oct | Capa de conocimiento | Un término que el documento define nombra una sola cosa en él | en revisión |
+| D-361 | 18 oct | Búsqueda | Con un número en la pregunta, el resumen solo ordena los documentos que lo tienen | en revisión |
+| D-362 | 18 oct | Medición | La medición de referencia del 18 de octubre son dos lecturas completas desde cero | en revisión |
+| D-363 | 18 oct | Tipos de documento | Un documento que solo comparte la plantilla se tipa solo si el tipo del principal puede separar la familia | en revisión |
+| D-364 | 18 oct | Operación | Regeneración con los datos reales el 18 de octubre | en revisión |
+| D-365 | 18 oct | Identidad de entidades | Dos personas cuyo nombre de pila difiere en una letra se unen solo si el modelo está seguro | en revisión |
+| D-366 | 18 oct | Operación | La identidad corregida se reaplica en la app con los datos reales | en revisión |
+| D-370 | 18 oct | Conocimiento | Para medir conceptos, una «unidad» junta las versiones y copias de un documento | en revisión |
+| D-371 | 18 oct | Conocimiento | Qué es un pasaje repetido | en revisión |
+| D-372 | 18 oct | Conocimiento | Tres clases para un grupo de pasajes | en revisión |
 
 ---
 
@@ -4332,3 +4371,42 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** datos de la app y `llm-wiki-workspace/default`.
 - **Quién decidió:** agente sin consulta (autorizado por el dueño en el plan de la tanda).
 - **Fuente:** etapa N6c de la tanda desatendida del 18 oct.
+
+### D-370 · Para medir conceptos, una «unidad» junta las versiones y copias de un documento
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** al buscar pasajes que se repiten en documentos distintos (D-295), un pasaje repetido entre dos versiones o dos copias de un mismo documento no es un concepto: es el mismo texto.
+- **Qué se decidió:** para la medición, los documentos unidos por relaciones que significan «el mismo documento» (mismo documento, prácticamente el mismo, ejemplar firmado, versión), más vista previa y «contenido en», cuentan como una sola unidad. «Misma plantilla» queda aparte y señalada: dos contratos de la misma plantilla son documentos distintos.
+- **Por qué:** sin eso, casi todos los grupos de pasajes serían versiones del mismo documento.
+- **Alternativas descartadas:** No registradas.
+- **Dónde se aplica:** medición N7, fuera del repositorio (`desatendido-4/N7-*`); P-211.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N7 de la tanda desatendida del 18 oct.
+
+### D-371 · Qué es un pasaje repetido
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el cálculo de parecidos cuenta secuencias de cinco palabras; un concepto necesita pasajes, no secuencias sueltas.
+- **Qué se decidió:** un pasaje son al menos 8 secuencias contiguas (unas 12 palabras), admitiendo huecos de hasta 3. Dos pasajes se agrupan si se solapan en un 50 % o comparten secuencias. Las secuencias se cuentan **sin** el corte de «texto de rutina» del cálculo de parecidos, porque en un archivo grande ese corte se llevaría justamente las cláusulas estándar.
+- **Por qué:** con distintos largos mínimos salen 82, 69, 47 y 42 grupos (4, 8, 15 y 30 secuencias); 8 conserva las cláusulas cortas sin llenarse de ruido.
+- **Alternativas descartadas:** usar el corte de rutina del cálculo de parecidos.
+- **Dónde se aplica:** medición N7; P-211.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N7 de la tanda desatendida del 18 oct.
+
+### D-372 · Tres clases para un grupo de pasajes
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Conocimiento
+- **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** no todo pasaje repetido es un concepto: hay membretes, rótulos de formularios y copias no detectadas.
+- **Qué se decidió:** cada grupo es *reconocible* (una cláusula o figura con nombre), *formulario* (texto fijo de un formulario, una plataforma de firma o una boleta) o *ruido* (copias no detectadas, listas de importes). Una regla general hace un primer filtro; la clase final la da el modelo, una vez por grupo.
+- **Por qué:** medido: la regla sola marcó como formulario 7 cláusulas reales; el modelo y el juicio del agente coincidieron en el 81 %.
+- **Alternativas descartadas:** solo la regla, sin el modelo.
+- **Dónde se aplica:** medición N7; P-211.
+- **Quién decidió:** agente sin consulta.
+- **Fuente:** etapa N7 de la tanda desatendida del 18 oct.
