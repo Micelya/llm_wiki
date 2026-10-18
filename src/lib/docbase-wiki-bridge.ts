@@ -20,6 +20,8 @@ import { loadSourceWatchConfig, saveSourceWatchConfig } from "@/lib/project-stor
 import { enqueueSourceIngest, isIngestableSourcePath } from "@/lib/source-lifecycle"
 import { normalizeSourceWatchConfig } from "@/lib/source-watch-config"
 import { useWikiStore } from "@/stores/wiki-store"
+import { tellWikiLanguage } from "@/lib/knowledge-layer"
+import { wikiLanguageNow } from "@/lib/wiki-index"
 import type { WikiProject } from "@/types/wiki"
 
 /** Whether two project folders are the same one, the way Windows compares paths. */
@@ -99,6 +101,8 @@ export async function setWikiFeeding(project: WikiProject, active: boolean): Pro
     pauseProcessing()
     return 0
   }
+  // The pages the knowledge layer writes follow the wiki's language.
+  tellWikiLanguage(wikiLanguageNow())
   const pending = [...(await pendingWikiSourcesByOrigin(project)).values()].flat()
   const queued = pending.length > 0 ? await ingestWikiSources(project, pending) : 0
   // What a pause left waiting goes on from where it stopped.

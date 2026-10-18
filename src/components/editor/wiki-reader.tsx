@@ -4,7 +4,7 @@ import remarkGfm from "remark-gfm"
 import remarkMath from "remark-math"
 import rehypeKatex from "rehype-katex"
 import "katex/dist/katex.min.css"
-import { transformImageEmbeds, transformWikilinks } from "@/lib/wikilink-transform"
+import { transformImageEmbeds, transformWikilinks, hideHtmlComments } from "@/lib/wikilink-transform"
 import { resolveRelatedSlug } from "@/lib/wiki-page-resolver"
 import { resolveMarkdownImageSrc } from "@/lib/markdown-image-resolver"
 import { normalizePath } from "@/lib/path-utils"
@@ -50,7 +50,7 @@ export function WikiReader({ body, sourceBody, sourceOffset = 0, filePath }: Wik
   // wikilink pass, otherwise the embed target gets mangled into a
   // `#fragment` link.
   const transformed = useMemo(
-    () => transformWikilinks(transformImageEmbeds(body)),
+    () => transformWikilinks(transformImageEmbeds(hideHtmlComments(body))),
     [body],
   )
   const sourceLineStarts = useMemo(() => {

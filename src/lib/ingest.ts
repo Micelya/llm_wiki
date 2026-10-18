@@ -55,6 +55,8 @@ import { computeContextBudget } from "@/lib/context-budget"
 import { refreshProjectFileTree } from "@/lib/project-file-tree-refresh"
 import { persistParsedMarkdown } from "@/lib/parsed-source-output"
 import { PROJECT_LOCAL_TERM_QUERY_RULES } from "@/lib/research-query-grounding"
+import { isEntityPageBlock, tellWikiLanguage, usesKnowledgeLayer } from "@/lib/knowledge-layer"
+import { rebuildWikiIndex, wikiLanguageNow } from "@/lib/wiki-index"
 
 const LONG_SOURCE_MIN_BUDGET = 8_000
 const LONG_SOURCE_MAX_SINGLE_PASS_BUDGET = 300_000
@@ -805,6 +807,11 @@ async function autoIngestImpl(
     tryReadFile(`${pp}/wiki/index.md`),
     tryReadFile(`${pp}/wiki/overview.md`),
   ])
+  // The archive's wiki: the knowledge layer writes the pages of people,
+  // organizations and matters from its own record (D-200).
+  const entitiesFromLayer = await usesKnowledgeLayer(pp)
+  const promptOptions: IngestPromptOptions = { entitiesFromLayer }
+  if (entitiesFromLayer) tellWikiLanguage(wikiLanguageNow())
   if (useWikiStore.getState().sourceWatchConfig.persistExtractedMarkdown) {
     try {
       await persistParsedMarkdown(pp, sp, sourceContent)
@@ -1092,6 +1099,7 @@ async function autoIngestImpl(
       sourceBudget,
       activityId,
       signal,
+      promptOptions,
     )
     if (longSourcePlan.chunked) {
       sourceContext = longSourcePlan.sourceContext
@@ -1117,7 +1125,7 @@ async function autoIngestImpl(
     await streamChat(
       llmConfig,
       [
-        { role: "system", content: buildAnalysisPrompt(purpose, index, sourceContext, schema) },
+        { role: "system", content: buildAnalysisPrompt(purpose, index, sourceContext, schema, promptOptions) },
         { role: "user", content: `Analyze this source document:\n\n**File:** ${sourceIdentity}${folderContext ? `\n**Folder context:** ${folderContext}` : ""}\n\n---\n\n${sourceContext}` },
       ],
       {
@@ -1172,7 +1180,7 @@ async function autoIngestImpl(
     await streamChat(
       llmConfig,
       [
-        { role: "system", content: buildGenerationPrompt(schema, purpose, index, sourceIdentity, overview, sourceContext, sourceSummaryPath) },
+        { role: "system", content: buildGenerationPrompt(schema, purpose, index, sourceIdentity, overview, sourceContext, sourceSummaryPath, promptOptions) },
         {
           role: "user",
           content: [
@@ -1307,6 +1315,7 @@ async function autoIngestImpl(
     signal,
     activityId,
     onFileWritten,
+    promptOptions,
   )
   throwIfIngestAborted(signal, activityId)
   const writtenPaths = uniqueNormalizedPaths([
@@ -1385,6 +1394,7 @@ async function autoIngestImpl(
           signal,
           activityId,
           onFileWritten,
+          promptOptions,
         )
         // Match successful writes against the paths requested from the model,
         // not the final on-disk paths. writeFileBlocks may legitimately rewrite
@@ -1731,6 +1741,11 @@ export function rewriteIngestPathFromTitleForTargetLanguage(
   return isSafeIngestPath(nextPath) ? nextPath : relativePath
 }
 
+/**
+ * Rebuilds wiki/index.md from every page of the wiki, grouped by type,
+ * when this ingest wrote a page (D-201). The archive's wiki rebuilds it
+ * also after the knowledge layer writes its pages.
+ */
 async function updateWikiIndexDeterministically(
   projectPath: string,
   writtenPaths: string[],
@@ -1741,51 +1756,7 @@ async function updateWikiIndexDeterministically(
       && !AGGREGATE_WIKI_PATHS.includes(path as (typeof AGGREGATE_WIKI_PATHS)[number]),
   )
   if (candidates.length === 0) return false
-
-  const indexPath = `${projectPath}/wiki/index.md`
-  const index = await readFile(indexPath).catch(() => "# Wiki Index\n")
-  const knownTargets = new Set(
-    Array.from(index.matchAll(/\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]/g))
-      .map((match) => normalizeIndexTarget(match[1])),
-  )
-  const additions: string[] = []
-  for (const path of candidates) {
-    const target = path.replace(/^wiki\//, "").replace(/\.md$/i, "")
-    if (knownTargets.has(normalizeIndexTarget(target))) continue
-    const content = await readFile(`${projectPath}/${path}`).catch(() => "")
-    const parsed = parseFrontmatter(content)
-    const title = typeof parsed.frontmatter?.title === "string"
-      ? parsed.frontmatter.title.trim()
-      : getFileName(path).replace(/\.md$/i, "")
-    additions.push(`- [[${target}]] — ${title}`)
-  }
-  if (additions.length === 0) return false
-
-  await writeFile(indexPath, updateBoundedRecentIndexSection(index, additions))
-  return true
-}
-
-function normalizeIndexTarget(target: string): string {
-  return normalizePath(target)
-    .replace(/^wiki\//i, "")
-    .replace(/\.md$/i, "")
-    .toLowerCase()
-}
-
-export function updateBoundedRecentIndexSection(index: string, additions: string[]): string {
-  const section = "## Recently Updated"
-  const lines = index.trimEnd().split("\n")
-  const start = lines.findIndex((line) => line.trim() === section)
-  const prefix = start >= 0 ? lines.slice(0, start) : lines
-  const sectionEnd = start >= 0
-    ? lines.findIndex((line, position) => position > start && /^##\s+/.test(line))
-    : -1
-  const existing = start >= 0
-    ? lines.slice(start + 1, sectionEnd >= 0 ? sectionEnd : undefined).filter((line) => /^-\s+/.test(line))
-    : []
-  const suffix = sectionEnd >= 0 ? lines.slice(sectionEnd) : []
-  const recent = Array.from(new Set([...additions, ...existing])).slice(0, 200)
-  return [...prefix, "", section, ...recent, ...(suffix.length ? ["", ...suffix] : []), ""].join("\n")
+  return rebuildWikiIndex(projectPath)
 }
 
 function isValidSourceReference(source: string, activeSourceIdentity: string): boolean {
@@ -2053,6 +2024,7 @@ async function writeFileBlocks(
   signal?: AbortSignal,
   activityId?: string,
   onFileWritten?: (relativePath: string) => void,
+  promptOptions: IngestPromptOptions = {},
 ): Promise<{
   writtenPaths: string[]
   completedInputPaths: string[]
@@ -2090,6 +2062,12 @@ async function writeFileBlocks(
     if (isAppManagedAggregatePath(relativePath)) {
       warnings.push(
         `Ignored model-generated "${relativePath}"; aggregate navigation is maintained by the application.`,
+      )
+      continue
+    }
+    if (promptOptions.entitiesFromLayer && isEntityPageBlock(relativePath, rawContent)) {
+      warnings.push(
+        `Ignored model-generated "${relativePath}"; the pages of people, organizations and matters are written from the knowledge layer.`,
       )
       continue
     }
@@ -2333,24 +2311,47 @@ function shouldRunDedicatedReviewStage(generation: string): boolean {
 }
 
 const ENTITY_ANALYSIS_RULES = [
-  "Apply a standalone-page significance threshold: page-worthy subjects are central to the source, recur meaningfully, carry substantive claims, or are reusable across the wiki.",
-  "Do not mark passing mentions, ordinary story props, unnamed or generic-role people, chapter/part labels, or internal workflow artifacts as page-worthy unless the source makes them independently important knowledge subjects.",
+  "Apply a standalone-page significance threshold: a person, organization or matter deserves its own page when the document makes it a party, a signer, a representative, the sender, recipient or issuer, or when it recurs meaningfully in the wiki; not when it is only named in passing.",
+  "Do not mark passing mentions, unnamed or generic-role people (\"the lessee\", \"the bank\" without a name), letterheads, internal workflow artifacts or form labels as page-worthy unless the document makes them independently important.",
   "For every candidate, output `Page-worthy: yes` or `Page-worthy: no` plus one short justification. Keep non-page-worthy candidates only as context for the source summary.",
-  "Canonical naming priority: reuse the exact title of an existing wiki page first; otherwise preserve the source spelling. Widely used localized names may be recorded as aliases, but never invent or phonetically guess a name.",
+  "Canonical naming priority: reuse the exact title of an existing wiki page first; otherwise preserve the source spelling, with its legal form (S.A., S.R.L., LLC, Ltd…): the same name with another legal form is another organization; never invent or phonetically guess a name.",
 ] as const
 
 const ENTITY_PAGE_RULES = [
   "Create a standalone entity page only for a candidate explicitly marked `Page-worthy: yes`. Keep other mentions as plain prose in the source summary, or as wikilinks only when the target already exists in the current wiki index.",
-  "Canonical naming priority: reuse the exact title of an existing wiki page first; otherwise preserve the source spelling. A widely used localized name may be an alias, but never invent or phonetically guess a name.",
-  "The opening paragraph of every entity page must answer what the subject is, not merely describe its role in this source.",
-  "Prefer an identity supported by the source or existing wiki. If one short identity sentence must use stable, high-confidence public knowledge to identify a well-known subject, clearly label it as independently verifiable background in the mandatory output language so it is not attributed to the imported source. Never add uncertain details; when neither the source nor existing wiki establishes an unambiguous identity, do not create the standalone page.",
+  "Canonical naming priority: reuse the exact title of an existing wiki page first; otherwise preserve the source spelling, with its legal form. A widely used other spelling may be an alias, but never invent or phonetically guess a name.",
+  "The opening paragraph of every entity page must say who or what the subject is according to the documents (its role, its identifiers as written), not merely describe its role in this source.",
+  "Use only what the source or the existing wiki says. Never add public or general knowledge about a person, an organization or a matter; when neither the source nor the existing wiki establishes an unambiguous identity, do not create the standalone page.",
 ] as const
 
 const LONG_SOURCE_ENTITY_RULES = [
   "In each Chunk Analysis, record named-subject mentions and identity evidence without making a final standalone-page decision from one chunk alone.",
-  "In Updated Global Digest > Entities, accumulate recurrence across chunks and output for each candidate: canonical name, identity, supporting chunks, significance evidence, and `Page-worthy: yes` or `Page-worthy: no`.",
+  "In Updated Global Digest > Parties, accumulate recurrence across chunks and output for each candidate: canonical name, identity, supporting chunks, significance evidence, and `Page-worthy: yes` or `Page-worthy: no`.",
   ...ENTITY_ANALYSIS_RULES,
 ] as const
+
+/**
+ * What the analysis says of people, organizations and matters when the
+ * knowledge layer keeps them (the archive's wiki): they are listed for the
+ * source summary only; their pages come from the layer's record.
+ */
+const LAYER_ENTITY_ANALYSIS_RULES = [
+  "People, organizations and matters are recorded by the application from every document of the archive, with their identity resolved across all of them, and their pages are written from that record. List the ones this document names only as context for the source summary. Do not decide or recommend pages for them.",
+] as const
+
+const LAYER_ENTITY_PAGE_RULES = [
+  "Do not create pages for people, organizations or matters, and do not write any file under wiki/entities/: the application writes those pages from its own record of the whole archive and adds, at the end of the source summary, a block that links each one with its role in the document. Such FILE blocks are discarded.",
+  "In the source summary, name people, organizations and matters in plain text as the document writes them, without [[wikilinks]].",
+] as const
+
+/** How an ingest prompt is built for its project. */
+export interface IngestPromptOptions {
+  /**
+   * The knowledge layer keeps the people, organizations and matters of
+   * this project (the archive's wiki): ingest writes no entity pages.
+   */
+  entitiesFromLayer?: boolean
+}
 
 /**
  * Step 1 prompt: AI reads the source and produces a structured analysis.
@@ -2361,52 +2362,57 @@ export function buildAnalysisPrompt(
   index: string,
   sourceContent: string = "",
   schema: string = "",
+  options: IngestPromptOptions = {},
 ): string {
   return [
-    "You are an expert research analyst. Read the source document and produce a structured analysis.",
+    "You assist a law firm. Read the source document and produce a structured analysis for the firm's wiki.",
+    "Use only what the document says: do not add public or general knowledge, assumptions, or legal opinions that the document does not contain.",
     "Do not output chain-of-thought, hidden reasoning, or a thinking transcript. Reason internally and write only the concise final analysis.",
     "",
     languageRule(sourceContent),
     "",
     "Your analysis should cover:",
     "",
-    "## Key Entities",
-    "List candidate named people, organizations, products, datasets, and tools. For each:",
-    "- Name and type",
-    "- Role and significance in the source",
-    "- Whether it likely already exists in the wiki (check the index)",
-    ...ENTITY_ANALYSIS_RULES,
+    "## Document",
+    "- What kind of document it is (letter, formal notice, contract, invoice, receipt, payslip, court filing, email…), its date and its stage (draft, sent, received, signed by one or all parties) as the document shows them",
+    "- Who issues it and who it is addressed to",
     "",
-    "## Key Concepts",
-    "List theories, methods, techniques, phenomena. For each:",
-    "- Name and brief definition",
-    "- Why it matters in this source",
+    "## Parties and Named Entities",
+    "List the people, organizations and matters (case files, claims, framework contracts) the document names. For each:",
+    "- Name as written and type",
+    "- Role in this document (party, representative, signer, sender, recipient, issuer, witness, domicile, or named in passing)",
+    "- Identifiers as written (national ID, tax ID, registration, file number)",
+    ...(options.entitiesFromLayer
+      ? LAYER_ENTITY_ANALYSIS_RULES
+      : ["- Whether it likely already exists in the wiki (check the index)", ...ENTITY_ANALYSIS_RULES]),
+    "",
+    "## Key Facts",
+    "- Dates, amounts, deadlines, obligations, conditions, demands and payments, exactly as written",
+    "- Which named party is each fact about? Do not transfer facts, amounts, obligations, or claims from one party to another just because they appear together.",
+    "- Preserve structured source data verbatim in the analysis when present: tables of amounts, invoice line items, payment schedules and similar data go in Markdown tables, with every figure, date and number as written.",
+    "",
+    "## Legal Concepts",
+    "List the legal figures, procedures, clauses or obligations the document relies on in a way that deserves its own page. For each:",
+    "- Name and brief definition, only as the document explains it",
+    "- Why it matters in this document",
     "- Whether it likely already exists in the wiki",
     "",
-    "## Main Arguments & Findings",
-    "- What are the core claims or results?",
-    "- What evidence supports them?",
-    "- How strong is the evidence?",
-    "- Which named subject is each claim about? Do not transfer claims, limits, or evaluations from one entity/model/product/method to another just because they share keywords.",
-    "- Preserve structured source data verbatim in the analysis when present: include SQL DDL / CREATE TABLE statements, schema definitions, API signatures, configuration, and tables in fenced code blocks or Markdown tables. Do not reduce exact field names, types, constraints, keys, or indexes to prose.",
-    "",
     "## Connections to Existing Wiki",
-    "- What existing pages does this source relate to?",
-    "- Does it strengthen, challenge, or extend existing knowledge?",
+    "- What existing pages does this document relate to?",
+    "- Does it confirm, change, or contradict what the wiki says?",
     "",
     "## Contradictions & Tensions",
-    "- Does anything in this source conflict with existing wiki content?",
-    "- Are there internal tensions or caveats?",
+    "- Does anything in this document differ from existing wiki content (another amount, date, domicile, position or role)?",
+    "- Are there internal inconsistencies or caveats?",
     "",
     "## Recommendations",
-    "- What wiki pages should be created or updated?",
-    "- If the project schema (below) defines page types beyond entity/concept (e.g. goal, habit, reflection, finding, decision, meeting), and the source genuinely contains matching content, recommend pages of those types — name the type explicitly. Only when the source actually supports it; never invent goals/habits/journal entries that aren't in the source.",
-    "- What should be emphasized vs. de-emphasized?",
-    "- Any open questions worth flagging for the user?",
+    "- Which wiki pages should be created or updated (the source summary, legal concepts" + (options.entitiesFromLayer ? "" : ", page-worthy people, organizations and matters") + ")?",
+    "- If the project schema (below) defines page types beyond entity/concept (e.g. goal, habit, decision, meeting), and the document genuinely contains matching content, recommend pages of those types — name the type explicitly. Only when the document actually supports it; never invent records that aren't in the source.",
+    "- What a lawyer should check, and documents that seem to be missing (a signed copy, a reply, an annex the document cites)",
     "",
-    "Be thorough but concise. Focus on what's genuinely important.",
+    "Be thorough but concise. Focus on what matters to the firm.",
     "",
-    "If a folder context is provided, use it as a hint for categorization — the folder structure often reflects the user's organizational intent (e.g., 'papers/energy' suggests the file is an energy-related paper).",
+    "If a folder context is provided, use it as a hint: a firm's folders usually say the client or the case. When the content of the document says otherwise, the content prevails over folder and file names.",
     "",
     schema
       ? `## Project Schema (page types available — map source content to schema-defined types when it fits)\n${schema}`
@@ -2427,6 +2433,7 @@ export function buildGenerationPrompt(
   overview?: string,
   sourceContent: string = "",
   sourceSummaryPath?: string,
+  options: IngestPromptOptions = {},
 ): string {
   // Use original filename (without extension) as the source summary page name
   const sourceBaseName = sourceFileName.replace(/\.[^.]+$/, "")
@@ -2434,7 +2441,8 @@ export function buildGenerationPrompt(
   const today = currentWikiDate()
 
   return [
-    "You are a wiki maintainer. Based on the analysis provided, generate wiki files.",
+    "You maintain the wiki of a law firm. Based on the analysis provided, generate wiki files.",
+    "Use only what the source document and the existing wiki say: never add public or general knowledge, assumptions, or legal opinions the document does not contain.",
     "Do not output chain-of-thought, hidden reasoning, or explanatory preamble. Reason internally and output only the requested FILE/REVIEW blocks.",
     "",
     languageRule(sourceContent),
@@ -2458,12 +2466,20 @@ export function buildGenerationPrompt(
     "",
     "## What to generate",
     "",
-    `1. A source summary page at **${summaryPath}** (MUST use this exact path)`,
-    "2. Entity or schema-defined typed pages for key named things identified in the analysis. Prefer schema-defined directories when present; otherwise use wiki/entities/.",
-    "3. Concept or schema-defined typed pages for key ideas, methods, techniques, and abstractions. Prefer schema-defined directories when present; otherwise use wiki/concepts/.",
-    "4. A log entry for wiki/log.md (just the new entry to append, format: ## [YYYY-MM-DD] ingest | Title)",
-    ...ENTITY_PAGE_RULES,
-    "For consolidated long-document analyses, the Final Global Digest is authoritative for `Page-worthy` decisions; per-chunk mention notes are evidence, not page-creation instructions.",
+    `1. A source summary page at **${summaryPath}** (MUST use this exact path): what the document is, its date and stage, the parties and their roles, and the key facts (amounts, dates, deadlines, obligations) exactly as written.`,
+    ...(options.entitiesFromLayer
+      ? [
+          "2. Concept or schema-defined typed pages for the legal concepts identified in the analysis, defined only from the source. Prefer schema-defined directories when present; otherwise use wiki/concepts/.",
+          "3. A log entry for wiki/log.md (just the new entry to append, format: ## [YYYY-MM-DD] ingest | Title)",
+          ...LAYER_ENTITY_PAGE_RULES,
+        ]
+      : [
+          "2. Entity or schema-defined typed pages for the people, organizations and matters marked page-worthy in the analysis. Prefer schema-defined directories when present; otherwise use wiki/entities/.",
+          "3. Concept or schema-defined typed pages for the legal concepts identified in the analysis, defined only from the source. Prefer schema-defined directories when present; otherwise use wiki/concepts/.",
+          "4. A log entry for wiki/log.md (just the new entry to append, format: ## [YYYY-MM-DD] ingest | Title)",
+          ...ENTITY_PAGE_RULES,
+          "For consolidated long-document analyses, the Final Global Digest is authoritative for `Page-worthy` decisions; per-chunk mention notes are evidence, not page-creation instructions.",
+        ]),
     "Do not generate wiki/index.md or wiki/overview.md. The application maintains aggregate navigation separately so large wikis are never rewritten through model output.",
     "",
     "## Frontmatter Rules (CRITICAL — parser is strict)",
@@ -2494,8 +2510,8 @@ export function buildGenerationPrompt(
     "is the frontmatter; the heading and prose below are the body):",
     "",
     "    ---",
-    "    type: entity",
-    "    title: Example Entity",
+    "    type: concept",
+    "    title: Example Concept",
     `    created: ${today}`,
     `    updated: ${today}`,
     "    tags: [example, demo]",
@@ -2503,19 +2519,19 @@ export function buildGenerationPrompt(
     `    sources: ["${sourceFileName}"]`,
     "    ---",
     "",
-    "    # Example Entity",
+    "    # Example Concept",
     "",
     "    Body content goes here. Use [[wikilink]] syntax in the body for cross-references.",
     "",
     "Other rules:",
     "- Use [[wikilink]] syntax in the BODY for cross-references between pages",
     "- If you include images, use wiki-root-relative paths such as `media/source-slug/image.png`; never output absolute filesystem paths.",
-    "- Preserve subject boundaries: when a source discusses multiple entities/models/products/methods, keep claims, evaluations, limitations, benchmark results, and recommendations attached to the exact subject they describe.",
-    "- Do not merge or generalize a claim about one subject into another subject's page solely because they share terms (for example context window size, benchmark name, dataset, architecture, or feature name).",
+    "- Preserve subject boundaries: when a document names several parties, keep facts, amounts, obligations, deadlines and claims attached to the exact party they concern.",
+    "- Do not merge or generalize a claim about one subject into another subject's page solely because they share terms (for example the same amount, date, address, or contract name).",
     "- If a page needs to mention another subject for comparison, write it explicitly as a comparison and cite which source/frontmatter `sources` entry supports that statement.",
     "- Use kebab-case for Latin-script filenames; for Chinese/Japanese/Korean titles keep the CJK characters (do NOT romanize to pinyin/romaji or translate to English)",
-    "- Derive filenames from the page title in the mandatory output language, but short proper nouns and technical identifiers take precedence: preserve names such as OpenAI, GPT-5, Transformer, CLIP, ImageNet, PyTorch, CUDA, GitHub, arXiv, React, LanceDB, AnyTXT, MinerU, model names, dataset names, tool names, and code identifiers in their standard original form. Do not put raw URLs, citation strings, or full paper titles directly into file paths; convert surrounding descriptive prose to a safe readable title. For Chinese/Japanese/Korean prose titles, keep readable CJK characters in the filename instead of translating the slug to English.",
-    "- Preserve structured source data verbatim: copy SQL DDL / CREATE TABLE statements, schema definitions, API signatures, configuration, and tabular data into fenced code blocks (or Markdown tables) in the source summary page instead of paraphrasing them. Exact column names, types, constraints, primary/foreign keys, and indexes must survive ingest — a prose-only summary that drops them loses the structure the user imported the source to keep.",
+    "- Derive filenames from the page title in the mandatory output language, but proper names and identifiers take precedence: preserve names of people, companies, courts and agencies, case and file numbers, statutes, and contract or invoice numbers in their standard original form. Do not put raw URLs, citation strings, or full document titles directly into file paths; convert surrounding descriptive prose to a safe readable title. For Chinese/Japanese/Korean prose titles, keep readable CJK characters in the filename instead of translating the slug to English.",
+    "- Preserve structured source data verbatim: copy tables of amounts, invoice line items, payment schedules, deadlines and similar data into Markdown tables in the source summary page instead of paraphrasing them. Every figure, date, number and name must survive exactly as written — a prose-only summary that drops them loses what the firm keeps the document for.",
     "- Follow the analysis recommendations on what to emphasize",
     "- If the analysis found connections to existing pages, add cross-references",
     "",
@@ -2526,7 +2542,7 @@ export function buildGenerationPrompt(
     "- contradiction: the analysis found conflicts with existing wiki content",
     "- duplicate: an entity/concept might already exist under a different name in the index",
     "- missing-page: an important concept is referenced but has no dedicated page",
-    "- suggestion: ideas for further research, related sources to look for, or connections worth exploring",
+    "- suggestion: points a lawyer should check, documents that seem to be missing (a signed copy, a reply, an annex the document cites), or connections worth confirming",
     "",
     "Only create reviews for things that genuinely need human input. Don't create trivial reviews.",
     "",
@@ -2580,7 +2596,7 @@ export function buildGenerationPrompt(
     "4. DO NOT output markdown tables, bullet lists, or headings outside of FILE/REVIEW blocks.",
     "5. DO NOT output any trailing commentary after the last `---END FILE---` or `---END REVIEW---`.",
     "6. Between blocks, use only blank lines — no prose.",
-    "7. FILE block prose (body, explanations, descriptions, section text) must use the mandatory output language specified below. Preserve proper nouns, acronyms, model names, dataset names, tool/library names, code identifiers, URLs, file names, citation strings, paper titles, and technical terms with no widely-used localized equivalent in their standard original form, including in page names and section headings.",
+    "7. FILE block prose (body, explanations, descriptions, section text) must use the mandatory output language specified below. Preserve names of people and organizations, acronyms, case and file numbers, statutes, URLs, file names, citation strings, document titles, and technical terms with no widely-used localized equivalent in their standard original form, including in page names and section headings.",
     "",
     "If you start with anything other than `---FILE:`, the entire response will be discarded.",
     "",
@@ -3084,9 +3100,10 @@ export function buildChunkAnalysisSystemPrompt(
   schema: string,
   index: string,
   sourceContent: string,
+  options: IngestPromptOptions = {},
 ): string {
   return [
-    "You are analyzing a long source document for a personal wiki.",
+    "You are analyzing a long source document for a law firm's wiki. Use only what the document says.",
     "Do not output chain-of-thought, hidden reasoning, or a thinking transcript.",
     "Analyze only the current MAIN CHUNK. Use overlap and digest for context only.",
     "Keep stable names consistent with the existing wiki and prior digest.",
@@ -3097,19 +3114,19 @@ export function buildChunkAnalysisSystemPrompt(
     "",
     "## Chunk Analysis",
     "- Concise summary of the main chunk",
-    "- New or updated entities",
-    "- New or updated concepts",
+    "- New or updated parties: people, organizations and matters, with their role and identifiers as written",
+    "- New or updated legal concepts",
     "- Any schema-defined page types beyond entity/concept that the main chunk genuinely supports",
-    "- Claims, findings, evidence, contradictions",
-    "- Exact structured data from this chunk, when present: preserve SQL DDL / CREATE TABLE statements, schema definitions, API signatures, configuration, and tables verbatim in fenced code blocks or Markdown tables; retain field names, types, constraints, keys, and indexes",
-    "- Open questions or research gaps",
+    "- Facts: dates, amounts, deadlines, obligations and claims, each with the party it concerns; contradictions",
+    "- Exact structured data from this chunk, when present: tables of amounts, line items and payment schedules verbatim in Markdown tables, every figure as written",
+    "- Open questions or points a lawyer should check",
     "",
     "## Updated Global Digest",
     "A compact document-level digest that incorporates this chunk and preserves prior cross-chunk context.",
-    "Keep this digest structured under: Summary, Entities, Concepts, Schema-Typed Candidates, Claims, Evidence, Contradictions, Open Questions, Cross-Chunk Relations.",
+    "Keep this digest structured under: Summary, Parties, Concepts, Schema-Typed Candidates, Facts, Evidence, Contradictions, Open Questions, Cross-Chunk Relations.",
     "Entity handling rules:",
-    ...LONG_SOURCE_ENTITY_RULES.map((rule) => `- ${rule}`),
-    "Use schema-defined types only when the source actually supports them; never invent goals, habits, journal entries, decisions, or similar user-authored records that are not present in the source.",
+    ...(options.entitiesFromLayer ? LAYER_ENTITY_ANALYSIS_RULES : LONG_SOURCE_ENTITY_RULES).map((rule) => `- ${rule}`),
+    "Use schema-defined types only when the source actually supports them; never invent goals, decisions, meetings or other records that are not present in the source.",
     "",
     "Stable project context follows. It changes rarely and should be treated as background:",
     purpose ? `## Wiki Purpose\n${purpose}` : "",
@@ -3155,6 +3172,7 @@ async function analyzeLongSourceInChunks(
   sourceBudget: number,
   activityId: string,
   signal?: AbortSignal,
+  promptOptions: IngestPromptOptions = {},
 ): Promise<LongSourcePlan> {
   const targetChars = clampNumber(Math.floor(sourceBudget * 0.55), LONG_SOURCE_CHUNK_MIN, LONG_SOURCE_CHUNK_MAX)
   const overlapChars = clampNumber(Math.floor(targetChars * 0.08), 800, 3_000)
@@ -3164,7 +3182,7 @@ async function analyzeLongSourceInChunks(
   }
 
   const activity = useActivityStore.getState()
-  const systemPrompt = buildChunkAnalysisSystemPrompt(purpose, schema, index, sourceContent)
+  const systemPrompt = buildChunkAnalysisSystemPrompt(purpose, schema, index, sourceContent, promptOptions)
   const sourceHash = hashTextHex(sourceContent)
   const checkpointPath = longSourceCheckpointPath(projectPath, sourceSummarySlug, sourceHash)
   const checkpointParams = {

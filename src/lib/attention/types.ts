@@ -42,6 +42,12 @@ export type AttentionTarget =
   | { view: "attention" }
   /** A page of the wiki, by its path inside the project. */
   | { view: "wiki-page"; path: string }
+  /** The people and organizations, on one entity when `entityId` is given. */
+  | { view: "entities"; entityId?: string | null }
+  /** The doubtful identities, on one group of doubts when `group` is given. */
+  | { view: "identity-doubts"; group?: string | null }
+  /** The matters, on one matter when `matterId` is given. */
+  | { view: "matters"; matterId?: string | null }
 
 /** A button of a line or of one of its cases. */
 export type AttentionAction =

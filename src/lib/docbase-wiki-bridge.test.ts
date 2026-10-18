@@ -14,29 +14,29 @@ function source(identity: string): WikiSource {
 
 describe("sources of the base still pending in the wiki", () => {
   const sources = [
-    source("Casos/BGH/carta.pdf"),
-    source("Casos/BGH/contrato.docx"),
-    source("Casos/BGH/foto.jpg"),
-    source("Casos/BGH/audiencia.mp3"),
-    source("Casos/BGH/plano.dwg"),
+    source("Casos/Zentora/carta.pdf"),
+    source("Casos/Zentora/contrato.docx"),
+    source("Casos/Zentora/foto.jpg"),
+    source("Casos/Zentora/audiencia.mp3"),
+    source("Casos/Zentora/plano.dwg"),
   ]
 
   it("leaves out what the wiki cannot ingest", () => {
     const pending = selectPendingSources(sources, [], [])
     expect(pending.map((s) => s.identity)).toEqual([
-      "Casos/BGH/carta.pdf",
-      "Casos/BGH/contrato.docx",
-      "Casos/BGH/foto.jpg",
+      "Casos/Zentora/carta.pdf",
+      "Casos/Zentora/contrato.docx",
+      "Casos/Zentora/foto.jpg",
     ])
   })
 
   it("leaves out what is already ingested or waiting in the queue", () => {
     const pending = selectPendingSources(
       sources,
-      ["casos/bgh/CARTA.pdf"],
-      ["raw\\sources\\Casos\\BGH\\contrato.docx"],
+      ["casos/zentora/CARTA.pdf"],
+      ["raw\\sources\\Casos\\Zentora\\contrato.docx"],
     )
-    expect(pending.map((s) => s.identity)).toEqual(["Casos/BGH/foto.jpg"])
+    expect(pending.map((s) => s.identity)).toEqual(["Casos/Zentora/foto.jpg"])
   })
 })
 

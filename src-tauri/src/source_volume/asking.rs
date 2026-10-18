@@ -31,6 +31,17 @@ pub trait DocumentAsker: Send + Sync {
     fn ask(&self, prompt: &str, schema: &serde_json::Value) -> Result<String, String>;
 }
 
+/// The name an engine and model are saved with (what `engine_id` of its
+/// asker returns), without starting the engine.
+pub fn engine_id(config: &AskConfig) -> String {
+    let model = config.model.trim();
+    if model.is_empty() {
+        config.engine.clone()
+    } else {
+        format!("{}:{model}", config.engine)
+    }
+}
+
 pub fn asker_for(config: &AskConfig) -> Result<Box<dyn DocumentAsker>, String> {
     match config.engine.as_str() {
         "codex-cli" => Ok(Box::new(CodexAsker::new(&config.model))),
@@ -47,5 +58,8 @@ mod tests {
         let codex = AskConfig { engine: "codex-cli".into(), model: "m".into() };
         assert_eq!(asker_for(&codex).unwrap().engine_id(), "codex-cli:m");
         assert!(asker_for(&AskConfig { engine: "nada".into(), model: String::new() }).is_err());
+        assert_eq!(engine_id(&codex), asker_for(&codex).unwrap().engine_id());
+        let bare = AskConfig { engine: "codex-cli".into(), model: " ".into() };
+        assert_eq!(engine_id(&bare), asker_for(&bare).unwrap().engine_id());
     }
 }

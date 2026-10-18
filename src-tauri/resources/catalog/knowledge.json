@@ -1,0 +1,202 @@
+{
+  "version": 1,
+  "entityTypes": [
+    {
+      "id": "persona", "label": "Persona",
+      "description": "Una persona humana nombrada en el documento: una parte, quien firma, quien representa, un testigo, un empleado, un destinatario."
+    },
+    {
+      "id": "organizacion", "label": "Organización",
+      "description": "Una persona jurídica u organización: una sociedad, una empresa, un estudio jurídico, un organismo público, un banco, un juzgado. Cada forma societaria es una organización distinta salvo que el documento diga que es la misma: una sociedad anónima y una sociedad extranjera con el mismo nombre comercial son dos organizaciones."
+    },
+    {
+      "id": "asunto", "label": "Asunto",
+      "description": "Un asunto jurídico con identidad propia: un expediente judicial o administrativo, un reclamo, un contrato marco o un acuerdo al que otros documentos se refieren. No es un asunto un tema general ni una cláusula."
+    }
+  ],
+  "roles": [
+    {
+      "id": "parte", "label": "parte",
+      "description": "Es parte del acto o del contrato: contratante, locador, locatario, prestamista, deudor, empleador, empleado, actor, demandado, requirente, requerido.",
+      "types": ["persona", "organizacion"]
+    },
+    {
+      "id": "apoderado", "label": "apoderado",
+      "description": "Actúa en nombre de otra persona u organización: apoderado, representante legal, presidente o gerente que obliga a la sociedad, abogado patrocinante.",
+      "types": ["persona", "organizacion"]
+    },
+    {
+      "id": "firmante", "label": "firmante",
+      "description": "Firma el documento, por sí o por otro, sin que el documento diga otro papel suyo.",
+      "types": ["persona"]
+    },
+    {
+      "id": "remitente", "label": "remitente",
+      "description": "Envía la carta, la carta documento, el correo o la notificación.",
+      "types": ["persona", "organizacion"]
+    },
+    {
+      "id": "destinatario", "label": "destinatario",
+      "description": "Recibe la carta, la carta documento, el correo, la notificación o la factura.",
+      "types": ["persona", "organizacion"]
+    },
+    {
+      "id": "emisor", "label": "emisor",
+      "description": "Emite el comprobante, la factura, el recibo, la boleta o la constancia.",
+      "types": ["persona", "organizacion"]
+    },
+    {
+      "id": "domicilio", "label": "domicilio constituido",
+      "description": "Su domicilio está constituido o indicado para el acto (por ejemplo, el estudio jurídico donde una parte constituye domicilio).",
+      "types": ["persona", "organizacion"]
+    },
+    {
+      "id": "testigo", "label": "testigo",
+      "description": "Interviene como testigo, certificante o escribano del acto.",
+      "types": ["persona", "organizacion"]
+    },
+    {
+      "id": "referido", "label": "asunto del documento",
+      "description": "Es el asunto del que trata el documento o al que se refiere (el expediente, el reclamo, el contrato marco).",
+      "types": ["asunto"]
+    },
+    {
+      "id": "otro", "label": "otro",
+      "description": "Se lo nombra con otro papel, o al pasar.",
+      "types": ["persona", "organizacion", "asunto"]
+    }
+  ],
+  "identifiers": [
+    { "id": "dni", "label": "DNI", "strong": true, "description": "Documento nacional de identidad o pasaporte de una persona.", "types": ["persona"] },
+    { "id": "cuit", "label": "CUIT o CUIL", "strong": true, "description": "CUIT o CUIL: clave de identificación tributaria o laboral, de una persona o de una organización.", "types": ["persona", "organizacion"] },
+    { "id": "matricula", "label": "Matrícula", "strong": true, "description": "Matrícula profesional (de abogado, contador, escribano) o inscripción en un registro (de comercio, de sociedades).", "types": ["persona", "organizacion"] },
+    { "id": "expediente", "label": "Expediente", "strong": true, "description": "Número de expediente, causa, carátula o legajo de un asunto.", "types": ["asunto"] },
+    { "id": "otro", "label": "Otro número", "description": "Otro número que identifica a la entidad (número de cliente, de socio, de contrato).", "types": ["persona", "organizacion", "asunto"] }
+  ],
+  "predicates": [
+    { "id": "cargo", "label": "Cargo", "shape": "text", "within": ["organizacion"], "description": "El cargo, puesto o función que ocupa (presidente, gerente, socio gerente, empleado de tal área).", "subject": ["persona"], "object": "value" },
+    { "id": "domicilio", "label": "Domicilio", "single": true, "shape": "address", "qualifiers": [{ "id": "constituido", "label": "constituido", "words": ["constituye domicilio", "constituyo domicilio", "constituimos domicilio", "constituyen domicilio", "constituyendo domicilio", "domicilio constituido", "domicilio especial", "a estos efectos", "a todos los efectos"] }], "description": "Un domicilio real, legal, fiscal o constituido que el documento le atribuye.", "subject": ["persona", "organizacion"], "object": "value" },
+    { "id": "representa_a", "label": "Representa a", "inverseLabel": "Representada por", "description": "Actúa en nombre o en representación de otra persona u organización. El sujeto es quien actúa (el apoderado, quien firma por una sociedad) y el objeto, a quien representa: en «la sociedad, representada por X», X representa a la sociedad.", "subject": ["persona", "organizacion"], "object": "entity", "objectTypes": ["persona", "organizacion"] },
+    { "id": "socio_de", "label": "Socio de", "inverseLabel": "Tiene como socio a", "description": "Es socio o accionista de una organización.", "subject": ["persona", "organizacion"], "object": "entity", "objectTypes": ["organizacion"] },
+    { "id": "empleado_de", "label": "Empleado de", "inverseLabel": "Emplea o contrata a", "description": "Trabaja o trabajó en relación de dependencia o como contratado para otra persona u organización.", "subject": ["persona"], "object": "entity", "objectTypes": ["persona", "organizacion"] },
+    { "id": "deudor_de", "label": "Deudor de", "inverseLabel": "Acreedor de", "description": "Le debe algo a otra persona u organización según el documento. El sujeto es quien debe: en una carta que dice «Ud. adeuda», el deudor es el destinatario, no quien la firma. Que alguien reciba una factura o un reclamo no dice que deba.", "subject": ["persona", "organizacion"], "cues": ["adeud", "deud", "debe", "deb", "saldo", "paga", "pago", "cobr", "acreed", "impag", "factur", "prest", "mutu", "intim", "reclam", "owe", "due", "debt", "loan", "credit", "pay"], "object": "entity", "objectTypes": ["persona", "organizacion"] },
+    { "id": "acreedor_de", "label": "Acreedor de", "inverseLabel": "Deudor de", "description": "Es acreedor de otra persona u organización según el documento: el sujeto es a quien el texto dice que se le debe.", "subject": ["persona", "organizacion"], "cues": ["adeud", "deud", "debe", "deb", "saldo", "paga", "pago", "cobr", "acreed", "impag", "factur", "prest", "mutu", "intim", "reclam", "owe", "due", "debt", "loan", "credit", "pay"], "object": "entity", "objectTypes": ["persona", "organizacion"] },
+    { "id": "monto_reclamado", "label": "Monto reclamado", "shape": "amount", "description": "Un importe que reclama o intima a pagar, tal como está escrito. El sujeto es quien reclama.", "subject": ["persona", "organizacion"], "notCues": ["percep", "iva", "impuest", "retenc", "subtotal", "neto", "gravad", "bonific", "descuent", "alicuot"], "object": "value" },
+    { "id": "monto_adeudado", "label": "Monto adeudado", "shape": "amount", "description": "Un importe que debe, que se le paga o que se compromete a pagar, tal como está escrito. El sujeto es quien debe o paga (en «Ud. adeuda», el destinatario). No un impuesto, una percepción, un subtotal ni un precio que otro paga.", "subject": ["persona", "organizacion"], "notCues": ["percep", "iva", "impuest", "retenc", "subtotal", "neto", "gravad", "bonific", "descuent", "alicuot"], "object": "value" },
+    { "id": "parte_en", "label": "Parte en", "inverseLabel": "Con la parte", "description": "Es parte o interviene en un asunto (un expediente, un reclamo, un contrato marco). No un número de comprobante ni una frase del documento.", "subject": ["persona", "organizacion"], "object": "entity", "objectTypes": ["asunto"] },
+    { "id": "inicio_de_vinculo", "label": "Inicio de un vínculo", "description": "La fecha en que empieza un vínculo suyo (una relación laboral, un contrato, una representación), tal como está escrita. No la fecha en que se firma o se emite el documento, salvo que el texto diga que el vínculo empieza ese día.", "subject": ["persona", "organizacion"], "cues": ["inici", "comienz", "comenz", "desde", "partir", "vigenc", "vigent", "celebr", "ingres", "alta", "firm", "suscri", "otorg", "efect", "start", "commenc", "effective", "begin", "from", "since", "sign", "dated"], "object": "value" },
+    { "id": "fin_de_vinculo", "label": "Fin de un vínculo", "description": "La fecha en que termina un vínculo suyo, tal como está escrita. No la fecha en que se firma o se emite el documento, salvo que el texto diga que el vínculo termina ese día.", "subject": ["persona", "organizacion"], "cues": ["fin", "termin", "rescin", "rescis", "extin", "baja", "hasta", "venc", "cese", "ces", "partir", "efect", "renunci", "desvincul", "end", "terminat", "until", "expir", "effective"], "object": "value" },
+    { "id": "profesion", "label": "Profesión", "shape": "text", "description": "Su profesión u ocupación.", "subject": ["persona"], "object": "value" },
+    { "id": "nacionalidad", "label": "Nacionalidad", "single": true, "shape": "text", "description": "Su nacionalidad.", "subject": ["persona"], "object": "value" },
+    { "id": "estado_civil", "label": "Estado civil", "single": true, "shape": "text", "description": "Su estado civil.", "subject": ["persona"], "object": "value" },
+    { "id": "contacto", "label": "Contacto", "shape": "contact", "description": "Un correo electrónico o un teléfono suyo, no el de otra persona u organización del mismo documento. Un DNI o un CUIT es un identificador, no un contacto.", "subject": ["persona", "organizacion"], "object": "value" }
+  ],
+  "pages": {
+    "about": "Qué entidad tiene página en el wiki del archivo y con qué palabras se arma. Se decide mirando el archivo entero, no documento por documento: una entidad tiene página si aparece en al menos minDocuments documentos, si en alguno tiene uno de los roles de la lista, o (cuando strongIdentifier es verdadero) si algún documento le da un identificador fuerte, como un número de expediente. Si rolesRequired nombra roles, además alguna mención tiene que tener uno de ellos: un asunto tiene página cuando al menos un documento trata de él, no cuando solo lo cita. Un nombre que es una dirección de correo o un número no es un nombre: no tiene página.",
+    "folder": "wiki/entities",
+    "kinds": [
+      { "type": "persona", "minDocuments": 2, "roles": ["parte", "apoderado", "firmante", "remitente", "destinatario", "emisor", "domicilio", "testigo"] },
+      { "type": "organizacion", "minDocuments": 2, "roles": ["parte", "apoderado", "firmante", "remitente", "destinatario", "emisor", "domicilio", "testigo"] },
+      { "type": "asunto", "minDocuments": 2, "roles": [], "rolesRequired": ["referido"], "byMatter": true }
+    ],
+    "words": {
+      "says": "Lo que dicen los documentos",
+      "saysNothing": "Los documentos no dicen de esta entidad nada más que su nombre y su rol.",
+      "saysPending": "La síntesis todavía no está escrita: se arma desde las afirmaciones de los documentos.",
+      "conflicts": "Datos en los que los documentos difieren",
+      "references": "Referencias",
+      "documents": "Documentos",
+      "withoutMatter": "Sin asunto identificado",
+      "related": "Relacionados",
+      "inCommon": "documentos en común",
+      "notes": "Notas",
+      "notesMark": "lo que se escriba debajo de esta línea la app no lo reescribe nunca",
+      "aliases": "También escrito como",
+      "page": "p.",
+      "documentWord": "documento",
+      "documentsWord": "documentos",
+      "kept": "Esta página ya no se arma desde los documentos: la entidad dejó el registro. Se conserva por las notas que tiene.",
+      "keptMerged": "Esta página ya no se arma desde los documentos: la entidad se unió con",
+      "sourceBlock": "Personas, organizaciones y asuntos",
+      "sourceBlockMark": "la app rehace este bloque",
+      "overviewTitle": "Resumen del archivo",
+      "overviewIntro": "Lo que el registro sabe del archivo, armado por la app desde los documentos.",
+      "overviewDocuments": "Documentos leídos",
+      "overviewEntities": "Con página",
+      "overviewMost": "Los más nombrados",
+      "overviewMatters": "Asuntos",
+      "within": "en",
+      "matterBetween": "Asunto entre",
+      "matterUnnamed": "Asunto sin nombre",
+      "matterParties": "Partes y personas",
+      "matterWhy": "Por qué estos documentos van juntos",
+      "matterFacts": "Lo que dicen los documentos del asunto",
+      "matterNamed": "Se lo nombra como",
+      "matterSameDocument": "unido por una persona como",
+      "matterSameMatter": "nombran el mismo asunto",
+      "matterSameNumber": "comparten el número",
+      "matterSameAmount": "comparten el importe",
+      "matterByPerson": "una persona decidió que son del mismo asunto",
+      "matterOf": "Asunto",
+      "matterProposed": "Posiblemente de este asunto",
+      "matterProposedNote": "lo propuso el modelo por su contenido; una persona lo confirma o lo descarta",
+      "proposed": "propuesto",
+      "relations": "Vínculos",
+      "relationsInverse": "(de otro lado)"
+    }
+  },
+  "matters": {
+    "about": "Cómo se agrupan los documentos en asuntos: los une lo que decidió una persona, dos documentos que una persona unió con una de estas relaciones, el mismo asunto nombrado por los dos, el mismo número de un asunto (de al menos minLength caracteres y minDigits dígitos) o el mismo importe (de al menos amountDigits dígitos, con decimales o miles). Un número o importe que está en más de maxShare de los documentos no dice nada. Compartir una persona no es compartir un asunto. Un asunto con minDocuments documentos o más tiene página.",
+    "kind": "asunto",
+    "relations": ["same-document", "near-identical", "signed-copy", "version", "preview", "contained-in", "reply-to", "signing-certificate-of", "delivery-receipt-of", "same-matter", "translation-of"],
+    "identifierKinds": ["expediente", "otro"],
+    "minLength": 7,
+    "minDigits": 7,
+    "amountDigits": 4,
+    "maxShare": 0.5,
+    "subjectRoles": ["referido"],
+    "partyRoles": ["parte"],
+    "partiesInName": 2,
+    "proposeWithShared": 2,
+    "proposeCandidates": 3,
+    "minDocuments": 2
+  },
+  "values": {
+    "about": "Con qué se comprueba la forma de un valor: un importe tiene dígitos y, si no tiene separadores, una moneda; un texto tiene más letras que dígitos y no es el nombre de quien se habla; un domicilio tiene un número y palabras. Dos domicilios con los mismos números y una palabra en común son el mismo escrito de dos maneras; dos importes con los mismos números, también.",
+    "currencies": ["$", "usd", "us", "u s", "ars", "eur", "euro", "euros", "peso", "pesos", "dolar", "dolares", "dollar", "dollars"],
+    "addressNoise": ["piso", "dpto", "depto", "departamento", "of", "oficina", "suite", "unidad", "uf", "ciudad", "autonoma", "buenos", "aires", "caba", "provincia", "pcia", "prov", "capital", "federal", "argentina", "av", "avenida", "calle", "street", "st", "ave", "road", "rd", "c", "o"]
+  },
+  "identity": {
+    "about": "Palabras que la resolución de identidad no cuenta al comparar nombres, y formas societarias. Una forma de escribir con solo palabras genéricas, con una palabra de dirección y un número (addressWords), con un número de calle o un código postal, o con corchetes de un formulario en blanco no es un nombre: no tiene página ni enlace. Cada forma es una organización distinta: dos nombres iguales con distinta forma no se unen salvo que una persona lo decida.",
+    "generic": ["yo", "mi", "me", "nos", "nosotros", "nosotras", "usted", "ustedes", "el", "ella", "ellos", "ellas", "este", "esta", "suscripto", "suscripta", "suscriptos", "firmante", "firmantes", "cliente", "clientes", "locador", "locadora", "locatario", "locataria", "comprador", "compradora", "vendedor", "vendedora", "empresa", "sociedad", "compania", "parte", "partes", "deudor", "deudora", "acreedor", "acreedora", "empleador", "empleadora", "empleado", "empleada", "trabajador", "trabajadora", "contratista", "contratante", "consultor", "consultora", "prestador", "prestadora", "proveedor", "proveedora", "requirente", "requerido", "requerida", "actor", "actora", "demandado", "demandada", "mutuante", "mutuario", "mutuaria", "cedente", "cesionario", "cesionaria", "inversor", "inversora", "beneficiario", "beneficiaria", "destinatario", "destinataria", "remitente", "i", "you", "we", "us", "company", "party", "parties", "client", "customer", "employee", "employer", "consultant", "contractor", "lender", "borrower", "holder", "investor", "buyer", "seller", "both", "other", "ambas", "ambos", "otra", "this", "presente", "agreement", "contract", "acuerdo", "contrato", "convenio", "documento", "apoderado", "apoderada", "apoderados", "representada", "representado", "representante", "representantes", "titular", "ud", "uds", "vos", "sres", "senores", "nombre", "razon", "social"],
+    "addressWords": ["calle", "av", "avda", "avenida", "domicilio", "piso", "depto", "dpto", "dto", "departamento", "oficina", "cp", "codigo", "postal", "barrio", "ruta", "km", "local", "street", "road", "avenue", "ave", "suite", "floor", "box", "zip"],
+    "stopwords": ["el", "la", "los", "las", "lo", "de", "del", "y", "e", "en", "the", "of", "and", "for"],
+    "titles": ["sr", "sra", "srta", "senor", "senora", "dr", "dra", "doctor", "doctora", "lic", "licenciado", "licenciada", "ing", "ingeniero", "ingeniera", "cr", "cra", "cdor", "cdora", "contador", "contadora", "esc", "escribano", "escribana", "abogado", "abogada", "mr", "mrs", "ms", "miss"],
+    "legalForms": [
+      { "id": "sa", "variants": ["s a", "sa", "sociedad anonima"] },
+      { "id": "sau", "variants": ["s a u", "sau", "sociedad anonima unipersonal"] },
+      { "id": "srl", "variants": ["s r l", "srl", "sociedad de responsabilidad limitada"] },
+      { "id": "sas", "variants": ["s a s", "sas", "sociedad por acciones simplificada"] },
+      { "id": "sca", "variants": ["s c a", "sca", "sociedad en comandita por acciones"] },
+      { "id": "sl", "variants": ["s l", "sociedad limitada"] },
+      { "id": "llc", "variants": ["llc", "l l c", "limited liability company"] },
+      { "id": "pte-ltd", "variants": ["pte ltd", "pte limited", "private limited"] },
+      { "id": "ltd", "variants": ["ltd", "limited", "l t d"] },
+      { "id": "plc", "variants": ["plc", "public limited company"] },
+      { "id": "inc", "variants": ["inc", "incorporated", "corp", "corporation"] },
+      { "id": "gmbh", "variants": ["gmbh"] },
+      { "id": "ag", "variants": ["ag", "aktiengesellschaft"] },
+      { "id": "bv", "variants": ["bv", "b v"] },
+      { "id": "asociacion", "variants": ["asociacion civil", "asociacion", "association", "verein", "e v"], "before": true },
+      { "id": "fundacion", "variants": ["fundacion", "stiftung"], "before": true },
+      { "id": "cooperativa", "variants": ["cooperativa", "cooperative"], "before": true }
+    ]
+  },
+  "attention": {
+    "about": "Qué lleva la capa a la vista de atención. Un documento cuya lectura perdió muchas citas (al menos noisyMin descartes con alguno de los motivos de noisyReasons, y más de noisyShare de todo lo que el modelo dijo) puede tener mal reconocido el escaneo. Una unión por identificador de nombres distintos se muestra para revisarla, si se quiere, cuando el documento que la trajo se leyó hace menos de recentJoinDays días.",
+    "noisyReasons": ["cita-no-encontrada", "nombre-fuera-de-la-cita", "valor-fuera-de-la-cita"],
+    "noisyMin": 4,
+    "noisyShare": 0.4,
+    "recentJoinDays": 30
+  }
+}

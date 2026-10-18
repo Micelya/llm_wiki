@@ -119,9 +119,9 @@ describe("sanitizeIngestedFileContent", () => {
 
   it("quotes an unquoted frontmatter title containing `: `", () => {
     const input =
-      "---\r\ntype: source\r\ntitle: Pivote Estratégico: Extrimian y Micelya\r\n---\r\n# Body: intro\r\n"
+      "---\r\ntype: source\r\ntitle: Pivote Estratégico: Ventisca y Micelya\r\n---\r\n# Body: intro\r\n"
     expect(sanitizeIngestedFileContent(input)).toBe(
-      "---\r\ntype: source\r\ntitle: \"Pivote Estratégico: Extrimian y Micelya\"\r\n---\r\n# Body: intro\r\n",
+      "---\r\ntype: source\r\ntitle: \"Pivote Estratégico: Ventisca y Micelya\"\r\n---\r\n# Body: intro\r\n",
     )
   })
 

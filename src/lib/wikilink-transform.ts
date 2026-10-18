@@ -115,3 +115,14 @@ function replaceWikilinks(text: string): string {
     return `[${escapedLabel}](${href})`
   })
 }
+
+/**
+ * HTML comments out of the rendered page. The reader does not render
+ * raw HTML, so a comment would show as text: the marks the app leaves in
+ * the pages it writes (the block of entities, the links it adds, the
+ * notes) are comments. Each comment keeps its line breaks, so lines still
+ * map to the source.
+ */
+export function hideHtmlComments(body: string): string {
+  return body.replace(/<!--[\s\S]*?-->/g, (comment) => comment.replace(/[^\n]/g, ""))
+}

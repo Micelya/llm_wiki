@@ -3,6 +3,7 @@ import { normalizePath } from "@/lib/path-utils"
 import { DEFAULT_DOCUMENT_FILTER, useDocbaseStore } from "@/stores/docbase-store"
 import { useWikiStore } from "@/stores/wiki-store"
 import { useAttentionViewStore } from "@/stores/attention-view-store"
+import { useKnowledgeStore } from "@/stores/knowledge-store"
 
 /** Takes the user to the exact place a notice points at. */
 export function goToTarget(target: AttentionTarget): void {
@@ -20,6 +21,18 @@ export function goToTarget(target: AttentionTarget): void {
     case "similar":
       useAttentionViewStore.getState().focusFamily(target.principal ?? null)
       wiki.setActiveView("similar")
+      return
+    case "entities":
+      useKnowledgeStore.getState().openEntity(target.entityId ?? null)
+      wiki.setActiveView("entities")
+      return
+    case "identity-doubts":
+      useKnowledgeStore.getState().focusDoubt(target.group ?? null)
+      wiki.setActiveView("identity-doubts")
+      return
+    case "matters":
+      useKnowledgeStore.getState().openMatter(target.matterId ?? null)
+      wiki.setActiveView("matters")
       return
     case "wiki-page": {
       const project = wiki.project

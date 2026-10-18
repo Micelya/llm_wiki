@@ -13,6 +13,8 @@ import { getLastProject, getRecentProjects, saveLastProject, loadLlmConfig, load
 import { loadReviewItems, loadLintItems, loadChatHistory, loadChatPreferences } from "@/lib/persist"
 import { setupAutoSave } from "@/lib/auto-save"
 import { startClipWatcher } from "@/lib/clip-watcher"
+import { followKnowledgePages } from "@/lib/knowledge-layer"
+import { rebuildWikiIndex } from "@/lib/wiki-index"
 import { DEFAULT_SOURCE_WATCH_CONFIG } from "@/lib/source-watch-config"
 import { RELEASES_REPO } from "@/lib/app-identity"
 import { useGlobalShortcut } from "@/hooks/use-global-shortcut"
@@ -145,6 +147,23 @@ function App() {
   useEffect(() => {
     setupAutoSave()
     startClipWatcher()
+  }, [])
+
+  // The pages the knowledge layer writes in the archive's wiki: its index
+  // and its tree follow them.
+  useEffect(() => {
+    let stop: (() => void) | null = null
+    let cancelled = false
+    followKnowledgePages(rebuildWikiIndex)
+      .then((unlisten) => {
+        if (cancelled) unlisten()
+        else stop = unlisten
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+      stop?.()
+    }
   }, [])
 
   // Register global keyboard shortcuts

@@ -631,7 +631,7 @@ underpin deep learning.
 
 ## Backpropagation
 
-In 1986, Hinton co-authored with David Rumelhart and Ronald Williams the
+In 1986, Hinton co-authored with D. E. Rumelhart and Ronald Williams the
 paper "Learning representations by back-propagating errors", which
 popularized the backpropagation algorithm for training multi-layer neural
 networks. Although the algorithm had been independently discovered

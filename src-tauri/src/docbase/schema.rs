@@ -10,7 +10,366 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12];
+
+/// What the model was shown of the two sides when it said a verdict on a
+/// pair of groups (`knowledge_verdict.evidence`, a fingerprint): a verdict
+/// that kept them apart is asked again when what they show changed (R-08:
+/// new and different evidence). Verdicts kept before have none.
+const V12: &str = "
+ALTER TABLE knowledge_verdict ADD COLUMN evidence TEXT;
+";
+
+/// Changes and deletions in the knowledge layer (`knowledge/changes.rs`):
+/// what a document that went away leaves behind, so that what a person
+/// decided about it, and the ids of its entities, go on to the document
+/// that takes its place (the same text back, or the new version of the
+/// file at its path).
+///
+/// - `knowledge_gone`: a content that went away, with the fingerprint of
+///   its text. Its id is never given to another content.
+/// - `knowledge_gone_file`: the files it had (the change log names the
+///   path where each one was replaced by a new version).
+/// - `knowledge_gone_mention`: the entity each name of a document had
+///   when its mentions went away (the document went, or was read again),
+///   so the same name of the document that takes its place keeps it.
+/// - `knowledge_claim.context_entity`: the entity a value is said within
+///   (a position held in a company): the same value within two entities
+///   is two claims, not a conflict. `qualifier`: what kind of value the
+///   quote says it is (a domicile constituted for a proceeding): values of
+///   different kinds are not in conflict either.
+/// - What the model said of the groups of a content that goes away is
+///   forgotten (the answers stay in `model_answer`: the same question
+///   costs nothing).
+/// - `knowledge_matter` / `knowledge_matter_document`: the matters of the
+///   archive as groups of documents (`knowledge/matters.rs`), with a
+///   stable id, a name and, for each document, the reasons it is in the
+///   matter. Computed again on every resolution; a person's decisions
+///   about them are in `knowledge_decision` (`content:<id>` keys).
+///   `knowledge_matter_verdict`: what the model said of a document that
+///   no evidence puts in a matter (does it belong to this one?): a
+///   proposal for a person, never a link between documents (R-03).
+const V11: &str = "
+CREATE TABLE knowledge_matter (
+    id          TEXT PRIMARY KEY,
+    name        TEXT NOT NULL,
+    state       TEXT NOT NULL DEFAULT 'active' CHECK (state IN ('active', 'retired')),
+    created_at  INTEGER NOT NULL,
+    updated_at  INTEGER NOT NULL
+);
+
+CREATE TABLE knowledge_matter_document (
+    matter_id   TEXT NOT NULL REFERENCES knowledge_matter (id) ON DELETE CASCADE,
+    content_id  INTEGER NOT NULL REFERENCES content (id) ON DELETE CASCADE,
+    state       TEXT NOT NULL DEFAULT 'firm' CHECK (state IN ('firm', 'proposed')),
+    reasons     TEXT NOT NULL DEFAULT '[]',
+    PRIMARY KEY (matter_id, content_id)
+);
+CREATE INDEX knowledge_matter_document_by_content ON knowledge_matter_document (content_id);
+
+CREATE TABLE knowledge_matter_verdict (
+    content_id  INTEGER NOT NULL,
+    matter_id   TEXT NOT NULL,
+    engine      TEXT NOT NULL,
+    verdict     TEXT NOT NULL CHECK (verdict IN ('same', 'different', 'doubtful')),
+    reason      TEXT,
+    question    TEXT NOT NULL,
+    asked_at    INTEGER NOT NULL,
+    PRIMARY KEY (content_id, matter_id, engine)
+);
+
+CREATE TABLE knowledge_gone (
+    content_id  INTEGER PRIMARY KEY,
+    text_hash   TEXT,
+    gone_at     INTEGER NOT NULL
+);
+
+CREATE TABLE knowledge_gone_file (
+    hash        TEXT PRIMARY KEY,
+    content_id  INTEGER NOT NULL,
+    gone_at     INTEGER NOT NULL
+);
+CREATE INDEX knowledge_gone_file_by_content ON knowledge_gone_file (content_id);
+
+CREATE TABLE knowledge_gone_mention (
+    content_id  INTEGER NOT NULL,
+    kind        TEXT NOT NULL,
+    normalized  TEXT NOT NULL,
+    entity_id   TEXT NOT NULL,
+    gone_at     INTEGER NOT NULL,
+    PRIMARY KEY (content_id, kind, normalized)
+);
+
+CREATE TRIGGER knowledge_content_gone AFTER DELETE ON content BEGIN
+    INSERT OR REPLACE INTO knowledge_gone (content_id, text_hash, gone_at)
+        VALUES (OLD.id, OLD.text_hash, CAST(strftime('%s', 'now') AS INTEGER) * 1000);
+    DELETE FROM knowledge_verdict
+        WHERE a LIKE 'cluster:' || OLD.id || ':%' OR b LIKE 'cluster:' || OLD.id || ':%';
+    DELETE FROM knowledge_matter_verdict WHERE content_id = OLD.id;
+END;
+
+CREATE TRIGGER knowledge_file_gone AFTER DELETE ON file BEGIN
+    INSERT OR REPLACE INTO knowledge_gone_file (hash, content_id, gone_at)
+        VALUES (OLD.hash, OLD.content_id, CAST(strftime('%s', 'now') AS INTEGER) * 1000);
+END;
+
+CREATE TRIGGER knowledge_mention_gone AFTER DELETE ON knowledge_mention WHEN OLD.entity_id IS NOT NULL BEGIN
+    INSERT OR REPLACE INTO knowledge_gone_mention (content_id, kind, normalized, entity_id, gone_at)
+        VALUES (OLD.content_id, OLD.kind, OLD.normalized, OLD.entity_id, CAST(strftime('%s', 'now') AS INTEGER) * 1000);
+END;
+
+ALTER TABLE knowledge_claim ADD COLUMN context_entity TEXT REFERENCES knowledge_entity (id) ON DELETE SET NULL;
+ALTER TABLE knowledge_claim ADD COLUMN qualifier TEXT;
+DROP INDEX knowledge_claim_key;
+CREATE UNIQUE INDEX knowledge_claim_key
+    ON knowledge_claim (subject, predicate, coalesce(object_entity, ''), coalesce(object_normalized, ''), coalesce(context_entity, ''),
+                        coalesce(qualifier, ''));
+";
+
+/// The projection of the knowledge layer into the general project's wiki
+/// (`knowledge/pages.rs`).
+///
+/// - `knowledge_page`: the page of each entity that has one. `path` is
+///   fixed the first time (a readable name plus the entity's id) and kept
+///   when the entity is renamed, so links never break. `fingerprint` is
+///   that of what the app wrote (everything but the notes): the file is
+///   written again only when it changes. `synthesis` is the key of the
+///   model's answer the page uses (`model_answer`), or none while it is
+///   being asked; `discarded` counts the sentences of that answer the
+///   computation threw away. `state` is `projected`, or `kept` for a page
+///   whose entity left the record but that holds notes of a person.
+/// - `knowledge_source_block`: the block of entities the app keeps at the
+///   end of each document's page, with what the file looked like after it
+///   was written (size and date), so a page written again by the wiki gets
+///   its block back.
+const V10: &str = "
+CREATE TABLE knowledge_page (
+    entity_id    TEXT PRIMARY KEY,
+    path         TEXT NOT NULL UNIQUE,
+    state        TEXT NOT NULL DEFAULT 'projected' CHECK (state IN ('projected', 'kept')),
+    fingerprint  TEXT NOT NULL,
+    synthesis    TEXT,
+    sentences    INTEGER NOT NULL DEFAULT 0,
+    discarded    INTEGER NOT NULL DEFAULT 0,
+    written_at   INTEGER NOT NULL
+);
+
+CREATE TABLE knowledge_source_block (
+    path        TEXT PRIMARY KEY,
+    block_hash  TEXT NOT NULL,
+    size        INTEGER NOT NULL,
+    mtime_ms    INTEGER NOT NULL
+);
+";
+
+/// The knowledge layer (`knowledge/`): people, organizations and matters
+/// the documents name, how each document names them, and what the
+/// documents say of them, every piece with the quote that backs it.
+///
+/// - `model_answer` is keyed by the question *and* the engine and model
+///   that answered it: another model asks again. The answers kept so far
+///   keep their key and their engine.
+/// - `knowledge_extraction`: one reading per document, with what it was
+///   decided on (`basis`: prompt version, vocabulary and text), the
+///   engine, the questions it took and what was discarded and why.
+/// - `knowledge_mention`: a way a document names an entity, with its role
+///   and the quote that holds it (verified in the text); `ref` and
+///   `same_as` are the model's names for mentions inside one document.
+///   `entity_id` is set by the resolution of identities.
+/// - `knowledge_identifier`: identifiers (DNI, CUIT…) of a mention.
+/// - `knowledge_evidence`: what a document says of a mention (subject,
+///   predicate, object mention or value, quote, page, time of the fact).
+///   `claim_id` groups it with the evidence that says the same.
+/// - `knowledge_entity`, `knowledge_alias`, `knowledge_claim`: the
+///   canonical record, filled by the resolution of identities. An entity
+///   id never changes; a merged entity points to the one it went into.
+/// - `knowledge_decision`: what a person decided about identities (join,
+///   separate, wrong datum), with the evidence shown. A computation never
+///   overwrites it; undoing it keeps it, marked undone.
+/// - `knowledge_doubt`: pairs of mentions the resolution could not tell
+///   apart (the same name with an identifier misread, the model
+///   abstaining…), for a person to decide; computed again on every
+///   resolution, never joined by it. `a` and `b` are the keys of groups
+///   of mentions of one document (`cluster:<content>:<kind>:<name>`).
+/// - `knowledge_verdict`: what the model said of two groups of mentions
+///   (the same, different, it cannot tell), by the keys of the groups and
+///   the engine that said it: evidence kept for every later resolution,
+///   so a pair is never asked twice (R-20). `question` is the key of the
+///   answer in `model_answer`.
+/// - `knowledge_dirty`: work left for the incremental passes: contents to
+///   resolve again, contents whose evidence must be retired, pages to
+///   project again. A content that goes away marks itself (trigger).
+const V9: &str = "
+CREATE TABLE model_answer_by_engine (
+    question        TEXT NOT NULL,
+    task            TEXT NOT NULL,
+    prompt_version  TEXT NOT NULL,
+    engine          TEXT NOT NULL,
+    content_id      INTEGER,
+    prompt          TEXT NOT NULL,
+    answer          TEXT NOT NULL,
+    asked_at        INTEGER NOT NULL,
+    PRIMARY KEY (question, engine)
+);
+INSERT INTO model_answer_by_engine (question, task, prompt_version, engine, content_id, prompt, answer, asked_at)
+    SELECT question, task, prompt_version, engine, content_id, prompt, answer, asked_at FROM model_answer;
+DROP TABLE model_answer;
+ALTER TABLE model_answer_by_engine RENAME TO model_answer;
+
+CREATE TABLE knowledge_entity (
+    id           TEXT PRIMARY KEY,
+    kind         TEXT NOT NULL,
+    name         TEXT NOT NULL,
+    state        TEXT NOT NULL DEFAULT 'active' CHECK (state IN ('active', 'merged', 'retired')),
+    merged_into  TEXT REFERENCES knowledge_entity (id) ON DELETE SET NULL,
+    created_at   INTEGER NOT NULL,
+    updated_at   INTEGER NOT NULL
+);
+CREATE INDEX knowledge_entity_by_kind ON knowledge_entity (kind, state);
+
+CREATE TABLE knowledge_alias (
+    entity_id   TEXT NOT NULL REFERENCES knowledge_entity (id) ON DELETE CASCADE,
+    normalized  TEXT NOT NULL,
+    written     TEXT NOT NULL,
+    mentions    INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (entity_id, normalized)
+);
+CREATE INDEX knowledge_alias_by_name ON knowledge_alias (normalized);
+
+CREATE TABLE knowledge_extraction (
+    content_id      INTEGER PRIMARY KEY REFERENCES content (id) ON DELETE CASCADE,
+    state           TEXT NOT NULL CHECK (state IN ('done', 'failed')),
+    basis           TEXT NOT NULL,
+    prompt_version  TEXT NOT NULL,
+    vocabulary      TEXT NOT NULL,
+    text_hash       TEXT NOT NULL,
+    text_at         INTEGER NOT NULL,
+    engine          TEXT,
+    questions       TEXT NOT NULL DEFAULT '[]',
+    parts           INTEGER NOT NULL DEFAULT 0,
+    mentions        INTEGER NOT NULL DEFAULT 0,
+    evidence        INTEGER NOT NULL DEFAULT 0,
+    discarded       TEXT NOT NULL DEFAULT '[]',
+    error           TEXT,
+    extracted_at    INTEGER NOT NULL
+);
+
+CREATE TABLE knowledge_mention (
+    id           INTEGER PRIMARY KEY,
+    content_id   INTEGER NOT NULL REFERENCES content (id) ON DELETE CASCADE,
+    ref          TEXT NOT NULL,
+    same_as      TEXT,
+    kind         TEXT NOT NULL,
+    written      TEXT NOT NULL,
+    normalized   TEXT NOT NULL,
+    role         TEXT NOT NULL,
+    quote        TEXT NOT NULL,
+    page         INTEGER,
+    entity_id    TEXT REFERENCES knowledge_entity (id) ON DELETE SET NULL,
+    resolved_by  TEXT,
+    UNIQUE (content_id, ref)
+);
+CREATE INDEX knowledge_mention_by_name ON knowledge_mention (normalized);
+CREATE INDEX knowledge_mention_by_entity ON knowledge_mention (entity_id);
+
+CREATE TABLE knowledge_identifier (
+    mention_id  INTEGER NOT NULL REFERENCES knowledge_mention (id) ON DELETE CASCADE,
+    kind        TEXT NOT NULL,
+    value       TEXT NOT NULL,
+    normalized  TEXT NOT NULL,
+    quote       TEXT NOT NULL,
+    page        INTEGER,
+    by_shape    INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (mention_id, kind, normalized)
+);
+CREATE INDEX knowledge_identifier_by_value ON knowledge_identifier (kind, normalized);
+
+CREATE TABLE knowledge_claim (
+    id                 INTEGER PRIMARY KEY,
+    subject            TEXT NOT NULL REFERENCES knowledge_entity (id) ON DELETE CASCADE,
+    predicate          TEXT NOT NULL,
+    object_entity      TEXT REFERENCES knowledge_entity (id) ON DELETE CASCADE,
+    object_value       TEXT,
+    object_normalized  TEXT,
+    valid_from         TEXT,
+    valid_to           TEXT,
+    state              TEXT NOT NULL DEFAULT 'supported' CHECK (state IN ('supported', 'conflict', 'retired', 'pending')),
+    computed_at        INTEGER NOT NULL,
+    CHECK ((object_entity IS NULL) != (object_value IS NULL))
+);
+CREATE UNIQUE INDEX knowledge_claim_key
+    ON knowledge_claim (subject, predicate, coalesce(object_entity, ''), coalesce(object_normalized, ''));
+
+CREATE TABLE knowledge_evidence (
+    id                 INTEGER PRIMARY KEY,
+    content_id         INTEGER NOT NULL REFERENCES content (id) ON DELETE CASCADE,
+    subject_mention    INTEGER NOT NULL REFERENCES knowledge_mention (id) ON DELETE CASCADE,
+    predicate          TEXT NOT NULL,
+    object_mention     INTEGER REFERENCES knowledge_mention (id) ON DELETE CASCADE,
+    object_value       TEXT,
+    object_normalized  TEXT,
+    quote              TEXT NOT NULL,
+    page               INTEGER,
+    fact_time          TEXT,
+    claim_id           INTEGER REFERENCES knowledge_claim (id) ON DELETE SET NULL,
+    CHECK ((object_mention IS NULL) != (object_value IS NULL))
+);
+CREATE INDEX knowledge_evidence_by_content ON knowledge_evidence (content_id);
+CREATE INDEX knowledge_evidence_by_claim ON knowledge_evidence (claim_id);
+
+CREATE TABLE knowledge_decision (
+    id                   INTEGER PRIMARY KEY,
+    kind                 TEXT NOT NULL CHECK (kind IN ('join', 'separate', 'wrong')),
+    a                    TEXT NOT NULL,
+    b                    TEXT,
+    note                 TEXT,
+    shown_evidence       TEXT NOT NULL,
+    shown_evidence_hash  TEXT NOT NULL,
+    state                TEXT NOT NULL DEFAULT 'active' CHECK (state IN ('active', 'undone')),
+    decided_at           INTEGER NOT NULL,
+    undone_at            INTEGER
+);
+CREATE INDEX knowledge_decision_by_a ON knowledge_decision (a);
+CREATE INDEX knowledge_decision_by_b ON knowledge_decision (b);
+
+CREATE TABLE knowledge_doubt (
+    a              TEXT NOT NULL,
+    b              TEXT NOT NULL,
+    kind           TEXT NOT NULL,
+    entity_a       TEXT,
+    entity_b       TEXT,
+    reason         TEXT NOT NULL,
+    detail         TEXT,
+    evidence_hash  TEXT NOT NULL,
+    computed_at    INTEGER NOT NULL,
+    PRIMARY KEY (a, b)
+);
+CREATE INDEX knowledge_doubt_by_entity_a ON knowledge_doubt (entity_a);
+CREATE INDEX knowledge_doubt_by_entity_b ON knowledge_doubt (entity_b);
+
+CREATE TABLE knowledge_verdict (
+    a          TEXT NOT NULL,
+    b          TEXT NOT NULL,
+    engine     TEXT NOT NULL,
+    verdict    TEXT NOT NULL CHECK (verdict IN ('same', 'different', 'doubtful')),
+    reason     TEXT,
+    question   TEXT NOT NULL,
+    asked_at   INTEGER NOT NULL,
+    PRIMARY KEY (a, b, engine)
+);
+
+CREATE TABLE knowledge_dirty (
+    scope  TEXT NOT NULL CHECK (scope IN ('resolve', 'retire', 'project')),
+    ref    TEXT NOT NULL,
+    since  INTEGER NOT NULL,
+    PRIMARY KEY (scope, ref)
+);
+
+CREATE TRIGGER knowledge_extraction_gone AFTER DELETE ON knowledge_extraction BEGIN
+    INSERT OR REPLACE INTO knowledge_dirty (scope, ref, since)
+        VALUES ('retire', CAST(OLD.content_id AS TEXT), CAST(strftime('%s', 'now') AS INTEGER) * 1000);
+END;
+";
 
 /// What a person decided about the document types the model proposed
 /// (R-22). `confirmed`: the type joins the closed list the model chooses
@@ -445,4 +804,56 @@ pub fn migrate(conn: &mut Connection) -> Result<(), String> {
         .map_err(sql_err)?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn answers_kept_before_keep_their_question_and_engine() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+        for (index, migration) in MIGRATIONS.iter().enumerate().take(7) {
+            conn.execute_batch(migration).unwrap();
+            conn.pragma_update(None, "user_version", index as i64 + 1).unwrap();
+        }
+        let insert = "INSERT INTO model_answer (question, task, prompt_version, engine, content_id, prompt, answer, asked_at)
+                      VALUES ('tipo-2:x', 'type', 'tipo-2', ?1, NULL, 'p', '{}', 1)";
+        conn.execute(insert, ["codex-cli:m"]).unwrap();
+        migrate(&mut conn).unwrap();
+        let kept: (String, String) =
+            conn.query_row("SELECT question, engine FROM model_answer", [], |row| Ok((row.get(0)?, row.get(1)?))).unwrap();
+        assert_eq!(kept, ("tipo-2:x".to_string(), "codex-cli:m".to_string()));
+        // Another model keeps its own answer to the same question; the
+        // same model, only one.
+        conn.execute(insert, ["codex-cli:n"]).unwrap();
+        assert!(conn.execute(insert, ["codex-cli:m"]).is_err());
+    }
+
+    /// The owner's base is at version 8 (the type decisions of the
+    /// attention view): the layer's tables come after it, and what was
+    /// decided about types stays.
+    #[test]
+    fn a_base_at_the_attention_views_version_gets_the_layer_and_keeps_its_type_decisions() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+        for (index, migration) in MIGRATIONS.iter().enumerate().take(8) {
+            conn.execute_batch(migration).unwrap();
+            conn.pragma_update(None, "user_version", index as i64 + 1).unwrap();
+        }
+        conn.execute("INSERT INTO type_decision (type_id, decision, name, decided_at) VALUES ('receta', 'confirmed', 'Receta', 1)", [])
+            .unwrap();
+        migrate(&mut conn).unwrap();
+        let version: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0)).unwrap();
+        assert_eq!(version, CURRENT_VERSION);
+        for table in ["type_decision", "knowledge_entity", "knowledge_page", "knowledge_matter"] {
+            let found: i64 = conn
+                .query_row("SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?1", [table], |row| row.get(0))
+                .unwrap();
+            assert_eq!(found, 1, "{table}");
+        }
+        let kept: String = conn.query_row("SELECT name FROM type_decision", [], |row| row.get(0)).unwrap();
+        assert_eq!(kept, "Receta");
+    }
 }

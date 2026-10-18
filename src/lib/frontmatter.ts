@@ -180,11 +180,11 @@ function repairWikilinkLists(payload: string): string {
  * Quote top-level plain scalars that YAML rejects because they
  * contain a mapping indicator:
  *
- *     title: Pivote Estratégico: Extrimian y Micelya
+ *     title: Pivote Estratégico: Ventisca y Micelya
  *
  * becomes
  *
- *     title: "Pivote Estratégico: Extrimian y Micelya"
+ *     title: "Pivote Estratégico: Ventisca y Micelya"
  *
  * Without this, one colon in an LLM-written title invalidates the
  * whole block and the page loses its type, related list and sources.
