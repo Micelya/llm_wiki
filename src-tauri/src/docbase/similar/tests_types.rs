@@ -416,3 +416,43 @@ fn once_an_engine_is_chosen_only_its_answers_count() {
     let answers: i64 = base.conn().query_row("SELECT count(*) FROM model_answer WHERE task = 'type'", [], |row| row.get(0)).unwrap();
     assert_eq!(answers, 2);
 }
+
+/// What the type of a document and its relation to another are after
+/// one more round of the type pass and the measurement.
+fn round(base: &DocBase, model: &FakeModel, a: &str, b: &str) -> (Option<String>, Option<String>) {
+    base.types_run(model, 10).unwrap();
+    while base.similar_step(10).unwrap() > 0 {}
+    (type_of(base, b).map(|t| t.doc_type), relation(base, a, b).map(|r| r.relation))
+}
+
+#[test]
+fn a_member_of_the_template_whose_rule_parts_the_family_is_typed_alone_and_it_settles() {
+    // A letter and the postal form of another shipment printed over the
+    // same template: the model reads the second, alone, as the delivery
+    // receipt; asked as a member of the letter's family it would be
+    // given the letter's type, which the rule of different shipment
+    // numbers then uses to take the family apart.
+    let letter = format!("CARTA DOCUMENTO\nEnvío XY111111111AR\nRemitente: Ejemplo Uno S.A.\n{LETTER}");
+    let other = format!(
+        "CARTA DOCUMENTO\nEnvío XY222222222AR\nRemitente: Ejemplo Uno S.A.\n{LETTER}\n\
+         Entregado en el domicilio indicado, según consta en el correo."
+    );
+    let (_dir, base) = base_with(&[("acuse.md", letter), ("carta.md", other)]);
+    assert_eq!(relation(&base, "carta.md", "acuse.md").map(|r| r.relation).as_deref(), Some("same-template"));
+    let model = FakeModel::new(|prompt| {
+        // The model reads the text of the document asked about (the
+        // principal): its file name closes the question.
+        if prompt.contains("Archivo: «acuse.md»") {
+            type_answer("acuse-de-recibo", None, &[])
+        } else {
+            type_answer("carta-documento", Some("enviada"), &[])
+        }
+    });
+    let mut seen = Vec::new();
+    for _ in 0..6 {
+        seen.push(round(&base, &model, "carta.md", "acuse.md"));
+    }
+    assert_eq!(seen[4], seen[5], "the type and the relation settle: {seen:?}");
+    assert_eq!(seen[3], seen[5], "and stay: {seen:?}");
+    assert_eq!(seen[5].0.as_deref(), Some("acuse-de-recibo"), "{seen:?}");
+}
