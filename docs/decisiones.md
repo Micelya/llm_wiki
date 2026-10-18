@@ -284,6 +284,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-289 | 17 oct | Conocimiento | Presentación de identificadores, alias y nombres de personas | en revisión |
 | D-290 | 17 oct | Producto | Chat, búsqueda y grafo se conservan, sin redundancias ni usos del modelo innecesarios; revisar los procesos heredados | vigente |
 | D-291 | 17 oct | IA | Micelya Core ofrecerá los servicios de IA (también vectores); la app mantiene proveedores configurables y aísla su configuración | vigente |
+| D-292 | 18 oct | Proceso de trabajo | La comprobación de los PR corre en todo PR, apunte a la rama que apunte; no apilar PR salvo que sea inevitable | vigente |
 
 ---
 
@@ -3799,3 +3800,16 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** `wiki-sobre-la-base-propuesta.md` (sección 9); P-141; P-063; P-140.
 - **Quién decidió:** dueño del producto.
 - **Fuente:** conversación del 17 oct.
+
+### D-292 · La comprobación corre en todo PR; no apilar PR salvo que sea inevitable
+
+- **Fecha:** 18 oct 2026
+- **Tema:** Proceso de trabajo
+- **Estado:** vigente
+- **El problema:** la comprobación obligatoria de `main` solo corría en los PR que apuntan a `main`. Los PR apilados (cada uno sobre la rama del anterior) nunca la ejecutaban, y cuando GitHub les cambiaba la base a `main` tampoco arrancaba: quedaban bloqueados hasta que alguien actualizaba la rama a mano (#51, #52, #53).
+- **Qué se decidió:** la comprobación corre en todo PR, apunte a la rama que apunte (`.github/workflows/ci.yml`, PR #56). Además, no se apilan PR salvo que sea inevitable: un proceso, un PR contra `main`.
+- **Por qué:** el problema lo causó la forma de armar los PR, no el dueño; el arreglo evita que vuelva a pasar aunque haga falta apilar.
+- **Alternativas descartadas:** seguir actualizando la rama a mano en cada PR apilado.
+- **Dónde se aplica:** `.github/workflows/ci.yml`; `CLAUDE.md`.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 18 oct.

@@ -23,7 +23,7 @@ Este repositorio es el fork `Micelya/llm_wiki` de `nashsu/llm_wiki` (remoto `ups
 - Antes de cambiar el documento de diseño, mostrar la propuesta y esperar su visto bueno.
 - Antes de preguntarle algo, agotar lo que se puede averiguar leyendo los documentos (R-27).
 - Algo construido no está terminado: se cierra cuando cumple su función para quien lo usa (D-154).
-- **En un proceso de varios pasos: un commit por paso y un solo PR al final.** Cambios no relacionados, en PR separados. No usar `git push --tags`.
+- **En un proceso de varios pasos: un commit por paso y un solo PR al final, contra `main`.** No apilar PR (uno sobre la rama de otro) salvo que sea inevitable (D-292). Cambios no relacionados, en PR separados. No usar `git push --tags`.
 - El código se edita en `C:\Users\Usuario\LocalRepo\llm_wiki_wt` o `llm_wiki_wt2`; la app del dueño corre desde `LocalRepo\llm_wiki`. **No editar Rust con la app de desarrollo abierta desde esa misma carpeta:** se recompila sola y escribe en la base real.
 - Solo lectura, siempre: las carpetas originales de los proyectos de prueba (`C:\Documentos temporales para borrar\POC-Micelya`) y todo `G:\`. Los datos de la app se modifican solo con un respaldo previo.
 - Al cerrar una sesión, escribir un traspaso nuevo en `docs/sessions/`.
