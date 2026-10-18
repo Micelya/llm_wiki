@@ -15,6 +15,21 @@ Este repositorio es el fork `Micelya/llm_wiki` de `nashsu/llm_wiki` (remoto `ups
 - Las pruebas se corren a mano antes de cada PR: `npm run test:mocks` y, en `src-tauri`, `cargo test --lib`. No se espera ningún fallo.
 - Los PR se abren contra este fork: `gh pr create --repo Micelya/llm_wiki --base main`. Sin esos parámetros, `gh` apunta al proyecto original.
 
+## Forma de trabajo con el dueño del producto
+
+- Responder en español, en términos simples y con texto autocontenido. Primero decir qué se entendió, después cómo se haría.
+- Verificar las afirmaciones contra el código y los datos reales, y decir qué está verificado y qué es inferencia.
+- Lo que el dueño trae de otras conversaciones es hipótesis, no decisión.
+- Antes de cambiar el documento de diseño, mostrar la propuesta y esperar su visto bueno.
+- Antes de preguntarle algo, agotar lo que se puede averiguar leyendo los documentos (R-27).
+- Algo construido no está terminado: se cierra cuando cumple su función para quien lo usa (D-154).
+- **En un proceso de varios pasos: un commit por paso y un solo PR al final, contra `main`.** No apilar PR (uno sobre la rama de otro) salvo que sea inevitable (D-292). Cambios no relacionados, en PR separados. No usar `git push --tags`.
+- El código se edita en `C:\Users\Usuario\LocalRepo\llm_wiki_wt` o `llm_wiki_wt2`; la app del dueño corre desde `LocalRepo\llm_wiki`. **No editar Rust con la app de desarrollo abierta desde esa misma carpeta:** se recompila sola y escribe en la base real.
+- Solo lectura, siempre: las carpetas originales de los proyectos de prueba (`C:\Documentos temporales para borrar\POC-Micelya`) y todo `G:\`. Los datos de la app se modifican solo con un respaldo previo.
+- Al cerrar una sesión, escribir un traspaso nuevo en `docs/sessions/`.
+- **Trabajo con sub-agentes:** se comunican por archivos en disco (los reportes van en su respuesta final: no pueden crear archivos de reporte). Ningún agente espera a que termine la app ni otro proceso sin final; toda espera tiene un tope. Si un agente queda "esperando su propio trabajo", comprobar enseguida si hay avance real (archivos, commits, consultas al modelo).
+- **Modelo:** por defecto `gpt-6-luna` con razonamiento `high` en Codex (D-279). No usar `xhigh`, `max` ni `gpt-6-astra`. Evitar corridas del modelo en paralelo: agotan la ventana de uso de Codex.
+
 ## Uso de la inteligencia artificial
 
 - **La IA se usa donde agrega valor o donde el proceso la necesita.** No hay ninguna regla que pida evitarla, limitarla ni minimizarla.
