@@ -94,6 +94,8 @@ export interface DocumentFilter {
   similarGroup?: number | null
   /** Only documents of this type; `"none"`: those without a type yet. */
   docType?: string | null
+  /** One row per document (its most recent copy) instead of one per file; `total` counts documents. */
+  onePerDocument?: boolean
   sort?: "recent" | "name" | "folder"
   limit?: number
   offset?: number
@@ -413,6 +415,11 @@ export function openFolder(originId: string, folder: string): Promise<void> {
 
 export function listDocuments(filter: DocumentFilter): Promise<DocumentPage> {
   return invoke<DocumentPage>("docbase_list_documents", { filter })
+}
+
+/** Every location of the document this location holds, this one first. */
+export function documentCopies(locationId: number): Promise<LocationRef[]> {
+  return invoke<LocationRef[]>("docbase_document_copies", { locationId })
 }
 
 export function getDocument(locationId: number): Promise<DocumentDetail | null> {

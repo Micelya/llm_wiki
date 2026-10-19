@@ -45,6 +45,11 @@ pub struct DocumentFilter {
     pub similar_group: Option<i64>,
     /// Only documents of this type (pass 4); `"none"`: without a type.
     pub doc_type: Option<String>,
+    /// One row per document instead of one per location: of the
+    /// locations holding the same document that match the filter, only
+    /// the most recently modified is listed (its `copies` tells how many
+    /// there are). `total` then counts documents.
+    pub one_per_document: bool,
     /// `recent` (default), `name` or `folder`.
     pub sort: Option<String>,
     pub limit: Option<i64>,
@@ -398,9 +403,24 @@ impl DocBase {
                 .collect()
         };
 
+        // A location without a document yet (unread, a link) stands alone.
+        let matching = if filter.one_per_document {
+            format!(
+                "SELECT * FROM (
+                     SELECT *, row_number() OVER (
+                         PARTITION BY coalesce(content_id, -location_id)
+                         ORDER BY mtime_ms DESC, location_id
+                     ) AS document_rank
+                     FROM ({base_sql}) WHERE {filter_sql}
+                 ) WHERE document_rank = 1"
+            )
+        } else {
+            format!("SELECT * FROM ({base_sql}) WHERE {filter_sql}")
+        };
+
         let total: i64 = conn
             .query_row(
-                &format!("SELECT count(*) FROM ({base_sql}) WHERE {filter_sql}"),
+                &format!("SELECT count(*) FROM ({matching})"),
                 params_from_iter(all_bound(&[])),
                 |row| row.get(0),
             )
@@ -410,7 +430,7 @@ impl DocBase {
         let offset = filter.offset.unwrap_or(0).max(0);
         let rows = read_rows(
             &conn,
-            &format!("SELECT * FROM ({base_sql}) WHERE {filter_sql} ORDER BY {order} LIMIT ? OFFSET ?"),
+            &format!("SELECT * FROM ({matching}) ORDER BY {order} LIMIT ? OFFSET ?"),
             all_bound(&[Value::Integer(limit), Value::Integer(offset)]),
         )?;
         Ok(DocumentPage { rows, total })
@@ -459,44 +479,10 @@ impl DocBase {
             None => None,
         };
 
-        let mut locations = Vec::new();
-        if let Some(content_id) = row.content_id {
-            let (condition, visible_bound) = visible.condition("l.origin_id");
-            let mut statement = conn
-                .prepare(&format!(
-                    "SELECT l.id, o.name, o.reachable, l.rel_path, o.location, l.mtime_ms, l.file_hash
-                     FROM location l
-                     JOIN origin o ON o.id = l.origin_id
-                     JOIN file f ON f.hash = l.file_hash
-                     WHERE f.content_id = ? AND {condition}
-                     ORDER BY (l.id = ?) DESC, o.name COLLATE NOCASE, l.rel_path COLLATE NOCASE"
-                ))
-                .map_err(sql_err)?;
-            let bound: Vec<Value> = std::iter::once(Value::Integer(content_id))
-                .chain(visible_bound.into_iter().map(Value::Text))
-                .chain(std::iter::once(Value::Integer(location_id)))
-                .collect();
-            let found = statement
-                .query_map(params_from_iter(bound), |r| {
-                    let reachable: Option<i64> = r.get(2)?;
-                    let root: String = r.get(4)?;
-                    let rel_path: String = r.get(3)?;
-                    let hash: Option<String> = r.get(6)?;
-                    Ok(LocationRef {
-                        location_id: r.get(0)?,
-                        origin_name: r.get(1)?,
-                        origin_reachable: reachable.map(|value| value != 0),
-                        path: absolute(&root, &rel_path),
-                        rel_path,
-                        mtime_ms: r.get(5)?,
-                        same_file: hash == file_hash,
-                    })
-                })
-                .map_err(sql_err)?
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(sql_err)?;
-            locations = found;
-        }
+        let locations = match row.content_id {
+            Some(content_id) => locations_of(&conn, visible, content_id, location_id, file_hash.as_deref())?,
+            None => Vec::new(),
+        };
 
         Ok(Some(DocumentDetail {
             path: absolute(&root, &row.rel_path),
@@ -510,6 +496,46 @@ impl DocBase {
             locations,
             row,
         }))
+    }
+
+    /// Every visible location of the document this location holds, this
+    /// one first; just this one when it holds no document yet. Empty when
+    /// it does not exist or is not visible.
+    pub fn copies(&self, visible: &Visible, location_id: i64) -> Result<Vec<LocationRef>, String> {
+        let conn = self.conn();
+        let (condition, visible_bound) = visible.condition("l.origin_id");
+        let bound: Vec<Value> = std::iter::once(Value::Integer(location_id))
+            .chain(visible_bound.into_iter().map(Value::Text))
+            .collect();
+        let found: Option<(Option<i64>, Option<String>, String, String, Option<i64>, String, i64)> = conn
+            .query_row(
+                &format!(
+                    "SELECT f.content_id, l.file_hash, o.name, o.location, o.reachable, l.rel_path, l.mtime_ms
+                     FROM location l
+                     JOIN origin o ON o.id = l.origin_id
+                     LEFT JOIN file f ON f.hash = l.file_hash
+                     WHERE l.id = ? AND {condition}"
+                ),
+                params_from_iter(bound),
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?)),
+            )
+            .optional()
+            .map_err(sql_err)?;
+        let Some((content_id, file_hash, origin_name, root, reachable, rel_path, mtime_ms)) = found else {
+            return Ok(Vec::new());
+        };
+        match content_id {
+            Some(content_id) => locations_of(&conn, visible, content_id, location_id, file_hash.as_deref()),
+            None => Ok(vec![LocationRef {
+                location_id,
+                origin_name,
+                origin_reachable: reachable.map(|value| value != 0),
+                path: absolute(&root, &rel_path),
+                rel_path,
+                mtime_ms,
+                same_file: true,
+            }]),
+        }
     }
 
     /// Where a location is on disk, when it is visible.
@@ -567,6 +593,53 @@ pub(crate) fn rows_sql(visible: &Visible, only: Option<i64>) -> (String, Vec<Val
          WHERE {visible_l} {only_sql}"
     );
     (sql, bound)
+}
+
+/// Every visible location holding `content_id`, `first` at the top; each
+/// says whether it is the same file as `file_hash` or another file with
+/// the same document.
+fn locations_of(
+    conn: &Connection,
+    visible: &Visible,
+    content_id: i64,
+    first: i64,
+    file_hash: Option<&str>,
+) -> Result<Vec<LocationRef>, String> {
+    let (condition, visible_bound) = visible.condition("l.origin_id");
+    let mut statement = conn
+        .prepare(&format!(
+            "SELECT l.id, o.name, o.reachable, l.rel_path, o.location, l.mtime_ms, l.file_hash
+             FROM location l
+             JOIN origin o ON o.id = l.origin_id
+             JOIN file f ON f.hash = l.file_hash
+             WHERE f.content_id = ? AND {condition}
+             ORDER BY (l.id = ?) DESC, o.name COLLATE NOCASE, l.rel_path COLLATE NOCASE"
+        ))
+        .map_err(sql_err)?;
+    let bound: Vec<Value> = std::iter::once(Value::Integer(content_id))
+        .chain(visible_bound.into_iter().map(Value::Text))
+        .chain(std::iter::once(Value::Integer(first)))
+        .collect();
+    let found = statement
+        .query_map(params_from_iter(bound), |r| {
+            let reachable: Option<i64> = r.get(2)?;
+            let root: String = r.get(4)?;
+            let rel_path: String = r.get(3)?;
+            let hash: Option<String> = r.get(6)?;
+            Ok(LocationRef {
+                location_id: r.get(0)?,
+                origin_name: r.get(1)?,
+                origin_reachable: reachable.map(|value| value != 0),
+                path: absolute(&root, &rel_path),
+                rel_path,
+                mtime_ms: r.get(5)?,
+                same_file: hash.as_deref() == file_hash,
+            })
+        })
+        .map_err(sql_err)?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(sql_err)?;
+    Ok(found)
 }
 
 pub(crate) fn read_rows(conn: &Connection, sql: &str, bound: Vec<Value>) -> Result<Vec<DocumentRow>, String> {
@@ -731,6 +804,44 @@ mod tests {
 
         // A literal % is a character, not a wildcard.
         assert_eq!(find(DocumentFilter { query: Some("%".into()), ..Default::default() }).total, 0);
+    }
+
+    #[test]
+    fn one_row_per_document_lists_each_document_once_with_its_copies() {
+        let (_dir, base, casos, _) = sample();
+        let one = |filter: DocumentFilter| {
+            base.documents(&Visible::All, &DocumentFilter { one_per_document: true, ..filter }).unwrap()
+        };
+
+        // The letter is in three files: it is one document.
+        let all = one(DocumentFilter::default());
+        assert_eq!((all.total, all.rows.len()), (3, 3));
+        let listed = names(&all);
+        assert!(listed.contains(&"contrato.docx") && listed.contains(&"notas.gdoc"));
+        let carta = all.rows.iter().find(|row| row.copies == 3).unwrap();
+
+        // Its copies, the listed one first.
+        let copies = base.copies(&Visible::All, carta.location_id).unwrap();
+        assert_eq!(copies.len(), 3);
+        assert_eq!(copies[0].location_id, carta.location_id);
+
+        // A copy's own name still finds the document, shown by that copy.
+        let found = one(DocumentFilter { query: Some("escaneada".into()), ..Default::default() });
+        assert_eq!(names(&found), ["carta escaneada.pdf"]);
+        assert_eq!(found.rows[0].copies, 3);
+
+        // What the caller cannot see is neither listed nor counted.
+        let visible = Visible::Origins(vec![casos]);
+        let page = base.documents(&visible, &DocumentFilter { one_per_document: true, ..Default::default() }).unwrap();
+        assert_eq!(page.total, 3);
+        let carta = page.rows.iter().find(|row| row.copies == 2).unwrap();
+        assert_eq!(base.copies(&visible, carta.location_id).unwrap().len(), 2);
+
+        // A file without a document yet is its own row and its own copy.
+        let link = all.rows.iter().find(|row| row.name == "notas.gdoc").unwrap();
+        let alone = base.copies(&Visible::All, link.location_id).unwrap();
+        assert_eq!((alone.len(), alone[0].location_id), (1, link.location_id));
+        assert!(base.copies(&Visible::All, 9999).unwrap().is_empty());
     }
 
     #[test]
