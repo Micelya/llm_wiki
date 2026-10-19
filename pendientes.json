@@ -1847,6 +1847,18 @@
       "referencia": "D-295, D-370 a D-372; desatendido-4/N7-conceptos.md",
       "creado": "2026-10-18",
       "actualizado": "2026-10-18"
+    },
+    {
+      "id": "P-212",
+      "titulo": "Documentos: una fila por documento con sus copias desplegables, y la huella completa",
+      "tipo": "codigo",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "detalle": "El dueño vio que la pantalla Documentos mostraba cada copia como un documento (por ejemplo, una boleta guardada varias veces) y que la huella se cortaba. La base ya sabía que eran el mismo documento; la pantalla listaba una fila por archivo. Ahora lista una fila por documento (la copia modificada más recientemente entre las que coinciden con el filtro), el botón de copias despliega todas las ubicaciones, y el detalle muestra la huella completa con un botón para copiarla. Falta que el dueño lo vea en la app.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/query.rs; src/components/docbase/documents-view.tsx; src/components/docbase/document-detail.tsx",
+      "creado": "2026-10-19",
+      "actualizado": "2026-10-19"
     }
   ]
 }

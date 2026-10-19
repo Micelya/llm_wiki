@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react"
-import { ArrowLeft, ExternalLink, FolderOpen } from "lucide-react"
+import { ArrowLeft, Check, Copy, ExternalLink, FolderOpen } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   getDocument,
@@ -334,9 +334,7 @@ function FactBox({
         )}
         {document.fileHash && (
           <Fact label="Huella">
-            <span className="font-mono text-xs" title={document.fileHash}>
-              {document.fileHash.slice(0, 12)}…
-            </span>
+            <HashValue hash={document.fileHash} />
           </Fact>
         )}
       </FactRows>
@@ -354,6 +352,34 @@ function FactHeading({ children }: { children: ReactNode }) {
 
 function FactRows({ children }: { children: ReactNode }) {
   return <dl className="divide-y">{children}</dl>
+}
+
+/** The whole fingerprint, selectable, with a button that copies it. */
+function HashValue({ hash }: { hash: string }) {
+  const [copied, setCopied] = useState(false)
+  const copy = () => {
+    navigator.clipboard
+      .writeText(hash)
+      .then(() => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1500)
+      })
+      .catch(() => setCopied(false))
+  }
+  return (
+    <span className="inline-flex items-start gap-1">
+      <span className="font-mono text-xs break-all select-all">{hash}</span>
+      <button
+        type="button"
+        className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+        title={copied ? "Copiada" : "Copiar la huella"}
+        aria-label="Copiar la huella"
+        onClick={copy}
+      >
+        {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+      </button>
+    </span>
+  )
 }
 
 function Fact({ label, children }: { label: string; children: ReactNode }) {

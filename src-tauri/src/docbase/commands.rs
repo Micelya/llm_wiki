@@ -25,7 +25,7 @@ use super::similar::classify::{DecidedType, DocumentType, ProposedType, RunRepor
 use super::similar::data::Datum;
 use super::similar::types::RelationDef;
 use crate::source_volume::asking::{asker_for, AskConfig};
-use super::query::{Activity, DocumentDetail, DocumentFilter, DocumentPage, Health, OriginSummary};
+use super::query::{Activity, DocumentDetail, DocumentFilter, DocumentPage, Health, LocationRef, OriginSummary};
 use super::tree::FolderListing;
 use super::wiki::{BrokenLink, PageRef, WikiIndex};
 use super::worker::{self, Wake};
@@ -234,6 +234,14 @@ pub fn docbase_list_documents(
     state
         .base()?
         .documents(&Visible::All, &filter.unwrap_or_default())
+}
+
+#[tauri::command(async)]
+pub fn docbase_document_copies(
+    state: State<'_, DocBaseState>,
+    location_id: i64,
+) -> Result<Vec<LocationRef>, String> {
+    state.base()?.copies(&Visible::All, location_id)
 }
 
 #[tauri::command(async)]

@@ -671,6 +671,7 @@ pub fn run() {
             docbase::commands::docbase_excluded_sources,
             docbase::commands::docbase_open_folder,
             docbase::commands::docbase_get_document,
+            docbase::commands::docbase_document_copies,
             docbase::commands::docbase_pages_citing,
             docbase::commands::docbase_broken_links,
             docbase::commands::docbase_backlinks,

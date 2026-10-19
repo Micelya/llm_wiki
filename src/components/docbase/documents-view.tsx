@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react"
-import { ChevronLeft, ChevronRight, Copy } from "lucide-react"
+import { Fragment, useEffect, useRef, useState, type MouseEvent } from "react"
+import { ChevronDown, ChevronLeft, ChevronRight, Copy } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
+  documentCopies,
   listDocuments,
   listDocumentTypes,
   listLabelGroups,
@@ -11,6 +12,7 @@ import {
   type DocumentFilter,
   type DocumentRow,
   type DocumentState,
+  type LocationRef,
 } from "@/commands/docbase"
 import { useDocbaseStore } from "@/stores/docbase-store"
 import { DocumentDetailView } from "./document-detail"
@@ -71,7 +73,7 @@ function DocumentList() {
   const similarGroups = useDocbaseQuery("similar-groups", listSimilarGroups)
   const documentTypes = useDocbaseQuery("document-types", listDocumentTypes)
   const words = vocabulary()
-  const request: DocumentFilter = { ...filter, limit: PAGE_SIZE, offset: page * PAGE_SIZE }
+  const request: DocumentFilter = { ...filter, onePerDocument: true, limit: PAGE_SIZE, offset: page * PAGE_SIZE }
   const documents = useDocbaseQuery(JSON.stringify(request), () => listDocuments(request))
 
   const rows = documents.data?.rows ?? []
@@ -83,7 +85,7 @@ function DocumentList() {
   return (
     <DocbasePage
       title="Documentos"
-      subtitle="Todo lo que hay en las carpetas incorporadas: qué documento es cada archivo, en qué estado está y dónde tiene copias."
+      subtitle="Todo lo que hay en las carpetas incorporadas, una fila por documento: en qué estado está y dónde tiene copias."
     >
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-2">
@@ -226,7 +228,7 @@ function DocumentList() {
               </thead>
               <tbody>
                 {rows.map((row) => (
-                  <DocumentTableRow key={row.locationId} row={row} onOpen={() => openDocument(row.locationId)} />
+                  <DocumentTableRow key={row.locationId} row={row} onOpen={openDocument} />
                 ))}
               </tbody>
             </table>
@@ -236,7 +238,7 @@ function DocumentList() {
         {total > 0 && (
           <div className="flex items-center justify-between text-sm text-muted-foreground">
             <span>
-              {formatCount(first)}–{formatCount(last)} de {formatCount(total)}
+              {formatCount(first)}–{formatCount(last)} de {formatCount(total)} {total === 1 ? "documento" : "documentos"}
             </span>
             <div className="flex items-center gap-1">
               <Button variant="outline" size="icon-sm" disabled={page === 0} onClick={() => setPage(page - 1)}>
@@ -253,46 +255,99 @@ function DocumentList() {
   )
 }
 
-function DocumentTableRow({ row, onOpen }: { row: DocumentRow; onOpen: () => void }) {
+function DocumentTableRow({ row, onOpen }: { row: DocumentRow; onOpen: (locationId: number) => void }) {
+  const [copies, setCopies] = useState<LocationRef[] | null>(null)
+  const [open, setOpen] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const toggleCopies = (event: MouseEvent) => {
+    event.stopPropagation()
+    if (open) {
+      setOpen(false)
+      return
+    }
+    setOpen(true)
+    setError(null)
+    documentCopies(row.locationId)
+      .then(setCopies)
+      .catch((err) => setError(String(err)))
+  }
+
   return (
-    <tr className="cursor-pointer border-t hover:bg-muted/40" onClick={onOpen}>
-      <td className="max-w-xs px-3 py-2">
-        <span className="font-medium text-primary hover:underline" title={row.name}>
-          {row.name}
-        </span>
-      </td>
-      <td className="max-w-xs px-3 py-2 text-muted-foreground">
-        <span className="break-words" title={`${row.originName} › ${row.folder}`}>
-          {row.originName}
-          {row.folder && ` › ${row.folder.split("/").join(" › ")}`}
-        </span>
-        {row.originReachable === false && <span className="ml-1 text-xs">(origen sin conexión)</span>}
-      </td>
-      <td className="px-3 py-2 text-xs">
-        {rowTypeLabel(row) ?? <span className="text-muted-foreground">—</span>}
-      </td>
-      <td className="px-3 py-2">
-        <div className="flex flex-wrap gap-1">
-          {row.labels.map((label) => (
-            <LabelChip key={label.id} label={label} />
-          ))}
-        </div>
-      </td>
-      <td className="px-3 py-2">
-        <DocumentStateBadge state={row.state} />
-      </td>
-      <td className="px-3 py-2">
-        {row.copies > 1 && (
-          <span
-            className="inline-flex items-center gap-1 text-xs"
-            title={`Este mismo documento está en ${row.copies} lugares`}
-          >
-            <Copy className="size-3" /> {row.copies}
+    <Fragment>
+      <tr className="cursor-pointer border-t hover:bg-muted/40" onClick={() => onOpen(row.locationId)}>
+        <td className="max-w-xs px-3 py-2">
+          <span className="font-medium text-primary hover:underline" title={row.name}>
+            {row.name}
           </span>
-        )}
-      </td>
-      <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{formatDate(row.mtimeMs)}</td>
-      <td className="px-3 py-2 text-right whitespace-nowrap text-muted-foreground">{formatSize(row.size)}</td>
-    </tr>
+        </td>
+        <td className="max-w-xs px-3 py-2 text-muted-foreground">
+          <span className="break-words" title={`${row.originName} › ${row.folder}`}>
+            {row.originName}
+            {row.folder && ` › ${row.folder.split("/").join(" › ")}`}
+          </span>
+          {row.originReachable === false && <span className="ml-1 text-xs">(origen sin conexión)</span>}
+        </td>
+        <td className="px-3 py-2 text-xs">
+          {rowTypeLabel(row) ?? <span className="text-muted-foreground">—</span>}
+        </td>
+        <td className="px-3 py-2">
+          <div className="flex flex-wrap gap-1">
+            {row.labels.map((label) => (
+              <LabelChip key={label.id} label={label} />
+            ))}
+          </div>
+        </td>
+        <td className="px-3 py-2">
+          <DocumentStateBadge state={row.state} />
+        </td>
+        <td className="px-3 py-2">
+          {row.copies > 1 && (
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 rounded px-1 text-xs hover:bg-muted"
+              title={open ? "Ocultar las copias" : `Este mismo documento está en ${row.copies} archivos: ver dónde`}
+              aria-expanded={open}
+              onClick={toggleCopies}
+            >
+              <Copy className="size-3" /> {row.copies}
+              <ChevronDown className={`size-3 transition-transform ${open ? "rotate-180" : ""}`} />
+            </button>
+          )}
+        </td>
+        <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{formatDate(row.mtimeMs)}</td>
+        <td className="px-3 py-2 text-right whitespace-nowrap text-muted-foreground">{formatSize(row.size)}</td>
+      </tr>
+      {open && (
+        <tr className="bg-muted/20">
+          <td colSpan={8} className="px-6 py-2">
+            {error && <ErrorNote>{error}</ErrorNote>}
+            {!error && copies === null && <span className="text-xs text-muted-foreground">Buscando las copias…</span>}
+            {copies !== null && (
+              <ul className="flex flex-col gap-1 text-xs">
+                {copies.map((copy) => (
+                  <li key={copy.locationId}>
+                    <button
+                      type="button"
+                      className="text-left hover:underline"
+                      title={copy.path}
+                      onClick={() => onOpen(copy.locationId)}
+                    >
+                      <span className="text-primary">{copy.relPath.split("/").pop()}</span>
+                      <span className="text-muted-foreground">
+                        {" "}— {copy.originName} › {copy.relPath.split("/").slice(0, -1).join(" › ") || "(raíz)"} ·{" "}
+                        {formatDate(copy.mtimeMs)}
+                        {!copy.sameFile && " · otro archivo con el mismo texto"}
+                        {copy.originReachable === false && " · origen sin conexión"}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </td>
+        </tr>
+      )}
+    </Fragment>
   )
 }
