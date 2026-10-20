@@ -285,8 +285,8 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-290 | 17 oct | Producto | Chat, búsqueda y grafo se conservan, sin redundancias ni usos del modelo innecesarios; revisar los procesos heredados | vigente |
 | D-291 | 17 oct | IA | Micelya Core ofrecerá los servicios de IA (también vectores); la app mantiene proveedores configurables y aísla su configuración | vigente |
 | D-292 | 18 oct | Proceso de trabajo | La comprobación de los PR corre en todo PR, apunte a la rama que apunte; no apilar PR salvo que sea inevitable | vigente |
-| D-293 | 18 oct | Wiki | Ajustes al rediseño: certeza y quién confirmó cada afirmación; el grafo ordena y no recorta; una extracción principal; página común solo para versiones; asunto sin mínimo de documentos | vigente |
-| D-294 | 18 oct | Wiki | Decisiones abiertas resueltas: página del documento generada por ahora; asunto según P-061, no se construye aún; internet aparte y a pedido; vectores sin decidir | vigente |
+| D-293 | 18 oct | Wiki | Ajustes al rediseño: certeza y quién confirmó cada afirmación; el grafo ordena y no recorta; una extracción principal; página común solo para versiones; asunto sin mínimo de documentos | vigente; reemplazada en parte por D-373 |
+| D-294 | 18 oct | Wiki | Decisiones abiertas resueltas: página del documento generada por ahora; asunto según P-061, no se construye aún; internet aparte y a pedido; vectores sin decidir | vigente; reemplazada en parte por D-373 |
 | D-295 | 18 oct | Conocimiento | Conceptos por cálculo: por ahora solo medición de pasajes repetidos, fuera del repositorio | vigente |
 | D-296 | 18 oct | Proceso de trabajo | Prioridad: atribución, importes y uniones falsas primero; en errores críticos hay que demostrar mejora con dos corridas comparables | vigente |
 | D-300 | 18 oct | Proceso de trabajo | Casos de aceptación de los errores críticos, comprobables sobre cualquier base | en revisión |
@@ -328,6 +328,10 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-370 | 18 oct | Conocimiento | Para medir conceptos, una «unidad» junta las versiones y copias de un documento | en revisión |
 | D-371 | 18 oct | Conocimiento | Qué es un pasaje repetido | en revisión |
 | D-372 | 18 oct | Conocimiento | Tres clases para un grupo de pasajes | en revisión |
+| D-373 | 20 oct | Asuntos | Un solo concepto de asunto | vigente |
+| D-374 | 20 oct | Asuntos | Las referencias son datos del documento | vigente |
+| D-375 | 20 oct | Asuntos | El asunto tiene estado desde ahora; todos abiertos | vigente |
+| D-376 | 20 oct | Pantallas | Una sola vista por cosa | vigente |
 
 ---
 
@@ -4410,3 +4414,35 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** medición N7; P-211.
 - **Quién decidió:** agente sin consulta.
 - **Fuente:** etapa N7 de la tanda desatendida del 18 oct.
+
+### D-373 · Un solo concepto de asunto
+
+- **Fecha:** 20 oct 2026 · **Tema:** Asuntos · **Estado:** vigente
+- **El problema:** hoy hay tres cosas que hablan de asuntos (entidades de tipo asunto que salen de la lectura, grupos automáticos que cuentan copias como documentos distintos y etiquetas "Caso" con reglas de carpeta) y ninguna es confiable.
+- **Qué se decidió y por qué:** un solo concepto. Nace de dos maneras: lo crea una persona o lo propone el sistema; nunca por reglas de carpeta. Lo propuesto se ve como "propuesto" hasta que una persona lo confirma en Atención. Un documento puede estar en varios asuntos (un poder, por ejemplo). Se cuentan familias de versiones, no copias. El término genérico es "Asunto"; en la vertical de abogados, "Caso" (vocabulario). Reemplaza en parte D-293 y D-294 y cierra la pregunta de P-061. Detalle en `docs/design/asuntos-propuesta.md`.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 19 y 20 oct.
+
+### D-374 · Las referencias son datos del documento
+
+- **Fecha:** 20 oct 2026 · **Tema:** Asuntos · **Estado:** vigente
+- **El problema:** un número de acta, un expediente o "el contrato de X" se guardaban como entidades de tipo asunto (85 en la base real, ninguna con algo que decir), y llenaban Personas y organizaciones de fichas vacías.
+- **Qué se decidió y por qué:** no son entidades sino datos del documento: se buscan y sirven de evidencia para proponer asuntos. Por ahora salen de la lectura que ya existe; no se escriben reglas de extracción propias (Amazon Textract, a evaluar más adelante, P-026).
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 19 y 20 oct.
+
+### D-375 · El asunto tiene estado desde ahora; todos abiertos
+
+- **Fecha:** 20 oct 2026 · **Tema:** Asuntos · **Estado:** vigente
+- **El problema:** un caso se abre y se cierra; si el estado no existe desde el principio, agregarlo después obliga a rehacer datos y pantallas.
+- **Qué se decidió y por qué:** el asunto guarda su estado desde ahora y todos quedan "abierto". Cómo se cierra o se archiva se decide aparte (P-213).
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 19 y 20 oct.
+
+### D-376 · Una sola vista por cosa
+
+- **Fecha:** 20 oct 2026 · **Tema:** Pantallas · **Estado:** vigente
+- **El problema:** la misma persona, el mismo asunto o el mismo documento se ven dos veces: en una pantalla de la base y en una página del wiki, con información distinta.
+- **Qué se decidió y por qué:** una sola vista por cosa: arriba el artículo (lo que dicen los documentos, con citas y certeza) y en una pestaña los datos y las correcciones. Personas y organizaciones, Asuntos y el detalle de Documentos se unifican con su página del wiki; Orígenes no tiene par. Se empieza por persona u organización; asunto y documento después (P-214).
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 19 y 20 oct.
