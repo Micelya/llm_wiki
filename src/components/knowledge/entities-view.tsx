@@ -40,8 +40,10 @@ function EntityList() {
   }, [typed, query, setQuery])
 
   const entities = useDocbaseQuery(`entities:${kind ?? ""}:${query}`, () => listEntities(kind, query.trim() || null))
-  const kinds = Object.keys(words.knowledge.entityTypes)
-  const rows = entities.data ?? []
+  // A reference (a record, a file, an act) is data of its document, not an entity.
+  const references = words.knowledge.referenceTypes
+  const kinds = Object.keys(words.knowledge.entityTypes).filter((id) => !references.includes(id))
+  const rows = (entities.data ?? []).filter((entity) => !references.includes(entity.kind))
 
   return (
     <DocbasePage

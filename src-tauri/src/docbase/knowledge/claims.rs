@@ -205,6 +205,9 @@ struct Piece {
     /// What joined its subject and its object mention to their entities.
     subject_by: Option<String>,
     object_by: Option<String>,
+    /// Its object is a reference of the document, not an entity (D-377):
+    /// the claim keeps it as a value, written as the document writes it.
+    reference: bool,
 }
 
 /// The values given as identifiers in any document (normalized): a
@@ -268,7 +271,7 @@ fn load_pieces(conn: &Connection) -> Result<Vec<Piece>, String> {
         .prepare(
             "SELECT e.id, e.content_id, s.entity_id, s.normalized, e.predicate, o.entity_id, o.normalized,
                     e.object_value, e.object_normalized, e.fact_time, e.subject_mention, e.quote, e.amount, e.detail, k.doc_date,
-                    e.object_mention, s.resolved_by, o.resolved_by
+                    e.object_mention, s.resolved_by, o.resolved_by, o.kind, o.written
              FROM knowledge_evidence e
              JOIN knowledge_mention s ON s.id = e.subject_mention
              LEFT JOIN knowledge_mention o ON o.id = e.object_mention
@@ -297,6 +300,17 @@ fn load_pieces(conn: &Connection) -> Result<Vec<Piece>, String> {
                 object_mention: row.get(15)?,
                 subject_by: row.get(16)?,
                 object_by: row.get(17)?,
+                reference: false,
+            })
+            .map(|mut piece| {
+                let kind: Option<String> = row.get(18).ok().flatten();
+                if kind.is_some_and(|k| super::vocabulary::vocabulary().is_reference(&k)) {
+                    piece.reference = true;
+                    piece.object_entity = None;
+                    piece.value = row.get(19).ok().flatten();
+                    piece.normalized = piece.object_name.clone();
+                }
+                piece
             })
         })
         .map_err(sql_err)?
@@ -379,9 +393,9 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, decided: &
                 .or_else(|| said_class("clase").filter(|c| definition.is_some_and(|p| p.qualifiers.iter().any(|q| &q.id == c))))
         };
         contexts.insert(piece.id, (context.clone(), qualifier.clone()));
-        if piece.object_name.is_none() {
+        if piece.object_name.is_none() || piece.reference {
             let shape = definition.map(|p| p.shape.as_str()).unwrap_or_default();
-            if !values::fits(vocabulary, shape, piece.value.as_deref().unwrap_or_default(), &piece.subject_name) {
+            if !piece.reference && !values::fits(vocabulary, shape, piece.value.as_deref().unwrap_or_default(), &piece.subject_name) {
                 unfit += 1;
                 continue;
             }
@@ -437,6 +451,7 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, decided: &
         let marked_wrong = wrong.contains(&evidence_key(piece.content, &piece.subject_name, &piece.predicate, &object_word));
         let object_entity = match (&piece.object_name, &piece.object_entity) {
             (Some(_), Some(entity)) if entity != subject => Some(entity.clone()),
+            (Some(_), _) if piece.reference => None,
             (Some(_), _) => continue,
             (None, _) => None,
         };

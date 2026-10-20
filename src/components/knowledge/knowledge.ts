@@ -1,13 +1,17 @@
 import type {
   ClaimView,
   DocumentMatter,
+  DocumentRow,
   DoubtView,
   EntityDetail,
   EntityMention,
   IdentityDecisionView,
+  MatterDetail,
+  MatterSummary,
 } from "@/commands/docbase"
 import { entityTypeName, roleName, type Vocabulary, vocabulary } from "@/vocabulary"
 import { plural } from "@/components/docbase/format"
+import { parseFrontmatter } from "@/lib/frontmatter"
 
 /**
  * What the screens of the knowledge layer compute from what the base
@@ -298,4 +302,55 @@ export function reviewInWords(reason: string): string {
   return reason === "varias"
     ? "Al volver a leer el documento, lo que decidiste coincide con más de una cosa: la app no elige."
     : "Al volver a leer el documento, ya no aparece lo que decidiste: la decisión no se está aplicando."
+}
+
+/**
+ * The documents a search found that can be put in a matter: read (with a
+ * content), not in it already, each document once.
+ */
+export function pickableDocuments(rows: DocumentRow[], already: number[]): DocumentRow[] {
+  const seen = new Set(already)
+  const out: DocumentRow[] = []
+  for (const row of rows) {
+    if (row.contentId === null || seen.has(row.contentId)) continue
+    seen.add(row.contentId)
+    out.push(row)
+  }
+  return out
+}
+
+/** What a person can do with a matter (D-386). */
+export interface MatterActions {
+  confirm: boolean
+  discard: boolean
+  reopen: boolean
+  /** Rename it, put documents in and take them out. */
+  edit: boolean
+}
+
+export function matterActions(matter: Pick<MatterDetail, "state" | "origin" | "confirmation">): MatterActions {
+  const active = matter.state === "active"
+  return {
+    confirm: active && matter.confirmation === "proposed",
+    discard: active && (matter.confirmation === "proposed" || matter.origin === "person"),
+    reopen: matter.origin === "proposed" && matter.confirmation !== "proposed",
+    edit: active,
+  }
+}
+
+/** The matters a document can be put in: active, not one it is in already, matching the words typed. */
+export function mattersToJoin(matters: MatterSummary[], current: string[], query: string): MatterSummary[] {
+  const words = query.toLocaleLowerCase("es").split(/\s+/).filter(Boolean)
+  return matters.filter(
+    (matter) => !current.includes(matter.id) && words.every((word) => matter.name.toLocaleLowerCase("es").includes(word)),
+  )
+}
+
+/**
+ * What the article of an entity shows of its page: the page without its
+ * front matter nor its title (the screen writes the name above it).
+ */
+export function articleBody(text: string): string {
+  const { body } = parseFrontmatter(text)
+  return body.replace(/^\s*# [^\n]*\n+/, "")
 }

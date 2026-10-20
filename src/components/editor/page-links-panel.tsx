@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next"
 import { createMissingWikiPage, getPageLinks, readFile, type PageLinkEntry, type PageLinksResponse } from "@/commands/fs"
 import { normalizePath } from "@/lib/path-utils"
 import { useWikiStore } from "@/stores/wiki-store"
+import { openWikiPath } from "@/lib/open-wiki-path"
 import { streamChat } from "@/lib/llm-client"
 import { refreshProjectFileTree } from "@/lib/project-file-tree-refresh"
 import { normalizeSelectionReplacement } from "@/lib/selection-edit"
@@ -14,7 +15,6 @@ export function PageLinksPanel({ filePath, onClose }: { filePath: string; onClos
   const { t } = useTranslation()
   const project = useWikiStore((state) => state.project)
   const dataVersion = useWikiStore((state) => state.dataVersion)
-  const openPathInPreview = useWikiStore((state) => state.openPathInPreview)
   const llmConfig = useWikiStore((state) => state.llmConfig)
   const [links, setLinks] = useState<PageLinksResponse>(EMPTY_LINKS)
   const [loading, setLoading] = useState(true)
@@ -61,7 +61,7 @@ export function PageLinksPanel({ filePath, onClose }: { filePath: string; onClos
     const absolute = normalized.startsWith(`${normalizePath(project.path)}/`)
       ? normalized
       : `${normalizePath(project.path)}/${normalized.replace(/^\/+/, "")}`
-    openPathInPreview(absolute)
+    void openWikiPath(absolute)
   }
 
   const createMissing = async (entry: PageLinkEntry, withDraft: boolean) => {

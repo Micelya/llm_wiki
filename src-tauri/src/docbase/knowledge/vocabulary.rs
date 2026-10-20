@@ -161,6 +161,11 @@ pub struct MatterRules {
     pub propose_with_shared: usize,
     #[serde(default = "three")]
     pub propose_candidates: usize,
+    /// Relations that make two documents one for counting matters, besides
+    /// the versions of `pages.versionRelations`: the record of the signing
+    /// of an act, its translation, its delivery receipt (D-381).
+    #[serde(default)]
+    pub same_document: Vec<String>,
 }
 
 fn two() -> usize {
@@ -189,6 +194,7 @@ impl Default for MatterRules {
             min_documents: 2,
             propose_with_shared: 2,
             propose_candidates: 3,
+            same_document: Vec::new(),
         }
     }
 }
@@ -750,6 +756,15 @@ impl Vocabulary {
         let lower = |t: &str| t.chars().find(|c| c.is_alphabetic()).is_some_and(char::is_lowercase);
         let determiner = super::quote::words(first).join(" ");
         lower(first) && lower(second) && self.identity.determiners.iter().any(|d| d == &determiner)
+    }
+
+    /// Whether the mentions of this type are references of their document
+    /// (the number of a record, a file, "the contract of X"), not entities:
+    /// the reading still finds them, but they are never resolved into an
+    /// entity; they are data of the document, searchable, and evidence to
+    /// group documents (D-377). The type is the one of `matters.kind`.
+    pub fn is_reference(&self, kind: &str) -> bool {
+        self.matters.kind == kind
     }
 
     /// Whether a way of writing can name a matter on its page or as an

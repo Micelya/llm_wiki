@@ -24,6 +24,7 @@ import {
   unwrapWikilink,
 } from "@/lib/wiki-page-resolver"
 import { useWikiStore } from "@/stores/wiki-store"
+import { openWikiPath } from "@/lib/open-wiki-path"
 import { normalizePath } from "@/lib/path-utils"
 import { useTranslation } from "react-i18next"
 
@@ -46,7 +47,6 @@ export function FrontmatterPanel({ data }: FrontmatterPanelProps) {
   const { t } = useTranslation()
   const project = useWikiStore((s) => s.project)
   const projectPathIndex = useWikiStore((s) => s.projectPathIndex)
-  const openPathInPreview = useWikiStore((s) => s.openPathInPreview)
 
   const title = stringValue(data.title)
   const type = stringValue(data.type)
@@ -83,7 +83,7 @@ export function FrontmatterPanel({ data }: FrontmatterPanelProps) {
 
   function handleNavigate(path: string | null) {
     if (!path) return
-    openPathInPreview(path)
+    void openWikiPath(path)
   }
 
   function handleOpenExternal(url: string) {

@@ -163,6 +163,15 @@ fn a_document_shows_whom_it_names_with_their_roles_and_its_matter() {
     assert!(named.contains(&("Ejemplo Uno S.A.", "remitente")), "{named:?}");
     assert!(named.contains(&("Persona Nueve", "firmante")), "{named:?}");
     assert!(found.entities.iter().all(|e| e.entity_id.is_some()));
+    // The invoice it refers to is a reference of the document, with its
+    // quote and its number, not an entity (D-377).
+    assert!(!found.entities.iter().any(|e| e.kind == "asunto"), "{:?}", found.entities);
+    assert_eq!(found.references.len(), 1, "{:?}", found.references);
+    let invoice = &found.references[0];
+    assert_eq!(invoice.written, "factura 0001-00012345");
+    assert_eq!(invoice.quotes[0].quote, "por la factura 0001-00012345");
+    assert!(invoice.identifiers.iter().any(|i| i.value == "0001-00012345"), "{:?}", invoice.identifiers);
+    assert!(base.knowledge_entities(&Visible::All, None, None).unwrap().iter().all(|e| e.kind != "asunto"));
     assert_eq!(found.matters.len(), 1);
     assert!(!found.matters[0].proposed && found.matters[0].page_path.is_some());
     // The mail's matter is a proposal.
@@ -173,10 +182,17 @@ fn a_document_shows_whom_it_names_with_their_roles_and_its_matter() {
 
 #[test]
 fn an_entity_shows_its_page_its_matters_and_who_speaks_of_it() {
-    let (_dir, base, _project, _asker) = archive();
+    let (_dir, base, project, _asker) = archive();
     let company = base.knowledge_entities(&Visible::All, Some("organizacion"), Some("ejemplo uno")).unwrap();
     let detail = base.knowledge_entity(&Visible::All, &company[0].id).unwrap().unwrap();
     assert!(detail.page_path.as_deref().is_some_and(|p| p.starts_with("wiki/entities/")), "{:?}", detail.page_path);
+    // Its article is its page as the projection wrote it, and a link to
+    // that page leads to the entity (D-389).
+    let article = base.knowledge_entity_article(&detail.id).unwrap().unwrap();
+    assert!(article.text.contains("title: \"Ejemplo Uno S.A.\""), "{}", article.text);
+    let file = project.join(detail.page_path.as_deref().unwrap());
+    assert_eq!(base.knowledge_entity_of_page(&file.to_string_lossy()).unwrap().as_deref(), Some(detail.id.as_str()));
+    assert_eq!(base.knowledge_entity_of_page(&project.join("wiki/overview.md").to_string_lossy()).unwrap(), None);
     assert_eq!(detail.matters.iter().filter(|m| !m.proposed).count(), 3);
     assert!(detail.incoming.iter().any(|c| c.predicate == "representa_a" && c.subject_name == "Persona Nueve"), "{:?}", detail.incoming);
     // A mention taken out of it is a decision on it, to undo.
@@ -187,4 +203,32 @@ fn an_entity_shows_its_page_its_matters_and_who_speaks_of_it() {
     let after = base.knowledge_entity(&Visible::All, &detail.id).unwrap().unwrap();
     assert!(!after.mentions.iter().any(|m| m.document == "o.txt"));
     assert_eq!(after.decisions.iter().map(|d| d.id).collect::<Vec<_>>(), vec![id]);
+}
+
+#[test]
+fn a_reference_resolved_into_an_entity_before_lets_go_of_it() {
+    let (_dir, base, _project, _asker) = archive();
+    {
+        let conn = base.conn();
+        conn.execute(
+            "INSERT INTO knowledge_entity (id, kind, name, state, created_at, updated_at) VALUES ('ent-vieja', 'asunto', 'Factura vieja', 'active', 0, 0)",
+            [],
+        )
+        .unwrap();
+        conn.execute("UPDATE knowledge_mention SET entity_id = 'ent-vieja', resolved_by = 'nombre' WHERE kind = 'asunto'", []).unwrap();
+        // A base resolved by the program of before (D-377).
+        conn.execute("DELETE FROM docbase_setting WHERE key = 'knowledge-resolution'", []).unwrap();
+    }
+    base.knowledge_resolve(None, 0).unwrap();
+    let conn = base.conn();
+    let state: String = conn.query_row("SELECT state FROM knowledge_entity WHERE id = 'ent-vieja'", [], |row| row.get(0)).unwrap();
+    assert_eq!(state, "retired");
+    let still: i64 = conn
+        .query_row("SELECT count(*) FROM knowledge_mention WHERE kind = 'asunto' AND entity_id IS NOT NULL", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(still, 0);
+    let people: i64 = conn
+        .query_row("SELECT count(*) FROM knowledge_mention WHERE kind != 'asunto' AND entity_id IS NOT NULL", [], |row| row.get(0))
+        .unwrap();
+    assert!(people > 0);
 }

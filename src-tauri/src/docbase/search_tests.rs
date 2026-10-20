@@ -192,3 +192,26 @@ fn the_index_follows_the_text_and_the_summary() {
     }
     assert_eq!(found(&base, &Visible::All, "98765432"), vec![1]);
 }
+
+#[test]
+fn a_reference_of_the_documents_raises_them_without_being_an_entity() {
+    let base = base();
+    // The text of 1 writes the act another way; its reading took the reference.
+    document(&base, 1, "o1", "Nota sobre lo convenido en la reunión.", None);
+    document(&base, 2, "o1", "Recibo de pago.", None);
+    for id in 3..10 {
+        document(&base, id, "o1", "Factura de servicios.", None);
+    }
+    base.conn()
+        .execute(
+            "INSERT INTO knowledge_mention (content_id, ref, kind, written, normalized, role, quote)
+             VALUES (1, 'r1', 'asunto', 'Convenio Marco Ejemplo', 'convenio marco ejemplo', 'referido', 'lo convenido')",
+            [],
+        )
+        .unwrap();
+    let search = base.search_documents(&Visible::All, "convenio marco ejemplo", 10, None).unwrap();
+    let id = format!("{REFERENCE_PREFIX}convenio marco ejemplo");
+    assert_eq!(search.named, vec![id.clone()]);
+    assert_eq!(search.names.get(&id).map(String::as_str), Some("Convenio Marco Ejemplo"));
+    assert_eq!(search.hits.first().map(|h| h.content_id), Some(1));
+}

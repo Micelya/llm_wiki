@@ -16,7 +16,7 @@ use super::knowledge::decide::{DecisionView, IdentityDecision};
 use super::knowledge::entities::{DoubtView, EntityDetail, EntitySummary};
 use super::knowledge::pages::ProjectReport;
 use super::knowledge::resolve::ResolveReport;
-use super::knowledge::screens::{DocumentEntities, KnowledgeAttention, MatterDetail, MatterSummary};
+use super::knowledge::screens::{DocumentEntities, EntityArticle, KnowledgeAttention, MatterDetail, MatterSummary};
 use super::knowledge::{DocumentKnowledge, KnowledgeStatus};
 use super::labels::{Label, LabelGroup, LabelRule};
 use super::origins::Origin;
@@ -737,6 +737,18 @@ pub fn docbase_knowledge_entity(state: State<'_, DocBaseState>, id: String) -> R
     state.base()?.knowledge_entity(&Visible::All, &id)
 }
 
+/// The article of an entity: its page as the projection last wrote it.
+#[tauri::command(async)]
+pub fn docbase_knowledge_entity_article(state: State<'_, DocBaseState>, id: String) -> Result<Option<EntityArticle>, String> {
+    state.base()?.knowledge_entity_article(&id)
+}
+
+/// The entity whose page is the file at `path`, if any.
+#[tauri::command(async)]
+pub fn docbase_knowledge_entity_of_page(state: State<'_, DocBaseState>, path: String) -> Result<Option<String>, String> {
+    state.base()?.knowledge_entity_of_page(&path)
+}
+
 /// The pairs of mentions the resolution left for a person.
 #[tauri::command(async)]
 pub fn docbase_knowledge_doubts(state: State<'_, DocBaseState>) -> Result<Vec<DoubtView>, String> {
@@ -836,6 +848,45 @@ pub fn docbase_knowledge_leave_matter(
     let ids = state.base()?.knowledge_leave_matter(&document, &matter_id, note.as_deref())?;
     let _ = app.emit(CHANGED_EVENT, ());
     Ok(ids)
+}
+
+/// Confirms, discards or reopens a matter the grouping proposed
+/// (`confirm`, `discard`, `reopen`).
+#[tauri::command(async)]
+pub fn docbase_knowledge_decide_matter(app: tauri::AppHandle, state: State<'_, DocBaseState>, matter_id: String, decision: String) -> Result<(), String> {
+    state.base()?.knowledge_decide_matter(&matter_id, &decision)?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(())
+}
+
+/// Creates a matter by hand (empty or with documents); returns its id.
+#[tauri::command(async)]
+pub fn docbase_knowledge_create_matter(app: tauri::AppHandle, state: State<'_, DocBaseState>, name: String, documents: Vec<String>) -> Result<String, String> {
+    let id = state.base()?.knowledge_create_matter(&name, &documents)?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(id)
+}
+
+/// Names a matter by hand (an empty name gives back the app's name).
+#[tauri::command(async)]
+pub fn docbase_knowledge_rename_matter(app: tauri::AppHandle, state: State<'_, DocBaseState>, matter_id: String, name: String) -> Result<(), String> {
+    state.base()?.knowledge_rename_matter(&matter_id, &name)?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(())
+}
+
+/// Puts a document in a matter (`in`) or takes it out (`out`), by hand.
+#[tauri::command(async)]
+pub fn docbase_knowledge_choose_matter_document(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    matter_id: String,
+    document: String,
+    choice: String,
+) -> Result<(), String> {
+    state.base()?.knowledge_choose_matter_document(&matter_id, &document, &choice)?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(())
 }
 
 /// Puts a document in a matter, or confirms the model's proposal of it.

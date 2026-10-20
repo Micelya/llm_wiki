@@ -832,7 +832,15 @@ fn load(conn: &Connection, project_id: &str, identities: &HashMap<i64, String>) 
             let (id, name, content, reasons) = row.map_err(sql_err)?;
             let content = fold(content);
             let matter = matters.entry(id.clone()).or_insert_with(|| Matter { id: id.clone(), name: one_line(&name), ..Default::default() });
-            matter.documents.entry(content).or_default().extend(serde_json::from_str::<Vec<super::matters::Reason>>(&reasons).unwrap_or_default());
+            let mut reasons = serde_json::from_str::<Vec<super::matters::Reason>>(&reasons).unwrap_or_default();
+            // A shared reference as the documents write it, never its
+            // normalized form (D-377, D-381).
+            for reason in reasons.iter_mut().filter(|r| r.kind == "asunto" && !entities.contains_key(&r.value)) {
+                if let Some(written) = super::references::written_form(conn, vocabulary(), &reason.value)? {
+                    reason.value = written;
+                }
+            }
+            matter.documents.entry(content).or_default().extend(reasons);
             matter_of.entry(content).or_default().insert(id);
         }
     }

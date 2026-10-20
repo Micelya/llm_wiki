@@ -540,12 +540,12 @@
       "titulo": "Cómo nace un 'caso': extraído de los documentos o creado desde la interfaz",
       "tipo": "decision",
       "responsable": "ambos",
-      "estado": "pendiente",
-      "detalle": "Definido el 2026-10-11: 'caso' y 'cliente' son etiquetas, no proyectos. El cliente probablemente se extraiga como entidad y tenga su página en el wiki. Del caso no hay certeza de que se pueda extraer; tal vez haya que crearlo desde la interfaz. Se ve más adelante. Con el modelo de etiquetas del PR #31 un caso es una etiqueta del grupo que el usuario elija: nace de una regla de carpeta ('cada subcarpeta de acá es un caso') o se crea a mano escribiendo 'Caso: nombre'. Queda abierto si además se extrae del contenido. Recomendación aprobada el 2026-10-18 (D-293, D-294): un solo concepto de asunto con tres formas de nacer: lo propone la extracción, lo crea una persona (la etiqueta 'Caso' es una forma de crearlo) o lo propone una regla de carpeta. El asunto no depende de cuántos documentos tiene: la regla de dos documentos vale solo para la agrupación automática. No se construye todavía.",
+      "estado": "en-curso",
+      "detalle": "Definido el 2026-10-11: 'caso' y 'cliente' son etiquetas, no proyectos. El cliente probablemente se extraiga como entidad y tenga su página en el wiki. Del caso no hay certeza de que se pueda extraer; tal vez haya que crearlo desde la interfaz. Se ve más adelante. Con el modelo de etiquetas del PR #31 un caso es una etiqueta del grupo que el usuario elija: nace de una regla de carpeta ('cada subcarpeta de acá es un caso') o se crea a mano escribiendo 'Caso: nombre'. Queda abierto si además se extrae del contenido. Recomendación aprobada el 2026-10-18 (D-293, D-294): un solo concepto de asunto con tres formas de nacer: lo propone la extracción, lo crea una persona (la etiqueta 'Caso' es una forma de crearlo) o lo propone una regla de carpeta. El asunto no depende de cuántos documentos tiene: la regla de dos documentos vale solo para la agrupación automática. No se construye todavía. Acordado el 2026-10-20 (D-373 a D-376): un solo concepto de asunto ('Caso' en la vertical de abogados); lo crea una persona o lo propone el sistema, nunca una regla de carpeta; lo propuesto se confirma en Atención; un documento puede estar en varios asuntos; se cuentan familias, no copias; todos con estado 'abierto'; las referencias (acta, expediente) son datos del documento, no entidades. Se construye en la tanda del 20 oct (S2 a S5). S2 (20 oct): las referencias son datos del documento (D-377 a D-379); las entidades de tipo asunto se retiran al resolver otra vez; la agrupación usa la referencia normalizada. S3 (20 oct): asuntos propuestos por el sistema; la agrupación cuenta familias (D-381); estado, origen y confirmación guardados en el asunto, confirmar o descartar en Atención (D-382); el modelo propone sueltos solo para asuntos confirmados (D-383); «Caso» en las pantallas (D-384). Base de partida: quedan 4 de 7 (los 3 esperados y dos boletas, P-218). S4 (20 oct): crear y editar un asunto a mano desde Asuntos y desde el detalle del documento; lo puesto o sacado a mano se guarda por asunto y gana sobre la agrupación; agregar o sacar un documento confirma un asunto propuesto (D-386).",
       "depende_de": [],
-      "referencia": "docs/design/base-documental.md (sección 3, etiquetas); docs/design/wiki-sobre-la-base-propuesta.md (secciones 5 y 11)",
+      "referencia": "docs/design/asuntos-propuesta.md; D-373 a D-376; D-381 a D-384; D-386",
       "creado": "2026-10-11",
-      "actualizado": "2026-10-18"
+      "actualizado": "2026-10-20"
     },
     {
       "id": "P-062",
@@ -1859,6 +1859,90 @@
       "referencia": "src-tauri/src/docbase/query.rs; src/components/docbase/documents-view.tsx; src/components/docbase/document-detail.tsx",
       "creado": "2026-10-19",
       "actualizado": "2026-10-19"
+    },
+    {
+      "id": "P-213",
+      "titulo": "Estado y ciclo de vida de un asunto",
+      "tipo": "decision",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "detalle": "Desde el 20 oct cada asunto tiene estado y todos quedan 'abierto' (D-375). Falta decidir cómo se cierra o se archiva, quién lo hace, si vuelve a abrirse y qué cambia en las pantallas y en la búsqueda para un asunto cerrado.",
+      "depende_de": [],
+      "referencia": "D-375; docs/design/asuntos-propuesta.md",
+      "creado": "2026-10-20",
+      "actualizado": "2026-10-20"
+    },
+    {
+      "id": "P-214",
+      "titulo": "Unificar las páginas de asunto y de documento con el wiki",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Una sola vista por cosa (D-376): arriba el artículo, en una pestaña los datos y las correcciones. La de persona u organización está hecha (D-389: pestañas «Artículo», que muestra su página del wiki tal como la escribió la proyección, y «Datos y correcciones»; los enlaces del wiki a la página llevan a la pantalla). Faltan la del asunto (pantalla Asuntos y su página del wiki) y la del documento (detalle de Documentos y su página del wiki, Sources).",
+      "depende_de": ["P-061"],
+      "referencia": "D-376; D-389; docs/design/asuntos-propuesta.md (sección 5)",
+      "creado": "2026-10-20",
+      "actualizado": "2026-10-20"
+    },
+    {
+      "id": "P-215",
+      "titulo": "Nombre de una referencia y uniones aproximadas entre documentos",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Desde S2 una referencia junta documentos solo por su forma normalizada exacta; la resolución unía antes formas parecidas (en la base de partida un documento salió de un asunto) y elegía el nombre más específico. Ver en S3 si hace falta unir formas parecidas de una referencia (sin modelo) y cómo se muestra su nombre (hoy la forma más escrita, en forma de nombre). S3: sin cambios; en la base de partida no hizo falta para los 3 asuntos esperados.",
+      "depende_de": ["P-061"],
+      "referencia": "D-377, D-378; desatendido-5/S2-medicion.txt",
+      "creado": "2026-10-20",
+      "actualizado": "2026-10-20"
+    },
+    {
+      "id": "P-217",
+      "titulo": "Palabras del wiki por vertical («Caso» en las páginas y en los nombres de los asuntos)",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Las pantallas dicen «Caso» (vocabulario de la vertical); el wiki y los nombres de los asuntos usan las palabras del catálogo (knowledge.json: «Asunto», «Asunto entre»). Llevarlas a la vertical sin rehacer preguntas guardadas: la descripción del asunto entra en la pregunta de propuesta (medir con el arnés antes).",
+      "depende_de": ["P-061"],
+      "referencia": "D-384",
+      "creado": "2026-10-20",
+      "actualizado": "2026-10-20"
+    },
+    {
+      "id": "P-218",
+      "titulo": "Dos ejemplares de una misma boleta que la base ve como «misma plantilla, otros datos»",
+      "tipo": "decision",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "detalle": "En la base de partida queda un cuarto asunto propuesto: dos boletas que comparten el importe y que la comparación de parecidos relaciona como misma plantilla (cambian identificadores y fechas), no como versiones. Si son el mismo documento, basta con descartarlo en Atención o unirlas como el mismo documento; si pasa seguido, ver si dos documentos de la misma plantilla unidos solo por un importe deben proponerse.",
+      "depende_de": ["P-061"],
+      "referencia": "D-381; desatendido-5/S3-medicion.txt",
+      "creado": "2026-10-20",
+      "actualizado": "2026-10-20"
+    },
+    {
+      "id": "P-219",
+      "titulo": "Una sola forma de decidir qué documentos son de un asunto (por asunto, no entre pares)",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Desde S4 (D-386) lo que una persona pone o saca a mano se guarda por asunto; conviven las decisiones entre pares de documentos ('mismo asunto', 'asuntos distintos') que ya existían y que descartar la propuesta del modelo para un documento suelto sigue usando. Además, lo puesto o sacado a mano no aparece todavía en la lista de decisiones del asunto ni se deshace desde ahí (se vuelve a agregar o a sacar). Ver si las decisiones entre pares pasan a ser por asunto y cómo se muestran y deshacen.",
+      "depende_de": ["P-061"],
+      "referencia": "D-386",
+      "creado": "2026-10-20",
+      "actualizado": "2026-10-20"
+    },
+    {
+      "id": "P-221",
+      "titulo": "El artículo de una entidad muestra la última pasada del wiki",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Desde D-389 el artículo de la página de persona u organización es el archivo de su página del wiki: una corrección en «Datos y correcciones» se ve en el artículo cuando la próxima pasada del wiki lo vuelve a escribir, y los enlaces dentro del artículo solo navegan con el wiki del archivo abierto. Ver si hace falta avisar «el artículo se actualiza en la próxima pasada» o armarlo en el momento con el mismo código de knowledge/pages.rs (separando el cálculo de las rutas de las páginas de project()).",
+      "depende_de": ["P-214"],
+      "referencia": "D-389",
+      "creado": "2026-10-20",
+      "actualizado": "2026-10-20"
     }
   ]
 }

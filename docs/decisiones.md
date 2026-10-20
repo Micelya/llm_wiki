@@ -285,8 +285,8 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-290 | 17 oct | Producto | Chat, búsqueda y grafo se conservan, sin redundancias ni usos del modelo innecesarios; revisar los procesos heredados | vigente |
 | D-291 | 17 oct | IA | Micelya Core ofrecerá los servicios de IA (también vectores); la app mantiene proveedores configurables y aísla su configuración | vigente |
 | D-292 | 18 oct | Proceso de trabajo | La comprobación de los PR corre en todo PR, apunte a la rama que apunte; no apilar PR salvo que sea inevitable | vigente |
-| D-293 | 18 oct | Wiki | Ajustes al rediseño: certeza y quién confirmó cada afirmación; el grafo ordena y no recorta; una extracción principal; página común solo para versiones; asunto sin mínimo de documentos | vigente |
-| D-294 | 18 oct | Wiki | Decisiones abiertas resueltas: página del documento generada por ahora; asunto según P-061, no se construye aún; internet aparte y a pedido; vectores sin decidir | vigente |
+| D-293 | 18 oct | Wiki | Ajustes al rediseño: certeza y quién confirmó cada afirmación; el grafo ordena y no recorta; una extracción principal; página común solo para versiones; asunto sin mínimo de documentos | vigente; reemplazada en parte por D-373 |
+| D-294 | 18 oct | Wiki | Decisiones abiertas resueltas: página del documento generada por ahora; asunto según P-061, no se construye aún; internet aparte y a pedido; vectores sin decidir | vigente; reemplazada en parte por D-373 |
 | D-295 | 18 oct | Conocimiento | Conceptos por cálculo: por ahora solo medición de pasajes repetidos, fuera del repositorio | vigente |
 | D-296 | 18 oct | Proceso de trabajo | Prioridad: atribución, importes y uniones falsas primero; en errores críticos hay que demostrar mejora con dos corridas comparables | vigente |
 | D-300 | 18 oct | Proceso de trabajo | Casos de aceptación de los errores críticos, comprobables sobre cualquier base | en revisión |
@@ -328,6 +328,19 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-370 | 18 oct | Conocimiento | Para medir conceptos, una «unidad» junta las versiones y copias de un documento | en revisión |
 | D-371 | 18 oct | Conocimiento | Qué es un pasaje repetido | en revisión |
 | D-372 | 18 oct | Conocimiento | Tres clases para un grupo de pasajes | en revisión |
+| D-373 | 20 oct | Asuntos | Un solo concepto de asunto | vigente |
+| D-374 | 20 oct | Asuntos | Las referencias son datos del documento | vigente |
+| D-375 | 20 oct | Asuntos | El asunto tiene estado desde ahora; todos abiertos | vigente |
+| D-376 | 20 oct | Pantallas | Una sola vista por cosa | vigente |
+| D-377 | 20 oct | Asuntos | Las referencias son las menciones de tipo asunto, sin tabla nueva; dejan de tener entidad al resolver otra vez | en revisión |
+| D-378 | 20 oct | Asuntos | Una referencia junta documentos por su forma normalizada, nunca entre otras partes | en revisión |
+| D-379 | 20 oct | Asuntos | Una afirmación sobre una referencia queda como valor escrito; la referencia sigue como contexto de las preguntas | en revisión |
+| D-381 | 20 oct | Asuntos | La agrupación cuenta familias: versiones y lo que es parte de un documento (constancia de firma, traducción, acuse) | en revisión |
+| D-382 | 20 oct | Asuntos | Confirmar o descartar se guarda en el asunto y sobrevive al recálculo | en revisión |
+| D-383 | 20 oct | Asuntos | El modelo propone documentos sueltos solo para un asunto confirmado o creado por una persona | en revisión |
+| D-384 | 20 oct | Asuntos | «Caso» en las pantallas de abogados; el wiki sigue con las palabras del catálogo | en revisión |
+| D-386 | 20 oct | Asuntos | Crear y editar un asunto a mano: lo que hace una persona se guarda por asunto y gana sobre la agrupación | en revisión |
+| D-389 | 20 oct | Pantallas | Página única de persona u organización: el artículo es su página del wiki tal como la escribió la proyección; los enlaces del wiki llevan a ella | en revisión |
 
 ---
 
@@ -4410,3 +4423,98 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Dónde se aplica:** medición N7; P-211.
 - **Quién decidió:** agente sin consulta.
 - **Fuente:** etapa N7 de la tanda desatendida del 18 oct.
+
+### D-373 · Un solo concepto de asunto
+
+- **Fecha:** 20 oct 2026 · **Tema:** Asuntos · **Estado:** vigente
+- **El problema:** hoy hay tres cosas que hablan de asuntos (entidades de tipo asunto que salen de la lectura, grupos automáticos que cuentan copias como documentos distintos y etiquetas "Caso" con reglas de carpeta) y ninguna es confiable.
+- **Qué se decidió y por qué:** un solo concepto. Nace de dos maneras: lo crea una persona o lo propone el sistema; nunca por reglas de carpeta. Lo propuesto se ve como "propuesto" hasta que una persona lo confirma en Atención. Un documento puede estar en varios asuntos (un poder, por ejemplo). Se cuentan familias de versiones, no copias. El término genérico es "Asunto"; en la vertical de abogados, "Caso" (vocabulario). Reemplaza en parte D-293 y D-294 y cierra la pregunta de P-061. Detalle en `docs/design/asuntos-propuesta.md`.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 19 y 20 oct.
+
+### D-374 · Las referencias son datos del documento
+
+- **Fecha:** 20 oct 2026 · **Tema:** Asuntos · **Estado:** vigente
+- **El problema:** un número de acta, un expediente o "el contrato de X" se guardaban como entidades de tipo asunto (85 en la base real, ninguna con algo que decir), y llenaban Personas y organizaciones de fichas vacías.
+- **Qué se decidió y por qué:** no son entidades sino datos del documento: se buscan y sirven de evidencia para proponer asuntos. Por ahora salen de la lectura que ya existe; no se escriben reglas de extracción propias (Amazon Textract, a evaluar más adelante, P-026).
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 19 y 20 oct.
+
+### D-375 · El asunto tiene estado desde ahora; todos abiertos
+
+- **Fecha:** 20 oct 2026 · **Tema:** Asuntos · **Estado:** vigente
+- **El problema:** un caso se abre y se cierra; si el estado no existe desde el principio, agregarlo después obliga a rehacer datos y pantallas.
+- **Qué se decidió y por qué:** el asunto guarda su estado desde ahora y todos quedan "abierto". Cómo se cierra o se archiva se decide aparte (P-213).
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 19 y 20 oct.
+
+### D-376 · Una sola vista por cosa
+
+- **Fecha:** 20 oct 2026 · **Tema:** Pantallas · **Estado:** vigente
+- **El problema:** la misma persona, el mismo asunto o el mismo documento se ven dos veces: en una pantalla de la base y en una página del wiki, con información distinta.
+- **Qué se decidió y por qué:** una sola vista por cosa: arriba el artículo (lo que dicen los documentos, con citas y certeza) y en una pestaña los datos y las correcciones. Personas y organizaciones, Asuntos y el detalle de Documentos se unifican con su página del wiki; Orígenes no tiene par. Se empieza por persona u organización; asunto y documento después (P-214).
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 19 y 20 oct.
+
+### D-377 · Las referencias son las menciones de tipo asunto, sin tabla nueva
+
+- **Fecha:** 20 oct 2026 · **Tema:** Asuntos · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** D-374 pide que las referencias (número de acta, expediente, "el contrato de X") sean datos del documento y no entidades, sin releer los documentos ni cambiar la consigna de lectura.
+- **Qué se decidió y por qué:** no hay tabla nueva: una referencia es una mención del tipo `matters.kind` del catálogo (hoy `asunto`), que ya tiene lo escrito, la forma normalizada, la cita, la página y sus números. La resolución ya no les da entidad (quedan "referencia") y suelta la que tenían; las 85 entidades de tipo asunto quedan retiradas al resolver otra vez (versión `resolucion-11`), sin preguntas nuevas. Se ven en el detalle del documento (sección "Referencias", término del vocabulario), la búsqueda las encuentra por su nombre, y no aparecen en Personas y organizaciones ni en el grafo. Un término que el documento define o solo palabras comunes no son referencia.
+- **Quién decidió:** agente sin consulta.
+
+### D-378 · Una referencia junta documentos por su forma normalizada, nunca entre otras partes
+
+- **Fecha:** 20 oct 2026 · **Tema:** Asuntos · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la agrupación en asuntos usaba "la misma entidad de tipo asunto"; sin esas entidades necesita otra evidencia.
+- **Qué se decidió y por qué:** dos documentos comparten una referencia cuando tienen la misma forma normalizada; como en D-263, no se juntan si cada uno tiene dos partes o más y las de ninguno están dentro de las del otro (otro acto entre otros). Ya no hay unión aproximada de nombres: en la base de partida un documento sale de un asunto porque solo entraba por "Agreement". S3 rehace la agrupación por familias.
+- **Quién decidió:** agente sin consulta.
+
+### D-379 · Una afirmación sobre una referencia queda como valor escrito
+
+- **Fecha:** 20 oct 2026 · **Tema:** Asuntos · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** sacar las referencias de la resolución cambiaba lo que muestran las preguntas de identidad y borraba afirmaciones como "Parte en: <contrato>": la app habría hecho 26 preguntas nuevas y perdido datos con cita.
+- **Qué se decidió y por qué:** las referencias siguen en la resolución solo como contexto de lo que se pregunta (sin entidad, sin candidatos), y una afirmación cuyo objeto es una referencia queda con ese objeto como valor escrito, con su cita. Medido en la base de partida: 3 preguntas nuevas (2 síntesis y 1 propuesta de asunto), por debajo del límite de 10.
+- **Quién decidió:** agente sin consulta.
+
+### D-381 · La agrupación cuenta familias: versiones y lo que es parte de un documento
+
+- **Fecha:** 20 oct 2026 · **Tema:** Asuntos · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** un grupo de dos documentos o más era un asunto aunque fueran un solo documento con sus copias, versiones o la constancia de su firma: en la base de partida 4 de 7 grupos eran eso.
+- **Qué se decidió y por qué:** la agrupación (`knowledge/matters.rs`) cuenta familias: las relaciones de `pages.versionRelations` (como las páginas por familia) más las de `matters.sameDocument` del catálogo (constancia de firma, traducción, acuse de recibo: son parte del mismo acto), propuestas o confirmadas, nunca las descartadas. Un grupo de una sola familia no es asunto; sus documentos siguen en el grupo cuando hay otra familia. Medido: de 7 grupos quedan 4; el cuarto son dos boletas que la base relaciona como «misma plantilla, otros datos» (cambian identificadores y fechas), no como versiones: si son el mismo documento, una persona lo marca y desaparece.
+- **Quién decidió:** agente sin consulta.
+
+### D-382 · Confirmar o descartar se guarda en el asunto y sobrevive al recálculo
+
+- **Fecha:** 20 oct 2026 · **Tema:** Asuntos · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** lo que propone el sistema es una propuesta hasta que una persona la confirma (D-373), y el recálculo de la agrupación no puede borrar esa decisión.
+- **Qué se decidió y por qué:** `knowledge_matter` suma `status` (abierto), `origin` (propuesto o de una persona), `confirmation` (propuesto, confirmado, descartado), `name_by_person`, `decided_at` y `decided_documents` (migración 18: lo existente queda propuesto y abierto; las decisiones de una persona de `knowledge_decision` no se tocan). Confirmado: la agrupación nunca lo retira. Descartado: se retira y guarda sus documentos; vuelve como propuesta solo si la agrupación le suma un documento nuevo. Un asunto de una persona no lo toca la agrupación, y un nombre puesto por una persona se conserva. Atención lista los propuestos con Confirmar, Descartar y Ver, y el motivo que los une.
+- **Quién decidió:** agente sin consulta.
+
+### D-383 · El modelo propone documentos sueltos solo para un asunto confirmado o creado por una persona
+
+- **Fecha:** 20 oct 2026 · **Tema:** Asuntos · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** con la agrupación nueva cambian los asuntos que se describen en la pregunta de propuesta y la app habría hecho 11 preguntas nuevas (límite 10) sobre grupos que todavía nadie confirmó.
+- **Qué se decidió y por qué:** la pregunta «¿este documento suelto es de alguno de estos asuntos?» se hace solo contra asuntos confirmados o creados por una persona: preguntar sobre una propuesta es gastar en algo que quizás se descarte. Un documento que está en cualquier asunto, propuesto o no, no es suelto. Medido: 0 preguntas de propuesta y 2 de síntesis (las mismas de S2).
+- **Quién decidió:** agente sin consulta.
+
+### D-384 · «Caso» en las pantallas de abogados; el wiki sigue con las palabras del catálogo
+
+- **Fecha:** 20 oct 2026 · **Tema:** Asuntos · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** D-373 pide «Asunto» genérico y «Caso» en la vertical de abogados; las pantallas toman el término del vocabulario (`src/vocabulary/legal.ts`), pero las páginas del wiki y los nombres de los asuntos usan las palabras del catálogo (`knowledge.json`), que entran en la descripción de las preguntas de propuesta.
+- **Qué se decidió y por qué:** la vertical de abogados dice «Caso», «Casos» y «Sin caso identificado» en las pantallas, con «Propuesto», «Confirmado» y «Abierto» también desde el vocabulario. Las palabras del wiki quedan genéricas («Asunto») para no cambiar las preguntas guardadas; llevarlas a la vertical es P-217.
+- **Quién decidió:** agente sin consulta.
+
+### D-386 · Crear y editar un asunto a mano: lo que hace una persona se guarda por asunto y gana sobre la agrupación
+
+- **Fecha:** 20 oct 2026 · **Tema:** Asuntos · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** D-373 pide que una persona pueda crear un asunto, nombrarlo y agregarle o sacarle documentos, y que eso gane sobre lo propuesto y sobreviva al recálculo. Las decisiones que había («mismo asunto», «asuntos distintos») son entre pares de documentos: no sirven para un asunto creado a mano (la agrupación no lo toca) y, con un documento en varios asuntos, sacarlo de uno lo separaba de todos los documentos del otro.
+- **Qué se decidió y por qué:** cada documento puesto o sacado a mano se guarda por asunto (tabla `knowledge_matter_choice`, migración 19: `in` / `out`) y la agrupación lo aplica sobre lo que encuentra; el nombre puesto a mano queda (`name_by_person`; vacío devuelve el nombre de la app a uno propuesto). Un asunto creado a mano nace confirmado, con origen «persona», vacío o con documentos, y la agrupación no lo toca. Agregar o sacar un documento de un asunto propuesto lo confirma: es una decisión de una persona. A uno propuesto no se le saca el último documento (se descarta). Se hace desde Asuntos (nuevo, renombrar, buscador de documentos que usa la búsqueda de Documentos) y desde el detalle del documento (agregar a uno existente, crear uno con ese documento, sacar). Las decisiones entre pares que ya existen siguen valiendo; «descartar» la propuesta del modelo para un documento suelto sigue usándolas. Sin modelo: no agrega preguntas.
+- **Quién decidió:** agente sin consulta.
+
+### D-389 · Página única de persona u organización: el artículo es su página del wiki tal como la escribió la proyección; los enlaces del wiki llevan a ella
+
+- **Fecha:** 20 oct 2026 · **Tema:** Pantallas · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** D-376 pide una sola vista por cosa, empezando por persona u organización: arriba el artículo (síntesis con citas y certeza, documentos por asunto, vínculos), en una pestaña los datos y las correcciones. Había dos lugares: la pantalla de Personas y organizaciones (correcciones) y la página del wiki (lectura), con un botón para ir de una a la otra.
+- **Qué se decidió y por qué:** la pantalla de la entidad tiene dos pestañas, «Artículo» y «Datos y correcciones». El artículo es el archivo de su página tal como lo escribió la última pasada del wiki, desde la base y la síntesis guardada (sin preguntar al modelo), con las notas de la persona; se muestra con el mismo lector del wiki. Así no hay un segundo armado del artículo que pueda diferir del wiki: el código de `knowledge/pages.rs` sigue siendo el único que lo escribe. La pestaña de datos es la pantalla de antes (unir, separar, incorrecto, confirmar, deshacer), con un contador de lo que espera una decisión. Una entidad sin página (nombrada de paso) abre en los datos. Los enlaces del lector del wiki, del panel de enlaces, de los relacionados y de Atención a la página de una entidad abren esta pantalla (comando `docbase_knowledge_entity_of_page`); abrir el archivo desde el árbol sigue abriendo el archivo, para escribir notas («Escribir notas»). Los enlaces dentro del artículo funcionan con el wiki del archivo abierto, como en el wiki. Sin modelo: no agrega preguntas.
+- **Quién decidió:** agente sin consulta.

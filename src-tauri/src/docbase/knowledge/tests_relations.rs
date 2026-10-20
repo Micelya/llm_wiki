@@ -110,6 +110,12 @@ pub(crate) fn archive() -> (TempDir, DocBase, PathBuf, FakeModel) {
     base.link_general_project(&project, "General").unwrap();
     let asker = model();
     read(&base, &asker);
+    // The model proposes loose documents only for a matter a person
+    // confirmed (D-381).
+    let ids: Vec<String> = base.knowledge_matters(&crate::docbase::Visible::All).unwrap().into_iter().map(|m| m.id).collect();
+    for id in ids {
+        base.knowledge_decide_matter(&id, "confirm").unwrap();
+    }
     base.knowledge_propose_matters(Some(&asker), 50).unwrap();
     base.knowledge_project(Some(&asker), 50).unwrap();
     (dir, base, project, asker)
@@ -218,6 +224,12 @@ fn the_model_proposes_the_matter_of_a_loose_document_and_it_stays_a_proposal() {
     let matter = pages.iter().find(|(_, t)| t.contains("entity_id: mat-")).map(|(_, t)| t.as_str()).unwrap();
     assert!(matter.contains("### Posiblemente de este asunto") && matter.contains("|p.txt]] — certeza media: por los hechos"), "{matter}");
     assert!(matter.contains("## Documentos (3)"), "{matter}");
+    // A shared reference as the documents write it, never its normalized
+    // form (D-381).
+    assert!(
+        ["Factura 0001-00012345", "factura 0001-00012345"].iter().any(|w| matter.contains(&format!("nombran el mismo asunto ({w})"))),
+        "{matter}"
+    );
     let person = page_of(&pages, "Persona Dos");
     assert!(person.contains("|p.txt]] — remitente · contrato (propuesto)"), "{person}");
     // Asking again asks nothing.

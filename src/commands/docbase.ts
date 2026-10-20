@@ -1100,6 +1100,15 @@ export interface KnowledgeIdentifierJoin {
   readAt: number
 }
 
+/** A matter the grouping proposed, for a person to confirm or discard (D-381). */
+export interface KnowledgeMatterToConfirm {
+  id: string
+  name: string
+  documents: number
+  /** In how many of its documents each kind of reason is ("numero", "asunto"...). */
+  reasons: Record<string, number>
+}
+
 export interface KnowledgeProposedMatter {
   document: KnowledgeDocumentRef
   matterId: string
@@ -1129,6 +1138,8 @@ export interface KnowledgeAttention {
   conflicts: KnowledgeConflictGroup[]
   identifierJoins: KnowledgeIdentifierJoin[]
   proposedMatters: KnowledgeProposedMatter[]
+  /** The matters the grouping proposed that no person confirmed yet. */
+  mattersToConfirm: KnowledgeMatterToConfirm[]
   synthesisPending: number
   discardedSentences: number
   keptPages: KnowledgeKeptPage[]
@@ -1144,9 +1155,19 @@ export interface KnowledgeDecisionReview {
   reason: string
 }
 
+/** "open" for now (its life cycle is P-213). */
+export type MatterStatus = "open"
+/** Who made it: the grouping ("proposed") or a person. */
+export type MatterOrigin = "proposed" | "person"
+/** What a person decided about it. */
+export type MatterConfirmation = "proposed" | "confirmed" | "discarded"
+
 export interface MatterSummary {
   id: string
   name: string
+  status: MatterStatus
+  origin: MatterOrigin
+  confirmation: MatterConfirmation
   documents: number
   proposed: number
   pagePath: string | null
@@ -1179,6 +1200,9 @@ export interface MatterDetail {
   id: string
   name: string
   state: "active" | "retired"
+  status: MatterStatus
+  origin: MatterOrigin
+  confirmation: MatterConfirmation
   pagePath: string | null
   documents: MatterDocument[]
   parties: MatterParty[]
@@ -1194,11 +1218,22 @@ export interface DocumentEntity {
   pagePath: string | null
 }
 
+/** A reference of a document (a record, a file, an act): data of the document, not an entity. */
+export interface DocumentReference {
+  written: string
+  normalized: string
+  alsoWritten: string[]
+  role: string
+  quotes: { quote: string; page: number | null }[]
+  identifiers: KnowledgeIdentifierView[]
+}
+
 export interface DocumentEntities {
   contentId: number | null
   state: "done" | "failed" | "stale" | "pending"
   error: string | null
   entities: DocumentEntity[]
+  references: DocumentReference[]
   matters: DocumentMatter[]
   discarded: number
 }
@@ -1231,6 +1266,22 @@ export function listEntities(kind: string | null = null, query: string | null = 
 
 export function getEntity(id: string): Promise<EntityDetail | null> {
   return invoke<EntityDetail | null>("docbase_knowledge_entity", { id })
+}
+
+/** The article of an entity: its page as the projection last wrote it (D-389). */
+export interface EntityArticle {
+  /** The page's file, absolute. */
+  path: string
+  text: string
+}
+
+export function getEntityArticle(id: string): Promise<EntityArticle | null> {
+  return invoke<EntityArticle | null>("docbase_knowledge_entity_article", { id })
+}
+
+/** The entity whose page is the file at `path` (absolute), if any. */
+export function entityOfPage(path: string): Promise<string | null> {
+  return invoke<string | null>("docbase_knowledge_entity_of_page", { path })
 }
 
 export function listIdentityDoubts(): Promise<DoubtView[]> {
@@ -1285,7 +1336,33 @@ export function leaveMatter(document: string, matterId: string, note: string | n
   return invoke<number[]>("docbase_knowledge_leave_matter", { document, matterId, note })
 }
 
+/**
+ * Confirms a matter the grouping proposed, discards it (it stays away
+ * while the same documents are grouped) or makes it a proposal again.
+ */
+export function decideMatter(matterId: string, decision: "confirm" | "discard" | "reopen"): Promise<void> {
+  return invoke<void>("docbase_knowledge_decide_matter", { matterId, decision })
+}
+
 /** Puts a document in a matter, or confirms the model's proposal. */
 export function joinMatter(document: string, matterId: string, note: string | null = null): Promise<number> {
   return invoke<number>("docbase_knowledge_join_matter", { document, matterId, note })
+}
+
+/** Creates a matter by hand, empty or with documents (`content:<id>` or `location:<id>`); returns its id. */
+export function createMatter(name: string, documents: string[] = []): Promise<string> {
+  return invoke<string>("docbase_knowledge_create_matter", { name, documents })
+}
+
+/** Names a matter by hand; an empty name gives a proposed matter back the app's name. */
+export function renameMatter(matterId: string, name: string): Promise<void> {
+  return invoke<void>("docbase_knowledge_rename_matter", { matterId, name })
+}
+
+/**
+ * Puts a document in a matter (`in`) or takes it out (`out`), by hand: it
+ * survives every grouping, and a proposed matter becomes confirmed.
+ */
+export function chooseMatterDocument(matterId: string, document: string, choice: "in" | "out"): Promise<void> {
+  return invoke<void>("docbase_knowledge_choose_matter_document", { matterId, document, choice })
 }

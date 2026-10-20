@@ -1,4 +1,5 @@
 import {
+  decideMatter,
   undoIdentityDecision,
   getKnowledgeAttention,
   joinMatter,
@@ -173,6 +174,40 @@ export function knowledgeNotices(facts: KnowledgeFacts, words: Vocabulary = voca
           detail: item.values.map((value) => `«${value}»`).join(" / "),
           actions: [{ kind: "go", label: "Ver", target: { view: "entities", entityId: item.entityId } }],
         })),
+        moreCases: more,
+      }),
+    )
+  }
+  if (attention.mattersToConfirm.length > 0) {
+    const { list, more } = cut(attention.mattersToConfirm)
+    const one = terms.matter.toLowerCase()
+    out.push(
+      notice({
+        kind: "decision",
+        topic: "matters-to-confirm",
+        priority: "normal",
+        count: attention.mattersToConfirm.length,
+        title: plural(
+          attention.mattersToConfirm.length,
+          `${one} que propone la app para confirmar`,
+          `${terms.matters.toLowerCase()} que propone la app para confirmar`,
+        ),
+        explanation: `La app juntó documentos distintos que comparten algo propio de un mismo ${one}: un número, un importe, una referencia o una relación entre ellos. Un documento con sus copias o versiones nunca es un ${one} por sí solo. Hasta que una persona lo confirme es una propuesta.`,
+        todo: `Mirá sus documentos y por qué están juntos; confirmalo o descartalo.`,
+        resolvedWhen: `Desaparece cuando se confirma o se descarta. Lo descartado no vuelve mientras la app encuentre los mismos documentos.`,
+        actions: [{ kind: "go", label: `Ver ${terms.matters.toLowerCase()}`, target: { view: "matters", matterId: list[0].id } }],
+        cases: list.map(
+          (item): AttentionCase => ({
+            id: `matter-to-confirm:${item.id}`,
+            title: item.name,
+            detail: `${plural(item.documents, "documento", "documentos")} · ${matterReasonsInWords(item.reasons)}`,
+            actions: [
+              { kind: "run", label: "Confirmar", run: () => decideMatter(item.id, "confirm") },
+              { kind: "run", label: "Descartar", run: () => decideMatter(item.id, "discard") },
+              { kind: "go", label: "Ver", target: { view: "matters", matterId: item.id } },
+            ],
+          }),
+        ),
         moreCases: more,
       }),
     )
@@ -406,4 +441,19 @@ export function useKnowledgeNotices(): AttentionNotice[] | null {
   if (attention.error) throw new Error(attention.error)
   if (!attention.data) return null
   return knowledgeNotices({ attention: attention.data, doubts: doubts.data })
+}
+
+/** Why the documents of a proposed matter are together, in a few words. */
+export function matterReasonsInWords(reasons: Record<string, number>): string {
+  const names: Record<string, string> = {
+    persona: "decisión de una persona",
+    documento: "relación entre documentos",
+    asunto: "la misma referencia",
+    numero: "el mismo número",
+    importe: "el mismo importe",
+  }
+  const parts = Object.entries(reasons)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([kind, n]) => `${names[kind] ?? kind} (${n})`)
+  return parts.length > 0 ? `comparten ${parts.join(", ")}` : "sin motivo guardado"
 }

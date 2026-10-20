@@ -1,7 +1,19 @@
 import { describe, expect, it } from "vitest"
-import type { DocumentMatter, DoubtView, EntityMention, IdentityDecisionView } from "@/commands/docbase"
+import type { DocumentMatter, DocumentRow, DoubtView, EntityMention, IdentityDecisionView, MatterSummary } from "@/commands/docbase"
 import { vocabularyFor } from "@/vocabulary"
-import { certaintyInWords, decisionInWords, documentsByMatter, doubtReason, groupDoubts, reviewInWords, rolesInWords } from "./knowledge"
+import {
+  articleBody,
+  certaintyInWords,
+  decisionInWords,
+  documentsByMatter,
+  doubtReason,
+  groupDoubts,
+  matterActions,
+  mattersToJoin,
+  pickableDocuments,
+  reviewInWords,
+  rolesInWords,
+} from "./knowledge"
 
 const words = vocabularyFor("legal", "es")
 
@@ -77,7 +89,7 @@ describe("documentsByMatter", () => {
 
   it("groups the documents under their matter with every role, the loose ones last", () => {
     const groups = documentsByMatter(mentions, matters, words.knowledge.withoutMatter)
-    expect(groups.map((g) => g.name)).toEqual(["Reclamo", "Sin asunto identificado"])
+    expect(groups.map((g) => g.name)).toEqual(["Reclamo", words.knowledge.withoutMatter])
     expect(groups[0].documents.map((d) => d.name)).toEqual(["carta.pdf", "correo.eml", "factura.pdf"])
     const letter = groups[0].documents.find((d) => d.name === "carta.pdf")
     expect(letter?.roles).toEqual(["remitente", "firmante"])
@@ -145,3 +157,55 @@ describe("certaintyInWords", () => {
     expect(reviewInWords("varias")).toContain("más de una")
   })
 })
+
+describe("editing a matter by hand (D-386)", () => {
+  const row = (contentId: number | null, name: string): DocumentRow =>
+    ({ locationId: (contentId ?? 0) + 100, contentId, name } as DocumentRow)
+
+  it("offers each read document once, and not those already in the matter", () => {
+    const rows = [row(1, "Carta"), row(2, "Factura"), row(2, "Factura (copia)"), row(null, "Sin leer"), row(3, "Recibo")]
+    expect(pickableDocuments(rows, [3]).map((r) => r.name)).toEqual(["Carta", "Factura"])
+  })
+
+  it("a proposed matter is confirmed or discarded; one made by hand is discarded; both are edited while active", () => {
+    expect(matterActions({ state: "active", origin: "proposed", confirmation: "proposed" })).toEqual({
+      confirm: true,
+      discard: true,
+      reopen: false,
+      edit: true,
+    })
+    expect(matterActions({ state: "active", origin: "proposed", confirmation: "confirmed" })).toEqual({
+      confirm: false,
+      discard: false,
+      reopen: true,
+      edit: true,
+    })
+    expect(matterActions({ state: "active", origin: "person", confirmation: "confirmed" })).toEqual({
+      confirm: false,
+      discard: true,
+      reopen: false,
+      edit: true,
+    })
+    expect(matterActions({ state: "retired", origin: "person", confirmation: "discarded" }).edit).toBe(false)
+  })
+
+  it("the matters a document can join: not those it is in, by the words typed", () => {
+    const matter = (id: string, name: string) => ({ id, name } as MatterSummary)
+    const all = [matter("a", "Reclamo de Uno a Dos"), matter("b", "Acuerdo entre Uno y Tres"), matter("c", "Reclamo de Cuatro")]
+    expect(mattersToJoin(all, ["a"], "reclamo").map((m) => m.id)).toEqual(["c"])
+    expect(mattersToJoin(all, [], "uno ACUERDO").map((m) => m.id)).toEqual(["b"])
+    expect(mattersToJoin(all, [], "").length).toBe(3)
+  })
+
+  it("the words of a matter come from the vocabulary of the profession", () => {
+    expect(words.knowledge.matter).toBe("Caso")
+  })
+})
+
+describe("articleBody", () => {
+  it("drops the front matter and the title of the page, keeps the rest", () => {
+    const page = '---\ntype: entity\ntitle: "Persona Uno"\n---\n\n# Persona Uno\n\n*Persona*\n\n## Documentos (1)\n'
+    expect(articleBody(page)).toBe("*Persona*\n\n## Documentos (1)\n")
+  })
+})
+

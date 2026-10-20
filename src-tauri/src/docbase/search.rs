@@ -55,6 +55,9 @@ const ENTITY_MAX_SHARE: f64 = 0.5;
 const MAX_NAME_WORDS: usize = 6;
 /// Words this long or longer are also searched by their stem.
 const STEM_FROM_CHARS: usize = 6;
+/// What the ids of the references the question names start with (D-377):
+/// a reference is data of its documents, not an entity.
+pub const REFERENCE_PREFIX: &str = "ref:";
 
 /// A document found, with why.
 #[derive(Debug, Clone, Serialize)]
@@ -337,6 +340,14 @@ fn named_entities(
                 rows.collect::<Result<Vec<_>, _>>().map_err(sql_err)?.iter().map(|id| root(id)).collect()
             };
             ids.extend(matters.iter().filter(|(_, n)| *n == name).map(|(id, _)| id.clone()));
+            // A reference of the documents (D-377): a record, a file, an act.
+            let is_reference: bool = conn
+                .prepare_cached("SELECT EXISTS (SELECT 1 FROM knowledge_mention WHERE kind = ?1 AND defined = 0 AND normalized = ?2)")
+                .and_then(|mut s| s.query_row(params![vocabulary().matters.kind, name], |row| row.get(0)))
+                .map_err(sql_err)?;
+            if is_reference {
+                ids.push(format!("{REFERENCE_PREFIX}{name}"));
+            }
             if ids.is_empty() {
                 continue;
             }
@@ -367,6 +378,17 @@ fn documents_of(
     merged: &HashMap<String, String>,
     keep: &(String, Vec<Value>),
 ) -> Result<BTreeSet<i64>, String> {
+    if let Some(normalized) = id.strip_prefix(REFERENCE_PREFIX) {
+        let sql = format!(
+            "SELECT DISTINCT content_id FROM knowledge_mention WHERE kind = ? AND defined = 0 AND normalized = ? AND {keep}",
+            keep = keep.0
+        );
+        let mut values: Vec<Value> = vec![Value::Text(vocabulary().matters.kind.clone()), Value::Text(normalized.to_string())];
+        values.extend(keep.1.iter().cloned());
+        let mut statement = conn.prepare(&sql).map_err(sql_err)?;
+        let rows = statement.query_map(params_from_iter(values), |row| row.get(0)).map_err(sql_err)?;
+        return rows.collect::<Result<_, _>>().map_err(sql_err);
+    }
     let mut ids: Vec<String> = vec![id.to_string()];
     // The entities merged into this one, at any depth.
     let mut grew = true;
@@ -505,6 +527,11 @@ impl DocBase {
         }
         let mut names = BTreeMap::new();
         for id in named.keys() {
+            if let Some(normalized) = id.strip_prefix(REFERENCE_PREFIX) {
+                let written = super::knowledge::references::written_form(&conn, vocabulary(), normalized)?;
+                names.insert(id.clone(), written.unwrap_or_else(|| normalized.to_string()));
+                continue;
+            }
             let name: Option<String> = conn
                 .query_row(
                     "SELECT name FROM knowledge_entity WHERE id = ?1 UNION ALL SELECT name FROM knowledge_matter WHERE id = ?1",
