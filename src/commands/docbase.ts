@@ -1194,11 +1194,22 @@ export interface DocumentEntity {
   pagePath: string | null
 }
 
+/** A reference of a document (a record, a file, an act): data of the document, not an entity. */
+export interface DocumentReference {
+  written: string
+  normalized: string
+  alsoWritten: string[]
+  role: string
+  quotes: { quote: string; page: number | null }[]
+  identifiers: KnowledgeIdentifierView[]
+}
+
 export interface DocumentEntities {
   contentId: number | null
   state: "done" | "failed" | "stale" | "pending"
   error: string | null
   entities: DocumentEntity[]
+  references: DocumentReference[]
   matters: DocumentMatter[]
   discarded: number
 }

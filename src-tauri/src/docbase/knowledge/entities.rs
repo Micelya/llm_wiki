@@ -205,8 +205,11 @@ impl DocBase {
             .prepare(&format!(
                 "SELECT e.id, e.kind, e.name, count(m.id), count(DISTINCT m.content_id) FROM knowledge_entity e
                  JOIN knowledge_mention m ON m.entity_id = e.id
-                 WHERE e.state = 'active' AND (? IS NULL OR e.kind = ?) AND {condition}
-                 GROUP BY e.id ORDER BY count(DISTINCT m.content_id) DESC, e.name"
+                 WHERE e.state = 'active' AND (? IS NULL OR e.kind = ?) AND e.kind != '{reference}' AND {condition}
+                 GROUP BY e.id ORDER BY count(DISTINCT m.content_id) DESC, e.name",
+                // References are not entities (D-377), even in a base not
+                // resolved again yet.
+                reference = super::vocabulary::vocabulary().matters.kind.replace('\'', "")
             ))
             .map_err(sql_err)?;
         let first: Vec<Value> = vec![kind.map(str::to_string).into(), kind.map(str::to_string).into()];

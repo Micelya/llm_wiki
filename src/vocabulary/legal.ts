@@ -83,6 +83,8 @@ export const legal: Vertical = {
         matter: "Asunto",
         withoutMatter: "Sin asunto identificado",
         doubts: "Identidades dudosas",
+        references: "Referencias",
+        referenceTypes: ["asunto"],
         entityTypes: {
           persona: { one: "Persona", many: "Personas" },
           organizacion: { one: "Organización", many: "Organizaciones" },
@@ -229,6 +231,8 @@ export const legal: Vertical = {
         matter: "Matter",
         withoutMatter: "No identified matter",
         doubts: "Doubtful identities",
+        references: "References",
+        referenceTypes: ["asunto"],
         entityTypes: {
           persona: { one: "Person", many: "People" },
           organizacion: { one: "Organization", many: "Organizations" },

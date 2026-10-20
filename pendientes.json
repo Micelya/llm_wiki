@@ -541,7 +541,7 @@
       "tipo": "decision",
       "responsable": "ambos",
       "estado": "en-curso",
-      "detalle": "Definido el 2026-10-11: 'caso' y 'cliente' son etiquetas, no proyectos. El cliente probablemente se extraiga como entidad y tenga su página en el wiki. Del caso no hay certeza de que se pueda extraer; tal vez haya que crearlo desde la interfaz. Se ve más adelante. Con el modelo de etiquetas del PR #31 un caso es una etiqueta del grupo que el usuario elija: nace de una regla de carpeta ('cada subcarpeta de acá es un caso') o se crea a mano escribiendo 'Caso: nombre'. Queda abierto si además se extrae del contenido. Recomendación aprobada el 2026-10-18 (D-293, D-294): un solo concepto de asunto con tres formas de nacer: lo propone la extracción, lo crea una persona (la etiqueta 'Caso' es una forma de crearlo) o lo propone una regla de carpeta. El asunto no depende de cuántos documentos tiene: la regla de dos documentos vale solo para la agrupación automática. No se construye todavía. Acordado el 2026-10-20 (D-373 a D-376): un solo concepto de asunto ('Caso' en la vertical de abogados); lo crea una persona o lo propone el sistema, nunca una regla de carpeta; lo propuesto se confirma en Atención; un documento puede estar en varios asuntos; se cuentan familias, no copias; todos con estado 'abierto'; las referencias (acta, expediente) son datos del documento, no entidades. Se construye en la tanda del 20 oct (S2 a S5).",
+      "detalle": "Definido el 2026-10-11: 'caso' y 'cliente' son etiquetas, no proyectos. El cliente probablemente se extraiga como entidad y tenga su página en el wiki. Del caso no hay certeza de que se pueda extraer; tal vez haya que crearlo desde la interfaz. Se ve más adelante. Con el modelo de etiquetas del PR #31 un caso es una etiqueta del grupo que el usuario elija: nace de una regla de carpeta ('cada subcarpeta de acá es un caso') o se crea a mano escribiendo 'Caso: nombre'. Queda abierto si además se extrae del contenido. Recomendación aprobada el 2026-10-18 (D-293, D-294): un solo concepto de asunto con tres formas de nacer: lo propone la extracción, lo crea una persona (la etiqueta 'Caso' es una forma de crearlo) o lo propone una regla de carpeta. El asunto no depende de cuántos documentos tiene: la regla de dos documentos vale solo para la agrupación automática. No se construye todavía. Acordado el 2026-10-20 (D-373 a D-376): un solo concepto de asunto ('Caso' en la vertical de abogados); lo crea una persona o lo propone el sistema, nunca una regla de carpeta; lo propuesto se confirma en Atención; un documento puede estar en varios asuntos; se cuentan familias, no copias; todos con estado 'abierto'; las referencias (acta, expediente) son datos del documento, no entidades. Se construye en la tanda del 20 oct (S2 a S5). S2 (20 oct): las referencias son datos del documento (D-377 a D-379); las entidades de tipo asunto se retiran al resolver otra vez; la agrupación usa la referencia normalizada.",
       "depende_de": [],
       "referencia": "docs/design/asuntos-propuesta.md; D-373 a D-376",
       "creado": "2026-10-11",
@@ -1881,6 +1881,18 @@
       "detalle": "Una sola vista por cosa (D-376): arriba el artículo, en una pestaña los datos y las correcciones. En la tanda del 20 oct se hace solo la de persona u organización; faltan la del asunto (pantalla Asuntos y su página del wiki) y la del documento (detalle de Documentos y su página del wiki, Sources).",
       "depende_de": ["P-061"],
       "referencia": "D-376; docs/design/asuntos-propuesta.md (sección 5)",
+      "creado": "2026-10-20",
+      "actualizado": "2026-10-20"
+    },
+    {
+      "id": "P-215",
+      "titulo": "Nombre de una referencia y uniones aproximadas entre documentos",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Desde S2 una referencia junta documentos solo por su forma normalizada exacta; la resolución unía antes formas parecidas (en la base de partida un documento salió de un asunto) y elegía el nombre más específico. Ver en S3 si hace falta unir formas parecidas de una referencia (sin modelo) y cómo se muestra su nombre (hoy la forma más escrita, en forma de nombre).",
+      "depende_de": ["P-061"],
+      "referencia": "D-377, D-378; desatendido-5/S2-medicion.txt",
       "creado": "2026-10-20",
       "actualizado": "2026-10-20"
     }

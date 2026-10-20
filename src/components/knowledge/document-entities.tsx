@@ -70,6 +70,35 @@ export function DocumentEntitiesSection({ locationId }: { locationId: number }) 
           ))}
         </ul>
       )}
+      {data.references.length > 0 && (
+        <div className="mt-3">
+          <h4 className="mb-1 text-xs font-medium text-muted-foreground">
+            {words.knowledge.references} ({data.references.length})
+          </h4>
+          <ul className="flex flex-col divide-y rounded-md border text-sm">
+            {data.references.map((reference) => (
+              <li key={reference.normalized} className="flex flex-col gap-0.5 px-3 py-1.5">
+                <span className="flex flex-wrap items-baseline gap-2">
+                  <span>{reference.written}</span>
+                  {reference.identifiers.map((identifier) => (
+                    <span key={`${identifier.kind}:${identifier.value}`} className="text-xs text-muted-foreground">
+                      {words.knowledge.identifiers[identifier.kind] ?? identifier.kind} {identifier.value}
+                    </span>
+                  ))}
+                  {reference.alsoWritten.length > 0 && (
+                    <span className="text-xs text-muted-foreground">· también «{reference.alsoWritten.join("», «")}»</span>
+                  )}
+                </span>
+                {reference.quotes.map((quote) => (
+                  <span key={quote.quote} className="text-xs text-muted-foreground">
+                    «{quote.quote}»{quote.page !== null ? ` (pág. ${quote.page})` : ""}
+                  </span>
+                ))}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {data.discarded > 0 && (
         <p className="mt-2 text-xs text-muted-foreground">
           {plural(data.discarded, "cosa que dijo el modelo se descartó", "cosas que dijo el modelo se descartaron")} al

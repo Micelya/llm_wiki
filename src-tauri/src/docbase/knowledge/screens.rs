@@ -173,9 +173,9 @@ pub struct MatterSummary {
 pub struct MatterReason {
     /// "persona", "documento", "asunto", "numero" or "importe".
     pub kind: String,
-    /// The relation, the matter's entity id, the number or the amount.
+    /// The relation, the shared reference (normalized), the number or the amount.
     pub value: String,
-    /// The name of the matter's entity, for "asunto".
+    /// How the documents write the shared reference, for "asunto".
     pub value_name: Option<String>,
     pub with: Option<DocumentRef>,
 }
@@ -250,6 +250,9 @@ pub struct DocumentEntities {
     pub state: String,
     pub error: Option<String>,
     pub entities: Vec<DocumentEntity>,
+    /// The record numbers, files and acts it refers to: data of the
+    /// document, not entities (D-377).
+    pub references: Vec<super::references::DocumentReference>,
     pub matters: Vec<DocumentMatter>,
     /// Pieces of the reading discarded by the check of the quotes.
     pub discarded: usize,
@@ -690,7 +693,16 @@ impl DocBase {
             let mut shown = Vec::new();
             for reason in parsed {
                 let with = if visible_contents.contains(&reason.with) { Some(document_ref(&conn, visible, reason.with, &mut names)?) } else { None };
-                let value_name = (reason.kind == "asunto").then(|| entity_names.get(&reason.value).cloned()).flatten();
+                // A shared reference: its normalized form (D-377); an entity
+                // id from before it, until the matters are grouped again.
+                let value_name = if reason.kind == "asunto" {
+                    match entity_names.get(&reason.value) {
+                        Some(name) => Some(name.clone()),
+                        None => super::references::written_form(&conn, vocabulary(), &reason.value)?,
+                    }
+                } else {
+                    None
+                };
                 shown.push(MatterReason { kind: reason.kind, value: reason.value, value_name, with });
             }
             documents.push(MatterDocument {
@@ -771,6 +783,7 @@ impl DocBase {
             state: known.state.clone(),
             error: known.error.clone(),
             entities: Vec::new(),
+            references: Vec::new(),
             matters: Vec::new(),
             discarded: known.discarded.len(),
         };
@@ -786,7 +799,11 @@ impl DocBase {
                 .map_err(sql_err)?;
             rows.collect::<Result<_, _>>().map_err(sql_err)?
         };
+        let vocabulary = vocabulary();
         for mention in &known.mentions {
+            if vocabulary.is_reference(&mention.kind) {
+                continue;
+            }
             let active = mention.entity_id.as_ref().and_then(|id| entity_rows.get(id).map(|row| (id, row))).filter(|(_, row)| row.2 == "active");
             let key = match active {
                 Some((id, _)) => id.clone(),
@@ -820,6 +837,9 @@ impl DocBase {
         let mut entities: Vec<DocumentEntity> = by_entity.into_values().collect();
         entities.sort_by(|a, b| order(&a.kind).cmp(&order(&b.kind)).then_with(|| a.name.cmp(&b.name)));
         out.entities = entities;
+        let identifiers: BTreeMap<i64, Vec<super::IdentifierView>> =
+            known.mentions.iter().map(|m| (m.id, m.identifiers.clone())).collect();
+        out.references = super::references::shown_references(&conn, vocabulary, content, &identifiers)?;
         out.matters = document_matters(&conn, &[content], &paths)?;
         Ok(out)
     }

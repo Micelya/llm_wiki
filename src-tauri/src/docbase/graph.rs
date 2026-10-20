@@ -153,6 +153,12 @@ impl DocBase {
         // Entities and matters with a page.
         let entity_node = |id: &str, nodes: &mut BTreeMap<String, BaseGraphNode>| -> Option<String> {
             let path = entity_pages.get(id)?;
+            // A reference is data of its document, never a node (D-377),
+            // even while a page of before it is still there.
+            let entity_kind: Option<String> = conn.query_row("SELECT kind FROM knowledge_entity WHERE id = ?1", [id], |row| row.get(0)).ok();
+            if entity_kind.is_some_and(|k| vocabulary().is_reference(&k)) {
+                return None;
+            }
             let node_id = stem(path);
             if !nodes.contains_key(&node_id) {
                 let (name, kind): (String, String) = conn

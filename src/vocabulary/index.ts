@@ -96,6 +96,10 @@ export interface KnowledgeTerms {
   withoutMatter: string
   /** The screen that resolves doubtful identities: "Identidades dudosas". */
   doubts: string
+  /** What a document refers to (a record, a file, an act), as data of the document: "Referencias". */
+  references: string
+  /** The types of entity the reading finds that are references of a document, not entities (they are not listed with the people and organizations). */
+  referenceTypes: string[]
   /** The types of entity, by id, in singular and plural. */
   entityTypes: Record<string, { one: string; many: string }>
   /** The role a mention has in its document, by id. */

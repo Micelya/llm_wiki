@@ -332,6 +332,9 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-374 | 20 oct | Asuntos | Las referencias son datos del documento | vigente |
 | D-375 | 20 oct | Asuntos | El asunto tiene estado desde ahora; todos abiertos | vigente |
 | D-376 | 20 oct | Pantallas | Una sola vista por cosa | vigente |
+| D-377 | 20 oct | Asuntos | Las referencias son las menciones de tipo asunto, sin tabla nueva; dejan de tener entidad al resolver otra vez | en revisión |
+| D-378 | 20 oct | Asuntos | Una referencia junta documentos por su forma normalizada, nunca entre otras partes | en revisión |
+| D-379 | 20 oct | Asuntos | Una afirmación sobre una referencia queda como valor escrito; la referencia sigue como contexto de las preguntas | en revisión |
 
 ---
 
@@ -4446,3 +4449,24 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Qué se decidió y por qué:** una sola vista por cosa: arriba el artículo (lo que dicen los documentos, con citas y certeza) y en una pestaña los datos y las correcciones. Personas y organizaciones, Asuntos y el detalle de Documentos se unifican con su página del wiki; Orígenes no tiene par. Se empieza por persona u organización; asunto y documento después (P-214).
 - **Quién decidió:** dueño del producto.
 - **Fuente:** conversación del 19 y 20 oct.
+
+### D-377 · Las referencias son las menciones de tipo asunto, sin tabla nueva
+
+- **Fecha:** 20 oct 2026 · **Tema:** Asuntos · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** D-374 pide que las referencias (número de acta, expediente, "el contrato de X") sean datos del documento y no entidades, sin releer los documentos ni cambiar la consigna de lectura.
+- **Qué se decidió y por qué:** no hay tabla nueva: una referencia es una mención del tipo `matters.kind` del catálogo (hoy `asunto`), que ya tiene lo escrito, la forma normalizada, la cita, la página y sus números. La resolución ya no les da entidad (quedan "referencia") y suelta la que tenían; las 85 entidades de tipo asunto quedan retiradas al resolver otra vez (versión `resolucion-11`), sin preguntas nuevas. Se ven en el detalle del documento (sección "Referencias", término del vocabulario), la búsqueda las encuentra por su nombre, y no aparecen en Personas y organizaciones ni en el grafo. Un término que el documento define o solo palabras comunes no son referencia.
+- **Quién decidió:** agente sin consulta.
+
+### D-378 · Una referencia junta documentos por su forma normalizada, nunca entre otras partes
+
+- **Fecha:** 20 oct 2026 · **Tema:** Asuntos · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la agrupación en asuntos usaba "la misma entidad de tipo asunto"; sin esas entidades necesita otra evidencia.
+- **Qué se decidió y por qué:** dos documentos comparten una referencia cuando tienen la misma forma normalizada; como en D-263, no se juntan si cada uno tiene dos partes o más y las de ninguno están dentro de las del otro (otro acto entre otros). Ya no hay unión aproximada de nombres: en la base de partida un documento sale de un asunto porque solo entraba por "Agreement". S3 rehace la agrupación por familias.
+- **Quién decidió:** agente sin consulta.
+
+### D-379 · Una afirmación sobre una referencia queda como valor escrito
+
+- **Fecha:** 20 oct 2026 · **Tema:** Asuntos · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** sacar las referencias de la resolución cambiaba lo que muestran las preguntas de identidad y borraba afirmaciones como "Parte en: <contrato>": la app habría hecho 26 preguntas nuevas y perdido datos con cita.
+- **Qué se decidió y por qué:** las referencias siguen en la resolución solo como contexto de lo que se pregunta (sin entidad, sin candidatos), y una afirmación cuyo objeto es una referencia queda con ese objeto como valor escrito, con su cita. Medido en la base de partida: 3 preguntas nuevas (2 síntesis y 1 propuesta de asunto), por debajo del límite de 10.
+- **Quién decidió:** agente sin consulta.

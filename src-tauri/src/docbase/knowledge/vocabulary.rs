@@ -752,6 +752,15 @@ impl Vocabulary {
         lower(first) && lower(second) && self.identity.determiners.iter().any(|d| d == &determiner)
     }
 
+    /// Whether the mentions of this type are references of their document
+    /// (the number of a record, a file, "the contract of X"), not entities:
+    /// the reading still finds them, but they are never resolved into an
+    /// entity; they are data of the document, searchable, and evidence to
+    /// group documents (D-377). The type is the one of `matters.kind`.
+    pub fn is_reference(&self, kind: &str) -> bool {
+        self.matters.kind == kind
+    }
+
     /// Whether a way of writing can name a matter on its page or as an
     /// alias (D-267): a name (not a file, not only common words, not a
     /// phrase) without a number of four digits or more (a voucher, an

@@ -200,16 +200,51 @@ pub(crate) fn group(conn: &Connection, vocabulary: &Vocabulary, joins: &[(String
     // 3 to 5: the same matter, number or amount in several documents, each
     // linked to the first of them (by the order of the texts).
     let mut shared: BTreeMap<(u8, String, String), BTreeSet<usize>> = BTreeMap::new();
+    let mut by_reference: Vec<(String, BTreeSet<usize>)> = Vec::new();
     {
-        let mut statement = conn
-            .prepare("SELECT content_id, entity_id FROM knowledge_mention WHERE kind = ?1 AND entity_id IS NOT NULL")
-            .map_err(sql_err)?;
-        let rows = statement.query_map([&rules.kind], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))).map_err(sql_err)?;
-        for row in rows {
-            let (content, entity) = row.map_err(sql_err)?;
-            if let Some(&i) = index.get(&content) {
-                shared.entry((2, "asunto".into(), entity)).or_default().insert(i);
+        // The same reference (D-377), by its normalized form; a term the
+        // document defines or only common words ("the agreement") are not
+        // one. Two documents with two parties or more each, neither within
+        // the other, are another act between others even when they name it
+        // alike: two matters (D-263, D-378).
+        let parties: BTreeMap<i64, BTreeSet<String>> = {
+            let mut statement = conn
+                .prepare("SELECT DISTINCT content_id, role, entity_id FROM knowledge_mention WHERE entity_id IS NOT NULL AND kind != ?1")
+                .map_err(sql_err)?;
+            let rows = statement
+                .query_map([&rules.kind], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)))
+                .map_err(sql_err)?;
+            let mut out: BTreeMap<i64, BTreeSet<String>> = BTreeMap::new();
+            for row in rows {
+                let (content, role, entity) = row.map_err(sql_err)?;
+                if rules.party_roles.iter().any(|r| r == &role) {
+                    out.entry(content).or_default().insert(entity);
+                }
             }
+            out
+        };
+        let none = BTreeSet::new();
+        let between_others = |x: i64, y: i64| {
+            let (px, py) = (parties.get(&x).unwrap_or(&none), parties.get(&y).unwrap_or(&none));
+            px.len() >= 2 && py.len() >= 2 && !px.is_subset(py) && !py.is_subset(px)
+        };
+        let mut by_form: BTreeMap<String, BTreeSet<i64>> = BTreeMap::new();
+        for reference in super::references::document_references(conn, vocabulary, None)? {
+            if index.contains_key(&reference.content_id) {
+                by_form.entry(reference.normalized).or_default().insert(reference.content_id);
+            }
+        }
+        for (form, contents) in by_form {
+            // Each document goes with the first set none of whose documents
+            // is between others.
+            let mut sets: Vec<Vec<i64>> = Vec::new();
+            for content in contents {
+                match sets.iter_mut().find(|set| set.iter().all(|&other| !between_others(content, other))) {
+                    Some(set) => set.push(content),
+                    None => sets.push(vec![content]),
+                }
+            }
+            by_reference.extend(sets.into_iter().map(|set| (form.clone(), set.iter().map(|c| index[c]).collect())));
         }
     }
     // The numbers of the parties (a DNI, a CUIT): never a matter's.
@@ -324,7 +359,8 @@ pub(crate) fn group(conn: &Connection, vocabulary: &Vocabulary, joins: &[(String
         }
     }
     let cap = ((docs.len() as f64) * rules.max_share).ceil().max(2.0) as usize;
-    for ((strength, kind, value), list) in &shared {
+    let references = by_reference.into_iter().map(|(form, list)| ((2u8, "asunto".to_string(), form), list));
+    for ((strength, kind, value), list) in shared.into_iter().chain(references) {
         if list.len() < 2 {
             continue;
         }
@@ -334,7 +370,7 @@ pub(crate) fn group(conn: &Connection, vocabulary: &Vocabulary, joins: &[(String
         }
         let first = *list.iter().next().expect("two or more");
         for &other in list.iter().skip(1) {
-            links.push(Link { strength: *strength, a: first, b: other, reason: (kind.clone(), value.clone()) });
+            links.push(Link { strength, a: first, b: other, reason: (kind.clone(), value.clone()) });
         }
     }
     links.sort_by(|x, y| {
@@ -488,11 +524,17 @@ fn matter_name(conn: &Connection, vocabulary: &Vocabulary, contents: &[i64]) -> 
     let mut statement = conn
         .prepare(&format!(
             "SELECT DISTINCT m.content_id, m.kind, m.role, e.id, e.name FROM knowledge_mention m JOIN knowledge_entity e ON e.id = m.entity_id
-             WHERE m.content_id IN ({list}) AND e.state = 'active'"
+             WHERE m.content_id IN ({list}) AND e.state = 'active' AND m.kind != ?1
+             UNION
+             SELECT DISTINCT m.content_id, m.kind, m.role, 'ref:' || m.normalized,
+                    (SELECT r.written FROM knowledge_mention r WHERE r.kind = m.kind AND r.normalized = m.normalized
+                     GROUP BY r.written ORDER BY count(*) DESC, length(r.written) DESC, r.written LIMIT 1)
+             FROM knowledge_mention m WHERE m.content_id IN ({list}) AND m.kind = ?1 AND m.defined = 0"
         ))
         .map_err(sql_err)?;
+    // The references by their normalized form (D-377), the entities by id.
     let rows = statement
-        .query_map([], |row| {
+        .query_map([&rules.kind], |row| {
             Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, String>(3)?, row.get::<_, String>(4)?))
         })
         .map_err(sql_err)?;
@@ -501,6 +543,10 @@ fn matter_name(conn: &Connection, vocabulary: &Vocabulary, contents: &[i64]) -> 
     let mut written: BTreeSet<(i64, Vec<String>)> = BTreeSet::new();
     for row in rows {
         let (content, kind, role, id, name) = row.map_err(sql_err)?;
+        let name = match id.strip_prefix("ref:") {
+            Some(normalized) => super::references::written_form(conn, vocabulary, normalized)?.unwrap_or(name),
+            None => name,
+        };
         if kind == rules.kind {
             written.insert((content, quote::words(&name)));
             if !vocabulary.is_a_matter_name(&name) {
@@ -749,15 +795,33 @@ fn describe_document(conn: &Connection, vocabulary: &Vocabulary, content: i64) -
     out.push('\n');
     let mut statement = conn
         .prepare(
-            "SELECT DISTINCT e.name, e.kind, m.role FROM knowledge_mention m JOIN knowledge_entity e ON e.id = m.entity_id
-             WHERE m.content_id = ?1 AND e.state = 'active' ORDER BY e.kind, e.name, m.role",
+            "SELECT DISTINCT e.name AS name, e.kind AS kind, m.role AS role FROM knowledge_mention m JOIN knowledge_entity e ON e.id = m.entity_id
+             WHERE m.content_id = ?1 AND e.state = 'active' AND m.kind != ?2
+             UNION
+             SELECT DISTINCT m.normalized, m.kind, m.role
+             FROM knowledge_mention m WHERE m.content_id = ?1 AND m.kind = ?2 AND m.defined = 0
+             ORDER BY kind, name, role",
         )
         .map_err(sql_err)?;
+    // Its references (D-377) as well as its entities.
     let rows: Vec<(String, String, String)> = statement
-        .query_map([content], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+        .query_map(params![content, vocabulary.matters.kind], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
         .map_err(sql_err)?
         .collect::<Result<_, _>>()
         .map_err(sql_err)?;
+    // A reference by the way the documents write it, as an entity's name.
+    let mut shown: BTreeSet<(String, String, String)> = BTreeSet::new();
+    for (name, kind, role) in rows {
+        if vocabulary.is_reference(&kind) {
+            let name = super::references::written_form(conn, vocabulary, &name)?.unwrap_or(name);
+            if vocabulary.is_a_name(&kind, &name) {
+                shown.insert((kind, name, role));
+            }
+        } else {
+            shown.insert((kind, name, role));
+        }
+    }
+    let rows: Vec<(String, String, String)> = shown.into_iter().map(|(kind, name, role)| (name, kind, role)).collect();
     if !rows.is_empty() {
         let named: Vec<String> = rows
             .iter()

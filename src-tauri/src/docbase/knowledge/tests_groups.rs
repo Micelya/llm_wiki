@@ -170,11 +170,22 @@ fn companies_of_one_name_areas_and_their_group() {
     // A general mailbox is of the company its domain names.
     assert_eq!(entity(&base, "g8.txt", "noreply@muestratecno.com").as_ref(), Some(&tecno));
 
-    // Two agreements of the same name between other parties are two
-    // matters, even when the model would say they are the same (D-263).
-    let first = entity(&base, "g6.txt", "Acuerdo de terminación").unwrap();
-    let second = entity(&base, "g7.txt", "Acuerdo de terminación").unwrap();
-    assert_ne!(first, second);
+    // A reference is data of its document, not an entity (D-377); two
+    // agreements of the same name between other parties are not one
+    // matter (D-263, D-378).
+    assert_eq!(entity(&base, "g6.txt", "Acuerdo de terminación"), None);
+    assert_eq!(entity(&base, "g7.txt", "Acuerdo de terminación"), None);
+    let together: i64 = base
+        .conn()
+        .query_row(
+            "SELECT count(*) FROM knowledge_matter_document a JOIN knowledge_matter_document b ON a.matter_id = b.matter_id
+             WHERE a.content_id = (SELECT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.name = 'g6.txt')
+               AND b.content_id = (SELECT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.name = 'g7.txt')",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(together, 0);
 }
 
 const M1: &str = "DOC-M1. Carta documento: Muestra Uno S.A. reclama a Muestra Dos S.R.L. el pago de la factura 0001-00099999 por $ 12.345,67 dentro de las 48 horas.";

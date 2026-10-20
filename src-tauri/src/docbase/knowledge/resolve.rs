@@ -61,8 +61,10 @@ pub const IDENTITY_PROMPT: &str = "identidad-4";
 /// The rules the record was last computed with (`docbase_setting`): when
 /// the program's or the vocabulary's change, the record is computed again.
 const RESOLUTION_SETTING: &str = "knowledge-resolution";
+/// Why a group of mentions has no entity: it is a reference (D-377).
+pub(crate) const REFERENCE: &str = "referencia";
 /// Raised when a change in the program changes what a resolution gives.
-const RESOLUTION_VERSION: &str = "resolucion-10";
+const RESOLUTION_VERSION: &str = "resolucion-11";
 
 fn resolution_basis() -> String {
     format!("{RESOLUTION_VERSION}|{IDENTITY_PROMPT}|{}", vocabulary().digest)
@@ -1331,7 +1333,7 @@ fn describe(rows: &[Row], clusters: &[Cluster], members: &[usize], context: &Con
     let mut around: BTreeMap<String, usize> = BTreeMap::new();
     for content in &documents {
         for &other in context.by_content.get(content).into_iter().flatten() {
-            if !own.contains(&other) && clusters[other].excluded.is_none() {
+            if !own.contains(&other) && matches!(clusters[other].excluded, None | Some(REFERENCE)) {
                 *around.entry(rows[clusters[other].principal].written.clone()).or_default() += 1;
             }
         }
@@ -1472,6 +1474,13 @@ pub(crate) fn resolve(base: &DocBase, asking: &mut Asking, report: &mut ResolveR
     for cluster in &mut clusters {
         if cluster.excluded.is_none() && cluster.names.iter().any(|n| decided.wrong.contains(&cluster_key(cluster.content_id, &cluster.kind, n))) {
             cluster.excluded = Some("incorrecta");
+        }
+        // References are data of their document, never entities (D-377).
+        // They stay in the record of the resolution, as before, only as
+        // what the questions show of a document: the same questions as
+        // before ask nothing new.
+        if cluster.excluded.is_none() && vocabulary.is_reference(&cluster.kind) {
+            cluster.excluded = Some(REFERENCE);
         }
     }
     let context = {
@@ -2242,6 +2251,14 @@ pub(crate) fn write(base: &DocBase, outcome: &Outcome, report: &mut ResolveRepor
             .map_err(sql_err)?;
         }
     }
+    // The references a base read before D-377 had resolved into entities:
+    // they let go of them (their entities, with no mention left, are
+    // retired above, and so their pages go away).
+    tx.execute(
+        "UPDATE knowledge_mention SET entity_id = NULL WHERE kind = ?1 AND entity_id IS NOT NULL",
+        [&vocabulary.matters.kind],
+    )
+    .map_err(sql_err)?;
     // Doubts, computed again.
     tx.execute("DELETE FROM knowledge_doubt", []).map_err(sql_err)?;
     for (&(x, y), doubt) in &outcome.doubts {

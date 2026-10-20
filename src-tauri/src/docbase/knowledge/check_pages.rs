@@ -538,3 +538,130 @@ fn changes(base: &crate::docbase::DocBase, asker: &super::check::Recorded, root:
         resolved.left + projected.left
     );
 }
+
+/// References as data of the document (D-377), over a copy of an app's
+/// base (`MICELYA_DOCBASE_COPY`), without a model: the entities by type
+/// before and after the record is resolved again, the references of each
+/// document, the questions the new record would ask (with the answers the
+/// base keeps), and the pages of people and organizations that change for
+/// something other than a link to a page of a reference. The pages of
+/// documents come from the copy's own wiki, only read. What it prints
+/// names real documents: it goes to a file outside the repository.
+#[test]
+#[ignore]
+fn references_leave_the_entities() {
+    let Some((_scratch, base)) = open_base() else {
+        println!("MICELYA_DOCBASE_COPY is not set: nothing to measure");
+        return;
+    };
+    let engine = {
+        let conn = base.conn();
+        crate::docbase::similar::classify::ask_engine(&conn).unwrap().map(|c| crate::source_volume::asking::engine_id(&c)).unwrap_or_default()
+    };
+    let project = TempDir::new();
+    project.folder("wiki/sources");
+    project.write("schema.md", b"# schema");
+    if let Some(path) = base.general_project().unwrap().and_then(|g| g.path) {
+        let copied = copy_dir(&std::path::Path::new(&path).join("wiki/sources"), &project.path().join("wiki/sources"));
+        println!("pages of documents copied from the copy's wiki: {copied}");
+    }
+    base.link_general_project(project.path(), "default").unwrap();
+    let by_kind = |base: &crate::docbase::DocBase| -> BTreeMap<String, i64> {
+        let conn = base.conn();
+        let mut statement = conn.prepare("SELECT kind, count(*) FROM knowledge_entity WHERE state = 'active' GROUP BY kind").unwrap();
+        let rows = statement.query_map([], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
+        rows.collect::<Result<_, _>>().unwrap()
+    };
+    println!("active entities by type, before: {:?}", by_kind(&base));
+    println!("synthesis questions before (not kept in the base): {}", base.synthesis_questions(&engine).unwrap().len());
+    let before = base.knowledge_project(None, 0).unwrap();
+    println!("projection before: {before:?}");
+    let pages_before = page_texts(project.path());
+    println!("identity questions the new resolution asks (not kept): {}", base.identity_questions(&engine).unwrap().len());
+    let resolved = base.knowledge_resolve(None, 0).unwrap();
+    println!("resolution: {resolved:?}");
+    println!("active entities by type, after: {:?}", by_kind(&base));
+    let proposed = base.knowledge_propose_matters(None, 0).unwrap();
+    println!("matters proposed (questions left = would be asked): {proposed:?}");
+    println!("synthesis questions after (not kept in the base): {}", base.synthesis_questions(&engine).unwrap().len());
+    let after = base.knowledge_project(None, 0).unwrap();
+    println!("projection after: {after:?}");
+    let pages_after = page_texts(project.path());
+    {
+        let conn = base.conn();
+        let references = super::references::document_references(&conn, super::vocabulary::vocabulary(), None).unwrap();
+        let mut per_document: BTreeMap<i64, BTreeSet<String>> = BTreeMap::new();
+        for reference in &references {
+            per_document.entry(reference.content_id).or_default().insert(reference.normalized.clone());
+        }
+        let mut histogram: BTreeMap<usize, usize> = BTreeMap::new();
+        for forms in per_document.values() {
+            *histogram.entry(forms.len()).or_default() += 1;
+        }
+        let total: usize = per_document.values().map(BTreeSet::len).sum();
+        let distinct: BTreeSet<&String> = references.iter().map(|r| &r.normalized).collect();
+        println!(
+            "references: {} mentions, {total} by document, {} distinct, in {} documents; documents by number of references: {histogram:?}",
+            references.len(),
+            distinct.len(),
+            per_document.len()
+        );
+        let mentions: i64 = conn
+            .query_row("SELECT count(*) FROM knowledge_mention WHERE kind = ?1 AND entity_id IS NOT NULL", [&super::vocabulary::vocabulary().matters.kind], |r| r.get(0))
+            .unwrap();
+        println!("mentions of references still with an entity: {mentions}");
+    }
+    // The pages of references, gone; the others, the same but for the links to them.
+    let reference_pages: BTreeSet<String> = pages_before
+        .iter()
+        .filter(|(_, t)| t.contains("entity_kind: asunto") && t.contains("entity_id: ent-"))
+        .map(|(p, _)| p.clone())
+        .collect();
+    let still: Vec<&String> = reference_pages.iter().filter(|p| pages_after.contains_key(*p)).collect();
+    println!("pages of references before: {}; still there after: {}", reference_pages.len(), still.len());
+    let stems: Vec<String> = reference_pages
+        .iter()
+        .map(|p| p.rsplit('/').next().unwrap_or(p).trim_end_matches(".md").to_string())
+        .collect();
+    let unlinked = |text: &str| -> Vec<String> {
+        let mut text = text.to_string();
+        for stem in &stems {
+            loop {
+                let Some(at) = text.find(&format!("[[{stem}")) else { break };
+                let Some(end) = text[at..].find("]]").map(|e| at + e) else { break };
+                let inner = &text[at + 2..end];
+                let shown = inner.split_once('|').map(|(_, s)| s.to_string()).unwrap_or_else(|| inner.to_string());
+                text.replace_range(at..end + 2, &shown);
+            }
+        }
+        text.lines().map(str::to_string).collect()
+    };
+    let (mut same, mut links_only, mut other) = (0, 0, Vec::new());
+    for (path, text) in &pages_before {
+        if !path.starts_with("wiki/entities") || reference_pages.contains(path) || text.contains("entity_kind: asunto") {
+            continue;
+        }
+        let Some(now) = pages_after.get(path) else {
+            other.push(format!("{path}: gone"));
+            continue;
+        };
+        if now == text {
+            same += 1;
+            continue;
+        }
+        let (a, b) = (unlinked(text), unlinked(now));
+        let a: Vec<&String> = a.iter().filter(|l| !l.trim().is_empty()).collect();
+        let b: Vec<&String> = b.iter().filter(|l| !l.trim().is_empty()).collect();
+        if a == b {
+            links_only += 1;
+        } else {
+            let removed: Vec<&&String> = a.iter().filter(|l| !b.contains(l)).collect();
+            let added: Vec<&&String> = b.iter().filter(|l| !a.contains(l)).collect();
+            other.push(format!("{path}:\n    - {removed:?}\n    + {added:?}"));
+        }
+    }
+    println!("pages of people and organizations: {same} the same, {links_only} only without links to references, {} otherwise", other.len());
+    for line in other {
+        println!("  {line}");
+    }    save_copy(&base);
+}

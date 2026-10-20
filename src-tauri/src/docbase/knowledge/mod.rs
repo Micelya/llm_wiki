@@ -48,6 +48,7 @@ pub mod names;
 pub mod pages;
 pub mod quote;
 pub mod read_checks;
+pub mod references;
 pub mod resolve;
 pub mod screens;
 pub mod values;
