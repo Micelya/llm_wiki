@@ -16,7 +16,7 @@ use super::knowledge::decide::{DecisionView, IdentityDecision};
 use super::knowledge::entities::{DoubtView, EntityDetail, EntitySummary};
 use super::knowledge::pages::ProjectReport;
 use super::knowledge::resolve::ResolveReport;
-use super::knowledge::screens::{DocumentEntities, KnowledgeAttention, MatterDetail, MatterSummary};
+use super::knowledge::screens::{DocumentEntities, EntityArticle, KnowledgeAttention, MatterDetail, MatterSummary};
 use super::knowledge::{DocumentKnowledge, KnowledgeStatus};
 use super::labels::{Label, LabelGroup, LabelRule};
 use super::origins::Origin;
@@ -735,6 +735,18 @@ pub fn docbase_knowledge_entities(
 #[tauri::command(async)]
 pub fn docbase_knowledge_entity(state: State<'_, DocBaseState>, id: String) -> Result<Option<EntityDetail>, String> {
     state.base()?.knowledge_entity(&Visible::All, &id)
+}
+
+/// The article of an entity: its page as the projection last wrote it.
+#[tauri::command(async)]
+pub fn docbase_knowledge_entity_article(state: State<'_, DocBaseState>, id: String) -> Result<Option<EntityArticle>, String> {
+    state.base()?.knowledge_entity_article(&id)
+}
+
+/// The entity whose page is the file at `path`, if any.
+#[tauri::command(async)]
+pub fn docbase_knowledge_entity_of_page(state: State<'_, DocBaseState>, path: String) -> Result<Option<String>, String> {
+    state.base()?.knowledge_entity_of_page(&path)
 }
 
 /// The pairs of mentions the resolution left for a person.

@@ -1268,6 +1268,22 @@ export function getEntity(id: string): Promise<EntityDetail | null> {
   return invoke<EntityDetail | null>("docbase_knowledge_entity", { id })
 }
 
+/** The article of an entity: its page as the projection last wrote it (D-389). */
+export interface EntityArticle {
+  /** The page's file, absolute. */
+  path: string
+  text: string
+}
+
+export function getEntityArticle(id: string): Promise<EntityArticle | null> {
+  return invoke<EntityArticle | null>("docbase_knowledge_entity_article", { id })
+}
+
+/** The entity whose page is the file at `path` (absolute), if any. */
+export function entityOfPage(path: string): Promise<string | null> {
+  return invoke<string | null>("docbase_knowledge_entity_of_page", { path })
+}
+
 export function listIdentityDoubts(): Promise<DoubtView[]> {
   return invoke<DoubtView[]>("docbase_knowledge_doubts")
 }

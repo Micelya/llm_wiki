@@ -1,5 +1,6 @@
 import type { AttentionTarget } from "@/lib/attention/types"
 import { normalizePath } from "@/lib/path-utils"
+import { openWikiPath } from "@/lib/open-wiki-path"
 import { DEFAULT_DOCUMENT_FILTER, useDocbaseStore } from "@/stores/docbase-store"
 import { useWikiStore } from "@/stores/wiki-store"
 import { useAttentionViewStore } from "@/stores/attention-view-store"
@@ -38,7 +39,7 @@ export function goToTarget(target: AttentionTarget): void {
       const project = wiki.project
       if (!project) return
       const path = target.path.startsWith("wiki/") ? target.path : `wiki/${target.path}`
-      wiki.openPathInPreview(`${normalizePath(project.path)}/${path}`)
+      void openWikiPath(`${normalizePath(project.path)}/${path}`)
       return
     }
     default:

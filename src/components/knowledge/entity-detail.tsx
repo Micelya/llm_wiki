@@ -1,13 +1,15 @@
 import { useEffect, useState, type ReactNode } from "react"
-import { ArrowLeft, BookOpen, Link2, Undo2 } from "lucide-react"
+import { ArrowLeft, Link2, NotebookPen, Undo2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   decideIdentity,
   getEntity,
+  getEntityArticle,
   listEntities,
   undoIdentityDecision,
   type ClaimView,
+  type EntityArticle,
   type EntityDetail,
   type EntitySummary,
 } from "@/commands/docbase"
@@ -18,25 +20,33 @@ import { entityTypeName, identifierName, predicateName, roleName, vocabulary } f
 import { EmptyNote, ErrorNote, StatusBadge } from "@/components/docbase/page"
 import { formatDate, plural } from "@/components/docbase/format"
 import { useDocbaseQuery } from "@/components/docbase/use-docbase-query"
-import { certaintyInWords, decisionInWords, documentsByMatter, resolvedByName, reviewInWords, rolesInWords } from "./knowledge"
+import { WikiReader } from "@/components/editor/wiki-reader"
+import { articleBody, certaintyInWords, decisionInWords, documentsByMatter, resolvedByName, reviewInWords, rolesInWords } from "./knowledge"
 import { Quote, Section, useAction, useArchivePage, useOpenDocument, useOpenMatter } from "./shared"
 
 /**
- * One person or organization, as the record knows it: how the documents
- * write it, its identifiers, its documents by matter with its role in
- * each, what each document says of it with the quote, where they differ,
- * who else speaks of it, and what a person decided about it. Every
- * correction is a decision that can be undone (R-08, R-09), never an
- * edit of the page.
+ * The one page of a person or organization (D-376, D-389): the article
+ * on top, as its page of the wiki reads (what the documents say of it,
+ * with quotes and how sure each thing is, its documents by matter, who
+ * else it is linked to), written by the projection from the record and
+ * the synthesis it keeps, without asking the model; and in a tab its data
+ * and corrections: how the documents write it, its identifiers, every
+ * claim and mention with what a person can do about it, and the
+ * decisions, to undo (R-08, R-09). Never an edit of the page.
  */
 export function EntityDetailView({ id, onBack }: { id: string; onBack: () => void }) {
   const words = vocabulary()
   const entity = useDocbaseQuery(`entity:${id}`, () => getEntity(id))
+  const article = useDocbaseQuery(`entity-article:${id}`, () => getEntityArticle(id))
   const openEntity = useKnowledgeStore((s) => s.openEntity)
   const archivePage = useArchivePage()
   const action = useAction()
   const [joining, setJoining] = useState(false)
+  const [tab, setTab] = useState<"article" | "data" | null>(null)
   const detail = entity.data
+  // Without a page (only named in passing) there is no article to read.
+  const shown = tab ?? (!article.loading && !article.data ? "data" : "article")
+  const pending = detail ? detail.claims.filter((c) => c.state === "conflict").length + detail.doubts.length : 0
 
   return (
     <div className="flex h-full flex-col">
@@ -44,29 +54,42 @@ export function EntityDetailView({ id, onBack }: { id: string; onBack: () => voi
         <button className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground" onClick={onBack}>
           <ArrowLeft className="size-4" /> {words.knowledge.entities}
         </button>
-        <div className="mt-2 flex items-end justify-between gap-4 pb-3">
+        <div className="mt-2 flex items-end justify-between gap-4 pb-2">
           <div className="min-w-0">
             <h1 className="font-serif text-2xl break-words">{detail?.name ?? "…"}</h1>
             {detail && <p className="text-sm text-muted-foreground">{entityTypeName(detail.kind, false, words)}</p>}
           </div>
           {detail && detail.state === "active" && (
             <div className="flex shrink-0 gap-2">
-              {detail.pagePath && (
+              {shown === "article" && detail.pagePath && (
                 <Button
                   variant="outline"
                   disabled={!archivePage}
                   title={archivePage ? detail.pagePath : `Se abre con el ${words.archive.wiki.toLowerCase()} abierto`}
                   onClick={() => archivePage?.(detail.pagePath as string)}
                 >
-                  <BookOpen /> Su página del wiki
+                  <NotebookPen /> Escribir notas
                 </Button>
               )}
-              <Button variant="outline" onClick={() => setJoining(!joining)}>
-                <Link2 /> Unir con otra
-              </Button>
+              {shown === "data" && (
+                <Button variant="outline" onClick={() => setJoining(!joining)}>
+                  <Link2 /> Unir con otra
+                </Button>
+              )}
             </div>
           )}
         </div>
+        <nav className="-mb-px flex gap-1 text-sm">
+          <Tab active={shown === "article"} onClick={() => setTab("article")}>
+            Artículo
+          </Tab>
+          <Tab active={shown === "data"} onClick={() => setTab("data")}>
+            Datos y correcciones
+            {pending > 0 && (
+              <span className="ml-1.5 rounded-full bg-amber-500/20 px-1.5 text-xs text-amber-700 dark:text-amber-400">{pending}</span>
+            )}
+          </Tab>
+        </nav>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto px-8 py-6">
         {(entity.error || action.problem) && (
@@ -89,8 +112,9 @@ export function EntityDetailView({ id, onBack }: { id: string; onBack: () => voi
             )}
           </div>
         )}
-        {detail && joining && <JoinPicker entity={detail} onDone={() => setJoining(false)} run={action.run} />}
-        {detail && (
+        {detail && shown === "article" && <Article entity={detail} article={article.data} loading={article.loading} />}
+        {detail && shown === "data" && joining && <JoinPicker entity={detail} onDone={() => setJoining(false)} run={action.run} />}
+        {detail && shown === "data" && (
           <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
             <main className="min-w-0">
               <Claims entity={detail} run={action.run} busy={action.busy} />
@@ -105,6 +129,42 @@ export function EntityDetailView({ id, onBack }: { id: string; onBack: () => voi
         )}
       </div>
     </div>
+  )
+}
+
+function Tab({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      className={`flex items-center border-b-2 px-3 py-1.5 ${
+        active ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+      }`}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  )
+}
+
+/**
+ * The article: its page of the wiki as the projection wrote it, with the
+ * notes of a person; the title is the page's own heading.
+ */
+function Article({ entity, article, loading }: { entity: EntityDetail; article: EntityArticle | null; loading: boolean }) {
+  const words = vocabulary()
+  if (loading && !article) return null
+  if (!article) {
+    return (
+      <EmptyNote>
+        {entity.pagePath
+          ? `Su página todavía no está escrita: la escribe la próxima pasada del ${words.archive.wiki.toLowerCase()}.`
+          : "Los documentos la nombran de paso: no tiene artículo. Lo que se sabe de ella está en «Datos y correcciones»."}
+      </EmptyNote>
+    )
+  }
+  return (
+    <article className="mx-auto max-w-4xl">
+      <WikiReader body={articleBody(article.text)} filePath={article.path} />
+    </article>
   )
 }
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import type { DocumentMatter, DocumentRow, DoubtView, EntityMention, IdentityDecisionView, MatterSummary } from "@/commands/docbase"
 import { vocabularyFor } from "@/vocabulary"
 import {
+  articleBody,
   certaintyInWords,
   decisionInWords,
   documentsByMatter,
@@ -200,3 +201,11 @@ describe("editing a matter by hand (D-386)", () => {
     expect(words.knowledge.matter).toBe("Caso")
   })
 })
+
+describe("articleBody", () => {
+  it("drops the front matter and the title of the page, keeps the rest", () => {
+    const page = '---\ntype: entity\ntitle: "Persona Uno"\n---\n\n# Persona Uno\n\n*Persona*\n\n## Documentos (1)\n'
+    expect(articleBody(page)).toBe("*Persona*\n\n## Documentos (1)\n")
+  })
+})
+

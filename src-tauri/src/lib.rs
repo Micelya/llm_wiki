@@ -712,6 +712,8 @@ pub fn run() {
             docbase::commands::docbase_knowledge_resolve,
             docbase::commands::docbase_knowledge_entities,
             docbase::commands::docbase_knowledge_entity,
+            docbase::commands::docbase_knowledge_entity_article,
+            docbase::commands::docbase_knowledge_entity_of_page,
             docbase::commands::docbase_knowledge_doubts,
             docbase::commands::docbase_knowledge_decisions,
             docbase::commands::docbase_knowledge_decide,

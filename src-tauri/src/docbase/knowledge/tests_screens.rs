@@ -182,10 +182,17 @@ fn a_document_shows_whom_it_names_with_their_roles_and_its_matter() {
 
 #[test]
 fn an_entity_shows_its_page_its_matters_and_who_speaks_of_it() {
-    let (_dir, base, _project, _asker) = archive();
+    let (_dir, base, project, _asker) = archive();
     let company = base.knowledge_entities(&Visible::All, Some("organizacion"), Some("ejemplo uno")).unwrap();
     let detail = base.knowledge_entity(&Visible::All, &company[0].id).unwrap().unwrap();
     assert!(detail.page_path.as_deref().is_some_and(|p| p.starts_with("wiki/entities/")), "{:?}", detail.page_path);
+    // Its article is its page as the projection wrote it, and a link to
+    // that page leads to the entity (D-389).
+    let article = base.knowledge_entity_article(&detail.id).unwrap().unwrap();
+    assert!(article.text.contains("title: \"Ejemplo Uno S.A.\""), "{}", article.text);
+    let file = project.join(detail.page_path.as_deref().unwrap());
+    assert_eq!(base.knowledge_entity_of_page(&file.to_string_lossy()).unwrap().as_deref(), Some(detail.id.as_str()));
+    assert_eq!(base.knowledge_entity_of_page(&project.join("wiki/overview.md").to_string_lossy()).unwrap(), None);
     assert_eq!(detail.matters.iter().filter(|m| !m.proposed).count(), 3);
     assert!(detail.incoming.iter().any(|c| c.predicate == "representa_a" && c.subject_name == "Persona Nueve"), "{:?}", detail.incoming);
     // A mention taken out of it is a decision on it, to undo.

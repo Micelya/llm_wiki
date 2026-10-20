@@ -1878,9 +1878,9 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "Una sola vista por cosa (D-376): arriba el artículo, en una pestaña los datos y las correcciones. En la tanda del 20 oct se hace solo la de persona u organización; faltan la del asunto (pantalla Asuntos y su página del wiki) y la del documento (detalle de Documentos y su página del wiki, Sources).",
+      "detalle": "Una sola vista por cosa (D-376): arriba el artículo, en una pestaña los datos y las correcciones. La de persona u organización está hecha (D-389: pestañas «Artículo», que muestra su página del wiki tal como la escribió la proyección, y «Datos y correcciones»; los enlaces del wiki a la página llevan a la pantalla). Faltan la del asunto (pantalla Asuntos y su página del wiki) y la del documento (detalle de Documentos y su página del wiki, Sources).",
       "depende_de": ["P-061"],
-      "referencia": "D-376; docs/design/asuntos-propuesta.md (sección 5)",
+      "referencia": "D-376; D-389; docs/design/asuntos-propuesta.md (sección 5)",
       "creado": "2026-10-20",
       "actualizado": "2026-10-20"
     },
@@ -1929,6 +1929,18 @@
       "detalle": "Desde S4 (D-386) lo que una persona pone o saca a mano se guarda por asunto; conviven las decisiones entre pares de documentos ('mismo asunto', 'asuntos distintos') que ya existían y que descartar la propuesta del modelo para un documento suelto sigue usando. Además, lo puesto o sacado a mano no aparece todavía en la lista de decisiones del asunto ni se deshace desde ahí (se vuelve a agregar o a sacar). Ver si las decisiones entre pares pasan a ser por asunto y cómo se muestran y deshacen.",
       "depende_de": ["P-061"],
       "referencia": "D-386",
+      "creado": "2026-10-20",
+      "actualizado": "2026-10-20"
+    },
+    {
+      "id": "P-221",
+      "titulo": "El artículo de una entidad muestra la última pasada del wiki",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Desde D-389 el artículo de la página de persona u organización es el archivo de su página del wiki: una corrección en «Datos y correcciones» se ve en el artículo cuando la próxima pasada del wiki lo vuelve a escribir, y los enlaces dentro del artículo solo navegan con el wiki del archivo abierto. Ver si hace falta avisar «el artículo se actualiza en la próxima pasada» o armarlo en el momento con el mismo código de knowledge/pages.rs (separando el cálculo de las rutas de las páginas de project()).",
+      "depende_de": ["P-214"],
+      "referencia": "D-389",
       "creado": "2026-10-20",
       "actualizado": "2026-10-20"
     }

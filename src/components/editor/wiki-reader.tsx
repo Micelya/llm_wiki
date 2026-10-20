@@ -12,6 +12,7 @@ import { normalizePath } from "@/lib/path-utils"
 import { detectLanguage } from "@/lib/detect-language"
 import { getHtmlLang, getTextDirection } from "@/lib/language-metadata"
 import { useWikiStore } from "@/stores/wiki-store"
+import { openWikiPath } from "@/lib/open-wiki-path"
 import { MermaidDiagram, unwrapMermaidPre } from "@/components/mermaid-diagram"
 
 interface WikiReaderProps {
@@ -45,7 +46,6 @@ interface WikiReaderProps {
 export function WikiReader({ body, sourceBody, sourceOffset = 0, filePath }: WikiReaderProps) {
   const project = useWikiStore((s) => s.project)
   const projectPathIndex = useWikiStore((s) => s.projectPathIndex)
-  const openPathInPreview = useWikiStore((s) => s.openPathInPreview)
 
   // Image embeds (`![[…]]`) must be rewritten BEFORE the generic
   // wikilink pass, otherwise the embed target gets mangled into a
@@ -100,7 +100,7 @@ export function WikiReader({ body, sourceBody, sourceOffset = 0, filePath }: Wik
       }
     })()
     const path = resolveRelatedSlug(projectPathIndex, slug, wikiRoot)
-    if (path) openPathInPreview(path)
+    if (path) void openWikiPath(path)
   }
 
   return (

@@ -11,6 +11,7 @@ import type {
 } from "@/commands/docbase"
 import { entityTypeName, roleName, type Vocabulary, vocabulary } from "@/vocabulary"
 import { plural } from "@/components/docbase/format"
+import { parseFrontmatter } from "@/lib/frontmatter"
 
 /**
  * What the screens of the knowledge layer compute from what the base
@@ -343,4 +344,13 @@ export function mattersToJoin(matters: MatterSummary[], current: string[], query
   return matters.filter(
     (matter) => !current.includes(matter.id) && words.every((word) => matter.name.toLocaleLowerCase("es").includes(word)),
   )
+}
+
+/**
+ * What the article of an entity shows of its page: the page without its
+ * front matter nor its title (the screen writes the name above it).
+ */
+export function articleBody(text: string): string {
+  const { body } = parseFrontmatter(text)
+  return body.replace(/^\s*# [^\n]*\n+/, "")
 }

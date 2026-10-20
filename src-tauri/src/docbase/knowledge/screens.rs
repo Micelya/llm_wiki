@@ -1113,3 +1113,52 @@ pub(crate) fn incoming_claims(conn: &Connection, visible: &Visible, entity: &str
         .map_err(sql_err)?;
     rows.collect::<Result<_, _>>().map_err(sql_err)
 }
+
+/// The article of an entity: its page as the projection last wrote it
+/// from the record and the synthesis it keeps (no model is asked here),
+/// with the notes of a person. One view per thing (D-376, D-389): the
+/// screen of the entity shows it above its data and corrections.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EntityArticle {
+    /// The page's file, absolute, with forward slashes.
+    pub path: String,
+    pub text: String,
+}
+
+/// A path as two paths of the same file compare: forward slashes, no
+/// trailing one, without case (the archive lives on Windows too).
+fn comparable(path: &str) -> String {
+    path.replace('\\', "/").trim_end_matches('/').to_lowercase()
+}
+
+impl DocBase {
+    fn knowledge_wiki_root(&self) -> Result<Option<String>, String> {
+        Ok(self.general_project()?.and_then(|project| project.path).map(|p| p.replace('\\', "/").trim_end_matches('/').to_string()))
+    }
+
+    /// The page of entity `id` (a person, an organization or a group), when
+    /// it has one written.
+    pub fn knowledge_entity_article(&self, id: &str) -> Result<Option<EntityArticle>, String> {
+        if !id.starts_with("ent-") {
+            return Ok(None);
+        }
+        let Some(page) = page_paths(&self.conn())?.remove(id) else { return Ok(None) };
+        let Some(root) = self.knowledge_wiki_root()? else { return Ok(None) };
+        let path = format!("{root}/{}", page.trim_start_matches('/'));
+        Ok(std::fs::read_to_string(&path).ok().map(|text| EntityArticle { path, text }))
+    }
+
+    /// The entity whose page is the file at `path` (absolute), so that a
+    /// link to it in the wiki opens the entity's one page (D-389). Pages of
+    /// matters and of documents are not entities.
+    pub fn knowledge_entity_of_page(&self, path: &str) -> Result<Option<String>, String> {
+        let Some(root) = self.knowledge_wiki_root()? else { return Ok(None) };
+        let wanted = comparable(path);
+        let root = comparable(&root);
+        Ok(page_paths(&self.conn())?
+            .into_iter()
+            .find(|(id, page)| id.starts_with("ent-") && format!("{root}/{}", comparable(page).trim_start_matches('/')) == wanted)
+            .map(|(id, _)| id))
+    }
+}
