@@ -838,6 +838,15 @@ pub fn docbase_knowledge_leave_matter(
     Ok(ids)
 }
 
+/// Confirms, discards or reopens a matter the grouping proposed
+/// (`confirm`, `discard`, `reopen`).
+#[tauri::command(async)]
+pub fn docbase_knowledge_decide_matter(app: tauri::AppHandle, state: State<'_, DocBaseState>, matter_id: String, decision: String) -> Result<(), String> {
+    state.base()?.knowledge_decide_matter(&matter_id, &decision)?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(())
+}
+
 /// Puts a document in a matter, or confirms the model's proposal of it.
 #[tauri::command(async)]
 pub fn docbase_knowledge_join_matter(

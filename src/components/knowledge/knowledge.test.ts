@@ -77,7 +77,7 @@ describe("documentsByMatter", () => {
 
   it("groups the documents under their matter with every role, the loose ones last", () => {
     const groups = documentsByMatter(mentions, matters, words.knowledge.withoutMatter)
-    expect(groups.map((g) => g.name)).toEqual(["Reclamo", "Sin asunto identificado"])
+    expect(groups.map((g) => g.name)).toEqual(["Reclamo", words.knowledge.withoutMatter])
     expect(groups[0].documents.map((d) => d.name)).toEqual(["carta.pdf", "correo.eml", "factura.pdf"])
     const letter = groups[0].documents.find((d) => d.name === "carta.pdf")
     expect(letter?.roles).toEqual(["remitente", "firmante"])

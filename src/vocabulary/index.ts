@@ -94,6 +94,12 @@ export interface KnowledgeTerms {
   matter: string
   /** Where the documents of no matter go: "Sin asunto identificado". */
   withoutMatter: string
+  /**
+   * What a matter is, as a badge: proposed by the system until a person
+   * confirms it ("Propuesto", "Confirmado"), and its status ("Abierto").
+   * The word agrees with the profession's term for a matter.
+   */
+  matterStates: { proposed: string; confirmed: string; status: Record<string, string> }
   /** The screen that resolves doubtful identities: "Identidades dudosas". */
   doubts: string
   /** What a document refers to (a record, a file, an act), as data of the document: "Referencias". */

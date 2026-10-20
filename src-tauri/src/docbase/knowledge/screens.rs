@@ -88,6 +88,19 @@ pub struct IdentifierJoin {
     pub read_at: i64,
 }
 
+/// A matter the grouping proposed, for a person to confirm or discard
+/// (D-381), with why its documents are together.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MatterToConfirm {
+    pub id: String,
+    pub name: String,
+    pub documents: usize,
+    /// In how many of its documents each kind of reason is ("numero",
+    /// "asunto"...).
+    pub reasons: BTreeMap<String, usize>,
+}
+
 /// A loose document the model proposed for a matter.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -144,6 +157,8 @@ pub struct KnowledgeAttention {
     pub conflicts: Vec<ConflictGroup>,
     pub identifier_joins: Vec<IdentifierJoin>,
     pub proposed_matters: Vec<ProposedMatter>,
+    /// The matters the grouping proposed that no person confirmed yet.
+    pub matters_to_confirm: Vec<MatterToConfirm>,
     /// Pages whose synthesis is still to be written, and sentences of the
     /// syntheses the computation discarded (no valid reference).
     pub synthesis_pending: usize,
@@ -161,6 +176,12 @@ pub struct KnowledgeAttention {
 pub struct MatterSummary {
     pub id: String,
     pub name: String,
+    /// "open" (its life cycle is P-213).
+    pub status: String,
+    /// "proposed" (by the grouping) or "person".
+    pub origin: String,
+    /// "proposed" or "confirmed".
+    pub confirmation: String,
     pub documents: usize,
     /// Loose documents the model proposed for it.
     pub proposed: usize,
@@ -209,6 +230,10 @@ pub struct MatterDetail {
     pub name: String,
     /// "active" or "retired".
     pub state: String,
+    pub status: String,
+    pub origin: String,
+    /// "proposed", "confirmed" or "discarded".
+    pub confirmation: String,
     pub page_path: Option<String>,
     pub documents: Vec<MatterDocument>,
     pub parties: Vec<MatterParty>,
@@ -543,6 +568,36 @@ impl DocBase {
             }
         }
 
+        // The matters the grouping proposed, for a person to confirm.
+        let matters_to_confirm = {
+            let visible_contents = visible_contents(&conn, visible)?;
+            let mut statement = conn
+                .prepare(
+                    "SELECT m.id, m.name, d.content_id, d.reasons FROM knowledge_matter m JOIN knowledge_matter_document d ON d.matter_id = m.id
+                     WHERE m.state = 'active' AND m.confirmation = 'proposed' AND d.state = 'firm' ORDER BY m.id, d.content_id",
+                )
+                .map_err(sql_err)?;
+            let rows = statement
+                .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, i64>(2)?, row.get::<_, String>(3)?)))
+                .map_err(sql_err)?;
+            let mut by_id: BTreeMap<String, MatterToConfirm> = BTreeMap::new();
+            for row in rows {
+                let (id, name, content, reasons) = row.map_err(sql_err)?;
+                if !visible_contents.contains(&content) {
+                    continue;
+                }
+                let entry = by_id.entry(id.clone()).or_insert_with(|| MatterToConfirm { id, name, documents: 0, reasons: BTreeMap::new() });
+                entry.documents += 1;
+                let kinds: BTreeSet<String> = serde_json::from_str::<Vec<Reason>>(&reasons).unwrap_or_default().into_iter().map(|r| r.kind).collect();
+                for kind in kinds {
+                    *entry.reasons.entry(kind).or_default() += 1;
+                }
+            }
+            let mut list: Vec<MatterToConfirm> = by_id.into_values().filter(|m| m.documents >= 2).collect();
+            list.sort_by(|a, b| b.documents.cmp(&a.documents).then_with(|| a.name.cmp(&b.name)));
+            list
+        };
+
         // Only a page with claims waits for a synthesis: one whose entity
         // the documents say nothing more of (or a matter's) never gets one.
         let (synthesis_pending, discarded_sentences): (i64, i64) = conn
@@ -606,6 +661,7 @@ impl DocBase {
             conflicts: conflicts.into_values().filter(|g| g.claims.len() > 1).collect(),
             identifier_joins,
             proposed_matters,
+            matters_to_confirm,
             synthesis_pending: synthesis_pending as usize,
             discarded_sentences: discarded_sentences as usize,
             kept_pages,
@@ -621,12 +677,13 @@ impl DocBase {
         let (condition, params) = visible_content("d.content_id", visible);
         let mut statement = conn
             .prepare(&format!(
-                "SELECT m.id, m.name, count(d.content_id) FROM knowledge_matter m JOIN knowledge_matter_document d ON d.matter_id = m.id
+                "SELECT m.id, m.name, count(d.content_id), m.status, m.origin, m.confirmation FROM knowledge_matter m
+                 JOIN knowledge_matter_document d ON d.matter_id = m.id
                  WHERE m.state = 'active' AND {condition} GROUP BY m.id ORDER BY count(d.content_id) DESC, m.name"
             ))
             .map_err(sql_err)?;
-        let rows: Vec<(String, String, i64)> = statement
-            .query_map(params_from_iter(params.iter()), |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+        let rows: Vec<(String, String, i64, String, String, String)> = statement
+            .query_map(params_from_iter(params.iter()), |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)))
             .map_err(sql_err)?
             .collect::<Result<_, _>>()
             .map_err(sql_err)?;
@@ -643,11 +700,14 @@ impl DocBase {
         }
         Ok(rows
             .into_iter()
-            .map(|(id, name, documents)| MatterSummary {
+            .map(|(id, name, documents, status, origin, confirmation)| MatterSummary {
                 page_path: paths.get(&id).cloned(),
                 proposed: proposed.get(&id).copied().unwrap_or(0),
                 id,
                 name,
+                status,
+                origin,
+                confirmation,
                 documents: documents as usize,
             })
             .collect())
@@ -657,11 +717,13 @@ impl DocBase {
     /// why each is in it, its parties and the decisions about it.
     pub fn knowledge_matter(&self, visible: &Visible, id: &str) -> Result<Option<MatterDetail>, String> {
         let conn = self.conn();
-        let found: Option<(String, String)> = conn
-            .query_row("SELECT name, state FROM knowledge_matter WHERE id = ?1", [id], |row| Ok((row.get(0)?, row.get(1)?)))
+        let found: Option<(String, String, String, String, String)> = conn
+            .query_row("SELECT name, state, status, origin, confirmation FROM knowledge_matter WHERE id = ?1", [id], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
+            })
             .optional()
             .map_err(sql_err)?;
-        let Some((name, state)) = found else { return Ok(None) };
+        let Some((name, state, status, origin, confirmation)) = found else { return Ok(None) };
         let mut names: Names = HashMap::new();
         let (condition, params) = visible_content("d.content_id", visible);
         let mut statement = conn
@@ -678,7 +740,7 @@ impl DocBase {
             .collect::<Result<_, _>>()
             .map_err(sql_err)?;
         drop(statement);
-        if rows.is_empty() && state == "active" {
+        if rows.is_empty() && state == "active" && origin != "person" {
             return Ok(None);
         }
         let entity_names: HashMap<String, String> = {
@@ -772,7 +834,7 @@ impl DocBase {
             .map(|(d, _, _)| d)
             .collect();
         let page_path = page_paths(&conn)?.remove(id);
-        Ok(Some(MatterDetail { id: id.to_string(), name, state, page_path, documents, parties, decisions }))
+        Ok(Some(MatterDetail { id: id.to_string(), name, state, status, origin, confirmation, page_path, documents, parties, decisions }))
     }
 
     /// The entities a document names, with their roles, and its matter.
@@ -866,6 +928,61 @@ impl DocBase {
             .map(|other| IdentityDecision::OtherMatter { a: content_key(content), b: content_key(*other) })
             .collect();
         self.knowledge_decide_many(&decisions, note)
+    }
+
+    /// What a person decides about a matter the grouping proposed (D-381):
+    /// `confirm` it, `discard` it (it goes away and stays away while the
+    /// grouping finds the same documents), or `reopen` it as a proposal.
+    /// Kept on the matter: a grouping never overwrites it. The matters are
+    /// grouped again at once.
+    pub fn knowledge_decide_matter(&self, matter_id: &str, decision: &str) -> Result<(), String> {
+        let conn = self.conn();
+        let state: Option<String> = conn
+            .query_row("SELECT state FROM knowledge_matter WHERE id = ?1", [matter_id], |row| row.get(0))
+            .optional()
+            .map_err(sql_err)?;
+        let Some(state) = state else { return Err("Ese asunto ya no existe".to_string()) };
+        let now = now_ms();
+        match decision {
+            "confirm" => {
+                if state != "active" {
+                    return Err("Ese asunto ya no está activo".to_string());
+                }
+                conn.execute(
+                    "UPDATE knowledge_matter SET confirmation = 'confirmed', decided_at = ?2, decided_documents = NULL, updated_at = ?2 WHERE id = ?1",
+                    rusqlite::params![matter_id, now],
+                )
+                .map_err(sql_err)?;
+            }
+            "discard" => {
+                let documents: Vec<i64> = {
+                    let mut statement =
+                        conn.prepare("SELECT content_id FROM knowledge_matter_document WHERE matter_id = ?1 ORDER BY content_id").map_err(sql_err)?;
+                    let rows = statement.query_map([matter_id], |row| row.get(0)).map_err(sql_err)?;
+                    rows.collect::<Result<_, _>>().map_err(sql_err)?
+                };
+                let list = serde_json::to_string(&documents).map_err(|e| e.to_string())?;
+                conn.execute(
+                    "UPDATE knowledge_matter SET confirmation = 'discarded', state = 'retired', decided_at = ?2, decided_documents = ?3, updated_at = ?2
+                     WHERE id = ?1",
+                    rusqlite::params![matter_id, now, list],
+                )
+                .map_err(sql_err)?;
+                conn.execute("DELETE FROM knowledge_matter_document WHERE matter_id = ?1", [matter_id]).map_err(sql_err)?;
+            }
+            "reopen" => {
+                conn.execute(
+                    "UPDATE knowledge_matter SET confirmation = 'proposed', decided_at = NULL, decided_documents = NULL, updated_at = ?2 WHERE id = ?1",
+                    rusqlite::params![matter_id, now],
+                )
+                .map_err(sql_err)?;
+            }
+            other => return Err(format!("'{other}' no es una decisión sobre un asunto")),
+        }
+        super::mark_dirty(&conn, "project", "matters")?;
+        let decided = super::resolve::load_decided(&conn)?;
+        super::matters::group(&conn, vocabulary(), &decided.joins, &decided.separations)?;
+        Ok(())
     }
 
     /// Puts a document in a matter: of the same matter as its first

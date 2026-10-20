@@ -10,7 +10,33 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14, V15, V16, V17];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14, V15, V16, V17, V18];
+
+/// One concept of matter (D-373, D-381): what the grouping proposes is a
+/// proposal until a person confirms it, and every matter has a status.
+///
+/// - `status`: `open` for all of them for now (its life cycle is P-213).
+/// - `origin`: `proposed` (the grouping of `knowledge/matters.rs`) or
+///   `person` (created by a person; the grouping never touches it).
+/// - `confirmation`: `proposed`, `confirmed` or `discarded`, what a
+///   person decided, which a grouping never overwrites. A discarded
+///   matter is retired and keeps in `decided_documents` (JSON list of
+///   content ids) the documents it had when it was discarded: the same
+///   documents grouped again stay discarded; a group with a new document
+///   is proposed again.
+/// - `name_by_person`: 1 when a person named it; the grouping keeps it.
+///
+/// The matters there are stay proposals, open: nobody had decided about
+/// them; what a person decided about their documents is in
+/// `knowledge_decision`, untouched.
+const V18: &str = "
+ALTER TABLE knowledge_matter ADD COLUMN status TEXT NOT NULL DEFAULT 'open';
+ALTER TABLE knowledge_matter ADD COLUMN origin TEXT NOT NULL DEFAULT 'proposed' CHECK (origin IN ('proposed', 'person'));
+ALTER TABLE knowledge_matter ADD COLUMN confirmation TEXT NOT NULL DEFAULT 'proposed' CHECK (confirmation IN ('proposed', 'confirmed', 'discarded'));
+ALTER TABLE knowledge_matter ADD COLUMN name_by_person INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE knowledge_matter ADD COLUMN decided_at INTEGER;
+ALTER TABLE knowledge_matter ADD COLUMN decided_documents TEXT;
+";
 
 /// What the search keeps of each document besides its text (D-350): its
 /// numbers and identifiers as digits alone (`numbers`, so "12.345.678"

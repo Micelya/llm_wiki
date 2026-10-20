@@ -64,6 +64,11 @@ pub struct Grouped {
     pub by_reason: BTreeMap<String, usize>,
     /// Links a person's separation did not let through.
     pub kept_apart: usize,
+    /// Groups that are one document with its versions or copies: not a
+    /// matter (D-381).
+    pub one_family: usize,
+    /// Groups a person discarded that came back with the same documents.
+    pub discarded: usize,
     /// Matters whose documents or name changed.
     pub changed: usize,
 }
@@ -409,16 +414,37 @@ pub(crate) fn group(conn: &Connection, vocabulary: &Vocabulary, joins: &[(String
             reasons[link.b].insert(reason(link.a));
         }
     }
-    let groups: Vec<BTreeSet<usize>> = members.into_iter().filter(|m| m.len() >= 2).collect();
+    // A matter counts families of versions, not copies (D-381): a group
+    // that is one document with its versions is not a matter.
+    let family = families(conn, vocabulary, &docs, &index)?;
+    let groups: Vec<BTreeSet<usize>> = members
+        .into_iter()
+        .filter(|m| m.len() >= 2)
+        .filter(|m| {
+            let distinct = m.iter().map(|&i| family[i]).collect::<BTreeSet<usize>>().len();
+            if distinct < 2 {
+                out.one_family += 1;
+            }
+            distinct >= 2
+        })
+        .collect();
 
-    // Who keeps which id: the biggest groups choose first, by overlap.
+    // Who keeps which id: the biggest groups choose first, by overlap. A
+    // matter a person created is not the grouping's (D-381); a discarded
+    // one is found by the documents it had when it was discarded.
     let existing: HashMap<String, (String, BTreeSet<i64>)> = {
         let mut out: HashMap<String, (String, BTreeSet<i64>)> = HashMap::new();
-        let mut statement = conn.prepare("SELECT id, state FROM knowledge_matter").map_err(sql_err)?;
-        let rows = statement.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))).map_err(sql_err)?;
+        let mut statement = conn
+            .prepare("SELECT id, state, confirmation, decided_documents FROM knowledge_matter WHERE origin = 'proposed'")
+            .map_err(sql_err)?;
+        let rows = statement
+            .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, Option<String>>(3)?)))
+            .map_err(sql_err)?;
         for row in rows {
-            let (id, state) = row.map_err(sql_err)?;
-            out.insert(id, (state, BTreeSet::new()));
+            let (id, state, confirmation, decided) = row.map_err(sql_err)?;
+            let state = if confirmation == "discarded" { confirmation } else { state };
+            let documents: BTreeSet<i64> = decided.and_then(|d| serde_json::from_str(&d).ok()).unwrap_or_default();
+            out.insert(id, (state, documents));
         }
         let mut statement = conn.prepare("SELECT matter_id, content_id FROM knowledge_matter_document").map_err(sql_err)?;
         let rows = statement.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))).map_err(sql_err)?;
@@ -460,9 +486,30 @@ pub(crate) fn group(conn: &Connection, vocabulary: &Vocabulary, joins: &[(String
     // The name of each matter: the matter its documents name most, with
     // its parties.
     let now = now_ms();
+    let mut stays_discarded: BTreeSet<String> = BTreeSet::new();
     for (id, group) in &assigned {
         let contents: Vec<i64> = group.iter().map(|&i| docs[i].0).collect();
-        let name = matter_name(conn, vocabulary, &contents)?;
+        // What a person discarded stays discarded while its documents do;
+        // a new document makes it a proposal again.
+        if let Some(("discarded", before)) = existing.get(id).map(|(s, b)| (s.as_str(), b)) {
+            if contents.iter().all(|c| before.contains(c)) {
+                stays_discarded.insert(id.clone());
+                continue;
+            }
+            conn.execute(
+                "UPDATE knowledge_matter SET confirmation = 'proposed', decided_at = NULL, decided_documents = NULL WHERE id = ?1",
+                [id],
+            )
+            .map_err(sql_err)?;
+        }
+        // A name a person gave stays.
+        let by_person: Option<String> = conn
+            .query_row("SELECT name FROM knowledge_matter WHERE id = ?1 AND name_by_person = 1", [id], |row| row.get(0))
+            .ok();
+        let name = match by_person {
+            Some(name) => name,
+            None => matter_name(conn, vocabulary, &contents)?,
+        };
         let before = existing.get(id);
         let same_docs = before.is_some_and(|(state, b)| state == "active" && *b == contents.iter().copied().collect());
         let stored_name: Option<String> = conn.query_row("SELECT name FROM knowledge_matter WHERE id = ?1", [id], |row| row.get(0)).ok();
@@ -495,19 +542,56 @@ pub(crate) fn group(conn: &Connection, vocabulary: &Vocabulary, joins: &[(String
         out.changed += 1;
     }
     let kept: BTreeSet<&String> = assigned.iter().map(|(id, _)| id).collect();
+    let confirmed: BTreeSet<String> = {
+        let mut statement = conn.prepare("SELECT id FROM knowledge_matter WHERE confirmation = 'confirmed'").map_err(sql_err)?;
+        let rows = statement.query_map([], |row| row.get::<_, String>(0)).map_err(sql_err)?;
+        rows.collect::<Result<_, _>>().map_err(sql_err)?
+    };
     for (id, (state, _)) in &existing {
-        if !kept.contains(id) && state == "active" {
+        // A matter a person confirmed is not retired by a grouping: it
+        // keeps the documents it had (D-381).
+        if !kept.contains(id) && state == "active" && !confirmed.contains(id) {
             conn.execute("UPDATE knowledge_matter SET state = 'retired', updated_at = ?2 WHERE id = ?1", params![id, now]).map_err(sql_err)?;
             conn.execute("DELETE FROM knowledge_matter_document WHERE matter_id = ?1", [id]).map_err(sql_err)?;
             out.changed += 1;
         }
     }
+    out.discarded = stays_discarded.len();
+    let assigned: Vec<&(String, &BTreeSet<usize>)> = assigned.iter().filter(|(id, _)| !stays_discarded.contains(id)).collect();
     out.matters = assigned.len();
     out.documents = assigned.iter().map(|(_, g)| g.len()).sum();
     if out.changed > 0 {
         super::mark_dirty(conn, "project", "matters")?;
     }
     Ok(out)
+}
+
+/// The family of versions of each document, by its index (D-381): the
+/// relations between documents of `pages.versionRelations` and of
+/// `matters.sameDocument` (its signing record, its translation) that are
+/// not discarded, and two documents a person joined as one with one of them
+/// as the wiki's, as the pages of documents count them (D-340).
+fn families(conn: &Connection, vocabulary: &Vocabulary, docs: &[(i64, String)], index: &HashMap<i64, usize>) -> Result<Vec<usize>, String> {
+    let mut sets = Sets { parent: (0..docs.len()).collect() };
+    let mut statement = conn
+        .prepare("SELECT a, b, coalesce(chosen_relation, relation), state = 'joined' AND wiki_source IS NOT NULL FROM similar_pair WHERE state != 'discarded'")
+        .map_err(sql_err)?;
+    let rows = statement
+        .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, String>(2)?, row.get::<_, bool>(3)?)))
+        .map_err(sql_err)?;
+    for row in rows {
+        let (a, b, relation, joined_as_one) = row.map_err(sql_err)?;
+        if !joined_as_one && !vocabulary.pages.version_relations.contains(&relation) && !vocabulary.matters.same_document.contains(&relation) {
+            continue;
+        }
+        if let (Some(&x), Some(&y)) = (index.get(&a), index.get(&b)) {
+            let (rx, ry) = (sets.find(x), sets.find(y));
+            if rx != ry {
+                sets.parent[rx.max(ry)] = rx.min(ry);
+            }
+        }
+    }
+    Ok((0..docs.len()).map(|i| sets.find(i)).collect())
 }
 
 /// The name of a matter (D-267): by the relation between its parties and
@@ -936,7 +1020,7 @@ impl crate::docbase::DocBase {
             let mut statement = conn
                 .prepare(
                     "SELECT m.id, m.name, d.content_id FROM knowledge_matter m JOIN knowledge_matter_document d ON d.matter_id = m.id
-                     WHERE m.state = 'active' AND d.state = 'firm'",
+                     WHERE m.state = 'active' AND d.state = 'firm' AND (m.confirmation = 'confirmed' OR m.origin = 'person')",
                 )
                 .map_err(sql_err)?;
             let rows = statement
@@ -946,7 +1030,14 @@ impl crate::docbase::DocBase {
                 let (id, name, content) = row.map_err(sql_err)?;
                 matters.entry(id).or_insert_with(|| (name, BTreeSet::new())).1.insert(content);
             }
-            let grouped: BTreeSet<i64> = matters.values().flat_map(|(_, d)| d.iter().copied()).collect();
+            // A document in any matter, proposed or not, is not loose.
+            let grouped: BTreeSet<i64> = {
+                let mut statement = conn
+                    .prepare("SELECT DISTINCT d.content_id FROM knowledge_matter_document d JOIN knowledge_matter m ON m.id = d.matter_id WHERE m.state = 'active'")
+                    .map_err(sql_err)?;
+                let rows = statement.query_map([], |row| row.get::<_, i64>(0)).map_err(sql_err)?;
+                rows.collect::<Result<_, _>>().map_err(sql_err)?
+            };
             let parties = parties_by_document(&conn, vocabulary)?;
             let decided = super::resolve::load_decided(&conn)?;
             let successors = changes::successors(&conn)?;
@@ -961,6 +1052,8 @@ impl crate::docbase::DocBase {
                 .collect();
             (matters, grouped, parties, separated)
         };
+        // Only for a matter a person confirmed or created: a proposal of
+        // the grouping is not asked about until a person keeps it (D-381).
         let loose: Vec<i64> = documents(&self.conn())?.into_iter().map(|(c, _)| c).filter(|c| !grouped.contains(c)).collect();
         let mut changed = false;
         let mut stopped = false;

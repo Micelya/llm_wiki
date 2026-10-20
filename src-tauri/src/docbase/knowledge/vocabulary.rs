@@ -161,6 +161,11 @@ pub struct MatterRules {
     pub propose_with_shared: usize,
     #[serde(default = "three")]
     pub propose_candidates: usize,
+    /// Relations that make two documents one for counting matters, besides
+    /// the versions of `pages.versionRelations`: the record of the signing
+    /// of an act, its translation, its delivery receipt (D-381).
+    #[serde(default)]
+    pub same_document: Vec<String>,
 }
 
 fn two() -> usize {
@@ -189,6 +194,7 @@ impl Default for MatterRules {
             min_documents: 2,
             propose_with_shared: 2,
             propose_candidates: 3,
+            same_document: Vec::new(),
         }
     }
 }

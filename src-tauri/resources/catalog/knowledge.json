@@ -262,7 +262,7 @@
     }
   },
   "matters": {
-    "about": "Cómo se agrupan los documentos en asuntos: los une lo que decidió una persona, dos documentos que una persona unió con una de estas relaciones, el mismo asunto nombrado por los dos, el mismo número de un asunto (de al menos minLength caracteres y minDigits dígitos) o el mismo importe (de al menos amountDigits dígitos, con decimales o miles). Un número o importe que está en más de maxShare de los documentos no dice nada. Compartir una persona no es compartir un asunto. Un asunto con minDocuments documentos o más tiene página. Un número de un asunto escrito en el texto de otro documento (las facturas que cita una cronología) también lo pone en el asunto. El nombre del asunto sale de la relación entre sus partes y su objeto: un reclamo entre dos de sus partes (claimKinds) es «Reclamo de X a Y»; si no, lo que sus documentos lo nombran, entre sus partes; nunca un comprobante, un número ni un archivo.",
+    "about": "Cómo se agrupan los documentos en asuntos: los une lo que decidió una persona, dos documentos que una persona unió con una de estas relaciones, el mismo asunto nombrado por los dos, el mismo número de un asunto (de al menos minLength caracteres y minDigits dígitos) o el mismo importe (de al menos amountDigits dígitos, con decimales o miles). Un número o importe que está en más de maxShare de los documentos no dice nada. Compartir una persona no es compartir un asunto. Un asunto con minDocuments documentos o más tiene página. Un número de un asunto escrito en el texto de otro documento (las facturas que cita una cronología) también lo pone en el asunto. El nombre del asunto sale de la relación entre sus partes y su objeto: un reclamo entre dos de sus partes (claimKinds) es «Reclamo de X a Y»; si no, lo que sus documentos lo nombran, entre sus partes; nunca un comprobante, un número ni un archivo. Un asunto cuenta familias de documentos, no copias: un documento con sus versiones (pages.versionRelations) o con lo que es parte de él (sameDocument: la constancia de su firma, su traducción, su acuse de recibo) cuenta una vez, y un grupo que es un solo documento así no es un asunto. Lo que propone la agrupación es una propuesta hasta que una persona lo confirma; el modelo propone documentos sueltos solo para un asunto confirmado o creado por una persona.",
     "kind": "asunto",
     "relations": ["same-document", "near-identical", "signed-copy", "version", "preview", "contained-in", "reply-to", "signing-certificate-of", "delivery-receipt-of", "same-matter", "translation-of"],
     "identifierKinds": ["expediente", "factura", "envio", "sobre", "otro"],
@@ -276,7 +276,8 @@
     "claimKinds": ["reclamo"],
     "proposeWithShared": 2,
     "proposeCandidates": 3,
-    "minDocuments": 2
+    "minDocuments": 2,
+    "sameDocument": ["signing-certificate-of", "translation-of", "delivery-receipt-of"]
   },
   "values": {
     "about": "Con qué se comprueba la forma de un valor: un importe tiene dígitos y, si no tiene separadores, una moneda; un texto tiene más letras que dígitos y no es el nombre de quien se habla; un domicilio tiene un número y palabras, y no es un horario (schedule). Un valor que es una línea para completar (guiones bajos o puntos seguidos) no es un valor. Una fecha o una hora no es un teléfono. Dos domicilios con los mismos números y una palabra en común son el mismo escrito de dos maneras; dos importes con los mismos números, también.",

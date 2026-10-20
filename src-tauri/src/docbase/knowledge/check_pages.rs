@@ -572,6 +572,23 @@ fn references_leave_the_entities() {
         let rows = statement.query_map([], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
         rows.collect::<Result<_, _>>().unwrap()
     };
+    // The matters, each with its documents and its families (D-381).
+    let matters = |base: &crate::docbase::DocBase, label: &str| {
+        let conn = base.conn();
+        let mut statement = conn
+            .prepare(
+                "SELECT m.id, m.name, m.confirmation, m.status, count(d.content_id) FROM knowledge_matter m
+                 JOIN knowledge_matter_document d ON d.matter_id = m.id WHERE m.state = 'active' GROUP BY m.id ORDER BY count(d.content_id) DESC, m.id",
+            )
+            .unwrap();
+        let rows: Vec<(String, String, String, String, i64)> =
+            statement.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))).unwrap().collect::<Result<_, _>>().unwrap();
+        println!("matters {label}: {}", rows.len());
+        for (id, name, confirmation, status, documents) in rows {
+            println!("  {id} · {documents} documents · {confirmation} · {status} · {name}");
+        }
+    };
+    matters(&base, "before");
     println!("active entities by type, before: {:?}", by_kind(&base));
     println!("synthesis questions before (not kept in the base): {}", base.synthesis_questions(&engine).unwrap().len());
     let before = base.knowledge_project(None, 0).unwrap();
@@ -581,6 +598,7 @@ fn references_leave_the_entities() {
     let resolved = base.knowledge_resolve(None, 0).unwrap();
     println!("resolution: {resolved:?}");
     println!("active entities by type, after: {:?}", by_kind(&base));
+    matters(&base, "after");
     let proposed = base.knowledge_propose_matters(None, 0).unwrap();
     println!("matters proposed (questions left = would be asked): {proposed:?}");
     println!("synthesis questions after (not kept in the base): {}", base.synthesis_questions(&engine).unwrap().len());

@@ -45,6 +45,7 @@ function attention(patch: Partial<KnowledgeAttention> = {}): KnowledgeAttention 
     conflicts: [],
     identifierJoins: [],
     proposedMatters: [],
+    mattersToConfirm: [],
     synthesisPending: 0,
     discardedSentences: 0,
     keptPages: [],
@@ -107,6 +108,26 @@ describe("knowledgeNotices", () => {
     expect(attentionCounts(notices).problems).toBe(2)
   })
 
+  it("lists the matters the app proposes, with why their documents are together", () => {
+    const notices = knowledgeNotices(
+      {
+        attention: attention({
+          mattersToConfirm: [{ id: "mat-1", name: "Reclamo de Una a Otra", documents: 3, reasons: { numero: 2, asunto: 3 } }],
+        }),
+        doubts: [],
+      },
+      words,
+    )
+    const toConfirm = notices.find((n) => n.topic === "matters-to-confirm")
+    expect(toConfirm?.kind).toBe("decision")
+    expect(toConfirm?.title).toContain(words.knowledge.matter.toLowerCase())
+    expect(toConfirm?.cases?.[0]).toMatchObject({
+      title: "Reclamo de Una a Otra",
+      detail: "3 documentos · comparten la misma referencia (3), el mismo número (2)",
+    })
+    expect(toConfirm?.cases?.[0].actions?.map((a) => a.label)).toEqual(["Confirmar", "Descartar", "Ver"])
+  })
+
   it("counts conflicts and proposals, and leaves joins by identifier and kept pages out of the counter", () => {
     const notices = knowledgeNotices(
       {
@@ -127,7 +148,7 @@ describe("knowledgeNotices", () => {
     const conflicts = notices.find((n) => n.topic === "conflicts")
     expect(conflicts?.cases?.[0]).toMatchObject({ title: "Persona Uno: domicilio", detail: "«Calle 1» / «Calle 2»" })
     const proposed = notices.find((n) => n.topic === "proposed-matters")
-    expect(proposed?.title).toContain("asunto")
+    expect(proposed?.title).toContain(words.knowledge.matter.toLowerCase())
     expect(proposed?.cases?.[0].actions?.map((a) => a.label)).toEqual(["Confirmar", "Descartar", "Ver"])
     expect(notices.find((n) => n.topic === "identifier-joins")?.priority).toBe("low")
     expect(notices.find((n) => n.topic === "kept-pages")?.priority).toBe("low")

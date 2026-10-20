@@ -64,7 +64,7 @@ const RESOLUTION_SETTING: &str = "knowledge-resolution";
 /// Why a group of mentions has no entity: it is a reference (D-377).
 pub(crate) const REFERENCE: &str = "referencia";
 /// Raised when a change in the program changes what a resolution gives.
-const RESOLUTION_VERSION: &str = "resolucion-11";
+const RESOLUTION_VERSION: &str = "resolucion-12";
 
 fn resolution_basis() -> String {
     format!("{RESOLUTION_VERSION}|{IDENTITY_PROMPT}|{}", vocabulary().digest)

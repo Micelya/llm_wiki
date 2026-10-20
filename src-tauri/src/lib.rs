@@ -724,6 +724,7 @@ pub fn run() {
             docbase::commands::docbase_knowledge_document_entities,
             docbase::commands::docbase_knowledge_leave_matter,
             docbase::commands::docbase_knowledge_join_matter,
+            docbase::commands::docbase_knowledge_decide_matter,
             commands::fs::preprocess_file,
             commands::fs::delete_file,
             commands::fs::find_related_wiki_pages,

@@ -1,11 +1,13 @@
 import { ArrowLeft, BookOpen, Undo2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
+  decideMatter,
   getMatter,
   joinMatter,
   leaveMatter,
   listMatters,
   undoIdentityDecision,
+  type MatterConfirmation,
   type MatterDetail,
   type MatterDocument,
   type MatterReason,
@@ -23,8 +25,9 @@ import { Section, useAction, useArchivePage, useOpenDocument, useOpenEntity } fr
  * The matters of the archive: groups of documents joined by what is
  * specific to one matter (R-05), with the reasons each document is in it,
  * its parties, the documents the model proposes for it, and what a
- * person decided. A person puts a document in or takes it out; nothing
- * else is edited.
+ * person decided. What the app groups is a proposal until a person
+ * confirms it (D-381); a person confirms or discards it, and puts a
+ * document in or takes it out.
  */
 export function MattersView() {
   const matterId = useKnowledgeStore((s) => s.matterId)
@@ -54,6 +57,7 @@ function MatterList() {
               <li key={matter.id}>
                 <button className="flex w-full items-start gap-3 px-4 py-2.5 text-left hover:bg-muted/50" onClick={() => openMatter(matter.id)}>
                   <span className="min-w-0 flex-1 font-medium break-words">{matter.name}</span>
+                  <MatterBadges confirmation={matter.confirmation} status={matter.status} words={words} />
                   {matter.proposed > 0 && (
                     <StatusBadge tone="busy">{plural(matter.proposed, "propuesta", "propuestas")}</StatusBadge>
                   )}
@@ -67,6 +71,18 @@ function MatterList() {
         )}
       </div>
     </DocbasePage>
+  )
+}
+
+/** Whether a matter is a proposal of the app or confirmed, and its status. */
+export function MatterBadges({ confirmation, status, words }: { confirmation: MatterConfirmation; status: string; words: Vocabulary }) {
+  const states = words.knowledge.matterStates
+  return (
+    <>
+      {confirmation === "proposed" && <StatusBadge tone="busy">{states.proposed}</StatusBadge>}
+      {confirmation === "confirmed" && <StatusBadge tone="ok">{states.confirmed}</StatusBadge>}
+      <StatusBadge tone="neutral">{states.status[status] ?? status}</StatusBadge>
+    </>
   )
 }
 
@@ -103,7 +119,28 @@ function MatterDetailView({ id, onBack }: { id: string; onBack: () => void }) {
           <ArrowLeft className="size-4" /> {words.knowledge.matters}
         </button>
         <div className="mt-2 flex items-end justify-between gap-4 pb-3">
-          <h1 className="min-w-0 font-serif text-2xl break-words">{detail?.name ?? words.knowledge.matter}</h1>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <h1 className="min-w-0 font-serif text-2xl break-words">{detail?.name ?? words.knowledge.matter}</h1>
+            {detail && detail.confirmation !== "discarded" && (
+              <MatterBadges confirmation={detail.confirmation} status={detail.status} words={words} />
+            )}
+          </div>
+          <div className="flex shrink-0 gap-2">
+          {detail && detail.state === "active" && detail.confirmation === "proposed" && (
+            <>
+              <Button disabled={action.busy} onClick={() => action.run(() => decideMatter(detail.id, "confirm"))}>
+                Confirmar
+              </Button>
+              <Button variant="outline" disabled={action.busy} onClick={() => action.run(() => decideMatter(detail.id, "discard"))}>
+                Descartar
+              </Button>
+            </>
+          )}
+          {detail && detail.confirmation !== "proposed" && detail.origin === "proposed" && (
+            <Button variant="outline" disabled={action.busy} onClick={() => action.run(() => decideMatter(detail.id, "reopen"))}>
+              <Undo2 /> Volver a propuesto
+            </Button>
+          )}
           {detail?.pagePath && (
             <Button
               variant="outline"
@@ -114,6 +151,7 @@ function MatterDetailView({ id, onBack }: { id: string; onBack: () => void }) {
               <BookOpen /> Su página del wiki
             </Button>
           )}
+          </div>
         </div>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto px-8 py-6">
@@ -127,7 +165,12 @@ function MatterDetailView({ id, onBack }: { id: string; onBack: () => void }) {
         )}
         {detail && (
           <div className="mx-auto max-w-5xl">
-            {detail.state === "retired" && (
+            {detail.confirmation === "discarded" && (
+              <p className="mb-4 rounded-md border border-dashed px-3 py-2 text-sm">
+                Descartaste este {words.knowledge.matter.toLowerCase()}: no vuelve mientras la app encuentre los mismos documentos.
+              </p>
+            )}
+            {detail.state === "retired" && detail.confirmation !== "discarded" && (
               <p className="mb-4 rounded-md border border-dashed px-3 py-2 text-sm">
                 Ya no queda ningún grupo con estos documentos.
               </p>

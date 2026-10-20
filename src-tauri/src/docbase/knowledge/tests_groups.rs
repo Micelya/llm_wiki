@@ -332,3 +332,110 @@ fn a_signature_block_names_the_company_on_a_line_of_its_own() {
     };
     assert_eq!(kept, vec!["Persona Ocho".to_string()]);
 }
+
+fn matter_asker() -> FakeModel {
+    FakeModel::new("falso:1", |prompt| {
+        if is_knowledge(prompt) && prompt.contains("DOC-G") {
+            reading(prompt)
+        } else if is_knowledge(prompt) {
+            matter_reading(prompt)
+        } else if prompt.contains("Hay que decidir si cada candidato es la misma entidad") {
+            serde_json::json!({ "respuestas": [] }).to_string()
+        } else {
+            type_answer("contrato")
+        }
+    })
+}
+
+fn content_of(base: &DocBase, file: &str) -> i64 {
+    base.conn()
+        .query_row("SELECT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.name = ?1", [file], |row| row.get(0))
+        .unwrap()
+}
+
+/// The active matters: (id, documents, confirmation).
+fn active_matters(base: &DocBase) -> Vec<(String, i64, String)> {
+    let conn = base.conn();
+    let mut statement = conn
+        .prepare(
+            "SELECT m.id, count(d.content_id), m.confirmation FROM knowledge_matter m JOIN knowledge_matter_document d ON d.matter_id = m.id
+             WHERE m.state = 'active' GROUP BY m.id ORDER BY m.id",
+        )
+        .unwrap();
+    let rows = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?))).unwrap();
+    rows.collect::<Result<_, _>>().unwrap()
+}
+
+fn regroup(base: &DocBase) -> super::matters::Grouped {
+    let conn = base.conn();
+    let decided = super::resolve::load_decided(&conn).unwrap();
+    super::matters::group(&conn, super::vocabulary::vocabulary(), &decided.joins, &decided.separations).unwrap()
+}
+
+/// A matter counts families of versions, not copies (D-381): a letter
+/// and its signed copy are one document, never a matter by themselves.
+#[test]
+fn one_document_with_its_versions_is_not_a_matter() {
+    let mut files: Vec<(&str, &str)> = vec![("m1.txt", M1), ("m2.txt", M2)];
+    files.extend_from_slice(FILES);
+    let (_dir, base) = base_with(&files);
+    run(&base, &matter_asker());
+    let matters = active_matters(&base);
+    assert_eq!(matters.len(), 1, "two documents that share an invoice: {matters:?}");
+    assert_eq!(matters[0].2, "proposed", "the grouping proposes; a person confirms (D-373)");
+    let status: String = base.conn().query_row("SELECT status FROM knowledge_matter WHERE id = ?1", [&matters[0].0], |row| row.get(0)).unwrap();
+    assert_eq!(status, "open");
+    let (a, b) = {
+        let (x, y) = (content_of(&base, "m1.txt"), content_of(&base, "m2.txt"));
+        (x.min(y), x.max(y))
+    };
+    base.conn()
+        .execute(
+            "INSERT OR REPLACE INTO similar_pair (a, b, relation, certainty, jaccard, containment, cover, similarity, description, evidence, evidence_hash, engine, computed_at)
+             VALUES (?1, ?2, 'version', 'alta', 0.9, 0.9, 0.9, 0.9, '', '[]', '', 'test', 0)",
+            [a, b],
+        )
+        .unwrap();
+    let grouped = regroup(&base);
+    assert_eq!(grouped.one_family, 1);
+    assert!(active_matters(&base).is_empty(), "one family is not a matter");
+}
+
+/// Confirming or discarding a proposed matter is a decision of a person
+/// that survives the grouping (D-381).
+#[test]
+fn a_confirmed_or_discarded_matter_stays_so_when_grouped_again() {
+    let mut files: Vec<(&str, &str)> = vec![("m1.txt", M1), ("m2.txt", M2), ("m3.txt", M3)];
+    files.extend_from_slice(FILES);
+    let (_dir, base) = base_with(&files);
+    run(&base, &matter_asker());
+    let matters = active_matters(&base);
+    assert_eq!(matters.len(), 1, "{matters:?}");
+    let id = matters[0].0.clone();
+    let attention = base.knowledge_attention(&crate::docbase::Visible::All).unwrap();
+    assert_eq!(attention.matters_to_confirm.len(), 1);
+    assert_eq!(attention.matters_to_confirm[0].documents, 3);
+
+    base.knowledge_decide_matter(&id, "discard").unwrap();
+    assert!(active_matters(&base).is_empty(), "a discarded matter goes away");
+    let grouped = regroup(&base);
+    assert_eq!(grouped.discarded, 1);
+    assert!(active_matters(&base).is_empty(), "and stays away with the same documents");
+    assert!(base.knowledge_attention(&crate::docbase::Visible::All).unwrap().matters_to_confirm.is_empty());
+
+    base.knowledge_decide_matter(&id, "reopen").unwrap();
+    assert_eq!(active_matters(&base), vec![(id.clone(), 3, "proposed".to_string())], "reopened, it is a proposal again");
+
+    base.knowledge_decide_matter(&id, "confirm").unwrap();
+    regroup(&base);
+    assert_eq!(active_matters(&base), vec![(id.clone(), 3, "confirmed".to_string())]);
+    let list = base.knowledge_matters(&crate::docbase::Visible::All).unwrap();
+    assert_eq!((list[0].status.as_str(), list[0].origin.as_str(), list[0].confirmation.as_str()), ("open", "proposed", "confirmed"));
+    assert!(base.knowledge_attention(&crate::docbase::Visible::All).unwrap().matters_to_confirm.is_empty());
+
+    // A name a person gave stays.
+    base.conn().execute("UPDATE knowledge_matter SET name = 'Nombre puesto a mano', name_by_person = 1 WHERE id = ?1", [&id]).unwrap();
+    regroup(&base);
+    let name: String = base.conn().query_row("SELECT name FROM knowledge_matter WHERE id = ?1", [&id], |row| row.get(0)).unwrap();
+    assert_eq!(name, "Nombre puesto a mano");
+}

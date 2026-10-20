@@ -335,6 +335,10 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-377 | 20 oct | Asuntos | Las referencias son las menciones de tipo asunto, sin tabla nueva; dejan de tener entidad al resolver otra vez | en revisión |
 | D-378 | 20 oct | Asuntos | Una referencia junta documentos por su forma normalizada, nunca entre otras partes | en revisión |
 | D-379 | 20 oct | Asuntos | Una afirmación sobre una referencia queda como valor escrito; la referencia sigue como contexto de las preguntas | en revisión |
+| D-381 | 20 oct | Asuntos | La agrupación cuenta familias: versiones y lo que es parte de un documento (constancia de firma, traducción, acuse) | en revisión |
+| D-382 | 20 oct | Asuntos | Confirmar o descartar se guarda en el asunto y sobrevive al recálculo | en revisión |
+| D-383 | 20 oct | Asuntos | El modelo propone documentos sueltos solo para un asunto confirmado o creado por una persona | en revisión |
+| D-384 | 20 oct | Asuntos | «Caso» en las pantallas de abogados; el wiki sigue con las palabras del catálogo | en revisión |
 
 ---
 
@@ -4469,4 +4473,32 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Fecha:** 20 oct 2026 · **Tema:** Asuntos · **Estado:** en revisión (agente sin consulta, P-066)
 - **El problema:** sacar las referencias de la resolución cambiaba lo que muestran las preguntas de identidad y borraba afirmaciones como "Parte en: <contrato>": la app habría hecho 26 preguntas nuevas y perdido datos con cita.
 - **Qué se decidió y por qué:** las referencias siguen en la resolución solo como contexto de lo que se pregunta (sin entidad, sin candidatos), y una afirmación cuyo objeto es una referencia queda con ese objeto como valor escrito, con su cita. Medido en la base de partida: 3 preguntas nuevas (2 síntesis y 1 propuesta de asunto), por debajo del límite de 10.
+- **Quién decidió:** agente sin consulta.
+
+### D-381 · La agrupación cuenta familias: versiones y lo que es parte de un documento
+
+- **Fecha:** 20 oct 2026 · **Tema:** Asuntos · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** un grupo de dos documentos o más era un asunto aunque fueran un solo documento con sus copias, versiones o la constancia de su firma: en la base de partida 4 de 7 grupos eran eso.
+- **Qué se decidió y por qué:** la agrupación (`knowledge/matters.rs`) cuenta familias: las relaciones de `pages.versionRelations` (como las páginas por familia) más las de `matters.sameDocument` del catálogo (constancia de firma, traducción, acuse de recibo: son parte del mismo acto), propuestas o confirmadas, nunca las descartadas. Un grupo de una sola familia no es asunto; sus documentos siguen en el grupo cuando hay otra familia. Medido: de 7 grupos quedan 4; el cuarto son dos boletas que la base relaciona como «misma plantilla, otros datos» (cambian identificadores y fechas), no como versiones: si son el mismo documento, una persona lo marca y desaparece.
+- **Quién decidió:** agente sin consulta.
+
+### D-382 · Confirmar o descartar se guarda en el asunto y sobrevive al recálculo
+
+- **Fecha:** 20 oct 2026 · **Tema:** Asuntos · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** lo que propone el sistema es una propuesta hasta que una persona la confirma (D-373), y el recálculo de la agrupación no puede borrar esa decisión.
+- **Qué se decidió y por qué:** `knowledge_matter` suma `status` (abierto), `origin` (propuesto o de una persona), `confirmation` (propuesto, confirmado, descartado), `name_by_person`, `decided_at` y `decided_documents` (migración 18: lo existente queda propuesto y abierto; las decisiones de una persona de `knowledge_decision` no se tocan). Confirmado: la agrupación nunca lo retira. Descartado: se retira y guarda sus documentos; vuelve como propuesta solo si la agrupación le suma un documento nuevo. Un asunto de una persona no lo toca la agrupación, y un nombre puesto por una persona se conserva. Atención lista los propuestos con Confirmar, Descartar y Ver, y el motivo que los une.
+- **Quién decidió:** agente sin consulta.
+
+### D-383 · El modelo propone documentos sueltos solo para un asunto confirmado o creado por una persona
+
+- **Fecha:** 20 oct 2026 · **Tema:** Asuntos · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** con la agrupación nueva cambian los asuntos que se describen en la pregunta de propuesta y la app habría hecho 11 preguntas nuevas (límite 10) sobre grupos que todavía nadie confirmó.
+- **Qué se decidió y por qué:** la pregunta «¿este documento suelto es de alguno de estos asuntos?» se hace solo contra asuntos confirmados o creados por una persona: preguntar sobre una propuesta es gastar en algo que quizás se descarte. Un documento que está en cualquier asunto, propuesto o no, no es suelto. Medido: 0 preguntas de propuesta y 2 de síntesis (las mismas de S2).
+- **Quién decidió:** agente sin consulta.
+
+### D-384 · «Caso» en las pantallas de abogados; el wiki sigue con las palabras del catálogo
+
+- **Fecha:** 20 oct 2026 · **Tema:** Asuntos · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** D-373 pide «Asunto» genérico y «Caso» en la vertical de abogados; las pantallas toman el término del vocabulario (`src/vocabulary/legal.ts`), pero las páginas del wiki y los nombres de los asuntos usan las palabras del catálogo (`knowledge.json`), que entran en la descripción de las preguntas de propuesta.
+- **Qué se decidió y por qué:** la vertical de abogados dice «Caso», «Casos» y «Sin caso identificado» en las pantallas, con «Propuesto», «Confirmado» y «Abierto» también desde el vocabulario. Las palabras del wiki quedan genéricas («Asunto») para no cambiar las preguntas guardadas; llevarlas a la vertical es P-217.
 - **Quién decidió:** agente sin consulta.

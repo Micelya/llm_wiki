@@ -1100,6 +1100,15 @@ export interface KnowledgeIdentifierJoin {
   readAt: number
 }
 
+/** A matter the grouping proposed, for a person to confirm or discard (D-381). */
+export interface KnowledgeMatterToConfirm {
+  id: string
+  name: string
+  documents: number
+  /** In how many of its documents each kind of reason is ("numero", "asunto"...). */
+  reasons: Record<string, number>
+}
+
 export interface KnowledgeProposedMatter {
   document: KnowledgeDocumentRef
   matterId: string
@@ -1129,6 +1138,8 @@ export interface KnowledgeAttention {
   conflicts: KnowledgeConflictGroup[]
   identifierJoins: KnowledgeIdentifierJoin[]
   proposedMatters: KnowledgeProposedMatter[]
+  /** The matters the grouping proposed that no person confirmed yet. */
+  mattersToConfirm: KnowledgeMatterToConfirm[]
   synthesisPending: number
   discardedSentences: number
   keptPages: KnowledgeKeptPage[]
@@ -1144,9 +1155,19 @@ export interface KnowledgeDecisionReview {
   reason: string
 }
 
+/** "open" for now (its life cycle is P-213). */
+export type MatterStatus = "open"
+/** Who made it: the grouping ("proposed") or a person. */
+export type MatterOrigin = "proposed" | "person"
+/** What a person decided about it. */
+export type MatterConfirmation = "proposed" | "confirmed" | "discarded"
+
 export interface MatterSummary {
   id: string
   name: string
+  status: MatterStatus
+  origin: MatterOrigin
+  confirmation: MatterConfirmation
   documents: number
   proposed: number
   pagePath: string | null
@@ -1179,6 +1200,9 @@ export interface MatterDetail {
   id: string
   name: string
   state: "active" | "retired"
+  status: MatterStatus
+  origin: MatterOrigin
+  confirmation: MatterConfirmation
   pagePath: string | null
   documents: MatterDocument[]
   parties: MatterParty[]
@@ -1294,6 +1318,14 @@ export function getDocumentEntities(locationId: number): Promise<DocumentEntitie
 /** Takes a document (`content:<id>` or `location:<id>`) out of a matter, or turns down the model's proposal. */
 export function leaveMatter(document: string, matterId: string, note: string | null = null): Promise<number[]> {
   return invoke<number[]>("docbase_knowledge_leave_matter", { document, matterId, note })
+}
+
+/**
+ * Confirms a matter the grouping proposed, discards it (it stays away
+ * while the same documents are grouped) or makes it a proposal again.
+ */
+export function decideMatter(matterId: string, decision: "confirm" | "discard" | "reopen"): Promise<void> {
+  return invoke<void>("docbase_knowledge_decide_matter", { matterId, decision })
 }
 
 /** Puts a document in a matter, or confirms the model's proposal. */
