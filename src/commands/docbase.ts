@@ -1332,3 +1332,21 @@ export function decideMatter(matterId: string, decision: "confirm" | "discard" |
 export function joinMatter(document: string, matterId: string, note: string | null = null): Promise<number> {
   return invoke<number>("docbase_knowledge_join_matter", { document, matterId, note })
 }
+
+/** Creates a matter by hand, empty or with documents (`content:<id>` or `location:<id>`); returns its id. */
+export function createMatter(name: string, documents: string[] = []): Promise<string> {
+  return invoke<string>("docbase_knowledge_create_matter", { name, documents })
+}
+
+/** Names a matter by hand; an empty name gives a proposed matter back the app's name. */
+export function renameMatter(matterId: string, name: string): Promise<void> {
+  return invoke<void>("docbase_knowledge_rename_matter", { matterId, name })
+}
+
+/**
+ * Puts a document in a matter (`in`) or takes it out (`out`), by hand: it
+ * survives every grouping, and a proposed matter becomes confirmed.
+ */
+export function chooseMatterDocument(matterId: string, document: string, choice: "in" | "out"): Promise<void> {
+  return invoke<void>("docbase_knowledge_choose_matter_document", { matterId, document, choice })
+}

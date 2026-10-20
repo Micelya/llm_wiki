@@ -439,3 +439,54 @@ fn a_confirmed_or_discarded_matter_stays_so_when_grouped_again() {
     let name: String = base.conn().query_row("SELECT name FROM knowledge_matter WHERE id = ?1", [&id], |row| row.get(0)).unwrap();
     assert_eq!(name, "Nombre puesto a mano");
 }
+
+fn documents_of(base: &DocBase, id: &str) -> Vec<i64> {
+    let conn = base.conn();
+    let mut statement = conn.prepare("SELECT content_id FROM knowledge_matter_document WHERE matter_id = ?1 ORDER BY content_id").unwrap();
+    let rows = statement.query_map([id], |row| row.get(0)).unwrap();
+    rows.collect::<Result<_, _>>().unwrap()
+}
+
+/// What a person does to a matter wins over what the grouping proposes
+/// and survives it (D-386): the name, a document put in, a document taken
+/// out; and putting a document in a proposed matter confirms it.
+#[test]
+fn what_a_person_does_to_a_matter_survives_the_grouping() {
+    let mut files: Vec<(&str, &str)> = vec![("m1.txt", M1), ("m2.txt", M2), ("m3.txt", M3)];
+    files.extend_from_slice(FILES);
+    let (_dir, base) = base_with(&files);
+    run(&base, &matter_asker());
+    let matters = active_matters(&base);
+    assert_eq!(matters.len(), 1, "{matters:?}");
+    let id = matters[0].0.clone();
+    let (m2, m3, g6) = (content_of(&base, "m2.txt"), content_of(&base, "m3.txt"), content_of(&base, "g6.txt"));
+
+    base.knowledge_choose_matter_document(&id, &format!("content:{g6}"), "in").unwrap();
+    base.knowledge_choose_matter_document(&id, &format!("content:{m3}"), "out").unwrap();
+    base.knowledge_rename_matter(&id, "  Reclamo   puesto a mano ").unwrap();
+    let confirmation: String = base.conn().query_row("SELECT confirmation FROM knowledge_matter WHERE id = ?1", [&id], |row| row.get(0)).unwrap();
+    assert_eq!(confirmation, "confirmed", "putting a document in a proposed matter is deciding about it");
+    regroup(&base);
+    run(&base, &matter_asker());
+    let docs = documents_of(&base, &id);
+    assert!(docs.contains(&g6), "a document put in by hand stays: {docs:?}");
+    assert!(docs.contains(&m2));
+    assert!(!docs.contains(&m3), "a document taken out by hand stays out: {docs:?}");
+    let name: String = base.conn().query_row("SELECT name FROM knowledge_matter WHERE id = ?1", [&id], |row| row.get(0)).unwrap();
+    assert_eq!(name, "Reclamo puesto a mano");
+
+    // A matter made by hand, empty and then with documents that are also
+    // in the other one: a document can be in several matters.
+    let own = base.knowledge_create_matter("Asunto propio", &[]).unwrap();
+    let list = base.knowledge_matters(&crate::docbase::Visible::All).unwrap();
+    let mine = list.iter().find(|m| m.id == own).expect("an empty matter made by hand is listed");
+    assert_eq!((mine.origin.as_str(), mine.confirmation.as_str(), mine.documents), ("person", "confirmed", 0));
+    base.knowledge_choose_matter_document(&own, &format!("content:{m2}"), "in").unwrap();
+    base.knowledge_choose_matter_document(&own, &format!("content:{g6}"), "in").unwrap();
+    base.knowledge_choose_matter_document(&own, &format!("content:{g6}"), "out").unwrap();
+    regroup(&base);
+    assert_eq!(documents_of(&base, &own), vec![m2], "the grouping never touches a matter made by hand");
+    assert!(documents_of(&base, &id).contains(&m2), "and the document is still in the proposed one");
+    assert!(base.knowledge_rename_matter(&own, " ").is_err(), "a matter made by hand needs a name");
+    assert!(base.knowledge_attention(&crate::docbase::Visible::All).unwrap().matters_to_confirm.is_empty());
+}

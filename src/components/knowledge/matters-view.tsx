@@ -1,11 +1,14 @@
-import { ArrowLeft, BookOpen, Undo2 } from "lucide-react"
+import { useState } from "react"
+import { ArrowLeft, BookOpen, Pencil, Plus, Undo2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
+  chooseMatterDocument,
+  createMatter,
   decideMatter,
   getMatter,
-  joinMatter,
   leaveMatter,
   listMatters,
+  renameMatter,
   undoIdentityDecision,
   type MatterConfirmation,
   type MatterDetail,
@@ -18,7 +21,8 @@ import { entityTypeName, relationName, vocabulary, type Vocabulary } from "@/voc
 import { DocbasePage, EmptyNote, ErrorNote, StatusBadge } from "@/components/docbase/page"
 import { formatDate, plural } from "@/components/docbase/format"
 import { useDocbaseQuery } from "@/components/docbase/use-docbase-query"
-import { rolesInWords } from "./knowledge"
+import { matterActions, rolesInWords } from "./knowledge"
+import { DocumentPicker, NameForm } from "./matter-edit"
 import { Section, useAction, useArchivePage, useOpenDocument, useOpenEntity } from "./shared"
 
 /**
@@ -26,8 +30,8 @@ import { Section, useAction, useArchivePage, useOpenDocument, useOpenEntity } fr
  * specific to one matter (R-05), with the reasons each document is in it,
  * its parties, the documents the model proposes for it, and what a
  * person decided. What the app groups is a proposal until a person
- * confirms it (D-381); a person confirms or discards it, and puts a
- * document in or takes it out.
+ * confirms it (D-381); a person confirms or discards it, creates one,
+ * names it, and puts a document in or takes it out (D-386).
  */
 export function MattersView() {
   const matterId = useKnowledgeStore((s) => s.matterId)
@@ -40,15 +44,40 @@ function MatterList() {
   const words = vocabulary()
   const matters = useDocbaseQuery("matters", listMatters)
   const openMatter = useKnowledgeStore((s) => s.openMatter)
+  const action = useAction()
+  const [creating, setCreating] = useState(false)
   const rows = matters.data ?? []
+  const name = words.knowledge.matter.toLowerCase()
   return (
     <DocbasePage title={words.knowledge.matters} subtitle={words.knowledge.mattersDescription}>
       <div className="mx-auto flex max-w-5xl flex-col gap-4">
         {matters.error && <ErrorNote>{matters.error}</ErrorNote>}
+        {action.problem && <ErrorNote>{action.problem}</ErrorNote>}
+        <div>
+          {creating ? (
+            <NameForm
+              placeholder={`Nombre del ${name}`}
+              saveLabel={`Crear ${name}`}
+              busy={action.busy}
+              onCancel={() => setCreating(false)}
+              onSave={(value) =>
+                void action.run(async () => {
+                  const id = await createMatter(value)
+                  setCreating(false)
+                  openMatter(id)
+                })
+              }
+            />
+          ) : (
+            <Button size="sm" variant="outline" onClick={() => setCreating(true)}>
+              <Plus /> Nuevo {name}
+            </Button>
+          )}
+        </div>
         {matters.data && rows.length === 0 && (
           <EmptyNote>
-            Todavía no hay documentos agrupados: hacen falta dos que compartan algo propio de un mismo{" "}
-            {words.knowledge.matter.toLowerCase()}.
+            Todavía no hay documentos agrupados: hacen falta dos que compartan algo propio de un mismo {name}. También
+            podés crear uno y agregarle documentos.
           </EmptyNote>
         )}
         {rows.length > 0 && (
@@ -111,7 +140,9 @@ function MatterDetailView({ id, onBack }: { id: string; onBack: () => void }) {
   const matter = useDocbaseQuery(`matter:${id}`, () => getMatter(id))
   const archivePage = useArchivePage()
   const action = useAction()
+  const [renaming, setRenaming] = useState(false)
   const detail = matter.data
+  const can = detail ? matterActions(detail) : null
   return (
     <div className="flex h-full flex-col">
       <header className="shrink-0 border-b px-8 pt-4">
@@ -119,24 +150,48 @@ function MatterDetailView({ id, onBack }: { id: string; onBack: () => void }) {
           <ArrowLeft className="size-4" /> {words.knowledge.matters}
         </button>
         <div className="mt-2 flex items-end justify-between gap-4 pb-3">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <h1 className="min-w-0 font-serif text-2xl break-words">{detail?.name ?? words.knowledge.matter}</h1>
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+            {detail && renaming ? (
+              <NameForm
+                initial={detail.name}
+                placeholder={`Nombre del ${words.knowledge.matter.toLowerCase()}`}
+                saveLabel="Guardar"
+                busy={action.busy}
+                onCancel={() => setRenaming(false)}
+                onSave={(value) =>
+                  void action.run(async () => {
+                    await renameMatter(detail.id, value)
+                    setRenaming(false)
+                  })
+                }
+              />
+            ) : (
+              <>
+                <h1 className="min-w-0 font-serif text-2xl break-words">{detail?.name ?? words.knowledge.matter}</h1>
+                {detail && can?.edit && (
+                  <Button size="icon-xs" variant="ghost" title="Cambiar el nombre" onClick={() => setRenaming(true)}>
+                    <Pencil />
+                  </Button>
+                )}
+              </>
+            )}
             {detail && detail.confirmation !== "discarded" && (
               <MatterBadges confirmation={detail.confirmation} status={detail.status} words={words} />
             )}
+            {detail?.origin === "person" && <span className="text-xs text-muted-foreground">creado a mano</span>}
           </div>
           <div className="flex shrink-0 gap-2">
-          {detail && detail.state === "active" && detail.confirmation === "proposed" && (
-            <>
-              <Button disabled={action.busy} onClick={() => action.run(() => decideMatter(detail.id, "confirm"))}>
-                Confirmar
-              </Button>
-              <Button variant="outline" disabled={action.busy} onClick={() => action.run(() => decideMatter(detail.id, "discard"))}>
-                Descartar
-              </Button>
-            </>
+          {detail && can?.confirm && (
+            <Button disabled={action.busy} onClick={() => action.run(() => decideMatter(detail.id, "confirm"))}>
+              Confirmar
+            </Button>
           )}
-          {detail && detail.confirmation !== "proposed" && detail.origin === "proposed" && (
+          {detail && can?.discard && (
+            <Button variant="outline" disabled={action.busy} onClick={() => action.run(() => decideMatter(detail.id, "discard"))}>
+              Descartar
+            </Button>
+          )}
+          {detail && can?.reopen && (
             <Button variant="outline" disabled={action.busy} onClick={() => action.run(() => decideMatter(detail.id, "reopen"))}>
               <Undo2 /> Volver a propuesto
             </Button>
@@ -167,7 +222,8 @@ function MatterDetailView({ id, onBack }: { id: string; onBack: () => void }) {
           <div className="mx-auto max-w-5xl">
             {detail.confirmation === "discarded" && (
               <p className="mb-4 rounded-md border border-dashed px-3 py-2 text-sm">
-                Descartaste este {words.knowledge.matter.toLowerCase()}: no vuelve mientras la app encuentre los mismos documentos.
+                Descartaste este {words.knowledge.matter.toLowerCase()}
+                {detail.origin === "person" ? "." : ": no vuelve mientras la app encuentre los mismos documentos."}
               </p>
             )}
             {detail.state === "retired" && detail.confirmation !== "discarded" && (
@@ -194,17 +250,20 @@ function Documents({ matter, run, busy }: { matter: MatterDetail; run: Run; busy
   const firm = matter.documents.filter((d) => d.state === "firm")
   const proposed = matter.documents.filter((d) => d.state === "proposed")
   const name = words.knowledge.matter.toLowerCase()
+  const editable = matterActions(matter).edit
+  // A proposed matter keeps one document at least: to have none, it is discarded.
+  const canTakeOut = editable && (matter.origin === "person" || firm.length > 1)
 
   async function takeOut(doc: MatterDocument) {
     const confirmed = await dialog.confirm({
       title: `Sacar del ${name}`,
       message:
-        `«${doc.document.name}» deja de ser de este ${name}: queda separado de cada uno de sus documentos, ` +
-        "y ninguna pasada lo vuelve a poner. Se puede deshacer desde las decisiones.",
+        `«${doc.document.name}» deja de ser de este ${name}, y ninguna pasada lo vuelve a poner. ` +
+        "Puede seguir en otros. Se puede volver a agregar.",
       confirmLabel: "Sacar",
       cancelLabel: "Cancelar",
     })
-    if (confirmed) await run(() => leaveMatter(`content:${doc.document.contentId}`, matter.id, `fuera de «${matter.name}»`))
+    if (confirmed) await run(() => chooseMatterDocument(matter.id, `content:${doc.document.contentId}`, "out"))
   }
 
   const row = (doc: MatterDocument) => (
@@ -215,7 +274,7 @@ function Documents({ matter, run, busy }: { matter: MatterDetail; run: Run; busy
         </button>
         <span className="ml-auto flex gap-2">
           {doc.state === "firm" ? (
-            firm.length > 1 && (
+            canTakeOut && (
               <Button size="xs" variant="ghost" disabled={busy} onClick={() => void takeOut(doc)}>
                 No es de este {name}
               </Button>
@@ -226,7 +285,7 @@ function Documents({ matter, run, busy }: { matter: MatterDetail; run: Run; busy
                 size="xs"
                 variant="outline"
                 disabled={busy}
-                onClick={() => void run(() => joinMatter(`content:${doc.document.contentId}`, matter.id, "propuesta del modelo confirmada"))}
+                onClick={() => void run(() => chooseMatterDocument(matter.id, `content:${doc.document.contentId}`, "in"))}
               >
                 Confirmar
               </Button>
@@ -259,8 +318,21 @@ function Documents({ matter, run, busy }: { matter: MatterDetail; run: Run; busy
         <p className="mb-2 text-sm text-muted-foreground">
           Debajo de cada uno, por qué está en este {name}. Compartir una persona o una organización no alcanza.
         </p>
-        <ul className="flex flex-col divide-y rounded-md border">{firm.map(row)}</ul>
+        {firm.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Todavía no tiene documentos: buscalos abajo y agregalos.</p>
+        ) : (
+          <ul className="flex flex-col divide-y rounded-md border">{firm.map(row)}</ul>
+        )}
       </Section>
+      {editable && (
+        <Section title="Agregar documentos">
+          <DocumentPicker
+            already={firm.map((d) => d.document.contentId)}
+            busy={busy}
+            onPick={(found) => void run(() => chooseMatterDocument(matter.id, `content:${found.contentId}`, "in"))}
+          />
+        </Section>
+      )}
       {proposed.length > 0 && (
         <Section title={`Posiblemente de este ${name}`}>
           <p className="mb-2 text-sm text-muted-foreground">

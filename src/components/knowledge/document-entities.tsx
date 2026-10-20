@@ -1,10 +1,12 @@
-import { getDocumentEntities } from "@/commands/docbase"
+import { chooseMatterDocument, getDocumentEntities } from "@/commands/docbase"
+import { Button } from "@/components/ui/button"
 import { entityTypeName, vocabulary } from "@/vocabulary"
 import { StatusBadge } from "@/components/docbase/page"
 import { plural } from "@/components/docbase/format"
 import { useDocbaseQuery } from "@/components/docbase/use-docbase-query"
 import { rolesInWords } from "./knowledge"
-import { Section, useOpenEntity, useOpenMatter } from "./shared"
+import { AddToMatter } from "./matter-edit"
+import { Section, useAction, useOpenEntity, useOpenMatter } from "./shared"
 
 /**
  * Who a document names, with the role each one has in it, and its matter:
@@ -15,6 +17,7 @@ export function DocumentEntitiesSection({ locationId }: { locationId: number }) 
   const found = useDocbaseQuery(`document-entities:${locationId}`, () => getDocumentEntities(locationId))
   const openEntity = useOpenEntity()
   const openMatter = useOpenMatter()
+  const action = useAction()
   const data = found.data
   if (!data || data.contentId === null) return null
   const title = `${words.knowledge.entities} (${data.entities.length})`
@@ -39,10 +42,23 @@ export function DocumentEntitiesSection({ locationId }: { locationId: number }) 
                 {matter.name}
               </button>
               {matter.proposed && <StatusBadge tone="neutral">propuesto por el modelo</StatusBadge>}
+              {!matter.proposed && (
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  disabled={action.busy}
+                  title={`Sacar este documento del ${words.knowledge.matter.toLowerCase()}`}
+                  onClick={() => void action.run(() => chooseMatterDocument(matter.matterId, `location:${locationId}`, "out"))}
+                >
+                  Sacar
+                </Button>
+              )}
             </li>
           ))}
         </ul>
       )}
+      {action.problem && <p className="mb-2 text-sm text-destructive">{action.problem}</p>}
+      <AddToMatter locationId={locationId} current={data.matters} />
       {data.state === "done" && data.entities.length === 0 && (
         <p className="text-sm text-muted-foreground">El documento no nombra a nadie que la lectura haya encontrado.</p>
       )}

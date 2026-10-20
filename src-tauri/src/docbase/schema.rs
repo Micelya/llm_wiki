@@ -10,7 +10,21 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14, V15, V16, V17, V18];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14, V15, V16, V17, V18, V19];
+
+/// What a person chose for the documents of a matter (D-386): `in` (put
+/// in by hand) or `out` (taken out by hand). The grouping applies it over
+/// what it finds, so it survives every grouping; a matter a person created
+/// (`origin = 'person'`) has only the documents a person put in it.
+const V19: &str = "
+CREATE TABLE knowledge_matter_choice (
+    matter_id   TEXT NOT NULL REFERENCES knowledge_matter (id) ON DELETE CASCADE,
+    content_id  INTEGER NOT NULL,
+    choice      TEXT NOT NULL CHECK (choice IN ('in', 'out')),
+    decided_at  INTEGER NOT NULL,
+    PRIMARY KEY (matter_id, content_id)
+);
+";
 
 /// One concept of matter (D-373, D-381): what the grouping proposes is a
 /// proposal until a person confirms it, and every matter has a status.

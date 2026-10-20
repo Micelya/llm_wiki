@@ -487,8 +487,26 @@ pub(crate) fn group(conn: &Connection, vocabulary: &Vocabulary, joins: &[(String
     // its parties.
     let now = now_ms();
     let mut stays_discarded: BTreeSet<String> = BTreeSet::new();
+    let chosen = person_choices(conn, &successors)?;
+    let nothing = (BTreeSet::new(), BTreeSet::new());
     for (id, group) in &assigned {
-        let contents: Vec<i64> = group.iter().map(|&i| docs[i].0).collect();
+        // What a person put in or took out wins over what the grouping
+        // finds (D-386).
+        let (put_in, taken_out) = chosen.get(id).unwrap_or(&nothing);
+        let mut now_reasons: BTreeMap<i64, String> = group
+            .iter()
+            .filter(|&&i| !taken_out.contains(&docs[i].0))
+            .map(|&i| (docs[i].0, serde_json::to_string(&reasons[i].iter().collect::<Vec<_>>()).unwrap_or_else(|_| "[]".into())))
+            .collect();
+        for content in put_in {
+            // Also a document the layer has not read yet, while it exists.
+            let exists = index.contains_key(content)
+                || conn.query_row("SELECT 1 FROM content WHERE id = ?1", [content], |_| Ok(())).is_ok();
+            if exists {
+                now_reasons.entry(*content).or_insert_with(|| "[]".into());
+            }
+        }
+        let contents: Vec<i64> = now_reasons.keys().copied().collect();
         // What a person discarded stays discarded while its documents do;
         // a new document makes it a proposal again.
         if let Some(("discarded", before)) = existing.get(id).map(|(s, b)| (s.as_str(), b)) {
@@ -518,10 +536,6 @@ pub(crate) fn group(conn: &Connection, vocabulary: &Vocabulary, joins: &[(String
             let rows = statement.query_map([id], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))).map_err(sql_err)?;
             rows.collect::<Result<_, _>>().map_err(sql_err)?
         };
-        let now_reasons: BTreeMap<i64, String> = group
-            .iter()
-            .map(|&i| (docs[i].0, serde_json::to_string(&reasons[i].iter().collect::<Vec<_>>()).unwrap_or_else(|_| "[]".into())))
-            .collect();
         if same_docs && stored_name.as_deref() == Some(name.as_str()) && stored_reasons == now_reasons {
             continue;
         }
@@ -562,6 +576,26 @@ pub(crate) fn group(conn: &Connection, vocabulary: &Vocabulary, joins: &[(String
     out.documents = assigned.iter().map(|(_, g)| g.len()).sum();
     if out.changed > 0 {
         super::mark_dirty(conn, "project", "matters")?;
+    }
+    Ok(out)
+}
+
+/// What a person chose for the documents of each matter (D-386): the
+/// documents put in by hand and those taken out, after the documents that
+/// took the place of others.
+pub(crate) fn person_choices(conn: &Connection, successors: &HashMap<i64, i64>) -> Result<HashMap<String, (BTreeSet<i64>, BTreeSet<i64>)>, String> {
+    let mut statement = conn.prepare("SELECT matter_id, content_id, choice FROM knowledge_matter_choice").map_err(sql_err)?;
+    let rows = statement.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?, row.get::<_, String>(2)?))).map_err(sql_err)?;
+    let mut out: HashMap<String, (BTreeSet<i64>, BTreeSet<i64>)> = HashMap::new();
+    for row in rows {
+        let (matter, content, choice) = row.map_err(sql_err)?;
+        let Some(content) = content_of(&changes::translate(&content_key(content), successors)) else { continue };
+        let entry = out.entry(matter).or_default();
+        if choice == "in" {
+            entry.0.insert(content);
+        } else {
+            entry.1.insert(content);
+        }
     }
     Ok(out)
 }

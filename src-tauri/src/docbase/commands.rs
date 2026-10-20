@@ -847,6 +847,36 @@ pub fn docbase_knowledge_decide_matter(app: tauri::AppHandle, state: State<'_, D
     Ok(())
 }
 
+/// Creates a matter by hand (empty or with documents); returns its id.
+#[tauri::command(async)]
+pub fn docbase_knowledge_create_matter(app: tauri::AppHandle, state: State<'_, DocBaseState>, name: String, documents: Vec<String>) -> Result<String, String> {
+    let id = state.base()?.knowledge_create_matter(&name, &documents)?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(id)
+}
+
+/// Names a matter by hand (an empty name gives back the app's name).
+#[tauri::command(async)]
+pub fn docbase_knowledge_rename_matter(app: tauri::AppHandle, state: State<'_, DocBaseState>, matter_id: String, name: String) -> Result<(), String> {
+    state.base()?.knowledge_rename_matter(&matter_id, &name)?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(())
+}
+
+/// Puts a document in a matter (`in`) or takes it out (`out`), by hand.
+#[tauri::command(async)]
+pub fn docbase_knowledge_choose_matter_document(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    matter_id: String,
+    document: String,
+    choice: String,
+) -> Result<(), String> {
+    state.base()?.knowledge_choose_matter_document(&matter_id, &document, &choice)?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(())
+}
+
 /// Puts a document in a matter, or confirms the model's proposal of it.
 #[tauri::command(async)]
 pub fn docbase_knowledge_join_matter(

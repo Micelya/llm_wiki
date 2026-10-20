@@ -678,8 +678,9 @@ impl DocBase {
         let mut statement = conn
             .prepare(&format!(
                 "SELECT m.id, m.name, count(d.content_id), m.status, m.origin, m.confirmation FROM knowledge_matter m
-                 JOIN knowledge_matter_document d ON d.matter_id = m.id
-                 WHERE m.state = 'active' AND {condition} GROUP BY m.id ORDER BY count(d.content_id) DESC, m.name"
+                 LEFT JOIN knowledge_matter_document d ON d.matter_id = m.id
+                 WHERE m.state = 'active' AND ((d.content_id IS NULL AND m.origin = 'person') OR {condition})
+                 GROUP BY m.id ORDER BY count(d.content_id) DESC, m.name"
             ))
             .map_err(sql_err)?;
         let rows: Vec<(String, String, i64, String, String, String)> = statement
@@ -1003,7 +1004,7 @@ impl DocBase {
         Ok(ids[0])
     }
 
-    fn content_of_reference(&self, reference: &str) -> Result<i64, String> {
+    pub(crate) fn content_of_reference(&self, reference: &str) -> Result<i64, String> {
         if let Some(id) = reference.strip_prefix("content:").and_then(|s| s.parse().ok()) {
             return Ok(id);
         }

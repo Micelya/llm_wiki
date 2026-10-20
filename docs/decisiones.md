@@ -339,6 +339,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-382 | 20 oct | Asuntos | Confirmar o descartar se guarda en el asunto y sobrevive al recálculo | en revisión |
 | D-383 | 20 oct | Asuntos | El modelo propone documentos sueltos solo para un asunto confirmado o creado por una persona | en revisión |
 | D-384 | 20 oct | Asuntos | «Caso» en las pantallas de abogados; el wiki sigue con las palabras del catálogo | en revisión |
+| D-386 | 20 oct | Asuntos | Crear y editar un asunto a mano: lo que hace una persona se guarda por asunto y gana sobre la agrupación | en revisión |
 
 ---
 
@@ -4501,4 +4502,11 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Fecha:** 20 oct 2026 · **Tema:** Asuntos · **Estado:** en revisión (agente sin consulta, P-066)
 - **El problema:** D-373 pide «Asunto» genérico y «Caso» en la vertical de abogados; las pantallas toman el término del vocabulario (`src/vocabulary/legal.ts`), pero las páginas del wiki y los nombres de los asuntos usan las palabras del catálogo (`knowledge.json`), que entran en la descripción de las preguntas de propuesta.
 - **Qué se decidió y por qué:** la vertical de abogados dice «Caso», «Casos» y «Sin caso identificado» en las pantallas, con «Propuesto», «Confirmado» y «Abierto» también desde el vocabulario. Las palabras del wiki quedan genéricas («Asunto») para no cambiar las preguntas guardadas; llevarlas a la vertical es P-217.
+- **Quién decidió:** agente sin consulta.
+
+### D-386 · Crear y editar un asunto a mano: lo que hace una persona se guarda por asunto y gana sobre la agrupación
+
+- **Fecha:** 20 oct 2026 · **Tema:** Asuntos · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** D-373 pide que una persona pueda crear un asunto, nombrarlo y agregarle o sacarle documentos, y que eso gane sobre lo propuesto y sobreviva al recálculo. Las decisiones que había («mismo asunto», «asuntos distintos») son entre pares de documentos: no sirven para un asunto creado a mano (la agrupación no lo toca) y, con un documento en varios asuntos, sacarlo de uno lo separaba de todos los documentos del otro.
+- **Qué se decidió y por qué:** cada documento puesto o sacado a mano se guarda por asunto (tabla `knowledge_matter_choice`, migración 19: `in` / `out`) y la agrupación lo aplica sobre lo que encuentra; el nombre puesto a mano queda (`name_by_person`; vacío devuelve el nombre de la app a uno propuesto). Un asunto creado a mano nace confirmado, con origen «persona», vacío o con documentos, y la agrupación no lo toca. Agregar o sacar un documento de un asunto propuesto lo confirma: es una decisión de una persona. A uno propuesto no se le saca el último documento (se descarta). Se hace desde Asuntos (nuevo, renombrar, buscador de documentos que usa la búsqueda de Documentos) y desde el detalle del documento (agregar a uno existente, crear uno con ese documento, sacar). Las decisiones entre pares que ya existen siguen valiendo; «descartar» la propuesta del modelo para un documento suelto sigue usándolas. Sin modelo: no agrega preguntas.
 - **Quién decidió:** agente sin consulta.
