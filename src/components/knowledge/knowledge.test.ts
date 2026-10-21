@@ -3,6 +3,8 @@ import type { DocumentMatter, DocumentRow, DoubtView, EntityMention, IdentityDec
 import { vocabularyFor } from "@/vocabulary"
 import {
   articleBody,
+  articleSection,
+  articleTitle,
   certaintyInWords,
   decisionInWords,
   documentsByMatter,
@@ -13,6 +15,8 @@ import {
   pickableDocuments,
   reviewInWords,
   rolesInWords,
+  withoutEntityBlock,
+  withoutListSection,
 } from "./knowledge"
 
 const words = vocabularyFor("legal", "es")
@@ -206,6 +210,51 @@ describe("articleBody", () => {
   it("drops the front matter and the title of the page, keeps the rest", () => {
     const page = '---\ntype: entity\ntitle: "Persona Uno"\n---\n\n# Persona Uno\n\n*Persona*\n\n## Documentos (1)\n'
     expect(articleBody(page)).toBe("*Persona*\n\n## Documentos (1)\n")
+  })
+
+  it("the title is the page's first heading", () => {
+    expect(articleTitle('---\ntitle: "Resumen"\n---\n\n# Resumen del ejemplo\n\nTexto\n')).toBe("Resumen del ejemplo")
+    expect(articleTitle("Sin título\n")).toBeNull()
+  })
+})
+
+describe("the parts of an article (D-408)", () => {
+  const matter = [
+    "*Caso*",
+    "",
+    "## Partes y personas",
+    "",
+    "- [[ana-prueba|Ana Prueba]] · Persona — parte (2 documentos)",
+    "",
+    "## Lo que dicen los documentos del caso",
+    "",
+    "- [[ana-prueba|Ana Prueba]] — domicilio: Calle Falsa 123 — «con domicilio en Calle Falsa 123» ([[contrato-1|Contrato]])",
+    "",
+    "## Documentos (2)",
+    "",
+    "- [[contrato-1|Contrato]]",
+    "",
+  ].join("\n")
+
+  it("takes one section by its heading, up to the next one", () => {
+    expect(articleSection(matter, "Lo que dicen los documentos del caso")).toBe(
+      "- [[ana-prueba|Ana Prueba]] — domicilio: Calle Falsa 123 — «con domicilio en Calle Falsa 123» ([[contrato-1|Contrato]])",
+    )
+    // A heading with its count is the same section.
+    expect(articleSection(matter, "Documentos")).toBe("- [[contrato-1|Contrato]]")
+    expect(articleSection(matter, "Vínculos")).toBeNull()
+  })
+
+  it("drops the list of a section and keeps what follows it", () => {
+    const document = "Tema del documento\n\n## Ubicaciones\n\n- `Origen/carpeta/contrato.pdf`\n\nEste documento todavía no se leyó.\n"
+    expect(withoutListSection(document, "Ubicaciones")).toBe("Tema del documento\n\nEste documento todavía no se leyó.\n")
+    expect(withoutListSection(document, "Datos del documento")).toBe(document)
+  })
+
+  it("drops the block of entities the app marks in a document's page", () => {
+    const document =
+      "Tema\n\n<!-- micelya:entidades:inicio: la app rehace este bloque -->\n## Personas, organizaciones y asuntos\n\n- [[ana-prueba|Ana Prueba]] · Persona — parte\n<!-- micelya:entidades:fin -->\n\n## Lo esencial\n\n- Un punto\n"
+    expect(withoutEntityBlock(document)).toBe("Tema\n\n## Lo esencial\n\n- Un punto\n")
   })
 })
 

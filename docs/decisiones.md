@@ -351,6 +351,8 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-403 | 21 oct | Wiki | Las notas y consultas guardadas del wiki entran una sola vez en la base; una nota sin dueño queda aparte | en revisión |
 | D-404 | 21 oct | Interfaz | Lo que las pantallas leen de las páginas sale de comandos de la base | en revisión |
 | D-405 | 21 oct | Base documental | La lectura automática se rige por su propio ajuste, no por «Activar wiki» | en revisión |
+| D-407 | 21 oct | Interfaz | Las pantallas muestran el artículo y las notas desde la base; todo enlace abre una pantalla, nunca un archivo | en revisión |
+| D-408 | 21 oct | Interfaz | Una pantalla toma una sección del artículo por las palabras de la proyección; la búsqueda de la base no necesita proyecto | en revisión |
 
 ---
 
@@ -4603,4 +4605,18 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Fecha:** 21 oct 2026 · **Tema:** Base documental · **Estado:** en revisión (agente sin consulta, P-066)
 - **El problema:** la lectura de fondo solo corría con el wiki del proyecto general activo.
 - **Qué se decidió y por qué:** ajuste `background-reading` en la base, que la migración toma del valor que tenía el interruptor del wiki (en la base real, encendido). El interruptor viejo escribe los dos hasta que W6 lo reemplace por «Lectura automática».
+- **Quién decidió:** agente sin consulta.
+
+### D-407 · Las pantallas muestran el artículo y las notas desde la base; todo enlace abre una pantalla, nunca un archivo
+
+- **Fecha:** 21 oct 2026 · **Tema:** Interfaz · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el artículo de una persona se leía del archivo, las notas se escribían en el archivo con el wiki abierto, el detalle de documento y de asunto remitían a páginas del wiki e Inicio contaba páginas.
+- **Qué se decidió y por qué:** persona u organización: el artículo de la base y debajo un editor de notas (texto, Guardar; vacío las borra), sin «Escribir notas». Documento: arriba su artículo (sin ubicaciones ni bloque de entidades, que la pantalla ya muestra), luego el texto y sus notas; sin «En el wiki». Asunto: «lo que dicen sus documentos» del artículo y sus notas; sin «Su página del wiki». Inicio: el resumen general; sin el contador de páginas. Cada artículo dice cuándo lo escribió la app (P-221). `openWikiPath` resuelve cualquier ruta lógica, ruta vieja o enlace con `objectOfPage` y abre la pantalla de la entidad, el asunto, el documento o Inicio; si la base no lo conoce, no abre nada. El mismo editor de notas en las tres pantallas.
+- **Quién decidió:** agente sin consulta.
+
+### D-408 · Una pantalla toma una sección del artículo por las palabras de la proyección; la búsqueda de la base no necesita proyecto
+
+- **Fecha:** 21 oct 2026 · **Tema:** Interfaz · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el asunto y el documento muestran solo parte de su artículo, pero los títulos de sus secciones salen del vocabulario de la proyección, que puede reemplazarse; y la búsqueda solo usaba la base con el proyecto general abierto.
+- **Qué se decidió y por qué:** comando `docbase_knowledge_page_words` que da las palabras con que se escriben las páginas, para buscar la sección por su título sin escribirlo en la interfaz. Comando `docbase_search` que busca en la base sin proyecto (la misma búsqueda de D-350); la vista Buscar lo usa y abre pantallas; sus imágenes salen (las páginas de la base no tienen).
 - **Quién decidió:** agente sin consulta.

@@ -664,6 +664,22 @@ fn search_from_base(
     }))
 }
 
+/// The search of the base for the search screen, with no project: the
+/// pages of the documents it finds and of whom the question names (D-408).
+pub fn search_base(base: &crate::docbase::DocBase, query: &str, top_k: usize) -> Result<ProjectSearchResponse, String> {
+    if query.trim().is_empty() {
+        return Err("query is required".to_string());
+    }
+    let limit = top_k.clamp(1, MAX_RESULTS);
+    Ok(search_from_base(base, query, limit, false, &[])?.unwrap_or_else(|| ProjectSearchResponse {
+        mode: "base".to_string(),
+        results: Vec::new(),
+        token_hits: 0,
+        vector_hits: 0,
+        graph_hits: 0,
+    }))
+}
+
 /// A page of the base as a result: its title and text from the base, not
 /// from a file (D-402).
 fn page_result(
@@ -2044,6 +2060,16 @@ Ver [[Ana Prueba]] y [[Nadie Conocido]].
         let other = links_from_base(&base, &pages, "wiki/otra.md", &pages["wiki/otra.md"]).unwrap();
         assert_eq!(other.outgoing.iter().filter_map(|l| l.path.as_deref()).collect::<Vec<_>>(), vec!["wiki/entities/ana-prueba-1.md"]);
         assert_eq!(other.missing.iter().map(|l| l.title.as_str()).collect::<Vec<_>>(), vec!["Nadie Conocido"]);
+    }
+
+    #[test]
+    fn the_search_of_the_base_needs_no_project() {
+        let base = crate::docbase::DocBase::in_memory().unwrap();
+        assert!(search_base(&base, "  ", 10).is_err());
+        // No page yet: nothing found, and no wiki read in its place.
+        let found = search_base(&base, "contrato", 10).unwrap();
+        assert_eq!(found.mode, "base");
+        assert!(found.results.is_empty());
     }
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicU64, Ordering};

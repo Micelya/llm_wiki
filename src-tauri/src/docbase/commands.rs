@@ -814,6 +814,23 @@ pub fn docbase_knowledge_delete_note(app: tauri::AppHandle, state: State<'_, Doc
     Ok(())
 }
 
+/// The search of the base (its pages), for the search screen (D-408).
+#[tauri::command(async)]
+pub fn docbase_search(
+    state: State<'_, DocBaseState>,
+    query: String,
+    top_k: Option<usize>,
+) -> Result<crate::commands::search::ProjectSearchResponse, String> {
+    crate::commands::search::search_base(state.base()?, &query, top_k.unwrap_or(20))
+}
+
+/// The words the pages are written with (their headings), so that a screen
+/// shows one part of an article in the words of the vocabulary (D-408).
+#[tauri::command]
+pub fn docbase_knowledge_page_words() -> std::collections::BTreeMap<String, String> {
+    super::knowledge::vocabulary::vocabulary().pages.words.clone()
+}
+
 /// The overview of the archive.
 #[tauri::command(async)]
 pub fn docbase_knowledge_overview(state: State<'_, DocBaseState>) -> Result<Option<KnowledgeOverview>, String> {

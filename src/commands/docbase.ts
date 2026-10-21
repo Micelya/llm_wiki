@@ -1268,22 +1268,6 @@ export function getEntity(id: string): Promise<EntityDetail | null> {
   return invoke<EntityDetail | null>("docbase_knowledge_entity", { id })
 }
 
-/** The article of an entity: its page as the projection last wrote it (D-389), with its notes. */
-export interface EntityArticle {
-  /** Its logical path (`wiki/entities/…`), no longer a file (D-402). */
-  path: string
-  text: string
-}
-
-export function getEntityArticle(id: string): Promise<EntityArticle | null> {
-  return invoke<EntityArticle | null>("docbase_knowledge_entity_article", { id })
-}
-
-/** The entity a page names (logical path, old absolute path or link), if any. */
-export function entityOfPage(path: string): Promise<string | null> {
-  return invoke<string | null>("docbase_knowledge_entity_of_page", { path })
-}
-
 // The pages, notes, overview and saved queries kept in the base (D-402,
 // D-404): what the screens, the search and the chat read instead of the
 // files of the wiki.
@@ -1383,6 +1367,35 @@ export function deleteKnowledgeNote(id: number): Promise<void> {
 /** The overview of the archive (for Inicio). */
 export function getKnowledgeOverview(): Promise<KnowledgeOverview | null> {
   return invoke<KnowledgeOverview | null>("docbase_knowledge_overview")
+}
+
+/**
+ * The words the pages are written with, by their id in the vocabulary
+ * (`matterFacts`, `docLocations`…): the headings of their sections.
+ */
+export function getPageWords(): Promise<Record<string, string>> {
+  return invoke<Record<string, string>>("docbase_knowledge_page_words")
+}
+
+/** A page the search of the base found: a document's, or of whom the question names. */
+export interface BaseSearchResult {
+  /** Its logical path: `objectOfPage` gives the screen it opens. */
+  path: string
+  title: string
+  snippet: string
+  score: number
+  /** The people and organizations of the result the question names. */
+  graphRelatedTo?: string[]
+}
+
+export interface BaseSearchResponse {
+  mode: string
+  results: BaseSearchResult[]
+}
+
+/** Searches the base: the texts, numbers and summaries of its documents (D-350, D-408). */
+export function searchBase(query: string, topK = 20): Promise<BaseSearchResponse> {
+  return invoke<BaseSearchResponse>("docbase_search", { query, topK })
 }
 
 /** The saved queries, the latest first. */

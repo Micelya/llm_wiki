@@ -1673,7 +1673,7 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "en-curso",
-      "detalle": "Reemplazado por P-228 (D-396): la página del documento deja de ser archivo; se guarda en la base y se lee en el detalle del documento, con sus notas (W2, W3); el chat lee de la base (W5). Se cierra con P-228. Antes: D-294 la dejó como archivo generado hasta que la búsqueda y el grafo leyeran de la base.",
+      "detalle": "Reemplazado por P-228 (D-396): la página del documento deja de ser archivo; se guarda en la base y se lee en el detalle del documento, con sus notas (W2, W3); el chat lee de la base (W5). Se cierra con P-228. Hecho en W3 (D-407): el detalle del documento muestra arriba su artículo desde la base (sin las ubicaciones ni el bloque de entidades, que tiene en sus secciones) y sus notas; la búsqueda abre esa pantalla. Falta el chat (W5). Antes: D-294 la dejó como archivo generado hasta que la búsqueda y el grafo leyeran de la base.",
       "depende_de": ["P-228"],
       "referencia": "docs/design/retiro-del-wiki.md; D-294; D-350; D-351; D-396",
       "creado": "2026-10-18",
@@ -1934,15 +1934,15 @@
     },
     {
       "id": "P-221",
-      "titulo": "El artículo de una entidad muestra la última pasada del wiki",
+      "titulo": "El artículo muestra la última pasada de la proyección",
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "Desde D-389 el artículo de la página de persona u organización es el archivo de su página del wiki: una corrección en «Datos y correcciones» se ve en el artículo cuando la próxima pasada del wiki lo vuelve a escribir, y los enlaces dentro del artículo solo navegan con el wiki del archivo abierto. Ver si hace falta avisar «el artículo se actualiza en la próxima pasada» o armarlo en el momento con el mismo código de knowledge/pages.rs (separando el cálculo de las rutas de las páginas de project()).",
+      "detalle": "En parte resuelto en W3 (D-407): el artículo de persona u organización, asunto y documento sale de la base (ya no del archivo del wiki), sus enlaces abren la pantalla de lo que nombran sin ningún proyecto abierto, y debajo dice cuándo lo escribió la app y que una corrección se ve cuando lo vuelve a escribir. Queda: una corrección en «Datos y correcciones» se ve en el artículo recién cuando la proyección de fondo lo reescribe (corre con la lectura de fondo, que se rige por «Lectura automática», D-405). Ver si hace falta armarlo en el momento con el mismo código de knowledge/pages.rs.",
       "depende_de": ["P-214"],
-      "referencia": "D-389",
+      "referencia": "D-389; D-407",
       "creado": "2026-10-20",
-      "actualizado": "2026-10-20"
+      "actualizado": "2026-10-21"
     },
     {
       "id": "P-225",

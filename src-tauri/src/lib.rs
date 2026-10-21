@@ -722,6 +722,8 @@ pub fn run() {
             docbase::commands::docbase_knowledge_orphan_notes,
             docbase::commands::docbase_knowledge_delete_note,
             docbase::commands::docbase_knowledge_overview,
+            docbase::commands::docbase_knowledge_page_words,
+            docbase::commands::docbase_search,
             docbase::commands::docbase_saved_queries,
             docbase::commands::docbase_save_query,
             docbase::commands::docbase_delete_saved_query,

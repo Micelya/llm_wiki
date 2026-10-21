@@ -320,13 +320,13 @@ export function knowledgeNotices(facts: KnowledgeFacts, words: Vocabulary = voca
         count: attention.keptPages.length,
         title: plural(
           attention.keptPages.length,
-          "página del wiki se conserva sin documentos detrás",
-          "páginas del wiki se conservan sin documentos detrás",
+          "página se conserva por sus notas, sin documentos detrás",
+          "páginas se conservan por sus notas, sin documentos detrás",
         ),
         explanation:
-          "Su entidad dejó el registro (se unió con otra o ya no la nombra ningún documento), pero la página tiene notas o la enlaza una página que la app no escribe, así que queda una versión mínima.",
-        todo: "Pasá las notas a donde corresponda y borrá la página si ya no hace falta.",
-        resolvedWhen: "Desaparece cuando la página se borra o su entidad vuelve.",
+          "Su entidad dejó el registro (se unió con otra o ya no la nombra ningún documento), pero tiene notas tuyas, así que queda una versión mínima con ellas.",
+        todo: "Abrila, pasá las notas a donde corresponda y borralas de ahí.",
+        resolvedWhen: "Desaparece cuando sus notas quedan vacías o su entidad vuelve.",
         actions: [],
         cases: attention.keptPages.map((page) => ({
           id: `kept:${page.entityId}`,

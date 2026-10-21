@@ -354,3 +354,51 @@ export function articleBody(text: string): string {
   const { body } = parseFrontmatter(text)
   return body.replace(/^\s*# [^\n]*\n+/, "")
 }
+
+/** The title of a page: its first heading. */
+export function articleTitle(text: string): string | null {
+  const { body } = parseFrontmatter(text)
+  return /^\s*# ([^\n]+)/.exec(body)?.[1]?.trim() || null
+}
+
+/** Whether a line opens the section `heading`: `## Documentos (3)` opens «Documentos». */
+function opensSection(line: string, heading: string): boolean {
+  const found = /^## (.+?)\s*$/.exec(line)?.[1]
+  return found !== undefined && (found === heading || found.replace(/ \(\d+\)$/, "") === heading)
+}
+
+/**
+ * The section of a page under `## heading` (a word of the pages'
+ * vocabulary), without its heading, up to the next one; null when the
+ * page has none or it says nothing.
+ */
+export function articleSection(body: string, heading: string): string | null {
+  const lines = body.split("\n")
+  const start = lines.findIndex((line) => opensSection(line, heading))
+  if (start < 0) return null
+  const end = lines.findIndex((line, index) => index > start && line.startsWith("## "))
+  const text = lines.slice(start + 1, end < 0 ? undefined : end).join("\n").trim()
+  return text || null
+}
+
+/**
+ * A page without its list under `## heading`: the heading and the list
+ * below it go, whatever follows the list stays (a page whose document is
+ * not read yet says so after its places).
+ */
+export function withoutListSection(body: string, heading: string): string {
+  const lines = body.split("\n")
+  const start = lines.findIndex((line) => opensSection(line, heading))
+  if (start < 0) return body
+  let end = start + 1
+  while (end < lines.length && (lines[end].trim() === "" || /^\s*- /.test(lines[end]))) end += 1
+  return [...lines.slice(0, start), ...lines.slice(end)].join("\n")
+}
+
+/**
+ * A page without the block of who and what its document names: the app
+ * marks it, and the screen of the document shows them in its own section.
+ */
+export function withoutEntityBlock(body: string): string {
+  return body.replace(/<!-- micelya:entidades:inicio[\s\S]*?<!-- micelya:entidades:fin -->\n*/g, "")
+}

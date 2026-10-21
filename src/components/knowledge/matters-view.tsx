@@ -1,10 +1,11 @@
 import { useState } from "react"
-import { ArrowLeft, BookOpen, Pencil, Plus, Undo2 } from "lucide-react"
+import { ArrowLeft, Pencil, Plus, Undo2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   chooseMatterDocument,
   createMatter,
   decideMatter,
+  getKnowledgeArticle,
   getMatter,
   leaveMatter,
   listMatters,
@@ -21,9 +22,11 @@ import { entityTypeName, relationName, vocabulary, type Vocabulary } from "@/voc
 import { DocbasePage, EmptyNote, ErrorNote, StatusBadge } from "@/components/docbase/page"
 import { formatDate, plural } from "@/components/docbase/format"
 import { useDocbaseQuery } from "@/components/docbase/use-docbase-query"
-import { matterActions, rolesInWords } from "./knowledge"
+import { ArticleText, usePageWords } from "./article-text"
+import { articleBody, articleSection, matterActions, rolesInWords } from "./knowledge"
 import { DocumentPicker, NameForm } from "./matter-edit"
-import { Section, useAction, useArchivePage, useOpenDocument, useOpenEntity } from "./shared"
+import { NotesEditor } from "./notes-editor"
+import { Section, useAction, useOpenDocument, useOpenEntity } from "./shared"
 
 /**
  * The matters of the archive: groups of documents joined by what is
@@ -138,7 +141,6 @@ export function reasonInWords(reason: MatterReason, words: Vocabulary = vocabula
 function MatterDetailView({ id, onBack }: { id: string; onBack: () => void }) {
   const words = vocabulary()
   const matter = useDocbaseQuery(`matter:${id}`, () => getMatter(id))
-  const archivePage = useArchivePage()
   const action = useAction()
   const [renaming, setRenaming] = useState(false)
   const detail = matter.data
@@ -196,16 +198,6 @@ function MatterDetailView({ id, onBack }: { id: string; onBack: () => void }) {
               <Undo2 /> Volver a propuesto
             </Button>
           )}
-          {detail?.pagePath && (
-            <Button
-              variant="outline"
-              disabled={!archivePage}
-              title={archivePage ? detail.pagePath : `Se abre con el ${words.archive.wiki.toLowerCase()} abierto`}
-              onClick={() => archivePage?.(detail.pagePath as string)}
-            >
-              <BookOpen /> Su página del wiki
-            </Button>
-          )}
           </div>
         </div>
       </header>
@@ -233,6 +225,8 @@ function MatterDetailView({ id, onBack }: { id: string; onBack: () => void }) {
             )}
             <Documents matter={detail} run={action.run} busy={action.busy} />
             <Parties matter={detail} />
+            <WhatTheDocumentsSay id={detail.id} />
+            <NotesEditor key={detail.id} objectId={detail.id} />
             <Decisions matter={detail} run={action.run} busy={action.busy} />
           </div>
         )}
@@ -242,6 +236,25 @@ function MatterDetailView({ id, onBack }: { id: string; onBack: () => void }) {
 }
 
 type Run = (action: () => Promise<unknown>) => Promise<void>
+
+/**
+ * What its documents say of whom appears in them, with the quotes: the
+ * section of its article (D-408); the rest of the article is what this
+ * screen already shows.
+ */
+function WhatTheDocumentsSay({ id }: { id: string }) {
+  const article = useDocbaseQuery(`article:${id}`, () => getKnowledgeArticle(id))
+  const pageWord = usePageWords()
+  if (!article.data || !pageWord) return null
+  const heading = pageWord("matterFacts")
+  const said = articleSection(articleBody(article.data.body), heading)
+  if (!said) return null
+  return (
+    <Section title={heading}>
+      <ArticleText body={said} writtenAt={article.data.writtenAt} />
+    </Section>
+  )
+}
 
 function Documents({ matter, run, busy }: { matter: MatterDetail; run: Run; busy: boolean }) {
   const words = vocabulary()
