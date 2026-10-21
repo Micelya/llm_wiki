@@ -1,17 +1,12 @@
 mod agent;
-mod api_server;
-mod clip_server;
 mod commands;
-mod cors;
 mod docbase;
 mod panic_guard;
 mod proxy;
-mod server_bind;
 mod source_volume;
 mod tray;
 mod types;
 
-use panic_guard::run_guarded;
 use serde_json::Value;
 use std::sync::Mutex;
 use tauri::{Emitter, Manager};
@@ -34,31 +29,6 @@ struct AgentRuntimeConfig {
     llm: Option<agent::provider::LlmConfig>,
     web_search: Option<agent::tools::WebSearchConfig>,
     anytxt: Option<agent::tools::AnyTxtConfig>,
-}
-
-#[tauri::command]
-fn clip_server_status() -> String {
-    run_guarded("clip_server_status", || {
-        Ok(clip_server::get_daemon_status().to_string())
-    })
-    .unwrap_or_else(|e| format!("error: {e}"))
-}
-
-#[tauri::command]
-fn api_server_status() -> String {
-    run_guarded("api_server_status", || {
-        Ok(api_server::get_api_status().to_string())
-    })
-    .unwrap_or_else(|e| format!("error: {e}"))
-}
-
-#[tauri::command]
-fn api_server_reload_config() -> String {
-    run_guarded("api_server_reload_config", || {
-        api_server::invalidate_config_cache();
-        Ok("ok".to_string())
-    })
-    .unwrap_or_else(|e| format!("error: {e}"))
 }
 
 #[tauri::command]
@@ -262,49 +232,6 @@ fn agent_workspace(app: tauri::AppHandle) -> Result<String, String> {
     agent_home(&app).map(|home| home.path)
 }
 
-#[tauri::command]
-fn mcp_server_entry_path(app: tauri::AppHandle) -> Result<String, String> {
-    run_guarded("mcp_server_entry_path", || {
-        let relative = std::path::Path::new("mcp-server")
-            .join("dist")
-            .join("src")
-            .join("index.js");
-        let mut candidates = Vec::new();
-
-        let mut push_repo_candidates = |base: std::path::PathBuf| {
-            candidates.push(base.join(&relative));
-            candidates.push(base.join("..").join(&relative));
-            candidates.push(base.join("..").join("..").join(&relative));
-        };
-
-        push_repo_candidates(std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")));
-        if let Ok(cwd) = std::env::current_dir() {
-            push_repo_candidates(cwd);
-        }
-        if let Ok(resource_dir) = app.path().resource_dir() {
-            candidates.push(resource_dir.join(&relative));
-        }
-        if let Ok(exe) = std::env::current_exe() {
-            if let Some(exe_dir) = exe.parent() {
-                candidates.push(exe_dir.join(&relative));
-                candidates.push(exe_dir.join("..").join("Resources").join(&relative));
-            }
-        }
-
-        for candidate in &candidates {
-            if candidate.is_file() {
-                return Ok(candidate
-                    .canonicalize()
-                    .unwrap_or_else(|_| candidate.clone())
-                    .to_string_lossy()
-                    .into_owned());
-            }
-        }
-
-        Err("MCP server entry was not found. Run `npm run mcp:build` from the LLM Wiki repository, then reopen Settings.".to_string())
-    })
-}
-
 fn agent_home(app: &tauri::AppHandle) -> Result<AgentHome, String> {
     let dir = app
         .path()
@@ -456,10 +383,6 @@ pub fn run() {
             app.manage(CloseBehaviorState(Mutex::new("minimize".to_string())));
             app.manage(TrayAvailabilityState(Mutex::new(false)));
             docbase::commands::start(app.handle());
-            // Start the API before optional desktop integrations so the
-            // backend is reachable if tray setup or another integration fails.
-            clip_server::start_clip_server(app.handle().clone());
-            api_server::start_api_server(app.handle().clone());
             let tray_available = match tray::create_tray(app.handle()) {
                 Ok(()) => true,
                 Err(err) => {
@@ -614,15 +537,11 @@ pub fn run() {
             commands::search::get_page_links,
             commands::external_search::web_search,
             commands::external_search::anytxt_search,
-            clip_server_status,
-            api_server_status,
-            api_server_reload_config,
             agent_start_turn,
             agent_start_turn_stream,
             agent_cancel_turn,
             agent_workspace,
             agent::skills::agent_list_skills,
-            mcp_server_entry_path,
             commands::vectorstore::vector_upsert,
             commands::vectorstore::vector_search,
             commands::vectorstore::vector_delete,

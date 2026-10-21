@@ -107,12 +107,3 @@ export interface FileBase64 {
 export async function readFileAsBase64(path: string): Promise<FileBase64> {
   return invoke<FileBase64>("read_file_as_base64", { path })
 }
-
-export async function clipServerStatus(): Promise<string> {
-  return invoke<string>("clip_server_status")
-}
-
-export async function apiServerStatus(): Promise<string> {
-  return invoke<string>("api_server_status")
-}
-
