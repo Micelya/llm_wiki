@@ -37,6 +37,7 @@ mod check_attention;
 #[cfg(test)]
 mod check_pages;
 pub(crate) mod anchors;
+pub mod articles;
 pub(crate) mod changes;
 pub(crate) mod claims;
 pub mod decide;
@@ -50,6 +51,7 @@ pub mod pages;
 pub mod quote;
 pub mod read_checks;
 pub mod references;
+pub mod research;
 pub mod resolve;
 pub mod screens;
 pub mod values;

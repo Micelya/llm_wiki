@@ -6,8 +6,7 @@ function nodes(count: number): GraphNode[] {
   return Array.from({ length: count }, (_, index) => ({
     id: `node-${index}`,
     label: `Node ${index}`,
-    type: "concept",
-    path: `/wiki/node-${index}.md`,
+    type: "persona",
     linkCount: 4,
     community: 0,
   }))
@@ -36,7 +35,18 @@ describe("detectKnowledgeGaps sparse communities", () => {
       meanIntraDegree: 1.4,
     })])
     expect(gaps.find((gap) => gap.type === "sparse-community")?.description)
-      .toContain("1.4 internal links per page")
+      .toContain("1,4 relaciones internas en promedio")
+  })
+
+  it("names the nodes without relations by what they are, and never asks for links", () => {
+    const graphNodes = [
+      ...nodes(2).map((node) => ({ ...node, linkCount: 0 })),
+      { id: "doc-1", label: "Documento", type: "documento", linkCount: 0, community: 1 },
+    ]
+    const gaps = detectKnowledgeGaps(graphNodes, [], [])
+    const isolated = gaps.find((gap) => gap.type === "isolated-node")
+    expect(isolated?.title).toBe("Sin relaciones: 2 personas, 1 documento")
+    expect(gaps.map((gap) => `${gap.title} ${gap.suggestion}`).join(" ")).not.toContain("[[")
   })
 })
 

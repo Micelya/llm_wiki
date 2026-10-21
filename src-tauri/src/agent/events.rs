@@ -59,17 +59,6 @@ impl AgentEvent {
         }
     }
 
-    /// Remove desktop-process-only data before an event crosses the HTTP API.
-    /// Rollback snapshots are needed by the trusted UI for immediate Undo but
-    /// are not part of the public Agent event contract.
-    pub fn redact_for_external_api(&mut self) {
-        if let Self::FileChanged {
-            previous_content, ..
-        } = self
-        {
-            *previous_content = None;
-        }
-    }
 }
 
 #[cfg(test)]
@@ -79,13 +68,13 @@ mod tests {
     #[test]
     fn agent_event_serializes_with_camelcase_tag() {
         let value = serde_json::to_value(AgentEvent::ToolStart {
-            tool: "wiki.search".to_string(),
+            tool: "base.search".to_string(),
             input: Some("query".to_string()),
         })
         .unwrap();
 
         assert_eq!(value["type"], "toolStart");
-        assert_eq!(value["tool"], "wiki.search");
+        assert_eq!(value["tool"], "base.search");
         assert_eq!(value["input"], "query");
     }
 
@@ -102,18 +91,5 @@ mod tests {
         assert_eq!(value["type"], "fileChanged");
         assert_eq!(value["existedBefore"], true);
         assert_eq!(value["previousContent"], "before");
-    }
-
-    #[test]
-    fn external_file_changed_event_omits_rollback_content() {
-        let mut event = AgentEvent::FileChanged {
-            path: "agent-workspace/report.md".to_string(),
-            tool: "workspace.write_file".to_string(),
-            existed_before: true,
-            previous_content: Some("private previous body".to_string()),
-        };
-        event.redact_for_external_api();
-        let value = serde_json::to_value(event).unwrap();
-        assert!(value.get("previousContent").is_none());
     }
 }

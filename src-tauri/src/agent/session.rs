@@ -100,31 +100,6 @@ impl AgentSessionStore {
         let start = session.messages.len().saturating_sub(limit);
         session.messages[start..].to_vec()
     }
-
-    pub fn list_sessions(&self, project_path: &str) -> Vec<AgentSession> {
-        let dir = Path::new(project_path)
-            .join(".llm-wiki")
-            .join("agent-sessions");
-        let Ok(entries) = fs::read_dir(dir) else {
-            return Vec::new();
-        };
-        let mut sessions = entries
-            .filter_map(Result::ok)
-            .filter_map(|entry| {
-                if entry.path().extension().and_then(|s| s.to_str()) != Some("json") {
-                    return None;
-                }
-                let raw = fs::read_to_string(entry.path()).ok()?;
-                serde_json::from_str::<AgentSession>(&raw).ok()
-            })
-            .collect::<Vec<_>>();
-        sessions.sort_by(|a, b| {
-            b.updated_at
-                .cmp(&a.updated_at)
-                .then_with(|| b.session_id.cmp(&a.session_id))
-        });
-        sessions
-    }
 }
 
 fn session_cache_key(project_path: &str, session_id: &str) -> String {
@@ -178,8 +153,7 @@ fn session_file(project_path: &str, session_id: &str) -> Option<PathBuf> {
     let id = sanitize_session_id(session_id)?;
     Some(
         Path::new(project_path)
-            .join(".llm-wiki")
-            .join("agent-sessions")
+            .join("sessions")
             .join(format!("{id}.json")),
     )
 }
@@ -256,11 +230,7 @@ mod tests {
         let messages = fresh.recent_messages(project.to_str().unwrap(), "s.persist", 10);
         assert_eq!(messages.len(), 2);
         assert_eq!(messages[0].content, "hello");
-        assert!(project
-            .join(".llm-wiki")
-            .join("agent-sessions")
-            .join("s.persist.json")
-            .exists());
+        assert!(project.join("sessions").join("s.persist.json").exists());
         let _ = fs::remove_dir_all(project);
     }
 
@@ -319,19 +289,5 @@ mod tests {
     fn session_ids_reject_path_traversal() {
         assert!(session_file("/tmp/project", "../secret").is_none());
         assert!(session_file("/tmp/project", "safe-id").is_some());
-    }
-
-    #[test]
-    fn list_sessions_returns_persisted_sessions_newest_first() {
-        let project = temp_project("list");
-        let store = AgentSessionStore::default();
-        store.append_turn(project.to_str().unwrap(), "p1", "s1", "one", "a");
-        store.append_turn(project.to_str().unwrap(), "p1", "s2", "two", "b");
-
-        let sessions = store.list_sessions(project.to_str().unwrap());
-        assert_eq!(sessions.len(), 2);
-        assert_eq!(sessions[0].session_id, "s2");
-        assert_eq!(sessions[1].session_id, "s1");
-        let _ = fs::remove_dir_all(project);
     }
 }

@@ -1,17 +1,17 @@
 import { useEffect, useState, type ReactNode } from "react"
-import { ArrowLeft, Link2, NotebookPen, Undo2 } from "lucide-react"
+import { ArrowLeft, Link2, Undo2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
   decideIdentity,
   getEntity,
-  getEntityArticle,
+  getKnowledgeArticle,
   listEntities,
   undoIdentityDecision,
   type ClaimView,
-  type EntityArticle,
   type EntityDetail,
   type EntitySummary,
+  type KnowledgeArticle,
 } from "@/commands/docbase"
 import { useAppDialog } from "@/stores/app-dialog-store"
 import { useKnowledgeStore } from "@/stores/knowledge-store"
@@ -20,26 +20,28 @@ import { entityTypeName, identifierName, predicateName, roleName, vocabulary } f
 import { EmptyNote, ErrorNote, StatusBadge } from "@/components/docbase/page"
 import { formatDate, plural } from "@/components/docbase/format"
 import { useDocbaseQuery } from "@/components/docbase/use-docbase-query"
-import { WikiReader } from "@/components/editor/wiki-reader"
+import { ArticleText } from "./article-text"
 import { articleBody, certaintyInWords, decisionInWords, documentsByMatter, resolvedByName, reviewInWords, rolesInWords } from "./knowledge"
-import { Quote, Section, useAction, useArchivePage, useOpenDocument, useOpenMatter } from "./shared"
+import { NotesEditor } from "./notes-editor"
+import { ResearchSection } from "./research-section"
+import { Quote, Section, useAction, useOpenDocument, useOpenMatter } from "./shared"
 
 /**
  * The one page of a person or organization (D-376, D-389): the article
- * on top, as its page of the wiki reads (what the documents say of it,
- * with quotes and how sure each thing is, its documents by matter, who
- * else it is linked to), written by the projection from the record and
- * the synthesis it keeps, without asking the model; and in a tab its data
- * and corrections: how the documents write it, its identifiers, every
- * claim and mention with what a person can do about it, and the
- * decisions, to undo (R-08, R-09). Never an edit of the page.
+ * on top (what the documents say of it, with quotes and how sure each
+ * thing is, its documents by matter, who else it is linked to), written
+ * in the base by the projection from the record and the synthesis it
+ * keeps, without asking the model, with the notes of a person below it
+ * (D-407); and in a tab its data and corrections: how the documents write
+ * it, its identifiers, every claim and mention with what a person can do
+ * about it, and the decisions, to undo (R-08, R-09). Never an edit of the
+ * article.
  */
 export function EntityDetailView({ id, onBack }: { id: string; onBack: () => void }) {
   const words = vocabulary()
   const entity = useDocbaseQuery(`entity:${id}`, () => getEntity(id))
-  const article = useDocbaseQuery(`entity-article:${id}`, () => getEntityArticle(id))
+  const article = useDocbaseQuery(`article:${id}`, () => getKnowledgeArticle(id))
   const openEntity = useKnowledgeStore((s) => s.openEntity)
-  const archivePage = useArchivePage()
   const action = useAction()
   const [joining, setJoining] = useState(false)
   const [tab, setTab] = useState<"article" | "data" | null>(null)
@@ -59,23 +61,11 @@ export function EntityDetailView({ id, onBack }: { id: string; onBack: () => voi
             <h1 className="font-serif text-2xl break-words">{detail?.name ?? "…"}</h1>
             {detail && <p className="text-sm text-muted-foreground">{entityTypeName(detail.kind, false, words)}</p>}
           </div>
-          {detail && detail.state === "active" && (
+          {detail && detail.state === "active" && shown === "data" && (
             <div className="flex shrink-0 gap-2">
-              {shown === "article" && detail.pagePath && (
-                <Button
-                  variant="outline"
-                  disabled={!archivePage}
-                  title={archivePage ? detail.pagePath : `Se abre con el ${words.archive.wiki.toLowerCase()} abierto`}
-                  onClick={() => archivePage?.(detail.pagePath as string)}
-                >
-                  <NotebookPen /> Escribir notas
-                </Button>
-              )}
-              {shown === "data" && (
-                <Button variant="outline" onClick={() => setJoining(!joining)}>
-                  <Link2 /> Unir con otra
-                </Button>
-              )}
+              <Button variant="outline" onClick={() => setJoining(!joining)}>
+                <Link2 /> Unir con otra
+              </Button>
             </div>
           )}
         </div>
@@ -146,24 +136,30 @@ function Tab({ active, onClick, children }: { active: boolean; onClick: () => vo
 }
 
 /**
- * The article: its page of the wiki as the projection wrote it, with the
- * notes of a person; the title is the page's own heading.
+ * The article, as the projection last wrote it in the base (the screen
+ * writes the name above it), and below it the notes of a person.
  */
-function Article({ entity, article, loading }: { entity: EntityDetail; article: EntityArticle | null; loading: boolean }) {
-  const words = vocabulary()
+function Article({ entity, article, loading }: { entity: EntityDetail; article: KnowledgeArticle | null; loading: boolean }) {
   if (loading && !article) return null
-  if (!article) {
-    return (
-      <EmptyNote>
-        {entity.pagePath
-          ? `Su página todavía no está escrita: la escribe la próxima pasada del ${words.archive.wiki.toLowerCase()}.`
-          : "Los documentos la nombran de paso: no tiene artículo. Lo que se sabe de ella está en «Datos y correcciones»."}
-      </EmptyNote>
-    )
-  }
   return (
     <article className="mx-auto max-w-4xl">
-      <WikiReader body={articleBody(article.text)} filePath={article.path} />
+      {article ? (
+        <ArticleText body={articleBody(article.body)} writtenAt={article.writtenAt} />
+      ) : (
+        <EmptyNote>
+          {entity.pagePath
+            ? "Su artículo todavía no está escrito: la app lo escribe en su próxima pasada."
+            : "Los documentos la nombran de paso: no tiene artículo. Lo que se sabe de ella está en «Datos y correcciones»."}
+        </EmptyNote>
+      )}
+      <div className="mt-8">
+        <NotesEditor key={entity.id} objectId={entity.id} />
+      </div>
+      {entity.state === "active" && (
+        <div className="mt-8">
+          <ResearchSection key={entity.id} objectId={entity.id} name={entity.name} />
+        </div>
+      )}
     </article>
   )
 }

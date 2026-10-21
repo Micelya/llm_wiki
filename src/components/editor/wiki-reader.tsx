@@ -6,13 +6,12 @@ import { remarkFoldable } from "@/lib/markdown-fold"
 import rehypeKatex from "rehype-katex"
 import "katex/dist/katex.min.css"
 import { transformImageEmbeds, transformWikilinks, hideHtmlComments } from "@/lib/wikilink-transform"
-import { resolveRelatedSlug } from "@/lib/wiki-page-resolver"
 import { resolveMarkdownImageSrc } from "@/lib/markdown-image-resolver"
 import { normalizePath } from "@/lib/path-utils"
 import { detectLanguage } from "@/lib/detect-language"
 import { getHtmlLang, getTextDirection } from "@/lib/language-metadata"
-import { useWikiStore } from "@/stores/wiki-store"
 import { openWikiPath } from "@/lib/open-wiki-path"
+import { useWikiStore } from "@/stores/wiki-store"
 import { MermaidDiagram, unwrapMermaidPre } from "@/components/mermaid-diagram"
 
 interface WikiReaderProps {
@@ -39,14 +38,13 @@ interface WikiReaderProps {
  * original `[[…]]` source with `[label](#slug)`. Here, since we
  * never serialize back to disk, transforming for display is safe.
  *
- * Wikilink anchor clicks are intercepted: `#slug` is resolved
- * against the project's wiki tree and routed to the wiki preview,
- * giving the user single-click navigation between pages.
+ * Wikilink anchor clicks are intercepted: `#slug` opens the screen
+ * of what the link names (`openWikiPath`), giving the user
+ * single-click navigation between pages.
  */
 export function WikiReader({ body, sourceBody, sourceOffset = 0, filePath }: WikiReaderProps) {
-  const project = useWikiStore((s) => s.project)
-  const projectPathIndex = useWikiStore((s) => s.projectPathIndex)
-
+  // Local images load only from the agent's folder, where the chat's outputs are.
+  const imageRoot = useWikiStore((s) => s.agentWorkspace)
   // Image embeds (`![[…]]`) must be rewritten BEFORE the generic
   // wikilink pass, otherwise the embed target gets mangled into a
   // `#fragment` link.
@@ -77,8 +75,6 @@ export function WikiReader({ body, sourceBody, sourceOffset = 0, filePath }: Wik
   const renderLanguage = detectLanguage(body)
   const direction = getTextDirection(renderLanguage)
   const htmlLang = getHtmlLang(renderLanguage)
-  const projectPath = project ? normalizePath(project.path) : null
-  const wikiRoot = projectPath ? `${projectPath}/wiki` : null
   // Directory of the file being rendered (project-absolute), so
   // relative image srcs resolve against it like Obsidian does.
   const currentFileDir = useMemo(() => {
@@ -88,10 +84,11 @@ export function WikiReader({ body, sourceBody, sourceOffset = 0, filePath }: Wik
     return dir || null
   }, [filePath])
 
+  // A link between pages (`[[name|text]]`) opens the screen of what it
+  // names, read from the base; never a file (D-407).
   function handleAnchorClick(e: React.MouseEvent<HTMLAnchorElement>, href: string) {
     if (!href.startsWith("#")) return
     e.preventDefault()
-    if (!wikiRoot) return
     const slug = (() => {
       try {
         return decodeURIComponent(href.slice(1))
@@ -99,8 +96,7 @@ export function WikiReader({ body, sourceBody, sourceOffset = 0, filePath }: Wik
         return href.slice(1)
       }
     })()
-    const path = resolveRelatedSlug(projectPathIndex, slug, wikiRoot)
-    if (path) void openWikiPath(path)
+    void openWikiPath(slug)
   }
 
   return (
@@ -166,7 +162,7 @@ export function WikiReader({ body, sourceBody, sourceOffset = 0, filePath }: Wik
             <img
               src={
                 typeof src === "string"
-                  ? resolveMarkdownImageSrc(src, projectPath, currentFileDir)
+                  ? resolveMarkdownImageSrc(src, imageRoot, currentFileDir)
                   : undefined
               }
               data-mdsrc={typeof src === "string" ? src : undefined}

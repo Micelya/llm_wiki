@@ -2,9 +2,9 @@ import { useRef, useEffect, useCallback, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { convertFileSrc, invoke } from "@tauri-apps/api/core"
 import { listen } from "@tauri-apps/api/event"
-import { BookOpen, Plus, Trash2, MessageSquare, X, Maximize2, FolderOpen, FileText, ListTree, ChevronDown, ChevronRight } from "lucide-react"
+import { Plus, Trash2, MessageSquare, X, Maximize2, FolderOpen, FileText, ListTree, ChevronDown, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { ChatMessage, StreamingMessage, useSourceFiles, type ChatReferencePreview } from "./chat-message"
+import { ChatMessage, StreamingMessage, type ChatReferencePreview } from "./chat-message"
 import { ChatInput, type ChatSendOptions } from "./chat-input"
 import { useChatStore, chatMessagesToLLM, type MessageImage, type MessageReference } from "@/stores/chat-store"
 import { useWikiStore } from "@/stores/wiki-store"
@@ -12,20 +12,23 @@ import { resolveTaskLlmConfig } from "@/lib/llm-task-routing"
 import { isReasoningOnlyResponseError, streamChat } from "@/lib/llm-client"
 import { supportsImageInput } from "@/lib/llm-providers"
 import { buildCliRetrievedContext, cliRequestSkills, cliSearchTopK } from "@/lib/cli-chat-context"
-import { executeIngestWrites } from "@/lib/ingest"
-import { deleteFile, openPathInProject, readFile } from "@/commands/fs"
+import { readFile } from "@/commands/fs"
+import { revealItemInDir } from "@tauri-apps/plugin-opener"
+import { deleteChatConversation } from "@/lib/persist"
+import { getPageText } from "@/commands/docbase"
+import { SavedQueriesList } from "@/components/chat/saved-queries"
 import { getFileName, isAbsolutePath, normalizePath } from "@/lib/path-utils"
 import { hasConfiguredAnyTxt } from "@/lib/anytxt-search"
 import type { ChatAgentEvent, ChatAgentFileChange, ChatAgentStep, ChatUserInputRequest } from "@/lib/chat-agent-types"
 import type { ChatMessage as LlmChatMessage, ContentBlock } from "@/lib/llm-client"
 import { FilePreview } from "@/components/editor/file-preview"
 import { WikiReader } from "@/components/editor/wiki-reader"
-import { FrontmatterPanel } from "@/components/editor/frontmatter-panel"
 import { parseFrontmatter } from "@/lib/frontmatter"
 import { getFileCategory, getFileExtension, isTextReadable } from "@/lib/file-types"
-import { refreshProjectFileTree } from "@/lib/project-file-tree-refresh"
 import { summarizeAgentFileChange } from "@/lib/agent-file-activity"
 import { ReferenceKnowledgeGraph } from "@/components/chat/reference-knowledge-graph"
+
+const NO_CONTEXT_FILES: string[] = []
 
 type InternalChatSendOptions = ChatSendOptions & {
   suppressUserMessage?: boolean
@@ -244,11 +247,8 @@ function ConversationSidebar({
                       onClick={(e) => {
                         e.stopPropagation()
                         deleteConversation(conv.id)
-                        // Delete persisted chat file
-                        const proj = useWikiStore.getState().project
-                        if (proj) {
-                          deleteFile(`${proj.path}/.llm-wiki/chats/${conv.id}.json`).catch(() => {})
-                        }
+                        // Its saved messages go too (in the app's data folder).
+                        deleteChatConversation(conv.id).catch(() => {})
                       }}
                     >
                       <Trash2 className="h-3 w-3" />
@@ -269,12 +269,16 @@ function ConversationSidebar({
           })
         )}
       </div>
+      <SavedQueriesList />
     </div>
   )
 }
 
 function backendReferenceToMessageReference(ref: BackendAgentReference): MessageReference {
-  const isWiki = ref.kind === "wiki" || ref.path.startsWith("wiki/")
+  // An object of the base (D-413): a document, person, organization or
+  // matter, by its logical path; what it says is read from the base.
+  const isWiki = ["wiki", "document", "entity", "matter", "source", "graph"].includes(ref.kind)
+    || ref.path.startsWith("wiki/")
   const isWeb = ref.kind === "web" || /^https?:\/\//i.test(ref.path)
   const isWorkspace = ref.kind === "workspace" || ref.path.startsWith("agent-workspace/")
   const source =
@@ -449,11 +453,9 @@ function conversationMessages(conversationId: string) {
 
 export function ChatPanel() {
   const { t } = useTranslation()
-  useSourceFiles() // Keep source file cache warm
   const activeConversationId = useChatStore((s) => s.activeConversationId)
   const isStreaming = useChatStore((s) => s.isStreaming)
   const streamingContent = useChatStore((s) => s.streamingContent)
-  const mode = useChatStore((s) => s.mode)
   const addMessageToConversation = useChatStore((s) => s.addMessageToConversation)
   const setStreaming = useChatStore((s) => s.setStreaming)
   const appendStreamToken = useChatStore((s) => s.appendStreamToken)
@@ -481,31 +483,21 @@ export function ChatPanel() {
     ? allMessages.filter((m) => m.conversationId === activeConversationId)
     : []
 
-  const project = useWikiStore((s) => s.project)
-  const projectPathIndex = useWikiStore((s) => s.projectPathIndex)
+  const workspace = useWikiStore((s) => s.agentWorkspace)
   const baseLlmConfig = useWikiStore((s) => s.llmConfig)
   const providerConfigs = useWikiStore((s) => s.providerConfigs)
   const taskModelRouting = useWikiStore((s) => s.taskModelRouting)
-  const projectLlmOverride = useWikiStore((s) => s.projectLlmOverride)
   const customLlmPresets = useWikiStore((s) => s.customLlmPresets)
   const llmConfig = useMemo(
-    () => resolveTaskLlmConfig("chat", baseLlmConfig, providerConfigs, taskModelRouting, projectLlmOverride, customLlmPresets),
-    [baseLlmConfig, providerConfigs, taskModelRouting, projectLlmOverride, customLlmPresets],
+    () => resolveTaskLlmConfig("chat", baseLlmConfig, providerConfigs, taskModelRouting, customLlmPresets),
+    [baseLlmConfig, providerConfigs, taskModelRouting, customLlmPresets],
   )
   const searchApiConfig = useWikiStore((s) => s.searchApiConfig)
   const anyTxtAvailable = hasConfiguredAnyTxt(searchApiConfig.anyTxt)
   const imageInputAvailable = supportsImageInput(llmConfig)
-  const availableContextFiles = useMemo(() => {
-    if (!project) return []
-    const root = normalizePath(project.path).replace(/\/+$/g, "")
-    const files = [...projectPathIndex.filesByName.values()].flat()
-    return [...new Set(files
-      .map((entry) => normalizePath(entry.path))
-      .filter((path) => path.startsWith(`${root}/`))
-      .map((path) => path.slice(root.length + 1))
-      .filter((path) => !path.split("/").some((segment) => segment.startsWith("."))))]
-      .sort((left, right) => left.localeCompare(right))
-  }, [project, projectPathIndex])
+  // The files of a wiki project could be attached; the base has no such
+  // folder, so there is nothing to offer.
+  const availableContextFiles = NO_CONTEXT_FILES
 
   const abortRef = useRef<AbortController | null>(null)
   const activeRunSessionIdRef = useRef<string | null>(null)
@@ -532,8 +524,8 @@ export function ChatPanel() {
     setContextDetailReferences(null)
   }, [activeConversationId])
   const buildGeneratedOutputPreview = useCallback(async (ref: MessageReference): Promise<ChatReferencePreview | null> => {
-    if (!project) return null
-    const outputPath = projectAbsolutePath(project.path, ref.path)
+    if (!workspace) return null
+    const outputPath = projectAbsolutePath(workspace, ref.path)
     try {
       const category = getFileCategory(outputPath)
       const shouldReadContent = isTextReadable(category) || category === "pdf"
@@ -555,13 +547,13 @@ export function ChatPanel() {
         snippet: ref.snippet,
       }
     }
-  }, [project])
+  }, [workspace])
   const autoOpenSingleGeneratedOutput = useCallback((conversationId: string, references?: MessageReference[]) => {
     if (useChatStore.getState().activeConversationId !== conversationId) return
     const outputs = (references ?? []).filter((ref) => ref.kind === "workspace")
-    if (outputs.length === 0 || !project) return
+    if (outputs.length === 0 || !workspace) return
     const previews = outputs.map((ref) => {
-      const outputPath = projectAbsolutePath(project.path, ref.path)
+      const outputPath = projectAbsolutePath(workspace, ref.path)
       return {
         title: ref.title || getFileName(outputPath),
         path: outputPath,
@@ -580,7 +572,7 @@ export function ChatPanel() {
         }
       })
     }
-  }, [buildGeneratedOutputPreview, project])
+  }, [buildGeneratedOutputPreview, workspace])
   const activeStreaming = Boolean(isStreaming && activeConversationId && streamingConversationId === activeConversationId)
   const activeAgentEvents = activeStreaming ? agentEvents : []
   const lastMessage = activeMessages[activeMessages.length - 1]
@@ -614,11 +606,11 @@ export function ChatPanel() {
   }, [activeConversationId])
 
   useEffect(() => {
-    if (!project || activeStreaming || !latestGeneratedOutputMessage) return
+    if (!workspace || activeStreaming || !latestGeneratedOutputMessage) return
     const outputs = (latestGeneratedOutputMessage.references ?? []).filter((ref) => ref.kind === "workspace")
     if (outputs.length === 0) return
     const previews = outputs.map((ref) => {
-      const outputPath = projectAbsolutePath(project.path, ref.path)
+      const outputPath = projectAbsolutePath(workspace, ref.path)
       return {
         title: ref.title || getFileName(outputPath),
         path: outputPath,
@@ -634,7 +626,7 @@ export function ChatPanel() {
     if (currentKey === nextKey) return
     setReferencePreview(null)
     setGeneratedOutputPreviews(previews)
-  }, [activeConversationId, activeStreaming, generatedOutputPreviews, latestGeneratedOutputMessage, project])
+  }, [activeConversationId, activeStreaming, generatedOutputPreviews, latestGeneratedOutputMessage, workspace])
 
   const loadGeneratedOutputPreview = useCallback(async (preview: ChatReferencePreview): Promise<ChatReferencePreview> => {
     const category = getFileCategory(preview.path)
@@ -662,13 +654,13 @@ export function ChatPanel() {
   }, [activeConversationId, generatedOutputPreviews])
 
   const openGeneratedOutputDirectory = useCallback(() => {
-    if (!project) return
+    if (!workspace) return
     const directory = commonDirectory(generatedOutputPreviews.map((preview) => preview.path))
     if (!directory) return
-    void openPathInProject(project.path, directory).catch((err) => {
+    void revealItemInDir(directory).catch((err) => {
       console.error("[chat] failed to open generated output directory:", err)
     })
-  }, [generatedOutputPreviews, project])
+  }, [generatedOutputPreviews, workspace])
 
   const handleOpenReferencePreview = useCallback((preview: ChatReferencePreview, relatedPreviews?: ChatReferencePreview[]) => {
     setContextDetailReferences(null)
@@ -694,11 +686,11 @@ export function ChatPanel() {
 
   useEffect(() => {
     let cancelled = false
-    if (!project?.path) {
+    if (!workspace) {
       setAvailableSkills([])
       return
     }
-    invoke<AvailableAgentSkill[]>("agent_list_skills", { projectPath: project.path })
+    invoke<AvailableAgentSkill[]>("agent_list_skills", { folder: workspace })
       .then((skills) => {
         if (cancelled) return
         const enabled = enabledSkillIds(skills, useChatStore.getState().disabledSkills)
@@ -716,7 +708,7 @@ export function ChatPanel() {
     return () => {
       cancelled = true
     }
-  }, [project?.path, disabledSkills, setSelectedSkills])
+  }, [workspace, disabledSkills, setSelectedSkills])
 
   const handleSend = useCallback(
     async (
@@ -750,8 +742,8 @@ export function ChatPanel() {
       }
 
       if (!sendOptions.suppressUserMessage) {
-        const messageContextFiles = project
-          ? sendOptions.contextFiles.map((path) => projectAbsolutePath(project.path, path))
+        const messageContextFiles = workspace
+          ? sendOptions.contextFiles.map((path) => projectAbsolutePath(workspace, path))
           : []
         addMessageToConversation(convId, "user", text, images, messageContextFiles)
       }
@@ -851,8 +843,8 @@ export function ChatPanel() {
                 seenRefs.add(key)
                 references.push(ref)
               }
-              if (ref.kind === "workspace" && project) {
-                const outputPath = projectAbsolutePath(project.path, ref.path)
+              if (ref.kind === "workspace" && workspace) {
+                const outputPath = projectAbsolutePath(workspace, ref.path)
                 const preview: ChatReferencePreview = {
                   title: ref.title || getFileName(outputPath),
                   path: outputPath,
@@ -898,8 +890,8 @@ export function ChatPanel() {
               }
               return
             }
-            if (agentEvent.type === "fileChanged" && project && agentEvent.path && agentEvent.tool) {
-              const filePath = projectAbsolutePath(project.path, agentEvent.path)
+            if (agentEvent.type === "fileChanged" && workspace && agentEvent.path && agentEvent.tool) {
+              const filePath = projectAbsolutePath(workspace, agentEvent.path)
               const editSequence = ++fileEditSequence
               const editId = `${backendRunId}:${filePath}:${editSequence}`
               const editTimestamp = Date.now()
@@ -986,7 +978,6 @@ export function ChatPanel() {
           })
           try {
             await invoke<string>("agent_start_turn_stream", {
-              projectId: project?.id ?? "current",
               llmConfig,
               request: {
                 message: text,
@@ -995,6 +986,9 @@ export function ChatPanel() {
                 mode: sendOptions.agentMode,
                 retrievalMode: sendOptions.retrievalMode,
                 stream: true,
+                // The chat keeps its own history in the app's data folder
+                // (D-415): nothing is written to a project's folder.
+                persistSession: false,
                 tools: {
                   wiki: true,
                   web: sendOptions.useWebSearch,
@@ -1064,7 +1058,6 @@ export function ChatPanel() {
                   .join("\n"),
           }))
         const backendResponse = await invoke<BackendAgentResponse>("agent_start_turn", {
-          projectId: project?.id ?? "current",
           llmConfig,
           request: {
             message: text,
@@ -1129,14 +1122,12 @@ export function ChatPanel() {
             .map((reference) => `${reference.title} (${reference.path})`)
             .join("\n"),
           references: backendReferences,
-          readPage: (path) => project
-            ? readFile(projectAbsolutePath(project.path, path))
-            : Promise.reject(new Error("No project open")),
+          readPage: (path) => getPageText(path).then((page) => page?.text ?? ""),
         })
         if (!isCurrentRun()) return
         const contextText = retrievedContext
           ? [
-              "You have access to the current LLM Wiki project context below. Use it as retrieved evidence when it is relevant.",
+              "You have access to the context of the document base below. Use it as retrieved evidence when it is relevant.",
               "",
               retrievedContext,
               "",
@@ -1262,7 +1253,7 @@ export function ChatPanel() {
         activeRunIdRef.current = null
       }
     },
-    [project, llmConfig, searchApiConfig, addMessageToConversation, setStreaming, appendStreamToken, finalizeStreamForConversation, createConversation, maxHistoryMessages, t, availableSkills, autoOpenSingleGeneratedOutput],
+    [workspace, llmConfig, searchApiConfig, addMessageToConversation, setStreaming, appendStreamToken, finalizeStreamForConversation, createConversation, maxHistoryMessages, t, availableSkills, autoOpenSingleGeneratedOutput],
   )
 
   const handleStop = useCallback(() => {
@@ -1271,7 +1262,6 @@ export function ChatPanel() {
     const backendRunId = activeRunIdRef.current
     if (sessionId) {
       void invoke("agent_cancel_turn", {
-        projectId: project?.id ?? "current",
         sessionId,
         runId: backendRunId ?? undefined,
       }).catch(() => {})
@@ -1283,7 +1273,7 @@ export function ChatPanel() {
     setStreaming(false)
     setAgentEvents([])
     setStreamingConversationId(null)
-  }, [project, setStreaming])
+  }, [workspace, setStreaming])
 
   const handleNewConversation = useCallback(() => {
     handleStop()
@@ -1414,20 +1404,6 @@ export function ChatPanel() {
     return true
   }, [handleSend, activeStreaming])
 
-  const handleWriteToWiki = useCallback(async () => {
-    if (!project) return
-    const pp = normalizePath(project.path)
-    try {
-      await executeIngestWrites(pp, llmConfig, undefined, undefined)
-      await refreshProjectFileTree(pp, { bumpDataVersion: true })
-    } catch (err) {
-      console.error("Failed to write to wiki:", err)
-    }
-  }, [project, llmConfig])
-
-  const hasAssistantMessages = activeMessages.some((m) => m.role === "assistant")
-  const showWriteButton = mode === "ingest" && !activeStreaming && hasAssistantMessages
-
   return (
     <div className="flex h-full flex-row overflow-hidden">
       <ConversationSidebar
@@ -1477,19 +1453,6 @@ export function ChatPanel() {
                 </div>
               </div>
 
-            {showWriteButton && (
-              <div className="border-t px-3 py-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleWriteToWiki}
-                  className="w-full gap-2"
-                >
-                  <BookOpen className="h-4 w-4" />
-                  {t("chat.writeToWiki")}
-                </Button>
-              </div>
-            )}
           </>
         )}
 
@@ -1513,11 +1476,7 @@ export function ChatPanel() {
           onSelectedContextFilesChange={setSelectedContextFiles}
           anyTxtAvailable={anyTxtAvailable}
           imageInputAvailable={imageInputAvailable}
-          placeholder={
-            mode === "ingest"
-              ? t("chat.ingestPlaceholder")
-              : t("chat.typeAMessage")
-          }
+          placeholder={t("chat.typeAMessage")}
         />
       </div>
 
@@ -1529,10 +1488,10 @@ export function ChatPanel() {
           onClose={() => setReferencePreview(null)}
         />
       )}
-      {contextDetailReferences && project && (
+      {contextDetailReferences && workspace && (
         <ContextDetailsPanel
           references={contextDetailReferences}
-          projectPath={project.path}
+          projectPath={workspace}
           width={referencePreviewWidth}
           onResize={setReferencePreviewWidth}
           onClose={() => setContextDetailReferences(null)}
@@ -1542,7 +1501,7 @@ export function ChatPanel() {
         <GeneratedOutputsPanel
           outputs={generatedOutputPreviews}
           onOpen={openGeneratedOutputModal}
-          onOpenDirectory={project ? openGeneratedOutputDirectory : undefined}
+          onOpenDirectory={workspace ? openGeneratedOutputDirectory : undefined}
           onClose={closeGeneratedOutputsPanel}
         />
       )}
@@ -1796,31 +1755,18 @@ function ContextDetailsPanel({
       let content = reference.snippet?.trim() ?? ""
       // The persisted snippet is the exact retrieved fragment. Prefer it over
       // re-reading a file that may have changed since the answer was produced.
-      if (reference.kind !== "external" && !content) {
-        const normalizedProject = normalizePath(projectPath)
-        const directPath = isAbsolutePath(reference.path)
-          ? normalizePath(reference.path)
-          : projectAbsolutePath(normalizedProject, reference.path)
-        const stem = getFileName(reference.path.replace(/^wiki\//, "").replace(/\.md$/i, ""))
-        const candidates = reference.kind === "workspace"
-          ? [directPath]
-          : [
-              directPath,
-              `${normalizedProject}/wiki/entities/${stem}.md`,
-              `${normalizedProject}/wiki/concepts/${stem}.md`,
-              `${normalizedProject}/wiki/sources/${stem}.md`,
-              `${normalizedProject}/wiki/queries/${stem}.md`,
-              `${normalizedProject}/wiki/synthesis/${stem}.md`,
-              `${normalizedProject}/wiki/comparisons/${stem}.md`,
-              `${normalizedProject}/wiki/${stem}.md`,
-            ]
-        for (const candidate of candidates) {
-          try {
-            content = await readFile(candidate)
-            break
-          } catch {
-            // Try resolver-compatible fallback paths.
-          }
+      if (reference.kind === "workspace" && !content) {
+        try {
+          content = await readFile(projectAbsolutePath(normalizePath(projectPath), reference.path))
+        } catch {
+          // A generated file that is gone.
+        }
+      } else if (reference.kind !== "external" && !content) {
+        // A page of the base, by its logical path (D-413).
+        try {
+          content = (await getPageText(reference.path))?.text ?? ""
+        } catch {
+          // Not in the base (any more).
         }
       }
       const category = contextDetailCategory(reference)
@@ -1988,10 +1934,9 @@ function clampReferencePreviewWidth(width: number): number {
 }
 
 function ChatMarkdownReferencePreview({ preview }: { preview: ChatReferencePreview }) {
-  const { frontmatter, body } = parseFrontmatter(preview.content)
+  const { body } = parseFrontmatter(preview.content)
   return (
     <div className="h-full overflow-auto px-6 py-6">
-      {frontmatter && <FrontmatterPanel data={frontmatter} />}
       <WikiReader body={body} filePath={preview.path} />
     </div>
   )

@@ -3,27 +3,24 @@ import { ArrowLeft, Check, Copy, ExternalLink, FolderOpen } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   getDocument,
-  getGeneralProject,
-  listSimilarDocuments,
+  getDocumentArticle,
   openLocation,
-  pagesCiting,
   setLocationLabel,
   type DocumentDetail,
   type LocationRef,
 } from "@/commands/docbase"
-import { isSameProjectPath } from "@/lib/docbase-wiki-bridge"
-import { normalizePath } from "@/lib/path-utils"
 import { useDocbaseStore } from "@/stores/docbase-store"
-import { useWikiStore } from "@/stores/wiki-store"
 import { DOCUMENT_STATES, DocumentStateBadge } from "./document-state"
 import { LabelChip, LabelPicker } from "./labels"
 import { EmptyNote, ErrorNote } from "./page"
 import { formatCount, formatDate, formatSize } from "./format"
 import { DocumentTypeFacts } from "./document-types-view"
-import { passedOverNotice } from "./similar"
 import { SimilarDocuments } from "./similar-documents"
 import { useDocbaseQuery } from "./use-docbase-query"
 import { DocumentEntitiesSection } from "@/components/knowledge/document-entities"
+import { ArticleText, usePageWords } from "@/components/knowledge/article-text"
+import { articleBody, withoutEntityBlock, withoutListSection } from "@/components/knowledge/knowledge"
+import { NotesEditor } from "@/components/knowledge/notes-editor"
 
 /** Text longer than this is cut on screen; the whole text stays in the base. */
 const SHOWN_TEXT_LIMIT = 200_000
@@ -83,7 +80,14 @@ export function DocumentDetailView({ locationId, onBack }: { locationId: number;
         {document && (
           <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
             <main className="min-w-0">
-              <DocumentText document={document} />
+              {document.contentId !== null && <DocumentArticle contentId={document.contentId} />}
+              {document.contentId !== null ? (
+                <Section title="Texto">
+                  <DocumentText document={document} />
+                </Section>
+              ) : (
+                <DocumentText document={document} />
+              )}
               <Section title={`Ubicaciones (${document.locations.length || 1})`}>
                 <Locations document={document} onOpen={handleOpen} />
               </Section>
@@ -95,7 +99,6 @@ export function DocumentDetailView({ locationId, onBack }: { locationId: number;
               {document.contentId !== null && (
                 <SimilarDocuments locationId={document.locationId} name={document.name} onProblem={setProblem} />
               )}
-              <WikiPages locationId={document.locationId} />
             </main>
             <aside>
               <FactBox document={document} onChanged={detail.reload} onProblem={setProblem} />
@@ -109,7 +112,7 @@ export function DocumentDetailView({ locationId, onBack }: { locationId: number;
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="mt-8">
+    <section className="mt-8 first:mt-0">
       <h2 className="border-b pb-1 font-serif text-xl">{title}</h2>
       <div className="mt-3">{children}</div>
     </section>
@@ -212,56 +215,29 @@ function Locations({
 }
 
 /**
- * The pages of the general project's wiki that came from this document
- * or from any copy of it. They open here while that wiki is the open
- * project.
+ * The article of the document (D-407): its page as the projection last
+ * wrote it in the base, for every version of it (its topic, the essential
+ * with its quotes and how sure each point is, its data, the amounts, its
+ * versions and the documents it is related to), without what this screen
+ * shows in its own sections (where it is, whom it names); and the notes
+ * of a person on it.
  */
-function WikiPages({ locationId }: { locationId: number }) {
-  const project = useWikiStore((s) => s.project)
-  const openPathInPreview = useWikiStore((s) => s.openPathInPreview)
-  const pages = useDocbaseQuery(`pages-citing:${locationId}`, () => pagesCiting(locationId))
-  const general = useDocbaseQuery("general-project", getGeneralProject)
-  const similar = useDocbaseQuery(`similar:${locationId}`, () => listSimilarDocuments(locationId))
-  const canOpen = isSameProjectPath(general.data?.path, project?.path)
-  const passedOver = passedOverNotice(similar.data ?? [])
-
-  if (!pages.data) return null
+function DocumentArticle({ contentId }: { contentId: number }) {
+  const article = useDocbaseQuery(`document-article:${contentId}`, () => getDocumentArticle(contentId))
+  const pageWord = usePageWords()
+  if (!article.data) return null
+  const body = withoutEntityBlock(articleBody(article.data.body))
   return (
-    <Section title={`En el wiki (${pages.data.length})`}>
-      {passedOver && (
-        <div className="mb-3 rounded-md border border-dashed px-3 py-2 text-sm" data-testid="passed-over">
-          <p>{passedOver}</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Lo que ya se había incorporado de este documento se queda en el wiki. Deshacer la unión lo vuelve a
-            ofrecer.
-          </p>
-        </div>
-      )}
-      {pages.data.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Ninguna página del wiki salió de este documento todavía.</p>
-      ) : (
-        <ul className="flex flex-col gap-1 text-sm">
-          {pages.data.map((page) => (
-            <li key={page.path} className="flex flex-wrap items-baseline gap-2">
-              {canOpen ? (
-                <button
-                  className="text-left text-primary hover:underline"
-                  onClick={() => openPathInPreview(normalizePath(page.file))}
-                >
-                  {page.title}
-                </button>
-              ) : (
-                <span>{page.title}</span>
-              )}
-              <span className="text-xs text-muted-foreground">
-                {page.kind && `${page.kind} · `}
-                {page.path}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Section>
+    <>
+      <Section title="Artículo">
+        {pageWord ? (
+          <ArticleText body={withoutListSection(body, pageWord("docLocations"))} writtenAt={article.data.writtenAt} />
+        ) : null}
+      </Section>
+      <div className="mt-8">
+        <NotesEditor key={article.data.objectId} objectId={article.data.objectId} />
+      </div>
+    </>
   )
 }
 

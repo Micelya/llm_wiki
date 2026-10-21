@@ -1,6 +1,5 @@
 import { useState, type ReactNode } from "react"
 import {
-  BookPlus,
   ChevronDown,
   ChevronRight,
   ExternalLink,
@@ -27,10 +26,6 @@ import { formatCount } from "./format"
 import { useDocbaseQuery } from "./use-docbase-query"
 
 export interface TreeActions {
-  /** Whether "incorporar al wiki" can be used right now. */
-  canIngest: boolean
-  /** Queues for the wiki what is pending under a folder, or one file. */
-  onIngest: (originId: string, relPath: string, isFolder: boolean) => void
   onProblem: (problem: string | null) => void
   /** Extra buttons for a folder row (label rules). */
   folderExtras?: (originId: string, folder: string) => ReactNode
@@ -127,13 +122,6 @@ function FolderRow({
             <ExternalLink />
           </IconAction>
           <IconAction
-            title={actions.canIngest ? "Incorporar al wiki lo pendiente de esta carpeta" : "El wiki no está activo"}
-            disabled={!actions.canIngest || node.excluded}
-            onClick={() => actions.onIngest(originId, node.relPath, true)}
-          >
-            <BookPlus />
-          </IconAction>
-          <IconAction
             title={node.excluded ? "Volver a incluir" : "Excluir: la base deja de procesarla. No borra nada."}
             onClick={() => run(() => setExcluded(originId, node.relPath, true, !node.excluded))}
           >
@@ -181,13 +169,6 @@ function FileRow({ file, depth, actions }: { file: DocumentRow; depth: number; a
       <RowActions>
         <IconAction title="Abrir con el programa del sistema" onClick={() => run(() => openLocation(file.locationId))}>
           <ExternalLink />
-        </IconAction>
-        <IconAction
-          title={actions.canIngest ? "Incorporar al wiki" : "El wiki no está activo"}
-          disabled={!actions.canIngest || excluded || file.state === "link"}
-          onClick={() => actions.onIngest(file.originId, file.relPath, false)}
-        >
-          <BookPlus />
         </IconAction>
         <IconAction
           title={excluded ? "Volver a incluir" : "Excluir: la base deja de procesarlo. No borra nada."}

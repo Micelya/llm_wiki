@@ -10,9 +10,6 @@ export const legal: Vertical = {
         mine: "Mi archivo",
         shared: "Archivo del estudio",
         health: "Salud del archivo",
-        wiki: "Wiki del archivo",
-        wikiDescription:
-          "El wiki que se arma con todos los documentos de las carpetas incorporadas.",
       },
       attention: {
         name: "Atención",
@@ -91,6 +88,7 @@ export const legal: Vertical = {
           organizacion: { one: "Organización", many: "Organizaciones" },
           asunto: { one: "Asunto", many: "Asuntos" },
         },
+        groups: { one: "Grupo de sociedades", many: "Grupos de sociedades" },
         roles: {
           parte: "parte",
           apoderado: "apoderado",
@@ -135,24 +133,6 @@ export const legal: Vertical = {
           otro: "Otro número",
         },
       },
-      wikiIndex: {
-        title: "Índice del wiki",
-        intro: "Todas las páginas del wiki, por tipo. La app lo rehace cada vez que cambia una página.",
-        types: {
-          source: "Documentos",
-          entity: "Personas, organizaciones y asuntos",
-          concept: "Conceptos",
-          query: "Consultas",
-          comparison: "Comparaciones",
-          synthesis: "Síntesis",
-        },
-        entityKinds: {
-          persona: "Personas",
-          organizacion: "Organizaciones",
-          asunto: "Asuntos",
-        },
-        other: "Otras páginas",
-      },
     },
     en: {
       archive: {
@@ -160,8 +140,6 @@ export const legal: Vertical = {
         mine: "My archive",
         shared: "Firm archive",
         health: "Archive health",
-        wiki: "Archive wiki",
-        wikiDescription: "The wiki built from every document in the incorporated folders.",
       },
       attention: {
         name: "Attention",
@@ -240,6 +218,7 @@ export const legal: Vertical = {
           organizacion: { one: "Organization", many: "Organizations" },
           asunto: { one: "Matter", many: "Matters" },
         },
+        groups: { one: "Group of companies", many: "Groups of companies" },
         roles: {
           parte: "party",
           apoderado: "attorney",
@@ -283,24 +262,6 @@ export const legal: Vertical = {
           codigo_postal: "Postal code",
           otro: "Other number",
         },
-      },
-      wikiIndex: {
-        title: "Wiki index",
-        intro: "Every page of the wiki, by type. The app writes it again whenever a page changes.",
-        types: {
-          source: "Documents",
-          entity: "People, organizations and matters",
-          concept: "Concepts",
-          query: "Queries",
-          comparison: "Comparisons",
-          synthesis: "Syntheses",
-        },
-        entityKinds: {
-          persona: "People",
-          organizacion: "Organizations",
-          asunto: "Matters",
-        },
-        other: "Other pages",
       },
     },
   },

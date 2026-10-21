@@ -265,115 +265,14 @@ export interface Activity {
   fromPath: string | null
 }
 
-/** Totals of the general project's wiki, from the base's index of it. */
-export interface WikiIndex {
-  pages: number
-  links: number
-  /** Links that point at no page. */
-  broken: number
-}
-
-/** A wiki page, as the index knows it. */
-export interface PageRef {
-  /** Path inside the project: `wiki/entities/zentora.md`. */
-  path: string
-  /** Where the page is on disk. */
-  file: string
-  title: string
-  /** `type` of its header: source, entity, concept… */
-  kind: string
-}
-
-export interface BrokenLink {
-  from: PageRef
-  /** What the link says, as written. */
-  target: string
-}
-
 export interface Home {
   health: Health
   origins: OriginSummary[]
   activity: Activity[]
-  wiki: WikiIndex
-}
-
-/** The wiki pages that came from the document at this location, or from any copy of it. */
-export function pagesCiting(locationId: number): Promise<PageRef[]> {
-  return invoke<PageRef[]>("docbase_pages_citing", { locationId })
-}
-
-export function listBrokenLinks(): Promise<BrokenLink[]> {
-  return invoke<BrokenLink[]>("docbase_broken_links")
-}
-
-/** The pages that link to the page at this path inside the project. */
-export function listBacklinks(pagePath: string): Promise<PageRef[]> {
-  return invoke<PageRef[]>("docbase_backlinks", { pagePath })
 }
 
 export function getHome(): Promise<Home> {
   return invoke<Home>("docbase_home")
-}
-
-/** An origin as the general project's wiki sees it. */
-export interface BridgedOrigin {
-  originId: string
-  name: string
-  /** The folder under `raw/sources` it appears as, when it is mounted. */
-  mountedAs: string | null
-  /** Why it could not be mounted, when that is the case. */
-  problem: string | null
-}
-
-/** The wiki that covers every origin of the space. */
-export interface GeneralProject {
-  id: string
-  name: string
-  /** The wiki project folder, once one was assigned. */
-  path: string | null
-  members: string
-  /** Whether the wiki is fed from the base on its own. */
-  wikiActive: boolean
-  origins: BridgedOrigin[]
-}
-
-/** A file of the base as a source of the general project's wiki. */
-export interface WikiSource {
-  originId: string
-  /** Path inside the wiki project: `raw/sources/<origin>/<file>`. */
-  sourcePath: string
-  /** What the wiki calls the source: the path under `raw/sources`. */
-  identity: string
-  ext: string
-  /** The document it is, once the base read it. */
-  contentId: number | null
-}
-
-/** `null` before the first origin is incorporated. */
-export function getGeneralProject(): Promise<GeneralProject | null> {
-  return invoke<GeneralProject | null>("docbase_general_project")
-}
-
-/** Mounts every origin in that wiki project. Copies nothing, ingests nothing. */
-export function linkGeneralProject(projectPath: string, name: string): Promise<GeneralProject> {
-  return invoke<GeneralProject>("docbase_link_general_project", { projectPath, name })
-}
-
-/** Makes sure the general project has its wiki in the workspace; creates it the first time. */
-export function ensureDefaultProject(workspace: string): Promise<GeneralProject> {
-  return invoke<GeneralProject>("docbase_ensure_default_project", { workspace })
-}
-
-export function setWikiActive(active: boolean): Promise<void> {
-  return invoke<void>("docbase_set_wiki_active", { active })
-}
-
-export function unlinkGeneralProject(): Promise<void> {
-  return invoke<void>("docbase_unlink_general_project")
-}
-
-export function listWikiSources(): Promise<WikiSource[]> {
-  return invoke<WikiSource[]>("docbase_wiki_sources")
 }
 
 export interface FolderNode {
@@ -402,11 +301,6 @@ export function listFolder(originId: string, folder: string): Promise<FolderList
 /** Leaves a file or folder out of the base, or brings it back. Nothing on disk is touched. */
 export function setExcluded(originId: string, relPath: string, isFolder: boolean, excluded: boolean): Promise<void> {
   return invoke<void>("docbase_set_excluded", { originId, relPath, isFolder, excluded })
-}
-
-/** Which of these `raw/sources/…` paths of a wiki project the user left out of the base. */
-export function excludedSources(projectPath: string, sourcePaths: string[]): Promise<string[]> {
-  return invoke<string[]>("docbase_excluded_sources", { projectPath, sourcePaths })
 }
 
 export function openFolder(originId: string, folder: string): Promise<void> {
@@ -790,14 +684,9 @@ export function projectKnowledge(engine: AskConfig | null, maxQuestions?: number
   return invoke<KnowledgeProjectReport>("docbase_knowledge_project", { engine, maxQuestions: maxQuestions ?? null })
 }
 
-/** The language of the archive's wiki, for the pages the knowledge layer writes. */
+/** The language the base writes its articles in. */
 export function setWikiLanguage(language: string | null): Promise<void> {
   return invoke<void>("docbase_set_wiki_language", { language })
-}
-
-/** Fires when the knowledge layer wrote pages of the archive's wiki. */
-export function onKnowledgePages(handler: () => void): Promise<UnlistenFn> {
-  return listen("docbase://knowledge-pages", () => handler())
 }
 
 // ── Knowledge layer: people, organizations and matters ──────────────────
@@ -1268,20 +1157,218 @@ export function getEntity(id: string): Promise<EntityDetail | null> {
   return invoke<EntityDetail | null>("docbase_knowledge_entity", { id })
 }
 
-/** The article of an entity: its page as the projection last wrote it (D-389). */
-export interface EntityArticle {
-  /** The page's file, absolute. */
+// The pages, notes, overview and saved queries kept in the base (D-402,
+// D-404): what the screens, the search and the chat read instead of the
+// files of the wiki.
+
+/**
+ * The notes of a person on an object (`ent-…`, `mat-…`, `doc-…`). A note
+ * of the old wiki whose page matched no object is kept apart: no
+ * `objectId`, with the `title` of the page it came from (D-403).
+ */
+export interface KnowledgeNote {
+  id: number
+  objectId: string | null
+  title: string | null
+  originPath: string | null
+  text: string
+  updatedAt: number
+}
+
+/** The article of an object: its page as the projection last wrote it in the base. */
+export interface KnowledgeArticle {
+  objectId: string
+  kind: "entity" | "matter" | "document"
+  /** Its logical path (`wiki/entities/…`, `wiki/sources/…`): what links between pages say. */
   path: string
+  title: string
+  /** Markdown with its header (frontmatter); without the notes, which come apart. */
+  body: string
+  /** `kept`: its object left the record; the page stays for its notes. */
+  state: "projected" | "kept"
+  writtenAt: number
+  notes: KnowledgeNote | null
+}
+
+/** The object a page or a link names; `overview` for the overview. */
+export interface PageObject {
+  objectId: string
+  kind: "entity" | "matter" | "document" | "overview"
+  path: string
+  /** For a document: the document its page is named by, and one place of it. */
+  contentId: number | null
+  locationId: number | null
+}
+
+export interface KnowledgeOverview {
+  path: string
+  body: string
+  writtenAt: number
+}
+
+/** A question of the chat a person saved, with its answer and what it cites. */
+export interface SavedQuery {
+  id: number
+  title: string
+  question: string
+  answer: string
+  /** Logical paths, link names or object ids. */
+  refs: string[]
+  createdAt: number
+}
+
+/** The article of a person, organization, group, matter (`mat-…`) or document page (`doc-…`). */
+export function getKnowledgeArticle(id: string): Promise<KnowledgeArticle | null> {
+  return invoke<KnowledgeArticle | null>("docbase_knowledge_article", { id })
+}
+
+/** The article of a document's page (its family of versions), by the document. */
+export function getDocumentArticle(contentId: number): Promise<KnowledgeArticle | null> {
+  return invoke<KnowledgeArticle | null>("docbase_knowledge_document_article", { contentId })
+}
+
+/**
+ * The object a page names: its logical path, the old wiki's absolute path,
+ * or a link (`name` of `[[name|text]]`, with or without `.md` or `#anchor`).
+ */
+export function objectOfPage(reference: string): Promise<PageObject | null> {
+  return invoke<PageObject | null>("docbase_knowledge_object_of_page", { reference })
+}
+
+export function getKnowledgeNotes(objectId: string): Promise<KnowledgeNote | null> {
+  return invoke<KnowledgeNote | null>("docbase_knowledge_notes", { objectId })
+}
+
+/** Keeps the notes of a person on an object; empty text removes them. */
+export function setKnowledgeNotes(objectId: string, text: string): Promise<KnowledgeNote | null> {
+  return invoke<KnowledgeNote | null>("docbase_knowledge_set_notes", { objectId, text })
+}
+
+/** The notes of the old wiki whose page matched no object. */
+export function listOrphanNotes(): Promise<KnowledgeNote[]> {
+  return invoke<KnowledgeNote[]>("docbase_knowledge_orphan_notes")
+}
+
+export function deleteKnowledgeNote(id: number): Promise<void> {
+  return invoke<void>("docbase_knowledge_delete_note", { id })
+}
+
+/** The overview of the archive (for Inicio). */
+export function getKnowledgeOverview(): Promise<KnowledgeOverview | null> {
+  return invoke<KnowledgeOverview | null>("docbase_knowledge_overview")
+}
+
+/**
+ * The words the pages are written with, by their id in the vocabulary
+ * (`matterFacts`, `docLocations`…): the headings of their sections.
+ */
+export function getPageWords(): Promise<Record<string, string>> {
+  return invoke<Record<string, string>>("docbase_knowledge_page_words")
+}
+
+/** A page the search of the base found: a document's, or of whom the question names. */
+export interface BaseSearchResult {
+  /** Its logical path: `objectOfPage` gives the screen it opens. */
+  path: string
+  title: string
+  snippet: string
+  score: number
+  /** The people and organizations of the result the question names. */
+  graphRelatedTo?: string[]
+}
+
+export interface BaseSearchResponse {
+  mode: string
+  results: BaseSearchResult[]
+}
+
+/** Searches the base: the texts, numbers and summaries of its documents (D-350, D-408). */
+export function searchBase(query: string, topK = 20): Promise<BaseSearchResponse> {
+  return invoke<BaseSearchResponse>("docbase_search", { query, topK })
+}
+
+/** The saved queries, the latest first. */
+export function listSavedQueries(): Promise<SavedQuery[]> {
+  return invoke<SavedQuery[]>("docbase_saved_queries")
+}
+
+export function saveQuery(title: string, question: string, answer: string, refs: string[]): Promise<SavedQuery> {
+  return invoke<SavedQuery>("docbase_save_query", { title, question, answer, refs })
+}
+
+export function deleteSavedQuery(id: number): Promise<void> {
+  return invoke<void>("docbase_delete_saved_query", { id })
+}
+
+/** A page of the base whole (what the app wrote, then the notes of a person). */
+export interface PageText {
+  /** Its logical path. */
+  path: string
+  title: string
   text: string
 }
 
-export function getEntityArticle(id: string): Promise<EntityArticle | null> {
-  return invoke<EntityArticle | null>("docbase_knowledge_entity_article", { id })
+/** A page of the base by its logical path or a link; null when the base has none. */
+export function getPageText(path: string): Promise<PageText | null> {
+  return invoke<PageText | null>("docbase_knowledge_page_text", { path })
 }
 
-/** The entity whose page is the file at `path` (absolute), if any. */
-export function entityOfPage(path: string): Promise<string | null> {
-  return invoke<string | null>("docbase_knowledge_entity_of_page", { path })
+/** A source a research on the internet cites, by its number in the text (`[n]`). */
+export interface ResearchSource {
+  index: number
+  title: string
+  url: string
+  source: string
+}
+
+/**
+ * A research on the internet kept in the base (D-414): of a person,
+ * organization or matter, or loose; apart from what the documents say.
+ */
+export interface Research {
+  id: number
+  objectId: string | null
+  topic: string
+  body: string
+  sources: ResearchSource[]
+  createdAt: number
+}
+
+export function saveResearch(
+  objectId: string | null,
+  topic: string,
+  body: string,
+  sources: ResearchSource[],
+): Promise<Research> {
+  return invoke<Research>("docbase_research_save", { objectId, topic, body, sources })
+}
+
+/** The researches of a person, organization or matter, the latest first. */
+export function listResearchOf(objectId: string): Promise<Research[]> {
+  return invoke<Research[]>("docbase_research_of", { objectId })
+}
+
+/** The researches of no object, the latest first. */
+export function listLooseResearch(): Promise<Research[]> {
+  return invoke<Research[]>("docbase_research_loose")
+}
+
+export function deleteResearch(id: number): Promise<void> {
+  return invoke<void>("docbase_research_delete", { id })
+}
+
+/** The folder of the chat's history and preferences, in the app's data folder (D-415). */
+export function getChatFolder(): Promise<string> {
+  return invoke<string>("docbase_chat_folder")
+}
+
+/** Whether the base reads its documents on its own («Lectura automática»). */
+export function getBackgroundReading(): Promise<boolean> {
+  return invoke<boolean>("docbase_background_reading")
+}
+
+export function setBackgroundReading(on: boolean): Promise<void> {
+  return invoke<void>("docbase_set_background_reading", { on })
 }
 
 export function listIdentityDoubts(): Promise<DoubtView[]> {

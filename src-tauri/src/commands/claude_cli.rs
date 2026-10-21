@@ -476,12 +476,12 @@ async fn resolve_claude_working_directory(value: Option<String>) -> Result<PathB
         .filter(|v| !v.is_empty())
         .map(str::to_string)
         .ok_or_else(|| {
-            "Claude Code CLI requires an active project working directory".to_string()
+            "Claude Code CLI requires the agent's working folder".to_string()
         })?;
     let path = Path::new(raw.as_str());
     if !path.is_absolute() {
         return Err(
-            "Claude Code CLI working directory must be an absolute project path".to_string(),
+            "Claude Code CLI working directory must be an absolute path".to_string(),
         );
     }
     let path_meta = tokio::fs::metadata(path).await.map_err(|e| {
@@ -491,16 +491,6 @@ async fn resolve_claude_working_directory(value: Option<String>) -> Result<PathB
     if !path_meta.is_dir() {
         return Err(format!(
             "Claude Code CLI working directory is not a directory: {raw}"
-        ));
-    }
-    let index_path = path.join("wiki").join("index.md");
-    let index_meta = tokio::fs::metadata(&index_path).await.map_err(|e| {
-        eprintln!("[claude-cli] failed to read wiki/index.md metadata for {raw}: {e}");
-        format!("Claude Code CLI working directory must be an LLM Wiki project containing wiki/index.md: {raw}")
-    })?;
-    if !index_meta.is_file() {
-        return Err(format!(
-            "Claude Code CLI working directory must be an LLM Wiki project containing wiki/index.md: {raw}"
         ));
     }
     tokio::fs::canonicalize(path)
@@ -658,19 +648,19 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn claude_working_directory_requires_llm_wiki_project() {
+    async fn claude_working_directory_requires_an_absolute_folder() {
         assert!(resolve_claude_working_directory(None)
             .await
             .unwrap_err()
-            .contains("active project"));
+            .contains("working folder"));
         assert!(resolve_claude_working_directory(Some("".to_string()))
             .await
             .unwrap_err()
-            .contains("active project"));
+            .contains("working folder"));
         assert!(resolve_claude_working_directory(Some("   ".to_string()))
             .await
             .unwrap_err()
-            .contains("active project"));
+            .contains("working folder"));
         assert!(
             resolve_claude_working_directory(Some("relative/path".to_string()))
                 .await
@@ -689,25 +679,10 @@ mod tests {
         std::fs::create_dir_all(&dir).expect("temp dir");
         let raw = dir.to_string_lossy().to_string();
 
-        assert!(resolve_claude_working_directory(Some(raw.clone()))
-            .await
-            .unwrap_err()
-            .contains("wiki/index.md"));
-
-        let wiki_dir = dir.join("wiki");
-        std::fs::create_dir_all(&wiki_dir).expect("wiki dir");
-        let index_dir = wiki_dir.join("index.md");
-        std::fs::create_dir_all(&index_dir).expect("index dir");
-        assert!(resolve_claude_working_directory(Some(raw.clone()))
-            .await
-            .unwrap_err()
-            .contains("wiki/index.md"));
-        std::fs::remove_dir_all(&index_dir).expect("remove index dir");
-        std::fs::write(wiki_dir.join("index.md"), "# Index\n").expect("index");
-
+        // Any readable folder will do: the agent's folder holds no wiki.
         let resolved = resolve_claude_working_directory(Some(raw))
             .await
-            .expect("valid project path");
+            .expect("valid folder");
         assert_eq!(resolved, dir.canonicalize().expect("canonical tempdir"));
 
         std::fs::remove_dir_all(&dir).expect("cleanup temp dir");

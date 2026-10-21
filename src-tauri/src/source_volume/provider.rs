@@ -6,16 +6,9 @@
 //! the only implementation today; cloud drives are expected to implement
 //! the same trait without the rest of the app noticing.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum ProviderKind {
-    LocalFolder,
-}
 
 /// One file offered by a provider, addressed relative to the mount root
 /// with forward slashes.
@@ -27,8 +20,6 @@ pub struct SourceEntry {
 }
 
 pub trait SourceProvider {
-    fn kind(&self) -> ProviderKind;
-
     /// False when the origin cannot be reached right now (unplugged
     /// drive, offline share). Callers must treat that as "unknown", never
     /// as "every file was deleted".
@@ -51,16 +42,9 @@ impl LocalFolderProvider {
         Self { root: root.into() }
     }
 
-    pub fn root(&self) -> &Path {
-        &self.root
-    }
 }
 
 impl SourceProvider for LocalFolderProvider {
-    fn kind(&self) -> ProviderKind {
-        ProviderKind::LocalFolder
-    }
-
     fn is_available(&self) -> bool {
         self.root.is_dir()
     }

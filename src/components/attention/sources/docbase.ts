@@ -83,7 +83,7 @@ export function docbaseNotices(facts: DocbaseFacts, words: Vocabulary = vocabula
         priority: "high",
         title: plural(count("unreadable"), "archivo no se pudo leer", "archivos no se pudieron leer"),
         explanation:
-          "Sin leerlos no se sabe qué documento son: no se comparan con otros ni llegan al wiki.",
+          "Sin leerlos no se sabe qué documento son: no se comparan con otros ni se sabe a quiénes nombran.",
         todo: "Suelen estar abiertos en otro programa o sin descargar del disco en la nube. Cerralos o descargalos; se vuelve a intentar en cada barrido.",
         resolvedWhen: "Desaparece cuando un barrido los lee.",
       }),
@@ -95,7 +95,7 @@ export function docbaseNotices(facts: DocbaseFacts, words: Vocabulary = vocabula
         kind: "problem",
         priority: "high",
         title: plural(count("error"), "documento falló al obtener su texto", "documentos fallaron al obtener su texto"),
-        explanation: "El archivo se leyó, pero no se pudo extraer su texto: no se compara con otros ni llega al wiki.",
+        explanation: "El archivo se leyó, pero no se pudo extraer su texto: no se compara con otros ni se sabe a quiénes nombra.",
         todo: "Mirá el motivo de cada uno. Si el archivo está dañado o protegido, reemplazalo por una copia que se pueda abrir.",
         resolvedWhen: "Desaparece cuando el documento cambia y su texto se obtiene.",
         withReasons: true,
@@ -108,7 +108,7 @@ export function docbaseNotices(facts: DocbaseFacts, words: Vocabulary = vocabula
         kind: "problem",
         priority: "low",
         title: plural(count("too-large"), "archivo es demasiado grande", "archivos son demasiado grandes"),
-        explanation: "Quedan en el inventario, pero no se leen ni se comparan con otros, y no llegan al wiki.",
+        explanation: "Quedan en el inventario, pero no se leen ni se comparan con otros.",
         todo: "Si alguno importa, dividilo en partes más chicas en su carpeta.",
         resolvedWhen: "Desaparece cuando el archivo se achica o se quita.",
       }),
@@ -191,8 +191,8 @@ export function docbaseNotices(facts: DocbaseFacts, words: Vocabulary = vocabula
           "documentos tienen el texto en imagen",
         ),
         explanation:
-          "Son escaneos o fotos. Su texto se reconoce cuando se incorporan al wiki, una sola vez por documento.",
-        todo: `Se reconocen solos mientras el ${words.archive.wiki.toLowerCase()} esté activo.`,
+          "Son escaneos o fotos: su texto está en una imagen y hay que reconocerlo, una sola vez por documento.",
+        todo: "Por ahora quedan sin leer: la base todavía no reconoce sola el texto de las imágenes.",
         resolvedWhen: "Desaparece cuando se reconoce su texto.",
       }),
     )
@@ -278,7 +278,7 @@ export function similarNotice(pending: SimilarPending | null, groups: SimilarGro
       "pares de documentos podrían ser el mismo documento",
     ),
     explanation:
-      "Prácticamente el mismo, un ejemplar firmado o una versión: si se unen, al wiki va uno solo, el que elijas, y no se repite lo que dicen.",
+      "Prácticamente el mismo, un ejemplar firmado o una versión: si se unen, cuenta uno solo, el que elijas, y no se repite lo que dicen.",
     todo: "Unilos con la relación que corresponda, elegí otra o descartalos.",
     resolvedWhen: "Desaparece cuando cada par se une o se descarta.",
     actions: [{ kind: "go", label: "Resolver parecidos", target: { view: "similar", principal: families[0]?.principal.contentId ?? null } }],

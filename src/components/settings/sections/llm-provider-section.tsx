@@ -13,8 +13,6 @@ import { disabledLlmConfig, resolveConfig } from "../preset-resolver"
 import { normalizeEndpoint } from "@/lib/endpoint-normalizer"
 import { AZURE_OPENAI_API_VERSION } from "@/lib/azure-openai"
 import { testLlmConnection, testLlmFunction, type ProviderTestResult } from "@/lib/connection-tests"
-import { projectLlmProfile, resolveProjectLlmConfig } from "@/lib/llm-task-routing"
-import { saveProjectLlmOverride } from "@/lib/project-store"
 import { normalizeReasoningForProvider, resolveReasoningCapabilities } from "@/lib/reasoning-capabilities"
 
 const HTTP_HEADER_NAME_RE = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/
@@ -46,11 +44,7 @@ export function LlmProviderSection() {
   const activePresetId = useWikiStore((s) => s.activePresetId)
   const setActivePresetId = useWikiStore((s) => s.setActivePresetId)
   const setLlmConfig = useWikiStore((s) => s.setLlmConfig)
-  const globalLlmConfig = useWikiStore((s) => s.globalLlmConfig)
-  const setGlobalLlmConfig = useWikiStore((s) => s.setGlobalLlmConfig)
-  const project = useWikiStore((s) => s.project)
-  const projectLlmOverride = useWikiStore((s) => s.projectLlmOverride)
-  const setProjectLlmOverride = useWikiStore((s) => s.setProjectLlmOverride)
+  const llmConfig = useWikiStore((s) => s.llmConfig)
   const taskModelRouting = useWikiStore((s) => s.taskModelRouting)
   const setTaskModelRouting = useWikiStore((s) => s.setTaskModelRouting)
 
@@ -71,9 +65,8 @@ export function LlmProviderSection() {
     if (newActive) {
       const preset = findLlmPreset(newActive, customLlmPresets)
       if (preset) {
-        const resolved = resolveConfig(preset, newConfigs[newActive], globalLlmConfig)
-        setGlobalLlmConfig(resolved)
-        setLlmConfig(resolveProjectLlmConfig(resolved, newConfigs, projectLlmOverride, customLlmPresets))
+        const resolved = resolveConfig(preset, newConfigs[newActive], llmConfig)
+        setLlmConfig(resolved)
         await saveLlmConfig(resolved)
       }
     } else {
@@ -83,9 +76,8 @@ export function LlmProviderSection() {
       // the case where the previous provider was a keyless local CLI.
       // resolveConfig() on re-enable reads from providerConfigs[], not llmConfig,
       // so the cleared values here do not affect the user's saved settings.
-      const cleared = disabledLlmConfig(globalLlmConfig)
-      setGlobalLlmConfig(cleared)
-      setLlmConfig(resolveProjectLlmConfig(cleared, newConfigs, projectLlmOverride, customLlmPresets))
+      const cleared = disabledLlmConfig(llmConfig)
+      setLlmConfig(cleared)
       await saveLlmConfig(cleared)
     }
   }
@@ -100,9 +92,7 @@ export function LlmProviderSection() {
     if (id === activePresetId) {
       const preset = findLlmPreset(id, customLlmPresets)
       if (preset) {
-        const resolved = resolveConfig(preset, merged, globalLlmConfig)
-        setGlobalLlmConfig(resolved)
-        setLlmConfig(resolveProjectLlmConfig(resolved, next, projectLlmOverride, customLlmPresets))
+        setLlmConfig(resolveConfig(preset, merged, llmConfig))
       }
     }
     setSavedId(id)
@@ -170,29 +160,6 @@ export function LlmProviderSection() {
       saveProviderConfigs(nextConfigs),
       saveTaskModelRouting(nextRouting),
     ])
-    if (project && state.projectLlmOverride.presetId === id) {
-      await updateProjectOverride({ enabled: false, presetId: null, model: "" })
-    }
-  }
-
-  async function updateProjectOverride(patch: Partial<typeof projectLlmOverride>) {
-    if (!project) return
-    // Read the latest snapshot synchronously. Multiple input events can arrive
-    // before React re-renders this closure; using the captured value would
-    // discard fields changed by the preceding event.
-    const state = useWikiStore.getState()
-    const current = state.projectLlmOverride
-    const draft = { ...current, ...patch }
-    const resolved = resolveProjectLlmConfig(
-      state.globalLlmConfig,
-      state.providerConfigs,
-      draft,
-      state.customLlmPresets,
-    )
-    const next = { ...draft, profile: draft.enabled ? projectLlmProfile(resolved) : undefined }
-    setProjectLlmOverride(next)
-    setLlmConfig(resolved)
-    await saveProjectLlmOverride(project.id, next)
   }
 
   return (
@@ -203,49 +170,6 @@ export function LlmProviderSection() {
           {t("settings.sections.llm.description")}
         </p>
       </div>
-
-      {project && (
-        <div className="space-y-3 rounded-md border bg-muted/20 p-3">
-          <label className="flex items-center gap-2 text-sm font-medium">
-            <input
-              type="checkbox"
-              checked={projectLlmOverride.enabled}
-              onChange={(event) => void updateProjectOverride({ enabled: event.target.checked }).catch((error) => {
-                console.error("Failed to save project model override:", error)
-              })}
-            />
-            {t("settings.sections.llm.projectOverride.enabled")}
-          </label>
-          {projectLlmOverride.enabled && (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <TaskModelSelect
-                id="project-llm-preset"
-                label={t("settings.sections.llm.projectOverride.provider")}
-                value={projectLlmOverride.presetId ?? ""}
-                onChange={(value) => void updateProjectOverride({ presetId: value || null }).catch((error) => {
-                  console.error("Failed to save project provider:", error)
-                })}
-                fallbackLabel={t("settings.sections.llm.projectOverride.selectProvider")}
-                presets={presets}
-              />
-              <div className="space-y-1.5">
-                <Label htmlFor="project-llm-model">{t("settings.sections.llm.projectOverride.model")}</Label>
-                <Input
-                  id="project-llm-model"
-                  value={projectLlmOverride.model}
-                  placeholder={t("settings.sections.llm.projectOverride.modelPlaceholder")}
-                  onChange={(event) => void updateProjectOverride({ model: event.target.value }).catch((error) => {
-                    console.error("Failed to save project model:", error)
-                  })}
-                />
-              </div>
-            </div>
-          )}
-          <p className="text-xs text-muted-foreground">
-            {t("settings.sections.llm.projectOverride.hint")}
-          </p>
-        </div>
-      )}
 
       <div className="grid gap-3 rounded-md border bg-muted/20 p-3 sm:grid-cols-2">
         <TaskModelSelect
@@ -402,7 +326,7 @@ function PresetRow({
     preset.provider !== "codex-cli"
 
   const resolvedConfig = useMemo(
-    () => resolveConfig(preset, ov, useWikiStore.getState().globalLlmConfig),
+    () => resolveConfig(preset, ov, useWikiStore.getState().llmConfig),
     [apiKey, apiMode, azureApiVersion, azureModelFamily, baseUrl, context, model, preset, reasoning, ov],
   )
 

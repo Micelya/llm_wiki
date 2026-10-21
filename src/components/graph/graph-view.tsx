@@ -10,34 +10,87 @@ import { ErrorBoundary } from "@/components/error-boundary"
 import { useResearchStore } from "@/stores/research-store"
 import { Button } from "@/components/ui/button"
 import { useWikiStore, type GraphColorMode } from "@/stores/wiki-store"
-import { readFile, writeFile } from "@/commands/fs"
-import { WikiEditor } from "@/components/editor/wiki-editor"
-import { FilePreview } from "@/components/editor/file-preview"
-import { buildWikiGraph, type GraphNode, type GraphEdge, type CommunityInfo } from "@/lib/wiki-graph"
-import { findSurprisingConnections, detectKnowledgeGaps, researchSeedForKnowledgeGap, type SurprisingConnection, type KnowledgeGap } from "@/lib/graph-insights"
+import { getKnowledgeOverview } from "@/commands/docbase"
+import { buildBaseGraph, objectOfNode, type GraphNode, type GraphEdge, type CommunityInfo, type GraphRelation } from "@/lib/wiki-graph"
+import { openPageObject } from "@/lib/open-wiki-path"
+import { GRAPH_NODE_TYPES, matterStateInWords, nodeTypeName, relationStateInWords } from "@/lib/graph-words"
+import { findSurprisingConnections, detectKnowledgeGaps, researchNodeForKnowledgeGap, researchSeedForKnowledgeGap, type SurprisingConnection, type KnowledgeGap } from "@/lib/graph-insights"
+import type { ResearchTarget } from "@/lib/deep-research"
 import { queueResearch } from "@/lib/deep-research"
 import { optimizeResearchTopic } from "@/lib/optimize-research-topic"
 import { groundedFallbackResearchQuery } from "@/lib/research-query-grounding"
-import { getFileName, normalizePath } from "@/lib/path-utils"
-import { getFileCategory } from "@/lib/file-types"
 import { applyGraphFilters, hasActiveGraphFilters, type GraphFilterState } from "@/lib/graph-filters"
 import { applyGraphSearch } from "@/lib/graph-search"
 import { HUB_LINK_SHARE, focusLabel, hubLabelThreshold, resolveFocus, shortenLabel, type NodeFocus } from "@/lib/graph-labels"
-import { wikiTypeLabel } from "@/lib/wiki-page-types"
-import { useTranslation } from "react-i18next"
+import { vocabulary } from "@/vocabulary"
 
+/** A color for each kind of node of the base; a proposed matter is a lighter one (D-410). */
 const NODE_TYPE_COLORS: Record<string, string> = {
-  entity: "#60a5fa",    // blue-400
-  concept: "#c084fc",   // purple-400
-  source: "#fb923c",    // orange-400
-  query: "#4ade80",     // green-400
-  synthesis: "#f87171", // red-400
-  overview: "#facc15",  // yellow-400
-  comparison: "#2dd4bf", // teal-400
-  finding: "#a855f7",    // purple-500
-  thesis: "#f43f5e",     // rose-500
-  methodology: "#14b8a6", // teal-500
-  other: "#94a3b8",     // slate-400
+  persona: "#60a5fa",      // blue-400
+  organizacion: "#a78bfa", // violet-400
+  grupo: "#e879f9",        // fuchsia-400
+  documento: "#fb923c",    // orange-400
+  asunto: "#059669",       // emerald-600: a matter a person confirmed
+  other: "#94a3b8",        // slate-400
+}
+const PROPOSED_MATTER_COLOR = "#6ee7b7" // emerald-300
+
+/** The interface's words of the graph. */
+const TEXT = {
+  buildingGraph: "Armando el grafo…",
+  retry: "Reintentar",
+  noPages: "Todavía no hay nada en el grafo",
+  importSourcesHint: "Se arma con lo que la app lee de los documentos de las carpetas incorporadas.",
+  knowledgeGraph: "Grafo",
+  hidden: "ocultos",
+  pages: "nodos",
+  links: "relaciones",
+  searchLabel: "Buscar en el grafo",
+  searchPlaceholder: "Buscar nodos…",
+  clearSearch: "Borrar la búsqueda",
+  closeSearch: "Cerrar la búsqueda",
+  noSearchResults: "Ningún nodo coincide",
+  noVisibleNodes: "No hay nodos visibles",
+  filter: "Filtrar",
+  reset: "Restablecer",
+  resetFilters: "Restablecer los filtros",
+  any: "Cualquiera",
+  showAllTypes: "Mostrar todos los tipos",
+  doubleClickToggle: "Doble clic para mostrar u ocultar",
+  expandLegend: "Mostrar la leyenda",
+  collapseLegend: "Ocultar la leyenda",
+  type: "Tipo",
+  community: "Comunidad",
+  insights: "Análisis",
+  resizing: "Ajustando…",
+  graphFilters: "Filtros del grafo",
+  quickFilters: "Filtros rápidos",
+  hideIsolated: "Ocultar los nodos sin relaciones",
+  minLinks: "Mínimo de relaciones",
+  minLinksHint: "Oculta los nodos con menos",
+  maxLinks: "Máximo de relaciones",
+  maxLinksHint: "Oculta los nodos con más",
+  displayTuning: "Presentación",
+  nodeSize: "Tamaño de los nodos",
+  spacing: "Separación",
+  displayTuningHint: "Sirven para leer un grafo denso en una pantalla chica.",
+  nodeTypes: "Tipos",
+  hiddenNodes: "Nodos ocultos",
+  show: "Mostrar",
+  hideThisNode: "Ocultar este nodo",
+  nodeTypesLabel: "Tipos",
+  communitiesLabel: "Comunidades",
+  showAll: "Mostrar todos",
+  surprisingConnections: "Relaciones que llaman la atención",
+  knowledgeGaps: "Huecos y puntos clave",
+  deepResearch: "Investigar en internet",
+  generatingTopic: "Preparando el tema…",
+  researchTopic: "Tema",
+  searchQueries: "Búsquedas",
+  cancel: "Cancelar",
+  startResearch: "Investigar",
+  dismiss: "Descartar",
+  close: "Cerrar",
 }
 
 const CUSTOM_NODE_COLORS = [
@@ -76,6 +129,7 @@ type GraphThemePalette = {
   mutedNodeMixTarget: string
   dimmedEdge: string
   activeEdge: string
+  edgeLabel: string
 }
 
 const BASE_NODE_SIZE = 8
@@ -85,10 +139,14 @@ const GRAPH_SPACING_DEBOUNCE_MS = 180
 const WORKER_LAYOUT_NODE_THRESHOLD = 220
 
 type HoverState = { node: string; neighbors: Set<string> } | null
-type GraphPreview = {
-  path: string
-  title: string
-  content: string
+/** The relations of an edge under the pointer, or the one tapped (pinned). */
+type EdgeDetail = {
+  source: string
+  target: string
+  relations: GraphRelation[]
+  x: number
+  y: number
+  pinned: boolean
 }
 
 function graphThemePalette(isDark: boolean): GraphThemePalette {
@@ -103,6 +161,7 @@ function graphThemePalette(isDark: boolean): GraphThemePalette {
         mutedNodeMixTarget: "#334155",
         dimmedEdge: "rgba(71,85,105,0.12)",
         activeEdge: "#38bdf8",
+        edgeLabel: "#cbd5e1",
       }
     : {
         defaultEdge: "#cbd5e1",
@@ -114,6 +173,7 @@ function graphThemePalette(isDark: boolean): GraphThemePalette {
         mutedNodeMixTarget: "#e2e8f0",
         dimmedEdge: "rgba(148,163,184,0.22)",
         activeEdge: "#1e293b",
+        edgeLabel: "#475569",
       }
 }
 
@@ -202,7 +262,8 @@ function useResolvedDarkMode(): boolean {
   return isDark
 }
 
-function nodeColor(type: string): string {
+function nodeColor(type: string, confirmation?: string | null): string {
+  if (type === "asunto" && confirmation === "proposed") return PROPOSED_MATTER_COLOR
   if (NODE_TYPE_COLORS[type]) return NODE_TYPE_COLORS[type]
   let hash = 0
   for (const char of type) hash = (hash * 31 + char.charCodeAt(0)) >>> 0
@@ -334,7 +395,9 @@ function GraphLoader({
       const cached = positionCache.get(node.id)
       const color = colorMode === "community"
         ? COMMUNITY_COLORS[node.community % COMMUNITY_COLORS.length]
-        : nodeColor(node.type)
+        : nodeColor(node.type, node.confirmation)
+      // A matter says what a person decided of it, and its status.
+      const state = node.type === "asunto" ? matterStateInWords(node) : ""
       graph.addNode(node.id, {
         type: "circle",
         x: cached?.x ?? Math.random() * 100,
@@ -342,9 +405,8 @@ function GraphLoader({
         size: nodeSize(node.linkCount, maxLinks, nodes.length, nodeScale),
         color,
         label: shortenLabel(node.label),
-        fullLabel: node.label,
+        fullLabel: state ? `${node.label} · ${state}` : node.label,
         nodeType: node.type,
-        nodePath: node.path,
         community: node.community,
       })
     }
@@ -365,8 +427,9 @@ function GraphLoader({
             color,
             size,
             weight: edge.weight,
-            // The relations of the base it stands for (wiki of the archive, D-351).
-            label: edge.relations ? Array.from(new Set(edge.relations.map((r) => r.label))).join(" · ") : undefined,
+            // The relations of the base it stands for (D-351), named on the canvas.
+            label: edge.relations ? shortenLabel(Array.from(new Set(edge.relations.map((r) => r.label))).join(" · ")) : undefined,
+            relations: edge.relations ?? [],
             normalizedWeight,
             sourceNode: edge.source,
             targetNode: edge.target,
@@ -483,12 +546,14 @@ function GraphRenderSettings({
       hideEdgesOnMove: true,
       hideLabelsOnMove: true,
       labelColor: { color: palette.label },
+      edgeLabelColor: { color: palette.edgeLabel },
+      edgeLabelSize: 11,
       labelDensity: labelDensity(nodeCount),
       labelRenderedSizeThreshold: hubLabelThreshold(
         labelSizeThreshold(nodeCount),
         nodeSize(HUB_LINK_SHARE, 1, nodeCount, nodeScale),
       ),
-      renderEdgeLabels: false,
+      renderEdgeLabels: true,
       defaultDrawNodeHover: createGraphNodeHoverRenderer(palette),
       nodeReducer: (node, attrs) => {
         const result = { ...attrs }
@@ -537,10 +602,13 @@ function GraphRenderSettings({
         if ((hasHover && !hoverEdge) || (hasHighlight && !highlightedEdge)) {
           result.color = palette.dimmedEdge
           result.size = 0.3
+          result.label = ""
         }
         if (hoverEdge || highlightedEdge) {
           result.color = palette.activeEdge
           result.size = Math.max(2, (attrs.size ?? 1) * 1.5)
+          // The relations of the node in focus are named.
+          if (hoverEdge) result.forceLabel = true
         }
         return result
       },
@@ -556,11 +624,13 @@ function EventHandler({
   onNodeContextMenu,
   onHoverChange,
   onFocusChange,
+  onEdgeDetail,
 }: {
   onNodeClick: (nodeId: string) => void
   onNodeContextMenu: (nodeId: string, x: number, y: number) => void
   onHoverChange: (state: HoverState) => void
   onFocusChange: (focus: NodeFocus) => void
+  onEdgeDetail: (detail: EdgeDetail | null, leaving?: boolean) => void
 }) {
   const registerEvents = useRegisterEvents()
   const sigma = useSigma()
@@ -571,7 +641,10 @@ function EventHandler({
         onFocusChange({ node, neighbors: new Set(sigma.getGraph().neighbors(node)) })
         onNodeClick(node)
       },
-      clickStage: () => onFocusChange(null),
+      clickStage: () => {
+        onFocusChange(null)
+        onEdgeDetail(null)
+      },
       rightClickNode: (payload: SigmaNodeEventPayload) => {
         payload.preventSigmaDefault()
         payload.event.original.preventDefault()
@@ -590,10 +663,33 @@ function EventHandler({
         container.style.cursor = "default"
         onHoverChange(null)
       },
+      // Over an edge, or tapping it: its relations, with quote and state.
+      enterEdge: ({ edge, event }) => {
+        sigma.getContainer().style.cursor = "pointer"
+        onEdgeDetail(edgeDetailOf(sigma.getGraph(), edge, event.x, event.y, false))
+      },
+      leaveEdge: () => {
+        sigma.getContainer().style.cursor = "default"
+        onEdgeDetail(null, true)
+      },
+      clickEdge: ({ edge, event }) => {
+        onEdgeDetail(edgeDetailOf(sigma.getGraph(), edge, event.x, event.y, true))
+      },
     })
-  }, [registerEvents, sigma, onNodeClick, onNodeContextMenu, onHoverChange, onFocusChange])
+  }, [registerEvents, sigma, onNodeClick, onNodeContextMenu, onHoverChange, onFocusChange, onEdgeDetail])
 
   return null
+}
+
+function edgeDetailOf(graph: Graph, edge: string, x: number, y: number, pinned: boolean): EdgeDetail {
+  return {
+    source: String(graph.getEdgeAttribute(edge, "sourceNode") ?? graph.source(edge)),
+    target: String(graph.getEdgeAttribute(edge, "targetNode") ?? graph.target(edge)),
+    relations: (graph.getEdgeAttribute(edge, "relations") as GraphRelation[] | undefined) ?? [],
+    x,
+    y,
+    pinned,
+  }
 }
 
 function nodeIdFromPayload(payload: SigmaNodeEventPayload): string {
@@ -651,8 +747,6 @@ function ZoomControls() {
 // --- Main component ---
 
 export function GraphView() {
-  const { t } = useTranslation()
-  const project = useWikiStore((s) => s.project)
   const dataVersion = useWikiStore((s) => s.dataVersion)
   const isDarkMode = useResolvedDarkMode()
   const graphPalette = useMemo(() => graphThemePalette(isDarkMode), [isDarkMode])
@@ -685,12 +779,10 @@ export function GraphView() {
   const [graphSearchOpen, setGraphSearchOpen] = useState(false)
   const [graphSearch, setGraphSearch] = useState("")
   const [graphSpacing, setGraphSpacing] = useState(graphSpacingDraft)
-  const [graphPreview, setGraphPreview] = useState<GraphPreview | null>(null)
+  const [edgeDetail, setEdgeDetail] = useState<EdgeDetail | null>(null)
   const [nodeMenu, setNodeMenu] = useState<{ nodeId: string; x: number; y: number } | null>(null)
   const graphContainerRef = useRef<HTMLDivElement>(null)
   const researchDialogTokenRef = useRef(0)
-  // i18n node type labels (populated after mount to support language switching)
-  const [nodeTypeLabels, setNodeTypeLabels] = useState<Record<string, string>>({})
   const graphSearchInputRef = useRef<HTMLInputElement>(null)
 
   const setColorMode = useCallback((colorMode: GraphColorMode) => {
@@ -718,20 +810,18 @@ export function GraphView() {
     topic: string
     queries: string[]
     dismissKey?: string
+    /** The person, organization or matter of the gap: the research is kept of it (P-236). */
+    target?: ResearchTarget
   } | null>(null)
   const lastLoadedVersion = useRef(-1)
   const graphLoadRequest = useRef(0)
 
   const loadGraph = useCallback(async () => {
-    if (!project) return
     const requestId = ++graphLoadRequest.current
     setLoading(true)
     setError(null)
     try {
-      const result = await buildWikiGraph(
-        normalizePath(project.path),
-        useWikiStore.getState().dataVersion,
-      )
+      const result = await buildBaseGraph(useWikiStore.getState().dataVersion)
       if (requestId !== graphLoadRequest.current) return
       setNodes(result.nodes)
       setEdges(result.edges)
@@ -741,29 +831,12 @@ export function GraphView() {
       lastLoadedVersion.current = useWikiStore.getState().dataVersion
     } catch (err) {
       if (requestId !== graphLoadRequest.current) return
-      const message = err instanceof Error ? err.message : "Failed to build graph"
+      const message = err instanceof Error ? err.message : String(err)
       setError(message)
     } finally {
       if (requestId === graphLoadRequest.current) setLoading(false)
     }
-  }, [project])
-
-  // Initialize node type labels when i18n is ready
-  useEffect(() => {
-    setNodeTypeLabels({
-      entity: t("graph.nodeTypeLabels.entity"),
-      concept: t("graph.nodeTypeLabels.concept"),
-      source: t("graph.nodeTypeLabels.source"),
-      query: t("graph.nodeTypeLabels.query"),
-      synthesis: t("graph.nodeTypeLabels.synthesis"),
-      overview: t("graph.nodeTypeLabels.overview"),
-      comparison: t("graph.nodeTypeLabels.comparison"),
-      finding: t("graph.nodeTypeLabels.finding"),
-      thesis: t("graph.nodeTypeLabels.thesis"),
-      methodology: t("graph.nodeTypeLabels.methodology"),
-      other: t("graph.nodeTypeLabels.other"),
-    })
-  }, [t])
+  }, [])
 
   // Spacing changes trigger ForceAtlas2 layout through GraphLoader's dataKey.
   // Keep the slider responsive while debouncing the expensive relayout.
@@ -784,23 +857,20 @@ export function GraphView() {
     return () => window.cancelAnimationFrame(id)
   }, [graphSearchOpen])
 
+  // A node opens the screen of its object: its person or organization,
+  // its matter or its document (D-410).
   const handleNodeClick = useCallback(
-    async (nodeId: string) => {
+    (nodeId: string) => {
       const node = nodes.find((n) => n.id === nodeId)
-      if (!node) return
-      try {
-        const content = await readFile(node.path)
-        setGraphPreview({
-          path: node.path,
-          title: node.label || getFileName(node.path),
-          content,
-        })
-      } catch (err) {
-        console.error("Failed to open wiki page:", err)
-      }
+      if (node) openPageObject(objectOfNode(node))
     },
     [nodes],
   )
+
+  const handleEdgeDetail = useCallback((detail: EdgeDetail | null, leaving?: boolean) => {
+    // Leaving an edge keeps the one a person tapped.
+    setEdgeDetail((current) => (leaving && current?.pinned ? current : detail))
+  }, [])
 
   const handleNodeContextMenu = useCallback((nodeId: string, x: number, y: number) => {
     if (!nodeId) {
@@ -839,21 +909,24 @@ export function GraphView() {
 
   const handleResearchClick = useCallback(async (gap: KnowledgeGap, dismissKey?: string) => {
     const store = useWikiStore.getState()
-    if (!store.project) return
-    const pp = normalizePath(store.project.path)
     const token = researchDialogTokenRef.current + 1
     researchDialogTokenRef.current = token
     const { term: gapTerm, context: gapContext } = researchSeedForKnowledgeGap(gap, nodes)
+    // A research from a node of a person, organization or matter is kept of
+    // that object; of a document or a group of nodes, it is a loose one.
+    const node = researchNodeForKnowledgeGap(gap, nodes)
+    const object = node ? objectOfNode(node) : null
+    const target: ResearchTarget | undefined = node && object && (object.kind === "entity" || object.kind === "matter")
+      ? { objectId: object.objectId, name: node.label }
+      : undefined
 
     // Show loading state
-    setResearchDialog({ loading: true, topic: "", queries: [], dismissKey })
+    setResearchDialog({ loading: true, topic: "", queries: [], dismissKey, target })
 
     try {
-      // Read overview and purpose for context
+      // The overview of the archive, from the base, for context.
       let overview = ""
-      let purpose = ""
-      try { overview = await readFile(`${pp}/wiki/overview.md`) } catch {}
-      try { purpose = await readFile(`${pp}/purpose.md`) } catch {}
+      try { overview = (await getKnowledgeOverview())?.body ?? "" } catch {}
 
       const result = await optimizeResearchTopic(
         store.llmConfig,
@@ -861,10 +934,10 @@ export function GraphView() {
         gapContext,
         gap.type,
         overview,
-        purpose,
+        "",
       )
       if (researchDialogTokenRef.current !== token) return
-      setResearchDialog({ loading: false, topic: result.topic, queries: result.searchQueries, dismissKey })
+      setResearchDialog({ loading: false, topic: result.topic, queries: result.searchQueries, dismissKey, target })
     } catch {
       if (researchDialogTokenRef.current !== token) return
       setResearchDialog({
@@ -872,6 +945,7 @@ export function GraphView() {
         topic: gapTerm,
         queries: [groundedFallbackResearchQuery(gapTerm, gapContext)],
         dismissKey,
+        target,
       })
     }
   }, [nodes])
@@ -879,13 +953,11 @@ export function GraphView() {
   const handleResearchConfirm = useCallback(() => {
     if (!researchDialog) return
     const store = useWikiStore.getState()
-    if (!store.project) return
     queueResearch(
-      normalizePath(store.project.path),
       researchDialog.topic,
       store.llmConfig,
       store.searchApiConfig,
-      researchDialog.queries,
+      { searchQueries: researchDialog.queries, target: researchDialog.target },
     )
     if (researchDialog.dismissKey) {
       setDismissedInsights((prev) => new Set([...prev, researchDialog.dismissKey!]))
@@ -900,7 +972,7 @@ export function GraphView() {
 
   // 1. Detect panel open/close (local graph preview, researchPanel, insights)
   const researchPanelForLayout = useResearchStore((s) => s.panelOpen)
-  const layoutKey = `${!!graphPreview}-${researchPanelForLayout}-${showInsights}`
+  const layoutKey = `${researchPanelForLayout}-${showInsights}`
   const prevLayoutKey = useRef(layoutKey)
 
   useEffect(() => {
@@ -939,13 +1011,37 @@ export function GraphView() {
     acc[n.type] = (acc[n.type] ?? 0) + 1
     return acc
   }, {})
+  // What each kind of node is called, in the vocabulary's words; the
+  // kinds of the base first, any other kind of entity after.
   const nodeTypeLabelMap = useMemo(() => {
-    const labels = { ...nodeTypeLabels }
-    for (const type of Object.keys(typeCounts)) {
-      labels[type] ??= wikiTypeLabel(type)
+    const words = vocabulary()
+    const labels: Record<string, string> = {}
+    for (const type of [...GRAPH_NODE_TYPES, ...Object.keys(typeCounts).sort()]) {
+      labels[type] ??= nodeTypeName(type, true, words)
     }
     return labels
-  }, [nodeTypeLabels, typeCounts])
+  }, [typeCounts])
+  const matterCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const node of nodes) {
+      if (node.type === "asunto" && node.confirmation) counts[node.confirmation] = (counts[node.confirmation] ?? 0) + 1
+    }
+    return counts
+  }, [nodes])
+  const matterStates = vocabulary().knowledge.matterStates
+  const confirmationLabels: [string, string][] = [
+    ["confirmed", matterStates.confirmed],
+    ["proposed", matterStates.proposed],
+  ]
+  const toggleConfirmation = useCallback((confirmation: string) => {
+    setFilters((prev) => {
+      const next = new Set(prev.hiddenConfirmations)
+      if (next.has(confirmation)) next.delete(confirmation)
+      else next.add(confirmation)
+      return { ...prev, hiddenConfirmations: next }
+    })
+  }, [setFilters])
+  const nodeLabel = useCallback((id: string) => nodes.find((n) => n.id === id)?.label ?? id, [nodes])
 
   const filteredGraph = useMemo(
     () => applyGraphFilters(nodes, edges, filters),
@@ -960,20 +1056,11 @@ export function GraphView() {
   const filtersActive = hasActiveGraphFilters(filters)
   const contextNode = nodeMenu ? nodes.find((node) => node.id === nodeMenu.nodeId) : null
 
-  if (!project) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
-        <Network className="h-10 w-10 opacity-30" />
-        <p className="text-sm">{t("graph.openProject")}</p>
-      </div>
-    )
-  }
-
   if (loading) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
         <RefreshCw className="h-8 w-8 animate-spin opacity-50" />
-        <p className="text-sm">{t("graph.buildingGraph")}</p>
+        <p className="text-sm">{TEXT.buildingGraph}</p>
       </div>
     )
   }
@@ -983,7 +1070,7 @@ export function GraphView() {
       <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
         <Network className="h-10 w-10 opacity-30" />
         <p className="text-sm text-destructive">{error}</p>
-        <Button variant="outline" size="sm" onClick={loadGraph}>{t("graph.retry")}</Button>
+        <Button variant="outline" size="sm" onClick={loadGraph}>{TEXT.retry}</Button>
       </div>
     )
   }
@@ -992,8 +1079,8 @@ export function GraphView() {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
         <Network className="h-10 w-10 opacity-30" />
-        <p className="text-sm">{t("graph.noPages")}</p>
-        <p className="text-xs">{t("graph.importSourcesHint")}</p>
+        <p className="text-sm">{TEXT.noPages}</p>
+        <p className="text-xs">{TEXT.importSourcesHint}</p>
       </div>
     )
   }
@@ -1005,14 +1092,14 @@ export function GraphView() {
         <div className="flex min-w-0 flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
             <Network className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium">{t("graph.knowledgeGraph")}</span>
+            <span className="text-sm font-medium">{TEXT.knowledgeGraph}</span>
           </div>
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span className="rounded bg-muted px-1.5 py-0.5">{searchedGraph.nodes.length}/{nodes.length} {t("graph.pages", { count: nodes.length })}</span>
-            <span className="rounded bg-muted px-1.5 py-0.5">{searchedGraph.edges.length}/{edges.length} {t("graph.links", { count: edges.length })}</span>
+            <span className="rounded bg-muted px-1.5 py-0.5">{searchedGraph.nodes.length}/{nodes.length} {TEXT.pages}</span>
+            <span className="rounded bg-muted px-1.5 py-0.5">{searchedGraph.edges.length}/{edges.length} {TEXT.links}</span>
             {hiddenCount > 0 && (
               <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-amber-700 dark:text-amber-300">
-                {hiddenCount} {t("graph.hidden")}
+                {hiddenCount} {TEXT.hidden}
               </span>
             )}
           </div>
@@ -1032,8 +1119,8 @@ export function GraphView() {
                   }
                 }}
                 className="h-7 w-full rounded-md border bg-background pl-7 pr-7 text-xs outline-none placeholder:text-muted-foreground focus:border-ring"
-                placeholder={t("graph.searchPlaceholder")}
-                aria-label={t("graph.searchLabel")}
+                placeholder={TEXT.searchPlaceholder}
+                aria-label={TEXT.searchLabel}
               />
               <button
                 type="button"
@@ -1045,8 +1132,8 @@ export function GraphView() {
                   }
                   setGraphSearchOpen(false)
                 }}
-                aria-label={searchActive ? t("graph.clearSearch") : t("graph.closeSearch")}
-                title={searchActive ? t("graph.clearSearch") : t("graph.closeSearch")}
+                aria-label={searchActive ? TEXT.clearSearch : TEXT.closeSearch}
+                title={searchActive ? TEXT.clearSearch : TEXT.closeSearch}
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -1057,8 +1144,8 @@ export function GraphView() {
               size="sm"
               onClick={() => setGraphSearchOpen(true)}
               className="text-xs gap-1 h-7"
-              aria-label={t("graph.searchLabel")}
-              title={t("graph.searchLabel")}
+              aria-label={TEXT.searchLabel}
+              title={TEXT.searchLabel}
             >
               <Search className="h-3.5 w-3.5" />
             </Button>
@@ -1070,7 +1157,7 @@ export function GraphView() {
             className="text-xs gap-1 h-7"
           >
             <Filter className="h-3 w-3" />
-            {t("graph.filter")}
+            {TEXT.filter}
           </Button>
           {filtersActive && (
             <Button
@@ -1078,10 +1165,10 @@ export function GraphView() {
               size="sm"
               onClick={resetFilters}
               className="text-xs gap-1 h-7"
-              title={t("graph.resetFilters")}
+              title={TEXT.resetFilters}
             >
               <RotateCcw className="h-3 w-3" />
-              {t("graph.reset")}
+              {TEXT.reset}
             </Button>
           )}
           <Button
@@ -1091,7 +1178,7 @@ export function GraphView() {
             className="text-xs gap-1 h-7"
           >
             <Tag className="h-3 w-3" />
-            {t("graph.type")}
+            {TEXT.type}
           </Button>
           <Button
             variant={colorMode === "community" ? "secondary" : "ghost"}
@@ -1100,7 +1187,7 @@ export function GraphView() {
             className="text-xs gap-1 h-7"
           >
             <Layers className="h-3 w-3" />
-            {t("graph.community")}
+            {TEXT.community}
           </Button>
           {(surprisingConns.filter((c) => !dismissedInsights.has(c.key)).length > 0 || visibleKnowledgeGaps.length > 0) && (
             <Button
@@ -1115,7 +1202,7 @@ export function GraphView() {
               className="text-xs gap-1 h-7"
             >
               <Lightbulb className="h-3 w-3" />
-              {t("graph.insights")}
+              {TEXT.insights}
               <span className="rounded bg-muted px-1 text-[10px]">
                 {surprisingConns.filter((c) => !dismissedInsights.has(c.key)).length + visibleKnowledgeGaps.length}
               </span>
@@ -1138,7 +1225,7 @@ export function GraphView() {
         >
           {isResizing ? (
             <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-              {t("graph.resizing")}
+              {TEXT.resizing}
             </div>
           ) : (
             <>
@@ -1148,7 +1235,8 @@ export function GraphView() {
                   style={{ width: "100%", height: "100%", background: "transparent" }}
                   settings={{
                     defaultNodeType: "circle",
-                    renderEdgeLabels: false,
+                    renderEdgeLabels: true,
+                    enableEdgeEvents: true,
                     hideEdgesOnMove: true,
                     hideLabelsOnMove: true,
                     defaultEdgeColor: graphPalette.defaultEdge,
@@ -1172,6 +1260,7 @@ export function GraphView() {
                     onNodeContextMenu={handleNodeContextMenu}
                     onHoverChange={setHoverState}
                     onFocusChange={setPinnedFocus}
+                    onEdgeDetail={handleEdgeDetail}
                   />
                   <GraphRenderSettings
                     hoverState={hoverState}
@@ -1188,7 +1277,7 @@ export function GraphView() {
               {searchedGraph.nodes.length === 0 && (
                 <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-slate-50/85 text-muted-foreground backdrop-blur-[1px] dark:bg-slate-950/85">
                   <Search className="h-8 w-8 opacity-40" />
-                  <p className="text-sm">{searchActive ? t("graph.noSearchResults") : t("graph.noVisibleNodes")}</p>
+                  <p className="text-sm">{searchActive ? TEXT.noSearchResults : TEXT.noVisibleNodes}</p>
                   {searchActive && (
                     <Button
                       variant="outline"
@@ -1196,7 +1285,7 @@ export function GraphView() {
                       className="pointer-events-auto"
                       onClick={() => setGraphSearch("")}
                     >
-                      {t("graph.clearSearch")}
+                      {TEXT.clearSearch}
                     </Button>
                   )}
                 </div>
@@ -1204,12 +1293,46 @@ export function GraphView() {
             </>
           )}
 
+          {edgeDetail && edgeDetail.relations.length > 0 && (
+            <div
+              className="absolute z-20 max-w-xs rounded-md border bg-background/95 px-3 py-2 text-xs shadow-lg backdrop-blur-sm"
+              style={{ left: edgeDetail.x + 12, top: edgeDetail.y + 12 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="mb-1 flex items-start justify-between gap-2">
+                <span className="font-medium text-foreground">
+                  {nodeLabel(edgeDetail.source)} — {nodeLabel(edgeDetail.target)}
+                </span>
+                {edgeDetail.pinned && (
+                  <button
+                    type="button"
+                    className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent"
+                    onClick={() => setEdgeDetail(null)}
+                    aria-label={TEXT.close}
+                    title={TEXT.close}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+              <ul className="space-y-1">
+                {edgeDetail.relations.map((relation, index) => (
+                  <li key={`${relation.family}-${relation.kind}-${index}`}>
+                    <span className="text-foreground">{relation.label}</span>
+                    <span className="text-muted-foreground"> · {relationStateInWords(relation)}</span>
+                    {relation.quote && <div className="italic text-muted-foreground">«{relation.quote}»</div>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {showFilters && (
             <div className="absolute top-3 left-3 w-72 rounded-lg border bg-background/95 p-3 text-xs shadow-lg backdrop-blur-sm">
               <div className="mb-3 flex items-center justify-between">
                 <div className="flex items-center gap-1.5 font-semibold text-foreground">
                   <Filter className="h-3.5 w-3.5" />
-                  {t("graph.graphFilters")}
+                  {TEXT.graphFilters}
                 </div>
                 <Button
                   variant="ghost"
@@ -1217,33 +1340,25 @@ export function GraphView() {
                   className="h-6 px-1.5 text-[10px]"
                   onClick={resetFilters}
                 >
-                  {t("graph.reset")}
+                  {TEXT.reset}
                 </Button>
               </div>
 
               <div className="space-y-3">
                 <div className="space-y-1.5">
-                  <div className="font-medium text-muted-foreground">{t("graph.quickFilters")}</div>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={filters.hideStructural}
-                      onChange={(e) => setFilters((prev) => ({ ...prev, hideStructural: e.target.checked }))}
-                    />
-                    <span>{t("graph.hideIndexOverview")}</span>
-                  </label>
+                  <div className="font-medium text-muted-foreground">{TEXT.quickFilters}</div>
                   <label className="flex items-center gap-2">
                     <input
                       type="checkbox"
                       checked={filters.hideIsolated}
                       onChange={(e) => setFilters((prev) => ({ ...prev, hideIsolated: e.target.checked }))}
                     />
-                    <span>{t("graph.hideIsolated")}</span>
+                    <span>{TEXT.hideIsolated}</span>
                   </label>
                 </div>
 
                 <div className="space-y-1.5">
-                  <div className="font-medium text-muted-foreground">{t("graph.minLinks")}</div>
+                  <div className="font-medium text-muted-foreground">{TEXT.minLinks}</div>
                   <div className="flex items-center gap-2">
                     <input
                       type="number"
@@ -1258,14 +1373,14 @@ export function GraphView() {
                           minLinks: raw === "" || !Number.isFinite(value) ? undefined : Math.max(0, value),
                         }))
                       }}
-                      placeholder={t("graph.any")}
+                      placeholder={TEXT.any}
                     />
-                    <span className="text-muted-foreground">{t("graph.minLinksHint")}</span>
+                    <span className="text-muted-foreground">{TEXT.minLinksHint}</span>
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
-                  <div className="font-medium text-muted-foreground">{t("graph.maxLinks")}</div>
+                  <div className="font-medium text-muted-foreground">{TEXT.maxLinks}</div>
                   <div className="flex items-center gap-2">
                     <input
                       type="number"
@@ -1280,17 +1395,17 @@ export function GraphView() {
                           maxLinks: raw === "" || !Number.isFinite(value) ? undefined : Math.max(0, value),
                         }))
                       }}
-                      placeholder={t("graph.any")}
+                      placeholder={TEXT.any}
                     />
-                    <span className="text-muted-foreground">{t("graph.maxLinksHint")}</span>
+                    <span className="text-muted-foreground">{TEXT.maxLinksHint}</span>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <div className="font-medium text-muted-foreground">{t("graph.displayTuning")}</div>
+                  <div className="font-medium text-muted-foreground">{TEXT.displayTuning}</div>
                   <label className="block space-y-1">
                     <div className="flex items-center justify-between">
-                      <span>{t("graph.nodeSize")}</span>
+                      <span>{TEXT.nodeSize}</span>
                       <span className="text-muted-foreground">{Math.round(nodeScale * 100)}%</span>
                     </div>
                     <input
@@ -1305,7 +1420,7 @@ export function GraphView() {
                   </label>
                   <label className="block space-y-1">
                     <div className="flex items-center justify-between">
-                      <span>{t("graph.spacing")}</span>
+                      <span>{TEXT.spacing}</span>
                       <span className="text-muted-foreground">{Math.round(graphSpacingDraft * 100)}%</span>
                     </div>
                     <input
@@ -1319,12 +1434,12 @@ export function GraphView() {
                     />
                   </label>
                   <p className="text-[11px] leading-relaxed text-muted-foreground">
-                    {t("graph.displayTuningHint")}
+                    {TEXT.displayTuningHint}
                   </p>
                 </div>
 
                 <div className="space-y-1.5">
-                  <div className="font-medium text-muted-foreground">{t("graph.nodeTypes")}</div>
+                  <div className="font-medium text-muted-foreground">{TEXT.nodeTypes}</div>
                   <div className="grid grid-cols-2 gap-1">
                     {Object.entries(nodeTypeLabelMap)
                       .filter(([type]) => (typeCounts[type] ?? 0) > 0)
@@ -1349,9 +1464,28 @@ export function GraphView() {
                   </div>
                 </div>
 
+                {(matterCounts.proposed ?? 0) + (matterCounts.confirmed ?? 0) > 0 && (
+                  <div className="space-y-1.5">
+                    <div className="font-medium text-muted-foreground">{vocabulary().knowledge.matters}</div>
+                    <div className="grid grid-cols-2 gap-1">
+                      {confirmationLabels.map(([confirmation, label]) => (
+                        <label key={confirmation} className="flex min-w-0 items-center gap-1.5">
+                          <input
+                            type="checkbox"
+                            checked={!filters.hiddenConfirmations.has(confirmation)}
+                            onChange={() => toggleConfirmation(confirmation)}
+                          />
+                          <span className="truncate">{label}</span>
+                          <span className="text-muted-foreground/60">{matterCounts[confirmation] ?? 0}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {filters.hiddenNodeIds.size > 0 && (
                   <div className="space-y-1.5">
-                    <div className="font-medium text-muted-foreground">{t("graph.hiddenNodes")}</div>
+                    <div className="font-medium text-muted-foreground">{TEXT.hiddenNodes}</div>
                     <div className="max-h-24 space-y-1 overflow-y-auto">
                       {[...filters.hiddenNodeIds].map((nodeId) => {
                         const node = nodes.find((n) => n.id === nodeId)
@@ -1367,7 +1501,7 @@ export function GraphView() {
                                 return { ...prev, hiddenNodeIds: next }
                               })}
                             >
-                              {t("graph.show")}
+                              {TEXT.show}
                             </button>
                           </div>
                         )
@@ -1377,7 +1511,7 @@ export function GraphView() {
                 )}
 
                 <div className="rounded bg-muted/50 px-2 py-1.5 text-muted-foreground">
-                  {t("graph.showingStats", { pages: filteredGraph.nodes.length, total: nodes.length, links: filteredGraph.edges.length, totalLinks: edges.length })}
+                  {`Se ven ${filteredGraph.nodes.length} de ${nodes.length} nodos y ${filteredGraph.edges.length} de ${edges.length} relaciones.`}
                 </div>
               </div>
             </div>
@@ -1391,7 +1525,7 @@ export function GraphView() {
             >
               <div className="border-b px-3 py-2">
                 <div className="truncate font-medium text-foreground">{contextNode.label}</div>
-                <div className="text-muted-foreground">{contextNode.linkCount} links</div>
+                <div className="text-muted-foreground">{nodeTypeName(contextNode.type)} · {contextNode.linkCount} {TEXT.links}</div>
               </div>
               <button
                 type="button"
@@ -1405,7 +1539,7 @@ export function GraphView() {
                 }}
               >
                 <EyeOff className="h-3.5 w-3.5" />
-                {t("graph.hideThisNode")}
+                {TEXT.hideThisNode}
               </button>
             </div>
           )}
@@ -1414,18 +1548,18 @@ export function GraphView() {
           <div className="absolute bottom-3 left-3 rounded-lg border bg-background/90 backdrop-blur-sm px-3 py-2 text-xs shadow-sm max-w-[260px]">
             <div className="flex items-center justify-between mb-1.5">
               <span className="font-semibold text-foreground">
-                {colorMode === "type" ? t("graph.nodeTypesLabel") : t("graph.communitiesLabel")}
+                {colorMode === "type" ? TEXT.nodeTypesLabel : TEXT.communitiesLabel}
               </span>
               <div className="flex items-center gap-1">
-                {colorMode === "type" && filters.hiddenTypes.size > 0 && (
+                {colorMode === "type" && (filters.hiddenTypes.size > 0 || filters.hiddenConfirmations.size > 0) && (
                   <Button
                     variant="ghost"
                     size="sm"
                     className="h-6 text-[10px] px-1"
-                    onClick={() => setFilters((prev) => ({ ...prev, hiddenTypes: new Set() }))}
-                    title={t("graph.showAllTypes")}
+                    onClick={() => setFilters((prev) => ({ ...prev, hiddenTypes: new Set(), hiddenConfirmations: new Set() }))}
+                    title={TEXT.showAllTypes}
                   >
-                    {t("graph.showAll")}
+                    {TEXT.showAll}
                   </Button>
                 )}
                 <Button
@@ -1433,7 +1567,7 @@ export function GraphView() {
                   size="sm"
                   className="h-6 w-6 p-0"
                   onClick={() => setLegendCollapsed(!legendCollapsed)}
-                  title={legendCollapsed ? t("graph.expandLegend") : t("graph.collapseLegend")}
+                  title={legendCollapsed ? TEXT.expandLegend : TEXT.collapseLegend}
                 >
                   {legendCollapsed ? "▶" : "▼"}
                 </Button>
@@ -1445,15 +1579,29 @@ export function GraphView() {
                   <div className="flex flex-col gap-0.5" style={{ direction: "ltr" }}>
                     {Object.entries(nodeTypeLabelMap)
                       .filter(([type]) => (typeCounts[type] ?? 0) > 0)
-                      .map(([type, label]) => {
-                        const isHidden = filters.hiddenTypes.has(type)
+                      .flatMap(([type, label]) => {
+                        // A matter's entry is two: confirmed and proposed, by color.
+                        if (type === "asunto") {
+                          return confirmationLabels
+                            .filter(([confirmation]) => (matterCounts[confirmation] ?? 0) > 0)
+                            .map(([confirmation, state]) => ({ key: `asunto-${confirmation}`, type, confirmation, label: `${label} · ${state.toLowerCase()}`, count: matterCounts[confirmation] ?? 0 }))
+                        }
+                        return [{ key: type, type, confirmation: null as string | null, label, count: typeCounts[type] ?? 0 }]
+                      })
+                      .map(({ key, type, confirmation, label, count }) => {
+                        const isHidden = filters.hiddenTypes.has(type) || (confirmation !== null && filters.hiddenConfirmations.has(confirmation))
+                        const swatch = isHidden ? "#94a3b8" : nodeColor(type, confirmation)
                         return (
                           <div
-                            key={type}
+                            key={key}
                             className={`flex items-center gap-2 rounded px-1 py-0.5 transition-colors hover:bg-accent/50 ${isHidden ? "opacity-40" : ""}`}
-                            onMouseEnter={() => setHoveredType(type)}
+                            onMouseEnter={() => setHoveredType(key)}
                             onMouseLeave={() => setHoveredType(null)}
                             onDoubleClick={() => {
+                              if (confirmation !== null) {
+                                toggleConfirmation(confirmation)
+                                return
+                              }
                               setFilters((prev) => {
                                 const next = new Set(prev.hiddenTypes)
                                 if (next.has(type)) {
@@ -1464,20 +1612,20 @@ export function GraphView() {
                                 return { ...prev, hiddenTypes: next }
                               })
                             }}
-                            title={t("graph.doubleClickToggle")}
+                            title={TEXT.doubleClickToggle}
                           >
                             <span
                               className="inline-block h-3 w-3 rounded-full shrink-0 shadow-sm"
                               style={{
-                                backgroundColor: isHidden ? "#94a3b8" : nodeColor(type),
-                                boxShadow: `0 0 4px ${hexToRgba(isHidden ? "#94a3b8" : nodeColor(type), 0.4)}`,
+                                backgroundColor: swatch,
+                                boxShadow: `0 0 4px ${hexToRgba(swatch, 0.4)}`,
                               }}
                             />
-                            <span className={hoveredType === type ? "text-foreground font-medium" : "text-muted-foreground"}>
+                            <span className={hoveredType === key ? "text-foreground font-medium" : "text-muted-foreground"}>
                               {label}
                             </span>
-                            <span className="text-muted-foreground/60 ml-auto">{typeCounts[type]}</span>
-                            {isHidden && <span className="text-muted-foreground/60 text-[10px]">{t("graph.hidden")}</span>}
+                            <span className="text-muted-foreground/60 ml-auto">{count}</span>
+                            {isHidden && <span className="text-muted-foreground/60 text-[10px]">{TEXT.hidden}</span>}
                           </div>
                         )
                       })}
@@ -1499,15 +1647,13 @@ export function GraphView() {
                         }}
                       />
                       <span className="text-muted-foreground truncate" title={c.topNodes.join(", ")}>
-                        {c.topNodes[0] ?? `${t("graph.cluster", { id: c.id })}`}
+                        {c.topNodes[0] ?? `Comunidad ${c.id + 1}`}
                       </span>
                       <span className="text-muted-foreground/60 ml-auto shrink-0">{c.nodeCount}</span>
                       {c.meanIntraDegree < 2 && c.nodeCount >= 3 && (
                         <span
                           className="text-amber-500 shrink-0"
-                          title={t("graph.lowInternalConnectivity", {
-                            count: c.meanIntraDegree.toFixed(1),
-                          })}
+                          title={`Poco relacionada por dentro: ${c.meanIntraDegree.toFixed(1)} relaciones por nodo`}
                         >
                           !
                         </span>
@@ -1528,7 +1674,7 @@ export function GraphView() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Lightbulb className="h-4 w-4 text-amber-500" />
-                  <span className="text-sm font-medium">{t("graph.insights")}</span>
+                  <span className="text-sm font-medium">{TEXT.insights}</span>
                 </div>
                 <button
                   className="p-1 rounded hover:bg-muted text-muted-foreground"
@@ -1548,7 +1694,7 @@ export function GraphView() {
                 <div>
                   <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-foreground">
                     <Link2 className="h-3.5 w-3.5 text-blue-500" />
-                    {t("graph.surprisingConnections")}
+                    {TEXT.surprisingConnections}
                   </div>
                   <div className="flex flex-col gap-2">
                     {surprisingConns
@@ -1592,7 +1738,7 @@ export function GraphView() {
                 <div>
                   <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-foreground">
                     <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
-                    {t("graph.knowledgeGaps")}
+                    {TEXT.knowledgeGaps}
                   </div>
                   <div className="flex flex-col gap-2">
                     {visibleKnowledgeGaps.map((gap, i) => {
@@ -1611,7 +1757,7 @@ export function GraphView() {
                             <div className="font-medium text-xs text-foreground">{gap.title}</div>
                             <button
                               className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-destructive/20 hover:text-destructive"
-                              title={t("common.dismiss")}
+                              title={TEXT.dismiss}
                               onClick={(e) => {
                                 e.stopPropagation()
                                 dismissInsight(gapKey, ids)
@@ -1632,7 +1778,7 @@ export function GraphView() {
                             }}
                           >
                             <Search className="h-3.5 w-3.5" />
-                            {t("graph.deepResearch")}
+                            {TEXT.deepResearch}
                           </Button>
                         </div>
                       )
@@ -1643,13 +1789,6 @@ export function GraphView() {
             </div>
           </div>
         )}
-        {graphPreview && (
-          <GraphPreviewPanel
-            preview={graphPreview}
-            onClose={() => setGraphPreview(null)}
-            onContentChange={(content) => setGraphPreview((prev) => prev ? { ...prev, content } : prev)}
-          />
-        )}
       </div>
 
       {/* Research Topic Confirmation Dialog */}
@@ -1659,7 +1798,7 @@ export function GraphView() {
             <div className="flex items-center justify-between border-b px-4 py-3">
               <div className="flex items-center gap-2">
                 <Search className="h-4 w-4 text-primary" />
-                <span className="font-medium text-sm">{t("graph.deepResearch")}</span>
+                <span className="font-medium text-sm">{TEXT.deepResearch}</span>
               </div>
               <button
                 className="p-1 rounded hover:bg-muted text-muted-foreground"
@@ -1675,12 +1814,12 @@ export function GraphView() {
             {researchDialog.loading ? (
               <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                {t("graph.generatingTopic")}
+                {TEXT.generatingTopic}
               </div>
             ) : (
               <div className="p-4">
                 <div className="mb-3">
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">{t("graph.researchTopic")}</label>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">{TEXT.researchTopic}</label>
                   <input
                     type="text"
                     className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
@@ -1692,8 +1831,13 @@ export function GraphView() {
                     }
                   />
                 </div>
+                <p className="mb-3 text-xs text-muted-foreground">
+                  {researchDialog.target
+                    ? `Se guarda en la página de ${researchDialog.target.name}, aparte de lo que dicen los documentos.`
+                    : "Se guarda como investigación suelta, en el panel de investigación."}
+                </p>
                 <div className="mb-4">
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">{t("graph.searchQueries")}</label>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">{TEXT.searchQueries}</label>
                   <div className="flex flex-col gap-1.5">
                     {researchDialog.queries.map((q, idx) => (
                       <input
@@ -1722,7 +1866,7 @@ export function GraphView() {
                       setResearchDialog(null)
                     }}
                   >
-                    {t("graph.cancel")}
+                    {TEXT.cancel}
                   </Button>
                   <Button
                     variant="default"
@@ -1731,7 +1875,7 @@ export function GraphView() {
                     onClick={handleResearchConfirm}
                   >
                     <Search className="h-3.5 w-3.5" />
-                    {t("graph.startResearch")}
+                    {TEXT.startResearch}
                   </Button>
                 </div>
               </div>
@@ -1740,85 +1884,6 @@ export function GraphView() {
         </div>
       )}
 
-    </div>
-  )
-}
-
-function GraphPreviewPanel({
-  preview,
-  onClose,
-  onContentChange,
-}: {
-  preview: GraphPreview
-  onClose: () => void
-  onContentChange: (content: string) => void
-}) {
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const lastSavedRef = useRef(preview.content)
-  const category = getFileCategory(preview.path)
-
-  useEffect(() => {
-    lastSavedRef.current = preview.content
-  }, [preview.path, preview.content])
-
-  useEffect(() => {
-    return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    }
-  }, [])
-
-  const writeNow = useCallback((markdown: string) => {
-    writeFile(preview.path, markdown)
-      .then(() => {
-        lastSavedRef.current = markdown
-        onContentChange(markdown)
-      })
-      .catch((err) => console.error("Failed to save graph preview:", err))
-  }, [onContentChange, preview.path])
-
-  const handleSave = useCallback((markdown: string, options?: { immediate?: boolean }) => {
-    if (markdown === lastSavedRef.current) return
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    if (options?.immediate) {
-      onContentChange(markdown)
-      writeNow(markdown)
-      return
-    }
-    saveTimerRef.current = setTimeout(() => {
-      writeNow(markdown)
-    }, 1000)
-  }, [onContentChange, writeNow])
-
-  return (
-    <div className="flex w-[420px] min-w-[320px] max-w-[50vw] shrink-0 flex-col border-l bg-background">
-      <div className="flex items-center justify-between border-b px-3 py-1.5">
-        <span className="truncate text-xs text-muted-foreground" title={preview.path}>
-          {preview.title}
-        </span>
-        <button
-          type="button"
-          onClick={onClose}
-          className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
-      </div>
-      <div className="min-w-0 flex-1 overflow-auto">
-        {category === "markdown" ? (
-          <WikiEditor
-            key={preview.path}
-            content={preview.content}
-            onSave={handleSave}
-            filePath={preview.path}
-          />
-        ) : (
-          <FilePreview
-            key={preview.path}
-            filePath={preview.path}
-            textContent={preview.content}
-          />
-        )}
-      </div>
     </div>
   )
 }

@@ -4,7 +4,8 @@ import { shouldHideNodeType } from "@/lib/graph-visibility"
 export interface GraphFilterState {
   hiddenTypes: ReadonlySet<string>
   hiddenNodeIds: ReadonlySet<string>
-  hideStructural: boolean
+  /** The matters hidden by what a person decided of them: `proposed`, `confirmed`. */
+  hiddenConfirmations: ReadonlySet<string>
   hideIsolated: boolean
   minLinks?: number
   maxLinks?: number
@@ -19,27 +20,10 @@ export interface FilteredGraph {
 export const DEFAULT_GRAPH_FILTERS: GraphFilterState = {
   hiddenTypes: new Set(),
   hiddenNodeIds: new Set(),
-  hideStructural: true,
+  hiddenConfirmations: new Set(),
   hideIsolated: false,
   minLinks: undefined,
   maxLinks: undefined,
-}
-
-const STRUCTURAL_IDS = new Set(["index", "overview", "log", "schema", "purpose"])
-
-export function isStructuralGraphNode(node: Pick<GraphNode, "id" | "path" | "type">): boolean {
-  const id = node.id.toLowerCase()
-  if (STRUCTURAL_IDS.has(id)) return true
-  if (node.type === "overview") return true
-
-  const normalizedPath = node.path.replace(/\\/g, "/").toLowerCase()
-  return (
-    normalizedPath.endsWith("/wiki/index.md") ||
-    normalizedPath.endsWith("/wiki/overview.md") ||
-    normalizedPath.endsWith("/wiki/log.md") ||
-    normalizedPath.endsWith("/purpose.md") ||
-    normalizedPath.endsWith("/schema.md")
-  )
 }
 
 export function applyGraphFilters(
@@ -58,7 +42,7 @@ export function applyGraphFilters(
       hiddenNodeIds.add(node.id)
       continue
     }
-    if (filters.hideStructural && isStructuralGraphNode(node)) {
+    if (node.confirmation && filters.hiddenConfirmations.has(node.confirmation)) {
       hiddenNodeIds.add(node.id)
       continue
     }
@@ -86,10 +70,10 @@ export function applyGraphFilters(
 
 export function hasActiveGraphFilters(filters: GraphFilterState): boolean {
   return (
-    filters.hideStructural ||
     filters.hideIsolated ||
     filters.hiddenTypes.size > 0 ||
     filters.hiddenNodeIds.size > 0 ||
+    filters.hiddenConfirmations.size > 0 ||
     filters.minLinks !== undefined ||
     filters.maxLinks !== undefined
   )

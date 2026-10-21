@@ -1,11 +1,7 @@
 import { useState, type ReactNode } from "react"
-import { getGeneralProject } from "@/commands/docbase"
-import { isSameProjectPath } from "@/lib/docbase-wiki-bridge"
-import { normalizePath } from "@/lib/path-utils"
 import { useDocbaseStore } from "@/stores/docbase-store"
 import { useKnowledgeStore } from "@/stores/knowledge-store"
 import { useWikiStore } from "@/stores/wiki-store"
-import { useDocbaseQuery } from "@/components/docbase/use-docbase-query"
 
 /** Opens a document of the base in its detail. */
 export function useOpenDocument(): (locationId: number | null) => void {
@@ -38,17 +34,6 @@ export function useOpenMatter(): (id: string) => void {
   }
 }
 
-/**
- * Opens a page of the archive's wiki (`wiki/entities/…`), when the archive
- * is the open project; `null` when it is not: its pages are opened there.
- */
-export function useArchivePage(): ((path: string) => void) | null {
-  const project = useWikiStore((s) => s.project)
-  const openPathInPreview = useWikiStore((s) => s.openPathInPreview)
-  const general = useDocbaseQuery("general-project", getGeneralProject)
-  if (!project || !isSameProjectPath(general.data?.path, project.path)) return null
-  return (path) => openPathInPreview(normalizePath(`${normalizePath(project.path)}/${path}`))
-}
 
 /** A section of a detail screen, laid out like the document's. */
 export function Section({ title, children, action }: { title: ReactNode; children: ReactNode; action?: ReactNode }) {

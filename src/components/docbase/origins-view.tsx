@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { useAppDialog } from "@/stores/app-dialog-store"
 import {
   addOrigin,
-  getGeneralProject,
+  getBackgroundReading,
   listOrigins,
   previewFolder,
   removeOrigin,
@@ -15,11 +15,9 @@ import {
   type OriginSummary,
 } from "@/commands/docbase"
 import { DocumentTypesPanel } from "./document-types-view"
-import { GeneralProjectPanel } from "./general-project-panel"
+import { BackgroundReadingPanel } from "./background-reading-panel"
 import { IconAction, OriginTree, type TreeActions } from "./origin-tree"
 import { FolderRules, LabelsPanel } from "./labels"
-import { ingestWikiSources, isSameProjectPath, pendingUnder } from "@/lib/docbase-wiki-bridge"
-import { useWikiStore } from "@/stores/wiki-store"
 import { DocbasePage, EmptyNote, ErrorNote, Panel, StatusBadge } from "./page"
 import { formatAgo, parseConvention, plural } from "./format"
 import { useDocbaseQuery } from "./use-docbase-query"
@@ -53,14 +51,14 @@ export function OriginsView() {
 
   async function confirmDraft() {
     if (!draft) return
-    // With the wiki active, a new folder goes to the model by itself.
-    const general = await getGeneralProject().catch(() => null)
-    if (general?.wikiActive) {
+    // With the automatic reading on, a new folder goes to the model by itself.
+    const reading = await getBackgroundReading().catch(() => false)
+    if (reading) {
       const confirmed = await dialog.confirm({
         title: `Incorporar "${draft.name}"`,
         message:
-          `El ${vocabulary().archive.wiki.toLowerCase()} está activo: todos los documentos de esta carpeta se van a incorporar al wiki solos, ` +
-          "y eso usa el modelo configurado. Si es una carpeta grande, conviene pausar el wiki antes.",
+          "La lectura automática está activa: todos los documentos de esta carpeta se van a leer solos, " +
+          "y eso usa el modelo configurado. Si es una carpeta grande, conviene pausarla antes.",
         confirmLabel: "Incorporar",
         cancelLabel: "Cancelar",
       })
@@ -108,34 +106,7 @@ export function OriginsView() {
 
   const list = origins.data ?? []
 
-  // The tree can send things to the wiki only while the wiki is active
-  // and its project is the open one.
-  const project = useWikiStore((s) => s.project)
-  const general = useDocbaseQuery("general-project", getGeneralProject)
-  const canIngest = !!general.data?.wikiActive && isSameProjectPath(general.data?.path, project?.path)
-
-  async function handleIngest(originId: string, relPath: string, isFolder: boolean) {
-    if (!project) return
-    setProblem(null)
-    try {
-      const sources = await pendingUnder(project, originId, relPath, isFolder)
-      if (sources.length === 0) {
-        await dialog.alert({ message: "No hay nada pendiente de incorporar ahí: ya está en el wiki o en la cola." })
-        return
-      }
-      const confirmed = await dialog.confirm({
-        title: "Incorporar al wiki",
-        message: `Se van a incorporar ${plural(sources.length, "documento", "documentos")}. Cada uno pasa por el modelo configurado.`,
-        confirmLabel: "Incorporar",
-        cancelLabel: "Cancelar",
-      })
-      if (confirmed) await ingestWikiSources(project, sources)
-    } catch (cause) {
-      setProblem(String(cause))
-    }
-  }
-
-  const treeActions: TreeActions = { canIngest, onIngest: handleIngest, onProblem: setProblem }
+  const treeActions: TreeActions = { onProblem: setProblem }
 
   return (
     <DocbasePage
@@ -174,7 +145,7 @@ export function OriginsView() {
           </Panel>
         )}
 
-        <GeneralProjectPanel />
+        <BackgroundReadingPanel />
 
         <DocumentTypesPanel />
 

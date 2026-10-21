@@ -42,11 +42,7 @@ beforeEach(() => {
   tauriMocks.reset()
   tauriMocks.invoke.mockResolvedValue(undefined)
   useWikiStore.setState({
-    project: {
-      id: "project-1",
-      name: "Project",
-      path: "/Users/me/wiki-project",
-    },
+    agentWorkspace: "/Users/me/wiki-project",
   })
 })
 
@@ -281,7 +277,7 @@ describe("streamClaudeCodeCli", () => {
     await stream
   })
 
-  it("passes the active project path as the Claude CLI working directory", async () => {
+  it("passes the agent folder as the Claude CLI working directory", async () => {
     const callbacks = {
       onToken: vi.fn(),
       onDone: vi.fn(),
@@ -321,8 +317,8 @@ describe("streamClaudeCodeCli", () => {
     await stream
   })
 
-  it("surfaces an error without spawning when no project is active", async () => {
-    useWikiStore.setState({ project: null })
+  it("surfaces an error without spawning when the agent folder is unknown", async () => {
+    useWikiStore.setState({ agentWorkspace: null })
     const callbacks = {
       onToken: vi.fn(),
       onDone: vi.fn(),
@@ -346,7 +342,7 @@ describe("streamClaudeCodeCli", () => {
     expect(tauriMocks.listen).not.toHaveBeenCalled()
     expect(callbacks.onError).toHaveBeenCalledTimes(1)
     expect(callbacks.onError.mock.calls[0]?.[0]).toMatchObject({
-      message: expect.stringMatching(/working directory/),
+      message: expect.stringMatching(/working folder/),
     })
   })
 

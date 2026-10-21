@@ -6,14 +6,13 @@ beforeEach(() => {
 })
 
 describe("research store batch queue", () => {
-  it("adds a large batch in one state update with review metadata intact", () => {
+  it("adds a large batch in one state update with its metadata intact", () => {
     let updates = 0
     const unsubscribe = useResearchStore.subscribe(() => { updates += 1 })
 
     const ids = useResearchStore.getState().addTasks(Array.from({ length: 100 }, (_, index) => ({
       topic: `Topic ${index}`,
       searchQueries: [`query ${index}`],
-      sourceReviewId: `review-${index}`,
       rerunOfTaskId: index === 99 ? "research-original" : undefined,
     })))
     unsubscribe()
@@ -23,7 +22,6 @@ describe("research store batch queue", () => {
     expect(useResearchStore.getState().tasks[99]).toMatchObject({
       topic: "Topic 99",
       searchQueries: ["query 99"],
-      sourceReviewId: "review-99",
       rerunOfTaskId: "research-original",
       status: "queued",
     })
@@ -44,7 +42,7 @@ describe("research rerun lineage", () => {
     rerunOfTaskId,
     webResults: [],
     synthesis: "",
-    savedPath: null,
+    savedId: null,
     error: null,
     createdAt: 1,
   }) satisfies ResearchTask

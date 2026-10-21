@@ -10,13 +10,15 @@ use std::sync::Arc;
 use serde::Serialize;
 use tauri::{Emitter, Manager, State};
 
-use super::bridge::{self, GeneralProject, WikiSource};
+use super::bridge;
 use super::knowledge::extract::{KnowledgePlan, KnowledgeReport};
+use super::knowledge::articles::{KnowledgeArticle, KnowledgeNote, KnowledgeOverview, PageObject, SavedQuery};
 use super::knowledge::decide::{DecisionView, IdentityDecision};
 use super::knowledge::entities::{DoubtView, EntityDetail, EntitySummary};
 use super::knowledge::pages::ProjectReport;
+use super::knowledge::research::{Research, ResearchSource};
 use super::knowledge::resolve::ResolveReport;
-use super::knowledge::screens::{DocumentEntities, EntityArticle, KnowledgeAttention, MatterDetail, MatterSummary};
+use super::knowledge::screens::{DocumentEntities, KnowledgeAttention, MatterDetail, MatterSummary};
 use super::knowledge::{DocumentKnowledge, KnowledgeStatus};
 use super::labels::{Label, LabelGroup, LabelRule};
 use super::origins::Origin;
@@ -27,15 +29,11 @@ use super::similar::types::RelationDef;
 use crate::source_volume::asking::{asker_for, AskConfig};
 use super::query::{Activity, DocumentDetail, DocumentFilter, DocumentPage, Health, LocationRef, OriginSummary};
 use super::tree::FolderListing;
-use super::wiki::{BrokenLink, PageRef, WikiIndex};
 use super::worker::{self, Wake};
 use super::{DocBase, Visible, PRIVATE_DB_FILE};
 
 /// Event the screens listen to in order to refresh.
 pub const CHANGED_EVENT: &str = "docbase://changed";
-/// Event sent when the knowledge layer wrote pages of the archive's wiki
-/// (the wiki brings its index and its tree up to date).
-pub const PAGES_EVENT: &str = "docbase://knowledge-pages";
 
 /// The base of the private space, or why it could not be opened.
 pub struct DocBaseState {
@@ -70,6 +68,13 @@ pub fn start(app: &tauri::AppHandle) {
         .map(Arc::new);
     match &base {
         Ok(base) => {
+            // Once, before anything projects: what a person wrote in the
+            // old wiki's files comes into the base (D-403).
+            match base.import_wiki_files() {
+                Ok(report) if !report.skipped => eprintln!("[docbase] imported from the wiki's files: {report:?}"),
+                Ok(_) => {}
+                Err(error) => eprintln!("[docbase] the wiki's files could not be imported: {error}"),
+            }
             bridge::share(base.clone());
             let handle = app.clone();
             worker::spawn(base.clone(), wake.clone(), move || {
@@ -77,13 +82,14 @@ pub fn start(app: &tauri::AppHandle) {
             });
             let handle = app.clone();
             let pages = app.clone();
+            // Pages written again in the base change what the screens show.
             worker::spawn_asking(
                 base.clone(),
                 move || {
                     let _ = handle.emit(CHANGED_EVENT, ());
                 },
                 move || {
-                    let _ = pages.emit(PAGES_EVENT, ());
+                    let _ = pages.emit(CHANGED_EVENT, ());
                 },
             );
         }
@@ -132,66 +138,13 @@ pub fn docbase_add_origin(
 ) -> Result<Origin, String> {
     let base = state.base()?;
     let origin = base.add_origin(&name, Path::new(&folder), &convention)?;
-    // The general project's wiki, when there is one, gets the new origin
-    // as a source too. Failing to mount it does not undo the origin: the
-    // Orígenes screen shows the reason.
-    if let Err(error) = base.sync_general_mounts() {
-        eprintln!("[docbase] {error}");
-    }
     state.wake.request_sweep();
     Ok(origin)
 }
 
 #[tauri::command(async)]
 pub fn docbase_remove_origin(state: State<'_, DocBaseState>, origin_id: String) -> Result<(), String> {
-    let base = state.base()?;
-    base.unmount_from_general(&origin_id)?;
-    base.remove_origin(&origin_id)
-}
-
-#[tauri::command(async)]
-pub fn docbase_general_project(state: State<'_, DocBaseState>) -> Result<Option<GeneralProject>, String> {
-    state.base()?.general_project()
-}
-
-/// Makes a wiki project the general project of the space: every origin
-/// becomes a source of it, without copying anything. Nothing is ingested
-/// by this.
-#[tauri::command(async)]
-pub fn docbase_link_general_project(
-    state: State<'_, DocBaseState>,
-    project_path: String,
-    name: String,
-) -> Result<GeneralProject, String> {
-    state
-        .base()?
-        .link_general_project(Path::new(&project_path), &name)
-}
-
-/// Makes sure the general project has its wiki in the app's workspace
-/// and returns it. Creates nothing but the empty project the first time.
-#[tauri::command(async)]
-pub fn docbase_ensure_default_project(
-    state: State<'_, DocBaseState>,
-    workspace: String,
-) -> Result<GeneralProject, String> {
-    state.base()?.ensure_default_project(Path::new(&workspace))
-}
-
-#[tauri::command(async)]
-pub fn docbase_set_wiki_active(state: State<'_, DocBaseState>, active: bool) -> Result<(), String> {
-    state.base()?.set_wiki_active(active)
-}
-
-#[tauri::command(async)]
-pub fn docbase_unlink_general_project(state: State<'_, DocBaseState>) -> Result<(), String> {
-    state.base()?.unlink_general_project()
-}
-
-/// The files of the base as sources of the general project's wiki.
-#[tauri::command(async)]
-pub fn docbase_wiki_sources(state: State<'_, DocBaseState>) -> Result<Vec<WikiSource>, String> {
-    state.base()?.wiki_sources()
+    state.base()?.remove_origin(&origin_id)
 }
 
 /// Asks for a sweep of every origin now; the result arrives as
@@ -210,8 +163,6 @@ pub struct Home {
     pub health: Health,
     pub origins: Vec<OriginSummary>,
     pub activity: Vec<Activity>,
-    /// Totals of the general project's wiki.
-    pub wiki: WikiIndex,
 }
 
 #[tauri::command(async)]
@@ -221,8 +172,6 @@ pub fn docbase_home(state: State<'_, DocBaseState>) -> Result<Home, String> {
         health: base.health(&Visible::All)?,
         origins: base.origin_summaries(&Visible::All)?,
         activity: base.activity(&Visible::All, 12)?,
-        // The wiki being unreadable must not hide the rest of Inicio.
-        wiki: base.index_wiki().unwrap_or_default(),
     })
 }
 
@@ -250,25 +199,6 @@ pub fn docbase_get_document(
     location_id: i64,
 ) -> Result<Option<DocumentDetail>, String> {
     state.base()?.document(&Visible::All, location_id)
-}
-
-/// The wiki pages that came from the document at this location, or from
-/// any copy of it.
-#[tauri::command(async)]
-pub fn docbase_pages_citing(state: State<'_, DocBaseState>, location_id: i64) -> Result<Vec<PageRef>, String> {
-    state.base()?.pages_citing(&Visible::All, location_id)
-}
-
-/// Links of the wiki that point at no page.
-#[tauri::command(async)]
-pub fn docbase_broken_links(state: State<'_, DocBaseState>) -> Result<Vec<BrokenLink>, String> {
-    state.base()?.broken_links(200)
-}
-
-/// The pages that link to the page at this path inside the project.
-#[tauri::command(async)]
-pub fn docbase_backlinks(state: State<'_, DocBaseState>, page_path: String) -> Result<Vec<PageRef>, String> {
-    state.base()?.backlinks(&page_path)
 }
 
 #[tauri::command(async)]
@@ -377,18 +307,6 @@ pub fn docbase_set_excluded(
     // Bringing something back gives the worker files to read.
     state.wake.request_sweep();
     Ok(())
-}
-
-/// Which of these sources of a wiki project the user left out of the base.
-#[tauri::command(async)]
-pub fn docbase_excluded_sources(
-    state: State<'_, DocBaseState>,
-    project_path: String,
-    source_paths: Vec<String>,
-) -> Result<Vec<String>, String> {
-    state
-        .base()?
-        .excluded_sources(Path::new(&project_path), &source_paths)
 }
 
 /// Shows a folder of an origin in the system's file manager.
@@ -619,15 +537,11 @@ pub fn docbase_knowledge_status(state: State<'_, DocBaseState>) -> Result<Knowle
     state.base()?.knowledge_status(&Visible::All)
 }
 
-/// The graph of the wiki at `project_path` from the base (D-351), when it
-/// is the wiki of the archive; `None` for any other project, whose graph
-/// still comes from the links of its pages.
+/// The graph of the archive from the base (D-351, D-410): its people,
+/// organizations, groups, documents and matters, and their relations.
 #[tauri::command(async)]
-pub fn docbase_graph(project_path: String) -> Result<Option<super::graph::BaseGraph>, String> {
-    match super::bridge::base_for_project(&project_path) {
-        Some(base) => base.graph(&Visible::All).map(Some),
-        None => Ok(None),
-    }
+pub fn docbase_graph(state: State<'_, DocBaseState>) -> Result<super::graph::BaseGraph, String> {
+    state.base()?.graph(&Visible::All)
 }
 
 /// What the knowledge layer read in the document at this location: its
@@ -708,7 +622,6 @@ pub fn docbase_knowledge_project(
     };
     if report.wrote() {
         let _ = app.emit(CHANGED_EVENT, ());
-        let _ = app.emit(PAGES_EVENT, ());
     }
     Ok(report)
 }
@@ -737,16 +650,196 @@ pub fn docbase_knowledge_entity(state: State<'_, DocBaseState>, id: String) -> R
     state.base()?.knowledge_entity(&Visible::All, &id)
 }
 
-/// The article of an entity: its page as the projection last wrote it.
+// The pages, notes, overview and saved queries kept in the base (D-402,
+// D-404): what the screens, the search and the chat read instead of the
+// files of the wiki.
+
+/// The article of an object (`ent-…`, `mat-…`, `doc-…`) as the projection
+/// last wrote it, with the notes of a person; none while it has no page.
 #[tauri::command(async)]
-pub fn docbase_knowledge_entity_article(state: State<'_, DocBaseState>, id: String) -> Result<Option<EntityArticle>, String> {
-    state.base()?.knowledge_entity_article(&id)
+pub fn docbase_knowledge_article(state: State<'_, DocBaseState>, id: String) -> Result<Option<KnowledgeArticle>, String> {
+    state.base()?.knowledge_article(&id)
 }
 
-/// The entity whose page is the file at `path`, if any.
+/// The article of a document's page (the page of its family of versions).
 #[tauri::command(async)]
-pub fn docbase_knowledge_entity_of_page(state: State<'_, DocBaseState>, path: String) -> Result<Option<String>, String> {
-    state.base()?.knowledge_entity_of_page(&path)
+pub fn docbase_knowledge_document_article(state: State<'_, DocBaseState>, content_id: i64) -> Result<Option<KnowledgeArticle>, String> {
+    state.base()?.knowledge_document_article(content_id)
+}
+
+/// The object a page names: its logical path (`wiki/entities/…`), the old
+/// wiki's absolute path, or a link (`name` of `[[name|text]]`).
+#[tauri::command(async)]
+pub fn docbase_knowledge_object_of_page(state: State<'_, DocBaseState>, reference: String) -> Result<Option<PageObject>, String> {
+    state.base()?.knowledge_object_of_page(&reference)
+}
+
+/// The notes of a person on an object.
+#[tauri::command(async)]
+pub fn docbase_knowledge_notes(state: State<'_, DocBaseState>, object_id: String) -> Result<Option<KnowledgeNote>, String> {
+    state.base()?.knowledge_notes(&object_id)
+}
+
+/// Keeps the notes of a person on an object; empty text removes them.
+#[tauri::command(async)]
+pub fn docbase_knowledge_set_notes(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    object_id: String,
+    text: String,
+) -> Result<Option<KnowledgeNote>, String> {
+    let note = state.base()?.knowledge_set_notes(&object_id, &text)?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(note)
+}
+
+/// The notes of the old wiki whose page matched no object, kept apart.
+#[tauri::command(async)]
+pub fn docbase_knowledge_orphan_notes(state: State<'_, DocBaseState>) -> Result<Vec<KnowledgeNote>, String> {
+    state.base()?.knowledge_orphan_notes()
+}
+
+/// Removes a note by its number.
+#[tauri::command(async)]
+pub fn docbase_knowledge_delete_note(app: tauri::AppHandle, state: State<'_, DocBaseState>, id: i64) -> Result<(), String> {
+    state.base()?.knowledge_delete_note(id)?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(())
+}
+
+/// The search of the base (its pages), for the search screen (D-408).
+#[tauri::command(async)]
+pub fn docbase_search(
+    state: State<'_, DocBaseState>,
+    query: String,
+    top_k: Option<usize>,
+) -> Result<crate::commands::search::ProjectSearchResponse, String> {
+    crate::commands::search::search_base(state.base()?, &query, top_k.unwrap_or(20))
+}
+
+/// The words the pages are written with (their headings), so that a screen
+/// shows one part of an article in the words of the vocabulary (D-408).
+#[tauri::command]
+pub fn docbase_knowledge_page_words() -> std::collections::BTreeMap<String, String> {
+    super::knowledge::vocabulary::vocabulary().pages.words.clone()
+}
+
+/// The overview of the archive.
+#[tauri::command(async)]
+pub fn docbase_knowledge_overview(state: State<'_, DocBaseState>) -> Result<Option<KnowledgeOverview>, String> {
+    state.base()?.knowledge_overview()
+}
+
+/// The saved queries of the chat, the latest first.
+#[tauri::command(async)]
+pub fn docbase_saved_queries(state: State<'_, DocBaseState>) -> Result<Vec<SavedQuery>, String> {
+    state.base()?.saved_queries()
+}
+
+/// Saves a question of the chat with its answer and what it cites.
+#[tauri::command(async)]
+pub fn docbase_save_query(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    title: String,
+    question: String,
+    answer: String,
+    refs: Vec<String>,
+) -> Result<SavedQuery, String> {
+    let saved = state.base()?.save_query(&title, &question, &answer, &refs)?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(saved)
+}
+
+#[tauri::command(async)]
+pub fn docbase_delete_saved_query(app: tauri::AppHandle, state: State<'_, DocBaseState>, id: i64) -> Result<(), String> {
+    state.base()?.delete_saved_query(id)?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(())
+}
+
+/// A page of the base whole, with its title, by its logical path or a
+/// link: what the chat hands a provider of the command line (D-413).
+#[tauri::command(async)]
+pub fn docbase_knowledge_page_text(state: State<'_, DocBaseState>, path: String) -> Result<Option<PageText>, String> {
+    let base = state.base()?;
+    let Some(object) = base.knowledge_object_of_page(&path)? else { return Ok(None) };
+    Ok(base.knowledge_page_text(&object.path)?.map(|(title, text)| PageText { path: object.path, title, text }))
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PageText {
+    pub path: String,
+    pub title: String,
+    pub text: String,
+}
+
+/// Keeps a research on the internet, of a person, organization or matter,
+/// or loose (D-414).
+#[tauri::command(async)]
+pub fn docbase_research_save(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    object_id: Option<String>,
+    topic: String,
+    body: String,
+    sources: Vec<ResearchSource>,
+) -> Result<Research, String> {
+    let saved = state.base()?.save_research(object_id.as_deref(), &topic, &body, &sources)?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(saved)
+}
+
+/// The researches of an object, the latest first.
+#[tauri::command(async)]
+pub fn docbase_research_of(state: State<'_, DocBaseState>, object_id: String) -> Result<Vec<Research>, String> {
+    state.base()?.research_of(&object_id)
+}
+
+/// The loose researches, the latest first.
+#[tauri::command(async)]
+pub fn docbase_research_loose(state: State<'_, DocBaseState>) -> Result<Vec<Research>, String> {
+    state.base()?.loose_research()
+}
+
+#[tauri::command(async)]
+pub fn docbase_research_delete(app: tauri::AppHandle, state: State<'_, DocBaseState>, id: i64) -> Result<(), String> {
+    state.base()?.delete_research(id)?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(())
+}
+
+/// The folder of the chat's history and preferences in the app's data
+/// folder (D-415); the first time, the chat files of the general project's
+/// folder are copied into it.
+#[tauri::command(async)]
+pub fn docbase_chat_folder(app: tauri::AppHandle, state: State<'_, DocBaseState>) -> Result<String, String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("no se encontró la carpeta de datos de la app: {e}"))?
+        .join(super::chat_files::CHAT_FOLDER);
+    std::fs::create_dir_all(dir.join("chats")).map_err(|e| format!("no se pudo crear '{}': {e}", dir.display()))?;
+    if let Ok(base) = state.base() {
+        match base.copy_chat_files_once(&dir) {
+            Ok(report) if !report.skipped => eprintln!("[docbase] chat files copied to the data folder: {report:?}"),
+            Ok(_) => {}
+            Err(error) => eprintln!("[docbase] the chat files could not be copied: {error}"),
+        }
+    }
+    Ok(dir.to_string_lossy().replace('\\', "/"))
+}
+
+/// Whether the base reads its documents on its own (`background-reading`).
+#[tauri::command(async)]
+pub fn docbase_background_reading(state: State<'_, DocBaseState>) -> Result<bool, String> {
+    state.base()?.background_reading()
+}
+
+#[tauri::command(async)]
+pub fn docbase_set_background_reading(state: State<'_, DocBaseState>, on: bool) -> Result<(), String> {
+    state.base()?.set_background_reading(on)
 }
 
 /// The pairs of mentions the resolution left for a person.

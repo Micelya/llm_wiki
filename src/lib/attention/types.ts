@@ -36,8 +36,6 @@ export type AttentionTarget =
   /** The similar documents, on one family when `principal` (its principal's content id) is given. */
   | { view: "similar"; principal?: number | null }
   | { view: "document-types" }
-  | { view: "review" }
-  | { view: "lint" }
   | { view: "settings" }
   | { view: "attention" }
   /** A page of the wiki, by its path inside the project. */

@@ -136,8 +136,8 @@ export function passedOverNotice(items: SimilarDocument[]): string | null {
   const names = chosen.map((item) => `«${item.other.name}»`)
   const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} y ${names[names.length - 1]}`
   return names.length === 1
-    ? `Este documento no alimenta el wiki: se unió con ${list}, que es la fuente elegida.`
-    : `Este documento no alimenta el wiki: se unió con ${list}, que son las fuentes elegidas.`
+    ? `Este documento no cuenta por sí solo: se unió con ${list}, que es el elegido.`
+    : `Este documento no cuenta por sí solo: se unió con ${list}, que son los elegidos.`
 }
 
 /** How a family is named in a list: its principal, with how many documents it has. */

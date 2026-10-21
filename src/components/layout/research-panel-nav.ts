@@ -1,22 +1,8 @@
 import type { WikiState } from "@/stores/wiki-store"
 
-/** The document base screens: full width, about the space rather than one project. */
-export function isDocbaseView(view: WikiState["activeView"]): boolean {
-  return (
-    view === "home" ||
-    view === "origins" ||
-    view === "documents" ||
-    view === "attention" ||
-    view === "similar" ||
-    view === "document-types" ||
-    view === "entities" ||
-    view === "identity-doubts" ||
-    view === "matters"
-  )
-}
-
+/** The screens that use the whole work area: no research panel beside them. */
 export function isStandaloneView(view: WikiState["activeView"]): boolean {
-  return view === "chat" || view === "skills" || view === "settings" || isDocbaseView(view)
+  return view === "chat" || view === "skills" || view === "settings"
 }
 
 export function isResearchPanelVisible(
@@ -31,7 +17,7 @@ export function nextResearchPanelNavState(
   researchPanelOpen: boolean,
 ): { activeView: WikiState["activeView"]; researchPanelOpen: boolean } {
   if (isStandaloneView(activeView)) {
-    return { activeView: "wiki", researchPanelOpen: true }
+    return { activeView: "home", researchPanelOpen: true }
   }
   return { activeView, researchPanelOpen: !researchPanelOpen }
 }

@@ -89,7 +89,7 @@ fn model(variant: Arc<AtomicUsize>) -> FakeModel {
 struct Archive {
     dir: TempDir,
     base: DocBase,
-    project: PathBuf,
+    _project: PathBuf,
     model: FakeModel,
     variant: Arc<AtomicUsize>,
     origin: String,
@@ -101,12 +101,12 @@ impl Archive {
         dir.folder("General/wiki/sources");
         dir.write("General/schema.md", b"# schema");
         let project = dir.path().join("General");
-        base.link_general_project(&project, "General").unwrap();
+        crate::docbase::testing::point_general_project_at(&base, &project);
         let variant = Arc::new(AtomicUsize::new(0));
         let model = model(variant.clone());
         read(&base, &model);
         let origin = base.origins(&Visible::All).unwrap()[0].id.clone();
-        let archive = Self { dir, base, project, model, variant, origin };
+        let archive = Self { dir, base, _project: project, model, variant, origin };
         archive.project();
         archive
     }
@@ -199,7 +199,7 @@ impl Archive {
     }
 
     fn page(&self, title: &str) -> String {
-        page_of(&entity_pages(&self.project), title).to_string()
+        page_of(&entity_pages(&self.base), title).to_string()
     }
 }
 

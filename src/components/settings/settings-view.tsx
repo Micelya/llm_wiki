@@ -1,20 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   Bot,
-  Binary,
   Globe,
   Languages,
   Palette,
   Info,
-  Image as ImageIcon,
   Network,
   History,
-  Wrench,
-  Clock,
-  FolderSync,
-  Server,
   Settings,
-  FileText,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { invoke } from "@tauri-apps/api/core"
@@ -25,48 +18,31 @@ import { useWikiStore } from "@/stores/wiki-store"
 import { useChatStore } from "@/stores/chat-store"
 import { useUpdateStore, hasAvailableUpdate } from "@/stores/update-store"
 import { useZoomStore } from "@/stores/zoom-store"
-import { clampUserConcurrency } from "@/lib/concurrency-limits"
 import {
-  loadSourceWatchAllProjects,
-  loadSourceWatchConfig,
   saveLanguage,
   saveTheme,
   loadTheme,
 } from "@/lib/project-store"
 import { applyTheme, type AppTheme } from "@/lib/theme"
 import type { SettingsDraft, DraftSetter } from "./settings-types"
-import { normalizeSourceWatchConfig } from "@/lib/source-watch-config"
-import { setIngestWorkerLimit } from "@/lib/ingest-queue"
+import { setWikiLanguage } from "@/commands/docbase"
+import { wikiLanguageOf } from "@/lib/output-language"
 import { LlmProviderSection } from "./sections/llm-provider-section"
-import { EmbeddingSection } from "./sections/embedding-section"
-import { MultimodalSection } from "./sections/multimodal-section"
 import { WebSearchSection } from "./sections/web-search-section"
 import { OutputSection } from "./sections/output-section"
 import { InterfaceSection } from "./sections/interface-section"
 import { NetworkSection } from "./sections/network-section"
-import { ScheduledImportSection } from "./sections/scheduled-import-section"
-import { SourceWatchSection } from "./sections/source-watch-section"
-import { MineruSection } from "./sections/mineru-section"
-import { ApiServerSection } from "./sections/api-server-section"
 import { GeneralSection } from "./sections/general-section"
 import { ChangelogSection } from "./sections/changelog-section"
-import { MaintenanceSection } from "./sections/maintenance-section"
 import { AboutSection } from "./sections/about-section"
 
 type CategoryId =
   | "general"
   | "llm"
-  | "embedding"
-  | "multimodal"
   | "web-search"
   | "network"
-  | "source-watch"
-  | "scheduled-import"
-  | "mineru"
-  | "api-server"
   | "output"
   | "interface"
-  | "maintenance"
   | "changelog"
   | "about"
 
@@ -82,50 +58,24 @@ interface Category {
 const CATEGORIES: Category[] = [
   { id: "general", labelKey: "settings.categories.general", icon: Settings },
   { id: "llm", labelKey: "settings.categories.llm", icon: Bot },
-  { id: "embedding", labelKey: "settings.categories.embedding", icon: Binary },
-  { id: "multimodal", labelKey: "settings.categories.multimodal", icon: ImageIcon },
   { id: "web-search", labelKey: "settings.categories.webSearch", icon: Globe },
   { id: "network", labelKey: "settings.categories.network", icon: Network },
-  { id: "source-watch", labelKey: "settings.categories.sourceWatch", icon: FolderSync },
-  { id: "scheduled-import", labelKey: "settings.categories.scheduledImport", icon: Clock },
-  { id: "mineru", labelKey: "settings.categories.mineru", icon: FileText },
-  { id: "api-server", labelKey: "settings.categories.apiServer", icon: Server },
   { id: "output", labelKey: "settings.categories.output", icon: Languages },
   { id: "interface", labelKey: "settings.categories.interface", icon: Palette },
-  { id: "maintenance", labelKey: "settings.categories.maintenance", icon: Wrench },
   { id: "changelog", labelKey: "settings.categories.changelog", icon: History },
   { id: "about", labelKey: "settings.categories.about", icon: Info },
 ]
 
 function initialDraft(
   llm: ReturnType<typeof useWikiStore.getState>["llmConfig"],
-  embed: ReturnType<typeof useWikiStore.getState>["embeddingConfig"],
-  multimodal: ReturnType<typeof useWikiStore.getState>["multimodalConfig"],
   outputLanguage: ReturnType<typeof useWikiStore.getState>["outputLanguage"],
   proxy: ReturnType<typeof useWikiStore.getState>["proxyConfig"],
-  scheduledImport: ReturnType<typeof useWikiStore.getState>["scheduledImportConfig"],
-  sourceWatch: ReturnType<typeof useWikiStore.getState>["sourceWatchConfig"],
-  sourceWatchAllProjects: boolean,
-  mineru: ReturnType<typeof useWikiStore.getState>["mineruConfig"],
-  apiConfig: ReturnType<typeof useWikiStore.getState>["apiConfig"],
   generalConfig: ReturnType<typeof useWikiStore.getState>["generalConfig"],
   maxHistoryMessages: number,
   uiLanguage: string,
-  projectPath?: string,
   theme?: AppTheme,
   zoomLevel?: number,
 ): SettingsDraft {
-  // Show absolute path: if stored path is empty, show default using project path
-  // If stored path is relative (legacy), prepend project path
-  // If stored path is absolute, show as-is
-  let displayPath = scheduledImport.path || ""
-  if (!displayPath && projectPath) {
-    displayPath = `${projectPath}/raw/sources`
-  } else if (displayPath && projectPath && !displayPath.startsWith("/") && !displayPath.match(/^[a-zA-Z]:[/\\]/)) {
-    // Legacy relative path - prepend project path for display
-    displayPath = `${projectPath}/${displayPath}`
-  }
-
   return {
     provider: llm.provider,
     apiKey: llm.apiKey,
@@ -139,58 +89,12 @@ function initialDraft(
     reasoning: llm.reasoning,
     ingestReasoning: llm.ingestReasoning,
     localCliIsolation: llm.localCliIsolation === true,
-    embeddingEnabled: embed.enabled,
-    embeddingEndpoint: embed.endpoint,
-    embeddingApiKey: embed.apiKey,
-    embeddingModel: embed.model,
-    embeddingOutputDimensionality: embed.outputDimensionality,
-    embeddingMaxChunkChars: embed.maxChunkChars,
-    embeddingOverlapChunkChars: embed.overlapChunkChars,
-    embeddingConcurrency: clampUserConcurrency(embed.concurrency ?? 1),
-    embeddingBatchSize: embed.batchSize ?? 1,
-    embeddingExtraHeaders: embed.extraHeaders ?? {},
-    multimodalEnabled: multimodal.enabled,
-    multimodalUseMainLlm: multimodal.useMainLlm,
-    multimodalProvider: multimodal.provider,
-    multimodalApiKey: multimodal.apiKey,
-    multimodalModel: multimodal.model,
-    multimodalOllamaUrl: multimodal.ollamaUrl,
-    multimodalCustomEndpoint: multimodal.customEndpoint,
-    multimodalAzureApiVersion: multimodal.azureApiVersion ?? "2024-10-21",
-    multimodalAzureModelFamily: multimodal.azureModelFamily ?? "auto",
-    multimodalApiMode: multimodal.apiMode,
-    multimodalConcurrency: clampUserConcurrency(multimodal.concurrency, 4),
     outputLanguage,
     maxHistoryMessages,
     proxyEnabled: proxy.enabled,
     proxyUrl: proxy.url,
     proxyBypassLocal: proxy.bypassLocal,
     proxyAcceptInvalidCerts: proxy.acceptInvalidCerts === true,
-    scheduledImportEnabled: scheduledImport.enabled,
-    scheduledImportPath: displayPath,
-    scheduledImportInterval: scheduledImport.interval,
-    sourceWatchConfig: normalizeSourceWatchConfig(sourceWatch),
-    sourceWatchAllProjects,
-    mineruEnabled: mineru.enabled,
-    mineruBackend: mineru.backend || "cloud",
-    mineruLocalEndpoint:
-      mineru.localEndpoint || "http://127.0.0.1:8000",
-    mineruLocalToken: mineru.localToken || "",
-    mineruLocalBackend: mineru.localBackend || "hybrid-engine",
-    mineruLocalEffort: mineru.localEffort || "medium",
-    mineruLocalParseMethod: mineru.localParseMethod || "auto",
-    mineruLocalLanguage: mineru.localLanguage || "ch",
-    mineruLocalFormulaEnabled: mineru.localFormulaEnabled !== false,
-    mineruLocalTableEnabled: mineru.localTableEnabled !== false,
-    mineruLocalImageAnalysis: mineru.localImageAnalysis !== false,
-    mineruLocalServerUrl: mineru.localServerUrl || "",
-    mineruToken: mineru.token,
-    mineruModelVersion: mineru.modelVersion,
-    apiEnabled: apiConfig.enabled,
-    apiAllowUnauthenticated: apiConfig.allowUnauthenticated,
-    apiAllowLanAccess: apiConfig.allowLanAccess,
-    apiMcpEnabled: apiConfig.mcpEnabled,
-    apiToken: apiConfig.token,
     autostart: generalConfig.autostart,
     closeBehavior: generalConfig.closeBehavior,
     uiLanguage,
@@ -201,27 +105,12 @@ function initialDraft(
 
 export function SettingsView() {
   const { t } = useTranslation()
-  const project = useWikiStore((s) => s.project)
   const llmConfig = useWikiStore((s) => s.llmConfig)
   const setLlmConfig = useWikiStore((s) => s.setLlmConfig)
-  const embeddingConfig = useWikiStore((s) => s.embeddingConfig)
-  const setEmbeddingConfig = useWikiStore((s) => s.setEmbeddingConfig)
-  const multimodalConfig = useWikiStore((s) => s.multimodalConfig)
-  const setMultimodalConfig = useWikiStore((s) => s.setMultimodalConfig)
   const outputLanguage = useWikiStore((s) => s.outputLanguage)
   const setOutputLanguage = useWikiStore((s) => s.setOutputLanguage)
   const proxyConfig = useWikiStore((s) => s.proxyConfig)
   const setProxyConfig = useWikiStore((s) => s.setProxyConfig)
-  const scheduledImportConfig = useWikiStore((s) => s.scheduledImportConfig)
-  const setScheduledImportConfig = useWikiStore((s) => s.setScheduledImportConfig)
-  const sourceWatchConfig = useWikiStore((s) => s.sourceWatchConfig)
-  const setSourceWatchConfig = useWikiStore((s) => s.setSourceWatchConfig)
-  const sourceWatchAllProjects = useWikiStore((s) => s.sourceWatchAllProjects)
-  const setSourceWatchAllProjects = useWikiStore((s) => s.setSourceWatchAllProjects)
-  const mineruConfig = useWikiStore((s) => s.mineruConfig)
-  const setMineruConfig = useWikiStore((s) => s.setMineruConfig)
-  const apiConfig = useWikiStore((s) => s.apiConfig)
-  const setApiConfig = useWikiStore((s) => s.setApiConfig)
   const generalConfig = useWikiStore((s) => s.generalConfig)
   const setGeneralConfig = useWikiStore((s) => s.setGeneralConfig)
   const maxHistoryMessages = useChatStore((s) => s.maxHistoryMessages)
@@ -243,19 +132,11 @@ export function SettingsView() {
   const [draft, setDraftState] = useState<SettingsDraft>(() =>
     initialDraft(
       llmConfig,
-      embeddingConfig,
-      multimodalConfig,
       outputLanguage,
       proxyConfig,
-      scheduledImportConfig,
-      sourceWatchConfig,
-      sourceWatchAllProjects,
-      mineruConfig,
-      apiConfig,
       generalConfig,
       maxHistoryMessages,
       i18n.language,
-      project?.path,
     ),
   )
 
@@ -269,35 +150,7 @@ export function SettingsView() {
     }).catch(() => {})
   }, [])
 
-  useEffect(() => {
-    let cancelled = false
-    Promise.allSettled([
-      loadSourceWatchConfig(project?.id),
-      loadSourceWatchAllProjects(),
-    ]).then(([configResult, allProjectsResult]) => {
-      if (cancelled) return
-      const config = configResult.status === "fulfilled"
-        ? configResult.value
-        : normalizeSourceWatchConfig()
-      const allProjects = allProjectsResult.status === "fulfilled"
-        ? allProjectsResult.value
-        : false
-      const normalized = normalizeSourceWatchConfig(config)
-      setSourceWatchConfig(normalized)
-      setSourceWatchAllProjects(allProjects)
-      setIngestWorkerLimit(normalized.ingestConcurrency)
-      setDraftState((prev) => ({
-        ...prev,
-        sourceWatchConfig: normalized,
-        sourceWatchAllProjects: allProjects,
-      }))
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [project?.id, setSourceWatchAllProjects, setSourceWatchConfig])
-
-  // Resync draft from store if it changes out-of-band (e.g. project switch).
+  // Resync draft from store if it changes out-of-band.
   // IMPORTANT: keep the current draft.uiLanguage instead of re-reading
   // `i18n.language`. handleSave calls multiple zustand setters before it
   // calls `i18n.changeLanguage` at the end, and each setter triggers this
@@ -311,37 +164,21 @@ export function SettingsView() {
     setDraftState((prev) =>
       initialDraft(
         llmConfig,
-        embeddingConfig,
-        multimodalConfig,
         outputLanguage,
         proxyConfig,
-        scheduledImportConfig,
-        sourceWatchConfig,
-        sourceWatchAllProjects,
-        mineruConfig,
-        apiConfig,
         generalConfig,
         maxHistoryMessages,
         prev.uiLanguage,
-        project?.path,
         prev.theme,
         prev.zoomLevel,
       ),
     )
   }, [
     llmConfig,
-    embeddingConfig,
-    multimodalConfig,
     outputLanguage,
     proxyConfig,
-    scheduledImportConfig,
-    sourceWatchConfig,
-    sourceWatchAllProjects,
-    mineruConfig,
-    apiConfig,
     generalConfig,
     maxHistoryMessages,
-    project,
   ])
 
   const setDraft: DraftSetter = useCallback((key, value) => {
@@ -358,22 +195,10 @@ export function SettingsView() {
     const {
       saveLlmConfig,
       loadLlmConfig,
-      saveEmbeddingConfig,
-      loadEmbeddingConfig,
-      saveMultimodalConfig,
-      loadMultimodalConfig,
       saveOutputLanguage,
       loadOutputLanguage,
       saveProxyConfig,
       loadProxyConfig,
-      saveScheduledImportConfig,
-      loadScheduledImportConfig,
-      saveSourceWatchConfig,
-      saveSourceWatchAllProjects,
-      saveMineruConfig,
-      loadMineruConfig,
-      saveApiConfig,
-      loadApiConfig,
       saveGeneralConfig,
       loadGeneralConfig,
       saveZoomLevel,
@@ -394,68 +219,11 @@ export function SettingsView() {
       ingestReasoning: draft.ingestReasoning,
       localCliIsolation: draft.localCliIsolation,
     }
-    const newEmbed = {
-      enabled: draft.embeddingEnabled,
-      endpoint: draft.embeddingEndpoint,
-      apiKey: draft.embeddingApiKey,
-      model: draft.embeddingModel,
-      outputDimensionality: draft.embeddingOutputDimensionality,
-      maxChunkChars: draft.embeddingMaxChunkChars,
-      overlapChunkChars: draft.embeddingOverlapChunkChars,
-      concurrency: clampUserConcurrency(draft.embeddingConcurrency || 1),
-      batchSize: Math.max(1, Math.min(64, Math.floor(draft.embeddingBatchSize || 1))),
-      extraHeaders: draft.embeddingExtraHeaders,
-    }
-    const newMultimodal = {
-      enabled: draft.multimodalEnabled,
-      useMainLlm: draft.multimodalUseMainLlm,
-      provider: draft.multimodalProvider,
-      apiKey: draft.multimodalApiKey,
-      model: draft.multimodalModel,
-      ollamaUrl: draft.multimodalOllamaUrl,
-      customEndpoint: draft.multimodalCustomEndpoint,
-      azureApiVersion: draft.multimodalProvider === "azure" ? draft.multimodalAzureApiVersion.trim() : undefined,
-      azureModelFamily: draft.multimodalProvider === "azure" ? draft.multimodalAzureModelFamily : undefined,
-      apiMode: draft.multimodalProvider === "custom" ? draft.multimodalApiMode : undefined,
-      // Clamp hand-edited persisted values at the shared application limit.
-      concurrency: clampUserConcurrency(draft.multimodalConcurrency || 4),
-    }
-
     const newProxy = {
       enabled: draft.proxyEnabled,
       url: draft.proxyUrl.trim(),
       bypassLocal: draft.proxyBypassLocal,
       acceptInvalidCerts: draft.proxyAcceptInvalidCerts,
-    }
-    const newSourceWatch = normalizeSourceWatchConfig(draft.sourceWatchConfig)
-    const newScheduledImport = {
-      enabled: draft.scheduledImportEnabled,
-      path: draft.scheduledImportPath,
-      interval: Math.max(1, Math.min(1440, draft.scheduledImportInterval || 60)),
-      lastScan: scheduledImportConfig.lastScan,
-    }
-    const newMineruConfig = {
-      enabled: draft.mineruEnabled,
-      backend: draft.mineruBackend,
-      localEndpoint: draft.mineruLocalEndpoint.trim(),
-      localToken: draft.mineruLocalToken.trim(),
-      localBackend: draft.mineruLocalBackend,
-      localEffort: draft.mineruLocalEffort,
-      localParseMethod: draft.mineruLocalParseMethod,
-      localLanguage: draft.mineruLocalLanguage.trim(),
-      localFormulaEnabled: draft.mineruLocalFormulaEnabled,
-      localTableEnabled: draft.mineruLocalTableEnabled,
-      localImageAnalysis: draft.mineruLocalImageAnalysis,
-      localServerUrl: draft.mineruLocalServerUrl.trim(),
-      token: draft.mineruToken.trim(),
-      modelVersion: draft.mineruModelVersion,
-    }
-    const newApiConfig = {
-      enabled: draft.apiEnabled,
-      allowUnauthenticated: draft.apiAllowUnauthenticated,
-      allowLanAccess: draft.apiAllowLanAccess,
-      mcpEnabled: draft.apiMcpEnabled,
-      token: draft.apiToken.trim(),
     }
     const newGeneralConfig = {
       autostart: draft.autostart,
@@ -466,48 +234,20 @@ export function SettingsView() {
     // settings draft resync effect runs after store updates; if any config stays
     // stale until later in the save sequence, that resync can briefly restore
     // the old value and make the UI look like saving reverted the user's edit.
+    const languageChanged = draft.outputLanguage !== outputLanguage
     setLlmConfig(newLlm)
-    setEmbeddingConfig(newEmbed)
-    setMultimodalConfig(newMultimodal)
     setOutputLanguage(draft.outputLanguage as typeof outputLanguage)
     setProxyConfig(newProxy)
-    setSourceWatchConfig(newSourceWatch)
-    setSourceWatchAllProjects(draft.sourceWatchAllProjects)
-    setIngestWorkerLimit(newSourceWatch.ingestConcurrency)
-    setScheduledImportConfig(newScheduledImport)
     setMaxHistoryMessages(draft.maxHistoryMessages)
-    setMineruConfig(newMineruConfig)
-    setApiConfig(newApiConfig)
     setGeneralConfig(newGeneralConfig)
 
     try {
       await saveLlmConfig(newLlm)
-      await saveEmbeddingConfig(newEmbed)
-      await saveMultimodalConfig(newMultimodal)
-      await saveOutputLanguage(draft.outputLanguage as typeof outputLanguage, project?.id)
+      await saveOutputLanguage(draft.outputLanguage as typeof outputLanguage)
+      // The base writes the articles in this language; only a change made
+      // here tells it, so opening the app never changes what it asks.
+      if (languageChanged) await setWikiLanguage(wikiLanguageOf(draft.outputLanguage))
       await saveProxyConfig(newProxy)
-      await saveSourceWatchConfig(newSourceWatch, project?.id)
-      await saveSourceWatchAllProjects(draft.sourceWatchAllProjects)
-      if (project) {
-        const {
-          startAllProjectFileSync,
-          startProjectFileSync,
-          stopAllProjectFileSync,
-          stopProjectFileSync,
-        } = await import("@/lib/project-file-sync")
-        if (newSourceWatch.enabled) {
-          await startProjectFileSync(project, newSourceWatch).catch((err) =>
-            console.error("Failed to start project file sync:", err)
-          )
-        } else {
-          await stopProjectFileSync()
-        }
-        if (draft.sourceWatchAllProjects) {
-          startAllProjectFileSync(project)
-        } else {
-          stopAllProjectFileSync()
-        }
-      }
       // Apply the proxy env vars LIVE so the next outbound request
       // picks them up — no app restart needed. tauri-plugin-http
       // builds a fresh reqwest client per fetch and reqwest reads
@@ -516,27 +256,6 @@ export function SettingsView() {
         await invoke<string>("set_proxy_env", { config: newProxy })
       } catch (err) {
         console.warn("[proxy] live update failed; restart will still apply:", err)
-      }
-
-      if (project) {
-        await saveScheduledImportConfig(project.path, newScheduledImport)
-        const { startScheduledImport } = await import("@/lib/scheduled-import")
-        // Keep the cross-project scheduler alive even if the current
-        // project's own monitor was just disabled.
-        startScheduledImport(project, newScheduledImport)
-      }
-
-      await saveMineruConfig(newMineruConfig)
-
-      // The Rust side reads `apiConfig.{enabled,token,mcpEnabled,allowLanAccess}` from this
-      // same `app-state.json` via a 5s cache, so saved changes propagate within
-      // that window without any IPC round-trip. Bind-address changes still
-      // require an app restart because the server sockets are already open.
-      await saveApiConfig(newApiConfig)
-      try {
-        await invoke<string>("api_server_reload_config")
-      } catch (err) {
-        console.warn("[api] failed to reload API server config cache:", err)
       }
 
       await saveGeneralConfig(newGeneralConfig)
@@ -582,44 +301,21 @@ export function SettingsView() {
       try {
         const [
           persistedLlm,
-          persistedEmbedding,
-          persistedMultimodal,
           persistedOutputLanguage,
           persistedProxy,
-          persistedSourceWatch,
-          persistedSourceWatchAllProjects,
-          persistedScheduledImport,
-          persistedMineru,
-          persistedApi,
           persistedGeneral,
           persistedZoom,
         ] = await Promise.allSettled([
           loadLlmConfig(),
-          loadEmbeddingConfig(),
-          loadMultimodalConfig(),
-          loadOutputLanguage(project?.id),
+          loadOutputLanguage(),
           loadProxyConfig(),
-          loadSourceWatchConfig(project?.id),
-          loadSourceWatchAllProjects(),
-          project ? loadScheduledImportConfig(project.path) : Promise.resolve(null),
-          loadMineruConfig(),
-          loadApiConfig(),
           loadGeneralConfig(),
           loadZoomLevel(),
         ] as const)
         setLlmConfig(resultValue(persistedLlm, null) ?? llmConfig)
-        setEmbeddingConfig(resultValue(persistedEmbedding, null) ?? embeddingConfig)
-        setMultimodalConfig(resultValue(persistedMultimodal, null) ?? multimodalConfig)
         setOutputLanguage((resultValue(persistedOutputLanguage, null) ?? outputLanguage) as typeof outputLanguage)
         setProxyConfig(resultValue(persistedProxy, null) ?? proxyConfig)
-        setSourceWatchConfig(resultValue(persistedSourceWatch, sourceWatchConfig))
-        setSourceWatchAllProjects(
-          resultValue(persistedSourceWatchAllProjects, sourceWatchAllProjects),
-        )
-        setScheduledImportConfig(resultValue(persistedScheduledImport, null) ?? scheduledImportConfig)
         setMaxHistoryMessages(maxHistoryMessages)
-        setMineruConfig(resultValue(persistedMineru, null) ?? mineruConfig)
-        setApiConfig(resultValue(persistedApi, null) ?? apiConfig)
         setGeneralConfig(resultValue(persistedGeneral, generalConfig))
         useZoomStore.getState().setLevel(resultValue(persistedZoom, useZoomStore.getState().level))
       } catch (reloadErr) {
@@ -629,29 +325,14 @@ export function SettingsView() {
     }
   }, [
     draft,
-    project,
     llmConfig,
-    embeddingConfig,
-    multimodalConfig,
     outputLanguage,
     proxyConfig,
-    sourceWatchConfig,
-    sourceWatchAllProjects,
-    scheduledImportConfig,
-    mineruConfig,
-    apiConfig,
     generalConfig,
     maxHistoryMessages,
     setLlmConfig,
-    setEmbeddingConfig,
-    setMultimodalConfig,
     setOutputLanguage,
     setProxyConfig,
-    setScheduledImportConfig,
-    setSourceWatchConfig,
-    setSourceWatchAllProjects,
-    setMineruConfig,
-    setApiConfig,
     setGeneralConfig,
     setMaxHistoryMessages,
     currentTheme,
@@ -666,28 +347,14 @@ export function SettingsView() {
         // configs + active preset) and persists directly — it bypasses
         // the shared draft / global Save button.
         return <LlmProviderSection />
-      case "embedding":
-        return <EmbeddingSection draft={draft} setDraft={setDraft} />
-      case "multimodal":
-        return <MultimodalSection draft={draft} setDraft={setDraft} />
       case "web-search":
         return <WebSearchSection />
       case "network":
         return <NetworkSection draft={draft} setDraft={setDraft} />
-      case "source-watch":
-        return <SourceWatchSection draft={draft} setDraft={setDraft} projectReady={!!project} />
-      case "scheduled-import":
-        return <ScheduledImportSection draft={draft} setDraft={setDraft} />
-      case "mineru":
-        return <MineruSection draft={draft} setDraft={setDraft} />
-      case "api-server":
-        return <ApiServerSection draft={draft} setDraft={setDraft} />
       case "output":
         return <OutputSection draft={draft} setDraft={setDraft} />
       case "interface":
         return <InterfaceSection draft={draft} setDraft={setDraft} onThemeChange={applyTheme} />
-      case "maintenance":
-        return <MaintenanceSection />
       case "changelog":
         return <ChangelogSection />
       case "about":

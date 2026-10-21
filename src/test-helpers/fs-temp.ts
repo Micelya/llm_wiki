@@ -59,41 +59,15 @@ export const realFs = {
   listDirectory: async (p: string): Promise<FileNode[]> => {
     return buildTree(p)
   },
-  copyFile: async (source: string, destination: string): Promise<void> => {
-    await fs.mkdir(path.dirname(destination), { recursive: true })
-    await fs.copyFile(source, destination)
-  },
-  preprocessFile: async (p: string): Promise<string> => {
-    return fs.readFile(p, "utf-8")
-  },
   deleteFile: async (p: string): Promise<void> => {
     await fs.unlink(p).catch(() => {})
-  },
-  fileExists: async (p: string): Promise<boolean> => {
-    return fs.access(p).then(
-      () => true,
-      () => false,
-    )
-  },
-  getFileModifiedTime: async (p: string): Promise<number> => {
-    return (await fs.stat(p)).mtimeMs
   },
   getFileSize: async (p: string): Promise<number> => {
     return (await fs.stat(p)).size
   },
-  findRelatedWikiPages: async (): Promise<string[]> => {
-    return []
-  },
   createDirectory: async (p: string): Promise<void> => {
     await fs.mkdir(p, { recursive: true })
   },
-  createProject: async () => {
-    throw new Error("createProject not supported in tests")
-  },
-  openProject: async () => {
-    throw new Error("openProject not supported in tests")
-  },
-  clipServerStatus: async (): Promise<string> => "ok",
 }
 
 /**
@@ -104,7 +78,7 @@ export async function createTempProject(label: string = "proj"): Promise<{
   path: string
   cleanup: () => Promise<void>
 }> {
-  const prefix = path.join(os.tmpdir(), `llmwiki-${label}-`)
+  const prefix = path.join(os.tmpdir(), `micelya-${label}-`)
   const dir = await fs.mkdtemp(prefix)
   const normalized = dir.replace(/\\/g, "/")
   return {

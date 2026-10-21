@@ -1,18 +1,12 @@
 mod agent;
-mod api_server;
-mod clip_server;
 mod commands;
-mod cors;
 mod docbase;
 mod panic_guard;
 mod proxy;
-mod server_bind;
 mod source_volume;
 mod tray;
 mod types;
 
-use panic_guard::run_guarded;
-use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Mutex;
 use tauri::{Emitter, Manager};
@@ -21,56 +15,29 @@ use uuid::Uuid;
 struct CloseBehaviorState(Mutex<String>);
 struct TrayAvailabilityState(Mutex<bool>);
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct AgentProjectEntry {
+/// The folder the chat's agent works in (P-239): `<app data>/agent`, with
+/// its sessions, its skills and the files it produces. It replaces the
+/// folder of the open wiki project.
+#[derive(Debug, Clone)]
+struct AgentHome {
     id: String,
-    name: String,
     path: String,
-    current: bool,
 }
 
 #[derive(Debug, Clone, Default)]
 struct AgentRuntimeConfig {
-    embedding: Option<commands::search::SearchEmbeddingConfig>,
     llm: Option<agent::provider::LlmConfig>,
     web_search: Option<agent::tools::WebSearchConfig>,
     anytxt: Option<agent::tools::AnyTxtConfig>,
 }
 
 #[tauri::command]
-fn clip_server_status() -> String {
-    run_guarded("clip_server_status", || {
-        Ok(clip_server::get_daemon_status().to_string())
-    })
-    .unwrap_or_else(|e| format!("error: {e}"))
-}
-
-#[tauri::command]
-fn api_server_status() -> String {
-    run_guarded("api_server_status", || {
-        Ok(api_server::get_api_status().to_string())
-    })
-    .unwrap_or_else(|e| format!("error: {e}"))
-}
-
-#[tauri::command]
-fn api_server_reload_config() -> String {
-    run_guarded("api_server_reload_config", || {
-        api_server::invalidate_config_cache();
-        Ok("ok".to_string())
-    })
-    .unwrap_or_else(|e| format!("error: {e}"))
-}
-
-#[tauri::command]
 async fn agent_start_turn(
     app: tauri::AppHandle,
-    project_id: String,
     mut request: agent::AgentChatRequest,
     llm_config: Option<agent::provider::LlmConfig>,
 ) -> Result<agent::types::AgentChatResponse, String> {
-    let project = resolve_agent_project(&app, &project_id)?;
+    let project = agent_home(&app)?;
     if request
         .session_id
         .as_deref()
@@ -109,11 +76,11 @@ async fn agent_start_turn(
     let runtime = agent::AgentRuntime::new(
         project.id.clone(),
         project.path.clone(),
-        runtime_config.embedding,
         runtime_config.llm,
         runtime_config.web_search,
         runtime_config.anytxt,
-    );
+    )
+    .with_base(docbase::bridge::shared_base());
     let user_message = request.message.clone();
     let persist_session = request.persist_session;
     let cancellation = app
@@ -141,11 +108,10 @@ async fn agent_start_turn(
 #[tauri::command]
 fn agent_cancel_turn(
     app: tauri::AppHandle,
-    project_id: String,
     session_id: String,
     run_id: Option<String>,
 ) -> Result<bool, String> {
-    let project = resolve_agent_project(&app, &project_id)?;
+    let project = agent_home(&app)?;
     Ok(app
         .state::<agent::cancel::AgentCancellationRegistry>()
         .cancel(&project.id, &session_id, run_id.as_deref()))
@@ -154,11 +120,10 @@ fn agent_cancel_turn(
 #[tauri::command]
 async fn agent_start_turn_stream(
     app: tauri::AppHandle,
-    project_id: String,
     mut request: agent::AgentChatRequest,
     llm_config: Option<agent::provider::LlmConfig>,
 ) -> Result<String, String> {
-    let project = resolve_agent_project(&app, &project_id)?;
+    let project = agent_home(&app)?;
     if request
         .session_id
         .as_deref()
@@ -195,11 +160,11 @@ async fn agent_start_turn_stream(
     let runtime = agent::AgentRuntime::new(
         project.id.clone(),
         project.path.clone(),
-        runtime_config.embedding,
         runtime_config.llm,
         runtime_config.web_search,
         runtime_config.anytxt,
-    );
+    )
+    .with_base(docbase::bridge::shared_base());
     let app_for_task = app.clone();
     let project_for_task = project.clone();
     let session_for_task = active_session_id.clone();
@@ -258,150 +223,24 @@ async fn agent_start_turn_stream(
     Ok(active_session_id)
 }
 
+/// The agent's folder, so the chat can show and open what it produced and
+/// the command-line models can work in it.
 #[tauri::command]
-fn agent_get_session(
-    app: tauri::AppHandle,
-    project_id: String,
-    session_id: String,
-    limit: Option<usize>,
-) -> Result<Vec<agent::session::AgentSessionMessage>, String> {
-    let project = resolve_agent_project(&app, &project_id)?;
-    Ok(app
-        .state::<agent::session::AgentSessionStore>()
-        .recent_messages(
-            &project.path,
-            &session_id,
-            limit.unwrap_or(40).clamp(1, 200),
-        ))
+fn agent_workspace(app: tauri::AppHandle) -> Result<String, String> {
+    agent_home(&app).map(|home| home.path)
 }
 
-#[tauri::command]
-fn agent_list_sessions(
-    app: tauri::AppHandle,
-    project_id: String,
-) -> Result<Vec<agent::session::AgentSession>, String> {
-    let project = resolve_agent_project(&app, &project_id)?;
-    Ok(app
-        .state::<agent::session::AgentSessionStore>()
-        .list_sessions(&project.path))
-}
-
-#[tauri::command]
-fn mcp_server_entry_path(app: tauri::AppHandle) -> Result<String, String> {
-    run_guarded("mcp_server_entry_path", || {
-        let relative = std::path::Path::new("mcp-server")
-            .join("dist")
-            .join("src")
-            .join("index.js");
-        let mut candidates = Vec::new();
-
-        let mut push_repo_candidates = |base: std::path::PathBuf| {
-            candidates.push(base.join(&relative));
-            candidates.push(base.join("..").join(&relative));
-            candidates.push(base.join("..").join("..").join(&relative));
-        };
-
-        push_repo_candidates(std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")));
-        if let Ok(cwd) = std::env::current_dir() {
-            push_repo_candidates(cwd);
-        }
-        if let Ok(resource_dir) = app.path().resource_dir() {
-            candidates.push(resource_dir.join(&relative));
-        }
-        if let Ok(exe) = std::env::current_exe() {
-            if let Some(exe_dir) = exe.parent() {
-                candidates.push(exe_dir.join(&relative));
-                candidates.push(exe_dir.join("..").join("Resources").join(&relative));
-            }
-        }
-
-        for candidate in &candidates {
-            if candidate.is_file() {
-                return Ok(candidate
-                    .canonicalize()
-                    .unwrap_or_else(|_| candidate.clone())
-                    .to_string_lossy()
-                    .into_owned());
-            }
-        }
-
-        Err("MCP server entry was not found. Run `npm run mcp:build` from the LLM Wiki repository, then reopen Settings.".to_string())
+fn agent_home(app: &tauri::AppHandle) -> Result<AgentHome, String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("no se encontró la carpeta de datos de la app: {e}"))?
+        .join("agent");
+    std::fs::create_dir_all(&dir).map_err(|e| format!("no se pudo crear '{}': {e}", dir.display()))?;
+    Ok(AgentHome {
+        id: "micelya".to_string(),
+        path: dir.to_string_lossy().replace('\\', "/"),
     })
-}
-
-fn resolve_agent_project(
-    app: &tauri::AppHandle,
-    project_id: &str,
-) -> Result<AgentProjectEntry, String> {
-    let decoded = percent_decode(project_id);
-    let wants_current = decoded.eq_ignore_ascii_case("current");
-    load_agent_projects(app)
-        .into_iter()
-        .find(|project| {
-            project.id == decoded
-                || project_path_matches(&project.path, &decoded)
-                || (wants_current && project.current)
-        })
-        .ok_or_else(|| format!("Unknown project: {decoded}"))
-}
-
-fn load_agent_projects(app: &tauri::AppHandle) -> Vec<AgentProjectEntry> {
-    let current = normalize_path(&clip_server::current_project_path());
-    let mut projects = Vec::new();
-    if let Some(parsed) = load_agent_app_state(app) {
-        if let Some(registry) = parsed.get("projectRegistry").and_then(Value::as_object) {
-            for (id, value) in registry {
-                let path = value.get("path").and_then(Value::as_str).unwrap_or("");
-                if path.is_empty() {
-                    continue;
-                }
-                let path = normalize_path(path);
-                let name = value
-                    .get("name")
-                    .and_then(Value::as_str)
-                    .map(ToOwned::to_owned)
-                    .unwrap_or_else(|| project_name_from_path(&path));
-                projects.push(AgentProjectEntry {
-                    id: id.clone(),
-                    name,
-                    current: path == current,
-                    path,
-                });
-            }
-        }
-        if let Some(recents) = parsed.get("recentProjects").and_then(Value::as_array) {
-            for value in recents {
-                let path = value.get("path").and_then(Value::as_str).unwrap_or("");
-                if path.is_empty() {
-                    continue;
-                }
-                let path = normalize_path(path);
-                if projects.iter().any(|project| project.path == path) {
-                    continue;
-                }
-                let name = value
-                    .get("name")
-                    .and_then(Value::as_str)
-                    .map(ToOwned::to_owned)
-                    .unwrap_or_else(|| project_name_from_path(&path));
-                projects.push(AgentProjectEntry {
-                    id: read_project_id(&path).unwrap_or_else(|| path.clone()),
-                    name,
-                    current: path == current,
-                    path,
-                });
-            }
-        }
-    }
-    if !current.is_empty() && !projects.iter().any(|project| project.path == current) {
-        projects.push(AgentProjectEntry {
-            id: read_project_id(&current).unwrap_or_else(|| current.clone()),
-            name: project_name_from_path(&current),
-            current: true,
-            path: current,
-        });
-    }
-    projects
 }
 
 fn load_agent_app_state(app: &tauri::AppHandle) -> Option<Value> {
@@ -415,10 +254,6 @@ fn load_agent_runtime_config(app: &tauri::AppHandle) -> AgentRuntimeConfig {
         return AgentRuntimeConfig::default();
     };
     AgentRuntimeConfig {
-        embedding: parsed
-            .get("embeddingConfig")
-            .cloned()
-            .and_then(|value| serde_json::from_value(value).ok()),
         llm: parsed
             .get("llmConfig")
             .cloned()
@@ -432,70 +267,6 @@ fn load_agent_runtime_config(app: &tauri::AppHandle) -> AgentRuntimeConfig {
             .and_then(|value| value.get("anyTxt"))
             .cloned()
             .and_then(|value| serde_json::from_value(value).ok()),
-    }
-}
-
-fn read_project_id(path: &str) -> Option<String> {
-    let raw = std::fs::read_to_string(
-        std::path::Path::new(path)
-            .join(".llm-wiki")
-            .join("project.json"),
-    )
-    .ok()?;
-    serde_json::from_str::<Value>(&raw)
-        .ok()?
-        .get("id")
-        .and_then(Value::as_str)
-        .map(ToOwned::to_owned)
-}
-
-fn project_name_from_path(path: &str) -> String {
-    std::path::Path::new(path)
-        .file_name()
-        .and_then(|s| s.to_str())
-        .filter(|name| !name.is_empty())
-        .unwrap_or("Project")
-        .to_string()
-}
-
-fn project_path_matches(stored_path: &str, candidate: &str) -> bool {
-    let stored = normalize_path(stored_path);
-    let candidate = normalize_path(candidate);
-    if cfg!(windows) {
-        stored.eq_ignore_ascii_case(&candidate)
-    } else {
-        stored == candidate
-    }
-}
-
-fn normalize_path(path: &str) -> String {
-    path.replace('\\', "/").trim_end_matches('/').to_string()
-}
-
-fn percent_decode(input: &str) -> String {
-    let bytes = input.as_bytes();
-    let mut out = Vec::with_capacity(bytes.len());
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'%' && i + 2 < bytes.len() {
-            if let (Some(hi), Some(lo)) = (hex_val(bytes[i + 1]), hex_val(bytes[i + 2])) {
-                out.push((hi << 4) | lo);
-                i += 3;
-                continue;
-            }
-        }
-        out.push(bytes[i]);
-        i += 1;
-    }
-    String::from_utf8(out).unwrap_or_else(|_| input.to_string())
-}
-
-fn hex_val(b: u8) -> Option<u8> {
-    match b {
-        b'0'..=b'9' => Some(b - b'0'),
-        b'a'..=b'f' => Some(b - b'a' + 10),
-        b'A'..=b'F' => Some(b - b'A' + 10),
-        _ => None,
     }
 }
 
@@ -604,16 +375,11 @@ pub fn run() {
             // drained on process exit or by claude_cli_kill.
             app.manage(commands::claude_cli::ClaudeCliState::default());
             app.manage(commands::codex_cli::CodexCliState::default());
-            app.manage(commands::file_sync::FileSyncState::default());
             app.manage(agent::session::AgentSessionStore::default());
             app.manage(agent::cancel::AgentCancellationRegistry::default());
             app.manage(CloseBehaviorState(Mutex::new("minimize".to_string())));
             app.manage(TrayAvailabilityState(Mutex::new(false)));
             docbase::commands::start(app.handle());
-            // Start the API before optional desktop integrations so the
-            // backend is reachable if tray setup or another integration fails.
-            clip_server::start_clip_server(app.handle().clone());
-            api_server::start_api_server(app.handle().clone());
             let tray_available = match tray::create_tray(app.handle()) {
                 Ok(()) => true,
                 Err(err) => {
@@ -634,47 +400,19 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::fs::read_file,
             commands::fs::write_file,
-            commands::fs::write_file_base64,
-            commands::fs::write_file_atomic,
-            commands::fs::apply_text_selection_edit,
-            commands::fs::create_missing_wiki_page,
-            commands::file_history::list_file_history,
-            commands::file_history::restore_file_history,
-            commands::file_history::get_file_history_stats,
-            commands::file_history::get_file_history_settings,
-            commands::file_history::set_file_history_settings,
-            commands::file_history::clear_file_history,
             commands::fs::list_directory,
-            commands::fs::copy_file,
-            commands::fs::copy_directory,
-            source_volume::list_source_mounts,
-            source_volume::add_source_mount,
-            source_volume::catalog::catalog_register_source,
-            source_volume::catalog::catalog_match_file,
-            source_volume::catalog::catalog_record_ingest,
-            source_volume::catalog::catalog_list_duplicates,
             docbase::commands::docbase_list_origins,
             docbase::commands::docbase_preview_folder,
             docbase::commands::docbase_add_origin,
             docbase::commands::docbase_remove_origin,
             docbase::commands::docbase_rescan,
             docbase::commands::docbase_home,
-            docbase::commands::docbase_general_project,
-            docbase::commands::docbase_ensure_default_project,
-            docbase::commands::docbase_set_wiki_active,
-            docbase::commands::docbase_link_general_project,
-            docbase::commands::docbase_unlink_general_project,
-            docbase::commands::docbase_wiki_sources,
             docbase::commands::docbase_list_documents,
             docbase::commands::docbase_list_folder,
             docbase::commands::docbase_set_excluded,
-            docbase::commands::docbase_excluded_sources,
             docbase::commands::docbase_open_folder,
             docbase::commands::docbase_get_document,
             docbase::commands::docbase_document_copies,
-            docbase::commands::docbase_pages_citing,
-            docbase::commands::docbase_broken_links,
-            docbase::commands::docbase_backlinks,
             docbase::commands::docbase_label_groups,
             docbase::commands::docbase_ensure_label,
             docbase::commands::docbase_rename_label,
@@ -712,8 +450,27 @@ pub fn run() {
             docbase::commands::docbase_knowledge_resolve,
             docbase::commands::docbase_knowledge_entities,
             docbase::commands::docbase_knowledge_entity,
-            docbase::commands::docbase_knowledge_entity_article,
-            docbase::commands::docbase_knowledge_entity_of_page,
+            docbase::commands::docbase_knowledge_article,
+            docbase::commands::docbase_knowledge_document_article,
+            docbase::commands::docbase_knowledge_object_of_page,
+            docbase::commands::docbase_knowledge_notes,
+            docbase::commands::docbase_knowledge_set_notes,
+            docbase::commands::docbase_knowledge_orphan_notes,
+            docbase::commands::docbase_knowledge_delete_note,
+            docbase::commands::docbase_knowledge_overview,
+            docbase::commands::docbase_knowledge_page_words,
+            docbase::commands::docbase_search,
+            docbase::commands::docbase_saved_queries,
+            docbase::commands::docbase_knowledge_page_text,
+            docbase::commands::docbase_research_save,
+            docbase::commands::docbase_research_of,
+            docbase::commands::docbase_research_loose,
+            docbase::commands::docbase_research_delete,
+            docbase::commands::docbase_chat_folder,
+            docbase::commands::docbase_save_query,
+            docbase::commands::docbase_delete_saved_query,
+            docbase::commands::docbase_background_reading,
+            docbase::commands::docbase_set_background_reading,
             docbase::commands::docbase_knowledge_doubts,
             docbase::commands::docbase_knowledge_decisions,
             docbase::commands::docbase_knowledge_decide,
@@ -730,67 +487,23 @@ pub fn run() {
             docbase::commands::docbase_knowledge_create_matter,
             docbase::commands::docbase_knowledge_rename_matter,
             docbase::commands::docbase_knowledge_choose_matter_document,
-            commands::fs::preprocess_file,
             commands::fs::delete_file,
-            commands::fs::find_related_wiki_pages,
             commands::fs::create_directory,
-            commands::fs::file_exists,
-            commands::fs::get_file_modified_time,
             commands::fs::get_file_size,
-            commands::fs::get_file_md5,
             commands::fs::read_file_as_base64,
-            commands::project::create_project,
-            commands::project::open_project,
-            commands::project::open_project_folder,
-            commands::project::open_path_in_project,
-            commands::project_maintenance::export_project_archive,
-            commands::project_maintenance::import_project_archive,
-            commands::project_maintenance::rebuild_wiki_index,
-            commands::search::search_project,
-            commands::search::embedding_fetch,
-            commands::search::embedding_fetch_batch,
-            commands::search::get_page_links,
             commands::external_search::web_search,
             commands::external_search::anytxt_search,
-            clip_server_status,
-            api_server_status,
-            api_server_reload_config,
             agent_start_turn,
             agent_start_turn_stream,
             agent_cancel_turn,
-            agent_get_session,
-            agent_list_sessions,
+            agent_workspace,
             agent::skills::agent_list_skills,
-            mcp_server_entry_path,
-            commands::vectorstore::vector_upsert,
-            commands::vectorstore::vector_search,
-            commands::vectorstore::vector_delete,
-            commands::vectorstore::vector_count,
-            commands::vectorstore::vector_upsert_chunks,
-            commands::vectorstore::vector_search_chunks,
-            commands::vectorstore::vector_delete_page,
-            commands::vectorstore::vector_count_chunks,
-            commands::vectorstore::vector_clear_chunks,
-            commands::vectorstore::vector_optimize_chunks,
-            commands::vectorstore::vector_legacy_row_count,
-            commands::vectorstore::vector_drop_legacy,
             commands::claude_cli::claude_cli_detect,
             commands::claude_cli::claude_cli_spawn,
             commands::claude_cli::claude_cli_kill,
             commands::codex_cli::codex_cli_detect,
             commands::codex_cli::codex_cli_spawn,
             commands::codex_cli::codex_cli_kill,
-            commands::extract_images::extract_pdf_images_cmd,
-            commands::extract_images::extract_office_images_cmd,
-            commands::extract_images::extract_and_save_pdf_images_cmd,
-            commands::extract_images::extract_and_save_office_images_cmd,
-            commands::file_sync::start_project_file_watcher,
-            commands::file_sync::stop_project_file_watcher,
-            commands::file_sync::rescan_project_files,
-            commands::file_sync::invalidate_project_file_snapshot_paths,
-            commands::file_sync::get_file_change_queue,
-            commands::file_sync::retry_file_change_task,
-            commands::file_sync::ignore_file_change_task,
             set_proxy_env,
             set_close_behavior,
         ])

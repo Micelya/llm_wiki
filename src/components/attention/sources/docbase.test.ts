@@ -42,7 +42,7 @@ function origin(patch: Partial<OriginSummary> = {}): OriginSummary {
 
 function facts(home: Partial<Home>, patch: Partial<DocbaseFacts> = {}): DocbaseFacts {
   return {
-    home: { health: health({ processed: 10 }), origins: [origin()], activity: [], wiki: { pages: 0, links: 0, broken: 0 }, ...home },
+    home: { health: health({ processed: 10 }), origins: [origin()], activity: [], ...home },
     similarPending: { pairs: 0, groups: 0, sameDocumentPairs: 0 },
     groups: [],
     proposedTypes: [],
@@ -131,7 +131,7 @@ describe("similar documents in the attention view", () => {
     // One family with two pairs, and two pairs outside families.
     expect(line.count).toBe(3)
     expect(line.cases?.map((c) => c.title)).toEqual(["«Acuerdo modelo.docx»", "2 pares fuera de las familias"])
-    expect(line.explanation).toContain("al wiki va uno solo")
+    expect(line.explanation).toContain("cuenta uno solo")
     // Each leads to the similar documents screen, on its family.
     expect(line.actions[0]).toMatchObject({ kind: "go", target: { view: "similar", principal: 10 } })
     expect(line.cases?.[0].actions?.[0]).toMatchObject({ target: { view: "similar", principal: 10 } })

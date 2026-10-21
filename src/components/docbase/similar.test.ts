@@ -122,7 +122,7 @@ describe("a document joined with another as the same one", () => {
 
   it("says it no longer feeds the wiki when the other one is the chosen source", () => {
     expect(passedOverNotice([joined(2)])).toBe(
-      "Este documento no alimenta el wiki: se unió con «Contrato de servicios firmado.pdf», que es la fuente elegida.",
+      "Este documento no cuenta por sí solo: se unió con «Contrato de servicios firmado.pdf», que es el elegido.",
     )
   })
 
@@ -135,7 +135,7 @@ describe("a document joined with another as the same one", () => {
 
   it("names every chosen source when there are several", () => {
     expect(passedOverNotice([joined(2), joined(3, docRef(3, "Contrato definitivo.pdf"))])).toBe(
-      "Este documento no alimenta el wiki: se unió con «Contrato de servicios firmado.pdf» y «Contrato definitivo.pdf», que son las fuentes elegidas.",
+      "Este documento no cuenta por sí solo: se unió con «Contrato de servicios firmado.pdf» y «Contrato definitivo.pdf», que son los elegidos.",
     )
   })
 })

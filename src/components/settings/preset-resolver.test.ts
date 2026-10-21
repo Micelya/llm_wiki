@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { LLM_PRESETS } from "./llm-presets"
 import { disabledLlmConfig, resolveConfig } from "./preset-resolver"
-import { hasUsableLlm } from "@/lib/has-usable-llm"
 import type { LlmConfig } from "@/stores/wiki-store"
 import type { LlmPreset } from "./llm-presets"
 
@@ -227,7 +226,6 @@ describe("disabledLlmConfig", () => {
 
     expect(cleared.provider).toBe("openai")
     expect(cleared.apiKey).toBe("")
-    expect(hasUsableLlm(cleared)).toBe(false)
   })
 
   it("does not erase provider-specific saved details from the fallback object shape", () => {
@@ -242,6 +240,6 @@ describe("disabledLlmConfig", () => {
     expect(cleared.maxContextSize).toBe(123456)
     expect(cleared.customEndpoint).toBe("http://local.test/v1")
     expect(cleared.provider).toBe("openai")
-    expect(hasUsableLlm(cleared)).toBe(false)
+    expect(cleared.apiKey).toBe("")
   })
 })

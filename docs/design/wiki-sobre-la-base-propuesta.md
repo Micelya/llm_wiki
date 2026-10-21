@@ -2,6 +2,7 @@
 
 **Estado:** aprobada con ajustes el 18 de octubre de 2026; en construcción (rama `feat/wiki-on-docbase`, P-142) · propuesta del 17 de octubre de 2026
 **Ajustes del dueño (18 oct, D-293 a D-296):** certeza y quién confirmó cada afirmación ("con cita comprobada", no "verificada"); el grafo ordena y amplía, no recorta; una extracción principal por contenido y configuración; página común solo para versiones del mismo documento; el asunto no depende de cuántos documentos tiene; prioridad a los errores críticos con mejora demostrada. Las decisiones abiertas quedaron resueltas (sección 11).
+**Remisión (21 oct 2026):** el wiki heredado se retira: las páginas pasan a la base y la carpeta se borra. Lo que esta propuesta dice de archivos, proyectos, Lint y Review queda reemplazado por el [retiro del wiki](retiro-del-wiki.md) (D-395 a D-400).
 **Alcance:** qué partes heredadas del wiki original se conservan, cuáles se rehacen sobre la base documental y la capa de conocimiento, y cuáles se quitan, para que el chat, la búsqueda y el grafo sigan funcionando sin redundancias y sin usos del modelo que no hacen falta. No describe código.
 
 Cuando esta propuesta esté acordada, lo que quede firme pasa al [documento de diseño](base-documental.md).

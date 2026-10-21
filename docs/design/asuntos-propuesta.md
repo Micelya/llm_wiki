@@ -1,6 +1,7 @@
 # Asuntos: un solo concepto — propuesta
 
 **Estado:** aprobada por el dueño el 20 oct 2026 (D-373 a D-376). Reemplaza lo que decían sobre asuntos la [base documental](base-documental.md) y la [propuesta del wiki](wiki-sobre-la-base-propuesta.md) (sección 5, D-293 y D-294).
+**Remisión (21 oct 2026):** con el [retiro del wiki](retiro-del-wiki.md) (D-395 a D-400), la página de un asunto se lee en su detalle, desde la base, y el grafo muestra los asuntos con su estado.
 
 Un **asunto** es lo que en un estudio se llama un caso: un reclamo con sus cartas y facturas, un contrato con sus pagos. En la vertical de abogados la pantalla dice "Caso"; el término genérico es "Asunto" y sale del vocabulario, nunca del código.
 

@@ -64,7 +64,7 @@ describe("the similar documents section", () => {
   it("asks which one stays as the wiki's source when the relation makes them one document, suggesting one", () => {
     const html = card({ initialJoining: { relation: "signed-copy", choosing: false, source: 2 } })
     const shown = text(html)
-    expect(shown).toContain("¿cuál queda como fuente del wiki?")
+    expect(shown).toContain("¿cuál se toma?")
     expect(shown).toContain("este documento (Contrato de servicios.pdf)")
     expect(shown).toMatch(/«Contrato de servicios firmado.pdf» \(sugerido\)/)
     expect(html).toMatch(/<input type="radio"[^>]*checked=""/)
@@ -78,7 +78,7 @@ describe("the similar documents section", () => {
     expect(shown).toContain("Misma plantilla, otros datos")
     expect(shown).toContain("Dice lo mismo con otras palabras")
     expect(shown).not.toContain("Mismo documento ")
-    expect(shown).toContain("Son documentos distintos: los dos siguen yendo al wiki.")
+    expect(shown).toContain("Son documentos distintos: los dos siguen contando.")
   })
 
   it("shows a decision and lets it be undone", () => {
@@ -94,7 +94,7 @@ describe("the similar documents section", () => {
     )
     expect(joined).toContain("Unidos como Versión")
     expect(joined).toContain("Unidos el 10/10/2026")
-    expect(joined).toContain("Queda como fuente del wiki: este documento (Contrato de servicios.pdf)")
+    expect(joined).toContain("Se toma: este documento (Contrato de servicios.pdf)")
     expect(joined).toContain("Deshacer")
     expect(joined).not.toContain("Descartar")
 

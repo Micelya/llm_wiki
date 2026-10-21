@@ -2,7 +2,9 @@ import { useState, type ReactNode } from "react"
 import { ChevronRight, FolderPlus, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { getHome, type Activity } from "@/commands/docbase"
+import { getHome, getKnowledgeOverview, type Activity } from "@/commands/docbase"
+import { ArticleText } from "@/components/knowledge/article-text"
+import { articleBody, articleTitle } from "@/components/knowledge/knowledge"
 import { DEFAULT_DOCUMENT_FILTER, useDocbaseStore } from "@/stores/docbase-store"
 import { useWikiStore } from "@/stores/wiki-store"
 import { noticesOf, summaryText } from "@/lib/attention/order"
@@ -96,6 +98,8 @@ export function HomeView() {
                 )}
               </Panel>
 
+              <Overview />
+
               <Panel title="Actividad reciente">
                 {data && data.activity.length === 0 ? (
                   <EmptyNote>Todavía no pasó nada en las carpetas incorporadas.</EmptyNote>
@@ -153,7 +157,6 @@ export function HomeView() {
                 </Metric>
                 <Metric label="Con copias en otro lugar">{formatCount(data.health.copies)}</Metric>
                 <Metric label="Palabras en la base">{formatCount(data.health.words)}</Metric>
-                <Metric label="Páginas del wiki">{formatCount(data.wiki.pages)}</Metric>
                 <Metric label="Carpetas">
                   {data.health.unreachableOrigins > 0 ? (
                     <StatusBadge tone="warning">
@@ -172,6 +175,21 @@ export function HomeView() {
         </aside>
       </div>
     </DocbasePage>
+  )
+}
+
+/**
+ * The overview of the archive, as the projection last wrote it in the
+ * base (D-407): what the record knows, the most named, the matters; each
+ * name opens its screen.
+ */
+function Overview() {
+  const overview = useDocbaseQuery("overview", getKnowledgeOverview)
+  if (!overview.data) return null
+  return (
+    <Panel title={articleTitle(overview.data.body) ?? "Resumen"}>
+      <ArticleText body={articleBody(overview.data.body)} writtenAt={overview.data.writtenAt} />
+    </Panel>
   )
 }
 

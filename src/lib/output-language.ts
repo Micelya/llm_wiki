@@ -1,6 +1,15 @@
 import { useWikiStore } from "@/stores/wiki-store"
 import { detectLanguage } from "./detect-language"
 import { getLanguagePromptName } from "./language-metadata"
+import { vocabulary } from "@/vocabulary"
+
+/**
+ * The language the base writes its articles in for this setting: the one
+ * chosen, or, with "auto", the language of the vertical's vocabulary.
+ */
+export function wikiLanguageOf(outputLanguage: string): string {
+  return outputLanguage && outputLanguage !== "auto" ? outputLanguage : vocabulary().wikiLanguage
+}
 
 /**
  * Get the effective output language for LLM content generation.

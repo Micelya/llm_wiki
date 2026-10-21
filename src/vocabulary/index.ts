@@ -22,10 +22,6 @@ export interface Vocabulary {
     shared: string
     /** Title of the figures about its state: "Salud del archivo". */
     health: string
-    /** Its wiki: "Wiki del archivo". */
-    wiki: string
-    /** One sentence saying what its wiki is. */
-    wikiDescription: string
   }
   /**
    * The single view of what needs a person (problems, decisions, what is
@@ -40,7 +36,7 @@ export interface Vocabulary {
   }
   /** Label groups offered to start with, most general first. */
   suggestedGroups: string[]
-  /** The language its wiki is written in when the user chose none, as an output-language value. */
+  /** The language the base writes its articles in when the user chose none, as an output-language value. */
   wikiLanguage: string
   /**
    * The names of the relations between similar documents, by the neutral
@@ -67,18 +63,6 @@ export interface Vocabulary {
    * here is shown as words.
    */
   knowledge: KnowledgeTerms
-  /** The words of the wiki's index (`wiki/index.md`), written in the wiki's language. */
-  wikiIndex: {
-    title: string
-    /** One sentence under the title. */
-    intro: string
-    /** The heading of each type of page, by the type its header says (`source`, `entity`…). */
-    types: Record<string, string>
-    /** The subheadings of the pages of entities, by their kind (`persona`…). */
-    entityKinds: Record<string, string>
-    /** Pages of a type nobody named here. */
-    other: string
-  }
 }
 
 export interface KnowledgeTerms {
@@ -108,6 +92,8 @@ export interface KnowledgeTerms {
   referenceTypes: string[]
   /** The types of entity, by id, in singular and plural. */
   entityTypes: Record<string, { one: string; many: string }>
+  /** An organization with the companies of its group, in singular and plural: "Grupo de sociedades". */
+  groups: { one: string; many: string }
   /** The role a mention has in its document, by id. */
   roles: Record<string, string>
   /** What a claim says, by predicate id; `of` reads it from its object ("Representada por"). */
@@ -204,17 +190,6 @@ export function setVertical(vertical: VerticalId, country: string | null = null)
 export function vocabulary(): Vocabulary {
   const tag = currentCountry ? `${SCREEN_LANGUAGE}-${currentCountry}` : SCREEN_LANGUAGE
   return vocabularyFor(currentVertical, tag)
-}
-
-/**
- * The vocabulary of the vertical whose wiki is written in this language
- * (an output-language value such as "Spanish"), or the vertical's own
- * when none is.
- */
-export function wikiVocabulary(language: string, vertical: VerticalId = currentVertical): Vocabulary {
-  const entry = VERTICALS[vertical] ?? VERTICALS[DEFAULT_VERTICAL]
-  const found = Object.values(entry.languages).find((words) => words?.wikiLanguage === language)
-  return found ?? resolveVocabulary(entry, entry.default)
 }
 
 /** The name of a relation between similar documents, or its id when no vocabulary names it. */

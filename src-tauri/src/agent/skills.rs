@@ -26,9 +26,11 @@ pub struct AvailableAgentSkill {
     pub source: String,
 }
 
+/// The skills the agent can use, from its folder (`folder`) and the
+/// user's skill folders.
 #[tauri::command]
-pub fn agent_list_skills(project_path: String) -> Vec<AvailableAgentSkill> {
-    list_available_skills(&project_path)
+pub fn agent_list_skills(folder: String) -> Vec<AvailableAgentSkill> {
+    list_available_skills(&folder)
 }
 
 pub fn load_project_skills(project_path: &str, requested: &[String]) -> Vec<AgentSkill> {
@@ -78,8 +80,8 @@ struct SkillRoot {
 
 fn skill_roots(project_path: &str) -> Vec<SkillRoot> {
     let mut roots = vec![SkillRoot {
-        path: Path::new(project_path).join(".llm-wiki").join("skills"),
-        source: "project".to_string(),
+        path: Path::new(project_path).join("skills"),
+        source: "micelya".to_string(),
     }];
     if let Some(home) = home_dir() {
         roots.push(SkillRoot {
@@ -402,8 +404,8 @@ mod tests {
 
     #[test]
     fn load_project_skills_reads_frontmatter_skill() {
-        let root = std::env::temp_dir().join(format!("llm-wiki-skills-{}", Uuid::new_v4()));
-        let skills_dir = root.join(".llm-wiki").join("skills");
+        let root = std::env::temp_dir().join(format!("micelya-skills-{}", Uuid::new_v4()));
+        let skills_dir = root.join("skills");
         fs::create_dir_all(&skills_dir).unwrap();
         fs::write(
             skills_dir.join("reviewer.md"),
@@ -416,15 +418,15 @@ mod tests {
         assert_eq!(skills[0].name, "reviewer");
         assert_eq!(skills[0].description, "Review source quality");
         assert_eq!(skills[0].instructions, "Check claims carefully.");
-        assert!(skills[0].base_dir.ends_with("/.llm-wiki/skills"));
+        assert!(skills[0].base_dir.ends_with("/skills"));
         assert!(skills[0].location.ends_with("/reviewer.md"));
         let _ = fs::remove_dir_all(root);
     }
 
     #[test]
     fn load_project_skills_reads_crlf_frontmatter() {
-        let root = std::env::temp_dir().join(format!("llm-wiki-skills-{}", Uuid::new_v4()));
-        let skills_dir = root.join(".llm-wiki").join("skills");
+        let root = std::env::temp_dir().join(format!("micelya-skills-{}", Uuid::new_v4()));
+        let skills_dir = root.join("skills");
         fs::create_dir_all(&skills_dir).unwrap();
         fs::write(
             skills_dir.join("reviewer.md"),
@@ -437,7 +439,7 @@ mod tests {
         assert_eq!(skills[0].name, "reviewer");
         assert_eq!(skills[0].description, "Review source quality");
         assert_eq!(skills[0].instructions, "Check claims carefully.");
-        assert!(skills[0].base_dir.ends_with("/.llm-wiki/skills"));
+        assert!(skills[0].base_dir.ends_with("/skills"));
         assert!(skills[0].location.ends_with("/reviewer.md"));
         let _ = fs::remove_dir_all(root);
     }
@@ -467,8 +469,8 @@ mod tests {
     fn load_project_skills_rejects_symlink_skill_files() {
         use std::os::unix::fs::symlink;
 
-        let root = std::env::temp_dir().join(format!("llm-wiki-skills-{}", Uuid::new_v4()));
-        let skills_dir = root.join(".llm-wiki").join("skills");
+        let root = std::env::temp_dir().join(format!("micelya-skills-{}", Uuid::new_v4()));
+        let skills_dir = root.join("skills");
         fs::create_dir_all(&skills_dir).unwrap();
         let target = skills_dir.join("target.md");
         fs::write(
@@ -487,8 +489,8 @@ mod tests {
 
     #[test]
     fn oversized_skill_files_are_ignored() {
-        let root = std::env::temp_dir().join(format!("llm-wiki-skills-{}", Uuid::new_v4()));
-        let skills_dir = root.join(".llm-wiki").join("skills");
+        let root = std::env::temp_dir().join(format!("micelya-skills-{}", Uuid::new_v4()));
+        let skills_dir = root.join("skills");
         fs::create_dir_all(&skills_dir).unwrap();
         let body = "x".repeat(MAX_SKILL_FILE_BYTES + 1);
         fs::write(
@@ -506,8 +508,8 @@ mod tests {
 
     #[test]
     fn list_available_skills_reads_markdown_and_skill_folders() {
-        let root = std::env::temp_dir().join(format!("llm-wiki-skills-{}", Uuid::new_v4()));
-        let skills_dir = root.join(".llm-wiki").join("skills");
+        let root = std::env::temp_dir().join(format!("micelya-skills-{}", Uuid::new_v4()));
+        let skills_dir = root.join("skills");
         fs::create_dir_all(skills_dir.join("illustrator")).unwrap();
         fs::write(
             skills_dir.join("reviewer.md"),
@@ -528,12 +530,12 @@ mod tests {
         assert!(names.contains(&(
             "reviewer".to_string(),
             "reviewer".to_string(),
-            "project".to_string()
+            "micelya".to_string()
         )));
         assert!(names.contains(&(
             "illustrator".to_string(),
             "illustrator".to_string(),
-            "project".to_string()
+            "micelya".to_string()
         )));
         let loaded = load_project_skills(root.to_str().unwrap(), &["illustrator".to_string()]);
         assert_eq!(loaded[0].name, "illustrator");
@@ -542,8 +544,8 @@ mod tests {
 
     #[test]
     fn list_available_skills_accepts_case_insensitive_markdown_names() {
-        let root = std::env::temp_dir().join(format!("llm-wiki-skills-{}", Uuid::new_v4()));
-        let skills_dir = root.join(".llm-wiki").join("skills");
+        let root = std::env::temp_dir().join(format!("micelya-skills-{}", Uuid::new_v4()));
+        let skills_dir = root.join("skills");
         fs::create_dir_all(skills_dir.join("designer")).unwrap();
         fs::write(
             skills_dir.join("Reviewer.MD"),
@@ -572,9 +574,8 @@ mod tests {
 
     #[test]
     fn nested_skill_folder_is_listed_and_loadable() {
-        let root = std::env::temp_dir().join(format!("llm-wiki-skills-{}", Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("micelya-skills-{}", Uuid::new_v4()));
         let skill_dir = root
-            .join(".llm-wiki")
             .join("skills")
             .join("writing")
             .join("article-illustrator");
@@ -603,8 +604,8 @@ mod tests {
 
     #[test]
     fn skills_without_description_are_ignored() {
-        let root = std::env::temp_dir().join(format!("llm-wiki-skills-{}", Uuid::new_v4()));
-        let skills_dir = root.join(".llm-wiki").join("skills");
+        let root = std::env::temp_dir().join(format!("micelya-skills-{}", Uuid::new_v4()));
+        let skills_dir = root.join("skills");
         fs::create_dir_all(&skills_dir).unwrap();
         fs::write(
             skills_dir.join("anonymous.md"),
@@ -621,8 +622,8 @@ mod tests {
 
     #[test]
     fn load_project_skills_deduplicates_requested_ids() {
-        let root = std::env::temp_dir().join(format!("llm-wiki-skills-{}", Uuid::new_v4()));
-        let skills_dir = root.join(".llm-wiki").join("skills");
+        let root = std::env::temp_dir().join(format!("micelya-skills-{}", Uuid::new_v4()));
+        let skills_dir = root.join("skills");
         fs::create_dir_all(&skills_dir).unwrap();
         fs::write(
             skills_dir.join("reviewer.md"),
@@ -640,9 +641,8 @@ mod tests {
 
     #[test]
     fn load_project_skills_reads_only_skill_md_from_skill_folder() {
-        let root = std::env::temp_dir().join(format!("llm-wiki-skills-{}", Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("micelya-skills-{}", Uuid::new_v4()));
         let skill_dir = root
-            .join(".llm-wiki")
             .join("skills")
             .join("article-illustrator");
         fs::create_dir_all(skill_dir.join("references")).unwrap();
@@ -668,17 +668,17 @@ mod tests {
             .contains("Prefer editorial illustration"));
         assert!(loaded[0]
             .base_dir
-            .ends_with("/.llm-wiki/skills/article-illustrator"));
+            .ends_with("/skills/article-illustrator"));
         assert!(loaded[0]
             .location
-            .ends_with("/.llm-wiki/skills/article-illustrator/SKILL.md"));
+            .ends_with("/skills/article-illustrator/SKILL.md"));
         let _ = fs::remove_dir_all(root);
     }
 
     #[test]
     fn list_available_skills_uses_slug_id_when_frontmatter_name_differs() {
-        let root = std::env::temp_dir().join(format!("llm-wiki-skills-{}", Uuid::new_v4()));
-        let skills_dir = root.join(".llm-wiki").join("skills");
+        let root = std::env::temp_dir().join(format!("micelya-skills-{}", Uuid::new_v4()));
+        let skills_dir = root.join("skills");
         fs::create_dir_all(&skills_dir).unwrap();
         fs::write(
             skills_dir.join("article.md"),

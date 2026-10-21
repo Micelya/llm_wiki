@@ -300,7 +300,7 @@ mod tests {
             "message": "hello",
             "sessionId": "s1",
             "topK": 7,
-            "contextFiles": ["wiki/page.md"]
+            "contextFiles": ["notas/page.md"]
         }))
         .unwrap();
 
@@ -310,7 +310,7 @@ mod tests {
         assert_eq!(req.mode, AgentMode::Standard);
         assert_eq!(req.retrieval_mode, AgentRetrievalMode::Standard);
         assert_eq!(req.top_k, Some(7));
-        assert_eq!(req.context_files, vec!["wiki/page.md".to_string()]);
+        assert_eq!(req.context_files, vec!["notas/page.md".to_string()]);
         assert_eq!(req.skill_mode, AgentSkillMode::Explicit);
         assert!(req.tools.wiki);
         assert!(!req.tools.web);

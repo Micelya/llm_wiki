@@ -13,8 +13,9 @@
  *   search never ran. Auto-mode skills are of no use on this path, so
  *   they are not sent.
  * - Page text. The backend returns title, path and a short snippet per
- *   retrieved page. That is enough to cite a page but not to answer from
- *   it, so the text of the retrieved wiki pages is appended, bounded.
+ *   retrieved object. That is enough to cite it but not to answer from it,
+ *   so the text of each retrieved page of the base (its article, read from
+ *   the base by its logical path, D-413) is appended, bounded.
  */
 
 export interface CliContextReference {
@@ -27,7 +28,7 @@ export interface CliRetrievedContextInput {
   /** What the backend returned as retrieval summary (titles and snippets). */
   summary: string
   references: CliContextReference[]
-  /** Reads a project-relative page; a rejection only drops that page. */
+  /** Reads a page of the base by its logical path; a rejection only drops that page. */
   readPage: (path: string) => Promise<string>
 }
 
@@ -49,7 +50,8 @@ export function cliRequestSkills(skillMode: "auto" | "explicit", skills: string[
   return skillMode === "auto" ? [] : skills
 }
 
-function isWikiPage(reference: CliContextReference): boolean {
+/** A page of the base: its logical path (`wiki/…/x.md`), not a web or file result. */
+function isBasePage(reference: CliContextReference): boolean {
   const path = reference.path.replace(/\\/g, "/")
   return path.startsWith("wiki/") && path.toLowerCase().endsWith(".md")
 }
@@ -61,7 +63,7 @@ function escapeAttribute(value: string): string {
 export async function buildCliRetrievedContext(input: CliRetrievedContextInput): Promise<string> {
   const seen = new Set<string>()
   const pages = input.references.filter((reference) => {
-    if (!isWikiPage(reference) || seen.has(reference.path)) return false
+    if (!isBasePage(reference) || seen.has(reference.path)) return false
     seen.add(reference.path)
     return true
   }).slice(0, CLI_CONTEXT_MAX_PAGES)
@@ -86,7 +88,7 @@ export async function buildCliRetrievedContext(input: CliRetrievedContextInput):
   if (blocks.length === 0) return input.summary
   return [
     input.summary,
-    "Full text of the retrieved wiki pages. Answer from this text and cite the page it comes from:",
+    "Full text of the retrieved articles of the document base. Answer from this text and cite the document, person, organization or matter it comes from:",
     ...blocks,
   ].filter((part) => part.trim().length > 0).join("\n\n")
 }

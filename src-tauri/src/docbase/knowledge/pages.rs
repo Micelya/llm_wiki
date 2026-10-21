@@ -1,11 +1,15 @@
-//! Stage 3 of the knowledge layer: the pages of the archive's wiki that
-//! are a projection of the record (D-175).
+//! Stage 3 of the knowledge layer: the pages of the archive that are a
+//! projection of the record (D-175), kept in the base (D-402): each page is
+//! a row of `knowledge_page` with its markdown body, named by its logical
+//! path (`wiki/entities/…`, `wiki/sources/…`), which is what the links
+//! between pages say. No file is read or written.
 //!
 //! - **The page of each entity** that has one (`wiki/entities/`): its
 //!   header (type, name, aliases, id, every document that names it), what
 //!   the documents say of it, the list of its documents grouped by matter
-//!   with its role in each, the entities related to it and a section of
-//!   notes the app never writes over. Which entities have a page is
+//!   with its role in each and the entities related to it. The notes of a
+//!   person are apart (`knowledge_note`), never written over. Which
+//!   entities have a page is
 //!   decided over the whole archive, by the rules of the vocabulary
 //!   (`pages.kinds`, D-196): never by one document.
 //! - **What the documents say** is written by the model from the verified
@@ -20,19 +24,17 @@
 //!   of entities (who and what it names, with its role and a link to its
 //!   page, between two marks), its versions, its data, the summary of the
 //!   one reading and its amounts, each saying which version it comes
-//!   from; the notes of a person are kept and nothing else is.
-//! - **The overview** of the archive (`wiki/overview.md`), from the
+//!   from.
+//! - **The overview** of the archive (`knowledge_overview`), from the
 //!   record, in the words of the vocabulary.
 //!
 //! A page's file name is fixed the first time (a readable name plus the
 //! entity's id) and kept when the entity is renamed: links never break
 //! (D-195). Everything is computed again from the record each time the
-//! record or the wiki's pages of documents change, and only what changed
-//! is written (R-13, R-15): the order in which documents were read,
-//! resolved or written into the wiki does not matter.
+//! record changes, and only what changed is written (R-13, R-15): the
+//! order in which documents were read or resolved does not matter.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::path::{Path, PathBuf};
 
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
@@ -45,13 +47,25 @@ use crate::docbase::{now_ms, sql_err, DocBase, Visible};
 use crate::source_volume::asking::DocumentAsker;
 
 mod family;
+mod import;
+#[cfg(test)]
+mod check_retire;
+
+pub(crate) use family::document_title;
+
+/// Each document of the base with its versions (D-340): the id of the
+/// family (`doc-…`, what its page and notes are kept under) and its
+/// documents, the one it is named after first.
+pub(crate) fn document_families(base: &DocBase) -> Result<Vec<(String, Vec<i64>)>, String> {
+    Ok(family::families(base, vocabulary())?.list.into_iter().map(|f| (f.id, f.members)).collect())
+}
 
 /// Version of the question that writes what the documents say.
 pub const SYNTHESIS_PROMPT: &str = "sintesis-3";
 /// Raised when a change in the program changes what a projection writes
 /// (which names have a page, what a block lists): every page is written
 /// again from the record, without asking more.
-const PROJECTION_VERSION: &str = "proyeccion-10";
+const PROJECTION_VERSION: &str = "proyeccion-11";
 /// The task its answers are kept under in `model_answer`.
 pub const TASK: &str = "synthesis";
 /// The words of the vocabulary (`pages.words`) a page is written with.
@@ -153,8 +167,8 @@ const MOST_NAMED: usize = 10;
 const WIKI_LANGUAGE_SETTING: &str = "wiki-language";
 /// What the last complete projection was computed on.
 const BASIS_SETTING: &str = "knowledge-pages-basis";
-const OVERVIEW_SETTING: &str = "knowledge-overview";
-const OVERVIEW_PATH: &str = "wiki/overview.md";
+/// The logical path of the overview, what links to it say.
+pub(crate) const OVERVIEW_PATH: &str = "wiki/overview.md";
 /// The marks around what the app writes inside a page it does not own,
 /// and before the notes of a person. They are found by these words alone.
 pub const BLOCK_START: &str = "<!-- micelya:entidades:inicio";
@@ -170,8 +184,8 @@ static PROJECTING: std::sync::Mutex<()> = std::sync::Mutex::new(());
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectReport {
-    /// Nothing to do: no general project, the resolution is not done, or
-    /// nothing changed since the last projection.
+    /// Nothing to do: the resolution is not done, or nothing changed since
+    /// the last projection.
     pub skipped: bool,
     pub reason: Option<String>,
     /// Entities with a page.
@@ -182,8 +196,9 @@ pub struct ProjectReport {
     /// notes), and pages kept only for their notes.
     pub removed: usize,
     pub kept: usize,
-    /// Pages moved to the file of their entity's new name, and pages of
-    /// the wiki whose links were redirected (D-239).
+    /// Pages moved to the path of their entity's new name, and texts of
+    /// the base (pages, notes, saved queries) whose links were redirected
+    /// (D-239).
     pub moved: usize,
     pub redirected: usize,
     /// Questions sent to the model, failed, and left for another run.
@@ -201,7 +216,7 @@ pub struct ProjectReport {
 }
 
 impl ProjectReport {
-    /// Whether a file of the wiki changed.
+    /// Whether a page of the base changed.
     pub fn wrote(&self) -> bool {
         self.written + self.removed + self.blocks_written + self.redirected > 0 || self.overview_written
     }
@@ -320,6 +335,8 @@ struct PageRow {
     path: String,
     state: String,
     fingerprint: String,
+    /// Whether its body is in the base (V20: none until projected again).
+    has_body: bool,
 }
 
 /// The record, as the pages need it.
@@ -327,8 +344,6 @@ struct Record {
     entities: BTreeMap<String, Entity>,
     documents: BTreeMap<i64, Document>,
     pages: BTreeMap<String, PageRow>,
-    /// Source pages: (path, content).
-    source_pages: Vec<(String, i64)>,
     /// The matters (groups of documents, `matters.rs`), and the matters of
     /// each document.
     matters: BTreeMap<String, Matter>,
@@ -401,7 +416,7 @@ pub fn page_path(folder: &str, id: &str, name: &str, kind: &str) -> String {
 }
 
 /// What a wiki link names a page by: its file name without `.md`.
-fn stem(path: &str) -> String {
+pub(crate) fn stem(path: &str) -> String {
     let name = path.rsplit('/').next().unwrap_or(path);
     name.strip_suffix(".md").unwrap_or(name).to_string()
 }
@@ -626,7 +641,7 @@ fn has_page(vocabulary: &Vocabulary, entity: &Entity) -> bool {
     rule.strong_identifier && entity.has_strong_identifier(vocabulary)
 }
 
-fn load(conn: &Connection, project_id: &str, identities: &HashMap<i64, String>) -> Result<Record, String> {
+fn load(conn: &Connection, identities: &HashMap<i64, String>) -> Result<Record, String> {
     let mut entities: BTreeMap<String, Entity> = BTreeMap::new();
     {
         let mut statement = conn.prepare("SELECT id, kind, name, state, merged_into FROM knowledge_entity").map_err(sql_err)?;
@@ -869,33 +884,16 @@ fn load(conn: &Connection, project_id: &str, identities: &HashMap<i64, String>) 
             }
         }
     }
-    let mut source_pages = Vec::new();
-    {
-        let mut statement = conn
-            .prepare(
-                "SELECT DISTINCT p.path, f.content_id FROM wiki_page p
-                 JOIN wiki_page_source s ON s.page_id = p.id JOIN location l ON l.id = s.location_id
-                 JOIN file f ON f.hash = l.file_hash
-                 WHERE p.project_id = ?1 AND p.type = 'source' AND f.content_id IS NOT NULL ORDER BY p.path, f.content_id",
-            )
-            .map_err(sql_err)?;
-        let rows = statement.query_map([project_id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))).map_err(sql_err)?;
-        for row in rows {
-            let (path, content) = row.map_err(sql_err)?;
-            if let Some(document) = documents.get_mut(&content) {
-                if document.page.is_none() {
-                    document.page = Some(path.clone());
-                }
-            }
-            source_pages.push((path, content));
-        }
-    }
     let mut pages = BTreeMap::new();
     {
-        let mut statement = conn.prepare("SELECT entity_id, path, state, fingerprint FROM knowledge_page").map_err(sql_err)?;
+        let mut statement =
+            conn.prepare("SELECT entity_id, path, state, fingerprint, body IS NOT NULL FROM knowledge_page").map_err(sql_err)?;
         let rows = statement
             .query_map([], |row| {
-                Ok((row.get::<_, String>(0)?, PageRow { path: row.get(1)?, state: row.get(2)?, fingerprint: row.get(3)? }))
+                Ok((
+                    row.get::<_, String>(0)?,
+                    PageRow { path: row.get(1)?, state: row.get(2)?, fingerprint: row.get(3)?, has_body: row.get(4)? },
+                ))
             })
             .map_err(sql_err)?;
         for row in rows {
@@ -921,7 +919,7 @@ fn load(conn: &Connection, project_id: &str, identities: &HashMap<i64, String>) 
             );
         }
     }
-    Ok(Record { entities, documents, pages, source_pages, matters, matter_of, proposed })
+    Ok(Record { entities, documents, pages, matters, matter_of, proposed })
 }
 
 /// The language the wiki is written in, as the wiki said it; none when it
@@ -1590,8 +1588,9 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
     Rendered { text: out, synthesis, sentences, discarded }
 }
 
-/// The notes of a person in a page on disk: what follows the notes mark,
-/// or the section of notes when the mark was taken out.
+/// The notes of a person in a page of the old wiki: what follows the
+/// notes mark, or the section of notes when the mark was taken out (only
+/// the import of the old wiki reads them now, `import.rs`).
 fn notes_of(text: &str, heading: &str) -> String {
     let text = text.replace("\r\n", "\n");
     if let Some(at) = text.find(NOTES_MARK) {
@@ -1606,7 +1605,10 @@ fn notes_of(text: &str, heading: &str) -> String {
     String::new()
 }
 
-fn with_notes(vocabulary: &Vocabulary, generated: &str, notes: &str) -> String {
+/// A page as one text, the way the wiki's file had it: what the app wrote,
+/// then the section of notes with its mark and the notes of a person (for
+/// the search and the chat, which read a page whole).
+pub(crate) fn with_notes(vocabulary: &Vocabulary, generated: &str, notes: &str) -> String {
     let words = &vocabulary.pages;
     let mut out = generated.trim_end().to_string();
     out.push_str(&format!("\n\n## {}\n\n{NOTES_MARK}: {} -->\n", words.word("notes"), words.word("notesMark")));
@@ -1622,18 +1624,52 @@ fn dated(text: &str) -> String {
     text.replacen(&format!("generated_by: {GENERATED_BY}\n"), &format!("generated_by: {GENERATED_BY}\nupdated: {}\n", today()), 1)
 }
 
-/// Writes a file whole, through a file next to it.
-fn write_file(path: &Path, text: &str) -> Result<(), String> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| format!("No se pudo crear '{}': {e}", parent.display()))?;
-    }
-    let temporary = path.with_extension("md.tmp");
-    std::fs::write(&temporary, text).map_err(|e| format!("No se pudo escribir '{}': {e}", temporary.display()))?;
-    std::fs::rename(&temporary, path).map_err(|e| format!("No se pudo escribir '{}': {e}", path.display()))
+/// The notes of a person on an object (`knowledge_note`); empty when none.
+pub(crate) fn notes_of_object(conn: &Connection, id: &str) -> Result<String, String> {
+    conn.query_row("SELECT text FROM knowledge_note WHERE object_id = ?1", [id], |row| row.get::<_, String>(0))
+        .optional()
+        .map_err(sql_err)
+        .map(Option::unwrap_or_default)
 }
 
-fn read_file(path: &Path) -> Option<String> {
-    std::fs::read_to_string(path).ok()
+/// Adds `text` to the notes of `id`, unless they already say it.
+pub(crate) fn add_notes(conn: &Connection, id: &str, text: &str) -> Result<(), String> {
+    let text = text.trim_matches('\n');
+    if text.trim().is_empty() {
+        return Ok(());
+    }
+    let before = notes_of_object(conn, id)?;
+    if before.contains(text.trim()) {
+        return Ok(());
+    }
+    let next = if before.trim().is_empty() { text.to_string() } else { format!("{}\n\n{text}", before.trim_end()) };
+    conn.execute(
+        "INSERT INTO knowledge_note (object_id, text, updated_at) VALUES (?1, ?2, ?3)
+         ON CONFLICT (object_id) DO UPDATE SET text = excluded.text, updated_at = excluded.updated_at",
+        params![id, next, now_ms()],
+    )
+    .map_err(sql_err)?;
+    Ok(())
+}
+
+/// The notes of a page that goes into another one (a version of a
+/// document that joined its family's page): they go with it (D-340).
+fn move_notes(conn: &Connection, from: &str, to: &str) -> Result<(), String> {
+    let notes = notes_of_object(conn, from)?;
+    if notes.trim().is_empty() {
+        return Ok(());
+    }
+    add_notes(conn, to, &notes)?;
+    conn.execute("DELETE FROM knowledge_note WHERE object_id = ?1", [from]).map_err(sql_err)?;
+    Ok(())
+}
+
+/// The body of a page in the base, when it has one.
+fn stored_body(conn: &Connection, id: &str) -> Result<Option<String>, String> {
+    conn.query_row("SELECT body FROM knowledge_page WHERE entity_id = ?1", [id], |row| row.get::<_, Option<String>>(0))
+        .optional()
+        .map_err(sql_err)
+        .map(Option::flatten)
 }
 
 /// The block of entities a document's page ends with.
@@ -1824,43 +1860,40 @@ fn overview(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, S
     out
 }
 
-/// Writes a page when what the app writes of it changed, with the notes
-/// of a person as they were.
-#[allow(clippy::too_many_arguments)]
+/// Keeps a page in the base when what the app writes of it changed. Its
+/// notes are apart and stay with its object, also when it moves.
 fn write_page(
     base: &DocBase,
     record: &Record,
-    root: &Path,
     id: &str,
     path: &str,
     moved_from: Option<&str>,
     rendered: &Rendered,
-    vocabulary: &Vocabulary,
     report: &mut ProjectReport,
 ) -> Result<(), String> {
     let fingerprint = hash(&[&rendered.text]);
-    let file = root.join(path);
     let known = record.pages.get(id);
-    if moved_from.is_none() && known.is_some_and(|p| p.fingerprint == fingerprint && p.state == "projected") && file.is_file() {
+    if moved_from.is_none() && known.is_some_and(|p| p.fingerprint == fingerprint && p.state == "projected" && p.has_body) {
         report.unchanged += 1;
         return Ok(());
     }
-    // The notes, from the page itself or, when it moves, from where it was.
-    let old = moved_from.map(|from| root.join(from));
-    let notes = read_file(&file)
-        .or_else(|| old.as_deref().and_then(read_file))
-        .map(|t| notes_of(&t, vocabulary.pages.word("notes")))
-        .unwrap_or_default();
-    write_file(&file, &with_notes(vocabulary, &dated(&rendered.text), &notes))?;
-    if let Some(old) = old.filter(|o| *o != file && o.is_file()) {
-        std::fs::remove_file(&old).map_err(|e| format!("No se pudo borrar '{}': {e}", old.display()))?;
+    if moved_from.is_some_and(|from| from != path) {
         report.moved += 1;
     }
     base.conn()
         .execute(
-            "INSERT OR REPLACE INTO knowledge_page (entity_id, path, state, fingerprint, synthesis, sentences, discarded, written_at)
-             VALUES (?1, ?2, 'projected', ?3, ?4, ?5, ?6, ?7)",
-            params![id, path, fingerprint, rendered.synthesis, rendered.sentences as i64, rendered.discarded as i64, now_ms()],
+            "INSERT OR REPLACE INTO knowledge_page (entity_id, path, state, fingerprint, synthesis, sentences, discarded, written_at, body)
+             VALUES (?1, ?2, 'projected', ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![
+                id,
+                path,
+                fingerprint,
+                rendered.synthesis,
+                rendered.sentences as i64,
+                rendered.discarded as i64,
+                now_ms(),
+                dated(&rendered.text)
+            ],
         )
         .map_err(sql_err)?;
     report.written += 1;
@@ -2094,8 +2127,8 @@ fn renamed_path(
     page.path.clone()
 }
 
-/// The title in the header of a page on disk.
-fn title_of(text: &str) -> Option<String> {
+/// The title in the header of a page.
+pub(crate) fn title_of(text: &str) -> Option<String> {
     let text = text.replace("\r\n", "\n");
     let header = text.strip_prefix("---\n")?.split("\n---").next()?;
     let line = header.lines().find(|l| l.starts_with("title:"))?;
@@ -2115,30 +2148,33 @@ fn readable_stem(path: &str) -> String {
     readable.replace('-', " ")
 }
 
-/// Rewrites, in every page of the wiki, the links to a page that moved or
-/// went: `[[old|text]]` leads to the new page, or is left as `text`. The
-/// `related:` lists follow too. Returns how many pages changed.
-fn redirect_links(root: &Path, redirects: &BTreeMap<String, Redirect>) -> Result<usize, String> {
-    fn pages(dir: &Path, out: &mut Vec<PathBuf>) {
-        let Ok(entries) = std::fs::read_dir(dir) else { return };
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                pages(&path, out);
-            } else if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("md")) {
-                out.push(path);
-            }
-        }
-    }
-    let mut files = Vec::new();
-    pages(&root.join("wiki"), &mut files);
+/// Rewrites, in every text of the base that links pages (the pages, the
+/// notes of a person, the overview and the saved queries), the links to a
+/// page that moved or went: `[[old|text]]` leads to the new page, or is
+/// left as `text`. The `related:` lists follow too. Returns how many
+/// texts changed.
+fn redirect_links(conn: &Connection, redirects: &BTreeMap<String, Redirect>) -> Result<usize, String> {
     let mut changed = 0;
-    for file in files {
-        let Some(text) = read_file(&file) else { continue };
-        let next = with_redirects(&text, redirects);
-        if next != text {
-            write_file(&file, &next)?;
-            changed += 1;
+    for (table, key, column) in [
+        ("knowledge_page", "entity_id", "body"),
+        ("knowledge_note", "id", "text"),
+        ("knowledge_overview", "id", "body"),
+        ("knowledge_query", "id", "answer"),
+    ] {
+        let rows: Vec<(String, String)> = {
+            let mut statement = conn
+                .prepare(&format!("SELECT CAST({key} AS TEXT), {column} FROM {table} WHERE {column} IS NOT NULL"))
+                .map_err(sql_err)?;
+            let rows = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?))).map_err(sql_err)?;
+            rows.collect::<Result<_, _>>().map_err(sql_err)?
+        };
+        for (id, text) in rows {
+            let next = with_redirects(&text, redirects);
+            if next != text {
+                conn.execute(&format!("UPDATE {table} SET {column} = ?2 WHERE CAST({key} AS TEXT) = ?1"), params![id, next])
+                    .map_err(sql_err)?;
+                changed += 1;
+            }
         }
     }
     Ok(changed)
@@ -2230,10 +2266,10 @@ fn survivor<'a>(record: &'a Record, id: &str) -> Option<&'a Entity> {
     None
 }
 
-/// What a projection is computed on besides the record: the pages of
-/// documents of the wiki (path, size, date), the vocabulary, the language
-/// and the folder of the wiki.
-fn basis_of(base: &DocBase, project_id: &str, vocabulary: &Vocabulary, language: Option<&str>, root: &Path, documents: &str) -> Result<String, String> {
+/// What a projection is computed on besides the record: the documents and
+/// what the pages of documents are written from, the vocabulary and the
+/// language.
+fn basis_of(base: &DocBase, vocabulary: &Vocabulary, language: Option<&str>, documents: &str) -> Result<String, String> {
     let conn = base.conn();
     // What the pages of documents are written from besides the record:
     // their summaries, types and data (D-340).
@@ -2246,16 +2282,7 @@ fn basis_of(base: &DocBase, project_id: &str, vocabulary: &Vocabulary, language:
             |row| row.get(0),
         )
         .map_err(sql_err)?;
-    let mut statement = conn
-        .prepare("SELECT path, size, mtime_ms FROM wiki_page WHERE project_id = ?1 AND type = 'source' ORDER BY path")
-        .map_err(sql_err)?;
-    let rows: Vec<String> = statement
-        .query_map([project_id], |row| Ok(format!("{}|{}|{}", row.get::<_, String>(0)?, row.get::<_, i64>(1)?, row.get::<_, i64>(2)?)))
-        .map_err(sql_err)?
-        .collect::<Result<_, _>>()
-        .map_err(sql_err)?;
-    Ok(hash(&[PROJECTION_VERSION, &vocabulary.digest, language.unwrap_or(""), &root.to_string_lossy(), documents, &written_from, &rows.join("
-")]))
+    Ok(hash(&[PROJECTION_VERSION, &vocabulary.digest, language.unwrap_or(""), documents, &written_from]))
 }
 
 /// How the projection reaches the model.
@@ -2287,14 +2314,13 @@ impl DocBase {
         Ok(asking.collect.unwrap_or_default())
     }
 
-    /// Projects the record into the general project's wiki: the page of
-    /// each entity that has one, the block of entities of each document's
-    /// page and the overview; up to `max_questions` questions to `asker`
-    /// for what the documents say (none without one: the pages are
-    /// written all the same, with the synthesis pending). Waits for the
-    /// resolution of identities to finish, and does nothing when neither
-    /// the record nor the wiki's pages of documents changed since the last
-    /// complete projection.
+    /// Projects the record into the pages of the base: the page of each
+    /// entity and matter that has one, the page of each document and the
+    /// overview; up to `max_questions` questions to `asker` for what the
+    /// documents say (none without one: the pages are written all the
+    /// same, with the synthesis pending). Waits for the resolution of
+    /// identities to finish, and does nothing when the record did not
+    /// change since the last complete projection. Needs no wiki (D-402).
     pub fn knowledge_project(&self, asker: Option<&dyn DocumentAsker>, max_questions: usize) -> Result<ProjectReport, String> {
         let _one = PROJECTING.lock().unwrap_or_else(|p| p.into_inner());
         let _asking = asker.map(|_| ASKING.lock().unwrap_or_else(|p| p.into_inner()));
@@ -2312,17 +2338,6 @@ impl DocBase {
 fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry: bool) -> Result<(), String> {
     let vocabulary = vocabulary();
     let started = now_ms();
-    let Some(general) = base.general_project()? else {
-        report.skipped = true;
-        report.reason = Some("no-project".into());
-        return Ok(());
-    };
-    let Some(root) = general.path.clone() else {
-        report.skipped = true;
-        report.reason = Some("no-project".into());
-        return Ok(());
-    };
-    let root = PathBuf::from(root);
     let to_resolve: i64 = base
         .conn()
         .query_row("SELECT count(*) FROM knowledge_dirty WHERE scope IN ('resolve', 'retire')", [], |row| row.get(0))
@@ -2332,29 +2347,29 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
         report.reason = Some("resolving".into());
         return Ok(());
     }
-    base.index_wiki()?;
+    // The documents and their versions (D-340), with the name of each of
+    // their files; a copy a person passed over is named by the one chosen.
+    let families = family::families(base, vocabulary)?;
     let identities: HashMap<i64, String> = {
-        let mut out = HashMap::new();
-        for source in base.wiki_sources()? {
-            if let Some(content) = source.content_id {
-                out.entry(content).or_insert(source.identity);
-            }
-        }
-        out
+        let passed = passed_over(&base.conn())?;
+        families
+            .identities
+            .iter()
+            .filter(|(content, _)| !passed.contains_key(content))
+            .filter_map(|(content, names)| names.first().map(|name| (*content, name.clone())))
+            .collect()
     };
     let (mut record, language, basis_before, dirty) = {
         let conn = base.conn();
-        let record = load(&conn, &general.id, &identities)?;
+        let record = load(&conn, &identities)?;
         let dirty: i64 =
             conn.query_row("SELECT count(*) FROM knowledge_dirty WHERE scope = 'project'", [], |row| row.get(0)).map_err(sql_err)?;
         (record, wiki_language(&conn)?, setting(&conn, BASIS_SETTING)?, dirty)
     };
-    // What the pages are computed on, besides the record: the pages of
-    // documents the wiki wrote, the vocabulary and the language.
-    // The documents and their versions (D-340).
-    let families = family::families(base, vocabulary)?;
+    // What the pages are computed on, besides the record: the documents,
+    // the vocabulary and the language.
     let documents_digest = families.digest();
-    let basis = basis_of(base, &general.id, vocabulary, language.as_deref(), &root, &documents_digest)?;
+    let basis = basis_of(base, vocabulary, language.as_deref(), &documents_digest)?;
     if !dry && dirty == 0 && basis_before.as_deref() == Some(basis.as_str()) {
         report.skipped = true;
         report.reason = Some("unchanged".into());
@@ -2424,7 +2439,7 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
             let Some(matter) = record.matters.get(id) else { continue };
             let rendered = render_matter(vocabulary, &record, &paths, matter);
             if !dry {
-                write_page(base, &record, &root, id, path, moved.get(id).map(String::as_str), &rendered, vocabulary, report)?;
+                write_page(base, &record, id, path, moved.get(id).map(String::as_str), &rendered, report)?;
             }
             continue;
         };
@@ -2463,7 +2478,7 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
         if dry {
             continue;
         }
-        write_page(base, &record, &root, id, path, moved.get(id).map(String::as_str), &rendered, vocabulary, report)?;
+        write_page(base, &record, id, path, moved.get(id).map(String::as_str), &rendered, report)?;
     }
     if dry {
         return Ok(());
@@ -2487,34 +2502,24 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
 
     // Pages whose entity has no page any more (it left the record, went
     // into another one or no longer meets the rule): gone, unless a person
-    // wrote notes in them (R-09). Then a short page stays in their place,
+    // wrote notes on it (R-09). Then a short page stays in its place,
     // under the entity's name, saying where it went. The links to a page
     // that goes lead to the entity it went into, or are left as text
-    // (D-239, replaces in part D-206).
-    // Notes of a person in pages of documents that go, for the page of
-    // their document (D-340).
-    let mut carried: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    let notes_word = vocabulary.pages.word("notes");
+    // (D-239, replaces in part D-206). The notes of a version of a
+    // document that joined its family's page go to that page (D-340).
     for (id, page) in &record.pages {
         if paths.contains_key(id) {
             continue;
         }
-        let file = root.join(&page.path);
-        let on_disk = read_file(&file);
-        let notes = on_disk.as_deref().map(|t| notes_of(&place_block(t, None), notes_word)).unwrap_or_default();
+        let body = stored_body(&base.conn(), id)?;
         // A page of a document that is now a version on another page:
         // its notes and its links go there.
         let into_family = id.strip_prefix("doc-").and_then(|n| n.parse::<i64>().ok()).and_then(|c| families.family_of(c));
         if let Some(into) = into_family {
             let target = &paths[&into.id];
             if *target != page.path {
-                if !notes.trim().is_empty() {
-                    carried.entry(into.id.clone()).or_default().push(notes.clone());
-                }
-                if file.is_file() {
-                    std::fs::remove_file(&file).map_err(|e| format!("No se pudo borrar '{}': {e}", file.display()))?;
-                }
-                let text = on_disk.as_deref().and_then(title_of).unwrap_or_else(|| readable_stem(&page.path));
+                move_notes(&base.conn(), id, &into.id)?;
+                let text = body.as_deref().and_then(title_of).unwrap_or_else(|| readable_stem(&page.path));
                 redirects.insert(stem(&page.path).to_lowercase(), Redirect { to: Some(stem(target)), text });
                 report.removed += 1;
             }
@@ -2528,12 +2533,9 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
             .get(id)
             .map(|e| e.name.clone())
             .or_else(|| record.matters.get(id).map(|m| m.name.clone()))
-            .or_else(|| on_disk.as_deref().and_then(title_of))
+            .or_else(|| body.as_deref().and_then(title_of))
             .unwrap_or_else(|| readable_stem(&page.path));
-        if notes.trim().is_empty() {
-            if file.is_file() {
-                std::fs::remove_file(&file).map_err(|e| format!("No se pudo borrar '{}': {e}", file.display()))?;
-            }
+        if notes_of_object(&base.conn(), id)?.trim().is_empty() {
             base.conn().execute("DELETE FROM knowledge_page WHERE entity_id = ?1", [id]).map_err(sql_err)?;
             redirects.insert(stem(&page.path).to_lowercase(), Redirect { to: into.map(|(_, path)| stem(path)), text: name });
             report.removed += 1;
@@ -2548,54 +2550,25 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
             None => text.push_str(&format!("{}\n", vocabulary.pages.word("kept"))),
         }
         let fingerprint = hash(&[&text]);
-        if page.state == "kept" && page.fingerprint == fingerprint {
+        if page.state == "kept" && page.fingerprint == fingerprint && page.has_body {
             continue;
         }
-        write_file(&file, &with_notes(vocabulary, &text, &notes))?;
         base.conn()
             .execute(
-                "UPDATE knowledge_page SET state = 'kept', fingerprint = ?2, synthesis = NULL, written_at = ?3 WHERE entity_id = ?1",
-                params![id, fingerprint, now_ms()],
+                "UPDATE knowledge_page SET state = 'kept', fingerprint = ?2, synthesis = NULL, written_at = ?3, body = ?4 WHERE entity_id = ?1",
+                params![id, fingerprint, now_ms(), text],
             )
             .map_err(sql_err)?;
         report.kept += 1;
     }
-    // The pages of documents the wiki wrote before, one per file or per
-    // version: each document has one page now (D-340). Their notes go to
-    // it, and so do the links to them.
-    let owned: BTreeSet<&str> = document_paths.values().map(String::as_str).collect();
-    for (path, content) in &record.source_pages {
-        if owned.contains(path.as_str()) {
-            continue;
-        }
-        let Some(into) = families.family_of(*content) else { continue };
-        let file = root.join(path);
-        let Some(text) = read_file(&file) else { continue };
-        let notes = notes_of(&place_block(&text, None), notes_word);
-        if !notes.trim().is_empty() {
-            carried.entry(into.id.clone()).or_default().push(notes);
-        }
-        std::fs::remove_file(&file).map_err(|e| format!("No se pudo borrar '{}': {e}", file.display()))?;
-        let target = &document_paths[&into.id];
-        redirects.insert(stem(path).to_lowercase(), Redirect { to: Some(stem(target)), text: title_of(&text).unwrap_or_else(|| readable_stem(path)) });
-        report.removed += 1;
-    }
     if !redirects.is_empty() {
-        report.redirected += redirect_links(&root, &redirects)?;
+        report.redirected += redirect_links(&base.conn(), &redirects)?;
     }
 
     // The page of each document (D-340): what the base knows of it and of
-    // its versions, the block of entities, the notes of a person.
+    // its versions, and the block of entities.
     for family in &families.list {
         let path = &document_paths[&family.id];
-        let file = root.join(path);
-        let on_disk = read_file(&file);
-        let mut notes = on_disk.as_deref().map(|t| notes_of(&place_block(t, None), notes_word)).unwrap_or_default();
-        for more in carried.get(&family.id).into_iter().flatten() {
-            if !notes.contains(more.trim()) {
-                notes = if notes.trim().is_empty() { more.clone() } else { format!("{}\n\n{}", notes.trim_end(), more.trim_matches('\n')) };
-            }
-        }
         let generated = family::render_document(&base.conn(), vocabulary, &record, &paths, &families, family)?;
         let block = source_block(vocabulary, &record, &paths, &family.members);
         let forms = link_forms(base, vocabulary, &record, &paths, &family.members)?;
@@ -2604,18 +2577,19 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
             Some(block) => linked.replacen(family::BLOCK_PLACE, block.trim_end(), 1),
             None => linked.replacen(&format!("{}\n\n", family::BLOCK_PLACE), "", 1),
         };
-        let next = with_notes(vocabulary, &placed, &notes);
-        if on_disk.as_deref() != Some(next.as_str()) {
-            write_file(&file, &next)?;
-            report.blocks_written += 1;
+        let fingerprint = hash(&[&placed]);
+        let known = record.pages.get(&family.id);
+        if known.is_some_and(|p| p.path == *path && p.fingerprint == fingerprint && p.state == "projected" && p.has_body) {
+            continue;
         }
         base.conn()
             .execute(
-                "INSERT OR REPLACE INTO knowledge_page (entity_id, path, state, fingerprint, synthesis, sentences, discarded, written_at)
-                 VALUES (?1, ?2, 'projected', ?3, NULL, 0, 0, ?4)",
-                params![family.id, path, hash(&[&next]), now_ms()],
+                "INSERT OR REPLACE INTO knowledge_page (entity_id, path, state, fingerprint, synthesis, sentences, discarded, written_at, body)
+                 VALUES (?1, ?2, 'projected', ?3, NULL, 0, 0, ?4, ?5)",
+                params![family.id, path, fingerprint, now_ms(), placed],
             )
             .map_err(sql_err)?;
+        report.blocks_written += 1;
     }
 
     // The overview.
@@ -2628,24 +2602,24 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
         };
         let text = overview(vocabulary, &record, &paths, documents, failed);
         let fingerprint = hash(&[&text]);
-        let file = root.join(OVERVIEW_PATH);
-        let before = setting(&base.conn(), OVERVIEW_SETTING)?;
-        if before.as_deref() != Some(fingerprint.as_str()) || !file.is_file() {
-            write_file(&file, &dated(&text))?;
-            set_setting(&base.conn(), OVERVIEW_SETTING, &fingerprint)?;
+        let conn = base.conn();
+        let before: Option<String> =
+            conn.query_row("SELECT fingerprint FROM knowledge_overview WHERE id = 1", [], |row| row.get(0)).optional().map_err(sql_err)?;
+        if before.as_deref() != Some(fingerprint.as_str()) {
+            conn.execute(
+                "INSERT OR REPLACE INTO knowledge_overview (id, path, body, fingerprint, written_at) VALUES (1, ?1, ?2, ?3, ?4)",
+                params![OVERVIEW_PATH, dated(&text), fingerprint, now_ms()],
+            )
+            .map_err(sql_err)?;
             report.overview_written = true;
         }
     }
 
     if report.left == 0 && report.failed == 0 {
         base.conn().execute("DELETE FROM knowledge_dirty WHERE scope = 'project' AND since <= ?1", [started]).map_err(sql_err)?;
-        // What the next projection compares with: the pages of documents
-        // as they are now, blocks included.
-        base.index_wiki()?;
-        let basis = basis_of(base, &general.id, vocabulary, language.as_deref(), &root, &documents_digest)?;
+        // What the next projection compares with.
+        let basis = basis_of(base, vocabulary, language.as_deref(), &documents_digest)?;
         set_setting(&base.conn(), BASIS_SETTING, &basis)?;
-    } else if report.wrote() {
-        base.index_wiki()?;
     }
     Ok(())
 }

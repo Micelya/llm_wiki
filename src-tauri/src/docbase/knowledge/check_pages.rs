@@ -71,7 +71,7 @@ fn pages_against_the_entity_sheet() {
         let copied = copy_dir(&std::path::Path::new(&wiki).join("wiki/sources"), &project.path().join("wiki/sources"));
         println!("pages of documents copied from {wiki}: {copied}");
     }
-    base.link_general_project(project.path(), "default").unwrap();
+    crate::docbase::testing::point_general_project_at(&base, project.path());
     base.set_wiki_language(Some("Spanish")).unwrap();
 
     let started = Instant::now();
@@ -88,6 +88,7 @@ fn pages_against_the_entity_sheet() {
     // Projecting again changes nothing (R-13).
     super::mark_dirty(&base.conn(), "project", "check").unwrap();
     let again = base.knowledge_project(Some(&asker), 0).unwrap();
+    export_pages(&base, project.path());
     println!("   projecting again: written {}, asked {}, blocks {}, overview {}", again.written, again.asked, again.blocks_written, again.overview_written);
     // One page per document or family of versions, and nothing on them
     // that the base does not know (D-340): the files of documents, those
@@ -443,18 +444,36 @@ fn relations_against_the_sheet(base: &crate::docbase::DocBase, sheet: &super::ch
     println!("   relations in the record between two entities: {}", ours.len());
 }
 
-/// The pages on disk, without the date they were written.
-fn page_texts(root: &std::path::Path) -> BTreeMap<String, String> {
+/// The pages of the base, as one text each, without the date they were
+/// written.
+fn page_texts(base: &crate::docbase::DocBase) -> BTreeMap<String, String> {
+    let paths: Vec<String> = {
+        let conn = base.conn();
+        let mut statement = conn.prepare("SELECT path FROM knowledge_page WHERE body IS NOT NULL").unwrap();
+        let rows = statement.query_map([], |r| r.get(0)).unwrap();
+        rows.collect::<Result<_, _>>().unwrap()
+    };
     let mut out = BTreeMap::new();
-    for folder in ["wiki/entities", "wiki/sources"] {
-        for entry in std::fs::read_dir(root.join(folder)).into_iter().flatten().flatten() {
-            let text = std::fs::read_to_string(entry.path()).unwrap_or_default();
-            let text: Vec<&str> = text.lines().filter(|l| !l.starts_with("updated:")).collect();
-            out.insert(format!("{folder}/{}", entry.file_name().to_string_lossy()), text.join("
-"));
-        }
+    for path in paths {
+        let text = base.knowledge_page_text(&path).unwrap().map(|(_, t)| t).unwrap_or_default();
+        let text: Vec<&str> = text.lines().filter(|l| !l.starts_with("updated:")).collect();
+        out.insert(path, text.join("\n"));
     }
     out
+}
+
+/// The pages of the base written out as the wiki's files were, into the
+/// scratch folder of this evaluation, to look into them (the app writes
+/// none, D-402).
+fn export_pages(base: &crate::docbase::DocBase, root: &std::path::Path) {
+    for (path, text) in page_texts(base) {
+        let file = root.join(&path);
+        let _ = std::fs::create_dir_all(file.parent().unwrap());
+        let _ = std::fs::write(file, text);
+    }
+    if let Some(overview) = base.knowledge_overview().unwrap() {
+        let _ = std::fs::write(root.join(&overview.path), overview.body);
+    }
 }
 
 fn entity_states(base: &crate::docbase::DocBase) -> BTreeMap<String, String> {
@@ -468,7 +487,7 @@ fn entity_states(base: &crate::docbase::DocBase) -> BTreeMap<String, String> {
 /// and taken back, then deleted. Leaving it out must retire only what it
 /// alone said and write only the pages it touches; taking it back must
 /// leave everything as it was, asking nothing.
-fn changes(base: &crate::docbase::DocBase, asker: &super::check::Recorded, root: &std::path::Path) {
+fn changes(base: &crate::docbase::DocBase, asker: &super::check::Recorded, _root: &std::path::Path) {
     use std::sync::atomic::Ordering;
     let (content, named): (i64, i64) = base
         .conn()
@@ -497,7 +516,7 @@ fn changes(base: &crate::docbase::DocBase, asker: &super::check::Recorded, root:
         rows.collect::<Result<_, _>>().unwrap()
     };
     let states = entity_states(base);
-    let pages = page_texts(root);
+    let pages = page_texts(base);
     let asked = asker.asked.load(Ordering::SeqCst);
     println!(
         "
@@ -512,7 +531,7 @@ fn changes(base: &crate::docbase::DocBase, asker: &super::check::Recorded, root:
     let projected = base.knowledge_project(Some(asker), 30).unwrap();
     let after = entity_states(base);
     let retired = after.iter().filter(|(id, s)| *s == "retired" && states.get(*id).is_some_and(|b| b != "retired")).count();
-    let texts = page_texts(root);
+    let texts = page_texts(base);
     let changed = texts.iter().filter(|(p, t)| pages.get(*p) != Some(*t)).count() + pages.keys().filter(|p| !texts.contains_key(*p)).count();
     println!(
         "   left out: {retired} entities retired (should be {only_there}); entities changed {}; pages written {}, removed {}, kept {}, blocks {}; files that changed: {changed}; questions left: {}",
@@ -527,7 +546,7 @@ fn changes(base: &crate::docbase::DocBase, asker: &super::check::Recorded, root:
     let resolved = base.knowledge_resolve(Some(asker), 30).unwrap();
     let projected = base.knowledge_project(Some(asker), 30).unwrap();
     let back = entity_states(base);
-    let texts = page_texts(root);
+    let texts = page_texts(base);
     let differ = texts.iter().filter(|(p, t)| pages.get(*p) != Some(*t)).count() + pages.keys().filter(|p| !texts.contains_key(*p)).count();
     let states_differ = back.iter().filter(|(id, s)| states.get(*id) != Some(*s)).count();
     println!(
@@ -561,11 +580,11 @@ fn references_leave_the_entities() {
     let project = TempDir::new();
     project.folder("wiki/sources");
     project.write("schema.md", b"# schema");
-    if let Some(path) = base.general_project().unwrap().and_then(|g| g.path) {
+    if let Some(path) = crate::docbase::testing::general_project_path(&base) {
         let copied = copy_dir(&std::path::Path::new(&path).join("wiki/sources"), &project.path().join("wiki/sources"));
         println!("pages of documents copied from the copy's wiki: {copied}");
     }
-    base.link_general_project(project.path(), "default").unwrap();
+    crate::docbase::testing::point_general_project_at(&base, project.path());
     let by_kind = |base: &crate::docbase::DocBase| -> BTreeMap<String, i64> {
         let conn = base.conn();
         let mut statement = conn.prepare("SELECT kind, count(*) FROM knowledge_entity WHERE state = 'active' GROUP BY kind").unwrap();
@@ -593,7 +612,7 @@ fn references_leave_the_entities() {
     println!("synthesis questions before (not kept in the base): {}", base.synthesis_questions(&engine).unwrap().len());
     let before = base.knowledge_project(None, 0).unwrap();
     println!("projection before: {before:?}");
-    let pages_before = page_texts(project.path());
+    let pages_before = page_texts(&base);
     println!("identity questions the new resolution asks (not kept): {}", base.identity_questions(&engine).unwrap().len());
     let resolved = base.knowledge_resolve(None, 0).unwrap();
     println!("resolution: {resolved:?}");
@@ -604,7 +623,7 @@ fn references_leave_the_entities() {
     println!("synthesis questions after (not kept in the base): {}", base.synthesis_questions(&engine).unwrap().len());
     let after = base.knowledge_project(None, 0).unwrap();
     println!("projection after: {after:?}");
-    let pages_after = page_texts(project.path());
+    let pages_after = page_texts(&base);
     {
         let conn = base.conn();
         let references = super::references::document_references(&conn, super::vocabulary::vocabulary(), None).unwrap();

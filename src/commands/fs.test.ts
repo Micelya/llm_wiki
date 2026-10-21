@@ -8,7 +8,7 @@ vi.mock("@tauri-apps/api/core", () => ({
   invoke: mocks.invoke,
 }))
 
-import { createDirectory, listDirectory, writeFile, writeFileAtomic } from "./fs"
+import { createDirectory, listDirectory, writeFile } from "./fs"
 
 describe("fs command path guards", () => {
   beforeEach(() => {
@@ -16,15 +16,7 @@ describe("fs command path guards", () => {
   })
 
   it("rejects relative write paths before invoking Tauri", async () => {
-    await expect(writeFile("wiki/sources/stray.md", "content")).rejects.toThrow(
-      /absolute path/i,
-    )
-
-    expect(mocks.invoke).not.toHaveBeenCalled()
-  })
-
-  it("rejects relative atomic write paths before invoking Tauri", async () => {
-    await expect(writeFileAtomic("wiki/sources/stray.md", "content")).rejects.toThrow(
+    await expect(writeFile("notas/suelta.md", "content")).rejects.toThrow(
       /absolute path/i,
     )
 
@@ -32,7 +24,7 @@ describe("fs command path guards", () => {
   })
 
   it("rejects relative directory paths before invoking Tauri", async () => {
-    await expect(createDirectory("wiki/sources")).rejects.toThrow(/absolute path/i)
+    await expect(createDirectory("notas/sueltas")).rejects.toThrow(/absolute path/i)
 
     expect(mocks.invoke).not.toHaveBeenCalled()
   })
@@ -40,20 +32,20 @@ describe("fs command path guards", () => {
   it("allows absolute write paths", async () => {
     mocks.invoke.mockResolvedValue(undefined)
 
-    await writeFile("/tmp/project/wiki/sources/page.md", "content")
+    await writeFile("/tmp/carpeta/notas/pagina.md", "content")
 
     expect(mocks.invoke).toHaveBeenCalledWith("write_file", {
-      path: "/tmp/project/wiki/sources/page.md",
+      path: "/tmp/carpeta/notas/pagina.md",
       contents: "content",
     })
   })
 
   it("deduplicates matching in-flight listDirectory requests only while pending", async () => {
     const tree = [{
-      name: "wiki",
-      path: "/tmp/project/wiki",
+      name: "notas",
+      path: "/tmp/carpeta/notas",
       is_dir: true,
-      children: [{ name: "page.md", path: "/tmp/project/wiki/page.md", is_dir: false }],
+      children: [{ name: "page.md", path: "/tmp/carpeta/notas/pagina.md", is_dir: false }],
     }]
     let resolveTree: (value: typeof tree) => void = () => {}
     mocks.invoke.mockImplementationOnce(
@@ -81,7 +73,7 @@ describe("fs command path guards", () => {
     expect(firstTree[0].children?.[0]).not.toBe(secondTree[0].children?.[0])
     secondTree[0].name = "mutated"
     secondTree[0].children![0].name = "mutated-child.md"
-    expect(firstTree[0].name).toBe("wiki")
+    expect(firstTree[0].name).toBe("notas")
     expect(firstTree[0].children?.[0]?.name).toBe("page.md")
 
     mocks.invoke.mockResolvedValueOnce([])
@@ -91,7 +83,7 @@ describe("fs command path guards", () => {
   })
 
   it("does not clone single-caller listDirectory results", async () => {
-    const tree = [{ name: "wiki", path: "/tmp/project/wiki", is_dir: true }]
+    const tree = [{ name: "notas", path: "/tmp/carpeta/notas", is_dir: true }]
     mocks.invoke.mockResolvedValueOnce(tree)
 
     await expect(listDirectory("/tmp/project")).resolves.toBe(tree)

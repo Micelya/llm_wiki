@@ -27,7 +27,7 @@ export const RUN_LIMIT = 60
  * left to ask the model, and the types it proposed. Asking costs the
  * provider's quota, so it only happens from the button, after a notice
  * that says how many questions it will make, or by itself while the
- * archive's wiki is active.
+ * automatic reading is on.
  */
 export function DocumentTypesPanel() {
   const plan = useDocbaseQuery("types-plan", getTypesPlan)
@@ -99,7 +99,7 @@ export function DocumentTypesPanel() {
           {formatCount(data.typed)} de {plural(data.documents, "documento tiene", "documentos tienen")} tipo y etapa.
           Las marcas que se verifican sin modelo (una marca de agua, una firma, un formulario) deciden lo que pueden;
           lo demás se le pregunta al modelo, una vez por familia de documentos parecidos.
-          {data.engine ? " Mientras el wiki del archivo esté activo, las preguntas se hacen solas." : ""}
+          {data.engine ? " Mientras la lectura automática esté activa, las preguntas se hacen solas." : ""}
         </p>
         {!engine && questions && (
           <p className="text-xs text-muted-foreground">

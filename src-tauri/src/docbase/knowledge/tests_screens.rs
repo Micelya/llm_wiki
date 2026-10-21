@@ -188,11 +188,12 @@ fn an_entity_shows_its_page_its_matters_and_who_speaks_of_it() {
     assert!(detail.page_path.as_deref().is_some_and(|p| p.starts_with("wiki/entities/")), "{:?}", detail.page_path);
     // Its article is its page as the projection wrote it, and a link to
     // that page leads to the entity (D-389).
-    let article = base.knowledge_entity_article(&detail.id).unwrap().unwrap();
-    assert!(article.text.contains("title: \"Ejemplo Uno S.A.\""), "{}", article.text);
+    let article = base.knowledge_article(&detail.id).unwrap().unwrap();
+    assert!(article.body.contains("title: \"Ejemplo Uno S.A.\""), "{}", article.body);
     let file = project.join(detail.page_path.as_deref().unwrap());
-    assert_eq!(base.knowledge_entity_of_page(&file.to_string_lossy()).unwrap().as_deref(), Some(detail.id.as_str()));
-    assert_eq!(base.knowledge_entity_of_page(&project.join("wiki/overview.md").to_string_lossy()).unwrap(), None);
+    let entity_of = |path: &std::path::Path| base.knowledge_object_of_page(&path.to_string_lossy()).unwrap().filter(|o| o.kind == "entity").map(|o| o.object_id);
+    assert_eq!(entity_of(&file).as_deref(), Some(detail.id.as_str()));
+    assert_eq!(entity_of(&project.join("wiki/overview.md")), None);
     assert_eq!(detail.matters.iter().filter(|m| !m.proposed).count(), 3);
     assert!(detail.incoming.iter().any(|c| c.predicate == "representa_a" && c.subject_name == "Persona Nueve"), "{:?}", detail.incoming);
     // A mention taken out of it is a decision on it, to undo.

@@ -1,34 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import type { EmbeddingConfig, LlmConfig } from "@/stores/wiki-store"
+import type { LlmConfig } from "@/stores/wiki-store"
 import {
   LLM_PROVIDER_TEST_MAX_TOKENS,
-  testEmbeddingConnection,
-  testEmbeddingFunction,
   testLlmConnection,
   testLlmFunction,
 } from "./connection-tests"
-import { fetchEmbedding, getLastEmbeddingError } from "@/lib/embedding"
 import { streamChat } from "@/lib/llm-client"
 
-vi.mock("@/lib/embedding", () => ({
-  fetchEmbedding: vi.fn(),
-  getLastEmbeddingError: vi.fn(),
-}))
 
 vi.mock("@/lib/llm-client", () => ({
   streamChat: vi.fn(),
 }))
 
-const fetchEmbeddingMock = vi.mocked(fetchEmbedding)
-const getLastEmbeddingErrorMock = vi.mocked(getLastEmbeddingError)
 const streamChatMock = vi.mocked(streamChat)
-
-const embeddingConfig: EmbeddingConfig = {
-  enabled: true,
-  endpoint: "http://localhost:1234/v1/embeddings",
-  apiKey: "",
-  model: "text-embedding-test",
-}
 
 const llmConfig: LlmConfig = {
   provider: "custom",
@@ -42,31 +26,9 @@ const llmConfig: LlmConfig = {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  getLastEmbeddingErrorMock.mockReturnValue(null)
 })
 
 describe("provider connection tests", () => {
-  it("reports embedding connection dimensions", async () => {
-    fetchEmbeddingMock.mockResolvedValueOnce([0.1, 0.2, 0.3])
-
-    const result = await testEmbeddingConnection(embeddingConfig)
-
-    expect(result.ok).toBe(true)
-    expect(result.message).toContain("3 dimensions")
-    expect(fetchEmbeddingMock).toHaveBeenCalledWith(expect.any(String), embeddingConfig, 0)
-  })
-
-  it("fails embedding functional test when dimensions are unstable", async () => {
-    fetchEmbeddingMock
-      .mockResolvedValueOnce([0.1, 0.2])
-      .mockResolvedValueOnce([0.1, 0.2, 0.3])
-
-    const result = await testEmbeddingFunction(embeddingConfig)
-
-    expect(result.ok).toBe(false)
-    expect(result.message).toContain("dimension changed")
-  })
-
   it("passes LLM connection when any content is streamed", async () => {
     streamChatMock.mockImplementationOnce(async (_cfg, _messages, callbacks) => {
       callbacks.onToken("OK")

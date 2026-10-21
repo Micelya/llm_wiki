@@ -1,26 +1,47 @@
-import { entityOfPage } from "@/commands/docbase"
+import { objectOfPage, type PageObject } from "@/commands/docbase"
+import { useDocbaseStore } from "@/stores/docbase-store"
 import { useKnowledgeStore } from "@/stores/knowledge-store"
 import { useWikiStore } from "@/stores/wiki-store"
 
 /**
- * Follows a link to a page of the wiki. The page of a person or an
- * organization has one place, its page in "Personas y organizaciones"
- * (the article, with its data and corrections in a tab: D-376, D-389);
- * any other page opens in the wiki. Opening a file from the tree still
- * opens the file, to write notes in it.
+ * Follows a link to a page: a logical path (`wiki/entities/…`), the old
+ * wiki's path of a file, or the name of a link (`[[name|text]]`). Every
+ * page is the screen of what it names, read from the base (D-407): a
+ * person or organization, a matter, a document, or Inicio for the
+ * overview. Never a file. `false` when the page names nothing the base
+ * knows.
  */
-export async function openWikiPath(path: string): Promise<void> {
-  let entity: string | null = null
+export async function openWikiPath(reference: string): Promise<boolean> {
+  let found: PageObject | null = null
   try {
-    entity = await entityOfPage(path)
+    found = await objectOfPage(reference)
   } catch {
-    entity = null
+    found = null
   }
+  return found ? openPageObject(found) : false
+}
+
+/** Opens the screen of what a page names. */
+export function openPageObject(found: PageObject): boolean {
   const wiki = useWikiStore.getState()
-  if (entity) {
-    useKnowledgeStore.getState().openEntity(entity)
-    wiki.setActiveView("entities")
-    return
+  switch (found.kind) {
+    case "entity":
+      useKnowledgeStore.getState().openEntity(found.objectId)
+      wiki.setActiveView("entities")
+      return true
+    case "matter":
+      useKnowledgeStore.getState().openMatter(found.objectId)
+      wiki.setActiveView("matters")
+      return true
+    case "document":
+      if (found.locationId === null) return false
+      wiki.setActiveView("documents")
+      useDocbaseStore.getState().openDocument(found.locationId)
+      return true
+    case "overview":
+      wiki.setActiveView("home")
+      return true
+    default:
+      return false
   }
-  wiki.openPathInPreview(path)
 }

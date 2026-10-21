@@ -1,4 +1,3 @@
-use std::fs;
 use std::path::{Component, Path};
 
 use super::router::{QueryIntent, RouterDecision};
@@ -24,13 +23,15 @@ pub struct ProjectContext {
     pub agent_workspace: String,
 }
 
-pub fn load_project_context(project_path: &str) -> ProjectContext {
+/// The context of every turn: the overview of the archive as the base
+/// keeps it (D-413), never a file of the old wiki; no schema.
+pub fn load_project_context(project_path: &str, base: Option<&crate::docbase::DocBase>) -> ProjectContext {
     let root = Path::new(project_path);
     ProjectContext {
-        overview: read_trimmed(root.join("overview.md"), MAX_OVERVIEW_CHARS)
-            .or_else(|| read_trimmed(root.join("wiki").join("overview.md"), MAX_OVERVIEW_CHARS)),
-        schema: read_trimmed(root.join("schema.md"), MAX_SCHEMA_CHARS)
-            .or_else(|| read_trimmed(root.join("wiki").join("schema.md"), MAX_SCHEMA_CHARS)),
+        overview: base
+            .and_then(super::base_tools::base_overview)
+            .map(|overview| trim_chars(overview.trim(), MAX_OVERVIEW_CHARS)),
+        schema: None,
         agent_workspace: agent_workspace_display(root),
     }
 }
@@ -68,17 +69,17 @@ fn build_system_context(
     skill_mode: AgentSkillMode,
 ) -> String {
     let mut out = [
-        "You are the LLM Wiki backend Agent.",
+        "You are the backend Agent of a document base: its documents, the people, organizations and matters they name, and their articles.",
         "Answer using the current project context, available tools, and cited references.",
         "If evidence is insufficient, say what is missing instead of inventing facts.",
-        "When using references, mention the relevant page paths naturally.",
+        "When using references, name the documents, people, organizations or matters they come from.",
         "Do not claim that internet or local-source search is unavailable when those tools are enabled; use the provided tool context and tool hints.",
     ]
     .join("\n");
 
     out.push_str("\n\nTool policy:\n");
-    out.push_str("- wiki.search retrieves pages for factual or topical questions.\n");
-    out.push_str("- graph.search retrieves relationships, neighbors, backlinks, dependencies, and connections between project entities. Prefer it when the requested answer is about how concepts or entities relate, and use concise entity names rather than the full natural-language question.\n");
+    out.push_str("- base.search finds the documents, people, organizations and matters of the base for factual or topical questions.\n");
+    out.push_str("- graph.search retrieves the relations between people, organizations, documents and matters. Prefer it when the answer is about how they relate, and use concise names rather than the full question.\n");
     if router.should_hint_web {
         out.push_str("- web.search is available when current or external information is useful.\n");
     }
@@ -217,7 +218,7 @@ fn build_user_context(input: AgentContextInput<'_>) -> String {
 
     out.push_str("Retrieved project context:\n");
     if input.references.is_empty() {
-        out.push_str("No matching wiki references were found.\n\n");
+        out.push_str("Nothing in the document base matched.\n\n");
     } else {
         let mut rendered = String::new();
         for (idx, reference) in input.references.iter().enumerate() {
@@ -304,7 +305,6 @@ pub async fn load_explicit_context_files(
         // read_file moves blocking parsers onto Tauri's blocking pool.
         let Ok(content) = crate::commands::fs::read_file(
             candidate_canon.to_string_lossy().into_owned(),
-            Some(false),
         )
         .await
         else {
@@ -324,16 +324,6 @@ pub async fn load_explicit_context_files(
         }
     }
     out
-}
-
-fn read_trimmed(path: impl AsRef<Path>, max_chars: usize) -> Option<String> {
-    let raw = fs::read_to_string(path).ok()?;
-    let trimmed = raw.trim();
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(trim_chars(trimmed, max_chars))
-    }
 }
 
 pub fn trim_chars(value: &str, max_chars: usize) -> String {
@@ -375,6 +365,8 @@ pub fn intent_label(intent: QueryIntent) -> &'static str {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+
     use super::*;
     use crate::agent::router::route_query;
     use crate::agent::types::{
@@ -404,7 +396,7 @@ mod tests {
                 latest_version: Some(AgentVersionSummary {
                     timestamp: 123,
                     author: "agent".to_string(),
-                    tool: "wiki.write_page".to_string(),
+                    tool: "base.save_query".to_string(),
                 }),
             }),
         }];
@@ -422,34 +414,34 @@ mod tests {
         assert!(rendered.contains("Tags: core"));
         assert!(rendered.contains("Links to: Beta"));
         assert!(rendered.contains("Backlinks: wiki/gamma.md"));
-        assert!(rendered.contains("Latest version: agent via wiki.write_page at 123"));
+        assert!(rendered.contains("Latest version: agent via base.save_query at 123"));
     }
 
     #[tokio::test]
     async fn explicit_context_files_are_project_scoped() {
         let root =
-            std::env::temp_dir().join(format!("llm-wiki-context-files-{}", std::process::id()));
+            std::env::temp_dir().join(format!("micelya-context-files-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
-        fs::create_dir_all(root.join("wiki")).unwrap();
-        fs::create_dir_all(root.join(".llm-wiki")).unwrap();
-        fs::write(root.join("wiki/page.md"), "selected evidence").unwrap();
-        fs::write(root.join("wiki/figure.png"), [0_u8, 1, 2, 3]).unwrap();
-        fs::write(root.join(".llm-wiki/secret.md"), "hidden secret").unwrap();
+        fs::create_dir_all(root.join("notas")).unwrap();
+        fs::create_dir_all(root.join(".oculta")).unwrap();
+        fs::write(root.join("notas/page.md"), "selected evidence").unwrap();
+        fs::write(root.join("notas/figure.png"), [0_u8, 1, 2, 3]).unwrap();
+        fs::write(root.join(".oculta/secret.md"), "hidden secret").unwrap();
 
         let files = load_explicit_context_files(
             root.to_str().unwrap(),
             &[
-                "wiki/page.md".to_string(),
-                "wiki/figure.png".to_string(),
+                "notas/page.md".to_string(),
+                "notas/figure.png".to_string(),
                 "../outside.md".to_string(),
-                ".llm-wiki/secret.md".to_string(),
+                ".oculta/secret.md".to_string(),
             ],
         )
         .await;
         assert_eq!(files.len(), 2);
         assert_eq!(
             Path::new(&files[0].0).canonicalize().unwrap(),
-            root.join("wiki/page.md").canonicalize().unwrap()
+            root.join("notas/page.md").canonicalize().unwrap()
         );
         assert_eq!(files[0].1, "selected evidence");
         assert!(files[1].1.starts_with("[Image: figure.png"));
@@ -535,8 +527,8 @@ mod tests {
             name: "article-illustrator".to_string(),
             description: "Create article images".to_string(),
             instructions: "Use the local illustration helper when needed.".to_string(),
-            base_dir: "/tmp/project/.llm-wiki/skills/article-illustrator".to_string(),
-            location: "/tmp/project/.llm-wiki/skills/article-illustrator/SKILL.md".to_string(),
+            base_dir: "/tmp/agent/skills/article-illustrator".to_string(),
+            location: "/tmp/agent/skills/article-illustrator/SKILL.md".to_string(),
         }];
 
         let auto = build_agent_context(AgentContextInput {
@@ -565,7 +557,7 @@ mod tests {
         assert!(auto.system.contains("<available_skills>"));
         assert!(auto.system.contains("<name>article-illustrator</name>"));
         assert!(auto.system.contains(
-            "<location>/tmp/project/.llm-wiki/skills/article-illustrator/SKILL.md</location>"
+            "<location>/tmp/agent/skills/article-illustrator/SKILL.md</location>"
         ));
         assert!(!auto.system.contains("Use the local illustration helper"));
         assert!(explicit.system.contains("Selected skills"));
@@ -573,7 +565,7 @@ mod tests {
         assert!(explicit.system.contains("article-illustrator"));
         assert!(explicit
             .system
-            .contains("location=\"/tmp/project/.llm-wiki/skills/article-illustrator/SKILL.md\""));
+            .contains("location=\"/tmp/agent/skills/article-illustrator/SKILL.md\""));
         assert!(explicit
             .system
             .contains("Use the local illustration helper"));

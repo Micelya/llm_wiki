@@ -25,8 +25,8 @@ export function DocumentEntitiesSection({ locationId }: { locationId: number }) 
     <Section title={title}>
       {data.state === "pending" || data.state === "stale" ? (
         <p className="text-sm text-muted-foreground">
-          {data.state === "pending" ? "Todavía no se leyó" : "Su texto cambió y se va a volver a leer"}: se lee mientras el{" "}
-          {words.archive.wiki.toLowerCase()} está activo.
+          {data.state === "pending" ? "Todavía no se leyó" : "Su texto cambió y se va a volver a leer"}: se lee mientras la
+          lectura automática está activa.
         </p>
       ) : data.state === "failed" ? (
         <p className="text-sm text-muted-foreground">

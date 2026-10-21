@@ -20,7 +20,7 @@ function sourceLabel(source: string, t: ReturnType<typeof useTranslation>["t"]) 
 
 export function SkillsSection() {
   const { t } = useTranslation()
-  const project = useWikiStore((s) => s.project)
+  const workspace = useWikiStore((s) => s.agentWorkspace)
   const useWebSearch = useChatStore((s) => s.useWebSearch)
   const useAnyTxtSearch = useChatStore((s) => s.useAnyTxtSearch)
   const agentMode = useChatStore((s) => s.agentMode)
@@ -53,8 +53,7 @@ export function SkillsSection() {
   }, [searchQuery, skills, t])
 
   const persist = useCallback(async (nextSelected: string[], nextDisabled: string[]) => {
-    if (!project?.path) return
-    await saveChatPreferences(project.path, {
+    await saveChatPreferences({
       useWebSearch,
       useAnyTxtSearch,
       agentMode,
@@ -62,10 +61,10 @@ export function SkillsSection() {
       selectedSkills: nextSelected,
       disabledSkills: nextDisabled,
     })
-  }, [agentMode, project?.path, retrievalMode, useAnyTxtSearch, useWebSearch])
+  }, [agentMode, retrievalMode, useAnyTxtSearch, useWebSearch])
 
   const scan = useCallback(async () => {
-    if (!project?.path) {
+    if (!workspace) {
       setSkills([])
       return
     }
@@ -73,7 +72,7 @@ export function SkillsSection() {
     setStatus(null)
     try {
       const found = await invoke<AvailableAgentSkill[]>("agent_list_skills", {
-        projectPath: project.path,
+        folder: workspace,
       })
       setSkills(found)
       const foundIds = new Set(found.map((skill) => skill.id))
@@ -98,7 +97,7 @@ export function SkillsSection() {
     } finally {
       setLoading(false)
     }
-  }, [persist, project?.path, setSelectedSkills, t])
+  }, [persist, workspace, setSelectedSkills, t])
 
   useEffect(() => {
     void scan()
@@ -143,7 +142,7 @@ export function SkillsSection() {
       <div className="rounded-md border bg-muted/20 p-3 text-xs text-muted-foreground">
         {t("settings.sections.skills.paths", {
           defaultValue:
-            "Scanned folders: .llm-wiki/skills, ~/.claude/skills, ~/.codex/skills, ~/.agents/skills.",
+            "Scanned folders: the agent's skills folder, ~/.claude/skills, ~/.codex/skills, ~/.agents/skills.",
         })}
       </div>
 
@@ -175,7 +174,7 @@ export function SkillsSection() {
             <Button type="button" variant="outline" size="sm" onClick={() => void setAllEnabled(false)} disabled={skills.length === 0}>
               {t("settings.sections.skills.disableAll", { defaultValue: "Disable all" })}
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => void scan()} disabled={loading || !project}>
+            <Button type="button" variant="outline" size="sm" onClick={() => void scan()} disabled={loading || !workspace}>
               <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
               {t("settings.sections.skills.refresh", { defaultValue: "Rescan" })}
             </Button>

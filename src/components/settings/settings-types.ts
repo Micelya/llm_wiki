@@ -1,5 +1,5 @@
 import type { CustomApiMode } from "./llm-presets"
-import type { AzureModelFamily, CloseBehavior, MineruEffort, MineruLocalBackend, MineruModelVersion, MineruParseMethod, ReasoningConfig, SourceWatchConfig } from "@/stores/wiki-store"
+import type { AzureModelFamily, CloseBehavior, ReasoningConfig } from "@/stores/wiki-store"
 
 /**
  * Shape of the draft state each section reads from and writes into.
@@ -22,37 +22,6 @@ export interface SettingsDraft {
   ingestReasoning: ReasoningConfig | undefined
   localCliIsolation: boolean
 
-  // Embedding
-  embeddingEnabled: boolean
-  embeddingEndpoint: string
-  embeddingApiKey: string
-  embeddingModel: string
-  /** Optional Gemini native output_dimensionality. Empty = provider default. */
-  embeddingOutputDimensionality: number | undefined
-  /** Target characters per chunk. Empty = use chunker default (1000). */
-  embeddingMaxChunkChars: number | undefined
-  /** Overlap characters between adjacent chunks. Empty = default (200). */
-  embeddingOverlapChunkChars: number | undefined
-  /** Maximum number of embedding requests in flight. */
-  embeddingConcurrency: number
-  /** Inputs per request for OpenAI-compatible batch endpoints. */
-  embeddingBatchSize: number
-  /** Extra HTTP headers to send on every embedding request. Empty = none. */
-  embeddingExtraHeaders: Record<string, string>
-
-  // Multimodal (image captioning at ingest time)
-  multimodalEnabled: boolean
-  multimodalUseMainLlm: boolean
-  multimodalProvider: "openai" | "anthropic" | "google" | "azure" | "ollama" | "custom" | "minimax" | "claude-code" | "codex-cli"
-  multimodalApiKey: string
-  multimodalModel: string
-  multimodalOllamaUrl: string
-  multimodalCustomEndpoint: string
-  multimodalAzureApiVersion: string
-  multimodalAzureModelFamily: AzureModelFamily
-  multimodalApiMode: CustomApiMode | undefined
-  multimodalConcurrency: number
-
   // Output preferences
   outputLanguage: string
   maxHistoryMessages: number
@@ -65,11 +34,6 @@ export interface SettingsDraft {
   proxyBypassLocal: boolean
   proxyAcceptInvalidCerts: boolean
 
-  // Scheduled Import
-  scheduledImportEnabled: boolean
-  scheduledImportPath: string
-  scheduledImportInterval: number // minutes
-
   // UI
   uiLanguage: string
   theme: "light" | "dark" | "system"
@@ -78,33 +42,6 @@ export interface SettingsDraft {
   // General app behavior
   autostart: boolean
   closeBehavior: CloseBehavior
-
-  // Source folder auto watch
-  sourceWatchConfig: SourceWatchConfig
-  sourceWatchAllProjects: boolean
-
-  // MinerU PDF parsing
-  mineruEnabled: boolean
-  mineruBackend: "cloud" | "local"
-  mineruLocalEndpoint: string
-  mineruLocalToken: string
-  mineruLocalBackend: MineruLocalBackend
-  mineruLocalEffort: MineruEffort
-  mineruLocalParseMethod: MineruParseMethod
-  mineruLocalLanguage: string
-  mineruLocalFormulaEnabled: boolean
-  mineruLocalTableEnabled: boolean
-  mineruLocalImageAnalysis: boolean
-  mineruLocalServerUrl: string
-  mineruToken: string
-  mineruModelVersion: MineruModelVersion
-
-  // Local HTTP API server
-  apiEnabled: boolean
-  apiAllowUnauthenticated: boolean
-  apiAllowLanAccess: boolean
-  apiMcpEnabled: boolean
-  apiToken: string
 }
 
 export type DraftSetter = <K extends keyof SettingsDraft>(

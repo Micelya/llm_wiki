@@ -6,16 +6,24 @@ export interface ResearchTask {
   topic: string
   /** Review item that requested this research. It is resolved only after the
    * generated page has been written successfully. */
-  sourceReviewId?: string
   rerunOfTaskId?: string
   searchQueries?: string[]
+  /** The person, organization or matter it is of (D-414); none for a loose one. */
+  objectId?: string
+  objectName?: string
   status: "queued" | "searching" | "synthesizing" | "saving" | "done" | "error"
   webResults: WebSearchResult[]
   synthesis: string
-  savedPath: string | null
+  /** The number of the research kept in the base, once saved. */
+  savedId: number | null
   error: string | null
   createdAt: number
 }
+
+export type ResearchTaskInput = Pick<
+  ResearchTask,
+  "topic" | "searchQueries" | "rerunOfTaskId" | "objectId" | "objectName"
+>
 
 interface ResearchState {
   tasks: ResearchTask[]
@@ -23,7 +31,7 @@ interface ResearchState {
   maxConcurrent: number
 
   addTask: (topic: string) => string
-  addTasks: (inputs: Array<Pick<ResearchTask, "topic" | "searchQueries" | "sourceReviewId" | "rerunOfTaskId">>) => string[]
+  addTasks: (inputs: Array<ResearchTaskInput>, options?: { openPanel?: boolean }) => string[]
   updateTask: (id: string, updates: Partial<ResearchTask>) => void
   removeTask: (id: string) => void
   setPanelOpen: (open: boolean) => void
@@ -63,18 +71,18 @@ export function hasActiveResearchRerun(tasks: readonly ResearchTask[], taskId: s
 }
 
 function createResearchTask(
-  input: Pick<ResearchTask, "topic" | "searchQueries" | "sourceReviewId" | "rerunOfTaskId">,
+  input: ResearchTaskInput,
 ): ResearchTask {
   return {
     id: `research-${++counter}`,
     topic: input.topic,
     ...(input.searchQueries?.length ? { searchQueries: input.searchQueries } : {}),
-    ...(input.sourceReviewId ? { sourceReviewId: input.sourceReviewId } : {}),
     ...(input.rerunOfTaskId ? { rerunOfTaskId: input.rerunOfTaskId } : {}),
+    ...(input.objectId ? { objectId: input.objectId, objectName: input.objectName } : {}),
     status: "queued",
     webResults: [],
     synthesis: "",
-    savedPath: null,
+    savedId: null,
     error: null,
     createdAt: Date.now(),
   }
@@ -94,10 +102,11 @@ export const useResearchStore = create<ResearchState>((set, get) => ({
     return task.id
   },
 
-  addTasks: (inputs) => {
+  addTasks: (inputs, options) => {
     const tasks = inputs.map(createResearchTask)
     if (tasks.length === 0) return []
-    set((state) => ({ tasks: [...state.tasks, ...tasks], panelOpen: true }))
+    const openPanel = options?.openPanel ?? true
+    set((state) => ({ tasks: [...state.tasks, ...tasks], panelOpen: openPanel || state.panelOpen }))
     return tasks.map((task) => task.id)
   },
 
