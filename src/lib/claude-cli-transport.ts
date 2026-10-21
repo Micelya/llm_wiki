@@ -259,9 +259,9 @@ export async function streamClaudeCodeCli(
   signal?.addEventListener("abort", abortListener)
 
   try {
-    const workingDirectory = useWikiStore.getState().project?.path
+    const workingDirectory = useWikiStore.getState().agentWorkspace
     if (!workingDirectory) {
-      throw new Error("Claude Code CLI requires an active project working directory")
+      throw new Error("Claude Code CLI requires the agent's working folder")
     }
 
     // Listen FIRST so we don't miss the very first event on fast CLIs.

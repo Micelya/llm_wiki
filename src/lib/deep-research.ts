@@ -491,7 +491,7 @@ async function executeResearch(
     } = await collectResearchSources(
       queries,
       searchConfig,
-      useWikiStore.getState().project?.path ?? "",
+      useWikiStore.getState().agentWorkspace ?? "",
       { webSearch, anyTxtSearch: anyTxtSearchSmart },
       { llmConfig, researchTopic: topic },
     )

@@ -42,7 +42,7 @@ function origin(patch: Partial<OriginSummary> = {}): OriginSummary {
 
 function facts(home: Partial<Home>, patch: Partial<DocbaseFacts> = {}): DocbaseFacts {
   return {
-    home: { health: health({ processed: 10 }), origins: [origin()], activity: [], wiki: { pages: 0, links: 0, broken: 0 }, ...home },
+    home: { health: health({ processed: 10 }), origins: [origin()], activity: [], ...home },
     similarPending: { pairs: 0, groups: 0, sameDocumentPairs: 0 },
     groups: [],
     proposedTypes: [],

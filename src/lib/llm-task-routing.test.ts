@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { projectLlmProfile, resolveProjectLlmConfig, resolveTaskLlmConfig } from "./llm-task-routing"
+import { resolveTaskLlmConfig } from "./llm-task-routing"
 import type { LlmConfig } from "@/stores/wiki-store"
 
 const fallback: LlmConfig = {
@@ -52,7 +52,6 @@ describe("resolveTaskLlmConfig", () => {
       fallback,
       { "custom-team": { apiKey: "team-key", model: "team-model", baseUrl: "https://gateway.example/v1" } },
       { chatPresetId: "custom-team", ingestPresetId: null },
-      undefined,
       custom,
     )).toMatchObject({
       provider: "custom",
@@ -60,63 +59,5 @@ describe("resolveTaskLlmConfig", () => {
       model: "team-model",
       customEndpoint: "https://gateway.example/v1",
     })
-  })
-})
-
-describe("resolveProjectLlmConfig", () => {
-  it("does not duplicate API keys or custom headers into project profiles", () => {
-    const profile = projectLlmProfile({
-      ...fallback,
-      customHeaders: { Authorization: "Bearer gateway-secret" },
-    })
-    expect(profile).not.toHaveProperty("apiKey")
-    expect(profile).not.toHaveProperty("customHeaders")
-  })
-
-  it("keeps the global config when project overrides are disabled", () => {
-    expect(resolveProjectLlmConfig(fallback, {}, {
-      enabled: false,
-      presetId: "anthropic",
-      model: "project-model",
-    })).toBe(fallback)
-  })
-
-  it("uses global credentials with a project-specific provider and model", () => {
-    const resolved = resolveProjectLlmConfig(fallback, {
-      anthropic: { apiKey: "shared-secret", model: "global-anthropic-model" },
-    }, {
-      enabled: true,
-      presetId: "anthropic",
-      model: "project-sonnet",
-    })
-    expect(resolved).toMatchObject({
-      provider: "anthropic",
-      apiKey: "shared-secret",
-      model: "project-sonnet",
-    })
-  })
-
-  it("supports a user-defined custom provider as a project override", () => {
-    expect(resolveProjectLlmConfig(
-      fallback,
-      { "custom-team": { apiKey: "secret", baseUrl: "https://team.example/v1" } },
-      { enabled: true, presetId: "custom-team", model: "project-model" },
-      [{ id: "custom-team", label: "Team" }],
-    )).toMatchObject({
-      provider: "custom",
-      apiKey: "secret",
-      model: "project-model",
-      customEndpoint: "https://team.example/v1",
-    })
-  })
-
-  it("makes a project override take precedence over global task routing", () => {
-    expect(resolveTaskLlmConfig(
-      "chat",
-      { ...fallback, provider: "anthropic", model: "project-sonnet" },
-      { openai: { apiKey: "chat-key", model: "cheap-chat" } },
-      { chatPresetId: "openai", ingestPresetId: null },
-      { enabled: true, presetId: "anthropic", model: "project-sonnet" },
-    )).toMatchObject({ provider: "anthropic", model: "project-sonnet" })
   })
 })

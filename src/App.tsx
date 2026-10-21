@@ -262,6 +262,13 @@ function App() {
         if (savedLang) {
           await i18n.changeLanguage(savedLang)
         }
+        // The chat's agent and the command-line models work in the app's
+        // data folder (P-239), not in a project.
+        try {
+          useWikiStore.getState().setAgentWorkspace(await invoke<string>("agent_workspace"))
+        } catch (err) {
+          console.warn("[startup] the agent's folder is not available:", err)
+        }
       } catch {
         // ignore init errors
       } finally {

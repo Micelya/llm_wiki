@@ -1,32 +1,3 @@
-import { invoke } from "@tauri-apps/api/core"
-import { normalizePath } from "@/lib/path-utils"
-import { useWikiStore } from "@/stores/wiki-store"
-
-export interface ImageRef {
-  url: string
-  alt: string
-}
-
-export interface SearchResult {
-  path: string
-  title: string
-  snippet: string
-  titleMatch: boolean
-  score: number
-  vectorScore?: number
-  images: ImageRef[]
-}
-
-interface BackendSearchResponse {
-  // Reserved for result badges/debug UI. The backend already returns these
-  // signals so API and WebView search share the same retrieval contract.
-  mode: "keyword" | "vector" | "hybrid"
-  results: SearchResult[]
-  tokenHits: number
-  vectorHits: number
-  graphHits?: number
-}
-
 const STOP_WORDS = new Set([
   "的", "是", "了", "什么", "在", "有", "和", "与", "对", "从",
   "the", "is", "a", "an", "what", "how", "are", "was", "were",
@@ -35,6 +6,7 @@ const STOP_WORDS = new Set([
   "this", "that", "these", "those",
 ])
 
+/** The words of a query, for highlighting what a search found. */
 export function tokenizeQuery(query: string): string[] {
   const rawTokens = query
     .toLowerCase()
@@ -57,27 +29,4 @@ export function tokenizeQuery(query: string): string[] {
     }
   }
   return [...new Set(tokens)]
-}
-
-export async function searchWiki(
-  projectPath: string,
-  query: string,
-): Promise<SearchResult[]> {
-  if (!query.trim()) return []
-  const pp = normalizePath(projectPath)
-  const embCfg = useWikiStore.getState().embeddingConfig
-
-  const response = await invoke<BackendSearchResponse>("search_project", {
-    projectPath: pp,
-    query,
-    topK: 20,
-    includeContent: false,
-    queryEmbedding: null,
-    embeddingConfig: embCfg,
-  })
-
-  return response.results.map((result) => ({
-    ...result,
-    path: `${pp}/${normalizePath(result.path).replace(/^\/+/, "")}`,
-  }))
 }

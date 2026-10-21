@@ -4104,13 +4104,9 @@ mod tests {
     #[tokio::test]
     async fn planner_unavailable_skill_turn_does_not_fall_back_to_wiki_search() {
         let project = temp_project("skill-no-fallback");
-        fs::create_dir_all(project.join(".llm-wiki").join("skills").join("demo")).unwrap();
+        fs::create_dir_all(project.join("skills").join("demo")).unwrap();
         fs::write(
-            project
-                .join(".llm-wiki")
-                .join("skills")
-                .join("demo")
-                .join("SKILL.md"),
+            project.join("skills").join("demo").join("SKILL.md"),
             "---\nname: demo\ndescription: Demo skill\n---\nUse this skill for demos.",
         )
         .unwrap();

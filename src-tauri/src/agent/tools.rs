@@ -505,7 +505,7 @@ pub fn builtin_tool_specs() -> Vec<ToolSpec> {
         },
         ToolSpec {
             name: "skills.load".to_string(),
-            description: "Load instruction-only project skills from .llm-wiki/skills.".to_string(),
+            description: "Load instruction-only skills from the agent's skills folder.".to_string(),
             effects: vec![ToolEffect::Read],
             parameters: None,
         },

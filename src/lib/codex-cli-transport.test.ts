@@ -35,11 +35,7 @@ beforeEach(() => {
   tauriMocks.reset()
   tauriMocks.invoke.mockResolvedValue(undefined)
   useWikiStore.setState({
-    project: {
-      id: "test-project",
-      name: "Test Project",
-      path: "/Users/me/default-wiki-project",
-    },
+    agentWorkspace: "/Users/me/default-wiki-project",
   })
 })
 
@@ -301,13 +297,9 @@ describe("streamCodexCli", () => {
     expect(callbacks.onError).not.toHaveBeenCalled()
   })
 
-  it("passes the active project path as the Codex CLI working directory", async () => {
+  it("passes the agent folder as the Codex CLI working directory", async () => {
     useWikiStore.setState({
-      project: {
-        id: "p1",
-        name: "Project One",
-        path: "/Users/me/wiki-project",
-      },
+      agentWorkspace: "/Users/me/wiki-project",
     })
     const callbacks = {
       onToken: vi.fn(),
@@ -356,8 +348,8 @@ describe("streamCodexCli", () => {
     expect(callbacks.onError).not.toHaveBeenCalled()
   })
 
-  it("surfaces a clear error when Codex CLI has no active project directory", async () => {
-    useWikiStore.setState({ project: null })
+  it("surfaces a clear error when Codex CLI has no agent folder", async () => {
+    useWikiStore.setState({ agentWorkspace: null })
     const callbacks = {
       onToken: vi.fn(),
       onDone: vi.fn(),
@@ -382,7 +374,7 @@ describe("streamCodexCli", () => {
     expect(callbacks.onDone).not.toHaveBeenCalled()
     expect(callbacks.onError).toHaveBeenCalledWith(
       expect.objectContaining({
-        message: expect.stringContaining("active project"),
+        message: expect.stringContaining("agent's working folder"),
       }),
     )
   })

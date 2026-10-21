@@ -12,7 +12,6 @@ mod tray;
 mod types;
 
 use panic_guard::run_guarded;
-use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Mutex;
 use tauri::{Emitter, Manager};
@@ -21,18 +20,17 @@ use uuid::Uuid;
 struct CloseBehaviorState(Mutex<String>);
 struct TrayAvailabilityState(Mutex<bool>);
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct AgentProjectEntry {
+/// The folder the chat's agent works in (P-239): `<app data>/agent`, with
+/// its sessions, its skills and the files it produces. It replaces the
+/// folder of the open wiki project.
+#[derive(Debug, Clone)]
+struct AgentHome {
     id: String,
-    name: String,
     path: String,
-    current: bool,
 }
 
 #[derive(Debug, Clone, Default)]
 struct AgentRuntimeConfig {
-    embedding: Option<commands::search::SearchEmbeddingConfig>,
     llm: Option<agent::provider::LlmConfig>,
     web_search: Option<agent::tools::WebSearchConfig>,
     anytxt: Option<agent::tools::AnyTxtConfig>,
@@ -66,11 +64,10 @@ fn api_server_reload_config() -> String {
 #[tauri::command]
 async fn agent_start_turn(
     app: tauri::AppHandle,
-    project_id: String,
     mut request: agent::AgentChatRequest,
     llm_config: Option<agent::provider::LlmConfig>,
 ) -> Result<agent::types::AgentChatResponse, String> {
-    let project = resolve_agent_project(&app, &project_id)?;
+    let project = agent_home(&app)?;
     if request
         .session_id
         .as_deref()
@@ -109,7 +106,7 @@ async fn agent_start_turn(
     let runtime = agent::AgentRuntime::new(
         project.id.clone(),
         project.path.clone(),
-        runtime_config.embedding,
+        None,
         runtime_config.llm,
         runtime_config.web_search,
         runtime_config.anytxt,
@@ -142,11 +139,10 @@ async fn agent_start_turn(
 #[tauri::command]
 fn agent_cancel_turn(
     app: tauri::AppHandle,
-    project_id: String,
     session_id: String,
     run_id: Option<String>,
 ) -> Result<bool, String> {
-    let project = resolve_agent_project(&app, &project_id)?;
+    let project = agent_home(&app)?;
     Ok(app
         .state::<agent::cancel::AgentCancellationRegistry>()
         .cancel(&project.id, &session_id, run_id.as_deref()))
@@ -155,11 +151,10 @@ fn agent_cancel_turn(
 #[tauri::command]
 async fn agent_start_turn_stream(
     app: tauri::AppHandle,
-    project_id: String,
     mut request: agent::AgentChatRequest,
     llm_config: Option<agent::provider::LlmConfig>,
 ) -> Result<String, String> {
-    let project = resolve_agent_project(&app, &project_id)?;
+    let project = agent_home(&app)?;
     if request
         .session_id
         .as_deref()
@@ -196,7 +191,7 @@ async fn agent_start_turn_stream(
     let runtime = agent::AgentRuntime::new(
         project.id.clone(),
         project.path.clone(),
-        runtime_config.embedding,
+        None,
         runtime_config.llm,
         runtime_config.web_search,
         runtime_config.anytxt,
@@ -260,32 +255,11 @@ async fn agent_start_turn_stream(
     Ok(active_session_id)
 }
 
+/// The agent's folder, so the chat can show and open what it produced and
+/// the command-line models can work in it.
 #[tauri::command]
-fn agent_get_session(
-    app: tauri::AppHandle,
-    project_id: String,
-    session_id: String,
-    limit: Option<usize>,
-) -> Result<Vec<agent::session::AgentSessionMessage>, String> {
-    let project = resolve_agent_project(&app, &project_id)?;
-    Ok(app
-        .state::<agent::session::AgentSessionStore>()
-        .recent_messages(
-            &project.path,
-            &session_id,
-            limit.unwrap_or(40).clamp(1, 200),
-        ))
-}
-
-#[tauri::command]
-fn agent_list_sessions(
-    app: tauri::AppHandle,
-    project_id: String,
-) -> Result<Vec<agent::session::AgentSession>, String> {
-    let project = resolve_agent_project(&app, &project_id)?;
-    Ok(app
-        .state::<agent::session::AgentSessionStore>()
-        .list_sessions(&project.path))
+fn agent_workspace(app: tauri::AppHandle) -> Result<String, String> {
+    agent_home(&app).map(|home| home.path)
 }
 
 #[tauri::command]
@@ -331,79 +305,17 @@ fn mcp_server_entry_path(app: tauri::AppHandle) -> Result<String, String> {
     })
 }
 
-fn resolve_agent_project(
-    app: &tauri::AppHandle,
-    project_id: &str,
-) -> Result<AgentProjectEntry, String> {
-    let decoded = percent_decode(project_id);
-    let wants_current = decoded.eq_ignore_ascii_case("current");
-    load_agent_projects(app)
-        .into_iter()
-        .find(|project| {
-            project.id == decoded
-                || project_path_matches(&project.path, &decoded)
-                || (wants_current && project.current)
-        })
-        .ok_or_else(|| format!("Unknown project: {decoded}"))
-}
-
-fn load_agent_projects(app: &tauri::AppHandle) -> Vec<AgentProjectEntry> {
-    let current = normalize_path(&clip_server::current_project_path());
-    let mut projects = Vec::new();
-    if let Some(parsed) = load_agent_app_state(app) {
-        if let Some(registry) = parsed.get("projectRegistry").and_then(Value::as_object) {
-            for (id, value) in registry {
-                let path = value.get("path").and_then(Value::as_str).unwrap_or("");
-                if path.is_empty() {
-                    continue;
-                }
-                let path = normalize_path(path);
-                let name = value
-                    .get("name")
-                    .and_then(Value::as_str)
-                    .map(ToOwned::to_owned)
-                    .unwrap_or_else(|| project_name_from_path(&path));
-                projects.push(AgentProjectEntry {
-                    id: id.clone(),
-                    name,
-                    current: path == current,
-                    path,
-                });
-            }
-        }
-        if let Some(recents) = parsed.get("recentProjects").and_then(Value::as_array) {
-            for value in recents {
-                let path = value.get("path").and_then(Value::as_str).unwrap_or("");
-                if path.is_empty() {
-                    continue;
-                }
-                let path = normalize_path(path);
-                if projects.iter().any(|project| project.path == path) {
-                    continue;
-                }
-                let name = value
-                    .get("name")
-                    .and_then(Value::as_str)
-                    .map(ToOwned::to_owned)
-                    .unwrap_or_else(|| project_name_from_path(&path));
-                projects.push(AgentProjectEntry {
-                    id: read_project_id(&path).unwrap_or_else(|| path.clone()),
-                    name,
-                    current: path == current,
-                    path,
-                });
-            }
-        }
-    }
-    if !current.is_empty() && !projects.iter().any(|project| project.path == current) {
-        projects.push(AgentProjectEntry {
-            id: read_project_id(&current).unwrap_or_else(|| current.clone()),
-            name: project_name_from_path(&current),
-            current: true,
-            path: current,
-        });
-    }
-    projects
+fn agent_home(app: &tauri::AppHandle) -> Result<AgentHome, String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("no se encontró la carpeta de datos de la app: {e}"))?
+        .join("agent");
+    std::fs::create_dir_all(&dir).map_err(|e| format!("no se pudo crear '{}': {e}", dir.display()))?;
+    Ok(AgentHome {
+        id: "micelya".to_string(),
+        path: dir.to_string_lossy().replace('\\', "/"),
+    })
 }
 
 fn load_agent_app_state(app: &tauri::AppHandle) -> Option<Value> {
@@ -417,10 +329,6 @@ fn load_agent_runtime_config(app: &tauri::AppHandle) -> AgentRuntimeConfig {
         return AgentRuntimeConfig::default();
     };
     AgentRuntimeConfig {
-        embedding: parsed
-            .get("embeddingConfig")
-            .cloned()
-            .and_then(|value| serde_json::from_value(value).ok()),
         llm: parsed
             .get("llmConfig")
             .cloned()
@@ -434,70 +342,6 @@ fn load_agent_runtime_config(app: &tauri::AppHandle) -> AgentRuntimeConfig {
             .and_then(|value| value.get("anyTxt"))
             .cloned()
             .and_then(|value| serde_json::from_value(value).ok()),
-    }
-}
-
-fn read_project_id(path: &str) -> Option<String> {
-    let raw = std::fs::read_to_string(
-        std::path::Path::new(path)
-            .join(".llm-wiki")
-            .join("project.json"),
-    )
-    .ok()?;
-    serde_json::from_str::<Value>(&raw)
-        .ok()?
-        .get("id")
-        .and_then(Value::as_str)
-        .map(ToOwned::to_owned)
-}
-
-fn project_name_from_path(path: &str) -> String {
-    std::path::Path::new(path)
-        .file_name()
-        .and_then(|s| s.to_str())
-        .filter(|name| !name.is_empty())
-        .unwrap_or("Project")
-        .to_string()
-}
-
-fn project_path_matches(stored_path: &str, candidate: &str) -> bool {
-    let stored = normalize_path(stored_path);
-    let candidate = normalize_path(candidate);
-    if cfg!(windows) {
-        stored.eq_ignore_ascii_case(&candidate)
-    } else {
-        stored == candidate
-    }
-}
-
-fn normalize_path(path: &str) -> String {
-    path.replace('\\', "/").trim_end_matches('/').to_string()
-}
-
-fn percent_decode(input: &str) -> String {
-    let bytes = input.as_bytes();
-    let mut out = Vec::with_capacity(bytes.len());
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'%' && i + 2 < bytes.len() {
-            if let (Some(hi), Some(lo)) = (hex_val(bytes[i + 1]), hex_val(bytes[i + 2])) {
-                out.push((hi << 4) | lo);
-                i += 3;
-                continue;
-            }
-        }
-        out.push(bytes[i]);
-        i += 1;
-    }
-    String::from_utf8(out).unwrap_or_else(|_| input.to_string())
-}
-
-fn hex_val(b: u8) -> Option<u8> {
-    match b {
-        b'0'..=b'9' => Some(b - b'0'),
-        b'a'..=b'f' => Some(b - b'a' + 10),
-        b'A'..=b'F' => Some(b - b'A' + 10),
-        _ => None,
     }
 }
 
@@ -662,7 +506,6 @@ pub fn run() {
             docbase::commands::docbase_rescan,
             docbase::commands::docbase_home,
             docbase::commands::docbase_general_project,
-            docbase::commands::docbase_ensure_default_project,
             docbase::commands::docbase_set_wiki_active,
             docbase::commands::docbase_link_general_project,
             docbase::commands::docbase_unlink_general_project,
@@ -762,10 +605,6 @@ pub fn run() {
             commands::fs::get_file_size,
             commands::fs::get_file_md5,
             commands::fs::read_file_as_base64,
-            commands::project::create_project,
-            commands::project::open_project,
-            commands::project::open_project_folder,
-            commands::project::open_path_in_project,
             commands::project_maintenance::export_project_archive,
             commands::project_maintenance::import_project_archive,
             commands::project_maintenance::rebuild_wiki_index,
@@ -781,8 +620,7 @@ pub fn run() {
             agent_start_turn,
             agent_start_turn_stream,
             agent_cancel_turn,
-            agent_get_session,
-            agent_list_sessions,
+            agent_workspace,
             agent::skills::agent_list_skills,
             mcp_server_entry_path,
             commands::vectorstore::vector_upsert,

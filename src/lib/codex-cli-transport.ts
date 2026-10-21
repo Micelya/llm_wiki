@@ -198,9 +198,9 @@ export async function streamCodexCli(
 
     if (aborted) return
 
-    const workingDirectory = useWikiStore.getState().project?.path
+    const workingDirectory = useWikiStore.getState().agentWorkspace
     if (!workingDirectory) {
-      throw new Error("Codex CLI requires an active project working directory")
+      throw new Error("Codex CLI requires the agent's working folder")
     }
 
     const payload: SpawnPayload = {

@@ -1,12 +1,5 @@
 import type { CodexReasoningEffort } from "@/lib/codex-reasoning"
 import { create } from "zustand"
-import type { WikiProject, FileNode } from "@/types/wiki"
-import { DEFAULT_SOURCE_WATCH_CONFIG } from "@/lib/source-watch-config"
-import {
-  buildProjectPathIndexFromTree,
-  createEmptyProjectPathIndex,
-  type ProjectPathIndex,
-} from "@/lib/wiki-page-resolver"
 import { DEFAULT_GRAPH_FILTERS, type GraphFilterState } from "@/lib/graph-filters"
 import type { OutputLanguage } from "@/lib/output-language-options"
 
@@ -128,69 +121,6 @@ interface SearchApiConfig {
   anyTxt?: AnyTxtConfig
 }
 
-interface EmbeddingConfig {
-  enabled: boolean
-  endpoint: string // e.g. "http://127.0.0.1:1234/v1/embeddings"
-  apiKey: string
-  model: string // e.g. "text-embedding-qwen3-embedding-0.6b"
-  /** Optional Gemini native `output_dimensionality` value. Ignored by OpenAI-compatible endpoints. */
-  outputDimensionality?: number
-  /**
-   * Chunking knobs (Phase 1 RAG). Undefined values fall back to the
-   * chunker's built-in defaults in `src/lib/text-chunker.ts`:
-   *   targetChars   1000
-   *   maxChars      1500
-   *   minChars      200
-   *   overlapChars  200
-   *
-   * Users on small-context endpoints (e.g. llama.cpp with n_ctx=512,
-   * Ollama `mxbai-embed-large`) should lower `maxChunkChars` to avoid
-   * per-request rejections; fetchEmbedding also auto-halves on
-   * "too long" server errors as a second line of defence.
-   */
-  maxChunkChars?: number
-  overlapChunkChars?: number
-  /** Maximum embedding HTTP requests in flight. Defaults to 1 for compatibility. */
-  concurrency?: number
-  /** Texts per OpenAI-compatible embedding request. Defaults to 1. */
-  batchSize?: number
-  /**
-   * Extra HTTP headers to send with every embedding request, e.g.
-   *   { "X-Model-Provider-Id": "siliconflow" }
-   * for gateways like mify that route by header. Reserved names
-   * (Authorization, Content-Type, Host, Content-Length, x-goog-api-key)
-   * are ignored — they're managed by the embedding client itself.
-   */
-  extraHeaders?: Record<string, string>
-}
-
-/**
- * Image-captioning settings (Phase 4 of the multimodal-images plan).
- *
- * Decoupled from `llmConfig` because vision-capable endpoints are
- * usually NOT the same model the user picks for analysis/generation:
- * - the analysis stage often goes to a strong text-only model (Claude
- *   Sonnet, DeepSeek, etc.) that doesn't speak vision at all;
- * - captioning is happy with a small local VL model (Qwen2.5-VL-7B,
- *   LLaVA-1.6) that costs near-zero per call.
- *
- * `enabled` is the master gate. When false the caption pipeline is
- * skipped entirely — `read_file`'s extracted images still appear
- * inline (with empty alt text) and the safety-net `## Embedded
- * Images` section still gets written, but we never touch the LLM.
- *
- * `useMainLlm`: when true (the default for first-time users we
- * onboard), captioning calls go through the same `llmConfig`
- * everything else uses. When false, the dedicated fields below are
- * sent through the same provider machinery — same `streamChat`,
- * same `getProviderConfig`, no duplicate code.
- *
- * `concurrency` bounds parallel caption requests during ingest.
- * 30-image PDFs with sequential captioning at ~10s/image (a Qwen3
- * thinking model on consumer GPU) take 5 minutes. At concurrency=4
- * that drops to ~75s. Higher values are available for hosted or
- * multi-GPU endpoints that can sustain broader parallelism.
- */
 /**
  * Global outbound HTTP proxy. When `enabled` and `url` is a valid
  * http(s) URL, the Rust setup hook reads this on app launch and
@@ -203,40 +133,6 @@ interface ProxyConfig {
   url: string
   bypassLocal: boolean
   acceptInvalidCerts?: boolean
-}
-
-interface ScheduledImportConfig {
-  enabled: boolean
-  path: string // 监控目录的相对路径（相对于项目根目录），空字符串表示使用默认的 "raw"
-  interval: number // 扫描间隔（分钟）
-  lastScan: number | null // 上次扫描时间戳
-}
-
-/**
- * Local HTTP API server config. Read by the Rust `api_server` module on
- * every request via `load_app_state` (5s cache). The Rust side is the
- * source of truth at request time; this struct is the persisted form
- * the UI edits.
- *
- *   - `enabled` gates all non-/health endpoints. Default `true` so an
- *     env-token-only setup keeps working after the toggle is added.
- *   - `allowUnauthenticated` lets local agents call the API without a
- *     token. It is explicit and default-off.
- *   - `allowLanAccess` binds the API and clip server to 0.0.0.0 on
- *     app startup so trusted LAN devices can reach them. Default-off.
- *   - `mcpEnabled` allows the optional MCP stdio server to use this
- *     API. It is separate from the HTTP API kill-switch so users can
- *     expose scripts while keeping MCP disabled.
- *   - `token` is the bearer secret. Empty + auth required =
- *     every non-/health request returns 401. The env var
- *     `LLM_WIKI_API_TOKEN` overrides this field at the backend.
- */
-interface ApiConfig {
-  enabled: boolean
-  allowUnauthenticated: boolean
-  allowLanAccess: boolean
-  mcpEnabled: boolean
-  token: string
 }
 
 export type CloseBehavior = "ask" | "minimize" | "exit"
@@ -267,69 +163,6 @@ export function createDefaultGraphUiState(): GraphUiState {
 export interface GeneralConfig {
   autostart: boolean
   closeBehavior: CloseBehavior
-}
-
-interface SourceWatchConfig {
-  enabled: boolean
-  autoIngest: boolean
-  /** Keep extractor output in raw/parsed in addition to the internal cache. */
-  persistExtractedMarkdown: boolean
-  /** Maximum number of source text extraction jobs allowed at once. */
-  parsingConcurrency: number
-  /** Maximum number of ingest tasks allowed to prepare concurrently. */
-  ingestConcurrency: number
-  includeExtensions: string[]
-  excludeExtensions: string[]
-  excludeDirs: string[]
-  excludeGlobs: string[]
-  maxFileSizeMb: number
-}
-
-export type MineruModelVersion = "pipeline" | "vlm"
-export type MineruLocalBackend =
-  | "pipeline"
-  | "vlm-engine"
-  | "hybrid-engine"
-  | "vlm-http-client"
-  | "hybrid-http-client"
-export type MineruParseMethod = "auto" | "txt" | "ocr"
-export type MineruEffort = "medium" | "high"
-
-export interface MineruConfig {
-  enabled: boolean
-  /** Parsing backend: MinerU cloud API (default) or a self-hosted local service. */
-  backend?: "cloud" | "local"
-  /** Base URL of a compatible self-hosted MinerU HTTP wrapper. */
-  localEndpoint?: string
-  /** Optional Bearer token used only for the self-hosted MinerU service. */
-  localToken?: string
-  localBackend?: MineruLocalBackend
-  localEffort?: MineruEffort
-  localParseMethod?: MineruParseMethod
-  localLanguage?: string
-  localFormulaEnabled?: boolean
-  localTableEnabled?: boolean
-  localImageAnalysis?: boolean
-  localServerUrl?: string
-  token: string
-  modelVersion: MineruModelVersion
-}
-
-interface MultimodalConfig {
-  enabled: boolean
-  /** Reuse `llmConfig` for caption calls. When true, the fields
-   *  below are ignored. */
-  useMainLlm: boolean
-  provider: LlmConfig["provider"]
-  apiKey: string
-  model: string
-  ollamaUrl: string
-  customEndpoint: string
-  azureApiVersion?: string
-  azureModelFamily?: AzureModelFamily
-  apiMode?: CustomApiMode
-  /** Max parallel caption requests during ingest. >=1. */
-  concurrency: number
 }
 
 /**
@@ -370,32 +203,7 @@ export interface TaskModelRoutingConfig {
   ingestPresetId: string | null
 }
 
-export interface ProjectLlmOverride {
-  enabled: boolean
-  presetId: string | null
-  /** Empty uses the selected preset/global provider model. */
-  model: string
-  /**
-   * Resolved provider metadata for native/API callers. The API key is
-   * deliberately omitted: Rust merges the current credential from
-   * providerConfigs[presetId], so rotating a key never requires rewriting
-   * every project override and credentials are not duplicated per project.
-   */
-  profile?: Omit<LlmConfig, "apiKey" | "customHeaders">
-}
-
 interface WikiState {
-  project: WikiProject | null
-  fileTree: FileNode[]
-  /**
-   * Lightweight lookup index derived from `fileTree`. Production code must
-   * update fileTree through `setFileTree` so this stays in sync; direct
-   * `useWikiStore.setState({ fileTree })` is only for tests that also reset or
-   * do not read path resolution.
-   */
-  projectPathIndex: ProjectPathIndex
-  selectedFile: string | null
-  fileContent: string
   activeView:
     | "chat" | "search" | "graph" | "skills" | "settings"
     // Document base screens.
@@ -405,52 +213,31 @@ interface WikiState {
     // Who and what the documents name (the knowledge layer).
     | "entities" | "identity-doubts" | "matters"
   llmConfig: LlmConfig
-  /** Persisted global/default config, kept separate while a project override is effective. */
-  globalLlmConfig: LlmConfig
+  /** The folder the chat's agent works in (`<app data>/agent`), once known. */
+  agentWorkspace: string | null
   /** Per-provider-preset stored overrides (API key, model, endpoint, …). */
   providerConfigs: ProviderConfigs
   customLlmPresets: CustomLlmPreset[]
   /** Which preset is currently active. `null` = no LLM configured. */
   activePresetId: string | null
   taskModelRouting: TaskModelRoutingConfig
-  projectLlmOverride: ProjectLlmOverride
   searchApiConfig: SearchApiConfig
-  embeddingConfig: EmbeddingConfig
-  multimodalConfig: MultimodalConfig
   outputLanguage: OutputLanguage
   proxyConfig: ProxyConfig
-  scheduledImportConfig: ScheduledImportConfig
-  sourceWatchConfig: SourceWatchConfig
-  sourceWatchAllProjects: boolean
-  mineruConfig: MineruConfig
-  apiConfig: ApiConfig
   generalConfig: GeneralConfig
   graphUiState: GraphUiState
   dataVersion: number
 
-  setProject: (project: WikiProject | null) => void
-  setFileTree: (tree: FileNode[], options?: { syncPathIndex?: boolean }) => void
-  setProjectPathIndexFromTree: (tree: FileNode[]) => void
-  setSelectedFile: (path: string | null) => void
-  setFileContent: (content: string) => void
   setActiveView: (view: WikiState["activeView"]) => void
   setLlmConfig: (config: LlmConfig) => void
-  setGlobalLlmConfig: (config: LlmConfig) => void
+  setAgentWorkspace: (path: string | null) => void
   setProviderConfigs: (configs: ProviderConfigs) => void
   setCustomLlmPresets: (presets: CustomLlmPreset[]) => void
   setActivePresetId: (id: string | null) => void
   setTaskModelRouting: (config: TaskModelRoutingConfig) => void
-  setProjectLlmOverride: (config: ProjectLlmOverride) => void
   setSearchApiConfig: (config: SearchApiConfig) => void
-  setEmbeddingConfig: (config: EmbeddingConfig) => void
-  setMultimodalConfig: (config: MultimodalConfig) => void
   setOutputLanguage: (lang: OutputLanguage) => void
   setProxyConfig: (config: ProxyConfig) => void
-  setScheduledImportConfig: (config: ScheduledImportConfig) => void
-  setSourceWatchConfig: (config: SourceWatchConfig) => void
-  setSourceWatchAllProjects: (enabled: boolean) => void
-  setMineruConfig: (config: MineruConfig) => void
-  setApiConfig: (config: ApiConfig) => void
   setGeneralConfig: (config: GeneralConfig) => void
   setGraphUiState: (state: GraphUiState | ((current: GraphUiState) => GraphUiState)) => void
   resetGraphUiState: () => void
@@ -458,11 +245,6 @@ interface WikiState {
 }
 
 export const useWikiStore = create<WikiState>((set) => ({
-  project: null,
-  fileTree: [],
-  projectPathIndex: createEmptyProjectPathIndex(),
-  selectedFile: null,
-  fileContent: "",
   activeView: "home",
   llmConfig: {
     provider: "openai",
@@ -475,17 +257,7 @@ export const useWikiStore = create<WikiState>((set) => ({
     reasoning: { mode: "auto" },
     localCliIsolation: false,
   },
-  globalLlmConfig: {
-    provider: "openai",
-    apiKey: "",
-    maxContextSize: 204800,
-    model: "",
-    ollamaUrl: "http://localhost:11434",
-    customEndpoint: "",
-    azureApiVersion: "2024-10-21",
-    reasoning: { mode: "auto" },
-    localCliIsolation: false,
-  },
+  agentWorkspace: null,
   providerConfigs: {},
   customLlmPresets: [],
   activePresetId: null,
@@ -493,27 +265,8 @@ export const useWikiStore = create<WikiState>((set) => ({
     chatPresetId: null,
     ingestPresetId: null,
   },
-  projectLlmOverride: {
-    enabled: false,
-    presetId: null,
-    model: "",
-    profile: undefined,
-  },
-
   dataVersion: 0,
 
-  setProject: (project) => set({ project }),
-  setFileTree: (fileTree, options) => {
-    if (options?.syncPathIndex === false) {
-      set({ fileTree })
-      return
-    }
-    set({ fileTree, projectPathIndex: buildProjectPathIndexFromTree(fileTree) })
-  },
-  setProjectPathIndexFromTree: (tree) =>
-    set({ projectPathIndex: buildProjectPathIndexFromTree(tree) }),
-  setSelectedFile: (selectedFile) => set({ selectedFile }),
-  setFileContent: (fileContent) => set({ fileContent }),
   setActiveView: (activeView) => set({ activeView }),
   searchApiConfig: {
     provider: "none",
@@ -532,31 +285,6 @@ export const useWikiStore = create<WikiState>((set) => ({
     },
   },
 
-  embeddingConfig: {
-    enabled: false,
-    endpoint: "",
-    apiKey: "",
-    model: "",
-  },
-
-  multimodalConfig: {
-    // Off by default — captioning is a non-trivial token spend
-    // (one VLM call per extracted image), and silently turning it
-    // on for every user the first time they import a PDF would be
-    // a budget surprise. Users who want it flip the toggle in
-    // Settings → Image captioning.
-    enabled: false,
-    useMainLlm: true,
-    provider: "custom",
-    apiKey: "",
-    model: "",
-    ollamaUrl: "http://localhost:11434",
-    customEndpoint: "",
-    azureApiVersion: "2024-10-21",
-    apiMode: "chat_completions",
-    concurrency: 4,
-  },
-
   outputLanguage: "auto",
 
   proxyConfig: {
@@ -564,44 +292,6 @@ export const useWikiStore = create<WikiState>((set) => ({
     url: "",
     bypassLocal: true,
     acceptInvalidCerts: false,
-  },
-
-  scheduledImportConfig: {
-    enabled: false,
-    path: "",
-    interval: 60,
-    lastScan: null,
-  },
-
-  sourceWatchConfig: DEFAULT_SOURCE_WATCH_CONFIG,
-  sourceWatchAllProjects: false,
-  mineruConfig: {
-    enabled: false,
-    backend: "cloud",
-    localEndpoint: "http://127.0.0.1:8000",
-    localBackend: "hybrid-engine",
-    localEffort: "medium",
-    localParseMethod: "auto",
-    localLanguage: "ch",
-    localFormulaEnabled: true,
-    localTableEnabled: true,
-    localImageAnalysis: true,
-    localServerUrl: "",
-    token: "",
-    modelVersion: "vlm",
-  },
-
-  // Default `enabled: true` preserves the pre-toggle behavior: anyone
-  // who already had `LLM_WIKI_API_TOKEN` set or `apiConfig.token`
-  // hand-edited keeps their working API. New users land in
-  // "enabled + no token = 401 on every endpoint" — fail-closed by
-  // virtue of the token being empty.
-  apiConfig: {
-    enabled: true,
-    allowUnauthenticated: false,
-    allowLanAccess: false,
-    mcpEnabled: false,
-    token: "",
   },
 
   generalConfig: {
@@ -612,22 +302,14 @@ export const useWikiStore = create<WikiState>((set) => ({
   graphUiState: createDefaultGraphUiState(),
 
   setLlmConfig: (llmConfig) => set({ llmConfig }),
-  setGlobalLlmConfig: (globalLlmConfig) => set({ globalLlmConfig }),
+  setAgentWorkspace: (agentWorkspace) => set({ agentWorkspace }),
   setProviderConfigs: (providerConfigs) => set({ providerConfigs }),
   setCustomLlmPresets: (customLlmPresets) => set({ customLlmPresets }),
   setActivePresetId: (activePresetId) => set({ activePresetId }),
   setTaskModelRouting: (taskModelRouting) => set({ taskModelRouting }),
-  setProjectLlmOverride: (projectLlmOverride) => set({ projectLlmOverride }),
   setSearchApiConfig: (searchApiConfig) => set({ searchApiConfig }),
-  setEmbeddingConfig: (embeddingConfig) => set({ embeddingConfig }),
-  setMultimodalConfig: (multimodalConfig) => set({ multimodalConfig }),
   setOutputLanguage: (outputLanguage) => set({ outputLanguage }),
   setProxyConfig: (proxyConfig) => set({ proxyConfig }),
-  setScheduledImportConfig: (scheduledImportConfig) => set({ scheduledImportConfig }),
-  setSourceWatchConfig: (sourceWatchConfig) => set({ sourceWatchConfig }),
-  setSourceWatchAllProjects: (sourceWatchAllProjects) => set({ sourceWatchAllProjects }),
-  setMineruConfig: (mineruConfig) => set({ mineruConfig }),
-  setApiConfig: (apiConfig) => set({ apiConfig }),
   setGeneralConfig: (generalConfig) => set({ generalConfig }),
   setGraphUiState: (graphUiState) =>
     set((state) => ({
@@ -639,4 +321,4 @@ export const useWikiStore = create<WikiState>((set) => ({
   bumpDataVersion: () => set((state) => ({ dataVersion: state.dataVersion + 1 })),
 }))
 
-export type { WikiState, LlmConfig, SearchApiConfig, EmbeddingConfig, MultimodalConfig, OutputLanguage, ProxyConfig, ScheduledImportConfig, SourceWatchConfig, ApiConfig }
+export type { WikiState, LlmConfig, SearchApiConfig, OutputLanguage, ProxyConfig }

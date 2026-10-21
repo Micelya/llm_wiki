@@ -265,115 +265,14 @@ export interface Activity {
   fromPath: string | null
 }
 
-/** Totals of the general project's wiki, from the base's index of it. */
-export interface WikiIndex {
-  pages: number
-  links: number
-  /** Links that point at no page. */
-  broken: number
-}
-
-/** A wiki page, as the index knows it. */
-export interface PageRef {
-  /** Path inside the project: `wiki/entities/zentora.md`. */
-  path: string
-  /** Where the page is on disk. */
-  file: string
-  title: string
-  /** `type` of its header: source, entity, concept… */
-  kind: string
-}
-
-export interface BrokenLink {
-  from: PageRef
-  /** What the link says, as written. */
-  target: string
-}
-
 export interface Home {
   health: Health
   origins: OriginSummary[]
   activity: Activity[]
-  wiki: WikiIndex
-}
-
-/** The wiki pages that came from the document at this location, or from any copy of it. */
-export function pagesCiting(locationId: number): Promise<PageRef[]> {
-  return invoke<PageRef[]>("docbase_pages_citing", { locationId })
-}
-
-export function listBrokenLinks(): Promise<BrokenLink[]> {
-  return invoke<BrokenLink[]>("docbase_broken_links")
-}
-
-/** The pages that link to the page at this path inside the project. */
-export function listBacklinks(pagePath: string): Promise<PageRef[]> {
-  return invoke<PageRef[]>("docbase_backlinks", { pagePath })
 }
 
 export function getHome(): Promise<Home> {
   return invoke<Home>("docbase_home")
-}
-
-/** An origin as the general project's wiki sees it. */
-export interface BridgedOrigin {
-  originId: string
-  name: string
-  /** The folder under `raw/sources` it appears as, when it is mounted. */
-  mountedAs: string | null
-  /** Why it could not be mounted, when that is the case. */
-  problem: string | null
-}
-
-/** The wiki that covers every origin of the space. */
-export interface GeneralProject {
-  id: string
-  name: string
-  /** The wiki project folder, once one was assigned. */
-  path: string | null
-  members: string
-  /** Whether the wiki is fed from the base on its own. */
-  wikiActive: boolean
-  origins: BridgedOrigin[]
-}
-
-/** A file of the base as a source of the general project's wiki. */
-export interface WikiSource {
-  originId: string
-  /** Path inside the wiki project: `raw/sources/<origin>/<file>`. */
-  sourcePath: string
-  /** What the wiki calls the source: the path under `raw/sources`. */
-  identity: string
-  ext: string
-  /** The document it is, once the base read it. */
-  contentId: number | null
-}
-
-/** `null` before the first origin is incorporated. */
-export function getGeneralProject(): Promise<GeneralProject | null> {
-  return invoke<GeneralProject | null>("docbase_general_project")
-}
-
-/** Mounts every origin in that wiki project. Copies nothing, ingests nothing. */
-export function linkGeneralProject(projectPath: string, name: string): Promise<GeneralProject> {
-  return invoke<GeneralProject>("docbase_link_general_project", { projectPath, name })
-}
-
-/** Makes sure the general project has its wiki in the workspace; creates it the first time. */
-export function ensureDefaultProject(workspace: string): Promise<GeneralProject> {
-  return invoke<GeneralProject>("docbase_ensure_default_project", { workspace })
-}
-
-export function setWikiActive(active: boolean): Promise<void> {
-  return invoke<void>("docbase_set_wiki_active", { active })
-}
-
-export function unlinkGeneralProject(): Promise<void> {
-  return invoke<void>("docbase_unlink_general_project")
-}
-
-export function listWikiSources(): Promise<WikiSource[]> {
-  return invoke<WikiSource[]>("docbase_wiki_sources")
 }
 
 export interface FolderNode {
@@ -402,11 +301,6 @@ export function listFolder(originId: string, folder: string): Promise<FolderList
 /** Leaves a file or folder out of the base, or brings it back. Nothing on disk is touched. */
 export function setExcluded(originId: string, relPath: string, isFolder: boolean, excluded: boolean): Promise<void> {
   return invoke<void>("docbase_set_excluded", { originId, relPath, isFolder, excluded })
-}
-
-/** Which of these `raw/sources/…` paths of a wiki project the user left out of the base. */
-export function excludedSources(projectPath: string, sourcePaths: string[]): Promise<string[]> {
-  return invoke<string[]>("docbase_excluded_sources", { projectPath, sourcePaths })
 }
 
 export function openFolder(originId: string, folder: string): Promise<void> {
@@ -790,14 +684,9 @@ export function projectKnowledge(engine: AskConfig | null, maxQuestions?: number
   return invoke<KnowledgeProjectReport>("docbase_knowledge_project", { engine, maxQuestions: maxQuestions ?? null })
 }
 
-/** The language of the archive's wiki, for the pages the knowledge layer writes. */
+/** The language the base writes its articles in. */
 export function setWikiLanguage(language: string | null): Promise<void> {
   return invoke<void>("docbase_set_wiki_language", { language })
-}
-
-/** Fires when the knowledge layer wrote pages of the archive's wiki. */
-export function onKnowledgePages(handler: () => void): Promise<UnlistenFn> {
-  return listen("docbase://knowledge-pages", () => handler())
 }
 
 // ── Knowledge layer: people, organizations and matters ──────────────────

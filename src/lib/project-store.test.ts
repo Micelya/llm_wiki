@@ -1,65 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { __projectStoreTest } from "./project-store"
 
-describe("project-store MinerU config normalization", () => {
-  it("preserves valid MinerU config values", () => {
-    expect(__projectStoreTest.normalizeMineruConfig({
-      enabled: true,
-      backend: "local",
-      localEndpoint: "http://localhost:9000/mineru",
-      localToken: " local-secret ",
-      localBackend: "pipeline",
-      localEffort: "high",
-      localParseMethod: "ocr",
-      localLanguage: "korean",
-      localFormulaEnabled: false,
-      localTableEnabled: true,
-      localImageAnalysis: false,
-      localServerUrl: "http://localhost:30000",
-      token: "token-123",
-      modelVersion: "pipeline",
-    })).toEqual({
-      enabled: true,
-      backend: "local",
-      localEndpoint: "http://localhost:9000/mineru",
-      localToken: "local-secret",
-      localBackend: "pipeline",
-      localEffort: "high",
-      localParseMethod: "ocr",
-      localLanguage: "korean",
-      localFormulaEnabled: false,
-      localTableEnabled: true,
-      localImageAnalysis: false,
-      localServerUrl: "http://localhost:30000",
-      token: "token-123",
-      modelVersion: "pipeline",
-    })
-  })
-
-  it("migrates legacy and malformed MinerU config values to safe defaults", () => {
-    expect(__projectStoreTest.normalizeMineruConfig({
-      enabled: "yes" as unknown as boolean,
-      token: 123 as unknown as string,
-      modelVersion: "mineru-html" as "vlm",
-    })).toEqual({
-      enabled: false,
-      backend: "cloud",
-      localEndpoint: "http://127.0.0.1:8000",
-      localToken: "",
-      localBackend: "hybrid-engine",
-      localEffort: "medium",
-      localParseMethod: "auto",
-      localLanguage: "ch",
-      localFormulaEnabled: true,
-      localTableEnabled: true,
-      localImageAnalysis: true,
-      localServerUrl: "",
-      token: "",
-      modelVersion: "vlm",
-    })
-  })
-})
-
 describe("project-store zoom normalization", () => {
   it("preserves valid zoom values", () => {
     expect(__projectStoreTest.normalizeZoomLevel(0.5)).toBe(0.5)

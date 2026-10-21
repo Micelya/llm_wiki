@@ -421,28 +421,28 @@ mod tests {
     #[tokio::test]
     async fn explicit_context_files_are_project_scoped() {
         let root =
-            std::env::temp_dir().join(format!("llm-wiki-context-files-{}", std::process::id()));
+            std::env::temp_dir().join(format!("micelya-context-files-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
-        fs::create_dir_all(root.join("wiki")).unwrap();
-        fs::create_dir_all(root.join(".llm-wiki")).unwrap();
-        fs::write(root.join("wiki/page.md"), "selected evidence").unwrap();
-        fs::write(root.join("wiki/figure.png"), [0_u8, 1, 2, 3]).unwrap();
-        fs::write(root.join(".llm-wiki/secret.md"), "hidden secret").unwrap();
+        fs::create_dir_all(root.join("notas")).unwrap();
+        fs::create_dir_all(root.join(".oculta")).unwrap();
+        fs::write(root.join("notas/page.md"), "selected evidence").unwrap();
+        fs::write(root.join("notas/figure.png"), [0_u8, 1, 2, 3]).unwrap();
+        fs::write(root.join(".oculta/secret.md"), "hidden secret").unwrap();
 
         let files = load_explicit_context_files(
             root.to_str().unwrap(),
             &[
-                "wiki/page.md".to_string(),
-                "wiki/figure.png".to_string(),
+                "notas/page.md".to_string(),
+                "notas/figure.png".to_string(),
                 "../outside.md".to_string(),
-                ".llm-wiki/secret.md".to_string(),
+                ".oculta/secret.md".to_string(),
             ],
         )
         .await;
         assert_eq!(files.len(), 2);
         assert_eq!(
             Path::new(&files[0].0).canonicalize().unwrap(),
-            root.join("wiki/page.md").canonicalize().unwrap()
+            root.join("notas/page.md").canonicalize().unwrap()
         );
         assert_eq!(files[0].1, "selected evidence");
         assert!(files[1].1.starts_with("[Image: figure.png"));
@@ -528,8 +528,8 @@ mod tests {
             name: "article-illustrator".to_string(),
             description: "Create article images".to_string(),
             instructions: "Use the local illustration helper when needed.".to_string(),
-            base_dir: "/tmp/project/.llm-wiki/skills/article-illustrator".to_string(),
-            location: "/tmp/project/.llm-wiki/skills/article-illustrator/SKILL.md".to_string(),
+            base_dir: "/tmp/agent/skills/article-illustrator".to_string(),
+            location: "/tmp/agent/skills/article-illustrator/SKILL.md".to_string(),
         }];
 
         let auto = build_agent_context(AgentContextInput {
@@ -558,7 +558,7 @@ mod tests {
         assert!(auto.system.contains("<available_skills>"));
         assert!(auto.system.contains("<name>article-illustrator</name>"));
         assert!(auto.system.contains(
-            "<location>/tmp/project/.llm-wiki/skills/article-illustrator/SKILL.md</location>"
+            "<location>/tmp/agent/skills/article-illustrator/SKILL.md</location>"
         ));
         assert!(!auto.system.contains("Use the local illustration helper"));
         assert!(explicit.system.contains("Selected skills"));
@@ -566,7 +566,7 @@ mod tests {
         assert!(explicit.system.contains("article-illustrator"));
         assert!(explicit
             .system
-            .contains("location=\"/tmp/project/.llm-wiki/skills/article-illustrator/SKILL.md\""));
+            .contains("location=\"/tmp/agent/skills/article-illustrator/SKILL.md\""));
         assert!(explicit
             .system
             .contains("Use the local illustration helper"));

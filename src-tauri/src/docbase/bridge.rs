@@ -21,7 +21,7 @@ use serde::Serialize;
 
 use crate::source_volume::{SourceVolume, SOURCES_PREFIX};
 
-use super::origins::{self, ensure_general_project, Origin, GENERAL_PROJECT_NAME};
+use super::origins::{self, ensure_general_project, Origin};
 use super::{sql_err, DocBase, Visible};
 
 /// The base of the private space, for the parts of the app that read
@@ -164,37 +164,6 @@ impl DocBase {
             .map_err(sql_err)?;
         }
         self.sync_general_mounts()
-    }
-
-    /// Makes sure the general project has its wiki: the project folder
-    /// `default` inside the app's workspace, created the first time, with
-    /// every origin mounted in it. A general project that already has a
-    /// wiki elsewhere keeps it.
-    pub fn ensure_default_project(&self, workspace: &Path) -> Result<GeneralProject, String> {
-        let current = self
-            .general_project()?
-            .and_then(|project| project.path)
-            .map(PathBuf::from)
-            .filter(|path| path.join("wiki").is_dir() && path.join("schema.md").is_file());
-        let path = match current {
-            Some(path) => path,
-            None => {
-                if !workspace.is_absolute() {
-                    return Err(format!("'{}' no es una carpeta de trabajo válida", workspace.display()));
-                }
-                std::fs::create_dir_all(workspace)
-                    .map_err(|e| format!("No se pudo crear '{}': {e}", workspace.display()))?;
-                let path = workspace.join(GENERAL_PROJECT_NAME);
-                if !path.join("wiki").is_dir() {
-                    crate::commands::project::create_project_impl(
-                        GENERAL_PROJECT_NAME.to_string(),
-                        workspace.to_string_lossy().to_string(),
-                    )?;
-                }
-                path
-            }
-        };
-        self.link_general_project(&path, GENERAL_PROJECT_NAME)
     }
 
     /// Turns on or off feeding the general project's wiki from the base.
@@ -534,34 +503,6 @@ mod tests {
             crate::source_volume::resolve_path(&logical).unwrap(),
             dir.path().join("casos").join("BOREAL").join("carta.md")
         );
-    }
-
-    #[test]
-    fn the_default_project_is_created_once_in_the_workspace_with_its_wiki_off() {
-        let dir = TempDir::new();
-        dir.write("casos/carta.md", LETTER.as_bytes());
-        let workspace = dir.path().join("workspace");
-        let base = DocBase::in_memory().unwrap();
-
-        // It exists before any folder is incorporated.
-        let project = base.ensure_default_project(&workspace).unwrap();
-        let path = PathBuf::from(project.path.clone().unwrap());
-        assert_eq!(path, workspace.join("default"));
-        assert!(path.join("schema.md").is_file() && path.join("wiki").is_dir());
-        assert!(!project.wiki_active);
-
-        // Folders incorporated later become its sources.
-        base.add_origin("Casos", &dir.path().join("casos"), &[]).unwrap();
-        let again = base.ensure_default_project(&workspace).unwrap();
-        assert_eq!(again.path, project.path);
-        assert_eq!(again.origins[0].mounted_as.as_deref(), Some("Casos"));
-
-        base.set_wiki_active(true).unwrap();
-        assert!(base.general_project().unwrap().unwrap().wiki_active);
-        // Asking again, even with another workspace, keeps the one it has.
-        let moved = base.ensure_default_project(&dir.path().join("otro")).unwrap();
-        assert_eq!(moved.path, project.path);
-        assert!(moved.wiki_active);
     }
 
     #[test]

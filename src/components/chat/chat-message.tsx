@@ -12,7 +12,7 @@ import {
   TrendingUp, Target, Sparkles, Image as ImageIcon, FileSearch, Terminal,
   ListTree,
 } from "lucide-react"
-import { openPath, openUrl } from "@tauri-apps/plugin-opener"
+import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener"
 import { getPageText, objectOfPage, saveQuery, type PageObject } from "@/commands/docbase"
 import { openPageObject, openWikiPath } from "@/lib/open-wiki-path"
 import { useChatStore } from "@/stores/chat-store"
@@ -675,7 +675,7 @@ function CitedReferencesPanel({
   onOpenContextDetails?: (references: MessageReference[]) => void
 }) {
   const { t } = useTranslation()
-  const project = useWikiStore((s) => s.project)
+  const workspace = useWikiStore((s) => s.agentWorkspace)
   const [expanded, setExpanded] = useState(false)
   const [outputsExpanded, setOutputsExpanded] = useState(false)
   /**
@@ -743,7 +743,7 @@ function CitedReferencesPanel({
     return () => {
       cancelled = true
     }
-  }, [project, citedPages])
+  }, [citedPages])
 
   /** An image of a cited page opens the screen of what the page names (D-413). */
   const handleJumpToImageSource = useCallback(
@@ -755,8 +755,8 @@ function CitedReferencesPanel({
 
   const openCitedPage = useCallback(async (page: CitedPage) => {
     if (page.kind === "workspace") {
-      if (!project) return
-      const pp = normalizePath(project.path)
+      if (!workspace) return
+      const pp = normalizePath(workspace)
       const workspacePath = projectAbsolutePath(pp, page.path)
       const relatedOutputPreviews = generatedOutputs.map((output) => {
         const outputPath = projectAbsolutePath(pp, output.path)
@@ -781,7 +781,7 @@ function CitedReferencesPanel({
             snippet: page.snippet,
           }, relatedOutputPreviews)
         } else {
-          await openPath(workspacePath).catch(() => {})
+          await revealItemInDir(workspacePath).catch(() => {})
         }
       } catch (err) {
         console.warn("[chat refs] failed to open workspace reference:", err)
@@ -839,7 +839,7 @@ function CitedReferencesPanel({
         content: text?.text ?? `No está en la base: ${page.title}`,
       })
     }
-  }, [project, generatedOutputs, onOpenReferencePreview])
+  }, [workspace, generatedOutputs, onOpenReferencePreview])
 
   if (citedPages.length === 0 && generatedOutputs.length === 0) return null
 
@@ -871,7 +871,7 @@ function CitedReferencesPanel({
               const refType = getRefType(page.path, page)
               const config = REF_TYPE_CONFIG[refType] ?? REF_TYPE_CONFIG.source
               const Icon = config.icon
-              const absoluteOutputPath = project ? projectAbsolutePath(project.path, page.path) : page.path
+              const absoluteOutputPath = workspace ? projectAbsolutePath(workspace, page.path) : page.path
               const isImageOutput = isGeneratedOutputImage(absoluteOutputPath)
               const imageSrc = isImageOutput ? convertFileSrc(absoluteOutputPath) : null
               return (
@@ -1235,7 +1235,7 @@ function MarkdownContent({ content }: { content: string }) {
   // replies (LLM may surface images that came in via retrieved
   // chunks, e.g. when the chat answer cites a diagram from a wiki
   // page). Same convention the file-preview uses.
-  const projectPath = useWikiStore((s) => s.project?.path ?? null)
+  const projectPath = useWikiStore((s) => s.agentWorkspace)
 
   // Separate thinking blocks from main content
   const { thinking, answer } = useMemo(() => separateThinking(cleaned), [cleaned])

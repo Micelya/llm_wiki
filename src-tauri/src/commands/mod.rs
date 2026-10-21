@@ -9,7 +9,6 @@ pub mod file_sync;
 pub mod fs;
 pub mod page_embedding;
 pub mod pdf_form;
-pub mod project;
 pub mod project_maintenance;
 pub mod search;
 mod search_spanish;
