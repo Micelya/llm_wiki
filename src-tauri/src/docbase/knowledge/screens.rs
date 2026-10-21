@@ -1121,44 +1121,28 @@ pub(crate) fn incoming_claims(conn: &Connection, visible: &Visible, entity: &str
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EntityArticle {
-    /// The page's file, absolute, with forward slashes.
+    /// Its logical path (`wiki/entities/…`), what links between pages say.
     pub path: String,
     pub text: String,
 }
 
-/// A path as two paths of the same file compare: forward slashes, no
-/// trailing one, without case (the archive lives on Windows too).
-fn comparable(path: &str) -> String {
-    path.replace('\\', "/").trim_end_matches('/').to_lowercase()
-}
-
 impl DocBase {
-    fn knowledge_wiki_root(&self) -> Result<Option<String>, String> {
-        Ok(self.general_project()?.and_then(|project| project.path).map(|p| p.replace('\\', "/").trim_end_matches('/').to_string()))
-    }
-
-    /// The page of entity `id` (a person, an organization or a group), when
-    /// it has one written.
+    /// The page of entity `id` (a person, an organization or a group) as
+    /// one text with its notes, from the base (`articles.rs` has the
+    /// article apart from its notes). `path` is its logical path now.
     pub fn knowledge_entity_article(&self, id: &str) -> Result<Option<EntityArticle>, String> {
         if !id.starts_with("ent-") {
             return Ok(None);
         }
-        let Some(page) = page_paths(&self.conn())?.remove(id) else { return Ok(None) };
-        let Some(root) = self.knowledge_wiki_root()? else { return Ok(None) };
-        let path = format!("{root}/{}", page.trim_start_matches('/'));
-        Ok(std::fs::read_to_string(&path).ok().map(|text| EntityArticle { path, text }))
+        let Some(article) = self.knowledge_article(id)? else { return Ok(None) };
+        let notes = article.notes.map(|n| n.text).unwrap_or_default();
+        Ok(Some(EntityArticle { text: super::pages::with_notes(super::vocabulary::vocabulary(), &article.body, &notes), path: article.path }))
     }
 
-    /// The entity whose page is the file at `path` (absolute), so that a
-    /// link to it in the wiki opens the entity's one page (D-389). Pages of
-    /// matters and of documents are not entities.
+    /// The entity a page names (its logical path, the old wiki's absolute
+    /// path or a link), so that a link to it opens the entity's one page
+    /// (D-389). Pages of matters and of documents are not entities.
     pub fn knowledge_entity_of_page(&self, path: &str) -> Result<Option<String>, String> {
-        let Some(root) = self.knowledge_wiki_root()? else { return Ok(None) };
-        let wanted = comparable(path);
-        let root = comparable(&root);
-        Ok(page_paths(&self.conn())?
-            .into_iter()
-            .find(|(id, page)| id.starts_with("ent-") && format!("{root}/{}", comparable(page).trim_start_matches('/')) == wanted)
-            .map(|(id, _)| id))
+        Ok(self.knowledge_object_of_page(path)?.filter(|o| o.kind == "entity").map(|o| o.object_id))
     }
 }

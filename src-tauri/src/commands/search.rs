@@ -508,7 +508,7 @@ pub async fn search_project_inner(
     }
     // The wiki of the archive: its search comes from the base (D-350).
     if let Some(base) = crate::docbase::bridge::base_for_project(&project_path) {
-        match search_from_base(base, &project_path, &query, limit, include_content, &results) {
+        match search_from_base(base, &query, limit, include_content, &results) {
             Ok(Some(response)) => return Ok(response),
             Ok(None) => {}
             Err(err) => eprintln!("[Search] the base could not search; using the pages: {err}"),
@@ -610,7 +610,6 @@ const NAMED_ENTITY_PAGES: usize = 1;
 /// specifically adds its page after the documents. `None` while no document has a page yet.
 fn search_from_base(
     base: &crate::docbase::DocBase,
-    project_path: &str,
     query: &str,
     limit: usize,
     include_content: bool,
@@ -641,7 +640,7 @@ fn search_from_base(
         if !seen.insert(normalize_path(path)) {
             continue;
         }
-        results.push(page_result(project_path, path, &titles, &hit.snippet, hit.score, include_content, related_names(&hit.entities)));
+        results.push(page_result(base, path, &titles, &hit.snippet, hit.score, include_content, related_names(&hit.entities)));
     }
     let lowest = results.last().map(|r| r.score).unwrap_or(1.0);
     for id in &found.named {
@@ -653,7 +652,7 @@ fn search_from_base(
             continue;
         }
         let name = found.names.get(id).cloned().unwrap_or_default();
-        results.push(page_result(project_path, path, &titles, "", lowest * 0.99, include_content, vec![name]));
+        results.push(page_result(base, path, &titles, "", lowest * 0.99, include_content, vec![name]));
     }
     let graph_hits = results.iter().filter(|r| !r.graph_related_to.is_empty()).count();
     Ok(Some(ProjectSearchResponse {
@@ -665,8 +664,10 @@ fn search_from_base(
     }))
 }
 
+/// A page of the base as a result: its title and text from the base, not
+/// from a file (D-402).
 fn page_result(
-    project_path: &str,
+    base: &crate::docbase::DocBase,
     path: &str,
     titles: &BTreeMap<String, String>,
     snippet: &str,
@@ -674,9 +675,13 @@ fn page_result(
     include_content: bool,
     related: Vec<String>,
 ) -> ProjectSearchResult {
-    let content = fs::read_to_string(Path::new(project_path).join(path)).unwrap_or_default();
+    let (stored_title, content) = base.knowledge_page_text(path).ok().flatten().unwrap_or_default();
     let file_name = Path::new(path).file_name().and_then(|n| n.to_str()).unwrap_or_default().to_string();
-    let title = titles.get(&normalize_path(path)).cloned().unwrap_or_else(|| extract_title(&content, &file_name));
+    let title = titles
+        .get(&normalize_path(path))
+        .cloned()
+        .or_else(|| Some(stored_title).filter(|t| !t.trim().is_empty()))
+        .unwrap_or_else(|| extract_title(&content, &file_name));
     ProjectSearchResult {
         path: path.to_string(),
         title,

@@ -49,6 +49,8 @@ pub const MAX_MEMBERS_IN_QUESTION: usize = 30;
 pub const SAME_STAGE: &[&str] = &["near-identical", "same-template", "version"];
 /// Setting with the engine that answers while the archive's wiki is active.
 const ASK_ENGINE_SETTING: &str = "ask-engine";
+/// Whether the base reads on its own (`docbase_setting`, V20).
+pub(crate) const BACKGROUND_READING_SETTING: &str = "background-reading";
 
 /// One run that asks at a time: the background one and the one a person
 /// starts never ask the same question together.
@@ -1377,18 +1379,36 @@ impl DocBase {
         Ok(())
     }
 
-    /// The engine to ask with in the background: only while the archive's
-    /// wiki is active and someone said which one.
-    pub fn background_ask_engine(&self) -> Result<Option<AskConfig>, String> {
-        let conn = self.conn();
-        let active: Option<i64> = conn
-            .query_row("SELECT wiki_active FROM project WHERE kind = 'general'", [], |row| row.get(0))
+    /// Whether the base reads its documents on its own, in the background
+    /// (D-402): the setting `background-reading`, off until someone turns
+    /// it on. It no longer depends on a wiki.
+    pub fn background_reading(&self) -> Result<bool, String> {
+        let value: Option<String> = self
+            .conn()
+            .query_row("SELECT value FROM docbase_setting WHERE key = ?1", [BACKGROUND_READING_SETTING], |row| row.get(0))
             .optional()
             .map_err(sql_err)?;
-        if active != Some(1) {
+        Ok(value.as_deref() == Some("1"))
+    }
+
+    /// Turns the reading in the background on or off.
+    pub fn set_background_reading(&self, on: bool) -> Result<(), String> {
+        self.conn()
+            .execute(
+                "INSERT OR REPLACE INTO docbase_setting (key, value) VALUES (?1, ?2)",
+                params![BACKGROUND_READING_SETTING, if on { "1" } else { "0" }],
+            )
+            .map_err(sql_err)?;
+        Ok(())
+    }
+
+    /// The engine to ask with in the background: only while the reading in
+    /// the background is on and someone said which one.
+    pub fn background_ask_engine(&self) -> Result<Option<AskConfig>, String> {
+        if !self.background_reading()? {
             return Ok(None);
         }
-        ask_engine(&conn)
+        ask_engine(&self.conn())
     }
 }
 

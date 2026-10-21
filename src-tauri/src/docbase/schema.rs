@@ -10,7 +10,72 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14, V15, V16, V17, V18, V19];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14, V15, V16, V17, V18, V19, V20];
+
+/// The base without the wiki's folder (D-396, D-402): what the files of
+/// the wiki held lives here.
+///
+/// - `knowledge_page.body`: the page as the projection writes it (markdown
+///   with its header), without the notes of a person; `path` stays its
+///   logical name, what the links between pages say. NULL until the
+///   projection writes it again.
+/// - `knowledge_overview`: the overview of the archive (one row).
+/// - `knowledge_note`: the notes of a person on an entity, a matter or a
+///   document (`object_id`: `ent-…`, `mat-…`, `doc-…`). A note whose page
+///   matched no object when it was imported from the wiki keeps no object
+///   (`object_id` NULL) and is shown apart with its `title`, so it is
+///   never lost. `origin_path` is the page it came from, if any.
+/// - `knowledge_query`: a saved question of the chat, with its answer and
+///   the pages it cites (`refs`, a JSON list of logical paths or ids).
+///   `origin_path`: the file of `wiki/queries` it was imported from.
+/// - `knowledge_research`: a research on the web (W5), of an object or
+///   loose (`object_id` NULL), with its sources (JSON list).
+/// - `background-reading` in `docbase_setting`: whether the base reads and
+///   resolves on its own; it takes the value the general project's
+///   switch of the wiki had.
+const V20: &str = "
+ALTER TABLE knowledge_page ADD COLUMN body TEXT;
+
+CREATE TABLE knowledge_overview (
+    id           INTEGER PRIMARY KEY CHECK (id = 1),
+    path         TEXT NOT NULL,
+    body         TEXT NOT NULL,
+    fingerprint  TEXT NOT NULL,
+    written_at   INTEGER NOT NULL
+);
+
+CREATE TABLE knowledge_note (
+    id           INTEGER PRIMARY KEY,
+    object_id    TEXT UNIQUE,
+    title        TEXT,
+    origin_path  TEXT,
+    text         TEXT NOT NULL,
+    updated_at   INTEGER NOT NULL
+);
+
+CREATE TABLE knowledge_query (
+    id           INTEGER PRIMARY KEY,
+    title        TEXT NOT NULL,
+    question     TEXT NOT NULL DEFAULT '',
+    answer       TEXT NOT NULL,
+    refs         TEXT NOT NULL DEFAULT '[]',
+    origin_path  TEXT UNIQUE,
+    created_at   INTEGER NOT NULL
+);
+
+CREATE TABLE knowledge_research (
+    id           INTEGER PRIMARY KEY,
+    object_id    TEXT,
+    topic        TEXT NOT NULL,
+    body         TEXT NOT NULL,
+    sources      TEXT NOT NULL DEFAULT '[]',
+    created_at   INTEGER NOT NULL
+);
+CREATE INDEX knowledge_research_object ON knowledge_research (object_id);
+
+INSERT OR REPLACE INTO docbase_setting (key, value)
+    SELECT 'background-reading', CASE WHEN wiki_active != 0 THEN '1' ELSE '0' END FROM project WHERE kind = 'general' LIMIT 1;
+";
 
 /// What a person chose for the documents of a matter (D-386): `in` (put
 /// in by hand) or `out` (taken out by hand). The grouping applies it over

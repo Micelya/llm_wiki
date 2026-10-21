@@ -1991,6 +1991,18 @@
       "referencia": "D-395 a D-400; docs/design/retiro-del-wiki.md",
       "creado": "2026-10-21",
       "actualizado": "2026-10-21"
+    },
+    {
+      "id": "P-230",
+      "titulo": "Mostrar las notas del wiki que quedaron sin dueño",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "La importación única (D-403) guarda aparte, con el título de su página, las notas de una página del wiki que no corresponde a ninguna persona, organización, asunto ni documento (en la copia de la base real no hubo ninguna). Mostrarlas en alguna pantalla (por ejemplo Atención) para leerlas, pasarlas a una ficha o borrarlas: comandos docbase_knowledge_orphan_notes y docbase_knowledge_delete_note.",
+      "depende_de": ["P-228"],
+      "referencia": "D-403; src-tauri/src/docbase/knowledge/articles.rs",
+      "creado": "2026-10-21",
+      "actualizado": "2026-10-21"
     }
   ]
 }

@@ -89,7 +89,7 @@ fn model(variant: Arc<AtomicUsize>) -> FakeModel {
 struct Archive {
     dir: TempDir,
     base: DocBase,
-    project: PathBuf,
+    _project: PathBuf,
     model: FakeModel,
     variant: Arc<AtomicUsize>,
     origin: String,
@@ -106,7 +106,7 @@ impl Archive {
         let model = model(variant.clone());
         read(&base, &model);
         let origin = base.origins(&Visible::All).unwrap()[0].id.clone();
-        let archive = Self { dir, base, project, model, variant, origin };
+        let archive = Self { dir, base, _project: project, model, variant, origin };
         archive.project();
         archive
     }
@@ -199,7 +199,7 @@ impl Archive {
     }
 
     fn page(&self, title: &str) -> String {
-        page_of(&entity_pages(&self.project), title).to_string()
+        page_of(&entity_pages(&self.base), title).to_string()
     }
 }
 

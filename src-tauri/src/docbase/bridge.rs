@@ -198,7 +198,9 @@ impl DocBase {
         ensure_general_project(&conn)?;
         conn.execute("UPDATE project SET wiki_active = ?1 WHERE kind = 'general'", [active as i64])
             .map_err(sql_err)?;
-        Ok(())
+        drop(conn);
+        // The switch reads the base in the background now (D-402).
+        self.set_background_reading(active)
     }
 
     /// Stops using a wiki project as the general project. The folders

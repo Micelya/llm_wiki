@@ -347,6 +347,10 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-398 | 21 oct | Grafo | El grafo y su análisis se calculan sobre la base y suman los asuntos con su estado | vigente |
 | D-399 | 21 oct | Wiki | Lint sale; queda pendiente una revisión con el modelo que agregue valor | vigente |
 | D-400 | 21 oct | Producto | El servidor de API local y el recortador web (Clip) salen; se rehacen sobre la base más adelante | vigente |
+| D-402 | 21 oct | Wiki | Las páginas se guardan en la base con su ruta lógica; la proyección no usa archivos ni el proyecto general | en revisión |
+| D-403 | 21 oct | Wiki | Las notas y consultas guardadas del wiki entran una sola vez en la base; una nota sin dueño queda aparte | en revisión |
+| D-404 | 21 oct | Interfaz | Lo que las pantallas leen de las páginas sale de comandos de la base | en revisión |
+| D-405 | 21 oct | Base documental | La lectura automática se rige por su propio ajuste, no por «Activar wiki» | en revisión |
 
 ---
 
@@ -4572,3 +4576,31 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Qué se decidió y por qué:** se quitan. Rehacerlos sobre la base queda como P-227.
 - **Quién decidió:** dueño del producto.
 - **Fuente:** conversación del 20 y 21 oct.
+
+### D-402 · Las páginas se guardan en la base con su ruta lógica; la proyección no usa archivos ni el proyecto general
+
+- **Fecha:** 21 oct 2026 · **Tema:** Wiki · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la proyección escribía cada página en la carpeta del proyecto general y exigía ese proyecto; la carpeta se va a borrar (D-396) y las preguntas de síntesis no pueden cambiar.
+- **Qué se decidió y por qué:** el mismo código arma cada página y la guarda en la base: `knowledge_page.body` (sin las notas, que van aparte) y el resumen general en `knowledge_overview`; la ruta lógica (`wiki/entities/…`) sigue siendo su nombre, así los enlaces internos siguen valiendo. Los documentos salen de todos los orígenes de la base, nombrados `<origen>/<ruta>`, no de los montados. Medido sobre una copia de la base real: las 116 páginas iguales al archivo que había, cero preguntas, cero archivos. La tabla `knowledge_research` queda creada para W5.
+- **Quién decidió:** agente sin consulta.
+
+### D-403 · Las notas y consultas guardadas del wiki entran una sola vez en la base; una nota sin dueño queda aparte
+
+- **Fecha:** 21 oct 2026 · **Tema:** Wiki · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** lo único que escribía una persona en el wiki eran las notas de cada página y las consultas guardadas; no pueden perderse al borrar la carpeta.
+- **Qué se decidió y por qué:** al abrir la app, si la carpeta sigue, se leen una vez (marca `wiki-files-imported`): las notas de cada página van a su objeto (por la ruta en la base, por el encabezado o, en una página de documento, por la familia del documento); las que no corresponden a ningún objeto quedan como nota aparte con el título de su página; cada archivo de `wiki/queries` pasa a `knowledge_query`. No se borra nada. Una página de documento escrita por la incorporación vieja ya no presta su ruta a la página del documento: solo sus notas pasan.
+- **Quién decidió:** agente sin consulta.
+
+### D-404 · Lo que las pantallas leen de las páginas sale de comandos de la base
+
+- **Fecha:** 21 oct 2026 · **Tema:** Interfaz · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** las pantallas, la búsqueda y el chat leían el archivo de cada página.
+- **Qué se decidió y por qué:** comandos nuevos: artículo de cualquier objeto o de un documento (cuerpo y notas aparte), el objeto que nombra una ruta lógica, una ruta vieja o un enlace, notas (leer, guardar, las apartadas), resumen general y consultas guardadas (listar, guardar, borrar). La búsqueda toma título y texto de la base. Los dos comandos que usa hoy la pantalla de una persona quedan como envoltorio hasta W3; su `path` pasa a ser la ruta lógica.
+- **Quién decidió:** agente sin consulta.
+
+### D-405 · La lectura automática se rige por su propio ajuste, no por «Activar wiki»
+
+- **Fecha:** 21 oct 2026 · **Tema:** Base documental · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la lectura de fondo solo corría con el wiki del proyecto general activo.
+- **Qué se decidió y por qué:** ajuste `background-reading` en la base, que la migración toma del valor que tenía el interruptor del wiki (en la base real, encendido). El interruptor viejo escribe los dos hasta que W6 lo reemplace por «Lectura automática».
+- **Quién decidió:** agente sin consulta.

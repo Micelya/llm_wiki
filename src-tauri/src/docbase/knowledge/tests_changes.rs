@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use super::decide::IdentityDecision;
 use super::tests::{answer, amount, base_with, claim, empty_answer, is_knowledge, mention, refresh, type_answer, FakeModel};
-use super::tests_pages::{entity_pages, is_synthesis, page_of, read, synthesis};
+use super::tests_pages::{entity_pages, has_page, is_synthesis, page_of, read, synthesis};
 use crate::docbase::testing::TempDir;
 use crate::docbase::{DocBase, Visible};
 
@@ -79,7 +79,7 @@ fn syntheses(model: &FakeModel) -> usize {
 struct Archive {
     dir: TempDir,
     base: DocBase,
-    project: PathBuf,
+    _project: PathBuf,
     model: FakeModel,
     origin: String,
 }
@@ -94,7 +94,7 @@ impl Archive {
         let model = model();
         read(&base, &model);
         let origin = base.origins(&Visible::All).unwrap()[0].id.clone();
-        let archive = Self { dir, base, project, model, origin };
+        let archive = Self { dir, base, _project: project, model, origin };
         archive.project();
         archive
     }
@@ -122,7 +122,7 @@ impl Archive {
     }
 
     fn page(&self, title: &str) -> String {
-        page_of(&entity_pages(&self.project), title).to_string()
+        page_of(&entity_pages(&self.base), title).to_string()
     }
 
     fn evidence(&self, file: &str, predicate: &str) -> i64 {
@@ -169,7 +169,7 @@ fn a_deleted_document_takes_what_it_said_and_gives_it_back_when_it_returns() {
     // Its entity is retired, not deleted; its page goes (no notes, no link to it).
     assert_eq!(archive.entity("Persona Seis"), (six.clone(), "retired".to_string()));
     assert_eq!(archive.page_file(&six), None);
-    assert!(!archive.project.join(&six_page).exists());
+    assert!(!has_page(&archive.base, &six_page));
     // Its page and the page of the document go.
     assert_eq!(report.removed, 2, "{report:?}");
     // Only the pages that change are written: the company loses a document;
@@ -325,7 +325,7 @@ fn a_copy_joined_with_the_chosen_one_counts_but_the_page_names_the_chosen_one() 
 #[test]
 fn processing_again_without_changes_changes_nothing() {
     let archive = Archive::new(&[("a.txt", A), ("b.txt", B), ("c.txt", C)]);
-    let pages = entity_pages(&archive.project);
+    let pages = entity_pages(&archive.base);
     let asked = archive.model.asked.lock().unwrap().len();
     // Nothing changed: nothing to do.
     assert!(archive.base.knowledge_resolve(Some(&archive.model), 50).unwrap().skipped);
@@ -341,7 +341,7 @@ fn processing_again_without_changes_changes_nothing() {
     // Scanning the folder again changes nothing either.
     archive.refresh();
     assert!(archive.project().skipped);
-    assert_eq!(entity_pages(&archive.project), pages);
+    assert_eq!(entity_pages(&archive.base), pages);
     assert_eq!(archive.model.asked.lock().unwrap().len(), asked);
 }
 
@@ -351,8 +351,8 @@ fn a_page_whose_entity_leaves_goes_and_the_links_to_it_become_text() {
     let (six, _) = archive.entity("Persona Seis");
     let path = archive.page_file(&six).unwrap();
     let stem = path.rsplit('/').next().unwrap().trim_end_matches(".md").to_string();
-    // A page of the wiki, not written by the app, links to it.
-    archive.dir.write("General/wiki/sources/nota.md", format!("---\ntype: source\ntitle: Nota\n---\n\nVer [[{stem}|la persona]] y [[{stem}]].\n").as_bytes());
+    // A text the app does not write links to it: a saved query.
+    archive.base.save_query("Nota", "", &format!("Ver [[{stem}|la persona]] y [[{stem}]].\n"), &[]).unwrap();
     std::fs::remove_file(archive.dir.path().join("o/c.txt")).unwrap();
     archive.refresh();
     let report = archive.project();
@@ -360,7 +360,7 @@ fn a_page_whose_entity_leaves_goes_and_the_links_to_it_become_text() {
     // link is left as its text (D-239).
     // (And the page of the document that went.)
     assert_eq!((report.removed, report.kept), (2, 0), "{report:?}");
-    assert!(!archive.project.join(&path).exists());
-    let note = std::fs::read_to_string(archive.project.join("wiki/sources/nota.md")).unwrap();
+    assert!(!has_page(&archive.base, &path));
+    let note = archive.base.saved_queries().unwrap()[0].answer.clone();
     assert!(note.contains("Ver la persona y Persona Seis."), "{note}");
 }

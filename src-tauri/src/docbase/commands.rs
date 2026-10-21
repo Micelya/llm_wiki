@@ -12,6 +12,7 @@ use tauri::{Emitter, Manager, State};
 
 use super::bridge::{self, GeneralProject, WikiSource};
 use super::knowledge::extract::{KnowledgePlan, KnowledgeReport};
+use super::knowledge::articles::{KnowledgeArticle, KnowledgeNote, KnowledgeOverview, PageObject, SavedQuery};
 use super::knowledge::decide::{DecisionView, IdentityDecision};
 use super::knowledge::entities::{DoubtView, EntityDetail, EntitySummary};
 use super::knowledge::pages::ProjectReport;
@@ -70,6 +71,13 @@ pub fn start(app: &tauri::AppHandle) {
         .map(Arc::new);
     match &base {
         Ok(base) => {
+            // Once, before anything projects: what a person wrote in the
+            // old wiki's files comes into the base (D-403).
+            match base.import_wiki_files() {
+                Ok(report) if !report.skipped => eprintln!("[docbase] imported from the wiki's files: {report:?}"),
+                Ok(_) => {}
+                Err(error) => eprintln!("[docbase] the wiki's files could not be imported: {error}"),
+            }
             bridge::share(base.clone());
             let handle = app.clone();
             worker::spawn(base.clone(), wake.clone(), move || {
@@ -747,6 +755,103 @@ pub fn docbase_knowledge_entity_article(state: State<'_, DocBaseState>, id: Stri
 #[tauri::command(async)]
 pub fn docbase_knowledge_entity_of_page(state: State<'_, DocBaseState>, path: String) -> Result<Option<String>, String> {
     state.base()?.knowledge_entity_of_page(&path)
+}
+
+// The pages, notes, overview and saved queries kept in the base (D-402,
+// D-404): what the screens, the search and the chat read instead of the
+// files of the wiki.
+
+/// The article of an object (`ent-…`, `mat-…`, `doc-…`) as the projection
+/// last wrote it, with the notes of a person; none while it has no page.
+#[tauri::command(async)]
+pub fn docbase_knowledge_article(state: State<'_, DocBaseState>, id: String) -> Result<Option<KnowledgeArticle>, String> {
+    state.base()?.knowledge_article(&id)
+}
+
+/// The article of a document's page (the page of its family of versions).
+#[tauri::command(async)]
+pub fn docbase_knowledge_document_article(state: State<'_, DocBaseState>, content_id: i64) -> Result<Option<KnowledgeArticle>, String> {
+    state.base()?.knowledge_document_article(content_id)
+}
+
+/// The object a page names: its logical path (`wiki/entities/…`), the old
+/// wiki's absolute path, or a link (`name` of `[[name|text]]`).
+#[tauri::command(async)]
+pub fn docbase_knowledge_object_of_page(state: State<'_, DocBaseState>, reference: String) -> Result<Option<PageObject>, String> {
+    state.base()?.knowledge_object_of_page(&reference)
+}
+
+/// The notes of a person on an object.
+#[tauri::command(async)]
+pub fn docbase_knowledge_notes(state: State<'_, DocBaseState>, object_id: String) -> Result<Option<KnowledgeNote>, String> {
+    state.base()?.knowledge_notes(&object_id)
+}
+
+/// Keeps the notes of a person on an object; empty text removes them.
+#[tauri::command(async)]
+pub fn docbase_knowledge_set_notes(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    object_id: String,
+    text: String,
+) -> Result<Option<KnowledgeNote>, String> {
+    let note = state.base()?.knowledge_set_notes(&object_id, &text)?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(note)
+}
+
+/// The notes of the old wiki whose page matched no object, kept apart.
+#[tauri::command(async)]
+pub fn docbase_knowledge_orphan_notes(state: State<'_, DocBaseState>) -> Result<Vec<KnowledgeNote>, String> {
+    state.base()?.knowledge_orphan_notes()
+}
+
+/// Removes a note by its number.
+#[tauri::command(async)]
+pub fn docbase_knowledge_delete_note(app: tauri::AppHandle, state: State<'_, DocBaseState>, id: i64) -> Result<(), String> {
+    state.base()?.knowledge_delete_note(id)?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(())
+}
+
+/// The overview of the archive.
+#[tauri::command(async)]
+pub fn docbase_knowledge_overview(state: State<'_, DocBaseState>) -> Result<Option<KnowledgeOverview>, String> {
+    state.base()?.knowledge_overview()
+}
+
+/// The saved queries of the chat, the latest first.
+#[tauri::command(async)]
+pub fn docbase_saved_queries(state: State<'_, DocBaseState>) -> Result<Vec<SavedQuery>, String> {
+    state.base()?.saved_queries()
+}
+
+/// Saves a question of the chat with its answer and what it cites.
+#[tauri::command(async)]
+pub fn docbase_save_query(
+    state: State<'_, DocBaseState>,
+    title: String,
+    question: String,
+    answer: String,
+    refs: Vec<String>,
+) -> Result<SavedQuery, String> {
+    state.base()?.save_query(&title, &question, &answer, &refs)
+}
+
+#[tauri::command(async)]
+pub fn docbase_delete_saved_query(state: State<'_, DocBaseState>, id: i64) -> Result<(), String> {
+    state.base()?.delete_saved_query(id)
+}
+
+/// Whether the base reads its documents on its own (`background-reading`).
+#[tauri::command(async)]
+pub fn docbase_background_reading(state: State<'_, DocBaseState>) -> Result<bool, String> {
+    state.base()?.background_reading()
+}
+
+#[tauri::command(async)]
+pub fn docbase_set_background_reading(state: State<'_, DocBaseState>, on: bool) -> Result<(), String> {
+    state.base()?.set_background_reading(on)
 }
 
 /// The pairs of mentions the resolution left for a person.

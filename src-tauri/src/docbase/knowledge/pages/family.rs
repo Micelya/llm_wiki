@@ -69,24 +69,24 @@ impl Families {
     }
 }
 
-/// The documents of the general project's wiki (what is left out of the
-/// base is not), with what the wiki calls each of their files, the joined
-/// copies a person passed over included: they are versions too.
+/// The documents of the base's origins (what is left out of the base is
+/// not), with the name of each of their files (`<origin>/<path inside
+/// it>`), the joined copies a person passed over included: they are
+/// versions too. Every origin counts, mounted in a wiki or not (D-402).
 fn identities(base: &DocBase) -> Result<BTreeMap<i64, Vec<String>>, String> {
     let mut out: BTreeMap<i64, Vec<String>> = BTreeMap::new();
-    let Some(project) = base.general_project()? else { return Ok(out) };
     let conn = base.conn();
-    for origin in project.origins.iter().filter(|o| o.mounted_as.is_some()) {
-        let mount = origin.mounted_as.as_deref().unwrap_or_default();
+    for origin in crate::docbase::origins::list(&conn, &Visible::All)? {
+        let mount = origin.name.as_str();
         let mut statement = conn
             .prepare(&format!(
                 "SELECT l.rel_path, f.content_id FROM location l JOIN file f ON f.hash = l.file_hash
-                 WHERE l.origin_id = ?1 AND l.kind = 'file' AND NOT {} ORDER BY l.rel_path",
+                 WHERE l.origin_id = ?1 AND l.kind = 'file' AND f.content_id IS NOT NULL AND NOT {} ORDER BY l.rel_path",
                 crate::docbase::excluded_sql!()
             ))
             .map_err(sql_err)?;
         let rows = statement
-            .query_map([&origin.origin_id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)))
+            .query_map([&origin.id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)))
             .map_err(sql_err)?;
         for row in rows {
             let (rel_path, content) = row.map_err(sql_err)?;
@@ -206,9 +206,8 @@ pub(super) fn title_of(conn: &Connection, record: &Record, content: i64) -> Resu
     Ok(if stem.trim().is_empty() { format!("#{content}") } else { stem })
 }
 
-/// Where the page of a family goes: where it was, or the page of one of
-/// its versions the wiki wrote before (its notes and the links to it
-/// stay), or a new file of its title.
+/// Where the page of a family goes: where it was (the links to it stay),
+/// or a new logical path of its title.
 pub(super) fn page_paths(
     conn: &Connection,
     vocabulary: &Vocabulary,
@@ -225,33 +224,19 @@ pub(super) fn page_paths(
             }
         }
     }
-    // The pages of documents the wiki has, by document.
-    let mut written: BTreeMap<i64, Vec<&str>> = BTreeMap::new();
-    for (path, content) in &record.source_pages {
-        written.entry(*content).or_default().push(path.as_str());
-    }
-    let owned: BTreeSet<String> = record.pages.iter().filter(|(id, _)| id.starts_with("doc-")).map(|(_, p)| p.path.to_lowercase()).collect();
+    // Every path a page holds now: a new page never takes one (the table
+    // keeps paths unique). The pages of a document the old wiki wrote are
+    // no longer taken over: their notes came into the base once (D-403).
+    let owned: BTreeSet<String> = record.pages.values().map(|p| p.path.to_lowercase()).collect();
     for family in &families.list {
         if out.contains_key(&family.id) {
             continue;
         }
-        let before = family
-            .members
-            .iter()
-            .flat_map(|c| written.get(c).into_iter().flatten())
-            .find(|p| !taken.contains(&p.to_lowercase()) && !owned.contains(&p.to_lowercase()))
-            .map(|p| p.to_string());
-        let path = match before {
-            Some(path) => path,
-            None => {
-                let title = title_of(conn, record, family.members[0])?;
-                let mut path = format!("{folder}/{}.md", slug(&title, "documento"));
-                if taken.contains(&path.to_lowercase()) || owned.contains(&path.to_lowercase()) {
-                    path = format!("{folder}/{}-{}.md", slug(&title, "documento"), family.id.trim_start_matches("doc-"));
-                }
-                path
-            }
-        };
+        let title = title_of(conn, record, family.members[0])?;
+        let mut path = format!("{folder}/{}.md", slug(&title, "documento"));
+        if taken.contains(&path.to_lowercase()) || owned.contains(&path.to_lowercase()) {
+            path = format!("{folder}/{}-{}.md", slug(&title, "documento"), family.id.trim_start_matches("doc-"));
+        }
         taken.insert(path.to_lowercase());
         out.insert(family.id.clone(), path);
     }

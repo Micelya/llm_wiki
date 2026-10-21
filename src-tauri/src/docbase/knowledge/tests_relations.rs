@@ -147,12 +147,12 @@ pub(crate) fn matters(base: &DocBase) -> Vec<Vec<String>> {
 
 #[test]
 fn documents_of_one_matter_go_together_by_what_is_specific_to_it() {
-    let (_dir, base, project, _asker) = archive();
+    let (_dir, base, _project, _asker) = archive();
     // The letter names the invoice by its number; the receipt pays its
     // amount. Sharing the person and the company is not a matter (R-05);
     // nor is a round amount.
     assert_eq!(matters(&base), vec![vec!["f.txt".to_string(), "l.txt".to_string(), "r.txt".to_string()]]);
-    let pages = entity_pages(&project);
+    let pages = entity_pages(&base);
     let matter = pages.iter().find(|(_, t)| t.contains("entity_id: mat-")).map(|(_, t)| t.as_str()).expect("a page of the matter");
     assert!(matter.contains("entity_kind: asunto") && matter.contains("## Documentos (3)"), "{matter}");
     assert!(matter.contains("## Partes y personas") && matter.contains("Persona Dos") && matter.contains("Ejemplo Uno S.A."), "{matter}");
@@ -188,8 +188,8 @@ fn what_a_person_decides_about_matters_holds() {
 
 #[test]
 fn a_position_in_two_companies_is_two_claims_and_no_conflict() {
-    let (_dir, base, project, _asker) = archive();
-    let pages = entity_pages(&project);
+    let (_dir, base, _project, _asker) = archive();
+    let pages = entity_pages(&base);
     let nine = page_of(&pages, "Persona Nueve");
     assert!(nine.contains("presidente (en Ejemplo Uno S.A.)") && nine.contains("presidente (en Otra Empresa S.R.L.)"), "{nine}");
     assert!(!nine.contains("Datos en los que los documentos difieren"), "{nine}");
@@ -199,8 +199,8 @@ fn a_position_in_two_companies_is_two_claims_and_no_conflict() {
 
 #[test]
 fn a_relation_is_shown_on_both_sides_with_its_quote() {
-    let (_dir, _base, project, _asker) = archive();
-    let pages = entity_pages(&project);
+    let (_dir, base, _project, _asker) = archive();
+    let pages = entity_pages(&base);
     let nine = page_of(&pages, "Persona Nueve");
     assert!(nine.contains("## Vínculos") && nine.contains("Representa a [[ejemplo-uno-s-a-"), "{nine}");
     let company = page_of(&pages, "Ejemplo Uno S.A.");
@@ -214,13 +214,13 @@ fn a_relation_is_shown_on_both_sides_with_its_quote() {
 
 #[test]
 fn the_model_proposes_the_matter_of_a_loose_document_and_it_stays_a_proposal() {
-    let (_dir, base, project, asker) = archive();
+    let (_dir, base, _project, asker) = archive();
     // The mail shares the parties and no number: it is not grouped…
     assert_eq!(matters(&base), vec![vec!["f.txt".to_string(), "l.txt".to_string(), "r.txt".to_string()]]);
     // …but the model, asked once, proposes it; the note it does not.
     let asked = |a: &FakeModel| a.asked.lock().unwrap().iter().filter(|q| q.contains("es parte de alguno de estos asuntos")).count();
     assert_eq!(asked(&asker), 2);
-    let pages = entity_pages(&project);
+    let pages = entity_pages(&base);
     let matter = pages.iter().find(|(_, t)| t.contains("entity_id: mat-")).map(|(_, t)| t.as_str()).unwrap();
     assert!(matter.contains("### Posiblemente de este asunto") && matter.contains("|p.txt]] — certeza media: por los hechos"), "{matter}");
     assert!(matter.contains("## Documentos (3)"), "{matter}");

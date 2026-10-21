@@ -1268,9 +1268,9 @@ export function getEntity(id: string): Promise<EntityDetail | null> {
   return invoke<EntityDetail | null>("docbase_knowledge_entity", { id })
 }
 
-/** The article of an entity: its page as the projection last wrote it (D-389). */
+/** The article of an entity: its page as the projection last wrote it (D-389), with its notes. */
 export interface EntityArticle {
-  /** The page's file, absolute. */
+  /** Its logical path (`wiki/entities/…`), no longer a file (D-402). */
   path: string
   text: string
 }
@@ -1279,9 +1279,132 @@ export function getEntityArticle(id: string): Promise<EntityArticle | null> {
   return invoke<EntityArticle | null>("docbase_knowledge_entity_article", { id })
 }
 
-/** The entity whose page is the file at `path` (absolute), if any. */
+/** The entity a page names (logical path, old absolute path or link), if any. */
 export function entityOfPage(path: string): Promise<string | null> {
   return invoke<string | null>("docbase_knowledge_entity_of_page", { path })
+}
+
+// The pages, notes, overview and saved queries kept in the base (D-402,
+// D-404): what the screens, the search and the chat read instead of the
+// files of the wiki.
+
+/**
+ * The notes of a person on an object (`ent-…`, `mat-…`, `doc-…`). A note
+ * of the old wiki whose page matched no object is kept apart: no
+ * `objectId`, with the `title` of the page it came from (D-403).
+ */
+export interface KnowledgeNote {
+  id: number
+  objectId: string | null
+  title: string | null
+  originPath: string | null
+  text: string
+  updatedAt: number
+}
+
+/** The article of an object: its page as the projection last wrote it in the base. */
+export interface KnowledgeArticle {
+  objectId: string
+  kind: "entity" | "matter" | "document"
+  /** Its logical path (`wiki/entities/…`, `wiki/sources/…`): what links between pages say. */
+  path: string
+  title: string
+  /** Markdown with its header (frontmatter); without the notes, which come apart. */
+  body: string
+  /** `kept`: its object left the record; the page stays for its notes. */
+  state: "projected" | "kept"
+  writtenAt: number
+  notes: KnowledgeNote | null
+}
+
+/** The object a page or a link names; `overview` for the overview. */
+export interface PageObject {
+  objectId: string
+  kind: "entity" | "matter" | "document" | "overview"
+  path: string
+  /** For a document: the document its page is named by, and one place of it. */
+  contentId: number | null
+  locationId: number | null
+}
+
+export interface KnowledgeOverview {
+  path: string
+  body: string
+  writtenAt: number
+}
+
+/** A question of the chat a person saved, with its answer and what it cites. */
+export interface SavedQuery {
+  id: number
+  title: string
+  question: string
+  answer: string
+  /** Logical paths, link names or object ids. */
+  refs: string[]
+  createdAt: number
+}
+
+/** The article of a person, organization, group, matter (`mat-…`) or document page (`doc-…`). */
+export function getKnowledgeArticle(id: string): Promise<KnowledgeArticle | null> {
+  return invoke<KnowledgeArticle | null>("docbase_knowledge_article", { id })
+}
+
+/** The article of a document's page (its family of versions), by the document. */
+export function getDocumentArticle(contentId: number): Promise<KnowledgeArticle | null> {
+  return invoke<KnowledgeArticle | null>("docbase_knowledge_document_article", { contentId })
+}
+
+/**
+ * The object a page names: its logical path, the old wiki's absolute path,
+ * or a link (`name` of `[[name|text]]`, with or without `.md` or `#anchor`).
+ */
+export function objectOfPage(reference: string): Promise<PageObject | null> {
+  return invoke<PageObject | null>("docbase_knowledge_object_of_page", { reference })
+}
+
+export function getKnowledgeNotes(objectId: string): Promise<KnowledgeNote | null> {
+  return invoke<KnowledgeNote | null>("docbase_knowledge_notes", { objectId })
+}
+
+/** Keeps the notes of a person on an object; empty text removes them. */
+export function setKnowledgeNotes(objectId: string, text: string): Promise<KnowledgeNote | null> {
+  return invoke<KnowledgeNote | null>("docbase_knowledge_set_notes", { objectId, text })
+}
+
+/** The notes of the old wiki whose page matched no object. */
+export function listOrphanNotes(): Promise<KnowledgeNote[]> {
+  return invoke<KnowledgeNote[]>("docbase_knowledge_orphan_notes")
+}
+
+export function deleteKnowledgeNote(id: number): Promise<void> {
+  return invoke<void>("docbase_knowledge_delete_note", { id })
+}
+
+/** The overview of the archive (for Inicio). */
+export function getKnowledgeOverview(): Promise<KnowledgeOverview | null> {
+  return invoke<KnowledgeOverview | null>("docbase_knowledge_overview")
+}
+
+/** The saved queries, the latest first. */
+export function listSavedQueries(): Promise<SavedQuery[]> {
+  return invoke<SavedQuery[]>("docbase_saved_queries")
+}
+
+export function saveQuery(title: string, question: string, answer: string, refs: string[]): Promise<SavedQuery> {
+  return invoke<SavedQuery>("docbase_save_query", { title, question, answer, refs })
+}
+
+export function deleteSavedQuery(id: number): Promise<void> {
+  return invoke<void>("docbase_delete_saved_query", { id })
+}
+
+/** Whether the base reads its documents on its own («Lectura automática»). */
+export function getBackgroundReading(): Promise<boolean> {
+  return invoke<boolean>("docbase_background_reading")
+}
+
+export function setBackgroundReading(on: boolean): Promise<void> {
+  return invoke<void>("docbase_set_background_reading", { on })
 }
 
 export function listIdentityDoubts(): Promise<DoubtView[]> {
