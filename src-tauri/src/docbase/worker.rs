@@ -114,10 +114,18 @@ pub fn spawn_asking(base: Arc<DocBase>, on_change: impl Fn() + Send + 'static, o
 }
 
 /// One question at most. Returns how long to wait before the next.
+///
+/// It tells the engine's state (`progress.rs`) which stage it is at, how
+/// many questions each stage had left and the last failure of the model,
+/// with when it tries again: what «En curso» shows (D-424).
 fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Duration {
+    let state = base.engine_state();
     let engine = match base.background_ask_engine() {
         Ok(Some(engine)) => engine,
-        Ok(None) => return ASK_IDLE,
+        Ok(None) => {
+            state.at_stage(None);
+            return ASK_IDLE;
+        }
         Err(error) => {
             eprintln!("[docbase] {error}");
             return ASK_IDLE;
@@ -127,17 +135,24 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
         Ok(asker) => asker,
         Err(error) => {
             eprintln!("[docbase] {error}");
+            state.failed(None, &error, Some(ASK_BACKOFF));
             return ASK_BACKOFF;
         }
     };
+    let failed = |stage: &'static str, errors: &[String]| {
+        state.failed(Some(stage), &errors.join("; "), Some(ASK_BACKOFF));
+        ASK_BACKOFF
+    };
+    state.at_stage(Some("types"));
     match base.types_run(asker.as_ref(), 1) {
         Ok(report) => {
+            state.ran("types", report.left);
             if report.asked + report.data_asked + report.typed + report.corrected > 0 {
                 on_change();
             }
             if report.failed + report.data_failed > 0 {
                 eprintln!("[docbase] questions to the model: {}", report.errors.join("; "));
-                return ASK_BACKOFF;
+                return failed("types", &report.errors);
             }
             if report.asked + report.data_asked > 0 {
                 return Duration::ZERO;
@@ -148,14 +163,16 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
             return ASK_IDLE;
         }
     }
+    state.at_stage(Some("reading"));
     match base.knowledge_run(asker.as_ref(), 1) {
         Ok(report) => {
+            state.ran("reading", report.left);
             if report.extracted + report.unusable > 0 {
                 on_change();
             }
             if report.failed > 0 {
                 eprintln!("[docbase] reading for the knowledge layer: {}", report.errors.join("; "));
-                return ASK_BACKOFF;
+                return failed("reading", &report.errors);
             }
             if report.asked > 0 || report.extracted > 0 {
                 return Duration::ZERO;
@@ -168,14 +185,16 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
     }
     // Nothing left to read: the identities of what was read, one question
     // at a time too.
+    state.at_stage(Some("resolve"));
     match base.knowledge_resolve(Some(asker.as_ref()), 1) {
         Ok(report) => {
+            state.ran("resolve", report.left);
             if report.changed > 0 {
                 on_change();
             }
             if report.failed > 0 {
                 eprintln!("[docbase] identities of the knowledge layer: {}", report.errors.join("; "));
-                return ASK_BACKOFF;
+                return failed("resolve", &report.errors);
             }
             if report.asked > 0 || report.left > 0 {
                 return Duration::ZERO;
@@ -188,11 +207,13 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
     }
     // Every identity resolved: the matter of the documents no evidence puts
     // in one, proposed by the model, one question at a time (D-213).
+    state.at_stage(Some("matters"));
     match base.knowledge_propose_matters(Some(asker.as_ref()), 1) {
         Ok(report) => {
+            state.ran("matters", report.left);
             if report.failed > 0 {
                 eprintln!("[docbase] matters of the knowledge layer: {}", report.errors.join("; "));
-                return ASK_BACKOFF;
+                return failed("matters", &report.errors);
             }
             if report.asked > 0 {
                 on_change();
@@ -208,19 +229,23 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
     // time for what the documents say. Whatever the order in which the
     // wiki wrote its pages of documents, this leaves every page of entity
     // up to date with the whole archive.
+    state.at_stage(Some("pages"));
     match base.knowledge_project(Some(asker.as_ref()), 1) {
         Ok(report) => {
+            state.ran("pages", report.left);
             if report.wrote() {
                 on_change();
                 on_pages();
             }
             if report.failed > 0 {
                 eprintln!("[docbase] pages of the knowledge layer: {}", report.errors.join("; "));
-                return ASK_BACKOFF;
+                return failed("pages", &report.errors);
             }
             if report.asked > 0 || report.left > 0 {
                 Duration::ZERO
             } else {
+                // Nothing left to ask anywhere.
+                state.at_stage(None);
                 ASK_IDLE
             }
         }
@@ -241,10 +266,12 @@ fn sweep(base: &DocBase) -> bool {
         }
     };
     for origin in &origins {
+        base.engine_state().sweeping(Some(&origin.id));
         if let Err(error) = base.scan_origin(&origin.id) {
             eprintln!("[docbase] sweep of '{}' failed: {error}", origin.name);
         }
     }
+    base.engine_state().sweeping(None);
     !origins.is_empty()
 }
 

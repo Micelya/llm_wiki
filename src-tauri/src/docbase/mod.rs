@@ -26,6 +26,7 @@ pub mod graph;
 pub mod knowledge;
 pub mod labels;
 pub mod origins;
+pub mod progress;
 pub mod query;
 pub mod search;
 mod scan;
@@ -82,6 +83,8 @@ impl Visible {
 /// The database of one space.
 pub struct DocBase {
     conn: Mutex<Connection>,
+    /// What the engine is doing now and the last error of the model (in memory).
+    engine: progress::EngineState,
 }
 
 impl std::fmt::Debug for DocBase {
@@ -121,6 +124,7 @@ impl DocBase {
         search::fill_missing(&conn)?;
         let base = Self {
             conn: Mutex::new(conn),
+            engine: progress::EngineState::default(),
         };
         labels::adopt_conventions(&base)?;
         Ok(base)

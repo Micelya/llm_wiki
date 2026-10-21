@@ -1371,6 +1371,117 @@ export function setBackgroundReading(on: boolean): Promise<void> {
   return invoke<void>("docbase_set_background_reading", { on })
 }
 
+// ── How far the processing went, stage by stage (D-424) ──────────────────
+
+/** The stages, in the order a document goes through them. */
+export type StageId =
+  | "origins"
+  | "text"
+  | "recognition"
+  | "similar"
+  | "types"
+  | "reading"
+  | "resolve"
+  | "matters"
+  | "pages"
+
+/**
+ * How a stage stands: `waiting` is its turn (or, for the text of images,
+ * something that does not exist yet); `paused`, the automatic reading is
+ * off or no model was chosen.
+ */
+export type StageState = "done" | "running" | "waiting" | "paused" | "error"
+
+/** What part of the archive the figures are about; empty, all of it. */
+export interface ProgressScope {
+  originId?: string | null
+  /** A folder inside the origin, with forward slashes. */
+  folder?: string | null
+}
+
+/** The last error of the model, in memory while the app runs. */
+export interface ModelError {
+  /** The stage that asked; null when the model could not even be started. */
+  stage: StageId | null
+  kind: "limit" | "key" | "connection" | "other"
+  message: string
+  at: number
+  /** When the engine tries again. */
+  retryAt: number | null
+}
+
+/** One thing a stage goes over, as its list shows it. */
+export interface StageItem {
+  status: "pending" | "failed" | "done" | "out"
+  locationId: number | null
+  contentId: number | null
+  originId: string | null
+  /** For a page: its path, to open it. */
+  pagePath: string | null
+  name: string
+  /** "<origin> › <folder>", or the folder of an origin on disk. */
+  place: string
+  /** The reason of a failure, why it is out, or the matter of a document. */
+  detail: string | null
+}
+
+export interface ProgressStage {
+  id: StageId
+  state: StageState
+  unit: "origins" | "files" | "documents" | "pages"
+  /** Done, pending and failed. */
+  total: number
+  done: number
+  pending: number
+  failed: number
+  /** Left out of the stage, not in `total`. */
+  out: number
+  /** Work no document stands for: a decision to apply, the pages to compute again. */
+  otherWork: boolean
+  /** What the engine is on now, when it is known. */
+  current: StageItem | null
+  error: ModelError | null
+  /** `questions` left at its last run; `grouped` and `loose` for the matters. */
+  extra: Record<string, number>
+}
+
+export interface Progress {
+  stages: ProgressStage[]
+  /** Documents still being processed (a file not read yet counts as one). */
+  inProcess: number
+  /** Documents waiting because the automatic reading is paused or no model was chosen. */
+  paused: number
+  backgroundReading: boolean
+  engineChosen: boolean
+  lastError: ModelError | null
+}
+
+export interface StageItems {
+  stage: StageId
+  items: StageItem[]
+  total: number
+}
+
+export interface FolderCount {
+  folder: string
+  files: number
+}
+
+/** Every stage of the processing over `scope`. Reads only. */
+export function getProgress(scope: ProgressScope | null = null): Promise<Progress> {
+  return invoke<Progress>("docbase_progress", { scope })
+}
+
+/** The things one stage goes over, failed first, then pending, then done. */
+export function listStageItems(stage: StageId, scope: ProgressScope | null = null, limit = 50): Promise<StageItems> {
+  return invoke<StageItems>("docbase_progress_items", { stage, scope, limit })
+}
+
+/** The folders of an origin, each with the files under it. */
+export function listProgressFolders(originId: string): Promise<FolderCount[]> {
+  return invoke<FolderCount[]>("docbase_progress_folders", { originId })
+}
+
 export function listIdentityDoubts(): Promise<DoubtView[]> {
   return invoke<DoubtView[]>("docbase_knowledge_doubts")
 }

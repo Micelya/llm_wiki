@@ -56,8 +56,10 @@ impl DocBase {
     pub fn extract_pending(&self, limit: usize) -> Result<usize, String> {
         let jobs = self.next_text_jobs(limit)?;
         for (content_id, path) in &jobs {
+            self.engine_state().reading_file(Some(super::progress::Key::Content(*content_id)));
             let outcome = run_guarded("docbase_extract_text", || extract(path));
             let fields = run_guarded("docbase_form_fields", || form_fields(path)).unwrap_or_default();
+            self.engine_state().reading_file(None);
             self.apply_text(*content_id, outcome, &fields)?;
         }
         Ok(jobs.len())

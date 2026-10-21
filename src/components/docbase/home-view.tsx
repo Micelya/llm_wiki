@@ -7,10 +7,12 @@ import { ArticleText } from "@/components/knowledge/article-text"
 import { articleBody, articleTitle } from "@/components/knowledge/knowledge"
 import { DEFAULT_DOCUMENT_FILTER, useDocbaseStore } from "@/stores/docbase-store"
 import { useWikiStore } from "@/stores/wiki-store"
+import { useProgressStore } from "@/stores/progress-store"
 import { noticesOf, summaryText } from "@/lib/attention/order"
 import { NoticeMark } from "@/components/attention/attention-view"
+import { goToTarget } from "@/components/attention/navigate"
 import { useAttention } from "@/components/attention/use-attention"
-import { pendingCount, processedPercent } from "./attention"
+import { processedPercent } from "./attention"
 import { DocbasePage, EmptyNote, ErrorNote, Panel, StatusBadge } from "./page"
 import { formatAgo, formatCount, plural } from "./format"
 import { useDocbaseQuery } from "./use-docbase-query"
@@ -25,6 +27,10 @@ export function HomeView() {
   const setFilter = useDocbaseStore((s) => s.setFilter)
   const [query, setQuery] = useState("")
   const { notices, counts } = useAttention()
+  const progress = useProgressStore((s) => s.progress)
+  // What is really being processed, every stage counted (D-424).
+  const inProcess = progress?.inProcess ?? 0
+  const paused = progress?.paused ?? 0
   const words = vocabulary()
 
   function search() {
@@ -71,7 +77,7 @@ export function HomeView() {
                 {summary === null ? (
                   <EmptyNote>
                     Nada requiere tu atención.
-                    {counts.ongoing > 0 && " La app está trabajando: lo ves en la sección «En curso»."}
+                    {inProcess > 0 && " La app está trabajando: lo ves en la pestaña «En curso»."}
                   </EmptyNote>
                 ) : (
                   <div className="flex flex-col gap-2">
@@ -89,10 +95,13 @@ export function HomeView() {
                         </li>
                       ))}
                     </ul>
-                    {counts.ongoing > 0 && (
-                      <p className="text-xs text-muted-foreground">
-                        Además, {counts.ongoing === 1 ? "hay una tarea en curso" : `hay ${counts.ongoing} tareas en curso`}.
-                      </p>
+                    {inProcess > 0 && (
+                      <button
+                        className="text-left text-xs text-muted-foreground hover:underline"
+                        onClick={() => goToTarget({ view: "attention", tab: "ongoing" })}
+                      >
+                        Además, {inProcess === 1 ? "hay un documento en proceso" : `hay ${formatCount(inProcess)} documentos en proceso`}.
+                      </button>
                     )}
                   </div>
                 )}
@@ -149,11 +158,14 @@ export function HomeView() {
                   {processedPercent(data.health) === null ? "—" : `${processedPercent(data.health)!.toLocaleString("es-AR")} %`}
                 </Metric>
                 <Metric label="En curso">
-                  {pendingCount(data.health) > 0 ? (
-                    <StatusBadge tone="busy">{formatCount(pendingCount(data.health))}</StatusBadge>
-                  ) : (
-                    "0"
-                  )}
+                  <button
+                    className="flex items-center gap-1 hover:underline"
+                    title="Ver en Atención → En curso"
+                    onClick={() => goToTarget({ view: "attention", tab: "ongoing" })}
+                  >
+                    {inProcess > 0 ? <StatusBadge tone="busy">{formatCount(inProcess)}</StatusBadge> : "0"}
+                    {paused > 0 && <StatusBadge tone="warning">{formatCount(paused)} en pausa</StatusBadge>}
+                  </button>
                 </Metric>
                 <Metric label="Con copias en otro lugar">{formatCount(data.health.copies)}</Metric>
                 <Metric label="Palabras en la base">{formatCount(data.health.words)}</Metric>

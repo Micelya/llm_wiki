@@ -4,20 +4,33 @@ import { Button } from "@/components/ui/button"
 import { getBackgroundReading, setAskEngine, setBackgroundReading } from "@/commands/docbase"
 import { getAskConfig } from "@/lib/document-asking"
 import { useAppDialog } from "@/stores/app-dialog-store"
+import { useProgressStore } from "@/stores/progress-store"
 import { useWikiStore } from "@/stores/wiki-store"
 import { vocabulary } from "@/vocabulary"
 import { ErrorNote, Panel, StatusBadge } from "./page"
 import { useDocbaseQuery } from "./use-docbase-query"
 
+export interface BackgroundReading {
+  /** `null` while it is not known yet. */
+  on: boolean | null
+  error: string | null
+  busy: boolean
+  problem: string | null
+  /** Asks for a confirmation that says what it means, then turns it on or off. */
+  toggle: (next: boolean) => Promise<void>
+}
+
 /**
  * The automatic reading of the base (`background-reading`): with it on,
  * the base reads by itself, with the model configured, every document
  * that is added or changes in the folders. It does not start by itself,
- * because it uses the model. It replaces the switch of the old wiki.
+ * because it uses the model. The one switch, shared by Orígenes and
+ * «En curso» (D-424).
  */
-export function BackgroundReadingPanel() {
+export function useBackgroundReading(): BackgroundReading {
   const reading = useDocbaseQuery("background-reading", getBackgroundReading)
   const llmConfig = useWikiStore((s) => s.llmConfig)
+  const refreshProgress = useProgressStore((s) => s.refresh)
   const dialog = useAppDialog()
   const words = vocabulary()
   const [busy, setBusy] = useState(false)
@@ -60,6 +73,7 @@ export function BackgroundReadingPanel() {
       if (next) await setAskEngine(getAskConfig())
       await setBackgroundReading(next)
       reading.reload()
+      refreshProgress()
     } catch (cause) {
       setProblem(String(cause))
     } finally {
@@ -67,30 +81,45 @@ export function BackgroundReadingPanel() {
     }
   }
 
-  if (reading.data === null) return reading.error ? <ErrorNote>{reading.error}</ErrorNote> : null
+  return { on: reading.data, error: reading.error, busy, problem, toggle }
+}
+
+/** The button that pauses or turns on the automatic reading. */
+export function BackgroundReadingButton({ reading }: { reading: BackgroundReading }) {
+  return reading.on ? (
+    <Button variant="ghost" size="sm" onClick={() => void reading.toggle(false)} disabled={reading.busy}>
+      <Pause /> Pausar
+    </Button>
+  ) : (
+    <Button size="sm" onClick={() => void reading.toggle(true)} disabled={reading.busy}>
+      <Play /> Activar
+    </Button>
+  )
+}
+
+/** «Activa» or «En pausa». */
+export function BackgroundReadingBadge({ on }: { on: boolean }) {
+  return on ? <StatusBadge tone="ok">Activa</StatusBadge> : <StatusBadge tone="neutral">En pausa</StatusBadge>
+}
+
+export function BackgroundReadingPanel() {
+  const reading = useBackgroundReading()
+  const on = reading.on === true
+
+  if (reading.on === null) return reading.error ? <ErrorNote>{reading.error}</ErrorNote> : null
 
   return (
     <Panel
       title={
         <>
           <BookOpen className="size-4" /> Lectura automática
-          {on ? <StatusBadge tone="ok">Activa</StatusBadge> : <StatusBadge tone="neutral">En pausa</StatusBadge>}
+          <BackgroundReadingBadge on={on} />
         </>
       }
-      action={
-        on ? (
-          <Button variant="ghost" size="sm" onClick={() => toggle(false)} disabled={busy}>
-            <Pause /> Pausar
-          </Button>
-        ) : (
-          <Button size="sm" onClick={() => toggle(true)} disabled={busy}>
-            <Play /> Activar
-          </Button>
-        )
-      }
+      action={<BackgroundReadingButton reading={reading} />}
     >
       <div className="flex flex-col gap-3 text-sm">
-        {problem && <ErrorNote>{problem}</ErrorNote>}
+        {reading.problem && <ErrorNote>{reading.problem}</ErrorNote>}
         <p className="text-muted-foreground">
           {on
             ? "La base lee sola, con el modelo configurado, lo que se agrega o cambia en las carpetas."

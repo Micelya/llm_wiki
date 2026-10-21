@@ -1,56 +1,108 @@
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import { ChevronDown, ChevronRight, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useAppDialog } from "@/stores/app-dialog-store"
+import { useAttentionViewStore, type AttentionTab } from "@/stores/attention-view-store"
+import { useProgressStore } from "@/stores/progress-store"
 import { noticesOf, summaryText } from "@/lib/attention/order"
-import type { AttentionAction, AttentionCase, AttentionNotice, NoticeKind } from "@/lib/attention/types"
+import type { AttentionAction, AttentionCase, AttentionNotice } from "@/lib/attention/types"
+import { ongoingCount } from "@/lib/progress/stages"
 import { vocabulary } from "@/vocabulary"
 import { DocbasePage, EmptyNote, ErrorNote, StatusBadge } from "@/components/docbase/page"
 import { formatCount, plural } from "@/components/docbase/format"
+import { OngoingTab } from "@/components/progress/ongoing-tab"
 import { goToTarget } from "./navigate"
 import { useAttention } from "./use-attention"
 
-const SECTIONS: { kind: NoticeKind; title: string; empty: string }[] = [
+export const ATTENTION_TABS: { kind: AttentionTab; title: string; empty: string }[] = [
   { kind: "problem", title: "Problemas", empty: "Nada está fallando." },
   { kind: "decision", title: "Decisiones", empty: "Nada espera una decisión." },
   { kind: "ongoing", title: "En curso", empty: "La app no está haciendo nada ahora." },
 ]
 
 /**
+ * The tab shown: the one the person chose; until she chooses, the first
+ * with something in it, problems first.
+ */
+export function shownTab(chosen: AttentionTab | null, counts: Record<AttentionTab, number>): AttentionTab {
+  if (chosen) return chosen
+  return ATTENTION_TABS.find((tab) => counts[tab.kind] > 0)?.kind ?? "problem"
+}
+
+/**
  * The single place for what needs a person, whatever part of the app
- * found it: problems first, then decisions, then what is in progress.
- * Each line says what happens, why it matters and what to do, and brings
- * its action; opened, it shows its cases one by one.
+ * found it, in three tabs (D-424): «Problemas», «Decisiones» and
+ * «En curso», each with how many things it has. Each line says what
+ * happens, why it matters and what to do, and brings its action; opened,
+ * it shows its cases one by one. «En curso» shows every stage of the
+ * processing, done and to do.
  */
 export function AttentionView() {
   const { notices, counts } = useAttention()
+  const progress = useProgressStore((s) => s.progress)
+  const chosen = useAttentionViewStore((s) => s.tab)
+  const setTab = useAttentionViewStore((s) => s.setTab)
   const words = vocabulary()
   const summary = summaryText(counts)
+  const lines: Record<AttentionTab, AttentionNotice[]> = {
+    problem: noticesOf(notices, "problem"),
+    decision: noticesOf(notices, "decision"),
+    ongoing: noticesOf(notices, "ongoing"),
+  }
+  const tabCounts: Record<AttentionTab, number> = {
+    problem: lines.problem.length,
+    decision: lines.decision.length,
+    ongoing: ongoingCount(progress) + lines.ongoing.length,
+  }
+  const tab = shownTab(chosen, tabCounts)
+  const empty = ATTENTION_TABS.find((t) => t.kind === tab)?.empty ?? ""
   return (
     <DocbasePage title={words.attention.name} subtitle={summary ?? words.attention.description}>
-      <div className="mx-auto flex max-w-4xl flex-col gap-8">
-        {SECTIONS.map((section) => {
-          const lines = noticesOf(notices, section.kind)
-          return (
-            <section key={section.kind}>
-              <h2 className="mb-2 flex items-center gap-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                {section.title}
-                {lines.length > 0 && <span className="rounded-full bg-muted px-2 py-0.5 normal-case">{lines.length}</span>}
-              </h2>
-              {lines.length === 0 ? (
-                <p className="rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">{section.empty}</p>
-              ) : (
-                <ul className="flex flex-col divide-y rounded-lg border bg-card">
-                  {lines.map((notice) => (
-                    <NoticeLine key={notice.id} notice={notice} />
-                  ))}
-                </ul>
-              )}
-            </section>
-          )
-        })}
+      <div className="mx-auto flex max-w-4xl flex-col gap-4">
+        <nav role="tablist" className="flex gap-1 border-b text-sm">
+          {ATTENTION_TABS.map((item) => (
+            <TabButton key={item.kind} active={tab === item.kind} count={tabCounts[item.kind]} onClick={() => setTab(item.kind)}>
+              {item.title}
+            </TabButton>
+          ))}
+        </nav>
+        <div role="tabpanel" data-tab={tab}>
+          {tab === "ongoing" ? (
+            <OngoingTab extra={lines.ongoing.length > 0 ? <NoticeList lines={lines.ongoing} /> : null} />
+          ) : lines[tab].length === 0 ? (
+            <p className="rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">{empty}</p>
+          ) : (
+            <NoticeList lines={lines[tab]} />
+          )}
+        </div>
       </div>
     </DocbasePage>
+  )
+}
+
+function TabButton({ active, count, onClick, children }: { active: boolean; count: number; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      role="tab"
+      aria-selected={active}
+      className={`-mb-px flex items-center gap-1.5 border-b-2 px-3 py-1.5 ${
+        active ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+      }`}
+      onClick={onClick}
+    >
+      {children}
+      {count > 0 && <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">{formatCount(count)}</span>}
+    </button>
+  )
+}
+
+function NoticeList({ lines }: { lines: AttentionNotice[] }) {
+  return (
+    <ul className="flex flex-col divide-y rounded-lg border bg-card">
+      {lines.map((notice) => (
+        <NoticeLine key={notice.id} notice={notice} />
+      ))}
+    </ul>
   )
 }
 

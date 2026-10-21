@@ -19,8 +19,9 @@ import { decisionInWords, doubtReason, groupDoubts, reviewInWords } from "@/comp
  * What the knowledge layer raises: readings that failed or lost many
  * quotes, identities in doubt, data in which the documents differ, the
  * matter the model proposed for a loose document, recent joins by an
- * identifier, pages kept by their notes, and how far the reading, the
- * resolution and the pages went. All of it is about the archive.
+ * identifier and pages kept by their notes. All of it is about the
+ * archive. How far the reading, the resolution and the pages went is in
+ * the stages of «En curso» (`progress`, D-424).
  */
 export const KNOWLEDGE_SOURCE = "knowledge"
 
@@ -34,7 +35,6 @@ export interface KnowledgeFacts {
 
 export function knowledgeNotices(facts: KnowledgeFacts, words: Vocabulary = vocabulary()): AttentionNotice[] {
   const { attention } = facts
-  const { status } = attention
   const terms = words.knowledge
   const out: AttentionNotice[] = []
   const notice = (patch: Omit<AttentionNotice, "source" | "id">): AttentionNotice => ({
@@ -366,63 +366,8 @@ export function knowledgeNotices(facts: KnowledgeFacts, words: Vocabulary = voca
     )
   }
 
-  // ── In progress ─────────────────────────────────────────────────────
-  if (status.pending > 0) {
-    out.push(
-      notice({
-        kind: "ongoing",
-        topic: "reading",
-        priority: "normal",
-        count: status.pending,
-        title: `Leyendo ${plural(status.pending, "documento", "documentos")} para saber a quiénes nombran`,
-        explanation: `El modelo lee cada documento una vez y dice qué ${who} nombra, con qué rol y qué dice de cada uno, con la cita que lo respalda.`,
-        todo: status.engine
-          ? "Se leen solos mientras la lectura automática esté activa."
-          : "Elegí un modelo para que se lean.",
-        resolvedWhen: "Desaparece cuando termina de leerlos.",
-        actions: [],
-        progress: { done: status.extracted, total: status.documents },
-      }),
-    )
-  }
-  if (status.toResolve > 0) {
-    out.push(
-      notice({
-        kind: "ongoing",
-        topic: "resolving",
-        priority: "normal",
-        count: status.toResolve,
-        title: "Reconociendo quién es quién",
-        explanation: `Se juntan los nombres de cada documento con los de los demás: por su identificador, por su nombre y, cuando hace falta, preguntándole al modelo.`,
-        todo: "No hace falta hacer nada.",
-        resolvedWhen: "Desaparece cuando termina.",
-        actions: [],
-      }),
-    )
-  }
-  if (status.toProject > 0 || attention.synthesisPending > 0) {
-    const waiting = attention.synthesisPending
-    out.push(
-      notice({
-        kind: "ongoing",
-        topic: "pages",
-        priority: "normal",
-        count: Math.max(status.toProject, waiting),
-        title:
-          waiting > 0
-            ? `Escribiendo lo que dicen los documentos en ${plural(waiting, "página", "páginas")}`
-            : `Rehaciendo las páginas de ${who}`,
-        explanation:
-          "Cada página lista todos los documentos de su entidad y, desde sus afirmaciones con cita, el modelo escribe lo que dicen. Mientras tanto la página ya está, con sus documentos.",
-        todo: status.engine
-          ? "Sigue sola mientras la lectura automática esté activa."
-          : "Elegí un modelo para que se escriban.",
-        resolvedWhen: "Desaparece cuando todas las páginas están escritas.",
-        actions: [],
-        progress: waiting > 0 ? { done: Math.max(0, status.pages - waiting), total: status.pages } : undefined,
-      }),
-    )
-  }
+  // How far the reading, the resolution and the pages went is in the
+  // stages of «En curso» (D-424), not here.
   return out
 }
 

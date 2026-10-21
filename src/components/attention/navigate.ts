@@ -34,6 +34,10 @@ export function goToTarget(target: AttentionTarget): void {
       useKnowledgeStore.getState().openMatter(target.matterId ?? null)
       wiki.setActiveView("matters")
       return
+    case "attention":
+      if (target.tab) useAttentionViewStore.getState().setTab(target.tab)
+      wiki.setActiveView("attention")
+      return
     case "wiki-page":
       // The screen of what the page names, from the base (D-407).
       void openWikiPath(target.path.startsWith("wiki/") ? target.path : `wiki/${target.path}`)

@@ -22,6 +22,7 @@ use super::knowledge::screens::{DocumentEntities, KnowledgeAttention, MatterDeta
 use super::knowledge::{DocumentKnowledge, KnowledgeStatus};
 use super::labels::{Label, LabelGroup, LabelRule};
 use super::origins::Origin;
+use super::progress::{FolderCount, Progress, Scope, StageItems};
 use super::similar::{self, Decision, OpenPair, PairDecision, SimilarDocument, SimilarGroup, SimilarPending};
 use super::similar::classify::{DecidedType, DocumentType, ProposedType, RunReport, TypeDecision, TypesPlan};
 use super::similar::data::Datum;
@@ -840,6 +841,32 @@ pub fn docbase_background_reading(state: State<'_, DocBaseState>) -> Result<bool
 #[tauri::command(async)]
 pub fn docbase_set_background_reading(state: State<'_, DocBaseState>, on: bool) -> Result<(), String> {
     state.base()?.set_background_reading(on)
+}
+
+/// Every stage of the processing over `scope` (the whole archive, an
+/// origin or a folder of it), with how it stands and the last error of the
+/// model: what «En curso» shows (D-424). Reads only.
+#[tauri::command(async)]
+pub fn docbase_progress(state: State<'_, DocBaseState>, scope: Option<Scope>) -> Result<Progress, String> {
+    state.base()?.progress(&scope.unwrap_or_default())
+}
+
+/// The documents (or origins, or pages) of one stage, failed first, then
+/// pending, then done. Reads only.
+#[tauri::command(async)]
+pub fn docbase_progress_items(
+    state: State<'_, DocBaseState>,
+    stage: String,
+    scope: Option<Scope>,
+    limit: Option<usize>,
+) -> Result<StageItems, String> {
+    state.base()?.progress_items(&stage, &scope.unwrap_or_default(), limit.unwrap_or(50))
+}
+
+/// The folders of an origin with the files under each, to narrow «En curso».
+#[tauri::command(async)]
+pub fn docbase_progress_folders(state: State<'_, DocBaseState>, origin_id: String) -> Result<Vec<FolderCount>, String> {
+    state.base()?.progress_folders(&origin_id)
 }
 
 /// The pairs of mentions the resolution left for a person.

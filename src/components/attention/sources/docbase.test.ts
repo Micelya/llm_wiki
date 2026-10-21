@@ -80,14 +80,13 @@ describe("what the document base raises", () => {
       words,
     )
     const by = Object.fromEntries(lines.map((line) => [line.topic, [line.kind, line.priority]]))
+    // Text in an image waits for its recognition and files are still being
+    // read: not a problem; they are in the stages of «En curso» (D-424).
     expect(by).toEqual({
       unreadable: ["problem", "high"],
       error: ["problem", "high"],
       "too-large": ["problem", "low"],
       link: ["problem", "low"],
-      // Text in an image is recognized when ingested: not a problem.
-      "needs-recognition": ["ongoing", "normal"],
-      reading: ["ongoing", "normal"],
     })
     const unreadable = lines.find((line) => line.topic === "unreadable")!
     expect(unreadable.title).toBe("1 archivo no se pudo leer")

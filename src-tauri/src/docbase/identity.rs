@@ -43,7 +43,9 @@ impl DocBase {
                     continue;
                 }
             }
+            self.engine_state().reading_file(Some(super::progress::Key::Location(job.location_id)));
             let outcome = file_sha256(&job.path);
+            self.engine_state().reading_file(None);
             self.apply_hash(job, outcome)?;
         }
         Ok(jobs.len())

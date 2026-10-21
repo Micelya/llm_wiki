@@ -806,12 +806,12 @@
       "titulo": "Mostrar en \"En curso\" las preguntas de tipos y el barrido de los orígenes",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "La sección \"En curso\" muestra la cola del wiki, los cambios de archivos y lo que la base todavía está leyendo, pero no las preguntas sobre tipos y datos que la base le hace al modelo en segundo plano ni el barrido de los orígenes: el motor no expone ese estado. Hace falta que lo exponga (por ejemplo, junto al aviso docbase://changed) y una línea en la fuente de la base documental.",
+      "estado": "hecho",
+      "detalle": "La sección \"En curso\" muestra la cola del wiki, los cambios de archivos y lo que la base todavía está leyendo, pero no las preguntas sobre tipos y datos que la base le hace al modelo en segundo plano ni el barrido de los orígenes: el motor no expone ese estado. Hace falta que lo exponga (por ejemplo, junto al aviso docbase://changed) y una línea en la fuente de la base documental. 21 oct: reemplazado por P-249: «En curso» muestra las etapas «Recorrido de las carpetas» (con la carpeta que se recorre ahora) y «Tipo y datos de cada documento» (con el documento que se pregunta ahora), y el motor expone su estado con un comando de solo lectura.",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/worker.rs; src/components/attention/sources/docbase.ts",
       "creado": "2026-10-16",
-      "actualizado": "2026-10-16"
+      "actualizado": "2026-10-21"
     },
     {
       "id": "P-088",
@@ -832,12 +832,12 @@
       "titulo": "Recuperar lo que el panel de actividad mostraba y no pasó a Atención",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "Al reducir el panel de actividad a una línea (D-157) no pasaron dos cosas: la selección de varias tareas de la cola para reintentarlas o cancelarlas juntas, y la lista de las páginas que escribió cada incorporación, con un clic para abrirlas. Decidir si hacen falta y dónde (por ejemplo, la actividad reciente del wiki en Inicio).",
+      "estado": "hecho",
+      "detalle": "Al reducir el panel de actividad a una línea (D-157) no pasaron dos cosas: la selección de varias tareas de la cola para reintentarlas o cancelarlas juntas, y la lista de las páginas que escribió cada incorporación, con un clic para abrirlas. Decidir si hacen falta y dónde (por ejemplo, la actividad reciente del wiki en Inicio). 21 oct: reemplazado por P-249: la etapa «Páginas (artículos)» de «En curso» lista las páginas con un botón para abrir cada una, y la de la lectura muestra los que fallaron con su motivo y un botón para volver a leerlos todos. La selección de varias tareas de una cola ya no aplica: con el wiki retirado no hay cola, la base lee de a un documento.",
       "depende_de": [],
       "referencia": "src/components/attention/sources/wiki-queue.ts",
       "creado": "2026-10-16",
-      "actualizado": "2026-10-16"
+      "actualizado": "2026-10-21"
     },
     {
       "id": "P-090",
@@ -2135,6 +2135,18 @@
       "detalle": "Pedido del dueño (21 oct). Propuesta en docs/design/portales-judiciales-propuesta.md: una ventana del portal dentro de la app con perfil propio; el operador resuelve el desafío o inicia sesión (nunca se saltea); la app sigue sola en la misma sesión, descarga las actuaciones a una carpeta de un origen con sus datos y propone un asunto con la referencia del expediente. Un conector por portal. Revisar la propuesta y sus decisiones abiertas; primer paso: prototipo con el operador sobre un expediente de ejemplo.",
       "depende_de": [],
       "referencia": "docs/design/portales-judiciales-propuesta.md",
+      "creado": "2026-10-21",
+      "actualizado": "2026-10-21"
+    },
+    {
+      "id": "P-249",
+      "titulo": "Ver el avance del procesamiento en Atención",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "a-verificar",
+      "detalle": "Pedido del dueño (21 oct, D-424): Atención en tres pestañas con su cantidad; «En curso» con las nueve etapas del procesamiento en orden (D-425), las hechas también, cada una desplegable con sus documentos y un botón para abrirlos; filtro por origen o carpeta; estado de la lectura automática con su botón; el último error del modelo en palabras con la hora y cuándo vuelve a intentar (D-427); una línea fija al pie de la ventana (D-426); y el número «En curso» de Inicio contando lo que de verdad está en proceso. Construido en la rama feat/progress-and-scans (turno B2); falta que el dueño lo vea en la app.",
+      "depende_de": [],
+      "referencia": "D-424 a D-427; src-tauri/src/docbase/progress.rs; src/components/progress/; src/components/attention/attention-view.tsx",
       "creado": "2026-10-21",
       "actualizado": "2026-10-21"
     }

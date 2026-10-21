@@ -204,7 +204,7 @@ describe("knowledgeNotices", () => {
     expect(invoke).toHaveBeenCalledWith("docbase_knowledge_leave_matter", expect.objectContaining({ document: "content:3", matterId: "mat-1" }))
   })
 
-  it("shows the reading, the resolution and the pages in progress", () => {
+  it("leaves the reading, the resolution and the pages in progress to the stages of «En curso»", () => {
     const notices = knowledgeNotices(
       {
         attention: attention({ status: status({ pending: 4, extracted: 6, toResolve: 2, toProject: 3, engine: null }), synthesisPending: 2 }),
@@ -212,12 +212,7 @@ describe("knowledgeNotices", () => {
       },
       words,
     )
-    const ongoing = notices.filter((n) => n.kind === "ongoing").map((n) => n.topic)
-    expect(ongoing).toEqual(["reading", "resolving", "pages"])
-    const reading = notices.find((n) => n.topic === "reading")
-    expect(reading?.progress).toEqual({ done: 6, total: 10 })
-    expect(reading?.todo).toBe("Elegí un modelo para que se lean.")
-    expect(notices.find((n) => n.topic === "pages")?.title).toContain("2 páginas")
-    expect(attentionCounts(notices)).toEqual({ problems: 0, decisions: 0, ongoing: 3 })
+    expect(notices.filter((n) => n.kind === "ongoing")).toEqual([])
+    expect(attentionCounts(notices)).toEqual({ problems: 0, decisions: 0, ongoing: 0 })
   })
 })

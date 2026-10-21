@@ -7,6 +7,8 @@ import { ResearchPanel } from "./research-panel"
 import { useResearchStore } from "@/stores/research-store"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { AttentionSources } from "@/components/attention/sources-host"
+import { ProgressPoller } from "@/components/progress/use-progress"
+import { ProgressLine } from "@/components/progress/progress-line"
 import { isResearchPanelVisible } from "./research-panel-nav"
 
 export function AppLayout() {
@@ -54,6 +56,7 @@ export function AppLayout() {
     // IconSidebar + content row below.
     <div className="flex h-full flex-col bg-background text-foreground">
       <AttentionSources />
+      <ProgressPoller />
       <UpdateBanner />
       <div className="flex min-h-0 flex-1">
         <IconSidebar />
@@ -82,6 +85,8 @@ export function AppLayout() {
           )}
         </div>
       </div>
+      {/* What the app is processing, from any screen (D-426). */}
+      <ProgressLine />
     </div>
   )
 }

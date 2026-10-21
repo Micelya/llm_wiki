@@ -16,15 +16,14 @@ import { DEFAULT_DOCUMENT_FILTER } from "@/stores/docbase-store"
 import type { AttentionCase, AttentionNotice } from "@/lib/attention/types"
 import { documentTypeName, vocabulary, type Vocabulary } from "@/vocabulary"
 import { formatCount, plural } from "@/components/docbase/format"
-import { pendingCount } from "@/components/docbase/attention"
 import { useDocbaseQuery } from "@/components/docbase/use-docbase-query"
 
 /**
  * What the document base raises: origins that cannot be read, files and
  * documents that could not be processed, similar documents that could be
- * the same one, document types the model proposed, and what it is still
- * reading. All of it is about the archive (the space), whatever project
- * is open.
+ * the same one, and document types the model proposed. All of it is about
+ * the archive (the space), whatever project is open. How far it went
+ * reading is in the stages of «En curso» (`progress`, D-424).
  */
 export const DOCBASE_SOURCE = "docbase"
 
@@ -163,40 +162,8 @@ export function docbaseNotices(facts: DocbaseFacts, words: Vocabulary = vocabula
     )
   }
 
-  // ── In progress ─────────────────────────────────────────────────────
-  const reading = pendingCount(home.health)
-  if (reading > 0) {
-    out.push(
-      notice({
-        kind: "ongoing",
-        topic: "reading",
-        priority: "normal",
-        count: reading,
-        title: `Leyendo ${plural(reading, "archivo", "archivos")} de las carpetas incorporadas`,
-        explanation: "La base identifica cada archivo, busca sus copias y obtiene su texto, una sola vez por documento.",
-        todo: "No hace falta hacer nada.",
-        resolvedWhen: "Desaparece cuando termina de leerlos.",
-        actions: [],
-      }),
-    )
-  }
-  if (count("needs-recognition") > 0) {
-    out.push(
-      documentsNotice("needs-recognition", count("needs-recognition"), {
-        kind: "ongoing",
-        priority: "normal",
-        title: plural(
-          count("needs-recognition"),
-          "documento tiene el texto en imagen",
-          "documentos tienen el texto en imagen",
-        ),
-        explanation:
-          "Son escaneos o fotos: su texto está en una imagen y hay que reconocerlo, una sola vez por documento.",
-        todo: "Por ahora quedan sin leer: la base todavía no reconoce sola el texto de las imágenes.",
-        resolvedWhen: "Desaparece cuando se reconoce su texto.",
-      }),
-    )
-  }
+  // What is in progress (reading the files, their text, the text of the
+  // images) is in the stages of «En curso» (D-424), not here.
   return out
 }
 
