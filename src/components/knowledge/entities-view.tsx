@@ -82,7 +82,7 @@ function EntityList() {
           <EmptyNote>
             {query
               ? "Nada coincide con lo que buscás."
-              : `Todavía no hay nadie en el registro: los documentos se leen mientras el ${words.archive.wiki.toLowerCase()} está activo.`}
+              : "Todavía no hay nadie en el registro: los documentos se leen mientras la lectura automática está activa."}
           </EmptyNote>
         )}
         {rows.length > 0 && (

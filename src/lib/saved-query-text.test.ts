@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest"
 import {
-  cleanAssistantContentForWikiSave,
+  cleanAssistantContentForSaving,
   titleFromCleanAssistantContent,
-} from "./chat-save-to-wiki"
+} from "./saved-query-text"
 
-describe("chat save-to-wiki helpers", () => {
-  it("uses the first visible heading as the saved wiki title", () => {
+describe("the text of a saved query", () => {
+  it("uses the first visible heading as the saved query title", () => {
     const content = [
       "<!-- sources: wiki/concepts/old.md -->",
       "<think>draft reasoning</think>",
@@ -14,7 +14,7 @@ describe("chat save-to-wiki helpers", () => {
       "正文内容。",
     ].join("\n")
 
-    const clean = cleanAssistantContentForWikiSave(content)
+    const clean = cleanAssistantContentForSaving(content)
     expect(titleFromCleanAssistantContent(clean)).toBe("煤矿安全治理建议")
   })
 
@@ -26,20 +26,20 @@ describe("chat save-to-wiki helpers", () => {
       "Visible answer",
     ].join("\n")
 
-    expect(cleanAssistantContentForWikiSave(content)).toBe("Visible answer")
+    expect(cleanAssistantContentForSaving(content)).toBe("Visible answer")
   })
 
   it("removes think tags", () => {
-    expect(cleanAssistantContentForWikiSave("<think>draft</think>\nBody")).toBe("Body")
+    expect(cleanAssistantContentForSaving("<think>draft</think>\nBody")).toBe("Body")
   })
 
   it("removes unclosed thinking blocks", () => {
-    expect(cleanAssistantContentForWikiSave("<thinking>partial")).toBe("")
+    expect(cleanAssistantContentForSaving("<thinking>partial")).toBe("")
   })
 
   it("falls back for empty visible content", () => {
-    expect(titleFromCleanAssistantContent(cleanAssistantContentForWikiSave("<thinking>all</thinking>"))).toBe("Saved Query")
-    expect(titleFromCleanAssistantContent(cleanAssistantContentForWikiSave(""))).toBe("Saved Query")
+    expect(titleFromCleanAssistantContent(cleanAssistantContentForSaving("<thinking>all</thinking>"))).toBe("Saved Query")
+    expect(titleFromCleanAssistantContent(cleanAssistantContentForSaving(""))).toBe("Saved Query")
   })
 
   it("truncates titles over 60 characters and keeps exactly-60-character titles", () => {
@@ -49,6 +49,6 @@ describe("chat save-to-wiki helpers", () => {
 
   it("does not treat multiline HTML comments as hidden save metadata", () => {
     const content = "<!-- sources:\n  wiki/foo.md\n-->\nBody"
-    expect(cleanAssistantContentForWikiSave(content)).toBe(content)
+    expect(cleanAssistantContentForSaving(content)).toBe(content)
   })
 })

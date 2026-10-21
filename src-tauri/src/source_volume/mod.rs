@@ -3,8 +3,8 @@
 //! and images, the engine that answers questions about documents, and
 //! the text helpers the base compares documents with (`catalog`).
 //!
-//! It used to also mount the base's folders inside a wiki project under
-//! `raw/sources`; that left with the wiki (W6).
+//! It used to also mount the base's folders inside a wiki project; that
+//! left with the wiki (W6).
 
 pub mod asking;
 pub mod catalog;

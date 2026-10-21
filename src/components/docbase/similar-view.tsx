@@ -61,8 +61,8 @@ export function SimilarView() {
         {groups.error && <ErrorNote>{groups.error}</ErrorNote>}
         <p className="text-sm text-muted-foreground">
           Nada se une solo. Si dos son el mismo documento (prácticamente el mismo, un ejemplar firmado, una versión),
-          al unirlos al wiki va uno solo, el que elijas. Si comparten la plantilla con otros datos, son documentos
-          distintos: confirmarlo no cambia el wiki, pero da una base confirmada a las pasadas que vienen.
+          al unirlos cuenta uno solo, el que elijas. Si comparten la plantilla con otros datos, son documentos
+          distintos: confirmarlo no cambia lo que cuenta, pero da una base confirmada a las pasadas que vienen.
         </p>
 
         {groups.data && waiting.length === 0 && openPairs.length === 0 && (
@@ -210,7 +210,7 @@ function FamilyPairs({
       message:
         `Se unen ${plural(decisions.length, "documento", "documentos")} con «${principal.name}» como ` +
         `«${relationName(TEMPLATE_RELATION, words)}»: la misma plantilla con otros datos. Son documentos distintos, ` +
-        "así que todos siguen yendo al wiki. Las pasadas que vienen se apoyan en lo que confirmes. Se puede deshacer " +
+        "así que todos siguen contando. Las pasadas que vienen se apoyan en lo que confirmes. Se puede deshacer " +
         "de a uno, desde cada par.",
       confirmLabel: "Confirmar",
       cancelLabel: "Cancelar",

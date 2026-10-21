@@ -157,7 +157,7 @@ pub(crate) fn extract_text_without_recognition(path: &Path) -> Result<Option<Str
 }
 
 /// Convert common Org syntax into Markdown-shaped text for ingestion and
-/// preview. The original `.org` file remains untouched in `raw/sources`.
+/// preview. The original `.org` file remains untouched.
 /// Source blocks are copied verbatim inside fences and are never executed.
 fn extract_org_text(path: &str) -> Result<String, String> {
     let content = fs::read_to_string(path)
@@ -1897,8 +1897,8 @@ mod tests {
 
     #[test]
     fn reject_relative_write_paths_before_touching_cwd() {
-        assert!(require_absolute_path("write_file", "wiki/sources/stray.md").is_err());
-        assert!(require_absolute_path("write_file", "./wiki/sources/stray.md").is_err());
+        assert!(require_absolute_path("write_file", "notas/suelta.md").is_err());
+        assert!(require_absolute_path("write_file", "./notas/suelta.md").is_err());
     }
 
     #[test]
@@ -1906,14 +1906,14 @@ mod tests {
         // A single leading slash is absolute on Unix only; on Windows it is
         // relative to the current drive.
         #[cfg(unix)]
-        assert!(require_absolute_path("write_file", "/tmp/project/wiki/sources/page.md").is_ok());
-        assert!(require_absolute_path("write_file", "C:/project/wiki/sources/page.md").is_ok());
+        assert!(require_absolute_path("write_file", "/tmp/carpeta/notas/pagina.md").is_ok());
+        assert!(require_absolute_path("write_file", "C:/carpeta/notas/pagina.md").is_ok());
         assert!(require_absolute_path("write_file", r"C:\project\wiki\sources\page.md").is_ok());
         assert!(
             require_absolute_path("write_file", r"\\server\share\wiki\sources\page.md").is_ok()
         );
-        assert!(require_absolute_path("write_file", "//server/share/wiki/sources/page.md").is_ok());
-        assert!(require_absolute_path("write_file", "C:wiki/sources/page.md").is_err());
+        assert!(require_absolute_path("write_file", "//server/share/notas/pagina.md").is_ok());
+        assert!(require_absolute_path("write_file", "C:notas/pagina.md").is_err());
     }
 
 }

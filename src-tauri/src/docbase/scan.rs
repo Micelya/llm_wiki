@@ -370,7 +370,7 @@ mod tests {
         assert!(!is_inventoried("BOREAL/Thumbs.db"));
         assert!(!is_inventoried("BOREAL/~$carta.docx"));
         assert!(!is_inventoried(".git/config"));
-        assert!(!is_inventoried("proyecto/.llm-wiki/ingest-cache.json"));
+        assert!(!is_inventoried("proyecto/.oculta/cache.json"));
         assert!(!is_inventoried("fuentes/.cache/carta.pdf.txt"));
         assert!(!is_inventoried("$RECYCLE.BIN/x.pdf"));
         assert!(!is_inventoried("descarga.pdf.crdownload"));

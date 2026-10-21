@@ -1,6 +1,7 @@
 import path from "path"
 import { readFileSync } from "fs"
 import { defineConfig } from "vite"
+import { configDefaults } from "vitest/config"
 import react from "@vitejs/plugin-react"
 import tailwindcss from "@tailwindcss/vite"
 
@@ -50,5 +51,8 @@ export default defineConfig(async () => ({
     // The loader itself is a no-op if the file is absent, so this is
     // safe to keep on for every test run.
     setupFiles: ["./src/test-helpers/load-test-env.ts"],
+    // Build output of the Rust side can hold copies of old packages with
+    // their own tests; they are not part of the app.
+    exclude: [...configDefaults.exclude, "**/src-tauri/target/**"],
   },
 }))

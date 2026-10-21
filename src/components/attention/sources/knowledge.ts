@@ -377,7 +377,7 @@ export function knowledgeNotices(facts: KnowledgeFacts, words: Vocabulary = voca
         title: `Leyendo ${plural(status.pending, "documento", "documentos")} para saber a quiénes nombran`,
         explanation: `El modelo lee cada documento una vez y dice qué ${who} nombra, con qué rol y qué dice de cada uno, con la cita que lo respalda.`,
         todo: status.engine
-          ? `Se leen solos mientras el ${words.archive.wiki.toLowerCase()} esté activo.`
+          ? "Se leen solos mientras la lectura automática esté activa."
           : "Elegí un modelo para que se lean.",
         resolvedWhen: "Desaparece cuando termina de leerlos.",
         actions: [],
@@ -415,7 +415,7 @@ export function knowledgeNotices(facts: KnowledgeFacts, words: Vocabulary = voca
         explanation:
           "Cada página lista todos los documentos de su entidad y, desde sus afirmaciones con cita, el modelo escribe lo que dicen. Mientras tanto la página ya está, con sus documentos.",
         todo: status.engine
-          ? `Sigue sola mientras el ${words.archive.wiki.toLowerCase()} esté activo.`
+          ? "Sigue sola mientras la lectura automática esté activa."
           : "Elegí un modelo para que se escriban.",
         resolvedWhen: "Desaparece cuando todas las páginas están escritas.",
         actions: [],

@@ -283,7 +283,7 @@ export function certaintyInWords(claim: Pick<ClaimView, "certainty" | "reasons">
           return null
       }
     })
-    .filter((text): text is string => text !== null)
+    .filter((text): text is NonNullable<typeof text> => text !== null)
     .join("; ")
   switch (claim.certainty) {
     case "confirmed":

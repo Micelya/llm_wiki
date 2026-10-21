@@ -1,4 +1,4 @@
-export function cleanAssistantContentForWikiSave(content: string): string {
+export function cleanAssistantContentForSaving(content: string): string {
   return content
     .replace(/<!--\s*(?:save-worthy|sources):[^\n]*?-->/g, "")
     .replace(/<think(?:ing)?>\s*[\s\S]*?<\/think(?:ing)?>\s*/gi, "")

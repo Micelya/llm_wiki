@@ -38,6 +38,7 @@ import { detectLanguage } from "@/lib/detect-language"
 import { getHtmlLang, getTextDirection } from "@/lib/language-metadata"
 import { parseFrontmatter } from "@/lib/frontmatter"
 import { MermaidDiagram, unwrapMermaidPre } from "@/components/mermaid-diagram"
+import { useWikiStore } from "@/stores/wiki-store"
 
 interface FilePreviewProps {
   filePath: string
@@ -441,6 +442,8 @@ function CodePreview({ filePath, content }: { filePath: string; content: string 
 
 function TextPreview({ filePath, content, label }: { filePath: string; content: string; label: string }) {
   const scrollRootRef = useRef<HTMLDivElement | null>(null)
+  // Local images load only from the agent's folder, where the chat's outputs are.
+  const imageRoot = useWikiStore((s) => s.agentWorkspace)
 
   const { body } = useMemo(() => parseFrontmatter(content), [content])
   // Rewrite Obsidian image embeds (`![[…]]`) into standard markdown
@@ -487,7 +490,7 @@ function TextPreview({ filePath, content, label }: { filePath: string; content: 
             // URL (which differs per platform).
             img: ({ src, alt, ...props }) => (
               <img
-                src={typeof src === "string" ? resolveMarkdownImageSrc(src, null, currentFileDir) : undefined}
+                src={typeof src === "string" ? resolveMarkdownImageSrc(src, imageRoot, currentFileDir) : undefined}
                 data-mdsrc={typeof src === "string" ? src : undefined}
                 alt={alt ?? ""}
                 className="max-w-full rounded border border-border/40 transition-all"

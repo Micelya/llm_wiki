@@ -128,6 +128,8 @@ describe("words", () => {
       state: "active",
       decidedAt: 0,
       undoneAt: null,
+      review: null,
+      appliedAs: null,
     })
     const entity = { mentions: [mention(7, "acta.pdf", "parte")] }
     expect(decisionInWords(decision("join", "cluster:7:persona:uno", "cluster:8:persona:uno bis"), entity)).toBe(

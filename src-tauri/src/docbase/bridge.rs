@@ -2,8 +2,8 @@
 //! state: the chat's agent (D-413).
 //!
 //! It used to also connect the base with the wiki of the general project
-//! (its sources mounted under `raw/sources`, the text the base already
-//! had); that left with the wiki (W6).
+//! (its sources mounted in the wiki, the text the base already had); that
+//! left with the wiki (W6).
 
 use std::sync::{Arc, OnceLock};
 

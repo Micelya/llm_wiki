@@ -142,7 +142,7 @@ export function SkillsSection() {
       <div className="rounded-md border bg-muted/20 p-3 text-xs text-muted-foreground">
         {t("settings.sections.skills.paths", {
           defaultValue:
-            "Scanned folders: .llm-wiki/skills, ~/.claude/skills, ~/.codex/skills, ~/.agents/skills.",
+            "Scanned folders: the agent's skills folder, ~/.claude/skills, ~/.codex/skills, ~/.agents/skills.",
         })}
       </div>
 

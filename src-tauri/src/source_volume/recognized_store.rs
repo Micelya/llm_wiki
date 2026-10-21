@@ -1,10 +1,10 @@
-//! Where recognized text is kept: `raw/recognized/<sha-256 of the file>/`
-//! inside the project.
+//! Where recognized text is kept: a folder per file, named by the
+//! SHA-256 of the file.
 //!
 //! Recognized text is not a disposable cache. Producing it costs engine
 //! calls, and reading the same image twice does not give the same text
-//! twice. So it is stored as project material, next to `raw/sources`,
-//! and keyed by what the file *is* rather than where it is: a file that
+//! twice. So it is kept, keyed by what the file *is* rather than where
+//! it is: a file that
 //! is moved, renamed, saved again without changes, or present in two
 //! folders is read once.
 //!

@@ -11,6 +11,7 @@ import { normalizePath } from "@/lib/path-utils"
 import { detectLanguage } from "@/lib/detect-language"
 import { getHtmlLang, getTextDirection } from "@/lib/language-metadata"
 import { openWikiPath } from "@/lib/open-wiki-path"
+import { useWikiStore } from "@/stores/wiki-store"
 import { MermaidDiagram, unwrapMermaidPre } from "@/components/mermaid-diagram"
 
 interface WikiReaderProps {
@@ -42,6 +43,8 @@ interface WikiReaderProps {
  * single-click navigation between pages.
  */
 export function WikiReader({ body, sourceBody, sourceOffset = 0, filePath }: WikiReaderProps) {
+  // Local images load only from the agent's folder, where the chat's outputs are.
+  const imageRoot = useWikiStore((s) => s.agentWorkspace)
   // Image embeds (`![[…]]`) must be rewritten BEFORE the generic
   // wikilink pass, otherwise the embed target gets mangled into a
   // `#fragment` link.
@@ -159,7 +162,7 @@ export function WikiReader({ body, sourceBody, sourceOffset = 0, filePath }: Wik
             <img
               src={
                 typeof src === "string"
-                  ? resolveMarkdownImageSrc(src, null, currentFileDir)
+                  ? resolveMarkdownImageSrc(src, imageRoot, currentFileDir)
                   : undefined
               }
               data-mdsrc={typeof src === "string" ? src : undefined}

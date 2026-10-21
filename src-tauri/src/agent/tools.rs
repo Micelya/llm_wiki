@@ -1918,10 +1918,7 @@ fn normalize_rel_path(path: &str) -> String {
 fn normalize_workspace_write_path(path: &str) -> Result<String, String> {
     let rel = normalize_rel_path(path);
     let lower = rel.to_ascii_lowercase();
-    if rel.is_empty()
-        || lower.starts_with("wiki/")
-        || lower.starts_with("raw/")
-        || lower.split('/').any(|segment| segment.starts_with('.'))
+    if rel.is_empty() || lower.split('/').any(|segment| segment.starts_with('.'))
     {
         return Err(
             "workspace.write_file path must be a relative file under agent-workspace".to_string(),
@@ -2287,7 +2284,7 @@ mod tests {
             "<svg/>"
         );
         assert!(write_workspace_file(root.to_str().unwrap(), "../escape.txt", "x").is_err());
-        assert!(write_workspace_file(root.to_str().unwrap(), "wiki/page.md", "x").is_err());
+        assert!(write_workspace_file(root.to_str().unwrap(), ".oculta/page.md", "x").is_err());
         assert!(write_workspace_file(root.to_str().unwrap(), ".hidden/file.txt", "x").is_err());
         assert!(write_workspace_file(root.to_str().unwrap(), "cover./file.txt", "x").is_err());
         assert!(write_workspace_file(root.to_str().unwrap(), "cover /file.txt", "x").is_err());

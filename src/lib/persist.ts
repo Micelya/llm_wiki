@@ -117,7 +117,7 @@ export async function loadChatHistory(): Promise<PersistedChatData> {
     }
 
     // A previous startup race could overwrite conversations.json with [] while
-    // leaving .llm-wiki/chats/<id>.json intact. Rebuild a minimal conversation
+    // leaving chats/<id>.json intact. Rebuild a minimal conversation
     // index from those orphan message files so users do not have to recreate
     // chat sessions manually.
     const recovered = await recoverChatHistoryFromOrphanChatFiles(folder)

@@ -32,7 +32,7 @@ export const DOCUMENT_STATES: Record<DocumentState, StateInfo> = {
   excluded: {
     label: "Excluido",
     tone: "neutral",
-    hint: "Lo dejaste afuera: sigue en su lugar, pero la base no lo procesa ni lo entrega al wiki.",
+    hint: "Lo dejaste afuera: sigue en su lugar, pero la base no lo procesa.",
   },
   link: {
     label: "Detectado, no procesable",

@@ -138,9 +138,8 @@ fn should_skip_full_page_pdf_image(
 /// source preview wants — see `extract_pdf_text` in fs.rs).
 ///
 /// When `media_dest_dir` is `None`, image objects are skipped
-/// entirely and the output is text + page headers only — useful for
-/// PDFs outside the project's `raw/sources/` layout where there's no
-/// stable place to land the image files.
+/// entirely and the output is text + page headers only: what the app
+/// asks for now, since nothing is ever written next to a document.
 ///
 /// Holds the global pdfium lock for its full duration. Callers MUST
 /// NOT acquire the lock themselves before calling this (would

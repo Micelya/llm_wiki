@@ -30,7 +30,7 @@ import { detectLanguage } from "@/lib/detect-language"
 import { getHtmlLang, getTextDirection } from "@/lib/language-metadata"
 import { MermaidDiagram, unwrapMermaidPre } from "@/components/mermaid-diagram"
 import { inferWikiTypeFromPath } from "@/lib/wiki-page-types"
-import { cleanAssistantContentForWikiSave, titleFromCleanAssistantContent } from "@/lib/chat-save-to-wiki"
+import { cleanAssistantContentForSaving, titleFromCleanAssistantContent } from "@/lib/saved-query-text"
 import type { ChatAgentEvent, ChatAgentEventStage, ChatAgentStep, ChatUserInputField, ChatUserInputRequest } from "@/lib/chat-agent-types"
 import { getFileCategory, getFileExtension, isTextReadable } from "@/lib/file-types"
 import { AgentFileActivity } from "@/components/chat/agent-file-activity"
@@ -532,7 +532,7 @@ function SaveQueryButton({ message }: { message: DisplayMessage }) {
     setSaving(true)
     setProblem(null)
     try {
-      const answer = cleanAssistantContentForWikiSave(message.content)
+      const answer = cleanAssistantContentForSaving(message.content)
       const title = titleFromCleanAssistantContent(answer)
       const refs = (message.references ?? [])
         .filter((ref) => ref.kind === "wiki")
@@ -614,7 +614,7 @@ function referenceSourceLabel(page: CitedPage): string {
   if (isAnyTxtReference(page)) return "AnyTXT"
   if (page.kind === "workspace") return "Workspace"
   if (page.kind === "external") return page.source || "Web"
-  return "Wiki"
+  return "Base"
 }
 
 function referenceLocator(page: CitedPage): string {
@@ -1235,7 +1235,7 @@ function MarkdownContent({ content }: { content: string }) {
   // replies (LLM may surface images that came in via retrieved
   // chunks, e.g. when the chat answer cites a diagram from a wiki
   // page). Same convention the file-preview uses.
-  const projectPath = useWikiStore((s) => s.agentWorkspace)
+  const imageRoot = useWikiStore((s) => s.agentWorkspace)
 
   // Separate thinking blocks from main content
   const { thinking, answer } = useMemo(() => separateThinking(cleaned), [cleaned])
@@ -1270,7 +1270,7 @@ function MarkdownContent({ content }: { content: string }) {
             },
             img: ({ src, alt, ...props }) => (
               <img
-                src={typeof src === "string" ? resolveMarkdownImageSrc(src, projectPath) : undefined}
+                src={typeof src === "string" ? resolveMarkdownImageSrc(src, imageRoot) : undefined}
                 alt={alt ?? ""}
                 className="my-2 max-w-full rounded border border-border/40"
                 loading="lazy"

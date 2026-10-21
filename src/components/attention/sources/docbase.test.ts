@@ -131,7 +131,7 @@ describe("similar documents in the attention view", () => {
     // One family with two pairs, and two pairs outside families.
     expect(line.count).toBe(3)
     expect(line.cases?.map((c) => c.title)).toEqual(["«Acuerdo modelo.docx»", "2 pares fuera de las familias"])
-    expect(line.explanation).toContain("al wiki va uno solo")
+    expect(line.explanation).toContain("cuenta uno solo")
     // Each leads to the similar documents screen, on its family.
     expect(line.actions[0]).toMatchObject({ kind: "go", target: { view: "similar", principal: 10 } })
     expect(line.cases?.[0].actions?.[0]).toMatchObject({ target: { view: "similar", principal: 10 } })

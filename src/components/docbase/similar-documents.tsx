@@ -255,7 +255,7 @@ export function SimilarCard({
 
       {item.state === "joined" && item.wikiSource !== null && (
         <p className="mt-2 text-xs">
-          Queda como fuente del wiki: <span className="font-medium">{sourceName(item.wikiSource)}</span>.
+          Se toma: <span className="font-medium">{sourceName(item.wikiSource)}</span>.
         </p>
       )}
 
@@ -396,7 +396,7 @@ function JoinPanel({
       {oneDocument ? (
         <fieldset className="flex flex-col gap-1">
           <legend className="mb-1 text-xs font-medium text-muted-foreground">
-            Con esta relación los dos son el mismo documento: ¿cuál queda como fuente del wiki?
+            Con esta relación los dos son el mismo documento: ¿cuál se toma?
           </legend>
           {[item.contentId, item.other.contentId].map((id) => (
             <label key={id} className="flex items-center gap-2">
@@ -411,11 +411,11 @@ function JoinPanel({
             </label>
           ))}
           <p className="mt-1 text-xs text-muted-foreground">
-            Los dos siguen en la base. Solo el elegido alimenta el wiki; lo que el otro ya aportó se queda.
+            Los dos siguen en la base. Solo el elegido cuenta para lo que la base dice del documento; lo que el otro ya aportó se queda.
           </p>
         </fieldset>
       ) : (
-        <p className="text-xs text-muted-foreground">Son documentos distintos: los dos siguen yendo al wiki.</p>
+        <p className="text-xs text-muted-foreground">Son documentos distintos: los dos siguen contando.</p>
       )}
       <div className="flex gap-2">
         <Button size="sm" disabled={busy} onClick={onConfirm}>
