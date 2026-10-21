@@ -14,11 +14,11 @@ import { getKnowledgeOverview } from "@/commands/docbase"
 import { buildBaseGraph, objectOfNode, type GraphNode, type GraphEdge, type CommunityInfo, type GraphRelation } from "@/lib/wiki-graph"
 import { openPageObject } from "@/lib/open-wiki-path"
 import { GRAPH_NODE_TYPES, matterStateInWords, nodeTypeName, relationStateInWords } from "@/lib/graph-words"
-import { findSurprisingConnections, detectKnowledgeGaps, researchSeedForKnowledgeGap, type SurprisingConnection, type KnowledgeGap } from "@/lib/graph-insights"
+import { findSurprisingConnections, detectKnowledgeGaps, researchNodeForKnowledgeGap, researchSeedForKnowledgeGap, type SurprisingConnection, type KnowledgeGap } from "@/lib/graph-insights"
+import type { ResearchTarget } from "@/lib/deep-research"
 import { queueResearch } from "@/lib/deep-research"
 import { optimizeResearchTopic } from "@/lib/optimize-research-topic"
 import { groundedFallbackResearchQuery } from "@/lib/research-query-grounding"
-import { normalizePath } from "@/lib/path-utils"
 import { applyGraphFilters, hasActiveGraphFilters, type GraphFilterState } from "@/lib/graph-filters"
 import { applyGraphSearch } from "@/lib/graph-search"
 import { HUB_LINK_SHARE, focusLabel, hubLabelThreshold, resolveFocus, shortenLabel, type NodeFocus } from "@/lib/graph-labels"
@@ -810,6 +810,8 @@ export function GraphView() {
     topic: string
     queries: string[]
     dismissKey?: string
+    /** The person, organization or matter of the gap: the research is kept of it (P-236). */
+    target?: ResearchTarget
   } | null>(null)
   const lastLoadedVersion = useRef(-1)
   const graphLoadRequest = useRef(0)
@@ -907,13 +909,19 @@ export function GraphView() {
 
   const handleResearchClick = useCallback(async (gap: KnowledgeGap, dismissKey?: string) => {
     const store = useWikiStore.getState()
-    if (!store.project) return
     const token = researchDialogTokenRef.current + 1
     researchDialogTokenRef.current = token
     const { term: gapTerm, context: gapContext } = researchSeedForKnowledgeGap(gap, nodes)
+    // A research from a node of a person, organization or matter is kept of
+    // that object; of a document or a group of nodes, it is a loose one.
+    const node = researchNodeForKnowledgeGap(gap, nodes)
+    const object = node ? objectOfNode(node) : null
+    const target: ResearchTarget | undefined = node && object && (object.kind === "entity" || object.kind === "matter")
+      ? { objectId: object.objectId, name: node.label }
+      : undefined
 
     // Show loading state
-    setResearchDialog({ loading: true, topic: "", queries: [], dismissKey })
+    setResearchDialog({ loading: true, topic: "", queries: [], dismissKey, target })
 
     try {
       // The overview of the archive, from the base, for context.
@@ -929,7 +937,7 @@ export function GraphView() {
         "",
       )
       if (researchDialogTokenRef.current !== token) return
-      setResearchDialog({ loading: false, topic: result.topic, queries: result.searchQueries, dismissKey })
+      setResearchDialog({ loading: false, topic: result.topic, queries: result.searchQueries, dismissKey, target })
     } catch {
       if (researchDialogTokenRef.current !== token) return
       setResearchDialog({
@@ -937,6 +945,7 @@ export function GraphView() {
         topic: gapTerm,
         queries: [groundedFallbackResearchQuery(gapTerm, gapContext)],
         dismissKey,
+        target,
       })
     }
   }, [nodes])
@@ -944,13 +953,11 @@ export function GraphView() {
   const handleResearchConfirm = useCallback(() => {
     if (!researchDialog) return
     const store = useWikiStore.getState()
-    if (!store.project) return
     queueResearch(
-      normalizePath(store.project.path),
       researchDialog.topic,
       store.llmConfig,
       store.searchApiConfig,
-      researchDialog.queries,
+      { searchQueries: researchDialog.queries, target: researchDialog.target },
     )
     if (researchDialog.dismissKey) {
       setDismissedInsights((prev) => new Set([...prev, researchDialog.dismissKey!]))
@@ -1824,6 +1831,11 @@ export function GraphView() {
                     }
                   />
                 </div>
+                <p className="mb-3 text-xs text-muted-foreground">
+                  {researchDialog.target
+                    ? `Se guarda en la página de ${researchDialog.target.name}, aparte de lo que dicen los documentos.`
+                    : "Se guarda como investigación suelta, en el panel de investigación."}
+                </p>
                 <div className="mb-4">
                   <label className="text-xs font-medium text-muted-foreground mb-1 block">{TEXT.searchQueries}</label>
                   <div className="flex flex-col gap-1.5">

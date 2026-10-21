@@ -1786,53 +1786,9 @@ struct EmbedPageRequest {
     force: bool,
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct WritePageRequest {
-    path: String,
-    content: String,
-    #[serde(default)]
-    allow_overwrite: bool,
-}
-
-fn handle_write_page(app: &AppHandle, project_id: &str, body: &str) -> ApiResponse {
-    let project = match resolve_project(app, project_id) {
-        Ok(project) => project,
-        Err(e) => return err(404, e),
-    };
-    let req: WritePageRequest = match serde_json::from_str(body) {
-        Ok(req) => req,
-        Err(e) => return err(400, format!("Invalid JSON: {e}")),
-    };
-    if req.path.trim().is_empty() {
-        return err(400, "path is required");
-    }
-    match agent::tools::write_wiki_page_verified(
-        &project.path,
-        &req.path,
-        &req.content,
-        req.allow_overwrite,
-    ) {
-        Ok(result) => ok(json!({
-            "ok": true,
-            "projectId": project.id,
-            "result": result,
-        })),
-        Err(error) => {
-            let lower = error.to_ascii_lowercase();
-            let status = if lower.contains("without allowoverwrite") {
-                409
-            } else if lower.contains("path")
-                || lower.contains("markdown file")
-                || lower.contains("too large")
-            {
-                400
-            } else {
-                500
-            };
-            err(status, error)
-        }
-    }
+fn handle_write_page(_app: &AppHandle, _project_id: &str, _body: &str) -> ApiResponse {
+    // The wiki's files are retired: pages live in the base (D-413).
+    err(410, "Writing wiki pages was retired: the pages live in the document base")
 }
 
 struct PageEmbedSlot;
@@ -2004,7 +1960,8 @@ fn prepare_chat(
         runtime_config.llm,
         runtime_config.web_search,
         runtime_config.anytxt,
-    );
+    )
+    .with_base(crate::docbase::bridge::shared_base());
     let user_message_for_session = req.message.clone();
     let persist_session = req.persist_session;
     let session_id = req.session_id.clone().unwrap_or_default();

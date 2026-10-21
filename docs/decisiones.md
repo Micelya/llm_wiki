@@ -356,6 +356,9 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-410 | 21 oct | Grafo | El grafo muestra los objetos de la base, con o sin página, y cada nodo abre su pantalla | en revisión |
 | D-411 | 21 oct | Grafo | Relevancia, comunidades y análisis salen de las relaciones de la base, con textos del vocabulario | en revisión |
 | D-412 | 21 oct | Interfaz | Los textos del grafo se escriben en español, fuera de los paquetes de traducción | en revisión |
+| D-413 | 21 oct | Chat | El chat lee y guarda todo en la base: buscar, leer un objeto, guardar una consulta, pasajes y relaciones | en revisión |
+| D-414 | 21 oct | Investigación | La investigación en internet se guarda en la base, de una persona, organización o asunto o suelta, con sus fuentes citadas | en revisión |
+| D-415 | 21 oct | Chat | El historial y las preferencias del chat viven en la carpeta de datos de la app, con una copia única desde el proyecto general | en revisión |
 
 ---
 
@@ -4643,4 +4646,25 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Fecha:** 21 oct 2026 · **Tema:** Interfaz · **Estado:** en revisión (agente sin consulta, P-066)
 - **El problema:** la pantalla del grafo era la última de la base con sus textos en los paquetes de traducción heredados, que la muestran en inglés.
 - **Qué se decidió y por qué:** sus textos se escriben en español en la pantalla, como en las demás de la base, con los términos del dominio del vocabulario; la sección `graph` sale de los cuatro paquetes.
+- **Quién decidió:** agente sin consulta.
+
+### D-413 · El chat lee y guarda todo en la base: buscar, leer un objeto, guardar una consulta, pasajes y relaciones
+
+- **Fecha:** 21 oct 2026 · **Tema:** Chat · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** las herramientas del agente del chat buscaban y leían páginas de `wiki/`, buscaban texto en `raw/sources`, armaban el grafo con los enlaces de los archivos, tomaban el contexto de `overview.md` y `schema.md` y guardaban respuestas como páginas de `wiki/queries`; el chat con proveedores de línea de comandos leía esos archivos y las referencias abrían el lector de archivos.
+- **Qué se decidió y por qué:** herramientas sobre la base, con nombres nuevos: `base.search` (los documentos, personas, organizaciones y asuntos que encuentra la búsqueda de la base, cada uno con su ruta lógica y el pasaje), `base.read` (el artículo de un objeto por su id, su ruta lógica o un enlace), `base.save_query` (una consulta guardada en la base, en lugar de escribir una página), `source.search` (pasajes del texto de los documentos) y `graph.search` (relaciones del grafo de la base). El contexto de cada turno es el resumen general de la base; no hay esquema. El proveedor de línea de comandos recibe el texto de las páginas desde la base (`docbase_knowledge_page_text`). Las referencias y los `[[enlaces]]` de una respuesta abren la pantalla de lo que nombran. «Guardar consulta» guarda pregunta, respuesta y lo que cita; la lista «Consultas guardadas» del chat las abre y las borra. La escritura de páginas de la API local responde «retirada» (sale con la API, D-400). Los textos nuevos van en español en la pantalla, como D-412.
+- **Quién decidió:** agente sin consulta.
+
+### D-414 · La investigación en internet se guarda en la base, de una persona, organización o asunto o suelta, con sus fuentes citadas
+
+- **Fecha:** 21 oct 2026 · **Tema:** Investigación · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la investigación escribía archivos en `.llm-wiki/research/` o `wiki/queries`, leía `wiki/index.md` para enlazar páginas y exigía un proyecto abierto; D-397 pide lanzarla desde una ficha y guardarla en la base, aparte de lo que dicen los documentos.
+- **Qué se decidió y por qué:** comandos sobre `knowledge_research` (guardar, listar de un objeto, listar sueltas, borrar). La página de persona u organización (pestaña Artículo) y la de asunto tienen la sección «Investigación en internet»: tema propuesto con su nombre y editable, lo que está en curso, y cada investigación con su texto y sus fuentes, para abrir y borrar. El panel general guarda sin ficha y lista las sueltas. Desde el grafo, la investigación de un hueco se guarda del objeto de su nodo cuando es una persona, organización o asunto; si no, suelta (P-236). La consigna dice de quién es y que se presenta aparte de los documentos; ya no recibe el índice del wiki. Se guardan solo las fuentes que la síntesis cita, con su número. Nada de una investigación entra en el registro, las páginas ni el grafo.
+- **Quién decidió:** agente sin consulta.
+
+### D-415 · El historial y las preferencias del chat viven en la carpeta de datos de la app, con una copia única desde el proyecto general
+
+- **Fecha:** 21 oct 2026 · **Tema:** Chat · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** las conversaciones y las preferencias del chat se guardaban en `<proyecto>/.llm-wiki/`, que se borra con la carpeta del wiki (D-396), y el chat guardaba además las sesiones del agente en la misma carpeta.
+- **Qué se decidió y por qué:** van a `chat/` en la carpeta de datos de la app, con la misma forma (`conversations.json`, `chats/<id>.json`, `chat-preferences.json`). La primera vez se copian desde el `.llm-wiki/` del proyecto general, si existe: una sola vez por base (`chat-files-copied` en `docbase_setting`), sin reemplazar lo que ya esté ni borrar nada del origen. El chat de la app ya no pide al agente guardar su sesión en la carpeta del proyecto (lleva su propio historial). Medido con la copia de la carpeta del wiki: todos sus archivos del chat quedan copiados (W5-medicion.txt, fuera del repositorio).
 - **Quién decidió:** agente sin consulta.

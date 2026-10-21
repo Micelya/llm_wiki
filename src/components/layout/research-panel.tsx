@@ -11,9 +11,9 @@ import {
 import { Button } from "@/components/ui/button"
 import { hasActiveResearchRerun, useResearchStore, type ResearchTask } from "@/stores/research-store"
 import { useWikiStore } from "@/stores/wiki-store"
-import { readFile } from "@/commands/fs"
 import { queueResearch, queueResearchBatch } from "@/lib/deep-research"
-import { normalizePath } from "@/lib/path-utils"
+import { openPageObject } from "@/lib/open-wiki-path"
+import { LooseResearchList } from "@/components/knowledge/research-section"
 import { hasConfiguredDeepResearchSources } from "@/lib/web-search"
 import { isImeComposing } from "@/lib/keyboard-utils"
 import { detectLanguage } from "@/lib/detect-language"
@@ -28,10 +28,11 @@ export function ResearchPanel() {
   const tasks = useResearchStore((s) => s.tasks)
   const removeTask = useResearchStore((s) => s.removeTask)
   const setPanelOpen = useResearchStore((s) => s.setPanelOpen)
-  const project = useWikiStore((s) => s.project)
   const llmConfig = useWikiStore((s) => s.llmConfig)
   const searchApiConfig = useWikiStore((s) => s.searchApiConfig)
   const [inputValue, setInputValue] = useState("")
+  // A loose research just saved, to show it open in the list of the base.
+  const [openSavedId, setOpenSavedId] = useState<number | null>(null)
 
   const running = tasks.filter((t) => ["searching", "synthesizing", "saving"].includes(t.status))
   const queued = tasks.filter((t) => t.status === "queued")
@@ -39,29 +40,30 @@ export function ResearchPanel() {
 
   async function handleStartResearch() {
     const topic = inputValue.trim()
-    if (!topic || !project) return
+    if (!topic) return
     if (!hasConfiguredDeepResearchSources(searchApiConfig)) {
       await appDialog.alert({ message: t("research.notConfigured") })
       return
     }
-    queueResearch(normalizePath(project.path), topic, llmConfig, searchApiConfig)
+    // From the panel, a loose research: kept in the base of no one (D-414).
+    queueResearch(topic, llmConfig, searchApiConfig)
     setInputValue("")
   }
 
   async function handleRetryResearch(task: ResearchTask) {
-    if (!project) return
     if (hasActiveResearchRerun(useResearchStore.getState().tasks, task.id)) return
     if (!hasConfiguredDeepResearchSources(searchApiConfig)) {
       await appDialog.alert({ message: t("research.notConfigured") })
       return
     }
     queueResearchBatch(
-      normalizePath(project.path),
       [{
         topic: task.topic,
         searchQueries: task.searchQueries,
         sourceReviewId: task.sourceReviewId,
         rerunOfTaskId: task.id,
+        objectId: task.objectId,
+        objectName: task.objectName,
       }],
       llmConfig,
       searchApiConfig,
@@ -107,6 +109,7 @@ export function ResearchPanel() {
       </div>
 
       <div className="flex-1 overflow-y-auto">
+        {tasks.length === 0 && <LooseResearchList openId={openSavedId} />}
         {tasks.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 p-8 text-center text-xs text-muted-foreground">
             <Search className="h-8 w-8 opacity-20" />
@@ -128,8 +131,9 @@ export function ResearchPanel() {
               <ResearchTaskCard key={task.id} task={task} onRemove={removeTask} onRetry={handleRetryResearch} rerunPending={hasActiveResearchRerun(tasks, task.id)} />
             ))}
             {done.map((task) => (
-              <ResearchTaskCard key={task.id} task={task} onRemove={removeTask} onRetry={handleRetryResearch} rerunPending={hasActiveResearchRerun(tasks, task.id)} />
+              <ResearchTaskCard key={task.id} task={task} onRemove={removeTask} onRetry={handleRetryResearch} rerunPending={hasActiveResearchRerun(tasks, task.id)} onOpenLoose={setOpenSavedId} />
             ))}
+            <LooseResearchList openId={openSavedId} />
           </div>
         )}
       </div>
@@ -251,18 +255,18 @@ function ResearchTaskCard({
   onRemove,
   onRetry,
   rerunPending,
+  onOpenLoose,
 }: {
   task: ResearchTask
   onRemove: (id: string) => void
   onRetry: (task: ResearchTask) => void
   rerunPending: boolean
+  onOpenLoose?: (id: number) => void
 }) {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(
     task.status === "synthesizing" || task.status === "searching"
   )
-  const openFileInPreview = useWikiStore((s) => s.openFileInPreview)
-  const project = useWikiStore((s) => s.project)
 
   const statusIcon = {
     queued: <div className="h-3 w-3 rounded-full border-2 border-muted-foreground" />,
@@ -278,19 +282,19 @@ function ResearchTaskCard({
     searching: t("research.status.searching"),
     synthesizing: t("research.status.synthesizing"),
     saving: t("research.status.saving"),
-    done: task.savedPath ? t("research.status.saved") : t("research.status.done"),
+    done: task.savedId !== null ? t("research.status.saved") : t("research.status.done"),
     error: t("research.status.failed"),
   }[task.status]
 
-  async function handleOpenSaved() {
-    if (!project || !task.savedPath) return
-    const path = `${normalizePath(project.path)}/${task.savedPath}`
-    try {
-      const content = await readFile(path)
-      openFileInPreview(path, content)
-    } catch {
-      // ignore
+  /** A saved research opens where it is kept: the screen of its object, or the list of loose ones. */
+  function handleOpenSaved() {
+    if (task.savedId === null) return
+    const kind = task.objectId?.startsWith("mat-") ? "matter" : task.objectId?.startsWith("ent-") ? "entity" : null
+    if (task.objectId && kind) {
+      openPageObject({ objectId: task.objectId, kind, path: "", contentId: null, locationId: null })
+      return
     }
+    onOpenLoose?.(task.savedId)
   }
 
   return (
@@ -307,6 +311,7 @@ function ResearchTaskCard({
         )}
         {statusIcon}
         <span className="flex-1 truncate font-medium">{task.topic}</span>
+        {task.objectName && <span className="shrink-0 truncate text-muted-foreground">· {task.objectName}</span>}
         <span className="shrink-0 text-muted-foreground">{statusText}</span>
       </button>
 
@@ -353,7 +358,7 @@ function ResearchTaskCard({
 
           {/* Actions */}
           <div className="flex items-center gap-1.5 mt-2">
-            {task.savedPath && (
+            {task.savedId !== null && (
               <Button variant="outline" size="sm" className="h-6 text-[11px] gap-1" onClick={handleOpenSaved}>
                 <FileText className="h-3 w-3" />
                 {t("research.open")}

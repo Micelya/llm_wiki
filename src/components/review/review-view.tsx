@@ -116,14 +116,10 @@ export function ReviewView() {
         const llmConfig = useWikiStore.getState().llmConfig
         // Use pre-generated search queries if available, otherwise fall back to title
         const topic = item.title.replace(/^(Save to Wiki|Create|Research)[:\s]*/i, "").trim() || item.description.split("\n")[0]
-        queueResearch(
-          pp,
-          topic,
-          llmConfig,
-          searchConfig,
-          reviewResearchQueries(item, topic),
-          id,
-        )
+        queueResearch(topic, llmConfig, searchConfig, {
+          searchQueries: reviewResearchQueries(item, topic),
+          sourceReviewId: id,
+        })
       } else {
         resolveItem(id, action)
       }
@@ -232,14 +228,10 @@ export function ReviewView() {
       if (item) {
         const llmConfig = useWikiStore.getState().llmConfig
         const topic = action.replace(/^research\s*/i, "").trim() || item.description.split("\n")[0]
-        queueResearch(
-          pp,
-          topic,
-          llmConfig,
-          searchConfig,
-          reviewResearchQueries({ ...item, searchQueries: undefined }, topic),
-          id,
-        )
+        queueResearch(topic, llmConfig, searchConfig, {
+          searchQueries: reviewResearchQueries({ ...item, searchQueries: undefined }, topic),
+          sourceReviewId: id,
+        })
       } else {
         resolveItem(id, action)
       }
@@ -392,7 +384,6 @@ export function ReviewView() {
       return
     }
     queueResearchBatch(
-      normalizePath(project.path),
       eligibleItems.map((item) => ({
         topic: reviewResearchTopic(item),
         searchQueries: reviewResearchQueries(item),

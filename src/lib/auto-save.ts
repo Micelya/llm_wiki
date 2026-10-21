@@ -38,7 +38,7 @@ export async function flushAndSuspendAutoSave(): Promise<void> {
   await Promise.allSettled([
     saveReviewItems(projectPath, review),
     saveLintItems(projectPath, lint),
-    saveChatPreferences(projectPath, {
+    saveChatPreferences({
       useWebSearch: chat.useWebSearch,
       useAnyTxtSearch: chat.useAnyTxtSearch,
       agentMode: chat.agentMode,
@@ -48,7 +48,7 @@ export async function flushAndSuspendAutoSave(): Promise<void> {
     }),
     chat.isStreaming
       ? Promise.resolve()
-      : saveChatHistory(projectPath, chat.conversations, chat.messages),
+      : saveChatHistory(chat.conversations, chat.messages),
   ])
 }
 
@@ -114,7 +114,7 @@ export function setupAutoSave(): void {
     chatTimer = setTimeout(() => {
       if (projectPath) {
         Promise.allSettled([
-          saveChatPreferences(projectPath, {
+          saveChatPreferences({
             useWebSearch: state.useWebSearch,
             useAnyTxtSearch: state.useAnyTxtSearch,
             agentMode: state.agentMode,
@@ -122,7 +122,7 @@ export function setupAutoSave(): void {
             selectedSkills: state.selectedSkills,
             disabledSkills: state.disabledSkills,
           }),
-          saveChatHistory(projectPath, state.conversations, state.messages),
+          saveChatHistory(state.conversations, state.messages),
         ]).catch(() => {})
       }
     }, 2000)

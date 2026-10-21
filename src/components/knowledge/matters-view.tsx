@@ -26,6 +26,7 @@ import { ArticleText, usePageWords } from "./article-text"
 import { articleBody, articleSection, matterActions, rolesInWords } from "./knowledge"
 import { DocumentPicker, NameForm } from "./matter-edit"
 import { NotesEditor } from "./notes-editor"
+import { ResearchSection } from "./research-section"
 import { Section, useAction, useOpenDocument, useOpenEntity } from "./shared"
 
 /**
@@ -227,6 +228,7 @@ function MatterDetailView({ id, onBack }: { id: string; onBack: () => void }) {
             <Parties matter={detail} />
             <WhatTheDocumentsSay id={detail.id} />
             <NotesEditor key={detail.id} objectId={detail.id} />
+            <ResearchSection key={`research-${detail.id}`} objectId={detail.id} name={detail.name} />
             <Decisions matter={detail} run={action.run} busy={action.busy} />
           </div>
         )}

@@ -2009,10 +2009,10 @@
       "titulo": "Investigar desde el grafo sobre la ficha del nodo",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "El análisis del grafo ofrece «Investigar en internet» para un hueco o un punto clave, pero todavía lanza la investigación heredada con el proyecto abierto (queueResearch). Con la investigación por ficha (W5), lanzarla sobre el objeto del nodo (persona, organización o asunto) y guardarla en la base asociada a él; sin proyecto.",
+      "estado": "hecho",
+      "detalle": "Hecho en W5 (D-414): la investigación de un hueco del grafo se guarda en la base, del objeto de su nodo cuando es una persona, organización o asunto; si no, suelta. Ya no pide proyecto.",
       "depende_de": ["P-228"],
-      "referencia": "D-397, D-411; src/components/graph/graph-view.tsx (handleResearchClick)",
+      "referencia": "D-397, D-411, D-414; src/components/graph/graph-view.tsx (handleResearchClick)",
       "creado": "2026-10-21",
       "actualizado": "2026-10-21"
     },
@@ -2025,6 +2025,34 @@
       "detalle": "El grafo suma ahora las personas y organizaciones sin página: muchos más nodos con una sola relación. Mirar con los datos reales si se lee: nombres de las aristas sobre el lienzo, el verde claro de un asunto propuesto frente al de uno confirmado, los nodos sin relaciones y si conviene ocultar por defecto a quienes aparecen en un solo documento.",
       "depende_de": [],
       "referencia": "D-410, D-411",
+      "creado": "2026-10-21",
+      "actualizado": "2026-10-21"
+    },
+    {
+      "id": "P-239",
+      "titulo": "El agente del chat sin proyecto: carpeta de trabajo, habilidades, sesiones y guardado automático",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "El chat ya lee y guarda todo en la base (D-413) y su historial está en la carpeta de datos (D-415), pero el comando del agente todavía resuelve un proyecto para su carpeta de trabajo, las habilidades de `.llm-wiki/skills` y las sesiones del agente que guarda la API; y el guardado automático del chat todavía espera un proyecto abierto. Al quitar los proyectos (W6), darles un lugar en la carpeta de datos.",
+      "depende_de": [
+        "P-228"
+      ],
+      "referencia": "D-413, D-415; src-tauri/src/lib.rs (resolve_agent_project), src/lib/auto-save.ts",
+      "creado": "2026-10-21",
+      "actualizado": "2026-10-21"
+    },
+    {
+      "id": "P-240",
+      "titulo": "Probar una investigación desde una ficha con el buscador y el modelo reales",
+      "tipo": "verificacion",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "detalle": "Las pruebas de W5 usan el buscador y el modelo simulados. Con los datos reales (W7, si el cupo lo permite): una investigación desde una persona u organización queda en su sección con sus fuentes citadas, aparte de lo que dicen los documentos, y se puede abrir y borrar.",
+      "depende_de": [
+        "P-228"
+      ],
+      "referencia": "D-397, D-414",
       "creado": "2026-10-21",
       "actualizado": "2026-10-21"
     }

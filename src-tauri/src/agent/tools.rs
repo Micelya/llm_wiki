@@ -1,14 +1,14 @@
 use std::collections::hash_map::DefaultHasher;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::fs;
 use std::fs::OpenOptions;
 use std::future::Future;
 use std::hash::{Hash, Hasher};
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::io::{Read, Seek, SeekFrom};
 use std::path::{Component, Path, PathBuf};
 use std::pin::Pin;
 use std::process::Stdio;
-use std::sync::{Mutex, OnceLock};
+use std::sync::Arc;
 use std::time::SystemTime;
 
 use serde::{Deserialize, Serialize};
@@ -20,25 +20,21 @@ use tokio::time::{timeout, Duration};
 use walkdir::WalkDir;
 
 use crate::commands::external_search::file_url_for_path;
-use crate::commands::search::{self, SearchEmbeddingConfig};
+use crate::commands::search::SearchEmbeddingConfig;
+use crate::docbase::DocBase;
 
-use super::types::{AgentKnowledgeContext, AgentReference, AgentVersionSummary};
+use super::base_tools;
+use super::types::AgentReference;
 use super::workspace::{agent_workspace_path, AGENT_WORKSPACE_DIR};
 
 // Tool I/O limits are backend security boundaries. Do not relax them only in
 // the UI: API and MCP callers can invoke the same tools without going through
 // React components.
-const MAX_READ_PAGE_BYTES: usize = 2 * 1024 * 1024;
-const MAX_WRITE_PAGE_BYTES: usize = 2 * 1024 * 1024;
 const MAX_WORKSPACE_WRITE_BYTES: usize = 2 * 1024 * 1024;
 // Rollback snapshots are sent to the trusted desktop UI only for the current
 // process lifetime. Bound them independently from write size so a large Agent
 // artifact cannot multiply IPC and in-memory chat costs merely to enable Undo.
 const MAX_WORKSPACE_ROLLBACK_BYTES: u64 = 512 * 1024;
-const MAX_SOURCE_SEARCH_FILES: usize = 10_000;
-const MAX_SOURCE_SNIPPET_CHARS: usize = 500;
-const MAX_GRAPH_SEARCH_FILES: usize = 10_000;
-const MAX_KNOWLEDGE_CONTEXT_ITEMS: usize = 20;
 const WEB_SEARCH_TIMEOUT_SECS: u64 = 30;
 const SHELL_EXEC_TIMEOUT_SECS: u64 = 30;
 const MAX_SHELL_COMMAND_CHARS: usize = 4_000;
@@ -48,7 +44,6 @@ const SHELL_OUTPUT_DRAIN_TIMEOUT_SECS: u64 = 1;
 const DEFAULT_ANYTXT_ENDPOINT: &str = "http://127.0.0.1:9920";
 const DEFAULT_ANYTXT_LIMIT: usize = 20;
 const ANYTXT_LAST_MODIFY_END: i64 = 2_147_483_647;
-static WIKI_WRITE_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -95,6 +90,11 @@ pub struct BuiltinToolRegistry;
 #[derive(Clone)]
 pub struct ToolContext<'a> {
     pub project_path: &'a str,
+    /// The base every reading tool reads and the saved queries live in.
+    pub base: Option<Arc<DocBase>>,
+    /// The embeddings of the old wiki's pages: no tool reads them now (W6
+    /// retires them).
+    #[allow(dead_code)]
     pub embedding_config: Option<SearchEmbeddingConfig>,
     pub web_search_config: Option<WebSearchConfig>,
     pub anytxt_config: Option<AnyTxtConfig>,
@@ -113,69 +113,54 @@ impl ToolRegistry for BuiltinToolRegistry {
     ) -> Pin<Box<dyn Future<Output = Result<Value, String>> + Send + 'a>> {
         Box::pin(async move {
             match name {
-                "wiki.write_page" => {
-                    let path = input
-                        .get("path")
+                "base.save_query" => {
+                    let base = tool_base(&context, "base.save_query")?;
+                    let title = input
+                        .get("title")
+                        .or_else(|| input.get("path"))
                         .and_then(Value::as_str)
-                        .ok_or_else(|| "wiki.write_page requires path".to_string())?;
+                        .map(str::trim)
+                        .filter(|title| !title.is_empty())
+                        .ok_or_else(|| "base.save_query requires title".to_string())?;
                     let content = input
                         .get("content")
                         .and_then(Value::as_str)
-                        .ok_or_else(|| "wiki.write_page requires content".to_string())?;
-                    let allow_overwrite = input
-                        .get("allowOverwrite")
-                        .or_else(|| input.get("allow_overwrite"))
-                        .and_then(Value::as_bool)
-                        .unwrap_or(false);
-                    serde_json::to_value(write_wiki_page_with_activity(
-                        context.project_path,
-                        path,
-                        content,
-                        allow_overwrite,
-                    )?)
-                    .map_err(|err| format!("Failed to serialize wiki.write_page result: {err}"))
+                        .ok_or_else(|| "base.save_query requires content".to_string())?;
+                    let question = input.get("question").and_then(Value::as_str).unwrap_or_default();
+                    let refs: Vec<String> = input
+                        .get("refs")
+                        .and_then(Value::as_array)
+                        .map(|refs| refs.iter().filter_map(Value::as_str).map(str::to_string).collect())
+                        .unwrap_or_default();
+                    serde_json::to_value(base_tools::base_save_query(&base, title, content, question, &refs)?)
+                        .map_err(|err| format!("Failed to serialize base.save_query result: {err}"))
                 }
-                "wiki.search" => {
-                    let query = tool_query(&input, "wiki.search")?;
+                "base.search" => {
+                    let query = tool_query(&input, "base.search")?.to_string();
                     let top_k = tool_top_k(&input);
                     let include_content = input
                         .get("includeContent")
                         .and_then(Value::as_bool)
                         .unwrap_or(false);
-                    serde_json::to_value(
-                        run_wiki_search(
-                            context.project_path.to_string(),
-                            query,
-                            top_k,
-                            include_content,
-                            context.embedding_config,
-                        )
-                        .await?,
-                    )
-                    .map_err(|err| format!("Failed to serialize wiki.search result: {err}"))
+                    let base = tool_base(&context, "base.search")?;
+                    let output = tokio::task::spawn_blocking(move || {
+                        base_tools::base_search(&base, &query, top_k, include_content)
+                    })
+                    .await
+                    .map_err(|err| format!("base.search worker failed: {err}"))??;
+                    serde_json::to_value(output)
+                        .map_err(|err| format!("Failed to serialize base.search result: {err}"))
                 }
-                "wiki.read_page" => {
-                    let path = input
+                "base.read" => {
+                    let reference = input
                         .get("path")
+                        .or_else(|| input.get("id"))
                         .and_then(Value::as_str)
                         .map(str::trim)
                         .filter(|path| !path.is_empty())
-                        .ok_or_else(|| "wiki.read_page requires path".to_string())?;
-                    let content = read_wiki_page(context.project_path, path)?;
-                    let normalized_path = normalize_rel_path(path);
-                    let mut knowledge_context = build_knowledge_context_index(context.project_path)
-                        .remove(&normalized_path);
-                    attach_latest_version(
-                        context.project_path,
-                        &normalized_path,
-                        &mut knowledge_context,
-                    );
-                    serde_json::to_value(json!({
-                        "path": path,
-                        "content": content,
-                        "knowledgeContext": knowledge_context,
-                    }))
-                    .map_err(|err| format!("Failed to serialize wiki.read_page result: {err}"))
+                        .ok_or_else(|| "base.read requires path".to_string())?;
+                    let base = tool_base(&context, "base.read")?;
+                    base_tools::base_read(&base, reference)
                 }
                 "workspace.write_file" => {
                     let path = input
@@ -211,13 +196,10 @@ impl ToolRegistry for BuiltinToolRegistry {
                 }
                 "source.search" => {
                     let query = tool_query(&input, "source.search")?.to_string();
-                    let project_path = context.project_path.to_string();
                     let top_k = tool_top_k(&input);
-                    // `search_sources` walks the filesystem synchronously.
-                    // Keep it off Tokio worker threads so a large source tree
-                    // cannot stall unrelated Agent/API work.
+                    let base = tool_base(&context, "source.search")?;
                     let references = tokio::task::spawn_blocking(move || {
-                        search_sources(&project_path, &query, top_k)
+                        base_tools::base_source_search(&base, &query, top_k)
                     })
                     .await
                     .map_err(|err| format!("source.search worker failed: {err}"))??;
@@ -226,13 +208,10 @@ impl ToolRegistry for BuiltinToolRegistry {
                 }
                 "graph.search" => {
                     let query = tool_query(&input, "graph.search")?.to_string();
-                    let project_path = context.project_path.to_string();
                     let top_k = tool_top_k(&input);
-                    // Graph search also performs synchronous markdown walks.
-                    // Run it in the blocking pool for the same reason as
-                    // `source.search`.
+                    let base = tool_base(&context, "graph.search")?;
                     let references = tokio::task::spawn_blocking(move || {
-                        search_graph(&project_path, &query, top_k)
+                        base_tools::base_graph_search(&base, &query, top_k)
                     })
                     .await
                     .map_err(|err| format!("graph.search worker failed: {err}"))??;
@@ -285,15 +264,7 @@ impl ToolRegistry for BuiltinToolRegistry {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct WikiSearchToolOutput {
-    pub mode: String,
-    pub token_hits: usize,
-    pub vector_hits: usize,
-    pub graph_hits: usize,
-    pub references: Vec<AgentReference>,
-}
+pub use super::base_tools::{BaseSearchToolOutput, SavedQueryOutput};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -316,27 +287,6 @@ pub struct WorkspaceWriteOutput {
     pub existed_before: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub previous_content: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct WikiWriteOutput {
-    #[serde(flatten)]
-    pub reference: AgentReference,
-    #[serde(default)]
-    pub existed_before: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub previous_content: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct VerifiedWikiWriteOutput {
-    pub path: String,
-    pub bytes: usize,
-    pub allow_overwrite: bool,
-    pub verified: bool,
-    pub existed_before: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -433,8 +383,8 @@ impl WebSearchConfig {
 pub fn builtin_tool_specs() -> Vec<ToolSpec> {
     vec![
         ToolSpec {
-            name: "wiki.search".to_string(),
-            description: "Search generated LLM Wiki pages using backend keyword/vector retrieval."
+            name: "base.search".to_string(),
+            description: "Search the document base: returns the documents, people, organizations and matters that match, each with its logical path and the passage found."
                 .to_string(),
             effects: vec![ToolEffect::Read],
             parameters: Some(serde_json::json!({
@@ -447,8 +397,8 @@ pub fn builtin_tool_specs() -> Vec<ToolSpec> {
             })),
         },
         ToolSpec {
-            name: "wiki.read_page".to_string(),
-            description: "Read a project wiki markdown page by project-relative path.".to_string(),
+            name: "base.read".to_string(),
+            description: "Read one object of the document base (document, person, organization or matter) by its id, its logical path or a link name.".to_string(),
             effects: vec![ToolEffect::Read],
             parameters: Some(serde_json::json!({
                 "type": "object",
@@ -459,7 +409,7 @@ pub fn builtin_tool_specs() -> Vec<ToolSpec> {
         ToolSpec {
             name: "source.search".to_string(),
             description:
-                "Search raw source files stored under raw/sources for exact keyword snippets."
+                "Search the text of the documents in the base for exact keyword passages."
                     .to_string(),
             effects: vec![ToolEffect::Read],
             parameters: Some(serde_json::json!({
@@ -487,7 +437,7 @@ pub fn builtin_tool_specs() -> Vec<ToolSpec> {
         },
         ToolSpec {
             name: "graph.search".to_string(),
-            description: "Retrieve graph relationships, neighbors, backlinks, dependencies, and connections between project entities. Use concise entity or concept names rather than a full question."
+            description: "Retrieve the relations the base keeps between people, organizations, documents and matters. Use concise names rather than a full question."
                 .to_string(),
             effects: vec![ToolEffect::Read],
             parameters: Some(serde_json::json!({
@@ -524,32 +474,27 @@ pub fn builtin_tool_specs() -> Vec<ToolSpec> {
                     "query": { "type": "string" },
                     "sources": {
                         "type": "array",
-                        "items": { "enum": ["web", "anytxt", "wiki", "source"] }
+                        "items": { "enum": ["web", "anytxt", "base", "source"] }
                     }
                 },
                 "required": ["query"]
             })),
         },
         ToolSpec {
-            name: "wiki.write_page".to_string(),
+            name: "base.save_query".to_string(),
             description:
-                "Create a Markdown wiki page under wiki/ with project-bound path checks. Existing files require allowOverwrite=true."
+                "Save a question of the chat with its answer in the document base, as a saved query."
                     .to_string(),
             effects: vec![ToolEffect::Write],
             parameters: Some(serde_json::json!({
                 "type": "object",
                 "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "Project-relative path such as wiki/queries/new-page.md"
-                    },
-                    "content": { "type": "string" },
-                    "allowOverwrite": {
-                        "type": "boolean",
-                        "description": "Defaults to false. Set true only when the user explicitly asks to overwrite an existing wiki page."
-                    }
+                    "title": { "type": "string" },
+                    "content": { "type": "string", "description": "The answer, in Markdown." },
+                    "question": { "type": "string" },
+                    "refs": { "type": "array", "items": { "type": "string" } }
                 },
-                "required": ["path", "content"]
+                "required": ["title", "content"]
             })),
         },
         ToolSpec {
@@ -639,6 +584,13 @@ pub fn builtin_tool_specs() -> Vec<ToolSpec> {
     ]
 }
 
+fn tool_base(context: &ToolContext<'_>, tool: &str) -> Result<Arc<DocBase>, String> {
+    context
+        .base
+        .clone()
+        .ok_or_else(|| format!("{tool}: the document base is not open"))
+}
+
 fn tool_query<'a>(input: &'a Value, tool: &str) -> Result<&'a str, String> {
     input
         .get("query")
@@ -656,175 +608,6 @@ fn tool_top_k(input: &Value) -> usize {
         .map(|value| value as usize)
         .unwrap_or(5)
         .clamp(1, 10)
-}
-
-#[cfg(test)]
-pub fn write_wiki_page_with_options(
-    project_path: &str,
-    rel_path: &str,
-    content: &str,
-    allow_overwrite: bool,
-) -> Result<AgentReference, String> {
-    Ok(write_wiki_page_with_activity(project_path, rel_path, content, allow_overwrite)?.reference)
-}
-
-pub fn write_wiki_page_verified(
-    project_path: &str,
-    rel_path: &str,
-    content: &str,
-    allow_overwrite: bool,
-) -> Result<VerifiedWikiWriteOutput, String> {
-    let output = write_wiki_page_with_activity(project_path, rel_path, content, allow_overwrite)?;
-    Ok(VerifiedWikiWriteOutput {
-        path: output.reference.path,
-        bytes: content.len(),
-        allow_overwrite,
-        verified: true,
-        existed_before: output.existed_before,
-    })
-}
-
-fn write_wiki_page_with_activity(
-    project_path: &str,
-    rel_path: &str,
-    content: &str,
-    allow_overwrite: bool,
-) -> Result<WikiWriteOutput, String> {
-    let _write_guard = WIKI_WRITE_LOCK
-        .get_or_init(|| Mutex::new(()))
-        .lock()
-        .map_err(|_| "wiki.write_page lock is unavailable".to_string())?;
-    if content.len() > MAX_WRITE_PAGE_BYTES {
-        return Err("wiki.write_page content is too large".to_string());
-    }
-    let rel = normalize_wiki_write_path(rel_path)?;
-    let path = safe_project_join(project_path, &rel)?;
-    if let Some(parent) = path.parent() {
-        // Check the deepest existing ancestor before creating directories. If a
-        // project already contains a symlink under `wiki/`, this prevents even
-        // empty intermediate directories from being created outside the project.
-        ensure_existing_ancestor_bound(project_path, parent)?;
-        fs::create_dir_all(parent)
-            .map_err(|err| format!("Failed to create wiki page directory: {err}"))?;
-        ensure_project_bound_path(project_path, parent)?;
-    }
-    // Create-only by default. Prompt injection in retrieved context must not be
-    // able to silently truncate an existing wiki page.
-    if path.exists() && !allow_overwrite {
-        return Err(
-            "wiki.write_page refuses to overwrite an existing page without allowOverwrite=true"
-                .to_string(),
-        );
-    }
-    if path
-        .symlink_metadata()
-        .map(|metadata| metadata.file_type().is_symlink())
-        .unwrap_or(false)
-    {
-        return Err("wiki.write_page refuses to overwrite a symlink".to_string());
-    }
-    let existed_before = path.is_file();
-    let previous_bytes = existed_before
-        .then(|| fs::read(&path))
-        .transpose()
-        .map_err(|err| format!("Failed to read existing wiki page before replacement: {err}"))?;
-    let previous_content = workspace_rollback_snapshot(&path);
-    crate::commands::file_history::record_file_version(&path, "baseline", "before.wiki.write_page");
-    atomic_replace_file(&path, content.as_bytes())?;
-    let persisted =
-        fs::read(&path).map_err(|err| format!("Failed to verify persisted wiki page: {err}"))?;
-    if persisted != content.as_bytes() {
-        let rollback = if let Some(previous) = previous_bytes {
-            atomic_replace_file(&path, &previous)
-        } else {
-            fs::remove_file(&path).map_err(|err| format!("Failed to remove unverified page: {err}"))
-        };
-        return Err(match rollback {
-            Ok(()) => "Persisted wiki page did not match the requested content; the previous state was restored".to_string(),
-            Err(err) => format!("Persisted wiki page did not match the requested content, and rollback failed: {err}"),
-        });
-    }
-    crate::commands::file_history::record_file_version(&path, "agent", "wiki.write_page");
-    Ok(WikiWriteOutput {
-        reference: AgentReference {
-            title: extract_markdown_title(content).unwrap_or_else(|| {
-                Path::new(&rel)
-                    .file_stem()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("Wiki page")
-                    .replace('-', " ")
-            }),
-            path: rel.clone(),
-            kind: "wiki".to_string(),
-            snippet: Some(trim_text(&collapse_markdown_preview(content), 500))
-                .filter(|value| !value.trim().is_empty()),
-            score: None,
-            knowledge_context: None,
-        },
-        existed_before,
-        previous_content,
-    })
-}
-
-fn atomic_replace_file(path: &Path, content: &[u8]) -> Result<(), String> {
-    let parent = path
-        .parent()
-        .ok_or_else(|| "Failed to resolve wiki page parent directory".to_string())?;
-    let file_name = path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .ok_or_else(|| "wiki.write_page path must be valid UTF-8".to_string())?;
-    let nonce = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos();
-    let temp = parent.join(format!(
-        ".{file_name}.llm-wiki-{}-{nonce}.tmp",
-        std::process::id()
-    ));
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&temp)
-        .map_err(|err| format!("Failed to create wiki page temp file: {err}"))?;
-    if let Err(err) = file.write_all(content).and_then(|_| file.sync_all()) {
-        let _ = fs::remove_file(&temp);
-        return Err(format!("Failed to write wiki page temp file: {err}"));
-    }
-    drop(file);
-
-    #[cfg(not(windows))]
-    {
-        if let Err(err) = fs::rename(&temp, path) {
-            let _ = fs::remove_file(&temp);
-            return Err(format!("Failed to replace wiki page: {err}"));
-        }
-    }
-
-    #[cfg(windows)]
-    {
-        let backup = parent.join(format!(
-            ".{file_name}.llm-wiki-{}-{nonce}.bak",
-            std::process::id()
-        ));
-        let had_target = path.exists();
-        if had_target {
-            fs::rename(path, &backup)
-                .map_err(|err| format!("Failed to stage existing wiki page: {err}"))?;
-        }
-        if let Err(err) = fs::rename(&temp, path) {
-            if had_target {
-                let _ = fs::rename(&backup, path);
-            }
-            let _ = fs::remove_file(&temp);
-            return Err(format!("Failed to replace wiki page: {err}"));
-        }
-        if had_target {
-            let _ = fs::remove_file(backup);
-        }
-    }
-
-    Ok(())
 }
 
 fn write_workspace_file(
@@ -937,63 +720,6 @@ fn resolve_workspace_write_target(
         ensure_project_bound_path(project_path, parent)?;
     }
     Ok((rel, path))
-}
-
-pub async fn run_wiki_search(
-    project_path: String,
-    query: &str,
-    top_k: usize,
-    include_content: bool,
-    embedding_config: Option<SearchEmbeddingConfig>,
-) -> Result<WikiSearchToolOutput, String> {
-    let query_embedding = search::resolve_query_embedding(query, None, embedding_config).await?;
-    let search = search::search_project_inner(
-        project_path.clone(),
-        query.to_string(),
-        top_k,
-        include_content,
-        query_embedding,
-    )
-    .await?;
-    let project_for_context = project_path.clone();
-    let context_index =
-        tokio::task::spawn_blocking(move || build_knowledge_context_index(&project_for_context))
-            .await
-            .map_err(|err| format!("wiki.search graph context worker failed: {err}"));
-    // Retrieval must remain useful if optional graph enrichment fails. The
-    // search result is the source of truth; context is a bounded enhancement.
-    let mut context_index = context_index.unwrap_or_default();
-    let references = search
-        .results
-        .iter()
-        .map(|result| {
-            let normalized_path = normalize_rel_path(&result.path);
-            let mut knowledge_context = context_index.remove(&normalized_path);
-            if let Some(context) = knowledge_context.as_mut() {
-                context.related_to = result.graph_related_to.clone();
-            }
-            attach_latest_version(&project_path, &normalized_path, &mut knowledge_context);
-            AgentReference {
-                title: result.title.clone(),
-                path: result.path.clone(),
-                kind: if result.graph_related_to.is_empty() {
-                    "wiki".to_string()
-                } else {
-                    "graph".to_string()
-                },
-                snippet: Some(result.snippet.clone()).filter(|s| !s.trim().is_empty()),
-                score: Some(result.score),
-                knowledge_context,
-            }
-        })
-        .collect();
-    Ok(WikiSearchToolOutput {
-        mode: search.mode,
-        token_hits: search.token_hits,
-        vector_hits: search.vector_hits,
-        graph_hits: search.graph_hits,
-        references,
-    })
 }
 
 async fn run_shell_exec(
@@ -2185,494 +1911,6 @@ fn friendly_firecrawl_error(error: &str) -> String {
     }
 }
 
-#[derive(Debug)]
-struct KnowledgePage {
-    path: String,
-    title: String,
-    stem: String,
-    tags: Vec<String>,
-    links: Vec<String>,
-    matches_query: bool,
-    neighbors: Vec<String>,
-}
-
-/// Build one bounded graph/provenance index for a complete retrieval tool
-/// invocation. Never call this once per result: large projects would otherwise
-/// turn top-k retrieval into top-k full filesystem scans.
-fn build_knowledge_context_index(project_path: &str) -> BTreeMap<String, AgentKnowledgeContext> {
-    build_knowledge_graph_snapshot(project_path, None).1
-}
-
-fn build_knowledge_graph_snapshot(
-    project_path: &str,
-    query: Option<&str>,
-) -> (Vec<KnowledgePage>, BTreeMap<String, AgentKnowledgeContext>) {
-    let wiki_root = Path::new(project_path).join("wiki");
-    if !wiki_root.is_dir() {
-        return (Vec::new(), BTreeMap::new());
-    }
-
-    let mut pages = Vec::new();
-    for entry in WalkDir::new(&wiki_root).into_iter().filter_map(Result::ok) {
-        if pages.len() >= MAX_GRAPH_SEARCH_FILES
-            || !entry.file_type().is_file()
-            || entry.path().extension().and_then(|value| value.to_str()) != Some("md")
-        {
-            continue;
-        }
-        let Ok(content) = fs::read_to_string(entry.path()) else {
-            continue;
-        };
-        let path = relative_to_project(project_path, entry.path());
-        if is_hidden_rel(&path) {
-            continue;
-        }
-        let title = search::extract_title(&content, entry.file_name().to_string_lossy().as_ref());
-        let matches_query = query.is_some_and(|query| {
-            let haystack = format!("{title} {path} {content}").to_lowercase();
-            haystack.contains(query)
-                || graph_query_terms(query)
-                    .iter()
-                    .any(|term| haystack.contains(term))
-        });
-        pages.push(KnowledgePage {
-            path,
-            title,
-            stem: entry
-                .path()
-                .file_stem()
-                .and_then(|value| value.to_str())
-                .unwrap_or_default()
-                .to_string(),
-            tags: extract_frontmatter_list(&content, "tags"),
-            links: extract_wikilinks(&content),
-            matches_query,
-            neighbors: Vec::new(),
-        });
-    }
-
-    let mut aliases: BTreeMap<String, String> = BTreeMap::new();
-    for page in &pages {
-        let wiki_relative_path = page.path.strip_prefix("wiki/").unwrap_or(&page.path);
-        for alias in [&page.stem, &page.title, &page.path, wiki_relative_path] {
-            aliases.insert(normalize_wiki_link(alias), page.path.clone());
-        }
-    }
-
-    let mut backlinks: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
-    let mut neighbors: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
-    for page in &pages {
-        for link in &page.links {
-            if let Some(target) = aliases.get(&normalize_wiki_link(link)) {
-                if target != &page.path {
-                    backlinks
-                        .entry(target.clone())
-                        .or_default()
-                        .insert(page.path.clone());
-                    neighbors
-                        .entry(page.path.clone())
-                        .or_default()
-                        .insert(target.clone());
-                    neighbors
-                        .entry(target.clone())
-                        .or_default()
-                        .insert(page.path.clone());
-                }
-            }
-        }
-    }
-
-    for page in &mut pages {
-        page.neighbors = neighbors
-            .remove(&page.path)
-            .unwrap_or_default()
-            .into_iter()
-            .take(MAX_KNOWLEDGE_CONTEXT_ITEMS)
-            .collect();
-    }
-
-    let contexts = pages
-        .iter()
-        .map(|page| {
-            let mut outgoing_links = page.links.clone();
-            outgoing_links.sort();
-            outgoing_links.dedup();
-            let total_outgoing = outgoing_links.len();
-            outgoing_links.truncate(MAX_KNOWLEDGE_CONTEXT_ITEMS);
-            let mut page_backlinks: Vec<String> = backlinks
-                .remove(&page.path)
-                .unwrap_or_default()
-                .into_iter()
-                .collect();
-            let total_backlinks = page_backlinks.len();
-            page_backlinks.truncate(MAX_KNOWLEDGE_CONTEXT_ITEMS);
-            let link_count = total_outgoing + total_backlinks;
-            (
-                page.path.clone(),
-                AgentKnowledgeContext {
-                    related_to: Vec::new(),
-                    tags: page
-                        .tags
-                        .iter()
-                        .cloned()
-                        .take(MAX_KNOWLEDGE_CONTEXT_ITEMS)
-                        .collect(),
-                    outgoing_links,
-                    backlinks: page_backlinks,
-                    link_count,
-                    latest_version: None,
-                },
-            )
-        })
-        .collect();
-    (pages, contexts)
-}
-
-fn attach_latest_version(
-    project_path: &str,
-    relative_path: &str,
-    context: &mut Option<AgentKnowledgeContext>,
-) {
-    let Some(context) = context else {
-        return;
-    };
-    context.latest_version = crate::commands::file_history::latest_file_version(
-        &Path::new(project_path).join(relative_path),
-    )
-    .map(|(timestamp, author, tool)| AgentVersionSummary {
-        timestamp,
-        author,
-        tool,
-    });
-}
-
-fn normalize_wiki_link(value: &str) -> String {
-    value
-        .split('#')
-        .next()
-        .unwrap_or_default()
-        .trim()
-        .trim_end_matches(".md")
-        .replace('\\', "/")
-        .to_lowercase()
-        .replace(' ', "-")
-}
-
-fn graph_query_terms(query: &str) -> Vec<String> {
-    query
-        .split(|character: char| {
-            character.is_whitespace()
-                || matches!(character, ',' | '，' | ';' | '；' | ':' | '：' | '/' | '|')
-        })
-        .map(str::trim)
-        .filter(|term| !term.is_empty())
-        .map(str::to_string)
-        .collect()
-}
-
-fn extract_wikilinks(content: &str) -> Vec<String> {
-    let mut links = Vec::new();
-    let mut rest = content;
-    while let Some(start) = rest.find("[[") {
-        rest = &rest[start + 2..];
-        let Some(end) = rest.find("]]") else {
-            break;
-        };
-        let target = rest[..end].split('|').next().unwrap_or_default().trim();
-        if !target.is_empty() {
-            links.push(target.to_string());
-        }
-        rest = &rest[end + 2..];
-    }
-    links
-}
-
-fn extract_frontmatter_list(content: &str, key: &str) -> Vec<String> {
-    let normalized = content.replace("\r\n", "\n");
-    let Some(rest) = normalized.strip_prefix("---\n") else {
-        return Vec::new();
-    };
-    let Some(end) = rest.find("\n---") else {
-        return Vec::new();
-    };
-    let prefix = format!("{key}:");
-    let lines: Vec<&str> = rest[..end].lines().collect();
-    for (index, line) in lines.iter().enumerate() {
-        let Some(value) = line.trim().strip_prefix(&prefix) else {
-            continue;
-        };
-        let inline = value.trim();
-        if inline.starts_with('[') && inline.ends_with(']') {
-            return inline[1..inline.len() - 1]
-                .split(',')
-                .map(|item| item.trim().trim_matches(['\'', '"']).to_string())
-                .filter(|item| !item.is_empty())
-                .collect();
-        }
-        let mut values = Vec::new();
-        for next in lines.iter().skip(index + 1) {
-            let trimmed = next.trim();
-            let Some(item) = trimmed.strip_prefix('-') else {
-                break;
-            };
-            let item = item.trim().trim_matches(['\'', '"']);
-            if !item.is_empty() {
-                values.push(item.to_string());
-            }
-        }
-        return values;
-    }
-    Vec::new()
-}
-
-pub fn read_wiki_page(project_path: &str, rel_path: &str) -> Result<String, String> {
-    let rel = normalize_rel_path(rel_path);
-    if !is_public_read_rel(&rel) || !rel.to_ascii_lowercase().starts_with("wiki/") {
-        return Err("wiki.read_page path must stay under wiki/".to_string());
-    }
-    let path = safe_project_join(project_path, &rel)?;
-    let meta = fs::metadata(&path).map_err(|err| format!("Failed to read page metadata: {err}"))?;
-    if !meta.is_file() {
-        return Err("wiki.read_page path is not a file".to_string());
-    }
-    if meta.len() as usize > MAX_READ_PAGE_BYTES {
-        return Err("wiki.read_page file is too large".to_string());
-    }
-    fs::read_to_string(path).map_err(|err| format!("Failed to read wiki page: {err}"))
-}
-
-pub fn search_graph(
-    project_path: &str,
-    query: &str,
-    top_k: usize,
-) -> Result<Vec<AgentReference>, String> {
-    let query = query.trim().to_lowercase();
-    if query.is_empty() {
-        return Ok(Vec::new());
-    }
-    let (pages, mut context_index) = build_knowledge_graph_snapshot(project_path, Some(&query));
-    let seed_paths: BTreeSet<String> = pages
-        .iter()
-        .filter(|page| page.matches_query)
-        .map(|page| page.path.clone())
-        .collect();
-    if seed_paths.is_empty() {
-        return Ok(Vec::new());
-    }
-    let mut refs = Vec::new();
-    for page in pages {
-        let Some(page_context) = context_index.get(&page.path) else {
-            continue;
-        };
-        let link_count = page_context.link_count;
-        let connected_to_seed = page
-            .neighbors
-            .iter()
-            .any(|neighbor| seed_paths.contains(neighbor));
-        if !page.matches_query && !connected_to_seed {
-            continue;
-        }
-        let rel = page.path;
-        let relation = if page.matches_query {
-            "matched entity"
-        } else {
-            "direct neighbor"
-        };
-        refs.push(AgentReference {
-            title: page.title,
-            path: rel.clone(),
-            kind: "graph".to_string(),
-            snippet: Some(format!("{relation}; {link_count} related link(s)")),
-            score: Some(
-                if page.matches_query {
-                    10_000.0
-                } else {
-                    5_000.0
-                } + link_count as f64,
-            ),
-            knowledge_context: {
-                let mut context = context_index.remove(&rel);
-                attach_latest_version(project_path, &rel, &mut context);
-                context
-            },
-        });
-    }
-    refs.sort_by(|a, b| {
-        b.score
-            .partial_cmp(&a.score)
-            .unwrap_or(std::cmp::Ordering::Equal)
-            .then_with(|| a.path.cmp(&b.path))
-    });
-    refs.truncate(top_k.clamp(1, 10));
-    Ok(refs)
-}
-
-pub fn search_sources(
-    project_path: &str,
-    query: &str,
-    top_k: usize,
-) -> Result<Vec<AgentReference>, String> {
-    let query = query.trim();
-    if query.is_empty() {
-        return Err("source.search query is required".to_string());
-    }
-    let root = Path::new(project_path).join("raw").join("sources");
-    if !root.exists() {
-        return Ok(Vec::new());
-    }
-    let lower_query = query.to_lowercase();
-    let query_terms = source_query_terms(&lower_query);
-    let mut refs = Vec::new();
-    let mut seen_files = 0usize;
-    for entry in WalkDir::new(&root).into_iter().filter_map(Result::ok) {
-        if !entry.file_type().is_file() {
-            continue;
-        }
-        let rel = relative_to_project(project_path, entry.path());
-        if is_hidden_rel(&rel) {
-            continue;
-        }
-        seen_files += 1;
-        if seen_files > MAX_SOURCE_SEARCH_FILES {
-            eprintln!(
-                "[Agent] source.search stopped after {MAX_SOURCE_SEARCH_FILES} files in {project_path}"
-            );
-            break;
-        }
-        let Some(ext) = entry
-            .path()
-            .extension()
-            .and_then(|s| s.to_str())
-            .map(|s| s.to_ascii_lowercase())
-        else {
-            continue;
-        };
-        let content = if matches!(
-            ext.as_str(),
-            "md" | "markdown"
-                | "org"
-                | "txt"
-                | "json"
-                | "csv"
-                | "tsv"
-                | "yaml"
-                | "yml"
-                | "xml"
-                | "html"
-        ) {
-            let Ok(content) = fs::read_to_string(entry.path()) else {
-                continue;
-            };
-            content
-        } else if matches!(
-            ext.as_str(),
-            "pdf"
-                | "doc"
-                | "docx"
-                | "docm"
-                | "ppt"
-                | "pps"
-                | "pot"
-                | "pptx"
-                | "pptm"
-                | "ppsx"
-                | "ppsm"
-                | "xls"
-                | "xlsx"
-                | "xlsm"
-                | "xlsb"
-                | "odt"
-                | "ods"
-                | "odp"
-                | "rtf"
-                | "epub"
-                | "mobi"
-        ) {
-            let Some(content) = crate::commands::fs::read_preprocessed_cache(entry.path()) else {
-                continue;
-            };
-            content
-        } else {
-            continue;
-        };
-        let lower = content.to_lowercase();
-        let matched = std::iter::once(lower_query.as_str())
-            .chain(query_terms.iter().map(String::as_str))
-            .find_map(|term| lower.find(term).map(|idx| (idx, term.len())));
-        let Some((byte_idx, _matched_len)) = matched else {
-            continue;
-        };
-        refs.push(AgentReference {
-            title: entry
-                .path()
-                .file_name()
-                .and_then(|s| s.to_str())
-                .unwrap_or(&rel)
-                .to_string(),
-            path: rel,
-            kind: "source".to_string(),
-            snippet: Some(snippet_around_byte(
-                &content,
-                byte_idx,
-                MAX_SOURCE_SNIPPET_CHARS,
-            )),
-            score: None,
-            knowledge_context: None,
-        });
-        if refs.len() >= top_k.clamp(1, 10) {
-            break;
-        }
-    }
-    Ok(refs)
-}
-
-fn source_query_terms(query: &str) -> Vec<String> {
-    query
-        .split(|c: char| c.is_whitespace() || matches!(c, ',' | '，' | ';' | '；' | ':' | '：'))
-        .map(str::trim)
-        .filter(|term| term.chars().count() >= 2)
-        .filter(|term| {
-            !matches!(
-                *term,
-                "raw"
-                    | "source"
-                    | "sources"
-                    | "file"
-                    | "files"
-                    | "原始资料"
-                    | "原始文件"
-                    | "源文件"
-            )
-        })
-        .map(ToString::to_string)
-        .collect()
-}
-
-fn safe_project_join(project_path: &str, rel: &str) -> Result<PathBuf, String> {
-    let root = Path::new(project_path);
-    let rel_path = Path::new(rel);
-    if rel_path.is_absolute()
-        || rel_path
-            .components()
-            .any(|component| matches!(component, Component::ParentDir | Component::Prefix(_)))
-    {
-        return Err("path must be project-relative".to_string());
-    }
-    let joined = root.join(rel_path);
-    if joined.exists() {
-        let root_canon = root
-            .canonicalize()
-            .map_err(|err| format!("Failed to resolve project path: {err}"))?;
-        let joined_canon = joined
-            .canonicalize()
-            .map_err(|err| format!("Failed to resolve requested path: {err}"))?;
-        if !joined_canon.starts_with(root_canon) {
-            return Err("path escapes project directory".to_string());
-        }
-    }
-    Ok(joined)
-}
-
 fn ensure_existing_ancestor_bound(project_path: &str, path: &Path) -> Result<(), String> {
     let mut cursor = path;
     while !cursor.exists() {
@@ -2696,55 +1934,11 @@ fn ensure_project_bound_path(project_path: &str, path: &Path) -> Result<(), Stri
     Ok(())
 }
 
-fn is_public_read_rel(rel: &str) -> bool {
-    let lower = rel.to_ascii_lowercase();
-    if lower.split('/').any(|segment| segment.starts_with('.')) {
-        return false;
-    }
-    lower == "purpose.md"
-        || lower == "schema.md"
-        || lower.starts_with("wiki/")
-        || lower.starts_with("raw/sources/")
-}
-
-fn is_hidden_rel(rel: &str) -> bool {
-    normalize_rel_path(rel)
-        .split('/')
-        .any(|segment| segment.starts_with('.'))
-}
-
 fn normalize_rel_path(path: &str) -> String {
     path.trim()
         .replace('\\', "/")
         .trim_start_matches('/')
         .to_string()
-}
-
-fn normalize_wiki_write_path(path: &str) -> Result<String, String> {
-    let trimmed = path.trim();
-    if trimmed.starts_with('/') || trimmed.starts_with('\\') {
-        return Err("wiki.write_page path must stay inside the project".to_string());
-    }
-    let rel = normalize_rel_path(path);
-    let lower = rel.to_ascii_lowercase();
-    if !lower.starts_with("wiki/") || !lower.ends_with(".md") {
-        return Err("wiki.write_page path must be a Markdown file under wiki/".to_string());
-    }
-    if lower.split('/').any(|segment| segment.starts_with('.')) {
-        return Err("wiki.write_page cannot write hidden paths".to_string());
-    }
-    let rel_path = Path::new(&rel);
-    if rel_path.is_absolute()
-        || rel_path
-            .components()
-            .any(|component| matches!(component, Component::ParentDir | Component::Prefix(_)))
-    {
-        return Err("wiki.write_page path must stay inside the project".to_string());
-    }
-    for segment in rel.split('/') {
-        validate_portable_path_segment(segment)?;
-    }
-    Ok(rel)
 }
 
 fn normalize_workspace_write_path(path: &str) -> Result<String, String> {
@@ -2775,16 +1969,16 @@ fn normalize_workspace_write_path(path: &str) -> Result<String, String> {
 
 fn validate_workspace_path_segment(segment: &str) -> Result<(), String> {
     validate_portable_path_segment(segment)
-        .map_err(|err| err.replace("wiki.write_page", "workspace.write_file"))
+        .map_err(|err| err.replace("base.save_query", "workspace.write_file"))
 }
 
 fn validate_portable_path_segment(segment: &str) -> Result<(), String> {
     if segment.is_empty() {
-        return Err("wiki.write_page path contains an empty segment".to_string());
+        return Err("base.save_query path contains an empty segment".to_string());
     }
     if segment.ends_with([' ', '.']) {
         return Err(
-            "wiki.write_page path contains a segment ending with a space or dot, which is not portable to Windows"
+            "base.save_query path contains a segment ending with a space or dot, which is not portable to Windows"
                 .to_string(),
         );
     }
@@ -2793,7 +1987,7 @@ fn validate_portable_path_segment(segment: &str) -> Result<(), String> {
         .any(|ch| matches!(ch, '<' | '>' | ':' | '"' | '|' | '?' | '*') || ch <= '\u{1f}')
     {
         return Err(
-            "wiki.write_page path contains characters that are invalid on Windows".to_string(),
+            "base.save_query path contains characters that are invalid on Windows".to_string(),
         );
     }
     let stem = segment
@@ -2827,66 +2021,9 @@ fn validate_portable_path_segment(segment: &str) -> Result<(), String> {
             | "LPT8"
             | "LPT9"
     ) {
-        return Err("wiki.write_page path uses a Windows reserved device name".to_string());
+        return Err("base.save_query path uses a Windows reserved device name".to_string());
     }
     Ok(())
-}
-
-fn extract_markdown_title(content: &str) -> Option<String> {
-    for line in content.lines().take(80) {
-        let trimmed = line.trim();
-        if let Some(title) = trimmed.strip_prefix("title:") {
-            let title = title.trim().trim_matches('"').trim_matches('\'');
-            if !title.is_empty() {
-                return Some(title.to_string());
-            }
-        }
-        if let Some(heading) = trimmed.strip_prefix("# ") {
-            let heading = heading.trim();
-            if !heading.is_empty() {
-                return Some(heading.to_string());
-            }
-        }
-    }
-    None
-}
-
-fn collapse_markdown_preview(content: &str) -> String {
-    content
-        .lines()
-        .filter(|line| {
-            let trimmed = line.trim();
-            !trimmed.is_empty() && trimmed != "---" && !trimmed.starts_with("title:")
-        })
-        .take(12)
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-fn relative_to_project(project_path: &str, path: &Path) -> String {
-    path.strip_prefix(project_path)
-        .unwrap_or(path)
-        .to_string_lossy()
-        .replace('\\', "/")
-        .trim_start_matches('/')
-        .to_string()
-}
-
-fn snippet_around_byte(content: &str, byte_idx: usize, max_chars: usize) -> String {
-    let char_idx = content[..byte_idx.min(content.len())].chars().count();
-    let start = char_idx.saturating_sub(max_chars / 2);
-    let mut snippet = content
-        .chars()
-        .skip(start)
-        .take(max_chars)
-        .collect::<String>();
-    if start > 0 {
-        snippet.insert_str(0, "...");
-    }
-    if content.chars().count() > start + max_chars {
-        snippet.push_str("...");
-    }
-    snippet.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 fn trim_text(value: &str, max_chars: usize) -> String {
@@ -2924,12 +2061,12 @@ mod tests {
             .into_iter()
             .map(|tool| tool.name)
             .collect::<Vec<_>>();
-        assert!(names.contains(&"wiki.search".to_string()));
-        assert!(names.contains(&"wiki.read_page".to_string()));
+        assert!(names.contains(&"base.search".to_string()));
+        assert!(names.contains(&"base.read".to_string()));
         assert!(names.contains(&"source.search".to_string()));
         assert!(names.contains(&"graph.search".to_string()));
         assert!(names.contains(&"anytxt.search".to_string()));
-        assert!(names.contains(&"wiki.write_page".to_string()));
+        assert!(names.contains(&"base.save_query".to_string()));
         assert!(names.contains(&"llm.generate".to_string()));
         assert!(names.contains(&"skills.load".to_string()));
         assert!(names.contains(&"skill.read_file".to_string()));
@@ -2938,83 +2075,44 @@ mod tests {
         assert!(names.contains(&"shell.exec".to_string()));
     }
 
-    #[test]
-    fn read_wiki_page_rejects_traversal() {
-        let err = read_wiki_page("/tmp/project", "../secret.md").unwrap_err();
-        assert!(err.contains("wiki.read_page"));
-    }
-
-    #[test]
-    fn knowledge_context_indexes_tags_links_backlinks_and_latest_version() {
-        let root = std::env::temp_dir().join(format!("llm-wiki-context-{}", Uuid::new_v4()));
-        fs::create_dir_all(root.join(".llm-wiki")).unwrap();
-        fs::create_dir_all(root.join("wiki/entities")).unwrap();
-        fs::write(
-            root.join(".llm-wiki/history-settings.json"),
-            r#"{"enabled":true,"maxVersionsPerFile":10}"#,
-        )
-        .unwrap();
-        let alpha = root.join("wiki/entities/alpha.md");
-        let beta = root.join("wiki/entities/beta.md");
-        fs::write(
-            &alpha,
-            "---\r\ntitle: Alpha\r\ntags: [core, test]\r\n---\r\n# Alpha\r\n\r\n[[Beta]]",
-        )
-        .unwrap();
-        fs::write(
-            &beta,
-            "---\ntitle: Beta\ntags:\n  - linked\n---\n# Beta\n\n[[entities/alpha]]",
-        )
-        .unwrap();
-        crate::commands::file_history::record_file_version(&alpha, "agent", "test.write");
-
-        let mut contexts = build_knowledge_context_index(root.to_str().unwrap());
-        let mut alpha_context = contexts.remove("wiki/entities/alpha.md");
-        attach_latest_version(
-            root.to_str().unwrap(),
-            "wiki/entities/alpha.md",
-            &mut alpha_context,
-        );
-        let alpha_context = alpha_context.as_ref().unwrap();
-        let beta_context = contexts.get("wiki/entities/beta.md").unwrap();
-
-        assert_eq!(alpha_context.tags, vec!["core", "test"]);
-        assert_eq!(alpha_context.outgoing_links, vec!["Beta"]);
-        assert_eq!(alpha_context.backlinks, vec!["wiki/entities/beta.md"]);
-        assert_eq!(alpha_context.link_count, 2);
-        assert_eq!(
-            alpha_context.latest_version.as_ref().unwrap().tool,
-            "test.write"
-        );
-        assert_eq!(beta_context.tags, vec!["linked"]);
-        assert_eq!(beta_context.backlinks, vec!["wiki/entities/alpha.md"]);
-
-        let _ = fs::remove_dir_all(root);
-    }
-
     #[tokio::test]
     async fn registry_executes_declared_read_page_and_deep_tools() {
         let root = std::env::temp_dir().join(format!("llm-wiki-tool-registry-{}", Uuid::new_v4()));
-        fs::create_dir_all(root.join("wiki").join("concepts")).unwrap();
-        fs::write(root.join("wiki/concepts/a.md"), "# A\n\nBody").unwrap();
+        fs::create_dir_all(&root).unwrap();
 
         let registry = BuiltinToolRegistry;
         let context = ToolContext {
             project_path: root.to_str().unwrap(),
+            base: Some(Arc::new(super::base_tools::tests::base_with_pages())),
             embedding_config: None,
             web_search_config: None,
             anytxt_config: None,
         };
         let read = registry
             .execute(
-                "wiki.read_page",
-                json!({ "path": "wiki/concepts/a.md" }),
+                "base.read",
+                json!({ "path": "ana-prueba" }),
                 context.clone(),
             )
             .await
             .unwrap();
-        assert_eq!(read["path"], "wiki/concepts/a.md");
-        assert!(read["content"].as_str().unwrap().contains("Body"));
+        assert_eq!(read["path"], "wiki/entities/ana-prueba.md");
+        assert!(read["content"].as_str().unwrap().contains("Locataria"));
+        let saved = registry
+            .execute(
+                "base.save_query",
+                json!({ "title": "Quién alquila", "content": "Ana Prueba." }),
+                context.clone(),
+            )
+            .await
+            .unwrap();
+        assert!(saved["id"].as_i64().unwrap() > 0);
+        let without_base = ToolContext { base: None, ..context.clone() };
+        assert!(registry
+            .execute("base.search", json!({ "query": "x" }), without_base)
+            .await
+            .unwrap_err()
+            .contains("not open"));
 
         let deep = registry
             .execute("deep_research.run", json!({ "query": "topic" }), context)
@@ -3031,6 +2129,7 @@ mod tests {
         let registry = BuiltinToolRegistry;
         let context = ToolContext {
             project_path: root.to_str().unwrap(),
+            base: None,
             embedding_config: None,
             web_search_config: None,
             anytxt_config: None,
@@ -3313,333 +2412,8 @@ mod tests {
         let _ = fs::remove_dir_all(root);
     }
 
-    #[test]
-    fn write_wiki_page_rejects_unsafe_paths_and_writes_markdown() {
-        let root = std::env::temp_dir().join(format!("llm-wiki-agent-write-{}", Uuid::new_v4()));
-        fs::create_dir_all(root.join("wiki")).unwrap();
-
-        assert!(write_wiki_page_with_options(
-            root.to_str().unwrap(),
-            "../secret.md",
-            "# Secret",
-            false
-        )
-        .is_err());
-        let absolute_error = write_wiki_page_with_options(
-            root.to_str().unwrap(),
-            "/wiki/absolute.md",
-            "# Absolute",
-            false,
-        )
-        .unwrap_err();
-        assert!(absolute_error.contains("must stay inside the project"));
-        assert!(write_wiki_page_with_options(
-            root.to_str().unwrap(),
-            "raw/sources/a.md",
-            "# A",
-            false
-        )
-        .is_err());
-        assert!(write_wiki_page_with_options(
-            root.to_str().unwrap(),
-            "wiki/.hidden/a.md",
-            "# A",
-            false
-        )
-        .is_err());
-        assert!(
-            write_wiki_page_with_options(root.to_str().unwrap(), "wiki/aux.md", "# A", false)
-                .is_err()
-        );
-        assert!(
-            write_wiki_page_with_options(root.to_str().unwrap(), "wiki/con.md", "# A", false)
-                .is_err()
-        );
-        assert!(
-            write_wiki_page_with_options(root.to_str().unwrap(), "wiki/a:b.md", "# A", false)
-                .is_err()
-        );
-        assert!(
-            write_wiki_page_with_options(root.to_str().unwrap(), "wiki/a?b.md", "# A", false)
-                .is_err()
-        );
-        assert!(write_wiki_page_with_options(
-            root.to_str().unwrap(),
-            "wiki/topic./a.md",
-            "# A",
-            false
-        )
-        .is_err());
-        assert!(write_wiki_page_with_options(
-            root.to_str().unwrap(),
-            "wiki/topic /a.md",
-            "# A",
-            false
-        )
-        .is_err());
-        assert!(write_wiki_page_with_options(
-            root.to_str().unwrap(),
-            "wiki/queries/huge.md",
-            &"x".repeat(MAX_WRITE_PAGE_BYTES + 1),
-            false,
-        )
-        .is_err());
-
-        let reference = write_wiki_page_with_options(
-            root.to_str().unwrap(),
-            "wiki/queries/new-page.md",
-            "---\ntitle: New Page\n---\n# New Page\n\nBody",
-            false,
-        )
-        .unwrap();
-        assert_eq!(reference.title, "New Page");
-        assert_eq!(reference.path, "wiki/queries/new-page.md");
-        assert!(root.join("wiki/queries/new-page.md").exists());
-        let overwrite_err = write_wiki_page_with_options(
-            root.to_str().unwrap(),
-            "wiki/queries/new-page.md",
-            "# Replaced",
-            false,
-        )
-        .unwrap_err();
-        assert!(overwrite_err.contains("refuses to overwrite"));
-        let overwritten = write_wiki_page_with_options(
-            root.to_str().unwrap(),
-            "wiki/queries/new-page.md",
-            "# Replaced",
-            true,
-        )
-        .unwrap();
-        assert_eq!(overwritten.title, "Replaced");
-
-        let verified = write_wiki_page_verified(
-            root.to_str().unwrap(),
-            "wiki/queries/verified.md",
-            "# Verified\n",
-            false,
-        )
-        .unwrap();
-        assert_eq!(verified.path, "wiki/queries/verified.md");
-        assert_eq!(verified.bytes, "# Verified\n".len());
-        assert!(verified.verified);
-        assert!(!verified.existed_before);
-        let _ = fs::remove_dir_all(root);
-    }
-
     #[cfg(unix)]
-    #[test]
-    fn write_wiki_page_refuses_symlink_targets() {
-        use std::os::unix::fs::symlink;
-
-        let root = std::env::temp_dir().join(format!("llm-wiki-agent-link-{}", Uuid::new_v4()));
-        fs::create_dir_all(root.join("wiki")).unwrap();
-        fs::write(root.join("purpose.md"), "protected").unwrap();
-        symlink(root.join("purpose.md"), root.join("wiki/linked.md")).unwrap();
-
-        let error = write_wiki_page_verified(
-            root.to_str().unwrap(),
-            "wiki/linked.md",
-            "overwritten",
-            true,
-        )
-        .unwrap_err();
-        assert!(error.contains("symlink"));
-        assert_eq!(
-            fs::read_to_string(root.join("purpose.md")).unwrap(),
-            "protected"
-        );
-        let _ = fs::remove_dir_all(root);
-    }
-
-    #[test]
-    fn wiki_write_activity_captures_create_and_overwrite_state() {
-        let root =
-            std::env::temp_dir().join(format!("llm-wiki-agent-write-activity-{}", Uuid::new_v4()));
-        fs::create_dir_all(root.join("wiki")).unwrap();
-
-        let created = write_wiki_page_with_activity(
-            root.to_str().unwrap(),
-            "wiki/page.md",
-            "# Original",
-            false,
-        )
-        .unwrap();
-        assert!(!created.existed_before);
-        assert_eq!(created.previous_content, None);
-
-        let modified = write_wiki_page_with_activity(
-            root.to_str().unwrap(),
-            "wiki/page.md",
-            "# Updated",
-            true,
-        )
-        .unwrap();
-        assert!(modified.existed_before);
-        assert_eq!(modified.previous_content.as_deref(), Some("# Original"));
-        assert_eq!(modified.reference.path, "wiki/page.md");
-        let _ = fs::remove_dir_all(root);
-    }
-
     #[cfg(unix)]
-    #[test]
-    fn write_wiki_page_rejects_symlink_parent_escape_for_new_files() {
-        use std::os::unix::fs::symlink;
-
-        let root = std::env::temp_dir().join(format!("llm-wiki-agent-symlink-{}", Uuid::new_v4()));
-        let outside =
-            std::env::temp_dir().join(format!("llm-wiki-agent-outside-{}", Uuid::new_v4()));
-        fs::create_dir_all(root.join("wiki")).unwrap();
-        fs::create_dir_all(&outside).unwrap();
-        symlink(&outside, root.join("wiki").join("linked")).unwrap();
-
-        let err = write_wiki_page_with_options(
-            root.to_str().unwrap(),
-            "wiki/linked/newsub/escape.md",
-            "# Escape",
-            false,
-        )
-        .unwrap_err();
-        assert!(err.contains("escapes project directory"));
-        assert!(!outside.join("newsub").exists());
-        let _ = fs::remove_dir_all(root);
-        let _ = fs::remove_dir_all(outside);
-    }
-
-    #[test]
-    fn search_sources_returns_source_references() {
-        let root = std::env::temp_dir().join(format!("llm-wiki-source-search-{}", Uuid::new_v4()));
-        let source_dir = root.join("raw").join("sources");
-        fs::create_dir_all(&source_dir).unwrap();
-        fs::write(source_dir.join("paper.txt"), "Coal mine safety case study.").unwrap();
-
-        let refs = search_sources(root.to_str().unwrap(), "safety", 5).unwrap();
-        assert_eq!(refs.len(), 1);
-        assert_eq!(refs[0].kind, "source");
-        assert!(refs[0].snippet.as_deref().unwrap().contains("safety"));
-        let _ = fs::remove_dir_all(root);
-    }
-
-    #[test]
-    fn search_sources_reads_org_and_fresh_binary_extraction_cache() {
-        let root = std::env::temp_dir().join(format!("llm-wiki-source-cache-{}", Uuid::new_v4()));
-        let source_dir = root.join("raw").join("sources");
-        fs::create_dir_all(source_dir.join(".cache")).unwrap();
-        fs::write(source_dir.join("notes.org"), "* Policy\nExact org wording").unwrap();
-        let pdf = source_dir.join("regulation.pdf");
-        fs::write(&pdf, b"%PDF placeholder").unwrap();
-        fs::write(
-            source_dir.join(".cache").join("regulation.pdf.txt"),
-            "Exact cached regulation wording",
-        )
-        .unwrap();
-
-        let org_refs = search_sources(root.to_str().unwrap(), "org wording", 5).unwrap();
-        let pdf_refs = search_sources(root.to_str().unwrap(), "cached regulation", 5).unwrap();
-
-        assert!(org_refs
-            .iter()
-            .any(|reference| reference.path == "raw/sources/notes.org"));
-        let pdf_ref = pdf_refs
-            .iter()
-            .find(|reference| reference.path == "raw/sources/regulation.pdf")
-            .unwrap();
-        assert!(pdf_ref
-            .snippet
-            .as_deref()
-            .unwrap()
-            .contains("cached regulation"));
-        let _ = fs::remove_dir_all(root);
-    }
-
-    #[test]
-    fn source_and_graph_search_skip_hidden_paths() {
-        let root = std::env::temp_dir().join(format!("llm-wiki-hidden-search-{}", Uuid::new_v4()));
-        fs::create_dir_all(root.join("raw/sources/.cache")).unwrap();
-        fs::create_dir_all(root.join("wiki/.hidden")).unwrap();
-        fs::write(root.join("raw/sources/.cache/secret.txt"), "needle secret").unwrap();
-        fs::write(
-            root.join("wiki/.hidden/secret.md"),
-            "# Secret\n\nneedle [[A]]",
-        )
-        .unwrap();
-
-        assert!(search_sources(root.to_str().unwrap(), "needle", 5)
-            .unwrap()
-            .is_empty());
-        assert!(search_graph(root.to_str().unwrap(), "needle", 5)
-            .unwrap()
-            .is_empty());
-        let _ = fs::remove_dir_all(root);
-    }
-
-    #[test]
-    fn search_sources_uses_keyword_terms_from_natural_language() {
-        let root = std::env::temp_dir().join(format!("llm-wiki-source-search-{}", Uuid::new_v4()));
-        let source_dir = root.join("raw").join("sources");
-        fs::create_dir_all(&source_dir).unwrap();
-        fs::write(source_dir.join("煤矿.txt"), "煤矿安全治理 source details.").unwrap();
-
-        let refs = search_sources(root.to_str().unwrap(), "原始资料 煤矿安全", 5).unwrap();
-        assert_eq!(refs.len(), 1);
-        assert_eq!(refs[0].kind, "source");
-        let _ = fs::remove_dir_all(root);
-    }
-
-    #[test]
-    fn search_graph_returns_relationship_references() {
-        let root = std::env::temp_dir().join(format!("llm-wiki-graph-search-{}", Uuid::new_v4()));
-        let wiki_dir = root.join("wiki").join("concepts");
-        fs::create_dir_all(&wiki_dir).unwrap();
-        fs::write(
-            wiki_dir.join("agent.md"),
-            "---\ntitle: Agent Graph\n---\n# Agent Graph\n\nLinks to [[Tool Registry]] and [[Context Builder]].",
-        )
-        .unwrap();
-        fs::write(
-            wiki_dir.join("tool-registry.md"),
-            "---\ntitle: Tool Registry\n---\n# Tool Registry\n\nTool definitions.",
-        )
-        .unwrap();
-        fs::write(
-            wiki_dir.join("context-builder.md"),
-            "---\ntitle: Context Builder\n---\n# Context Builder\n\nContext assembly.",
-        )
-        .unwrap();
-        fs::write(
-            wiki_dir.join("unrelated.md"),
-            "---\ntitle: Unrelated Hub\n---\n# Unrelated Hub\n\n[[Missing A]] [[Missing B]] [[Missing C]].",
-        )
-        .unwrap();
-
-        let refs = search_graph(root.to_str().unwrap(), "Agent Graph", 5).unwrap();
-        assert_eq!(refs.len(), 3);
-        assert_eq!(refs[0].title, "Agent Graph");
-        assert!(refs[0]
-            .snippet
-            .as_deref()
-            .unwrap()
-            .contains("matched entity"));
-        assert!(refs
-            .iter()
-            .skip(1)
-            .all(|reference| reference.kind == "graph"
-                && reference
-                    .snippet
-                    .as_deref()
-                    .unwrap()
-                    .contains("direct neighbor")));
-        assert!(refs
-            .iter()
-            .any(|reference| reference.title == "Tool Registry"));
-        assert!(refs
-            .iter()
-            .any(|reference| reference.title == "Context Builder"));
-        assert!(!refs
-            .iter()
-            .any(|reference| reference.title == "Unrelated Hub"));
-        let _ = fs::remove_dir_all(root);
-    }
-
     #[test]
     fn searxng_url_normalizes_to_search_endpoint() {
         assert_eq!(

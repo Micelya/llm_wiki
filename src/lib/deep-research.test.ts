@@ -1,16 +1,28 @@
 import { describe, expect, it, vi } from "vitest"
+const { saveResearch, streamChat, webSearch } = vi.hoisted(() => ({
+  saveResearch: vi.fn(),
+  streamChat: vi.fn(),
+  webSearch: vi.fn(),
+}))
+// No real question to a model and no real search: both are simulated, and
+// the base that keeps the research too.
+vi.mock("@/commands/docbase", () => ({ saveResearch }))
+vi.mock("./llm-client", () => ({ streamChat }))
+vi.mock("./web-search", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./web-search")>()),
+  webSearch,
+}))
+
 import {
   citedResearchSourceIndexes,
-  addResearchTaskDiscriminator,
-  buildResearchPageContent,
+  citedResearchSources,
   collectResearchSources,
   filterResearchSourcesByRelevance,
-  makeDeepResearchFileName,
-  makeAvailableResearchFilePath,
   noResearchSourcesTaskPatch,
+  queueResearch,
   rejectedResearchSourcesTaskPatch,
   researchRelevanceRequestOverrides,
-  researchPageIdFromPath,
+  researchSystemPrompt,
   resolveReviewForSavedResearch,
   validateResearchSynthesis,
 } from "./deep-research"
@@ -41,100 +53,6 @@ function config(patch: Partial<SearchApiConfig>): SearchApiConfig {
     ...patch,
   }
 }
-
-describe("makeDeepResearchFileName", () => {
-  it("keeps Unicode topics and includes time to avoid same-day overwrite", () => {
-    const first = makeDeepResearchFileName(
-      "反硝化除磷",
-      new Date("2026-06-06T10:00:00.000Z"),
-    )
-    const second = makeDeepResearchFileName(
-      "反硝化除磷",
-      new Date("2026-06-06T10:00:01.000Z"),
-    )
-
-    expect(first.fileName).toBe("research-反硝化除磷-2026-06-06-100000.md")
-    expect(second.fileName).toBe("research-反硝化除磷-2026-06-06-100001.md")
-    expect(first.fileName).not.toBe(second.fileName)
-  })
-
-  it("uses the local calendar date for frontmatter metadata", () => {
-    const localMorning = new Date(2026, 5, 6, 1, 30, 0)
-
-    expect(makeDeepResearchFileName("政策版本差异", localMorning).date).toBe("2026-06-06")
-  })
-})
-
-describe("buildResearchPageContent", () => {
-  it("normalizes path-prefixed page links without changing code or embeds", () => {
-    const content = buildResearchPageContent(
-      "AI research",
-      "2026-08-20",
-      [
-        "See [[concepts/adaptation|adaptation]] and [[entities/person#work]].",
-        "Keep `[[concepts/code-example]]` and ![[media/chart.png]].",
-      ].join("\n"),
-      "1. [Source](https://example.com)",
-    )
-
-    expect(content).toContain("[[adaptation|adaptation]]")
-    expect(content).toContain("[[person#work]]")
-    expect(content).toContain("`[[concepts/code-example]]`")
-    expect(content).toContain("![[media/chart.png]]")
-  })
-
-  it("normalizes malformed citation wikilinks before saving", () => {
-    const content = buildResearchPageContent(
-      "Topic",
-      "2026-09-27",
-      "Evidence [[1]] and combined [[2], [3], [4]].",
-      "1. [Source](https://example.test) — web",
-    )
-    expect(content).toContain("Evidence [1] and combined [2], [3], [4].")
-  })
-
-  it("keeps multiline topics inside one safe YAML scalar and heading", () => {
-    const content = buildResearchPageContent(
-      "first line\nsecond: \"quoted\"",
-      "2026-08-20",
-      "Substantive synthesis [1].",
-      "1. [Source](https://example.com)",
-    )
-    expect(content).toContain('title: "Research: first line second: \\"quoted\\""')
-    expect(content).toContain("# Research: first line second: \"quoted\"")
-    expect(content).not.toContain("first line\nsecond")
-  })
-})
-
-describe("makeAvailableResearchFilePath", () => {
-  it("adds a suffix instead of overwriting a same-second research result", async () => {
-    const existing = new Set([
-      "/project/wiki/queries/research-topic-2026-08-20-120000.md",
-      "/project/wiki/queries/research-topic-2026-08-20-120000-2.md",
-    ])
-    await expect(makeAvailableResearchFilePath(
-      "/project/wiki/queries",
-      "research-topic-2026-08-20-120000.md",
-      async (path) => existing.has(path),
-    )).resolves.toBe("/project/wiki/queries/research-topic-2026-08-20-120000-3.md")
-  })
-
-  it("gives concurrent tasks distinct readable filenames before existence checks", () => {
-    const fileName = "research-topic-2026-08-20-120000.md"
-    expect(addResearchTaskDiscriminator(fileName, "research-41"))
-      .toBe("research-topic-2026-08-20-120000-research-41.md")
-    expect(addResearchTaskDiscriminator(fileName, "research-42"))
-      .not.toBe(addResearchTaskDiscriminator(fileName, "research-41"))
-  })
-
-  it("derives the vector page id from the final collision-safe path", () => {
-    expect(researchPageIdFromPath(
-      "/project/wiki/queries/research-topic-2026-08-20-120000-research-41-2.md",
-    )).toBe("queries/research-topic-2026-08-20-120000-research-41-2")
-    expect(researchPageIdFromPath("C:\\project\\wiki\\queries\\research-topic-3.MD"))
-      .toBe("queries/research-topic-3")
-  })
-})
 
 describe("validateResearchSynthesis", () => {
   const substantiveChinese = [
@@ -219,46 +137,20 @@ describe("review-linked research", () => {
         status: "done",
         webResults: [],
         synthesis: "This completed synthesis contains enough substantive analysis to explain the evidence, its limitations, and the conclusions that can reasonably be drawn. It also distinguishes established findings from open questions so the saved research is useful for later review.",
-        savedPath: "wiki/queries/research-topic.md",
+        savedId: 7,
         error: null,
         createdAt: 1,
       }],
     })
 
     expect(resolveReviewForSavedResearch(
-      "/project",
       "research-1",
-      "wiki/queries/research-topic.md",
+      7,
     )).toBe(true)
     expect(useReviewStore.getState().items[0]).toMatchObject({
       resolved: true,
-      resolvedAction: "Research saved: wiki/queries/research-topic.md",
+      resolvedAction: "Investigación guardada en la base (7)",
     })
-  })
-
-  it("does not resolve another project's review", () => {
-    useWikiStore.setState({ project: { id: "p2", name: "Other", path: "/other" } })
-    useReviewStore.setState({ items: [review] })
-    useResearchStore.setState({
-      tasks: [{
-        id: "research-1",
-        topic: "topic",
-        sourceReviewId: review.id,
-        status: "done",
-        webResults: [],
-        synthesis: "answer",
-        savedPath: "wiki/queries/research-topic.md",
-        error: null,
-        createdAt: 1,
-      }],
-    })
-
-    expect(resolveReviewForSavedResearch(
-      "/project",
-      "research-1",
-      "wiki/queries/research-topic.md",
-    )).toBe(false)
-    expect(useReviewStore.getState().items[0].resolved).toBe(false)
   })
 
   it("rejects callbacks before the linked task reaches the matching saved state", () => {
@@ -272,16 +164,15 @@ describe("review-linked research", () => {
         status: "saving",
         webResults: [],
         synthesis: "answer",
-        savedPath: null,
+        savedId: null,
         error: null,
         createdAt: 1,
       }],
     })
 
     expect(resolveReviewForSavedResearch(
-      "/project",
       "research-1",
-      "wiki/queries/research-topic.md",
+      7,
     )).toBe(false)
     expect(useReviewStore.getState().items[0].resolved).toBe(false)
   })
@@ -297,16 +188,15 @@ describe("review-linked research", () => {
         status: "done",
         webResults: [webResult],
         synthesis: "[1]",
-        savedPath: "wiki/queries/research-topic.md",
+        savedId: 7,
         error: null,
         createdAt: 1,
       }],
     })
 
     expect(resolveReviewForSavedResearch(
-      "/project",
       "research-1",
-      "wiki/queries/research-topic.md",
+      7,
     )).toBe(false)
     expect(useReviewStore.getState().items[0].resolved).toBe(false)
   })
@@ -617,5 +507,57 @@ describe("collectResearchSources relevance origins", () => {
     expect(out.results).toEqual([localResult])
     expect(out.candidateCount).toBe(2)
     expect(out.rejectedCount).toBe(1)
+  })
+})
+
+describe("research kept in the base (D-414)", () => {
+  const substantive = "The public record shows the company was registered in the city and later changed its name [1]. A second note reports a dispute that was settled out of court, with no further filings found [2]."
+
+  it("tells the model whom the research is of and that it is apart from the documents", () => {
+    const prompt = researchSystemPrompt("Ana Prueba", "Ana Prueba")
+    expect(prompt).toContain("about Ana Prueba")
+    expect(prompt).toContain("apart from the user's own documents")
+    expect(researchSystemPrompt("tema suelto")).not.toContain("## Subject")
+  })
+
+  it("keeps only the cited sources, with their numbers", () => {
+    const results = [webResult, { ...webResult, title: "Otra", url: "https://example.com/2" }]
+    expect(citedResearchSources([2], results)).toEqual([
+      { index: 2, title: "Otra", url: "https://example.com/2", source: "example.com" },
+    ])
+    expect(citedResearchSources([5], results)).toEqual([])
+  })
+
+  it("saves the synthesis in the base, of its object, with the sources it cites", async () => {
+    useResearchStore.setState({ tasks: [], panelOpen: false })
+    webSearch.mockResolvedValue([
+      webResult,
+      { ...webResult, title: "Segunda", url: "https://example.com/2" },
+    ])
+    streamChat.mockImplementation(async (_config, messages, callbacks) => {
+      const gate = String(messages[0].content).includes("quality gate")
+      callbacks.onToken(gate ? '{"keep":[1,2]}' : substantive)
+      callbacks.onDone()
+    })
+    saveResearch.mockResolvedValue({ id: 41, objectId: "ent-a", topic: "Ana Prueba", body: substantive, sources: [], createdAt: 1 })
+    const searchConfig = { provider: "tavily", apiKey: "k" } as SearchApiConfig
+    const llm = { provider: "openai", apiKey: "k", model: "m" } as never
+
+    const id = queueResearch("Ana Prueba", llm, searchConfig, {
+      target: { objectId: "ent-a", name: "Ana Prueba" },
+      openPanel: false,
+    })
+    expect(useResearchStore.getState().panelOpen).toBe(false)
+    await vi.waitFor(() => expect(useResearchStore.getState().tasks.find((t) => t.id === id)?.status).toBe("done"))
+
+    expect(saveResearch).toHaveBeenCalledTimes(1)
+    const [objectId, topic, body, sources] = saveResearch.mock.calls[0]
+    expect([objectId, topic]).toEqual(["ent-a", "Ana Prueba"])
+    expect(body).toBe(substantive)
+    expect(sources.map((source: { index: number }) => source.index)).toEqual([1, 2])
+    expect(useResearchStore.getState().tasks.find((t) => t.id === id)?.savedId).toBe(41)
+    const system = streamChat.mock.calls[streamChat.mock.calls.length - 1][1][0].content as string
+    expect(system).toContain("about Ana Prueba")
+    expect(system).not.toContain("Wiki Index")
   })
 })

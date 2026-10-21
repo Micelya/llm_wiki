@@ -17,6 +17,7 @@
 //! Design: `docs/design/base-documental.md`.
 
 pub mod bridge;
+pub mod chat_files;
 pub mod commands;
 #[cfg(test)]
 mod field_check;
@@ -94,6 +95,12 @@ impl Visible {
 /// The database of one space.
 pub struct DocBase {
     conn: Mutex<Connection>,
+}
+
+impl std::fmt::Debug for DocBase {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("DocBase")
+    }
 }
 
 impl DocBase {

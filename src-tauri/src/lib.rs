@@ -113,7 +113,8 @@ async fn agent_start_turn(
         runtime_config.llm,
         runtime_config.web_search,
         runtime_config.anytxt,
-    );
+    )
+    .with_base(docbase::bridge::shared_base());
     let user_message = request.message.clone();
     let persist_session = request.persist_session;
     let cancellation = app
@@ -199,7 +200,8 @@ async fn agent_start_turn_stream(
         runtime_config.llm,
         runtime_config.web_search,
         runtime_config.anytxt,
-    );
+    )
+    .with_base(docbase::bridge::shared_base());
     let app_for_task = app.clone();
     let project_for_task = project.clone();
     let session_for_task = active_session_id.clone();
@@ -725,6 +727,12 @@ pub fn run() {
             docbase::commands::docbase_knowledge_page_words,
             docbase::commands::docbase_search,
             docbase::commands::docbase_saved_queries,
+            docbase::commands::docbase_knowledge_page_text,
+            docbase::commands::docbase_research_save,
+            docbase::commands::docbase_research_of,
+            docbase::commands::docbase_research_loose,
+            docbase::commands::docbase_research_delete,
+            docbase::commands::docbase_chat_folder,
             docbase::commands::docbase_save_query,
             docbase::commands::docbase_delete_saved_query,
             docbase::commands::docbase_background_reading,

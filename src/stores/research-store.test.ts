@@ -44,7 +44,7 @@ describe("research rerun lineage", () => {
     rerunOfTaskId,
     webResults: [],
     synthesis: "",
-    savedPath: null,
+    savedId: null,
     error: null,
     createdAt: 1,
   }) satisfies ResearchTask

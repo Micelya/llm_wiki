@@ -1,4 +1,5 @@
-import { writeFile, readFile, createDirectory, listDirectory } from "@/commands/fs"
+import { writeFile, readFile, createDirectory, listDirectory, deleteFile } from "@/commands/fs"
+import { getChatFolder } from "@/commands/docbase"
 import { normalizeReviewItems, type ReviewItem } from "@/stores/review-store"
 import type { LintItem } from "@/stores/lint-store"
 import type { DisplayMessage, Conversation } from "@/stores/chat-store"
@@ -8,7 +9,6 @@ import type { FileNode } from "@/types/wiki"
 
 async function ensureDir(projectPath: string): Promise<void> {
   await createDirectory(`${projectPath}/.llm-wiki`).catch(() => {})
-  await createDirectory(`${projectPath}/.llm-wiki/chats`).catch(() => {})
 }
 
 export async function saveReviewItems(projectPath: string, items: ReviewItem[]): Promise<void> {
@@ -41,6 +41,24 @@ export async function loadLintItems(projectPath: string): Promise<LintItem[]> {
   } catch {
     return []
   }
+}
+
+/**
+ * The chat's history and preferences live in the app's data folder, not in
+ * a project's `.llm-wiki/` (D-415): the same layout (`conversations.json`,
+ * `chats/<id>.json`, `chat-preferences.json`). The first time, the app
+ * copies there what the general project's folder had.
+ */
+async function chatFolder(): Promise<string> {
+  const folder = normalizePath(await getChatFolder())
+  await createDirectory(`${folder}/chats`).catch(() => {})
+  return folder
+}
+
+/** Forgets the saved messages of a conversation that was deleted. */
+export async function deleteChatConversation(conversationId: string): Promise<void> {
+  const folder = normalizePath(await getChatFolder())
+  await deleteFile(`${folder}/chats/${conversationId}.json`)
 }
 
 interface PersistedChatData {
@@ -77,16 +95,14 @@ function stripPersistedMessageImages(msg: DisplayMessage): DisplayMessage {
 }
 
 export async function saveChatHistory(
-  projectPath: string,
   conversations: Conversation[],
   messages: DisplayMessage[]
 ): Promise<void> {
-  const pp = normalizePath(projectPath)
-  await ensureDir(pp)
+  const folder = await chatFolder()
 
   // Save conversation list
   await writeFile(
-    `${pp}/.llm-wiki/conversations.json`,
+    `${folder}/conversations.json`,
     JSON.stringify(conversations, null, 2)
   )
 
@@ -105,23 +121,28 @@ export async function saveChatHistory(
     // Keep last 100 messages per conversation
     const toSave = msgs.slice(-100)
     await writeFile(
-      `${pp}/.llm-wiki/chats/${convId}.json`,
+      `${folder}/chats/${convId}.json`,
       JSON.stringify(toSave, null, 2)
     )
   }
 }
 
-export async function loadChatHistory(projectPath: string): Promise<PersistedChatData> {
-  const pp = normalizePath(projectPath)
+export async function loadChatHistory(): Promise<PersistedChatData> {
+  let folder: string
+  try {
+    folder = await chatFolder()
+  } catch {
+    return { conversations: [], messages: [] }
+  }
   try {
     // Try new format: separate files per conversation
-    const convContent = await readFile(`${pp}/.llm-wiki/conversations.json`)
+    const convContent = await readFile(`${folder}/conversations.json`)
     const conversations = JSON.parse(convContent) as Conversation[]
 
     const allMessages: DisplayMessage[] = []
     for (const conv of conversations) {
       try {
-        const msgContent = await readFile(`${pp}/.llm-wiki/chats/${conv.id}.json`)
+        const msgContent = await readFile(`${folder}/chats/${conv.id}.json`)
         const msgs = JSON.parse(msgContent) as DisplayMessage[]
         allMessages.push(...msgs)
       } catch {
@@ -137,16 +158,16 @@ export async function loadChatHistory(projectPath: string): Promise<PersistedCha
     // leaving .llm-wiki/chats/<id>.json intact. Rebuild a minimal conversation
     // index from those orphan message files so users do not have to recreate
     // chat sessions manually.
-    const recovered = await recoverChatHistoryFromOrphanChatFiles(pp)
+    const recovered = await recoverChatHistoryFromOrphanChatFiles(folder)
     if (recovered.conversations.length > 0) return recovered
     return { conversations, messages: allMessages }
   } catch {
-    const recovered = await recoverChatHistoryFromOrphanChatFiles(pp)
+    const recovered = await recoverChatHistoryFromOrphanChatFiles(folder)
     if (recovered.conversations.length > 0) return recovered
 
     // Fall back to old format
     try {
-      const content = await readFile(`${pp}/.llm-wiki/chat-history.json`)
+      const content = await readFile(`${folder}/chat-history.json`)
       const parsed = JSON.parse(content)
 
       if (Array.isArray(parsed)) {
@@ -202,9 +223,9 @@ function conversationFromMessages(id: string, messages: DisplayMessage[]): Conve
   }
 }
 
-async function recoverChatHistoryFromOrphanChatFiles(projectPath: string): Promise<PersistedChatData> {
+async function recoverChatHistoryFromOrphanChatFiles(folder: string): Promise<PersistedChatData> {
   try {
-    const chatDir = `${projectPath}/.llm-wiki/chats`
+    const chatDir = `${folder}/chats`
     const files = flattenFiles(await listDirectory(chatDir))
       .filter((node) => node.name.endsWith(".json"))
       .sort((a, b) => a.name.localeCompare(b.name))
@@ -241,19 +262,15 @@ async function recoverChatHistoryFromOrphanChatFiles(projectPath: string): Promi
   }
 }
 
-export async function saveChatPreferences(
-  projectPath: string,
-  preferences: ChatPreferences,
-): Promise<void> {
-  const pp = normalizePath(projectPath)
-  await ensureDir(pp)
-  await writeFile(`${pp}/.llm-wiki/chat-preferences.json`, JSON.stringify(preferences, null, 2))
+export async function saveChatPreferences(preferences: ChatPreferences): Promise<void> {
+  const folder = await chatFolder()
+  await writeFile(`${folder}/chat-preferences.json`, JSON.stringify(preferences, null, 2))
 }
 
-export async function loadChatPreferences(projectPath: string): Promise<ChatPreferences> {
-  const pp = normalizePath(projectPath)
+export async function loadChatPreferences(): Promise<ChatPreferences> {
   try {
-    const content = await readFile(`${pp}/.llm-wiki/chat-preferences.json`)
+    const folder = await chatFolder()
+    const content = await readFile(`${folder}/chat-preferences.json`)
     const parsed = JSON.parse(content) as Partial<ChatPreferences>
     return {
       useWebSearch: parsed.useWebSearch === true,

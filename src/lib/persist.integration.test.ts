@@ -14,6 +14,10 @@ import type { LintItem } from "@/stores/lint-store"
 import type { Conversation, DisplayMessage } from "@/stores/chat-store"
 
 vi.mock("@/commands/fs", () => realFs)
+// The chat lives in the app's data folder (D-415); here, a folder of the temp dir.
+vi.mock("@/commands/docbase", () => ({
+  getChatFolder: () => Promise.resolve(`${tmp.path}/.llm-wiki`),
+}))
 
 import {
   saveReviewItems,
@@ -216,7 +220,6 @@ describe("chat persistence — round-trip (new format)", () => {
 
   it("writes conversations.json + per-conversation chats/<id>.json", async () => {
     await saveChatHistory(
-      tmp.path,
       [makeConv("c1"), makeConv("c2")],
       [
         makeMsg("m1", "c1", "hello"),
@@ -235,8 +238,8 @@ describe("chat persistence — round-trip (new format)", () => {
       makeMsg("m1", "c1", "hi"),
       makeMsg("m2", "c2", "你好"),
     ]
-    await saveChatHistory(tmp.path, convs, msgs)
-    const loaded = await loadChatHistory(tmp.path)
+    await saveChatHistory(convs, msgs)
+    const loaded = await loadChatHistory()
 
     expect(loaded.conversations).toEqual(convs)
     // Messages may be returned in a different order (grouped by conv file),
@@ -252,7 +255,7 @@ describe("chat persistence — round-trip (new format)", () => {
       images: [{ mediaType: "image/png", dataBase64: "A".repeat(1024) }],
     }
 
-    await saveChatHistory(tmp.path, convs, [msg])
+    await saveChatHistory(convs, [msg])
     expect(msg.images).toHaveLength(1)
     expect(msg.images?.[0].dataBase64).toBe("A".repeat(1024))
 
@@ -260,7 +263,7 @@ describe("chat persistence — round-trip (new format)", () => {
     expect(raw).not.toContain("dataBase64")
     expect(raw).not.toContain("image/png")
 
-    const loaded = await loadChatHistory(tmp.path)
+    const loaded = await loadChatHistory()
     expect(loaded.messages[0]).toMatchObject({
       id: "m1",
       content: "what is this?",
@@ -286,7 +289,7 @@ describe("chat persistence — round-trip (new format)", () => {
       }],
     }
 
-    await saveChatHistory(tmp.path, convs, [msg])
+    await saveChatHistory(convs, [msg])
     const raw = await readFileRaw(`${tmp.path}/.llm-wiki/chats/c1.json`)
     expect(raw).not.toContain("beforeContent")
     expect(raw).not.toContain("afterContent")
@@ -300,8 +303,8 @@ describe("chat persistence — round-trip (new format)", () => {
       contextFiles: [`${tmp.path}/wiki/overview.md`],
     }
 
-    await saveChatHistory(tmp.path, convs, [msg])
-    const loaded = await loadChatHistory(tmp.path)
+    await saveChatHistory(convs, [msg])
+    const loaded = await loadChatHistory()
     expect(loaded.messages[0].contextFiles).toEqual([
       `${tmp.path}/wiki/overview.md`,
     ])
@@ -312,8 +315,8 @@ describe("chat persistence — round-trip (new format)", () => {
     const msgs = Array.from({ length: 150 }, (_, i) =>
       makeMsg(`m${i}`, "c1", `msg ${i}`),
     )
-    await saveChatHistory(tmp.path, convs, msgs)
-    const loaded = await loadChatHistory(tmp.path)
+    await saveChatHistory(convs, msgs)
+    const loaded = await loadChatHistory()
     expect(loaded.messages).toHaveLength(100)
     // Should have kept the LAST 100 (m50 .. m149)
     expect(loaded.messages[0].id).toBe("m50")
@@ -321,12 +324,12 @@ describe("chat persistence — round-trip (new format)", () => {
   })
 
   it("returns empty data when no persistence file exists", async () => {
-    const loaded = await loadChatHistory(tmp.path)
+    const loaded = await loadChatHistory()
     expect(loaded).toEqual({ conversations: [], messages: [] })
   })
 
   it("round-trips chat search preferences", async () => {
-    await saveChatPreferences(tmp.path, {
+    await saveChatPreferences({
       useWebSearch: true,
       useAnyTxtSearch: false,
       agentMode: "deep",
@@ -334,7 +337,7 @@ describe("chat persistence — round-trip (new format)", () => {
       selectedSkills: ["reviewer", "illustrator"],
       disabledSkills: ["legacy"],
     })
-    await expect(loadChatPreferences(tmp.path)).resolves.toEqual({
+    await expect(loadChatPreferences()).resolves.toEqual({
       useWebSearch: true,
       useAnyTxtSearch: false,
       agentMode: "deep",
@@ -349,7 +352,7 @@ describe("chat persistence — round-trip (new format)", () => {
   })
 
   it("round-trips faithful source retrieval preference", async () => {
-    await saveChatPreferences(tmp.path, {
+    await saveChatPreferences({
       useWebSearch: false,
       useAnyTxtSearch: false,
       agentMode: "standard",
@@ -358,12 +361,12 @@ describe("chat persistence — round-trip (new format)", () => {
       disabledSkills: [],
     })
 
-    const loaded = await loadChatPreferences(tmp.path)
+    const loaded = await loadChatPreferences()
     expect(loaded.retrievalMode).toBe("faithful")
   })
 
   it("defaults chat search preferences to off when no file exists", async () => {
-    await expect(loadChatPreferences(tmp.path)).resolves.toEqual({
+    await expect(loadChatPreferences()).resolves.toEqual({
       useWebSearch: false,
       useAnyTxtSearch: false,
       agentMode: "standard",
@@ -383,7 +386,7 @@ describe("chat persistence — round-trip (new format)", () => {
       `${tmp.path}/.llm-wiki/chats/c1.json`,
       JSON.stringify([makeMsg("m1", "c1", "hi")]),
     )
-    const loaded = await loadChatHistory(tmp.path)
+    const loaded = await loadChatHistory()
     expect(loaded.conversations).toHaveLength(2)
     expect(loaded.messages).toHaveLength(1)
   })
@@ -402,7 +405,7 @@ describe("chat persistence — round-trip (new format)", () => {
       JSON.stringify([makeMsg("m3", "c2", "Second recovered question")]),
     )
 
-    const loaded = await loadChatHistory(tmp.path)
+    const loaded = await loadChatHistory()
 
     expect(loaded.conversations.map((conversation) => conversation.id).sort()).toEqual(["c1", "c2"])
     expect(loaded.conversations.find((conversation) => conversation.id === "c1")?.title).toBe(
@@ -417,7 +420,7 @@ describe("chat persistence — round-trip (new format)", () => {
       JSON.stringify([makeMsg("m1", "c1", "Recovered without index")]),
     )
 
-    const loaded = await loadChatHistory(tmp.path)
+    const loaded = await loadChatHistory()
 
     expect(loaded.conversations).toHaveLength(1)
     expect(loaded.conversations[0].id).toBe("c1")
@@ -430,8 +433,8 @@ describe("chat persistence — round-trip (new format)", () => {
       makeMsg("m1", "c1", "你好，世界 🌍"),
       makeMsg("m2", "c1", "これはテスト"),
     ]
-    await saveChatHistory(tmp.path, convs, msgs)
-    const loaded = await loadChatHistory(tmp.path)
+    await saveChatHistory(convs, msgs)
+    const loaded = await loadChatHistory()
     expect(loaded.conversations[0].title).toBe("中文对话 🎌")
     expect(loaded.messages[0].content).toBe("你好，世界 🌍")
   })
@@ -456,7 +459,7 @@ describe("chat persistence — legacy format fallback", () => {
       JSON.stringify(legacyMessages),
     )
 
-    const loaded = await loadChatHistory(tmp.path)
+    const loaded = await loadChatHistory()
     expect(loaded.conversations).toHaveLength(1)
     expect(loaded.conversations[0].id).toBe("default")
     expect(loaded.messages).toHaveLength(2)
@@ -473,7 +476,7 @@ describe("chat persistence — legacy format fallback", () => {
       JSON.stringify(old),
     )
 
-    const loaded = await loadChatHistory(tmp.path)
+    const loaded = await loadChatHistory()
     expect(loaded.conversations).toHaveLength(1)
     expect(loaded.messages).toHaveLength(1)
   })
@@ -489,7 +492,7 @@ describe("chat persistence — legacy format fallback", () => {
     )
     await writeFileRaw(`${tmp.path}/.llm-wiki/chats/new.json`, "[]")
 
-    const loaded = await loadChatHistory(tmp.path)
+    const loaded = await loadChatHistory()
     expect(loaded.conversations[0].id).toBe("new")
   })
 })

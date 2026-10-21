@@ -1,18 +1,18 @@
-import { usesKnowledgeLayer } from "@/lib/knowledge-layer"
+/**
+ * Research on the internet (D-397, D-414): a person asks for it from a
+ * person, organization or matter (or loose, from the research panel); the
+ * sources the search finds are synthesized and the result is kept in the
+ * base with its sources, of that object, apart from what the documents
+ * say. Nothing is written to a file and nothing reads the old wiki.
+ */
 import { anyTxtSearchSmart, hasConfiguredAnyTxt } from "./anytxt-search"
 import { hasConfiguredSearchProvider, resolveSearchConfig, webSearch } from "./web-search"
 import { streamChat } from "./llm-client"
-import { currentWikiDate } from "./ingest"
-import { createDirectory, fileExists, writeFile, readFile } from "@/commands/fs"
+import { saveResearch, type ResearchSource } from "@/commands/docbase"
 import { useWikiStore, type LlmConfig, type SearchApiConfig } from "@/stores/wiki-store"
-import { useResearchStore } from "@/stores/research-store"
-import { normalizePath } from "@/lib/path-utils"
+import { useResearchStore, type ResearchTaskInput } from "@/stores/research-store"
 import { buildLanguageDirective } from "@/lib/output-language"
-import { makeQueryFileName } from "@/lib/wiki-filename"
-import { refreshProjectFileTree } from "@/lib/project-file-tree-refresh"
 import { useReviewStore } from "@/stores/review-store"
-import { stripBodyWikilinkPathPrefixes } from "./page-merge"
-import { normalizeMalformedWikilinks } from "./ingest-sanitize"
 
 const MAX_RESEARCH_SOURCES = 20
 const MIN_RESEARCH_CONTENT_CHARS = 120
@@ -23,64 +23,6 @@ export interface ResearchSynthesisValidation {
   cleaned: string
   citedSourceIndexes: number[]
   error: string | null
-}
-
-export function buildResearchPageContent(
-  topic: string,
-  date: string,
-  synthesis: string,
-  references: string,
-): string {
-  const displayTopic = topic.replace(/\s+/g, " ").trim()
-  return normalizeMalformedWikilinks(stripBodyWikilinkPathPrefixes([
-    "---",
-    "type: query",
-    `title: ${JSON.stringify(`Research: ${displayTopic}`)}`,
-    `created: ${date}`,
-    "origin: deep-research",
-    "tags: [research]",
-    "---",
-    "",
-    `# Research: ${displayTopic}`,
-    "",
-    synthesis,
-    "",
-    "## References",
-    "",
-    references,
-    "",
-  ].join("\n")))
-}
-
-export async function makeAvailableResearchFilePath(
-  directory: string,
-  fileName: string,
-  exists: (path: string) => Promise<boolean> = fileExists,
-): Promise<string> {
-  const basePath = `${directory}/${fileName}`
-  if (!(await exists(basePath))) return basePath
-
-  const extensionIndex = fileName.toLowerCase().endsWith(".md") ? fileName.length - 3 : fileName.length
-  const stem = fileName.slice(0, extensionIndex)
-  const extension = fileName.slice(extensionIndex)
-  for (let suffix = 2; suffix <= 999; suffix++) {
-    const candidate = `${directory}/${stem}-${suffix}${extension}`
-    if (!(await exists(candidate))) return candidate
-  }
-  return `${directory}/${stem}-${Date.now()}${extension}`
-}
-
-export function addResearchTaskDiscriminator(fileName: string, taskId: string): string {
-  const safeTaskId = taskId.replace(/[^A-Za-z0-9-]/g, "-").replace(/-+/g, "-")
-  const extensionIndex = fileName.toLowerCase().endsWith(".md") ? fileName.length - 3 : fileName.length
-  return `${fileName.slice(0, extensionIndex)}-${safeTaskId || "task"}${fileName.slice(extensionIndex)}`
-}
-
-export function researchPageIdFromPath(filePath: string): string {
-  const normalized = filePath.replace(/\\/g, "/")
-  const wikiIndex = normalized.lastIndexOf("/wiki/")
-  const relative = wikiIndex >= 0 ? normalized.slice(wikiIndex + 6) : normalized
-  return relative.replace(/^wiki\//, "").replace(/\.md$/i, "")
 }
 
 interface ResearchSourceDeps {
@@ -246,19 +188,6 @@ export function rejectedResearchSourcesTaskPatch(
   }
 }
 
-export function makeDeepResearchFileName(topic: string, now: Date = new Date()): {
-  fileName: string
-  date: string
-} {
-  const { fileName } = makeQueryFileName(`research-${topic}`, now)
-  return { fileName, date: currentWikiDate(now) }
-}
-
-/**
- * Remove private reasoning before validating or persisting model output. Keep
- * this shared with the completion gate so content cannot pass validation and
- * then become empty after a different save-time cleanup.
- */
 export function cleanResearchSynthesis(content: string): string {
   return content
     .replace(/<think(?:ing)?>\s*[\s\S]*?<\/think(?:ing)?>\s*/gi, "")
@@ -332,42 +261,47 @@ export function validateResearchSynthesis(
   return { valid: true, cleaned, citedSourceIndexes, error: null }
 }
 
+/** The person, organization or matter a research is of. */
+export interface ResearchTarget {
+  objectId: string
+  name: string
+}
+
+export interface QueueResearchOptions {
+  searchQueries?: string[]
+  sourceReviewId?: string
+  /** Of whom; none for a loose research. */
+  target?: ResearchTarget
+  /** Whether the research panel opens to follow it (default: yes). */
+  openPanel?: boolean
+}
+
 /**
  * Queue a deep research task. Automatically starts processing if under concurrency limit.
  */
 export function queueResearch(
-  projectPath: string,
   topic: string,
   llmConfig: LlmConfig,
   searchConfig: SearchApiConfig,
-  searchQueries?: string[],
-  sourceReviewId?: string,
+  options: QueueResearchOptions = {},
 ): string {
-  const store = useResearchStore.getState()
-  const taskId = store.addTask(topic)
-  // Store search queries on the task
-  if (searchQueries && searchQueries.length > 0) {
-    store.updateTask(taskId, { searchQueries })
-  }
-  if (sourceReviewId) store.updateTask(taskId, { sourceReviewId })
-  // Ensure panel is open
-  store.setPanelOpen(true)
+  const [taskId] = useResearchStore.getState().addTasks([{
+    topic,
+    searchQueries: options.searchQueries,
+    sourceReviewId: options.sourceReviewId,
+    objectId: options.target?.objectId,
+    objectName: options.target?.name,
+  }], { openPanel: options.openPanel ?? true })
   // Start processing on next tick to ensure React has rendered the panel
   setTimeout(() => {
-    processQueue(projectPath, llmConfig, searchConfig)
+    processQueue(llmConfig, searchConfig)
   }, 50)
   return taskId
 }
 
-export interface ResearchBatchInput {
-  topic: string
-  searchQueries?: string[]
-  sourceReviewId?: string
-  rerunOfTaskId?: string
-}
+export type ResearchBatchInput = ResearchTaskInput
 
 export function queueResearchBatch(
-  projectPath: string,
   inputs: ResearchBatchInput[],
   llmConfig: LlmConfig,
   searchConfig: SearchApiConfig,
@@ -378,26 +312,24 @@ export function queueResearchBatch(
   if (normalized.length === 0) return []
 
   const ids = useResearchStore.getState().addTasks(normalized)
-  setTimeout(() => processQueue(projectPath, llmConfig, searchConfig), 50)
+  setTimeout(() => processQueue(llmConfig, searchConfig), 50)
   return ids
 }
 
 export function resolveReviewForSavedResearch(
-  projectPath: string,
   taskId: string,
-  savedPath: string,
+  savedId: number,
 ): boolean {
-  if (!isActiveProjectPath(projectPath)) return false
   const task = useResearchStore.getState().tasks.find((candidate) => candidate.id === taskId)
   if (
     !task?.sourceReviewId ||
     task.status !== "done" ||
-    task.savedPath !== savedPath ||
+    task.savedId !== savedId ||
     !validateResearchSynthesis(task.synthesis, task.webResults.length).valid
   ) return false
   const review = useReviewStore.getState().items.find((item) => item.id === task.sourceReviewId)
   if (!review || review.resolved) return false
-  useReviewStore.getState().resolveItem(task.sourceReviewId, `Research saved: ${savedPath}`)
+  useReviewStore.getState().resolveItem(task.sourceReviewId, `Investigación guardada en la base (${savedId})`)
   return true
 }
 
@@ -488,17 +420,15 @@ function hasAnyTxtSource(searchConfig: SearchApiConfig): boolean {
   return sourceMode === "anytxt" || sourceMode === "both"
 }
 
-function isActiveProjectPath(projectPath: string): boolean {
-  const activePath = useWikiStore.getState().project?.path
-  return Boolean(activePath && normalizePath(activePath) === normalizePath(projectPath))
+function taskExists(taskId: string): boolean {
+  return useResearchStore.getState().tasks.some((task) => task.id === taskId)
 }
 
 function updateTaskIfActive(
-  projectPath: string,
   taskId: string,
   patch: Parameters<ReturnType<typeof useResearchStore.getState>["updateTask"]>[1],
 ): boolean {
-  if (!isActiveProjectPath(projectPath)) return false
+  if (!taskExists(taskId)) return false
   useResearchStore.getState().updateTask(taskId, patch)
   return true
 }
@@ -507,7 +437,6 @@ function updateTaskIfActive(
  * Process queued tasks up to maxConcurrent limit.
  */
 function processQueue(
-  projectPath: string,
   llmConfig: LlmConfig,
   searchConfig: SearchApiConfig,
 ) {
@@ -518,24 +447,57 @@ function processQueue(
   for (let i = 0; i < available; i++) {
     const next = useResearchStore.getState().getNextQueued()
     if (!next) break
-    executeResearch(projectPath, next.id, next.topic, llmConfig, searchConfig)
+    executeResearch(next.id, next.topic, llmConfig, searchConfig)
   }
 }
 
+/** The system prompt of the synthesis: of whom, and apart from the documents. */
+export function researchSystemPrompt(topic: string, subject?: string): string {
+  return [
+    "You are a research assistant. Synthesize the collected research sources into a research note.",
+    "",
+    buildLanguageDirective(topic),
+    "",
+    subject
+      ? [
+          "## Subject",
+          `- The research is about ${subject}, as found on the internet.`,
+          "- It is kept apart from the user's own documents: never present it as coming from them.",
+          "",
+        ].join("\n")
+      : "",
+    "## Writing Rules",
+    "- Organize into clear sections with headings",
+    "- Cite sources using [N] notation",
+    "- Note contradictions or gaps",
+    "- Suggest additional sources worth finding",
+    "- Neutral, encyclopedic tone",
+  ].filter(Boolean).join("\n")
+}
+
+/** The sources the synthesis cites, as the base keeps them. */
+export function citedResearchSources(
+  citedSourceIndexes: number[],
+  webResults: import("./web-search").WebSearchResult[],
+): ResearchSource[] {
+  return citedSourceIndexes
+    .map((index) => {
+      const result = webResults[index - 1]
+      return result ? { index, title: result.title, url: result.url, source: result.source } : null
+    })
+    .filter((source): source is ResearchSource => source !== null)
+}
+
 async function executeResearch(
-  projectPath: string,
   taskId: string,
   topic: string,
   llmConfig: LlmConfig,
   searchConfig: SearchApiConfig,
 ) {
-  const pp = normalizePath(projectPath)
-
   try {
-    if (!isActiveProjectPath(pp)) return
     // Step 1: gather research sources — use multiple queries if available,
     // merge Web Search and local AnyTXT results, then deduplicate.
-    if (!updateTaskIfActive(pp, taskId, { status: "searching" })) return
+    if (!updateTaskIfActive(taskId, { status: "searching" })) return
 
     const task = useResearchStore.getState().tasks.find((t) => t.id === taskId)
     const queries = task?.searchQueries && task.searchQueries.length > 0
@@ -549,79 +511,47 @@ async function executeResearch(
     } = await collectResearchSources(
       queries,
       searchConfig,
-      pp,
+      useWikiStore.getState().project?.path ?? "",
       { webSearch, anyTxtSearch: anyTxtSearchSmart },
       { llmConfig, researchTopic: topic },
     )
-    if (!isActiveProjectPath(pp)) return
 
     const webResults = allResults
-    if (!updateTaskIfActive(pp, taskId, { webResults })) return
+    if (!updateTaskIfActive(taskId, { webResults })) return
 
     if (webResults.length === 0) {
       const patch = candidateCount > 0 && rejectedCount === candidateCount
         ? rejectedResearchSourcesTaskPatch(candidateCount, sourceErrors)
         : noResearchSourcesTaskPatch(sourceErrors)
-      if (!updateTaskIfActive(pp, taskId, patch)) return
-      if (isActiveProjectPath(pp)) onTaskFinished(pp, llmConfig, searchConfig)
+      updateTaskIfActive(taskId, patch)
+      onTaskFinished(llmConfig, searchConfig)
       return
     }
 
     // Step 2: LLM synthesis
-    if (!updateTaskIfActive(pp, taskId, { status: "synthesizing" })) return
+    if (!updateTaskIfActive(taskId, { status: "synthesizing" })) return
 
     const searchContext = webResults
       .map((r, i) => `[${i + 1}] **${r.title}** (${r.source})\n${r.snippet}`)
       .join("\n\n")
-
-    // Read existing wiki index to enable cross-referencing
-    let wikiIndex = ""
-    try {
-      wikiIndex = await readFile(`${pp}/wiki/index.md`)
-    } catch {
-      // no index yet
-    }
-
-    const systemPrompt = [
-      "You are a research assistant. Synthesize the collected research sources into a comprehensive wiki page.",
-      "",
-      buildLanguageDirective(topic),
-      "",
-      "## Cross-referencing (IMPORTANT)",
-      "- The wiki already has existing pages listed in the Wiki Index below.",
-      "- When your synthesis mentions an entity or concept that exists in the wiki, ALWAYS use [[wikilink]] syntax to link to it.",
-      "- For example, if the wiki has an entity 'anthropic', write [[anthropic]] when mentioning it.",
-      "- This is critical for connecting new research to existing knowledge in the graph.",
-      "",
-      "## Writing Rules",
-      "- Organize into clear sections with headings",
-      "- Cite sources using [N] notation",
-      "- Note contradictions or gaps",
-      "- Suggest additional sources worth finding",
-      "- Neutral, encyclopedic tone",
-      "",
-      wikiIndex ? `## Existing Wiki Index (link to these pages with [[wikilink]])\n${wikiIndex}` : "",
-    ].filter(Boolean).join("\n")
 
     let accumulated = ""
 
     await streamChat(
       llmConfig,
       [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: `Research topic: **${topic}**\n\n## Research Sources\n\n${searchContext}\n\nSynthesize into a wiki page.` },
+        { role: "system", content: researchSystemPrompt(topic, task?.objectName) },
+        { role: "user", content: `Research topic: **${topic}**\n\n## Research Sources\n\n${searchContext}\n\nSynthesize into a research note.` },
       ],
       {
         onToken: (token) => {
-          if (!isActiveProjectPath(pp)) return
           accumulated += token
           // Update synthesis progressively so UI shows real-time text
-          useResearchStore.getState().updateTask(taskId, { synthesis: accumulated })
+          updateTaskIfActive(taskId, { synthesis: accumulated })
         },
         onDone: () => {},
         onError: (err) => {
-          if (!isActiveProjectPath(pp)) return
-          useResearchStore.getState().updateTask(taskId, {
+          updateTaskIfActive(taskId, {
             status: "error",
             error: err.message,
           })
@@ -631,106 +561,53 @@ async function executeResearch(
 
     // Check if errored during streaming
     if (useResearchStore.getState().tasks.find((t) => t.id === taskId)?.status === "error") {
-      if (isActiveProjectPath(pp)) onTaskFinished(pp, llmConfig, searchConfig)
+      onTaskFinished(llmConfig, searchConfig)
       return
     }
-    if (!isActiveProjectPath(pp)) return
+    if (!taskExists(taskId)) return
 
-    // Step 3: Validate before writing. A successful stream can still contain
+    // Step 3: Validate before saving. A successful stream can still contain
     // no assistant prose (for example, only a reasoning block). Such output
     // must remain retryable instead of creating a references-only artifact.
     const validation = validateResearchSynthesis(accumulated, webResults.length)
     if (!validation.valid) {
-      if (!updateTaskIfActive(pp, taskId, {
+      updateTaskIfActive(taskId, {
         status: "error",
         synthesis: validation.cleaned,
         error: validation.error,
-      })) return
-      if (isActiveProjectPath(pp)) onTaskFinished(pp, llmConfig, searchConfig)
+      })
+      onTaskFinished(llmConfig, searchConfig)
       return
     }
-    if (!updateTaskIfActive(pp, taskId, { status: "saving", synthesis: validation.cleaned })) return
+    if (!updateTaskIfActive(taskId, { status: "saving", synthesis: validation.cleaned })) return
 
-    const { fileName, date } = makeDeepResearchFileName(topic)
-    const taskFileName = addResearchTaskDiscriminator(fileName, taskId)
-    // Research on the internet is a tool apart: in the archive's wiki it
-    // never writes a page (D-294, D-334); it is kept outside the wiki.
-    const archiveWiki = await usesKnowledgeLayer(pp)
-    const folder = archiveWiki ? `${pp}/.llm-wiki/research` : `${pp}/wiki/queries`
-    if (archiveWiki) await createDirectory(folder)
-    const filePath = await makeAvailableResearchFilePath(folder, taskFileName)
-
-    // Persist only sources cited by the synthesis. Search providers can return
-    // broad candidates; listing every candidate makes unused, off-topic hits
-    // appear to support the final research.
-    const references = validation.citedSourceIndexes
-      .map((sourceIndex) => {
-        const result = webResults[sourceIndex - 1]
-        return `${sourceIndex}. [${result.title}](${result.url}) — ${result.source}`
-      })
-      .join("\n")
-
-    const pageContent = buildResearchPageContent(
+    // Keep only the sources the synthesis cites: search providers can
+    // return broad candidates, and listing every one would make unused,
+    // off-topic hits appear to support the research.
+    const saved = await saveResearch(
+      task?.objectId ?? null,
       topic,
-      date,
       validation.cleaned,
-      references,
+      citedResearchSources(validation.citedSourceIndexes, webResults),
     )
 
-    await writeFile(filePath, pageContent)
-    const savedPath = filePath.slice(`${pp}/`.length)
-
-    if (!updateTaskIfActive(pp, taskId, {
-      status: "done",
-      savedPath,
-    })) return
-    resolveReviewForSavedResearch(pp, taskId, savedPath)
-
-    try {
-      await refreshProjectFileTree(pp, { bumpDataVersion: true })
-    } catch {
-      // ignore
-    }
-
-    // The query page no longer goes through source ingest, so index it here
-    // directly. This keeps freshly generated research available to hybrid
-    // search without recreating the review-amplifying ingest loop.
-    const embeddingConfig = useWikiStore.getState().embeddingConfig
-    if (!archiveWiki && embeddingConfig.enabled && embeddingConfig.model) {
-      try {
-        const { embedPage, wikiPageIdFromPath } = await import("@/lib/embedding")
-        await embedPage(
-          pp,
-          wikiPageIdFromPath(pp, filePath),
-          `Research: ${topic}`,
-          pageContent,
-          embeddingConfig,
-        )
-      } catch (err) {
-        console.warn("[DeepResearch] failed to index generated query page:", err)
-      }
-    }
-
-    // A research result is already a generated wiki page. Feeding it back
-    // through source ingest creates a second summary page and recursively
-    // produces low-value review suggestions from its own gaps/references.
-    // Keep it directly searchable as the query page instead.
+    if (!updateTaskIfActive(taskId, { status: "done", savedId: saved.id })) return
+    resolveReviewForSavedResearch(taskId, saved.id)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
-    updateTaskIfActive(pp, taskId, {
+    updateTaskIfActive(taskId, {
       status: "error",
       error: message,
     })
   }
 
-  if (isActiveProjectPath(pp)) onTaskFinished(pp, llmConfig, searchConfig)
+  onTaskFinished(llmConfig, searchConfig)
 }
 
 function onTaskFinished(
-  projectPath: string,
   llmConfig: LlmConfig,
   searchConfig: SearchApiConfig,
 ) {
   // Process next queued task
-  setTimeout(() => processQueue(projectPath, llmConfig, searchConfig), 100)
+  setTimeout(() => processQueue(llmConfig, searchConfig), 100)
 }

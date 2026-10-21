@@ -53,8 +53,7 @@ export function SkillsSection() {
   }, [searchQuery, skills, t])
 
   const persist = useCallback(async (nextSelected: string[], nextDisabled: string[]) => {
-    if (!project?.path) return
-    await saveChatPreferences(project.path, {
+    await saveChatPreferences({
       useWebSearch,
       useAnyTxtSearch,
       agentMode,
@@ -62,7 +61,7 @@ export function SkillsSection() {
       selectedSkills: nextSelected,
       disabledSkills: nextDisabled,
     })
-  }, [agentMode, project?.path, retrievalMode, useAnyTxtSearch, useWebSearch])
+  }, [agentMode, retrievalMode, useAnyTxtSearch, useWebSearch])
 
   const scan = useCallback(async () => {
     if (!project?.path) {

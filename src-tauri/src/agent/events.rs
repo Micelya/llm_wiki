@@ -79,13 +79,13 @@ mod tests {
     #[test]
     fn agent_event_serializes_with_camelcase_tag() {
         let value = serde_json::to_value(AgentEvent::ToolStart {
-            tool: "wiki.search".to_string(),
+            tool: "base.search".to_string(),
             input: Some("query".to_string()),
         })
         .unwrap();
 
         assert_eq!(value["type"], "toolStart");
-        assert_eq!(value["tool"], "wiki.search");
+        assert_eq!(value["tool"], "base.search");
         assert_eq!(value["input"], "query");
     }
 

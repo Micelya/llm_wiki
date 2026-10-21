@@ -4,7 +4,7 @@ import { convertFileSrc, invoke } from "@tauri-apps/api/core"
 import { listen } from "@tauri-apps/api/event"
 import { BookOpen, Plus, Trash2, MessageSquare, X, Maximize2, FolderOpen, FileText, ListTree, ChevronDown, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { ChatMessage, StreamingMessage, useSourceFiles, type ChatReferencePreview } from "./chat-message"
+import { ChatMessage, StreamingMessage, type ChatReferencePreview } from "./chat-message"
 import { ChatInput, type ChatSendOptions } from "./chat-input"
 import { useChatStore, chatMessagesToLLM, type MessageImage, type MessageReference } from "@/stores/chat-store"
 import { useWikiStore } from "@/stores/wiki-store"
@@ -13,7 +13,10 @@ import { isReasoningOnlyResponseError, streamChat } from "@/lib/llm-client"
 import { supportsImageInput } from "@/lib/llm-providers"
 import { buildCliRetrievedContext, cliRequestSkills, cliSearchTopK } from "@/lib/cli-chat-context"
 import { executeIngestWrites } from "@/lib/ingest"
-import { deleteFile, openPathInProject, readFile } from "@/commands/fs"
+import { openPathInProject, readFile } from "@/commands/fs"
+import { deleteChatConversation } from "@/lib/persist"
+import { getPageText } from "@/commands/docbase"
+import { SavedQueriesList } from "@/components/chat/saved-queries"
 import { getFileName, isAbsolutePath, normalizePath } from "@/lib/path-utils"
 import { hasConfiguredAnyTxt } from "@/lib/anytxt-search"
 import type { ChatAgentEvent, ChatAgentFileChange, ChatAgentStep, ChatUserInputRequest } from "@/lib/chat-agent-types"
@@ -244,11 +247,8 @@ function ConversationSidebar({
                       onClick={(e) => {
                         e.stopPropagation()
                         deleteConversation(conv.id)
-                        // Delete persisted chat file
-                        const proj = useWikiStore.getState().project
-                        if (proj) {
-                          deleteFile(`${proj.path}/.llm-wiki/chats/${conv.id}.json`).catch(() => {})
-                        }
+                        // Its saved messages go too (in the app's data folder).
+                        deleteChatConversation(conv.id).catch(() => {})
                       }}
                     >
                       <Trash2 className="h-3 w-3" />
@@ -269,12 +269,16 @@ function ConversationSidebar({
           })
         )}
       </div>
+      <SavedQueriesList />
     </div>
   )
 }
 
 function backendReferenceToMessageReference(ref: BackendAgentReference): MessageReference {
-  const isWiki = ref.kind === "wiki" || ref.path.startsWith("wiki/")
+  // An object of the base (D-413): a document, person, organization or
+  // matter, by its logical path; what it says is read from the base.
+  const isWiki = ["wiki", "document", "entity", "matter", "source", "graph"].includes(ref.kind)
+    || ref.path.startsWith("wiki/")
   const isWeb = ref.kind === "web" || /^https?:\/\//i.test(ref.path)
   const isWorkspace = ref.kind === "workspace" || ref.path.startsWith("agent-workspace/")
   const source =
@@ -449,7 +453,6 @@ function conversationMessages(conversationId: string) {
 
 export function ChatPanel() {
   const { t } = useTranslation()
-  useSourceFiles() // Keep source file cache warm
   const activeConversationId = useChatStore((s) => s.activeConversationId)
   const isStreaming = useChatStore((s) => s.isStreaming)
   const streamingContent = useChatStore((s) => s.streamingContent)
@@ -995,6 +998,9 @@ export function ChatPanel() {
                 mode: sendOptions.agentMode,
                 retrievalMode: sendOptions.retrievalMode,
                 stream: true,
+                // The chat keeps its own history in the app's data folder
+                // (D-415): nothing is written to a project's folder.
+                persistSession: false,
                 tools: {
                   wiki: true,
                   web: sendOptions.useWebSearch,
@@ -1129,14 +1135,12 @@ export function ChatPanel() {
             .map((reference) => `${reference.title} (${reference.path})`)
             .join("\n"),
           references: backendReferences,
-          readPage: (path) => project
-            ? readFile(projectAbsolutePath(project.path, path))
-            : Promise.reject(new Error("No project open")),
+          readPage: (path) => getPageText(path).then((page) => page?.text ?? ""),
         })
         if (!isCurrentRun()) return
         const contextText = retrievedContext
           ? [
-              "You have access to the current LLM Wiki project context below. Use it as retrieved evidence when it is relevant.",
+              "You have access to the context of the document base below. Use it as retrieved evidence when it is relevant.",
               "",
               retrievedContext,
               "",
@@ -1796,31 +1800,18 @@ function ContextDetailsPanel({
       let content = reference.snippet?.trim() ?? ""
       // The persisted snippet is the exact retrieved fragment. Prefer it over
       // re-reading a file that may have changed since the answer was produced.
-      if (reference.kind !== "external" && !content) {
-        const normalizedProject = normalizePath(projectPath)
-        const directPath = isAbsolutePath(reference.path)
-          ? normalizePath(reference.path)
-          : projectAbsolutePath(normalizedProject, reference.path)
-        const stem = getFileName(reference.path.replace(/^wiki\//, "").replace(/\.md$/i, ""))
-        const candidates = reference.kind === "workspace"
-          ? [directPath]
-          : [
-              directPath,
-              `${normalizedProject}/wiki/entities/${stem}.md`,
-              `${normalizedProject}/wiki/concepts/${stem}.md`,
-              `${normalizedProject}/wiki/sources/${stem}.md`,
-              `${normalizedProject}/wiki/queries/${stem}.md`,
-              `${normalizedProject}/wiki/synthesis/${stem}.md`,
-              `${normalizedProject}/wiki/comparisons/${stem}.md`,
-              `${normalizedProject}/wiki/${stem}.md`,
-            ]
-        for (const candidate of candidates) {
-          try {
-            content = await readFile(candidate)
-            break
-          } catch {
-            // Try resolver-compatible fallback paths.
-          }
+      if (reference.kind === "workspace" && !content) {
+        try {
+          content = await readFile(projectAbsolutePath(normalizePath(projectPath), reference.path))
+        } catch {
+          // A generated file that is gone.
+        }
+      } else if (reference.kind !== "external" && !content) {
+        // A page of the base, by its logical path (D-413).
+        try {
+          content = (await getPageText(reference.path))?.text ?? ""
+        } catch {
+          // Not in the base (any more).
         }
       }
       const category = contextDetailCategory(reference)

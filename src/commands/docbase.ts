@@ -1411,6 +1411,68 @@ export function deleteSavedQuery(id: number): Promise<void> {
   return invoke<void>("docbase_delete_saved_query", { id })
 }
 
+/** A page of the base whole (what the app wrote, then the notes of a person). */
+export interface PageText {
+  /** Its logical path. */
+  path: string
+  title: string
+  text: string
+}
+
+/** A page of the base by its logical path or a link; null when the base has none. */
+export function getPageText(path: string): Promise<PageText | null> {
+  return invoke<PageText | null>("docbase_knowledge_page_text", { path })
+}
+
+/** A source a research on the internet cites, by its number in the text (`[n]`). */
+export interface ResearchSource {
+  index: number
+  title: string
+  url: string
+  source: string
+}
+
+/**
+ * A research on the internet kept in the base (D-414): of a person,
+ * organization or matter, or loose; apart from what the documents say.
+ */
+export interface Research {
+  id: number
+  objectId: string | null
+  topic: string
+  body: string
+  sources: ResearchSource[]
+  createdAt: number
+}
+
+export function saveResearch(
+  objectId: string | null,
+  topic: string,
+  body: string,
+  sources: ResearchSource[],
+): Promise<Research> {
+  return invoke<Research>("docbase_research_save", { objectId, topic, body, sources })
+}
+
+/** The researches of a person, organization or matter, the latest first. */
+export function listResearchOf(objectId: string): Promise<Research[]> {
+  return invoke<Research[]>("docbase_research_of", { objectId })
+}
+
+/** The researches of no object, the latest first. */
+export function listLooseResearch(): Promise<Research[]> {
+  return invoke<Research[]>("docbase_research_loose")
+}
+
+export function deleteResearch(id: number): Promise<void> {
+  return invoke<void>("docbase_research_delete", { id })
+}
+
+/** The folder of the chat's history and preferences, in the app's data folder (D-415). */
+export function getChatFolder(): Promise<string> {
+  return invoke<string>("docbase_chat_folder")
+}
+
 /** Whether the base reads its documents on its own («Lectura automática»). */
 export function getBackgroundReading(): Promise<boolean> {
   return invoke<boolean>("docbase_background_reading")

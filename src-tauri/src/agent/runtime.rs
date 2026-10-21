@@ -54,6 +54,8 @@ pub struct AgentRuntime {
     llm_config: Option<LlmConfig>,
     web_search_config: Option<WebSearchConfig>,
     anytxt_config: Option<AnyTxtConfig>,
+    /// The document base every reading tool reads (D-413).
+    base: Option<Arc<crate::docbase::DocBase>>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -76,12 +78,9 @@ struct ModelToolCall {
     #[serde(default)]
     path: Option<String>,
     #[serde(default)]
-    content: Option<String>,
-    // Overwriting existing wiki pages is destructive. The planner may set this
-    // only when the user explicitly asks to update/overwrite an existing page;
-    // the tool defaults to create-only when the field is absent.
+    title: Option<String>,
     #[serde(default)]
-    allow_overwrite: Option<bool>,
+    content: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -109,8 +108,6 @@ struct AgentLoopAction {
     path: Option<String>,
     #[serde(default)]
     content: Option<String>,
-    #[serde(default)]
-    allow_overwrite: Option<bool>,
     #[serde(default)]
     include_content: Option<bool>,
     #[serde(default)]
@@ -143,7 +140,14 @@ impl AgentRuntime {
             llm_config,
             web_search_config,
             anytxt_config,
+            base: None,
         }
+    }
+
+    /// The base the tools read and keep saved queries in.
+    pub fn with_base(mut self, base: Option<Arc<crate::docbase::DocBase>>) -> Self {
+        self.base = base;
+        self
     }
 
     #[allow(dead_code)]
@@ -303,7 +307,7 @@ impl AgentRuntime {
         // If the planner cannot run, preserve the API/MCP offline contract for
         // plain wiki questions without bringing back message-shape heuristics.
         // Skill turns intentionally do not use this fallback: the skill index is
-        // already in the prompt, and falling back to wiki.search would recreate
+        // already in the prompt, and falling back to base.search would recreate
         // the "what skills do you have?" retrieval bug.
         let fallback_wiki_search = should_fallback_wiki_search(
             planner_unavailable_or_failed,
@@ -311,7 +315,7 @@ impl AgentRuntime {
             skills.is_empty(),
         );
         let should_search_wiki =
-            router.should_search_wiki || planned_has("wiki.search") || fallback_wiki_search;
+            router.should_search_wiki || planned_has("base.search") || fallback_wiki_search;
         let should_include_sources = router.should_include_sources || planned_has("source.search");
         let should_search_graph = matches!(router.intent, super::router::QueryIntent::NeedsGraph)
             || planned_has("graph.search");
@@ -349,45 +353,46 @@ impl AgentRuntime {
         if let Some(write_call) = model_plan
             .tool_calls
             .iter()
-            .find(|call| call.tool.trim() == "wiki.write_page")
+            .find(|call| call.tool.trim() == "base.save_query")
         {
             check_cancel(cancellation.as_ref())?;
             permission_policy.require(AgentCapability::WriteWiki)?;
-            let path = write_call
-                .path
+            let title = write_call
+                .title
                 .as_deref()
+                .or(write_call.path.as_deref())
                 .map(str::trim)
-                .filter(|path| !path.is_empty())
-                .ok_or_else(|| "wiki.write_page requires path".to_string())?;
+                .filter(|title| !title.is_empty())
+                .ok_or_else(|| "base.save_query requires title".to_string())?;
             let content = write_call
                 .content
                 .as_deref()
                 .map(str::trim)
                 .filter(|content| !content.is_empty())
-                .ok_or_else(|| "wiki.write_page requires content".to_string())?;
+                .ok_or_else(|| "base.save_query requires content".to_string())?;
             tool_emit_event(
                 &mut tool_events,
                 &mut events,
                 &event_sink,
                 AgentToolEvent {
-                    tool: "wiki.write_page".to_string(),
+                    tool: "base.save_query".to_string(),
                     status: "started".to_string(),
-                    detail: Some(path.to_string()),
+                    detail: Some(title.to_string()),
                 },
             );
             emit_event(
                 &mut events,
                 &event_sink,
-                AgentEvent::tool_start("wiki.write_page", Some(path.to_string())),
+                AgentEvent::tool_start("base.save_query", Some(title.to_string())),
             );
             let tool_context = self.tool_context();
             match execute_tool_with_cancellation(
                 tool_registry.execute(
-                    "wiki.write_page",
+                    "base.save_query",
                     serde_json::json!({
-                        "path": path,
+                        "title": title,
                         "content": content,
-                        "allowOverwrite": write_call.allow_overwrite.unwrap_or(false),
+                        "question": message,
                     }),
                     tool_context,
                 ),
@@ -395,45 +400,26 @@ impl AgentRuntime {
             )
             .await
             .and_then(|value| {
-                serde_json::from_value::<tools::WikiWriteOutput>(value)
-                    .map_err(|err| format!("Invalid wiki.write_page result: {err}"))
+                serde_json::from_value::<tools::SavedQueryOutput>(value)
+                    .map_err(|err| format!("Invalid base.save_query result: {err}"))
             }) {
                 Ok(output) => {
-                    emit_event(
-                        &mut events,
-                        &event_sink,
-                        AgentEvent::FileChanged {
-                            path: output.reference.path.clone(),
-                            tool: "wiki.write_page".to_string(),
-                            existed_before: output.existed_before,
-                            previous_content: output.previous_content,
-                        },
-                    );
-                    let reference = output.reference;
-                    emit_event(
-                        &mut events,
-                        &event_sink,
-                        AgentEvent::ReferenceAdded {
-                            reference: reference.clone(),
-                        },
-                    );
-                    references.push(reference);
                     tool_emit_event(
                         &mut tool_events,
                         &mut events,
                         &event_sink,
                         AgentToolEvent {
-                            tool: "wiki.write_page".to_string(),
+                            tool: "base.save_query".to_string(),
                             status: "completed".to_string(),
-                            detail: Some(path.to_string()),
+                            detail: Some(output.title.clone()),
                         },
                     );
                     emit_event(
                         &mut events,
                         &event_sink,
-                        AgentEvent::tool_end("wiki.write_page", Some(path.to_string())),
+                        AgentEvent::tool_end("base.save_query", Some(output.title.clone())),
                     );
-                    retrieval_parts.push(format!("wiki.write_page wrote {path}."));
+                    retrieval_parts.push(format!("base.save_query saved the query «{}».", output.title));
                 }
                 Err(err) => {
                     tool_emit_event(
@@ -441,7 +427,7 @@ impl AgentRuntime {
                         &mut events,
                         &event_sink,
                         AgentToolEvent {
-                            tool: "wiki.write_page".to_string(),
+                            tool: "base.save_query".to_string(),
                             status: "failed".to_string(),
                             detail: Some(err.clone()),
                         },
@@ -449,7 +435,7 @@ impl AgentRuntime {
                     emit_event(
                         &mut events,
                         &event_sink,
-                        AgentEvent::tool_end("wiki.write_page", Some(format!("failed: {err}"))),
+                        AgentEvent::tool_end("base.save_query", Some(format!("failed: {err}"))),
                     );
                 }
             }
@@ -613,7 +599,7 @@ impl AgentRuntime {
             check_cancel(cancellation.as_ref())?;
             permission_policy.require(AgentCapability::SearchWiki)?;
             let wiki_query = planned_queries
-                .get("wiki.search")
+                .get("base.search")
                 .map(String::as_str)
                 .unwrap_or(message);
             tool_emit_event(
@@ -621,7 +607,7 @@ impl AgentRuntime {
                 &mut events,
                 &event_sink,
                 AgentToolEvent {
-                    tool: "wiki.search".to_string(),
+                    tool: "base.search".to_string(),
                     status: "started".to_string(),
                     detail: Some(wiki_query.to_string()),
                 },
@@ -629,7 +615,7 @@ impl AgentRuntime {
             emit_event(
                 &mut events,
                 &event_sink,
-                AgentEvent::tool_start("wiki.search", Some(wiki_query.to_string())),
+                AgentEvent::tool_start("base.search", Some(wiki_query.to_string())),
             );
             let top_k = request
                 .top_k
@@ -637,7 +623,7 @@ impl AgentRuntime {
                 .clamp(1, MAX_CHAT_SEARCH_RESULTS);
             let wiki_search = execute_tool_with_cancellation(
                 tool_registry.execute(
-                    "wiki.search",
+                    "base.search",
                     serde_json::json!({
                         "query": wiki_query,
                         "topK": top_k,
@@ -649,8 +635,8 @@ impl AgentRuntime {
             )
             .await
             .and_then(|value| {
-                serde_json::from_value::<tools::WikiSearchToolOutput>(value)
-                    .map_err(|err| format!("Invalid wiki.search result: {err}"))
+                serde_json::from_value::<tools::BaseSearchToolOutput>(value)
+                    .map_err(|err| format!("Invalid base.search result: {err}"))
             });
             match wiki_search {
                 Ok(search) => {
@@ -672,7 +658,7 @@ impl AgentRuntime {
                         &mut events,
                         &event_sink,
                         AgentToolEvent {
-                            tool: "wiki.search".to_string(),
+                            tool: "base.search".to_string(),
                             status: "completed".to_string(),
                             detail: Some(format!(
                                 "{} result(s), mode={}, tokenHits={}, vectorHits={}, graphHits={}",
@@ -688,7 +674,7 @@ impl AgentRuntime {
                         &mut events,
                         &event_sink,
                         AgentEvent::tool_end(
-                            "wiki.search",
+                            "base.search",
                             Some(format!("{search_count} result(s)")),
                         ),
                     );
@@ -700,7 +686,7 @@ impl AgentRuntime {
                         &mut events,
                         &event_sink,
                         AgentToolEvent {
-                            tool: "wiki.search".to_string(),
+                            tool: "base.search".to_string(),
                             status: "failed".to_string(),
                             detail: Some(err.clone()),
                         },
@@ -708,7 +694,7 @@ impl AgentRuntime {
                     emit_event(
                         &mut events,
                         &event_sink,
-                        AgentEvent::tool_end("wiki.search", Some(format!("failed: {err}"))),
+                        AgentEvent::tool_end("base.search", Some(format!("failed: {err}"))),
                     );
                 }
             }
@@ -716,11 +702,13 @@ impl AgentRuntime {
                 permission_policy.require(AgentCapability::ReadProject)?;
                 let excerpts = references
                     .iter()
-                    .filter(|reference| reference.kind == "wiki")
+                    .filter(|reference| matches!(reference.kind.as_str(), "document" | "entity" | "matter"))
                     .take(2)
                     .filter_map(|reference| {
-                        tools::read_wiki_page(&self.project_path, &reference.path)
+                        let base = self.base.as_deref()?;
+                        super::base_tools::base_read(base, &reference.path)
                             .ok()
+                            .and_then(|read| read.get("content").and_then(Value::as_str).map(str::to_string))
                             .map(|content| {
                                 format!(
                                     "Excerpt from {}:\n{}",
@@ -739,7 +727,7 @@ impl AgentRuntime {
                         &mut events,
                         &event_sink,
                         AgentToolEvent {
-                            tool: "wiki.read_page".to_string(),
+                            tool: "base.read".to_string(),
                             status: "completed".to_string(),
                             detail: Some(format!("{} excerpt(s)", excerpts.len())),
                         },
@@ -748,7 +736,7 @@ impl AgentRuntime {
                         &mut events,
                         &event_sink,
                         AgentEvent::tool_end(
-                            "wiki.read_page",
+                            "base.read",
                             Some(format!("{} excerpt(s)", excerpts.len())),
                         ),
                     );
@@ -757,7 +745,7 @@ impl AgentRuntime {
             }
         } else if request.tools.wiki {
             retrieval_parts.push(format!(
-                "Router intent={} did not require immediate wiki.search for this turn.",
+                "Router intent={} did not require immediate base.search for this turn.",
                 intent_label(router.intent)
             ));
         }
@@ -1153,7 +1141,7 @@ impl AgentRuntime {
         }
         let retrieval_summary = retrieval_parts.join("\n\n");
         let project_context = project_context_for_retrieval_mode(
-            load_project_context(&self.project_path),
+            load_project_context(&self.project_path, self.base.as_deref()),
             request.retrieval_mode,
         );
         let explicit_files =
@@ -1314,7 +1302,7 @@ impl AgentRuntime {
         let client = LlmClient::new(config.clone())?
             .structured_task_config(agent_structured_max_tokens(!skills.is_empty()));
         let project_context = project_context_for_retrieval_mode(
-            load_project_context(&self.project_path),
+            load_project_context(&self.project_path, self.base.as_deref()),
             request.retrieval_mode,
         );
         let explicit_files =
@@ -2148,7 +2136,7 @@ impl AgentRuntime {
             .unwrap_or(DEFAULT_CHAT_SEARCH_RESULTS)
             .clamp(1, MAX_CHAT_SEARCH_RESULTS);
         match tool {
-            "wiki.search" | "source.search" | "graph.search" | "web.search" | "anytxt.search" => {
+            "base.search" | "source.search" | "graph.search" | "web.search" | "anytxt.search" => {
                 let query = action
                     .query
                     .as_deref()
@@ -2161,13 +2149,13 @@ impl AgentRuntime {
                     "includeContent": action.include_content.or(request.include_content).unwrap_or(false),
                 }))
             }
-            "wiki.read_page" => {
+            "base.read" => {
                 let path = action
                     .path
                     .as_deref()
                     .map(str::trim)
                     .filter(|path| !path.is_empty())
-                    .ok_or_else(|| "wiki.read_page requires path".to_string())?;
+                    .ok_or_else(|| "base.read requires path".to_string())?;
                 Ok(serde_json::json!({ "path": path }))
             }
             "skill.read_file" => {
@@ -2182,23 +2170,24 @@ impl AgentRuntime {
                     "path": path,
                 }))
             }
-            "wiki.write_page" => {
-                let path = action
-                    .path
+            "base.save_query" => {
+                let title = action
+                    .title
                     .as_deref()
+                    .or(action.path.as_deref())
                     .map(str::trim)
-                    .filter(|path| !path.is_empty())
-                    .ok_or_else(|| "wiki.write_page requires path".to_string())?;
+                    .filter(|title| !title.is_empty())
+                    .ok_or_else(|| "base.save_query requires title".to_string())?;
                 let content = action
                     .content
                     .as_deref()
                     .map(str::trim)
                     .filter(|content| !content.is_empty())
-                    .ok_or_else(|| "wiki.write_page requires content".to_string())?;
+                    .ok_or_else(|| "base.save_query requires content".to_string())?;
                 Ok(serde_json::json!({
-                    "path": path,
+                    "title": title,
                     "content": content,
-                    "allowOverwrite": action.allow_overwrite.unwrap_or(false),
+                    "question": request.message,
                 }))
             }
             "workspace.write_file" | "workspace.append_file" => {
@@ -2244,9 +2233,9 @@ impl AgentRuntime {
         event_sink: &Option<AgentEventSink>,
     ) -> Result<String, String> {
         match tool {
-            "wiki.search" => {
-                let search: tools::WikiSearchToolOutput = serde_json::from_value(value)
-                    .map_err(|err| format!("Invalid wiki.search result: {err}"))?;
+            "base.search" => {
+                let search: tools::BaseSearchToolOutput = serde_json::from_value(value)
+                    .map_err(|err| format!("Invalid base.search result: {err}"))?;
                 let count = search.references.len();
                 let added = search
                     .references
@@ -2272,7 +2261,7 @@ impl AgentRuntime {
                     .count();
                 Ok(format!("{count} result(s), {added} new"))
             }
-            "wiki.read_page" => {
+            "base.read" => {
                 let path = value
                     .get("path")
                     .and_then(Value::as_str)
@@ -2303,23 +2292,10 @@ impl AgentRuntime {
                     trim_chars(&collapse_whitespace(content), 4_000)
                 ))
             }
-            "wiki.write_page" => {
-                let output: tools::WikiWriteOutput = serde_json::from_value(value)
-                    .map_err(|err| format!("Invalid wiki.write_page result: {err}"))?;
-                emit_event(
-                    events,
-                    event_sink,
-                    AgentEvent::FileChanged {
-                        path: output.reference.path.clone(),
-                        tool: "wiki.write_page".to_string(),
-                        existed_before: output.existed_before,
-                        previous_content: output.previous_content,
-                    },
-                );
-                let reference = output.reference;
-                let path = reference.path.clone();
-                push_unique_reference(references, events, event_sink, reference);
-                Ok(format!("wrote {path}"))
+            "base.save_query" => {
+                let output: tools::SavedQueryOutput = serde_json::from_value(value)
+                    .map_err(|err| format!("Invalid base.save_query result: {err}"))?;
+                Ok(format!("saved the query #{} «{}»", output.id, output.title))
             }
             "workspace.write_file" | "workspace.append_file" => {
                 let output: tools::WorkspaceWriteOutput = serde_json::from_value(value)
@@ -2413,6 +2389,7 @@ impl AgentRuntime {
     fn tool_context(&self) -> tools::ToolContext<'_> {
         tools::ToolContext {
             project_path: &self.project_path,
+            base: self.base.clone(),
             embedding_config: self.embedding_config.clone(),
             web_search_config: self.web_search_config.clone(),
             anytxt_config: self.anytxt_config.clone(),
@@ -2441,10 +2418,10 @@ impl AgentRuntime {
         };
         check_cancel(cancellation)?;
         let mut available = vec![
-            "wiki.search",
+            "base.search",
             "source.search",
             "graph.search",
-            "wiki.write_page",
+            "base.save_query",
         ];
         if tools.web {
             available.push("web.search");
@@ -2461,7 +2438,7 @@ impl AgentRuntime {
         let skill_context = render_skill_planner_context(skills, skill_mode);
         let workspace = agent_workspace_display(&self.project_path);
         let user = format!(
-            "User request:\n{message}\n\nSkill context:\n{skill_context}\n\nAvailable tools: {}\n\nAgent workspace for generated files: {workspace}\n\nReturn JSON exactly like {{\"toolCalls\":[{{\"tool\":\"wiki.search\",\"query\":\"short query\"}}]}}. Use an empty array when no tool is needed. The skill context and tool list above are already available to the assistant; do not call wiki.search, source.search, graph.search, web.search, anytxt.search, skill.read_file, workspace.write_file, or shell.exec merely to list, explain, or summarize the currently available skills, tools, modes, or agent capabilities. Use wiki.search for factual or topical retrieval. Prefer graph.search for relationships, dependencies, neighborhoods, backlinks, or connections between entities; pass concise entity or concept names instead of the full question. The planner may select both when the answer needs page content and graph structure. Prefer web.search only for current/external information. Prefer anytxt.search only for user files outside the wiki. Use wiki.write_page only when the user explicitly asks to create a wiki page; include path under wiki/ ending in .md and full Markdown content. Existing pages are create-only by default; include allowOverwrite:true only when the user explicitly asks to overwrite or update an existing wiki page. Use skill.read_file for Markdown/reference files inside an active skill directory. Use workspace.write_file for generated artifacts under agent-workspace; do not inline large heredocs or generated file bodies inside shell.exec. Use shell.exec only when a relevant active skill requires a command-line operation after any large files have been written. shell.exec runs from the Agent workspace; commands that generate files must write them under that workspace and must not write to home, Desktop, Downloads, system temp folders, hidden app metadata folders, or skill installation folders.",
+            "User request:\n{message}\n\nSkill context:\n{skill_context}\n\nAvailable tools: {}\n\nAgent workspace for generated files: {workspace}\n\nReturn JSON exactly like {{\"toolCalls\":[{{\"tool\":\"base.search\",\"query\":\"short query\"}}]}}. Use an empty array when no tool is needed. The skill context and tool list above are already available to the assistant; do not call base.search, source.search, graph.search, web.search, anytxt.search, skill.read_file, workspace.write_file, or shell.exec merely to list, explain, or summarize the currently available skills, tools, modes, or agent capabilities. Use base.search for factual or topical retrieval over the document base (documents, people, organizations, matters). Prefer graph.search for relations between people, organizations, documents and matters; pass concise names instead of the full question. The planner may select both when the answer needs the articles and the relations. Prefer web.search only for current/external information. Prefer anytxt.search only for user files outside the document base. Use base.save_query only when the user explicitly asks to save the answer; include a short title and the full Markdown answer as content. Use skill.read_file for Markdown/reference files inside an active skill directory. Use workspace.write_file for generated artifacts under agent-workspace; do not inline large heredocs or generated file bodies inside shell.exec. Use shell.exec only when a relevant active skill requires a command-line operation after any large files have been written. shell.exec runs from the Agent workspace; commands that generate files must write them under that workspace and must not write to home, Desktop, Downloads, system temp folders, hidden app metadata folders, or skill installation folders.",
             available.join(", "),
         );
         let client = LlmClient::new(config.clone())?
@@ -2845,8 +2822,8 @@ fn agent_loop_retrieval_budget(
 fn is_agent_retrieval_tool(tool: &str) -> bool {
     matches!(
         tool,
-        "wiki.search"
-            | "wiki.read_page"
+        "base.search"
+            | "base.read"
             | "source.search"
             | "graph.search"
             | "web.search"
@@ -2896,7 +2873,7 @@ fn retrieval_added_evidence(
     if reference_count_after > reference_count_before {
         return true;
     }
-    if tool == "wiki.read_page" {
+    if tool == "base.read" {
         return summary
             .split_once('\n')
             .is_some_and(|(_, content)| !content.trim().is_empty());
@@ -2919,14 +2896,14 @@ fn build_agent_loop_system(base_system: &str, retrieval_mode: AgentRetrievalMode
         ""
     };
     let faithful_retrieval = if retrieval_mode == AgentRetrievalMode::Faithful {
-        "\nFaithful-source mode is enabled by explicit user choice. Answer only from raw source excerpts returned by source.search or explicitly attached source files. Preserve quoted wording exactly and cite the source path beside every quotation or factual claim. Clearly distinguish verbatim quotations from explanation. Generated wiki pages, graph context, web results, AnyTXT results, and unsupported background knowledge are not evidence in this mode. If the available excerpts are insufficient, state that limitation instead of reconstructing or guessing."
+        "\nFaithful-source mode is enabled by explicit user choice. Answer only from raw source excerpts returned by source.search or explicitly attached source files. Preserve quoted wording exactly and cite the source path beside every quotation or factual claim. Clearly distinguish verbatim quotations from explanation. Generated articles, graph context, web results, AnyTXT results, and unsupported background knowledge are not evidence in this mode. If the available excerpts are insufficient, state that limitation instead of reconstructing or guessing."
     } else {
         ""
     };
     let retrieval_example = if retrieval_mode == AgentRetrievalMode::Faithful {
         "1. {\"action\":\"tool\",\"tool\":\"source.search\",\"query\":\"...\"}"
     } else {
-        "1. {\"action\":\"tool\",\"tool\":\"wiki.search\",\"query\":\"...\"}"
+        "1. {\"action\":\"tool\",\"tool\":\"base.search\",\"query\":\"...\"}"
     };
     format!(
         "{base_system}\n\nAgent loop protocol:\n\
@@ -2946,7 +2923,7 @@ Use tools when they are useful, then wait for the observation in the next turn b
 	Do not claim that a generated file exists until a workspace.write_file or shell.exec observation confirms it. In the final answer, mention only observed generated file paths.\n\
 	Converge quickly. Do not keep reading optional references, running optional validation, or polishing after the requested deliverable has been written. Prefer final as soon as the core user request is satisfied.\n\
 	Only use shell.exec when active skill instructions or the user's explicit request require command-line work after files have been written with workspace.write_file. Generated files must be written under the Agent workspace described above. Commands whose explicit file paths stay inside the Agent workspace can run without an approval prompt; commands that mention external paths, home directories, downloads, temp folders, or network URLs require approval.\n\
-Use wiki.write_page only when the user explicitly asks to create or update a wiki page. Existing pages are create-only unless allowOverwrite is explicitly justified by the user's request.{smart_retrieval}{faithful_retrieval}"
+Use base.save_query only when the user explicitly asks to save the answer; give it a short title and the answer as content.{smart_retrieval}{faithful_retrieval}"
     )
 }
 
@@ -3027,12 +3004,12 @@ fn build_agent_loop_user(
         if request.retrieval_mode == AgentRetrievalMode::Faithful {
             out.push_str("- source.search: search raw source excerpts. This is the only retrieval tool permitted in faithful-source mode.\n");
         } else {
-            out.push_str("- wiki.search: retrieve wiki pages for factual or topical questions.\n");
-            out.push_str("- wiki.read_page: read a specific wiki markdown page by path.\n");
+            out.push_str("- base.search: find the documents, people, organizations and matters of the document base for factual or topical questions.\n");
+            out.push_str("- base.read: read one object of the base (its article) by id, logical path or link name.\n");
             out.push_str("- source.search: search raw source snippets.\n");
             out.push_str("- graph.search: retrieve relationships, neighbors, backlinks, dependencies, and connections between entities. Prefer it for relational questions and query with concise entity or concept names.\n");
             out.push_str(
-                "- wiki.write_page: create a wiki markdown page when explicitly requested.\n",
+                "- base.save_query: save the answer as a saved query in the base when explicitly requested.\n",
             );
         }
     }
@@ -3096,7 +3073,7 @@ fn parse_agent_loop_action(raw: &str) -> AgentLoopAction {
     AgentLoopAction {
         action: "invalid_tool_json".to_string(),
         answer: Some(
-            "Agent loop responses must be compact JSON. Return either a tool action like {\"action\":\"tool\",\"tool\":\"wiki.read_page\",\"path\":\"...\"} or a final action like {\"action\":\"final\",\"answer\":\"...\"}. Do not return plain text."
+            "Agent loop responses must be compact JSON. Return either a tool action like {\"action\":\"tool\",\"tool\":\"base.read\",\"path\":\"...\"} or a final action like {\"action\":\"final\",\"answer\":\"...\"}. Do not return plain text."
                 .to_string(),
         ),
         ..AgentLoopAction::default()
@@ -3138,9 +3115,9 @@ fn normalize_agent_loop_action(mut action: AgentLoopAction) -> AgentLoopAction {
 fn is_agent_loop_tool_name(value: &str) -> bool {
     matches!(
         value,
-        "wiki.search"
-            | "wiki.read_page"
-            | "wiki.write_page"
+        "base.search"
+            | "base.read"
+            | "base.save_query"
             | "source.search"
             | "graph.search"
             | "web.search"
@@ -3400,11 +3377,11 @@ fn render_observations(observations: &[AgentObservation]) -> String {
 
 fn summarize_tool_input(tool: &str, input: &Value) -> Option<String> {
     match tool {
-        "wiki.search" | "source.search" | "graph.search" | "web.search" | "anytxt.search" => input
+        "base.search" | "source.search" | "graph.search" | "web.search" | "anytxt.search" => input
             .get("query")
             .and_then(Value::as_str)
             .map(str::to_string),
-        "wiki.read_page" | "wiki.write_page" | "workspace.write_file" | "workspace.append_file" => {
+        "base.read" | "base.save_query" | "workspace.write_file" | "workspace.append_file" => {
             input
                 .get("path")
                 .and_then(Value::as_str)
@@ -3524,7 +3501,7 @@ fn require_tool_permission(
     if request.retrieval_mode == AgentRetrievalMode::Faithful
         && matches!(
             tool,
-            "wiki.search" | "wiki.read_page" | "graph.search" | "web.search" | "anytxt.search"
+            "base.search" | "base.read" | "graph.search" | "web.search" | "anytxt.search"
         )
     {
         return Err(format!(
@@ -3532,13 +3509,13 @@ fn require_tool_permission(
         ));
     }
     match tool {
-        "wiki.search" => {
+        "base.search" => {
             if !request.tools.wiki {
-                return Err("wiki.search is disabled for this turn".to_string());
+                return Err("base.search is disabled for this turn".to_string());
             }
             permission_policy.require(AgentCapability::SearchWiki)
         }
-        "wiki.read_page" | "graph.search" => {
+        "base.read" | "graph.search" => {
             if !request.tools.wiki {
                 return Err(format!("{tool} is disabled for this turn"));
             }
@@ -3550,9 +3527,9 @@ fn require_tool_permission(
             }
             permission_policy.require(AgentCapability::ReadSource)
         }
-        "wiki.write_page" => {
+        "base.save_query" => {
             if !request.tools.wiki {
-                return Err("wiki.write_page is disabled for this turn".to_string());
+                return Err("base.save_query is disabled for this turn".to_string());
             }
             permission_policy.require(AgentCapability::WriteWiki)
         }
@@ -3572,7 +3549,7 @@ fn require_tool_permission(
             permission_policy.require(AgentCapability::Network)
         }
         "deep_research.run" => Err(
-            "deep_research.run is not available in the loop executor; use web.search, anytxt.search, source.search, and wiki.search directly"
+            "deep_research.run is not available in the loop executor; use web.search, anytxt.search, source.search, and base.search directly"
                 .to_string(),
         ),
         "skill.read_file" => permission_policy.require(AgentCapability::ReadProject),
@@ -3800,12 +3777,12 @@ fn planned_tool_queries(plan: &ModelToolPlan, fallback_query: &str) -> BTreeMap<
         let tool = call.tool.trim();
         if !matches!(
             tool,
-            "wiki.search"
+            "base.search"
                 | "source.search"
                 | "graph.search"
                 | "web.search"
                 | "anytxt.search"
-                | "wiki.write_page"
+                | "base.save_query"
         ) {
             continue;
         }
@@ -3978,12 +3955,12 @@ where
 fn build_retrieval_answer(query: &str, references: &[AgentReference]) -> String {
     if references.is_empty() {
         return format!(
-            "I searched the current LLM Wiki project for \"{query}\" but did not find matching wiki pages."
+            "I searched the document base for \"{query}\" but found nothing that matches."
         );
     }
 
     let mut out = format!(
-        "I searched the current LLM Wiki project for \"{query}\" and found {} relevant page(s):",
+        "I searched the document base for \"{query}\" and found {} relevant result(s):",
         references.len()
     );
     for (idx, reference) in references.iter().take(MAX_CHAT_SEARCH_RESULTS).enumerate() {
@@ -4040,18 +4017,18 @@ mod tests {
     fn temp_project(name: &str) -> PathBuf {
         let root =
             std::env::temp_dir().join(format!("llm-wiki-agent-test-{name}-{}", Uuid::new_v4()));
-        fs::create_dir_all(root.join("wiki").join("concepts")).unwrap();
+        fs::create_dir_all(&root).unwrap();
         root
+    }
+
+    /// The base of invented pages every reading tool reads (D-413).
+    fn test_base() -> Option<Arc<crate::docbase::DocBase>> {
+        Some(Arc::new(crate::agent::base_tools::tests::base_with_pages()))
     }
 
     #[tokio::test]
     async fn run_once_searches_wiki_and_returns_references() {
         let project = temp_project("search");
-        fs::write(
-            project.join("wiki").join("concepts").join("agent-runtime.md"),
-            "---\ntitle: Agent Runtime\n---\n# Agent Runtime\n\nRust backend agent substrate with tool calls.",
-        )
-        .unwrap();
 
         let runtime = AgentRuntime::new(
             "project-1",
@@ -4060,10 +4037,11 @@ mod tests {
             None,
             None,
             None,
-        );
+        )
+        .with_base(test_base());
         let response = runtime
             .run_once(AgentChatRequest {
-                message: "agent runtime".to_string(),
+                message: "depósito calle Falsa".to_string(),
                 session_id: Some("s1".to_string()),
                 mode: AgentMode::Standard,
                 tools: AgentToolOptions {
@@ -4085,10 +4063,11 @@ mod tests {
         assert_eq!(response.references.len(), 1);
         assert_eq!(
             response.references[0].path,
-            "wiki/concepts/agent-runtime.md"
+            "wiki/sources/contrato-prueba.md"
         );
-        assert!(response.message.contains("Agent Runtime"));
-        assert_eq!(response.tool_events[0].tool, "wiki.search");
+        assert_eq!(response.references[0].kind, "document");
+        assert!(response.message.contains("Contrato de prueba"));
+        assert_eq!(response.tool_events[0].tool, "base.search");
     }
 
     #[tokio::test]
@@ -4133,11 +4112,6 @@ mod tests {
                 .join("demo")
                 .join("SKILL.md"),
             "---\nname: demo\ndescription: Demo skill\n---\nUse this skill for demos.",
-        )
-        .unwrap();
-        fs::write(
-            project.join("wiki").join("concepts").join("skills.md"),
-            "---\ntitle: Skills\n---\n# Skills\n\nThis page should not be retrieved.",
         )
         .unwrap();
 
@@ -4292,16 +4266,6 @@ mod tests {
     #[tokio::test]
     async fn run_once_in_fast_mode_does_not_presearch_without_generator() {
         let project = temp_project("fast");
-        fs::write(
-            project.join("overview.md"),
-            "This project covers search routing.",
-        )
-        .unwrap();
-        fs::write(
-            project.join("wiki").join("concepts").join("routing.md"),
-            "# Routing\n\nThis should not be searched in fast mode.",
-        )
-        .unwrap();
 
         let runtime = AgentRuntime::new(
             "project-1",
@@ -4336,14 +4300,6 @@ mod tests {
     #[tokio::test]
     async fn optional_tool_failure_does_not_abort_turn() {
         let project = temp_project("web-fail");
-        fs::write(
-            project
-                .join("wiki")
-                .join("concepts")
-                .join("external-update.md"),
-            "# External Update\n\nLocally indexed evidence for the latest external update.",
-        )
-        .unwrap();
         let runtime = AgentRuntime::new(
             "project-1",
             project.to_string_lossy(),
@@ -4351,10 +4307,11 @@ mod tests {
             None,
             None,
             None,
-        );
+        )
+        .with_base(test_base());
         let response = runtime
             .run_once(AgentChatRequest {
-                message: "latest external update".to_string(),
+                message: "latest depósito calle Falsa".to_string(),
                 session_id: None,
                 mode: AgentMode::Standard,
                 tools: AgentToolOptions {
@@ -4385,9 +4342,6 @@ mod tests {
     #[tokio::test]
     async fn run_once_can_include_raw_source_search_for_source_questions() {
         let project = temp_project("source");
-        let source_dir = project.join("raw").join("sources");
-        fs::create_dir_all(&source_dir).unwrap();
-        fs::write(source_dir.join("coal.txt"), "煤矿安全治理 source details.").unwrap();
 
         let runtime = AgentRuntime::new(
             "project-1",
@@ -4396,10 +4350,11 @@ mod tests {
             None,
             None,
             None,
-        );
+        )
+        .with_base(test_base());
         let response = runtime
             .run_once(AgentChatRequest {
-                message: "原始资料 煤矿安全".to_string(),
+                message: "raw source calle Falsa".to_string(),
                 session_id: None,
                 mode: AgentMode::Deep,
                 tools: AgentToolOptions::default(),
@@ -4415,7 +4370,8 @@ mod tests {
         assert!(response
             .references
             .iter()
-            .any(|reference| reference.kind == "source"));
+            .any(|reference| reference.kind == "source"
+                && reference.path == "wiki/sources/contrato-prueba.md"));
         assert!(response
             .tool_events
             .iter()
@@ -4425,11 +4381,6 @@ mod tests {
     #[tokio::test]
     async fn deep_mode_reads_top_wiki_pages_after_search() {
         let project = temp_project("deep-read");
-        fs::write(
-            project.join("wiki").join("concepts").join("deep-agent.md"),
-            "---\ntitle: Deep Agent\n---\n# Deep Agent\n\nDetailed evidence that should be read in deep mode.",
-        )
-        .unwrap();
 
         let runtime = AgentRuntime::new(
             "project-1",
@@ -4438,10 +4389,11 @@ mod tests {
             None,
             None,
             None,
-        );
+        )
+        .with_base(test_base());
         let response = runtime
             .run_once(AgentChatRequest {
-                message: "deep agent evidence".to_string(),
+                message: "depósito calle Falsa".to_string(),
                 session_id: None,
                 mode: AgentMode::Deep,
                 tools: AgentToolOptions::default(),
@@ -4457,8 +4409,8 @@ mod tests {
         assert!(response
             .tool_events
             .iter()
-            .any(|event| event.tool == "wiki.read_page" && event.status == "completed"));
-        assert!(response.message.contains("Detailed evidence"));
+            .any(|event| event.tool == "base.read" && event.status == "completed"));
+        assert!(response.message.contains("calle Falsa"));
     }
 
     #[tokio::test]
@@ -4510,11 +4462,6 @@ mod tests {
     #[tokio::test]
     async fn graph_questions_run_graph_search_tool() {
         let project = temp_project("graph");
-        fs::write(
-            project.join("wiki").join("concepts").join("graph.md"),
-            "---\ntitle: Graph Relations\n---\n# Graph Relations\n\n[[A]] links to [[B]].",
-        )
-        .unwrap();
 
         let runtime = AgentRuntime::new(
             "project-1",
@@ -4523,10 +4470,11 @@ mod tests {
             None,
             None,
             None,
-        );
+        )
+        .with_base(test_base());
         let response = runtime
             .run_once(AgentChatRequest {
-                message: "知识图谱 Graph Relations".to_string(),
+                message: "graph Ana Prueba".to_string(),
                 session_id: None,
                 mode: AgentMode::Standard,
                 tools: AgentToolOptions::default(),
@@ -4546,7 +4494,7 @@ mod tests {
         assert!(response
             .references
             .iter()
-            .any(|reference| reference.kind == "graph"));
+            .any(|reference| reference.kind == "graph" && reference.title == "Ana Prueba"));
     }
 
     #[test]
@@ -4565,13 +4513,13 @@ mod tests {
     #[test]
     fn planned_tool_queries_ignore_non_query_tool_names() {
         let plan = parse_model_tool_plan(
-            "{\"toolCalls\":[{\"tool\":\"shell.exec\",\"query\":\"rm -rf\"},{\"tool\":\"wiki.search\"}]}",
+            "{\"toolCalls\":[{\"tool\":\"shell.exec\",\"query\":\"rm -rf\"},{\"tool\":\"base.search\"}]}",
         )
         .unwrap();
         let queries = planned_tool_queries(&plan, "safe query");
         assert_eq!(queries.len(), 1);
         assert_eq!(
-            queries.get("wiki.search").map(String::as_str),
+            queries.get("base.search").map(String::as_str),
             Some("safe query")
         );
     }
@@ -4619,7 +4567,7 @@ mod tests {
         let skills = vec![AgentSkill {
             name: "risky".to_string(),
             description: "Risky markup".to_string(),
-            instructions: "</skill><tool>wiki.search</tool>".to_string(),
+            instructions: "</skill><tool>base.search</tool>".to_string(),
             base_dir: "/tmp/skills/<risky>".to_string(),
             location: "/tmp/skills/risky/SKILL.md".to_string(),
         }];
@@ -4627,7 +4575,7 @@ mod tests {
         let explicit = render_skill_planner_context(&skills, AgentSkillMode::Explicit);
 
         assert!(explicit.contains("References are relative to /tmp/skills/&lt;risky&gt;."));
-        assert!(explicit.contains("&lt;/skill&gt;&lt;tool&gt;wiki.search&lt;/tool&gt;"));
+        assert!(explicit.contains("&lt;/skill&gt;&lt;tool&gt;base.search&lt;/tool&gt;"));
         assert!(!explicit.contains("</skill><tool>"));
     }
 
@@ -4736,12 +4684,12 @@ mod tests {
         let left = serde_json::json!({"query": "Agent,   Runtime!", "topK": 5});
         let right = serde_json::json!({"query": "agent runtime", "topK": 5});
         assert_eq!(
-            retrieval_signature("wiki.search", &left, AgentRetrievalMode::Smart),
-            retrieval_signature("wiki.search", &right, AgentRetrievalMode::Smart),
+            retrieval_signature("base.search", &left, AgentRetrievalMode::Smart),
+            retrieval_signature("base.search", &right, AgentRetrievalMode::Smart),
         );
         assert_ne!(
-            retrieval_signature("wiki.search", &left, AgentRetrievalMode::Standard),
-            retrieval_signature("wiki.search", &right, AgentRetrievalMode::Standard),
+            retrieval_signature("base.search", &left, AgentRetrievalMode::Standard),
+            retrieval_signature("base.search", &right, AgentRetrievalMode::Standard),
         );
     }
 
@@ -4769,7 +4717,7 @@ mod tests {
         assert!(loop_system.contains("Answer only from raw source excerpts"));
         assert!(loop_system.contains("state that limitation instead of reconstructing or guessing"));
         assert!(loop_user.contains("only retrieval tool permitted"));
-        assert!(!loop_user.contains("- wiki.search:"));
+        assert!(!loop_user.contains("- base.search:"));
         assert!(!loop_user.contains("- graph.search:"));
         assert!(final_system.contains("Faithful-source mode remains in force"));
     }
@@ -4816,25 +4764,25 @@ mod tests {
     #[test]
     fn smart_retrieval_counts_page_reads_but_not_repeated_searches_as_new_evidence() {
         assert!(retrieval_added_evidence(
-            "wiki.search",
+            "base.search",
             "1 result(s), 1 new",
             0,
             1
         ));
         assert!(!retrieval_added_evidence(
-            "wiki.search",
+            "base.search",
             "1 result(s), 0 new",
             1,
             1
         ));
         assert!(retrieval_added_evidence(
-            "wiki.read_page",
+            "base.read",
             "read wiki/a.md\npage content",
             1,
             1
         ));
         assert!(!retrieval_added_evidence(
-            "wiki.read_page",
+            "base.read",
             "read wiki/a.md\n",
             1,
             1
@@ -4854,14 +4802,14 @@ mod tests {
         let user = build_agent_final_user(
             "question",
             &[AgentObservation {
-                tool: "wiki.search".to_string(),
+                tool: "base.search".to_string(),
                 summary: "2 results".to_string(),
             }],
         );
         assert!(system.contains("No tools are available"));
         assert!(system.contains(r#"{"action":"final""#));
         assert!(user.contains("No further tool action is permitted"));
-        assert!(user.contains("wiki.search"));
+        assert!(user.contains("base.search"));
     }
 
     #[test]
@@ -4895,17 +4843,17 @@ mod tests {
     fn empty_model_plan_does_not_request_wiki_search() {
         let plan = parse_model_tool_plan("{\"toolCalls\":[]}").unwrap();
         let queries = planned_tool_queries(&plan, "fallback query");
-        assert!(!queries.contains_key("wiki.search"));
+        assert!(!queries.contains_key("base.search"));
     }
 
     #[test]
     fn agent_loop_action_parses_wrapped_tool_json() {
         let action = parse_agent_loop_action(
-            "```json\n{\"action\":\"tool\",\"tool\":\"wiki.search\",\"query\":\"alpha\"}\n```",
+            "```json\n{\"action\":\"tool\",\"tool\":\"base.search\",\"query\":\"alpha\"}\n```",
         );
 
         assert_eq!(action.action, "tool");
-        assert_eq!(action.tool.as_deref(), Some("wiki.search"));
+        assert_eq!(action.tool.as_deref(), Some("base.search"));
         assert_eq!(action.query.as_deref(), Some("alpha"));
     }
 
@@ -5193,7 +5141,7 @@ mod tests {
         };
         let policy = PermissionPolicy::api_default();
 
-        assert!(require_tool_permission("wiki.search", &request, &policy).is_ok());
+        assert!(require_tool_permission("base.search", &request, &policy).is_ok());
         assert!(require_tool_permission("web.search", &request, &policy)
             .unwrap_err()
             .contains("disabled"));
@@ -5217,8 +5165,8 @@ mod tests {
 
         assert!(require_tool_permission("source.search", &request, &policy).is_ok());
         for tool in [
-            "wiki.search",
-            "wiki.read_page",
+            "base.search",
+            "base.read",
             "graph.search",
             "web.search",
             "anytxt.search",

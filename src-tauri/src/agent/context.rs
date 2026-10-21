@@ -1,4 +1,3 @@
-use std::fs;
 use std::path::{Component, Path};
 
 use super::router::{QueryIntent, RouterDecision};
@@ -24,13 +23,15 @@ pub struct ProjectContext {
     pub agent_workspace: String,
 }
 
-pub fn load_project_context(project_path: &str) -> ProjectContext {
+/// The context of every turn: the overview of the archive as the base
+/// keeps it (D-413), never a file of the old wiki; no schema.
+pub fn load_project_context(project_path: &str, base: Option<&crate::docbase::DocBase>) -> ProjectContext {
     let root = Path::new(project_path);
     ProjectContext {
-        overview: read_trimmed(root.join("overview.md"), MAX_OVERVIEW_CHARS)
-            .or_else(|| read_trimmed(root.join("wiki").join("overview.md"), MAX_OVERVIEW_CHARS)),
-        schema: read_trimmed(root.join("schema.md"), MAX_SCHEMA_CHARS)
-            .or_else(|| read_trimmed(root.join("wiki").join("schema.md"), MAX_SCHEMA_CHARS)),
+        overview: base
+            .and_then(super::base_tools::base_overview)
+            .map(|overview| trim_chars(overview.trim(), MAX_OVERVIEW_CHARS)),
+        schema: None,
         agent_workspace: agent_workspace_display(root),
     }
 }
@@ -68,17 +69,17 @@ fn build_system_context(
     skill_mode: AgentSkillMode,
 ) -> String {
     let mut out = [
-        "You are the LLM Wiki backend Agent.",
+        "You are the backend Agent of a document base: its documents, the people, organizations and matters they name, and their articles.",
         "Answer using the current project context, available tools, and cited references.",
         "If evidence is insufficient, say what is missing instead of inventing facts.",
-        "When using references, mention the relevant page paths naturally.",
+        "When using references, name the documents, people, organizations or matters they come from.",
         "Do not claim that internet or local-source search is unavailable when those tools are enabled; use the provided tool context and tool hints.",
     ]
     .join("\n");
 
     out.push_str("\n\nTool policy:\n");
-    out.push_str("- wiki.search retrieves pages for factual or topical questions.\n");
-    out.push_str("- graph.search retrieves relationships, neighbors, backlinks, dependencies, and connections between project entities. Prefer it when the requested answer is about how concepts or entities relate, and use concise entity names rather than the full natural-language question.\n");
+    out.push_str("- base.search finds the documents, people, organizations and matters of the base for factual or topical questions.\n");
+    out.push_str("- graph.search retrieves the relations between people, organizations, documents and matters. Prefer it when the answer is about how they relate, and use concise names rather than the full question.\n");
     if router.should_hint_web {
         out.push_str("- web.search is available when current or external information is useful.\n");
     }
@@ -217,7 +218,7 @@ fn build_user_context(input: AgentContextInput<'_>) -> String {
 
     out.push_str("Retrieved project context:\n");
     if input.references.is_empty() {
-        out.push_str("No matching wiki references were found.\n\n");
+        out.push_str("Nothing in the document base matched.\n\n");
     } else {
         let mut rendered = String::new();
         for (idx, reference) in input.references.iter().enumerate() {
@@ -326,16 +327,6 @@ pub async fn load_explicit_context_files(
     out
 }
 
-fn read_trimmed(path: impl AsRef<Path>, max_chars: usize) -> Option<String> {
-    let raw = fs::read_to_string(path).ok()?;
-    let trimmed = raw.trim();
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(trim_chars(trimmed, max_chars))
-    }
-}
-
 pub fn trim_chars(value: &str, max_chars: usize) -> String {
     if value.chars().count() <= max_chars {
         return value.to_string();
@@ -375,6 +366,8 @@ pub fn intent_label(intent: QueryIntent) -> &'static str {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+
     use super::*;
     use crate::agent::router::route_query;
     use crate::agent::types::{
@@ -404,7 +397,7 @@ mod tests {
                 latest_version: Some(AgentVersionSummary {
                     timestamp: 123,
                     author: "agent".to_string(),
-                    tool: "wiki.write_page".to_string(),
+                    tool: "base.save_query".to_string(),
                 }),
             }),
         }];
@@ -422,7 +415,7 @@ mod tests {
         assert!(rendered.contains("Tags: core"));
         assert!(rendered.contains("Links to: Beta"));
         assert!(rendered.contains("Backlinks: wiki/gamma.md"));
-        assert!(rendered.contains("Latest version: agent via wiki.write_page at 123"));
+        assert!(rendered.contains("Latest version: agent via base.save_query at 123"));
     }
 
     #[tokio::test]

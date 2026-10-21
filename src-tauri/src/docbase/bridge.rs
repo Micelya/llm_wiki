@@ -36,6 +36,11 @@ fn shared() -> Option<&'static Arc<DocBase>> {
     SHARED.get()
 }
 
+/// The base of the private space, for the chat's agent (D-413).
+pub fn shared_base() -> Option<Arc<DocBase>> {
+    shared().cloned()
+}
+
 /// The base, when `project_path` is the folder of the general project's
 /// wiki: its search and its graph come from the base (D-350).
 pub fn base_for_project(project_path: &str) -> Option<&'static Arc<DocBase>> {

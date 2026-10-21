@@ -140,7 +140,7 @@ describe("auto-save project-switch guard", () => {
     await flushAndSuspendAutoSave()
 
     expect(saveChatHistory).not.toHaveBeenCalled()
-    expect(saveChatPreferences).toHaveBeenCalledWith("/proj/A", {
+    expect(saveChatPreferences).toHaveBeenCalledWith({
       useWebSearch: false,
       useAnyTxtSearch: false,
       agentMode: "standard",
@@ -164,7 +164,7 @@ describe("auto-save project-switch guard", () => {
 
     await flushAndSuspendAutoSave()
 
-    expect(saveChatPreferences).toHaveBeenCalledWith("/proj/A", {
+    expect(saveChatPreferences).toHaveBeenCalledWith({
       useWebSearch: true,
       useAnyTxtSearch: true,
       agentMode: "local_first",

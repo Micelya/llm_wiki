@@ -23,6 +23,7 @@ import { useDocbaseQuery } from "@/components/docbase/use-docbase-query"
 import { ArticleText } from "./article-text"
 import { articleBody, certaintyInWords, decisionInWords, documentsByMatter, resolvedByName, reviewInWords, rolesInWords } from "./knowledge"
 import { NotesEditor } from "./notes-editor"
+import { ResearchSection } from "./research-section"
 import { Quote, Section, useAction, useOpenDocument, useOpenMatter } from "./shared"
 
 /**
@@ -154,6 +155,11 @@ function Article({ entity, article, loading }: { entity: EntityDetail; article: 
       <div className="mt-8">
         <NotesEditor key={entity.id} objectId={entity.id} />
       </div>
+      {entity.state === "active" && (
+        <div className="mt-8">
+          <ResearchSection key={entity.id} objectId={entity.id} name={entity.name} />
+        </div>
+      )}
     </article>
   )
 }

@@ -16,6 +16,7 @@ use super::knowledge::articles::{KnowledgeArticle, KnowledgeNote, KnowledgeOverv
 use super::knowledge::decide::{DecisionView, IdentityDecision};
 use super::knowledge::entities::{DoubtView, EntityDetail, EntitySummary};
 use super::knowledge::pages::ProjectReport;
+use super::knowledge::research::{Research, ResearchSource};
 use super::knowledge::resolve::ResolveReport;
 use super::knowledge::screens::{DocumentEntities, EntityArticle, KnowledgeAttention, MatterDetail, MatterSummary};
 use super::knowledge::{DocumentKnowledge, KnowledgeStatus};
@@ -842,18 +843,96 @@ pub fn docbase_saved_queries(state: State<'_, DocBaseState>) -> Result<Vec<Saved
 /// Saves a question of the chat with its answer and what it cites.
 #[tauri::command(async)]
 pub fn docbase_save_query(
+    app: tauri::AppHandle,
     state: State<'_, DocBaseState>,
     title: String,
     question: String,
     answer: String,
     refs: Vec<String>,
 ) -> Result<SavedQuery, String> {
-    state.base()?.save_query(&title, &question, &answer, &refs)
+    let saved = state.base()?.save_query(&title, &question, &answer, &refs)?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(saved)
 }
 
 #[tauri::command(async)]
-pub fn docbase_delete_saved_query(state: State<'_, DocBaseState>, id: i64) -> Result<(), String> {
-    state.base()?.delete_saved_query(id)
+pub fn docbase_delete_saved_query(app: tauri::AppHandle, state: State<'_, DocBaseState>, id: i64) -> Result<(), String> {
+    state.base()?.delete_saved_query(id)?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(())
+}
+
+/// A page of the base whole, with its title, by its logical path or a
+/// link: what the chat hands a provider of the command line (D-413).
+#[tauri::command(async)]
+pub fn docbase_knowledge_page_text(state: State<'_, DocBaseState>, path: String) -> Result<Option<PageText>, String> {
+    let base = state.base()?;
+    let Some(object) = base.knowledge_object_of_page(&path)? else { return Ok(None) };
+    Ok(base.knowledge_page_text(&object.path)?.map(|(title, text)| PageText { path: object.path, title, text }))
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PageText {
+    pub path: String,
+    pub title: String,
+    pub text: String,
+}
+
+/// Keeps a research on the internet, of a person, organization or matter,
+/// or loose (D-414).
+#[tauri::command(async)]
+pub fn docbase_research_save(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    object_id: Option<String>,
+    topic: String,
+    body: String,
+    sources: Vec<ResearchSource>,
+) -> Result<Research, String> {
+    let saved = state.base()?.save_research(object_id.as_deref(), &topic, &body, &sources)?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(saved)
+}
+
+/// The researches of an object, the latest first.
+#[tauri::command(async)]
+pub fn docbase_research_of(state: State<'_, DocBaseState>, object_id: String) -> Result<Vec<Research>, String> {
+    state.base()?.research_of(&object_id)
+}
+
+/// The loose researches, the latest first.
+#[tauri::command(async)]
+pub fn docbase_research_loose(state: State<'_, DocBaseState>) -> Result<Vec<Research>, String> {
+    state.base()?.loose_research()
+}
+
+#[tauri::command(async)]
+pub fn docbase_research_delete(app: tauri::AppHandle, state: State<'_, DocBaseState>, id: i64) -> Result<(), String> {
+    state.base()?.delete_research(id)?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(())
+}
+
+/// The folder of the chat's history and preferences in the app's data
+/// folder (D-415); the first time, the chat files of the general project's
+/// folder are copied into it.
+#[tauri::command(async)]
+pub fn docbase_chat_folder(app: tauri::AppHandle, state: State<'_, DocBaseState>) -> Result<String, String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("no se encontró la carpeta de datos de la app: {e}"))?
+        .join(super::chat_files::CHAT_FOLDER);
+    std::fs::create_dir_all(dir.join("chats")).map_err(|e| format!("no se pudo crear '{}': {e}", dir.display()))?;
+    if let Ok(base) = state.base() {
+        match base.copy_chat_files_once(&dir) {
+            Ok(report) if !report.skipped => eprintln!("[docbase] chat files copied to the data folder: {report:?}"),
+            Ok(_) => {}
+            Err(error) => eprintln!("[docbase] the chat files could not be copied: {error}"),
+        }
+    }
+    Ok(dir.to_string_lossy().replace('\\', "/"))
 }
 
 /// Whether the base reads its documents on its own (`background-reading`).

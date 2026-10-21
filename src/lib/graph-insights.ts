@@ -29,6 +29,22 @@ export interface KnowledgeGap {
   suggestion: string
 }
 
+/**
+ * The node a research of a gap is about: the isolated node, or the most
+ * related one of the gap (the same one its topic names). Its object is
+ * what the research is kept of (P-236).
+ */
+export function researchNodeForKnowledgeGap(
+  gap: KnowledgeGap,
+  nodes: readonly GraphNode[],
+): GraphNode | null {
+  const candidates = gap.nodeIds
+    .map((id) => nodes.find((node) => node.id === id))
+    .filter((node): node is GraphNode => Boolean(node))
+  if (gap.type !== "isolated-node") candidates.sort((a, b) => b.linkCount - a.linkCount)
+  return candidates[0] ?? null
+}
+
 export function researchSeedForKnowledgeGap(
   gap: KnowledgeGap,
   nodes: readonly GraphNode[],

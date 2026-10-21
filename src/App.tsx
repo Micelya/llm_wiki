@@ -50,7 +50,7 @@ function App() {
   async function hydrateProjectChatStore(proj: WikiProject): Promise<void> {
     try {
       const activeBeforeLoad = useChatStore.getState().activeConversationId
-      const savedChat = await loadChatHistory(proj.path)
+      const savedChat = await loadChatHistory()
       if (!isCurrentProject(proj)) return
       const stateAfterLoad = useChatStore.getState()
       const activeChangedDuringLoad = stateAfterLoad.activeConversationId !== activeBeforeLoad
@@ -605,7 +605,7 @@ function App() {
       // controls reflect the user's saved tool toggles. The heavier per-
       // conversation history load is deferred below.
       try {
-        const savedChatPreferences = await loadChatPreferences(proj.path)
+        const savedChatPreferences = await loadChatPreferences()
         useChatStore.getState().setUseWebSearch(savedChatPreferences.useWebSearch)
         useChatStore.getState().setUseAnyTxtSearch(savedChatPreferences.useAnyTxtSearch)
         useChatStore.getState().setAgentMode(savedChatPreferences.agentMode)

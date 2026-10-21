@@ -13,66 +13,29 @@ import {
   ListTree,
 } from "lucide-react"
 import { openUrl } from "@tauri-apps/plugin-opener"
+import { getPageText, objectOfPage, saveQuery, type PageObject } from "@/commands/docbase"
+import { openPageObject, openWikiPath } from "@/lib/open-wiki-path"
+import { useChatStore } from "@/stores/chat-store"
 import { useWikiStore } from "@/stores/wiki-store"
-import { readFile, writeFile, listDirectory } from "@/commands/fs"
+import { readFile } from "@/commands/fs"
 import { lastQueryPages } from "@/components/chat/chat-panel"
 import type { DisplayMessage, MessageReference } from "@/stores/chat-store"
-import type { FileNode } from "@/types/wiki"
 
 import { convertLatexToUnicode } from "@/lib/latex-to-unicode"
 import { normalizePath, getFileName, isAbsolutePath } from "@/lib/path-utils"
-import { makeQueryFileName } from "@/lib/wiki-filename"
-import { hasUsableLlm } from "@/lib/has-usable-llm"
-import { getTaskLlmConfig } from "@/lib/llm-task-routing"
 import { messageImageToDataUrl } from "@/lib/chat-image-utils"
 import { resolveMarkdownImageSrc } from "@/lib/markdown-image-resolver"
 import { transformImageEmbeds } from "@/lib/wikilink-transform"
-import { findRawSourceForImage, imageUrlToAbsolute } from "@/lib/raw-source-resolver"
 import { detectLanguage } from "@/lib/detect-language"
 import { getHtmlLang, getTextDirection } from "@/lib/language-metadata"
 import { MermaidDiagram, unwrapMermaidPre } from "@/components/mermaid-diagram"
 import { inferWikiTypeFromPath } from "@/lib/wiki-page-types"
 import { cleanAssistantContentForWikiSave, titleFromCleanAssistantContent } from "@/lib/chat-save-to-wiki"
 import type { ChatAgentEvent, ChatAgentEventStage, ChatAgentStep, ChatUserInputField, ChatUserInputRequest } from "@/lib/chat-agent-types"
-import { filterRawSourceTree } from "@/lib/source-filter"
-import { refreshProjectFileTree } from "@/lib/project-file-tree-refresh"
 import { getFileCategory, getFileExtension, isTextReadable } from "@/lib/file-types"
 import { AgentFileActivity } from "@/components/chat/agent-file-activity"
 import { ReferenceKnowledgeGraph } from "@/components/chat/reference-knowledge-graph"
 
-// Module-level cache of source file names
-let cachedSourceFiles: string[] = []
-
-export function useSourceFiles() {
-  const project = useWikiStore((s) => s.project)
-
-  useEffect(() => {
-    if (!project) return
-    const pp = normalizePath(project.path)
-    listDirectory(`${pp}/raw/sources`, true)
-      .then(filterRawSourceTree)
-      .then((tree) => {
-        cachedSourceFiles = flattenNames(tree)
-      })
-      .catch(() => {
-        cachedSourceFiles = []
-      })
-  }, [project])
-
-  return cachedSourceFiles
-}
-
-function flattenNames(nodes: FileNode[]): string[] {
-  const names: string[] = []
-  for (const node of nodes) {
-    if (node.is_dir && node.children) {
-      names.push(...flattenNames(node.children))
-    } else if (!node.is_dir) {
-      names.push(node.name)
-    }
-  }
-  return names
-}
 
 interface ChatMessageProps {
   message: DisplayMessage
@@ -196,7 +159,7 @@ function ChatMessageImpl({
         {isAssistant && hovered && (
           <div className="flex items-center gap-1">
             <CopyButton content={message.content} />
-            <SaveToWikiButton content={message.content} visible={true} />
+            <SaveQueryButton message={message} />
             {isLastAssistant && onRegenerate && (
               <button
                 type="button"
@@ -544,97 +507,45 @@ function CopyButton({ content }: { content: string }) {
   )
 }
 
-function SaveToWikiButton({ content, visible }: { content: string; visible: boolean }) {
-  const { t } = useTranslation()
-  const project = useWikiStore((s) => s.project)
+/** The question a message of the assistant answers: the user's message before it. */
+function questionOf(message: DisplayMessage): string {
+  const all = useChatStore.getState().messages.filter((m) => m.conversationId === message.conversationId)
+  const at = all.findIndex((m) => m.id === message.id)
+  for (let i = at - 1; i >= 0; i--) {
+    if (all[i].role === "user") return all[i].content
+  }
+  return ""
+}
+
+/**
+ * «Guardar consulta»: the answer, its question and what it cites are kept
+ * in the base as a saved query (D-413), listed in the chat. Nothing is
+ * written to a file and nothing reads it again with the model.
+ */
+function SaveQueryButton({ message }: { message: DisplayMessage }) {
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [problem, setProblem] = useState<string | null>(null)
 
   const handleSave = useCallback(async () => {
-    if (!project || saving) return
-    const pp = normalizePath(project.path)
+    if (saving) return
     setSaving(true)
+    setProblem(null)
     try {
-      // Generate a unique filename for this save.
-      // See `src/lib/wiki-filename.ts` — the slug is Unicode-aware
-      // (so CJK titles don't collapse to empty) and the HHMMSS
-      // timestamp suffix guarantees same-day saves stay distinct.
-      const cleanContent = cleanAssistantContentForWikiSave(content)
-      const title = titleFromCleanAssistantContent(cleanContent)
-      const { date, fileName } = makeQueryFileName(title)
-      const filePath = `${pp}/wiki/queries/${fileName}`
-
-      const frontmatter = [
-        "---",
-        `type: query`,
-        `title: "${title.replace(/"/g, '\\"')}"`,
-        `created: ${date}`,
-        `tags: []`,
-        "---",
-        "",
-      ].join("\n")
-
-      await writeFile(filePath, frontmatter + cleanContent)
-
-      // Update index.md — append under ## Queries section
-      const indexPath = `${pp}/wiki/index.md`
-      let indexContent = ""
-      try {
-        indexContent = await readFile(indexPath)
-      } catch {
-        indexContent = "# Wiki Index\n\n## Queries\n"
-      }
-      // The wikilink target is the filename WITHOUT the `.md`
-      // extension — must match `fileName` exactly (including the
-      // time suffix) or the link lands on a 404.
-      const linkTarget = fileName.replace(/\.md$/, "")
-      const entry = `- [[queries/${linkTarget}|${title}]]`
-      if (indexContent.includes("## Queries")) {
-        indexContent = indexContent.replace(
-          /(## Queries\n)/,
-          `$1${entry}\n`
-        )
-      } else {
-        indexContent = indexContent.trimEnd() + "\n\n## Queries\n" + entry + "\n"
-      }
-      await writeFile(indexPath, indexContent)
-
-      // Append to log.md
-      const logPath = `${pp}/wiki/log.md`
-      let logContent = ""
-      try {
-        logContent = await readFile(logPath)
-      } catch {
-        logContent = "# Wiki Log\n\n"
-      }
-      const logEntry = `- ${date}: Saved query page \`${fileName}\`\n`
-      await writeFile(logPath, logContent.trimEnd() + "\n" + logEntry)
-
-      // Refresh file tree and update graph
-      await refreshProjectFileTree(pp, { bumpDataVersion: true })
-
+      const answer = cleanAssistantContentForWikiSave(message.content)
+      const title = titleFromCleanAssistantContent(answer)
+      const refs = (message.references ?? [])
+        .filter((ref) => ref.kind === "wiki")
+        .map((ref) => ref.path)
+      await saveQuery(title, questionOf(message), answer, [...new Set(refs)])
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
-
-      // Full auto-ingest: extract entities, concepts, cross-references from saved content
-      // In the archive's wiki a saved answer is kept as it is: nothing
-      // reads it again with the model (D-332).
-      const llmConfig = getTaskLlmConfig("ingest")
-      const { usesKnowledgeLayer } = await import("@/lib/knowledge-layer")
-      if (hasUsableLlm(llmConfig) && !(await usesKnowledgeLayer(pp))) {
-        const { autoIngest } = await import("@/lib/ingest")
-        autoIngest(pp, filePath, llmConfig).catch((err) =>
-          console.error("Failed to auto-ingest saved query:", err)
-        )
-      }
     } catch (err) {
-      console.error("Failed to save to wiki:", err)
+      setProblem(String((err as Error)?.message ?? err))
     } finally {
       setSaving(false)
     }
-  }, [project, content, saving])
-
-  if (!visible && !saved) return null
+  }, [message, saving])
 
   return (
     <button
@@ -642,10 +553,10 @@ function SaveToWikiButton({ content, visible }: { content: string; visible: bool
       onClick={handleSave}
       disabled={saving}
       className="self-start inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-      title={t("chat.saveToWiki")}
+      title={problem ?? "Guardar la pregunta y su respuesta en «Consultas guardadas»"}
     >
       <BookmarkPlus className="h-3 w-3" />
-      {saved ? t("chat.saved") : saving ? t("chat.saving") : t("chat.saveToWiki")}
+      {saved ? "Guardada" : saving ? "Guardando…" : problem ? "No se pudo guardar" : "Guardar consulta"}
     </button>
   )
 }
@@ -766,7 +677,6 @@ function CitedReferencesPanel({
   const { t } = useTranslation()
   const project = useWikiStore((s) => s.project)
   const openFileInPreview = useWikiStore((s) => s.openFileInPreview)
-  const setPendingScrollImageSrc = useWikiStore((s) => s.setPendingScrollImageSrc)
   const [expanded, setExpanded] = useState(false)
   const [outputsExpanded, setOutputsExpanded] = useState(false)
   /**
@@ -798,8 +708,7 @@ function CitedReferencesPanel({
   // silently treated as { count: 0, firstUrl: null } (page may
   // not exist on disk yet, e.g. a citation the LLM hallucinated).
   useEffect(() => {
-    if (!project || citedPages.length === 0) return
-    const pp = normalizePath(project.path)
+    if (citedPages.length === 0) return
     let cancelled = false
     Promise.all(
       citedPages.map(async (page) => {
@@ -809,33 +718,20 @@ function CitedReferencesPanel({
         if (page.kind === "external" || page.kind === "workspace") {
           return [page.path, { count: 0, firstUrl: null }] as const
         }
-        const id = getFileName(page.path.replace(/^wiki\//, "").replace(/\.md$/, ""))
-        const candidates = [
-          `${pp}/${page.path}`,
-          `${pp}/wiki/entities/${id}.md`,
-          `${pp}/wiki/concepts/${id}.md`,
-          `${pp}/wiki/sources/${id}.md`,
-          `${pp}/wiki/queries/${id}.md`,
-          `${pp}/wiki/synthesis/${id}.md`,
-          `${pp}/wiki/comparisons/${id}.md`,
-          `${pp}/wiki/${id}.md`,
-        ]
-        for (const candidate of candidates) {
-          try {
-            const text = await readFile(candidate)
-            // Reset stateful regex.lastIndex by `new RegExp(...)` —
-            // module-level `g` regexes carry state across calls
-            // and would skip matches on the second invocation.
-            const re = new RegExp(CITED_IMAGE_RE.source, CITED_IMAGE_RE.flags)
-            const matches = [...text.matchAll(re)]
-            const info: CitedImageInfo = {
-              count: matches.length,
-              firstUrl: matches.length > 0 ? matches[0][1] : null,
-            }
-            return [page.path, info] as const
-          } catch {
-            // try next candidate
+        try {
+          const text = (await getPageText(page.path))?.text ?? ""
+          // Reset stateful regex.lastIndex by `new RegExp(...)` —
+          // module-level `g` regexes carry state across calls
+          // and would skip matches on the second invocation.
+          const re = new RegExp(CITED_IMAGE_RE.source, CITED_IMAGE_RE.flags)
+          const matches = [...text.matchAll(re)]
+          const info: CitedImageInfo = {
+            count: matches.length,
+            firstUrl: matches.length > 0 ? matches[0][1] : null,
           }
+          return [page.path, info] as const
+        } catch {
+          // Not in the base.
         }
         return [page.path, { count: 0, firstUrl: null }] as const
       }),
@@ -850,59 +746,12 @@ function CitedReferencesPanel({
     }
   }, [project, citedPages])
 
-  /**
-   * Open the raw source file for a page's first image and stage a
-   * scroll target so the markdown preview lands on that image.
-   * Mirrors the lightbox "Jump to source document" path in
-   * search-view — same `findRawSourceForImage` resolver, same
-   * `pendingScrollImageSrc` store handoff, same fallback to
-   * opening the wiki page when no raw source is found.
-   */
+  /** An image of a cited page opens the screen of what the page names (D-413). */
   const handleJumpToImageSource = useCallback(
-    async (firstUrl: string, fallbackPath: string) => {
-      if (!project) return
-      const pp = normalizePath(project.path)
-      const rawPath = await findRawSourceForImage(firstUrl, pp)
-      if (rawPath) {
-        try {
-          const content = await readFile(rawPath)
-          setPendingScrollImageSrc(imageUrlToAbsolute(firstUrl, pp))
-          if (onOpenReferencePreview) {
-            onOpenReferencePreview({
-              title: getFileName(rawPath),
-              path: rawPath,
-              content,
-            })
-          } else {
-            openFileInPreview(rawPath, content)
-          }
-          console.log(`[refs:image-jump] ${firstUrl} → raw source ${rawPath}`)
-          return
-        } catch (err) {
-          console.warn(`[refs:image-jump] failed to read ${rawPath}:`, err)
-        }
-      }
-      // Fallback: open the wiki summary itself with same scroll
-      // target — at least the safety-net section will scroll into
-      // view there.
-      try {
-        const fallbackAbsPath = projectAbsolutePath(pp, fallbackPath)
-        const content = await readFile(fallbackAbsPath)
-        setPendingScrollImageSrc(firstUrl)
-        if (onOpenReferencePreview) {
-          onOpenReferencePreview({
-            title: getFileName(fallbackAbsPath),
-            path: fallbackAbsPath,
-            content,
-          })
-        } else {
-          openFileInPreview(fallbackAbsPath, content)
-        }
-      } catch (err) {
-        console.warn(`[refs:image-jump] fallback also failed:`, err)
-      }
+    async (_firstUrl: string, fallbackPath: string) => {
+      await openWikiPath(fallbackPath)
     },
-    [project, setPendingScrollImageSrc, openFileInPreview, onOpenReferencePreview],
+    [],
   )
 
   const openCitedPage = useCallback(async (page: CitedPage) => {
@@ -992,46 +841,16 @@ function CitedReferencesPanel({
       }
       return
     }
-    if (!project) return
-    const pp = normalizePath(project.path)
-    const id = getFileName(page.path.replace(/^wiki\//, "").replace(/\.md$/, ""))
-    const candidates = [
-      projectAbsolutePath(pp, page.path),
-      `${pp}/wiki/entities/${id}.md`,
-      `${pp}/wiki/concepts/${id}.md`,
-      `${pp}/wiki/sources/${id}.md`,
-      `${pp}/wiki/queries/${id}.md`,
-      `${pp}/wiki/synthesis/${id}.md`,
-      `${pp}/wiki/comparisons/${id}.md`,
-      `${pp}/wiki/${id}.md`,
-    ]
-    for (const candidate of candidates) {
-      try {
-        const content = await readFile(candidate)
-        if (onOpenReferencePreview) {
-          onOpenReferencePreview({
-            title: page.title,
-            path: candidate,
-            content,
-          })
-        } else {
-          openFileInPreview(candidate, content)
-        }
-        return
-      } catch {
-        // try next
-      }
-    }
-    const fallbackPath = projectAbsolutePath(pp, page.path)
-    const fallbackContent = `Unable to load: ${page.path}`
+    // A page of the base opens the screen of the document, person,
+    // organization or matter it names (D-413); never a file.
+    if (await openWikiPath(page.path)) return
     if (onOpenReferencePreview) {
+      const text = await getPageText(page.path).catch(() => null)
       onOpenReferencePreview({
         title: page.title,
-        path: fallbackPath,
-        content: fallbackContent,
+        path: page.path,
+        content: text?.text ?? `No está en la base: ${page.title}`,
       })
-    } else {
-      openFileInPreview(fallbackPath, fallbackContent)
     }
   }, [project, generatedOutputs, onOpenReferencePreview, openFileInPreview])
 
@@ -1644,54 +1463,31 @@ function processContent(text: string): string {
   return result
 }
 
+/**
+ * A `[[link]]` of an answer: the screen of what it names, found in the
+ * base (D-413); plain text when the base knows nothing by that name.
+ */
 function WikiLink({ pageName, children }: { pageName: string; children: React.ReactNode }) {
-  const project = useWikiStore((s) => s.project)
-  const openFileInPreview = useWikiStore((s) => s.openFileInPreview)
   const [exists, setExists] = useState<boolean | null>(null)
-  const resolvedPath = useRef<string | null>(null)
+  const found = useRef<PageObject | null>(null)
 
   useEffect(() => {
-    if (!project) return
-    const pp = normalizePath(project.path)
-    const candidates = [
-      `${pp}/wiki/entities/${pageName}.md`,
-      `${pp}/wiki/concepts/${pageName}.md`,
-      `${pp}/wiki/sources/${pageName}.md`,
-      `${pp}/wiki/queries/${pageName}.md`,
-      `${pp}/wiki/comparisons/${pageName}.md`,
-      `${pp}/wiki/synthesis/${pageName}.md`,
-      `${pp}/wiki/${pageName}.md`,
-    ]
-
     let cancelled = false
-    async function check() {
-      for (const path of candidates) {
-        try {
-          await readFile(path)
-          if (!cancelled) {
-            resolvedPath.current = path
-            setExists(true)
-          }
-          return
-        } catch {
-          // try next
-        }
-      }
-      if (!cancelled) setExists(false)
-    }
-    check()
+    objectOfPage(pageName)
+      .then((object) => {
+        if (cancelled) return
+        found.current = object
+        setExists(Boolean(object))
+      })
+      .catch(() => {
+        if (!cancelled) setExists(false)
+      })
     return () => { cancelled = true }
-  }, [project, pageName])
+  }, [pageName])
 
-  const handleClick = useCallback(async () => {
-    if (!resolvedPath.current) return
-    try {
-      const content = await readFile(resolvedPath.current)
-      openFileInPreview(resolvedPath.current, content)
-    } catch {
-      // ignore
-    }
-  }, [openFileInPreview])
+  const handleClick = useCallback(() => {
+    if (found.current) openPageObject(found.current)
+  }, [])
 
   if (exists === false) {
     return (
@@ -1706,7 +1502,7 @@ function WikiLink({ pageName, children }: { pageName: string; children: React.Re
       type="button"
       onClick={handleClick}
       className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-primary underline decoration-primary/30 hover:bg-primary/10 hover:decoration-primary"
-      title={`Open wiki page: ${pageName}`}
+      title={`Abrir: ${pageName}`}
     >
       <FileText className="inline h-3 w-3" />
       {children}
