@@ -41,7 +41,7 @@
 
 | # | Paso | Esfuerzo | Depende de |
 |---|---|---|---|
-| 1 | **Prototipo con el operador:** ventana del portal dentro de la app con perfil propio; el operador abre el expediente de ejemplo que dio el dueño (anotado fuera del repositorio, en `llm_wiki_miportales`) y descarga a mano; la app captura las descargas y las guarda en un origen. Se registra cómo son las pantallas reales (detalle, actuaciones, descarga, frecuencia del desafío). | Chico a mediano | — |
+| 1 | **Prototipo con el operador:** ventana del portal dentro de la app con perfil propio; el operador abre el expediente de ejemplo que dio el dueño (anotado fuera del repositorio, en `llm_wiki_mi\portales`) y descarga a mano; la app captura las descargas y las guarda en un origen. Se registra cómo son las pantallas reales (detalle, actuaciones, descarga, frecuencia del desafío). | Chico a mediano | — |
 | 2 | **Conector del PJN, consulta pública:** "Traer este expediente" recorre las actuaciones y descarga todo, con avance, pausas y detención ante el desafío; datos de cada actuación al lado de cada documento. | Mediano | 1 |
 | 3 | **Integración con la base:** carpeta por expediente, asunto propuesto por la referencia del expediente, "Actualizar expediente" incremental, aviso en Atención de actuaciones nuevas. | Mediano | 2 |
 | 4 | **Sesión del letrado:** inicio de sesión del abogado en la ventana, expedientes de Penal y Familia propios, recorrer "Mis causas". | Mediano | 2 |
