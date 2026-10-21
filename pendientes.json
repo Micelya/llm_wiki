@@ -1672,12 +1672,12 @@
       "titulo": "Página del documento armada al mostrarse",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "D-294 dejó la página del documento como archivo generado hasta que la búsqueda y el grafo leyeran de la base; desde N5 (D-350, D-351) lo hacen para el wiki del archivo. Evaluar armarla al mostrarse (y qué pasa con las notas y con el chat, que lee archivos).",
-      "depende_de": [],
-      "referencia": "docs/design/wiki-sobre-la-base-propuesta.md (sección 5); D-294; D-350; D-351",
+      "estado": "en-curso",
+      "detalle": "Reemplazado por P-228 (D-396): la página del documento deja de ser archivo; se guarda en la base y se lee en el detalle del documento, con sus notas (W2, W3); el chat lee de la base (W5). Se cierra con P-228. Antes: D-294 la dejó como archivo generado hasta que la búsqueda y el grafo leyeran de la base.",
+      "depende_de": ["P-228"],
+      "referencia": "docs/design/retiro-del-wiki.md; D-294; D-350; D-351; D-396",
       "creado": "2026-10-18",
-      "actualizado": "2026-10-18"
+      "actualizado": "2026-10-21"
     },
     {
       "id": "P-192",
@@ -1685,11 +1685,11 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "Tras N5 el grafo, la búsqueda y el panel de enlaces del wiki del archivo salen de la base, pero el lint estructural, la relevancia del grafo (graph-relevance.ts) y el contexto que el chat agrega a cada resultado (build_knowledge_context_index) siguen leyendo las páginas; la búsqueda además recorre los archivos para títulos y para páginas que no son de documento (155 ms por pregunta en el binario de depuración con 185 páginas). Pasarlos a la base o medir que no hace falta. También: las preguntas genéricas por relaciones («a quiénes les debe») siguen en 6 a 7 de 8.",
-      "depende_de": [],
-      "referencia": "src/lib/lint.ts; src/lib/graph-relevance.ts; src-tauri/src/agent/tools.rs; src-tauri/src/commands/search.rs; D-350",
+      "detalle": "21 oct: lo que lee archivos lo reemplaza P-228 (D-396, D-398, D-399): Lint sale, la relevancia del grafo se calcula sobre la base (W4), la búsqueda y el contexto del chat leen de la base (W3, W5). Queda: las preguntas genéricas por relaciones («a quiénes les debe») siguen en 6 a 7 de 8; medirlas de nuevo cuando el chat lea de la base.",
+      "depende_de": ["P-228"],
+      "referencia": "src/lib/graph-relevance.ts; src-tauri/src/agent/tools.rs; src-tauri/src/commands/search.rs; D-350; D-396; D-398; D-399",
       "creado": "2026-10-18",
-      "actualizado": "2026-10-18"
+      "actualizado": "2026-10-21"
     },
     {
       "id": "P-200",
@@ -1943,6 +1943,54 @@
       "referencia": "D-389",
       "creado": "2026-10-20",
       "actualizado": "2026-10-20"
+    },
+    {
+      "id": "P-225",
+      "titulo": "Volver a tener proyectos de wiki, con un propósito definido",
+      "tipo": "decision",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "detalle": "Desde D-395 la app no admite los proyectos de wiki originales y abre en Inicio. Si más adelante hace falta trabajar con un conjunto aparte (un cliente, una investigación), definir primero para qué sirve y cómo se apoya en la base, en lugar de volver a las carpetas de páginas.",
+      "depende_de": ["P-228"],
+      "referencia": "D-395; docs/design/retiro-del-wiki.md",
+      "creado": "2026-10-21",
+      "actualizado": "2026-10-21"
+    },
+    {
+      "id": "P-226",
+      "titulo": "Revisión con el modelo: contradicciones y divergencias entre documentos",
+      "tipo": "decision",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "detalle": "Lint sale (D-399). Definir una revisión con el modelo que agregue valor en la estructura nueva: contradicciones y divergencias entre lo que dicen los documentos de una persona, organización o asunto, con sus citas, y cómo se muestran en Atención. Usa el modelo: cuidar cuándo corre y cuánto pregunta.",
+      "depende_de": ["P-228"],
+      "referencia": "D-399; docs/design/retiro-del-wiki.md",
+      "creado": "2026-10-21",
+      "actualizado": "2026-10-21"
+    },
+    {
+      "id": "P-227",
+      "titulo": "API local y recortador web (Clip) sobre la base",
+      "tipo": "codigo",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "detalle": "Salen con el retiro del wiki (D-400) porque trabajaban sobre los proyectos y los archivos del wiki. Rehacerlos sobre la base: qué expone la API y con qué permisos, y dónde guarda el recortador lo que se trae de la web (separado de lo que dicen los documentos, como la investigación, D-397).",
+      "depende_de": ["P-228"],
+      "referencia": "D-400; docs/design/retiro-del-wiki.md",
+      "creado": "2026-10-21",
+      "actualizado": "2026-10-21"
+    },
+    {
+      "id": "P-228",
+      "titulo": "Retirar el wiki heredado",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "en-curso",
+      "detalle": "Etapas W2 a W7 de docs/design/retiro-del-wiki.md en la rama feat/retire-wiki: las páginas, notas, consultas guardadas e historial del chat pasan a la base; pantallas, grafo, chat e investigación leen de la base; salen Wiki, Sources, Lint, Review, proyectos, API y Clip; prueba con los datos reales sin preguntas nuevas al modelo y borrado de la carpeta del wiki. Un pedido de integración al final.",
+      "depende_de": [],
+      "referencia": "D-395 a D-400; docs/design/retiro-del-wiki.md",
+      "creado": "2026-10-21",
+      "actualizado": "2026-10-21"
     }
   ]
 }

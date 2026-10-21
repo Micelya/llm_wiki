@@ -94,7 +94,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-066 | 11 oct | Base documental | Archivos que el inventario ignora | en revisión |
 | D-067 | 11 oct | Interfaz | Mensajes de error del motor en inglés, por ahora | en revisión |
 | D-068 | 11 oct | Etiquetas | Dejar vacía una etiqueta corregida vuelve al valor de la carpeta | en revisión |
-| D-069 | 12 oct | Producto | La app crea sola el proyecto general y lo llama "Archivo" | vigente |
+| D-069 | 12 oct | Producto | La app crea sola el proyecto general y lo llama "Archivo" | reemplazada por D-395 |
 | D-070 | 12 oct | Producto | Nombres técnicos neutros; la carpeta de trabajo se pregunta una vez | vigente |
 | D-071 | 12 oct | Wiki | El wiki del Archivo se activa a mano y después se alimenta solo | vigente |
 | D-072 | 12 oct | Producto | Términos del dominio en un vocabulario por profesión e idioma | vigente |
@@ -102,7 +102,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-074 | 12 oct | Interfaz | Orígenes como árbol, con acciones por fila | vigente |
 | D-075 | 12 oct | Etiquetas | Grupos y etiquetas, reglas por carpeta, lo manual manda | vigente |
 | D-076 | 12 oct | Wiki | Las páginas son la verdad; la base lleva un índice reconstruible | en revisión |
-| D-077 | 12 oct | Interfaz | Si había otro proyecto abierto, la app lo reabre | en revisión |
+| D-077 | 12 oct | Interfaz | Si había otro proyecto abierto, la app lo reabre | reemplazada por D-395 |
 | D-078 | 12 oct | Base documental | "Volver a barrer" en una carpeta barre todo su origen | en revisión |
 | D-079 | 12 oct | Wiki | Excluir no quita del wiki lo ya incorporado | en revisión |
 | D-080 | 12 oct | Wiki | Enlaces emparejados sin distinguir mayúsculas, espacios ni guiones | en revisión |
@@ -308,7 +308,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-331 | 18 oct | Wiki | La página de cada documento la escribe la base desde el resumen, sin modelo, hasta que N4 la arme como página del documento | en revisión |
 | D-332 | 18 oct | Wiki | En el wiki del archivo la incorporación no llama al modelo: solo crea la página del documento para que la base la complete | en revisión |
 | D-333 | 18 oct | Wiki | Se quitan la revisión del wiki con el modelo y el enriquecimiento de enlaces; la limpieza de avisos con el modelo no corre en el wiki del archivo | en revisión |
-| D-334 | 18 oct | Wiki | La investigación en internet guarda su resultado fuera del wiki del archivo | en revisión |
+| D-334 | 18 oct | Wiki | La investigación en internet guarda su resultado fuera del wiki del archivo | reemplazada por D-397 |
 | D-335 | 18 oct | Proceso de trabajo | Medición de N3: lectura completa desde la base de partida, sin trasplantes | en revisión |
 | D-340 | 18 oct | Wiki | Una página por documento o por familia de versiones, escrita por la base | en revisión |
 | D-341 | 18 oct | Wiki | Cada punto, dato e importe de una página de versiones dice de qué versión sale | en revisión |
@@ -340,7 +340,13 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-383 | 20 oct | Asuntos | El modelo propone documentos sueltos solo para un asunto confirmado o creado por una persona | en revisión |
 | D-384 | 20 oct | Asuntos | «Caso» en las pantallas de abogados; el wiki sigue con las palabras del catálogo | en revisión |
 | D-386 | 20 oct | Asuntos | Crear y editar un asunto a mano: lo que hace una persona se guarda por asunto y gana sobre la agrupación | en revisión |
-| D-389 | 20 oct | Pantallas | Página única de persona u organización: el artículo es su página del wiki tal como la escribió la proyección; los enlaces del wiki llevan a ella | en revisión |
+| D-389 | 20 oct | Pantallas | Página única de persona u organización: el artículo es su página del wiki tal como la escribió la proyección; los enlaces del wiki llevan a ella | en revisión; reemplazada en parte por D-396 |
+| D-395 | 21 oct | Producto | Se dejan de admitir los proyectos de wiki originales; la app abre en Inicio | vigente |
+| D-396 | 21 oct | Wiki | Los archivos del wiki desaparecen: lo no repetido pasa a la base y la carpeta se borra tras migrar y respaldar | vigente |
+| D-397 | 21 oct | Investigación | La investigación en internet queda, adaptada: se lanza desde una ficha y se guarda en la base | vigente |
+| D-398 | 21 oct | Grafo | El grafo y su análisis se calculan sobre la base y suman los asuntos con su estado | vigente |
+| D-399 | 21 oct | Wiki | Lint sale; queda pendiente una revisión con el modelo que agregue valor | vigente |
+| D-400 | 21 oct | Producto | El servidor de API local y el recortador web (Clip) salen; se rehacen sobre la base más adelante | vigente |
 
 ---
 
@@ -1235,7 +1241,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 - **Fecha:** 12 oct 2026
 - **Tema:** Producto
-- **Estado:** vigente (reemplaza a D-061)
+- **Estado:** reemplazada por D-395 (antes reemplazó a D-061)
 - **El problema:** con D-061 el usuario tenía que elegir un proyecto para que hiciera de general; además la app exigía un proyecto abierto para mostrar cualquier pantalla, incluso las de la base.
 - **Qué se decidió:** la app crea sola el proyecto general y abre ahí. Para un estudio jurídico se llama "Archivo" (el nombre sale del vocabulario, D-072).
 - **Por qué:** es el archivo del estudio, no un proyecto más; el usuario no debería tener que armarlo.
@@ -1339,7 +1345,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 - **Fecha:** 12 oct 2026
 - **Tema:** Interfaz
-- **Estado:** en revisión (sin revisar, P-066)
+- **Estado:** reemplazada por D-395
 - **El problema:** la app crea y abre el Archivo, pero el usuario puede estar trabajando en otro proyecto.
 - **Qué se decidió:** si el último proyecto abierto es distinto del Archivo, la app reabre ese.
 - **Por qué:** No registrado.
@@ -4173,7 +4179,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 - **Fecha:** 18 oct 2026
 - **Tema:** Wiki
-- **Estado:** en revisión (agente sin consulta, P-066)
+- **Estado:** reemplazada por D-397
 - **El problema:** La investigación en internet escribía su resultado como página de consulta del wiki y lo indexaba para la búsqueda, mezclando conocimiento externo con el del archivo (D-294).
 - **Qué se decidió:** En el wiki del archivo el resultado se guarda en `.llm-wiki/research/` y no se indexa; la herramienta sigue disponible a pedido. En otros proyectos, como antes.
 - **Por qué:** D-294: herramienta aparte que nunca escribe en la base ni en el wiki del archivo.
@@ -4514,7 +4520,55 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 ### D-389 · Página única de persona u organización: el artículo es su página del wiki tal como la escribió la proyección; los enlaces del wiki llevan a ella
 
-- **Fecha:** 20 oct 2026 · **Tema:** Pantallas · **Estado:** en revisión (agente sin consulta, P-066)
+- **Fecha:** 20 oct 2026 · **Tema:** Pantallas · **Estado:** en revisión (agente sin consulta, P-066); reemplazada en parte por D-396: el artículo pasa a leerse de la base, no del archivo; las dos pestañas siguen valiendo
 - **El problema:** D-376 pide una sola vista por cosa, empezando por persona u organización: arriba el artículo (síntesis con citas y certeza, documentos por asunto, vínculos), en una pestaña los datos y las correcciones. Había dos lugares: la pantalla de Personas y organizaciones (correcciones) y la página del wiki (lectura), con un botón para ir de una a la otra.
 - **Qué se decidió y por qué:** la pantalla de la entidad tiene dos pestañas, «Artículo» y «Datos y correcciones». El artículo es el archivo de su página tal como lo escribió la última pasada del wiki, desde la base y la síntesis guardada (sin preguntar al modelo), con las notas de la persona; se muestra con el mismo lector del wiki. Así no hay un segundo armado del artículo que pueda diferir del wiki: el código de `knowledge/pages.rs` sigue siendo el único que lo escribe. La pestaña de datos es la pantalla de antes (unir, separar, incorrecto, confirmar, deshacer), con un contador de lo que espera una decisión. Una entidad sin página (nombrada de paso) abre en los datos. Los enlaces del lector del wiki, del panel de enlaces, de los relacionados y de Atención a la página de una entidad abren esta pantalla (comando `docbase_knowledge_entity_of_page`); abrir el archivo desde el árbol sigue abriendo el archivo, para escribir notas («Escribir notas»). Los enlaces dentro del artículo funcionan con el wiki del archivo abierto, como en el wiki. Sin modelo: no agrega preguntas.
 - **Quién decidió:** agente sin consulta.
+
+### D-395 · Se dejan de admitir los proyectos de wiki originales; la app abre en Inicio
+
+- **Fecha:** 21 oct 2026 · **Tema:** Producto · **Estado:** vigente
+- **El problema:** la app heredó los proyectos de wiki (cada uno, una carpeta con sus páginas) y crea uno general, el "Archivo", para poder mostrar las pantallas de la base. Hoy lo útil está en la base: elegir o cambiar de proyecto confunde y ata la base a una carpeta.
+- **Qué se decidió y por qué:** la app deja de crear, abrir y listar proyectos de wiki (bienvenida, creación, cambio y registro) y abre en Inicio. Volver a tenerlos, con un propósito definido, queda como P-225. Reemplaza D-069 y D-077. Detalle en `docs/design/retiro-del-wiki.md`.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 20 y 21 oct.
+
+### D-396 · Los archivos del wiki desaparecen: lo no repetido pasa a la base y la carpeta se borra tras migrar y respaldar
+
+- **Fecha:** 21 oct 2026 · **Tema:** Wiki · **Estado:** vigente
+- **El problema:** los archivos del wiki son una copia de lo que ya sabe la base: se desactualizan (P-221), se leen por caminos distintos y obligan a mantener las dos cosas.
+- **Qué se decidió y por qué:** las páginas (de documento, de persona u organización y de asunto) y el resumen general los sigue armando el mismo código, pero los guarda en la base, con el mismo nombre de página: no se le pregunta nada nuevo al modelo y los enlaces siguen funcionando. Lo que solo estaba en archivos pasa a la base con una importación única: notas de una persona, consultas guardadas e historial del chat. La carpeta del wiki se borra al final, después de un respaldo con huellas y de comprobar que ningún origen apunta dentro de ella. Reemplaza en parte D-389 (el artículo sale de la base). Resuelve P-191 y lo de archivos de P-192.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 20 y 21 oct.
+
+### D-397 · La investigación en internet queda, adaptada: se lanza desde una ficha y se guarda en la base
+
+- **Fecha:** 21 oct 2026 · **Tema:** Investigación · **Estado:** vigente
+- **El problema:** la investigación guardaba su resultado en archivos (D-334) y leía el índice del wiki; sin wiki no tiene dónde quedar ni a qué asociarse.
+- **Qué se decidió y por qué:** se lanza desde una persona, organización o asunto. El resultado se guarda en la base, asociado a esa ficha, con sus fuentes, y se muestra separado de lo que dicen los documentos: es información de afuera, no del archivo del estudio. El panel general sigue para investigaciones sueltas, también guardadas en la base. Usa el modelo solo cuando una persona la pide. Reemplaza D-334.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 20 y 21 oct.
+
+### D-398 · El grafo y su análisis se calculan sobre la base y suman los asuntos con su estado
+
+- **Fecha:** 21 oct 2026 · **Tema:** Grafo · **Estado:** vigente
+- **El problema:** el grafo sale de la base, pero solo con lo que tiene página del wiki; su relevancia lee archivos y los asuntos no muestran si están propuestos o confirmados.
+- **Qué se decidió y por qué:** los nodos (personas y organizaciones, documentos, asuntos con su estado y confirmación), la relevancia y el análisis (comunidades, puntos clave) se calculan con lo que hay en la base. Un clic abre la pantalla de lo que se tocó.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 20 y 21 oct.
+
+### D-399 · Lint sale; queda pendiente una revisión con el modelo que agregue valor
+
+- **Fecha:** 21 oct 2026 · **Tema:** Wiki · **Estado:** vigente
+- **El problema:** Lint revisa la forma de las páginas del wiki (enlaces rotos, páginas sueltas); sin archivos no tiene qué revisar. Lo que le sirve a un estudio es otra cosa: contradicciones y divergencias entre documentos.
+- **Qué se decidió y por qué:** Lint sale con su código. Review también: lo que pide una decisión ya está en Atención. Una revisión con el modelo que busque contradicciones y divergencias en la estructura nueva queda como P-226.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 20 y 21 oct.
+
+### D-400 · El servidor de API local y el recortador web (Clip) salen; se rehacen sobre la base más adelante
+
+- **Fecha:** 21 oct 2026 · **Tema:** Producto · **Estado:** vigente
+- **El problema:** los dos trabajan sobre los proyectos y los archivos del wiki; sin ellos no tienen dónde leer ni escribir.
+- **Qué se decidió y por qué:** se quitan. Rehacerlos sobre la base queda como P-227.
+- **Quién decidió:** dueño del producto.
+- **Fuente:** conversación del 20 y 21 oct.
