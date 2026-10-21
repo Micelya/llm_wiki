@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react"
-import { ArrowLeft, Check, Copy, ExternalLink, FolderOpen } from "lucide-react"
+import { Check, Copy, ExternalLink, FolderOpen } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   getDocument,
@@ -7,6 +7,7 @@ import {
   openLocation,
   setLocationLabel,
   type DocumentDetail,
+  type KnowledgeArticle,
   type LocationRef,
 } from "@/commands/docbase"
 import { useDocbaseStore } from "@/stores/docbase-store"
@@ -16,22 +17,60 @@ import { EmptyNote, ErrorNote } from "./page"
 import { formatCount, formatDate, formatSize } from "./format"
 import { DocumentTypeFacts } from "./document-types-view"
 import { SimilarDocuments } from "./similar-documents"
-import { useDocbaseQuery } from "./use-docbase-query"
+import { useDocbaseQuery, type DocbaseQuery } from "./use-docbase-query"
 import { DocumentEntitiesSection } from "@/components/knowledge/document-entities"
 import { ArticleText, usePageWords } from "@/components/knowledge/article-text"
+import { DetailTabs, NoArticle, useDetailTab, type DetailTab } from "@/components/knowledge/detail-tabs"
 import { articleBody, withoutEntityBlock, withoutListSection } from "@/components/knowledge/knowledge"
-import { NotesEditor } from "@/components/knowledge/notes-editor"
 
 /** Text longer than this is cut on screen; the whole text stays in the base. */
 const SHOWN_TEXT_LIMIT = 200_000
 
 /**
- * One document, laid out like an encyclopedia article: the text in the
- * middle, a fact box on the right, its locations below.
+ * One document, with the same two tabs as a person or organization
+ * (D-389, D-423): «Artículo», its page as the base keeps it, and «Datos y
+ * correcciones», everything else: who and what it names and its matters,
+ * its places and copies, its similar documents, its whole text, and a fact
+ * box on the right with its type, its data and its labels. The notes of a
+ * person at the foot of both.
  */
-export function DocumentDetailView({ locationId, onBack }: { locationId: number; onBack: () => void }) {
+export function DocumentDetailView({
+  locationId,
+  onBack,
+  initialTab = null,
+}: {
+  locationId: number
+  onBack: () => void
+  initialTab?: DetailTab | null
+}) {
   const detail = useDocbaseQuery(`document:${locationId}`, () => getDocument(locationId))
+  const contentId = detail.data?.contentId ?? null
+  // Its article is asked once the document says which it is: a new
+  // document (its text changed) starts the screen over.
+  return <DocumentScreen key={contentId ?? "none"} detail={detail} contentId={contentId} onBack={onBack} initialTab={initialTab} />
+}
+
+function DocumentScreen({
+  detail,
+  contentId,
+  onBack,
+  initialTab,
+}: {
+  detail: DocbaseQuery<DocumentDetail | null>
+  contentId: number | null
+  onBack: () => void
+  initialTab: DetailTab | null
+}) {
+  const article = useDocbaseQuery(`document-article:${contentId ?? "none"}`, () =>
+    contentId === null ? Promise.resolve(null) : getDocumentArticle(contentId),
+  )
   const [problem, setProblem] = useState<string | null>(null)
+  const document = detail.data
+  // A file not read yet has no page: whatever the query says.
+  const page = contentId === null ? null : article.data
+  // A file not read yet, or a document whose page is not written: nothing to read.
+  const withoutArticle = document !== null && (contentId === null || (!article.loading && !page))
+  const [tab, setTab] = useDetailTab(withoutArticle, initialTab)
 
   async function handleOpen(id: number, reveal: boolean) {
     setProblem(null)
@@ -42,71 +81,78 @@ export function DocumentDetailView({ locationId, onBack }: { locationId: number;
     }
   }
 
-  const document = detail.data
-
   return (
-    <div className="flex h-full flex-col">
-      <header className="shrink-0 border-b px-8 pt-4">
-        <button
-          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-          onClick={onBack}
-        >
-          <ArrowLeft className="size-4" /> Documentos
-        </button>
-        <div className="mt-2 flex items-end justify-between gap-4 pb-3">
-          <h1 className="min-w-0 font-serif text-2xl break-words">{document?.name ?? "Documento"}</h1>
-          {document && (
-            <div className="flex shrink-0 gap-2">
-              <Button variant="outline" onClick={() => handleOpen(document.locationId, false)}>
-                <ExternalLink /> Abrir el original
-              </Button>
-              <Button variant="outline" onClick={() => handleOpen(document.locationId, true)}>
-                <FolderOpen /> Ver en su carpeta
-              </Button>
+    <DetailTabs
+      back="Documentos"
+      onBack={onBack}
+      title={<h1 className="font-serif text-2xl break-words">{document?.name ?? "Documento"}</h1>}
+      actions={
+        document ? (
+          <>
+            <Button variant="outline" onClick={() => handleOpen(document.locationId, false)}>
+              <ExternalLink /> Abrir el original
+            </Button>
+            <Button variant="outline" onClick={() => handleOpen(document.locationId, true)}>
+              <FolderOpen /> Ver en su carpeta
+            </Button>
+          </>
+        ) : null
+      }
+      tab={tab}
+      onTab={setTab}
+      notesOf={page?.objectId ?? null}
+      notice={
+        <>
+          {(problem || detail.error) && (
+            <div className="mb-4">
+              <ErrorNote>{problem ?? detail.error}</ErrorNote>
             </div>
           )}
-        </div>
-      </header>
-
-      <div className="min-h-0 flex-1 overflow-y-auto px-8 py-6">
-        {(problem || detail.error) && (
-          <div className="mb-4">
-            <ErrorNote>{problem ?? detail.error}</ErrorNote>
-          </div>
-        )}
-        {!detail.loading && !document && !detail.error && (
-          <EmptyNote>Este archivo ya no está en el inventario.</EmptyNote>
-        )}
-        {document && (
-          <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
+          {!detail.loading && !document && !detail.error && <EmptyNote>Este archivo ya no está en el inventario.</EmptyNote>}
+        </>
+      }
+      article={
+        document ? (
+          <DocumentArticle
+            document={document}
+            article={page}
+            loading={article.loading}
+            onShowData={() => setTab("data")}
+          />
+        ) : null
+      }
+      data={
+        document ? (
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
             <main className="min-w-0">
-              {document.contentId !== null && <DocumentArticle contentId={document.contentId} />}
-              {document.contentId !== null ? (
-                <Section title="Texto">
+              {document.contentId === null ? (
+                <>
                   <DocumentText document={document} />
-                </Section>
+                  <Section title={`Ubicaciones (${document.locations.length || 1})`}>
+                    <Locations document={document} onOpen={handleOpen} />
+                  </Section>
+                </>
               ) : (
-                <DocumentText document={document} />
-              )}
-              <Section title={`Ubicaciones (${document.locations.length || 1})`}>
-                <Locations document={document} onOpen={handleOpen} />
-              </Section>
-              {document.contentId !== null && (
-                <div className="mt-8">
+                <>
                   <DocumentEntitiesSection locationId={document.locationId} />
-                </div>
-              )}
-              {document.contentId !== null && (
-                <SimilarDocuments locationId={document.locationId} name={document.name} onProblem={setProblem} />
+                  <Section title={`Ubicaciones (${document.locations.length || 1})`}>
+                    <Locations document={document} onOpen={handleOpen} />
+                  </Section>
+                  <SimilarDocuments locationId={document.locationId} name={document.name} onProblem={setProblem} />
+                  {/* The whole text last: it is the longest. */}
+                  <Section title="Texto">
+                    <DocumentText document={document} />
+                  </Section>
+                </>
               )}
             </main>
             <aside>
               <FactBox document={document} onChanged={detail.reload} onProblem={setProblem} />
             </aside>
           </div>
-        )}
-      </div>
-    </div>
+        ) : null
+      }
+    />
   )
 }
 
@@ -218,26 +264,37 @@ function Locations({
  * The article of the document (D-407): its page as the projection last
  * wrote it in the base, for every version of it (its topic, the essential
  * with its quotes and how sure each point is, its data, the amounts, its
- * versions and the documents it is related to), without what this screen
- * shows in its own sections (where it is, whom it names); and the notes
- * of a person on it.
+ * versions and the documents it is related to), without what «Datos y
+ * correcciones» shows in its own sections (where it is, whom it names).
  */
-function DocumentArticle({ contentId }: { contentId: number }) {
-  const article = useDocbaseQuery(`document-article:${contentId}`, () => getDocumentArticle(contentId))
+function DocumentArticle({
+  document,
+  article,
+  loading,
+  onShowData,
+}: {
+  document: DocumentDetail
+  article: KnowledgeArticle | null
+  loading: boolean
+  onShowData: () => void
+}) {
   const pageWord = usePageWords()
-  if (!article.data) return null
-  const body = withoutEntityBlock(articleBody(article.data.body))
+  if (document.contentId !== null && loading && !article) return null
+  if (!article) {
+    return (
+      <NoArticle onShowData={onShowData}>
+        {document.contentId === null
+          ? "Este archivo todavía no se leyó: no tiene artículo."
+          : "Su artículo todavía no está escrito: la app lo escribe en su próxima pasada."}
+      </NoArticle>
+    )
+  }
+  if (!pageWord) return null
+  const body = withoutEntityBlock(articleBody(article.body))
   return (
-    <>
-      <Section title="Artículo">
-        {pageWord ? (
-          <ArticleText body={withoutListSection(body, pageWord("docLocations"))} writtenAt={article.data.writtenAt} />
-        ) : null}
-      </Section>
-      <div className="mt-8">
-        <NotesEditor key={article.data.objectId} objectId={article.data.objectId} />
-      </div>
-    </>
+    <article>
+      <ArticleText body={withoutListSection(body, pageWord("docLocations"))} writtenAt={article.writtenAt} />
+    </article>
   )
 }
 

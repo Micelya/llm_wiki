@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { ArrowLeft, Pencil, Plus, Undo2 } from "lucide-react"
+import { Pencil, Plus, Undo2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   chooseMatterDocument,
@@ -11,6 +11,7 @@ import {
   listMatters,
   renameMatter,
   undoIdentityDecision,
+  type KnowledgeArticle,
   type MatterConfirmation,
   type MatterDetail,
   type MatterDocument,
@@ -22,10 +23,10 @@ import { entityTypeName, relationName, vocabulary, type Vocabulary } from "@/voc
 import { DocbasePage, EmptyNote, ErrorNote, StatusBadge } from "@/components/docbase/page"
 import { formatDate, plural } from "@/components/docbase/format"
 import { useDocbaseQuery } from "@/components/docbase/use-docbase-query"
-import { ArticleText, usePageWords } from "./article-text"
-import { articleBody, articleSection, matterActions, rolesInWords } from "./knowledge"
+import { ArticleText } from "./article-text"
+import { DetailTabs, NoArticle, useDetailTab, type DetailTab } from "./detail-tabs"
+import { articleBody, matterActions, rolesInWords } from "./knowledge"
 import { DocumentPicker, NameForm } from "./matter-edit"
-import { NotesEditor } from "./notes-editor"
 import { ResearchSection } from "./research-section"
 import { Section, useAction, useOpenDocument, useOpenEntity } from "./shared"
 
@@ -139,122 +140,162 @@ export function reasonInWords(reason: MatterReason, words: Vocabulary = vocabula
   }
 }
 
-function MatterDetailView({ id, onBack }: { id: string; onBack: () => void }) {
+/**
+ * One matter, with the same two tabs as a person or organization (D-389,
+ * D-423): «Artículo», the one the base writes for it (its parties with
+ * their role, what its documents say, its documents with their type and
+ * why each is in it) and the research on internet; «Datos y correcciones»,
+ * what a person decides of it: its name, confirming or discarding it, its
+ * documents firm and proposed, putting one in or taking it out, and the
+ * decisions, to undo. The notes of a person at the foot of both.
+ */
+export function MatterDetailView({ id, onBack, initialTab = null }: { id: string; onBack: () => void; initialTab?: DetailTab | null }) {
   const words = vocabulary()
   const matter = useDocbaseQuery(`matter:${id}`, () => getMatter(id))
+  const article = useDocbaseQuery(`article:${id}`, () => getKnowledgeArticle(id))
   const action = useAction()
   const [renaming, setRenaming] = useState(false)
+  const [tab, setTab] = useDetailTab(!article.loading && !article.data, initialTab)
   const detail = matter.data
   const can = detail ? matterActions(detail) : null
+  const name = words.knowledge.matter.toLowerCase()
+  const data = tab === "data"
+  // What waits for a person: the matter itself while it is a proposal, and each document the model proposes.
+  const pending = detail ? detail.documents.filter((d) => d.state === "proposed").length + (can?.confirm ? 1 : 0) : 0
   return (
-    <div className="flex h-full flex-col">
-      <header className="shrink-0 border-b px-8 pt-4">
-        <button className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground" onClick={onBack}>
-          <ArrowLeft className="size-4" /> {words.knowledge.matters}
-        </button>
-        <div className="mt-2 flex items-end justify-between gap-4 pb-3">
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-            {detail && renaming ? (
-              <NameForm
-                initial={detail.name}
-                placeholder={`Nombre del ${words.knowledge.matter.toLowerCase()}`}
-                saveLabel="Guardar"
-                busy={action.busy}
-                onCancel={() => setRenaming(false)}
-                onSave={(value) =>
-                  void action.run(async () => {
-                    await renameMatter(detail.id, value)
-                    setRenaming(false)
-                  })
-                }
-              />
-            ) : (
-              <>
-                <h1 className="min-w-0 font-serif text-2xl break-words">{detail?.name ?? words.knowledge.matter}</h1>
-                {detail && can?.edit && (
-                  <Button size="icon-xs" variant="ghost" title="Cambiar el nombre" onClick={() => setRenaming(true)}>
-                    <Pencil />
-                  </Button>
-                )}
-              </>
-            )}
-            {detail && detail.confirmation !== "discarded" && (
-              <MatterBadges confirmation={detail.confirmation} status={detail.status} words={words} />
-            )}
-            {detail?.origin === "person" && <span className="text-xs text-muted-foreground">creado a mano</span>}
-          </div>
-          <div className="flex shrink-0 gap-2">
-          {detail && can?.confirm && (
-            <Button disabled={action.busy} onClick={() => action.run(() => decideMatter(detail.id, "confirm"))}>
-              Confirmar
-            </Button>
+    <DetailTabs
+      back={words.knowledge.matters}
+      onBack={onBack}
+      title={
+        <div className="flex flex-wrap items-center gap-2">
+          {detail && renaming && data ? (
+            <NameForm
+              initial={detail.name}
+              placeholder={`Nombre del ${name}`}
+              saveLabel="Guardar"
+              busy={action.busy}
+              onCancel={() => setRenaming(false)}
+              onSave={(value) =>
+                void action.run(async () => {
+                  await renameMatter(detail.id, value)
+                  setRenaming(false)
+                })
+              }
+            />
+          ) : (
+            <>
+              <h1 className="min-w-0 font-serif text-2xl break-words">{detail?.name ?? words.knowledge.matter}</h1>
+              {detail && can?.edit && data && (
+                <Button size="icon-xs" variant="ghost" title="Cambiar el nombre" onClick={() => setRenaming(true)}>
+                  <Pencil />
+                </Button>
+              )}
+            </>
           )}
-          {detail && can?.discard && (
-            <Button variant="outline" disabled={action.busy} onClick={() => action.run(() => decideMatter(detail.id, "discard"))}>
-              Descartar
-            </Button>
+          {detail && detail.confirmation !== "discarded" && (
+            <MatterBadges confirmation={detail.confirmation} status={detail.status} words={words} />
           )}
-          {detail && can?.reopen && (
-            <Button variant="outline" disabled={action.busy} onClick={() => action.run(() => decideMatter(detail.id, "reopen"))}>
-              <Undo2 /> Volver a propuesto
-            </Button>
-          )}
-          </div>
+          {detail?.origin === "person" && <span className="text-xs text-muted-foreground">creado a mano</span>}
         </div>
-      </header>
-      <div className="min-h-0 flex-1 overflow-y-auto px-8 py-6">
-        {(matter.error || action.problem) && (
-          <div className="mb-4">
-            <ErrorNote>{matter.error ?? action.problem}</ErrorNote>
-          </div>
-        )}
-        {!matter.loading && !detail && !matter.error && (
-          <EmptyNote>Este {words.knowledge.matter.toLowerCase()} ya no existe: sus documentos se agruparon de otra manera.</EmptyNote>
-        )}
-        {detail && (
-          <div className="mx-auto max-w-5xl">
-            {detail.confirmation === "discarded" && (
-              <p className="mb-4 rounded-md border border-dashed px-3 py-2 text-sm">
-                Descartaste este {words.knowledge.matter.toLowerCase()}
-                {detail.origin === "person" ? "." : ": no vuelve mientras la app encuentre los mismos documentos."}
-              </p>
+      }
+      actions={
+        detail && data ? (
+          <>
+            {can?.confirm && (
+              <Button disabled={action.busy} onClick={() => action.run(() => decideMatter(detail.id, "confirm"))}>
+                Confirmar
+              </Button>
             )}
-            {detail.state === "retired" && detail.confirmation !== "discarded" && (
-              <p className="mb-4 rounded-md border border-dashed px-3 py-2 text-sm">
-                Ya no queda ningún grupo con estos documentos.
-              </p>
+            {can?.discard && (
+              <Button variant="outline" disabled={action.busy} onClick={() => action.run(() => decideMatter(detail.id, "discard"))}>
+                Descartar
+              </Button>
             )}
+            {can?.reopen && (
+              <Button variant="outline" disabled={action.busy} onClick={() => action.run(() => decideMatter(detail.id, "reopen"))}>
+                <Undo2 /> Volver a propuesto
+              </Button>
+            )}
+          </>
+        ) : null
+      }
+      tab={tab}
+      onTab={setTab}
+      pending={pending}
+      notesOf={detail?.id ?? null}
+      notice={
+        <>
+          {(matter.error || action.problem) && (
+            <div className="mb-4">
+              <ErrorNote>{matter.error ?? action.problem}</ErrorNote>
+            </div>
+          )}
+          {!matter.loading && !detail && !matter.error && (
+            <EmptyNote>Este {name} ya no existe: sus documentos se agruparon de otra manera.</EmptyNote>
+          )}
+          {detail?.confirmation === "discarded" && (
+            <p className="mb-4 rounded-md border border-dashed px-3 py-2 text-sm">
+              Descartaste este {name}
+              {detail.origin === "person" ? "." : ": no vuelve mientras la app encuentre los mismos documentos."}
+            </p>
+          )}
+          {detail?.state === "retired" && detail.confirmation !== "discarded" && (
+            <p className="mb-4 rounded-md border border-dashed px-3 py-2 text-sm">Ya no queda ningún grupo con estos documentos.</p>
+          )}
+        </>
+      }
+      article={
+        detail ? <MatterArticle matter={detail} article={article.data} loading={article.loading} onShowData={() => setTab("data")} /> : null
+      }
+      data={
+        detail ? (
+          <>
             <Documents matter={detail} run={action.run} busy={action.busy} />
             <Parties matter={detail} />
-            <WhatTheDocumentsSay id={detail.id} />
-            <NotesEditor key={detail.id} objectId={detail.id} />
-            <ResearchSection key={`research-${detail.id}`} objectId={detail.id} name={detail.name} />
             <Decisions matter={detail} run={action.run} busy={action.busy} />
-          </div>
-        )}
-      </div>
-    </div>
+          </>
+        ) : null
+      }
+    />
   )
 }
 
 type Run = (action: () => Promise<unknown>) => Promise<void>
 
 /**
- * What its documents say of whom appears in them, with the quotes: the
- * section of its article (D-408); the rest of the article is what this
- * screen already shows.
+ * The article of the matter, as the projection last wrote it in the base
+ * (the screen writes the name above it), and below it the research on
+ * internet. A matter with too few documents, or made by hand and not yet
+ * passed over, has none: the tab says so.
  */
-function WhatTheDocumentsSay({ id }: { id: string }) {
-  const article = useDocbaseQuery(`article:${id}`, () => getKnowledgeArticle(id))
-  const pageWord = usePageWords()
-  if (!article.data || !pageWord) return null
-  const heading = pageWord("matterFacts")
-  const said = articleSection(articleBody(article.data.body), heading)
-  if (!said) return null
+function MatterArticle({
+  matter,
+  article,
+  loading,
+  onShowData,
+}: {
+  matter: MatterDetail
+  article: KnowledgeArticle | null
+  loading: boolean
+  onShowData: () => void
+}) {
+  const words = vocabulary()
+  if (loading && !article) return null
+  const name = words.knowledge.matter.toLowerCase()
   return (
-    <Section title={heading}>
-      <ArticleText body={said} writtenAt={article.data.writtenAt} />
-    </Section>
+    <article>
+      {article ? (
+        <ArticleText body={articleBody(article.body)} writtenAt={article.writtenAt} />
+      ) : (
+        <NoArticle onShowData={onShowData}>
+          Este {name} todavía no tiene artículo: la app lo escribe desde sus documentos en su próxima pasada, cuando tiene
+          documentos suficientes.
+        </NoArticle>
+      )}
+      <div className="mt-8">
+        <ResearchSection key={`research-${matter.id}`} objectId={matter.id} name={matter.name} />
+      </div>
+    </article>
   )
 }
 

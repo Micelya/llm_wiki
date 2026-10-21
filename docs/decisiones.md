@@ -365,6 +365,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-420 | 21 oct | Reconocimiento | El motor que reconoce escaneos se conserva sin uso hasta que la base lo use por su cuenta | en revisión |
 | D-421 | 21 oct | Proceso de trabajo | Desktop y Core se comunican por escrito, con un buzón de cada lado (`docs/dropbox/`) | vigente |
 | D-422 | 21 oct | IA | Cada servicio de IA se puede usar con distintos motores, configurables; Core es uno más | vigente |
+| D-423 | 21 oct | Interfaz | Documento, persona u organización y caso con la misma pantalla de dos pestañas; las notas al pie de las dos | en revisión |
 
 ---
 
@@ -4716,3 +4717,10 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **El problema:** al retirar el wiki la base dejó de reconocer el texto de los escaneos (P-242), y Core ofrece reconocimiento con Textract, que lee bien lo impreso pero no tablas, casillas ni manuscrito en castellano. Elegir un solo motor para todo deja afuera casos y ata Desktop a un proveedor.
 - **Qué se decidió:** independientemente del motor que se use, la plataforma permite configurar y usar distintos motores para cada servicio (preguntar, reconocer texto, describir imágenes, investigar, transcribir, vectores), como ya pasa con las preguntas al modelo. Core es un proveedor más, elegible por servicio; Desktop sigue funcionando con motores locales o propios. Especificación y plan en `docs/design/servicios-de-ia-propuesta.md` (propuesta para revisar). Amplía D-291.
 - **Quién decidió:** dueño del producto. **Fuente:** conversación del 21 oct.
+
+### D-423 · Documento, persona u organización y caso con la misma pantalla de dos pestañas; las notas al pie de las dos
+
+- **Fecha:** 21 oct 2026 · **Tema:** Interfaz · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el dueño pidió (21 oct, paso 0a de `docs/design/servicios-de-ia-propuesta.md`, 2.6) que documento y caso tengan las pestañas «Artículo» y «Datos y correcciones» de persona u organización. Al repartir lo que ya mostraba cada pantalla quedaron detalles sin especificar.
+- **Qué se decidió y por qué:** las tres pantallas usan un solo componente (`detail-tabs.tsx`), así se ven igual y un cambio vale para las tres. Las notas de una persona van al pie de las dos pestañas, con el mismo editor (lo que se está escribiendo no se pierde al cambiar de pestaña); en persona u organización antes estaban solo en el Artículo. Sin artículo, la pantalla abre en «Datos y correcciones» y la pestaña «Artículo» lo dice con una frase y un botón que lleva a los datos. Las acciones que corrigen (unir, confirmar o descartar el caso, cambiarle el nombre) se ven solo en «Datos y correcciones»; «Abrir el original» y «Ver en su carpeta» del documento, en las dos. En el documento, el texto completo va último en «Datos y correcciones» porque es lo más largo. En el caso, la sección suelta «Lo que dicen los documentos» sale (está dentro del artículo) y «Partes y personas» queda en los datos aunque el artículo también las nombra: sacar repeticiones es el paso siguiente (P-245). La pestaña de datos del caso cuenta lo que espera decisión: el caso propuesto y cada documento que propone el modelo.
+- **Quién decidió:** agente sin consulta.

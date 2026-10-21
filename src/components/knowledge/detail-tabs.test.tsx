@@ -1,0 +1,295 @@
+import { renderToStaticMarkup } from "react-dom/server"
+import { beforeEach, describe, expect, it, vi } from "vitest"
+import type { DocumentDetail, DocumentEntities, EntityDetail, KnowledgeArticle, MatterDetail } from "@/commands/docbase"
+import { DocumentDetailView } from "@/components/docbase/document-detail"
+import { EntityDetailView } from "./entity-detail"
+import { MatterDetailView } from "./matters-view"
+
+// What the base answers, by the key of each query (or the part before
+// its first colon); every case below is made up.
+const base = vi.hoisted(() => ({ answers: {} as Record<string, unknown> }))
+
+vi.mock("@/components/docbase/use-docbase-query", () => ({
+  useDocbaseQuery: (key: string) => ({
+    data: base.answers[key] ?? base.answers[key.split(":")[0]] ?? null,
+    error: null,
+    loading: false,
+    reload: () => {},
+  }),
+}))
+
+/** The visible text, without tags, with spaces collapsed. */
+function text(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&quot;/g, '"')
+    .replace(/&#x27;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+/** The text of the tab that is shown. */
+function selectedTab(html: string): string | null {
+  const found = /<button[^>]*role="tab"[^>]*aria-selected="true"[^>]*>(.*?)<\/button>/.exec(html)
+  return found ? text(found[1]) : null
+}
+
+function article(objectId: string, body: string): KnowledgeArticle {
+  return {
+    objectId,
+    kind: objectId.startsWith("mat-") ? "matter" : "document",
+    path: `wiki/ejemplo/${objectId}.md`,
+    title: "Ejemplo",
+    body,
+    state: "projected",
+    writtenAt: Date.UTC(2026, 9, 20, 12),
+    notes: null,
+  }
+}
+
+const PAGE_WORDS = { docLocations: "Ubicaciones", matterFacts: "Lo que dicen los documentos del caso" }
+
+function documentDetail(overrides: Partial<DocumentDetail> = {}): DocumentDetail {
+  return {
+    locationId: 10,
+    originId: "o-1",
+    originName: "Carpeta de prueba",
+    originReachable: true,
+    relPath: "Contratos/Locación de ejemplo.pdf",
+    folder: "Contratos",
+    name: "Locación de ejemplo.pdf",
+    ext: "pdf",
+    size: 2048,
+    mtimeMs: Date.UTC(2026, 9, 1, 12),
+    state: "processed",
+    contentId: 5,
+    copies: 1,
+    labels: [],
+    docType: null,
+    docStage: null,
+    docTypeProposed: false,
+    docTypeName: null,
+    path: "C:/prueba/Contratos/Locación de ejemplo.pdf",
+    fileHash: null,
+    error: null,
+    wordCount: 6,
+    processedAt: Date.UTC(2026, 9, 1, 13),
+    firstSeenAt: Date.UTC(2026, 9, 1, 12),
+    text: "El locador inventado alquila un local inventado.",
+    textEngine: "extraction",
+    locations: [],
+    ...overrides,
+  }
+}
+
+const DOCUMENT_ARTICLE = article(
+  "doc-1",
+  "---\ntype: source\n---\n\n# Locación de ejemplo\n\nTema: el alquiler de un local de prueba.\n\n## Lo esencial\n\n- El plazo es de dos años.\n\n## Ubicaciones\n\n- Carpeta de prueba › Contratos\n",
+)
+
+const DOCUMENT_ENTITIES: DocumentEntities = {
+  contentId: 5,
+  state: "done",
+  error: null,
+  entities: [{ entityId: "ent-1", kind: "organizacion", name: "Inmobiliaria Ficticia SA", written: ["Inmobiliaria Ficticia SA"], roles: ["parte"], pagePath: null }],
+  references: [],
+  matters: [{ contentId: 5, matterId: "mat-1", name: "Caso de prueba", proposed: false, pagePath: null }],
+  discarded: 0,
+}
+
+function matterDetail(overrides: Partial<MatterDetail> = {}): MatterDetail {
+  return {
+    id: "mat-1",
+    name: "Reclamo de Ficticia SA a Inventada SRL",
+    state: "active",
+    status: "open",
+    origin: "proposed",
+    confirmation: "proposed",
+    pagePath: "wiki/entities/reclamo-de-ficticia.md",
+    documents: [
+      { document: { contentId: 5, locationId: 10, name: "Carta documento de prueba.pdf" }, state: "firm", reasons: [], proposalReason: null },
+      { document: { contentId: 6, locationId: 11, name: "Recibo inventado.pdf" }, state: "proposed", reasons: [], proposalReason: "habla del mismo local" },
+    ],
+    parties: [{ entityId: "ent-1", kind: "organizacion", name: "Ficticia SA", roles: ["parte"], documents: 2 }],
+    decisions: [],
+    ...overrides,
+  }
+}
+
+const MATTER_ARTICLE = article(
+  "mat-1",
+  "---\ntype: entity\n---\n\n# Reclamo de Ficticia SA a Inventada SRL\n\n*Caso*\n\n## Partes\n\n- [[ficticia-sa|Ficticia SA]] · Organización — parte (2 documentos)\n\n## Lo que dicen los documentos del caso\n\n- Ficticia SA reclama una deuda inventada.\n",
+)
+
+beforeEach(() => {
+  for (const key of Object.keys(base.answers)) delete base.answers[key]
+  base.answers["page-words"] = PAGE_WORDS
+  base.answers.research = []
+})
+
+describe("the screen of a document", () => {
+  beforeEach(() => {
+    base.answers.document = documentDetail()
+    base.answers["document-article"] = DOCUMENT_ARTICLE
+    base.answers["document-entities"] = DOCUMENT_ENTITIES
+  })
+
+  it("has the two tabs of a person or organization, and opens on the article", () => {
+    const html = renderToStaticMarkup(<DocumentDetailView locationId={10} onBack={() => {}} />)
+    expect(html.match(/role="tab"/g)).toHaveLength(2)
+    expect(selectedTab(html)).toBe("Artículo")
+    expect(text(html)).toContain("Datos y correcciones")
+  })
+
+  it("shows in «Artículo» only the article, and the notes at its foot", () => {
+    const shown = text(renderToStaticMarkup(<DocumentDetailView locationId={10} onBack={() => {}} />))
+    expect(shown).toContain("Tema: el alquiler de un local de prueba.")
+    expect(shown).toContain("El plazo es de dos años.")
+    expect(shown).toContain("Notas")
+    // Where it is and whom it names are in the other tab.
+    expect(shown).not.toContain("Carpeta de prueba › Contratos")
+    expect(shown).not.toContain("El locador inventado alquila un local inventado.")
+    expect(shown).not.toContain("Inmobiliaria Ficticia SA")
+    expect(shown).not.toContain("Etiquetas")
+  })
+
+  it("shows in «Datos y correcciones» everything else, and the same notes", () => {
+    const html = renderToStaticMarkup(<DocumentDetailView locationId={10} onBack={() => {}} initialTab="data" />)
+    const shown = text(html)
+    expect(selectedTab(html)).toBe("Datos y correcciones")
+    expect(shown).toContain("Inmobiliaria Ficticia SA")
+    expect(shown).toContain("Caso de prueba")
+    expect(shown).toContain("Agregar a un caso")
+    expect(shown).toContain("Ubicaciones (1)")
+    expect(shown).toContain("Contratos/Locación de ejemplo.pdf")
+    expect(shown).toContain("Texto")
+    expect(shown).toContain("El locador inventado alquila un local inventado.")
+    expect(shown).toContain("Etiquetas")
+    expect(shown).toContain("Notas")
+    expect(shown).not.toContain("El plazo es de dos años.")
+    // The whole text goes last: after the places.
+    expect(shown.indexOf("El locador inventado")).toBeGreaterThan(shown.indexOf("Ubicaciones (1)"))
+  })
+
+  it("opens on «Datos y correcciones» when it has no article, and the article tab says so", () => {
+    base.answers["document-article"] = null
+    const html = renderToStaticMarkup(<DocumentDetailView locationId={10} onBack={() => {}} />)
+    expect(selectedTab(html)).toBe("Datos y correcciones")
+    const article = text(renderToStaticMarkup(<DocumentDetailView locationId={10} onBack={() => {}} initialTab="article" />))
+    expect(article).toContain("Su artículo todavía no está escrito: la app lo escribe en su próxima pasada.")
+    expect(article).toContain("Ver «Datos y correcciones»")
+  })
+
+  it("says a file not read yet has no article", () => {
+    base.answers.document = documentDetail({ contentId: null, state: "unread", text: null })
+    const html = renderToStaticMarkup(<DocumentDetailView locationId={10} onBack={() => {}} initialTab="article" />)
+    expect(text(html)).toContain("Este archivo todavía no se leyó: no tiene artículo.")
+  })
+})
+
+describe("the screen of a matter", () => {
+  beforeEach(() => {
+    base.answers.matter = matterDetail()
+    base.answers.article = MATTER_ARTICLE
+  })
+
+  it("has the same two tabs, and opens on its article", () => {
+    const html = renderToStaticMarkup(<MatterDetailView id="mat-1" onBack={() => {}} />)
+    expect(html.match(/role="tab"/g)).toHaveLength(2)
+    expect(selectedTab(html)).toBe("Artículo")
+  })
+
+  it("shows in «Artículo» the article the base writes, the research on internet and the notes", () => {
+    const html = renderToStaticMarkup(<MatterDetailView id="mat-1" onBack={() => {}} />)
+    const shown = text(html)
+    expect(shown).toContain("Partes")
+    expect(shown).toContain("Ficticia SA reclama una deuda inventada.")
+    expect(shown).toContain("Investigación en internet")
+    expect(shown).toContain("Notas")
+    // A link of the article leads to the screen of what it names.
+    expect(html).toContain('href="#ficticia-sa"')
+    // Deciding is in the other tab.
+    expect(shown).not.toContain("Agregar documentos")
+    expect(shown).not.toContain("Carta documento de prueba.pdf")
+    expect(shown).not.toContain("Descartar")
+  })
+
+  it("shows in «Datos y correcciones» what a person decides of it, and the same notes", () => {
+    const html = renderToStaticMarkup(<MatterDetailView id="mat-1" onBack={() => {}} initialTab="data" />)
+    const shown = text(html)
+    expect(selectedTab(html)).toBe("Datos y correcciones 2")
+    expect(shown).toContain("Confirmar")
+    expect(shown).toContain("Descartar")
+    expect(shown).toContain("Documentos (1)")
+    expect(shown).toContain("Carta documento de prueba.pdf")
+    expect(shown).toContain("Agregar documentos")
+    expect(shown).toContain("Posiblemente de este caso")
+    expect(shown).toContain("Recibo inventado.pdf")
+    expect(shown).toContain("Partes y personas")
+    expect(shown).toContain("Notas")
+    expect(shown).not.toContain("Ficticia SA reclama una deuda inventada.")
+    expect(shown).not.toContain("Investigación en internet")
+  })
+
+  it("says a matter without article has none, and opens on «Datos y correcciones»", () => {
+    base.answers.matter = matterDetail({
+      origin: "person",
+      confirmation: "confirmed",
+      pagePath: null,
+      documents: [matterDetail().documents[0]],
+    })
+    base.answers.article = null
+    const html = renderToStaticMarkup(<MatterDetailView id="mat-1" onBack={() => {}} />)
+    expect(selectedTab(html)).toBe("Datos y correcciones")
+    const article = text(renderToStaticMarkup(<MatterDetailView id="mat-1" onBack={() => {}} initialTab="article" />))
+    expect(article).toContain("Este caso todavía no tiene artículo")
+    expect(article).toContain("Ver «Datos y correcciones»")
+    expect(article).toContain("Notas")
+  })
+})
+
+describe("the screen of a person or organization, on the same tabs", () => {
+  const entity: EntityDetail = {
+    id: "ent-1",
+    kind: "organizacion",
+    name: "Ficticia SA",
+    state: "active",
+    mergedInto: null,
+    aliases: [{ written: "Ficticia S.A.", mentions: 2 }],
+    identifiers: [],
+    mentions: [],
+    claims: [],
+    doubts: [],
+    pagePath: "wiki/entities/ficticia-sa.md",
+    matters: [],
+    decisions: [],
+    incoming: [],
+  }
+
+  beforeEach(() => {
+    base.answers.entity = entity
+    base.answers.article = article("ent-1", "---\ntype: entity\n---\n\n# Ficticia SA\n\nUna sociedad inventada para las pruebas.\n")
+  })
+
+  it("keeps its article, the research and the notes in «Artículo»", () => {
+    const html = renderToStaticMarkup(<EntityDetailView id="ent-1" onBack={() => {}} />)
+    const shown = text(html)
+    expect(selectedTab(html)).toBe("Artículo")
+    expect(shown).toContain("Una sociedad inventada para las pruebas.")
+    expect(shown).toContain("Investigación en internet")
+    expect(shown).toContain("Notas")
+    expect(shown).not.toContain("Se escribe")
+  })
+
+  it("keeps its data in «Datos y correcciones», now with the notes at the foot too", () => {
+    const html = renderToStaticMarkup(<EntityDetailView id="ent-1" onBack={() => {}} initialTab="data" />)
+    const shown = text(html)
+    expect(selectedTab(html)).toBe("Datos y correcciones")
+    expect(shown).toContain("Lo que dicen los documentos")
+    expect(shown).toContain("Se escribe")
+    expect(shown).toContain("Ficticia S.A.")
+    expect(shown).toContain("Unir con otra")
+    expect(shown).toContain("Notas")
+    expect(shown).not.toContain("Una sociedad inventada para las pruebas.")
+  })
+})

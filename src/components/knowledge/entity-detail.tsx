@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react"
-import { ArrowLeft, Link2, Undo2 } from "lucide-react"
+import { Link2, Undo2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -21,8 +21,8 @@ import { EmptyNote, ErrorNote, StatusBadge } from "@/components/docbase/page"
 import { formatDate, plural } from "@/components/docbase/format"
 import { useDocbaseQuery } from "@/components/docbase/use-docbase-query"
 import { ArticleText } from "./article-text"
+import { DetailTabs, NoArticle, useDetailTab, type DetailTab } from "./detail-tabs"
 import { articleBody, certaintyInWords, decisionInWords, documentsByMatter, resolvedByName, reviewInWords, rolesInWords } from "./knowledge"
-import { NotesEditor } from "./notes-editor"
 import { ResearchSection } from "./research-section"
 import { Quote, Section, useAction, useOpenDocument, useOpenMatter } from "./shared"
 
@@ -31,130 +31,120 @@ import { Quote, Section, useAction, useOpenDocument, useOpenMatter } from "./sha
  * on top (what the documents say of it, with quotes and how sure each
  * thing is, its documents by matter, who else it is linked to), written
  * in the base by the projection from the record and the synthesis it
- * keeps, without asking the model, with the notes of a person below it
- * (D-407); and in a tab its data and corrections: how the documents write
- * it, its identifiers, every claim and mention with what a person can do
- * about it, and the decisions, to undo (R-08, R-09). Never an edit of the
- * article.
+ * keeps, without asking the model, with its research on internet; and in
+ * a tab its data and corrections: how the documents write it, its
+ * identifiers, every claim and mention with what a person can do about
+ * it, and the decisions, to undo (R-08, R-09). The notes of a person at
+ * the foot of both (D-407, D-423). Never an edit of the article.
  */
-export function EntityDetailView({ id, onBack }: { id: string; onBack: () => void }) {
+export function EntityDetailView({ id, onBack, initialTab = null }: { id: string; onBack: () => void; initialTab?: DetailTab | null }) {
   const words = vocabulary()
   const entity = useDocbaseQuery(`entity:${id}`, () => getEntity(id))
   const article = useDocbaseQuery(`article:${id}`, () => getKnowledgeArticle(id))
   const openEntity = useKnowledgeStore((s) => s.openEntity)
   const action = useAction()
   const [joining, setJoining] = useState(false)
-  const [tab, setTab] = useState<"article" | "data" | null>(null)
   const detail = entity.data
   // Without a page (only named in passing) there is no article to read.
-  const shown = tab ?? (!article.loading && !article.data ? "data" : "article")
+  const [shown, setTab] = useDetailTab(!article.loading && !article.data, initialTab)
   const pending = detail ? detail.claims.filter((c) => c.state === "conflict").length + detail.doubts.length : 0
 
   return (
-    <div className="flex h-full flex-col">
-      <header className="shrink-0 border-b px-8 pt-4">
-        <button className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground" onClick={onBack}>
-          <ArrowLeft className="size-4" /> {words.knowledge.entities}
-        </button>
-        <div className="mt-2 flex items-end justify-between gap-4 pb-2">
-          <div className="min-w-0">
-            <h1 className="font-serif text-2xl break-words">{detail?.name ?? "…"}</h1>
-            {detail && <p className="text-sm text-muted-foreground">{entityTypeName(detail.kind, false, words)}</p>}
-          </div>
-          {detail && detail.state === "active" && shown === "data" && (
-            <div className="flex shrink-0 gap-2">
-              <Button variant="outline" onClick={() => setJoining(!joining)}>
-                <Link2 /> Unir con otra
-              </Button>
+    <DetailTabs
+      back={words.knowledge.entities}
+      onBack={onBack}
+      title={
+        <>
+          <h1 className="font-serif text-2xl break-words">{detail?.name ?? "…"}</h1>
+          {detail && <p className="text-sm text-muted-foreground">{entityTypeName(detail.kind, false, words)}</p>}
+        </>
+      }
+      actions={
+        detail && detail.state === "active" && shown === "data" ? (
+          <Button variant="outline" onClick={() => setJoining(!joining)}>
+            <Link2 /> Unir con otra
+          </Button>
+        ) : null
+      }
+      tab={shown}
+      onTab={setTab}
+      pending={pending}
+      notesOf={detail?.id ?? null}
+      notice={
+        <>
+          {(entity.error || action.problem) && (
+            <div className="mb-4">
+              <ErrorNote>{entity.error ?? action.problem}</ErrorNote>
             </div>
           )}
-        </div>
-        <nav className="-mb-px flex gap-1 text-sm">
-          <Tab active={shown === "article"} onClick={() => setTab("article")}>
-            Artículo
-          </Tab>
-          <Tab active={shown === "data"} onClick={() => setTab("data")}>
-            Datos y correcciones
-            {pending > 0 && (
-              <span className="ml-1.5 rounded-full bg-amber-500/20 px-1.5 text-xs text-amber-700 dark:text-amber-400">{pending}</span>
-            )}
-          </Tab>
-        </nav>
-      </header>
-      <div className="min-h-0 flex-1 overflow-y-auto px-8 py-6">
-        {(entity.error || action.problem) && (
-          <div className="mb-4">
-            <ErrorNote>{entity.error ?? action.problem}</ErrorNote>
-          </div>
-        )}
-        {!entity.loading && !detail && !entity.error && <EmptyNote>Esta entidad ya no está en el registro.</EmptyNote>}
-        {detail && detail.state !== "active" && (
-          <div className="mx-auto mb-6 max-w-6xl rounded-md border border-dashed px-4 py-3 text-sm">
-            {detail.state === "merged" && detail.mergedInto ? (
-              <>
-                Se unió con otra entidad.{" "}
-                <button className="text-primary hover:underline" onClick={() => openEntity(detail.mergedInto)}>
-                  Ver la entidad que quedó
-                </button>
-              </>
-            ) : (
-              "Ya no la nombra ningún documento que cuente."
-            )}
-          </div>
-        )}
-        {detail && shown === "article" && <Article entity={detail} article={article.data} loading={article.loading} />}
-        {detail && shown === "data" && joining && <JoinPicker entity={detail} onDone={() => setJoining(false)} run={action.run} />}
-        {detail && shown === "data" && (
-          <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
-            <main className="min-w-0">
-              <Claims entity={detail} run={action.run} busy={action.busy} />
-              <Documents entity={detail} run={action.run} busy={action.busy} />
-              <Incoming entity={detail} />
-              <Decisions entity={detail} run={action.run} busy={action.busy} />
-            </main>
-            <aside>
-              <FactBox entity={detail} />
-            </aside>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function Tab({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
-  return (
-    <button
-      className={`flex items-center border-b-2 px-3 py-1.5 ${
-        active ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
-      }`}
-      onClick={onClick}
-    >
-      {children}
-    </button>
+          {!entity.loading && !detail && !entity.error && <EmptyNote>Esta entidad ya no está en el registro.</EmptyNote>}
+          {detail && detail.state !== "active" && (
+            <div className="mb-6 rounded-md border border-dashed px-4 py-3 text-sm">
+              {detail.state === "merged" && detail.mergedInto ? (
+                <>
+                  Se unió con otra entidad.{" "}
+                  <button className="text-primary hover:underline" onClick={() => openEntity(detail.mergedInto)}>
+                    Ver la entidad que quedó
+                  </button>
+                </>
+              ) : (
+                "Ya no la nombra ningún documento que cuente."
+              )}
+            </div>
+          )}
+        </>
+      }
+      article={detail ? <Article entity={detail} article={article.data} loading={article.loading} onShowData={() => setTab("data")} /> : null}
+      data={
+        detail ? (
+          <>
+            {joining && <JoinPicker entity={detail} onDone={() => setJoining(false)} run={action.run} />}
+            <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
+              <main className="min-w-0">
+                <Claims entity={detail} run={action.run} busy={action.busy} />
+                <Documents entity={detail} run={action.run} busy={action.busy} />
+                <Incoming entity={detail} />
+                <Decisions entity={detail} run={action.run} busy={action.busy} />
+              </main>
+              <aside>
+                <FactBox entity={detail} />
+              </aside>
+            </div>
+          </>
+        ) : null
+      }
+    />
   )
 }
 
 /**
  * The article, as the projection last wrote it in the base (the screen
- * writes the name above it), and below it the notes of a person.
+ * writes the name above it), and below it the research on internet; the
+ * notes of a person go at the foot of both tabs.
  */
-function Article({ entity, article, loading }: { entity: EntityDetail; article: KnowledgeArticle | null; loading: boolean }) {
+function Article({
+  entity,
+  article,
+  loading,
+  onShowData,
+}: {
+  entity: EntityDetail
+  article: KnowledgeArticle | null
+  loading: boolean
+  onShowData: () => void
+}) {
   if (loading && !article) return null
   return (
-    <article className="mx-auto max-w-4xl">
+    <article>
       {article ? (
         <ArticleText body={articleBody(article.body)} writtenAt={article.writtenAt} />
       ) : (
-        <EmptyNote>
+        <NoArticle onShowData={onShowData}>
           {entity.pagePath
             ? "Su artículo todavía no está escrito: la app lo escribe en su próxima pasada."
-            : "Los documentos la nombran de paso: no tiene artículo. Lo que se sabe de ella está en «Datos y correcciones»."}
-        </EmptyNote>
+            : "Los documentos la nombran de paso: no tiene artículo."}
+        </NoArticle>
       )}
-      <div className="mt-8">
-        <NotesEditor key={entity.id} objectId={entity.id} />
-      </div>
       {entity.state === "active" && (
         <div className="mt-8">
           <ResearchSection key={entity.id} objectId={entity.id} name={entity.name} />

@@ -1875,10 +1875,10 @@
       "titulo": "Unificar las páginas de asunto y de documento con el wiki",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "Una sola vista por cosa (D-376): arriba el artículo, en una pestaña los datos y las correcciones. La de persona u organización está hecha (D-389: pestañas «Artículo», que muestra su página del wiki tal como la escribió la proyección, y «Datos y correcciones»; los enlaces del wiki a la página llevan a la pantalla). Faltan la del asunto (pantalla Asuntos y su página del wiki) y la del documento (detalle de Documentos y su página del wiki, Sources). 21 oct, pedido del dueño: documento y asunto con las mismas dos pestañas que persona u organización («Artículo» y «Datos y correcciones»); el asunto con su artículo. Va primero en el plan (paso 0a de docs/design/servicios-de-ia-propuesta.md).",
+      "estado": "a-verificar",
+      "detalle": "Una sola vista por cosa (D-376): arriba el artículo, en una pestaña los datos y las correcciones. La de persona u organización está hecha (D-389: pestañas «Artículo», que muestra su página del wiki tal como la escribió la proyección, y «Datos y correcciones»; los enlaces del wiki a la página llevan a la pantalla). Faltan la del asunto (pantalla Asuntos y su página del wiki) y la del documento (detalle de Documentos y su página del wiki, Sources). 21 oct, pedido del dueño: documento y asunto con las mismas dos pestañas que persona u organización («Artículo» y «Datos y correcciones»); el asunto con su artículo. Va primero en el plan (paso 0a de docs/design/servicios-de-ia-propuesta.md). Hecho el 21 oct (D-423): documento, persona u organización y caso usan la misma pantalla de dos pestañas; el caso muestra su artículo completo con la investigación en internet; lo demás de cada pantalla pasó a «Datos y correcciones», y las notas van al pie de las dos. Falta que el dueño lo vea en la app.",
       "depende_de": [],
-      "referencia": "D-376; D-389; docs/design/asuntos-propuesta.md (sección 5); docs/design/servicios-de-ia-propuesta.md (2.6, paso 0a)",
+      "referencia": "D-376; D-389; D-423; docs/design/asuntos-propuesta.md (sección 5); docs/design/servicios-de-ia-propuesta.md (2.6, paso 0a); src/components/knowledge/detail-tabs.tsx",
       "creado": "2026-10-20",
       "actualizado": "2026-10-21"
     },
