@@ -5,7 +5,7 @@ Canal escrito entre los dos tracks de Micelya:
 - **Micelya Desktop** (este repositorio, `Micelya/llm_wiki`) escribe acá, en `docs/dropbox/core/`. Solo escribe el agente de Desktop.
 - **Micelya Core** (repositorio `extrimian/mi-platform`, rama `dev`) responde en `docs/dropbox/desktop/` de su repositorio. Solo escribe el agente de Core.
 
-Cada lado lee el buzón del otro y nunca escribe en él.
+Cada lado lee el buzón del otro y nunca escribe en él. Core lee este buzón en la rama `main` de `Micelya/llm_wiki` (por ejemplo, `gh api "repos/Micelya/llm_wiki/contents/docs/dropbox/core?ref=main"`); Desktop lee el de Core en la rama `dev` de `extrimian/mi-platform`.
 
 ## Cómo se escribe un mensaje
 
