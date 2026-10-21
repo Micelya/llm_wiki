@@ -88,6 +88,7 @@ Esfuerzo relativo (nunca en tiempo). Cada paso tiene algo visible para revisar e
 | 0a | **Pantallas con el mismo formato** (sección 2.6): pestañas Artículo y Datos y correcciones en documento y asunto; el asunto con su artículo. Sin modelo. | Chico a mediano | — |
 | 0b | **Sin repeticiones** en persona u organización (y documento y asunto): citas como notas dentro del texto; fuera «Referencias» y «Otros datos» del Artículo. Sin modelo (cambia cómo se escribe la página, no la síntesis). | Chico | — |
 | 0c | **Verificar el chat** con una pregunta real (con aviso de cupo) y guardar una consulta. | Chico | — |
+| 0d | **Plantillas de documentos** (P-247, prioridad del dueño): extraer la plantilla de cada familia de "misma plantilla" (texto común y campos variables, alineando los textos, sin modelo), mostrarla con sus campos y el valor de cada documento. Más adelante, documentos nuevos desde una plantilla. | Mediano | — |
 | 1 | **Registro de servicios y motores:** un lugar único en Ajustes con un renglón por servicio (preguntar, reconocer texto, investigar), su motor, su configuración y su motor alternativo; conexiones compartidas; secretos en el llavero; capacidades declaradas. Migra la configuración actual (`ask-engine`, ajustes del chat) sin cambiar el comportamiento. | Mediano | — |
 | 2 | **Reconocimiento en la base (P-242)** con el motor que existe (Codex): en segundo plano con la lectura automática, a pedido desde el documento y Atención, una vez por documento y motor. | Mediano | 1 |
 | 3 | **Pedido a Core** (`docs/dropbox/core/`), respuesta y acuerdo; organización de prueba y usuario técnico. No es código. | Chico | — |
@@ -98,7 +99,7 @@ Esfuerzo relativo (nunca en tiempo). Cada paso tiene algo visible para revisar e
 | 8 | **API local y MCP sobre la base**, de solo lectura primero. | Grande | 1 |
 | 9 | **Opciones de análisis** (tablas, casillas, firmas) y **lectura de imágenes con un modelo** cuando Core las ofrezca. | Según lo que ofrezca Core | 5 y la respuesta de Core |
 
-**Prioridad propuesta:** primero 0a, 0b y 0c (lo que se ve todos los días, sin modelo salvo la pregunta de prueba); después 1 y 2 (los escaneos nuevos quedan sin leer hasta entonces); el 3 corre en paralelo desde ya; 4 a 6 cuando Core responda; 7 y 8 después. Los pasos 1 y 2 sirven aunque Core tarde.
+**Prioridad propuesta:** primero 0a, 0b, 0c y 0d (lo que se ve todos los días y las plantillas, sin modelo salvo la pregunta de prueba); después 1 y 2 (los escaneos nuevos quedan sin leer hasta entonces); el 3 corre en paralelo desde ya; 4 a 6 cuando Core responda; 7 y 8 después. Los pasos 1 y 2 sirven aunque Core tarde.
 
 ## 4. Decisiones abiertas para el dueño
 

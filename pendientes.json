@@ -2133,6 +2133,44 @@
       "referencia": "docs/design/servicios-de-ia-propuesta.md (2.6, paso 0b); src-tauri/src/docbase/knowledge/pages.rs render()",
       "creado": "2026-10-21",
       "actualizado": "2026-10-21"
+    },
+    {
+      "id": "P-246",
+      "titulo": "Citas y enlaces con vista previa flotante (hovercard o popover; tooltip donde corresponda)",
+      "tipo": "codigo",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "detalle": "Ampliación pedida por el dueño (21 oct) de P-245: las citas numeradas del artículo y los enlaces a documentos, personas, organizaciones y asuntos evolucionan al patrón de vista previa flotante (hovercard o popover, como las vistas previas de Wikipedia), y a tooltip donde alcance. Punto de partida: las sugerencias de docs/design/hovercards-sugerencias.md (demoras, zona segura, teclado y táctil, contenido precalculado desde la base, librerías a evaluar). Definir el diseño con el dueño antes de construirlo; se hace más adelante.",
+      "depende_de": [
+        "P-245"
+      ],
+      "referencia": "docs/design/hovercards-sugerencias.md; docs/design/servicios-de-ia-propuesta.md (2.6)",
+      "creado": "2026-10-21",
+      "actualizado": "2026-10-21"
+    },
+    {
+      "id": "P-247",
+      "titulo": "Extraer las plantillas de los documentos y mostrarlas",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Prioridad alta (dueño, 21 oct). Hoy la base solo detecta que dos documentos comparten plantilla (relación «misma plantilla, otros datos», con qué datos cambian) y los agrupa en familias; no arma ni guarda la plantilla. Hacer: por cada familia de misma plantilla, el texto común con los campos variables (alineando los textos, sin modelo; el modelo solo si agrega valor para nombrar los campos), guardado en la base; una pantalla (o pestaña de la familia) con la plantilla, sus campos y el valor de cada documento; enlace desde el documento. Más adelante: crear documentos nuevos desde una plantilla (etapa 5 del diseño de la base). Antecedentes: medición de pasajes repetidos (P-211, N7).",
+      "depende_de": [],
+      "referencia": "docs/design/base-documental.md (plantilla y datos); docs/design/servicios-de-ia-propuesta.md (paso 0d)",
+      "creado": "2026-10-21",
+      "actualizado": "2026-10-21"
+    },
+    {
+      "id": "P-248",
+      "titulo": "Traer expedientes de portales judiciales con un navegador asistido (primero el SCW del PJN)",
+      "tipo": "decision",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "detalle": "Pedido del dueño (21 oct). Propuesta en docs/design/portales-judiciales-propuesta.md: una ventana del portal dentro de la app con perfil propio; el operador resuelve el desafío o inicia sesión (nunca se saltea); la app sigue sola en la misma sesión, descarga las actuaciones a una carpeta de un origen con sus datos y propone un asunto con la referencia del expediente. Un conector por portal. Revisar la propuesta y sus decisiones abiertas; primer paso: prototipo con el operador sobre un expediente de ejemplo.",
+      "depende_de": [],
+      "referencia": "docs/design/portales-judiciales-propuesta.md",
+      "creado": "2026-10-21",
+      "actualizado": "2026-10-21"
     }
   ]
 }
