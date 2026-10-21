@@ -141,7 +141,7 @@ pub fn base_save_query(
 }
 
 /// The passages of the documents that match `query`, from their text in
-/// the base (what `raw/sources` was for): each one by the page of its
+/// the base (what the wiki's copies of the sources were for): each one by the page of its
 /// document, so it opens the document's screen.
 pub fn base_source_search(base: &DocBase, query: &str, top_k: usize) -> Result<Vec<AgentReference>, String> {
     let query = query.trim();

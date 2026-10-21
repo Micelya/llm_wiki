@@ -574,7 +574,6 @@ const REF_TYPE_CONFIG: Record<string, { icon: typeof FileText; color: string }> 
   thesis: { icon: Target, color: "text-rose-500" },
   methodology: { icon: BookOpen, color: "text-teal-500" },
   overview: { icon: Layout, color: "text-yellow-500" },
-  clip: { icon: Globe, color: "text-blue-400" },
   external: { icon: Globe, color: "text-sky-500" },
   anytxt: { icon: FileSearch, color: "text-emerald-500" },
   workspace: { icon: FileText, color: "text-cyan-500" },
@@ -585,7 +584,6 @@ function getRefType(path: string, page?: CitedPage): string {
   if (page?.kind === "external") {
     return page.source?.toLowerCase() === "anytxt" ? "anytxt" : "external"
   }
-  if (path.includes("raw/sources/")) return "clip"
   return inferWikiTypeFromPath(path) ?? "source"
 }
 
@@ -976,12 +974,8 @@ function CitedReferencesPanel({
               <span className="text-[10px] text-muted-foreground/60 w-4 shrink-0 text-right">[{i + 1}]</span>
               {/*
                * Image badge — clickable, separately from the page
-               * row. Click → resolve the FIRST image's raw source
-               * (`raw/sources/<slug>.<ext>`) and open the FULL
-               * combined-extraction preview, scrolled to that
-               * image. This mirrors the search-view lightbox
-               * "Jump to source document" behavior so the two
-               * surfaces feel consistent.
+               * row. Click → open the screen of what the page names
+               * (D-413).
                *
                * Icon: lucide `Image` (picture-frame outline with
                * mountain + sun) — direct visual cue for "image",

@@ -359,6 +359,10 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-413 | 21 oct | Chat | El chat lee y guarda todo en la base: buscar, leer un objeto, guardar una consulta, pasajes y relaciones | en revisión |
 | D-414 | 21 oct | Investigación | La investigación en internet se guarda en la base, de una persona, organización o asunto o suelta, con sus fuentes citadas | en revisión |
 | D-415 | 21 oct | Chat | El historial y las preferencias del chat viven en la carpeta de datos de la app, con una copia única desde el proyecto general | en revisión |
+| D-417 | 21 oct | Orígenes | «Lectura automática» reemplaza a «Activar wiki»: la base lee sola con el modelo configurado mientras está activa | en revisión |
+| D-418 | 21 oct | Chat | El agente del chat y los modelos de línea de comandos trabajan en la carpeta de datos de la app; el chat se guarda solo después de leído | en revisión |
+| D-419 | 21 oct | Ajustes | Todos los ajustes son globales; salen los que solo servían a la incorporación del wiki | en revisión |
+| D-420 | 21 oct | Reconocimiento | El motor que reconoce escaneos se conserva sin uso hasta que la base lo use por su cuenta | en revisión |
 
 ---
 
@@ -4667,4 +4671,32 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Fecha:** 21 oct 2026 · **Tema:** Chat · **Estado:** en revisión (agente sin consulta, P-066)
 - **El problema:** las conversaciones y las preferencias del chat se guardaban en `<proyecto>/.llm-wiki/`, que se borra con la carpeta del wiki (D-396), y el chat guardaba además las sesiones del agente en la misma carpeta.
 - **Qué se decidió y por qué:** van a `chat/` en la carpeta de datos de la app, con la misma forma (`conversations.json`, `chats/<id>.json`, `chat-preferences.json`). La primera vez se copian desde el `.llm-wiki/` del proyecto general, si existe: una sola vez por base (`chat-files-copied` en `docbase_setting`), sin reemplazar lo que ya esté ni borrar nada del origen. El chat de la app ya no pide al agente guardar su sesión en la carpeta del proyecto (lleva su propio historial). Medido con la copia de la carpeta del wiki: todos sus archivos del chat quedan copiados (W5-medicion.txt, fuera del repositorio).
+- **Quién decidió:** agente sin consulta.
+
+### D-417 · «Lectura automática» reemplaza a «Activar wiki»: la base lee sola con el modelo configurado mientras está activa
+
+- **Fecha:** 21 oct 2026 · **Tema:** Orígenes · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el interruptor «Activar wiki» de Orígenes encendía a la vez la incorporación al wiki y la lectura de la base, y le decía a la base con qué modelo preguntar. Con el wiki retirado (D-395) hacía falta un interruptor solo para la base.
+- **Qué se decidió y por qué:** el panel «Lectura automática» de Orígenes enciende y pausa el ajuste `background-reading` (D-402), con el mismo aviso de costo. Al activarla, y mientras está activa cada vez que cambia el modelo, le dice a la base con qué motor preguntar, como hacía el panel del wiki; abrir la app no cambia el motor, así que no provoca preguntas nuevas. Los botones «Incorporar al wiki» del árbol de Orígenes salen. Los textos de Atención y de las pantallas que decían «mientras el wiki esté activo» hablan de la lectura automática, y los de documentos parecidos dicen qué documento «se toma» o «cuenta» en lugar de cuál alimenta el wiki. El panel de investigación puede abrirse junto a cualquier pantalla menos chat, habilidades y ajustes.
+- **Quién decidió:** agente sin consulta.
+
+### D-418 · El agente del chat y los modelos de línea de comandos trabajan en la carpeta de datos de la app; el chat se guarda solo después de leído
+
+- **Fecha:** 21 oct 2026 · **Tema:** Chat · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el agente resolvía un proyecto para su carpeta de trabajo, sus habilidades (`.llm-wiki/skills`) y sus sesiones, los modelos de línea de comandos (Codex, Claude Code) exigían que su carpeta fuera un proyecto con `wiki/index.md`, y el guardado automático del chat esperaba un proyecto abierto y podía escribir un historial vacío antes de leer el guardado (P-239).
+- **Qué se decidió y por qué:** la carpeta del agente es `<datos de la app>/agent` (comando `agent_workspace`): ahí van sus sesiones (`sessions/`), sus habilidades (`skills/`, junto con las del usuario) y lo que produce (`agent-workspace/`); los modelos de línea de comandos aceptan cualquier carpeta existente y trabajan en esa. El guardado automático arranca suspendido: escribe las preferencias cuando terminó el arranque y el historial solo si se pudo leer, así nada lo reemplaza por uno vacío. Los archivos del agente se muestran en el explorador del sistema y las imágenes locales solo se cargan desde su carpeta.
+- **Quién decidió:** agente sin consulta.
+
+### D-419 · Todos los ajustes son globales; salen los que solo servían a la incorporación del wiki
+
+- **Fecha:** 21 oct 2026 · **Tema:** Ajustes · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** había ajustes por proyecto (modelo e idioma de salida) y secciones que solo usaba la incorporación original: vigilancia de fuentes, importación programada, mantenimiento, embeddings de páginas, descripción de imágenes (multimodal) y MinerU; sin proyectos ni incorporación no tienen efecto.
+- **Qué se decidió y por qué:** quedan General, Modelo, Búsqueda web, Red, Salida, Interfaz, Novedades y Acerca de, todos globales; salen las otras secciones y el modelo por proyecto (el modelo por tarea sigue). El idioma de salida se guarda global; la base solo recibe el idioma de sus artículos cuando una persona lo cambia en Ajustes, porque cambiarlo vuelve a preguntar las síntesis. Salen también la API local, MCP y Clip (D-400).
+- **Quién decidió:** agente sin consulta.
+
+### D-420 · El motor que reconoce escaneos se conserva sin uso hasta que la base lo use por su cuenta
+
+- **Fecha:** 21 oct 2026 · **Tema:** Reconocimiento · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la base nunca reconoció por su cuenta el texto de escaneos e imágenes: lo pedía la incorporación del wiki y se lo devolvía. Al retirarla, esos documentos quedan en «tienen el texto en imagen» sin que nada los lea.
+- **Qué se decidió y por qué:** no se construye el reconocimiento en la base en este paso (es una capacidad nueva, con costo de cupo); se conserva el motor (`source_volume/recognition*`, `recognized_store`, `store_recognized_text`) marcado como sin uso, y Atención dice que por ahora quedan sin leer. Queda pendiente con prioridad alta (P-242).
 - **Quién decidió:** agente sin consulta.

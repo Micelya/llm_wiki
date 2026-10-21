@@ -2033,12 +2033,12 @@
       "titulo": "El agente del chat sin proyecto: carpeta de trabajo, habilidades, sesiones y guardado automático",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "El chat ya lee y guarda todo en la base (D-413) y su historial está en la carpeta de datos (D-415), pero el comando del agente todavía resuelve un proyecto para su carpeta de trabajo, las habilidades de `.llm-wiki/skills` y las sesiones del agente que guarda la API; y el guardado automático del chat todavía espera un proyecto abierto. Al quitar los proyectos (W6), darles un lugar en la carpeta de datos.",
+      "estado": "a-verificar",
+      "detalle": "El chat ya lee y guarda todo en la base (D-413) y su historial está en la carpeta de datos (D-415), pero el comando del agente todavía resuelve un proyecto para su carpeta de trabajo, las habilidades de `.llm-wiki/skills` y las sesiones del agente que guarda la API; y el guardado automático del chat todavía espera un proyecto abierto. Al quitar los proyectos (W6), darles un lugar en la carpeta de datos. Hecho en W6 (D-418): la carpeta del agente es `<datos de la app>/agent`, con sus sesiones, sus habilidades y lo que produce; los modelos de línea de comandos trabajan ahí; el guardado automático espera a haber leído el historial. Falta verlo en la app (W7): una pregunta al chat con el modelo configurado y el historial anterior visible.",
       "depende_de": [
         "P-228"
       ],
-      "referencia": "D-413, D-415; src-tauri/src/lib.rs (resolve_agent_project), src/lib/auto-save.ts",
+      "referencia": "D-413, D-415, D-418; src-tauri/src/lib.rs (agent_home), src/lib/auto-save.ts",
       "creado": "2026-10-21",
       "actualizado": "2026-10-21"
     },
@@ -2053,6 +2053,34 @@
         "P-228"
       ],
       "referencia": "D-397, D-414",
+      "creado": "2026-10-21",
+      "actualizado": "2026-10-21"
+    },
+    {
+      "id": "P-242",
+      "titulo": "La base reconoce sola el texto de escaneos e imágenes",
+      "tipo": "codigo",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "detalle": "Hasta W6 el texto de los documentos que son imagen (escaneos, fotos) lo reconocía la incorporación del wiki con el motor configurado y se lo devolvía a la base; al retirarla, quedan en «tienen el texto en imagen» sin que nada los lea, y no se comparan ni se leen sus personas ni sus asuntos. Usar el motor conservado (D-420) desde la base: una vez por documento, solo mientras la lectura automática esté activa, con aviso de costo, guardando el texto con `store_recognized_text`. Prioridad alta para un estudio con escaneos.",
+      "depende_de": [
+        "P-228"
+      ],
+      "referencia": "D-420; src-tauri/src/source_volume/recognition.rs, src-tauri/src/docbase/text.rs",
+      "creado": "2026-10-21",
+      "actualizado": "2026-10-21"
+    },
+    {
+      "id": "P-243",
+      "titulo": "Adjuntar al chat un documento de la base",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "El chat podía adjuntar archivos del proyecto de wiki como contexto (selector de archivos del cuadro de mensaje). Sin proyecto el selector queda vacío. Reemplazarlo por elegir documentos, personas, organizaciones o asuntos de la base, que el agente ya sabe leer (base.read).",
+      "depende_de": [
+        "P-228"
+      ],
+      "referencia": "D-413, D-418; src/components/chat/chat-panel.tsx (NO_CONTEXT_FILES)",
       "creado": "2026-10-21",
       "actualizado": "2026-10-21"
     }
