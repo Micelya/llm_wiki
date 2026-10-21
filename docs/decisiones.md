@@ -363,6 +363,8 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-418 | 21 oct | Chat | El agente del chat y los modelos de línea de comandos trabajan en la carpeta de datos de la app; el chat se guarda solo después de leído | en revisión |
 | D-419 | 21 oct | Ajustes | Todos los ajustes son globales; salen los que solo servían a la incorporación del wiki | en revisión |
 | D-420 | 21 oct | Reconocimiento | El motor que reconoce escaneos se conserva sin uso hasta que la base lo use por su cuenta | en revisión |
+| D-421 | 21 oct | Proceso de trabajo | Desktop y Core se comunican por escrito, con un buzón de cada lado (`docs/dropbox/`) | vigente |
+| D-422 | 21 oct | IA | Cada servicio de IA se puede usar con distintos motores, configurables; Core es uno más | vigente |
 
 ---
 
@@ -4700,3 +4702,17 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **El problema:** la base nunca reconoció por su cuenta el texto de escaneos e imágenes: lo pedía la incorporación del wiki y se lo devolvía. Al retirarla, esos documentos quedan en «tienen el texto en imagen» sin que nada los lea.
 - **Qué se decidió y por qué:** no se construye el reconocimiento en la base en este paso (es una capacidad nueva, con costo de cupo); se conserva el motor (`source_volume/recognition*`, `recognized_store`, `store_recognized_text`) marcado como sin uso, y Atención dice que por ahora quedan sin leer. Queda pendiente con prioridad alta (P-242).
 - **Quién decidió:** agente sin consulta.
+
+### D-421 · Desktop y Core se comunican por escrito, con un buzón de cada lado
+
+- **Fecha:** 21 oct 2026 · **Tema:** Proceso de trabajo · **Estado:** vigente
+- **El problema:** Micelya Core (`extrimian/mi-platform`) y Micelya Desktop los desarrolla el mismo equipo en dos tracks, cada uno con su agente. Desktop va a depender de servicios de Core (primero el reconocimiento de texto) y hacía falta un canal ordenado para pedir, preguntar y acordar, que quede escrito y que cada agente encuentre al empezar una sesión.
+- **Qué se decidió:** Desktop escribe sus mensajes a Core en `docs/dropbox/core/` de este repositorio (solo escribe el agente de Desktop); Core responde en `docs/dropbox/desktop/` del repositorio de Core (solo escribe el agente de Core). Cada lado solo lee el buzón del otro. Un archivo por mensaje, numerado, con pedidos y preguntas codificados para responder punto por punto; los pendientes se nombran "Desktop P-xxx" o "Core P-xxx". Queda escrito en `CLAUDE.md`. Primer mensaje: 001 (reconocimiento de texto, conexión desde la app de escritorio).
+- **Quién decidió:** dueño del producto. **Fuente:** conversación del 21 oct.
+
+### D-422 · Cada servicio de IA se puede usar con distintos motores, configurables; Core es uno más
+
+- **Fecha:** 21 oct 2026 · **Tema:** IA · **Estado:** vigente
+- **El problema:** al retirar el wiki la base dejó de reconocer el texto de los escaneos (P-242), y Core ofrece reconocimiento con Textract, que lee bien lo impreso pero no tablas, casillas ni manuscrito en castellano. Elegir un solo motor para todo deja afuera casos y ata Desktop a un proveedor.
+- **Qué se decidió:** independientemente del motor que se use, la plataforma permite configurar y usar distintos motores para cada servicio (preguntar, reconocer texto, describir imágenes, investigar, transcribir, vectores), como ya pasa con las preguntas al modelo. Core es un proveedor más, elegible por servicio; Desktop sigue funcionando con motores locales o propios. Especificación y plan en `docs/design/servicios-de-ia-propuesta.md` (propuesta para revisar). Amplía D-291.
+- **Quién decidió:** dueño del producto. **Fuente:** conversación del 21 oct.
