@@ -15,6 +15,8 @@ const IDLE_WAIT: Duration = Duration::from_secs(20);
 const HASH_BATCH: usize = 8;
 const TEXT_BATCH: usize = 2;
 const SIMILAR_BATCH: usize = 2;
+/// Documents waiting for recognition whose pages are counted per step.
+const SCAN_PAGES_BATCH: usize = 2;
 const NOTIFY_EVERY: Duration = Duration::from_millis(800);
 
 /// How the rest of the app asks the worker to sweep now.
@@ -26,6 +28,12 @@ pub struct Wake {
 
 impl Wake {
     pub fn request_sweep(&self) {
+        self.request();
+    }
+
+    /// Ends the wait of the thread now (for the questions to the model: a
+    /// person asked to recognize a scan).
+    pub fn request(&self) {
         *self.sweep_requested.lock().unwrap_or_else(|p| p.into_inner()) = true;
         self.signal.notify_all();
     }
@@ -89,24 +97,32 @@ fn run(base: &DocBase, wake: &Wake, on_change: &dyn Fn()) {
 const ASK_IDLE: Duration = Duration::from_secs(30);
 const ASK_BACKOFF: Duration = Duration::from_secs(10 * 60);
 
-/// Starts the thread that asks the model: first the type, stage and data
-/// of each document, then its reading for the knowledge layer, then the
-/// identities of what was read (D-192), then the pages of the archive's
-/// wiki that are a projection of the record (D-199). One
+/// Starts the thread that asks the model: first the text of the scans
+/// (P-242), then the type, stage and data of each document, then its
+/// reading for the knowledge layer, then the identities of what was read
+/// (D-192), then the pages of the archive's wiki that are a projection of
+/// the record (D-199). One
 /// question at a time, but one after the other while there is work, so a
-/// whole archive is read in one go; only while the archive's wiki is
-/// active and an engine was chosen: like feeding the wiki, it costs the
-/// provider's quota, and turning the wiki off stops it. When the provider
-/// stops answering (its usage limit), it waits and tries again.
+/// whole archive is read in one go; only while the automatic reading is
+/// on and an engine was chosen: it costs the provider's quota, and turning
+/// it off stops it. A scan a person asked to recognize is read even with
+/// the reading off; `wake` ends the wait when one is asked for. When the
+/// provider stops answering (its usage limit), it waits and tries again.
 /// `on_pages` is called when pages of the wiki were written.
-pub fn spawn_asking(base: Arc<DocBase>, on_change: impl Fn() + Send + 'static, on_pages: impl Fn() + Send + 'static) {
+pub fn spawn_asking(
+    base: Arc<DocBase>,
+    wake: Arc<Wake>,
+    on_change: impl Fn() + Send + 'static,
+    on_pages: impl Fn() + Send + 'static,
+) {
     let spawned = std::thread::Builder::new()
         .name("docbase-asking".to_string())
         .spawn(move || loop {
             let wait = ask_step(&base, &on_change, &on_pages);
             if !wait.is_zero() {
-                std::thread::sleep(wait);
+                wake.wait(wait);
             }
+            wake.take_request();
         });
     if let Err(error) = spawned {
         eprintln!("[docbase] could not start the questions to the model: {error}");
@@ -119,6 +135,9 @@ pub fn spawn_asking(base: Arc<DocBase>, on_change: impl Fn() + Send + 'static, o
 /// many questions each stage had left and the last failure of the model,
 /// with when it tries again: what «En curso» shows (D-424).
 fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Duration {
+    if let Some(wait) = recognition_step(base, on_change) {
+        return wait;
+    }
     let state = base.engine_state();
     let engine = match base.background_ask_engine() {
         Ok(Some(engine)) => engine,
@@ -256,6 +275,60 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
     }
 }
 
+/// The text of one scan, before any other question (`recognize.rs`): the
+/// first one a person asked for, or, while the automatic reading is on,
+/// the next one waiting. `None` when there is none, or no engine to read
+/// it: the questions go on.
+fn recognition_step(base: &DocBase, on_change: &dyn Fn()) -> Option<Duration> {
+    use super::recognize::RecognitionStep;
+    let config = match base.recognition_engine() {
+        Ok(Some(config)) => config,
+        Ok(None) => return None,
+        Err(error) => {
+            eprintln!("[docbase] {error}");
+            return None;
+        }
+    };
+    match base.next_recognition() {
+        Ok(Some(_)) => {}
+        Ok(None) => return None,
+        Err(error) => {
+            eprintln!("[docbase] {error}");
+            return None;
+        }
+    }
+    let recognizer = match crate::source_volume::recognition::recognizer_for(&config) {
+        Ok(recognizer) => recognizer,
+        Err(error) => {
+            eprintln!("[docbase] {error}");
+            return None;
+        }
+    };
+    base.engine_state().at_stage(Some("recognition"));
+    on_change();
+    match base.recognition_step(recognizer.as_ref(), ASK_BACKOFF) {
+        Ok(RecognitionStep::Idle) => None,
+        Ok(RecognitionStep::Stopped(error)) => {
+            eprintln!("[docbase] text recognition: {error}");
+            on_change();
+            Some(ASK_BACKOFF)
+        }
+        Ok(RecognitionStep::Failed(content)) => {
+            eprintln!("[docbase] the text of document {content} could not be recognized");
+            on_change();
+            Some(Duration::ZERO)
+        }
+        Ok(_) => {
+            on_change();
+            Some(Duration::ZERO)
+        }
+        Err(error) => {
+            eprintln!("[docbase] {error}");
+            None
+        }
+    }
+}
+
 /// Sweeps every origin. Returns whether anything may look different.
 fn sweep(base: &DocBase) -> bool {
     let origins = match base.origins(&Visible::All) {
@@ -293,5 +366,9 @@ fn step(base: &DocBase) -> Result<bool, String> {
     }
     // Similar documents: only once every text is read, a little at a
     // time, so it never holds the reading back.
-    Ok(base.similar_step(SIMILAR_BATCH)? > 0)
+    if base.similar_step(SIMILAR_BATCH)? > 0 {
+        return Ok(true);
+    }
+    // The pages the scans need recognized: the size of that work.
+    Ok(base.count_scan_pages(SCAN_PAGES_BATCH)? > 0)
 }

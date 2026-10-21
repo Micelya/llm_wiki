@@ -13,7 +13,8 @@ import {
   type StageItems,
 } from "@/commands/docbase"
 import type { AttentionTarget } from "@/lib/attention/types"
-import { modelErrorText, stageDetails, stageFigures, stageShare, stageText, stateLabel } from "@/lib/progress/stages"
+import { modelErrorText, pageOf, stageDetails, stageFigures, stageShare, stageText, stateLabel } from "@/lib/progress/stages"
+import { MISSING_ENGINE, recognitionFailureText } from "@/lib/text-recognition"
 import { useAttentionViewStore } from "@/stores/attention-view-store"
 import { vocabulary, type Vocabulary } from "@/vocabulary"
 import { goToTarget } from "@/components/attention/navigate"
@@ -25,6 +26,7 @@ import {
 import { EmptyNote, ErrorNote, StatusBadge, type Tone } from "@/components/docbase/page"
 import { formatCount } from "@/components/docbase/format"
 import { useDocbaseQuery } from "@/components/docbase/use-docbase-query"
+import { useRecognize, useRecognitionEngine, type Recognize } from "@/components/docbase/recognition"
 import { useProgressStore } from "@/stores/progress-store"
 import { useProgress } from "./use-progress"
 
@@ -131,7 +133,13 @@ export function StageList({ progress, scope }: { progress: Progress; scope: Prog
   return (
     <ul className="flex flex-col divide-y rounded-lg border bg-card">
       {progress.stages.map((stage) => (
-        <StageLine key={stage.id} stage={stage} scope={scope} engineChosen={progress.engineChosen} />
+        <StageLine
+          key={stage.id}
+          stage={stage}
+          scope={scope}
+          engineChosen={progress.engineChosen}
+          backgroundReading={progress.backgroundReading}
+        />
       ))}
     </ul>
   )
@@ -158,16 +166,22 @@ export function StageLine({
   stage,
   scope,
   engineChosen,
+  backgroundReading = true,
   initialOpen = false,
   initialItems = null,
 }: {
   stage: ProgressStage
   scope: ProgressScope
   engineChosen: boolean
+  backgroundReading?: boolean
   initialOpen?: boolean
   initialItems?: StageItems | null
 }) {
   const words = vocabulary()
+  // The scans have their own engine and their own buttons (P-242).
+  const scans = stage.id === "recognition"
+  const recognitionEngine = useRecognitionEngine()
+  const recognize = useRecognize()
   const [open, setOpen] = useState(initialOpen)
   const [items, setItems] = useState<StageItems | null>(initialItems)
   const [problem, setProblem] = useState<string | null>(null)
@@ -235,28 +249,39 @@ export function StageLine({
           {stage.current && (
             <p className="mt-1 text-xs">
               Ahora: «{stage.current.name}»{stage.current.place && <span className="text-muted-foreground"> · {stage.current.place}</span>}
+              {pageOf(stage.current) && <span className="text-muted-foreground"> · {pageOf(stage.current)}</span>}
             </p>
           )}
           {stage.state === "paused" && (
             <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
-              {engineChosen
-                ? "En pausa: sigue cuando actives la lectura automática."
-                : "En pausa: falta elegir un modelo en Ajustes."}
+              {scans
+                ? !recognitionEngine.id
+                  ? MISSING_ENGINE
+                  : "En pausa: la lectura automática está apagada. Podés reconocerlos a pedido, todos o de a uno."
+                : engineChosen
+                  ? "En pausa: sigue cuando actives la lectura automática."
+                  : "En pausa: falta elegir un modelo en Ajustes."}
+            </p>
+          )}
+          {scans && stage.state === "running" && !backgroundReading && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              La lectura automática está en pausa: se reconocen solo los que pediste.
             </p>
           )}
           {stage.error && <ModelErrorNote stage={stage} />}
         </div>
         {stage.id === "reading" && stage.failed > 0 && <ReadAgainButton onProblem={setProblem} />}
+        {scans && <RecognizeButtons stage={stage} recognize={recognize} engine={recognitionEngine.id} />}
       </div>
-      {problem && (
+      {(problem || (scans && recognize.problem)) && (
         <div className="mt-2 ml-7">
-          <ErrorNote>{problem}</ErrorNote>
+          <ErrorNote>{problem ?? recognize.problem}</ErrorNote>
         </div>
       )}
       {open && (
         <div className="mt-2 ml-7 rounded-md border bg-muted/20">
           {items ? (
-            <StageItemsList stage={stage} items={items} words={words} />
+            <StageItemsList stage={stage} items={items} words={words} recognize={scans && recognitionEngine.id ? recognize : null} />
           ) : (
             <p className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
               <Loader2 className="size-3 animate-spin" /> Buscando…
@@ -292,6 +317,30 @@ function ReadAgainButton({ onProblem }: { onProblem: (problem: string | null) =>
   )
 }
 
+/**
+ * The scans: all the ones waiting recognized now, with the automatic
+ * reading on or off, and the failed ones tried again (P-242).
+ */
+function RecognizeButtons({ stage, recognize, engine }: { stage: ProgressStage; recognize: Recognize; engine: string | null }) {
+  if (stage.pending === 0 && stage.failed === 0) return null
+  const disabled = !engine || recognize.busy
+  return (
+    <div className="flex shrink-0 flex-col items-end gap-1">
+      {stage.pending > 0 && stage.state !== "running" && (
+        <Button size="sm" variant="outline" disabled={disabled} onClick={() => void recognize.run(null)}>
+          {recognize.busy && <Loader2 className="animate-spin" />}
+          Reconocer todos
+        </Button>
+      )}
+      {stage.failed > 0 && (
+        <Button size="sm" variant="outline" disabled={disabled} onClick={() => void recognize.run(null, true)}>
+          Reintentar los que fallaron
+        </Button>
+      )}
+    </div>
+  )
+}
+
 function ModelErrorNote({ stage }: { stage: ProgressStage }) {
   if (!stage.error) return null
   const { what, when } = modelErrorText(stage.error)
@@ -316,7 +365,18 @@ const OUT_REASONS: Record<string, string> = {
 }
 
 /** The things of a stage, each with how it stands in it and a button to open it. */
-export function StageItemsList({ stage, items, words }: { stage: ProgressStage; items: StageItems; words: Vocabulary }) {
+export function StageItemsList({
+  stage,
+  items,
+  words,
+  recognize = null,
+}: {
+  stage: ProgressStage
+  items: StageItems
+  words: Vocabulary
+  /** For the scans: a button to recognize each one waiting or failed. */
+  recognize?: Recognize | null
+}) {
   if (items.items.length === 0) return <EmptyNote>No hay nada en esta etapa.</EmptyNote>
   const more = Math.max(0, items.total - items.items.length)
   return (
@@ -333,6 +393,17 @@ export function StageItemsList({ stage, items, words }: { stage: ProgressStage; 
                 {[itemDetail(stage, item, words), item.place].filter(Boolean).join(" · ")}
               </div>
             </div>
+            {recognize && item.contentId !== null && (item.status === "pending" || item.status === "failed") && (
+              <Button
+                size="xs"
+                variant="outline"
+                className="shrink-0"
+                disabled={recognize.busy}
+                onClick={() => void recognize.run([item.contentId as number])}
+              >
+                {item.status === "failed" ? "Reintentar" : "Reconocer"}
+              </Button>
+            )}
             <ItemAction item={item} />
           </li>
         ))}
@@ -351,7 +422,7 @@ function ItemBadge({ stage, item }: { stage: ProgressStage; item: StageItem }) {
     case "failed":
       return <StatusBadge tone="error">falló</StatusBadge>
     case "pending":
-      return <StatusBadge tone={stage.id === "recognition" ? "neutral" : "busy"}>{stage.id === "recognition" ? "espera" : "falta"}</StatusBadge>
+      return <StatusBadge tone={stage.state === "paused" ? "neutral" : "busy"}>{stage.state === "paused" ? "espera" : "falta"}</StatusBadge>
     case "done":
       return <StatusBadge tone="ok">hecho</StatusBadge>
     default:
@@ -366,6 +437,10 @@ export function itemDetail(stage: ProgressStage, item: StageItem, words: Vocabul
     return item.detail ? `${words.knowledge.matter}: ${item.detail}` : words.knowledge.withoutMatter
   }
   if (stage.id === "origins" && item.status === "failed") return "No se puede leer: revisá que el disco esté conectado."
+  if (stage.id === "recognition") {
+    if (item.status === "failed") return item.detail ? recognitionFailureText(item.detail) : null
+    if (item.status === "pending" && item.pages) return item.pages === 1 ? "1 página" : `${formatCount(item.pages)} páginas`
+  }
   return item.detail
 }
 

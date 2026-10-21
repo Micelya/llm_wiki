@@ -484,6 +484,10 @@ const GENERIC: &[&str] = &[
     "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre", "enero", "febrero", "marzo", "feb", "jun",
     "oct", "nov", "dic", "abr", "del", "los", "las", "and", "the", "with", "por", "para", "con", "sus", "una", "uno",
     "dos", "tres", "todas", "mes", "dia", "sociedad", "anonima", "cloud", "safe",
+    // Words of court filings and of addresses (21 oct: a new folder of the set).
+    "link", "calle", "social", "nro", "inscripcion", "tribunal", "juzgado", "declara", "presentacion", "letrado",
+    "inicia", "despacho", "remision", "pase", "notificado", "notifica", "efecto", "destino", "tasa", "resuelva",
+    "ordene", "informe", "herederos", "externo", "contable", "admite", "adjunta",
 ];
 
 /// Words the program uses for its own reasons that a case happens to share:

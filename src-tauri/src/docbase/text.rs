@@ -3,8 +3,9 @@
 //! Only deterministic extraction runs here: it costs nothing and never
 //! invents. A document whose text is only pixels (a scan, a photo) is
 //! marked as needing recognition instead of being sent to an engine
-//! behind the user's back; its text arrives when something recognises
-//! it and hands it to `store_recognized_text`.
+//! behind the user's back; its text arrives when the base recognises it
+//! (`recognize.rs`: in the background while the automatic reading is on,
+//! or when a person asks) and hands it to `store_recognized_text`.
 //!
 //! Two files with the same text are the same document: the Word file and
 //! the PDF made from it end up as one content with two files.
@@ -227,7 +228,6 @@ impl DocBase {
     /// Hands the base the text a recognition engine read from the file
     /// with this hash, so no other copy of it is ever recognised again.
     /// Returns false when the base does not know that file.
-    #[allow(dead_code)] // The base will recognize scans itself (P-242).
     pub fn store_recognized_text(&self, file_hash: &str, text: &str, engine: &str) -> Result<bool, String> {
         let mut conn = self.conn();
         let tx = conn.transaction().map_err(sql_err)?;
@@ -245,7 +245,7 @@ impl DocBase {
 
     /// The text of the document with this file hash, when the base has
     /// it whole (a document still waiting for recognition does not count).
-    #[allow(dead_code)] // The base will recognize scans itself (P-242).
+    #[cfg_attr(not(test), allow(dead_code))] // Only the tests ask it today.
     pub fn text_of_file(&self, file_hash: &str) -> Result<Option<String>, String> {
         self.conn()
             .query_row(

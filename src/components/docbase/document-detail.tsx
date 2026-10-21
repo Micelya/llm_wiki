@@ -16,12 +16,14 @@ import { LabelChip, LabelPicker } from "./labels"
 import { EmptyNote, ErrorNote } from "./page"
 import { formatCount, formatDate, formatSize } from "./format"
 import { DocumentTypeFacts } from "./document-types-view"
+import { DocumentRecognition } from "./recognition"
 import { SimilarDocuments } from "./similar-documents"
 import { useDocbaseQuery, type DocbaseQuery } from "./use-docbase-query"
 import { DocumentEntitiesSection } from "@/components/knowledge/document-entities"
 import { ArticleText, usePageWords } from "@/components/knowledge/article-text"
 import { DetailTabs, NoArticle, useDetailTab, type DetailTab } from "@/components/knowledge/detail-tabs"
 import { articleBody, withoutEntityBlock, withoutListSection } from "@/components/knowledge/knowledge"
+import { engineName, withoutRecognitionMarkers } from "@/lib/text-recognition"
 
 /** Text longer than this is cut on screen; the whole text stays in the base. */
 const SHOWN_TEXT_LIMIT = 200_000
@@ -134,6 +136,8 @@ function DocumentScreen({
                 </>
               ) : (
                 <>
+                  {/* A scan first: what it needs is a person's action. */}
+                  <DocumentRecognition document={document} />
                   <DocumentEntitiesSection locationId={document.locationId} />
                   <Section title={`Ubicaciones (${document.locations.length || 1})`}>
                     <Locations document={document} onOpen={handleOpen} />
@@ -176,7 +180,9 @@ function DocumentText({ document }: { document: DocumentDetail }) {
       </div>
     )
   }
-  const cut = document.text.length > SHOWN_TEXT_LIMIT
+  // Which engine read each page is said once, above.
+  const shown = withoutRecognitionMarkers(document.text)
+  const cut = shown.length > SHOWN_TEXT_LIMIT
   return (
     <div>
       {document.state === "needs-recognition" && (
@@ -185,7 +191,7 @@ function DocumentText({ document }: { document: DocumentDetail }) {
         </p>
       )}
       <div className="font-serif text-[15px] leading-relaxed break-words whitespace-pre-wrap">
-        {cut ? document.text.slice(0, SHOWN_TEXT_LIMIT) : document.text}
+        {cut ? shown.slice(0, SHOWN_TEXT_LIMIT) : shown}
       </div>
       {cut && (
         <p className="mt-3 text-sm text-muted-foreground">
@@ -362,7 +368,9 @@ function FactBox({
         {document.wordCount !== null && <Fact label="Palabras">{formatCount(document.wordCount)}</Fact>}
         {document.textEngine && (
           <Fact label="Texto obtenido por">
-            {document.textEngine === "extraction" ? "Extracción directa" : `Reconocimiento (${document.textEngine})`}
+            {document.textEngine === "extraction"
+              ? "Extracción directa"
+              : `Reconocimiento: ${engineName(document.textEngine)}${document.textAt ? `, el ${formatDate(document.textAt)}` : ""}`}
           </Fact>
         )}
         {document.fileHash && (

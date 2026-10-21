@@ -35,7 +35,7 @@ export function stageText(id: StageId, words: Vocabulary = vocabulary()): StageT
       return {
         title: "Texto de los escaneos",
         explanation:
-          "Los escaneos y las fotos tienen el texto en una imagen y hay que reconocerlo. La base todavía no lo hace sola: esperan reconocimiento.",
+          "Los escaneos y las fotos tienen el texto en una imagen. La base lo reconoce con el modelo, de a un documento, mientras la lectura automática está activa o cuando lo pedís; cada página es una pregunta al modelo.",
       }
     case "similar":
       return {
@@ -73,7 +73,6 @@ export function stageText(id: StageId, words: Vocabulary = vocabulary()): StageT
 
 /** How a stage stands, in one or two words. */
 export function stateLabel(stage: Pick<ProgressStage, "id" | "state">): string {
-  if (stage.id === "recognition" && stage.state === "waiting") return "Esperan reconocimiento"
   const labels: Record<StageState, string> = {
     done: "Hecha",
     running: "En curso",
@@ -102,9 +101,14 @@ export function stageFigures(stage: ProgressStage): string {
 export function stageDetails(stage: ProgressStage, words: Vocabulary = vocabulary()): string[] {
   const out: string[] = []
   if (stage.pending > 0) {
-    out.push(stage.id === "recognition" ? `${formatCount(stage.pending)} esperan` : `${stage.pending === 1 ? "falta" : "faltan"} ${formatCount(stage.pending)}`)
+    out.push(
+      stage.id === "recognition"
+        ? `${formatCount(stage.pending)} ${stage.pending === 1 ? "espera" : "esperan"}`
+        : `${stage.pending === 1 ? "falta" : "faltan"} ${formatCount(stage.pending)}`,
+    )
   }
   if (stage.failed > 0) out.push(stage.failed === 1 ? "1 falló" : `${formatCount(stage.failed)} fallaron`)
+  if (stage.id === "recognition") out.push(...scanPages(stage))
   if (stage.id === "matters") {
     const grouped = stage.extra.grouped ?? 0
     const loose = stage.extra.loose ?? 0
@@ -119,6 +123,26 @@ export function stageDetails(stage: ProgressStage, words: Vocabulary = vocabular
   }
   if (stage.otherWork && stage.pending === 0 && stage.state !== "done") out.push("rehaciendo con lo nuevo")
   return out
+}
+
+/**
+ * The size of the recognition still to do (P-242): the pages that wait,
+ * each a question to the model, and the documents whose pages are still
+ * being counted.
+ */
+function scanPages(stage: ProgressStage): string[] {
+  const pages = stage.extra.pages ?? 0
+  const uncounted = stage.extra.uncounted ?? 0
+  const out: string[] = []
+  if (pages > 0) out.push(`${plural(pages, "página", "páginas")} por reconocer`)
+  if (uncounted > 0) out.push(`contando las páginas de ${plural(uncounted, "documento", "documentos")}`)
+  return out
+}
+
+/** "página 2 de 8" of the scan being recognized, when the engine said it. */
+export function pageOf(item: { page?: number | null; pages?: number | null } | null): string | null {
+  if (!item?.page) return null
+  return item.pages ? `página ${formatCount(item.page)} de ${formatCount(item.pages)}` : `página ${formatCount(item.page)}`
 }
 
 /** Share of the stage that is done, 0 to 1; null when it has nothing. */
@@ -160,7 +184,7 @@ export function activityLine(progress: Progress | null, words: Vocabulary = voca
   if (!progress) return null
   const origins = progress.stages.find((stage) => stage.id === "origins")
   if (!origins || origins.total === 0) return null
-  const working = progress.stages.filter((stage) => stage.id !== "recognition")
+  const working = progress.stages
   const failing = working.find((stage) => stage.state === "error" && stage.error)
   if (failing?.error) {
     const { what } = modelErrorText(failing.error)
@@ -170,10 +194,16 @@ export function activityLine(progress: Progress | null, words: Vocabulary = voca
   const running = working.find((stage) => stage.state === "running") ?? working.find((stage) => stage.state === "waiting")
   if (running) {
     const figures = running.total > 0 ? `, ${formatCount(running.done)} de ${formatCount(running.total)}` : ""
-    return { tone: "busy", text: `Procesando: ${stageText(running.id, words).title}${figures}` }
+    const page = pageOf(running.current)
+    return { tone: "busy", text: `Procesando: ${stageText(running.id, words).title}${figures}${page ? ` (${page})` : ""}` }
   }
-  if (working.some((stage) => stage.state === "paused")) {
+  const paused = working.filter((stage) => stage.state === "paused")
+  if (paused.length > 0) {
     const waiting = progress.paused > 0 ? `: ${plural(progress.paused, "documento espera", "documentos esperan")}` : ""
+    // Only the scans wait, for want of an engine that reads them.
+    if (paused.every((stage) => stage.id === "recognition") && !progress.recognitionEngine) {
+      return { tone: "paused", text: `Falta elegir el motor que reconoce escaneos${waiting}` }
+    }
     return {
       tone: "paused",
       text: progress.engineChosen ? `Lectura automática en pausa${waiting}` : `Falta elegir un modelo${waiting}`,

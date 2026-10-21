@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react"
 import { BookOpen, Pause, Play } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { getBackgroundReading, setAskEngine, setBackgroundReading } from "@/commands/docbase"
+import { getBackgroundReading, setAskEngine, setBackgroundReading, type Progress } from "@/commands/docbase"
 import { getAskConfig } from "@/lib/document-asking"
 import { useAppDialog } from "@/stores/app-dialog-store"
 import { useProgressStore } from "@/stores/progress-store"
 import { useWikiStore } from "@/stores/wiki-store"
 import { vocabulary } from "@/vocabulary"
 import { ErrorNote, Panel, StatusBadge } from "./page"
+import { plural } from "./format"
 import { useDocbaseQuery } from "./use-docbase-query"
 
 export interface BackgroundReading {
@@ -31,6 +32,7 @@ export function useBackgroundReading(): BackgroundReading {
   const reading = useDocbaseQuery("background-reading", getBackgroundReading)
   const llmConfig = useWikiStore((s) => s.llmConfig)
   const refreshProgress = useProgressStore((s) => s.refresh)
+  const progress = useProgressStore((s) => s.progress)
   const dialog = useAppDialog()
   const words = vocabulary()
   const [busy, setBusy] = useState(false)
@@ -51,8 +53,9 @@ export function useBackgroundReading(): BackgroundReading {
             title: "Activar la lectura automática",
             message:
               "Desde ahora la base lee sola lo que se agregue o cambie en las carpetas incorporadas: " +
-              `el tipo de cada documento, sus ${words.knowledge.entities.toLowerCase()} y sus ${words.knowledge.matters.toLowerCase()}. ` +
+              `el texto de los escaneos, el tipo de cada documento, sus ${words.knowledge.entities.toLowerCase()} y sus ${words.knowledge.matters.toLowerCase()}. ` +
               "Cada lectura pasa por el modelo configurado, así que consume cupo o costo de ese proveedor. " +
+              scansWaiting(progress) +
               "Las copias de un mismo documento se leen una sola vez.",
             confirmLabel: "Activar",
             cancelLabel: "Cancelar",
@@ -82,6 +85,16 @@ export function useBackgroundReading(): BackgroundReading {
   }
 
   return { on: reading.data, error: reading.error, busy, problem, toggle }
+}
+
+/** How many scans wait for recognition and their pages, to say before turning the reading on (P-242). */
+export function scansWaiting(progress: Progress | null): string {
+  const scans = progress?.stages.find((stage) => stage.id === "recognition")
+  const documents = (scans?.pending ?? 0) + (scans?.failed ?? 0)
+  if (documents === 0) return ""
+  const pages = scans?.extra.pages ?? 0
+  const size = pages > 0 ? ` (${plural(pages, "página", "páginas")}, una pregunta al modelo por página)` : ""
+  return `Hay ${plural(documents, "escaneo", "escaneos")} por reconocer${size}. `
 }
 
 /** The button that pauses or turns on the automatic reading. */

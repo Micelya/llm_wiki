@@ -370,6 +370,10 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-425 | 21 oct | Atención | Las nueve etapas de «En curso» salen del código y se cuentan de lo guardado; la pestaña cuenta las etapas sin terminar e Inicio, los documentos en proceso | en revisión |
 | D-426 | 21 oct | Interfaz | La línea del avance va fija al pie de la ventana, debajo del menú lateral, y dice «Todo al día» cuando no hay trabajo | en revisión |
 | D-427 | 21 oct | Atención | Lo que hace el motor y el último error del modelo se guardan en memoria; el error se dice en palabras en la etapa que preguntó | en revisión |
+| D-428 | 21 oct | Reconocimiento | El reconocimiento de escaneos en la base va antes del registro de motores, sobre el contrato `TextRecognizer` | en revisión |
+| D-429 | 21 oct | Reconocimiento | El motor que reconoce escaneos es el modelo elegido en Ajustes cuando es Codex; la base lo guarda aparte del de las preguntas | en revisión |
+| D-430 | 21 oct | Reconocimiento | Los escaneos se reconocen antes que cualquier otra pregunta, de a un documento; lo pedido va primero; una falla del proveedor espera y una del documento lo marca | en revisión |
+| D-431 | 21 oct | Reconocimiento | El documento dice qué motor reconoció su texto y cuándo, y las páginas con partes «[ilegible]»; las marcas de cada página no se muestran | en revisión |
 
 ---
 
@@ -4755,4 +4759,32 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Fecha:** 21 oct 2026 · **Tema:** Atención · **Estado:** en revisión (agente sin consulta, P-066)
 - **El problema:** el motor no exponía qué estaba haciendo ni sus errores: los del modelo (límite de uso, clave, conexión) solo iban a la consola y la lectura esperaba 10 minutos en silencio.
 - **Qué se decidió y por qué:** el motor guarda en memoria, mientras la app está abierta, la carpeta que recorre, el archivo que lee, la etapa en la que está preguntando, el documento de la pregunta en curso, cuántas preguntas le quedaban a cada etapa y el último error del modelo; un comando de solo lectura lo devuelve junto con las cantidades. El error se clasifica por las palabras de su mensaje en límite de uso, clave o sesión rechazada, sin conexión (o sin respuesta a tiempo) u otro, y guarda la hora y cuándo vuelve a intentar (la espera de 10 minutos que ya existía). Se muestra en la etapa que preguntó; si el modelo ni siquiera arrancó, en la etapa que iba a preguntar. Se borra con la próxima respuesta del modelo. No se guarda en la base: no hace falta después de cerrar la app y no cambia el esquema.
+- **Quién decidió:** agente sin consulta.
+
+### D-428 · El reconocimiento de escaneos en la base va antes del registro de motores, sobre el contrato `TextRecognizer`
+
+- **Fecha:** 21 oct 2026 · **Tema:** Reconocimiento · **Estado:** en revisión
+- **El problema:** al retirar el wiki, los documentos que son imagen quedaron sin leer (D-420). El dueño agregó un caso real con muchos escaneos y pidió recuperar el reconocimiento ya. El plan de `docs/design/servicios-de-ia-propuesta.md` ponía antes el registro de servicios y motores (paso 1, P-141).
+- **Qué se decidió y por qué:** se invierte el orden: la base reconoce los escaneos con el motor y la configuración que existen hoy (Codex), siempre a través del contrato `TextRecognizer`, de modo que el registro de motores se sume después sin rehacer nada. El documento de diseño no se edita en este paso: el cambio se le propone al dueño aparte.
+- **Quién decidió:** el dueño pidió recuperar el reconocimiento (21 oct); el orden lo propuso el agente principal.
+
+### D-429 · El motor que reconoce escaneos es el modelo elegido en Ajustes cuando es Codex; la base lo guarda aparte del de las preguntas
+
+- **Fecha:** 21 oct 2026 · **Tema:** Reconocimiento · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la incorporación retirada tomaba el motor del ajuste «descripción de imágenes» (multimodal) cuando usaba el modelo principal y ese modelo era Codex. Ese ajuste salió de Ajustes con el retiro del wiki (D-419), así que no quedaba de dónde tomarlo.
+- **Qué se decidió y por qué:** el motor que reconoce escaneos es el modelo principal de Ajustes → LLM Models cuando es «Codex CLI (local)», con su modelo; con otro proveedor no hay motor (hoy solo Codex lee imágenes desde la base). La app se lo pasa a la base cada vez que cambia el modelo, esté o no activa la lectura automática (una persona puede pedir un reconocimiento en cualquier momento), y la base lo guarda en su propio ajuste (`recognition-engine`), separado del motor de las preguntas: así el registro de motores (P-141) podrá elegir uno distinto por servicio sin tocar la base. Sin motor, la etapa y el documento lo dicen en palabras, con el camino a Ajustes, y los botones quedan apagados.
+- **Quién decidió:** agente sin consulta.
+
+### D-430 · Los escaneos se reconocen antes que cualquier otra pregunta, de a un documento; lo pedido va primero; una falla del proveedor espera y una del documento lo marca
+
+- **Fecha:** 21 oct 2026 · **Tema:** Reconocimiento · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la especificación (2.2) dice qué documentos y cuándo, pero no en qué orden respecto de las demás preguntas al modelo, qué pasa cuando falla, ni dónde se guarda lo ya leído de un escaneo largo. Sin cambiar el esquema de la base.
+- **Qué se decidió y por qué:** el reconocimiento corre en el mismo hilo que las preguntas al modelo y va primero, de a un documento, porque sin texto el documento no puede seguir el camino normal; después siguen tipo, lectura, personas y casos. Lo que una persona pide (un documento, todos o los que fallaron) va antes que lo demás y corre aunque la lectura automática esté apagada; el pedido vive en memoria mientras la app está abierta (si se cierra antes, el documento sigue esperando). Las páginas ya leídas se guardan junto a la base, en `recognized/<huella del archivo>/`, con el motor que las leyó: si un escaneo largo falla a mitad, el reintento lee solo lo que faltaba, y otro motor no usa lo de otro. Una falla del proveedor (límite de uso, sin conexión, no responde) deja el documento esperando y la etapa muestra el error con la hora en que vuelve a intentar (la espera de 10 minutos de siempre); si se repite tres veces con el mismo documento, o si la falla es del documento (no se pudo convertir una página, no se encuentra el archivo), el documento queda marcado con el motivo, que se dice en palabras, hasta que alguien toque «Reintentar». Un documento ya reconocido por un motor no se vuelve a leer con otro salvo que una persona lo pida. Las páginas que esperan se cuentan en segundo plano y se guardan en memoria, para mostrar el tamaño del trabajo antes de activarlo. Como anticipaba D-425, los escaneos que esperan cuentan ahora como los demás documentos: «en curso» si la etapa avanza, «en pausa» si la lectura automática está apagada o falta el motor.
+- **Quién decidió:** agente sin consulta.
+
+### D-431 · El documento dice qué motor reconoció su texto y cuándo, y las páginas con partes «[ilegible]»; las marcas de cada página no se muestran
+
+- **Fecha:** 21 oct 2026 · **Tema:** Reconocimiento · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la especificación pide mostrar «Texto reconocido por <motor> el <fecha>» y las páginas de baja confianza si el motor las informa. Codex no informa confianza; sí escribe «[ilegible]» en cada carácter que no distingue. El texto guardado lleva además una marca técnica antes de cada página reconocida.
+- **Qué se decidió y por qué:** en «Datos y correcciones», primero va un recuadro: para un escaneo sin reconocer, qué le pasa, lo que cuesta, el motivo del último intento fallido y el botón «Reconocer el texto» (o «Reintentar»); para uno reconocido, «Texto reconocido por Codex (modelo) el <fecha>», las páginas donde el motor escribió «[ilegible]» con el consejo de compararlas con el original, y «Reconocer de nuevo con <motor>» solo si hoy está elegido otro motor. La ficha de la derecha repite el motor y la fecha. Las marcas técnicas de cada página no se muestran en el texto: el recuadro ya dice quién lo leyó. Cuando un motor informe confianza de verdad (Core, Textract), se suma sin cambiar la pantalla.
 - **Quién decidió:** agente sin consulta.

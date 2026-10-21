@@ -31,6 +31,7 @@ import { progress, stage } from "@/lib/progress/progress.fixtures"
 import { useAttentionStore } from "@/stores/attention-store"
 import { useAttentionViewStore } from "@/stores/attention-view-store"
 import { useProgressStore } from "@/stores/progress-store"
+import { useWikiStore } from "@/stores/wiki-store"
 import { vocabularyFor } from "@/vocabulary"
 import { HomeView } from "@/components/docbase/home-view"
 import { itemTarget, StageItemsList, StageLine } from "@/components/progress/ongoing-tab"
@@ -87,7 +88,25 @@ const limit: ModelError = {
 const halfway = progress(
   {
     text: { done: 68, total: 68 },
-    recognition: { state: "waiting", done: 0, total: 3, pending: 3 },
+    recognition: {
+      state: "running",
+      done: 1,
+      total: 4,
+      pending: 3,
+      extra: { pages: 9, uncounted: 0, requested: 0 },
+      current: {
+        status: "pending",
+        locationId: 8,
+        contentId: 4,
+        originId: "o1",
+        pagePath: null,
+        name: "escaneo de prueba.pdf",
+        place: "Carpeta de prueba › nueva",
+        detail: null,
+        page: 2,
+        pages: 5,
+      },
+    },
     types: { done: 68, total: 68 },
     reading: {
       state: "running",
@@ -163,7 +182,7 @@ describe("«En curso»", () => {
     expect(stages(html)).toEqual([
       ["origins", "done"],
       ["text", "done"],
-      ["recognition", "waiting"],
+      ["recognition", "running"],
       ["similar", "done"],
       ["types", "done"],
       ["reading", "running"],
@@ -180,7 +199,11 @@ describe("«En curso»", () => {
     expect(shown).toContain("faltan 56")
     expect(shown).toContain("Ahora: «nota de prueba.pdf» · Carpeta de prueba › nueva")
     expect(shown).toContain("Quién es quién Esperando")
-    expect(shown).toContain("Texto de los escaneos Esperan reconocimiento")
+    // The scans: how many, the pages that wait and the page being read.
+    expect(shown).toContain("Texto de los escaneos En curso")
+    expect(shown).toContain("1 de 4 documentos")
+    expect(shown).toContain("3 esperan · 9 páginas por reconocer")
+    expect(shown).toContain("Ahora: «escaneo de prueba.pdf» · Carpeta de prueba › nueva · página 2 de 5")
     // The domain word comes from the vocabulary.
     expect(shown).toContain("Casos Con errores")
     expect(shown).toContain("Último error del modelo: El proveedor del modelo llegó a su límite de uso.")
@@ -265,6 +288,54 @@ describe("«En curso»", () => {
       path: "wiki/personas/ejemplo.md",
     })
     expect(itemTarget({ ...items.items[0], locationId: null, contentId: null })).toEqual({ view: "origins" })
+  })
+})
+
+describe("the scans in «En curso» (P-242)", () => {
+  const items: StageItems = {
+    stage: "recognition",
+    total: 2,
+    items: [
+      { status: "failed", locationId: 1, contentId: 1, originId: "o1", pagePath: null, name: "foto.jpg", place: "Carpeta de prueba", detail: "Codex did not answer within 300 seconds" },
+      { status: "pending", locationId: 2, contentId: 2, originId: "o1", pagePath: null, name: "escaneo.pdf", place: "Carpeta de prueba", detail: null, pages: 7 },
+    ],
+  }
+  const scans = stage("recognition", { state: "paused", done: 0, total: 2, pending: 1, failed: 1, extra: { pages: 8 } })
+
+  beforeEach(() => {
+    useWikiStore.setState({ llmConfig: { ...useWikiStore.getState().llmConfig, provider: "codex-cli", model: "modelo-de-prueba" } })
+  })
+
+  it("with the reading off, says it and offers to recognize them all, or one by one, and to retry", () => {
+    const html = renderToStaticMarkup(
+      <StageLine stage={scans} scope={{}} engineChosen backgroundReading={false} initialOpen initialItems={items} />,
+    )
+    const shown = text(html)
+    expect(shown).toContain("Texto de los escaneos En pausa")
+    expect(shown).toContain("1 espera · 1 falló · 8 páginas por reconocer")
+    expect(shown).toContain("En pausa: la lectura automática está apagada. Podés reconocerlos a pedido")
+    expect(shown).toContain("Reconocer todos")
+    expect(shown).toContain("Reintentar los que fallaron")
+    // Each one, with its pages or why it failed, in words.
+    expect(shown).toContain("foto.jpg falló El motor no respondió a tiempo, o no hay conexión. · Carpeta de prueba Reintentar Abrir")
+    expect(shown).toContain("escaneo.pdf espera 7 páginas · Carpeta de prueba Reconocer Abrir")
+  })
+
+  it("says how to choose the engine when there is none, and offers no button that works", () => {
+    useWikiStore.setState({ llmConfig: { ...useWikiStore.getState().llmConfig, provider: "openai" } })
+    const html = renderToStaticMarkup(<StageLine stage={scans} scope={{}} engineChosen initialOpen initialItems={items} />)
+    const shown = text(html)
+    expect(shown).toContain("Falta elegir el motor que reconoce escaneos: en Ajustes → LLM Models, elegí «Codex CLI (local)».")
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Reconocer todos<\/button>/)
+    // Without an engine, the documents have no button to recognize them.
+    expect(shown).not.toContain("Reconocer Abrir")
+  })
+
+  it("says the line at the foot is waiting for the engine", () => {
+    const waiting = progress({ recognition: { state: "paused", pending: 3, total: 3, done: 0 } }, { paused: 3, recognitionEngine: null })
+    expect(text(renderToStaticMarkup(<ProgressLine progress={waiting} />))).toBe(
+      "Falta elegir el motor que reconoce escaneos: 3 documentos esperan",
+    )
   })
 })
 

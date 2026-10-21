@@ -28,6 +28,7 @@ pub mod labels;
 pub mod origins;
 pub mod progress;
 pub mod query;
+pub mod recognize;
 pub mod search;
 mod scan;
 mod schema;
@@ -38,7 +39,7 @@ pub mod text;
 pub mod tree;
 mod worker;
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
 
 use rusqlite::Connection;
@@ -85,6 +86,9 @@ pub struct DocBase {
     conn: Mutex<Connection>,
     /// What the engine is doing now and the last error of the model (in memory).
     engine: progress::EngineState,
+    /// Where the text recognized from scans is kept page by page, beside
+    /// the database (`recognize.rs`).
+    recognized: PathBuf,
 }
 
 impl std::fmt::Debug for DocBase {
@@ -106,7 +110,8 @@ impl DocBase {
         // WAL lets the screens read while the background worker writes.
         conn.pragma_update(None, "journal_mode", "WAL")
             .map_err(|e| format!("Failed to set the journal mode: {e}"))?;
-        Self::prepare(conn)
+        let recognized = path.parent().unwrap_or(Path::new(".")).join(recognize::RECOGNIZED_DIR);
+        Self::prepare(conn, recognized)
     }
 
     /// A database that lives only in memory, for tests.
@@ -114,10 +119,11 @@ impl DocBase {
     pub fn in_memory() -> Result<Self, String> {
         let conn = Connection::open_in_memory()
             .map_err(|e| format!("Failed to open an in-memory document base: {e}"))?;
-        Self::prepare(conn)
+        let recognized = std::env::temp_dir().join(format!("micelya-recognized-{}", uuid::Uuid::new_v4()));
+        Self::prepare(conn, recognized)
     }
 
-    fn prepare(mut conn: Connection) -> Result<Self, String> {
+    fn prepare(mut conn: Connection, recognized: PathBuf) -> Result<Self, String> {
         conn.pragma_update(None, "foreign_keys", "ON")
             .map_err(|e| format!("Failed to enable foreign keys: {e}"))?;
         schema::migrate(&mut conn)?;
@@ -125,6 +131,7 @@ impl DocBase {
         let base = Self {
             conn: Mutex::new(conn),
             engine: progress::EngineState::default(),
+            recognized,
         };
         labels::adopt_conventions(&base)?;
         Ok(base)

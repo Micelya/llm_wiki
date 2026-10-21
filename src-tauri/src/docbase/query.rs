@@ -130,6 +130,8 @@ pub struct DocumentDetail {
     pub text: Option<String>,
     /// What produced the text: an extractor, or a recognition engine.
     pub text_engine: Option<String>,
+    /// When that text was obtained.
+    pub text_at: Option<i64>,
     /// Every visible location of this document, this one first.
     pub locations: Vec<LocationRef>,
 }
@@ -467,12 +469,12 @@ impl DocBase {
         };
         let (word_count, processed_at, content_error) = content.unwrap_or((None, None, None));
 
-        let text: Option<(String, String)> = match row.content_id {
+        let text: Option<(String, String, i64)> = match row.content_id {
             Some(content_id) => conn
                 .query_row(
-                    "SELECT body, engine FROM derivative WHERE content_id = ?1 AND kind = 'text'",
+                    "SELECT body, engine, created_at FROM derivative WHERE content_id = ?1 AND kind = 'text'",
                     [content_id],
-                    |r| Ok((r.get(0)?, r.get(1)?)),
+                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
                 )
                 .optional()
                 .map_err(sql_err)?,
@@ -491,8 +493,9 @@ impl DocBase {
             word_count,
             processed_at,
             first_seen_at,
-            text: text.as_ref().map(|(body, _)| body.clone()),
-            text_engine: text.map(|(_, engine)| engine),
+            text: text.as_ref().map(|(body, ..)| body.clone()),
+            text_engine: text.as_ref().map(|(_, engine, _)| engine.clone()),
+            text_at: text.map(|(.., at)| at),
             locations,
             row,
         }))

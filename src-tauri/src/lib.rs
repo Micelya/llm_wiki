@@ -472,6 +472,8 @@ pub fn run() {
             docbase::commands::docbase_background_reading,
             docbase::commands::docbase_set_background_reading,
             docbase::commands::docbase_progress,
+            docbase::commands::docbase_set_recognition_engine,
+            docbase::commands::docbase_recognize_text,
             docbase::commands::docbase_progress_items,
             docbase::commands::docbase_progress_folders,
             docbase::commands::docbase_knowledge_doubts,

@@ -54,6 +54,9 @@ struct Legacy {
 pub struct RecognizedStore {
     dir: PathBuf,
     legacy: Option<Legacy>,
+    /// Only what this engine read counts: the text of another engine is
+    /// read again (P-242: once per document and engine).
+    engine: Option<String>,
 }
 
 impl RecognizedStore {
@@ -62,14 +65,22 @@ impl RecognizedStore {
         Self {
             dir: dir.into(),
             legacy: None,
+            engine: None,
         }
     }
 
+    /// The same store, where only what `engine` read is found.
+    pub fn for_engine(mut self, engine: &str) -> Self {
+        self.engine = Some(engine.to_string());
+        self
+    }
+
     pub fn get(&self, part: Part) -> Option<RecognizedPage> {
-        if let Some(found) = self.read(part) {
+        let wanted = |page: &RecognizedPage| self.engine.as_deref().is_none_or(|engine| page.engine_id == engine);
+        if let Some(found) = self.read(part).filter(wanted) {
             return Some(found);
         }
-        let taken_over = self.legacy.as_ref().and_then(|legacy| legacy.read(part))?;
+        let taken_over = self.legacy.as_ref().and_then(|legacy| legacy.read(part)).filter(wanted)?;
         // Best effort: if it cannot be saved it is simply taken over
         // again next time.
         let _ = self.put(part, &taken_over);

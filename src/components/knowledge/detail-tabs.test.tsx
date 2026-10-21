@@ -2,8 +2,23 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { DocumentDetail, DocumentEntities, EntityDetail, KnowledgeArticle, MatterDetail } from "@/commands/docbase"
 import { DocumentDetailView } from "@/components/docbase/document-detail"
+import { useWikiStore } from "@/stores/wiki-store"
 import { EntityDetailView } from "./entity-detail"
 import { MatterDetailView } from "./matters-view"
+
+// Rendered once to text, a store shows the state its first render would
+// read (`getInitialState`); here, the state each test sets.
+vi.mock("zustand", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("zustand")>()
+  const vanilla = await import("zustand/vanilla")
+  const make = (createState: any) => {
+    const api = vanilla.createStore(createState)
+    api.getInitialState = api.getState
+    const hook = (selector?: any) => actual.useStore(api, selector)
+    return Object.assign(hook, api)
+  }
+  return { ...actual, create: (createState?: any) => (createState ? make(createState) : make) }
+})
 
 // What the base answers, by the key of each query (or the part before
 // its first colon); every case below is made up.
@@ -77,6 +92,7 @@ function documentDetail(overrides: Partial<DocumentDetail> = {}): DocumentDetail
     firstSeenAt: Date.UTC(2026, 9, 1, 12),
     text: "El locador inventado alquila un local inventado.",
     textEngine: "extraction",
+    textAt: Date.UTC(2026, 9, 1, 13),
     locations: [],
     ...overrides,
   }
@@ -184,6 +200,67 @@ describe("the screen of a document", () => {
     base.answers.document = documentDetail({ contentId: null, state: "unread", text: null })
     const html = renderToStaticMarkup(<DocumentDetailView locationId={10} onBack={() => {}} initialTab="article" />)
     expect(text(html)).toContain("Este archivo todavía no se leyó: no tiene artículo.")
+  })
+})
+
+describe("the recognition of a scan, on the screen of its document (P-242)", () => {
+  const scan = () =>
+    documentDetail({ state: "needs-recognition", text: null, textEngine: null, textAt: null, wordCount: null, name: "Escaneo de prueba.pdf" })
+
+  beforeEach(() => {
+    base.answers["document-article"] = null
+    base.answers["document-entities"] = { ...DOCUMENT_ENTITIES, entities: [], matters: [] }
+    useWikiStore.setState({ llmConfig: { ...useWikiStore.getState().llmConfig, provider: "codex-cli", model: "modelo-de-prueba" } })
+  })
+
+  it("offers «Reconocer el texto» first in «Datos y correcciones», with what it costs", () => {
+    base.answers.document = scan()
+    const html = renderToStaticMarkup(<DocumentDetailView locationId={10} onBack={() => {}} initialTab="data" />)
+    const shown = text(html)
+    expect(html).toContain('data-recognition="waiting"')
+    expect(shown).toContain("El texto de este documento está en imagen")
+    expect(shown).toContain("Cada página es una pregunta al modelo")
+    expect(/<button[^>]*>(?:(?!<\/button>).)*Reconocer el texto<\/button>/.test(html)).toBe(true)
+    expect(/<button[^>]*disabled=""[^>]*>(?:(?!<\/button>).)*Reconocer el texto/.test(html)).toBe(false)
+    expect(shown.indexOf("El texto de este documento está en imagen")).toBeLessThan(shown.indexOf("Ubicaciones"))
+  })
+
+  it("says why the last try failed, in words, and offers to try again", () => {
+    base.answers.document = { ...scan(), error: "Text recognition failed on page 3: You've hit your usage limit" }
+    const shown = text(renderToStaticMarkup(<DocumentDetailView locationId={10} onBack={() => {}} initialTab="data" />))
+    expect(shown).toContain("El último intento falló: El proveedor del modelo llegó a su límite de uso (página 3).")
+    expect(shown).toContain("Reintentar")
+  })
+
+  it("says how to choose an engine when the model chosen cannot read images, and does not offer the button", () => {
+    useWikiStore.setState({ llmConfig: { ...useWikiStore.getState().llmConfig, provider: "openai" } })
+    base.answers.document = scan()
+    const html = renderToStaticMarkup(<DocumentDetailView locationId={10} onBack={() => {}} initialTab="data" />)
+    expect(text(html)).toContain("Falta elegir el motor que reconoce escaneos")
+    expect(/<button[^>]*disabled=""[^>]*>(?:(?!<\/button>).)*Reconocer el texto/.test(html)).toBe(true)
+  })
+
+  it("says which engine recognized the text and when, and the pages it could not read", () => {
+    base.answers.document = documentDetail({
+      textEngine: "codex-cli:modelo-de-prueba",
+      textAt: new Date(2026, 9, 21, 12).getTime(),
+      text: '## Page 1\n\n<!-- texto-reconocido motor="codex-cli:modelo-de-prueba" -->\nUn recibo [ilegible] inventado.\n\n## Page 2\n\n<!-- texto-reconocido motor="codex-cli:modelo-de-prueba" -->\nSegunda hoja.\n',
+    })
+    const html = renderToStaticMarkup(<DocumentDetailView locationId={10} onBack={() => {}} initialTab="data" />)
+    const shown = text(html)
+    expect(shown).toContain("Texto reconocido por Codex (modelo-de-prueba) el 21/10/2026.")
+    expect(shown).toContain("El motor no pudo leer partes de la página 1")
+    expect(shown).toContain("Reconocimiento: Codex (modelo-de-prueba), el 21/10/2026")
+    // The marks of each page are not shown; the same engine does not read it again.
+    expect(shown).not.toContain("texto-reconocido")
+    expect(shown).not.toContain("Reconocer de nuevo")
+  })
+
+  it("offers to read it again only when another engine is chosen", () => {
+    base.answers.document = documentDetail({ textEngine: "codex-cli:otro-modelo", text: "Texto de prueba." })
+    const shown = text(renderToStaticMarkup(<DocumentDetailView locationId={10} onBack={() => {}} initialTab="data" />))
+    expect(shown).toContain("Texto reconocido por Codex (otro-modelo)")
+    expect(shown).toContain("Reconocer de nuevo con Codex (modelo-de-prueba)")
   })
 })
 

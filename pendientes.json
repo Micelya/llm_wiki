@@ -174,7 +174,7 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "a-verificar",
-      "detalle": "Hecho y probado en la app con AEROS BGH: contrato de motor intercambiable, motor Codex CLI, detección de páginas sin texto, marca de 'texto reconocido' y enganche en la ingesta. Integrado (PR #14): fuera del paso de importar y con avance por página. En el PR #17: el texto reconocido se guarda en el proyecto por hash del archivo (P-047). Falta: ajuste propio en Configuración (P-028) y fiabilidad de cifras (P-030).",
+      "detalle": "Hecho y probado en la app con AEROS BGH: contrato de motor intercambiable, motor Codex CLI, detección de páginas sin texto, marca de 'texto reconocido' y enganche en la ingesta. Integrado (PR #14): fuera del paso de importar y con avance por página. En el PR #17: el texto reconocido se guarda en el proyecto por hash del archivo (P-047). Falta: ajuste propio en Configuración (P-028) y fiabilidad de cifras (P-030). 21 oct: el reconocimiento ahora lo hace la base, sin la incorporación (P-242), con el mismo contrato y el mismo motor Codex; eso cubre el enganche. Siguen faltando el ajuste propio (lo trae el registro de motores, P-141) y la fiabilidad de cifras (P-030).",
       "depende_de": [],
       "referencia": "src-tauri/src/source_volume/, src-tauri/src/commands/extract_images.rs",
       "creado": "2026-10-07",
@@ -271,12 +271,12 @@
       "titulo": "Reconocimiento de texto en segundo plano y con avance",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "a-verificar",
-      "detalle": "Integrado (PR #14): el reconocimiento corre solo dentro de la tarea de ingesta de cada fuente, la importación ya no espera, y la actividad muestra 'Recognizing text: page 3 of 7'. Las imágenes sueltas se reconocían dos veces; ahora una. Falta: probarlo en la app montando una carpeta con un PDF escaneado (consume cupo).",
+      "estado": "hecho",
+      "detalle": "Integrado (PR #14): el reconocimiento corre solo dentro de la tarea de ingesta de cada fuente, la importación ya no espera, y la actividad muestra 'Recognizing text: page 3 of 7'. Las imágenes sueltas se reconocían dos veces; ahora una. Falta: probarlo en la app montando una carpeta con un PDF escaneado (consume cupo). 21 oct: reemplazado por P-242 (la base reconoce sola, con el avance en «En curso»).",
       "depende_de": [],
       "referencia": "PR #14 (integrado), src/lib/text-recognition.ts, src-tauri/src/source_volume/recognition_progress.rs",
       "creado": "2026-10-08",
-      "actualizado": "2026-10-16"
+      "actualizado": "2026-10-21"
     },
     {
       "id": "P-035",
@@ -2057,10 +2057,10 @@
       "titulo": "La base reconoce sola el texto de escaneos e imágenes",
       "tipo": "codigo",
       "responsable": "ambos",
-      "estado": "pendiente",
-      "detalle": "Hasta W6 el texto de los documentos que son imagen (escaneos, fotos) lo reconocía la incorporación del wiki con el motor configurado y se lo devolvía a la base; al retirarla, quedan en «tienen el texto en imagen» sin que nada los lea, y no se comparan ni se leen sus personas ni sus asuntos. Usar el motor conservado (D-420) desde la base: una vez por documento, solo mientras la lectura automática esté activa, con aviso de costo, guardando el texto con `store_recognized_text`. Prioridad alta para un estudio con escaneos. 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/.",
+      "estado": "a-verificar",
+      "detalle": "Hasta W6 el texto de los documentos que son imagen (escaneos, fotos) lo reconocía la incorporación del wiki con el motor configurado y se lo devolvía a la base; al retirarla, quedan en «tienen el texto en imagen» sin que nada los lea, y no se comparan ni se leen sus personas ni sus asuntos. Usar el motor conservado (D-420) desde la base: una vez por documento, solo mientras la lectura automática esté activa, con aviso de costo, guardando el texto con `store_recognized_text`. Prioridad alta para un estudio con escaneos. 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/. 21 oct (turno B3): la base reconoce sola los escaneos, fotos y páginas sin texto de un PDF mixto, de a un documento, mientras la lectura automática está activa, y a pedido con «Reconocer el texto» en el documento y en Atención → «En curso» (uno, todos o reintentar los que fallaron) aunque esté apagada; una vez por documento y por motor, con `store_recognized_text`, y después sigue el camino normal. La etapa muestra n de N, el documento y la página en curso, las páginas que esperan, los que fallaron con el motivo en palabras y si falta el motor; el documento dice qué motor lo reconoció y cuándo (D-428 a D-431). Con esto queda resuelta D-420. Falta verlo en la app con el caso nuevo (consume cupo).",
       "depende_de": [],
-      "referencia": "D-420; src-tauri/src/source_volume/recognition.rs, src-tauri/src/docbase/text.rs; docs/design/servicios-de-ia-propuesta.md",
+      "referencia": "D-420, D-428 a D-431; src-tauri/src/docbase/recognize.rs, src-tauri/src/docbase/worker.rs, src-tauri/src/docbase/progress.rs, src/components/docbase/recognition.tsx, src/lib/text-recognition.ts; docs/design/servicios-de-ia-propuesta.md",
       "creado": "2026-10-21",
       "actualizado": "2026-10-21"
     },
@@ -2147,6 +2147,18 @@
       "detalle": "Pedido del dueño (21 oct, D-424): Atención en tres pestañas con su cantidad; «En curso» con las nueve etapas del procesamiento en orden (D-425), las hechas también, cada una desplegable con sus documentos y un botón para abrirlos; filtro por origen o carpeta; estado de la lectura automática con su botón; el último error del modelo en palabras con la hora y cuándo vuelve a intentar (D-427); una línea fija al pie de la ventana (D-426); y el número «En curso» de Inicio contando lo que de verdad está en proceso. Construido en la rama feat/progress-and-scans (turno B2); falta que el dueño lo vea en la app.",
       "depende_de": [],
       "referencia": "D-424 a D-427; src-tauri/src/docbase/progress.rs; src/components/progress/; src/components/attention/attention-view.tsx",
+      "creado": "2026-10-21",
+      "actualizado": "2026-10-21"
+    },
+    {
+      "id": "P-252",
+      "titulo": "Quitar lo que dejó sin uso el reconocimiento en la base",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Con P-242 el avance de cada página va por el estado del motor que lee «En curso»: el evento por página de la incorporación retirada (`source_volume/recognition_progress.rs`) y la toma de lo reconocido con el formato viejo (`Legacy` en `recognized_store.rs`, junto con `page_cache_dir`) ya no los usa nadie. Borrarlos cuando se confirme que no hace falta tomar texto reconocido de un proyecto viejo.",
+      "depende_de": ["P-242"],
+      "referencia": "src-tauri/src/source_volume/recognition_progress.rs, src-tauri/src/source_volume/recognized_store.rs",
       "creado": "2026-10-21",
       "actualizado": "2026-10-21"
     }

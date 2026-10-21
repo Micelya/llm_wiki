@@ -233,6 +233,8 @@ export interface DocumentDetail extends DocumentRow {
   firstSeenAt: number
   text: string | null
   textEngine: string | null
+  /** When that text was obtained (for a scan: when it was recognized). */
+  textAt: number | null
   /** Every location of this document, this one first. */
   locations: LocationRef[]
 }
@@ -642,6 +644,27 @@ export function runTypes(engine: AskConfig, maxQuestions?: number): Promise<Type
 /** The engine that answers while the archive's wiki is active; null stops it. */
 export function setAskEngine(engine: AskConfig | null): Promise<void> {
   return invoke<void>("docbase_set_ask_engine", { engine })
+}
+
+/** Which engine recognizes the text of scans, and with which model. */
+export interface RecognitionConfig {
+  engine: "codex-cli"
+  model: string
+}
+
+/** The engine that recognizes the text of scans; null: none can. */
+export function setRecognitionEngine(engine: RecognitionConfig | null): Promise<void> {
+  return invoke<void>("docbase_set_recognition_engine", { engine })
+}
+
+/**
+ * Asks the base to recognize the text of scans (P-242), with the automatic
+ * reading on or off: these documents, every one waiting (`null`), or the
+ * ones that failed (`onlyFailed`). They are read in the background, one
+ * after the other. Returns how many were asked for.
+ */
+export function recognizeText(contentIds: number[] | null, onlyFailed = false): Promise<number> {
+  return invoke<number>("docbase_recognize_text", { contentIds, onlyFailed })
 }
 
 export function getDocumentType(locationId: number): Promise<DocumentTypeView> {
@@ -1386,9 +1409,8 @@ export type StageId =
   | "pages"
 
 /**
- * How a stage stands: `waiting` is its turn (or, for the text of images,
- * something that does not exist yet); `paused`, the automatic reading is
- * off or no model was chosen.
+ * How a stage stands: `waiting` is its turn; `paused`, the automatic
+ * reading is off or no model (or, for the scans, no engine) was chosen.
  */
 export type StageState = "done" | "running" | "waiting" | "paused" | "error"
 
@@ -1423,6 +1445,10 @@ export interface StageItem {
   place: string
   /** The reason of a failure, why it is out, or the matter of a document. */
   detail: string | null
+  /** Of a scan being recognized: the page the engine reads now. */
+  page?: number | null
+  /** Of a scan: how many pages need recognition, once counted. */
+  pages?: number | null
 }
 
 export interface ProgressStage {
@@ -1441,7 +1467,11 @@ export interface ProgressStage {
   /** What the engine is on now, when it is known. */
   current: StageItem | null
   error: ModelError | null
-  /** `questions` left at its last run; `grouped` and `loose` for the matters. */
+  /**
+   * `questions` left at its last run; `grouped` and `loose` for the
+   * matters; for the scans, the `pages` that wait, the documents whose
+   * pages are not counted yet (`uncounted`) and those asked for (`requested`).
+   */
   extra: Record<string, number>
 }
 
@@ -1453,6 +1483,8 @@ export interface Progress {
   paused: number
   backgroundReading: boolean
   engineChosen: boolean
+  /** The engine that recognizes scans, as it names its text; null when none was chosen. */
+  recognitionEngine?: string | null
   lastError: ModelError | null
 }
 

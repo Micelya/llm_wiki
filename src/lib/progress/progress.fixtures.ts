@@ -30,6 +30,7 @@ export function progress(states: Partial<Record<StageId, Partial<ProgressStage>>
     paused: 0,
     backgroundReading: true,
     engineChosen: true,
+    recognitionEngine: "codex-cli:modelo-de-prueba",
     lastError: null,
     ...patch,
   }

@@ -5,6 +5,7 @@ import {
   activityLine,
   modelErrorText,
   ongoingCount,
+  pageOf,
   stageDetails,
   stageFigures,
   stageShare,
@@ -29,13 +30,13 @@ describe("the stages of «En curso» in words", () => {
     for (const id of IDS) expect(stageText(id, words).title.length).toBeGreaterThan(0)
     expect(stageText("matters", words).title).toBe("Casos")
     expect(stageText("reading", words).explanation).toContain("personas y organizaciones")
-    expect(stageText("recognition", words).explanation).toContain("esperan reconocimiento")
+    expect(stageText("recognition", words).explanation).toContain("cada página es una pregunta al modelo")
   })
 
-  it("says how each stage stands; the text of images waits for its recognition", () => {
+  it("says how each stage stands, the scans like the others", () => {
     const labels = (["done", "running", "waiting", "paused", "error"] as StageState[]).map((state) => stateLabel({ id: "types", state }))
     expect(labels).toEqual(["Hecha", "En curso", "Esperando", "En pausa", "Con errores"])
-    expect(stateLabel({ id: "recognition", state: "waiting" })).toBe("Esperan reconocimiento")
+    expect(stateLabel({ id: "recognition", state: "paused" })).toBe("En pausa")
   })
 
   it("gives the figures as done of total, in the unit of the stage", () => {
@@ -53,7 +54,10 @@ describe("the stages of «En curso» in words", () => {
       "2 fallaron",
       "4 quedan afuera",
     ])
-    expect(stageDetails(stage("recognition", { pending: 3, state: "waiting" }), words)).toEqual(["3 esperan"])
+    expect(stageDetails(stage("recognition", { pending: 3, state: "paused" }), words)).toEqual(["3 esperan"])
+    expect(
+      stageDetails(stage("recognition", { pending: 12, failed: 1, state: "running", extra: { pages: 87, uncounted: 2 } }), words),
+    ).toEqual(["12 esperan", "1 falló", "87 páginas por reconocer", "contando las páginas de 2 documentos"])
     expect(stageDetails(stage("matters", { extra: { grouped: 40, loose: 1 } }), words)).toEqual(["40 en un caso", "1 suelto"])
     expect(stageDetails(stage("resolve", { state: "running", extra: { questions: 3 } }), words)).toEqual([
       "3 preguntas pendientes al modelo",
@@ -96,8 +100,23 @@ describe("the line at the foot of the window", () => {
     expect(activityLine({ ...paused, engineChosen: false }, words)?.text).toBe("Falta elegir un modelo: 68 documentos esperan")
   })
 
-  it("says everything is up to date; scans waiting for a recognition do not count as work", () => {
-    expect(activityLine(progress({ recognition: { state: "waiting", pending: 3 } }), words)).toEqual({ tone: "ok", text: "Todo al día" })
+  it("says the scans being recognized, with the page", () => {
+    const current = { status: "pending" as const, locationId: 1, contentId: 1, originId: "o", pagePath: null, name: "Escaneo.pdf", place: "O", detail: null, page: 2, pages: 8 }
+    const line = activityLine(progress({ recognition: { state: "running", done: 3, total: 13, pending: 10, current } }), words)
+    expect(line).toEqual({ tone: "busy", text: "Procesando: Texto de los escaneos, 3 de 13 (página 2 de 8)" })
+    expect(pageOf(current)).toBe("página 2 de 8")
+    expect(pageOf({ ...current, page: null })).toBeNull()
+  })
+
+  it("says when the scans wait for an engine that reads them", () => {
+    const waiting = progress({ recognition: { state: "paused", pending: 3 } }, { paused: 3, recognitionEngine: null })
+    expect(activityLine(waiting, words)).toEqual({ tone: "paused", text: "Falta elegir el motor que reconoce escaneos: 3 documentos esperan" })
+    const off = progress({ recognition: { state: "paused", pending: 3 } }, { paused: 3, backgroundReading: false, recognitionEngine: "codex-cli:m" })
+    expect(activityLine(off, words)?.text).toBe("Lectura automática en pausa: 3 documentos esperan")
+  })
+
+  it("says everything is up to date when nothing waits", () => {
+    expect(activityLine(progress(), words)).toEqual({ tone: "ok", text: "Todo al día" })
   })
 
   it("says nothing before the first folder is incorporated", () => {

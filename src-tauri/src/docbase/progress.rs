@@ -122,6 +122,25 @@ pub(crate) struct EngineNow {
     /// Questions each stage had left at its last run.
     pub left: BTreeMap<&'static str, usize>,
     pub last_error: Option<ModelError>,
+    /// The document whose text is being recognized now (`recognize.rs`).
+    pub recognizing: Option<Recognizing>,
+    /// The documents a person asked to recognize, in the order asked.
+    pub requested: Vec<i64>,
+    /// How many times the provider failed on each document (its limit, no
+    /// connection) since it was last asked for.
+    pub recognition_tries: BTreeMap<i64, usize>,
+    /// How many pages each document waiting for recognition needs read,
+    /// as the worker counted them: the size of the work, before it starts.
+    pub scan_pages: BTreeMap<i64, usize>,
+}
+
+/// The document being recognized and the page it is at.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Recognizing {
+    pub content: i64,
+    /// 1-based, among the pages that need recognition; 0 until known.
+    pub page: usize,
+    pub total: usize,
 }
 
 /// What the engine is doing now and the last error of the model, kept in
@@ -184,6 +203,77 @@ impl EngineState {
     pub(crate) fn ran(&self, stage: &'static str, left: usize) {
         self.with(|now| {
             now.left.insert(stage, left);
+        });
+    }
+
+    /// The document whose text is recognized now; `None` when it ends.
+    pub(crate) fn recognizing(&self, content: Option<i64>) {
+        self.with(|now| now.recognizing = content.map(|content| Recognizing { content, page: 0, total: 0 }));
+    }
+
+    /// The page of the document being recognized the engine reads now.
+    pub(crate) fn recognizing_page(&self, page: usize, total: usize) {
+        self.with(|now| {
+            if let Some(recognizing) = now.recognizing.as_mut() {
+                recognizing.page = page;
+                recognizing.total = total;
+            }
+        });
+    }
+
+    /// A person asked to recognize these documents: they go after the
+    /// ones already asked for, each once, with its failures forgotten.
+    pub(crate) fn request_recognition(&self, contents: &[i64]) {
+        self.with(|now| {
+            for content in contents {
+                now.recognition_tries.remove(content);
+                if !now.requested.contains(content) {
+                    now.requested.push(*content);
+                }
+            }
+        });
+    }
+
+    /// The first document a person asked to recognize, still to do.
+    pub(crate) fn next_requested(&self) -> Option<i64> {
+        self.with(|now| now.requested.first().copied())
+    }
+
+    /// The recognition of a document ended, well or for good.
+    pub(crate) fn recognition_ended(&self, content: i64) {
+        self.with(|now| {
+            now.requested.retain(|c| *c != content);
+            now.recognition_tries.remove(&content);
+        });
+    }
+
+    /// The provider failed on a document once more; how many times now.
+    pub(crate) fn recognition_tried(&self, content: i64) -> usize {
+        self.with(|now| {
+            let tries = now.recognition_tries.entry(content).or_default();
+            *tries += 1;
+            *tries
+        })
+    }
+
+    /// The engine read a document: the last error of the model is behind.
+    pub(crate) fn recognized(&self) {
+        self.with(|now| now.last_error = None);
+    }
+
+    /// The last error of the model is forgotten if `stage` asked it.
+    pub(crate) fn forget_error_of(&self, stage: &str) {
+        self.with(|now| {
+            if now.last_error.as_ref().is_some_and(|error| error.stage.as_deref() == Some(stage)) {
+                now.last_error = None;
+            }
+        });
+    }
+
+    /// How many pages of a document wait for recognition.
+    pub(crate) fn scan_pages(&self, content: i64, pages: usize) {
+        self.with(|now| {
+            now.scan_pages.insert(content, pages);
         });
     }
 
@@ -255,9 +345,8 @@ impl Scope {
 #[serde(rename_all = "camelCase")]
 pub struct Stage {
     pub id: &'static str,
-    /// `done`, `running`, `waiting` (its turn, or for something that does
-    /// not exist yet), `paused` (the automatic reading is off, or no model)
-    /// or `error`.
+    /// `done`, `running`, `waiting` (its turn), `paused` (the automatic
+    /// reading is off, or no model or engine was chosen) or `error`.
     pub state: &'static str,
     /// What it counts: `origins`, `files`, `documents` or `pages`.
     pub unit: &'static str,
@@ -277,7 +366,9 @@ pub struct Stage {
     /// The last error of the model, on the stage it happened in.
     pub error: Option<ModelError>,
     /// Figures of its own: `questions` left at its last run, `grouped` and
-    /// `loose` documents of the matters.
+    /// `loose` documents of the matters; for the scans, the `pages` that
+    /// wait, the documents whose pages are not counted yet (`uncounted`)
+    /// and those a person asked for (`requested`).
     pub extra: BTreeMap<&'static str, usize>,
 }
 
@@ -297,6 +388,11 @@ pub struct StageItem {
     pub place: String,
     /// The reason of a failure, why it is out, or the matter of a document.
     pub detail: Option<String>,
+    /// Of a scan being recognized: the page the engine reads now, among
+    /// those that need it.
+    pub page: Option<usize>,
+    /// Of a scan: how many pages need recognition, once counted.
+    pub pages: Option<usize>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -314,14 +410,16 @@ pub struct StageItems {
 pub struct Progress {
     pub stages: Vec<Stage>,
     /// Documents with something still to do in a stage that runs or waits
-    /// its turn; a file not read yet counts as one. Scans waiting for a
-    /// recognition that does not exist yet do not count.
+    /// its turn; a file not read yet counts as one.
     pub in_process: usize,
     /// Documents waiting because the automatic reading is paused or no
-    /// model was chosen.
+    /// model (or no engine for the scans) was chosen.
     pub paused: usize,
     pub background_reading: bool,
     pub engine_chosen: bool,
+    /// The engine that recognizes the text of scans, as it names what it
+    /// reads; `None` when none was chosen.
+    pub recognition_engine: Option<String>,
     pub last_error: Option<ModelError>,
 }
 
@@ -374,6 +472,8 @@ struct Facts<'a> {
     answering: Option<String>,
     reading_on: bool,
     engine_chosen: bool,
+    /// The name the engine that recognizes scans saves its text with.
+    recognizer: Option<String>,
     now: EngineNow,
 }
 
@@ -469,12 +569,15 @@ impl<'a> Facts<'a> {
         let rows = statement.query_map(params_from_iter(bound), |row| row.get::<_, i64>(0)).map_err(sql_err)?;
         let active = rows.collect::<Result<BTreeSet<i64>, _>>().map_err(sql_err)?;
         let engine = super::similar::classify::ask_engine(conn)?;
+        let recognizer = super::recognize::recognition_engine(conn)?
+            .and_then(|config| crate::source_volume::recognition::engine_id(&config).ok());
         Ok(Self {
             scope,
             active,
             answering: engine.as_ref().map(crate::source_volume::asking::engine_id),
             reading_on,
             engine_chosen: engine.is_some(),
+            recognizer,
             now,
         })
     }
@@ -555,26 +658,67 @@ fn text_members(conn: &Connection, facts: &Facts) -> Result<Members, String> {
     Ok(members)
 }
 
-/// The documents whose text is only pixels, and those whose text a
-/// recognition already read.
+/// The documents whose text is only pixels, those whose recognition
+/// failed (with the reason) and those whose text a recognition already
+/// read; with the pages that wait (P-242).
 fn recognition_members(conn: &Connection, facts: &Facts) -> Result<Members, String> {
     let mut statement = conn
         .prepare(
-            "SELECT c.id, c.state FROM content c LEFT JOIN derivative d ON d.content_id = c.id AND d.kind = 'text'
+            "SELECT c.id, c.state, c.error FROM content c LEFT JOIN derivative d ON d.content_id = c.id AND d.kind = 'text'
              WHERE c.state = 'needs-recognition' OR (c.state = 'processed' AND d.engine IS NOT NULL AND d.engine != ?1)",
         )
         .map_err(sql_err)?;
     let rows = statement
-        .query_map([super::text::EXTRACTION_ENGINE], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)))
+        .query_map([super::text::EXTRACTION_ENGINE], |row| {
+            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<String>>(2)?))
+        })
         .map_err(sql_err)?;
     let mut members = Members::new("documents");
+    let (mut pages, mut uncounted) = (0, 0);
     for row in rows {
-        let (content, state) = row.map_err(sql_err)?;
-        if facts.active.contains(&content) {
-            members.push(Key::Content(content), if state == "needs-recognition" { PENDING } else { DONE });
+        let (content, state, error) = row.map_err(sql_err)?;
+        if !facts.active.contains(&content) {
+            continue;
+        }
+        if state != "needs-recognition" {
+            members.push(Key::Content(content), DONE);
+            continue;
+        }
+        match facts.now.scan_pages.get(&content) {
+            Some(count) => pages += count,
+            None => uncounted += 1,
+        }
+        match error {
+            Some(error) => members.items.push((Key::Content(content), FAILED, Some(error))),
+            None => members.push(Key::Content(content), PENDING),
         }
     }
+    let requested = facts.now.requested.iter().filter(|c| facts.active.contains(c)).count();
+    members.extra.insert("pages", pages);
+    members.extra.insert("uncounted", uncounted);
+    members.extra.insert("requested", requested);
     Ok(members)
+}
+
+/// How the recognition of scans stands: it runs while a document is read,
+/// when a person asked for some or while the automatic reading is on; it
+/// is paused with the reading off, or with no engine chosen.
+fn recognition_state(facts: &Facts, members: &Members, error: bool) -> &'static str {
+    let reading_one = facts.now.recognizing.is_some_and(|r| facts.active.contains(&r.content));
+    let requested = members.extra.get("requested").copied().unwrap_or(0) > 0;
+    if reading_one {
+        "running"
+    } else if members.count(PENDING) == 0 && !requested {
+        if members.count(FAILED) > 0 { "error" } else { "done" }
+    } else if facts.recognizer.is_none() {
+        "paused"
+    } else if error {
+        "error"
+    } else if requested || facts.reading_on {
+        "running"
+    } else {
+        "paused"
+    }
 }
 
 /// Each document with text, compared with the others: copies, versions
@@ -787,7 +931,9 @@ fn summarize(conn: &Connection, facts: &Facts, members: Vec<Members>) -> Result<
         let has_work = pending > 0 || members.other_work;
         let error = facts.now.last_error.clone().filter(|_| error_stage == Some(id));
         let model = MODEL_STAGES.contains(&id);
-        let state = if model {
+        let state = if id == "recognition" {
+            recognition_state(facts, &members, error.is_some())
+        } else if model {
             if !has_work {
                 if failed > 0 { "error" } else { "done" }
             } else if !can_ask {
@@ -803,15 +949,13 @@ fn summarize(conn: &Connection, facts: &Facts, members: Vec<Members>) -> Result<
             match id {
                 "origins" if facts.now.sweeping.as_deref().is_some_and(|o| facts.scope.origin().is_none_or(|s| s == o)) => "running",
                 "origins" if pending > 0 => "waiting",
-                // Nothing reads the text of images yet (P-242): they wait.
-                "recognition" if pending > 0 => "waiting",
                 "similar" if pending > 0 && text_pending => "waiting",
                 _ if pending > 0 => "running",
                 _ if failed > 0 => "error",
                 _ => "done",
             }
         };
-        let counted = matches!(members.unit, "files" | "documents") && id != "recognition";
+        let counted = matches!(members.unit, "files" | "documents");
         if counted {
             let target = if state == "paused" { &mut paused } else { &mut in_process };
             target.extend(members.keys(PENDING).cloned());
@@ -841,6 +985,7 @@ fn summarize(conn: &Connection, facts: &Facts, members: Vec<Members>) -> Result<
         paused: paused.len(),
         background_reading: facts.reading_on,
         engine_chosen: facts.engine_chosen,
+        recognition_engine: facts.recognizer.clone(),
         last_error: facts.now.last_error.clone(),
     })
 }
@@ -854,6 +999,7 @@ fn current_item(conn: &Connection, facts: &Facts, stage: &'static str, state: &s
     let key = match stage {
         "origins" => facts.now.sweeping.clone().map(Key::Origin),
         "text" => facts.now.reading_file.clone(),
+        "recognition" => facts.now.recognizing.map(|r| Key::Content(r.content)),
         _ if MODEL_STAGES.contains(&stage) && facts.now.model_stage == Some(stage) => facts.now.asking.map(Key::Content),
         _ => None,
     };
@@ -878,7 +1024,12 @@ fn current_item(conn: &Connection, facts: &Facts, stage: &'static str, state: &s
     if !inside {
         return Ok(None);
     }
-    describe(conn, facts, stage, &key, PENDING, None).map(Some)
+    let mut item = describe(conn, facts, stage, &key, PENDING, None)?;
+    if let (Some(reading), "recognition") = (facts.now.recognizing, stage) {
+        item.page = (reading.page > 0).then_some(reading.page);
+        item.pages = (reading.total > 0).then_some(reading.total).or(item.pages);
+    }
+    Ok(Some(item))
 }
 
 /// One thing of a stage, with its name, where it is and its reason.
@@ -899,6 +1050,8 @@ fn describe(
         name: String::new(),
         place: String::new(),
         detail,
+        page: None,
+        pages: None,
     };
     match key {
         Key::Origin(id) => {
@@ -960,6 +1113,9 @@ fn describe(
                     item.place = place(&origin, &folder);
                 }
                 None => item.name = format!("Documento {id}"),
+            }
+            if stage == "recognition" && status != DONE {
+                item.pages = facts.now.scan_pages.get(id).copied();
             }
             if stage == "reading" && status == FAILED {
                 item.detail = conn
@@ -1138,11 +1294,12 @@ del inmueble del domicilio inventado el día del vencimiento, sin observaciones 
 
         refresh(&base, &origin.id);
         let whole = base.progress(&Scope::default()).unwrap();
-        // The image waits for a recognition nothing does yet: it does not
-        // count as in process, nor as a failure.
+        // The image waits for its recognition: with no engine chosen it is
+        // paused, and counts neither as in process nor as a failure.
         assert_eq!(figures(&whole, "recognition"), (0, 1, 0, 1));
-        assert_eq!(stage(&whole, "recognition").state, "waiting");
+        assert_eq!(stage(&whole, "recognition").state, "paused");
         assert_eq!(whole.in_process, 0);
+        assert_eq!(whole.paused, 3);
 
         let folder = Scope { origin_id: Some(origin.id.clone()), folder: Some("nueva".into()) };
         let narrow = base.progress(&folder).unwrap();
