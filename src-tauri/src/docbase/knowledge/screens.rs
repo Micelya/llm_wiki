@@ -1114,35 +1114,3 @@ pub(crate) fn incoming_claims(conn: &Connection, visible: &Visible, entity: &str
     rows.collect::<Result<_, _>>().map_err(sql_err)
 }
 
-/// The article of an entity: its page as the projection last wrote it
-/// from the record and the synthesis it keeps (no model is asked here),
-/// with the notes of a person. One view per thing (D-376, D-389): the
-/// screen of the entity shows it above its data and corrections.
-#[derive(Debug, Clone, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EntityArticle {
-    /// Its logical path (`wiki/entities/…`), what links between pages say.
-    pub path: String,
-    pub text: String,
-}
-
-impl DocBase {
-    /// The page of entity `id` (a person, an organization or a group) as
-    /// one text with its notes, from the base (`articles.rs` has the
-    /// article apart from its notes). `path` is its logical path now.
-    pub fn knowledge_entity_article(&self, id: &str) -> Result<Option<EntityArticle>, String> {
-        if !id.starts_with("ent-") {
-            return Ok(None);
-        }
-        let Some(article) = self.knowledge_article(id)? else { return Ok(None) };
-        let notes = article.notes.map(|n| n.text).unwrap_or_default();
-        Ok(Some(EntityArticle { text: super::pages::with_notes(super::vocabulary::vocabulary(), &article.body, &notes), path: article.path }))
-    }
-
-    /// The entity a page names (its logical path, the old wiki's absolute
-    /// path or a link), so that a link to it opens the entity's one page
-    /// (D-389). Pages of matters and of documents are not entities.
-    pub fn knowledge_entity_of_page(&self, path: &str) -> Result<Option<String>, String> {
-        Ok(self.knowledge_object_of_page(path)?.filter(|o| o.kind == "entity").map(|o| o.object_id))
-    }
-}

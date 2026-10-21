@@ -72,13 +72,6 @@ impl Exclusions {
             .any(|excluded| excluded.is_empty() || folder == excluded || is_under(folder, excluded))
     }
 
-    pub(crate) fn covers_file(&self, rel_path: &str) -> bool {
-        self.files.iter().any(|excluded| excluded == rel_path)
-            || self
-                .folders
-                .iter()
-                .any(|excluded| excluded.is_empty() || is_under(rel_path, excluded))
-    }
 }
 
 fn is_under(path: &str, folder: &str) -> bool {
@@ -263,29 +256,5 @@ mod tests {
 
         let health = base.health(&Visible::All).unwrap();
         assert_eq!(health.by_state.get("excluded"), Some(&3));
-    }
-
-    #[test]
-    fn what_is_excluded_is_not_offered_to_the_wiki() {
-        let (dir, base, origin) = sample();
-        dir.folder("General/wiki");
-        dir.folder("General/raw/sources");
-        dir.write("General/schema.md", b"# schema");
-        base.link_general_project(&dir.path().join("General"), "default").unwrap();
-        base.set_excluded(&origin, "BOREAL", true, true).unwrap();
-        base.set_excluded(&origin, "suelto.md", false, true).unwrap();
-
-        let offered: Vec<String> = base.wiki_sources().unwrap().into_iter().map(|s| s.identity).collect();
-        assert_eq!(offered, ["O/Sovra/acuerdo.md"]);
-
-        let asked = vec![
-            "raw/sources/O/BOREAL/contrato.md".to_string(),
-            "raw/sources/O/Sovra/acuerdo.md".to_string(),
-            "raw/sources/otra-cosa/x.md".to_string(),
-        ];
-        let project = dir.path().join("General");
-        assert_eq!(base.excluded_sources(&project, &asked).unwrap(), ["raw/sources/O/BOREAL/contrato.md"]);
-        // Another project is none of the base's business.
-        assert!(base.excluded_sources(&dir.path().join("Otro"), &asked).unwrap().is_empty());
     }
 }

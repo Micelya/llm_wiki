@@ -107,7 +107,7 @@ pub(crate) fn archive() -> (TempDir, DocBase, PathBuf, FakeModel) {
     dir.folder("General/wiki/sources");
     dir.write("General/schema.md", b"# schema");
     let project = dir.path().join("General");
-    base.link_general_project(&project, "General").unwrap();
+    crate::docbase::testing::point_general_project_at(&base, &project);
     let asker = model();
     read(&base, &asker);
     // The model proposes loose documents only for a matter a person

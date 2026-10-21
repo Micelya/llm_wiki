@@ -71,7 +71,7 @@ fn pages_against_the_entity_sheet() {
         let copied = copy_dir(&std::path::Path::new(&wiki).join("wiki/sources"), &project.path().join("wiki/sources"));
         println!("pages of documents copied from {wiki}: {copied}");
     }
-    base.link_general_project(project.path(), "default").unwrap();
+    crate::docbase::testing::point_general_project_at(&base, project.path());
     base.set_wiki_language(Some("Spanish")).unwrap();
 
     let started = Instant::now();
@@ -580,11 +580,11 @@ fn references_leave_the_entities() {
     let project = TempDir::new();
     project.folder("wiki/sources");
     project.write("schema.md", b"# schema");
-    if let Some(path) = base.general_project().unwrap().and_then(|g| g.path) {
+    if let Some(path) = crate::docbase::testing::general_project_path(&base) {
         let copied = copy_dir(&std::path::Path::new(&path).join("wiki/sources"), &project.path().join("wiki/sources"));
         println!("pages of documents copied from the copy's wiki: {copied}");
     }
-    base.link_general_project(project.path(), "default").unwrap();
+    crate::docbase::testing::point_general_project_at(&base, project.path());
     let by_kind = |base: &crate::docbase::DocBase| -> BTreeMap<String, i64> {
         let conn = base.conn();
         let mut statement = conn.prepare("SELECT kind, count(*) FROM knowledge_entity WHERE state = 'active' GROUP BY kind").unwrap();

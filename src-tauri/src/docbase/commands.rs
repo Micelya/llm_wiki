@@ -10,7 +10,7 @@ use std::sync::Arc;
 use serde::Serialize;
 use tauri::{Emitter, Manager, State};
 
-use super::bridge::{self, GeneralProject, WikiSource};
+use super::bridge;
 use super::knowledge::extract::{KnowledgePlan, KnowledgeReport};
 use super::knowledge::articles::{KnowledgeArticle, KnowledgeNote, KnowledgeOverview, PageObject, SavedQuery};
 use super::knowledge::decide::{DecisionView, IdentityDecision};
@@ -18,7 +18,7 @@ use super::knowledge::entities::{DoubtView, EntityDetail, EntitySummary};
 use super::knowledge::pages::ProjectReport;
 use super::knowledge::research::{Research, ResearchSource};
 use super::knowledge::resolve::ResolveReport;
-use super::knowledge::screens::{DocumentEntities, EntityArticle, KnowledgeAttention, MatterDetail, MatterSummary};
+use super::knowledge::screens::{DocumentEntities, KnowledgeAttention, MatterDetail, MatterSummary};
 use super::knowledge::{DocumentKnowledge, KnowledgeStatus};
 use super::labels::{Label, LabelGroup, LabelRule};
 use super::origins::Origin;
@@ -29,15 +29,11 @@ use super::similar::types::RelationDef;
 use crate::source_volume::asking::{asker_for, AskConfig};
 use super::query::{Activity, DocumentDetail, DocumentFilter, DocumentPage, Health, LocationRef, OriginSummary};
 use super::tree::FolderListing;
-use super::wiki::{BrokenLink, PageRef, WikiIndex};
 use super::worker::{self, Wake};
 use super::{DocBase, Visible, PRIVATE_DB_FILE};
 
 /// Event the screens listen to in order to refresh.
 pub const CHANGED_EVENT: &str = "docbase://changed";
-/// Event sent when the knowledge layer wrote pages of the archive's wiki
-/// (the wiki brings its index and its tree up to date).
-pub const PAGES_EVENT: &str = "docbase://knowledge-pages";
 
 /// The base of the private space, or why it could not be opened.
 pub struct DocBaseState {
@@ -86,13 +82,14 @@ pub fn start(app: &tauri::AppHandle) {
             });
             let handle = app.clone();
             let pages = app.clone();
+            // Pages written again in the base change what the screens show.
             worker::spawn_asking(
                 base.clone(),
                 move || {
                     let _ = handle.emit(CHANGED_EVENT, ());
                 },
                 move || {
-                    let _ = pages.emit(PAGES_EVENT, ());
+                    let _ = pages.emit(CHANGED_EVENT, ());
                 },
             );
         }
@@ -141,56 +138,13 @@ pub fn docbase_add_origin(
 ) -> Result<Origin, String> {
     let base = state.base()?;
     let origin = base.add_origin(&name, Path::new(&folder), &convention)?;
-    // The general project's wiki, when there is one, gets the new origin
-    // as a source too. Failing to mount it does not undo the origin: the
-    // Orígenes screen shows the reason.
-    if let Err(error) = base.sync_general_mounts() {
-        eprintln!("[docbase] {error}");
-    }
     state.wake.request_sweep();
     Ok(origin)
 }
 
 #[tauri::command(async)]
 pub fn docbase_remove_origin(state: State<'_, DocBaseState>, origin_id: String) -> Result<(), String> {
-    let base = state.base()?;
-    base.unmount_from_general(&origin_id)?;
-    base.remove_origin(&origin_id)
-}
-
-#[tauri::command(async)]
-pub fn docbase_general_project(state: State<'_, DocBaseState>) -> Result<Option<GeneralProject>, String> {
-    state.base()?.general_project()
-}
-
-/// Makes a wiki project the general project of the space: every origin
-/// becomes a source of it, without copying anything. Nothing is ingested
-/// by this.
-#[tauri::command(async)]
-pub fn docbase_link_general_project(
-    state: State<'_, DocBaseState>,
-    project_path: String,
-    name: String,
-) -> Result<GeneralProject, String> {
-    state
-        .base()?
-        .link_general_project(Path::new(&project_path), &name)
-}
-
-#[tauri::command(async)]
-pub fn docbase_set_wiki_active(state: State<'_, DocBaseState>, active: bool) -> Result<(), String> {
-    state.base()?.set_wiki_active(active)
-}
-
-#[tauri::command(async)]
-pub fn docbase_unlink_general_project(state: State<'_, DocBaseState>) -> Result<(), String> {
-    state.base()?.unlink_general_project()
-}
-
-/// The files of the base as sources of the general project's wiki.
-#[tauri::command(async)]
-pub fn docbase_wiki_sources(state: State<'_, DocBaseState>) -> Result<Vec<WikiSource>, String> {
-    state.base()?.wiki_sources()
+    state.base()?.remove_origin(&origin_id)
 }
 
 /// Asks for a sweep of every origin now; the result arrives as
@@ -209,8 +163,6 @@ pub struct Home {
     pub health: Health,
     pub origins: Vec<OriginSummary>,
     pub activity: Vec<Activity>,
-    /// Totals of the general project's wiki.
-    pub wiki: WikiIndex,
 }
 
 #[tauri::command(async)]
@@ -220,8 +172,6 @@ pub fn docbase_home(state: State<'_, DocBaseState>) -> Result<Home, String> {
         health: base.health(&Visible::All)?,
         origins: base.origin_summaries(&Visible::All)?,
         activity: base.activity(&Visible::All, 12)?,
-        // The wiki being unreadable must not hide the rest of Inicio.
-        wiki: base.index_wiki().unwrap_or_default(),
     })
 }
 
@@ -249,25 +199,6 @@ pub fn docbase_get_document(
     location_id: i64,
 ) -> Result<Option<DocumentDetail>, String> {
     state.base()?.document(&Visible::All, location_id)
-}
-
-/// The wiki pages that came from the document at this location, or from
-/// any copy of it.
-#[tauri::command(async)]
-pub fn docbase_pages_citing(state: State<'_, DocBaseState>, location_id: i64) -> Result<Vec<PageRef>, String> {
-    state.base()?.pages_citing(&Visible::All, location_id)
-}
-
-/// Links of the wiki that point at no page.
-#[tauri::command(async)]
-pub fn docbase_broken_links(state: State<'_, DocBaseState>) -> Result<Vec<BrokenLink>, String> {
-    state.base()?.broken_links(200)
-}
-
-/// The pages that link to the page at this path inside the project.
-#[tauri::command(async)]
-pub fn docbase_backlinks(state: State<'_, DocBaseState>, page_path: String) -> Result<Vec<PageRef>, String> {
-    state.base()?.backlinks(&page_path)
 }
 
 #[tauri::command(async)]
@@ -376,18 +307,6 @@ pub fn docbase_set_excluded(
     // Bringing something back gives the worker files to read.
     state.wake.request_sweep();
     Ok(())
-}
-
-/// Which of these sources of a wiki project the user left out of the base.
-#[tauri::command(async)]
-pub fn docbase_excluded_sources(
-    state: State<'_, DocBaseState>,
-    project_path: String,
-    source_paths: Vec<String>,
-) -> Result<Vec<String>, String> {
-    state
-        .base()?
-        .excluded_sources(Path::new(&project_path), &source_paths)
 }
 
 /// Shows a folder of an origin in the system's file manager.
@@ -703,7 +622,6 @@ pub fn docbase_knowledge_project(
     };
     if report.wrote() {
         let _ = app.emit(CHANGED_EVENT, ());
-        let _ = app.emit(PAGES_EVENT, ());
     }
     Ok(report)
 }
@@ -730,18 +648,6 @@ pub fn docbase_knowledge_entities(
 #[tauri::command(async)]
 pub fn docbase_knowledge_entity(state: State<'_, DocBaseState>, id: String) -> Result<Option<EntityDetail>, String> {
     state.base()?.knowledge_entity(&Visible::All, &id)
-}
-
-/// The article of an entity: its page as the projection last wrote it.
-#[tauri::command(async)]
-pub fn docbase_knowledge_entity_article(state: State<'_, DocBaseState>, id: String) -> Result<Option<EntityArticle>, String> {
-    state.base()?.knowledge_entity_article(&id)
-}
-
-/// The entity whose page is the file at `path`, if any.
-#[tauri::command(async)]
-pub fn docbase_knowledge_entity_of_page(state: State<'_, DocBaseState>, path: String) -> Result<Option<String>, String> {
-    state.base()?.knowledge_entity_of_page(&path)
 }
 
 // The pages, notes, overview and saved queries kept in the base (D-402,

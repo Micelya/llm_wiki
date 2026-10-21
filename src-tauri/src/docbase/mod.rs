@@ -35,7 +35,6 @@ pub mod similar;
 pub(crate) mod testing;
 pub mod text;
 pub mod tree;
-pub mod wiki;
 mod worker;
 
 use std::path::Path;
@@ -53,18 +52,6 @@ macro_rules! excluded_sql {
     };
 }
 pub(crate) use excluded_sql;
-
-/// SQL condition: the document at the location `l` was joined with
-/// another as one same document, and the person chose the other one as
-/// the wiki's source. It stays in the base; it no longer feeds the wiki.
-macro_rules! passed_over_sql {
-    () => {
-        "EXISTS (SELECT 1 FROM file pf JOIN similar_pair pp ON pp.a = pf.content_id OR pp.b = pf.content_id
-            WHERE pf.hash = l.file_hash AND pp.state = 'joined'
-              AND pp.wiki_source IS NOT NULL AND pp.wiki_source != pf.content_id)"
-    };
-}
-pub(crate) use passed_over_sql;
 
 /// File name of the private space's database inside the app data folder.
 pub const PRIVATE_DB_FILE: &str = "docbase/private.sqlite3";

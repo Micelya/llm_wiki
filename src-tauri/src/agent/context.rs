@@ -305,7 +305,6 @@ pub async fn load_explicit_context_files(
         // read_file moves blocking parsers onto Tauri's blocking pool.
         let Ok(content) = crate::commands::fs::read_file(
             candidate_canon.to_string_lossy().into_owned(),
-            Some(false),
         )
         .await
         else {

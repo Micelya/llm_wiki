@@ -624,29 +624,6 @@ impl DocBase {
         Ok(out)
     }
 
-    /// The page of the entity or matter known by this name (normalized as
-    /// the record keeps names), when exactly one has a page.
-    pub fn page_named(&self, normalized: &str) -> Result<Option<String>, String> {
-        if normalized.is_empty() {
-            return Ok(None);
-        }
-        let conn = self.conn();
-        let mut statement = conn
-            .prepare(
-                "SELECT DISTINCT p.path FROM knowledge_alias a
-                 JOIN knowledge_entity e ON e.id = a.entity_id
-                 JOIN knowledge_page p ON p.entity_id = coalesce(e.merged_into, e.id)
-                 WHERE a.normalized = ?1",
-            )
-            .map_err(sql_err)?;
-        let paths: Vec<String> = statement
-            .query_map([normalized], |row| row.get(0))
-            .map_err(sql_err)?
-            .collect::<Result<_, _>>()
-            .map_err(sql_err)?;
-        Ok(if paths.len() == 1 { paths.into_iter().next() } else { None })
-    }
-
     /// The pages of entities and matters, by id.
     pub fn entity_pages(&self, ids: &[String]) -> Result<BTreeMap<String, String>, String> {
         let conn = self.conn();

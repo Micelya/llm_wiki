@@ -90,7 +90,7 @@ impl Archive {
         dir.folder("General/wiki/sources");
         dir.write("General/schema.md", b"# schema");
         let project = dir.path().join("General");
-        base.link_general_project(&project, "General").unwrap();
+        crate::docbase::testing::point_general_project_at(&base, &project);
         let model = model();
         read(&base, &model);
         let origin = base.origins(&Visible::All).unwrap()[0].id.clone();

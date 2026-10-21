@@ -225,6 +225,7 @@ impl DocBase {
     /// Hands the base the text a recognition engine read from the file
     /// with this hash, so no other copy of it is ever recognised again.
     /// Returns false when the base does not know that file.
+    #[allow(dead_code)] // The base will recognize scans itself (P-242).
     pub fn store_recognized_text(&self, file_hash: &str, text: &str, engine: &str) -> Result<bool, String> {
         let mut conn = self.conn();
         let tx = conn.transaction().map_err(sql_err)?;
@@ -242,6 +243,7 @@ impl DocBase {
 
     /// The text of the document with this file hash, when the base has
     /// it whole (a document still waiting for recognition does not count).
+    #[allow(dead_code)] // The base will recognize scans itself (P-242).
     pub fn text_of_file(&self, file_hash: &str) -> Result<Option<String>, String> {
         self.conn()
             .query_row(

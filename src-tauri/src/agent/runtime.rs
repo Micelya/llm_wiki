@@ -8,7 +8,6 @@ use serde::Deserialize;
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::commands::search::SearchEmbeddingConfig;
 
 use super::cancel::AgentCancellationToken;
 use super::context::{
@@ -50,7 +49,6 @@ pub type AgentEventSink = Arc<dyn Fn(AgentEvent) + Send + Sync>;
 pub struct AgentRuntime {
     project_id: String,
     project_path: String,
-    embedding_config: Option<SearchEmbeddingConfig>,
     llm_config: Option<LlmConfig>,
     web_search_config: Option<WebSearchConfig>,
     anytxt_config: Option<AnyTxtConfig>,
@@ -128,7 +126,6 @@ impl AgentRuntime {
     pub fn new(
         project_id: impl Into<String>,
         project_path: impl Into<String>,
-        embedding_config: Option<SearchEmbeddingConfig>,
         llm_config: Option<LlmConfig>,
         web_search_config: Option<WebSearchConfig>,
         anytxt_config: Option<AnyTxtConfig>,
@@ -136,7 +133,6 @@ impl AgentRuntime {
         Self {
             project_id: project_id.into(),
             project_path: project_path.into(),
-            embedding_config,
             llm_config,
             web_search_config,
             anytxt_config,
@@ -2390,7 +2386,6 @@ impl AgentRuntime {
         tools::ToolContext {
             project_path: &self.project_path,
             base: self.base.clone(),
-            embedding_config: self.embedding_config.clone(),
             web_search_config: self.web_search_config.clone(),
             anytxt_config: self.anytxt_config.clone(),
         }
@@ -4036,7 +4031,6 @@ mod tests {
             None,
             None,
             None,
-            None,
         )
         .with_base(test_base());
         let response = runtime
@@ -4079,7 +4073,6 @@ mod tests {
             None,
             None,
             None,
-            None,
         );
 
         let error = runtime
@@ -4117,7 +4110,6 @@ mod tests {
             None,
             None,
             None,
-            None,
         );
         let error = runtime
             .run_once(AgentChatRequest {
@@ -4148,7 +4140,6 @@ mod tests {
         let runtime = AgentRuntime::new(
             "project-1",
             project.to_string_lossy(),
-            None,
             None,
             None,
             None,
@@ -4235,7 +4226,6 @@ mod tests {
             None,
             None,
             None,
-            None,
         );
         let error = runtime
             .run_once(AgentChatRequest {
@@ -4269,7 +4259,6 @@ mod tests {
             None,
             None,
             None,
-            None,
         );
         let error = runtime
             .run_once(AgentChatRequest {
@@ -4299,7 +4288,6 @@ mod tests {
         let runtime = AgentRuntime::new(
             "project-1",
             project.to_string_lossy(),
-            None,
             None,
             None,
             None,
@@ -4345,7 +4333,6 @@ mod tests {
             None,
             None,
             None,
-            None,
         )
         .with_base(test_base());
         let response = runtime
@@ -4384,7 +4371,6 @@ mod tests {
             None,
             None,
             None,
-            None,
         )
         .with_base(test_base());
         let response = runtime
@@ -4415,7 +4401,6 @@ mod tests {
         let runtime = AgentRuntime::new(
             "project-1",
             project.to_string_lossy(),
-            None,
             None,
             None,
             None,
@@ -4462,7 +4447,6 @@ mod tests {
         let runtime = AgentRuntime::new(
             "project-1",
             project.to_string_lossy(),
-            None,
             None,
             None,
             None,
@@ -4901,7 +4885,6 @@ mod tests {
         let runtime = AgentRuntime::new(
             "project-1",
             project.to_string_lossy(),
-            None,
             None,
             None,
             None,
@@ -5482,7 +5465,6 @@ mod tests {
             None,
             None,
             None,
-            None,
         );
         let mut references = Vec::new();
         let mut events = Vec::new();
@@ -5521,7 +5503,6 @@ mod tests {
         let runtime = AgentRuntime::new(
             "project-1",
             project.to_string_lossy(),
-            None,
             None,
             None,
             None,

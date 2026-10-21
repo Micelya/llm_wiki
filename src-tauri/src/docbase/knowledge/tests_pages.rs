@@ -113,7 +113,7 @@ fn archive(files: &[(&str, &str)]) -> (TempDir, DocBase, PathBuf, FakeModel) {
     dir.folder("General/wiki/sources");
     dir.write("General/schema.md", b"# schema");
     let project = dir.path().join("General");
-    base.link_general_project(&project, "General").unwrap();
+    crate::docbase::testing::point_general_project_at(&base, &project);
     let asker = model();
     read(&base, &asker);
     (dir, base, project, asker)
@@ -531,7 +531,7 @@ fn the_page_of_a_document_is_written_from_its_summary() {
     dir.folder("General/wiki/sources");
     dir.write("General/schema.md", b"# schema");
     let project = dir.path().join("General");
-    base.link_general_project(&project, "General").unwrap();
+    crate::docbase::testing::point_general_project_at(&base, &project);
     let asker = summary_model();
     read(&base, &asker);
     let old = format!(
@@ -620,7 +620,7 @@ fn the_versions_of_a_document_share_a_page_and_say_which_version_says_what() {
     dir.folder("General/wiki/sources");
     dir.write("General/schema.md", b"# schema");
     let project = dir.path().join("General");
-    base.link_general_project(&project, "General").unwrap();
+    crate::docbase::testing::point_general_project_at(&base, &project);
     let asker = versions_model();
     read(&base, &asker);
     let (v1, v2, t) = (content_of(&base, "v1.txt"), content_of(&base, "v2.txt"), content_of(&base, "t.txt"));

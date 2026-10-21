@@ -3,6 +3,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use super::DocBase;
+
 pub struct TempDir {
     root: PathBuf,
 }
@@ -45,4 +47,24 @@ impl Drop for TempDir {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.root);
     }
+}
+
+/// Points the general project at the folder of an old wiki, as the bases
+/// made before the wiki was retired (W6) did; only the one-time import of
+/// its files and of the chat's files reads it.
+pub fn point_general_project_at(base: &DocBase, folder: &Path) {
+    base.conn()
+        .execute(
+            "UPDATE project SET path = ?1 WHERE kind = 'general'",
+            [folder.to_string_lossy().replace('\\', "/")],
+        )
+        .unwrap();
+}
+
+/// The folder of the old wiki the general project points at, if any.
+pub fn general_project_path(base: &DocBase) -> Option<String> {
+    base.conn()
+        .query_row("SELECT path FROM project WHERE kind = 'general'", [], |row| row.get::<_, Option<String>>(0))
+        .ok()
+        .flatten()
 }

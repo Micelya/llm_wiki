@@ -20,7 +20,6 @@ use tokio::time::{timeout, Duration};
 use walkdir::WalkDir;
 
 use crate::commands::external_search::file_url_for_path;
-use crate::commands::search::SearchEmbeddingConfig;
 use crate::docbase::DocBase;
 
 use super::base_tools;
@@ -92,10 +91,6 @@ pub struct ToolContext<'a> {
     pub project_path: &'a str,
     /// The base every reading tool reads and the saved queries live in.
     pub base: Option<Arc<DocBase>>,
-    /// The embeddings of the old wiki's pages: no tool reads them now (W6
-    /// retires them).
-    #[allow(dead_code)]
-    pub embedding_config: Option<SearchEmbeddingConfig>,
     pub web_search_config: Option<WebSearchConfig>,
     pub anytxt_config: Option<AnyTxtConfig>,
 }
@@ -629,13 +624,7 @@ fn write_workspace_file(
     }
     let existed_before = path.is_file();
     let previous_content = workspace_rollback_snapshot(&path);
-    crate::commands::file_history::record_file_version(
-        &path,
-        "baseline",
-        "before.workspace.write_file",
-    );
     fs::write(&path, content).map_err(|err| format!("workspace.write_file failed: {err}"))?;
-    crate::commands::file_history::record_file_version(&path, "agent", "workspace.write_file");
     Ok(WorkspaceWriteOutput {
         path: format!("{AGENT_WORKSPACE_DIR}/{rel}"),
         bytes: content.len(),
@@ -663,11 +652,6 @@ fn append_workspace_file(
     }
     let existed_before = path.is_file();
     let previous_content = workspace_rollback_snapshot(&path);
-    crate::commands::file_history::record_file_version(
-        &path,
-        "baseline",
-        "before.workspace.append_file",
-    );
     OpenOptions::new()
         .create(true)
         .append(true)
@@ -677,7 +661,6 @@ fn append_workspace_file(
             file.write_all(content.as_bytes())
         })
         .map_err(|err| format!("workspace.append_file failed: {err}"))?;
-    crate::commands::file_history::record_file_version(&path, "agent", "workspace.append_file");
     let bytes = fs::metadata(&path)
         .map(|metadata| metadata.len() as usize)
         .unwrap_or(content.len());
@@ -798,15 +781,6 @@ async fn run_shell_exec(
         stderr.push_str(&message);
     }
     let generated_files = changed_workspace_files(&workspace, before_files);
-    for output in &generated_files {
-        if let Some(relative) = output.path.strip_prefix(&format!("{AGENT_WORKSPACE_DIR}/")) {
-            crate::commands::file_history::record_file_version(
-                &workspace.join(relative),
-                "agent",
-                "shell.exec",
-            );
-        }
-    }
     Ok(ShellExecToolOutput {
         command: command.to_string(),
         exit_code,
@@ -2084,7 +2058,6 @@ mod tests {
         let context = ToolContext {
             project_path: root.to_str().unwrap(),
             base: Some(Arc::new(super::base_tools::tests::base_with_pages())),
-            embedding_config: None,
             web_search_config: None,
             anytxt_config: None,
         };
@@ -2130,7 +2103,6 @@ mod tests {
         let context = ToolContext {
             project_path: root.to_str().unwrap(),
             base: None,
-            embedding_config: None,
             web_search_config: None,
             anytxt_config: None,
         };

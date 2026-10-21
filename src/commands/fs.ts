@@ -2,14 +2,8 @@ import { invoke } from "@tauri-apps/api/core"
 import type { FileNode } from "@/types/wiki"
 import { isAbsolutePath } from "@/lib/path-utils"
 
-export async function readFile(
-  path: string,
-  options?: { extractImages?: boolean },
-): Promise<string> {
-  return invoke<string>("read_file", {
-    path,
-    extractImages: options?.extractImages,
-  })
+export async function readFile(path: string): Promise<string> {
+  return invoke<string>("read_file", { path })
 }
 
 export async function writeFile(path: string, contents: string): Promise<void> {
