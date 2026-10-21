@@ -21,11 +21,12 @@ src-tauri/gen/
 .env.local
 .env.*.local
 
-# Internal docs (not shipped), except the session handoff notes and design documents
+# Internal docs (not shipped), except the session handoff notes, design documents, decisions and the mailbox to Micelya Core
 docs/*
 !docs/sessions/
 !docs/design/
 !docs/decisiones.md
+!docs/dropbox/
 AGENTS.md
 
 # Benchmark and test data (local only)
