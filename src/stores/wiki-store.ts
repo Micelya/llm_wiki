@@ -384,14 +384,6 @@ export interface ProjectLlmOverride {
   profile?: Omit<LlmConfig, "apiKey" | "customHeaders">
 }
 
-export interface ExternalPreview {
-  title: string
-  path: string
-  source: string
-  url: string
-  snippet: string
-}
-
 interface WikiState {
   project: WikiProject | null
   fileTree: FileNode[]
@@ -404,31 +396,8 @@ interface WikiState {
   projectPathIndex: ProjectPathIndex
   selectedFile: string | null
   fileContent: string
-  previewContentPath: string | null
-  externalPreview: ExternalPreview | null
-  /**
-   * View that handed control to the full-width wiki preview. Closing the
-   * preview must return there instead of leaving an empty wiki surface.
-   * This is transient navigation state and must not be persisted.
-   */
-  previewReturnView: Exclude<WikiState["activeView"], "wiki"> | null
-  /**
-   * One-shot scroll target for the markdown preview. When the user
-   * clicks an image in search results and chooses "jump to source",
-   * we set this to the image URL alongside `selectedFile`. The
-   * markdown preview consumes it on its next render — finds the
-   * `<img data-mdsrc="..."/>` whose attribute matches and scrolls
-   * it into view, then clears this back to null so a stale target
-   * doesn't fire on the NEXT page open.
-   *
-   * Match by raw URL (the literal `src` from the markdown) rather
-   * than the resolved `convertFileSrc` URL — same image referenced
-   * across two pages with different URL conventions (one absolute,
-   * one wiki-relative) still works.
-   */
-  pendingScrollImageSrc: string | null
   activeView:
-    | "chat" | "wiki" | "sources" | "search" | "graph" | "lint" | "review" | "skills" | "settings"
+    | "chat" | "search" | "graph" | "skills" | "settings"
     // Document base screens.
     | "home" | "origins" | "documents"
     // What needs a person, and the screens made to resolve it.
@@ -464,11 +433,6 @@ interface WikiState {
   setProjectPathIndexFromTree: (tree: FileNode[]) => void
   setSelectedFile: (path: string | null) => void
   setFileContent: (content: string) => void
-  openPathInPreview: (path: string) => void
-  openFileInPreview: (path: string, content: string) => void
-  closePreview: () => void
-  setExternalPreview: (preview: ExternalPreview | null) => void
-  setPendingScrollImageSrc: (src: string | null) => void
   setActiveView: (view: WikiState["activeView"]) => void
   setLlmConfig: (config: LlmConfig) => void
   setGlobalLlmConfig: (config: LlmConfig) => void
@@ -499,11 +463,7 @@ export const useWikiStore = create<WikiState>((set) => ({
   projectPathIndex: createEmptyProjectPathIndex(),
   selectedFile: null,
   fileContent: "",
-  previewContentPath: null,
-  externalPreview: null,
-  previewReturnView: null,
-  pendingScrollImageSrc: null,
-  activeView: "wiki",
+  activeView: "home",
   llmConfig: {
     provider: "openai",
     apiKey: "",
@@ -552,40 +512,9 @@ export const useWikiStore = create<WikiState>((set) => ({
   },
   setProjectPathIndexFromTree: (tree) =>
     set({ projectPathIndex: buildProjectPathIndexFromTree(tree) }),
-  setSelectedFile: (selectedFile) =>
-    set({ selectedFile, previewContentPath: null, externalPreview: null }),
+  setSelectedFile: (selectedFile) => set({ selectedFile }),
   setFileContent: (fileContent) => set({ fileContent }),
-  openPathInPreview: (selectedFile) =>
-    set((state) => ({
-      selectedFile,
-      previewContentPath: null,
-      externalPreview: null,
-      activeView: "wiki",
-      previewReturnView:
-        state.activeView === "wiki" ? state.previewReturnView : state.activeView,
-    })),
-  openFileInPreview: (selectedFile, fileContent) =>
-    set((state) => ({
-      selectedFile,
-      fileContent,
-      previewContentPath: selectedFile,
-      externalPreview: null,
-      activeView: "wiki",
-      previewReturnView:
-        state.activeView === "wiki" ? state.previewReturnView : state.activeView,
-    })),
-  closePreview: () =>
-    set((state) => ({
-      selectedFile: null,
-      fileContent: "",
-      previewContentPath: null,
-      externalPreview: null,
-      activeView: state.previewReturnView ?? "wiki",
-      previewReturnView: null,
-    })),
-  setExternalPreview: (externalPreview) => set({ externalPreview }),
-  setPendingScrollImageSrc: (pendingScrollImageSrc) => set({ pendingScrollImageSrc }),
-  setActiveView: (activeView) => set({ activeView, previewReturnView: null }),
+  setActiveView: (activeView) => set({ activeView }),
   searchApiConfig: {
     provider: "none",
     apiKey: "",

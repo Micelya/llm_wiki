@@ -1,11 +1,10 @@
 import { useMemo, useState } from "react"
 import { ChevronDown, ChevronRight, FilePlus2, FileText, RotateCcw } from "lucide-react"
 import { useTranslation } from "react-i18next"
+import { openPath } from "@tauri-apps/plugin-opener"
 import { deleteFile, readFile, writeFile } from "@/commands/fs"
 import type { ChatAgentFileChange } from "@/lib/chat-agent-types"
 import { getFileName } from "@/lib/path-utils"
-import { refreshProjectFileTree } from "@/lib/project-file-tree-refresh"
-import { useWikiStore } from "@/stores/wiki-store"
 import { groupAgentFileChanges } from "@/lib/agent-file-activity"
 
 export function AgentFileActivity({
@@ -16,8 +15,6 @@ export function AgentFileActivity({
   embedded?: boolean
 }) {
   const { t } = useTranslation()
-  const project = useWikiStore((state) => state.project)
-  const openFileInPreview = useWikiStore((state) => state.openFileInPreview)
   const [expandedFiles, setExpandedFiles] = useState<Record<string, boolean>>({})
   const [expandedEdits, setExpandedEdits] = useState<Record<string, boolean>>({})
   const [undoing, setUndoing] = useState<string | null>(null)
@@ -29,7 +26,7 @@ export function AgentFileActivity({
   if (changes.length === 0) return null
 
   const undo = async (change: ChatAgentFileChange) => {
-    if (!project || change.beforeContent === undefined || change.afterContent === undefined || undone.has(change.id)) return
+    if (change.beforeContent === undefined || change.afterContent === undefined || undone.has(change.id)) return
     setUndoing(change.id)
     setError(null)
     try {
@@ -42,7 +39,6 @@ export function AgentFileActivity({
       } else if (typeof change.beforeContent === "string") {
         await writeFile(change.path, change.beforeContent)
       }
-      await refreshProjectFileTree(project.path, { bumpDataVersion: true })
       setUndone((current) => new Set(current).add(change.id))
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason))
@@ -81,9 +77,8 @@ export function AgentFileActivity({
                 <button
                   type="button"
                   onClick={() => {
-                    void readFile(group.path)
-                      .catch(() => "")
-                      .then((content) => openFileInPreview(group.path, content))
+                    // The agent's files open in the program of the system.
+                    void openPath(group.path).catch(() => {})
                   }}
                   className="min-w-0 flex-1 truncate text-left hover:underline"
                   title={group.path}

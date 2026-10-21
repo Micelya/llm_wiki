@@ -10,7 +10,6 @@ import { resolveMarkdownImageSrc } from "@/lib/markdown-image-resolver"
 import { normalizePath } from "@/lib/path-utils"
 import { detectLanguage } from "@/lib/detect-language"
 import { getHtmlLang, getTextDirection } from "@/lib/language-metadata"
-import { useWikiStore } from "@/stores/wiki-store"
 import { openWikiPath } from "@/lib/open-wiki-path"
 import { MermaidDiagram, unwrapMermaidPre } from "@/components/mermaid-diagram"
 
@@ -43,8 +42,6 @@ interface WikiReaderProps {
  * single-click navigation between pages.
  */
 export function WikiReader({ body, sourceBody, sourceOffset = 0, filePath }: WikiReaderProps) {
-  const project = useWikiStore((s) => s.project)
-
   // Image embeds (`![[…]]`) must be rewritten BEFORE the generic
   // wikilink pass, otherwise the embed target gets mangled into a
   // `#fragment` link.
@@ -75,7 +72,6 @@ export function WikiReader({ body, sourceBody, sourceOffset = 0, filePath }: Wik
   const renderLanguage = detectLanguage(body)
   const direction = getTextDirection(renderLanguage)
   const htmlLang = getHtmlLang(renderLanguage)
-  const projectPath = project ? normalizePath(project.path) : null
   // Directory of the file being rendered (project-absolute), so
   // relative image srcs resolve against it like Obsidian does.
   const currentFileDir = useMemo(() => {
@@ -163,7 +159,7 @@ export function WikiReader({ body, sourceBody, sourceOffset = 0, filePath }: Wik
             <img
               src={
                 typeof src === "string"
-                  ? resolveMarkdownImageSrc(src, projectPath, currentFileDir)
+                  ? resolveMarkdownImageSrc(src, null, currentFileDir)
                   : undefined
               }
               data-mdsrc={typeof src === "string" ? src : undefined}

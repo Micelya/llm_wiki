@@ -23,7 +23,6 @@ import type { ChatAgentEvent, ChatAgentFileChange, ChatAgentStep, ChatUserInputR
 import type { ChatMessage as LlmChatMessage, ContentBlock } from "@/lib/llm-client"
 import { FilePreview } from "@/components/editor/file-preview"
 import { WikiReader } from "@/components/editor/wiki-reader"
-import { FrontmatterPanel } from "@/components/editor/frontmatter-panel"
 import { parseFrontmatter } from "@/lib/frontmatter"
 import { getFileCategory, getFileExtension, isTextReadable } from "@/lib/file-types"
 import { refreshProjectFileTree } from "@/lib/project-file-tree-refresh"
@@ -1979,10 +1978,9 @@ function clampReferencePreviewWidth(width: number): number {
 }
 
 function ChatMarkdownReferencePreview({ preview }: { preview: ChatReferencePreview }) {
-  const { frontmatter, body } = parseFrontmatter(preview.content)
+  const { body } = parseFrontmatter(preview.content)
   return (
     <div className="h-full overflow-auto px-6 py-6">
-      {frontmatter && <FrontmatterPanel data={frontmatter} />}
       <WikiReader body={body} filePath={preview.path} />
     </div>
   )

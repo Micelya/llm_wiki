@@ -1,12 +1,11 @@
 import { useState, useEffect } from "react"
 import { PRODUCT_NAME } from "@/lib/app-identity"
 import {
-  FileText, FolderOpen, Search, Network, ClipboardCheck, Settings, ArrowLeftRight, ClipboardList, Globe, MessageSquare, Sparkles,
+  FileText, Search, Network, Settings, Globe, MessageSquare, Sparkles,
   HardDrive, Files, Home, BellDot, Users, Briefcase,
 } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useWikiStore } from "@/stores/wiki-store"
-import { useReviewStore } from "@/stores/review-store"
 import { useResearchStore } from "@/stores/research-store"
 import { useUpdateStore, hasAvailableUpdate } from "@/stores/update-store"
 import { useTranslation } from "react-i18next"
@@ -24,12 +23,8 @@ type NavView = WikiState["activeView"]
 
 const NAV_ITEMS: { view: NavView; icon: typeof FileText; labelKey: string }[] = [
   { view: "chat", icon: MessageSquare, labelKey: "nav.chat" },
-  { view: "wiki", icon: FileText, labelKey: "nav.wiki" },
-  { view: "sources", icon: FolderOpen, labelKey: "nav.sources" },
   { view: "search", icon: Search, labelKey: "nav.search" },
   { view: "graph", icon: Network, labelKey: "nav.graph" },
-  { view: "lint", icon: ClipboardCheck, labelKey: "nav.lint" },
-  { view: "review", icon: ClipboardList, labelKey: "nav.review" },
 ]
 
 // The document base screens are written in Spanish only for now, so their
@@ -46,15 +41,10 @@ function docbaseNavItems(): { view: NavView; icon: typeof FileText; label: strin
   ]
 }
 
-interface IconSidebarProps {
-  onSwitchProject: () => void
-}
-
-export function IconSidebar({ onSwitchProject }: IconSidebarProps) {
+export function IconSidebar() {
   const { t } = useTranslation()
   const activeView = useWikiStore((s) => s.activeView)
   const setActiveView = useWikiStore((s) => s.setActiveView)
-  const pendingCount = useReviewStore((s) => s.items.filter((i) => !i.resolved).length)
   const attentionCount = navigationCount(useAttention().counts)
   const researchPanelOpen = useResearchStore((s) => s.panelOpen)
   const researchActiveCount = useResearchStore((s) => s.tasks.filter((t) => t.status !== "done" && t.status !== "error").length)
@@ -139,16 +129,8 @@ export function IconSidebar({ onSwitchProject }: IconSidebarProps) {
                 }`}
               >
                 <Icon className="h-5 w-5" />
-                {view === "review" && pendingCount > 0 && (
-                  <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
-                    {pendingCount > 99 ? "99+" : pendingCount}
-                  </span>
-                )}
               </TooltipTrigger>
-              <TooltipContent side="right">
-                {t(labelKey)}
-                {view === "review" && pendingCount > 0 && ` (${pendingCount})`}
-              </TooltipContent>
+              <TooltipContent side="right">{t(labelKey)}</TooltipContent>
             </Tooltip>
           ))}
           {/* Deep Research — same row as other nav items */}
@@ -184,7 +166,7 @@ export function IconSidebar({ onSwitchProject }: IconSidebarProps) {
             <TooltipContent side="right">{t("nav.skills")}</TooltipContent>
           </Tooltip>
         </div>
-        {/* Bottom: daemon status + settings + switch project */}
+        {/* Bottom: daemon status + settings */}
         <div className="flex flex-col items-center gap-1 pb-1">
           {/* Daemon status indicator */}
           <Tooltip>
@@ -236,15 +218,6 @@ export function IconSidebar({ onSwitchProject }: IconSidebarProps) {
               {t("nav.settingsShortcut")}
               {updateAvailable ? t("nav.updateAvailableSuffix") : ""}
             </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger
-              onClick={onSwitchProject}
-              className="flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/50 hover:text-accent-foreground"
-            >
-              <ArrowLeftRight className="h-5 w-5" />
-            </TooltipTrigger>
-            <TooltipContent side="right">{t("nav.switchProject")}</TooltipContent>
           </Tooltip>
         </div>
       </div>

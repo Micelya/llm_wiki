@@ -12,7 +12,7 @@ import {
   TrendingUp, Target, Sparkles, Image as ImageIcon, FileSearch, Terminal,
   ListTree,
 } from "lucide-react"
-import { openUrl } from "@tauri-apps/plugin-opener"
+import { openPath, openUrl } from "@tauri-apps/plugin-opener"
 import { getPageText, objectOfPage, saveQuery, type PageObject } from "@/commands/docbase"
 import { openPageObject, openWikiPath } from "@/lib/open-wiki-path"
 import { useChatStore } from "@/stores/chat-store"
@@ -676,7 +676,6 @@ function CitedReferencesPanel({
 }) {
   const { t } = useTranslation()
   const project = useWikiStore((s) => s.project)
-  const openFileInPreview = useWikiStore((s) => s.openFileInPreview)
   const [expanded, setExpanded] = useState(false)
   const [outputsExpanded, setOutputsExpanded] = useState(false)
   /**
@@ -782,7 +781,7 @@ function CitedReferencesPanel({
             snippet: page.snippet,
           }, relatedOutputPreviews)
         } else {
-          openFileInPreview(workspacePath, content)
+          await openPath(workspacePath).catch(() => {})
         }
       } catch (err) {
         console.warn("[chat refs] failed to open workspace reference:", err)
@@ -801,7 +800,6 @@ function CitedReferencesPanel({
     if (page.kind === "external") {
       const target = page.url || page.path
       const displayPath = displayExternalPath(page)
-      const previewPath = `${isAnyTxtReference(page) ? "anytxt" : "external"}-preview://${encodeURIComponent(target || page.title)}`
       const previewContent = [
         `# ${page.title}`,
         "",
@@ -819,17 +817,6 @@ function CitedReferencesPanel({
           source: referenceSourceLabel(page),
           external: true,
           content: previewContent,
-          snippet: page.snippet ?? "",
-        })
-        return
-      }
-      if (isAnyTxtReference(page)) {
-        openFileInPreview(previewPath, previewContent)
-        useWikiStore.getState().setExternalPreview({
-          title: page.title,
-          path: previewPath,
-          source: referenceSourceLabel(page),
-          url: displayPath,
           snippet: page.snippet ?? "",
         })
         return
@@ -852,7 +839,7 @@ function CitedReferencesPanel({
         content: text?.text ?? `No está en la base: ${page.title}`,
       })
     }
-  }, [project, generatedOutputs, onOpenReferencePreview, openFileInPreview])
+  }, [project, generatedOutputs, onOpenReferencePreview])
 
   if (citedPages.length === 0 && generatedOutputs.length === 0) return null
 
