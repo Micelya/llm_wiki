@@ -9,8 +9,6 @@ describe("chat-store conversation isolation", () => {
       messages: [],
       isStreaming: false,
       streamingContent: "",
-      mode: "chat",
-      ingestSource: null,
       useWebSearch: false,
       useAnyTxtSearch: false,
       agentMode: "standard",

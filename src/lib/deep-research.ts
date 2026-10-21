@@ -12,7 +12,6 @@ import { saveResearch, type ResearchSource } from "@/commands/docbase"
 import { useWikiStore, type LlmConfig, type SearchApiConfig } from "@/stores/wiki-store"
 import { useResearchStore, type ResearchTaskInput } from "@/stores/research-store"
 import { buildLanguageDirective } from "@/lib/output-language"
-import { useReviewStore } from "@/stores/review-store"
 
 const MAX_RESEARCH_SOURCES = 20
 const MIN_RESEARCH_CONTENT_CHARS = 120
@@ -269,7 +268,6 @@ export interface ResearchTarget {
 
 export interface QueueResearchOptions {
   searchQueries?: string[]
-  sourceReviewId?: string
   /** Of whom; none for a loose research. */
   target?: ResearchTarget
   /** Whether the research panel opens to follow it (default: yes). */
@@ -288,7 +286,6 @@ export function queueResearch(
   const [taskId] = useResearchStore.getState().addTasks([{
     topic,
     searchQueries: options.searchQueries,
-    sourceReviewId: options.sourceReviewId,
     objectId: options.target?.objectId,
     objectName: options.target?.name,
   }], { openPanel: options.openPanel ?? true })
@@ -314,23 +311,6 @@ export function queueResearchBatch(
   const ids = useResearchStore.getState().addTasks(normalized)
   setTimeout(() => processQueue(llmConfig, searchConfig), 50)
   return ids
-}
-
-export function resolveReviewForSavedResearch(
-  taskId: string,
-  savedId: number,
-): boolean {
-  const task = useResearchStore.getState().tasks.find((candidate) => candidate.id === taskId)
-  if (
-    !task?.sourceReviewId ||
-    task.status !== "done" ||
-    task.savedId !== savedId ||
-    !validateResearchSynthesis(task.synthesis, task.webResults.length).valid
-  ) return false
-  const review = useReviewStore.getState().items.find((item) => item.id === task.sourceReviewId)
-  if (!review || review.resolved) return false
-  useReviewStore.getState().resolveItem(task.sourceReviewId, `Investigación guardada en la base (${savedId})`)
-  return true
 }
 
 export async function collectResearchSources(
@@ -591,8 +571,7 @@ async function executeResearch(
       citedResearchSources(validation.citedSourceIndexes, webResults),
     )
 
-    if (!updateTaskIfActive(taskId, { status: "done", savedId: saved.id })) return
-    resolveReviewForSavedResearch(taskId, saved.id)
+    updateTaskIfActive(taskId, { status: "done", savedId: saved.id })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     updateTaskIfActive(taskId, {

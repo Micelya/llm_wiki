@@ -11,7 +11,6 @@ import {
   type SimilarDocument,
 } from "@/commands/docbase"
 import { useDocbaseStore } from "@/stores/docbase-store"
-import { useWikiStore } from "@/stores/wiki-store"
 import { relationName, vocabulary, type Vocabulary } from "@/vocabulary"
 import { formatDate } from "./format"
 import { DiffPanel } from "./diff-panel"
@@ -83,13 +82,6 @@ export async function decideAndFollow(
     onDecided()
   } catch (cause) {
     onProblem(String(cause))
-    return
-  }
-  try {
-    const { followSimilarDecision } = await import("@/lib/docbase-wiki-bridge")
-    await followSimilarDecision(useWikiStore.getState().project, [item.contentId, item.other.contentId])
-  } catch (cause) {
-    onProblem(`La decisión quedó guardada, pero el wiki no se pudo actualizar: ${String(cause)}`)
   }
 }
 

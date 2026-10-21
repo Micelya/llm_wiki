@@ -23,14 +23,11 @@ import {
   rejectedResearchSourcesTaskPatch,
   researchRelevanceRequestOverrides,
   researchSystemPrompt,
-  resolveReviewForSavedResearch,
   validateResearchSynthesis,
 } from "./deep-research"
 import type { SearchApiConfig } from "@/stores/wiki-store"
 import type { WebSearchResult } from "./web-search"
-import { useWikiStore } from "@/stores/wiki-store"
 import { useResearchStore } from "@/stores/research-store"
-import { useReviewStore, type ReviewItem } from "@/stores/review-store"
 
 const webResult: WebSearchResult = {
   title: "Web",
@@ -112,93 +109,6 @@ describe("rejectedResearchSourcesTaskPatch", () => {
       synthesis: "",
       error: "2 candidate source(s) were found, but all were rejected by the relevance and evidence-quality gate. Refine the research topic or queries and retry.\nWeb provider timed out",
     })
-  })
-})
-
-describe("review-linked research", () => {
-  const review: ReviewItem = {
-    id: "review-1",
-    type: "suggestion",
-    title: "Research this",
-    description: "Needs evidence",
-    options: [],
-    resolved: false,
-    createdAt: 1,
-  }
-
-  it("resolves the source review only after a saved result exists", () => {
-    useWikiStore.setState({ project: { id: "p1", name: "Project", path: "/project" } })
-    useReviewStore.setState({ items: [review] })
-    useResearchStore.setState({
-      tasks: [{
-        id: "research-1",
-        topic: "topic",
-        sourceReviewId: review.id,
-        status: "done",
-        webResults: [],
-        synthesis: "This completed synthesis contains enough substantive analysis to explain the evidence, its limitations, and the conclusions that can reasonably be drawn. It also distinguishes established findings from open questions so the saved research is useful for later review.",
-        savedId: 7,
-        error: null,
-        createdAt: 1,
-      }],
-    })
-
-    expect(resolveReviewForSavedResearch(
-      "research-1",
-      7,
-    )).toBe(true)
-    expect(useReviewStore.getState().items[0]).toMatchObject({
-      resolved: true,
-      resolvedAction: "Investigación guardada en la base (7)",
-    })
-  })
-
-  it("rejects callbacks before the linked task reaches the matching saved state", () => {
-    useWikiStore.setState({ project: { id: "p1", name: "Project", path: "/project" } })
-    useReviewStore.setState({ items: [review] })
-    useResearchStore.setState({
-      tasks: [{
-        id: "research-1",
-        topic: "topic",
-        sourceReviewId: review.id,
-        status: "saving",
-        webResults: [],
-        synthesis: "answer",
-        savedId: null,
-        error: null,
-        createdAt: 1,
-      }],
-    })
-
-    expect(resolveReviewForSavedResearch(
-      "research-1",
-      7,
-    )).toBe(false)
-    expect(useReviewStore.getState().items[0].resolved).toBe(false)
-  })
-
-  it("does not resolve a saved task with incomplete synthesis", () => {
-    useWikiStore.setState({ project: { id: "p1", name: "Project", path: "/project" } })
-    useReviewStore.setState({ items: [review] })
-    useResearchStore.setState({
-      tasks: [{
-        id: "research-1",
-        topic: "topic",
-        sourceReviewId: review.id,
-        status: "done",
-        webResults: [webResult],
-        synthesis: "[1]",
-        savedId: 7,
-        error: null,
-        createdAt: 1,
-      }],
-    })
-
-    expect(resolveReviewForSavedResearch(
-      "research-1",
-      7,
-    )).toBe(false)
-    expect(useReviewStore.getState().items[0].resolved).toBe(false)
   })
 })
 

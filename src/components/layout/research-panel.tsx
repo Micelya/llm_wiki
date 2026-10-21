@@ -60,7 +60,6 @@ export function ResearchPanel() {
       [{
         topic: task.topic,
         searchQueries: task.searchQueries,
-        sourceReviewId: task.sourceReviewId,
         rerunOfTaskId: task.id,
         objectId: task.objectId,
         objectName: task.objectName,

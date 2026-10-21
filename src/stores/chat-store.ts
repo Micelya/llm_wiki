@@ -48,14 +48,12 @@ export interface DisplayMessage {
   contextFiles?: string[]  // absolute project files explicitly attached to this user turn
 }
 
-interface ChatState {
+export interface ChatState {
   conversations: Conversation[]
   activeConversationId: string | null
   messages: DisplayMessage[]
   isStreaming: boolean
   streamingContent: string
-  mode: "chat" | "ingest"
-  ingestSource: string | null
   maxHistoryMessages: number
   useWebSearch: boolean
   useAnyTxtSearch: boolean
@@ -80,8 +78,6 @@ interface ChatState {
   appendStreamToken: (token: string) => void
   finalizeStream: (content: string, references?: MessageReference[], agentSteps?: ChatAgentStep[], userInputRequest?: ChatUserInputRequest, agentFileChanges?: ChatAgentFileChange[]) => void
   finalizeStreamForConversation: (conversationId: string, content: string, references?: MessageReference[], agentSteps?: ChatAgentStep[], userInputRequest?: ChatUserInputRequest, agentFileChanges?: ChatAgentFileChange[]) => void
-  setMode: (mode: ChatState["mode"]) => void
-  setIngestSource: (path: string | null) => void
   clearMessages: () => void
   setMaxHistoryMessages: (n: number) => void
   setUseWebSearch: (enabled: boolean) => void
@@ -114,8 +110,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   isStreaming: false,
   streamingContent: "",
-  mode: "chat",
-  ingestSource: null,
   maxHistoryMessages: 10,
   useWebSearch: false,
   useAnyTxtSearch: false,
@@ -304,9 +298,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
     }),
 
-  setMode: (mode) => set({ mode }),
 
-  setIngestSource: (ingestSource) => set({ ingestSource }),
 
   clearMessages: () =>
     set((state) => ({

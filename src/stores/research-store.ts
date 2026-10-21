@@ -6,7 +6,6 @@ export interface ResearchTask {
   topic: string
   /** Review item that requested this research. It is resolved only after the
    * generated page has been written successfully. */
-  sourceReviewId?: string
   rerunOfTaskId?: string
   searchQueries?: string[]
   /** The person, organization or matter it is of (D-414); none for a loose one. */
@@ -23,7 +22,7 @@ export interface ResearchTask {
 
 export type ResearchTaskInput = Pick<
   ResearchTask,
-  "topic" | "searchQueries" | "sourceReviewId" | "rerunOfTaskId" | "objectId" | "objectName"
+  "topic" | "searchQueries" | "rerunOfTaskId" | "objectId" | "objectName"
 >
 
 interface ResearchState {
@@ -78,7 +77,6 @@ function createResearchTask(
     id: `research-${++counter}`,
     topic: input.topic,
     ...(input.searchQueries?.length ? { searchQueries: input.searchQueries } : {}),
-    ...(input.sourceReviewId ? { sourceReviewId: input.sourceReviewId } : {}),
     ...(input.rerunOfTaskId ? { rerunOfTaskId: input.rerunOfTaskId } : {}),
     ...(input.objectId ? { objectId: input.objectId, objectName: input.objectName } : {}),
     status: "queued",

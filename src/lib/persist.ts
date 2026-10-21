@@ -1,47 +1,9 @@
 import { writeFile, readFile, createDirectory, listDirectory, deleteFile } from "@/commands/fs"
 import { getChatFolder } from "@/commands/docbase"
-import { normalizeReviewItems, type ReviewItem } from "@/stores/review-store"
-import type { LintItem } from "@/stores/lint-store"
 import type { DisplayMessage, Conversation } from "@/stores/chat-store"
 import type { ChatAgentMode, ChatRetrievalMode } from "@/lib/chat-agent-types"
 import { normalizePath } from "@/lib/path-utils"
 import type { FileNode } from "@/types/wiki"
-
-async function ensureDir(projectPath: string): Promise<void> {
-  await createDirectory(`${projectPath}/.llm-wiki`).catch(() => {})
-}
-
-export async function saveReviewItems(projectPath: string, items: ReviewItem[]): Promise<void> {
-  const pp = normalizePath(projectPath)
-  await ensureDir(pp)
-  await writeFile(`${pp}/.llm-wiki/review.json`, JSON.stringify(items, null, 2))
-}
-
-export async function loadReviewItems(projectPath: string): Promise<ReviewItem[]> {
-  const pp = normalizePath(projectPath)
-  try {
-    const content = await readFile(`${pp}/.llm-wiki/review.json`)
-    return normalizeReviewItems(JSON.parse(content) as ReviewItem[])
-  } catch {
-    return []
-  }
-}
-
-export async function saveLintItems(projectPath: string, items: LintItem[]): Promise<void> {
-  const pp = normalizePath(projectPath)
-  await ensureDir(pp)
-  await writeFile(`${pp}/.llm-wiki/lint.json`, JSON.stringify(items, null, 2))
-}
-
-export async function loadLintItems(projectPath: string): Promise<LintItem[]> {
-  const pp = normalizePath(projectPath)
-  try {
-    const content = await readFile(`${pp}/.llm-wiki/lint.json`)
-    return JSON.parse(content) as LintItem[]
-  } catch {
-    return []
-  }
-}
 
 /**
  * The chat's history and preferences live in the app's data folder, not in

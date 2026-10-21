@@ -2,7 +2,7 @@ import { useRef, useEffect, useCallback, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { convertFileSrc, invoke } from "@tauri-apps/api/core"
 import { listen } from "@tauri-apps/api/event"
-import { BookOpen, Plus, Trash2, MessageSquare, X, Maximize2, FolderOpen, FileText, ListTree, ChevronDown, ChevronRight } from "lucide-react"
+import { Plus, Trash2, MessageSquare, X, Maximize2, FolderOpen, FileText, ListTree, ChevronDown, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ChatMessage, StreamingMessage, type ChatReferencePreview } from "./chat-message"
 import { ChatInput, type ChatSendOptions } from "./chat-input"
@@ -12,7 +12,6 @@ import { resolveTaskLlmConfig } from "@/lib/llm-task-routing"
 import { isReasoningOnlyResponseError, streamChat } from "@/lib/llm-client"
 import { supportsImageInput } from "@/lib/llm-providers"
 import { buildCliRetrievedContext, cliRequestSkills, cliSearchTopK } from "@/lib/cli-chat-context"
-import { executeIngestWrites } from "@/lib/ingest"
 import { openPathInProject, readFile } from "@/commands/fs"
 import { deleteChatConversation } from "@/lib/persist"
 import { getPageText } from "@/commands/docbase"
@@ -25,7 +24,6 @@ import { FilePreview } from "@/components/editor/file-preview"
 import { WikiReader } from "@/components/editor/wiki-reader"
 import { parseFrontmatter } from "@/lib/frontmatter"
 import { getFileCategory, getFileExtension, isTextReadable } from "@/lib/file-types"
-import { refreshProjectFileTree } from "@/lib/project-file-tree-refresh"
 import { summarizeAgentFileChange } from "@/lib/agent-file-activity"
 import { ReferenceKnowledgeGraph } from "@/components/chat/reference-knowledge-graph"
 
@@ -455,7 +453,6 @@ export function ChatPanel() {
   const activeConversationId = useChatStore((s) => s.activeConversationId)
   const isStreaming = useChatStore((s) => s.isStreaming)
   const streamingContent = useChatStore((s) => s.streamingContent)
-  const mode = useChatStore((s) => s.mode)
   const addMessageToConversation = useChatStore((s) => s.addMessageToConversation)
   const setStreaming = useChatStore((s) => s.setStreaming)
   const appendStreamToken = useChatStore((s) => s.appendStreamToken)
@@ -1417,20 +1414,6 @@ export function ChatPanel() {
     return true
   }, [handleSend, activeStreaming])
 
-  const handleWriteToWiki = useCallback(async () => {
-    if (!project) return
-    const pp = normalizePath(project.path)
-    try {
-      await executeIngestWrites(pp, llmConfig, undefined, undefined)
-      await refreshProjectFileTree(pp, { bumpDataVersion: true })
-    } catch (err) {
-      console.error("Failed to write to wiki:", err)
-    }
-  }, [project, llmConfig])
-
-  const hasAssistantMessages = activeMessages.some((m) => m.role === "assistant")
-  const showWriteButton = mode === "ingest" && !activeStreaming && hasAssistantMessages
-
   return (
     <div className="flex h-full flex-row overflow-hidden">
       <ConversationSidebar
@@ -1480,19 +1463,6 @@ export function ChatPanel() {
                 </div>
               </div>
 
-            {showWriteButton && (
-              <div className="border-t px-3 py-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleWriteToWiki}
-                  className="w-full gap-2"
-                >
-                  <BookOpen className="h-4 w-4" />
-                  {t("chat.writeToWiki")}
-                </Button>
-              </div>
-            )}
           </>
         )}
 
@@ -1516,11 +1486,7 @@ export function ChatPanel() {
           onSelectedContextFilesChange={setSelectedContextFiles}
           anyTxtAvailable={anyTxtAvailable}
           imageInputAvailable={imageInputAvailable}
-          placeholder={
-            mode === "ingest"
-              ? t("chat.ingestPlaceholder")
-              : t("chat.typeAMessage")
-          }
+          placeholder={t("chat.typeAMessage")}
         />
       </div>
 
