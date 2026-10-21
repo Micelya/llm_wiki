@@ -186,11 +186,11 @@
       "tipo": "decision",
       "responsable": "ambos",
       "estado": "pendiente",
-      "detalle": "El usuario va a investigar Textract. Cuando haya cuenta de AWS, agregar el motor detrás del mismo contrato y comparar con Codex sobre páginas reales en español. Referencias de costo por 10.000 páginas: Textract texto simple ~USD 15, Claude Haiku 4.5 ~USD 57, Sonnet ~USD 180-200. Un reconocedor clásico no inventa texto; un modelo de visión puede completar lo que no lee (en la prueba adivinó un código ambiguo pese a la instrucción de no hacerlo).",
+      "detalle": "El usuario va a investigar Textract. Cuando haya cuenta de AWS, agregar el motor detrás del mismo contrato y comparar con Codex sobre páginas reales en español. Referencias de costo por 10.000 páginas: Textract texto simple ~USD 15, Claude Haiku 4.5 ~USD 57, Sonnet ~USD 180-200. Un reconocedor clásico no inventa texto; un modelo de visión puede completar lo que no lee (en la prueba adivinó un código ambiguo pese a la instrucción de no hacerlo). 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/.",
       "depende_de": [],
-      "referencia": "src-tauri/src/source_volume/recognition.rs (trait TextRecognizer)",
+      "referencia": "src-tauri/src/source_volume/recognition.rs (trait TextRecognizer); docs/design/servicios-de-ia-propuesta.md",
       "creado": "2026-10-07",
-      "actualizado": "2026-10-07"
+      "actualizado": "2026-10-21"
     },
     {
       "id": "P-028",
@@ -567,11 +567,11 @@
       "tipo": "decision",
       "responsable": "ambos",
       "estado": "en-espera",
-      "detalle": "Micelya Core es el módulo de la plataforma que dará los servicios de IA y relacionados; se desarrolla en paralelo, primero sobre servicios de Amazon y diseñado para no depender de ellos. En algún momento la app va a usarlo como infraestructura de IA. Por ahora es solo información de contexto: los proveedores de IA siguen siendo configurables por instancia.",
+      "detalle": "Micelya Core es el módulo de la plataforma que dará los servicios de IA y relacionados; se desarrolla en paralelo, primero sobre servicios de Amazon y diseñado para no depender de ellos. En algún momento la app va a usarlo como infraestructura de IA. Por ahora es solo información de contexto: los proveedores de IA siguen siendo configurables por instancia. 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/.",
       "depende_de": [],
-      "referencia": "Repo extrimian/mi-platform, rama dev",
+      "referencia": "Repo extrimian/mi-platform, rama dev; docs/design/servicios-de-ia-propuesta.md",
       "creado": "2026-10-11",
-      "actualizado": "2026-10-11"
+      "actualizado": "2026-10-21"
     },
     {
       "id": "P-064",
@@ -1443,11 +1443,11 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "Pedido del dueño del 2026-10-17 (D-291): Micelya Core va a ofrecer los servicios de IA (preguntas, lectura de imágenes, vectores) con sus proveedores configurables; la app debe poder usarlo y mantener proveedores propios. Agrupar la configuración y el uso en un solo lugar, con un contrato por servicio, para que Core sea un proveedor más. No es el foco ahora; hacerlo cuando se toque esa parte.",
+      "detalle": "Pedido del dueño del 2026-10-17 (D-291): Micelya Core va a ofrecer los servicios de IA (preguntas, lectura de imágenes, vectores) con sus proveedores configurables; la app debe poder usarlo y mantener proveedores propios. Agrupar la configuración y el uso en un solo lugar, con un contrato por servicio, para que Core sea un proveedor más. No es el foco ahora; hacerlo cuando se toque esa parte. 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/.",
       "depende_de": [],
-      "referencia": "docs/design/wiki-sobre-la-base-propuesta.md (sección 9); D-291; P-063; P-140",
+      "referencia": "docs/design/wiki-sobre-la-base-propuesta.md (sección 9); D-291; P-063; P-140; docs/design/servicios-de-ia-propuesta.md",
       "creado": "2026-10-17",
-      "actualizado": "2026-10-17"
+      "actualizado": "2026-10-21"
     },
     {
       "id": "P-142",
@@ -1674,7 +1674,9 @@
       "responsable": "claude",
       "estado": "en-curso",
       "detalle": "Reemplazado por P-228 (D-396): la página del documento deja de ser archivo; se guarda en la base y se lee en el detalle del documento, con sus notas (W2, W3); el chat lee de la base (W5). Se cierra con P-228. Hecho en W3 (D-407): el detalle del documento muestra arriba su artículo desde la base (sin las ubicaciones ni el bloque de entidades, que tiene en sus secciones) y sus notas; la búsqueda abre esa pantalla. Falta el chat (W5). Antes: D-294 la dejó como archivo generado hasta que la búsqueda y el grafo leyeran de la base.",
-      "depende_de": ["P-228"],
+      "depende_de": [
+        "P-228"
+      ],
       "referencia": "docs/design/retiro-del-wiki.md; D-294; D-350; D-351; D-396",
       "creado": "2026-10-18",
       "actualizado": "2026-10-21"
@@ -1686,7 +1688,9 @@
       "responsable": "claude",
       "estado": "pendiente",
       "detalle": "21 oct: lo que lee archivos lo reemplaza P-228 (D-396, D-398, D-399): Lint sale, la relevancia del grafo se calcula sobre la base (W4), la búsqueda y el contexto del chat leen de la base (W3, W5). Queda: las preguntas genéricas por relaciones («a quiénes les debe») siguen en 6 a 7 de 8; medirlas de nuevo cuando el chat lea de la base.",
-      "depende_de": ["P-228"],
+      "depende_de": [
+        "P-228"
+      ],
       "referencia": "src/lib/graph-relevance.ts; src-tauri/src/agent/tools.rs; src-tauri/src/commands/search.rs; D-350; D-396; D-398; D-399",
       "creado": "2026-10-18",
       "actualizado": "2026-10-21"
@@ -1878,11 +1882,13 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "Una sola vista por cosa (D-376): arriba el artículo, en una pestaña los datos y las correcciones. La de persona u organización está hecha (D-389: pestañas «Artículo», que muestra su página del wiki tal como la escribió la proyección, y «Datos y correcciones»; los enlaces del wiki a la página llevan a la pantalla). Faltan la del asunto (pantalla Asuntos y su página del wiki) y la del documento (detalle de Documentos y su página del wiki, Sources).",
-      "depende_de": ["P-061"],
-      "referencia": "D-376; D-389; docs/design/asuntos-propuesta.md (sección 5)",
+      "detalle": "Una sola vista por cosa (D-376): arriba el artículo, en una pestaña los datos y las correcciones. La de persona u organización está hecha (D-389: pestañas «Artículo», que muestra su página del wiki tal como la escribió la proyección, y «Datos y correcciones»; los enlaces del wiki a la página llevan a la pantalla). Faltan la del asunto (pantalla Asuntos y su página del wiki) y la del documento (detalle de Documentos y su página del wiki, Sources). 21 oct, pedido del dueño: documento y asunto con las mismas dos pestañas que persona u organización («Artículo» y «Datos y correcciones»); el asunto con su artículo. Va primero en el plan (paso 0a de docs/design/servicios-de-ia-propuesta.md).",
+      "depende_de": [
+        "P-061"
+      ],
+      "referencia": "D-376; D-389; docs/design/asuntos-propuesta.md (sección 5); docs/design/servicios-de-ia-propuesta.md (2.6, paso 0a)",
       "creado": "2026-10-20",
-      "actualizado": "2026-10-20"
+      "actualizado": "2026-10-21"
     },
     {
       "id": "P-215",
@@ -1891,7 +1897,9 @@
       "responsable": "claude",
       "estado": "pendiente",
       "detalle": "Desde S2 una referencia junta documentos solo por su forma normalizada exacta; la resolución unía antes formas parecidas (en la base de partida un documento salió de un asunto) y elegía el nombre más específico. Ver en S3 si hace falta unir formas parecidas de una referencia (sin modelo) y cómo se muestra su nombre (hoy la forma más escrita, en forma de nombre). S3: sin cambios; en la base de partida no hizo falta para los 3 asuntos esperados.",
-      "depende_de": ["P-061"],
+      "depende_de": [
+        "P-061"
+      ],
       "referencia": "D-377, D-378; desatendido-5/S2-medicion.txt",
       "creado": "2026-10-20",
       "actualizado": "2026-10-20"
@@ -1903,7 +1911,9 @@
       "responsable": "claude",
       "estado": "pendiente",
       "detalle": "Las pantallas dicen «Caso» (vocabulario de la vertical); el wiki y los nombres de los asuntos usan las palabras del catálogo (knowledge.json: «Asunto», «Asunto entre»). Llevarlas a la vertical sin rehacer preguntas guardadas: la descripción del asunto entra en la pregunta de propuesta (medir con el arnés antes).",
-      "depende_de": ["P-061"],
+      "depende_de": [
+        "P-061"
+      ],
       "referencia": "D-384",
       "creado": "2026-10-20",
       "actualizado": "2026-10-20"
@@ -1915,7 +1925,9 @@
       "responsable": "ambos",
       "estado": "pendiente",
       "detalle": "En la base de partida queda un cuarto asunto propuesto: dos boletas que comparten el importe y que la comparación de parecidos relaciona como misma plantilla (cambian identificadores y fechas), no como versiones. Si son el mismo documento, basta con descartarlo en Atención o unirlas como el mismo documento; si pasa seguido, ver si dos documentos de la misma plantilla unidos solo por un importe deben proponerse.",
-      "depende_de": ["P-061"],
+      "depende_de": [
+        "P-061"
+      ],
       "referencia": "D-381; desatendido-5/S3-medicion.txt",
       "creado": "2026-10-20",
       "actualizado": "2026-10-20"
@@ -1927,7 +1939,9 @@
       "responsable": "claude",
       "estado": "pendiente",
       "detalle": "Desde S4 (D-386) lo que una persona pone o saca a mano se guarda por asunto; conviven las decisiones entre pares de documentos ('mismo asunto', 'asuntos distintos') que ya existían y que descartar la propuesta del modelo para un documento suelto sigue usando. Además, lo puesto o sacado a mano no aparece todavía en la lista de decisiones del asunto ni se deshace desde ahí (se vuelve a agregar o a sacar). Ver si las decisiones entre pares pasan a ser por asunto y cómo se muestran y deshacen.",
-      "depende_de": ["P-061"],
+      "depende_de": [
+        "P-061"
+      ],
       "referencia": "D-386",
       "creado": "2026-10-20",
       "actualizado": "2026-10-20"
@@ -1939,7 +1953,9 @@
       "responsable": "claude",
       "estado": "pendiente",
       "detalle": "En parte resuelto en W3 (D-407): el artículo de persona u organización, asunto y documento sale de la base (ya no del archivo del wiki), sus enlaces abren la pantalla de lo que nombran sin ningún proyecto abierto, y debajo dice cuándo lo escribió la app y que una corrección se ve cuando lo vuelve a escribir. Queda: una corrección en «Datos y correcciones» se ve en el artículo recién cuando la proyección de fondo lo reescribe (corre con la lectura de fondo, que se rige por «Lectura automática», D-405). Ver si hace falta armarlo en el momento con el mismo código de knowledge/pages.rs.",
-      "depende_de": ["P-214"],
+      "depende_de": [
+        "P-214"
+      ],
       "referencia": "D-389; D-407",
       "creado": "2026-10-20",
       "actualizado": "2026-10-21"
@@ -1951,7 +1967,9 @@
       "responsable": "ambos",
       "estado": "pendiente",
       "detalle": "Desde D-395 la app no admite los proyectos de wiki originales y abre en Inicio. Si más adelante hace falta trabajar con un conjunto aparte (un cliente, una investigación), definir primero para qué sirve y cómo se apoya en la base, en lugar de volver a las carpetas de páginas.",
-      "depende_de": ["P-228"],
+      "depende_de": [
+        "P-228"
+      ],
       "referencia": "D-395; docs/design/retiro-del-wiki.md",
       "creado": "2026-10-21",
       "actualizado": "2026-10-21"
@@ -1963,7 +1981,9 @@
       "responsable": "ambos",
       "estado": "pendiente",
       "detalle": "Lint sale (D-399). Definir una revisión con el modelo que agregue valor en la estructura nueva: contradicciones y divergencias entre lo que dicen los documentos de una persona, organización o asunto, con sus citas, y cómo se muestran en Atención. Usa el modelo: cuidar cuándo corre y cuánto pregunta.",
-      "depende_de": ["P-228"],
+      "depende_de": [
+        "P-228"
+      ],
       "referencia": "D-399; docs/design/retiro-del-wiki.md",
       "creado": "2026-10-21",
       "actualizado": "2026-10-21"
@@ -1974,9 +1994,11 @@
       "tipo": "codigo",
       "responsable": "ambos",
       "estado": "pendiente",
-      "detalle": "Salen con el retiro del wiki (D-400) porque trabajaban sobre los proyectos y los archivos del wiki. Rehacerlos sobre la base: qué expone la API y con qué permisos, y dónde guarda el recortador lo que se trae de la web (separado de lo que dicen los documentos, como la investigación, D-397).",
-      "depende_de": ["P-228"],
-      "referencia": "D-400; docs/design/retiro-del-wiki.md",
+      "detalle": "Salen con el retiro del wiki (D-400) porque trabajaban sobre los proyectos y los archivos del wiki. Rehacerlos sobre la base: qué expone la API y con qué permisos, y dónde guarda el recortador lo que se trae de la web (separado de lo que dicen los documentos, como la investigación, D-397). 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/.",
+      "depende_de": [
+        "P-228"
+      ],
+      "referencia": "D-400; docs/design/retiro-del-wiki.md; docs/design/servicios-de-ia-propuesta.md",
       "creado": "2026-10-21",
       "actualizado": "2026-10-21"
     },
@@ -1999,7 +2021,9 @@
       "responsable": "claude",
       "estado": "pendiente",
       "detalle": "La importación única (D-403) guarda aparte, con el título de su página, las notas de una página del wiki que no corresponde a ninguna persona, organización, asunto ni documento (en la copia de la base real no hubo ninguna). Mostrarlas en alguna pantalla (por ejemplo Atención) para leerlas, pasarlas a una ficha o borrarlas: comandos docbase_knowledge_orphan_notes y docbase_knowledge_delete_note.",
-      "depende_de": ["P-228"],
+      "depende_de": [
+        "P-228"
+      ],
       "referencia": "D-403; src-tauri/src/docbase/knowledge/articles.rs",
       "creado": "2026-10-21",
       "actualizado": "2026-10-21"
@@ -2011,7 +2035,9 @@
       "responsable": "claude",
       "estado": "hecho",
       "detalle": "Hecho en W5 (D-414): la investigación de un hueco del grafo se guarda en la base, del objeto de su nodo cuando es una persona, organización o asunto; si no, suelta. Ya no pide proyecto.",
-      "depende_de": ["P-228"],
+      "depende_de": [
+        "P-228"
+      ],
       "referencia": "D-397, D-411, D-414; src/components/graph/graph-view.tsx (handleResearchClick)",
       "creado": "2026-10-21",
       "actualizado": "2026-10-21"
@@ -2034,7 +2060,7 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "a-verificar",
-      "detalle": "El chat ya lee y guarda todo en la base (D-413) y su historial está en la carpeta de datos (D-415), pero el comando del agente todavía resuelve un proyecto para su carpeta de trabajo, las habilidades de `.llm-wiki/skills` y las sesiones del agente que guarda la API; y el guardado automático del chat todavía espera un proyecto abierto. Al quitar los proyectos (W6), darles un lugar en la carpeta de datos. Hecho en W6 (D-418): la carpeta del agente es `<datos de la app>/agent`, con sus sesiones, sus habilidades y lo que produce; los modelos de línea de comandos trabajan ahí; el guardado automático espera a haber leído el historial. Falta verlo en la app (W7): una pregunta al chat con el modelo configurado y el historial anterior visible.",
+      "detalle": "El chat ya lee y guarda todo en la base (D-413) y su historial está en la carpeta de datos (D-415), pero el comando del agente todavía resuelve un proyecto para su carpeta de trabajo, las habilidades de `.llm-wiki/skills` y las sesiones del agente que guarda la API; y el guardado automático del chat todavía espera un proyecto abierto. Al quitar los proyectos (W6), darles un lugar en la carpeta de datos. Hecho en W6 (D-418): la carpeta del agente es `<datos de la app>/agent`, con sus sesiones, sus habilidades y lo que produce; los modelos de línea de comandos trabajan ahí; el guardado automático espera a haber leído el historial. Falta verlo en la app (W7): una pregunta al chat con el modelo configurado y el historial anterior visible. 21 oct: el chat no necesita nada más para usarse (motor del chat: Codex gpt-6-luna alto); falta la pregunta de prueba (paso 0c de docs/design/servicios-de-ia-propuesta.md).",
       "depende_de": [
         "P-228"
       ],
@@ -2062,11 +2088,11 @@
       "tipo": "codigo",
       "responsable": "ambos",
       "estado": "pendiente",
-      "detalle": "Hasta W6 el texto de los documentos que son imagen (escaneos, fotos) lo reconocía la incorporación del wiki con el motor configurado y se lo devolvía a la base; al retirarla, quedan en «tienen el texto en imagen» sin que nada los lea, y no se comparan ni se leen sus personas ni sus asuntos. Usar el motor conservado (D-420) desde la base: una vez por documento, solo mientras la lectura automática esté activa, con aviso de costo, guardando el texto con `store_recognized_text`. Prioridad alta para un estudio con escaneos.",
+      "detalle": "Hasta W6 el texto de los documentos que son imagen (escaneos, fotos) lo reconocía la incorporación del wiki con el motor configurado y se lo devolvía a la base; al retirarla, quedan en «tienen el texto en imagen» sin que nada los lea, y no se comparan ni se leen sus personas ni sus asuntos. Usar el motor conservado (D-420) desde la base: una vez por documento, solo mientras la lectura automática esté activa, con aviso de costo, guardando el texto con `store_recognized_text`. Prioridad alta para un estudio con escaneos. 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/.",
       "depende_de": [
         "P-228"
       ],
-      "referencia": "D-420; src-tauri/src/source_volume/recognition.rs, src-tauri/src/docbase/text.rs",
+      "referencia": "D-420; src-tauri/src/source_volume/recognition.rs, src-tauri/src/docbase/text.rs; docs/design/servicios-de-ia-propuesta.md",
       "creado": "2026-10-21",
       "actualizado": "2026-10-21"
     },
@@ -2081,6 +2107,68 @@
         "P-228"
       ],
       "referencia": "D-413, D-418; src/components/chat/chat-panel.tsx (NO_CONTEXT_FILES)",
+      "creado": "2026-10-21",
+      "actualizado": "2026-10-21"
+    },
+    {
+      "id": "P-244",
+      "titulo": "Respuesta de Core al mensaje 001 (reconocimiento de texto y conexión)",
+      "tipo": "decision",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "detalle": "Desktop pidió a Core, por el buzón docs/dropbox/core/ (mensaje 001), acceso de desarrollo con un usuario técnico, inicio de sesión de cada persona desde la app de escritorio, que el resultado diga qué proveedor leyó, pedidos repetidos, no guardar el resultado en Core, opciones de análisis (casillas, tablas, firmas), proveedor por pedido (manuscrito en castellano), y aclaraciones sobre ambiente, contrato, límites, región, uso de datos, cupos y lo que viene. Leer la respuesta en docs/dropbox/desktop/ del repositorio de Core (extrimian/mi-platform, rama dev) y reflejarla en el diseño y los pendientes.",
+      "depende_de": [],
+      "referencia": "docs/dropbox/core/2026-10-21-001-reconocimiento-y-conexion.md; D-421",
+      "creado": "2026-10-21",
+      "actualizado": "2026-10-21"
+    },
+    {
+      "id": "P-245",
+      "titulo": "Sin repeticiones en las páginas: citas dentro del texto, una sola lista de documentos",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "El dueño vio (21 oct) que en persona u organización «Referencias» y «Documentos» llevan a los mismos documentos; además «Referencias» y «Otros datos» repiten lo que la pestaña «Datos y correcciones» ya muestra con su cita y sus acciones. Las citas pasan a notas numeradas dentro del texto del Artículo (al pasar o tocar se ve la cita y se abre el documento); «Referencias» y «Otros datos» salen del Artículo; «Documentos» queda una vez, por asunto. Mismo criterio en documento y asunto. No cambia la síntesis ni sus preguntas al modelo.",
+      "depende_de": [],
+      "referencia": "docs/design/servicios-de-ia-propuesta.md (2.6, paso 0b); src-tauri/src/docbase/knowledge/pages.rs render()",
+      "creado": "2026-10-21",
+      "actualizado": "2026-10-21"
+    },
+    {
+      "id": "P-246",
+      "titulo": "Citas y enlaces con vista previa flotante (hovercard o popover; tooltip donde corresponda)",
+      "tipo": "codigo",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "detalle": "Ampliación pedida por el dueño (21 oct) de P-245: las citas numeradas del artículo y los enlaces a documentos, personas, organizaciones y asuntos evolucionan al patrón de vista previa flotante (hovercard o popover, como las vistas previas de Wikipedia), y a tooltip donde alcance. Punto de partida: las sugerencias de docs/design/hovercards-sugerencias.md (demoras, zona segura, teclado y táctil, contenido precalculado desde la base, librerías a evaluar). Definir el diseño con el dueño antes de construirlo; se hace más adelante.",
+      "depende_de": [
+        "P-245"
+      ],
+      "referencia": "docs/design/hovercards-sugerencias.md; docs/design/servicios-de-ia-propuesta.md (2.6)",
+      "creado": "2026-10-21",
+      "actualizado": "2026-10-21"
+    },
+    {
+      "id": "P-247",
+      "titulo": "Extraer las plantillas de los documentos y mostrarlas",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Prioridad alta (dueño, 21 oct). Hoy la base solo detecta que dos documentos comparten plantilla (relación «misma plantilla, otros datos», con qué datos cambian) y los agrupa en familias; no arma ni guarda la plantilla. Hacer: por cada familia de misma plantilla, el texto común con los campos variables (alineando los textos, sin modelo; el modelo solo si agrega valor para nombrar los campos), guardado en la base; una pantalla (o pestaña de la familia) con la plantilla, sus campos y el valor de cada documento; enlace desde el documento. Más adelante: crear documentos nuevos desde una plantilla (etapa 5 del diseño de la base). Antecedentes: medición de pasajes repetidos (P-211, N7).",
+      "depende_de": [],
+      "referencia": "docs/design/base-documental.md (plantilla y datos); docs/design/servicios-de-ia-propuesta.md (paso 0d)",
+      "creado": "2026-10-21",
+      "actualizado": "2026-10-21"
+    },
+    {
+      "id": "P-248",
+      "titulo": "Traer expedientes de portales judiciales con un navegador asistido (primero el SCW del PJN)",
+      "tipo": "decision",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "detalle": "Pedido del dueño (21 oct). Propuesta en docs/design/portales-judiciales-propuesta.md: una ventana del portal dentro de la app con perfil propio; el operador resuelve el desafío o inicia sesión (nunca se saltea); la app sigue sola en la misma sesión, descarga las actuaciones a una carpeta de un origen con sus datos y propone un asunto con la referencia del expediente. Un conector por portal. Revisar la propuesta y sus decisiones abiertas; primer paso: prototipo con el operador sobre un expediente de ejemplo.",
+      "depende_de": [],
+      "referencia": "docs/design/portales-judiciales-propuesta.md",
       "creado": "2026-10-21",
       "actualizado": "2026-10-21"
     }

@@ -37,6 +37,18 @@ Este repositorio es el fork `Micelya/llm_wiki` de `nashsu/llm_wiki` (remoto `ups
 - **Si el proceso requiere la IA, o la IA logra un resultado superior, se usa.** Ahorrar cupo, el costo del modelo o "agregar otro uso del modelo" no son argumentos para elegir un camino peor.
 - Antes de una prueba que consuma cupo, se le avisa al dueño del producto. Avisar no es lo mismo que evitar.
 
+## Micelya Core (el otro track) y cómo nos comunicamos
+
+- **Micelya Core** es la plataforma de servicios de IA y afines de Micelya (multiorganización; API REST con contrato OpenAPI, Keycloak, AWS: Bedrock, Textract, Transcribe…). Repositorio: `extrimian/mi-platform`, rama `dev` (privado; `gh` tiene acceso). Lo desarrolla el mismo equipo, en otro track con su propio agente.
+- **Desktop usa a Core como un proveedor más** de sus servicios de IA, elegible por servicio en Ajustes junto a motores locales o propios; Desktop tiene que seguir funcionando sin Core (D-291, D-422). Diseño: [`docs/design/servicios-de-ia-propuesta.md`](docs/design/servicios-de-ia-propuesta.md).
+- **Comunicación entre tracks, solo por escrito y por buzones** (D-421):
+  - Desktop escribe sus pedidos y preguntas a Core en [`docs/dropbox/core/`](docs/dropbox/core/) de este repositorio. **Solo escribe el agente de Desktop**; las reglas del buzón están en su `README.md`.
+  - Core escribe sus respuestas y avisos a Desktop en `docs/dropbox/desktop/` del repositorio de Core. **Desde acá solo se lee**; nunca se escribe en el repositorio de Core.
+  - **Al empezar una sesión de trabajo que toque servicios de IA o Core**, leer lo nuevo en `docs/dropbox/desktop/` de Core (`gh api "repos/extrimian/mi-platform/contents/docs/dropbox/desktop?ref=dev"`, o un clon de solo lectura en el scratchpad) y reflejar lo que corresponda en los pendientes, el diseño y un mensaje nuevo si hace falta.
+  - Los pendientes de cada proyecto tienen numeraciones propias que se repiten: decir siempre "Desktop P-xxx" o "Core P-xxx".
+  - Nunca datos de clientes ni de documentos reales en un mensaje (R-24).
+- Antes de depender de algo de Core, verificarlo en su rama `dev` (contrato `packages/contracts/src/http/openapi.yaml`) y probar contra un Core simulado.
+
 ## Upstream
 
 - **No vamos a sincronizar con upstream** (`nashsu/llm_wiki`). El proyecto diverge de forma definitiva: lo que haga upstream ya no nos interesa.
