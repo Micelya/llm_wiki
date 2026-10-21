@@ -1882,13 +1882,13 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "Una sola vista por cosa (D-376): arriba el artículo, en una pestaña los datos y las correcciones. La de persona u organización está hecha (D-389: pestañas «Artículo», que muestra su página del wiki tal como la escribió la proyección, y «Datos y correcciones»; los enlaces del wiki a la página llevan a la pantalla). Faltan la del asunto (pantalla Asuntos y su página del wiki) y la del documento (detalle de Documentos y su página del wiki, Sources).",
+      "detalle": "Una sola vista por cosa (D-376): arriba el artículo, en una pestaña los datos y las correcciones. La de persona u organización está hecha (D-389: pestañas «Artículo», que muestra su página del wiki tal como la escribió la proyección, y «Datos y correcciones»; los enlaces del wiki a la página llevan a la pantalla). Faltan la del asunto (pantalla Asuntos y su página del wiki) y la del documento (detalle de Documentos y su página del wiki, Sources). 21 oct, pedido del dueño: documento y asunto con las mismas dos pestañas que persona u organización («Artículo» y «Datos y correcciones»); el asunto con su artículo. Va primero en el plan (paso 0a de docs/design/servicios-de-ia-propuesta.md).",
       "depende_de": [
         "P-061"
       ],
-      "referencia": "D-376; D-389; docs/design/asuntos-propuesta.md (sección 5)",
+      "referencia": "D-376; D-389; docs/design/asuntos-propuesta.md (sección 5); docs/design/servicios-de-ia-propuesta.md (2.6, paso 0a)",
       "creado": "2026-10-20",
-      "actualizado": "2026-10-20"
+      "actualizado": "2026-10-21"
     },
     {
       "id": "P-215",
@@ -2060,7 +2060,7 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "a-verificar",
-      "detalle": "El chat ya lee y guarda todo en la base (D-413) y su historial está en la carpeta de datos (D-415), pero el comando del agente todavía resuelve un proyecto para su carpeta de trabajo, las habilidades de `.llm-wiki/skills` y las sesiones del agente que guarda la API; y el guardado automático del chat todavía espera un proyecto abierto. Al quitar los proyectos (W6), darles un lugar en la carpeta de datos. Hecho en W6 (D-418): la carpeta del agente es `<datos de la app>/agent`, con sus sesiones, sus habilidades y lo que produce; los modelos de línea de comandos trabajan ahí; el guardado automático espera a haber leído el historial. Falta verlo en la app (W7): una pregunta al chat con el modelo configurado y el historial anterior visible.",
+      "detalle": "El chat ya lee y guarda todo en la base (D-413) y su historial está en la carpeta de datos (D-415), pero el comando del agente todavía resuelve un proyecto para su carpeta de trabajo, las habilidades de `.llm-wiki/skills` y las sesiones del agente que guarda la API; y el guardado automático del chat todavía espera un proyecto abierto. Al quitar los proyectos (W6), darles un lugar en la carpeta de datos. Hecho en W6 (D-418): la carpeta del agente es `<datos de la app>/agent`, con sus sesiones, sus habilidades y lo que produce; los modelos de línea de comandos trabajan ahí; el guardado automático espera a haber leído el historial. Falta verlo en la app (W7): una pregunta al chat con el modelo configurado y el historial anterior visible. 21 oct: el chat no necesita nada más para usarse (motor del chat: Codex gpt-6-luna alto); falta la pregunta de prueba (paso 0c de docs/design/servicios-de-ia-propuesta.md).",
       "depende_de": [
         "P-228"
       ],
@@ -2119,6 +2119,18 @@
       "detalle": "Desktop pidió a Core, por el buzón docs/dropbox/core/ (mensaje 001), acceso de desarrollo con un usuario técnico, inicio de sesión de cada persona desde la app de escritorio, que el resultado diga qué proveedor leyó, pedidos repetidos, no guardar el resultado en Core, opciones de análisis (casillas, tablas, firmas), proveedor por pedido (manuscrito en castellano), y aclaraciones sobre ambiente, contrato, límites, región, uso de datos, cupos y lo que viene. Leer la respuesta en docs/dropbox/desktop/ del repositorio de Core (extrimian/mi-platform, rama dev) y reflejarla en el diseño y los pendientes.",
       "depende_de": [],
       "referencia": "docs/dropbox/core/2026-10-21-001-reconocimiento-y-conexion.md; D-421",
+      "creado": "2026-10-21",
+      "actualizado": "2026-10-21"
+    },
+    {
+      "id": "P-245",
+      "titulo": "Sin repeticiones en las páginas: citas dentro del texto, una sola lista de documentos",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "El dueño vio (21 oct) que en persona u organización «Referencias» y «Documentos» llevan a los mismos documentos; además «Referencias» y «Otros datos» repiten lo que la pestaña «Datos y correcciones» ya muestra con su cita y sus acciones. Las citas pasan a notas numeradas dentro del texto del Artículo (al pasar o tocar se ve la cita y se abre el documento); «Referencias» y «Otros datos» salen del Artículo; «Documentos» queda una vez, por asunto. Mismo criterio en documento y asunto. No cambia la síntesis ni sus preguntas al modelo.",
+      "depende_de": [],
+      "referencia": "docs/design/servicios-de-ia-propuesta.md (2.6, paso 0b); src-tauri/src/docbase/knowledge/pages.rs render()",
       "creado": "2026-10-21",
       "actualizado": "2026-10-21"
     }

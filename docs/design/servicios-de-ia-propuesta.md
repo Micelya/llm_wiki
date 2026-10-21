@@ -1,7 +1,7 @@
 # Servicios de IA configurables, reconocimiento de texto y recuperación de Clip y la API — especificación y plan
 
 **Estado:** propuesta para revisar · 21 de octubre de 2026 · nada de esto está construido
-**Alcance:** cómo se configuran y usan los servicios de IA en Desktop (con Micelya Core como un proveedor más), cómo la base reconoce sola el texto de escaneos e imágenes, y cómo se recuperan sobre la base el recortador web (Clip) y el acceso para otros asistentes (API local y MCP). Lo que se pide o se pregunta al equipo de Core está en [`docs/dropbox/core/`](../dropbox/core/).
+**Alcance:** cómo se configuran y usan los servicios de IA en Desktop (con Micelya Core como un proveedor más), cómo la base reconoce sola el texto de escaneos e imágenes, y cómo se recuperan sobre la base el recortador web (Clip) y el acceso para otros asistentes (API local y MCP). Incluye, por pedido del dueño del 21 oct, el formato uniforme de las pantallas de documento, persona u organización y asunto, porque va primero en el plan. Lo que se pide o se pregunta al equipo de Core está en [`docs/dropbox/core/`](../dropbox/core/).
 
 ## 1. Por qué
 
@@ -67,12 +67,27 @@ Reglas:
 - El servidor MCP (paquete aparte, en la historia de git: `mcp-server/`) se adapta a esas herramientas.
 - Más adelante, cuando Core ofrezca MCP, ver si conviene que el acceso de otros asistentes pase por Core.
 
+### 2.6 Las pantallas con el mismo formato (pedido del dueño, 21 oct)
+
+- **Documento, persona u organización y asunto con las mismas dos pestañas:** «Artículo» (lo que se lee: el texto con sus citas) y «Datos y correcciones» (los datos uno por uno, con su cita y sus acciones). Hoy solo persona u organización las tiene; el documento muestra todo en una sola página y el asunto no tiene artículo.
+  - **Documento:** Artículo = tema, lo esencial con citas y certeza, importes, versiones y relacionados; Datos y correcciones = tipo y etapa, datos del tipo, personas y organizaciones con su rol, referencias, asuntos (agregar o sacar), ubicaciones y copias, texto completo, etiquetas.
+  - **Asunto:** Artículo = el que ya arma la base para el asunto (partes con su rol, lo que dicen sus documentos, documentos con su tipo y por qué están); Datos y correcciones = lo que hoy tiene la pantalla (nombre, confirmar o descartar, documentos firmes y propuestos, agregar y sacar, decisiones con deshacer).
+  - Las notas de una persona van al pie de las dos pestañas; la investigación en internet, en el Artículo.
+- **Sin repeticiones en persona u organización:** hoy el Artículo tiene «Referencias» (cada dato que usa la síntesis con su cita y su documento) y «Otros datos», y además «Documentos» (todos sus documentos por asunto); las tres llevan a los mismos documentos, y los datos con su cita ya están en «Datos y correcciones». Propuesta: las citas quedan **como notas numeradas dentro del texto** (al pasar o tocar el número se ve la cita y se abre el documento); «Referencias» y «Otros datos» salen del Artículo (siguen en Datos y correcciones, con sus acciones); «Documentos» queda una sola vez, por asunto. El mismo criterio vale para documento y asunto.
+
+### 2.7 El chat
+
+El chat ya está en el menú y, con el retiro del wiki (PR #60), busca y lee en la base; usa el motor configurado para el chat (hoy Codex, `gpt-6-luna`, razonamiento alto). No falta nada para usarlo. Falta **verificarlo con una pregunta real** (usa cupo; Desktop P-239) y lo pendiente: adjuntar al chat un documento de la base (Desktop P-243). Con el paso 1 del plan, el chat pasa a ser un servicio más del registro de motores.
+
 ## 3. Plan de trabajo
 
 Esfuerzo relativo (nunca en tiempo). Cada paso tiene algo visible para revisar en la app.
 
 | # | Paso | Esfuerzo | Depende de |
 |---|---|---|---|
+| 0a | **Pantallas con el mismo formato** (sección 2.6): pestañas Artículo y Datos y correcciones en documento y asunto; el asunto con su artículo. Sin modelo. | Chico a mediano | — |
+| 0b | **Sin repeticiones** en persona u organización (y documento y asunto): citas como notas dentro del texto; fuera «Referencias» y «Otros datos» del Artículo. Sin modelo (cambia cómo se escribe la página, no la síntesis). | Chico | — |
+| 0c | **Verificar el chat** con una pregunta real (con aviso de cupo) y guardar una consulta. | Chico | — |
 | 1 | **Registro de servicios y motores:** un lugar único en Ajustes con un renglón por servicio (preguntar, reconocer texto, investigar), su motor, su configuración y su motor alternativo; conexiones compartidas; secretos en el llavero; capacidades declaradas. Migra la configuración actual (`ask-engine`, ajustes del chat) sin cambiar el comportamiento. | Mediano | — |
 | 2 | **Reconocimiento en la base (P-242)** con el motor que existe (Codex): en segundo plano con la lectura automática, a pedido desde el documento y Atención, una vez por documento y motor. | Mediano | 1 |
 | 3 | **Pedido a Core** (`docs/dropbox/core/`), respuesta y acuerdo; organización de prueba y usuario técnico. No es código. | Chico | — |
@@ -83,7 +98,7 @@ Esfuerzo relativo (nunca en tiempo). Cada paso tiene algo visible para revisar e
 | 8 | **API local y MCP sobre la base**, de solo lectura primero. | Grande | 1 |
 | 9 | **Opciones de análisis** (tablas, casillas, firmas) y **lectura de imágenes con un modelo** cuando Core las ofrezca. | Según lo que ofrezca Core | 5 y la respuesta de Core |
 
-Los pasos 1 y 2 sirven aunque Core tarde; el 3 corre en paralelo.
+**Prioridad propuesta:** primero 0a, 0b y 0c (lo que se ve todos los días, sin modelo salvo la pregunta de prueba); después 1 y 2 (los escaneos nuevos quedan sin leer hasta entonces); el 3 corre en paralelo desde ya; 4 a 6 cuando Core responda; 7 y 8 después. Los pasos 1 y 2 sirven aunque Core tarde.
 
 ## 4. Decisiones abiertas para el dueño
 
