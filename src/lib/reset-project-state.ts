@@ -60,7 +60,7 @@ export async function resetProjectState(): Promise<void> {
   const [queueMod, dedupQueueMod, graphMod, fileSyncMod, scheduledImportMod] = await Promise.allSettled([
     import("@/lib/ingest-queue"),
     import("@/lib/dedup-queue"),
-    import("@/lib/graph-relevance"),
+    import("@/lib/wiki-graph"),
     import("@/lib/project-file-sync"),
     import("@/lib/scheduled-import"),
   ])
@@ -106,7 +106,7 @@ export async function resetProjectState(): Promise<void> {
       console.warn("[Reset Project State] clearGraphCache failed:", err)
     }
   } else {
-    console.warn("[Reset Project State] Failed to load graph-relevance:", graphMod.reason)
+    console.warn("[Reset Project State] Failed to load wiki-graph:", graphMod.reason)
   }
 
   if (fileSyncMod.status === "fulfilled") {

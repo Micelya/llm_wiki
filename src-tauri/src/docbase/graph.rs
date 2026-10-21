@@ -1,7 +1,10 @@
-//! The graph of the wiki of the archive, from the base (N5, D-351).
+//! The graph of the archive, from the base (N5, D-351, D-410).
 //!
-//! Nodes are the pages the base writes: each document (or family of
-//! versions), each person, organization, group and matter with a page.
+//! Nodes are the objects of the base, whether the projection wrote a page
+//! for them or not: the active people and organizations (an organization
+//! with companies in its group is a group), each visible document with its
+//! versions (one node per family, D-340), and the active matters with what
+//! a person decided of them (proposed or confirmed) and their status.
 //! Edges are the relations the base keeps, each with its type, its label
 //! from the vocabulary, a quote when it has one and its state:
 //!
@@ -12,29 +15,36 @@
 //!   template, signing certificate of...), never the discarded ones;
 //! - a matter and its documents; a group and its companies.
 //!
-//! The links written in the files are not read: an edge exists only when
-//! the relation exists in the base.
+//! Nothing is read from files: an edge exists only when the relation
+//! exists in the base.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use rusqlite::{params_from_iter, types::Value};
+use rusqlite::{params_from_iter, types::Value, OptionalExtension};
 use serde::Serialize;
 
+use super::knowledge::pages::{document_families, document_title};
 use super::knowledge::vocabulary::vocabulary;
 use super::{sql_err, DocBase, Visible};
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct BaseGraphNode {
-    /// The page's file name without `.md`, as the graph of pages names it.
+    /// The object: `ent-…`, `mat-…`, or `doc-…` (a document with its
+    /// versions), the id its screen, its article and its notes go by.
     pub id: String,
     pub label: String,
-    /// The page type: `source` for documents, `entity` for the rest.
-    pub page_type: String,
-    /// What it is: `document`, or the kind of entity (`persona`...).
+    /// What it is: the kind of entity (`persona`, `organizacion`...),
+    /// `grupo`, `documento` or `asunto`.
     pub kind: String,
-    /// The page, relative to the project.
-    pub path: String,
+    /// The logical path of its page in the base, while it has one.
+    pub path: Option<String>,
+    /// For a document: one place of it, to open its screen.
+    pub location_id: Option<i64>,
+    /// For a matter: `proposed` (by the app) or `confirmed` (by a person).
+    pub confirmation: Option<String>,
+    /// For a matter: its status (`open`...).
+    pub status: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -60,21 +70,19 @@ pub struct BaseGraph {
     pub edges: Vec<BaseGraphEdge>,
 }
 
-fn stem(path: &str) -> String {
-    let name = path.rsplit('/').next().unwrap_or(path);
-    name.strip_suffix(".md").unwrap_or(name).to_string()
-}
-
 impl DocBase {
-    /// The graph of the visible documents and the entities with a page.
+    /// The graph of the visible documents, the active entities and the
+    /// active matters.
     pub fn graph(&self, visible: &Visible) -> Result<BaseGraph, String> {
-        let document_pages = self.document_pages()?;
+        // Before taking the connection: the families read the base too.
+        let families = document_families(self)?;
         let conn = self.conn();
         let words = vocabulary();
         let (condition, bound) = visible.condition("l.origin_id");
-        let visible_contents: Vec<i64> = {
+        let visible_contents: BTreeSet<i64> = {
             let sql = format!(
-                "SELECT DISTINCT f.content_id FROM file f JOIN location l ON l.file_hash = f.hash WHERE {condition}"
+                "SELECT DISTINCT f.content_id FROM file f JOIN location l ON l.file_hash = f.hash
+                 WHERE l.kind = 'file' AND f.content_id IS NOT NULL AND {condition}"
             );
             let mut statement = conn.prepare(&sql).map_err(sql_err)?;
             let rows = statement
@@ -82,14 +90,8 @@ impl DocBase {
                 .map_err(sql_err)?;
             rows.collect::<Result<_, _>>().map_err(sql_err)?
         };
-        let page_of_content: HashMap<i64, String> = visible_contents
-            .iter()
-            .filter_map(|c| document_pages.get(c).map(|p| (*c, p.clone())))
-            .collect();
-        let entity_pages: HashMap<String, String> = {
-            let mut statement = conn
-                .prepare("SELECT entity_id, path FROM knowledge_page WHERE entity_id NOT LIKE 'doc-%'")
-                .map_err(sql_err)?;
+        let pages: HashMap<String, String> = {
+            let mut statement = conn.prepare("SELECT entity_id, path FROM knowledge_page").map_err(sql_err)?;
             let rows = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?))).map_err(sql_err)?;
             rows.collect::<Result<_, _>>().map_err(sql_err)?
         };
@@ -121,60 +123,97 @@ impl DocBase {
             edges.entry(key).or_insert(edge);
         };
 
-        // Documents.
-        let mut contents: Vec<(&i64, &String)> = page_of_content.iter().collect();
-        contents.sort();
-        for (content, path) in contents {
-            let id = stem(path);
-            if nodes.contains_key(&id) {
+        // Documents: one node per family with a visible version, named
+        // after the version its page is named after.
+        let mut family_of: HashMap<i64, String> = HashMap::new();
+        for (id, members) in &families {
+            let seen: Vec<i64> = members.iter().copied().filter(|m| visible_contents.contains(m)).collect();
+            if seen.is_empty() {
                 continue;
             }
-            // The title the wiki index read from the page, or the name of
-            // the document's first file.
-            let label: Option<String> = conn
-                .query_row("SELECT title FROM wiki_page WHERE path = ?1 ORDER BY id LIMIT 1", [path], |row| row.get(0))
-                .ok()
-                .or_else(|| {
-                    conn.query_row(
-                        "SELECT l.name FROM file f JOIN location l ON l.file_hash = f.hash WHERE f.content_id = ?1 ORDER BY l.id LIMIT 1",
-                        [content],
-                        |row| row.get(0),
-                    )
-                    .ok()
-                });
-            nodes.entry(id.clone()).or_insert(BaseGraphNode {
-                id: id.clone(),
-                label: label.unwrap_or_else(|| id.clone()),
-                page_type: "source".into(),
-                kind: "document".into(),
-                path: path.clone(),
-            });
-        }
-        // Entities and matters with a page.
-        let entity_node = |id: &str, nodes: &mut BTreeMap<String, BaseGraphNode>| -> Option<String> {
-            let path = entity_pages.get(id)?;
-            // A reference is data of its document, never a node (D-377),
-            // even while a page of before it is still there.
-            let entity_kind: Option<String> = conn.query_row("SELECT kind FROM knowledge_entity WHERE id = ?1", [id], |row| row.get(0)).ok();
-            if entity_kind.is_some_and(|k| vocabulary().is_reference(&k)) {
-                return None;
+            let mut location_id: Option<i64> = None;
+            for member in &seen {
+                let sql = format!(
+                    "SELECT l.id FROM location l JOIN file f ON f.hash = l.file_hash
+                     WHERE f.content_id = ?1 AND l.kind = 'file' AND {condition} ORDER BY l.id LIMIT 1"
+                );
+                let mut values = vec![Value::Integer(*member)];
+                values.extend(bound.iter().cloned().map(Value::Text));
+                location_id = conn.query_row(&sql, params_from_iter(values), |row| row.get(0)).optional().map_err(sql_err)?;
+                if location_id.is_some() {
+                    break;
+                }
             }
-            let node_id = stem(path);
-            if !nodes.contains_key(&node_id) {
-                let (name, kind): (String, String) = conn
-                    .query_row(
-                        "SELECT name, kind FROM knowledge_entity WHERE id = ?1
-                         UNION ALL SELECT name, 'asunto' FROM knowledge_matter WHERE id = ?1",
-                        [id],
-                        |row| Ok((row.get(0)?, row.get(1)?)),
-                    )
-                    .unwrap_or_else(|_| (id.to_string(), "entity".to_string()));
+            for member in &seen {
+                family_of.insert(*member, id.clone());
+            }
+            nodes.insert(
+                id.clone(),
+                BaseGraphNode {
+                    id: id.clone(),
+                    label: document_title(&conn, members[0])?,
+                    kind: "documento".into(),
+                    path: pages.get(id).cloned(),
+                    location_id,
+                    confirmation: None,
+                    status: None,
+                },
+            );
+        }
+        // People and organizations; a reference is data of its document,
+        // never a node (D-377).
+        let groups: BTreeSet<String> = {
+            let mut statement = conn.prepare("SELECT DISTINCT group_id FROM knowledge_group").map_err(sql_err)?;
+            let rows = statement.query_map([], |row| row.get(0)).map_err(sql_err)?;
+            rows.collect::<Result<_, _>>().map_err(sql_err)?
+        };
+        {
+            let mut statement = conn
+                .prepare("SELECT id, kind, name FROM knowledge_entity WHERE state = 'active' ORDER BY id")
+                .map_err(sql_err)?;
+            let rows = statement
+                .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)))
+                .map_err(sql_err)?;
+            for row in rows {
+                let (id, kind, name) = row.map_err(sql_err)?;
+                if words.is_reference(&kind) {
+                    continue;
+                }
+                let kind = if groups.contains(&id) { "grupo".to_string() } else { kind };
+                let path = pages.get(&id).cloned();
+                nodes.insert(id.clone(), BaseGraphNode { id, label: name, kind, path, location_id: None, confirmation: None, status: None });
+            }
+        }
+        // Matters a person has not discarded.
+        {
+            let mut statement = conn
+                .prepare("SELECT id, name, confirmation, status FROM knowledge_matter WHERE state = 'active' ORDER BY id")
+                .map_err(sql_err)?;
+            let rows = statement
+                .query_map([], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, String>(3)?))
+                })
+                .map_err(sql_err)?;
+            for row in rows {
+                let (id, name, confirmation, status) = row.map_err(sql_err)?;
+                let path = pages.get(&id).cloned();
                 nodes.insert(
-                    node_id.clone(),
-                    BaseGraphNode { id: node_id.clone(), label: name, page_type: "entity".into(), kind, path: path.clone() },
+                    id.clone(),
+                    BaseGraphNode {
+                        id,
+                        label: name,
+                        kind: "asunto".into(),
+                        path,
+                        location_id: None,
+                        confirmation: Some(confirmation),
+                        status: Some(status),
+                    },
                 );
             }
-            Some(node_id)
+        }
+        let node = |id: &str| -> Option<String> {
+            let id = root(id);
+            nodes.contains_key(&id).then_some(id)
         };
 
         // A document and the entities it names, one edge per role.
@@ -190,8 +229,8 @@ impl DocBase {
                 .map_err(sql_err)?;
             for row in rows {
                 let (content, entity, role, quote) = row.map_err(sql_err)?;
-                let Some(document) = page_of_content.get(&content).map(|p| stem(p)) else { continue };
-                let Some(target) = entity_node(&root(&entity), &mut nodes) else { continue };
+                let Some(document) = family_of.get(&content).cloned() else { continue };
+                let Some(target) = node(&entity) else { continue };
                 add_edge(BaseGraphEdge {
                     source: document,
                     target,
@@ -232,13 +271,11 @@ impl DocBase {
                     .unwrap_or_default()
                     .split(',')
                     .filter_map(|c| c.trim().parse::<i64>().ok())
-                    .any(|c| page_of_content.contains_key(&c));
+                    .any(|c| family_of.contains_key(&c));
                 if !seen {
                     continue;
                 }
-                let (Some(source), Some(target)) = (entity_node(&root(&subject), &mut nodes), entity_node(&root(&object), &mut nodes)) else {
-                    continue;
-                };
+                let (Some(source), Some(target)) = (node(&subject), node(&object)) else { continue };
                 let level = certainty
                     .and_then(|c| serde_json::from_str::<serde_json::Value>(&c).ok())
                     .and_then(|v| v.get("level").and_then(|l| l.as_str()).map(str::to_string));
@@ -253,7 +290,8 @@ impl DocBase {
                 });
             }
         }
-        // Documents the computation of similar documents relates.
+        // Documents the computation of similar documents relates; two
+        // versions of one document are one node.
         {
             let mut statement = conn
                 .prepare(
@@ -265,9 +303,7 @@ impl DocBase {
                 .map_err(sql_err)?;
             for row in rows {
                 let (a, b, relation, state) = row.map_err(sql_err)?;
-                let (Some(source), Some(target)) = (page_of_content.get(&a).map(|p| stem(p)), page_of_content.get(&b).map(|p| stem(p))) else {
-                    continue;
-                };
+                let (Some(source), Some(target)) = (family_of.get(&a).cloned(), family_of.get(&b).cloned()) else { continue };
                 let label = words.pages.words.get(&format!("rel-{relation}")).cloned().unwrap_or_else(|| relation.replace('-', " "));
                 add_edge(BaseGraphEdge { source, target, family: "similar".into(), kind: relation, label, quote: None, state });
             }
@@ -282,8 +318,8 @@ impl DocBase {
                 .map_err(sql_err)?;
             for row in rows {
                 let (matter, content, state) = row.map_err(sql_err)?;
-                let Some(document) = page_of_content.get(&content).map(|p| stem(p)) else { continue };
-                let Some(source) = entity_node(&matter, &mut nodes) else { continue };
+                let Some(document) = family_of.get(&content).cloned() else { continue };
+                let Some(source) = node(&matter) else { continue };
                 add_edge(BaseGraphEdge {
                     source,
                     target: document,
@@ -297,21 +333,20 @@ impl DocBase {
         }
         // A group and its companies.
         {
+            let label = words.pages.words.get("groupOf").cloned().unwrap_or_else(|| words.type_label("grupo").to_string());
             let mut statement = conn.prepare("SELECT group_id, member_id FROM knowledge_group").map_err(sql_err)?;
             let rows = statement
                 .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))
                 .map_err(sql_err)?;
             for row in rows {
                 let (group, member) = row.map_err(sql_err)?;
-                let (Some(source), Some(target)) = (entity_node(&root(&group), &mut nodes), entity_node(&root(&member), &mut nodes)) else {
-                    continue;
-                };
+                let (Some(source), Some(target)) = (node(&group), node(&member)) else { continue };
                 add_edge(BaseGraphEdge {
                     source,
                     target,
                     family: "group".into(),
                     kind: "group".into(),
-                    label: words.type_label("grupo").to_string(),
+                    label: label.clone(),
                     quote: None,
                     state: "proposed".into(),
                 });

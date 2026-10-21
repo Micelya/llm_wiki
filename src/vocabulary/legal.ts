@@ -91,6 +91,7 @@ export const legal: Vertical = {
           organizacion: { one: "Organización", many: "Organizaciones" },
           asunto: { one: "Asunto", many: "Asuntos" },
         },
+        groups: { one: "Grupo de sociedades", many: "Grupos de sociedades" },
         roles: {
           parte: "parte",
           apoderado: "apoderado",
@@ -240,6 +241,7 @@ export const legal: Vertical = {
           organizacion: { one: "Organization", many: "Organizations" },
           asunto: { one: "Matter", many: "Matters" },
         },
+        groups: { one: "Group of companies", many: "Groups of companies" },
         roles: {
           parte: "party",
           apoderado: "attorney",

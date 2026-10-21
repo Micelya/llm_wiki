@@ -2003,6 +2003,30 @@
       "referencia": "D-403; src-tauri/src/docbase/knowledge/articles.rs",
       "creado": "2026-10-21",
       "actualizado": "2026-10-21"
+    },
+    {
+      "id": "P-236",
+      "titulo": "Investigar desde el grafo sobre la ficha del nodo",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "El análisis del grafo ofrece «Investigar en internet» para un hueco o un punto clave, pero todavía lanza la investigación heredada con el proyecto abierto (queueResearch). Con la investigación por ficha (W5), lanzarla sobre el objeto del nodo (persona, organización o asunto) y guardarla en la base asociada a él; sin proyecto.",
+      "depende_de": ["P-228"],
+      "referencia": "D-397, D-411; src/components/graph/graph-view.tsx (handleResearchClick)",
+      "creado": "2026-10-21",
+      "actualizado": "2026-10-21"
+    },
+    {
+      "id": "P-237",
+      "titulo": "Revisar con el dueño cómo se lee el grafo de la base",
+      "tipo": "verificacion",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "detalle": "El grafo suma ahora las personas y organizaciones sin página: muchos más nodos con una sola relación. Mirar con los datos reales si se lee: nombres de las aristas sobre el lienzo, el verde claro de un asunto propuesto frente al de uno confirmado, los nodos sin relaciones y si conviene ocultar por defecto a quienes aparecen en un solo documento.",
+      "depende_de": [],
+      "referencia": "D-410, D-411",
+      "creado": "2026-10-21",
+      "actualizado": "2026-10-21"
     }
   ]
 }

@@ -290,11 +290,18 @@ fn links_from_base(
 ) -> Result<PageLinksResponse, String> {
     use crate::docbase::knowledge::pages::NOTES_MARK;
     let graph = base.graph(&crate::docbase::Visible::All)?;
-    let here = file_stem(current_path).to_lowercase();
+    // The graph names objects; a page is the object whose page it is.
+    let stem = file_stem(current_path).to_lowercase();
+    let here = graph
+        .nodes
+        .iter()
+        .find(|n| n.path.as_deref().is_some_and(|p| file_stem(p).to_lowercase() == stem))
+        .map(|n| n.id.clone())
+        .unwrap_or_default();
     let path_of: BTreeMap<String, (String, String)> = graph
         .nodes
         .iter()
-        .map(|n| (n.id.to_lowercase(), (n.path.clone(), n.label.clone())))
+        .filter_map(|n| n.path.as_ref().map(|p| (n.id.clone(), (p.clone(), n.label.clone()))))
         .collect();
     let describe = |edge: &crate::docbase::graph::BaseGraphEdge| -> String {
         match edge.quote.as_deref().filter(|q| !q.trim().is_empty()) {
@@ -305,11 +312,10 @@ fn links_from_base(
     let mut outgoing: Vec<PageLinkEntry> = Vec::new();
     let mut backlinks: Vec<PageLinkEntry> = Vec::new();
     for edge in &graph.edges {
-        let (source, target) = (edge.source.to_lowercase(), edge.target.to_lowercase());
-        let (other, list) = if source == here {
-            (target, &mut outgoing)
-        } else if target == here {
-            (source, &mut backlinks)
+        let (other, list) = if !here.is_empty() && edge.source == here {
+            (edge.target.clone(), &mut outgoing)
+        } else if !here.is_empty() && edge.target == here {
+            (edge.source.clone(), &mut backlinks)
         } else {
             continue;
         };

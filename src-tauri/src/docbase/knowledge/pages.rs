@@ -51,6 +51,15 @@ mod import;
 #[cfg(test)]
 mod check_retire;
 
+pub(crate) use family::document_title;
+
+/// Each document of the base with its versions (D-340): the id of the
+/// family (`doc-…`, what its page and notes are kept under) and its
+/// documents, the one it is named after first.
+pub(crate) fn document_families(base: &DocBase) -> Result<Vec<(String, Vec<i64>)>, String> {
+    Ok(family::families(base, vocabulary())?.list.into_iter().map(|f| (f.id, f.members)).collect())
+}
+
 /// Version of the question that writes what the documents say.
 pub const SYNTHESIS_PROMPT: &str = "sintesis-3";
 /// Raised when a change in the program changes what a projection writes

@@ -7,7 +7,7 @@ import { useResearchStore } from "@/stores/research-store"
 import { getQueue, pauseQueue } from "./ingest-queue"
 
 // Dynamic-import mocks: resetProjectState uses `import("@/lib/ingest-queue")`
-// and `import("@/lib/graph-relevance")` at runtime. vi.mock hoists these
+// and `import("@/lib/wiki-graph")` at runtime. vi.mock hoists these
 // so the promise resolves to our stub immediately.
 vi.mock("./ingest-queue", async () => {
   const actual = await vi.importActual<typeof import("./ingest-queue")>("./ingest-queue")
@@ -17,11 +17,11 @@ vi.mock("./ingest-queue", async () => {
   }
 })
 
-vi.mock("./graph-relevance", () => ({
+vi.mock("./wiki-graph", () => ({
   clearGraphCache: vi.fn(),
 }))
 
-import { clearGraphCache } from "./graph-relevance"
+import { clearGraphCache } from "./wiki-graph"
 
 const mockPauseQueue = vi.mocked(pauseQueue)
 const mockClearGraphCache = vi.mocked(clearGraphCache)

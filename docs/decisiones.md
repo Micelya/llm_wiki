@@ -353,6 +353,9 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-405 | 21 oct | Base documental | La lectura automática se rige por su propio ajuste, no por «Activar wiki» | en revisión |
 | D-407 | 21 oct | Interfaz | Las pantallas muestran el artículo y las notas desde la base; todo enlace abre una pantalla, nunca un archivo | en revisión |
 | D-408 | 21 oct | Interfaz | Una pantalla toma una sección del artículo por las palabras de la proyección; la búsqueda de la base no necesita proyecto | en revisión |
+| D-410 | 21 oct | Grafo | El grafo muestra los objetos de la base, con o sin página, y cada nodo abre su pantalla | en revisión |
+| D-411 | 21 oct | Grafo | Relevancia, comunidades y análisis salen de las relaciones de la base, con textos del vocabulario | en revisión |
+| D-412 | 21 oct | Interfaz | Los textos del grafo se escriben en español, fuera de los paquetes de traducción | en revisión |
 
 ---
 
@@ -4619,4 +4622,25 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Fecha:** 21 oct 2026 · **Tema:** Interfaz · **Estado:** en revisión (agente sin consulta, P-066)
 - **El problema:** el asunto y el documento muestran solo parte de su artículo, pero los títulos de sus secciones salen del vocabulario de la proyección, que puede reemplazarse; y la búsqueda solo usaba la base con el proyecto general abierto.
 - **Qué se decidió y por qué:** comando `docbase_knowledge_page_words` que da las palabras con que se escriben las páginas, para buscar la sección por su título sin escribirlo en la interfaz. Comando `docbase_search` que busca en la base sin proyecto (la misma búsqueda de D-350); la vista Buscar lo usa y abre pantallas; sus imágenes salen (las páginas de la base no tienen).
+- **Quién decidió:** agente sin consulta.
+
+### D-410 · El grafo muestra los objetos de la base, con o sin página, y cada nodo abre su pantalla
+
+- **Fecha:** 21 oct 2026 · **Tema:** Grafo · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** el grafo salía de la base pero solo con lo que tenía página (`knowledge_page`), identificaba cada nodo por el nombre del archivo, no decía si un asunto estaba propuesto o confirmado y al hacer clic abría un editor del archivo.
+- **Qué se decidió y por qué:** nodos: las personas y organizaciones activas (una organización con sociedades en su grupo es un «grupo de sociedades», término nuevo del vocabulario), cada documento visible con sus versiones (uno por familia, la misma de la proyección) y los asuntos activos con su confirmación y su estado. Cada nodo lleva el id de su objeto (`ent-…`, `mat-…`, `doc-…`) y la ruta lógica de su página si la tiene. Aristas como antes. El comando `docbase_graph` ya no pide proyecto. Clic en un nodo abre su pantalla (`openPageObject`); fuera el editor del grafo. Las aristas muestran su nombre; al pasar sobre una o tocarla, sus relaciones con su estado en palabras y su cita. Un asunto propuesto va en un verde más claro que uno confirmado, su estado se lee al enfocarlo, la leyenda los separa y un filtro oculta propuestos o confirmados. En la copia de la base real suman las personas y organizaciones sin página y los grupos, con sus aristas (medición fuera del repositorio, W4-medicion.txt).
+- **Quién decidió:** agente sin consulta.
+
+### D-411 · Relevancia, comunidades y análisis salen de las relaciones de la base, con textos del vocabulario
+
+- **Fecha:** 21 oct 2026 · **Tema:** Grafo · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la relevancia de las aristas leía los archivos del wiki (enlaces y fuentes del encabezado) y el análisis hablaba de páginas, en inglés, y sugería escribir enlaces.
+- **Qué se decidió y por qué:** la relevancia se calcula en memoria con cuatro señales: relaciones directas entre los dos (hasta tres), documentos que comparten, vecinos en común (Adamic-Adar) y cercanía de sus tipos. Comunidades (Louvain) igual que antes, sobre ese grafo. Análisis en español con los nombres del vocabulario: nodos sin ninguna relación (antes, una o ninguna: en la base casi todos tienen una), comunidades poco relacionadas por dentro y puntos clave (nodos que tocan tres comunidades o más); nunca pide escribir enlaces.
+- **Quién decidió:** agente sin consulta.
+
+### D-412 · Los textos del grafo se escriben en español, fuera de los paquetes de traducción
+
+- **Fecha:** 21 oct 2026 · **Tema:** Interfaz · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** la pantalla del grafo era la última de la base con sus textos en los paquetes de traducción heredados, que la muestran en inglés.
+- **Qué se decidió y por qué:** sus textos se escriben en español en la pantalla, como en las demás de la base, con los términos del dominio del vocabulario; la sección `graph` sale de los cuatro paquetes.
 - **Quién decidió:** agente sin consulta.

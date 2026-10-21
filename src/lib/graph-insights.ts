@@ -1,4 +1,13 @@
+import { type Vocabulary, vocabulary } from "@/vocabulary"
+import { nodesInWords } from "./graph-words"
 import type { GraphNode, GraphEdge, CommunityInfo } from "./wiki-graph"
+
+/**
+ * What the shape of the graph of the base points out (D-410): relations
+ * that join distant parts of the archive, and the gaps and key points of
+ * its communities. The texts use the profession's vocabulary; they never
+ * ask to write links: every relation comes from the documents.
+ */
 
 // ---------------------------------------------------------------------------
 // Types
@@ -41,13 +50,17 @@ export function researchSeedForKnowledgeGap(
   }
 }
 
+function formatDecimal(value: number): string {
+  return value.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+}
+
 // ---------------------------------------------------------------------------
 // Surprising Connections
 // ---------------------------------------------------------------------------
 
 /**
- * Find edges that are "surprising" — connecting nodes across communities,
- * across types, or linking peripheral nodes to hubs.
+ * Relations that stand out: between two communities, between a node with
+ * few relations and one of the most related, or among the weakest.
  */
 export function findSurprisingConnections(
   nodes: GraphNode[],
@@ -56,11 +69,10 @@ export function findSurprisingConnections(
   limit: number = 5,
 ): SurprisingConnection[] {
   const nodeMap = new Map(nodes.map((n) => [n.id, n]))
-  const degreeMap = new Map(nodes.map((n) => [n.id, n.linkCount]))
   const maxDegree = Math.max(...nodes.map((n) => n.linkCount), 1)
-
-  // Structural pages that link to everything — exclude from analysis
-  const STRUCTURAL_IDS = new Set(["index", "log", "overview"])
+  const weights = edges.map((edge) => edge.weight).sort((a, b) => a - b)
+  // The weakest quarter of the relations.
+  const weak = weights.length >= 4 ? weights[Math.floor(weights.length / 4)] : -Infinity
 
   const scored: SurprisingConnection[] = []
 
@@ -68,48 +80,25 @@ export function findSurprisingConnections(
     const source = nodeMap.get(edge.source)
     const target = nodeMap.get(edge.target)
     if (!source || !target) continue
-    if (STRUCTURAL_IDS.has(source.id) || STRUCTURAL_IDS.has(target.id)) continue
 
     let score = 0
     const reasons: string[] = []
 
-    // Signal 1: Cross-community edge (+3)
     if (source.community !== target.community) {
       score += 3
-      reasons.push("crosses community boundary")
+      reasons.push("une dos comunidades distintas")
     }
 
-    // Signal 2: Cross-type edge (+2 for distant types)
-    if (source.type !== target.type) {
-      const distantPairs = new Set([
-        "source-concept", "concept-source",
-        "source-synthesis", "synthesis-source",
-        "query-entity", "entity-query",
-      ])
-      const pair = `${source.type}-${target.type}`
-      if (distantPairs.has(pair)) {
-        score += 2
-        reasons.push(`connects ${source.type} to ${target.type}`)
-      } else {
-        score += 1
-        reasons.push("different types")
-      }
-    }
-
-    // Signal 3: Peripheral-to-hub coupling (+2)
-    const sourceDeg = degreeMap.get(source.id) ?? 0
-    const targetDeg = degreeMap.get(target.id) ?? 0
-    const minDeg = Math.min(sourceDeg, targetDeg)
-    const maxDeg = Math.max(sourceDeg, targetDeg)
+    const minDeg = Math.min(source.linkCount, target.linkCount)
+    const maxDeg = Math.max(source.linkCount, target.linkCount)
     if (minDeg <= 2 && maxDeg >= maxDegree * 0.5) {
       score += 2
-      reasons.push("peripheral node links to hub")
+      reasons.push("une a uno con pocas relaciones con uno de los más relacionados")
     }
 
-    // Signal 4: Low-weight edge between connected nodes (+1)
-    if (edge.weight < 2 && edge.weight > 0) {
+    if (edge.weight > 0 && edge.weight <= weak) {
       score += 1
-      reasons.push("weak but present connection")
+      reasons.push("es de las relaciones más débiles")
     }
 
     if (score >= 3 && reasons.length > 0) {
@@ -127,51 +116,50 @@ export function findSurprisingConnections(
 // ---------------------------------------------------------------------------
 
 /**
- * Detect knowledge gaps based on graph structure:
- * - Isolated nodes (degree ≤ 1)
- * - Sparse communities (fewer than 2 mean internal links per page, with ≥ 3 nodes)
- * - Bridge nodes (high betweenness — connected to multiple communities)
+ * Gaps and key points of the graph:
+ * - nodes without relations (a document nothing was read from, an entity
+ *   no visible document names);
+ * - communities whose nodes are barely related to each other (fewer than
+ *   two relations inside per node, with three nodes or more);
+ * - key points: nodes related to three communities or more.
  */
 export function detectKnowledgeGaps(
   nodes: GraphNode[],
   edges: GraphEdge[],
   communities: CommunityInfo[],
   limit: number = 8,
+  words: Vocabulary = vocabulary(),
 ): KnowledgeGap[] {
   const gaps: KnowledgeGap[] = []
   const nodeMap = new Map(nodes.map((n) => [n.id, n]))
 
-  // 1. Isolated nodes (degree ≤ 1, exclude overview/index)
-  const isolatedNodes = nodes.filter(
-    (n) => n.linkCount <= 1 && n.type !== "overview" && n.id !== "index" && n.id !== "log",
-  )
+  const isolatedNodes = nodes.filter((n) => n.linkCount === 0)
   if (isolatedNodes.length > 0) {
     const topIsolated = isolatedNodes.slice(0, 5)
     gaps.push({
       type: "isolated-node",
-      title: `${isolatedNodes.length} isolated page${isolatedNodes.length > 1 ? "s" : ""}`,
+      title: `Sin relaciones: ${nodesInWords(isolatedNodes, words)}`,
       description: topIsolated.map((n) => n.label).join(", ") +
-        (isolatedNodes.length > 5 ? ` and ${isolatedNodes.length - 5} more` : ""),
+        (isolatedNodes.length > 5 ? ` y ${isolatedNodes.length - 5} más` : ""),
       nodeIds: isolatedNodes.map((n) => n.id),
-      suggestion: "These pages have few or no connections. Consider adding [[wikilinks]] to related pages, or research to expand their content.",
+      suggestion: "La base no los relaciona con nada: puede ser un documento del que no se leyó a nadie, o un nombre que ningún documento visible menciona. Abrí su ficha para revisarlo.",
     })
   }
 
-  // 2. Sparse communities. Raw density shrinks as communities grow, so use
-  // mean internal degree: a stable and directly actionable metric.
+  // Mean internal degree, not raw density: density shrinks as communities grow.
   for (const comm of communities) {
     if (comm.meanIntraDegree < 2 && comm.nodeCount >= 3) {
+      const members = nodes.filter((n) => n.community === comm.id)
       gaps.push({
         type: "sparse-community",
-        title: `Sparse cluster: ${comm.topNodes[0] ?? `Community ${comm.id}`}`,
-        description: `${comm.nodeCount} pages average ${comm.meanIntraDegree.toFixed(1)} internal links per page.`,
-        nodeIds: nodes.filter((n) => n.community === comm.id).map((n) => n.id),
-        suggestion: `This knowledge area lacks internal cross-references. Consider adding links between these pages or researching to fill gaps.`,
+        title: `Comunidad poco relacionada: ${comm.topNodes[0] ?? `comunidad ${comm.id + 1}`}`,
+        description: `${nodesInWords(members, words)}, con ${formatDecimal(comm.meanIntraDegree)} relaciones internas en promedio.`,
+        nodeIds: members.map((n) => n.id),
+        suggestion: `Lo que la une es poco: pueden ser documentos de temas distintos, o documentos que todavía no se agruparon en ${words.knowledge.matters.toLowerCase()}.`,
       })
     }
   }
 
-  // 3. Bridge nodes (connected to multiple communities)
   const communityNeighbors = new Map<string, Set<number>>()
   for (const node of nodes) {
     communityNeighbors.set(node.id, new Set())
@@ -185,29 +173,19 @@ export function detectKnowledgeGaps(
     }
   }
 
-  const STRUCTURAL_IDS = new Set(["index", "log", "overview"])
-
   const bridgeNodes = nodes
-    .filter((n) => {
-      if (STRUCTURAL_IDS.has(n.id)) return false
-      const neighborComms = communityNeighbors.get(n.id)
-      return neighborComms && neighborComms.size >= 3
-    })
-    .sort((a, b) => {
-      const aComms = communityNeighbors.get(a.id)?.size ?? 0
-      const bComms = communityNeighbors.get(b.id)?.size ?? 0
-      return bComms - aComms
-    })
+    .filter((n) => (communityNeighbors.get(n.id)?.size ?? 0) >= 3)
+    .sort((a, b) => (communityNeighbors.get(b.id)?.size ?? 0) - (communityNeighbors.get(a.id)?.size ?? 0))
     .slice(0, 3)
 
   for (const bridge of bridgeNodes) {
     const commCount = communityNeighbors.get(bridge.id)?.size ?? 0
     gaps.push({
       type: "bridge-node",
-      title: `Key bridge: ${bridge.label}`,
-      description: `Connects ${commCount} different knowledge clusters. This is a critical junction in your wiki.`,
+      title: `Punto clave: ${bridge.label}`,
+      description: `Se relaciona con ${commCount} comunidades distintas.`,
       nodeIds: [bridge.id],
-      suggestion: `This page bridges multiple knowledge areas. Ensure it's well-maintained — if it's thin, expanding it will strengthen your entire wiki.`,
+      suggestion: "Lo que se diga de este nodo toca varias comunidades a la vez: conviene que su ficha esté revisada.",
     })
   }
 

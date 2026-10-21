@@ -1,70 +1,77 @@
 /**
- * The graph of the wiki of the archive comes from the base (D-351): nodes
- * are its pages and edges the relations the base keeps, with their type,
- * quote and state. The links written in the files are not read.
+ * The graph of the archive comes from the base (D-351, D-410): nodes are
+ * its objects (people, organizations, groups, documents, matters with what
+ * a person decided of them) and edges the relations the base keeps, with
+ * their type, quote and state. No file is read.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest"
 
 const mockInvoke = vi.fn()
-const mockListDirectory = vi.fn()
-const mockReadFile = vi.fn()
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: (...args: unknown[]) => mockInvoke(...args),
 }))
-vi.mock("@/commands/fs", () => ({
-  listDirectory: (...args: unknown[]) => mockListDirectory(...args),
-  readFile: (...args: unknown[]) => mockReadFile(...args),
-}))
+
+const base = {
+  nodes: [
+    { id: "doc-1", label: "Contrato de prueba", kind: "documento", path: "wiki/sources/contrato-1.md", locationId: 7, confirmation: null, status: null },
+    { id: "ent-a", label: "Ana Prueba", kind: "persona", path: null, locationId: null, confirmation: null, status: null },
+    { id: "ent-b", label: "Beto Ensayo", kind: "persona", path: null, locationId: null, confirmation: null, status: null },
+    { id: "mat-1", label: "Cobro de prueba", kind: "asunto", path: null, locationId: null, confirmation: "proposed", status: "open" },
+  ],
+  edges: [
+    { source: "doc-1", target: "ent-a", family: "mention", kind: "parte", label: "parte", quote: "Ana", state: "read" },
+    { source: "doc-1", target: "ent-a", family: "mention", kind: "firmante", label: "firmante", quote: null, state: "read" },
+    { source: "ent-b", target: "ent-a", family: "claim", kind: "representa_a", label: "representa a", quote: "en nombre de", state: "quoted" },
+    { source: "mat-1", target: "doc-1", family: "matter", kind: "matter", label: "caso", quote: null, state: "firm" },
+    { source: "doc-1", target: "nadie", family: "mention", kind: "parte", label: "parte", quote: null, state: "read" },
+  ],
+}
 
 beforeEach(() => {
   mockInvoke.mockReset()
-  mockListDirectory.mockReset()
-  mockReadFile.mockReset()
+  mockInvoke.mockResolvedValue(base)
 })
 
-describe("buildWikiGraph from the base", () => {
-  it("uses the pages and relations of the base and reads no file", async () => {
-    mockInvoke.mockResolvedValue({
-      nodes: [
-        { id: "contrato-1", label: "Contrato de prueba", pageType: "source", kind: "document", path: "wiki/sources/contrato-1.md" },
-        { id: "ana-prueba", label: "Ana Prueba", pageType: "entity", kind: "persona", path: "wiki/entities/ana-prueba.md" },
-        { id: "beto-ensayo", label: "Beto Ensayo", pageType: "entity", kind: "persona", path: "wiki/entities/beto-ensayo.md" },
-      ],
-      edges: [
-        { source: "contrato-1", target: "ana-prueba", family: "mention", kind: "parte", label: "parte", quote: "Ana", state: "read" },
-        { source: "contrato-1", target: "ana-prueba", family: "mention", kind: "firmante", label: "firmante", quote: null, state: "read" },
-        { source: "beto-ensayo", target: "ana-prueba", family: "claim", kind: "representa_a", label: "representa a", quote: "en nombre de", state: "quoted" },
-        { source: "contrato-1", target: "nadie", family: "mention", kind: "parte", label: "parte", quote: null, state: "read" },
-      ],
-    })
-    const { buildWikiGraph } = await import("../wiki-graph")
+describe("the graph of the base", () => {
+  it("uses the objects and relations of the base, with no project", async () => {
+    const { buildBaseGraph } = await import("../wiki-graph")
 
-    const graph = await buildWikiGraph("/proyecto")
+    const graph = await buildBaseGraph()
 
-    expect(mockInvoke).toHaveBeenCalledWith("docbase_graph", { projectPath: "/proyecto" })
-    expect(mockListDirectory).not.toHaveBeenCalled()
-    expect(graph.nodes.map((n) => n.id).sort()).toEqual(["ana-prueba", "beto-ensayo", "contrato-1"])
-    expect(graph.nodes.find((n) => n.id === "contrato-1")?.path).toBe("/proyecto/wiki/sources/contrato-1.md")
-    expect(graph.nodes.find((n) => n.id === "contrato-1")?.type).toBe("source")
-    // Two relations between the same pages are one edge carrying both.
-    expect(graph.edges).toHaveLength(2)
-    const party = graph.edges.find((e) => e.source === "contrato-1")
+    expect(mockInvoke).toHaveBeenCalledWith("docbase_graph")
+    expect(graph.nodes.map((n) => n.id).sort()).toEqual(["doc-1", "ent-a", "ent-b", "mat-1"])
+    expect(graph.nodes.find((n) => n.id === "doc-1")).toMatchObject({ type: "documento", locationId: 7 })
+    expect(graph.nodes.find((n) => n.id === "mat-1")).toMatchObject({ type: "asunto", confirmation: "proposed", status: "open" })
+    // Two relations between the same two are one edge carrying both.
+    expect(graph.edges).toHaveLength(3)
+    const party = graph.edges.find((e) => e.source === "doc-1")
     expect(party?.relations?.map((r) => r.kind)).toEqual(["parte", "firmante"])
-    expect(party?.weight).toBe(2)
-    const says = graph.edges.find((e) => e.source === "beto-ensayo")
+    const says = graph.edges.find((e) => e.source === "ent-b")
     expect(says?.relations?.[0]).toMatchObject({ label: "representa a", quote: "en nombre de", state: "quoted" })
+    // The relevance is computed: two relations weigh more than one.
+    const matter = graph.edges.find((e) => e.source === "mat-1")
+    expect(party!.weight).toBeGreaterThan(matter!.weight)
+    expect(graph.nodes.find((n) => n.id === "ent-a")?.linkCount).toBe(2)
   })
 
-  it("falls back to the links of the pages for any other project", async () => {
-    mockInvoke.mockResolvedValue(null)
-    mockListDirectory.mockResolvedValue([{ name: "a.md", path: "/otro/wiki/a.md", is_dir: false }])
-    mockReadFile.mockResolvedValue("---\ntitle: A\n---\n# A\n")
-    const { buildWikiGraph } = await import("../wiki-graph")
+  it("opens the screen of each node's object", async () => {
+    const { buildBaseGraph, objectOfNode } = await import("../wiki-graph")
+    const graph = await buildBaseGraph()
+    const byId = (id: string) => objectOfNode(graph.nodes.find((n) => n.id === id)!)
 
-    const graph = await buildWikiGraph("/otro")
+    expect(byId("doc-1")).toMatchObject({ kind: "document", objectId: "doc-1", contentId: 1, locationId: 7 })
+    expect(byId("ent-a")).toMatchObject({ kind: "entity", objectId: "ent-a" })
+    expect(byId("mat-1")).toMatchObject({ kind: "matter", objectId: "mat-1" })
+  })
 
-    expect(mockListDirectory).toHaveBeenCalled()
-    expect(graph.nodes.map((n) => n.id)).toEqual(["a"])
+  it("reuses an unchanged graph by data version", async () => {
+    const { buildBaseGraph } = await import("../wiki-graph")
+
+    const first = await buildBaseGraph(42)
+    const second = await buildBaseGraph(42)
+
+    expect(second).toBe(first)
+    expect(mockInvoke).toHaveBeenCalledTimes(1)
   })
 })

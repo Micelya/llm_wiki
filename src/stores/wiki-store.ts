@@ -257,6 +257,7 @@ export function createDefaultGraphUiState(): GraphUiState {
       ...DEFAULT_GRAPH_FILTERS,
       hiddenTypes: new Set(),
       hiddenNodeIds: new Set(),
+      hiddenConfirmations: new Set(),
     },
     nodeScale: 1,
     graphSpacingDraft: 1,

@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest"
 import type { GraphEdge, GraphNode } from "@/lib/wiki-graph"
-import { applyGraphFilters, DEFAULT_GRAPH_FILTERS, hasActiveGraphFilters, isStructuralGraphNode, type GraphFilterState } from "./graph-filters"
+import { applyGraphFilters, DEFAULT_GRAPH_FILTERS, hasActiveGraphFilters, type GraphFilterState } from "./graph-filters"
 
 const nodes: GraphNode[] = [
-  { id: "index", label: "Index", type: "other", path: "/p/wiki/index.md", linkCount: 4, community: 0 },
-  { id: "concept-a", label: "Concept A", type: "concept", path: "/p/wiki/concepts/a.md", linkCount: 2, community: 0 },
-  { id: "entity-b", label: "Entity B", type: "entity", path: "/p/wiki/entities/b.md", linkCount: 3, community: 0 },
-  { id: "source-c", label: "Source C", type: "source", path: "/p/wiki/sources/c.md", linkCount: 1, community: 1 },
-  { id: "isolated", label: "Isolated", type: "concept", path: "/p/wiki/concepts/isolated.md", linkCount: 0, community: 2 },
+  { id: "index", label: "Index", type: "asunto", linkCount: 4, community: 0, confirmation: "proposed", status: "open" },
+  { id: "concept-a", label: "Concept A", type: "organizacion", linkCount: 2, community: 0 },
+  { id: "entity-b", label: "Entity B", type: "persona", linkCount: 3, community: 0 },
+  { id: "source-c", label: "Source C", type: "documento", linkCount: 1, community: 1 },
+  { id: "isolated", label: "Isolated", type: "organizacion", linkCount: 0, community: 2 },
 ]
 
 const edges: GraphEdge[] = [
@@ -22,32 +22,27 @@ function makeFilters(overrides: Partial<GraphFilterState> = {}): GraphFilterStat
     ...DEFAULT_GRAPH_FILTERS,
     hiddenTypes: new Set<string>(),
     hiddenNodeIds: new Set<string>(),
+    hiddenConfirmations: new Set<string>(),
     ...overrides,
   }
 }
 
 describe("graph filters", () => {
-  it("detects structural graph nodes by id, type, and path", () => {
-    expect(isStructuralGraphNode(nodes[0])).toBe(true)
-    expect(isStructuralGraphNode({ ...nodes[1], id: "overview", path: "/p/wiki/concepts/overview.md" })).toBe(true)
-    expect(isStructuralGraphNode({ ...nodes[1], type: "overview" })).toBe(true)
-    expect(isStructuralGraphNode(nodes[1])).toBe(false)
-  })
-
-  it("hides structural nodes and their connected edges by default", () => {
-    const out = applyGraphFilters(nodes, edges, makeFilters())
+  it("hides the matters by what a person decided of them", () => {
+    const out = applyGraphFilters(nodes, edges, makeFilters({ hiddenConfirmations: new Set(["proposed"]) }))
 
     expect(out.nodes.map((n) => n.id)).not.toContain("index")
     expect(out.edges).toEqual([
       { source: "concept-a", target: "entity-b", weight: 2 },
       { source: "source-c", target: "entity-b", weight: 3 },
     ])
+    const confirmedHidden = applyGraphFilters(nodes, edges, makeFilters({ hiddenConfirmations: new Set(["confirmed"]) }))
+    expect(confirmedHidden.nodes.map((n) => n.id)).toContain("index")
   })
 
   it("hides selected node types", () => {
     const out = applyGraphFilters(nodes, edges, makeFilters({
-      hideStructural: false,
-      hiddenTypes: new Set(["source"]),
+      hiddenTypes: new Set(["documento"]),
     }))
 
     expect(out.nodes.map((n) => n.id)).not.toContain("source-c")
@@ -56,7 +51,6 @@ describe("graph filters", () => {
 
   it("hides manually selected nodes", () => {
     const out = applyGraphFilters(nodes, edges, makeFilters({
-      hideStructural: false,
       hiddenNodeIds: new Set(["entity-b"]),
     }))
 
@@ -66,7 +60,6 @@ describe("graph filters", () => {
 
   it("hides hub nodes above the max link threshold", () => {
     const out = applyGraphFilters(nodes, edges, makeFilters({
-      hideStructural: false,
       maxLinks: 2,
     }))
 
@@ -77,7 +70,6 @@ describe("graph filters", () => {
 
   it("hides weakly connected nodes below the min link threshold", () => {
     const out = applyGraphFilters(nodes, edges, makeFilters({
-      hideStructural: false,
       minLinks: 2,
     }))
 
@@ -93,7 +85,6 @@ describe("graph filters", () => {
 
   it("hides isolated nodes when requested", () => {
     const out = applyGraphFilters(nodes, edges, makeFilters({
-      hideStructural: false,
       hideIsolated: true,
     }))
 
@@ -101,9 +92,9 @@ describe("graph filters", () => {
   })
 
   it("reports whether filters are active", () => {
-    expect(hasActiveGraphFilters(makeFilters({ hideStructural: false }))).toBe(false)
-    expect(hasActiveGraphFilters(makeFilters())).toBe(true)
-    expect(hasActiveGraphFilters(makeFilters({ hideStructural: false, hiddenNodeIds: new Set(["x"]) }))).toBe(true)
-    expect(hasActiveGraphFilters(makeFilters({ hideStructural: false, minLinks: 2 }))).toBe(true)
+    expect(hasActiveGraphFilters(makeFilters())).toBe(false)
+    expect(hasActiveGraphFilters(makeFilters({ hiddenNodeIds: new Set(["x"]) }))).toBe(true)
+    expect(hasActiveGraphFilters(makeFilters({ minLinks: 2 }))).toBe(true)
+    expect(hasActiveGraphFilters(makeFilters({ hiddenConfirmations: new Set(["proposed"]) }))).toBe(true)
   })
 })

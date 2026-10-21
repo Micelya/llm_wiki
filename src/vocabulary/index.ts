@@ -108,6 +108,8 @@ export interface KnowledgeTerms {
   referenceTypes: string[]
   /** The types of entity, by id, in singular and plural. */
   entityTypes: Record<string, { one: string; many: string }>
+  /** An organization with the companies of its group, in singular and plural: "Grupo de sociedades". */
+  groups: { one: string; many: string }
   /** The role a mention has in its document, by id. */
   roles: Record<string, string>
   /** What a claim says, by predicate id; `of` reads it from its object ("Representada por"). */

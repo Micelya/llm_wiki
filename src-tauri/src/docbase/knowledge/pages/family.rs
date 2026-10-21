@@ -199,11 +199,25 @@ pub(super) fn title_of(conn: &Connection, record: &Record, content: i64) -> Resu
         Some(document) if !document.name.is_empty() => document.name.clone(),
         _ => classify::name_of(conn, content)?,
     };
+    Ok(title_of_name(name, content))
+}
+
+/// The title of a document without the record: its file's name without
+/// the extension (the graph names documents so, D-410).
+pub(crate) fn document_title(conn: &Connection, content: i64) -> Result<String, String> {
+    Ok(title_of_name(classify::name_of(conn, content)?, content))
+}
+
+fn title_of_name(name: String, content: i64) -> String {
     let stem = match name.rfind('.') {
         Some(dot) if dot > 0 && name.len() - dot <= 6 => name[..dot].to_string(),
         _ => name,
     };
-    Ok(if stem.trim().is_empty() { format!("#{content}") } else { stem })
+    if stem.trim().is_empty() {
+        format!("#{content}")
+    } else {
+        stem
+    }
 }
 
 /// Where the page of a family goes: where it was (the links to it stay),
