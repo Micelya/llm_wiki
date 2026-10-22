@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button"
 import { getSimilarTemplate, type SimilarGroup, type Template } from "@/commands/docbase"
 import { relationName, vocabulary, type Vocabulary } from "@/vocabulary"
 import { cn } from "@/lib/utils"
+import { useTemplatesStore } from "@/stores/templates-store"
+import { useWikiStore } from "@/stores/wiki-store"
 import { formatCount, plural } from "./format"
 import { StatusBadge } from "./page"
 import { fieldName, fieldRows, placeLabel, possiblySameNames, rowIndexOf, templateSummary } from "./template"
@@ -21,6 +23,8 @@ const SELECT_CLASS =
 export function DocumentTemplate({ locationId, onOpen }: { locationId: number; onOpen: (locationId: number) => void }) {
   const template = useDocbaseQuery(`similar-template:${locationId}`, () => getSimilarTemplate(locationId))
   const [open, setOpen] = useState(false)
+  const openInSection = useOpenTemplate()
+  const words = vocabulary()
   const data = template.data
   if (!data) return null
   const others = data.documents.length - 1
@@ -32,9 +36,16 @@ export function DocumentTemplate({ locationId, onOpen }: { locationId: number; o
           Comparte la plantilla con {plural(others, "documento más", "documentos más")}.{" "}
           <span className="text-muted-foreground">{templateSummary(data)}</span>
         </p>
-        <Button size="sm" variant="outline" aria-expanded={open} onClick={() => setOpen(!open)}>
-          <LayoutTemplate /> {open ? "Ocultar la plantilla" : "Ver la plantilla"}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" aria-expanded={open} onClick={() => setOpen(!open)}>
+            <LayoutTemplate /> {open ? "Ocultar la plantilla" : "Ver la plantilla"}
+          </Button>
+          {data.documents[0] && (
+            <Button size="sm" variant="ghost" onClick={() => openInSection(data.documents[0].doc.locationId)}>
+              Abrir en {words.templates.name}
+            </Button>
+          )}
+        </div>
       </div>
       {open && (
         <div className="mt-3">
@@ -43,6 +54,16 @@ export function DocumentTemplate({ locationId, onOpen }: { locationId: number; o
       )}
     </div>
   )
+}
+
+/** Opens a template in the section «Plantillas», by the location of its principal. */
+export function useOpenTemplate(): (principalLocationId: number) => void {
+  const setActiveView = useWikiStore((s) => s.setActiveView)
+  const openTemplate = useTemplatesStore((s) => s.openTemplate)
+  return (principalLocationId) => {
+    openTemplate(principalLocationId)
+    setActiveView("templates")
+  }
 }
 
 /**
@@ -87,6 +108,21 @@ export function FamilyTemplate({ principalLocationId, onOpen }: { principalLocat
   return <TemplatePanel template={template.data} initialColumn={null} onOpen={onOpen} />
 }
 
+/** Whether a template is a proposal of the app or its family is confirmed. */
+export function TemplateStateBadge({ state, words = vocabulary() }: { state: Template["state"]; words?: Vocabulary }) {
+  return state === "confirmed" ? (
+    <StatusBadge tone="ok">{words.templates.confirmed}</StatusBadge>
+  ) : (
+    <StatusBadge tone="neutral" title="Nadie confirmó todavía su familia de documentos.">
+      {words.templates.proposed}
+    </StatusBadge>
+  )
+}
+
+function capitalized(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
 /**
  * A template: what its documents say alike, with the fields that change
  * marked in their place, and a table with the value of each document in
@@ -96,12 +132,15 @@ export function TemplatePanel({
   template,
   initialColumn,
   onOpen,
+  heading = true,
   words = vocabulary(),
 }: {
   template: Template
   /** The document whose values the text shows at first; `null`: the names of the fields. */
   initialColumn: number | null
   onOpen: (locationId: number) => void
+  /** Its own title and state; the section «Plantillas» shows them above. */
+  heading?: boolean
   words?: Vocabulary
 }) {
   const [column, setColumn] = useState<number | null>(initialColumn)
@@ -113,16 +152,12 @@ export function TemplatePanel({
 
   return (
     <div className="flex flex-col gap-3" data-template={template.principal}>
-      <div className="flex flex-wrap items-center gap-2">
-        <h3 className="font-medium">Plantilla</h3>
-        {template.state === "confirmed" ? (
-          <StatusBadge tone="ok">Confirmada</StatusBadge>
-        ) : (
-          <StatusBadge tone="neutral" title="Nadie confirmó todavía que estos documentos son de la misma plantilla.">
-            Propuesta
-          </StatusBadge>
-        )}
-      </div>
+      {heading && (
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="font-medium">{capitalized(words.templates.one)}</h3>
+          <TemplateStateBadge state={template.state} words={words} />
+        </div>
+      )}
       <p className="text-xs text-muted-foreground">
         Lo que todos los documentos dicen igual es la plantilla; lo resaltado cambia de un documento a otro. La armó la
         app comparando los textos, sin preguntarle a ningún modelo

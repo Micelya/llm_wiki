@@ -498,7 +498,7 @@ export interface TemplateField {
  * share, with the fields that change, and the value of each document.
  * Built without a model, also for families nobody confirmed ("proposed").
  */
-export interface Template {
+export interface Template extends TemplateKind {
   principal: number
   /** The document asked about (its content id). */
   asked: number
@@ -510,6 +510,41 @@ export interface Template {
   /** Pairs of documents (content ids) where nothing changes but a few words: possibly the same document. */
   possiblySame: [number, number][]
   computedAt: number
+  format: TemplateFormat
+}
+
+/**
+ * The type of document of a template's principal, which names the template
+ * until a person names it, and its order among the templates whose
+ * principal has the same type, when there is more than one.
+ */
+export interface TemplateKind {
+  docType: string | null
+  /** The name the model proposed for a type outside the catalog, or the one a person confirmed. */
+  proposedTypeName: string | null
+  typeRank: number | null
+}
+
+/** Where the format of a template comes from, as its principal is. */
+export type TemplateFormat = "word" | "pdf-text" | "pdf-form" | "scan" | "text"
+
+/** A template in the list of the section «Plantillas». */
+export interface TemplateSummary extends TemplateKind {
+  principal: DocRef
+  state: "proposed" | "confirmed"
+  /** The documents of it, the principal included. */
+  documents: number
+  /** Its fields, each once; of them, the wording that changes. */
+  fields: number
+  wordingFields: number
+  format: TemplateFormat
+  /** Pairs of its documents possibly the same document, undecided. */
+  possiblySame: number
+}
+
+/** Every template of the base, for the section «Plantillas». */
+export function listTemplates(): Promise<TemplateSummary[]> {
+  return invoke<TemplateSummary[]>("docbase_templates")
 }
 
 /** The documents similar to the one at this location. */

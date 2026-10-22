@@ -441,6 +441,14 @@ pub fn docbase_similar_template(state: State<'_, DocBaseState>, location_id: i64
     state.base()?.similar_template(&Visible::All, location_id)
 }
 
+/// Every template of the base, for the section «Plantillas» (D-466): its
+/// principal, its type, how many documents and fields it has, where its
+/// format comes from and its warnings. Reads only.
+#[tauri::command(async)]
+pub fn docbase_templates(state: State<'_, DocBaseState>) -> Result<Vec<similar::template::TemplateSummary>, String> {
+    state.base()?.templates(&Visible::All)
+}
+
 /// The relations a person can choose, as the catalog lists them. Their
 /// names come from the vocabulary.
 #[tauri::command(async)]

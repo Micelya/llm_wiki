@@ -48,6 +48,27 @@ export interface Vocabulary {
     /** Several: "Expedientes". */
     records: string
   }
+  /**
+   * The section of the templates the base finds in its documents (D-466):
+   * what the profession calls a model document to fill in. A notary's
+   * office may say "Minutas"; a firm, "Modelos".
+   */
+  templates: {
+    /** Its name in the navigation and as its title: "Plantillas". */
+    name: string
+    /** One sentence under its title. */
+    description: string
+    /** One of them, in the middle of a sentence: "plantilla". */
+    one: string
+    /** Several, in the middle of a sentence: "plantillas". */
+    many: string
+    /**
+     * What one is, as a badge, agreeing with the term: a proposal of the
+     * app until a person confirms its family ("Propuesta"), or confirmed.
+     */
+    proposed: string
+    confirmed: string
+  }
   /** Label groups offered to start with, most general first. */
   suggestedGroups: string[]
   /** The language the base writes its articles in when the user chose none, as an output-language value. */

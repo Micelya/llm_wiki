@@ -212,6 +212,8 @@ interface WikiState {
     | "attention" | "similar" | "document-types"
     // Who and what the documents name (the knowledge layer).
     | "entities" | "identity-doubts" | "matters"
+    // The templates the documents share (D-466).
+    | "templates"
     // The judicial portals (P-248).
     | "portals"
   llmConfig: LlmConfig

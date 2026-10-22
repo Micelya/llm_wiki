@@ -564,6 +564,45 @@ pub struct Template {
     /// undecided: possibly the same document.
     pub possibly_same: Vec<[i64; 2]>,
     pub computed_at: i64,
+    /// What it is called until a person names it: the type of its principal.
+    #[serde(flatten)]
+    pub kind: TemplateKind,
+    /// Where its format comes from (`format_of`).
+    pub format: String,
+}
+
+/// The type of document of a template's principal, which names the
+/// template until a person names it, and its order among the templates
+/// whose principal has the same type ("Recibo (2)"), when there is more
+/// than one.
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TemplateKind {
+    pub doc_type: Option<String>,
+    /// The name the model proposed for a type that is not in the catalog
+    /// (or the one a person confirmed).
+    pub proposed_type_name: Option<String>,
+    pub type_rank: Option<i64>,
+}
+
+/// A template in the list of the section «Plantillas».
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TemplateSummary {
+    pub principal: DocRef,
+    #[serde(flatten)]
+    pub kind: TemplateKind,
+    /// "confirmed" or "proposed", as `Template::state`.
+    pub state: String,
+    /// The documents of it the caller sees, the principal included.
+    pub documents: i64,
+    /// Its fields, each once however often the text says it; of them, the
+    /// wording that changes.
+    pub fields: i64,
+    pub wording_fields: i64,
+    pub format: String,
+    /// Pairs of its documents possibly the same document, undecided.
+    pub possibly_same: i64,
 }
 
 /// What a template is built from: its documents, their texts and the
@@ -664,7 +703,183 @@ pub(super) fn summary(conn: &Connection, principal: i64) -> Result<Option<(i64, 
     Ok(Some((fields, undecided(conn, &same)?.len() as i64)))
 }
 
+/// The type of each template's principal, and its order among the
+/// templates whose principal has the same type when there is more than one
+/// (by principal, so it does not change while they stay).
+fn template_kinds(conn: &Connection) -> Result<HashMap<i64, TemplateKind>, String> {
+    let rows: Vec<(i64, Option<String>, Option<String>)> = {
+        let mut statement = conn
+            .prepare(
+                "SELECT t.principal, dt.doc_type, dt.proposed_name FROM similar_template t
+                 LEFT JOIN document_type dt ON dt.content_id = t.principal
+                 WHERE EXISTS (SELECT 1 FROM similar_template_document d WHERE d.principal = t.principal)
+                 ORDER BY t.principal",
+            )
+            .map_err(sql_err)?;
+        let rows = statement
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+            .map_err(sql_err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(sql_err)?;
+        rows
+    };
+    let mut of_type: HashMap<String, i64> = HashMap::new();
+    for (_, doc_type, _) in &rows {
+        if let Some(doc_type) = doc_type {
+            *of_type.entry(doc_type.clone()).or_default() += 1;
+        }
+    }
+    let mut seen: HashMap<String, i64> = HashMap::new();
+    let mut out = HashMap::new();
+    for (principal, doc_type, proposed_type_name) in rows {
+        let type_rank = doc_type.as_ref().filter(|t| of_type.get(*t).copied().unwrap_or(0) > 1).map(|t| {
+            let n = seen.entry(t.clone()).or_default();
+            *n += 1;
+            *n
+        });
+        out.insert(principal, TemplateKind { doc_type, proposed_type_name, type_rank });
+    }
+    Ok(out)
+}
+
+/// Extensions of a file written in a word processor.
+const WORD_EXTS: &[&str] = &["doc", "docx", "odt", "rtf"];
+/// Extensions of a picture: its text is only pixels.
+const IMAGE_EXTS: &[&str] = &["jpg", "jpeg", "png", "tif", "tiff", "bmp", "gif", "webp", "heic"];
+
+/// Where the format of a template comes from, as its principal is: a Word
+/// file (`word`), a scan or a picture whose text a recognition read
+/// (`scan`), a PDF whose fields a person fills in (`pdf-form`), a PDF with
+/// its own text (`pdf-text`) or a file of plain text (`text`).
+fn format_of(conn: &Connection, principal: i64, has_form: bool) -> Result<String, String> {
+    let ext: String = conn
+        .query_row(
+            "SELECT lower(l.ext) FROM location l JOIN file f ON f.hash = l.file_hash WHERE f.content_id = ?1
+             ORDER BY l.id LIMIT 1",
+            [principal],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(sql_err)?
+        .unwrap_or_default();
+    let engine: Option<String> = conn
+        .query_row("SELECT engine FROM derivative WHERE content_id = ?1 AND kind = 'text'", [principal], |row| row.get(0))
+        .optional()
+        .map_err(sql_err)?;
+    let recognized = engine.is_some_and(|engine| engine != crate::docbase::text::EXTRACTION_ENGINE);
+    let format = if WORD_EXTS.contains(&ext.as_str()) {
+        "word"
+    } else if recognized || IMAGE_EXTS.contains(&ext.as_str()) {
+        "scan"
+    } else if ext == "pdf" && has_form {
+        "pdf-form"
+    } else if ext == "pdf" {
+        "pdf-text"
+    } else {
+        "text"
+    };
+    Ok(format.to_string())
+}
+
+/// The documents of a template the caller sees, the principal first, each
+/// with the state of its pair with the principal.
+fn template_documents(conn: &Connection, visible: &Visible, principal: i64) -> Result<Vec<TemplateDocument>, String> {
+    let ids: Vec<i64> = {
+        let mut statement = conn
+            .prepare("SELECT content_id FROM similar_template_document WHERE principal = ?1 ORDER BY position")
+            .map_err(sql_err)?;
+        let rows = statement
+            .query_map([principal], |row| row.get(0))
+            .map_err(sql_err)?
+            .collect::<Result<Vec<i64>, _>>()
+            .map_err(sql_err)?;
+        rows
+    };
+    let mut documents = Vec::new();
+    for id in &ids {
+        let Some(doc) = doc_ref(conn, visible, *id)? else { continue };
+        let state: Option<String> = if *id == principal {
+            None
+        } else {
+            conn.query_row(
+                "SELECT state FROM similar_pair WHERE a = ?1 AND b = ?2",
+                params![principal.min(*id), principal.max(*id)],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(sql_err)?
+        };
+        documents.push(TemplateDocument { doc, state });
+    }
+    Ok(documents)
+}
+
+/// "confirmed" when a person confirmed every document as of the same
+/// template as the principal; "proposed" otherwise.
+fn state_of(documents: &[TemplateDocument]) -> String {
+    let confirmed = documents.len() > 1 && documents.iter().skip(1).all(|d| d.state.as_deref() == Some("joined"));
+    if confirmed { "confirmed" } else { "proposed" }.to_string()
+}
+
+/// The pairs of these documents possibly the same document, undecided.
+fn possibly_same_of(conn: &Connection, same: &str, shown: &[i64]) -> Result<Vec<[i64; 2]>, String> {
+    let pairs: Vec<(i64, i64)> = serde_json::from_str(same).unwrap_or_default();
+    Ok(undecided(conn, &pairs)?
+        .into_iter()
+        .filter(|(a, b)| shown.contains(a) && shown.contains(b))
+        .map(|(a, b)| [a, b])
+        .collect())
+}
+
 impl DocBase {
+    /// Every template whose principal the caller sees, for the section
+    /// «Plantillas»: those of more documents first. Reads only.
+    pub fn templates(&self, visible: &Visible) -> Result<Vec<TemplateSummary>, String> {
+        let conn = self.conn();
+        let mut kinds = template_kinds(&conn)?;
+        let rows: Vec<(i64, String)> = {
+            let mut statement = conn
+                .prepare(
+                    "SELECT t.principal, t.same_documents FROM similar_template t
+                     WHERE EXISTS (SELECT 1 FROM similar_template_document d WHERE d.principal = t.principal)
+                     ORDER BY t.principal",
+                )
+                .map_err(sql_err)?;
+            let rows = statement
+                .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+                .map_err(sql_err)?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(sql_err)?;
+            rows
+        };
+        let mut out = Vec::new();
+        for (principal, same) in rows {
+            let Some(head) = doc_ref(&conn, visible, principal)? else { continue };
+            let documents = template_documents(&conn, visible, principal)?;
+            let shown: Vec<i64> = documents.iter().map(|d| d.doc.content_id).collect();
+            let (fields, wording_fields, has_form): (i64, i64, bool) = conn
+                .query_row(
+                    "SELECT count(*), coalesce(sum(kind = 'wording'), 0), coalesce(max(form_name IS NOT NULL), 0)
+                     FROM similar_template_field WHERE principal = ?1 AND same_as IS NULL",
+                    [principal],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .map_err(sql_err)?;
+            out.push(TemplateSummary {
+                principal: head,
+                kind: kinds.remove(&principal).unwrap_or_default(),
+                state: state_of(&documents),
+                documents: documents.len() as i64,
+                fields,
+                wording_fields,
+                format: format_of(&conn, principal, has_form)?,
+                possibly_same: possibly_same_of(&conn, &same, &shown)?.len() as i64,
+            });
+        }
+        out.sort_by(|a, b| b.documents.cmp(&a.documents).then(a.principal.content_id.cmp(&b.principal.content_id)));
+        Ok(out)
+    }
+
     /// Builds again the templates whose family changed, and forgets those
     /// of families that are gone or no longer share a template. Returns
     /// how many it built or forgot.
@@ -808,33 +1023,7 @@ impl DocBase {
         if doc_ref(&conn, visible, principal)?.is_none() {
             return Ok(None);
         }
-        let ids: Vec<i64> = {
-            let mut statement = conn
-                .prepare("SELECT content_id FROM similar_template_document WHERE principal = ?1 ORDER BY position")
-                .map_err(sql_err)?;
-            let rows = statement
-                .query_map([principal], |row| row.get(0))
-                .map_err(sql_err)?
-                .collect::<Result<Vec<i64>, _>>()
-                .map_err(sql_err)?;
-            rows
-        };
-        let mut documents = Vec::new();
-        for id in &ids {
-            let Some(doc) = doc_ref(&conn, visible, *id)? else { continue };
-            let state: Option<String> = if *id == principal {
-                None
-            } else {
-                conn.query_row(
-                    "SELECT state FROM similar_pair WHERE a = ?1 AND b = ?2",
-                    params![principal.min(*id), principal.max(*id)],
-                    |row| row.get(0),
-                )
-                .optional()
-                .map_err(sql_err)?
-            };
-            documents.push(TemplateDocument { doc, state });
-        }
+        let documents = template_documents(&conn, visible, principal)?;
         let shown: Vec<i64> = documents.iter().map(|d| d.doc.content_id).collect();
         let mut fields: Vec<TemplateField> = {
             let mut statement = conn
@@ -875,22 +1064,19 @@ impl DocBase {
                 }
             }
         }
-        let pairs: Vec<(i64, i64)> = serde_json::from_str(&same).unwrap_or_default();
-        let possibly_same = undecided(&conn, &pairs)?
-            .into_iter()
-            .filter(|(a, b)| shown.contains(a) && shown.contains(b))
-            .map(|(a, b)| [a, b])
-            .collect();
-        let confirmed = documents.len() > 1 && documents.iter().skip(1).all(|d| d.state.as_deref() == Some("joined"));
+        let possibly_same = possibly_same_of(&conn, &same, &shown)?;
+        let has_form = fields.iter().any(|f| f.form_name.is_some());
         Ok(Some(Template {
             principal,
             asked: content_id,
+            state: state_of(&documents),
             documents,
-            state: if confirmed { "confirmed" } else { "proposed" }.to_string(),
             segments: serde_json::from_str(&segments).unwrap_or_default(),
             fields,
             possibly_same,
             computed_at,
+            kind: template_kinds(&conn)?.remove(&principal).unwrap_or_default(),
+            format: format_of(&conn, principal, has_form)?,
         }))
     }
 }

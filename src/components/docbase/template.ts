@@ -1,5 +1,5 @@
-import type { Template, TemplateField } from "@/commands/docbase"
-import { templateFieldName, vocabulary, type Vocabulary } from "@/vocabulary"
+import type { Template, TemplateField, TemplateFormat, TemplateKind, TemplateSummary } from "@/commands/docbase"
+import { documentTypeName, templateFieldName, vocabulary, type Vocabulary } from "@/vocabulary"
 import { formatCount, plural } from "./format"
 
 /**
@@ -66,6 +66,51 @@ export function templateSummary(template: Template, words: Vocabulary = vocabula
 export function possiblySameNames(template: Template): [string, string][] {
   const name = (id: number) => template.documents.find((d) => d.doc.contentId === id)?.doc.name ?? String(id)
   return template.possiblySame.map(([a, b]) => [name(a), name(b)])
+}
+
+/**
+ * What a template is called: the type of its principal ("Recibo"), with
+ * its order when another template has the same type ("Recibo (2)"); with
+ * no type yet, by its principal.
+ */
+export function templateName(kind: TemplateKind, principalName: string, words: Vocabulary = vocabulary()): string {
+  if (!kind.docType) return `${capitalized(words.templates.one)} «${principalName}»`
+  const name = documentTypeName(kind.docType, kind.proposedTypeName, words)
+  return kind.typeRank && kind.typeRank > 1 ? `${name} (${kind.typeRank})` : name
+}
+
+function capitalized(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
+/** Where the format of a template comes from, in words. */
+export function formatName(format: TemplateFormat): string {
+  const names: Record<TemplateFormat, string> = {
+    word: "Word",
+    "pdf-text": "PDF con texto",
+    "pdf-form": "Formulario PDF",
+    scan: "Escaneo",
+    text: "Texto",
+  }
+  return names[format] ?? format
+}
+
+/** The line over the list: "12 plantillas con 49 documentos. Todavía no se confirmó ninguna familia." */
+export function templatesSummary(templates: TemplateSummary[], words: Vocabulary = vocabulary()): string {
+  const documents = templates.reduce((sum, t) => sum + t.documents, 0)
+  const confirmed = templates.filter((t) => t.state === "confirmed").length
+  const head = `${plural(templates.length, words.templates.one, words.templates.many)} con ${plural(documents, "documento", "documentos")}.`
+  if (confirmed === templates.length) return `${head} Las familias de todas están confirmadas.`
+  if (confirmed === 0) return `${head} Todavía no se confirmó ninguna familia.`
+  return `${head} ${formatCount(confirmed)} de ${formatCount(templates.length)} con la familia confirmada.`
+}
+
+/** The fields of a template in the list: "8 campos · 2 textos que cambian". */
+export function fieldsLine(template: Pick<TemplateSummary, "fields" | "wordingFields">): string {
+  if (template.fields === 0) return "ningún campo cambia"
+  const head = plural(template.fields, "campo", "campos")
+  if (template.wordingFields === 0) return head
+  return `${head} · ${plural(template.wordingFields, "texto que cambia", "textos que cambian")}`
 }
 
 /**

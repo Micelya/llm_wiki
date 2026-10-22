@@ -519,6 +519,62 @@ fn a_family_of_the_same_template_has_its_template_and_follows_its_family() {
     assert!(base.similar_template(&Visible::All, gone.location_id).unwrap().is_none());
 }
 
+/// Three invented receipts of one template, with `tag` in their fixed text
+/// so two sets of them are two templates.
+fn receipts(tag: &str) -> Vec<(String, Vec<u8>)> {
+    [("Persona Uno", "1.500,00", "10/01/2026"), ("Persona Dos", "2.750,00", "10/02/2026"), ("Persona Tres", "980,50", "10/03/2026")]
+        .iter()
+        .enumerate()
+        .map(|(i, (who, amount, date))| {
+            let body = format!(
+                "RECIBO {tag}. Recibí de {who} la suma de pesos $ {amount} en concepto de honorarios profesionales por la \
+                 consulta del día {date}, según lo convenido entre las partes en el acuerdo de servicios vigente. {}",
+                words(0..30, tag.len())
+            );
+            (format!("recibo {tag} {i}.md"), body.into_bytes())
+        })
+        .collect()
+}
+
+#[test]
+fn the_section_lists_every_template_with_its_documents_fields_and_type() {
+    let may = invoice("0003-00001377", "15/05/2026", "01/04/2026", "30/04/2026", "98.000,00", "20.580,00", "118.580,00", "25/05/2026");
+    let mut files: Vec<(String, Vec<u8>)> =
+        vec![("marzo.md".into(), march().into_bytes()), ("abril.md".into(), april().into_bytes()), ("mayo.md".into(), may.into_bytes())];
+    files.extend(receipts("A"));
+    let refs: Vec<(&str, Vec<u8>)> = files.iter().map(|(n, b)| (n.as_str(), b.clone())).collect();
+    let (_dir, base, _) = base_with(&refs);
+    let list = base.templates(&Visible::All).unwrap();
+    assert_eq!(list.len(), 2, "{list:?}");
+    let invoices = list.iter().find(|t| t.fields == 8).expect("the invoices' template");
+    assert_eq!(invoices.documents, 3);
+    assert_eq!(invoices.wording_fields, 0);
+    assert_eq!(invoices.state, "proposed");
+    assert_eq!(invoices.format, "text", "a file of plain text");
+    assert_eq!(invoices.possibly_same, 0);
+    // Without a type, it is named by nothing yet.
+    assert_eq!(invoices.kind, super::template::TemplateKind::default());
+
+    // Two templates whose principals have the same type are told apart by their order.
+    for template in &list {
+        base.conn()
+            .execute(
+                "INSERT INTO document_type (content_id, doc_type, source, basis, computed_at) VALUES (?1, 'recibo', 'model', 'x', 1)",
+                [template.principal.content_id],
+            )
+            .unwrap();
+    }
+    let list = base.templates(&Visible::All).unwrap();
+    let mut ranks: Vec<Option<i64>> = list.iter().map(|t| t.kind.type_rank).collect();
+    ranks.sort();
+    assert_eq!(ranks, [Some(1), Some(2)]);
+    assert!(list.iter().all(|t| t.kind.doc_type.as_deref() == Some("recibo")));
+    // The detail says the same.
+    let detail = base.similar_template(&Visible::All, list[0].principal.location_id).unwrap().unwrap();
+    assert_eq!(detail.kind, list[0].kind);
+    assert_eq!(detail.format, "text");
+}
+
 #[test]
 fn two_copies_of_the_same_form_are_possibly_the_same_document() {
     let page = |date: &str| {
@@ -542,6 +598,7 @@ fn two_copies_of_the_same_form_are_possibly_the_same_document() {
     let form: Vec<_> = template.fields.iter().filter(|f| f.form_name.is_some()).collect();
     assert_eq!(form.len(), 1);
     assert_eq!(form[0].form_name.as_deref(), Some("Nombre"));
+    assert_eq!(template.format, "pdf-form");
     // The two forms of the same person change nothing but a word: possibly the same document.
     let (uno, tres) = (content(&base, "ficha uno.pdf"), content(&base, "ficha tres.pdf"));
     assert_eq!(template.possibly_same, vec![[uno.min(tres), uno.max(tres)]]);
