@@ -405,6 +405,11 @@ pub fn run() {
             } else {
                 eprintln!("[proxy] could not resolve app_data_dir");
             }
+            // The readings this computer asked for in Micelya Core and not
+            // deleted yet are kept beside the app's data (P-294).
+            if let Ok(dir) = app.path().app_data_dir() {
+                micelya_core::ledger::install(&dir);
+            }
             // The API keys still written in app-state.json move to the
             // system keychain, before the screens read the settings
             // (secrets.rs, D-444).
@@ -586,6 +591,8 @@ pub fn run() {
             micelya_core::micelya_core_save_connection,
             micelya_core::micelya_core_remove_connection,
             micelya_core::micelya_core_test_connection,
+            micelya_core::micelya_core_left_readings,
+            micelya_core::micelya_core_delete_left_readings,
             work_folder::work_folder_set,
             work_folder::work_folder_open,
             work_folder::work_folder_new_clips,

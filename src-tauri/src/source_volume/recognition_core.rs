@@ -15,9 +15,24 @@
 //!
 //! Never paid twice: Core gives back a reading of the same image it still
 //! has, in progress or done, instead of reading it again (so a page whose
-//! reading could not be deleted is asked again, given back without cost,
-//! and deleted then); and when asking got no answer, the list is looked at
-//! before asking again, so a reading registered anyway is not left behind.
+//! reading could not be deleted for a moment is asked again, given back
+//! without cost, and deleted then); and when asking got no answer, the
+//! list is looked at before asking again, so a reading registered anyway is
+//! not left behind.
+//!
+//! Only its own (P-294): a credential may be shared by several computers,
+//! and the name of a page says nothing of whose it is. Every reading Core
+//! gives this computer is kept in the ledger (`micelya_core::ledger`) by
+//! its identifier until it is deleted, and only those are ever deleted.
+//! When asking got no answer, the request may have been registered anyway:
+//! asked again with the same hash, Core gives it back (it waits for its
+//! file, and was asked by the same person), and that one is this
+//! computer's; of the list, only requests of the ledger join the ones
+//! deleted. A reading Core gives back that is not in the ledger (another
+//! computer reads the same image) is read, never deleted: its computer
+//! deletes it. A reading Core refuses to delete for something that is not a
+//! cut (a permission) keeps its page, stays in the ledger, is shown in
+//! Atención and is tried again later.
 //!
 //! Several pages at once (P-292): each page takes 15 to 19 seconds in Core,
 //! nearly all of it waiting, so up to `PAGES_AT_ONCE` pages of a document
@@ -48,6 +63,7 @@ use image::{DynamicImage, ImageDecoder, ImageReader};
 use sha2::{Digest, Sha256};
 
 use crate::micelya_core::client::{CoreClient, CoreError, ReadingRequest, ReadingResult, Requested, Timing};
+use crate::micelya_core::ledger::{self, Ledger};
 use crate::micelya_core::{saved_connection, CoreConnection};
 
 use super::file_hash::hex;
@@ -83,9 +99,11 @@ pub struct CoreRecognizer {
     connection: Option<CoreConnection>,
     timing: Timing,
     client: Mutex<Option<Arc<CoreClient>>>,
-    /// Every reading asked for in Core, in order; each one is deleted at
-    /// the end of its page.
+    /// Every reading of this computer a page walked, in order; each one is
+    /// deleted at the end of its page.
     asked: Mutex<Vec<String>>,
+    /// The readings of this computer not deleted yet in Core.
+    ledger: Arc<Ledger>,
     /// How many pages are read at the same time.
     at_once: usize,
     /// The pages being read now, by the hash of their image: a page with
@@ -94,14 +112,20 @@ pub struct CoreRecognizer {
 }
 
 impl CoreRecognizer {
-    /// Reads with the connection of the keychain.
+    /// Reads with the connection of the keychain, and the ledger of the app.
     pub fn new(model: &str) -> Self {
-        Self::make(model, None, Timing::default())
+        Self::make(model, None, Timing::default(), ledger::shared())
+    }
+
+    /// With a ledger of its own, only in memory.
+    #[cfg(test)]
+    pub(crate) fn with_connection(model: &str, connection: CoreConnection, timing: Timing) -> Self {
+        Self::make(model, Some(connection), timing, Arc::new(Ledger::in_memory()))
     }
 
     #[cfg(test)]
-    pub(crate) fn with_connection(model: &str, connection: CoreConnection, timing: Timing) -> Self {
-        Self::make(model, Some(connection), timing)
+    pub(crate) fn ledger(&self) -> &Ledger {
+        &self.ledger
     }
 
     /// The same, reading `at_once` pages at the same time.
@@ -111,7 +135,7 @@ impl CoreRecognizer {
         self
     }
 
-    fn make(model: &str, connection: Option<CoreConnection>, timing: Timing) -> Self {
+    fn make(model: &str, connection: Option<CoreConnection>, timing: Timing, ledger: Arc<Ledger>) -> Self {
         let model = model.trim();
         Self {
             model: if model.is_empty() { DEFAULT_MODEL } else { model }.to_string(),
@@ -119,6 +143,7 @@ impl CoreRecognizer {
             timing,
             client: Mutex::new(None),
             asked: Mutex::new(Vec::new()),
+            ledger,
             at_once: PAGES_AT_ONCE,
             same_image: Mutex::new(HashMap::new()),
         }
@@ -198,7 +223,7 @@ impl CoreRecognizer {
                 asked.push(id.to_string());
             }
         };
-        let result = read_page(client, &format!("pagina-{page}.jpg"), jpeg, &remember)?;
+        let result = read_page(client, &self.ledger, &format!("pagina-{page}.jpg"), jpeg, &remember)?;
         let reading = page_reading(&result);
         if let Some(read_by) = reading.read_by.as_deref().filter(|by| *by != self.model) {
             // Kept with the name of the engine chosen, so it is found again
@@ -236,30 +261,36 @@ pub(crate) fn page_jpeg(image: &Path) -> Result<Vec<u8>, String> {
     Ok(jpeg)
 }
 
-/// The whole walk of one page in Core. Every reading it asked for is
-/// deleted at the end, whatever happened; `asked` is told of each one.
-pub(crate) fn read_page(client: &CoreClient, name: &str, bytes: &[u8], asked: &dyn Fn(&str)) -> Result<ReadingResult, String> {
+/// The whole walk of one page in Core. Every reading of this computer it
+/// walked is deleted at the end, whatever happened; `asked` is told of each
+/// one, and `ledger` of how each ended.
+pub(crate) fn read_page(client: &CoreClient, ledger: &Ledger, name: &str, bytes: &[u8], asked: &dyn Fn(&str)) -> Result<ReadingResult, String> {
     let sha256 = hex(&Sha256::digest(bytes));
     let mut readings = Vec::new();
-    let outcome = walk(client, name, bytes, &sha256, &mut readings);
-    let mut not_deleted: Vec<CoreError> = Vec::new();
+    let outcome = walk(client, ledger, name, bytes, &sha256, &mut readings);
+    let mut not_deleted: Vec<(String, CoreError)> = Vec::new();
     for id in &readings {
         asked(id);
-        if let Err(error) = client.delete_reading(id) {
-            not_deleted.push(error);
+        match client.delete_reading(id) {
+            Ok(()) => ledger.deleted(id),
+            Err(error) => not_deleted.push((id.clone(), error)),
         }
     }
+    // The page is kept when it was read and no reading waits for a cut to end.
+    let kept = outcome.is_ok() && !not_deleted.iter().any(|(_, error)| error.is_transient());
+    for (id, error) in &not_deleted {
+        let refused = (!error.is_transient()).then(|| error.message());
+        if let Some(reason) = &refused {
+            eprintln!("[core] a reading could not be deleted in Micelya Core; it shows in Atención and is tried again later: {reason}");
+        }
+        ledger.not_deleted(id, kept, refused);
+    }
     let result = outcome?;
-    match not_deleted.iter().find(|error| error.is_transient()) {
+    match not_deleted.iter().find(|(_, error)| error.is_transient()) {
         // Not kept: asked again later, Core gives this same reading back
         // without reading it again, and it is deleted then.
-        Some(error) => Err(format!("The page was read but its reading could not be deleted in Micelya Core: {}", error.message())),
-        None => {
-            for error in &not_deleted {
-                eprintln!("[core] a reading could not be deleted in Micelya Core: {}", error.message());
-            }
-            Ok(result)
-        }
+        Some((_, error)) => Err(format!("The page was read but its reading could not be deleted in Micelya Core: {}", error.message())),
+        None => Ok(result),
     }
 }
 
@@ -269,10 +300,9 @@ fn remember(readings: &mut Vec<String>, id: &str) {
     }
 }
 
-fn walk(client: &CoreClient, name: &str, bytes: &[u8], sha256: &str, readings: &mut Vec<String>) -> Result<ReadingResult, String> {
-    let requested = ask(client, name, bytes, sha256, readings).map_err(|e| e.message())?;
+fn walk(client: &CoreClient, ledger: &Ledger, name: &str, bytes: &[u8], sha256: &str, readings: &mut Vec<String>) -> Result<ReadingResult, String> {
+    let requested = ask(client, ledger, name, bytes, sha256, readings).map_err(|e| e.message())?;
     let id = requested.request.id.clone();
-    remember(readings, &id);
     let mut request = requested.request;
     if request.status == "in_progress" {
         // Core gives back without where to upload a reading of this same
@@ -306,13 +336,18 @@ fn walk(client: &CoreClient, name: &str, bytes: &[u8], sha256: &str, readings: &
     }
 }
 
-/// Asks for the reading of the page. When asking got no answer, the request
+/// Asks for the reading of the page; the readings of this computer go to
+/// `readings`, deleted at the end. When asking got no answer, the request
 /// may have arrived anyway: before asking again, the list is looked at, and
-/// a reading of this page asked since this walk began, still waiting for
-/// its file, joins the ones deleted at the end (asking again with the same
-/// hash makes Core give it back, not a second one).
-fn ask(client: &CoreClient, name: &str, bytes: &[u8], sha256: &str, readings: &mut Vec<String>) -> Result<Requested, CoreError> {
+/// a request of this computer (of the ledger) for this page since this walk
+/// began, still waiting for its file, joins them; a request of the list not
+/// in the ledger is never taken, whatever its name. The request registered
+/// by the lost answer itself comes back when asking again with the same
+/// hash (it waits for its file, and was asked by the same person): this
+/// computer's, it joins them too.
+fn ask(client: &CoreClient, ledger: &Ledger, name: &str, bytes: &[u8], sha256: &str, readings: &mut Vec<String>) -> Result<Requested, CoreError> {
     let began = Utc::now();
+    let mut lost = false;
     let mut waits = client.timing().retry_waits.clone().into_iter();
     loop {
         match client.request_reading(name, bytes.len(), "image/jpeg", sha256) {
@@ -320,12 +355,27 @@ fn ask(client: &CoreClient, name: &str, bytes: &[u8], sha256: &str, readings: &m
                 let Some(wait) = waits.next() else {
                     return Err(error);
                 };
+                lost = true;
                 std::thread::sleep(wait);
                 if let Ok(list) = client.list_readings(LIST_LOOK, None) {
                     for item in list.items.iter().filter(|item| asked_by_this_walk(item, name, began)) {
-                        remember(readings, &item.id);
+                        if !readings.contains(&item.id) && ledger.adopt(&item.id) {
+                            readings.push(item.id.clone());
+                        }
                     }
                 }
+            }
+            Ok(requested) => {
+                let id = requested.request.id.as_str();
+                let waiting = requested.request.stage.as_deref() == Some("awaiting_input");
+                let ours = !requested.found || readings.iter().any(|known| known == id) || ledger.adopt(id) || (lost && waiting);
+                if ours {
+                    ledger.asked(id, name);
+                    remember(readings, id);
+                } else {
+                    eprintln!("[core] Micelya Core gave back a reading of the same page asked by someone else: it is read, not deleted");
+                }
+                return Ok(requested);
             }
             other => return other,
         }
@@ -560,6 +610,76 @@ mod tests {
         assert_eq!(core.with(|state| state.readings.len()), 1);
         assert_eq!(walk_of(&core).iter().filter(|w| w.starts_with("PUT ")).count(), 1);
         assert!(core.with(|state| state.kept().is_empty()));
+    }
+
+    #[test]
+    fn a_request_of_another_computer_is_never_deleted_when_asking_again() {
+        let core = FakeCore::start();
+        core.with(|state| {
+            state.outcome = READ();
+            // Another computer with the same credential asked for its page 2
+            // a moment ago and has not uploaded it yet.
+            state.of_another_computer("de-otra-computadora", "pagina-2.jpg", &"0".repeat(64), "in_progress", Some("awaiting_input"));
+            // Ours is registered but its answer is lost.
+            state.request_failures = vec![503];
+        });
+        let recognizer = recognizer(&core);
+        let reading = recognizer.recognize_page(&fixture("pagina-prueba.png"), 2).unwrap();
+        assert!(reading.text.starts_with("CONTRATO DE PRUEBA"));
+        let walk = walk_of(&core);
+        // The list was looked at before asking again; both requests were in it.
+        let asks: Vec<usize> = walk.iter().enumerate().filter(|(_, w)| *w == "POST /v1/tenant/document-readings").map(|(i, _)| i).collect();
+        assert!(walk[asks[0]..asks[1]].iter().any(|w| w == "GET /v1/tenant/document-readings"), "{walk:?}");
+        // Ours (given back by Core when asked again) was read and deleted;
+        // the other computer's was never touched.
+        assert!(!walk.iter().any(|w| w.contains("de-otra-computadora")), "{walk:?}");
+        let kept: Vec<String> = core.with(|state| state.kept().iter().map(|r| r.id.clone()).collect());
+        assert_eq!(kept, ["de-otra-computadora"]);
+        assert_eq!(recognizer.asked(), ["lectura-2"]);
+        assert!(recognizer.ledger().left().is_empty());
+    }
+
+    #[test]
+    fn a_reading_of_the_same_image_asked_by_another_computer_is_read_but_never_deleted() {
+        let core = FakeCore::start();
+        let image = fixture("pagina-prueba.png");
+        let sha256 = hex(&Sha256::digest(page_jpeg(&image).unwrap()));
+        core.with(|state| {
+            state.outcome = READ();
+            state.of_another_computer("de-otra-computadora", "pagina-1.jpg", &sha256, "succeeded", None);
+        });
+        let recognizer = recognizer(&core);
+        let reading = recognizer.recognize_page(&image, 1).unwrap();
+        assert!(reading.text.starts_with("CONTRATO DE PRUEBA"));
+        // Read without paying again, and left to the computer that asked for it.
+        assert_eq!(core.with(|state| state.readings.len()), 1);
+        assert_eq!(core.with(|state| state.kept().len()), 1);
+        assert!(!walk_of(&core).iter().any(|w| w.starts_with("DELETE ") || w.starts_with("PUT ")), "{:?}", walk_of(&core));
+        assert!(recognizer.asked().is_empty() && recognizer.ledger().left().is_empty());
+    }
+
+    #[test]
+    fn a_reading_core_refuses_to_delete_keeps_its_page_shows_in_attention_and_is_deleted_later() {
+        let core = FakeCore::start();
+        core.with(|state| {
+            state.outcome = READ();
+            // The credential cannot delete: not a cut.
+            state.delete_failures = vec![403];
+        });
+        let recognizer = recognizer(&core);
+        let reading = recognizer.recognize_page(&fixture("pagina-prueba.png"), 1).unwrap();
+        assert!(reading.text.starts_with("CONTRATO DE PRUEBA"));
+        assert_eq!(core.with(|state| state.kept().len()), 1);
+        let refused = recognizer.ledger().refused();
+        assert_eq!(refused.len(), 1);
+        assert_eq!((refused[0].id.as_str(), refused[0].name.as_str(), refused[0].kept), ("lectura-1", "pagina-1.jpg", true));
+        assert!(refused[0].refused.as_deref().unwrap().contains("403"), "{refused:?}");
+
+        // Tried again later, it is deleted and leaves Atención.
+        let client = CoreClient::new(core.connection(), FakeCore::timing()).unwrap();
+        assert_eq!(ledger::delete_left(&client, recognizer.ledger()), 1);
+        assert!(core.with(|state| state.kept().is_empty()));
+        assert!(recognizer.ledger().left().is_empty());
     }
 
     #[test]

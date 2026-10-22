@@ -195,6 +195,11 @@ fn transport_detail(error: reqwest::Error) -> String {
 
 /// The answer of a call: its body when it worked (2xx), why not otherwise.
 pub(crate) fn answer(side: Side, seconds: u64, sent: reqwest::Result<reqwest::blocking::Response>) -> Result<String, CoreError> {
+    answer_with_status(side, seconds, sent).map(|(_, body)| body)
+}
+
+/// The same, with the status of the answer.
+fn answer_with_status(side: Side, seconds: u64, sent: reqwest::Result<reqwest::blocking::Response>) -> Result<(u16, String), CoreError> {
     let response = sent.map_err(|error| CoreError::NoAnswer {
         side,
         timed_out: error.is_timeout(),
@@ -209,7 +214,7 @@ pub(crate) fn answer(side: Side, seconds: u64, sent: reqwest::Result<reqwest::bl
         detail: transport_detail(error),
     })?;
     if status.is_success() {
-        return Ok(body);
+        return Ok((status.as_u16(), body));
     }
     let (code, detail) = summary(&body);
     Err(CoreError::Refused { side, status: status.as_u16(), code, detail })
@@ -315,6 +320,10 @@ pub struct Requested {
     pub request: ReadingRequest,
     #[serde(default)]
     pub upload: Option<Upload>,
+    /// Core gave back a reading it already had (200), not a new one (202):
+    /// it may have been asked by another computer with the same credential.
+    #[serde(skip)]
+    pub found: bool,
 }
 
 /// The result of a reading that ended well (`DocumentReadingResult`).
@@ -456,6 +465,11 @@ impl CoreClient {
     /// One call to the API with the permit and the organization. A permit
     /// the API refuses is asked again, once.
     pub(crate) fn call(&self, method: Method, path: &str, build: impl Fn(RequestBuilder) -> RequestBuilder) -> Result<String, CoreError> {
+        self.call_with_status(method, path, build).map(|(_, body)| body)
+    }
+
+    /// The same, with the status of the answer.
+    fn call_with_status(&self, method: Method, path: &str, build: impl Fn(RequestBuilder) -> RequestBuilder) -> Result<(u16, String), CoreError> {
         let mut renewed = false;
         loop {
             let permit = self.permit()?;
@@ -464,7 +478,7 @@ impl CoreClient {
                 .request(method.clone(), self.api_url(path))
                 .bearer_auth(&permit)
                 .header("X-Tenant-Id", &self.connection.tenant);
-            match answer(Side::Api, self.seconds(), build(request).send()) {
+            match answer_with_status(Side::Api, self.seconds(), build(request).send()) {
                 Err(CoreError::Refused { status: 401, .. }) if !renewed => {
                     self.forget_permit();
                     renewed = true;
@@ -488,12 +502,14 @@ impl CoreClient {
     /// Asks for the reading of a file of `bytes` bytes named `filename`,
     /// with its SHA-256 (`createDocumentReading`): Core gives back the
     /// reading it already has of the same file, in progress or done,
-    /// instead of reading it again. Not repeated here: whoever asks looks
-    /// at the list before asking again.
+    /// instead of reading it again (`found`). Not repeated here: whoever
+    /// asks looks at the list before asking again.
     pub fn request_reading(&self, filename: &str, bytes: usize, content_type: &str, sha256: &str) -> Result<Requested, CoreError> {
         let body = serde_json::json!({ "filename": filename, "bytes": bytes, "contentType": content_type, "contentSha256": sha256 });
-        let answer = self.call(Method::POST, "tenant/document-readings", |r| r.json(&body))?;
-        parsed(Side::Api, &answer)
+        let (status, answer) = self.call_with_status(Method::POST, "tenant/document-readings", |r| r.json(&body))?;
+        let mut requested: Requested = parsed(Side::Api, &answer)?;
+        requested.found = status == 200;
+        Ok(requested)
     }
 
     /// Uploads the file of a reading where `upload` says, with its headers

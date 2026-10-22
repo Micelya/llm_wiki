@@ -135,6 +135,24 @@ impl FakeState {
     pub fn kept(&self) -> Vec<&FakeReading> {
         self.readings.iter().filter(|r| !r.deleted).collect()
     }
+
+    /// A reading another computer with the same credential asked for:
+    /// `filename`, of a file with this hash, in `status` and `stage`.
+    pub fn of_another_computer(&mut self, id: &str, filename: &str, sha256: &str, status: &str, stage: Option<&str>) {
+        self.readings.push(FakeReading {
+            id: id.into(),
+            filename: filename.into(),
+            sha256: sha256.into(),
+            status: status.into(),
+            stage: stage.map(str::to_string),
+            failure: None,
+            looks: 0,
+            looks_to_end: self.looks_to_end,
+            uploaded: None,
+            outcome: self.outcome.clone(),
+            deleted: false,
+        });
+    }
 }
 
 pub(crate) struct FakeCore {

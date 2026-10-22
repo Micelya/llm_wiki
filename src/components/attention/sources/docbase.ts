@@ -13,6 +13,7 @@ import {
   type SimilarPending,
 } from "@/commands/docbase"
 import { listNewClips, markClipsSeen, openWorkFolder, type NewFiles } from "@/commands/work-folder"
+import { deleteCoreLeftReadings, listCoreLeftReadings, type CoreLeftReading } from "@/commands/micelya-core"
 import { DEFAULT_DOCUMENT_FILTER } from "@/stores/docbase-store"
 import type { AttentionCase, AttentionNotice } from "@/lib/attention/types"
 import { documentTypeName, vocabulary, type Vocabulary } from "@/vocabulary"
@@ -39,6 +40,8 @@ export interface DocbaseFacts {
   proposedTypes: ProposedType[] | null
   /** The clips of «Recortes web» a person has not seen yet. */
   newClips?: NewFiles | null
+  /** The readings of this computer that Micelya Core refused to delete (P-294). */
+  coreLeft?: CoreLeftReading[] | null
 }
 
 export function docbaseNotices(facts: DocbaseFacts, words: Vocabulary = vocabulary()): AttentionNotice[] {
@@ -134,6 +137,8 @@ export function docbaseNotices(facts: DocbaseFacts, words: Vocabulary = vocabula
       }),
     )
   }
+  const coreLeft = coreLeftNotice(facts.coreLeft)
+  if (coreLeft) out.push(coreLeft)
 
   // ── Decisions ───────────────────────────────────────────────────────
   const similar = similarNotice(facts.similarPending, facts.groups)
@@ -305,6 +310,38 @@ export function clipsNotice(clips: NewFiles | null | undefined): AttentionNotice
   }
 }
 
+/**
+ * The readings this computer asked for in Micelya Core that Core refused
+ * to delete for something that is not a cut, such as a permission the
+ * credential lacks (P-294): Core keeps their text until they are deleted.
+ * The app tries again by itself every few minutes.
+ */
+export function coreLeftNotice(left: CoreLeftReading[] | null | undefined, now: number = Date.now()): AttentionNotice | null {
+  if (!left || left.length === 0) return null
+  return {
+    source: DOCBASE_SOURCE,
+    id: `${DOCBASE_SOURCE}:core-readings`,
+    kind: "problem",
+    topic: "core-readings",
+    priority: "high",
+    count: left.length,
+    title: plural(left.length, "lectura no se pudo borrar en Micelya Core", "lecturas no se pudieron borrar en Micelya Core"),
+    explanation:
+      "Micelya Core sigue guardando esas lecturas, con el texto de sus páginas, hasta que se borren. Solo se borran las que pidió esta computadora.",
+    todo: "Mirá el motivo de cada una. Si es un permiso, revisá con quien administra Micelya Core que la credencial de Ajustes → Conexiones pueda borrar lecturas. La app lo vuelve a intentar sola cada 10 minutos.",
+    resolvedWhen: "Desaparece cuando se borran.",
+    actions: [
+      { kind: "run", label: "Reintentar ahora", run: () => deleteCoreLeftReadings() },
+      { kind: "go", label: "Ver conexiones", target: { view: "settings" } },
+    ],
+    cases: left.map((reading) => ({
+      id: reading.id,
+      title: reading.name,
+      detail: [reading.refused, `pedida ${formatAgo(reading.askedAt, now)}`].filter(Boolean).join(" · "),
+    })),
+  }
+}
+
 /** The source itself: asks the base again whenever it says something changed. */
 export function useDocbaseNotices(): AttentionNotice[] | null {
   const home = useDocbaseQuery("attention:home", getHome)
@@ -312,6 +349,7 @@ export function useDocbaseNotices(): AttentionNotice[] | null {
   const groups = useDocbaseQuery("attention:similar-groups", listSimilarGroups)
   const types = useDocbaseQuery("attention:proposed-types", listProposedTypes)
   const clips = useDocbaseQuery("attention:new-clips", listNewClips)
+  const coreLeft = useDocbaseQuery("attention:core-left", listCoreLeftReadings)
   if (home.error) throw new Error(home.error)
   if (!home.data) return null
   return docbaseNotices({
@@ -320,5 +358,6 @@ export function useDocbaseNotices(): AttentionNotice[] | null {
     groups: groups.data,
     proposedTypes: types.data,
     newClips: clips.data,
+    coreLeft: coreLeft.data,
   })
 }

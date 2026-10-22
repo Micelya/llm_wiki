@@ -14,6 +14,7 @@
 pub mod client;
 #[cfg(test)]
 pub(crate) mod fake;
+pub mod ledger;
 
 use std::time::Duration;
 
@@ -318,6 +319,28 @@ pub async fn micelya_core_test_connection(fields: ConnectionFields, secret: Opti
     tauri::async_runtime::spawn_blocking(move || test_fields(&Keychain, &fields, secret.as_deref(), test_timing()))
         .await
         .map_err(|e| format!("The test of the connection stopped: {e}"))
+}
+
+/// The readings of this computer that Micelya Core refused to delete
+/// (P-294), for Atención: Core keeps their text until they are deleted.
+#[tauri::command]
+pub fn micelya_core_left_readings() -> Vec<ledger::LeftReading> {
+    ledger::shared().refused()
+}
+
+/// «Reintentar ahora» in Atención: tries again to delete them. Returns how
+/// many Core still refuses to delete.
+#[tauri::command]
+pub async fn micelya_core_delete_left_readings(app: tauri::AppHandle) -> Result<usize, String> {
+    use tauri::Emitter;
+    let left = tauri::async_runtime::spawn_blocking(|| {
+        ledger::retry_left_readings(true);
+        ledger::shared().refused().len()
+    })
+    .await
+    .map_err(|e| format!("Deleting the readings left in Micelya Core stopped: {e}"))?;
+    let _ = app.emit(crate::docbase::commands::CHANGED_EVENT, ());
+    Ok(left)
 }
 
 #[cfg(test)]

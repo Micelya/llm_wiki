@@ -55,3 +55,30 @@ export function removeCoreConnection(): Promise<void> {
 export function testCoreConnection(fields: CoreConnectionFields, secret: string | null): Promise<CoreConnectionTest> {
   return invoke<CoreConnectionTest>("micelya_core_test_connection", { fields, secret })
 }
+
+/**
+ * A reading this computer asked for in Micelya Core that Core refused to
+ * delete (P-294; `LeftReading` in `micelya_core/ledger.rs`): Core keeps its
+ * text until it is deleted. The app tries again by itself.
+ */
+export interface CoreLeftReading {
+  id: string
+  /** The generic name it was asked with (`pagina-N.jpg`). */
+  name: string
+  askedAt: number
+  /** Its text was kept by the base: only deleting it is left. */
+  kept: boolean
+  /** Why Core refused to delete it, in its words. */
+  refused: string | null
+  triedAt: number | null
+}
+
+/** The readings of this computer that Micelya Core refused to delete. */
+export function listCoreLeftReadings(): Promise<CoreLeftReading[]> {
+  return invoke<CoreLeftReading[]>("micelya_core_left_readings")
+}
+
+/** Tries again to delete them now; how many Core still refuses to delete. */
+export function deleteCoreLeftReadings(): Promise<number> {
+  return invoke<number>("micelya_core_delete_left_readings")
+}

@@ -138,6 +138,11 @@ pub fn spawn_asking(
 /// many questions each stage had left and the last failure of the model,
 /// with when it tries again: what «En curso» shows (D-424).
 fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Duration {
+    // The readings of this computer left in Micelya Core are tried again
+    // every few minutes (P-294); nothing is sent when there are none.
+    if crate::micelya_core::ledger::retry_left_readings(false) {
+        on_change();
+    }
     if let Some(wait) = recognition_step(base, on_change) {
         return wait;
     }
