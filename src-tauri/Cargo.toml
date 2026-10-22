@@ -36,7 +36,8 @@ tauri-plugin-dialog = "2.7.1"
 pdfium-render = "0.9"
 tauri-plugin-store = "2.4.2"
 tauri-plugin-http = { version = "2", features = ["unsafe-headers"] }
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
+# `blocking`: Micelya Core is asked from the worker threads (micelya_core).
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream", "blocking"] }
 # The web clipper's local server (clip_server.rs).
 tiny_http = "0.12"
 zip = "2"

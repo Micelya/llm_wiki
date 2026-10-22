@@ -1418,12 +1418,22 @@ pub(crate) fn ask_engine(conn: &Connection) -> Result<Option<AskConfig>, String>
 }
 
 /// A failure after which asking more in the same run only wastes time:
-/// the provider is at its limit or cannot be reached.
+/// the provider is at its limit, cannot be reached, or rejected the
+/// credential (Micelya Core says so in these words: `micelya_core::client`).
 pub fn stops_the_run(error: &str) -> bool {
     let error = error.to_lowercase();
-    ["limit", "429", "quota", "not found on path", "failed to start", "did not answer within"]
-        .iter()
-        .any(|w| error.contains(w))
+    [
+        "limit",
+        "429",
+        "quota",
+        "not found on path",
+        "failed to start",
+        "did not answer within",
+        "no connection",
+        "rejected the credential",
+    ]
+    .iter()
+    .any(|w| error.contains(w))
 }
 
 fn type_question(

@@ -2,6 +2,7 @@ mod agent;
 mod clip_server;
 mod commands;
 mod docbase;
+mod micelya_core;
 mod panic_guard;
 mod portals;
 mod proxy;
@@ -576,6 +577,10 @@ pub fn run() {
             work_folder::work_folder_status,
             secrets::secrets_read,
             secrets::secrets_write,
+            micelya_core::micelya_core_connection,
+            micelya_core::micelya_core_save_connection,
+            micelya_core::micelya_core_remove_connection,
+            micelya_core::micelya_core_test_connection,
             work_folder::work_folder_set,
             work_folder::work_folder_open,
             work_folder::work_folder_new_clips,

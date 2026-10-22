@@ -9,7 +9,10 @@
 //! (`searchApiConfig.providerConfigs.<id>.apiKey`, `search:<id>`). The
 //! screens keep the keys in memory: they read them from here when the app
 //! opens and hand each change back; the file keeps every other setting,
-//! with the key empty.
+//! with the key empty. A connection with a provider (`connection:<id>`,
+//! today Micelya Core) is kept whole in one entry, a JSON text with its
+//! secret; only its own commands read it, and never hand the secret back
+//! (`micelya_core`).
 //!
 //! Nothing is ever lost because the keychain failed: a key is emptied in
 //! the file only after the keychain kept it and gave it back the same, and
@@ -68,17 +71,31 @@ impl SecretStore for Keychain {
     }
 }
 
-/// Whether `name` is the name of one of the app's keys: only those can be
-/// read or written from the screens.
+/// Whether `name` is the name of one of the app's keys: the ones of the
+/// settings, and the connections with a provider (`connection:<id>`, for
+/// now only Micelya Core: `micelya_core`).
 pub fn is_key_name(name: &str) -> bool {
     if name == "llm" || name == "search" {
         return true;
     }
     name.strip_prefix("provider:")
         .or_else(|| name.strip_prefix("search:"))
+        .or_else(|| name.strip_prefix("connection:"))
         .is_some_and(|id| {
             !id.is_empty() && id.len() <= 100 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
         })
+}
+
+/// Whether `name` is a connection with a provider. Its secret never goes
+/// to the screens: a connection is read and written only by its own
+/// commands, which give back whether there is a secret, not the secret.
+pub fn is_connection_name(name: &str) -> bool {
+    is_key_name(name) && name.starts_with("connection:")
+}
+
+/// The keys the screens can read and write themselves.
+fn is_screen_key(name: &str) -> bool {
+    is_key_name(name) && !is_connection_name(name)
 }
 
 /// One place of the settings where a key may be: its name in the keychain
@@ -192,7 +209,7 @@ pub fn fill_keys(settings: &mut Map<String, Value>, store: &dyn SecretStore) {
 pub fn read_keys(store: &dyn SecretStore, names: &[String]) -> Result<BTreeMap<String, String>, String> {
     let mut found = BTreeMap::new();
     for name in names {
-        if !is_key_name(name) {
+        if !is_screen_key(name) {
             return Err(format!("'{name}' is not the name of a key of the app"));
         }
         if let Some(value) = store.get(name)? {
@@ -208,7 +225,7 @@ pub fn read_keys(store: &dyn SecretStore, names: &[String]) -> Result<BTreeMap<S
 pub fn write_keys(store: &dyn SecretStore, entries: &BTreeMap<String, String>) -> Vec<String> {
     entries
         .iter()
-        .filter(|(name, _)| is_key_name(name))
+        .filter(|(name, _)| is_screen_key(name))
         .filter(|(name, value)| if value.is_empty() { store.delete(name).is_ok() } else { keep(store, name, value) })
         .map(|(name, _)| name.clone())
         .collect()
@@ -423,5 +440,20 @@ mod tests {
         assert!(write_keys(&broken, &entries).is_empty());
         assert!(read_keys(&broken, &["llm".into()]).is_err());
         assert!(write_keys(&FakeKeychain { forgetful: true, ..Default::default() }, &entries).is_empty());
+    }
+
+    #[test]
+    fn a_connection_is_a_key_of_the_app_but_its_secret_never_goes_to_the_screens() {
+        assert!(is_key_name("connection:micelya-core"));
+        assert!(is_connection_name(crate::micelya_core::CONNECTION_KEY));
+        assert!(!is_key_name("connection:"));
+        assert!(!is_key_name("connection:../x"));
+        assert!(!is_connection_name("provider:openai"));
+        let keychain = FakeKeychain::default();
+        keychain.keys.borrow_mut().insert("connection:micelya-core".into(), r#"{"client_secret":"secreto-inventado"}"#.into());
+        assert!(read_keys(&keychain, &["connection:micelya-core".into()]).is_err());
+        let entries: BTreeMap<String, String> = [("connection:micelya-core".to_string(), "otra cosa".to_string())].into_iter().collect();
+        assert!(write_keys(&keychain, &entries).is_empty());
+        assert!(keychain.keys.borrow()["connection:micelya-core"].contains("secreto-inventado"));
     }
 }
