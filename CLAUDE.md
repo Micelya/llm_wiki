@@ -5,7 +5,7 @@ Este repositorio es el fork `Micelya/llm_wiki` de `nashsu/llm_wiki` (remoto `ups
 ## Al empezar cada sesión
 
 1. Leer el documento más reciente de [`docs/sessions/`](docs/sessions/) (contexto, decisiones y hallazgos de la sesión anterior), el diseño vigente en [`docs/design/base-documental.md`](docs/design/base-documental.md) y [`pendientes.json`](pendientes.json).
-2. Antes de cualquier otra cosa, listarle al usuario los pendientes que no estén en estado `hecho`, agrupados por `tipo`, indicando `id`, título, estado y responsable. Marcar cuáles están bloqueados por otro pendiente (`depende_de`).
+2. Antes de cualquier otra cosa, mostrarle al usuario un resumen de `pendientes.json` (D-462), no la lista entera: cuántos hay en cada caja (trabajo de Claude por prioridad, decisiones suyas, cosas para ver en la app, en espera), las decisiones que lo esperan con su propuesta en una línea, y lo próximo de Claude. Lo que depende de otro pendiente se marca.
 
 ## Durante el trabajo
 

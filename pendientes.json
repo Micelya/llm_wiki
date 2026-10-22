@@ -6,8 +6,12 @@
     "Los pendientes en estado 'hecho' se borran en la siguiente limpieza; el historial queda en git.",
     "IDs correlativos (P-001, P-002…); no se reutilizan.",
     "El contexto de cada sesión de trabajo (qué se hizo, hallazgos, decisiones) está en docs/sessions/.",
-    "'en-espera' marca lo que se define en detalle recién después del producto mínimo (P-049): no se empieza ni se diseña antes.",
-    "'a-verificar' marca lo que está construido e integrado y solo espera que el usuario lo vea en la app y lo apruebe. Cuando lo aprueba pasa a 'hecho'; si pide cambios, vuelve a 'pendiente' o 'en-curso'."
+    "'en-espera' marca lo que queda a propósito para más adelante (después del producto mínimo o hasta que pase algo externo, dicho en 'detalle' o en 'depende_de'): no se empieza ni se diseña antes.",
+    "'a-verificar' marca lo que está construido e integrado y solo espera que el usuario lo vea en la app y lo apruebe. Cuando lo aprueba pasa a 'hecho'; si pide cambios, vuelve a 'pendiente' o 'en-curso'.",
+    "Responsable: 'claude' es trabajo que Claude hace sin esperar una decisión; 'usuario' es lo que necesita al dueño (una decisión o verlo en la app); 'ambos', solo cuando hace falta trabajar juntos (por ejemplo, una prueba real).",
+    "'prioridad' (solo en lo que hace Claude): 1 es lo próximo, 2 después, 3 cuando se toque esa parte. 'tema' agrupa lo que conviene hacer en la misma tanda.",
+    "'propuesta' (en las decisiones del dueño): el problema, la recomendación de Claude y la alternativa. Cuando el dueño decide, se anota en docs/decisiones.md y el pendiente se cierra o pasa a Claude.",
+    "Al empezar una sesión no se listan todos los pendientes: se muestra un resumen (cuántos hay por caja), las decisiones que esperan al dueño y lo próximo de Claude."
   ],
   "valores": {
     "estado": [
@@ -28,6 +32,11 @@
       "usuario",
       "claude",
       "ambos"
+    ],
+    "prioridad": [
+      1,
+      2,
+      3
     ]
   },
   "pendientes": [
@@ -36,55 +45,60 @@
       "titulo": "No cargar claves de firma ni otros secretos hasta proteger su uso",
       "tipo": "github-manual",
       "responsable": "usuario",
-      "estado": "pendiente",
+      "estado": "en-espera",
       "detalle": "Solo hace falta si se distribuye en Mac. Antes de cargar las claves de Apple: crear un Environment con aprobación manual y restringido a etiquetas, y usar un certificado y contraseña de app exclusivos del fork. Durante la compilación las claves quedan visibles para todas las dependencias.",
       "depende_de": [],
       "referencia": "Settings → Environments",
       "creado": "2026-10-06",
-      "actualizado": "2026-10-07"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-005",
       "titulo": "Revisar los PR mensuales de Dependabot",
       "tipo": "github-manual",
-      "responsable": "usuario",
+      "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "pruebas y calidad",
       "detalle": "Dependabot propone una vez por mes un PR con las versiones nuevas de las acciones de GitHub. No integrarlo el mismo día: esperar unos días por si la versión nueva resulta comprometida. Tarea recurrente; verificar tras el primer mes que el PR aparece. Verificar también que GitHub aceptó la configuración: Insights → Dependency graph → Dependabot.",
       "depende_de": [],
       "referencia": ".github/dependabot.yml",
       "creado": "2026-10-06",
-      "actualizado": "2026-10-08"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-006",
       "titulo": "Habilitar la publicación de releases del fork",
       "tipo": "decision",
-      "responsable": "ambos",
+      "responsable": "usuario",
       "estado": "pendiente",
       "detalle": "Convención decidida: etiquetas 'mi-desktop-vX.Y.Z' (candidatas con sufijo '-rc.N'; la primera será mi-desktop-v0.1.0-rc.1). Falta crear la variable de repositorio ENABLE_TAG_RELEASE=true y recién entonces subir la etiqueta. No usar 'git push --tags': el clon tiene las etiquetas de upstream. Plan del 2026-10-12: el usuario quiere generar el instalador y probarlo en su otra máquina antes de pasarlo a los abogados del estudio de referencia. Dos caminos: (a) corrida manual del workflow de build (Actions, 'Run workflow'), que deja los instaladores como archivos de esa corrida sin publicar nada; (b) crear la variable ENABLE_TAG_RELEASE=true y subir la etiqueta mi-desktop-v0.1.0-rc.1, que publica una versión de prueba descargable sin cuenta porque el repo es público. Nunca se generó ningún instalador: no está verificado que el workflow termine bien. Antes de entregarlo a terceros: decidir si la descarga puede ser pública, el proveedor de modelo de cada usuario (P-029) y si va con el wiki sin activar. Avance del 2026-10-13: el usuario creó la variable ENABLE_TAG_RELEASE=true y se hizo la corrida manual del workflow sobre main (corrida 38325849551), que no publica nada. Windows y Linux compilaron bien; Mac falló al firmar porque no hay certificado de Apple (P-002), lo esperado. Los tres archivos de Windows (instalador .exe, .msi y zip portable, versión 0.1.0) quedaron en LocalRepo\\llm_wiki_mi\\instaladores, fuera del repo. No se subió ninguna etiqueta: con la variable activa, una etiqueta mi-desktop-v* publica una versión descargable por cualquiera. Falta: que el usuario lo pruebe en su otra máquina y decida si se publica.",
+      "propuesta": "¿Publicamos ya una versión del instalador que cualquiera puede bajar, o seguimos generándolo sin publicarlo? Recomendación de Claude (2026-10-22): No publicar todavía. Cuando quieras probarlo en tu otra máquina, Claude lanza la corrida manual, que deja el instalador sin publicarlo. Publicar una versión de prueba recién cuando haya algo para entregar al estudio de referencia, junto con la firma de Windows (P-022) y la definición del modelo de cada usuario (P-029). Alternativa: Subir ahora la etiqueta mi-desktop-v0.1.0-rc.1, que publica un instalador descargable sin cuenta porque el repositorio es público. Si se acepta: Pasa a la cola de Claude con prioridad 3 (generar el instalador a pedido); la publicación queda en espera de la primera entrega.",
       "depende_de": [],
       "referencia": "Settings → Secrets and variables → Actions → Variables",
       "creado": "2026-10-06",
-      "actualizado": "2026-10-13"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-011",
       "titulo": "Volumen: detección de cambios (file_sync.rs)",
       "tipo": "codigo",
-      "responsable": "claude",
+      "responsable": "usuario",
       "estado": "a-verificar",
       "detalle": "Integrado (PR #12): las carpetas montadas se recorren y se vigilan, sus archivos se registran con ruta lógica, y un origen que no se puede leer (desconectado, vacío o con la tabla de montajes ilegible) se trata como 'desconocido' y nunca como archivos borrados. Visto en la app: al primer arranque registró los 31 archivos de AEROS BGH sin tocar la carpeta original. Falta la prueba que habilita usar montajes en proyectos reales: agregar, editar y quitar un archivo, y después desconectar el origen y comprobar que no se borra ninguna página. Una carpeta montada con la app abierta recién se vigila al reiniciar; hasta entonces la cubre el repaso de cada 60 segundos.",
       "depende_de": [],
       "referencia": "PR #12 (integrado), src-tauri/src/source_volume/watch.rs, src-tauri/src/commands/file_sync.rs",
       "creado": "2026-10-06",
-      "actualizado": "2026-10-16"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-015",
       "titulo": "Parecidos, familias de documentos y revisión",
       "tipo": "codigo",
-      "responsable": "ambos",
+      "responsable": "claude",
       "estado": "en-curso",
+      "prioridad": 3,
+      "tema": "parecidos y plantillas",
       "detalle": "MinHash (secuencias de 5 palabras) y contención para encontrar candidatos; familias automáticas, no por nombre de archivo; clasificación por qué cambió (copia, versión, misma plantilla, divergente). Nunca fusiona: solo relaciona. 'Vigente' es una etiqueta opcional. Los casos dudosos van a revisión humana. Caso de prueba: los 13 comprobantes de AEROS BGH (95-99 % de texto en común, documentos distintos). Replantear sobre la base documental (P-049) antes de empezar. Aclaración del 2026-10-13, a pregunta del usuario: la huella de texto actual ya canoniza (minúsculas, sin acentos, solo letras y dígitos; no cuentan puntuación, saltos de línea, encabezados de página ni marcas de texto reconocido), así que dos textos que difieren solo en formato ya son el mismo documento. Lo que no detecta es cualquier diferencia de palabras: un encabezado o un pie agregados al convertir, una errata, o dos lecturas distintas del mismo escaneo. Eso es lo que resuelve esta tarea, con un umbral muy alto para 'prácticamente el mismo'. Pedido del usuario del 2026-10-13: definir un pipeline para estos casos antes de construir, porque en un estudio es muy común que dos contratos compartan casi todo el texto y sean documentos distintos. Criterio de partida acordado: el porcentaje solo no alcanza, hay que mirar qué cambió; si difieren cifras, fechas, nombres o identificadores son documentos distintos de una misma plantilla, y si difiere texto de relleno es el mismo documento. Primer paso: una propuesta de diseño para revisar con el usuario. Propuesta escrita el 2026-10-13 en docs/design/parecidos-propuesta.md, con una medición real sobre los 30 documentos con texto de la carpeta de prueba: espera la revisión del usuario y cinco decisiones suyas (sección 9). Falta material de prueba con contratos de un mismo modelo. Segunda versión de la propuesta (2026-10-13) con las definiciones del usuario: los parecidos no se unen solos; se muestran en el detalle del documento como hoy las copias, con una descripción del parecido y botones para unir eligiendo la relación; la lista de relaciones tiene que poder ampliarse sin rehacer nada; al unir dos documentos podrían unirse sus páginas del wiki; se reduce el uso de IA, no se elimina. Sumó una medición sobre contratos (carpeta ContenidoExtra de la prueba, 42 archivos), el análisis en tres pasadas sobre todo el archivo, y cuidados tomados de un análisis previo del usuario: correos con texto citado, familias que crecen de más, conjunto de prueba anotado e identificadores oficiales. Quedan cuatro decisiones abiertas (sección 13). Tercera versión (2026-10-13): al unir dos documentos como el mismo queda uno solo como fuente del wiki, elegido por la persona; los nombres de las relaciones son configurables por vertical y país; la iteración sobre el archivo se acota (pocas vueltas, corte por convergencia, solo agrega propuestas). Corrección: los ejemplares que son solo imagen son 5 de 42 según el motor de la app, no 19 como dio la primera medición, hecha con otra herramienta de extracción. Cuarta versión (2026-10-14): la sección de pasadas se rehízo a partir de una investigación de prácticas establecidas, con un objetivo por pasada, doce reglas para que converjan (de lo seguro a lo incierto, solo se agrega evidencia, lo propuesto no alimenta lo propuesto, decisiones humanas como reglas firmes, familias contra un documento principal, trabajo solo sobre lo cambiado, medición por pasada) y siete pasadas. La hoja de respuestas del conjunto de prueba quedó en LocalRepo\\llm_wiki_mi\\conjunto-prueba, fuera del repo, para que la revise el usuario. Quinta versión (2026-10-14), con las respuestas del usuario a la hoja de respuestas: relaciones inferidas además de las medidas; 'ejemplar firmado' solo con firma verificable; vista previa como relación; catálogo de tipos de documento; pasadas de cálculo y de modelo alternadas, con el tipo de documento temprano; las reglas pasaron a docs/design/reglas-de-procesamiento.md. Avance del 2026-10-14 (S1, PR #42, construido sin pantallas por un agente sin supervisión): el motor de las pasadas 0 a 3 en src-tauri/src/docbase/similar/ — firma MinHash de secuencias de cinco palabras, texto de rutina, candidatos por casilleros, medidas, alineación palabra por palabra, clasificación de lo que cambia (identificadores, importes, fechas, cifras, nombres, redacción, sustituciones repetidas), propuesta de relación con su descripción en una frase, marcas verificables y familias contra un principal; se guarda en la base (esquema 6), se calcula en segundo plano solo sobre lo que cambió y tiene comandos para la siguiente etapa (S2, pantallas). Evaluado en la carpeta de prueba contra la hoja de respuestas: 52 aciertos de 57 pares medibles, ninguna propuesta equivocada; las 5 que se escapan son 4 pares con documentos que esperan reconocimiento y un par que queda en 'parecidos' (79 %). Falta: las pantallas (S2), el tipo y etapa con el modelo (S3), correos y el resto de las pasadas; decisiones sin consultar D-116 a D-124. Avance del 2026-10-14 (S2, pantallas, apilado sobre el PR #42, sin supervisión): en el detalle de un documento, debajo de las ubicaciones, la sección 'Documentos parecidos' con la relación propuesta, su descripción, las medidas en palabras y los botones unir con esta relación, elegir otra relación, descartar y deshacer; al unir como el mismo documento se elige la fuente del wiki (la app sugiere una). En Inicio, una línea por familia que espera una decisión y una más para el resto; en Documentos, los filtros 'con parecidos pendientes' y por familia. Los nombres de las relaciones salen del vocabulario (español e inglés, con variantes por país). Decisiones sin consultar D-125 a D-131. Falta: ver las diferencias lado a lado (P-077), que el wiki aplique la fuente elegida (P-078), elegir el país del vocabulario (P-079) y probarlo con la app corriendo. Avance del 2026-10-14 (S3, apilado sobre el PR #43, sin supervisión): pasadas 4 a 6. El tipo y la etapa de cada documento con el modelo, una pregunta por familia (al principal, con la etapa de cada miembro) y una por documento suelto, ninguna si las marcas alcanzan; respuestas en JSON estricto guardadas con la versión de la pregunta y el modelo, nunca repetidas; datos por tipo con reglas del catálogo y el modelo solo para lo que faltó; relaciones corregidas por las reglas del tipo. Se pregunta desde un botón en Orígenes (con aviso de cuántas preguntas) o solo mientras el wiki del archivo está activo. Prueba real con Codex en la carpeta de prueba: tipos 56 de 57, etapas 11 de 18, 30 preguntas de tipo y 1 de datos por corrida; la pasada 6 arregló 5 relaciones de la hoja y no rompió ninguna; queda 1 propuesta equivocada de la pasada 1. Decisiones sin consultar D-132 a D-142. Falta: confirmar tipos nuevos (P-080), mejorar etapas de firma (P-081), respuesta a, mismo asunto, correos y el resto de las pasadas. Avance del 2026-10-14 (S4, sin supervisión): al unir dos documentos como el mismo, el wiki usa solo la fuente elegida (P-078 hecho; D-143 a D-145).",
       "depende_de": [
         "P-212",
@@ -98,37 +112,37 @@
       "id": "P-021",
       "titulo": "Terminar el cambio de nombre a 'Micelya Desktop' dentro de la app",
       "tipo": "codigo",
-      "responsable": "claude",
+      "responsable": "usuario",
       "estado": "a-verificar",
       "detalle": "Hecho antes: instalador, ventana, bandeja, zip portable, nombre del release y encabezado de bienvenida. Hecho en el PR #11: todos los textos de la interfaz muestran 'Micelya Desktop' mediante un único reemplazo al traducir, sin tocar los archivos de idioma de upstream. Se dejó a propósito: el crédito al proyecto original en 'Acerca de', los textos que se le envían al modelo, la extensión .llmwiki.zip y la variable LLM_WIKI_API_TOKEN. Integrado. Falta: verlo en la app (Settings, General).",
       "depende_de": [],
       "referencia": "PR #11 (integrado), src/i18n/product-name.ts, src/lib/app-identity.ts",
       "creado": "2026-10-07",
-      "actualizado": "2026-10-16"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-022",
       "titulo": "Decidir si se firman los instaladores de Windows",
       "tipo": "decision",
       "responsable": "usuario",
-      "estado": "pendiente",
+      "estado": "en-espera",
       "detalle": "Hoy salen sin firmar y Windows muestra el aviso de 'editor desconocido' al instalar. Firmarlos requiere comprar un certificado de firma de código y agregar ese paso al workflow. Cómo se hace (explicado al usuario el 2026-10-11, sin verificar precios ni requisitos): una certificadora valida a la empresa y emite un certificado cuya clave vive en un dispositivo o en un servicio de firma en la nube; se agrega un paso de firma al workflow. Alternativa más barata: el servicio de firma de Microsoft, si una empresa argentina califica. Recomendación: hacerlo justo antes de entregar el primer instalador a un estudio; depende de proteger los secretos (P-002). Mientras no se firme, quien instale tiene que tocar 'Más información' y 'Ejecutar de todas formas' en el aviso de Windows.",
       "depende_de": [],
       "referencia": "",
       "creado": "2026-10-07",
-      "actualizado": "2026-10-12"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-026",
       "titulo": "Evaluar Amazon Textract y Bedrock como motores de reconocimiento",
       "tipo": "decision",
       "responsable": "ambos",
-      "estado": "pendiente",
+      "estado": "en-espera",
       "detalle": "El usuario va a investigar Textract. Cuando haya cuenta de AWS, agregar el motor detrás del mismo contrato y comparar con Codex sobre páginas reales en español. Referencias de costo por 10.000 páginas: Textract texto simple ~USD 15, Claude Haiku 4.5 ~USD 57, Sonnet ~USD 180-200. Un reconocedor clásico no inventa texto; un modelo de visión puede completar lo que no lee (en la prueba adivinó un código ambiguo pese a la instrucción de no hacerlo). 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/.",
       "depende_de": [],
       "referencia": "src-tauri/src/source_volume/recognition.rs (trait TextRecognizer); docs/design/servicios-de-ia-propuesta.md",
       "creado": "2026-10-07",
-      "actualizado": "2026-10-21"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-029",
@@ -137,10 +151,11 @@
       "responsable": "usuario",
       "estado": "pendiente",
       "detalle": "Aunque cada cliente aporte su suscripción: OpenAI dice que el login de ChatGPT en apps comerciales 'nunca estuvo permitido' por la vía de Codex y ofrece 'Sign in with ChatGPT' solo a socios aprobados y sin cobrar por esa función; Anthropic prohíbe que apps de terceros hagan pasar pedidos por credenciales Free/Pro/Max de sus usuarios. El caso exacto (la app lanza el programa oficial del cliente) no está escrito en ninguno de los dos. Consultar a cada proveedor antes de venderlo así.",
+      "propuesta": "¿Podemos ofrecerles a los clientes que usen su propia suscripción de ChatGPT o Claude dentro de la app? Los términos de los dos proveedores lo ponen en duda. Recomendación de Claude (2026-10-22): No ofrecerlo. Para clientes, usar claves de API (del estudio o de Micelya) o los servicios de Micelya Core cuando estén; la suscripción propia queda solo para tus pruebas. Alternativa: Consultar por escrito a OpenAI y a Anthropic el caso exacto antes de decidir. Si se acepta: Se cierra; la distribución se apoya en el registro de servicios de IA (P-141) y en Core (P-063).",
       "depende_de": [],
       "referencia": "Informe del 2026-10-07 (términos de OpenAI y Anthropic)",
       "creado": "2026-10-07",
-      "actualizado": "2026-10-07"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-030",
@@ -148,11 +163,13 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "reconocimiento",
       "detalle": "Auditoría del 2026-10-07 sobre 10 piezas de AEROS BGH: el texto corrido sirve para la ingesta, pero ~6 % de los campos críticos salió mal (16 de ~268) y el motor casi nunca usa [ilegible]: adivina. Fallos típicos: dígitos perdidos en fotos de baja resolución, letra chica, texto rotado, sellos, marcas de agua ('SIN VALOR LEGAL' omitida) y 'correcciones' del texto que en un caso invirtieron el sentido de una frase. Ideas: cruzar números de factura, importes y fechas entre documentos y marcar discrepancias; segunda lectura de verificación; ampliar o recortar zonas de letra chica; avisar en la página wiki que el texto es reconocido; comparar con Textract (P-026).",
       "depende_de": [],
       "referencia": "src-tauri/src/source_volume/recognition_codex.rs",
       "creado": "2026-10-07",
-      "actualizado": "2026-10-07"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-043",
@@ -160,6 +177,8 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "chat",
       "detalle": "Con Codex el chat responde solo con las páginas que recibe (hasta 10 con el PR #13); una pregunta del tipo 'listame todas las facturas' queda parcial. Además, elegir una skill a mano vuelve a desactivar la búsqueda. Solución de fondo: que el proveedor CLI pueda leer por su cuenta más páginas del wiki, o que el planificador de búsqueda funcione también con proveedores CLI. 2026-10-22: absorbe P-031 («Arreglar el chat con Codex y Claude Code: no busca en el wiki»). Al probar, elegir una skill a mano con Codex y comprobar que el chat sigue buscando en la base. 2026-10-22: absorbe P-032 («Chat con proveedores CLI: enviar más contexto de las páginas»). Repetir una pregunta del tipo «listame todas las facturas» de una carpeta y ver si la respuesta sale completa.",
       "depende_de": [],
       "referencia": "src/lib/cli-chat-context.ts, src-tauri/src/agent/runtime.rs (should_fallback_wiki_search)",
@@ -171,36 +190,39 @@
       "titulo": "Texto reconocido guardado en el proyecto por hash del archivo",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "a-verificar",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "reconocimiento",
       "detalle": "Al reiniciar la app el 2026-10-08, las tres imágenes sueltas de AEROS BGH se volvieron a leer con Codex (no tenían caché), la lectura salió distinta y se reingirieron con el modelo. Hecho en el PR #17: el texto reconocido se guarda en raw/recognized/<SHA-256 del archivo>/ dentro del proyecto, una entrada JSON por página o por imagen, con el motor que la leyó. Un archivo movido, renombrado, vuelto a guardar sin cambios o presente en dos carpetas se lee una sola vez. Lo ya leído (páginas de PDF e imágenes) se adopta sin releer. Decidido con el usuario: por proyecto y no global, para no mezclar texto de distintos clientes; en raw/ y no en .llm-wiki, porque no es un caché descartable; como JSON, para que Obsidian no lo muestre como notas. El PR está integrado. Falta: verificar en la app; acción 'volver a leer este archivo' (el texto ya no vence solo); borrar las entradas de archivos cuyas ubicaciones se eliminaron todas.",
       "depende_de": [],
       "referencia": "PR #17 (integrado), src-tauri/src/source_volume/recognized_store.rs, src-tauri/src/source_volume/file_hash.rs",
       "creado": "2026-10-08",
-      "actualizado": "2026-10-16"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-048",
       "titulo": "Definir la red entre instancias y la vista unificada",
       "tipo": "decision",
       "responsable": "ambos",
-      "estado": "pendiente",
+      "estado": "en-espera",
       "detalle": "La autorización quedó definida el 2026-10-11 y está en el documento de diseño (sección 6): el origen es el techo, verificado con prueba de lectura; el proyecto es el alcance, abierto por defecto y reservable; hay un administrador del espacio. Quedan abiertas dos decisiones, ambas de la etapa del espacio compartido: cómo se encuentran y se comunican las instancias (y si hace falta un componente en la nube), y qué parte de lo compartido se copia a cada instancia y qué se consulta en el momento, que depende de cuánto se trabaje sin conexión y se decide midiendo.",
       "depende_de": [],
       "referencia": "docs/design/base-documental.md (secciones 6 y 10)",
       "creado": "2026-10-09",
-      "actualizado": "2026-10-11"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-049",
       "titulo": "Base documental: producto mínimo (etapa 1 más el puente con el wiki)",
-      "tipo": "codigo",
-      "responsable": "claude",
-      "estado": "en-curso",
+      "tipo": "decision",
+      "responsable": "usuario",
+      "estado": "pendiente",
       "detalle": "Alcance confirmado por el usuario el 2026-10-11: la etapa 1 del diseño más un puente mínimo, que es que el wiki del proyecto general tome sus fuentes de la base. Etapa 1: inventario, vigilancia, identidad (ubicación y contenido; las familias son de la etapa 2), derivados procesados una vez y pantallas de la base, para el espacio privado de un solo usuario. Base en SQLite, con su búsqueda por palabras; LanceDB sigue para vectores. Desde esta etapa: cada ubicación guarda origen, carpeta y etiquetas (las define el usuario según cómo ordena sus carpetas; 'cliente' y 'caso' son etiquetas); toda consulta recibe el conjunto de lo visible, que en privado es 'todo'; cada proyecto tiene miembros, 'abierto' al inicio; existe el proyecto general del espacio. Los datos que hoy viven por proyecto (catálogo, texto reconocido, detección de cambios) pasan al espacio. Pantallas acordadas: Inicio (salud del archivo, requiere atención, actividad reciente, proyectos), Orígenes, Documentos y Detalle de un documento; van en español. El marco visual de toda la app se trata aparte (P-057). Los pendientes P-012, P-015, P-016, P-040 y P-044 se replantean sobre esta base. Avance: (1) PR #24, la base SQLite del espacio privado y sus tablas, sin nada visible todavía. (2) PR #25, orígenes, barrido, huella de cada archivo en segundo plano y pantalla Orígenes. La vigilancia es un barrido al arrancar, cada cinco minutos y a pedido; el aviso en vivo del sistema quedó como P-064. (3) PR #26, pantalla Documentos (tabla con buscador y filtros) y Detalle de un documento con forma de artículo, etiquetas corregibles y todas las ubicaciones del mismo documento. (4) PR #27, texto de cada documento obtenido una vez por extracción directa (sin motores de reconocimiento por su cuenta), mismo texto en dos archivos como un solo documento, y búsqueda por palabras en Documentos. Comprobado en solo lectura sobre AEROS BGH (31 archivos) y Extrimian 3.0 (183), sin errores. (5) PR #28, pantalla Inicio (requiere atención, salud del archivo, actividad reciente, búsqueda rápida); la app abre ahí. (6) PR #29, el puente: un proyecto de wiki se asigna como proyecto general y las carpetas de la base pasan a ser sus fuentes sin copiar nada; el texto sale de la base y un escaneo reconocido por el wiki vuelve a la base, así no se reconoce dos veces. Asignarlo desactiva la incorporación automática de ese proyecto; incorporar se pide carpeta por carpeta. Construido completo y con pruebas automáticas; falta verlo en la app (P-065) e integrar los PR #24 a #30. El 2026-10-12 el usuario la vio funcionando en la app (abre en Inicio; copias, movidos y editados detectados sobre una copia local de AEROS BGH) y pidió cuatro cambios, hechos en el PR #31: el archivo que la app crea sola con su wiki activable, Orígenes como árbol con exclusiones, etiquetas con grupos y reglas por carpeta, e índice de enlaces del wiki. Falta integrar el #31 y verlo en la app (P-067). Al cierre del 2026-10-12 todo está integrado en main (PR #24 a #31). Queda verla funcionando entera (P-067) y activar el wiki por primera vez (P-051). Estado al 2026-10-16, según el usuario: el producto mínimo NO está cerrado. Hay una primera versión construida, pero deja mucho que desear en experiencia de uso y el wiki que generó es inservible. El usuario va a traer una propuesta de diseño para revisarla, ajustarla e implementarla.",
+      "propuesta": "Este pendiente dice que el producto mínimo es «la base más el puente con el wiki», y el wiki ya no existe. ¿Qué tiene que pasar para que consideres terminado el producto mínimo? Recomendación de Claude (2026-10-22): Cerrar este pendiente y reemplazarlo por un criterio tuyo, concreto y que se pueda observar; por ejemplo: «un abogado del estudio de referencia usa la app una semana con un expediente real: lo carga, encuentra a las personas y el caso, lee las páginas y le pregunta al chat sin toparse con errores». Claude lo escribe como pendiente nuevo con la lista de lo que falta ver. Alternativa: Dejarlo abierto como paraguas de todo lo que falta, como hoy. Si se acepta: Se cierra y nace un pendiente nuevo con tu criterio; los que esperan «después del producto mínimo» pasan a depender de ese.",
       "depende_de": [],
       "referencia": "docs/design/base-documental.md; docs/sessions/2026-10-12-sesion-05.md; src-tauri/src/docbase/; src/components/docbase/; src/vocabulary/; PR #24 a #31",
       "creado": "2026-10-09",
-      "actualizado": "2026-10-16"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-052",
@@ -214,7 +236,7 @@
       ],
       "referencia": "docs/design/base-documental.md (secciones 6 y 10)",
       "creado": "2026-10-11",
-      "actualizado": "2026-10-11"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-053",
@@ -228,7 +250,7 @@
       ],
       "referencia": "docs/design/base-documental.md (sección 10)",
       "creado": "2026-10-11",
-      "actualizado": "2026-10-11"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-054",
@@ -242,7 +264,7 @@
       ],
       "referencia": "docs/design/base-documental.md (secciones 6 y 10)",
       "creado": "2026-10-11",
-      "actualizado": "2026-10-11"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-056",
@@ -256,19 +278,20 @@
       ],
       "referencia": "docs/design/base-documental.md (secciones 5 y 10)",
       "creado": "2026-10-11",
-      "actualizado": "2026-10-11"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-057",
       "titulo": "Marco visual de toda la app y elementos de marca",
-      "tipo": "codigo",
-      "responsable": "ambos",
+      "tipo": "decision",
+      "responsable": "usuario",
       "estado": "pendiente",
       "detalle": "El usuario quiere llevar la interfaz hacia el mockup del 2026-05-20: barra superior con marca, buscador global y usuario; franja que indica estudio, caso y si es privado; navegación a la izquierda con texto y contadores; páginas con forma de artículo de enciclopedia (pestañas, índice, ficha de datos, enlaces, referencias). Se aplica a toda la app, incorporando los elementos de marca del sitio de Micelya. Acordado el 2026-10-11: hacerlo en un turno dedicado solo a esto, con una pasada de diseño antes de aplicar cambios; falta definir con qué herramienta se hace esa pasada. Relevado el 2026-10-11: la marca está definida en el Manual de Marca (PDF, con una versión legible en markdown) y el sitio la aplica. Paleta magenta y púrpura (primario #8B2778, texto #2F0A38, acento #DD0D6E), tipografías Mulish para títulos e interfaz e Inter para lectura; el manual define modo claro y modo oscuro. El mockup usa celeste sobre azul oscuro, que no es la paleta de la marca: hay que rehacerlo con la paleta real. Falta para una app: logo en formato vectorial y versión para fondo oscuro, colores de estado (éxito, aviso, error), escala de grises y estilos para pantallas densas (tablas, árboles, pestañas); las tipografías hay que incluirlas en la app, no cargarlas de internet. Sumar (2026-10-12): hoy nada en pantalla dice qué proyecto está abierto ni distingue las pantallas de la base (Inicio, Documentos, Orígenes) de las del proyecto abierto (wiki, revisión, grafo); el usuario se confundió y creyó que el wiki había corrido. También entran acá las mejoras de interfaz que el usuario va a pasar juntas, y poder elegir el color de una etiqueta. Sumar (2026-10-13), del uso real: (a) la caja de etiquetas no dice para qué sirve ni cómo se indica el grupo, dos etiquetas con el mismo nombre solo se distinguen por el color, y quitar una etiqueta recién creada la deja huérfana sin aviso; (b) orígenes, proyectos y wiki están repartidos en pantallas distintas y son temas relacionados: el usuario pide agruparlos; (c) la cola de incorporación solo se ve y se controla desde una barra de la vista del wiki, en inglés, y no desde las pantallas de la base.",
+      "propuesta": "¿Cuándo hacemos el rediseño visual con la marca de Micelya y cómo lo aprobás antes de aplicarlo? Recomendación de Claude (2026-10-22): Hacerlo después de que veas lo construido, para no rediseñar pantallas que van a cambiar: Claude arma una maqueta navegable de tres pantallas (Inicio, una persona y un caso) con la paleta, las tipografías y la barra superior del manual de marca; vos la aprobás o corregís, y recién entonces se aplica a toda la app en un turno dedicado. Alternativa: Aplicar ya los colores y tipografías de la marca sin maqueta y ajustar sobre la app. Si se acepta: Pasa a la cola de Claude con prioridad 2 (primero la maqueta).",
       "depende_de": [],
       "referencia": "Manual de Marca (unidad compartida de Micelya, Marketing/Branding/Micelya); sitio: repo Micelya/micelya-website; mockup: carpeta 2026-05-20-mockups del estudio de referencia",
       "creado": "2026-10-11",
-      "actualizado": "2026-10-13"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-058",
@@ -276,13 +299,15 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "pantallas",
       "detalle": "La app trae inglés, italiano, ruso y chino; no tiene español. Las pantallas de la base documental (P-049) se escriben en español. Trabajo aparte: traducir al español toda la app existente y, en el mismo trabajo, llevar las pantallas que nacieron solo en español a los otros idiomas. Hay una prueba que exige que todos los idiomas tengan las mismas claves. Incluir los mensajes de error que vienen del motor en inglés y aparecen dentro de las pantallas en español (por ejemplo, por qué una carpeta no se pudo usar como fuente del wiki). El vocabulario por vertical (src/vocabulary/) ya existe por idioma; hoy las pantallas de la base usan siempre el español. Al traducir, hacer que tome el idioma de la app.",
       "depende_de": [
         "P-049"
       ],
       "referencia": "src/i18n/, src/i18n/i18n-parity.test.ts",
       "creado": "2026-10-11",
-      "actualizado": "2026-10-12"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-059",
@@ -296,7 +321,7 @@
       ],
       "referencia": "Mockup 02-dashboard.html",
       "creado": "2026-10-11",
-      "actualizado": "2026-10-11"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-060",
@@ -311,7 +336,7 @@
       ],
       "referencia": "Mockup 03-buscador.html",
       "creado": "2026-10-11",
-      "actualizado": "2026-10-11"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-062",
@@ -325,7 +350,7 @@
       ],
       "referencia": "docs/design/base-documental.md (sección 7, motores de lectura)",
       "creado": "2026-10-11",
-      "actualizado": "2026-10-11"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-063",
@@ -337,7 +362,7 @@
       "depende_de": [],
       "referencia": "Repo extrimian/mi-platform, rama dev; docs/design/servicios-de-ia-propuesta.md",
       "creado": "2026-10-11",
-      "actualizado": "2026-10-21"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-064",
@@ -345,13 +370,15 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "orígenes",
       "detalle": "El diseño dice que vigilar es aviso en vivo, cuando existe, más un barrido de respaldo. La base hoy solo barre: al arrancar, cada cinco minutos y cuando se pide desde la pantalla Orígenes. Un archivo nuevo puede tardar hasta cinco minutos en aparecer. Falta escuchar los avisos del sistema en las carpetas locales para disparar el barrido enseguida.",
       "depende_de": [
         "P-049"
       ],
       "referencia": "src-tauri/src/docbase/worker.rs",
       "creado": "2026-10-11",
-      "actualizado": "2026-10-11"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-066",
@@ -360,20 +387,22 @@
       "responsable": "usuario",
       "estado": "pendiente",
       "detalle": "La base se construyó en una sesión desatendida. Decisiones a confirmar o cambiar: asignar el proyecto general desactiva la incorporación automática de ese proyecto; el wiki del proyecto general se elige entre los proyectos existentes en vez de crearse solo; la app abre en Inicio; quitar una carpeta la desmonta del wiki general pero deja las páginas generadas; qué archivos deja afuera el inventario (carpetas ocultas, desktop.ini, temporales de Office); dejar vacía una etiqueta corregida vuelve al valor de la carpeta. Estado al 2026-10-12: el usuario cambió dos (el proyecto general ahora lo crea la app y se llama según el vocabulario; el wiki, una vez activado, se alimenta solo). Siguen sin revisar: la app abre en Inicio, qué archivos deja afuera el inventario, y las decisiones nuevas de la sección 7 de la sesión 05. Decisiones del 2026-10-13 a confirmar: 'Pausar' el wiki del archivo detiene también la cola (el documento en curso vuelve a la cola) y 'Activar' la reanuda; al abrir la app, la cola del archivo queda detenida si su wiki no está activo; el archivo nace con el idioma general de la app o, si no hay, con el del vocabulario; en la caja de etiquetas Enter elige la etiqueta escrita entera y solo crea una si nada coincide; al escribir una etiqueta o un grupo se busca por el nombre que se ve, sin distinguir mayúsculas. Decisión del 2026-10-14 a confirmar: D-146 (cómo se escribe la opción elegida en un formulario PDF). Decisión del 2026-10-14 a confirmar: D-147 (el preprocesado recibe la ruta completa de la fuente). Decisiones del 2026-10-14 a confirmar (motor de parecidos, S1): D-116 a D-124 en docs/decisiones.md (texto de rutina, cómo se mide cuánto comparten, misma plantilla o versión, firma de una parte, catálogo como archivo de datos, principal de una familia, alineación propia, solo documentos con todo su texto, nombres inventados en las pruebas). Decisiones del 2026-10-14 a confirmar de las etapas siguientes: D-125 a D-131 (pantallas, S2), D-132 a D-142 (tipo y etapa con el modelo, S3) y D-143 a D-145 y D-148 (el wiki usa la fuente elegida, S4).",
+      "propuesta": "Hay decenas de decisiones viejas (11 al 14 oct) tomadas sin consultarte, muchas sobre el wiki que ya no existe. Recomendación de Claude (2026-10-22): Aprobarlas en bloque: Claude marca como sin objeto las que el retiro del wiki dejó vacías y te deja para mirar solo las que todavía cambian lo que ves (qué archivos deja afuera el inventario y las de parecidos y tipos de documento, D-116 a D-148). Alternativa: Revisarlas una por una. Si se acepta: Se cierra; Claude actualiza su estado en docs/decisiones.md (prioridad 2).",
       "depende_de": [
         "P-049"
       ],
       "referencia": "docs/sessions/2026-10-11-sesion-04.md (sección 6); docs/sessions/2026-10-12-sesion-05.md (sección 7)",
       "creado": "2026-10-11",
-      "actualizado": "2026-10-14"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-069",
       "titulo": "Elegir el vertical y ajustar su vocabulario",
       "tipo": "decision",
-      "responsable": "ambos",
-      "estado": "en-espera",
+      "responsable": "usuario",
+      "estado": "pendiente",
       "detalle": "Los términos del dominio salen de un vocabulario por vertical y por idioma (src/vocabulary/). Hoy hay un solo vertical, estudios jurídicos, fijo en el código. Falta: dónde se elige el vertical, si un estudio puede cambiar algún término, y los vocabularios de escribanías y estudios contables. Hipótesis a validar con el estudio de referencia: el abogado dice 'carpeta' o 'legajo' donde el producto dice 'caso'. 2026-10-22: absorbe P-079 («Elegir el país del vocabulario y validar los nombres de las relaciones»).",
+      "propuesta": "La app tiene fijo el vocabulario de estudios jurídicos de Argentina. ¿Hace falta ya poder elegir otro rubro o país, o que un estudio cambie palabras? Recomendación de Claude (2026-10-22): No construir todavía un selector: dejarlo fijo en estudios jurídicos de Argentina y validar con el estudio de referencia, en la primera entrega, las palabras clave (caso, carpeta o legajo; plantilla o modelo; los nombres de las relaciones). Cambiar palabras por estudio va junto con el editor de catálogos (P-279). Alternativa: Agregar ya en Ajustes el rubro y el país. Si se acepta: Queda en espera de la primera entrega al estudio de referencia; P-079 se cierra con este.",
       "depende_de": [
         "P-049"
       ],
@@ -387,13 +416,15 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "documentos",
       "detalle": "La base no guarda en qué idioma está cada documento. Registrarlo sirve para filtrar y, más adelante, para elegir el motor de lectura. El usuario pide que la detección siga sin usar IA (más rápida y barata) pero que sea confiable: la actual son reglas a mano sobre letras y palabras cortas, heredadas del proyecto original, y falló con español (corregido para las cuatro lenguas romances en el PR #33, sigue siendo frágil). Evaluar un detector estadístico por frecuencias de secuencias de letras, que corre local y devuelve además un grado de confianza; medirlo sobre documentos reales en castellano, portugués, inglés e italiano, incluidos textos cortos y documentos con dos idiomas. Con el wiki en idioma fijo, la detección deja de decidir en qué idioma se escribe.",
       "depende_de": [
         "P-049"
       ],
       "referencia": "src/lib/detect-language.ts; src-tauri/src/docbase/text.rs",
       "creado": "2026-10-13",
-      "actualizado": "2026-10-13"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-073",
@@ -405,13 +436,13 @@
       "depende_de": [],
       "referencia": "",
       "creado": "2026-10-13",
-      "actualizado": "2026-10-13"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-077",
       "titulo": "Ver las diferencias de dos documentos parecidos lado a lado",
       "tipo": "codigo",
-      "responsable": "claude",
+      "responsable": "usuario",
       "estado": "a-verificar",
       "detalle": "Construido el 2026-10-16 en la rama feat/attention-view (sin integrar a main): el botón \"Ver diferencias\" de cada par, en el detalle de un documento y en la vista de parecidos, muestra los dos textos lado a lado con lo que cambia resaltado; un cambio es un dato cuando todas sus palabras tienen un dígito, si no es redacción; los tramos iguales largos se pliegan. Se calcula en la pantalla, a pedido (D-160). Falta que el dueño lo vea con pares reales; si hace falta distinguir el tipo de dato (identificador, importe, fecha, nombre) como el motor, es una mejora.",
       "depende_de": [
@@ -419,13 +450,13 @@
       ],
       "referencia": "docs/design/parecidos-propuesta.md (sección 9)",
       "creado": "2026-10-14",
-      "actualizado": "2026-10-16"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-080",
       "titulo": "Confirmar o corregir los tipos de documento que propone el modelo",
       "tipo": "codigo",
-      "responsable": "claude",
+      "responsable": "usuario",
       "estado": "a-verificar",
       "detalle": "Construido el 2026-10-16 en la rama feat/attention-view (sin integrar a main): la vista \"Tipos de documento propuestos\" (desde Atención y desde Orígenes) confirma un tipo con su nombre o con otro, o lo rechaza, y todo se puede deshacer. Lo confirmado pasa a la lista cerrada (tabla type_decision, esquema 8) y entra en las preguntas nuevas sin volver a preguntar lo ya respondido (D-161); lo rechazado deja sus documentos sin tipo y se vuelven a preguntar diciendo que no lo proponga (D-162). Queda aparte cambiar a mano el tipo o la etapa de un documento (P-088).",
       "depende_de": [],
@@ -439,6 +470,8 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "lectura y relaciones",
       "detalle": "En la prueba real de S3 las etapas acertaron 11 de 18; casi todos los errores son de firma: ejemplares sin firmar que el modelo da por firmados porque leyó el principal firmado de su familia, y firmado por una parte contra firmado por todas. Opciones generales: leer quién firmó en el historial del servicio y en los certificados de las firmas incrustadas (P-076), preguntar por separado la etapa de un miembro cuya relación con el principal es de otra etapa, o mostrarle al modelo el final del texto de cada miembro. 2026-10-22: absorbe P-076 («Reconocer firmas electrónicas en los PDF»). Revisar también las firmas con más servicios de firma y con firmas de partes con certificado propio, cuando haya material.",
       "depende_de": [],
       "referencia": "LocalRepo\\llm_wiki_mi\\desatendido\\evaluacion-S3.txt",
@@ -455,7 +488,7 @@
       "depende_de": [],
       "referencia": ".github/workflows/ci.yml; .github/workflows/build.yml; Settings → Rules → Rulesets → proteger-main",
       "creado": "2026-10-15",
-      "actualizado": "2026-10-15"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-088",
@@ -463,21 +496,24 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "pantallas",
       "detalle": "P-080 pedía también corregir a mano el tipo o la etapa de un documento puntual; la vista de tipos propuestos solo decide sobre un tipo entero. Falta, en el detalle del documento, elegir otro tipo de la lista cerrada o otra etapa, guardado como decisión de una persona (R-08) que una pasada nueva no pisa.",
       "depende_de": [
         "P-080"
       ],
       "referencia": "src/components/docbase/document-types-view.tsx; src-tauri/src/docbase/similar/classify.rs",
       "creado": "2026-10-16",
-      "actualizado": "2026-10-16"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-090",
       "titulo": "Ofrecer releer el archivo con un modelo nuevo",
       "tipo": "decision",
-      "responsable": "ambos",
+      "responsable": "usuario",
       "estado": "pendiente",
       "detalle": "Cambiar de modelo no vuelve a leer lo que la capa de conocimiento ya extrajo (D-180). Decidir si la app ofrece releer todo el archivo, o solo lo que falló, cuando el dueño elige otro modelo, y con qué aviso de costo. Cubierto en parte por D-432 (22 oct): la app ya ofrece «Volver a leer con el modelo» por documento, origen, carpeta o todo, con aviso de cuántos documentos y preguntas son; falta decidir si se ofrece sola cuando el dueño elige otro modelo.",
+      "propuesta": "Cuando elegís otro modelo, lo ya leído no se vuelve a leer solo. ¿La app debería ofrecértelo? Recomendación de Claude (2026-10-22): Que no relea sola: al cambiar de modelo, Atención muestra «N documentos leídos con otro modelo» con el botón «Volver a leer con el modelo» que ya existe (D-432) y su costo; vos decidís cuándo. Alternativa: Ofrecer releer sola solo los documentos que fallaron o quedaron vacíos. Si se acepta: Pasa a la cola de Claude con prioridad 3.",
       "depende_de": [],
       "referencia": "docs/decisiones.md (D-180); src-tauri/src/docbase/knowledge/extract.rs",
       "creado": "2026-10-16",
@@ -489,11 +525,13 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "rendimiento",
       "detalle": "Cada paso del hilo de preguntas recalcula sin modelo la pasada de tipos (pass4_refresh) y lista los documentos de la capa; con 66 documentos no se nota, con miles sí. Marcar lo cambiado (como similar_dirty) para mirar solo eso.",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/worker.rs; src-tauri/src/docbase/similar/classify.rs",
       "creado": "2026-10-16",
-      "actualizado": "2026-10-16"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-097",
@@ -501,13 +539,15 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "rendimiento",
       "detalle": "La resolución se calcula entera, sin modelo, cada vez que hay algo nuevo, y en segundo plano se repite por cada pregunta al modelo (D-192). Con cientos de documentos no se nota; con decenas de miles sí. Limitar el cálculo a los componentes de candidatos que tocan los documentos marcados, con el mismo resultado.",
       "depende_de": [
         "P-095"
       ],
       "referencia": "src-tauri/src/docbase/knowledge/resolve.rs",
       "creado": "2026-10-16",
-      "actualizado": "2026-10-16"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-098",
@@ -515,11 +555,13 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "identidad y fichas",
       "detalle": "El CUIT o CUIL de una persona contiene su DNI; hoy un documento con el DNI y otro con el CUIL no se unen por identificador, solo por nombre o por el modelo. Agregarlo como una regla de forma del identificador en el vocabulario (dato, no código: depende del país) y medirlo contra la hoja.",
       "depende_de": [],
       "referencia": "src-tauri/resources/catalog/knowledge.json; src-tauri/src/docbase/knowledge/resolve.rs",
       "creado": "2026-10-16",
-      "actualizado": "2026-10-16"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-099",
@@ -528,22 +570,25 @@
       "responsable": "usuario",
       "estado": "pendiente",
       "detalle": "R-08 dice que un \"no son la misma\" bloquea la relación salvo que aparezca evidencia nueva y distinta. Hoy la separación queda firme hasta que se deshace (D-189); la decisión guarda la huella de lo mostrado, así que se puede detectar el cambio. Decidir si la vista de atención la vuelve a mostrar y con qué evidencia (etapa K6).",
+      "propuesta": "Cuando decís que dos fichas no son la misma persona, quedan separadas para siempre. Si después aparece un documento nuevo que sugiere que sí lo son, ¿la app te lo vuelve a preguntar? Recomendación de Claude (2026-10-22): Sí, pero solo con evidencia fuerte y nueva: un mismo DNI, CUIT o matrícula en un documento que no estaba cuando decidiste. Un nombre parecido no alcanza. Se muestra en Atención con lo nuevo resaltado. Alternativa: No volver a preguntar nunca: la separación queda hasta que la deshagas a mano. Si se acepta: Pasa a la cola de Claude con prioridad 3 (la decisión ya guarda la huella de lo que viste, shown_evidence_hash en decide.rs).",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/knowledge/decide.rs; docs/design/conocimiento-propuesta.md (sección 11)",
       "creado": "2026-10-16",
-      "actualizado": "2026-10-16"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-102",
       "titulo": "Pantallas y enlaces que faltan de la proyección",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "a-verificar",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "páginas",
       "detalle": "Para K6: mostrar en Atención las páginas con síntesis pendiente y las oraciones descartadas; llevar la fusión de duplicados de Mantenimiento a decisiones del registro (D-202); envoltorios del frontend para los comandos de K2. Más adelante: enlazar los nombres dentro del texto de la página de cada documento (hoy solo el bloque del final, D-198) y ordenar los documentos de una entidad por fecha (hoy por nombre). Hecho en K6: síntesis pendiente en \"En curso\" y oraciones descartadas en Atención (D-217); fusión de duplicados llevada a decisiones del registro (D-220); envoltorios de los comandos de K2 en src/commands/docbase.ts; enlaces dentro del texto de la página de cada documento (D-221). Queda ordenar los documentos de una entidad por fecha (hoy por nombre).",
       "depende_de": [],
       "referencia": "src/lib/knowledge-layer.ts; src/components/attention/; src/lib/dedup-runner.ts",
       "creado": "2026-10-16",
-      "actualizado": "2026-10-16"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-104",
@@ -551,30 +596,33 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "lectura y relaciones",
       "detalle": "Contra la hoja, el registro tiene 21 de 30 vínculos entre entidades: faltan \"trabaja en\", \"integra el equipo de\" y \"pertenece a\", que la lectura no extrae como relación, y algunos cargos quedan sin organización porque la cita no la nombra (D-210). Mejorarlo pide cambiar la pregunta de lectura (vuelve a leer todo el archivo, unas 75 preguntas) o una pregunta aparte por cargo sin organización; medir antes y después (R-17). Quedan también valores mal leídos que la forma no detecta (un texto cualquiera como cargo).",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/knowledge/extract.rs; claims.rs; resources/catalog/knowledge.json",
       "creado": "2026-10-16",
-      "actualizado": "2026-10-16"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-106",
       "titulo": "Roles dentro de un asunto: contraparte, cliente del estudio",
       "tipo": "decision",
-      "responsable": "ambos",
+      "responsable": "usuario",
       "estado": "pendiente",
       "detalle": "La especificación de K5 nombra \"contraparte en\" un asunto; hoy el asunto muestra sus partes y sus roles en cada documento, pero no de qué lado está cada una ni quién es el cliente del estudio. Definir con el dueño si es un dato que la app propone (por ejemplo, quién remite y quién recibe las cartas documento) o que dice una persona, y cómo se muestra en la página del asunto.",
+      "propuesta": "En un caso, la app muestra las partes pero no de qué lado está cada una ni quién es el cliente del estudio. ¿Lo propone la app o lo dice una persona? Recomendación de Claude (2026-10-22): Que la app lo proponga con lo que ya lee (quién remite y quién recibe las cartas, a quién representa el abogado del estudio) y una persona lo confirme una vez por caso; se muestra en la cabecera del caso como «Cliente» y «Contraparte». Alternativa: Que lo cargue siempre una persona, sin propuesta. Si se acepta: Pasa a la cola de Claude con prioridad 2.",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/knowledge/matters.rs; pages.rs (render_matter)",
       "creado": "2026-10-16",
-      "actualizado": "2026-10-16"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-108",
       "titulo": "Ver en la app las pantallas de la capa de conocimiento",
       "tipo": "verificacion",
       "responsable": "usuario",
-      "estado": "pendiente",
+      "estado": "a-verificar",
       "detalle": "La etapa K6 se probó con pruebas, sin levantar la app: falta ver en la app real la vista Atención con la fuente de conocimiento, Personas y organizaciones (lista, detalle, unir, separar, marcar incorrecto, deshacer), Identidades dudosas, Asuntos, la sección de entidades del detalle de un documento, los enlaces dentro de las páginas de documentos y que el lector ya no muestre las marcas de la app. Le toca a la etapa W. Etapa W: la app corrió con la base real y la capa completa, y lo que la vista Atención y las pantallas leen se comprobó con la misma consulta del motor (18 dudas, 3 conflictos, 10 uniones por identificador, 1 propuesta de asunto, 2 páginas conservadas); las pantallas no se pudieron mirar (sin herramienta de capturas en la tanda). Desde el 2026-10-18 le toca al dueño mirar las pantallas en la app. 2026-10-22: absorbe P-091 («Nombres de tipos de entidad, roles y predicados en el vocabulario de la vertical»). Que los tipos, roles, vínculos e identificadores se lean con nombres en castellano (D-223). 2026-10-22: absorbe P-100 («Cargos y otros datos de un valor por organización, y ruido de la extracción en las páginas»). Que una persona con cargos en dos sociedades no aparezca con datos «en conflicto» (D-209 a D-211). 2026-10-22: absorbe P-122 («Representaciones del bloque de firma perdidas por exigir el objeto en la cita»). Que una persona que firma como apoderada de una sociedad tenga el vínculo «representa a» con su cita (D-269, D-435). 2026-10-22: absorbe P-131 («Personas con página por lo que dicen los documentos»). Mirar si sirven las páginas de personas que aparecen en un solo documento o si conviene exigir además un rol de sustancia (D-266).",
       "depende_de": [],
       "referencia": "src/components/knowledge/; docs/decisiones.md (D-216 a D-221)",
@@ -586,14 +634,16 @@
       "titulo": "Medir los enlaces dentro de las páginas de documentos",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "a-verificar",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "páginas",
       "detalle": "Los enlaces dentro del texto (D-221) se ponen solo donde el texto escribe el nombre igual que el documento y no puede ser otra entidad. Medir sobre el wiki real cuántos nombres se enlazan, si alguno enlaza mal y cuántos se pierden porque el wiki escribe el nombre de otra manera; si conviene, sumar los alias de la entidad con las mismas reglas de seguridad. Etapa W: 221 enlaces en 61 de 66 páginas de documentos; en una revisión por nombre, cerca del 95 % lleva a la entidad correcta (los errores vienen de uniones de la capa, como el área legal de una sociedad unida a otra del grupo). No se midió cuántos nombres se pierden por escribirse distinto.",
       "depende_de": [
         "P-108"
       ],
       "referencia": "src-tauri/src/docbase/knowledge/links.rs",
       "creado": "2026-10-16",
-      "actualizado": "2026-10-16"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-111",
@@ -601,11 +651,13 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "rendimiento",
       "detalle": "Los umbrales de las lecturas que pierden citas (4 descartes y 40 %) y de las uniones recientes por identificador (30 días) son una primera estimación (D-217): medirlos sobre el archivo real. La consulta de Atención de la capa recorre todas las lecturas y las entidades unidas por identificador cada vez que la base avisa un cambio: con miles de documentos hay que limitarla a lo cambiado.",
       "depende_de": [],
       "referencia": "src-tauri/resources/catalog/knowledge.json (attention); src-tauri/src/docbase/knowledge/screens.rs",
       "creado": "2026-10-16",
-      "actualizado": "2026-10-16"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-112",
@@ -613,11 +665,13 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "lectura y relaciones",
       "detalle": "Después de los arreglos de la etapa W, cerca de una de cada seis afirmaciones que llegan a las páginas sigue mal: la deuda atribuida a quien la reclama, relaciones cuya cita no las dice, un asunto que es una frase. Probar una pasada que le pregunte al modelo, por documento, si cada cita dice exactamente esa afirmación con ese sujeto, y medirla contra la hoja de entidades (R-17).",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/knowledge/claims.rs; D-226, D-230",
       "creado": "2026-10-16",
-      "actualizado": "2026-10-16"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-116",
@@ -625,11 +679,13 @@
       "tipo": "verificacion",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "pruebas y calidad",
       "detalle": "D-235 se probó con un modelo de prueba y sobre una copia de la base. Falta verlo en la app con el modelo real: que los documentos largos que volvían vacíos se pregunten de nuevo, que si siguen vacíos aparezcan en Atención con su motivo, y que «Volver a leer» los vuelva a pedir.",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/knowledge/extract.rs; src/components/attention/sources/knowledge.ts",
       "creado": "2026-10-17",
-      "actualizado": "2026-10-17"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-119",
@@ -637,11 +693,13 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "páginas",
       "detalle": "D-239 escribe en el idioma de las páginas solo las fechas en inglés con el mes en letras («December 30, 2021»). Las fechas numéricas ambiguas (12/30/2021) y las de otros idiomas quedan como están; tampoco se tocan las páginas que escribe el modelo del wiki.",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/knowledge/pages.rs (localized_dates)",
       "creado": "2026-10-17",
-      "actualizado": "2026-10-17"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-125",
@@ -649,11 +707,13 @@
       "tipo": "verificacion",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "lectura y relaciones",
       "detalle": "La relectura descartó 60 definiciones porque definen algo que no es una mención («los Servicios», «las Partes», «la Fecha de terminación»). No hacen daño, pero alargan la respuesta del modelo; ver en Q4 si conviene pedir solo las definiciones de personas, organizaciones y asuntos.",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/knowledge/extract.rs (prompt)",
       "creado": "2026-10-17",
-      "actualizado": "2026-10-17"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-126",
@@ -661,47 +721,50 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "identidad y fichas",
       "detalle": "Desde D-266 no tienen página (\"ENTRE RIOS\", \"Tucumán\", \"Capital Federal\" de las boletas, con rol otro), pero siguen siendo entidades de tipo organización. Falta una señal general para clasificarlas como lugar antes de crear la entidad (la pregunta de lectura o una lista de palabras de lugar en el vocabulario).",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/knowledge/resolve.rs, matters.rs, pages.rs; resources/catalog/knowledge.json",
       "creado": "2026-10-17",
-      "actualizado": "2026-10-17"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-128",
       "titulo": "Grupos de sociedades: alcance de la regla",
       "tipo": "decision",
-      "responsable": "ambos",
+      "responsable": "usuario",
       "estado": "pendiente",
       "detalle": "D-260 crea la entidad del grupo solo cuando hay algo que atribuirle (una mención sin forma o una casilla de varias); sin eso, la relación entre las sociedades no se ve en sus páginas. Las marcas de un grupo sin forma societaria (un revendedor) no entran. Ver con el dueño si el grupo debe existir siempre que haya señal.",
+      "propuesta": "Cuando dos sociedades parecen del mismo grupo, la app crea la ficha del grupo solo si hay algo que atribuirle. ¿Debería existir siempre que haya señal? Recomendación de Claude (2026-10-22): Sí: crear el grupo siempre que haya una señal firme (mismo nombre, otra forma societaria y otra señal que las vincule), aunque no haya nada que atribuirle, para que se vea la relación. Las marcas sin forma societaria (un revendedor) quedan afuera. Alternativa: Dejar la regla actual (D-260). Si se acepta: Pasa a la cola de Claude con prioridad 3.",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/knowledge/resolve.rs, matters.rs, pages.rs; resources/catalog/knowledge.json",
       "creado": "2026-10-17",
-      "actualizado": "2026-10-17"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-135",
       "titulo": "Casillas de los formularios",
       "tipo": "codigo",
-      "responsable": "claude",
+      "responsable": "usuario",
       "estado": "a-verificar",
       "detalle": "En las fichas de cliente el texto extraído trae los rótulos impresos (\"Es o fue PPE: SI/NO\", \"beneficiario final\") pero no qué casilla está marcada; el modelo del wiki los lee como respuestas y escribe datos jurídicos falsos (6 a 8 afirmaciones en 3 fichas). Extraer el estado de las casillas (campos del PDF o la imagen) o, si no se puede, avisar que no se sabe. Dato de N1: en dos fichas las casillas son campos del formulario PDF (que el texto extraído no trae) y en la tercera, firmada y aplanada, el texto tiene las marcas sin posición; la imagen las muestra. Casos de aceptación en conjunto-prueba/casos-criticos.json (fuera del repositorio, D-300); se comprueban con desatendido-4/N1-comprobar-casos.py. (K01-K09) N2a (D-314 a D-316): la extracción escribe la opción marcada con «(marcada)», lee las marcas de un formulario aplanado por su celda y vuelve a extraer los textos viejos; casos K01-K09: 9 de 9 en la base (antes 0). Falta que el dueño lo vea; las fichas escaneadas solo imagen siguen en P-160 y el wiki heredado en P-162.",
       "depende_de": [],
       "referencia": "src-tauri/src/source_volume; src/lib/ingest.ts",
       "creado": "2026-10-17",
-      "actualizado": "2026-10-18"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-136",
       "titulo": "Naturaleza y estado de un importe",
       "tipo": "codigo",
-      "responsable": "claude",
+      "responsable": "usuario",
       "estado": "a-verificar",
       "detalle": "La dirección del dinero quedó bien, pero unas 20 afirmaciones de importe tienen mal la naturaleza: ejemplos de una propuesta tomados como facturas, créditos promocionales como inversión, descuentos del 100 % como precio, cuotas con vencimiento futuro como \"pagó\". Agregar al importe un estado (previsto, pagado, ejemplo, condicionado) y una regla de fecha (vencimiento posterior al documento no es un pago). Casos de aceptación en conjunto-prueba/casos-criticos.json (fuera del repositorio, D-300); se comprueban con desatendido-4/N1-comprobar-casos.py. (I01-I16; I14-I16 son de control) N2a (D-310 a D-313): estado del importe en el vocabulario, ejemplos descartados, regla de fecha; casos I01-I16: 13 de 16 (antes 3), controles bien. Quedan I04-I06 (P-161). Falta que el dueño lo vea.",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/knowledge/claims.rs; src-tauri/resources/catalog/knowledge.json",
       "creado": "2026-10-17",
-      "actualizado": "2026-10-18"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-137",
@@ -709,6 +772,8 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "identidad y fichas",
       "detalle": "Separaciones falsas 4,7 % (luna medio en Q3 1,6 %, luna alto en Q4 2,2 %): la misma organización con su nombre oficial largo y el corto (el correo postal), un nombre de una palabra escrito con y sin mayúscula en documentos distintos (no se une por nombre a propósito), un término definido de un contrato tomado como otra organización, áreas de una asociación, y un asunto partido entre sus dos formas de nombre. Ver una señal general para cada una. Regresiones de las rondas de Q5 a revisar: una organización nombrada al pasar cuyo único dato es su domicilio perdió su página (D-288 la trata como una oficina de una lista); los correos de personas que se mostraban como \"otro número\" no pasan a contacto (D-289); el encabezado de un asunto ya no muestra números de cliente, de cuenta o de envío que la hoja espera como suyos. Casos de aceptación en conjunto-prueba/casos-criticos.json (fuera del repositorio, D-300); se comprueban con desatendido-4/N1-comprobar-casos.py. (S01-S08 entidades partidas, R01-R05 regresiones y páginas) 2026-10-22: absorbe P-120 («Separaciones falsas después de la segunda pregunta de lectura»). 2026-10-22: absorbe P-127 («Separaciones falsas que quedan (1,6 % de los pares)»). Incluir las siglas parciales de la razón social y una marca con su servicio. 2026-10-22: absorbe P-203 («Regresiones y entidades partidas que fallan en las dos lecturas»). Empezar por los casos que fallan en las dos lecturas (R01, R02, R03, S02, S05, S07, S08): son del programa, no de la variación.",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/knowledge/resolve.rs",
@@ -719,21 +784,23 @@
       "id": "P-140",
       "titulo": "Modelo y razonamiento por paso del pipeline",
       "tipo": "decision",
-      "responsable": "ambos",
+      "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "servicios de IA",
       "detalle": "Pedido del dueño: elegir modelo y nivel de razonamiento por paso (reconocimiento de imágenes con un servicio de lectura, extracción, identidad, síntesis, wiki) en vez de uno solo para todo; un servicio de lectura no sirve para lo que requiere inferencia. Refinamiento posterior; hoy, gpt-6-luna alto para todo (D-279).",
       "depende_de": [
         "P-026"
       ],
       "referencia": "src/lib/codex-reasoning.ts; src-tauri/src/source_volume/asking.rs",
       "creado": "2026-10-17",
-      "actualizado": "2026-10-17"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-141",
       "titulo": "Aislar la configuración y el uso de los servicios de IA",
       "tipo": "codigo",
-      "responsable": "claude",
+      "responsable": "usuario",
       "estado": "a-verificar",
       "detalle": "Pedido del dueño del 2026-10-17 (D-291): Micelya Core va a ofrecer los servicios de IA (preguntas, lectura de imágenes, vectores) con sus proveedores configurables; la app debe poder usarlo y mantener proveedores propios. Agrupar la configuración y el uso en un solo lugar, con un contrato por servicio, para que Core sea un proveedor más. No es el foco ahora; hacerlo cuando se toque esa parte. 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/. 22 oct (paso 1 del plan, D-443 a D-445): Ajustes → Servicios de IA con un renglón por servicio (preguntar al modelo, reconocer escaneos, investigar en internet), su motor, modelo, razonamiento y un alternativo opcional, lo que declara cada motor, dónde procesa y qué guarda su proveedor, y las conexiones en uso; el registro vive en la base, que lo lee en cada pedido; al abrir la primera vez se arma con los ajustes de antes (mismos motores y modelos); las claves de API pasan al llavero del sistema. Falta que el dueño lo vea en la app.",
       "depende_de": [],
@@ -745,7 +812,7 @@
       "id": "P-150",
       "titulo": "Agujeros de la búsqueda por texto de la base",
       "tipo": "codigo",
-      "responsable": "claude",
+      "responsable": "usuario",
       "estado": "a-verificar",
       "detalle": "La línea de base de N1 (D-301) muestra que el índice de texto de la base encuentra más documentos que la búsqueda del wiki (79 contra 61 de 104 en los 10 primeros) pero no encuentra documentos en inglés con preguntas en castellano, parte los números escritos con puntos (un DNI con puntos no encuentra la forma sin puntos) y en preguntas genéricas premia documentos largos. Resolverlo al construir la búsqueda desde la base (normalizar números en índice y consulta, indexar el resumen del documento en castellano, ampliar por entidades y asuntos) y medir con desatendido-4/N1-medir-busqueda.py. N5 (D-350): resuelto y medido: números en cualquier forma, resumen en el idioma del archivo, raíz de palabras largas y entidades nombradas; 79 → 96 de 104 en los 10 primeros (el chat, por páginas, 61 → 95). Queda verificarlo en la app (N6). N6a (dos lecturas completas con consigna conocimiento-5): los resúmenes completos desplazaban a las preguntas con número (DNI con puntos 9 → 6); D-361 lo arregla: chat 96 y 95 de 104 (por documento 97 y 97). 2026-10-22: absorbe P-033 («Buscador: palabras vacías en español»).",
       "depende_de": [],
@@ -759,6 +826,8 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "lectura y relaciones",
       "detalle": "Con la base del 18 oct quedan atribuciones equivocadas por el lugar del dato en el documento: el domicilio del destinatario de un aviso de recibo asignado al remitente (formulario en dos columnas), el domicilio de una sociedad asignado a quien firma por ella, 'representa a' sacado de una frase que lo niega, el DNI del titular de una ficha guardado en su cónyuge, el DNI del apoderado guardado en la sociedad, el domicilio constituido de la sociedad asignado a su apoderado y el origen de fondos como profesión. Buscar la señal general de cada uno (columna o bloque del formulario, negación, persona que firma por otra). Casos de aceptación en conjunto-prueba/casos-criticos.json (fuera del repositorio, D-300); se comprueban con desatendido-4/N1-comprobar-casos.py. (A01-A08) Desde N2b (D-320) tres de las cinco que quedan se muestran «sin confirmar» (la cita nombra a otra organización, o los documentos difieren); siguen en el registro. 2026-10-22: absorbe P-121 («Dirección de la sociedad que firma dada a la persona sin su nombre en la cita»). Usar la estructura del bloque de firma (la línea «Por …») y los domicilios cruzados de remitente y destinatario en el formulario de la carta documento. 2026-10-22: absorbe P-174 («Domicilios atribuidos a otra parte y entidades partidas por variación del modelo»). Incluye A02 y A08 (domicilio de la sociedad dado a quien firma) y las sociedades que se parten según la lectura (S01 y S02; ver P-200).",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/knowledge/claims.rs; src-tauri/src/docbase/knowledge/resolve.rs; D-300",
@@ -771,11 +840,13 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "reconocimiento",
       "detalle": "Las casillas se leen de los campos del PDF y de las marcas de un formulario aplanado con tabla (D-315). Una ficha escaneada (solo imagen) o una marca sin tabla con opciones a los dos lados queda sin respuesta: pedir el estado de las casillas en la lectura de imagen con el modelo y mostrar en Atención el aviso «no se sabe qué casilla está marcada» cuando no se pueda.",
       "depende_de": [],
       "referencia": "src-tauri/src/commands/pdf_form.rs; src-tauri/src/source_volume/recognition; D-315",
       "creado": "2026-10-18",
-      "actualizado": "2026-10-18"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-161",
@@ -783,6 +854,8 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "lectura y relaciones",
       "detalle": "Tras N2a, en una propuesta el precio de lista bonificado al 100 % se lee como «pactado» (no como condicionado ni bonificado), y el total de 12 meses de un crédito promocional como «total acumulado» sin decir que es un crédito. Buscar la señal general (una línea de descuento que anula a otra; el total de un importe de otro tipo hereda su naturaleza). Casos I04-I06 de conjunto-prueba/casos-criticos.json (fuera del repositorio). N6a: I05/I06 pasan en una de dos lecturas completas y fallan en la otra (ver P-202). 2026-10-22: absorbe P-202 («Importes que dependen de la lectura y preguntas que fallan por un error del motor»). Comprobar también que una pregunta que falla porque el motor sale con error se reintenta y no deja un par sin unir.",
       "depende_de": [],
       "referencia": "src-tauri/resources/catalog/knowledge.json; src-tauri/src/docbase/knowledge/extract.rs; D-310",
@@ -795,11 +868,13 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "identidad y fichas",
       "detalle": "La certeza (D-320) es de las afirmaciones; los identificadores (DNI, CUIT) del encabezado de una página no la tienen. Un DNI cuya cita nombra a otra persona (el del cónyuge en una ficha, el del apoderado en la sociedad) se muestra como firme: aplicar la misma señal de atribución a los identificadores y marcarlos en páginas y pantallas.",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/knowledge/claims.rs; src-tauri/src/docbase/knowledge/pages.rs; D-320; P-151",
       "creado": "2026-10-18",
-      "actualizado": "2026-10-18"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-166",
@@ -807,11 +882,13 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "pantallas",
       "detalle": "Una decisión que ya no encuentra lo que nombraba queda en Atención con abrir el documento y deshacerla (D-321). Falta ofrecer ahí mismo los candidatos de su documento (lo que hay ahora del mismo tipo) para elegir a cuál aplicarla, sin tener que buscar la entidad.",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/knowledge/anchors.rs; src/components/attention/sources/knowledge.ts; D-321",
       "creado": "2026-10-18",
-      "actualizado": "2026-10-18"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-167",
@@ -819,23 +896,25 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "lectura y relaciones",
       "detalle": "En la carpeta de prueba la señal «la cita nombra a otra persona u organización y no al sujeto» marca 5 afirmaciones: 3 son errores reales y 2 falsas alarmas (una profesión que nombra al empleador, un domicilio laboral que nombra a la sociedad). Afinarla (por ejemplo, el predicado que admite nombrar una organización, como empleo o domicilio laboral) y medirla contra la hoja antes de usarla para algo más que marcar.",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/knowledge/claims.rs (names_someone_else); D-320",
       "creado": "2026-10-18",
-      "actualizado": "2026-10-18"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-171",
       "titulo": "Resúmenes más completos: importes, fechas y números del documento",
       "tipo": "codigo",
-      "responsable": "claude",
+      "responsable": "usuario",
       "estado": "a-verificar",
       "detalle": "Consigna conocimiento-5 (D-343): los puntos traen importes, fechas clave y números con su cita, y en una constancia de firma qué se firmó, quiénes y cuándo. Medido en N4 sobre 7 documentos releídos (revisor a ciegas): fieles 7/7 en las dos; completitud 1,71 → 2,57 de 3; utilidad 1,86 → 2,71; prefirió la nueva en 6 y empató en 1 (una boleta de infracciones: ninguna trae el total ni el vencimiento). Falta medir los 66 en las lecturas completas de N6 (completitud, descartes por número fuera de la cita) y la boleta. N6a: dos lecturas completas con conocimiento-5: 66/66 resúmenes con tema, 380 y 379 puntos (5,8 por documento); 70 y 73 puntos descartados por el cálculo (número fuera de la cita o cita no hallada).",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/knowledge/extract.rs; D-330; D-343; desatendido-4/N4-p171-juicio/",
       "creado": "2026-10-18",
-      "actualizado": "2026-10-18"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-173",
@@ -843,11 +922,13 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "reconocimiento",
       "detalle": "En el wiki del archivo la incorporación ya no describe las imágenes con el modelo (escribía en la página, no en la base). Si hace falta, que la descripción vuelva a la base como el reconocimiento de texto y la lectura la use.",
       "depende_de": [],
       "referencia": "src/lib/ingest.ts; src/lib/image-caption-pipeline.ts; D-332",
       "creado": "2026-10-18",
-      "actualizado": "2026-10-18"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-180",
@@ -855,17 +936,19 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "parecidos y plantillas",
       "detalle": "Hoja de parecidos sobre N3-base: 18 de 19 pares de «mismo documento» comparten página (D-340); el que falta es un borrador y la carta enviada que la hoja llama vista previa y el cálculo propone como «contenido en» de certeza baja (una página la nombra como relacionada). Revisar si «contenido en» con texto casi entero y etapas de un mismo documento debería proponerse como vista previa, midiendo que no una documentos distintos.",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/similar/by_type.rs; D-340; desatendido-4/N4-familias.py",
       "creado": "2026-10-18",
-      "actualizado": "2026-10-18"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-182",
       "titulo": "Título legible de la página de un documento",
       "tipo": "codigo",
-      "responsable": "claude",
+      "responsable": "usuario",
       "estado": "a-verificar",
       "detalle": "La página de un documento se titula con el nombre del archivo de su versión principal, sin extensión (D-340): es dato de la base pero a veces no dice qué es («Summary», «Screenshot …»). Evaluar un título desde el tipo y las partes (sin modelo) o desde el tema del resumen, y cómo afecta enlaces y búsqueda (N5). Hecho el 22 oct (paso 5, D-442): el título sale del tipo, el número, de quién a quién (o entre quiénes) y la fecha, sin modelo; sin tipo, el tema del resumen. El nombre del archivo queda en la cabecera de la página (file:), en el recuadro de datos y en las listas de documentos; la ruta de la página no cambia. En la copia: 109 páginas, ninguna titulada solo por su archivo; 13 que se leerían igual llevan además el nombre del archivo (ver P-259). Falta verlo en la app.",
       "depende_de": [],
@@ -879,11 +962,13 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "chat",
       "detalle": "21 oct: lo que lee archivos lo reemplaza P-228 (D-396, D-398, D-399): Lint sale, la relevancia del grafo se calcula sobre la base (W4), la búsqueda y el contexto del chat leen de la base (W3, W5). Queda: las preguntas genéricas por relaciones («a quiénes les debe») siguen en 6 a 7 de 8; medirlas de nuevo cuando el chat lea de la base.",
       "depende_de": [],
       "referencia": "src/lib/graph-relevance.ts; src-tauri/src/agent/tools.rs; src-tauri/src/commands/search.rs; D-350; D-396; D-398; D-399",
       "creado": "2026-10-18",
-      "actualizado": "2026-10-21"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-200",
@@ -891,6 +976,8 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "lectura y relaciones",
       "detalle": "Dos lecturas completas desde cero (N6a) con el mismo código: separaciones falsas 1,3 % y 6,6 %; menciones iguales 65 %, afirmaciones 38 %, importes 45 %; 28 casos críticos pasan en las dos y 8 en una sola. En la segunda, la sociedad propia por su nombre corto y la otra parte por frases de cargo («COO de …», «reseller de …») quedaron como entidades aparte. Buscar señales generales que hagan la identidad menos dependiente de la lectura (nombre corto de una parte del documento, frase de cargo que no es un nombre) y medir con dos lecturas. 2026-10-22: absorbe P-113 («Estabilidad de la capa entre lecturas»). 2026-10-22: absorbe P-133 («Variación del modelo entre corridas»).",
       "depende_de": [],
       "referencia": "D-362; desatendido-4/N6-resultados.md; P-133",
@@ -903,11 +990,13 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "lectura y relaciones",
       "detalle": "define_terms toma como destino de un término sin definición del modelo el nombre más cercano antes de la definición; en un contrato ese nombre era la empresa de un domicilio «c/o», no la parte. Hoy solo se usa si el modelo no dio enlace (D-360 no lo usa para corregir). Revisar la regla (saltar nombres dentro de un domicilio, o preferir el sujeto de la oración) y medir con dos lecturas.",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/knowledge/extract.rs (define_terms); D-360",
       "creado": "2026-10-18",
-      "actualizado": "2026-10-18"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-205",
@@ -915,6 +1004,8 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "lectura y relaciones",
       "detalle": "Revisión final de N6b (revisor sobre el wiki de la app, 70 filas verificadas contra el original: 39 bien, 31 mal, muestra dirigida a lo sospechoso): dirección del dinero invertida en un borrador de acuerdo de fondos y en un recibo de cuotas, un préstamo con el que declara haber recibido cambiado y la devolución como «pagado», un total estimado de un resumen de facturas como deuda acumulada sin moneda, personas de una sociedad dadas como de otra o como su representante, el identificador de una persona en la página de su cónyuge, un escribano como «testigo», cartas documento con la fecha de la carta que contestan y vistas previas sin decirlo, estado de firma equivocado en tres acuerdos firmados. Prioridad 1. Detalle fuera del repositorio: desatendido-4/N6-defectos.md y N6b-revision.md. 2026-10-22: absorbe P-124 («Dirección del dinero en contratos con partes definidas por sus términos»). Incluye los contratos en inglés en los que una parte se nombra por otro nombre comercial y el pago va «a» la otra. 2026-10-22: absorbe P-201 («Relaciones que el documento no dice y dirección del dinero en acuerdos de fondos»). Incluye «representa a» o «parte en» que el documento no dice y el préstamo recibido marcado «pagado».",
       "depende_de": [
         "P-151"
@@ -927,13 +1018,13 @@
       "id": "P-206",
       "titulo": "Unión falsa de dos personas con el mismo apellido y nombres casi iguales, sin identificador común",
       "tipo": "codigo",
-      "responsable": "claude",
+      "responsable": "usuario",
       "estado": "a-verificar",
       "detalle": "En la regeneración con los datos reales (N6b) la identidad juntó a dos personas de la misma familia cuyo nombre de pila difiere en una letra (7 pares falsos contra la hoja; L1 y L2 de N6a tuvieron 0). Un nombre de pila distinto, aunque parecido, no debería unir sin un identificador o una relación que lo diga. Prioridad 1 (uniones falsas). N6c: la unión venía del modelo («la misma, certeza media», por la misma organización y «puede ser un error de escritura»), no del nombre. Arreglo D-365: si la primera palabra del nombre difiere en una letra y nada más los une, el «la misma» del modelo une solo con certeza alta; si no, queda una duda para una persona. Medido con las respuestas guardadas: uniones falsas 7 → 0 en la copia de la app y 0 → 0 en las dos lecturas de N6a, separaciones iguales; en la base real después de reabrir la app (D-366): uniones falsas 0, separaciones 5,3 %, casos críticos 34 de 46, sin preguntas al modelo. Falta que el dueño vea la duda en Atención.",
       "depende_de": [],
       "referencia": "D-364, D-365, D-366; desatendido-4/N6c-real-eval.txt",
       "creado": "2026-10-18",
-      "actualizado": "2026-10-18"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-207",
@@ -941,13 +1032,15 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "identidad y fichas",
       "detalle": "N6b: correos de un reclamo, una copia de carta y una captura del correo quedan en la entidad del grupo empresario y faltan en la página de la sociedad; el perfil de una persona no se enlaza a su página; sobra una entidad que junta dos empresas con una barra; la cronología del reclamo queda como «posiblemente de este asunto». Documentos de cada entidad en su página 245 de 290 (N6a: 249 y 257). Prioridad 2.",
       "depende_de": [
         "P-137"
       ],
       "referencia": "D-364; desatendido-4/N6-defectos.md",
       "creado": "2026-10-18",
-      "actualizado": "2026-10-18"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-208",
@@ -955,6 +1048,8 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "páginas",
       "detalle": "N6b: queda una frase sobre el programa («lo propuso el modelo por su contenido») y cientos de «propuesta por el cálculo de parecidos»; fechas y fragmentos en inglés en la redacción; rótulos de formulario tomados como datos y como asuntos; un título de página partido por un acento; formatos de números y fechas mezclados. Prioridad 4. En parte el 22 oct (paso 5, D-441 y D-442): las páginas ya no dicen «lo propuso el modelo» ni «propuesta por el cálculo de parecidos» (dicen «sin confirmar»), y las fechas de la página del documento se escriben en castellano (también las escritas con números y separadores). Queda: rótulos de formulario tomados como datos y como asuntos, el título partido por un acento y los formatos de números.",
       "depende_de": [],
       "referencia": "D-364; desatendido-4/N6-defectos.md",
@@ -965,13 +1060,14 @@
       "id": "P-211",
       "titulo": "Decidir si se construyen los grupos de pasajes repetidos (conceptos por cálculo)",
       "tipo": "decision",
-      "responsable": "ambos",
+      "responsable": "usuario",
       "estado": "pendiente",
       "detalle": "Medición N7 (D-295, D-370 a D-372) sobre la carpeta de prueba: 69 grupos de pasajes; 23 reconocibles para el agente y el modelo (37 de 66 documentos, 11 cruzan asuntos); de esos, los 8 con 3 o más documentos son hermanos de plantilla (facturas, acuerdos de terminación, recibos) y las cláusulas repetidas entre contratos distintos son 9 grupos de 2 documentos. Recomendación del agente: construirlo en chico y sin páginas nuevas (grupos en la base junto a los parecidos, sin corte de rutina; clase del modelo una vez por grupo; mostrar primero dentro de las familias de plantilla «esta cláusula está también en N documentos» y la comparación cláusula por cláusula); páginas de concepto solo con confirmación de una persona y más adelante con vectores. Antes de construir páginas, repetir la medición en una carpeta con muchos contratos.",
+      "propuesta": "La app puede detectar cláusulas que se repiten entre contratos distintos. ¿Lo construimos? Recomendación de Claude (2026-10-22): Sí, en chico: dentro de las familias de la misma plantilla, mostrar «esta cláusula está también en N documentos» y compararlas cláusula por cláusula, sin páginas nuevas. Antes de ir más lejos, medirlo en una carpeta con muchos contratos. Alternativa: Postergarlo hasta tener esa carpeta de prueba. Si se acepta: Pasa a la cola de Claude con prioridad 3.",
       "depende_de": [],
       "referencia": "D-295, D-370 a D-372; desatendido-4/N7-conceptos.md",
       "creado": "2026-10-18",
-      "actualizado": "2026-10-18"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-212",
@@ -989,25 +1085,26 @@
       "id": "P-213",
       "titulo": "Estado y ciclo de vida de un asunto",
       "tipo": "decision",
-      "responsable": "ambos",
+      "responsable": "usuario",
       "estado": "pendiente",
       "detalle": "Desde el 20 oct cada asunto tiene estado y todos quedan 'abierto' (D-375). Falta decidir cómo se cierra o se archiva, quién lo hace, si vuelve a abrirse y qué cambia en las pantallas y en la búsqueda para un asunto cerrado.",
+      "propuesta": "Todos los casos quedan «abiertos». ¿Cómo se cierra o se archiva un caso, quién lo hace y qué cambia? Recomendación de Claude (2026-10-22): Que una persona lo cierre o archive a mano desde el caso y pueda reabrirlo; un caso cerrado sale por defecto de las listas y de Atención, sigue apareciendo en la búsqueda con la marca «cerrado» y no recibe propuestas nuevas de documentos. Alternativa: Cerrarlo solo cuando el expediente del portal diga que terminó. Si se acepta: Pasa a la cola de Claude con prioridad 3.",
       "depende_de": [],
       "referencia": "D-375; docs/design/asuntos-propuesta.md",
       "creado": "2026-10-20",
-      "actualizado": "2026-10-20"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-214",
       "titulo": "Unificar las páginas de asunto y de documento con el wiki",
       "tipo": "codigo",
-      "responsable": "claude",
+      "responsable": "usuario",
       "estado": "a-verificar",
       "detalle": "Una sola vista por cosa (D-376): arriba el artículo, en una pestaña los datos y las correcciones. La de persona u organización está hecha (D-389: pestañas «Artículo», que muestra su página del wiki tal como la escribió la proyección, y «Datos y correcciones»; los enlaces del wiki a la página llevan a la pantalla). Faltan la del asunto (pantalla Asuntos y su página del wiki) y la del documento (detalle de Documentos y su página del wiki, Sources). 21 oct, pedido del dueño: documento y asunto con las mismas dos pestañas que persona u organización («Artículo» y «Datos y correcciones»); el asunto con su artículo. Va primero en el plan (paso 0a de docs/design/servicios-de-ia-propuesta.md). Hecho el 21 oct (D-423): documento, persona u organización y caso usan la misma pantalla de dos pestañas; el caso muestra su artículo completo con la investigación en internet; lo demás de cada pantalla pasó a «Datos y correcciones», y las notas van al pie de las dos. Falta que el dueño lo vea en la app.",
       "depende_de": [],
       "referencia": "D-376; D-389; D-423; docs/design/asuntos-propuesta.md (sección 5); docs/design/servicios-de-ia-propuesta.md (2.6, paso 0a); src/components/knowledge/detail-tabs.tsx",
       "creado": "2026-10-20",
-      "actualizado": "2026-10-21"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-217",
@@ -1015,18 +1112,22 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "asuntos",
       "detalle": "Las pantallas dicen «Caso» (vocabulario de la vertical); el wiki y los nombres de los asuntos usan las palabras del catálogo (knowledge.json: «Asunto», «Asunto entre»). Llevarlas a la vertical sin rehacer preguntas guardadas: la descripción del asunto entra en la pregunta de propuesta (medir con el arnés antes).",
       "depende_de": [],
       "referencia": "D-384",
       "creado": "2026-10-20",
-      "actualizado": "2026-10-21"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-218",
       "titulo": "Dos ejemplares de una misma boleta que la base ve como «misma plantilla, otros datos»",
       "tipo": "decision",
-      "responsable": "ambos",
+      "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "asuntos",
       "detalle": "En la base de partida queda un cuarto asunto propuesto: dos boletas que comparten el importe y que la comparación de parecidos relaciona como misma plantilla (cambian identificadores y fechas), no como versiones. Si son el mismo documento, basta con descartarlo en Atención o unirlas como el mismo documento; si pasa seguido, ver si dos documentos de la misma plantilla unidos solo por un importe deben proponerse. Con D-440 (22 oct), dos documentos de una plantilla en los que no cambia ningún dato (o a lo sumo unas palabras) quedan marcados «posiblemente el mismo documento» y se avisan en Atención. Las dos boletas de este pendiente no entran: su plantilla muestra que cambian el número de boleta, la fecha y el código de barras (el importe es parte de la plantilla), así que son boletas distintas. Queda la pregunta del asunto: si dos documentos de la misma plantilla unidos solo por un importe deben proponerse como un caso.",
       "depende_de": [],
       "referencia": "D-381; desatendido-5/S3-medicion.txt",
@@ -1039,6 +1140,8 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "asuntos",
       "detalle": "Desde S4 (D-386) lo que una persona pone o saca a mano se guarda por asunto; conviven las decisiones entre pares de documentos ('mismo asunto', 'asuntos distintos') que ya existían y que descartar la propuesta del modelo para un documento suelto sigue usando. Además, lo puesto o sacado a mano no aparece todavía en la lista de decisiones del asunto ni se deshace desde ahí (se vuelve a agregar o a sacar). Ver si las decisiones entre pares pasan a ser por asunto y cómo se muestran y deshacen. 2026-10-22: absorbe P-110 («Sacar un documento de un asunto con una sola decisión»). Incluye deshacer en una sola acción el haber sacado un documento de un caso.",
       "depende_de": [],
       "referencia": "D-386",
@@ -1051,6 +1154,8 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "páginas",
       "detalle": "En parte resuelto en W3 (D-407): el artículo de persona u organización, asunto y documento sale de la base (ya no del archivo del wiki), sus enlaces abren la pantalla de lo que nombran sin ningún proyecto abierto, y debajo dice cuándo lo escribió la app y que una corrección se ve cuando lo vuelve a escribir. Queda: una corrección en «Datos y correcciones» se ve en el artículo recién cuando la proyección de fondo lo reescribe (corre con la lectura de fondo, que se rige por «Lectura automática», D-405). Ver si hace falta armarlo en el momento con el mismo código de knowledge/pages.rs. Paso 5 (D-441): el artículo ya no repite dato por dato lo que «Datos y correcciones» muestra al instante; la síntesis y sus notas siguen mostrando una corrección cuando la app vuelve a escribir la página.",
       "depende_de": [
         "P-214"
@@ -1064,30 +1169,31 @@
       "titulo": "Volver a tener proyectos de wiki, con un propósito definido",
       "tipo": "decision",
       "responsable": "ambos",
-      "estado": "pendiente",
+      "estado": "en-espera",
       "detalle": "Desde D-395 la app no admite los proyectos de wiki originales y abre en Inicio. Si más adelante hace falta trabajar con un conjunto aparte (un cliente, una investigación), definir primero para qué sirve y cómo se apoya en la base, en lugar de volver a las carpetas de páginas.",
       "depende_de": [],
       "referencia": "D-395; docs/design/retiro-del-wiki.md",
       "creado": "2026-10-21",
-      "actualizado": "2026-10-21"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-226",
       "titulo": "Revisión con el modelo: contradicciones y divergencias entre documentos",
       "tipo": "decision",
-      "responsable": "ambos",
+      "responsable": "usuario",
       "estado": "pendiente",
       "detalle": "Lint sale (D-399). Definir una revisión con el modelo que agregue valor en la estructura nueva: contradicciones y divergencias entre lo que dicen los documentos de una persona, organización o asunto, con sus citas, y cómo se muestran en Atención. Usa el modelo: cuidar cuándo corre y cuánto pregunta.",
+      "propuesta": "La revisión que había antes (Lint) salió con el wiki. ¿Querés una revisión con el modelo que busque contradicciones entre los documentos de una persona, organización o caso? Recomendación de Claude (2026-10-22): Sí, a pedido desde la ficha o el caso, no sola: el modelo lista las contradicciones con sus citas y aparecen en Atención para resolver. Empezar por los casos confirmados, donde más valor tiene. Alternativa: Que corra sola con la lectura automática sobre los casos confirmados, con aviso de costo. Si se acepta: Pasa a la cola de Claude con prioridad 2.",
       "depende_de": [],
       "referencia": "D-399; docs/design/retiro-del-wiki.md",
       "creado": "2026-10-21",
-      "actualizado": "2026-10-21"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-227",
       "titulo": "API local y recortador web (Clip) sobre la base",
       "tipo": "codigo",
-      "responsable": "ambos",
+      "responsable": "usuario",
       "estado": "en-curso",
       "detalle": "Salen con el retiro del wiki (D-400) porque trabajaban sobre los proyectos y los archivos del wiki. Rehacerlos sobre la base: qué expone la API y con qué permisos, y dónde guarda el recortador lo que se trae de la web (separado de lo que dicen los documentos, como la investigación, D-397). 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/. 22 oct: el recortador está hecho (D-450, D-451): la extensión «Micelya Clipper» y su servidor local guardan cada página como archivo markdown en «Recortes web» de la carpeta de trabajo, que es un origen de la base; Atención avisa de los recortes nuevos. Falta la prueba del dueño con el navegador. Queda pendiente la API local y el servidor MCP.",
       "depende_de": [],
@@ -1099,20 +1205,20 @@
       "id": "P-228",
       "titulo": "Retirar el wiki heredado",
       "tipo": "codigo",
-      "responsable": "claude",
+      "responsable": "usuario",
       "estado": "a-verificar",
       "detalle": "Etapas W2 a W7 de docs/design/retiro-del-wiki.md en la rama feat/retire-wiki: las páginas, notas, consultas guardadas e historial del chat pasan a la base; pantallas, grafo, chat e investigación leen de la base; salen Wiki, Sources, Lint, Review, proyectos, API y Clip; prueba con los datos reales sin preguntas nuevas al modelo y borrado de la carpeta del wiki. Un pedido de integración al final. 21 oct: integrado en main con el PR #60 (y el plan con el #61); la carpeta del wiki se borró. Falta que el dueño lo vea en el uso diario.",
       "depende_de": [],
       "referencia": "D-395 a D-400; docs/design/retiro-del-wiki.md",
       "creado": "2026-10-21",
-      "actualizado": "2026-10-21"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-237",
       "titulo": "Revisar con el dueño cómo se lee el grafo de la base",
       "tipo": "verificacion",
-      "responsable": "ambos",
-      "estado": "pendiente",
+      "responsable": "usuario",
+      "estado": "a-verificar",
       "detalle": "El grafo suma ahora las personas y organizaciones sin página: muchos más nodos con una sola relación. Mirar con los datos reales si se lee: nombres de las aristas sobre el lienzo, el verde claro de un asunto propuesto frente al de uno confirmado, los nodos sin relaciones y si conviene ocultar por defecto a quienes aparecen en un solo documento. 2026-10-22: absorbe P-037 («Grafo: etiquetas legibles»). Incluir los umbrales de las etiquetas de los nodos (15 % de enlaces, 32 caracteres, 12 vecinos).",
       "depende_de": [],
       "referencia": "D-410, D-411",
@@ -1123,19 +1229,19 @@
       "id": "P-240",
       "titulo": "Probar una investigación desde una ficha con el buscador y el modelo reales",
       "tipo": "verificacion",
-      "responsable": "ambos",
-      "estado": "pendiente",
+      "responsable": "usuario",
+      "estado": "a-verificar",
       "detalle": "Las pruebas de W5 usan el buscador y el modelo simulados. Con los datos reales (W7, si el cupo lo permite): una investigación desde una persona u organización queda en su sección con sus fuentes citadas, aparte de lo que dicen los documentos, y se puede abrir y borrar.",
       "depende_de": [],
       "referencia": "D-397, D-414",
       "creado": "2026-10-21",
-      "actualizado": "2026-10-21"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-242",
       "titulo": "La base reconoce sola el texto de escaneos e imágenes",
       "tipo": "codigo",
-      "responsable": "ambos",
+      "responsable": "usuario",
       "estado": "a-verificar",
       "detalle": "Hasta W6 el texto de los documentos que son imagen (escaneos, fotos) lo reconocía la incorporación del wiki con el motor configurado y se lo devolvía a la base; al retirarla, quedan en «tienen el texto en imagen» sin que nada los lea, y no se comparan ni se leen sus personas ni sus asuntos. Usar el motor conservado (D-420) desde la base: una vez por documento, solo mientras la lectura automática esté activa, con aviso de costo, guardando el texto con `store_recognized_text`. Prioridad alta para un estudio con escaneos. 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/. 21 oct (turno B3): la base reconoce sola los escaneos, fotos y páginas sin texto de un PDF mixto, de a un documento, mientras la lectura automática está activa, y a pedido con «Reconocer el texto» en el documento y en Atención → «En curso» (uno, todos o reintentar los que fallaron) aunque esté apagada; una vez por documento y por motor, con `store_recognized_text`, y después sigue el camino normal. La etapa muestra n de N, el documento y la página en curso, las páginas que esperan, los que fallaron con el motivo en palabras y si falta el motor; el documento dice qué motor lo reconoció y cuándo (D-428 a D-431). Con esto queda resuelta D-420. Falta verlo en la app con el caso nuevo (consume cupo). 2026-10-22: absorbe P-023 («Reconocimiento de texto para escaneos e imágenes»). La fiabilidad de cifras e identificadores sigue en P-030.",
       "depende_de": [],
@@ -1147,7 +1253,7 @@
       "id": "P-243",
       "titulo": "Adjuntar al chat un documento de la base",
       "tipo": "codigo",
-      "responsable": "claude",
+      "responsable": "usuario",
       "estado": "a-verificar",
       "detalle": "El chat podía adjuntar archivos del proyecto de wiki como contexto (selector de archivos del cuadro de mensaje). Sin proyecto el selector queda vacío. Reemplazarlo por elegir documentos, personas, organizaciones o asuntos de la base, que el agente ya sabe leer (base.read). 22 oct (paso 9, D-453): documentos hechos. El botón «Documento» del cuadro del mensaje abre un buscador de la base (y «@» ofrece lo mismo); lo adjuntado queda en la conversación y se ve en el mensaje; el agente lee el texto desde la base, con el nombre y «origen › carpeta», lo usa y lo cita entre las referencias (también con Codex o Claude Code); el documento tiene «Preguntar al chat sobre este documento». Falta verlo en la app con una pregunta de verdad (consume cupo). Personas, organizaciones y casos: P-269.",
       "depende_de": [],
@@ -1159,8 +1265,10 @@
       "id": "P-244",
       "titulo": "Respuesta de Core al mensaje 001 (reconocimiento de texto y conexión)",
       "tipo": "decision",
-      "responsable": "ambos",
+      "responsable": "claude",
       "estado": "en-curso",
+      "prioridad": 1,
+      "tema": "servicios de IA",
       "detalle": "Desktop pidió a Core, por el buzón docs/dropbox/core/ (mensaje 001), acceso de desarrollo con un usuario técnico, inicio de sesión de cada persona desde la app de escritorio, que el resultado diga qué proveedor leyó, pedidos repetidos, no guardar el resultado en Core, opciones de análisis (casillas, tablas, firmas), proveedor por pedido (manuscrito en castellano), y aclaraciones sobre ambiente, contrato, límites, región, uso de datos, cupos y lo que viene. Leer la respuesta en docs/dropbox/desktop/ del repositorio de Core (extrimian/mi-platform, rama dev) y reflejarla en el diseño y los pendientes. 22 oct: Core respondió (docs/dropbox/desktop/2026-10-21-001-reconocimiento-y-conexion.md en extrimian/mi-platform, rama dev, 306 líneas, estado «respondido», cada punto marcado (a) ya existe, (b) se puede hacer sin decisión, (c) lo decide el dueño de Core, (e) aceptado). Falta leerla entera y reflejarla en servicios-de-ia-propuesta.md, en los pendientes y, si hace falta, en un mensaje 002.",
       "depende_de": [],
       "referencia": "docs/dropbox/core/2026-10-21-001-reconocimiento-y-conexion.md; D-421",
@@ -1171,7 +1279,7 @@
       "id": "P-245",
       "titulo": "Sin repeticiones en las páginas: citas dentro del texto, una sola lista de documentos",
       "tipo": "codigo",
-      "responsable": "claude",
+      "responsable": "usuario",
       "estado": "a-verificar",
       "detalle": "El dueño vio (21 oct) que en persona u organización «Referencias» y «Documentos» llevan a los mismos documentos; además «Referencias» y «Otros datos» repiten lo que la pestaña «Datos y correcciones» ya muestra con su cita y sus acciones. Las citas pasan a notas numeradas dentro del texto del Artículo (al pasar o tocar se ve la cita y se abre el documento); «Referencias» y «Otros datos» salen del Artículo; «Documentos» queda una vez, por asunto. Mismo criterio en documento y asunto. No cambia la síntesis ni sus preguntas al modelo. Hecho el 22 oct (paso 5, D-441): las citas de la síntesis, de los datos en conflicto, de los vínculos, de lo que dicen los documentos del caso y de lo esencial del documento son notas numeradas; tocar el número muestra la cita y su documento, que se abre desde su nombre. «Referencias» y «Otros datos» salieron del artículo (una línea dice cuántos datos más hay en «Datos y correcciones»); «Documentos» queda una vez, por caso; en el caso, por qué van juntos sus documentos queda en una línea. Falta verlo en la app.",
       "depende_de": [],
@@ -1183,7 +1291,7 @@
       "id": "P-246",
       "titulo": "Citas y enlaces con vista previa flotante (hovercard o popover; tooltip donde corresponda)",
       "tipo": "codigo",
-      "responsable": "ambos",
+      "responsable": "usuario",
       "estado": "a-verificar",
       "detalle": "Corrida del 22 oct, paso 10 (D-454, D-455): las notas numeradas y los enlaces de los artículos muestran una tarjeta al dejar el mouse encima medio segundo o al llegar con el teclado (Tab); se cierra al salir, con Escape o tocando afuera. La de una nota tiene la cita, su documento y «Abrir el documento»; tocarla, hacer clic o Enter la dejan abierta como antes. La de un enlace tiene el tipo, el nombre, un resumen corto sacado del artículo (sin modelo) y «Abrir»; en pantalla táctil el primer toque la muestra y el segundo abre. Se apaga en Ajustes → Interfaz. Probado solo con casos inventados, sin abrir la app. Falta que el dueño lo vea en la app; los ajustes que pida siguen en P-270.",
       "depende_de": [
@@ -1197,7 +1305,7 @@
       "id": "P-247",
       "titulo": "Extraer las plantillas de los documentos y mostrarlas",
       "tipo": "codigo",
-      "responsable": "claude",
+      "responsable": "usuario",
       "estado": "a-verificar",
       "detalle": "Corrida del 22 oct, paso 4 (D-438 a D-440): cada familia de la misma plantilla tiene su plantilla en la base (versión 21): el texto común con los campos que cambian y el valor de cada documento, armada sin modelo alineando cada documento con el principal, también para las familias propuestas, y vuelta a armar sola cuando la familia cambia. Los campos se nombran por su clase («Fecha 2»). Se ve en «Datos y correcciones» del documento (arriba de sus parecidos), en la pantalla de documentos parecidos por familia y en Documentos al filtrar por una familia. Medido en la copia: 12 de 19 familias con plantilla, 188 campos, medio segundo. Falta que el dueño lo vea en la app. Más adelante: crear documentos nuevos desde una plantilla (etapa 5 del diseño de la base) y nombrar los campos por lo que son (P-257).",
       "depende_de": [],
@@ -1209,7 +1317,7 @@
       "id": "P-248",
       "titulo": "Traer expedientes de portales judiciales con un navegador asistido (primero el SCW del PJN)",
       "tipo": "decision",
-      "responsable": "ambos",
+      "responsable": "usuario",
       "estado": "a-verificar",
       "detalle": "Pedido del dueño (21 oct). Propuesta en docs/design/portales-judiciales-propuesta.md: una ventana del portal dentro de la app con perfil propio; el operador resuelve el desafío o inicia sesión (nunca se saltea); la app sigue sola en la misma sesión, descarga las actuaciones a una carpeta de un origen con sus datos y propone un asunto con la referencia del expediente. Un conector por portal. Revisar la propuesta y sus decisiones abiertas; primer paso: prototipo con el operador sobre un expediente de ejemplo. Construido el 22 oct (paso 7, D-446 a D-449): «Portales» en el menú, con el formulario, los expedientes seguidos y la ventana del portal dentro de la página; la app recorre las actuaciones, baja lo nuevo a Expedientes\\PJN con sus datos y crea el caso confirmado; se detiene y habilita la ventana ante el desafío o el inicio de sesión. Probado solo con páginas inventadas: falta la prueba real con el dueño. 22 oct, primera prueba real del dueño: la app completa el formulario del portal y avisa «Te toca», pero el desafío no se puede resolver porque queda bloqueado (P-281).",
       "depende_de": [],
@@ -1221,7 +1329,7 @@
       "id": "P-249",
       "titulo": "Ver el avance del procesamiento en Atención",
       "tipo": "codigo",
-      "responsable": "claude",
+      "responsable": "usuario",
       "estado": "a-verificar",
       "detalle": "Pedido del dueño (21 oct, D-424): Atención en tres pestañas con su cantidad; «En curso» con las nueve etapas del procesamiento en orden (D-425), las hechas también, cada una desplegable con sus documentos y un botón para abrirlos; filtro por origen o carpeta; estado de la lectura automática con su botón; el último error del modelo en palabras con la hora y cuándo vuelve a intentar (D-427); una línea fija al pie de la ventana (D-426); y el número «En curso» de Inicio contando lo que de verdad está en proceso. Construido en la rama feat/progress-and-scans (turno B2); falta que el dueño lo vea en la app. 2026-10-22: absorbe P-083 («Vista única de atención»). Incluir las líneas de Problemas y Decisiones, que dicen qué pasa, por qué importa y qué hacer. 2026-10-22: absorbe P-268 («Ver en la app el pulido de «En curso» y del reconocimiento a pedido»). Incluir el pulido de D-452: el número de «En curso» respeta la carpeta, «Casos» y «Páginas» esperan la primera vuelta, y «Reconocer el texto» sigue pedido después de cerrar y abrir la app.",
       "depende_de": [],
@@ -1233,7 +1341,7 @@
       "id": "P-253",
       "titulo": "Relaciones con control y parentescos",
       "tipo": "codigo",
-      "responsable": "claude",
+      "responsable": "usuario",
       "estado": "a-verificar",
       "detalle": "Corrida del 22 oct, paso 2 (D-432 a D-437): un cambio de catálogo o de pregunta ya no relee el archivo con el modelo; lo leído se controla de nuevo con las respuestas guardadas y se relee solo a pedido («Volver a leer con el modelo» en el documento, en Orígenes y en «En curso», con aviso de costo y guardado en la base). La cita de una relación entre personas nombra a las dos; parentescos y herencia en el catálogo; dudas por atribución y por estado civil contradictorio en las relaciones; «representa a» con sentido; un identificador escrito con más o menos caracteres no parte fichas; un ítem de lista se encuentra. Medido sobre la copia (sin modelo): las dos relaciones de cónyuge mal atribuidas de la sucesión desaparecen, de 12 relaciones inventadas que quedaban firmes queda 1 (una deuda), el abogado y el causante quedan en una ficha cada uno y el aviso de citas perdidas desaparece. Falta que el dueño lo vea en la app y que el paso 3 relea la sucesión. Paso 2b (D-456 a D-458): las citas que nombran a alguien por su papel («el causante», «mis mandantes»), las filiaciones («X, hijo de A») y la sigla con puntos: con las mismas respuestas del modelo, las relaciones firmes de la hoja de la sucesión pasan de 69 a 103 y lo que no existe sigue sin quedar firme en su documento. 2026-10-22: absorbe P-271 («Decidir si se relee la sucesión con una pregunta que pida las filiaciones completas»). La relectura de la sucesión con conocimiento-7 ya se hizo (padre 30 de 50, madre 25 de 47): mirar el resultado en la ficha.",
       "depende_de": [],
@@ -1247,6 +1355,8 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "reconocimiento",
       "detalle": "La hoja de la sucesión (paso 1 del 22 oct) tiene 76 citas que no están en el texto que guarda la base, por tres causas: firmas digitales que solo están en la imagen de la página, campos de formulario de PDF que la extracción no saca, y escaneos que el reconocimiento escribió con otras palabras. Lo que dicen esas citas no puede pasar el control de citas: hay que sacar esos textos (firmas, campos) o reconocerlos mejor. No se arregló en el paso 2.",
       "depende_de": [],
       "referencia": "conjunto-prueba/entidades-sucesion.json (las citas con match no, fuera del repositorio); src-tauri/src/docbase/text.rs; src-tauri/src/docbase/recognize.rs",
@@ -1257,9 +1367,10 @@
       "id": "P-256",
       "titulo": "Decidir si entran al catálogo los vínculos de un expediente que la hoja usa y el catálogo no tiene",
       "tipo": "decision",
-      "responsable": "ambos",
+      "responsable": "usuario",
       "estado": "pendiente",
       "detalle": "La hoja de la sucesión usa vínculos que el catálogo no tiene y que por eso no se midieron: funcionario de (juez, secretario o empleado de un juzgado u organismo; 50), transfiere a (13), radicado en (un expediente en un juzgado; 6), patrocinante de (6), conexo con (5), reclama contra (4), parte de (3) y auditor de (1). Decidir cuáles suma el catálogo (cada uno alarga la pregunta al modelo) y cuáles quedan como datos del documento. 2026-10-22: absorbe P-093 («Acordar la lista de predicados de la capa con la hoja de entidades»).",
+      "propuesta": "El catálogo de vínculos no tiene algunos que los expedientes y contratos usan (funcionario de un juzgado, patrocinante, radicado en, transfiere a o cesión, cliente de, conexo con, reclama contra). ¿Cuáles sumamos? Cada uno alarga la pregunta al modelo. Recomendación de Claude (2026-10-22): Sumar los que un abogado busca y aparecen seguido: funcionario de, transfiere a o cesión, radicado en, patrocinante de y cliente de. Dejar como datos del documento los que casi no aparecen (conexo con, reclama contra, parte de, auditor de). Medir con la hoja antes de adoptarlos. Alternativa: Sumarlos todos. Si se acepta: Pasa a la cola de Claude con prioridad 2; P-093 se cierra con este.",
       "depende_de": [],
       "referencia": "src-tauri/resources/catalog/knowledge.json; src-tauri/src/docbase/knowledge/check_relations.rs",
       "creado": "2026-10-22",
@@ -1271,6 +1382,8 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "parecidos y plantillas",
       "detalle": "Las plantillas (D-439) nombran cada campo por su clase («Fecha 2», «Nombre 3») y lo cortan donde termina lo común. En la copia se ven tres límites: dos datos pegados quedan en un campo (un número y su fecha), un texto que solo el principal tiene largo (una familia cuyo principal es mucho más largo) queda como un campo «Texto» grande, y los valores en mayúsculas de un formulario salen como «Nombre». Ver si se nombran por lo que dicen (con el modelo, una pregunta por plantilla, o con el nombre del campo del formulario) y si se separan los datos pegados; medir con la copia antes.",
       "depende_de": [
         "P-247"
@@ -1285,6 +1398,8 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "páginas",
       "detalle": "Con D-442, en la copia 13 de 109 páginas de documentos se leerían igual (las providencias de un mismo juzgado sin fecha leída, las boletas sin partes) y llevan el nombre del archivo entre paréntesis, largo en los expedientes; 29 títulos pasan de 100 letras por los nombres largos de los organismos; los tipos del catálogo sin nombre propuesto salen sin acentos. Evaluar un título corto escrito por el modelo en la misma lectura (sin pregunta aparte), o distinguirlos por su fecha o su número cuando la lectura los tenga.",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/knowledge/pages/family.rs (titles, readable_title); D-442",
@@ -1295,9 +1410,10 @@
       "id": "P-260",
       "titulo": "Decidir si las 19 síntesis y 7 preguntas de identidad que deja el re-control se hacen solas",
       "tipo": "decision",
-      "responsable": "ambos",
+      "responsable": "usuario",
       "estado": "pendiente",
       "detalle": "Medido el 22 oct sobre la copia del respaldo del paso 3, sin modelo: con los pasos 2 y 4, el trabajo de fondo haría 7 preguntas de identidad (candidatos nuevos tras D-436) y, después, 19 preguntas de síntesis de personas u organizaciones cuyos datos cambiaron al re-controlarse (D-432 a D-434). No las causa el rearmado de las páginas del paso 5 (son las mismas 19 antes y después), pero se harían solas con la lectura automática encendida. Decidir si van solas o solo a pedido, como releer (D-432). Con el paso 2b (D-456 a D-458), la copia de medir3 deja 8 preguntas de identidad y 17 de síntesis.",
+      "propuesta": "Al volver a controlar lo leído, la app quiere hacer unas 25 preguntas al modelo (8 de identidad y 17 de síntesis de fichas). ¿Las hace sola con la lectura automática encendida o solo cuando las pedís? Recomendación de Claude (2026-10-22): Que las haga sola con la lectura automática encendida, porque son pocas y mejoran las fichas, pero que «En curso» muestre cuántas va a hacer y que pida permiso cuando pasen de un tope (por ejemplo, 50). Alternativa: Solo a pedido, como releer (D-432). Si se acepta: Pasa a la cola de Claude con prioridad 2 (el tope y el aviso).",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/knowledge/pages/check_rebuild.rs; src-tauri/src/docbase/worker.rs; D-432",
       "creado": "2026-10-22",
@@ -1309,6 +1425,8 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "identidad y fichas",
       "detalle": "Quedan 8 entidades de la hoja de la sucesión en dos fichas cada una (medición nueva de D-458): en 5 el modelo dijo «dudosa» o «distinta» (una persona con dos fechas de nacimiento; un organismo nombrado solo «Archivo»; un organismo con nombre corto y largo; un registro de la capital; un registro y el colegio que lo lleva): las decide una persona en Atención, y la de la persona está entre las preguntas de identidad que la app haría ahora; 2 organismos nunca se comparan (una abreviatura y un cargo escrito como nombre, P-255); y un abogado tiene su matrícula leída distinta en dos escaneos («tomo» y «folio» escritos de otra manera y un dígito distinto), que lo separa: ver si una matrícula se compara por sus números de tomo y folio. 2026-10-22: absorbe P-255 («Organismos partidos en varias fichas por una abreviatura o un nombre corto»). Incluye una regla general de abreviaturas para organismos y el nombre corto contra el largo.",
       "depende_de": [],
       "referencia": "D-458; src-tauri/src/docbase/knowledge/names.rs; src-tauri/src/docbase/knowledge/resolve.rs; P-255",
@@ -1321,6 +1439,8 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "lectura y relaciones",
       "detalle": "Después de la relectura de la sucesión con conocimiento-7 (P-271), ver qué parentescos se siguen perdiendo por el control y no por la pregunta: (1) abuelo, tío, sobrino y nieto dados con la misma persona en los dos lados («X en su carácter de nieto de Y y de sobrino de Z»): las palabras de filiación del catálogo (D-457) son solo de «padre o madre de» y podrían extenderse a esos parentescos; (2) la filiación de un acta con campos, cuando el nombre del inscripto y el campo «Padre:» están a más de 40 palabras: aceptarla por los rótulos del acta; (3) el hijo en los dos lados con un solo padre nombrado, que hoy se descarta (D-460).",
       "depende_de": [
         "P-253"
@@ -1334,7 +1454,7 @@
       "titulo": "Usar el motor alternativo y avisar cuando el motor elegido no puede",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "en-espera",
       "detalle": "Desde D-445 cada servicio puede tener un motor alternativo y cada motor declara qué sabe leer (texto, tablas, casillas, manuscrito), pero la base todavía no usa el alternativo ni compara lo que un documento necesita con lo que el motor declara. Cuando haya un segundo motor de reconocimiento (Core, paso 5 del plan): mandar al alternativo lo que el principal no lee (por ejemplo, manuscrito en castellano) y avisar en Atención cuando el motor elegido no puede con un documento.",
       "depende_de": [
         "P-141"
@@ -1347,9 +1467,10 @@
       "id": "P-262",
       "titulo": "Decidir qué hacer con las claves viejas de funciones retiradas en app-state.json",
       "tipo": "decision",
-      "responsable": "ambos",
+      "responsable": "usuario",
       "estado": "pendiente",
       "detalle": "El archivo de ajustes conserva campos de funciones que se retiraron con el wiki (lectura de PDF con MinerU, descripción de imágenes, vectores, la API local) que pueden tener claves o tokens en texto plano; nada los lee y D-444 no los movió. Decidir si se borran del archivo o se pasan al llavero por si vuelven esas funciones.",
+      "propuesta": "El archivo de ajustes guarda claves de funciones que ya no existen (lectura de PDF, descripción de imágenes, vectores, API local), quizás en texto plano. ¿Las borramos o las pasamos al llavero? Recomendación de Claude (2026-10-22): Borrarlas del archivo, con un respaldo antes, porque nada las usa y en texto plano son un riesgo; si una función vuelve, se carga la clave de nuevo y va al llavero. Alternativa: Pasarlas al llavero de Windows por si vuelven esas funciones. Si se acepta: Pasa a la cola de Claude con prioridad 2.",
       "depende_de": [],
       "referencia": "D-444; src-tauri/src/secrets.rs",
       "creado": "2026-10-22",
@@ -1361,6 +1482,8 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "portales",
       "detalle": "El expediente del portal del PJN tiene una página aparte, «Ver históricas», con las actuaciones viejas; el recorrido de P-248 no la visita. Sumarla al conector del PJN (con su propia tabla y paginador) después de la primera prueba real con el dueño.",
       "depende_de": [
         "P-248"
@@ -1374,7 +1497,7 @@
       "titulo": "Conectores para otros portales judiciales",
       "tipo": "decision",
       "responsable": "ambos",
-      "estado": "pendiente",
+      "estado": "en-espera",
       "detalle": "El navegador de «Portales» separa lo común (vista, bloqueo, descargas, guardado, estado) de lo propio de cada portal (un conector). Decidir qué portales siguen (provinciales, de la Ciudad, administrativos) y sumar cada uno como un conector nuevo.",
       "depende_de": [
         "P-248"
@@ -1390,6 +1513,7 @@
       "responsable": "usuario",
       "estado": "pendiente",
       "detalle": "Decisión abierta 5 del diseño: antes de usar «Portales» con clientes, revisar con un abogado el reglamento del portal del PJN y las acordadas sobre su uso (la app no saltea el desafío, va a ritmo de persona y solo ve lo que el usuario puede ver).",
+      "propuesta": "Antes de usar «Portales» con clientes, ¿un abogado revisó que el reglamento del PJN permite que la app navegue por la persona? Recomendación de Claude (2026-10-22): Pedir esa revisión a un abogado (podría ser del estudio de referencia) antes de mostrar Portales a un cliente; tus propias pruebas pueden seguir mientras tanto. Alternativa: Ofrecerlo sin revisión, apoyado en que la app no saltea el desafío, va a ritmo de persona y solo ve lo que el usuario puede ver. Si se acepta: Queda como tarea tuya y se cierra cuando esté la respuesta.",
       "depende_de": [
         "P-248"
       ],
@@ -1403,6 +1527,8 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "Micelya Clipper",
       "detalle": "Hoy la extensión se carga «descomprimida» desde la carpeta extension del repositorio (Ajustes → Carpeta de trabajo explica cómo), con los íconos heredados. Para un estudio: empaquetarla con la app o publicarla en la tienda de Chrome y Edge, con los íconos y colores de la marca (P-057).",
       "depende_de": [
         "P-227"
@@ -1417,6 +1543,8 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "chat",
       "detalle": "El paso 9 (D-453) adjunta documentos. P-243 pedía también personas, organizaciones y casos: sumarlos al mismo buscador, con su artículo y sus datos de la base (lo que lee base.read), citados igual, y «Preguntar al chat» desde su página.",
       "depende_de": [
         "P-243"
@@ -1430,7 +1558,7 @@
       "titulo": "Ajustar las vistas previas flotantes después de verlas",
       "tipo": "codigo",
       "responsable": "ambos",
-      "estado": "pendiente",
+      "estado": "en-espera",
       "detalle": "Después de que el dueño vea P-246 en la app: ajustar las demoras (500 ms para abrir, 300 ms para cerrar) y el largo del resumen si hace falta; decidir si la tarjeta de un enlace lleva también el teclado a su botón (hoy Enter abre el enlace directamente); llevar las tarjetas a otros lugares (las listas de Documentos, Personas y Casos, las referencias del chat) y, si un día los artículos tienen imagen, mostrarla. Si sacar el resumen del artículo al vuelo resulta pobre, guardar un resumen corto por artículo cuando la app lo escribe.",
       "depende_de": [
         "P-246"
@@ -1443,7 +1571,7 @@
       "id": "P-274",
       "titulo": "Ver en la app que Orígenes y Portales abren bien",
       "tipo": "verificacion",
-      "responsable": "ambos",
+      "responsable": "usuario",
       "estado": "a-verificar",
       "detalle": "Arreglado el 22 oct (paso 12b) sin abrir la app: Orígenes ya no se rompe con «Rendered more hooks than during the previous render» (el panel de tipos de documento pedía un dato después de salir antes, mientras cargaba), y la ventana del portal se crea una sola vez y se oculta al salir o al recargar (D-461). En la app: abrir Orígenes y esperar a que cargue; abrir Portales y ver la página del portal; ir a otra pantalla (no tiene que quedar tapada), volver (se ve de nuevo), recargar con la página abierta; y mirar que la consola ya no diga «reading 'handlerId'».",
       "depende_de": [],
@@ -1457,6 +1585,8 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "pruebas y calidad",
       "detalle": "Las pruebas de interfaz dibujan cada pantalla una sola vez, a texto, sin navegador simulado, y por eso no vieron la falla de Orígenes, que aparece al pasar de cargando a cargado. Desde el paso 12b una ayuda de prueba (hooksOf) compara los pedidos que hace un componente en cada estado, apoyada en una parte interna de React que puede cambiar con una versión nueva (la prueba fallaría a la vista). Sumar un navegador simulado para las pruebas (un paquete de desarrollo) permitiría dibujar dos veces, montar y desmontar de verdad, y probar así también la página de Portales.",
       "depende_de": [],
       "referencia": "src/test-helpers/hook-order.ts; src/components/docbase/document-types-view.test.tsx; vite.config.ts (test.environment)",
@@ -1469,6 +1599,8 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "pruebas y calidad",
       "detalle": "La prueba toma como \"dato real\" cada palabra de los nombres de archivo de la carpeta de prueba; con un expediente judicial nuevo, palabras comunes del vocabulario jurídico (por ejemplo las que nombran actas o parentescos en plural) no se pueden escribir en el programa y hubo que sumar decenas a la lista de genéricas. Revisar el criterio (por ejemplo, solo nombres propios, números y frases de dos palabras o más de los nombres de archivo) sin perder lo que la prueba protege.",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/similar/check.rs (case_terms); docs/sessions/2026-10-22-sesion-15.md",
@@ -1481,6 +1613,8 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "servicios de IA",
       "detalle": "Una pantalla de solo lectura, «Lo que se le pregunta al modelo», con cada pregunta tal como sale (lectura conocimiento-7, tipo y datos, quién es quién, síntesis de páginas, casos, reconocimiento de escaneos, chat) y su versión, armada con el catálogo vigente. Hoy el armazón de cada pregunta está en el código (extract.rs prompt, classify.rs type_prompt y data_prompt, resolve.rs, pages.rs, matters.rs, recognition_codex.rs, agent/) y lo propio del oficio en los catálogos knowledge.json y document-types.json. Acordado con el dueño el 22 oct: es lo primero de la próxima sesión.",
       "depende_de": [],
       "referencia": "docs/sessions/2026-10-22-sesion-16.md",
@@ -1493,6 +1627,8 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "servicios de IA",
       "detalle": "Los catálogos knowledge.json (tipos, roles, identificadores, relaciones y sus descripciones) y document-types.json ya se pueden reemplazar por un archivo con la misma forma en %APPDATA%/com.micelya.desktop/docbase/ (commands.rs 77-79), pero sin pantalla. Hacer un editor por estudio o vertical con validación, aviso de cuántos documentos quedarían leídos con una versión anterior (D-432) y medición contra las hojas de respuestas antes de adoptar. Verificar también qué pasa hoy si ese archivo tiene un error de formato.",
       "depende_de": [
         "P-278"
@@ -1506,7 +1642,7 @@
       "titulo": "El armazón de cada pregunta como plantilla con versión",
       "tipo": "decision",
       "responsable": "ambos",
-      "estado": "pendiente",
+      "estado": "en-espera",
       "detalle": "Sacar del código el texto fijo de cada pregunta a plantillas con versión automática (huella), o agregar un párrafo de instrucciones del estudio al final. Riesgo: el programa espera una respuesta con estructura exacta y la controla; un cambio sin medir puede romper la lectura en silencio. Decidir con el dueño después de P-278 y P-279.",
       "depende_de": [
         "P-279"
@@ -1521,6 +1657,8 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "portales",
       "detalle": "Prueba real del dueño (22 oct): la app completa jurisdicción, número y año en el portal y avisa «Te toca», pero el botón «Ver desafío» no responde y muestra «Micelya está usando esta ventana». Causa probable (por el código, sin reproducir): el guion de bloqueo INIT (src-tauri/src/portals/scripts.rs) se instala en cada página, también dentro del recuadro del desafío (un iframe de otro dominio), y el desbloqueo (__micelya.lock(false)) se evalúa solo en la página principal; el iframe queda bloqueado. Arreglo probable: que el bloqueo solo actúe en la página principal (window.top === window) y que la capa no cubra el recuadro del desafío, o desbloquear en todos los marcos. Probar con una página inventada con un iframe y después con el dueño. 22 oct (tarde): el dueño trajo la hipótesis de la sesión anterior, guardada sin cambios en docs/design/portales-pjn-desafio-hipotesis.md, con la misma causa y un pedido de «modo foco» (llevar la página al recuadro del desafío y oscurecer el resto con un hueco sobre él, sin tocar la página del portal). Es hipótesis a validar: primero el arreglo y una prueba con una página inventada con un iframe, después la prueba real con el dueño y recién entonces el modo foco. Verificado sin reproducir: Tauri 2.11.1 documenta que en Windows los guiones de inicio se agregan también a los recuadros (webview/mod.rs, línea 830).",
       "depende_de": [],
       "referencia": "src-tauri/src/portals/scripts.rs; src-tauri/src/portals/view.rs; docs/design/portales-pjn-desafio-hipotesis.md; P-248",
@@ -1530,12 +1668,27 @@
     {
       "id": "P-282",
       "titulo": "Comprobación automática de GitHub confiable: que nunca quede esperando",
-      "tipo": "codigo",
-      "responsable": "ambos",
+      "tipo": "decision",
+      "responsable": "usuario",
       "estado": "pendiente",
       "detalle": "22 oct: el pedido de integración #63 quedó con la comprobación exigida «en cola» sin máquina mientras GitHub daba la ejecución por terminada; coincidió con un incidente de GitHub Actions (14:35 UTC). Causa de fondo: el conjunto de reglas proteger-main exige la comprobación «check (windows-latest)», cuyo nombre sale de la matriz de .github/workflows/ci.yml; depende de máquinas Windows (más lentas en arrancar y más afectadas por incidentes) y se rompe si cambia la matriz; además no corre las pruebas (P-046). Propuesta: (1) un trabajo «puerta» con nombre fijo (por ejemplo «verificacion») que siempre informa (needs de los demás, if: always()) y es el único exigido; (2) las pruebas rápidas (tsc con tsconfig.app.json, vitest de mocks, cargo test --lib) en ubuntu-latest con timeout-minutes; (3) la compilación en Windows como trabajo aparte, informado por la puerta; (4) concurrency por rama con cancel-in-progress; (5) actualizar el conjunto de reglas (lo hace el dueño o con su permiso) para exigir la puerta. Probar en una rama antes de cambiar la regla. 2026-10-22: absorbe P-046 («Decidir si la comprobación automática de GitHub ejecuta las pruebas»).",
+      "propuesta": "La comprobación automática que GitHub exige para integrar a veces queda esperando para siempre y no corre las pruebas. ¿Aprobás cambiarla? Recomendación de Claude (2026-10-22): Sí: una comprobación con nombre fijo que siempre informa, las pruebas rápidas en Ubuntu (más confiable y barato) y la compilación de Windows aparte. Claude lo prueba en una rama; después vos, o Claude con tu permiso, cambian la regla de protección de main para exigir la comprobación nueva. Alternativa: Dejarla como está (solo compila en Windows) y seguir corriendo las pruebas a mano. Si se acepta: Pasa a la cola de Claude con prioridad 1; P-046 se cierra con este.",
       "depende_de": [],
       "referencia": ".github/workflows/ci.yml; conjunto de reglas proteger-main (id 24614800); P-046",
+      "creado": "2026-10-22",
+      "actualizado": "2026-10-22"
+    },
+    {
+      "id": "P-283",
+      "titulo": "Volver a medir sin modelo los casos críticos de la hoja vieja sobre la base actual",
+      "tipo": "verificacion",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "pruebas y calidad",
+      "detalle": "Los 66 documentos de la hoja vieja se releyeron el 22 oct con conocimiento-7, así que los números de los pendientes de lectura e identidad del 16 al 18 oct pueden haber cambiado. Antes de trabajar en ellos (P-137, P-151, P-161, P-200, P-205, P-207), volver a correr sin modelo la comprobación de casos críticos (llm_wiki_mi/conjunto-prueba/casos-criticos.json con desatendido-4/N1-comprobar-casos.py) sobre una copia de la base actual y actualizar sus números.",
+      "depende_de": [],
+      "referencia": "limpieza de pendientes del 22 oct",
       "creado": "2026-10-22",
       "actualizado": "2026-10-22"
     }
