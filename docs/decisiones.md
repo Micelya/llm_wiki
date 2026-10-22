@@ -424,6 +424,9 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-479 | 22 oct | Proceso de trabajo | La protección de main exige una sola comprobación con nombre fijo que siempre informa, y esa comprobación corre las pruebas en Linux | vigente |
 | D-480 | 22 oct | Portales | El guion que bloquea la ventana del portal actúa solo en la página principal y, al bloquear, saca el foco | vigente |
 | D-481 | 22 oct | Servicios de IA | Lo que se le pregunta al modelo se muestra armado por las mismas funciones que la lectura, sobre un documento inventado; la última pregunta real, solo a pedido y con aviso | en revisión (agente sin consulta, se confirma al verla en la app: P-278) |
+| D-482 | 22 oct | Servicios de IA | Los documentos de clientes se pueden procesar en Micelya Core aunque corra en Estados Unidos; el dueño asume esa responsabilidad | vigente |
+| D-483 | 22 oct | Reconocimiento | Los escaneos se mandan a Core por páginas o piezas, no enteros, para poder pedir después un tratamiento distinto según el tipo de cada una | vigente |
+| D-484 | 22 oct | Conocimiento | Las preguntas de quién es quién y de resumen que siguen a un cambio en lo leído se hacen solas con la lectura automática encendida, mostrando cuántas son y con un tope de 50 | vigente |
 
 ---
 
@@ -5188,3 +5191,24 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **El problema:** El dueño pidió ver en Ajustes cada pregunta al modelo tal como sale, con su versión (P-278). Copiar el texto de las preguntas en la pantalla se desactualizaría en silencio; mostrar solo preguntas reales expone texto de documentos del estudio y no sirve para las que nunca se hicieron.
 - **Qué se decidió y por qué:** Cada pregunta se arma con la misma función que usa la lectura, sobre un documento inventado (una carta y un recibo), con los catálogos vigentes y con lo que cambia en cada caso resaltado; una prueba comprueba que sin las marcas el texto es el mismo que arma la función. La última pregunta que salió se lee de la base solo al abrirla, con el aviso de que trae texto de documentos del estudio. El reconocimiento de escaneos y el chat no se guardan ni tienen versión, y la pantalla lo dice; ponerles versión se propone en P-280, y mostrar las del chat con Codex y las de «Investigar en internet» queda en P-288.
 - **Quién decidió:** agente sin consulta (sobre el pedido del dueño).
+
+### D-482 · Los documentos de clientes se pueden procesar en Micelya Core aunque corra en Estados Unidos; el dueño asume esa responsabilidad
+
+- **Fecha:** 22 oct 2026 · **Tema:** Servicios de IA · **Estado:** vigente
+- **El problema:** Core procesa en Oregón (Estados Unidos), Textract guarda el resultado 7 días sin poder borrarlo antes y todavía no está aplicada la política que impide que Amazon use los datos (Core P-167). El estudio de referencia va a usar Core (D-468) con documentos reales, y la decisión abierta 5 del diseño de servicios de IA preguntaba si un documento con datos personales puede salir del país.
+- **Qué se decidió y por qué:** Sí. El dueño lo sabe y asume la responsabilidad. Ajustes lo sigue mostrando en el renglón del motor de Core (regla 6 del diseño), Desktop borra cada lectura en Core apenas la guarda y le manda un nombre genérico, no el nombre real del archivo.
+- **Quién decidió:** dueño del producto.
+
+### D-483 · Los escaneos se mandan a Core por páginas o piezas, no enteros, para poder pedir después un tratamiento distinto según el tipo de cada una
+
+- **Fecha:** 22 oct 2026 · **Tema:** Reconocimiento · **Estado:** vigente
+- **El problema:** Un escaneo de muchas páginas suele juntar cosas distintas: un escrito, fotos de DNI, facturas, manuscritos. Mandado entero, Core lo lee todo igual; además, un PDF de más de 100 páginas falla al final y se cobra igual.
+- **Qué se decidió y por qué:** Desktop manda cada página o pieza por separado y guarda el resultado de cada una. Cuando Core ofrezca tratamientos especiales para DNI, facturas y otros documentos conocidos (lo está evaluando), Desktop pide el que corresponde a cada pieza. Cómo pedirlo se le pregunta a Core en el mensaje 002 (002-R4).
+- **Quién decidió:** dueño del producto.
+
+### D-484 · Las preguntas de quién es quién y de resumen que siguen a un cambio en lo leído se hacen solas con la lectura automática encendida, mostrando cuántas son y con un tope de 50
+
+- **Fecha:** 22 oct 2026 · **Tema:** Conocimiento · **Estado:** vigente
+- **El problema:** Cuando cambia algo de lo leído (una relectura, o un control nuevo de las respuestas guardadas, D-432), cambian algunas fichas y la app quiere hacer preguntas nuevas de quién es quién y de resumen (el 22 oct, unas 8 y 17). No estaba decidido si van solas o solo a pedido (P-260).
+- **Qué se decidió y por qué:** Van solas con la lectura automática encendida, porque son pocas y cortas y mejoran las fichas. «En curso» muestra cuántas va a hacer; si pasan de 50, la app pide permiso antes de seguir.
+- **Quién decidió:** dueño del producto (sobre la propuesta del agente).

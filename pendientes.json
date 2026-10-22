@@ -135,13 +135,15 @@
       "id": "P-026",
       "titulo": "Evaluar Amazon Textract y Bedrock como motores de reconocimiento",
       "tipo": "decision",
-      "responsable": "ambos",
-      "estado": "en-espera",
-      "detalle": "El usuario va a investigar Textract. Cuando haya cuenta de AWS, agregar el motor detrás del mismo contrato y comparar con Codex sobre páginas reales en español. Referencias de costo por 10.000 páginas: Textract texto simple ~USD 15, Claude Haiku 4.5 ~USD 57, Sonnet ~USD 180-200. Un reconocedor clásico no inventa texto; un modelo de visión puede completar lo que no lee (en la prueba adivinó un código ambiguo pese a la instrucción de no hacerlo). 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/.",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "El usuario va a investigar Textract. Cuando haya cuenta de AWS, agregar el motor detrás del mismo contrato y comparar con Codex sobre páginas reales en español. Referencias de costo por 10.000 páginas: Textract texto simple ~USD 15, Claude Haiku 4.5 ~USD 57, Sonnet ~USD 180-200. Un reconocedor clásico no inventa texto; un modelo de visión puede completar lo que no lee (en la prueba adivinó un código ambiguo pese a la instrucción de no hacerlo). 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/. 2026-10-22: hay acceso a Core. Primera comparación con un escrito escaneado de 23 páginas de la carpeta de prueba del PJN (Core 27 s; 26 % de palabras con confianza menor a 0,90; Codex con 84 huecos; coinciden tres de cada cuatro palabras y 34 de unos 50 números). Falta comparar página por página contra el original (paso 6 del plan).",
       "depende_de": [],
       "referencia": "src-tauri/src/source_volume/recognition.rs (trait TextRecognizer); docs/design/servicios-de-ia-propuesta.md",
       "creado": "2026-10-07",
-      "actualizado": "2026-10-22"
+      "actualizado": "2026-10-22",
+      "prioridad": 2,
+      "tema": "reconocimiento"
     },
     {
       "id": "P-029",
@@ -346,10 +348,8 @@
       "estado": "pendiente",
       "prioridad": 1,
       "tema": "servicios de IA",
-      "detalle": "Micelya Core es el módulo de la plataforma que dará los servicios de IA y relacionados; se desarrolla en paralelo, primero sobre servicios de Amazon y diseñado para no depender de ellos. En algún momento la app va a usarlo como infraestructura de IA. Por ahora es solo información de contexto: los proveedores de IA siguen siendo configurables por instancia. 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/. 2026-10-22: El estudio de referencia va a usar Micelya Core (D-468): la conexión es parte del producto mínimo (D-463). Primero reflejar la respuesta de Core (P-244); después la conexión en Ajustes y el motor de reconocimiento de Core (pasos 4 y 5 de servicios-de-ia-propuesta.md) y ver si las preguntas al modelo también van por Core. Probado el 22 oct con el usuario técnico de desarrollo (en el llavero de Windows, «connection:micelya-core»): un escrito de 23 páginas leído de punta a punta en 27 s y borrado después.",
-      "depende_de": [
-        "P-244"
-      ],
+      "detalle": "Micelya Core es el módulo de la plataforma que dará los servicios de IA y relacionados; se desarrolla en paralelo, primero sobre servicios de Amazon y diseñado para no depender de ellos. En algún momento la app va a usarlo como infraestructura de IA. Por ahora es solo información de contexto: los proveedores de IA siguen siendo configurables por instancia. 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/. 2026-10-22: El estudio de referencia va a usar Micelya Core (D-468): la conexión es parte del producto mínimo (D-463). Primero reflejar la respuesta de Core (P-244); después la conexión en Ajustes y el motor de reconocimiento de Core (pasos 4 y 5 de servicios-de-ia-propuesta.md) y ver si las preguntas al modelo también van por Core. Probado el 22 oct con el usuario técnico de desarrollo (en el llavero de Windows, «connection:micelya-core»): un escrito de 23 páginas leído de punta a punta en 27 s y borrado después. 2026-10-22: respuesta al 001 llevada al diseño (sección 2.3 y pasos 4, 4b y 5 de servicios-de-ia-propuesta.md) y mensaje 002 enviado (pedido de integración #65). Lectura por páginas o piezas (D-483); el dueño asume procesar en Estados Unidos (D-482). Preguntar al modelo por Core (paso 4b) espera el permiso y los límites que se piden en el 002.",
+      "depende_de": [],
       "referencia": "Repo extrimian/mi-platform, rama dev; docs/design/servicios-de-ia-propuesta.md",
       "creado": "2026-10-11",
       "actualizado": "2026-10-22"
@@ -902,7 +902,7 @@
       "estado": "pendiente",
       "prioridad": 3,
       "tema": "reconocimiento",
-      "detalle": "En el wiki del archivo la incorporación ya no describe las imágenes con el modelo (escribía en la página, no en la base). Si hace falta, que la descripción vuelva a la base como el reconocimiento de texto y la lectura la use.",
+      "detalle": "En el wiki del archivo la incorporación ya no describe las imágenes con el modelo (escribía en la página, no en la base). Si hace falta, que la descripción vuelva a la base como el reconocimiento de texto y la lectura la use. 2026-10-22: lo hacía antes el «describir imágenes» del wiki (un modelo de visión le ponía una descripción breve a cada imagen de un documento antes de escribir su página); se retiró con la incorporación original. Con la lectura por piezas (D-483) puede subir de prioridad; los modelos de Core no reciben imágenes por ahora (001-R11).",
       "depende_de": [],
       "referencia": "src/lib/ingest.ts; src/lib/image-caption-pipeline.ts; D-332",
       "creado": "2026-10-18",
@@ -1243,20 +1243,6 @@
       "actualizado": "2026-10-22"
     },
     {
-      "id": "P-244",
-      "titulo": "Respuesta de Core al mensaje 001 (reconocimiento de texto y conexión)",
-      "tipo": "decision",
-      "responsable": "claude",
-      "estado": "en-curso",
-      "prioridad": 1,
-      "tema": "servicios de IA",
-      "detalle": "Desktop pidió a Core, por el buzón docs/dropbox/core/ (mensaje 001), acceso de desarrollo con un usuario técnico, inicio de sesión de cada persona desde la app de escritorio, que el resultado diga qué proveedor leyó, pedidos repetidos, no guardar el resultado en Core, opciones de análisis (casillas, tablas, firmas), proveedor por pedido (manuscrito en castellano), y aclaraciones sobre ambiente, contrato, límites, región, uso de datos, cupos y lo que viene. Leer la respuesta en docs/dropbox/desktop/ del repositorio de Core (extrimian/mi-platform, rama dev) y reflejarla en el diseño y los pendientes. 22 oct: Core respondió (docs/dropbox/desktop/2026-10-21-001-reconocimiento-y-conexion.md en extrimian/mi-platform, rama dev, 306 líneas, estado «respondido», cada punto marcado (a) ya existe, (b) se puede hacer sin decisión, (c) lo decide el dueño de Core, (e) aceptado). Falta leerla entera y reflejarla en servicios-de-ia-propuesta.md, en los pendientes y, si hace falta, en un mensaje 002.",
-      "depende_de": [],
-      "referencia": "docs/dropbox/core/2026-10-21-001-reconocimiento-y-conexion.md; D-421",
-      "creado": "2026-10-21",
-      "actualizado": "2026-10-22"
-    },
-    {
       "id": "P-245",
       "titulo": "Sin repeticiones en las páginas: citas dentro del texto, una sola lista de documentos",
       "tipo": "codigo",
@@ -1391,15 +1377,16 @@
     {
       "id": "P-260",
       "titulo": "Decidir si las 19 síntesis y 7 preguntas de identidad que deja el re-control se hacen solas",
-      "tipo": "decision",
-      "responsable": "usuario",
+      "tipo": "codigo",
+      "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "Medido el 22 oct sobre la copia del respaldo del paso 3, sin modelo: con los pasos 2 y 4, el trabajo de fondo haría 7 preguntas de identidad (candidatos nuevos tras D-436) y, después, 19 preguntas de síntesis de personas u organizaciones cuyos datos cambiaron al re-controlarse (D-432 a D-434). No las causa el rearmado de las páginas del paso 5 (son las mismas 19 antes y después), pero se harían solas con la lectura automática encendida. Decidir si van solas o solo a pedido, como releer (D-432). Con el paso 2b (D-456 a D-458), la copia de medir3 deja 8 preguntas de identidad y 17 de síntesis. 2026-10-22: El dueño pidió entender cómo funcionan estas preguntas y para qué se agregaron antes de decidir.",
-      "propuesta": "Al volver a controlar lo leído, la app quiere hacer unas 25 preguntas al modelo (8 de identidad y 17 de síntesis de fichas). ¿Las hace sola con la lectura automática encendida o solo cuando las pedís? Recomendación de Claude (2026-10-22): Que las haga sola con la lectura automática encendida, porque son pocas y mejoran las fichas, pero que «En curso» muestre cuántas va a hacer y que pida permiso cuando pasen de un tope (por ejemplo, 50). Alternativa: Solo a pedido, como releer (D-432). Si se acepta: Pasa a la cola de Claude con prioridad 2 (el tope y el aviso).",
+      "detalle": "Medido el 22 oct sobre la copia del respaldo del paso 3, sin modelo: con los pasos 2 y 4, el trabajo de fondo haría 7 preguntas de identidad (candidatos nuevos tras D-436) y, después, 19 preguntas de síntesis de personas u organizaciones cuyos datos cambiaron al re-controlarse (D-432 a D-434). No las causa el rearmado de las páginas del paso 5 (son las mismas 19 antes y después), pero se harían solas con la lectura automática encendida. Decidir si van solas o solo a pedido, como releer (D-432). Con el paso 2b (D-456 a D-458), la copia de medir3 deja 8 preguntas de identidad y 17 de síntesis. 2026-10-22: El dueño pidió entender cómo funcionan estas preguntas y para qué se agregaron antes de decidir. 2026-10-22: decidido (D-484): se hacen solas con la lectura automática encendida, mostrando en «En curso» cuántas va a hacer, y piden permiso si pasan de 50.",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/knowledge/pages/check_rebuild.rs; src-tauri/src/docbase/worker.rs; D-432",
       "creado": "2026-10-22",
-      "actualizado": "2026-10-22"
+      "actualizado": "2026-10-22",
+      "prioridad": 2,
+      "tema": "lectura y relaciones"
     },
     {
       "id": "P-272",
@@ -1679,7 +1666,7 @@
       "tipo": "codigo",
       "responsable": "ambos",
       "estado": "en-curso",
-      "detalle": "Reemplaza a P-049 (D-463). El producto mínimo termina cuando están, funcionando y vistos por el dueño: (1) la revisión de la experiencia de uso con el marco visual de la marca (P-057); (2) la conexión con Micelya Core, que va a usar el estudio de referencia (P-063, D-468); (3) generar un documento a partir de una plantilla (P-285), con la sección «Plantillas» (P-287); (4) ejecutar acciones desde el chat, por ejemplo unir documentos en un caso (P-286); (5) un instalador de Windows para que algunos abogados del estudio de referencia lo prueben (P-006, cuando el dueño lo pida). Al entregarlo: validar el vocabulario con ese estudio (P-069) y revisar con ellos los términos del portal, probando también el inicio de sesión del abogado (P-265). El dueño escribió «la conexión a Micelya Desktop»; se entendió Micelya Core, a confirmar.",
+      "detalle": "Reemplaza a P-049 (D-463). El producto mínimo termina cuando están, funcionando y vistos por el dueño: (1) la revisión de la experiencia de uso con el marco visual de la marca (P-057); (2) la conexión con Micelya Core, que va a usar el estudio de referencia (P-063, D-468); (3) generar un documento a partir de una plantilla (P-285), con la sección «Plantillas» (P-287); (4) ejecutar acciones desde el chat, por ejemplo unir documentos en un caso (P-286); (5) un instalador de Windows para que algunos abogados del estudio de referencia lo prueben (P-006, cuando el dueño lo pida). Al entregarlo: validar el vocabulario con ese estudio (P-069) y revisar con ellos los términos del portal, probando también el inicio de sesión del abogado (P-265). El dueño escribió «la conexión a Micelya Desktop»; se entendió Micelya Core, a confirmar. 2026-10-22: el dueño confirmó que es la conexión con Micelya Core: el estudio de referencia usa Core para todo (lectura de escaneos, preguntas al modelo y chat), sin cuentas de Codex. Y que el producto mínimo se construye hoy (corrida desatendida de la noche).",
       "depende_de": [
         "P-057",
         "P-063",
@@ -1746,6 +1733,20 @@
       "detalle": "Encontrado al construir P-278 (22 oct): con Codex, que es el motor en uso, el chat no usa el texto de sistema del agente; la pantalla del chat (src/components/chat/chat-panel.tsx) arma una pregunta más corta, en inglés, que no se muestra en ningún lado, y el agente hace antes otra pregunta en inglés para decidir qué buscar. Las preguntas de «Investigar en internet» (src/lib/deep-research.ts) también se arman en la pantalla. Llevarlas a la pantalla de lo que se le pregunta al modelo, con versión, y revisar si conviene que estén en castellano y que el chat con Codex use el mismo texto que el agente. Relacionado con las acciones desde el chat (P-286).",
       "depende_de": [],
       "referencia": "src/components/chat/chat-panel.tsx; src/lib/deep-research.ts; src-tauri/src/agent/",
+      "creado": "2026-10-22",
+      "actualizado": "2026-10-22"
+    },
+    {
+      "id": "P-289",
+      "titulo": "Búsqueda por significado (vectores) sobre la base",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "búsqueda",
+      "detalle": "El LLM-Wiki partía sus páginas en pedazos y los convertía en vectores para buscar por significado (embeddings y LanceDB); se retiró con el wiki (commit 6ce32a9) y hoy la búsqueda es solo por palabras, en la base y en el chat. Reimplementarla sobre el texto de la base: con las bases documentales de Core (preguntado en el mensaje 002, Q2) o con un modelo de vectores local. Confirmado por el dueño el 22 oct.",
+      "depende_de": [],
+      "referencia": "mensaje 002 a Core (Q2); servicios-de-ia-propuesta.md (tabla 2.1)",
       "creado": "2026-10-22",
       "actualizado": "2026-10-22"
     }
