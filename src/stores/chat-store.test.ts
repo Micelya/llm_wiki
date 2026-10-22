@@ -15,6 +15,7 @@ describe("chat-store conversation isolation", () => {
       retrievalMode: "standard",
       selectedSkills: [],
       selectedContextFiles: [],
+      selectedContextDocuments: [],
       disabledSkills: [],
     })
   })
@@ -148,6 +149,26 @@ describe("chat-store conversation isolation", () => {
 
     useChatStore.getState().setActiveConversation(second)
     expect(useChatStore.getState().selectedContextFiles).toEqual(["raw/sources/source.txt"])
+  })
+
+  it("keeps the documents of the base attached to each conversation, and on the message sent (P-243)", () => {
+    // Invented documents (R-24).
+    const lease = { locationId: 7, name: "contrato de prueba.pdf", place: "Carpeta de prueba › Casos" }
+    const note = { locationId: 8, name: "nota de prueba.docx", place: "Carpeta de prueba" }
+    const first = useChatStore.getState().createConversation()
+    useChatStore.getState().setSelectedContextDocuments([lease])
+    const second = useChatStore.getState().createConversation()
+    expect(useChatStore.getState().selectedContextDocuments).toEqual([])
+    useChatStore.getState().setSelectedContextDocuments([note])
+    useChatStore.getState().setActiveConversation(first)
+    expect(useChatStore.getState().selectedContextDocuments).toEqual([lease])
+    useChatStore.getState().addMessageToConversation(first, "user", "¿qué dice?", [], [], [lease])
+    expect(useChatStore.getState().messages[0].contextDocuments).toEqual([lease])
+    // They stay attached for the next questions of the conversation.
+    expect(useChatStore.getState().selectedContextDocuments).toEqual([lease])
+    useChatStore.getState().deleteConversation(first)
+    expect(useChatStore.getState().activeConversationId).toBe(second)
+    expect(useChatStore.getState().selectedContextDocuments).toEqual([note])
   })
 
   it("stores the context file snapshot on the user message", () => {

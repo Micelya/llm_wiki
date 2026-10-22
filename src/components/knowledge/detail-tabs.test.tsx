@@ -209,6 +209,14 @@ describe("the screen of a document", () => {
     expect(data).toContain("Locación de ejemplo.pdf")
   })
 
+  it("offers to ask the chat about the document, once it has its text (P-243)", () => {
+    const html = renderToStaticMarkup(<DocumentDetailView locationId={10} onBack={() => {}} />)
+    expect(html).toMatch(/<button[^>]*title="Abre el chat con este documento adjunto"[^>]*>.*?Preguntar al chat sobre este documento<\/button>/)
+    base.answers.document = documentDetail({ contentId: null, state: "unread", text: null })
+    const unread = renderToStaticMarkup(<DocumentDetailView locationId={10} onBack={() => {}} />)
+    expect(unread).toMatch(/<button[^>]*disabled=""[^>]*>.*?Preguntar al chat sobre este documento<\/button>/)
+  })
+
   it("says a file not read yet has no article", () => {
     base.answers.document = documentDetail({ contentId: null, state: "unread", text: null })
     const html = renderToStaticMarkup(<DocumentDetailView locationId={10} onBack={() => {}} initialTab="article" />)

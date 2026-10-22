@@ -97,9 +97,17 @@ export function stageFigures(stage: ProgressStage): string {
   return `${formatCount(stage.done)} de ${plural(stage.total, one, many)}`
 }
 
+/** Whether a stage waits for the engine's first pass to know what it has left (D-452). */
+export function waitsFirstLap(stage: ProgressStage): boolean {
+  return (stage.extra.firstLap ?? 0) > 0
+}
+
 /** What is left, failed or out of a stage: "faltan 56 · 2 fallaron". */
 export function stageDetails(stage: ProgressStage, words: Vocabulary = vocabulary()): string[] {
   const out: string[] = []
+  if (waitsFirstLap(stage)) {
+    out.push("esperando la primera vuelta del motor para saber si queda algo por hacer")
+  }
   if (stage.pending > 0) {
     out.push(
       stage.id === "recognition"
@@ -127,7 +135,7 @@ export function stageDetails(stage: ProgressStage, words: Vocabulary = vocabular
   if (questions > 0 && stage.state !== "done") {
     out.push(plural(questions, "pregunta pendiente al modelo", "preguntas pendientes al modelo"))
   }
-  if (stage.otherWork && stage.pending === 0 && stage.state !== "done") out.push("rehaciendo con lo nuevo")
+  if (stage.otherWork && stage.pending === 0 && stage.state !== "done" && !waitsFirstLap(stage)) out.push("rehaciendo con lo nuevo")
   return out
 }
 

@@ -1595,7 +1595,9 @@ export interface ProgressStage {
   /**
    * `questions` left at its last run; `grouped` and `loose` for the
    * matters; for the scans, the `pages` that wait, the documents whose
-   * pages are not counted yet (`uncounted`) and those asked for (`requested`).
+   * pages are not counted yet (`uncounted`) and those asked for (`requested`);
+   * `firstLap` (1) while the matters or the pages wait for the engine's
+   * first pass since the app opened (D-452).
    */
   extra: Record<string, number>
 }

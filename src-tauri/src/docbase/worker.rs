@@ -234,7 +234,10 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
     state.at_stage(Some("matters"));
     match base.knowledge_propose_matters(Some(asker.as_ref()), 1) {
         Ok(report) => {
-            state.ran("matters", report.left);
+            // Skipped while identities are being resolved: not a pass (D-452).
+            if !report.skipped {
+                state.ran("matters", report.left);
+            }
             if report.failed > 0 {
                 eprintln!("[docbase] matters of the knowledge layer: {}", report.errors.join("; "));
                 return failed("matters", &report.errors);
@@ -256,7 +259,9 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
     state.at_stage(Some("pages"));
     match base.knowledge_project(Some(asker.as_ref()), 1) {
         Ok(report) => {
-            state.ran("pages", report.left);
+            if report.reason.as_deref() != Some("resolving") {
+                state.ran("pages", report.left);
+            }
             if report.wrote() {
                 on_change();
                 on_pages();

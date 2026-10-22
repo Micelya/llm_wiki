@@ -29,7 +29,6 @@ import { useDocbaseQuery } from "@/components/docbase/use-docbase-query"
 import { useRecognize, useRecognitionEngine, type Recognize } from "@/components/docbase/recognition"
 import { useProgressStore } from "@/stores/progress-store"
 import { ReadAgainButton as ReadAgainWithModel } from "@/components/knowledge/read-again"
-import { useProgress } from "./use-progress"
 
 /** Things listed when a stage is opened; the rest are counted. */
 export const STAGE_ITEMS = 50
@@ -39,12 +38,13 @@ export const STAGE_ITEMS = 50
  * processing, done and to do, in the order they happen; each one opens
  * into its documents with a button to open each. Above, whether the
  * automatic reading is on, and the origin or folder it is narrowed to.
- * `extra` is what other parts of the app raise as in progress.
+ * `progress` is of that origin or folder (the attention view asks for it,
+ * so the figure of the tab and the tab say the same); `extra` is what
+ * other parts of the app raise as in progress.
  */
-export function OngoingTab({ extra }: { extra?: ReactNode }) {
+export function OngoingTab({ progress, error, extra }: { progress: Progress | null; error: string | null; extra?: ReactNode }) {
   const scope = useAttentionViewStore((s) => s.scope)
   const setScope = useAttentionViewStore((s) => s.setScope)
-  const { progress, error } = useProgress(scope)
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3">

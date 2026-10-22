@@ -236,6 +236,89 @@ pub fn base_graph_search(base: &DocBase, query: &str, top_k: usize) -> Result<Ve
     Ok(out)
 }
 
+/// The most documents a person can attach to one message of the chat.
+pub const MAX_ATTACHED_DOCUMENTS: usize = 8;
+
+/// A document of the base a person attached to a message of the chat
+/// (P-243): its name and where it is, the page that opens it, and its text
+/// as the base keeps it (`None` while it has none, as a scan not yet
+/// recognized).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AttachedDocument {
+    pub location_id: i64,
+    pub content_id: Option<i64>,
+    pub name: String,
+    /// "<origin> › <folder>", or the origin alone at its root.
+    pub place: String,
+    /// The logical path of its page (`wiki/…`), or `doc-<id>` without one.
+    pub path: String,
+    pub text: Option<String>,
+}
+
+/// The documents attached to a message, by the id of their location, read
+/// from the base (never from a file on disk): the first
+/// `MAX_ATTACHED_DOCUMENTS`, each once; one that is no longer in the base
+/// is left out.
+pub fn attached_documents(base: &DocBase, location_ids: &[i64]) -> Result<Vec<AttachedDocument>, String> {
+    let pages = base.document_pages()?;
+    let conn = base.conn();
+    let mut out: Vec<AttachedDocument> = Vec::new();
+    for id in location_ids {
+        if out.len() >= MAX_ATTACHED_DOCUMENTS {
+            break;
+        }
+        if out.iter().any(|d| d.location_id == *id) {
+            continue;
+        }
+        let found: Option<(String, String, String, Option<i64>, Option<String>)> = conn
+            .query_row(
+                "SELECT l.name, o.name, l.folder, f.content_id, d.body FROM location l
+                 JOIN origin o ON o.id = l.origin_id
+                 LEFT JOIN file f ON f.hash = l.file_hash
+                 LEFT JOIN derivative d ON d.content_id = f.content_id AND d.kind = 'text'
+                 WHERE l.id = ?1",
+                [id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+            )
+            .optional()
+            .map_err(crate::docbase::sql_err)?;
+        let Some((name, origin, folder, content_id, body)) = found else { continue };
+        // Two files of the same document are one document.
+        if content_id.is_some() && out.iter().any(|d| d.content_id == content_id) {
+            continue;
+        }
+        let path = content_id
+            .and_then(|content| pages.get(&content).cloned())
+            .or_else(|| content_id.map(|content| format!("doc-{content}")))
+            .unwrap_or_else(|| format!("location-{id}"));
+        let text = body.map(|body| without_recognition_marks(&body)).filter(|t| !t.trim().is_empty());
+        let place = if folder.is_empty() { origin } else { format!("{origin} › {folder}") };
+        out.push(AttachedDocument { location_id: *id, content_id, name, place, path, text });
+    }
+    Ok(out)
+}
+
+/// How an attached document is cited among the references of the answer.
+pub fn attached_reference(document: &AttachedDocument) -> AgentReference {
+    AgentReference {
+        title: document.name.clone(),
+        path: document.path.clone(),
+        kind: "document".to_string(),
+        snippet: Some(format!("Adjuntado al mensaje · {}", document.place)),
+        score: None,
+        knowledge_context: None,
+    }
+}
+
+/// The text of a document without the marks the recognition of a scan
+/// leaves before each page it read.
+fn without_recognition_marks(text: &str) -> String {
+    text.lines()
+        .filter(|line| !line.trim_start().starts_with("<!-- texto-reconocido"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// The overview of the archive, as the base keeps it: the project context
 /// of every turn.
 pub fn base_overview(base: &DocBase) -> Option<String> {
@@ -346,6 +429,46 @@ pub(crate) mod tests {
         assert_eq!(found[0].path, "wiki/sources/contrato-prueba.md");
         assert!(found[0].snippet.as_deref().unwrap().contains("Falsa"));
         assert!(base_source_search(&base, "  ", 5).is_err());
+    }
+
+    #[test]
+    fn an_attached_document_is_read_from_the_base_with_its_name_and_place() {
+        let base = base_with_pages();
+        {
+            let conn = base.conn();
+            conn.execute(
+                "INSERT INTO derivative (content_id, kind, body, engine, created_at) VALUES (1, 'text', ?1, 'prueba', 0)",
+                ["<!-- texto-reconocido motor=\"prueba\" -->\nContrato de locación del depósito de la calle Falsa."],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO location (origin_id, rel_path, folder, name, ext, size, mtime_ms, file_hash, first_seen_at, last_seen_at)
+                 VALUES ('o1', 'Casos/copia.pdf', 'Casos', 'copia.pdf', 'pdf', 1, 0, 'h1', 0, 0)",
+                [],
+            )
+            .unwrap();
+        }
+        let ids: Vec<i64> = {
+            let conn = base.conn();
+            let mut statement = conn.prepare("SELECT id FROM location ORDER BY id").unwrap();
+            let rows = statement.query_map([], |row| row.get(0)).unwrap();
+            rows.map(Result::unwrap).collect()
+        };
+        // The second file is the same document: it is attached once; one
+        // that is not in the base is left out.
+        let found = attached_documents(&base, &[ids[0], ids[1], 9_999]).unwrap();
+        assert_eq!(found.len(), 1);
+        let document = &found[0];
+        assert_eq!((document.name.as_str(), document.place.as_str()), ("contrato-prueba.pdf", "o1"));
+        assert_eq!(document.path, "wiki/sources/contrato-prueba.md");
+        assert_eq!(document.text.as_deref(), Some("Contrato de locación del depósito de la calle Falsa."));
+        let copy = attached_documents(&base, &[ids[1]]).unwrap();
+        assert_eq!(copy[0].place, "o1 › Casos");
+        let reference = attached_reference(document);
+        assert_eq!((reference.kind.as_str(), reference.path.as_str()), ("document", "wiki/sources/contrato-prueba.md"));
+        assert!(reference.snippet.unwrap().contains("o1"));
+        let many = vec![ids[0]; 20];
+        assert_eq!(attached_documents(&base, &many).unwrap().len(), 1);
     }
 
     #[test]

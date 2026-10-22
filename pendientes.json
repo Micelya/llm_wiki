@@ -2069,12 +2069,12 @@
       "titulo": "Adjuntar al chat un documento de la base",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "El chat podía adjuntar archivos del proyecto de wiki como contexto (selector de archivos del cuadro de mensaje). Sin proyecto el selector queda vacío. Reemplazarlo por elegir documentos, personas, organizaciones o asuntos de la base, que el agente ya sabe leer (base.read).",
+      "estado": "a-verificar",
+      "detalle": "El chat podía adjuntar archivos del proyecto de wiki como contexto (selector de archivos del cuadro de mensaje). Sin proyecto el selector queda vacío. Reemplazarlo por elegir documentos, personas, organizaciones o asuntos de la base, que el agente ya sabe leer (base.read). 22 oct (paso 9, D-453): documentos hechos. El botón «Documento» del cuadro del mensaje abre un buscador de la base (y «@» ofrece lo mismo); lo adjuntado queda en la conversación y se ve en el mensaje; el agente lee el texto desde la base, con el nombre y «origen › carpeta», lo usa y lo cita entre las referencias (también con Codex o Claude Code); el documento tiene «Preguntar al chat sobre este documento». Falta verlo en la app con una pregunta de verdad (consume cupo). Personas, organizaciones y casos: P-269.",
       "depende_de": [],
-      "referencia": "D-413, D-418; src/components/chat/chat-panel.tsx (NO_CONTEXT_FILES)",
+      "referencia": "D-413, D-418, D-453; src/lib/chat-documents.ts; src/components/chat/chat-document-picker.tsx; src-tauri/src/agent/base_tools.rs (attached_documents); src-tauri/src/agent/context.rs (render_attached_documents)",
       "creado": "2026-10-21",
-      "actualizado": "2026-10-21"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-244",
@@ -2155,12 +2155,12 @@
       "titulo": "Quitar lo que dejó sin uso el reconocimiento en la base",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "Con P-242 el avance de cada página va por el estado del motor que lee «En curso»: el evento por página de la incorporación retirada (`source_volume/recognition_progress.rs`) y la toma de lo reconocido con el formato viejo (`Legacy` en `recognized_store.rs`, junto con `page_cache_dir`) ya no los usa nadie. Borrarlos cuando se confirme que no hace falta tomar texto reconocido de un proyecto viejo.",
+      "estado": "hecho",
+      "detalle": "Con P-242 el avance de cada página va por el estado del motor que lee «En curso»: el evento por página de la incorporación retirada (`source_volume/recognition_progress.rs`) y la toma de lo reconocido con el formato viejo (`Legacy` en `recognized_store.rs`, junto con `page_cache_dir`) ya no los usa nadie. Borrarlos cuando se confirme que no hace falta tomar texto reconocido de un proyecto viejo. 22 oct (paso 9): borrados los dos; el wiki y sus proyectos ya no existen, así que no hay texto viejo que tomar.",
       "depende_de": ["P-242"],
-      "referencia": "src-tauri/src/source_volume/recognition_progress.rs, src-tauri/src/source_volume/recognized_store.rs",
+      "referencia": "src-tauri/src/source_volume/recognized_store.rs, src-tauri/src/source_volume/mod.rs",
       "creado": "2026-10-21",
-      "actualizado": "2026-10-21"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-253",
@@ -2353,6 +2353,30 @@
       "detalle": "Hoy la extensión se carga «descomprimida» desde la carpeta extension del repositorio (Ajustes → Carpeta de trabajo explica cómo), con los íconos heredados. Para un estudio: empaquetarla con la app o publicarla en la tienda de Chrome y Edge, con los íconos y colores de la marca (P-057).",
       "depende_de": ["P-227"],
       "referencia": "extension/; D-450; D-451",
+      "creado": "2026-10-22",
+      "actualizado": "2026-10-22"
+    },
+    {
+      "id": "P-268",
+      "titulo": "Ver en la app el pulido de «En curso» y del reconocimiento a pedido",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "detalle": "Corrida del 22 oct, paso 9 (D-452): (1) el número de la pestaña «En curso» de Atención cuenta sobre la carpeta elegida en «Ver», igual que la lista; (2) al abrir la app, «Casos» y «Páginas» ya no figuran como hechas: dicen que esperan la primera vuelta del motor (en pausa con la lectura automática apagada) y pasan a hechas cuando el motor las recorre; (3) lo pedido con «Reconocer el texto» se guarda en la base y sigue pedido después de cerrar y abrir la app; (4) las pruebas ignoran una carpeta mcp-server que vuelva a aparecer. Probado solo con casos inventados.",
+      "depende_de": [],
+      "referencia": "D-452; src-tauri/src/docbase/progress.rs (FIRST_LAP_STAGES); src-tauri/src/docbase/recognize.rs; src-tauri/src/docbase/schema.rs (V22); src/components/attention/attention-view.tsx; vite.config.ts",
+      "creado": "2026-10-22",
+      "actualizado": "2026-10-22"
+    },
+    {
+      "id": "P-269",
+      "titulo": "Adjuntar al chat personas, organizaciones y casos de la base",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "El paso 9 (D-453) adjunta documentos. P-243 pedía también personas, organizaciones y casos: sumarlos al mismo buscador, con su artículo y sus datos de la base (lo que lee base.read), citados igual, y «Preguntar al chat» desde su página.",
+      "depende_de": ["P-243"],
+      "referencia": "D-453; src/lib/chat-documents.ts; src-tauri/src/agent/base_tools.rs",
       "creado": "2026-10-22",
       "actualizado": "2026-10-22"
     }

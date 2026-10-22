@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener"
 import { getPageText, objectOfPage, saveQuery, type PageObject } from "@/commands/docbase"
+import { openChatDocument } from "@/lib/chat-documents"
 import { openPageObject, openWikiPath } from "@/lib/open-wiki-path"
 import { useChatStore } from "@/stores/chat-store"
 import { useWikiStore } from "@/stores/wiki-store"
@@ -89,6 +90,22 @@ function ChatMessageImpl({
         {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
       </div>
       <div className="max-w-[80%] flex flex-col gap-1.5">
+        {isUser && message.contextDocuments && message.contextDocuments.length > 0 && (
+          <div className="flex flex-wrap justify-end gap-1">
+            {message.contextDocuments.map((document) => (
+              <button
+                key={document.locationId}
+                type="button"
+                onClick={() => openChatDocument(document.locationId)}
+                className="inline-flex h-7 max-w-[18rem] items-center gap-1.5 rounded-md border border-blue-500/25 bg-blue-500/10 px-2 text-xs font-medium text-blue-700 hover:bg-blue-500/15 dark:text-blue-300"
+                title={`Abrir «${document.name}» · ${document.place}`}
+              >
+                <FileText className="h-3 w-3 shrink-0" />
+                <span className="truncate">{document.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
         {isUser && message.contextFiles && message.contextFiles.length > 0 && (
           <div className="flex flex-wrap justify-end gap-1">
             {message.contextFiles.map((path) => (

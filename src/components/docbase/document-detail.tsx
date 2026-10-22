@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react"
-import { Check, Copy, ExternalLink, FolderOpen } from "lucide-react"
+import { Check, Copy, ExternalLink, FolderOpen, MessageSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   getDocument,
@@ -24,6 +24,7 @@ import { ArticleText, usePageWords } from "@/components/knowledge/article-text"
 import { DetailTabs, NoArticle, useDetailTab, type DetailTab } from "@/components/knowledge/detail-tabs"
 import { articleBody, withoutEntityBlock, withoutListSection } from "@/components/knowledge/knowledge"
 import { engineName, withoutRecognitionMarkers } from "@/lib/text-recognition"
+import { askChatAbout, chatDocumentOf } from "@/lib/chat-documents"
 
 /** Text longer than this is cut on screen; the whole text stays in the base. */
 const SHOWN_TEXT_LIMIT = 200_000
@@ -98,6 +99,19 @@ function DocumentScreen({
             </Button>
             <Button variant="outline" onClick={() => handleOpen(document.locationId, true)}>
               <FolderOpen /> Ver en su carpeta
+            </Button>
+            {/* The chat reads its text from the base and cites it (P-243). */}
+            <Button
+              variant="outline"
+              disabled={document.contentId === null || document.state !== "processed"}
+              title={
+                document.contentId === null || document.state !== "processed"
+                  ? "Todavía no tiene su texto en la base: el chat no tendría qué leer."
+                  : "Abre el chat con este documento adjunto"
+              }
+              onClick={() => askChatAbout(chatDocumentOf(document))}
+            >
+              <MessageSquare /> Preguntar al chat sobre este documento
             </Button>
           </>
         ) : null

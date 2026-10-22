@@ -11,6 +11,7 @@ import {
   stageShare,
   stageText,
   stateLabel,
+  waitsFirstLap,
 } from "./stages"
 import { IDS, progress, stage } from "./progress.fixtures"
 
@@ -46,6 +47,21 @@ describe("the stages of «En curso» in words", () => {
     expect(stageFigures(stage("types", { done: 0, total: 0 }))).toBe("Ningún documento todavía")
     expect(stageShare(stage("reading", { done: 17, total: 68 }))).toBe(0.25)
     expect(stageShare(stage("reading", { done: 0, total: 0 }))).toBeNull()
+  })
+
+  it("says that the matters and the pages wait for the first pass of the engine, not that they are done (D-452)", () => {
+    const matters = stage("matters", { state: "paused", done: 12, total: 12, extra: { grouped: 4, loose: 8, firstLap: 1 } })
+    expect(waitsFirstLap(matters)).toBe(true)
+    expect(stateLabel(matters)).toBe("En pausa")
+    expect(stageDetails(matters, words)[0]).toBe("esperando la primera vuelta del motor para saber si queda algo por hacer")
+    expect(stageDetails(stage("pages", { state: "waiting", otherWork: true, extra: { firstLap: 1 } }), words)).toEqual([
+      "esperando la primera vuelta del motor para saber si queda algo por hacer",
+    ])
+    // Its pass made, nothing of that is said.
+    expect(waitsFirstLap(stage("matters"))).toBe(false)
+    expect(stageDetails(stage("matters", { extra: { grouped: 4, loose: 8 } }), words)).toEqual(["4 en un caso", "8 sueltos"])
+    // The reading still says what was read with an earlier version.
+    expect(stageDetails(stage("reading", { extra: { older: 134 } }), words)).toEqual(["134 leídos con una versión anterior"])
   })
 
   it("tells what is left, what failed and what is out", () => {

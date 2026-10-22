@@ -52,7 +52,8 @@ export default defineConfig(async () => ({
     // safe to keep on for every test run.
     setupFiles: ["./src/test-helpers/load-test-env.ts"],
     // Build output of the Rust side can hold copies of old packages with
-    // their own tests; they are not part of the app.
-    exclude: [...configDefaults.exclude, "**/src-tauri/target/**"],
+    // their own tests; they are not part of the app. Neither is the folder
+    // of the old MCP server, if a leftover of it comes back.
+    exclude: [...configDefaults.exclude, "**/src-tauri/target/**", "**/mcp-server/**"],
   },
 }))

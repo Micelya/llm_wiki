@@ -10,7 +10,20 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14, V15, V16, V17, V18, V19, V20, V21];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14, V15, V16, V17, V18, V19, V20, V21, V22];
+
+/// What a person asked to recognize (P-242, D-452): the documents whose
+/// text is only pixels that she asked the base to read, in the order she
+/// asked (`position`), until each one is read or fails for good. In the
+/// base, so closing the app does not lose them; the failures of the
+/// provider on each one are counted in memory.
+const V22: &str = "
+CREATE TABLE recognition_request (
+    content_id  INTEGER PRIMARY KEY REFERENCES content (id) ON DELETE CASCADE,
+    position    INTEGER NOT NULL,
+    asked_at    INTEGER NOT NULL
+);
+";
 
 /// The template of each family of the same template (P-247, D-438): the
 /// text its documents share, with the fields that change, and the value
@@ -1196,6 +1209,27 @@ mod tests {
             )
             .unwrap();
         assert_eq!(left, 0);
+    }
+
+    /// A base at version 21 gets the table of the recognitions asked for,
+    /// empty, and a request goes away with its document.
+    #[test]
+    fn a_base_at_version_21_gets_the_recognition_requests() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+        for (index, migration) in MIGRATIONS.iter().enumerate().take(21) {
+            conn.execute_batch(migration).unwrap();
+            conn.pragma_update(None, "user_version", index as i64 + 1).unwrap();
+        }
+        conn.execute("INSERT INTO content (id, state, first_seen_at) VALUES (1, 'needs-recognition', 1)", []).unwrap();
+        migrate(&mut conn).unwrap();
+        let version: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0)).unwrap();
+        assert_eq!(version, CURRENT_VERSION);
+        let count = |conn: &Connection| -> i64 { conn.query_row("SELECT count(*) FROM recognition_request", [], |row| row.get(0)).unwrap() };
+        assert_eq!(count(&conn), 0);
+        conn.execute("INSERT INTO recognition_request (content_id, position, asked_at) VALUES (1, 1, 1)", []).unwrap();
+        conn.execute("DELETE FROM content WHERE id = 1", []).unwrap();
+        assert_eq!(count(&conn), 0);
     }
 
     /// The owner's base is at version 8 (the type decisions of the

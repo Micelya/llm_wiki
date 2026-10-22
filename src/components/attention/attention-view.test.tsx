@@ -169,6 +169,18 @@ describe("the attention view in tabs", () => {
     expect(text(html)).not.toContain("Una decisión inventada")
   })
 
+  it("counts in «En curso» over the origin or folder the tab is narrowed to", () => {
+    useProgressStore.setState({ progress: halfway })
+    const ongoing = () => tabs(renderToStaticMarkup(<AttentionView />)).find((tab) => tab.title.startsWith("En curso"))?.title
+    expect(ongoing()).toBe("En curso 5")
+    useAttentionViewStore.setState({ scope: { originId: "o1", folder: "nueva" } })
+    base.answers["progress:o1/nueva"] = progress({ reading: { state: "running", done: 3, total: 68, pending: 65 } })
+    expect(ongoing()).toBe("En curso 1")
+    // Everything done in that folder: no figure.
+    base.answers["progress:o1/nueva"] = progress()
+    expect(ongoing()).toBe("En curso")
+  })
+
   it("keeps the tab the person chose", () => {
     useAttentionViewStore.setState({ tab: "decision" })
     const html = renderToStaticMarkup(<AttentionView />)
