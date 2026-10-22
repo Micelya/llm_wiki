@@ -22,11 +22,14 @@ use super::knowledge::screens::{DocumentEntities, KnowledgeAttention, MatterDeta
 use super::knowledge::{DocumentKnowledge, KnowledgeStatus};
 use super::labels::{Label, LabelGroup, LabelRule};
 use super::origins::Origin;
+use super::progress::{FolderCount, Progress, Scope, StageItems};
+use super::recognize::RecognitionRequest;
 use super::similar::{self, Decision, OpenPair, PairDecision, SimilarDocument, SimilarGroup, SimilarPending};
 use super::similar::classify::{DecidedType, DocumentType, ProposedType, RunReport, TypeDecision, TypesPlan};
 use super::similar::data::Datum;
 use super::similar::types::RelationDef;
 use crate::source_volume::asking::{asker_for, AskConfig};
+use crate::source_volume::recognition::RecognitionConfig;
 use super::query::{Activity, DocumentDetail, DocumentFilter, DocumentPage, Health, LocationRef, OriginSummary};
 use super::tree::FolderListing;
 use super::worker::{self, Wake};
@@ -39,6 +42,8 @@ pub const CHANGED_EVENT: &str = "docbase://changed";
 pub struct DocBaseState {
     base: Result<Arc<DocBase>, String>,
     wake: Arc<Wake>,
+    /// Ends the wait of the questions to the model (a scan to recognize).
+    ask_wake: Arc<Wake>,
 }
 
 impl DocBaseState {
@@ -53,6 +58,7 @@ impl DocBaseState {
 /// starts its background worker.
 pub fn start(app: &tauri::AppHandle) {
     let wake = Arc::new(Wake::default());
+    let ask_wake = Arc::new(Wake::default());
     // The catalog of document types can be replaced by a file of the same
     // shape in the data folder (similar/types.rs).
     if let Ok(dir) = app.path().app_data_dir() {
@@ -85,6 +91,7 @@ pub fn start(app: &tauri::AppHandle) {
             // Pages written again in the base change what the screens show.
             worker::spawn_asking(
                 base.clone(),
+                ask_wake.clone(),
                 move || {
                     let _ = handle.emit(CHANGED_EVENT, ());
                 },
@@ -95,7 +102,7 @@ pub fn start(app: &tauri::AppHandle) {
         }
         Err(error) => eprintln!("[docbase] {error}"),
     }
-    app.manage(DocBaseState { base, wake });
+    app.manage(DocBaseState { base, wake, ask_wake });
 }
 
 #[derive(Debug, Serialize)]
@@ -840,6 +847,66 @@ pub fn docbase_background_reading(state: State<'_, DocBaseState>) -> Result<bool
 #[tauri::command(async)]
 pub fn docbase_set_background_reading(state: State<'_, DocBaseState>, on: bool) -> Result<(), String> {
     state.base()?.set_background_reading(on)
+}
+
+/// The engine that recognizes the text of scans, from the model chosen in
+/// Ajustes; `None` when that model cannot read images.
+#[tauri::command(async)]
+pub fn docbase_set_recognition_engine(state: State<'_, DocBaseState>, engine: Option<RecognitionConfig>) -> Result<(), String> {
+    state.base()?.set_recognition_engine(engine.as_ref())
+}
+
+/// A person asks to recognize the text of scans (P-242), with the
+/// automatic reading on or off: these documents (`content_ids`), every one
+/// waiting (none given), or the ones that failed (`only_failed`). They are
+/// read in the background, one after the other, and «En curso» shows how
+/// it goes. Returns how many were asked for.
+#[tauri::command(async)]
+pub fn docbase_recognize_text(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    content_ids: Option<Vec<i64>>,
+    only_failed: Option<bool>,
+) -> Result<usize, String> {
+    let which = match (content_ids, only_failed.unwrap_or(false)) {
+        (Some(ids), _) => RecognitionRequest::These(ids),
+        (None, true) => RecognitionRequest::Failed,
+        (None, false) => RecognitionRequest::AllWaiting,
+    };
+    let base = state.base()?;
+    if base.recognition_engine()?.is_none() {
+        return Err("Falta elegir el motor que reconoce escaneos: en Ajustes, elegí «Codex CLI (local)» como modelo.".to_string());
+    }
+    let asked = base.request_recognition(&which)?;
+    state.ask_wake.request();
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(asked)
+}
+
+/// Every stage of the processing over `scope` (the whole archive, an
+/// origin or a folder of it), with how it stands and the last error of the
+/// model: what «En curso» shows (D-424). Reads only.
+#[tauri::command(async)]
+pub fn docbase_progress(state: State<'_, DocBaseState>, scope: Option<Scope>) -> Result<Progress, String> {
+    state.base()?.progress(&scope.unwrap_or_default())
+}
+
+/// The documents (or origins, or pages) of one stage, failed first, then
+/// pending, then done. Reads only.
+#[tauri::command(async)]
+pub fn docbase_progress_items(
+    state: State<'_, DocBaseState>,
+    stage: String,
+    scope: Option<Scope>,
+    limit: Option<usize>,
+) -> Result<StageItems, String> {
+    state.base()?.progress_items(&stage, &scope.unwrap_or_default(), limit.unwrap_or(50))
+}
+
+/// The folders of an origin with the files under each, to narrow «En curso».
+#[tauri::command(async)]
+pub fn docbase_progress_folders(state: State<'_, DocBaseState>, origin_id: String) -> Result<Vec<FolderCount>, String> {
+    state.base()?.progress_folders(&origin_id)
 }
 
 /// The pairs of mentions the resolution left for a person.

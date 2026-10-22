@@ -15,7 +15,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::recognition_codex::CodexRecognizer;
 use super::recognized_store::{Part, RecognizedStore};
@@ -27,7 +27,8 @@ const MIN_PAGE_TEXT_CHARS: usize = 80;
 /// Long side, in pixels, of a page rendered for recognition.
 const RENDER_LONG_SIDE_PX: i32 = 2000;
 
-#[derive(Debug, Clone, Deserialize)]
+/// Which engine recognizes text, and with which model.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RecognitionConfig {
     pub engine: String,
@@ -51,6 +52,12 @@ pub fn recognizer_for(config: &RecognitionConfig) -> Result<Box<dyn TextRecogniz
         "codex-cli" => Ok(Box::new(CodexRecognizer::new(&config.model))),
         other => Err(format!("Unknown text recognition engine: '{other}'")),
     }
+}
+
+/// The name an engine and model save their text with (what `engine_id`
+/// of its recognizer returns), without starting the engine.
+pub fn engine_id(config: &RecognitionConfig) -> Result<String, String> {
+    recognizer_for(config).map(|recognizer| recognizer.engine_id())
 }
 
 /// Image formats a standalone source can be recognized from.
@@ -273,50 +280,60 @@ fn render_page(pdf: &Path, page: u32, dest_dir: &Path) -> Result<PathBuf, String
     Ok(path)
 }
 
+/// A stand-in engine for the tests: answers with a canned text per call
+/// and records what it was shown. It never calls a real engine.
+#[cfg(test)]
+pub(crate) struct FakeRecognizer {
+    engine: String,
+    answers: std::cell::RefCell<Vec<Result<String, String>>>,
+    seen: std::cell::RefCell<Vec<PathBuf>>,
+}
+
+#[cfg(test)]
+impl FakeRecognizer {
+    pub(crate) fn new(answers: Vec<Result<&str, &str>>) -> Self {
+        Self::of("falso:1", answers)
+    }
+
+    /// One that says it is `engine`.
+    pub(crate) fn of(engine: &str, answers: Vec<Result<&str, &str>>) -> Self {
+        Self {
+            engine: engine.to_string(),
+            answers: std::cell::RefCell::new(
+                answers
+                    .into_iter()
+                    .rev()
+                    .map(|a| a.map(str::to_string).map_err(str::to_string))
+                    .collect(),
+            ),
+            seen: std::cell::RefCell::new(Vec::new()),
+        }
+    }
+
+    pub(crate) fn calls(&self) -> usize {
+        self.seen.borrow().len()
+    }
+}
+
+#[cfg(test)]
+impl TextRecognizer for FakeRecognizer {
+    fn engine_id(&self) -> String {
+        self.engine.clone()
+    }
+
+    fn recognize(&self, image: &Path) -> Result<String, String> {
+        assert!(image.is_file(), "recognizer must be handed a real image");
+        self.seen.borrow_mut().push(image.to_path_buf());
+        self.answers
+            .borrow_mut()
+            .pop()
+            .unwrap_or_else(|| Err("no more answers".to_string()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::cell::RefCell;
-
-    /// Answers with a canned text per call and records what it was shown.
-    struct FakeRecognizer {
-        answers: RefCell<Vec<Result<String, String>>>,
-        seen: RefCell<Vec<PathBuf>>,
-    }
-
-    impl FakeRecognizer {
-        fn new(answers: Vec<Result<&str, &str>>) -> Self {
-            Self {
-                answers: RefCell::new(
-                    answers
-                        .into_iter()
-                        .rev()
-                        .map(|a| a.map(str::to_string).map_err(str::to_string))
-                        .collect(),
-                ),
-                seen: RefCell::new(Vec::new()),
-            }
-        }
-
-        fn calls(&self) -> usize {
-            self.seen.borrow().len()
-        }
-    }
-
-    impl TextRecognizer for FakeRecognizer {
-        fn engine_id(&self) -> String {
-            "falso:1".to_string()
-        }
-
-        fn recognize(&self, image: &Path) -> Result<String, String> {
-            assert!(image.is_file(), "recognizer must be handed a real image");
-            self.seen.borrow_mut().push(image.to_path_buf());
-            self.answers
-                .borrow_mut()
-                .pop()
-                .unwrap_or_else(|| Err("no more answers".to_string()))
-        }
-    }
 
     fn page(text: &str) -> RecognizedPage {
         RecognizedPage {
@@ -391,6 +408,8 @@ mod tests {
             model: String::new(),
         };
         assert!(recognizer_for(&config).is_err());
+        let codex = RecognitionConfig { engine: "codex-cli".to_string(), model: "m".to_string() };
+        assert_eq!(engine_id(&codex).unwrap(), "codex-cli:m");
     }
 
     #[test]

@@ -57,7 +57,7 @@ pub const GROUP_RELATIONS: &[&str] = &["near-identical", "signed-copy", "preview
 /// A family bigger than this is marked for review.
 pub const GROUP_LARGE: usize = 30;
 
-fn engine_id() -> String {
+pub(crate) fn engine_id() -> String {
     format!("{ENGINE}+{}", types::catalog().digest)
 }
 

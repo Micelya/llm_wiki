@@ -233,6 +233,8 @@ export interface DocumentDetail extends DocumentRow {
   firstSeenAt: number
   text: string | null
   textEngine: string | null
+  /** When that text was obtained (for a scan: when it was recognized). */
+  textAt: number | null
   /** Every location of this document, this one first. */
   locations: LocationRef[]
 }
@@ -642,6 +644,27 @@ export function runTypes(engine: AskConfig, maxQuestions?: number): Promise<Type
 /** The engine that answers while the archive's wiki is active; null stops it. */
 export function setAskEngine(engine: AskConfig | null): Promise<void> {
   return invoke<void>("docbase_set_ask_engine", { engine })
+}
+
+/** Which engine recognizes the text of scans, and with which model. */
+export interface RecognitionConfig {
+  engine: "codex-cli"
+  model: string
+}
+
+/** The engine that recognizes the text of scans; null: none can. */
+export function setRecognitionEngine(engine: RecognitionConfig | null): Promise<void> {
+  return invoke<void>("docbase_set_recognition_engine", { engine })
+}
+
+/**
+ * Asks the base to recognize the text of scans (P-242), with the automatic
+ * reading on or off: these documents, every one waiting (`null`), or the
+ * ones that failed (`onlyFailed`). They are read in the background, one
+ * after the other. Returns how many were asked for.
+ */
+export function recognizeText(contentIds: number[] | null, onlyFailed = false): Promise<number> {
+  return invoke<number>("docbase_recognize_text", { contentIds, onlyFailed })
 }
 
 export function getDocumentType(locationId: number): Promise<DocumentTypeView> {
@@ -1369,6 +1392,126 @@ export function getBackgroundReading(): Promise<boolean> {
 
 export function setBackgroundReading(on: boolean): Promise<void> {
   return invoke<void>("docbase_set_background_reading", { on })
+}
+
+// ── How far the processing went, stage by stage (D-424) ──────────────────
+
+/** The stages, in the order a document goes through them. */
+export type StageId =
+  | "origins"
+  | "text"
+  | "recognition"
+  | "similar"
+  | "types"
+  | "reading"
+  | "resolve"
+  | "matters"
+  | "pages"
+
+/**
+ * How a stage stands: `waiting` is its turn; `paused`, the automatic
+ * reading is off or no model (or, for the scans, no engine) was chosen.
+ */
+export type StageState = "done" | "running" | "waiting" | "paused" | "error"
+
+/** What part of the archive the figures are about; empty, all of it. */
+export interface ProgressScope {
+  originId?: string | null
+  /** A folder inside the origin, with forward slashes. */
+  folder?: string | null
+}
+
+/** The last error of the model, in memory while the app runs. */
+export interface ModelError {
+  /** The stage that asked; null when the model could not even be started. */
+  stage: StageId | null
+  kind: "limit" | "key" | "connection" | "other"
+  message: string
+  at: number
+  /** When the engine tries again. */
+  retryAt: number | null
+}
+
+/** One thing a stage goes over, as its list shows it. */
+export interface StageItem {
+  status: "pending" | "failed" | "done" | "out"
+  locationId: number | null
+  contentId: number | null
+  originId: string | null
+  /** For a page: its path, to open it. */
+  pagePath: string | null
+  name: string
+  /** "<origin> › <folder>", or the folder of an origin on disk. */
+  place: string
+  /** The reason of a failure, why it is out, or the matter of a document. */
+  detail: string | null
+  /** Of a scan being recognized: the page the engine reads now. */
+  page?: number | null
+  /** Of a scan: how many pages need recognition, once counted. */
+  pages?: number | null
+}
+
+export interface ProgressStage {
+  id: StageId
+  state: StageState
+  unit: "origins" | "files" | "documents" | "pages"
+  /** Done, pending and failed. */
+  total: number
+  done: number
+  pending: number
+  failed: number
+  /** Left out of the stage, not in `total`. */
+  out: number
+  /** Work no document stands for: a decision to apply, the pages to compute again. */
+  otherWork: boolean
+  /** What the engine is on now, when it is known. */
+  current: StageItem | null
+  error: ModelError | null
+  /**
+   * `questions` left at its last run; `grouped` and `loose` for the
+   * matters; for the scans, the `pages` that wait, the documents whose
+   * pages are not counted yet (`uncounted`) and those asked for (`requested`).
+   */
+  extra: Record<string, number>
+}
+
+export interface Progress {
+  stages: ProgressStage[]
+  /** Documents still being processed (a file not read yet counts as one). */
+  inProcess: number
+  /** Documents waiting because the automatic reading is paused or no model was chosen. */
+  paused: number
+  backgroundReading: boolean
+  engineChosen: boolean
+  /** The engine that recognizes scans, as it names its text; null when none was chosen. */
+  recognitionEngine?: string | null
+  lastError: ModelError | null
+}
+
+export interface StageItems {
+  stage: StageId
+  items: StageItem[]
+  total: number
+}
+
+export interface FolderCount {
+  folder: string
+  files: number
+}
+
+/** Every stage of the processing over `scope`. Reads only. */
+export function getProgress(scope: ProgressScope | null = null): Promise<Progress> {
+  return invoke<Progress>("docbase_progress", { scope })
+}
+
+/** The things one stage goes over, failed first, then pending, then done. */
+export function listStageItems(stage: StageId, scope: ProgressScope | null = null, limit = 50): Promise<StageItems> {
+  return invoke<StageItems>("docbase_progress_items", { stage, scope, limit })
+}
+
+/** The folders of an origin, each with the files under it. */
+export function listProgressFolders(originId: string): Promise<FolderCount[]> {
+  return invoke<FolderCount[]>("docbase_progress_folders", { originId })
 }
 
 export function listIdentityDoubts(): Promise<DoubtView[]> {

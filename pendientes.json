@@ -174,7 +174,7 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "a-verificar",
-      "detalle": "Hecho y probado en la app con AEROS BGH: contrato de motor intercambiable, motor Codex CLI, detección de páginas sin texto, marca de 'texto reconocido' y enganche en la ingesta. Integrado (PR #14): fuera del paso de importar y con avance por página. En el PR #17: el texto reconocido se guarda en el proyecto por hash del archivo (P-047). Falta: ajuste propio en Configuración (P-028) y fiabilidad de cifras (P-030).",
+      "detalle": "Hecho y probado en la app con AEROS BGH: contrato de motor intercambiable, motor Codex CLI, detección de páginas sin texto, marca de 'texto reconocido' y enganche en la ingesta. Integrado (PR #14): fuera del paso de importar y con avance por página. En el PR #17: el texto reconocido se guarda en el proyecto por hash del archivo (P-047). Falta: ajuste propio en Configuración (P-028) y fiabilidad de cifras (P-030). 21 oct: el reconocimiento ahora lo hace la base, sin la incorporación (P-242), con el mismo contrato y el mismo motor Codex; eso cubre el enganche. Siguen faltando el ajuste propio (lo trae el registro de motores, P-141) y la fiabilidad de cifras (P-030).",
       "depende_de": [],
       "referencia": "src-tauri/src/source_volume/, src-tauri/src/commands/extract_images.rs",
       "creado": "2026-10-07",
@@ -271,12 +271,12 @@
       "titulo": "Reconocimiento de texto en segundo plano y con avance",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "a-verificar",
-      "detalle": "Integrado (PR #14): el reconocimiento corre solo dentro de la tarea de ingesta de cada fuente, la importación ya no espera, y la actividad muestra 'Recognizing text: page 3 of 7'. Las imágenes sueltas se reconocían dos veces; ahora una. Falta: probarlo en la app montando una carpeta con un PDF escaneado (consume cupo).",
+      "estado": "hecho",
+      "detalle": "Integrado (PR #14): el reconocimiento corre solo dentro de la tarea de ingesta de cada fuente, la importación ya no espera, y la actividad muestra 'Recognizing text: page 3 of 7'. Las imágenes sueltas se reconocían dos veces; ahora una. Falta: probarlo en la app montando una carpeta con un PDF escaneado (consume cupo). 21 oct: reemplazado por P-242 (la base reconoce sola, con el avance en «En curso»).",
       "depende_de": [],
       "referencia": "PR #14 (integrado), src/lib/text-recognition.ts, src-tauri/src/source_volume/recognition_progress.rs",
       "creado": "2026-10-08",
-      "actualizado": "2026-10-16"
+      "actualizado": "2026-10-21"
     },
     {
       "id": "P-035",
@@ -319,24 +319,24 @@
       "titulo": "Decidir si la app genera el Overview del proyecto",
       "tipo": "decision",
       "responsable": "usuario",
-      "estado": "pendiente",
-      "detalle": "Investigado (era P-036): la ingesta nunca actualiza wiki/overview.md, por diseño de upstream; al modelo se le pide que no lo genere y, si lo hace, se descarta. Solo se mantiene wiki/index.md. purpose.md tampoco se escribe solo: queda como se creó con el proyecto. Ambos se leen como contexto en cada ingesta y en el chat, así que hoy aportan poco. Decidir si se agrega un paso que genere el overview (con el modelo, consume cupo) y si purpose.md se completa al crear un proyecto legal (ver P-035).",
+      "estado": "hecho",
+      "detalle": "Investigado (era P-036): la ingesta nunca actualiza wiki/overview.md, por diseño de upstream; al modelo se le pide que no lo genere y, si lo hace, se descarta. Solo se mantiene wiki/index.md. purpose.md tampoco se escribe solo: queda como se creó con el proyecto. Ambos se leen como contexto en cada ingesta y en el chat, así que hoy aportan poco. Decidir si se agrega un paso que genere el overview (con el modelo, consume cupo) y si purpose.md se completa al crear un proyecto legal (ver P-035). Cerrado el 21 oct con el dueño, sin objeto después del retiro del wiki: ya no hay proyectos (D-395); el resumen general está en Inicio.",
       "depende_de": [],
       "referencia": "src/lib/ingest.ts (líneas 2441, 2064-2068, 1708)",
       "creado": "2026-10-08",
-      "actualizado": "2026-10-08"
+      "actualizado": "2026-10-21"
     },
     {
       "id": "P-042",
       "titulo": "La ingesta interactiva lee schema.md y purpose.md de una carpeta equivocada",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "En la ruta de ingesta interactiva se leen wiki/schema.md y wiki/purpose.md, que no existen: los archivos están en la raíz del proyecto. En esa ruta el propósito y el esquema llegan siempre vacíos. Defecto de upstream encontrado al investigar el Overview; arreglo de dos líneas. Candidato a proponer a upstream.",
+      "estado": "hecho",
+      "detalle": "En la ruta de ingesta interactiva se leen wiki/schema.md y wiki/purpose.md, que no existen: los archivos están en la raíz del proyecto. En esa ruta el propósito y el esquema llegan siempre vacíos. Defecto de upstream encontrado al investigar el Overview; arreglo de dos líneas. Candidato a proponer a upstream. Cerrado el 21 oct con el dueño, sin objeto después del retiro del wiki: la incorporación interactiva ya no existe (PR #60).",
       "depende_de": [],
       "referencia": "src/lib/ingest.ts (startIngest, lectura de schema y purpose)",
       "creado": "2026-10-08",
-      "actualizado": "2026-10-08"
+      "actualizado": "2026-10-21"
     },
     {
       "id": "P-043",
@@ -540,12 +540,12 @@
       "titulo": "Cómo nace un 'caso': extraído de los documentos o creado desde la interfaz",
       "tipo": "decision",
       "responsable": "ambos",
-      "estado": "en-curso",
-      "detalle": "Definido el 2026-10-11: 'caso' y 'cliente' son etiquetas, no proyectos. El cliente probablemente se extraiga como entidad y tenga su página en el wiki. Del caso no hay certeza de que se pueda extraer; tal vez haya que crearlo desde la interfaz. Se ve más adelante. Con el modelo de etiquetas del PR #31 un caso es una etiqueta del grupo que el usuario elija: nace de una regla de carpeta ('cada subcarpeta de acá es un caso') o se crea a mano escribiendo 'Caso: nombre'. Queda abierto si además se extrae del contenido. Recomendación aprobada el 2026-10-18 (D-293, D-294): un solo concepto de asunto con tres formas de nacer: lo propone la extracción, lo crea una persona (la etiqueta 'Caso' es una forma de crearlo) o lo propone una regla de carpeta. El asunto no depende de cuántos documentos tiene: la regla de dos documentos vale solo para la agrupación automática. No se construye todavía. Acordado el 2026-10-20 (D-373 a D-376): un solo concepto de asunto ('Caso' en la vertical de abogados); lo crea una persona o lo propone el sistema, nunca una regla de carpeta; lo propuesto se confirma en Atención; un documento puede estar en varios asuntos; se cuentan familias, no copias; todos con estado 'abierto'; las referencias (acta, expediente) son datos del documento, no entidades. Se construye en la tanda del 20 oct (S2 a S5). S2 (20 oct): las referencias son datos del documento (D-377 a D-379); las entidades de tipo asunto se retiran al resolver otra vez; la agrupación usa la referencia normalizada. S3 (20 oct): asuntos propuestos por el sistema; la agrupación cuenta familias (D-381); estado, origen y confirmación guardados en el asunto, confirmar o descartar en Atención (D-382); el modelo propone sueltos solo para asuntos confirmados (D-383); «Caso» en las pantallas (D-384). Base de partida: quedan 4 de 7 (los 3 esperados y dos boletas, P-218). S4 (20 oct): crear y editar un asunto a mano desde Asuntos y desde el detalle del documento; lo puesto o sacado a mano se guarda por asunto y gana sobre la agrupación; agregar o sacar un documento confirma un asunto propuesto (D-386).",
+      "estado": "hecho",
+      "detalle": "Definido el 2026-10-11: 'caso' y 'cliente' son etiquetas, no proyectos. El cliente probablemente se extraiga como entidad y tenga su página en el wiki. Del caso no hay certeza de que se pueda extraer; tal vez haya que crearlo desde la interfaz. Se ve más adelante. Con el modelo de etiquetas del PR #31 un caso es una etiqueta del grupo que el usuario elija: nace de una regla de carpeta ('cada subcarpeta de acá es un caso') o se crea a mano escribiendo 'Caso: nombre'. Queda abierto si además se extrae del contenido. Recomendación aprobada el 2026-10-18 (D-293, D-294): un solo concepto de asunto con tres formas de nacer: lo propone la extracción, lo crea una persona (la etiqueta 'Caso' es una forma de crearlo) o lo propone una regla de carpeta. El asunto no depende de cuántos documentos tiene: la regla de dos documentos vale solo para la agrupación automática. No se construye todavía. Acordado el 2026-10-20 (D-373 a D-376): un solo concepto de asunto ('Caso' en la vertical de abogados); lo crea una persona o lo propone el sistema, nunca una regla de carpeta; lo propuesto se confirma en Atención; un documento puede estar en varios asuntos; se cuentan familias, no copias; todos con estado 'abierto'; las referencias (acta, expediente) son datos del documento, no entidades. Se construye en la tanda del 20 oct (S2 a S5). S2 (20 oct): las referencias son datos del documento (D-377 a D-379); las entidades de tipo asunto se retiran al resolver otra vez; la agrupación usa la referencia normalizada. S3 (20 oct): asuntos propuestos por el sistema; la agrupación cuenta familias (D-381); estado, origen y confirmación guardados en el asunto, confirmar o descartar en Atención (D-382); el modelo propone sueltos solo para asuntos confirmados (D-383); «Caso» en las pantallas (D-384). Base de partida: quedan 4 de 7 (los 3 esperados y dos boletas, P-218). S4 (20 oct): crear y editar un asunto a mano desde Asuntos y desde el detalle del documento; lo puesto o sacado a mano se guarda por asunto y gana sobre la agrupación; agregar o sacar un documento confirma un asunto propuesto (D-386). Cerrado el 21 oct: decidido (D-373 a D-376) y construido en el PR #59. Lo que sigue va aparte: el ciclo de vida del asunto (P-213) y las páginas del asunto y del documento (P-214).",
       "depende_de": [],
       "referencia": "docs/design/asuntos-propuesta.md; D-373 a D-376; D-381 a D-384; D-386",
       "creado": "2026-10-11",
-      "actualizado": "2026-10-20"
+      "actualizado": "2026-10-21"
     },
     {
       "id": "P-062",
@@ -606,14 +606,14 @@
       "titulo": "Que el grafo, la búsqueda y el lint usen el índice de enlaces",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "a-verificar",
-      "detalle": "La base ya lleva un índice de páginas, enlaces y página-documento (PR #31), pero el grafo, la búsqueda, el panel de enlaces y el lint siguen releyendo todas las páginas, cada uno con su propia regla para decidir a qué página apunta un enlace (hay al menos seis). Pasarlos de a uno al índice, que es código original y conviene tocarlo con cuidado. También: actualizar los enlaces cuando se renombra una página, que hoy no se hace. Pregunta del usuario del 2026-10-12: por qué no pasar los enlaces a la base con identificadores en vez de mantener las páginas como verdad y un índice aparte. Respuesta dada, sin confirmación suya: las páginas las escribe el modelo como texto y toda la capa de wiki lee y escribe esos archivos; se recomendó dejarlas como verdad y que este pendiente cubra lo que se busca con identificadores (que renombrar una página no rompa enlaces). Reabrir si el usuario prefiere el otro camino. N5 (D-350, D-351): reformulado y hecho para el wiki del archivo: el grafo, la búsqueda y el panel de enlaces salen de las relaciones de la base, no de los enlaces de los archivos; los enlaces de las notas se resuelven contra la base. Los demás proyectos siguen con los enlaces de sus páginas; lo que todavía lee archivos queda en P-192.",
+      "estado": "hecho",
+      "detalle": "La base ya lleva un índice de páginas, enlaces y página-documento (PR #31), pero el grafo, la búsqueda, el panel de enlaces y el lint siguen releyendo todas las páginas, cada uno con su propia regla para decidir a qué página apunta un enlace (hay al menos seis). Pasarlos de a uno al índice, que es código original y conviene tocarlo con cuidado. También: actualizar los enlaces cuando se renombra una página, que hoy no se hace. Pregunta del usuario del 2026-10-12: por qué no pasar los enlaces a la base con identificadores en vez de mantener las páginas como verdad y un índice aparte. Respuesta dada, sin confirmación suya: las páginas las escribe el modelo como texto y toda la capa de wiki lee y escribe esos archivos; se recomendó dejarlas como verdad y que este pendiente cubra lo que se busca con identificadores (que renombrar una página no rompa enlaces). Reabrir si el usuario prefiere el otro camino. N5 (D-350, D-351): reformulado y hecho para el wiki del archivo: el grafo, la búsqueda y el panel de enlaces salen de las relaciones de la base, no de los enlaces de los archivos; los enlaces de las notas se resuelven contra la base. Los demás proyectos siguen con los enlaces de sus páginas; lo que todavía lee archivos queda en P-192. Cerrado el 21 oct con el dueño, sin objeto después del retiro del wiki: el grafo, la búsqueda y el chat leen de la base (PR #60); la revisión del wiki (Lint) ya no existe.",
       "depende_de": [
         "P-049"
       ],
       "referencia": "src-tauri/src/docbase/wiki.rs; src/lib/wiki-graph.ts; src-tauri/src/commands/search.rs; src/lib/lint.ts",
       "creado": "2026-10-12",
-      "actualizado": "2026-10-18"
+      "actualizado": "2026-10-21"
     },
     {
       "id": "P-069",
@@ -634,14 +634,14 @@
       "titulo": "Rehacer el wiki del archivo desde cero",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "No hay forma de descartar lo generado y volver a incorporar: hace falta cuando el wiki salió mal (idioma equivocado, instrucciones cambiadas). Hoy hay que cerrar la app y apartar a mano la carpeta del proyecto 'default'; la app la crea de nuevo al arrancar. Lo que no se pierde: el texto reconocido de escaneos e imágenes, que ya está en la base. Definir si se ofrece como acción en la pantalla del wiki del archivo, con aviso del cupo que consume.",
+      "estado": "hecho",
+      "detalle": "No hay forma de descartar lo generado y volver a incorporar: hace falta cuando el wiki salió mal (idioma equivocado, instrucciones cambiadas). Hoy hay que cerrar la app y apartar a mano la carpeta del proyecto 'default'; la app la crea de nuevo al arrancar. Lo que no se pierde: el texto reconocido de escaneos e imágenes, que ya está en la base. Definir si se ofrece como acción en la pantalla del wiki del archivo, con aviso del cupo que consume. Cerrado el 21 oct con el dueño, sin objeto después del retiro del wiki: ya no hay wiki de archivos (D-396).",
       "depende_de": [
         "P-049"
       ],
       "referencia": "src-tauri/src/docbase/bridge.rs (ensure_default_project); src/lib/docbase-wiki-bridge.ts",
       "creado": "2026-10-13",
-      "actualizado": "2026-10-13"
+      "actualizado": "2026-10-21"
     },
     {
       "id": "P-072",
@@ -780,14 +780,14 @@
       "titulo": "Pasar al español el resto de las pantallas del wiki",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "La revisión del wiki ya está en español. Siguen en inglés la revisión de enlaces, las etiquetas de la navegación del wiki (Chat, Wiki, Fuentes, Revisión…), la configuración y los mensajes que escribe la incorporación (detalle de cada paso). Conviene hacerlo junto con el marco visual (P-057).",
+      "estado": "hecho",
+      "detalle": "La revisión del wiki ya está en español. Siguen en inglés la revisión de enlaces, las etiquetas de la navegación del wiki (Chat, Wiki, Fuentes, Revisión…), la configuración y los mensajes que escribe la incorporación (detalle de cada paso). Conviene hacerlo junto con el marco visual (P-057). Cerrado el 21 oct con el dueño, sin objeto después del retiro del wiki: las pantallas del wiki ya no existen; lo que quede en inglés pasa a la traducción general (P-058).",
       "depende_de": [
         "P-057"
       ],
       "referencia": "src/components/lint/lint-view.tsx; src/components/layout/icon-sidebar.tsx; src/i18n/",
       "creado": "2026-10-16",
-      "actualizado": "2026-10-16"
+      "actualizado": "2026-10-21"
     },
     {
       "id": "P-086",
@@ -806,12 +806,12 @@
       "titulo": "Mostrar en \"En curso\" las preguntas de tipos y el barrido de los orígenes",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "La sección \"En curso\" muestra la cola del wiki, los cambios de archivos y lo que la base todavía está leyendo, pero no las preguntas sobre tipos y datos que la base le hace al modelo en segundo plano ni el barrido de los orígenes: el motor no expone ese estado. Hace falta que lo exponga (por ejemplo, junto al aviso docbase://changed) y una línea en la fuente de la base documental.",
+      "estado": "hecho",
+      "detalle": "La sección \"En curso\" muestra la cola del wiki, los cambios de archivos y lo que la base todavía está leyendo, pero no las preguntas sobre tipos y datos que la base le hace al modelo en segundo plano ni el barrido de los orígenes: el motor no expone ese estado. Hace falta que lo exponga (por ejemplo, junto al aviso docbase://changed) y una línea en la fuente de la base documental. 21 oct: reemplazado por P-249: «En curso» muestra las etapas «Recorrido de las carpetas» (con la carpeta que se recorre ahora) y «Tipo y datos de cada documento» (con el documento que se pregunta ahora), y el motor expone su estado con un comando de solo lectura.",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/worker.rs; src/components/attention/sources/docbase.ts",
       "creado": "2026-10-16",
-      "actualizado": "2026-10-16"
+      "actualizado": "2026-10-21"
     },
     {
       "id": "P-088",
@@ -832,12 +832,12 @@
       "titulo": "Recuperar lo que el panel de actividad mostraba y no pasó a Atención",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "Al reducir el panel de actividad a una línea (D-157) no pasaron dos cosas: la selección de varias tareas de la cola para reintentarlas o cancelarlas juntas, y la lista de las páginas que escribió cada incorporación, con un clic para abrirlas. Decidir si hacen falta y dónde (por ejemplo, la actividad reciente del wiki en Inicio).",
+      "estado": "hecho",
+      "detalle": "Al reducir el panel de actividad a una línea (D-157) no pasaron dos cosas: la selección de varias tareas de la cola para reintentarlas o cancelarlas juntas, y la lista de las páginas que escribió cada incorporación, con un clic para abrirlas. Decidir si hacen falta y dónde (por ejemplo, la actividad reciente del wiki en Inicio). 21 oct: reemplazado por P-249: la etapa «Páginas (artículos)» de «En curso» lista las páginas con un botón para abrir cada una, y la de la lectura muestra los que fallaron con su motivo y un botón para volver a leerlos todos. La selección de varias tareas de una cola ya no aplica: con el wiki retirado no hay cola, la base lee de a un documento.",
       "depende_de": [],
       "referencia": "src/components/attention/sources/wiki-queue.ts",
       "creado": "2026-10-16",
-      "actualizado": "2026-10-16"
+      "actualizado": "2026-10-21"
     },
     {
       "id": "P-090",
@@ -970,12 +970,12 @@
       "titulo": "Páginas de entidad que el wiki escribió antes de la capa",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "Un wiki del archivo generado antes de esta etapa conserva sus páginas de entidad escritas por la incorporación (sin la marca de la capa) junto a las proyectadas. Decidir si se borran, se convierten en notas de la página proyectada o se dejan (la etapa W genera el wiki de cero, así que ahí no aparecen). También: los proyectos que no son el archivo siguen creándose con un resumen en inglés (plantilla de `commands/project.rs`).",
+      "estado": "hecho",
+      "detalle": "Un wiki del archivo generado antes de esta etapa conserva sus páginas de entidad escritas por la incorporación (sin la marca de la capa) junto a las proyectadas. Decidir si se borran, se convierten en notas de la página proyectada o se dejan (la etapa W genera el wiki de cero, así que ahí no aparecen). También: los proyectos que no son el archivo siguen creándose con un resumen en inglés (plantilla de `commands/project.rs`). Cerrado el 21 oct con el dueño, sin objeto después del retiro del wiki: los archivos de páginas del wiki ya no existen (D-396).",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/knowledge/pages.rs; src-tauri/src/commands/project.rs",
       "creado": "2026-10-16",
-      "actualizado": "2026-10-16"
+      "actualizado": "2026-10-21"
     },
     {
       "id": "P-102",
@@ -1454,12 +1454,12 @@
       "titulo": "Construir el wiki como presentación de la base",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "en-curso",
-      "detalle": "Propuesta aprobada con ajustes el 2026-10-18 (D-293 a D-296): certeza y quién confirmó cada afirmación, el grafo ordena y amplía sin recortar, una extracción principal por contenido y configuración, página común solo para versiones del mismo documento, asunto sin mínimo de documentos. Las cuatro decisiones abiertas quedaron resueltas (D-294). En construcción en la rama feat/wiki-on-docbase (tanda desatendida del 18 oct); vectores, conceptos por cálculo (solo medición, D-295), asuntos según P-061 y P-141 quedan fuera de esta tanda. N4: página de cada documento desde la base, una por familia de versiones, cada punto y dato con su versión (D-340 a D-342).",
+      "estado": "hecho",
+      "detalle": "Propuesta aprobada con ajustes el 2026-10-18 (D-293 a D-296): certeza y quién confirmó cada afirmación, el grafo ordena y amplía sin recortar, una extracción principal por contenido y configuración, página común solo para versiones del mismo documento, asunto sin mínimo de documentos. Las cuatro decisiones abiertas quedaron resueltas (D-294). En construcción en la rama feat/wiki-on-docbase (tanda desatendida del 18 oct); vectores, conceptos por cálculo (solo medición, D-295), asuntos según P-061 y P-141 quedan fuera de esta tanda. N4: página de cada documento desde la base, una por familia de versiones, cada punto y dato con su versión (D-340 a D-342). Cerrado el 21 oct con el dueño, sin objeto después del retiro del wiki: se construyó (PR #57) y con el retiro del wiki (PR #60) todo quedó dentro de la base.",
       "depende_de": [],
       "referencia": "docs/design/wiki-sobre-la-base-propuesta.md; D-290; D-293 a D-296",
       "creado": "2026-10-17",
-      "actualizado": "2026-10-18"
+      "actualizado": "2026-10-21"
     },
     {
       "id": "P-150",
@@ -1514,14 +1514,12 @@
       "titulo": "El wiki heredado sigue leyendo las fichas por su cuenta",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "Las páginas de fuente y de concepto del wiki las escribe todavía la lectura propia del wiki (src/lib/ingest.ts) sobre el texto anterior: dicen «NO» de beneficiario final y «SI» de PPE. Se corrige cuando el wiki deje de leer con el modelo y tome la extracción de la base (N3, P-142); verificar con N1-comprobar-casos.py --wiki.",
-      "depende_de": [
-        "P-142"
-      ],
+      "estado": "hecho",
+      "detalle": "Las páginas de fuente y de concepto del wiki las escribe todavía la lectura propia del wiki (src/lib/ingest.ts) sobre el texto anterior: dicen «NO» de beneficiario final y «SI» de PPE. Se corrige cuando el wiki deje de leer con el modelo y tome la extracción de la base (N3, P-142); verificar con N1-comprobar-casos.py --wiki. Cerrado el 21 oct con el dueño, sin objeto después del retiro del wiki: el código del wiki heredado que leía las fichas ya no existe (PR #60).",
+      "depende_de": [],
       "referencia": "src/lib/ingest.ts; D-314; P-142",
       "creado": "2026-10-18",
-      "actualizado": "2026-10-18"
+      "actualizado": "2026-10-21"
     },
     {
       "id": "P-165",
@@ -1564,12 +1562,12 @@
       "titulo": "La incorporación del wiki del archivo todavía exige un modelo configurado",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "La cola y la importación siguen frenando si no hay un modelo de incorporación configurado (hasUsableLlm), aunque en el wiki del archivo la incorporación ya no le pregunta nada (D-332). Quitar esa condición para el wiki del archivo.",
+      "estado": "hecho",
+      "detalle": "La cola y la importación siguen frenando si no hay un modelo de incorporación configurado (hasUsableLlm), aunque en el wiki del archivo la incorporación ya no le pregunta nada (D-332). Quitar esa condición para el wiki del archivo. Cerrado el 21 oct con el dueño, sin objeto después del retiro del wiki: la incorporación del wiki ya no existe (PR #60).",
       "depende_de": [],
       "referencia": "src/lib/ingest-queue.ts; src/lib/source-lifecycle.ts; D-332",
       "creado": "2026-10-18",
-      "actualizado": "2026-10-18"
+      "actualizado": "2026-10-21"
     },
     {
       "id": "P-171",
@@ -1588,12 +1586,12 @@
       "titulo": "Quitar el código de la incorporación con el modelo si solo queda el wiki del archivo",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "Los proyectos que no son el wiki del archivo conservan la incorporación anterior (análisis, generación, revisión, combinación de páginas, conceptos, avisos). Decidir si esos proyectos siguen existiendo; si no, borrar ese código y sus pruebas.",
+      "estado": "hecho",
+      "detalle": "Los proyectos que no son el wiki del archivo conservan la incorporación anterior (análisis, generación, revisión, combinación de páginas, conceptos, avisos). Decidir si esos proyectos siguen existiendo; si no, borrar ese código y sus pruebas. Cerrado el 21 oct con el dueño, sin objeto después del retiro del wiki: el retiro del wiki (PR #60) quitó la incorporación con el modelo y su código.",
       "depende_de": [],
       "referencia": "src/lib/ingest.ts; src/lib/page-merge.ts; src/lib/sweep-reviews.ts; D-332",
       "creado": "2026-10-18",
-      "actualizado": "2026-10-18"
+      "actualizado": "2026-10-21"
     },
     {
       "id": "P-173",
@@ -1672,11 +1670,9 @@
       "titulo": "Página del documento armada al mostrarse",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "en-curso",
-      "detalle": "Reemplazado por P-228 (D-396): la página del documento deja de ser archivo; se guarda en la base y se lee en el detalle del documento, con sus notas (W2, W3); el chat lee de la base (W5). Se cierra con P-228. Hecho en W3 (D-407): el detalle del documento muestra arriba su artículo desde la base (sin las ubicaciones ni el bloque de entidades, que tiene en sus secciones) y sus notas; la búsqueda abre esa pantalla. Falta el chat (W5). Antes: D-294 la dejó como archivo generado hasta que la búsqueda y el grafo leyeran de la base.",
-      "depende_de": [
-        "P-228"
-      ],
+      "estado": "hecho",
+      "detalle": "Reemplazado por P-228 (D-396): la página del documento deja de ser archivo; se guarda en la base y se lee en el detalle del documento, con sus notas (W2, W3); el chat lee de la base (W5). Se cierra con P-228. Hecho en W3 (D-407): el detalle del documento muestra arriba su artículo desde la base (sin las ubicaciones ni el bloque de entidades, que tiene en sus secciones) y sus notas; la búsqueda abre esa pantalla. Falta el chat (W5). Antes: D-294 la dejó como archivo generado hasta que la búsqueda y el grafo leyeran de la base. Cerrado el 21 oct con el retiro del wiki (P-228): el detalle del documento muestra su artículo desde la base y el chat lee de la base (W5, PR #60).",
+      "depende_de": [],
       "referencia": "docs/design/retiro-del-wiki.md; D-294; D-350; D-351; D-396",
       "creado": "2026-10-18",
       "actualizado": "2026-10-21"
@@ -1688,9 +1684,7 @@
       "responsable": "claude",
       "estado": "pendiente",
       "detalle": "21 oct: lo que lee archivos lo reemplaza P-228 (D-396, D-398, D-399): Lint sale, la relevancia del grafo se calcula sobre la base (W4), la búsqueda y el contexto del chat leen de la base (W3, W5). Queda: las preguntas genéricas por relaciones («a quiénes les debe») siguen en 6 a 7 de 8; medirlas de nuevo cuando el chat lea de la base.",
-      "depende_de": [
-        "P-228"
-      ],
+      "depende_de": [],
       "referencia": "src/lib/graph-relevance.ts; src-tauri/src/agent/tools.rs; src-tauri/src/commands/search.rs; D-350; D-396; D-398; D-399",
       "creado": "2026-10-18",
       "actualizado": "2026-10-21"
@@ -1821,12 +1815,12 @@
       "titulo": "El arranque no crea el proyecto por defecto si su carpeta existe vacía",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "Con la carpeta del proyecto por defecto vacía, el arranque falla con «Directory already exists» y la app queda sin proyecto (N6b, 18 oct). Hubo que borrar la carpeta y recargar. Una carpeta vacía debería aceptarse como proyecto nuevo. Prioridad 3 (lo que se ve en la app).",
+      "estado": "hecho",
+      "detalle": "Con la carpeta del proyecto por defecto vacía, el arranque falla con «Directory already exists» y la app queda sin proyecto (N6b, 18 oct). Hubo que borrar la carpeta y recargar. Una carpeta vacía debería aceptarse como proyecto nuevo. Prioridad 3 (lo que se ve en la app). Cerrado el 21 oct con el dueño, sin objeto después del retiro del wiki: la app ya no crea proyectos al arrancar (D-395).",
       "depende_de": [],
       "referencia": "D-364",
       "creado": "2026-10-18",
-      "actualizado": "2026-10-18"
+      "actualizado": "2026-10-21"
     },
     {
       "id": "P-210",
@@ -1881,12 +1875,10 @@
       "titulo": "Unificar las páginas de asunto y de documento con el wiki",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "Una sola vista por cosa (D-376): arriba el artículo, en una pestaña los datos y las correcciones. La de persona u organización está hecha (D-389: pestañas «Artículo», que muestra su página del wiki tal como la escribió la proyección, y «Datos y correcciones»; los enlaces del wiki a la página llevan a la pantalla). Faltan la del asunto (pantalla Asuntos y su página del wiki) y la del documento (detalle de Documentos y su página del wiki, Sources). 21 oct, pedido del dueño: documento y asunto con las mismas dos pestañas que persona u organización («Artículo» y «Datos y correcciones»); el asunto con su artículo. Va primero en el plan (paso 0a de docs/design/servicios-de-ia-propuesta.md).",
-      "depende_de": [
-        "P-061"
-      ],
-      "referencia": "D-376; D-389; docs/design/asuntos-propuesta.md (sección 5); docs/design/servicios-de-ia-propuesta.md (2.6, paso 0a)",
+      "estado": "a-verificar",
+      "detalle": "Una sola vista por cosa (D-376): arriba el artículo, en una pestaña los datos y las correcciones. La de persona u organización está hecha (D-389: pestañas «Artículo», que muestra su página del wiki tal como la escribió la proyección, y «Datos y correcciones»; los enlaces del wiki a la página llevan a la pantalla). Faltan la del asunto (pantalla Asuntos y su página del wiki) y la del documento (detalle de Documentos y su página del wiki, Sources). 21 oct, pedido del dueño: documento y asunto con las mismas dos pestañas que persona u organización («Artículo» y «Datos y correcciones»); el asunto con su artículo. Va primero en el plan (paso 0a de docs/design/servicios-de-ia-propuesta.md). Hecho el 21 oct (D-423): documento, persona u organización y caso usan la misma pantalla de dos pestañas; el caso muestra su artículo completo con la investigación en internet; lo demás de cada pantalla pasó a «Datos y correcciones», y las notas van al pie de las dos. Falta que el dueño lo vea en la app.",
+      "depende_de": [],
+      "referencia": "D-376; D-389; D-423; docs/design/asuntos-propuesta.md (sección 5); docs/design/servicios-de-ia-propuesta.md (2.6, paso 0a); src/components/knowledge/detail-tabs.tsx",
       "creado": "2026-10-20",
       "actualizado": "2026-10-21"
     },
@@ -1897,12 +1889,10 @@
       "responsable": "claude",
       "estado": "pendiente",
       "detalle": "Desde S2 una referencia junta documentos solo por su forma normalizada exacta; la resolución unía antes formas parecidas (en la base de partida un documento salió de un asunto) y elegía el nombre más específico. Ver en S3 si hace falta unir formas parecidas de una referencia (sin modelo) y cómo se muestra su nombre (hoy la forma más escrita, en forma de nombre). S3: sin cambios; en la base de partida no hizo falta para los 3 asuntos esperados.",
-      "depende_de": [
-        "P-061"
-      ],
+      "depende_de": [],
       "referencia": "D-377, D-378; desatendido-5/S2-medicion.txt",
       "creado": "2026-10-20",
-      "actualizado": "2026-10-20"
+      "actualizado": "2026-10-21"
     },
     {
       "id": "P-217",
@@ -1911,12 +1901,10 @@
       "responsable": "claude",
       "estado": "pendiente",
       "detalle": "Las pantallas dicen «Caso» (vocabulario de la vertical); el wiki y los nombres de los asuntos usan las palabras del catálogo (knowledge.json: «Asunto», «Asunto entre»). Llevarlas a la vertical sin rehacer preguntas guardadas: la descripción del asunto entra en la pregunta de propuesta (medir con el arnés antes).",
-      "depende_de": [
-        "P-061"
-      ],
+      "depende_de": [],
       "referencia": "D-384",
       "creado": "2026-10-20",
-      "actualizado": "2026-10-20"
+      "actualizado": "2026-10-21"
     },
     {
       "id": "P-218",
@@ -1925,12 +1913,10 @@
       "responsable": "ambos",
       "estado": "pendiente",
       "detalle": "En la base de partida queda un cuarto asunto propuesto: dos boletas que comparten el importe y que la comparación de parecidos relaciona como misma plantilla (cambian identificadores y fechas), no como versiones. Si son el mismo documento, basta con descartarlo en Atención o unirlas como el mismo documento; si pasa seguido, ver si dos documentos de la misma plantilla unidos solo por un importe deben proponerse.",
-      "depende_de": [
-        "P-061"
-      ],
+      "depende_de": [],
       "referencia": "D-381; desatendido-5/S3-medicion.txt",
       "creado": "2026-10-20",
-      "actualizado": "2026-10-20"
+      "actualizado": "2026-10-21"
     },
     {
       "id": "P-219",
@@ -1939,12 +1925,10 @@
       "responsable": "claude",
       "estado": "pendiente",
       "detalle": "Desde S4 (D-386) lo que una persona pone o saca a mano se guarda por asunto; conviven las decisiones entre pares de documentos ('mismo asunto', 'asuntos distintos') que ya existían y que descartar la propuesta del modelo para un documento suelto sigue usando. Además, lo puesto o sacado a mano no aparece todavía en la lista de decisiones del asunto ni se deshace desde ahí (se vuelve a agregar o a sacar). Ver si las decisiones entre pares pasan a ser por asunto y cómo se muestran y deshacen.",
-      "depende_de": [
-        "P-061"
-      ],
+      "depende_de": [],
       "referencia": "D-386",
       "creado": "2026-10-20",
-      "actualizado": "2026-10-20"
+      "actualizado": "2026-10-21"
     },
     {
       "id": "P-221",
@@ -1967,9 +1951,7 @@
       "responsable": "ambos",
       "estado": "pendiente",
       "detalle": "Desde D-395 la app no admite los proyectos de wiki originales y abre en Inicio. Si más adelante hace falta trabajar con un conjunto aparte (un cliente, una investigación), definir primero para qué sirve y cómo se apoya en la base, en lugar de volver a las carpetas de páginas.",
-      "depende_de": [
-        "P-228"
-      ],
+      "depende_de": [],
       "referencia": "D-395; docs/design/retiro-del-wiki.md",
       "creado": "2026-10-21",
       "actualizado": "2026-10-21"
@@ -1981,9 +1963,7 @@
       "responsable": "ambos",
       "estado": "pendiente",
       "detalle": "Lint sale (D-399). Definir una revisión con el modelo que agregue valor en la estructura nueva: contradicciones y divergencias entre lo que dicen los documentos de una persona, organización o asunto, con sus citas, y cómo se muestran en Atención. Usa el modelo: cuidar cuándo corre y cuánto pregunta.",
-      "depende_de": [
-        "P-228"
-      ],
+      "depende_de": [],
       "referencia": "D-399; docs/design/retiro-del-wiki.md",
       "creado": "2026-10-21",
       "actualizado": "2026-10-21"
@@ -1995,9 +1975,7 @@
       "responsable": "ambos",
       "estado": "pendiente",
       "detalle": "Salen con el retiro del wiki (D-400) porque trabajaban sobre los proyectos y los archivos del wiki. Rehacerlos sobre la base: qué expone la API y con qué permisos, y dónde guarda el recortador lo que se trae de la web (separado de lo que dicen los documentos, como la investigación, D-397). 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/.",
-      "depende_de": [
-        "P-228"
-      ],
+      "depende_de": [],
       "referencia": "D-400; docs/design/retiro-del-wiki.md; docs/design/servicios-de-ia-propuesta.md",
       "creado": "2026-10-21",
       "actualizado": "2026-10-21"
@@ -2007,8 +1985,8 @@
       "titulo": "Retirar el wiki heredado",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "en-curso",
-      "detalle": "Etapas W2 a W7 de docs/design/retiro-del-wiki.md en la rama feat/retire-wiki: las páginas, notas, consultas guardadas e historial del chat pasan a la base; pantallas, grafo, chat e investigación leen de la base; salen Wiki, Sources, Lint, Review, proyectos, API y Clip; prueba con los datos reales sin preguntas nuevas al modelo y borrado de la carpeta del wiki. Un pedido de integración al final.",
+      "estado": "a-verificar",
+      "detalle": "Etapas W2 a W7 de docs/design/retiro-del-wiki.md en la rama feat/retire-wiki: las páginas, notas, consultas guardadas e historial del chat pasan a la base; pantallas, grafo, chat e investigación leen de la base; salen Wiki, Sources, Lint, Review, proyectos, API y Clip; prueba con los datos reales sin preguntas nuevas al modelo y borrado de la carpeta del wiki. Un pedido de integración al final. 21 oct: integrado en main con el PR #60 (y el plan con el #61); la carpeta del wiki se borró. Falta que el dueño lo vea en el uso diario.",
       "depende_de": [],
       "referencia": "D-395 a D-400; docs/design/retiro-del-wiki.md",
       "creado": "2026-10-21",
@@ -2021,9 +1999,7 @@
       "responsable": "claude",
       "estado": "pendiente",
       "detalle": "La importación única (D-403) guarda aparte, con el título de su página, las notas de una página del wiki que no corresponde a ninguna persona, organización, asunto ni documento (en la copia de la base real no hubo ninguna). Mostrarlas en alguna pantalla (por ejemplo Atención) para leerlas, pasarlas a una ficha o borrarlas: comandos docbase_knowledge_orphan_notes y docbase_knowledge_delete_note.",
-      "depende_de": [
-        "P-228"
-      ],
+      "depende_de": [],
       "referencia": "D-403; src-tauri/src/docbase/knowledge/articles.rs",
       "creado": "2026-10-21",
       "actualizado": "2026-10-21"
@@ -2035,9 +2011,7 @@
       "responsable": "claude",
       "estado": "hecho",
       "detalle": "Hecho en W5 (D-414): la investigación de un hueco del grafo se guarda en la base, del objeto de su nodo cuando es una persona, organización o asunto; si no, suelta. Ya no pide proyecto.",
-      "depende_de": [
-        "P-228"
-      ],
+      "depende_de": [],
       "referencia": "D-397, D-411, D-414; src/components/graph/graph-view.tsx (handleResearchClick)",
       "creado": "2026-10-21",
       "actualizado": "2026-10-21"
@@ -2059,11 +2033,9 @@
       "titulo": "El agente del chat sin proyecto: carpeta de trabajo, habilidades, sesiones y guardado automático",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "a-verificar",
-      "detalle": "El chat ya lee y guarda todo en la base (D-413) y su historial está en la carpeta de datos (D-415), pero el comando del agente todavía resuelve un proyecto para su carpeta de trabajo, las habilidades de `.llm-wiki/skills` y las sesiones del agente que guarda la API; y el guardado automático del chat todavía espera un proyecto abierto. Al quitar los proyectos (W6), darles un lugar en la carpeta de datos. Hecho en W6 (D-418): la carpeta del agente es `<datos de la app>/agent`, con sus sesiones, sus habilidades y lo que produce; los modelos de línea de comandos trabajan ahí; el guardado automático espera a haber leído el historial. Falta verlo en la app (W7): una pregunta al chat con el modelo configurado y el historial anterior visible. 21 oct: el chat no necesita nada más para usarse (motor del chat: Codex gpt-6-luna alto); falta la pregunta de prueba (paso 0c de docs/design/servicios-de-ia-propuesta.md).",
-      "depende_de": [
-        "P-228"
-      ],
+      "estado": "hecho",
+      "detalle": "El chat ya lee y guarda todo en la base (D-413) y su historial está en la carpeta de datos (D-415), pero el comando del agente todavía resuelve un proyecto para su carpeta de trabajo, las habilidades de `.llm-wiki/skills` y las sesiones del agente que guarda la API; y el guardado automático del chat todavía espera un proyecto abierto. Al quitar los proyectos (W6), darles un lugar en la carpeta de datos. Hecho en W6 (D-418): la carpeta del agente es `<datos de la app>/agent`, con sus sesiones, sus habilidades y lo que produce; los modelos de línea de comandos trabajan ahí; el guardado automático espera a haber leído el historial. Falta verlo en la app (W7): una pregunta al chat con el modelo configurado y el historial anterior visible. 21 oct: el chat no necesita nada más para usarse (motor del chat: Codex gpt-6-luna alto); falta la pregunta de prueba (paso 0c de docs/design/servicios-de-ia-propuesta.md). 21 oct: el dueño probó el chat con preguntas reales y funciona; las conversaciones quedaron guardadas en la carpeta de datos, cada respuesta con sus referencias de la base. Guardar una consulta no se probó.",
+      "depende_de": [],
       "referencia": "D-413, D-415, D-418; src-tauri/src/lib.rs (agent_home), src/lib/auto-save.ts",
       "creado": "2026-10-21",
       "actualizado": "2026-10-21"
@@ -2075,9 +2047,7 @@
       "responsable": "ambos",
       "estado": "pendiente",
       "detalle": "Las pruebas de W5 usan el buscador y el modelo simulados. Con los datos reales (W7, si el cupo lo permite): una investigación desde una persona u organización queda en su sección con sus fuentes citadas, aparte de lo que dicen los documentos, y se puede abrir y borrar.",
-      "depende_de": [
-        "P-228"
-      ],
+      "depende_de": [],
       "referencia": "D-397, D-414",
       "creado": "2026-10-21",
       "actualizado": "2026-10-21"
@@ -2087,12 +2057,10 @@
       "titulo": "La base reconoce sola el texto de escaneos e imágenes",
       "tipo": "codigo",
       "responsable": "ambos",
-      "estado": "pendiente",
-      "detalle": "Hasta W6 el texto de los documentos que son imagen (escaneos, fotos) lo reconocía la incorporación del wiki con el motor configurado y se lo devolvía a la base; al retirarla, quedan en «tienen el texto en imagen» sin que nada los lea, y no se comparan ni se leen sus personas ni sus asuntos. Usar el motor conservado (D-420) desde la base: una vez por documento, solo mientras la lectura automática esté activa, con aviso de costo, guardando el texto con `store_recognized_text`. Prioridad alta para un estudio con escaneos. 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/.",
-      "depende_de": [
-        "P-228"
-      ],
-      "referencia": "D-420; src-tauri/src/source_volume/recognition.rs, src-tauri/src/docbase/text.rs; docs/design/servicios-de-ia-propuesta.md",
+      "estado": "a-verificar",
+      "detalle": "Hasta W6 el texto de los documentos que son imagen (escaneos, fotos) lo reconocía la incorporación del wiki con el motor configurado y se lo devolvía a la base; al retirarla, quedan en «tienen el texto en imagen» sin que nada los lea, y no se comparan ni se leen sus personas ni sus asuntos. Usar el motor conservado (D-420) desde la base: una vez por documento, solo mientras la lectura automática esté activa, con aviso de costo, guardando el texto con `store_recognized_text`. Prioridad alta para un estudio con escaneos. 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/. 21 oct (turno B3): la base reconoce sola los escaneos, fotos y páginas sin texto de un PDF mixto, de a un documento, mientras la lectura automática está activa, y a pedido con «Reconocer el texto» en el documento y en Atención → «En curso» (uno, todos o reintentar los que fallaron) aunque esté apagada; una vez por documento y por motor, con `store_recognized_text`, y después sigue el camino normal. La etapa muestra n de N, el documento y la página en curso, las páginas que esperan, los que fallaron con el motivo en palabras y si falta el motor; el documento dice qué motor lo reconoció y cuándo (D-428 a D-431). Con esto queda resuelta D-420. Falta verlo en la app con el caso nuevo (consume cupo).",
+      "depende_de": [],
+      "referencia": "D-420, D-428 a D-431; src-tauri/src/docbase/recognize.rs, src-tauri/src/docbase/worker.rs, src-tauri/src/docbase/progress.rs, src/components/docbase/recognition.tsx, src/lib/text-recognition.ts; docs/design/servicios-de-ia-propuesta.md",
       "creado": "2026-10-21",
       "actualizado": "2026-10-21"
     },
@@ -2103,9 +2071,7 @@
       "responsable": "claude",
       "estado": "pendiente",
       "detalle": "El chat podía adjuntar archivos del proyecto de wiki como contexto (selector de archivos del cuadro de mensaje). Sin proyecto el selector queda vacío. Reemplazarlo por elegir documentos, personas, organizaciones o asuntos de la base, que el agente ya sabe leer (base.read).",
-      "depende_de": [
-        "P-228"
-      ],
+      "depende_de": [],
       "referencia": "D-413, D-418; src/components/chat/chat-panel.tsx (NO_CONTEXT_FILES)",
       "creado": "2026-10-21",
       "actualizado": "2026-10-21"
@@ -2169,6 +2135,30 @@
       "detalle": "Pedido del dueño (21 oct). Propuesta en docs/design/portales-judiciales-propuesta.md: una ventana del portal dentro de la app con perfil propio; el operador resuelve el desafío o inicia sesión (nunca se saltea); la app sigue sola en la misma sesión, descarga las actuaciones a una carpeta de un origen con sus datos y propone un asunto con la referencia del expediente. Un conector por portal. Revisar la propuesta y sus decisiones abiertas; primer paso: prototipo con el operador sobre un expediente de ejemplo.",
       "depende_de": [],
       "referencia": "docs/design/portales-judiciales-propuesta.md",
+      "creado": "2026-10-21",
+      "actualizado": "2026-10-21"
+    },
+    {
+      "id": "P-249",
+      "titulo": "Ver el avance del procesamiento en Atención",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "a-verificar",
+      "detalle": "Pedido del dueño (21 oct, D-424): Atención en tres pestañas con su cantidad; «En curso» con las nueve etapas del procesamiento en orden (D-425), las hechas también, cada una desplegable con sus documentos y un botón para abrirlos; filtro por origen o carpeta; estado de la lectura automática con su botón; el último error del modelo en palabras con la hora y cuándo vuelve a intentar (D-427); una línea fija al pie de la ventana (D-426); y el número «En curso» de Inicio contando lo que de verdad está en proceso. Construido en la rama feat/progress-and-scans (turno B2); falta que el dueño lo vea en la app.",
+      "depende_de": [],
+      "referencia": "D-424 a D-427; src-tauri/src/docbase/progress.rs; src/components/progress/; src/components/attention/attention-view.tsx",
+      "creado": "2026-10-21",
+      "actualizado": "2026-10-21"
+    },
+    {
+      "id": "P-252",
+      "titulo": "Quitar lo que dejó sin uso el reconocimiento en la base",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Con P-242 el avance de cada página va por el estado del motor que lee «En curso»: el evento por página de la incorporación retirada (`source_volume/recognition_progress.rs`) y la toma de lo reconocido con el formato viejo (`Legacy` en `recognized_store.rs`, junto con `page_cache_dir`) ya no los usa nadie. Borrarlos cuando se confirme que no hace falta tomar texto reconocido de un proyecto viejo.",
+      "depende_de": ["P-242"],
+      "referencia": "src-tauri/src/source_volume/recognition_progress.rs, src-tauri/src/source_volume/recognized_store.rs",
       "creado": "2026-10-21",
       "actualizado": "2026-10-21"
     }

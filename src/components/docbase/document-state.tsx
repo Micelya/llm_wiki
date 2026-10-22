@@ -27,7 +27,7 @@ export const DOCUMENT_STATES: Record<DocumentState, StateInfo> = {
   "needs-recognition": {
     label: "Texto en imagen",
     tone: "warning",
-    hint: "Es un escaneo o una foto: su texto hay que reconocerlo con un motor de lectura.",
+    hint: "Es un escaneo o una foto: su texto se reconoce con el modelo, solo mientras la lectura automática está activa o cuando lo pedís con «Reconocer el texto».",
   },
   excluded: {
     label: "Excluido",

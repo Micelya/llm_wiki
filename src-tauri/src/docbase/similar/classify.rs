@@ -1419,7 +1419,11 @@ pub(crate) fn ask_and_keep(base: &DocBase, asker: &dyn DocumentAsker, question: 
     if let Some(answer) = cached_answer(&base.conn(), &question.key, Some(&engine))? {
         return Ok(answer);
     }
-    let answer = asker.ask(&question.prompt, &question.schema)?;
+    // What «En curso» shows as being read now (progress.rs).
+    base.engine_state().asking(question.task, question.content_id);
+    let answer = asker.ask(&question.prompt, &question.schema);
+    base.engine_state().asked(answer.is_ok());
+    let answer = answer?;
     parse_json::<serde_json::Value>(&answer)?;
     keep_answer(&base.conn(), question, &engine, &answer)?;
     Ok(answer)

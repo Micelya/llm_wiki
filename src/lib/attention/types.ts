@@ -37,7 +37,8 @@ export type AttentionTarget =
   | { view: "similar"; principal?: number | null }
   | { view: "document-types" }
   | { view: "settings" }
-  | { view: "attention" }
+  /** The attention view, on one of its tabs when `tab` is given. */
+  | { view: "attention"; tab?: "problem" | "decision" | "ongoing" }
   /** A page of the wiki, by its path inside the project. */
   | { view: "wiki-page"; path: string }
   /** The people and organizations, on one entity when `entityId` is given. */
