@@ -14,6 +14,7 @@ import {
   type EntitySummary,
   type GenerateRequest,
   type GeneratedDocument,
+  type GeneratedLine,
   type MatterParty,
   type MatterSummary,
   type Template,
@@ -21,7 +22,7 @@ import {
 import { useAction, useOpenDocument } from "@/components/knowledge/shared"
 import { cn } from "@/lib/utils"
 import { entityTypeName, vocabulary, type Vocabulary } from "@/vocabulary"
-import { plural } from "./format"
+import { formatDate, plural } from "./format"
 import { DocbasePage, EmptyNote, ErrorNote } from "./page"
 import { templateName } from "./template"
 import {
@@ -622,6 +623,34 @@ function PreviewValue({ piece }: { piece: PreviewPiece }) {
         </span>
       )
   }
+}
+
+/**
+ * In the screen of a document generated from a template (D-488): when,
+ * from which template and for which matter it was generated.
+ */
+export function GeneratedNotice({
+  line,
+  onOpenTemplate,
+  words = vocabulary(),
+}: {
+  line: GeneratedLine
+  onOpenTemplate?: (principalLocationId: number) => void
+  words?: Vocabulary
+}) {
+  return (
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/20 px-3 py-2 text-sm">
+      <span>
+        Generado el {formatDate(line.generatedAt)} desde la {words.templates.one} «{line.templateName}»
+        {line.matterName ? ` para el ${words.knowledge.matter.toLowerCase()} «${line.matterName}»` : ""}.
+      </span>
+      {onOpenTemplate && line.templateLocation !== null && (
+        <Button size="sm" variant="ghost" onClick={() => onOpenTemplate(line.templateLocation as number)}>
+          Ver la {words.templates.one}
+        </Button>
+      )}
+    </div>
+  )
 }
 
 /** What was generated: where it is, and what can be done with it. */

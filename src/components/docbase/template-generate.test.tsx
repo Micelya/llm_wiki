@@ -23,7 +23,7 @@ import {
   withMatter,
   type FieldValues,
 } from "./template-generate"
-import { GenerateForm } from "./template-generate-view"
+import { GeneratedNotice, GenerateForm } from "./template-generate-view"
 import { TemplateDetail, TemplateTable } from "./templates-view"
 import { docRef } from "./similar.fixtures"
 
@@ -91,6 +91,7 @@ function receipts(): Template {
     format: "pdf-text",
     name: "Recibo de honorarios",
     whats: WHATS,
+    generated: [],
   }
 }
 
@@ -232,9 +233,11 @@ describe("generating a document from a template", () => {
       format: "pdf-text" as const,
       possiblySame: 0,
       waitingFields: 0,
+      generated: 2,
     }
     const list = text(renderToStaticMarkup(<TemplateTable templates={[summary]} onOpen={() => {}} onGenerate={() => {}} words={words} />))
     expect(list).toContain("Generar")
+    expect(list).toContain("2 documentos · 2 generados · 4 campos")
     const detail = text(renderToStaticMarkup(<TemplateDetail template={receipts()} onOpen={() => {}} onGenerate={() => {}} words={words} />))
     expect(detail).toContain("Generar un documento")
     const without = text(renderToStaticMarkup(<TemplateDetail template={receipts()} onOpen={() => {}} words={words} />))
@@ -432,5 +435,40 @@ describe("filling a document with data of the base", () => {
     expect(html).toContain("Elegir un caso…")
     expect(html).toContain("Torres c/ Vega")
     expect(html).toContain("el día 22 de octubre de 2026")
+  })
+})
+
+
+describe("what was generated, known as such", () => {
+  it("says in the document when and from which template it was generated, and for which matter", () => {
+    const at = new Date(2026, 9, 22, 12).getTime()
+    const line = { id: 3, generatedAt: at, templateName: "Recibo de honorarios", templateLocation: 10, matterId: "m1", matterName: "Torres c/ Vega" }
+    const html = text(renderToStaticMarkup(<GeneratedNotice line={line} onOpenTemplate={() => {}} words={words} />))
+    expect(html).toContain("Generado el 22/10/2026 desde la plantilla «Recibo de honorarios» para el caso «Torres c/ Vega».")
+    expect(html).toContain("Ver la plantilla")
+    const alone = text(
+      renderToStaticMarkup(<GeneratedNotice line={{ ...line, matterId: null, matterName: null, templateLocation: null }} onOpenTemplate={() => {}} words={words} />),
+    )
+    expect(alone).toContain("Generado el 22/10/2026 desde la plantilla «Recibo de honorarios».")
+    expect(alone).not.toContain("Ver la plantilla")
+  })
+
+  it("lists in the template the documents generated with it, apart from the documents it came from", () => {
+    const at = new Date(2026, 9, 22, 12).getTime()
+    const template: Template = {
+      ...receipts(),
+      generated: [
+        { id: 2, generatedAt: at, fileName: "Recibo - Carla Ruiz - 2026-10-22.docx", matterName: "Torres c/ Vega", locationId: 90 },
+        { id: 1, generatedAt: at, fileName: "Recibo - 2026-10-22.docx", matterName: null, locationId: null },
+      ],
+    }
+    const html = text(renderToStaticMarkup(<TemplateDetail template={template} onOpen={() => {}} words={words} />))
+    expect(html).toContain("Documentos generados con esta plantilla (2)")
+    expect(html).toContain("Recibo - Carla Ruiz - 2026-10-22.docx el 22/10/2026 · para el caso «Torres c/ Vega» Abrir")
+    expect(html).toContain("Recibo - 2026-10-22.docx el 22/10/2026 todavía no está en la base")
+    // The documents of the template are still its two.
+    expect(html).toContain("2 documentos · 5 campos")
+    const none = text(renderToStaticMarkup(<TemplateDetail template={receipts()} onOpen={() => {}} words={words} />))
+    expect(none).toContain("Documentos generados con esta plantilla (0) Todavía no se generó ninguno.")
   })
 })

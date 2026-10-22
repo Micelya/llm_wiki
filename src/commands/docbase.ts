@@ -237,6 +237,31 @@ export interface DocumentDetail extends DocumentRow {
   textAt: number | null
   /** Every location of this document, this one first. */
   locations: LocationRef[]
+  /** When it was generated from a template: when, from which and for which matter (D-488). */
+  generated: GeneratedLine | null
+}
+
+/** What the screen of a generated document says of it. */
+export interface GeneratedLine {
+  /** Its record. */
+  id: number
+  generatedAt: number
+  /** The name the template had then. */
+  templateName: string
+  /** The location of the template's principal now, to open it; `null` when the template is no more. */
+  templateLocation: number | null
+  matterId: string | null
+  matterName: string | null
+}
+
+/** A document generated with a template, in the template's screen. */
+export interface GeneratedEntry {
+  id: number
+  generatedAt: number
+  fileName: string
+  matterName: string | null
+  /** Where the base has it; `null` until it finds it, or when it is gone. */
+  locationId: number | null
 }
 
 /** How the archive is doing, in numbers. */
@@ -545,6 +570,8 @@ export interface Template extends TemplateKind {
   name: string | null
   /** What a field can be, for a person to choose. */
   whats: string[]
+  /** The documents generated with it, the latest first. */
+  generated: GeneratedEntry[]
 }
 
 /**
@@ -578,6 +605,8 @@ export interface TemplateSummary extends TemplateKind {
   possiblySame: number
   /** Fields whose name (or what they are) waits for the model. */
   waitingFields: number
+  /** Documents generated with it. */
+  generated: number
 }
 
 /** Every template of the base, for the section «Plantillas». */

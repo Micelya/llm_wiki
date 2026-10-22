@@ -21,6 +21,15 @@
 //! the base has its document, it goes into the matter it was generated
 //! for, as a person's decision (D-386): generating it for that matter is
 //! one. The template is never joined to the matter nor to its people.
+//!
+//! A generated document is known as such (`generated_contents`): the base
+//! never takes it for another document with the same text, it is never the
+//! principal of a family nor a document of the template it came from (the
+//! template stays joined only to the documents it came from), and with
+//! those documents it is never «possibly the same document». Its screen
+//! says when and from which template it was generated, and for which
+//! matter (`generated_line`); the template lists what was generated with it
+//! (`generated_with`).
 
 use std::collections::HashSet;
 use std::fs;
@@ -420,6 +429,188 @@ fn matter_name(conn: &Connection, matter_id: &str) -> Result<String, String> {
     }
 }
 
+/// The documents the base has of the generated ones, with the lasting
+/// identity of the template each came from: at the place it was written,
+/// with the bytes it was written with, or the one its record follows.
+pub(crate) const GENERATED_CONTENTS_SQL: &str = "
+    SELECT g.naming AS naming, f.content_id AS content_id FROM generated_document g
+      JOIN location l ON l.origin_id = g.origin_id AND l.rel_path = g.rel_path
+      JOIN file f ON f.hash = l.file_hash
+    UNION SELECT g.naming, f.content_id FROM generated_document g JOIN file f ON f.hash = g.file_hash
+    UNION SELECT naming, content_id FROM generated_document WHERE content_id IS NOT NULL";
+
+/// The documents that were generated from a template.
+pub(crate) fn generated_contents(conn: &Connection) -> Result<HashSet<i64>, String> {
+    let mut statement = conn.prepare(&format!("SELECT content_id FROM ({GENERATED_CONTENTS_SQL})")).map_err(sql_err)?;
+    let rows = statement
+        .query_map([], |row| row.get::<_, i64>(0))
+        .map_err(sql_err)?
+        .collect::<Result<HashSet<i64>, _>>()
+        .map_err(sql_err)?;
+    Ok(rows)
+}
+
+/// Whether this document was generated from a template.
+pub(crate) fn is_generated(conn: &Connection, content_id: i64) -> Result<bool, String> {
+    conn.query_row(&format!("SELECT count(*) FROM ({GENERATED_CONTENTS_SQL}) WHERE content_id = ?1"), [content_id], |row| {
+        row.get::<_, i64>(0)
+    })
+    .map(|n| n > 0)
+    .map_err(sql_err)
+}
+
+/// The line of a generated document's screen: when, from which template
+/// (the name it had then) and for which matter it was generated.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GeneratedLine {
+    pub id: i64,
+    pub generated_at: i64,
+    pub template_name: String,
+    /// The location of the template's principal now, to open it; `None`
+    /// when the template is no more.
+    pub template_location: Option<i64>,
+    pub matter_id: Option<String>,
+    /// Its name now, or the one it had then.
+    pub matter_name: Option<String>,
+}
+
+/// What was generated from a template, in its screen.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GeneratedEntry {
+    pub id: i64,
+    pub generated_at: i64,
+    pub file_name: String,
+    pub matter_name: Option<String>,
+    /// Where the base has it; `None` until it finds it, or when it is gone.
+    pub location_id: Option<i64>,
+}
+
+/// The location the base shows for a document: its first one.
+fn location_of(conn: &Connection, content_id: i64) -> Result<Option<i64>, String> {
+    conn.query_row(
+        "SELECT l.id FROM location l JOIN file f ON f.hash = l.file_hash WHERE f.content_id = ?1 ORDER BY l.id LIMIT 1",
+        [content_id],
+        |row| row.get(0),
+    )
+    .optional()
+    .map_err(sql_err)
+}
+
+/// The line of the screen of a document, when it was generated from a
+/// template (the latest time, if more than once).
+pub(crate) fn generated_line(conn: &Connection, content_id: i64) -> Result<Option<GeneratedLine>, String> {
+    let found: Option<(i64, i64, String, Option<i64>, Option<String>, Option<String>, Option<String>)> = conn
+        .query_row(
+            "SELECT g.id, g.generated_at, g.template_name, g.naming, g.matter_id, g.matter_name,
+                    (SELECT m.name FROM knowledge_matter m WHERE m.id = g.matter_id AND m.state = 'active')
+             FROM generated_document g
+             WHERE g.content_id = ?1
+                OR g.file_hash IN (SELECT hash FROM file WHERE content_id = ?1)
+                OR EXISTS (SELECT 1 FROM location l JOIN file f ON f.hash = l.file_hash
+                           WHERE l.origin_id = g.origin_id AND l.rel_path = g.rel_path AND f.content_id = ?1)
+             ORDER BY g.generated_at DESC, g.id DESC LIMIT 1",
+            [content_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?)),
+        )
+        .optional()
+        .map_err(sql_err)?;
+    let Some((id, generated_at, template_name, naming, matter_id, matter_then, matter_now)) = found else {
+        return Ok(None);
+    };
+    let template_location = match naming {
+        Some(naming) => {
+            let principal: Option<i64> = conn
+                .query_row("SELECT principal FROM similar_template WHERE naming = ?1", [naming], |row| row.get(0))
+                .optional()
+                .map_err(sql_err)?;
+            match principal {
+                Some(principal) => location_of(conn, principal)?,
+                None => None,
+            }
+        }
+        None => None,
+    };
+    Ok(Some(GeneratedLine { id, generated_at, template_name, template_location, matter_id, matter_name: matter_now.or(matter_then) }))
+}
+
+/// What was generated with the template of this lasting identity, the
+/// latest first.
+pub(crate) fn generated_with(conn: &Connection, naming: Option<i64>) -> Result<Vec<GeneratedEntry>, String> {
+    let Some(naming) = naming else {
+        return Ok(Vec::new());
+    };
+    let rows: Vec<(i64, i64, String, Option<String>, Option<String>, Option<i64>, String, String)> = {
+        let mut statement = conn
+            .prepare(
+                "SELECT g.id, g.generated_at, g.rel_path, g.matter_name,
+                        (SELECT m.name FROM knowledge_matter m WHERE m.id = g.matter_id AND m.state = 'active'),
+                        g.content_id, g.origin_id, g.rel_path
+                 FROM generated_document g WHERE g.naming = ?1 ORDER BY g.generated_at DESC, g.id DESC",
+            )
+            .map_err(sql_err)?;
+        let rows = statement
+            .query_map([naming], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?, row.get(7)?))
+            })
+            .map_err(sql_err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(sql_err)?;
+        rows
+    };
+    let mut out = Vec::new();
+    for (id, generated_at, rel_path, matter_then, matter_now, content_id, origin_id, place) in rows {
+        let here: Option<i64> = conn
+            .query_row("SELECT id FROM location WHERE origin_id = ?1 AND rel_path = ?2", params![origin_id, place], |row| row.get(0))
+            .optional()
+            .map_err(sql_err)?;
+        let location_id = match (here, content_id) {
+            (Some(here), _) => Some(here),
+            (None, Some(content_id)) => location_of(conn, content_id)?,
+            (None, None) => None,
+        };
+        let file_name = rel_path.rsplit('/').next().unwrap_or(&rel_path).to_string();
+        out.push(GeneratedEntry { id, generated_at, file_name, matter_name: matter_now.or(matter_then), location_id });
+    }
+    Ok(out)
+}
+
+/// How many documents were generated with the template of this lasting identity.
+pub(crate) fn generated_count(conn: &Connection, naming: Option<i64>) -> Result<i64, String> {
+    match naming {
+        Some(naming) => conn
+            .query_row("SELECT count(*) FROM generated_document WHERE naming = ?1", [naming], |row| row.get(0))
+            .map_err(sql_err),
+        None => Ok(0),
+    }
+}
+
+/// The relations that make two documents one, which a generated document
+/// never has with the documents of the template it came from: with them it
+/// is the same template with other data, never «possibly the same
+/// document». Their proposals become `same-template`, before the families
+/// are made.
+pub(crate) fn generated_pairs_as_template(conn: &Connection) -> Result<usize, String> {
+    let same: Vec<String> = super::types::catalog().relations.iter().filter(|r| r.same_document && r.measured).map(|r| r.id.clone()).collect();
+    if same.is_empty() {
+        return Ok(0);
+    }
+    let marks = vec!["?"; same.len()].join(", ");
+    let sql = format!(
+        "WITH generated AS ({GENERATED_CONTENTS_SQL}),
+              theirs AS (SELECT g.content_id AS generated, d.content_id AS source FROM generated g
+                         JOIN similar_template t ON t.naming = g.naming
+                         JOIN similar_template_document d ON d.principal = t.principal)
+         UPDATE similar_pair SET relation = 'same-template', subject = NULL, suggested_source = NULL,
+                description = 'Generado con la plantilla de este documento: el mismo texto de base con los datos que se completaron.'
+         WHERE state = 'proposed' AND relation IN ({marks})
+           AND EXISTS (SELECT 1 FROM theirs WHERE (theirs.generated = similar_pair.a AND theirs.source = similar_pair.b)
+                                                OR (theirs.generated = similar_pair.b AND theirs.source = similar_pair.a))"
+    );
+    conn.execute(&sql, rusqlite::params_from_iter(same.iter())).map_err(sql_err)
+}
+
 impl DocBase {
     /// Generates a document from the template of `request.principal`: the
     /// Word in `place`, and its record. The base takes the file right away
@@ -504,9 +695,13 @@ impl DocBase {
                 .optional()
                 .map_err(sql_err)?;
             let (content_id, in_matter) = conn
-                .query_row("SELECT content_id, matter_content IS NOT NULL FROM generated_document WHERE id = ?1", [id], |row| {
-                    Ok((row.get(0)?, row.get(1)?))
-                })
+                .query_row(
+                    "SELECT g.content_id, EXISTS (SELECT 1 FROM knowledge_matter_choice c
+                                                  WHERE c.matter_id = g.matter_id AND c.content_id = g.content_id AND c.choice = 'in')
+                     FROM generated_document g WHERE g.id = ?1",
+                    [id],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
                 .map_err(sql_err)?;
             (location_id, content_id, in_matter)
         };
@@ -569,7 +764,11 @@ impl DocBase {
             if in_matter == Some(content) || !self.may_put_in_matter(&matter, in_matter)? {
                 continue;
             }
-            self.knowledge_choose_matter_document(&matter, &format!("content:{content}"), "in")?;
+            // What cannot be put in its matter is not tried again on every
+            // turn of the worker: it is said once.
+            if let Err(error) = self.knowledge_choose_matter_document(&matter, &format!("content:{content}"), "in") {
+                eprintln!("[docbase] the generated document {id} could not go into its matter: {error}");
+            }
             self.conn()
                 .execute("UPDATE generated_document SET matter_content = ?2 WHERE id = ?1", params![id, content])
                 .map_err(sql_err)?;

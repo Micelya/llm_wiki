@@ -976,6 +976,8 @@ pub struct Template {
     pub name: Option<String>,
     /// What a field can be, for the choice of a person (`whats`).
     pub whats: Vec<String>,
+    /// The documents generated with it, the latest first (D-488).
+    pub generated: Vec<super::generate::GeneratedEntry>,
 }
 
 /// The type of document of a template's principal, which names the
@@ -1014,6 +1016,8 @@ pub struct TemplateSummary {
     pub possibly_same: i64,
     /// Fields whose name (or what they are) waits for the model.
     pub waiting_fields: i64,
+    /// Documents generated with it (D-488).
+    pub generated: i64,
 }
 
 /// What a template is built from: its documents, their texts and the
@@ -1287,6 +1291,7 @@ impl DocBase {
                 format: format_of(&conn, principal, has_form)?,
                 possibly_same: possibly_same_of(&conn, &same, &shown)?.len() as i64,
                 waiting_fields: super::naming::waiting_fields(&conn, principal)? as i64,
+                generated: super::generate::generated_count(&conn, naming_now(&conn, principal)?)?,
             });
         }
         out.sort_by(|a, b| b.documents.cmp(&a.documents).then(a.principal.content_id.cmp(&b.principal.content_id)));
@@ -1295,10 +1300,13 @@ impl DocBase {
 
     /// Builds again the templates whose family changed, and forgets those
     /// of families that are gone or no longer share a template. Returns
-    /// how many it built or forgot.
+    /// how many it built or forgot. A document generated from a template is
+    /// never one of its documents (D-488): the template stays joined only to
+    /// the documents it came from.
     pub fn similar_templates_refresh(&self) -> Result<usize, String> {
         let wanted: BTreeMap<i64, Vec<i64>> = {
             let conn = self.conn();
+            let generated = super::generate::generated_contents(&conn)?;
             let mut statement = conn
                 .prepare(
                     "SELECT principal, content_id FROM similar_group_member
@@ -1311,6 +1319,9 @@ impl DocBase {
             let mut wanted: BTreeMap<i64, Vec<i64>> = BTreeMap::new();
             for row in rows {
                 let (principal, member) = row.map_err(sql_err)?;
+                if generated.contains(&principal) || generated.contains(&member) {
+                    continue;
+                }
                 wanted.entry(principal).or_default().push(member);
             }
             wanted
@@ -1497,6 +1508,7 @@ impl DocBase {
             format: format_of(&conn, principal, has_form)?,
             name: template_name(&conn, principal)?,
             whats: whats(),
+            generated: super::generate::generated_with(&conn, naming_now(&conn, principal)?)?,
         }))
     }
 
@@ -1672,6 +1684,15 @@ pub(super) fn for_generation(conn: &Connection, principal: i64) -> Result<Option
         naming,
         computed_at,
     }))
+}
+
+/// The lasting identity the template of this principal has now, if any.
+fn naming_now(conn: &Connection, principal: i64) -> Result<Option<i64>, String> {
+    Ok(conn
+        .query_row("SELECT naming FROM similar_template WHERE principal = ?1", [principal], |row| row.get(0))
+        .optional()
+        .map_err(sql_err)?
+        .flatten())
 }
 
 /// The name a person gave the template of this principal.

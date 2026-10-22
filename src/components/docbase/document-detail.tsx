@@ -18,6 +18,8 @@ import { formatCount, formatDate, formatSize } from "./format"
 import { DocumentTypeFacts } from "./document-types-view"
 import { DocumentRecognition } from "./recognition"
 import { SimilarDocuments } from "./similar-documents"
+import { GeneratedNotice } from "./template-generate-view"
+import { useOpenTemplate } from "./template-panel"
 import { useDocbaseQuery, type DocbaseQuery } from "./use-docbase-query"
 import { DocumentEntitiesSection } from "@/components/knowledge/document-entities"
 import { ArticleText, usePageWords } from "@/components/knowledge/article-text"
@@ -74,6 +76,7 @@ function DocumentScreen({
   // A file not read yet, or a document whose page is not written: nothing to read.
   const withoutArticle = document !== null && (contentId === null || (!article.loading && !page))
   const [tab, setTab] = useDetailTab(withoutArticle, initialTab)
+  const openTemplate = useOpenTemplate()
 
   async function handleOpen(id: number, reveal: boolean) {
     setProblem(null)
@@ -127,6 +130,7 @@ function DocumentScreen({
             </div>
           )}
           {!detail.loading && !document && !detail.error && <EmptyNote>Este archivo ya no está en el inventario.</EmptyNote>}
+          {document?.generated && <GeneratedNotice line={document.generated} onOpenTemplate={openTemplate} />}
         </>
       }
       article={

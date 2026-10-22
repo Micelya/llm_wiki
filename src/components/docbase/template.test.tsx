@@ -86,6 +86,7 @@ function receipts(): Template {
     format: "pdf-text",
     name: null,
     whats: WHATS,
+    generated: [],
   }
 }
 
@@ -279,6 +280,7 @@ function summary(patch: Partial<TemplateSummary> = {}): TemplateSummary {
     format: "pdf-text",
     possiblySame: 0,
     waitingFields: 0,
+    generated: 0,
     ...patch,
   }
 }

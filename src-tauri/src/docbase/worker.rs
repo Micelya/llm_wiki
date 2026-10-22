@@ -439,9 +439,11 @@ fn step(base: &DocBase) -> Result<bool, String> {
         return Ok(true);
     }
     // A document generated from a template follows its file, before its
-    // text is read (D-488).
-    if base.generated_settle()? > 0 {
-        return Ok(true);
+    // text is read (D-488). A failure there never holds the rest back.
+    match base.generated_settle() {
+        Ok(changed) if changed > 0 => return Ok(true),
+        Ok(_) => {}
+        Err(error) => eprintln!("[docbase] generated documents: {error}"),
     }
     // Texts an older extraction wrote that the current one reads better
     // (a form's ticked boxes) go back to be extracted, once per version.

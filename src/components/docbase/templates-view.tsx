@@ -15,7 +15,7 @@ import { NameForm } from "@/components/knowledge/matter-edit"
 import { useAction, useOpenDocument } from "@/components/knowledge/shared"
 import { useTemplatesStore } from "@/stores/templates-store"
 import { vocabulary, type Vocabulary } from "@/vocabulary"
-import { formatCount, plural } from "./format"
+import { formatCount, formatDate, plural } from "./format"
 import { DocbasePage, EmptyNote, ErrorNote, StatusBadge } from "./page"
 import { automaticTemplateName, fieldRows, fieldsLine, formatName, templateName, templatesSummary } from "./template"
 import { TemplateGenerateView } from "./template-generate-view"
@@ -114,7 +114,8 @@ export function TemplateTable({
               </span>
               <span className="text-xs text-muted-foreground">
                 {[
-                  plural(template.documents, "documento", "documentos"),
+                  plural(template.documents, "documento", "documentos") +
+                    (template.generated > 0 ? ` · ${plural(template.generated, "generado", "generados")}` : ""),
                   fieldsLine(template),
                   formatName(template.format),
                   template.waitingFields > 0 ? `${formatCount(template.waitingFields)} sin nombre todavía` : null,
@@ -292,6 +293,50 @@ export function TemplateDetail({
         busy={busy}
         words={words}
       />
+      <GeneratedList template={template} onOpen={onOpen} words={words} />
     </>
+  )
+}
+
+/**
+ * The documents generated with a template (D-488): when, for which
+ * matter, and a button to open each one. They are not documents of the
+ * template: it stays joined only to the documents it came from.
+ */
+function GeneratedList({ template, onOpen, words }: { template: Template; onOpen: (locationId: number) => void; words: Vocabulary }) {
+  return (
+    <div>
+      <h4 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+        Documentos generados con esta {words.templates.one} ({formatCount(template.generated.length)})
+      </h4>
+      {template.generated.length === 0 ? (
+        <p className="mt-2 text-sm text-muted-foreground">Todavía no se generó ninguno.</p>
+      ) : (
+        <ul className="mt-2 divide-y rounded-md border text-sm">
+          {template.generated.map((generated) => (
+            <li key={generated.id} className="flex flex-wrap items-center gap-3 px-3 py-1.5">
+              <span className="min-w-0 flex-1">
+                <span className="break-words">{generated.fileName}</span>
+                <span className="block text-xs text-muted-foreground">
+                  {[
+                    `el ${formatDate(generated.generatedAt)}`,
+                    generated.matterName ? `para el ${words.knowledge.matter.toLowerCase()} «${generated.matterName}»` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              </span>
+              {generated.locationId !== null ? (
+                <Button size="xs" variant="outline" onClick={() => onOpen(generated.locationId as number)}>
+                  Abrir
+                </Button>
+              ) : (
+                <span className="text-xs text-muted-foreground">todavía no está en la base</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   )
 }

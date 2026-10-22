@@ -1,6 +1,8 @@
 //! The passes over a real base, with invented documents (R-24: nothing
 //! here comes from the test folder).
 
+use rusqlite::OptionalExtension;
+
 use super::store::Decision;
 use crate::docbase::query::DocumentFilter;
 use crate::docbase::testing::TempDir;
@@ -1087,4 +1089,108 @@ fn a_document_generated_for_a_matter_goes_into_it_as_a_persons_decision_and_the_
     // A matter that is no more: nothing is generated for it.
     let gone = super::generate::GenerateRequest { matter_id: Some("mat-que-no-existe".into()), ..request };
     assert!(base.generate_document(&place, &gone).is_err());
+}
+
+#[test]
+fn a_generated_document_is_known_as_such_never_the_principal_nor_possibly_the_same_and_not_of_the_template() {
+    let (_dir, base, place, work_origin) = with_work_folder();
+    let template = fees_template(&base);
+    let (name, amount, date) = fee_fields(&template);
+    let principal = template.principal;
+    let matter = base.knowledge_create_matter("Benítez, honorarios", &[]).unwrap();
+    // Started with the data of the principal and nothing changed: the same
+    // text as a document of the template.
+    let column = 0;
+    let copy = super::generate::GenerateRequest {
+        principal,
+        template_name: "Recibo de honorarios".into(),
+        values: [name, amount, date].iter().map(|&p| given(p, "Campo", &template.fields[p].values[column], "document")).collect(),
+        matter_id: Some(matter.clone()),
+        from_document: Some(principal),
+        file_name: Some("Copia del principal".into()),
+        ..Default::default()
+    };
+    let same = base.generate_document(&place, &copy).unwrap();
+    // Another one with a long name: more words than any document of the template.
+    let longer = super::generate::GenerateRequest {
+        values: vec![
+            given(name, "Quien paga", "Julián Ferreyra Montenegro Aldao de la Vega Arrieta y Quintana Ibáñez", "hand"),
+            given(amount, "Importe", "123.456.789,00", "hand"),
+            given(date, "Fecha", "22/10/2026", "date"),
+        ],
+        matter_id: None,
+        from_document: None,
+        file_name: Some("Recibo largo".into()),
+        ..copy.clone()
+    };
+    let long = base.generate_document(&place, &longer).unwrap();
+    settle(&base, &work_origin);
+    base.generated_settle().unwrap();
+
+    // The copy is a document of its own, not the principal with another file.
+    let same_content = row(&base, "Copia del principal.docx").content_id.unwrap();
+    let long_content = row(&base, "Recibo largo.docx").content_id.unwrap();
+    assert_ne!(same_content, principal, "never the document whose data it started with");
+    assert_eq!(Some(same_content), base.conn().query_row("SELECT content_id FROM generated_document WHERE id = ?1", [same.id], |r| r.get(0)).unwrap());
+    let principal_files: i64 =
+        base.conn().query_row("SELECT count(*) FROM file WHERE content_id = ?1", [principal], |row| row.get(0)).unwrap();
+    assert_eq!(principal_files, 1);
+    assert_eq!(row(&base, "Copia del principal.docx").state, "processed");
+
+    // Never the principal of the family, nor a document of the template.
+    let groups = base.similar_groups(&Visible::All).unwrap();
+    assert!(groups.iter().all(|g| g.principal.content_id != same_content && g.principal.content_id != long_content));
+    let after = fees_template(&base);
+    assert_eq!(after.principal, principal);
+    let documents: Vec<i64> = after.documents.iter().map(|d| d.doc.content_id).collect();
+    assert_eq!(documents.len(), 3);
+    assert!(!documents.contains(&same_content) && !documents.contains(&long_content));
+    assert!(after.possibly_same.is_empty());
+    for field in &after.fields {
+        assert!(!field.values.iter().any(|v| v.contains("Ferreyra")), "the template keeps no value of what was generated");
+    }
+
+    // With the documents of the template it is the same template, never possibly the same document.
+    for generated in [same_content, long_content] {
+        let (a, b) = (generated.min(principal), generated.max(principal));
+        let relation: Option<String> = base
+            .conn()
+            .query_row("SELECT relation FROM similar_pair WHERE a = ?1 AND b = ?2", rusqlite::params![a, b], |row| row.get(0))
+            .optional()
+            .unwrap();
+        if let Some(relation) = relation {
+            assert_eq!(relation, "same-template");
+        }
+    }
+    let near: Option<String> = base
+        .conn()
+        .query_row(
+            "SELECT relation FROM similar_pair WHERE a = ?1 AND b = ?2",
+            rusqlite::params![same_content.min(principal), same_content.max(principal)],
+            |row| row.get(0),
+        )
+        .optional()
+        .unwrap();
+    assert_eq!(near.as_deref(), Some("same-template"), "the copy pairs with the principal, as the same template");
+    let pending = base.similar_pending(&Visible::All).unwrap();
+    assert_eq!(pending.same_document_pairs, 0);
+
+    // Its screen says it was generated, from which template and for which matter.
+    let detail = base.document(&Visible::All, row(&base, "Copia del principal.docx").location_id).unwrap().unwrap();
+    let line = detail.generated.expect("it says it was generated");
+    assert_eq!(line.id, same.id);
+    assert_eq!(line.template_name, "Recibo de honorarios");
+    assert_eq!(line.matter_name.as_deref(), Some("Benítez, honorarios"));
+    assert_eq!(line.template_location, Some(after.documents[0].doc.location_id));
+    let source = base.document(&Visible::All, after.documents[0].doc.location_id).unwrap().unwrap();
+    assert!(source.generated.is_none(), "the documents of the template were not generated");
+
+    // The template lists what was generated with it, the latest first.
+    assert_eq!(after.generated.len(), 2);
+    assert_eq!(after.generated[0].id, long.id);
+    assert_eq!(after.generated[0].file_name, "Recibo largo.docx");
+    assert_eq!(after.generated[1].matter_name.as_deref(), Some("Benítez, honorarios"));
+    assert!(after.generated.iter().all(|g| g.location_id.is_some()));
+    let summary = base.templates(&Visible::All).unwrap().remove(0);
+    assert_eq!((summary.documents, summary.generated), (3, 2));
 }

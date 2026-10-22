@@ -96,6 +96,7 @@ function documentDetail(overrides: Partial<DocumentDetail> = {}): DocumentDetail
     textEngine: "extraction",
     textAt: Date.UTC(2026, 9, 1, 13),
     locations: [],
+    generated: null,
     ...overrides,
   }
 }
