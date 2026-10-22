@@ -1593,11 +1593,9 @@
       "id": "P-278",
       "titulo": "Ver en Ajustes lo que se le pregunta al modelo",
       "tipo": "codigo",
-      "responsable": "claude",
-      "estado": "pendiente",
-      "prioridad": 1,
-      "tema": "servicios de IA",
-      "detalle": "Una pantalla de solo lectura, «Lo que se le pregunta al modelo», con cada pregunta tal como sale (lectura conocimiento-7, tipo y datos, quién es quién, síntesis de páginas, casos, reconocimiento de escaneos, chat) y su versión, armada con el catálogo vigente. Hoy el armazón de cada pregunta está en el código (extract.rs prompt, classify.rs type_prompt y data_prompt, resolve.rs, pages.rs, matters.rs, recognition_codex.rs, agent/) y lo propio del oficio en los catálogos knowledge.json y document-types.json. Acordado con el dueño el 22 oct: es lo primero de la próxima sesión.",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "detalle": "Una pantalla de solo lectura, «Lo que se le pregunta al modelo», con cada pregunta tal como sale (lectura conocimiento-7, tipo y datos, quién es quién, síntesis de páginas, casos, reconocimiento de escaneos, chat) y su versión, armada con el catálogo vigente. Hoy el armazón de cada pregunta está en el código (extract.rs prompt, classify.rs type_prompt y data_prompt, resolve.rs, pages.rs, matters.rs, recognition_codex.rs, agent/) y lo propio del oficio en los catálogos knowledge.json y document-types.json. Acordado con el dueño el 22 oct: es lo primero de la próxima sesión. 2026-10-22: construido (commit 7c532db, D-481). Ajustes → «Lo que se le pregunta al modelo», de solo lectura: una fila por pregunta (lectura, tipo, datos, quién es quién, síntesis, caso, reconocimiento de escaneos y chat) con su versión, para qué sirve, cuándo se hace, el motor que tiene en Servicios de IA y los catálogos que usa; «Cómo se arma», armada por las mismas funciones que usa la lectura sobre un documento inventado, con lo variable resaltado; y «La última que salió» de la base, solo a pedido y con aviso de que trae texto de documentos del estudio (no existe para escaneos ni chat, que no se guardan). Falta que el dueño lo vea en la app.",
       "depende_de": [],
       "referencia": "docs/sessions/2026-10-22-sesion-16.md",
       "creado": "2026-10-22",
@@ -1611,7 +1609,7 @@
       "estado": "pendiente",
       "prioridad": 2,
       "tema": "servicios de IA",
-      "detalle": "Los catálogos knowledge.json (tipos, roles, identificadores, relaciones y sus descripciones) y document-types.json ya se pueden reemplazar por un archivo con la misma forma en %APPDATA%/com.micelya.desktop/docbase/ (commands.rs 77-79), pero sin pantalla. Hacer un editor por estudio o vertical con validación, aviso de cuántos documentos quedarían leídos con una versión anterior (D-432) y medición contra las hojas de respuestas antes de adoptar. Verificar también qué pasa hoy si ese archivo tiene un error de formato.",
+      "detalle": "Los catálogos knowledge.json (tipos, roles, identificadores, relaciones y sus descripciones) y document-types.json ya se pueden reemplazar por un archivo con la misma forma en %APPDATA%/com.micelya.desktop/docbase/ (commands.rs 77-79), pero sin pantalla. Hacer un editor por estudio o vertical con validación, aviso de cuántos documentos quedarían leídos con una versión anterior (D-432) y medición contra las hojas de respuestas antes de adoptar. Verificar también qué pasa hoy si ese archivo tiene un error de formato. 2026-10-22: hoy un archivo de catálogo inválido en la carpeta de datos hace usar el que viene con la app, y la pantalla de P-278 lo avisa; no hay ninguno reemplazado en la base real.",
       "depende_de": [
         "P-278"
       ],
@@ -1625,7 +1623,7 @@
       "tipo": "decision",
       "responsable": "ambos",
       "estado": "en-espera",
-      "detalle": "Sacar del código el texto fijo de cada pregunta a plantillas con versión automática (huella), o agregar un párrafo de instrucciones del estudio al final. Riesgo: el programa espera una respuesta con estructura exacta y la controla; un cambio sin medir puede romper la lectura en silencio. Decidir con el dueño después de P-278 y P-279.",
+      "detalle": "Sacar del código el texto fijo de cada pregunta a plantillas con versión automática (huella), o agregar un párrafo de instrucciones del estudio al final. Riesgo: el programa espera una respuesta con estructura exacta y la controla; un cambio sin medir puede romper la lectura en silencio. Decidir con el dueño después de P-278 y P-279. 2026-10-22: las preguntas de lectura, quién es quién, síntesis y caso dicen «Sos asistente de un estudio jurídico» fijo en el código: no depende del vocabulario de la profesión. El reconocimiento de escaneos y el chat no tienen versión: proponer al dueño ponérsela.",
       "depende_de": [
         "P-279"
       ],
@@ -1734,6 +1732,20 @@
       "detalle": "Pedido del dueño (D-466): hoy una plantilla solo se ve desde un documento de su familia. Una sección propia con todas las plantillas de la base (también las de familias propuestas), con su texto común, sus campos y los documentos que la usan. Es la entrada para generar documentos (P-285).",
       "depende_de": [],
       "referencia": "D-438 a D-440; D-466",
+      "creado": "2026-10-22",
+      "actualizado": "2026-10-22"
+    },
+    {
+      "id": "P-288",
+      "titulo": "Mostrar y ordenar las preguntas del chat con Codex y las de «Investigar en internet»",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "chat",
+      "detalle": "Encontrado al construir P-278 (22 oct): con Codex, que es el motor en uso, el chat no usa el texto de sistema del agente; la pantalla del chat (src/components/chat/chat-panel.tsx) arma una pregunta más corta, en inglés, que no se muestra en ningún lado, y el agente hace antes otra pregunta en inglés para decidir qué buscar. Las preguntas de «Investigar en internet» (src/lib/deep-research.ts) también se arman en la pantalla. Llevarlas a la pantalla de lo que se le pregunta al modelo, con versión, y revisar si conviene que estén en castellano y que el chat con Codex use el mismo texto que el agente. Relacionado con las acciones desde el chat (P-286).",
+      "depende_de": [],
+      "referencia": "src/components/chat/chat-panel.tsx; src/lib/deep-research.ts; src-tauri/src/agent/",
       "creado": "2026-10-22",
       "actualizado": "2026-10-22"
     }

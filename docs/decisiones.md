@@ -423,6 +423,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-478 | 22 oct | Portales | Los términos de uso del portal judicial se revisan con el estudio de referencia al entregar el producto mínimo, y con ellos se prueba también el inicio de sesión del abogado | vigente |
 | D-479 | 22 oct | Proceso de trabajo | La protección de main exige una sola comprobación con nombre fijo que siempre informa, y esa comprobación corre las pruebas en Linux | vigente |
 | D-480 | 22 oct | Portales | El guion que bloquea la ventana del portal actúa solo en la página principal y, al bloquear, saca el foco | vigente |
+| D-481 | 22 oct | Servicios de IA | Lo que se le pregunta al modelo se muestra armado por las mismas funciones que la lectura, sobre un documento inventado; la última pregunta real, solo a pedido y con aviso | en revisión (agente sin consulta, se confirma al verla en la app: P-278) |
 
 ---
 
@@ -5180,3 +5181,10 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **El problema:** En la primera prueba real (22 oct) el desafío del PJN quedó bloqueado: «Ver desafío» no respondía y dentro de su recuadro aparecía «Micelya está usando esta ventana». En Windows, Tauri instala el guion de inicio también dentro de los recuadros de una página (su documentación lo dice: «Windows: scripts are always added to subframes»), el guion arranca bloqueado y la app desbloquea solo la página principal. Con una página inventada con un recuadro de otro origen se reprodujo igual.
 - **Qué se decidió y por qué:** El guion termina de entrada si no está en la página principal. Mientras está bloqueada, la capa de la página principal ya tapa toda la ventana, recuadros incluidos, así que no se pierde protección. Al bloquear, además, se saca el foco del elemento activo: sin eso, las teclas llegaban a un recuadro que tenía el foco. Comprobado con la página inventada: bloqueado, tocar el recuadro no hace nada; desbloqueado, responde. Falta la prueba real con el dueño; después viene el modo foco (P-281).
 - **Quién decidió:** agente, sobre la hipótesis que trajo el dueño (P-281).
+
+### D-481 · Lo que se le pregunta al modelo se muestra armado por las mismas funciones que la lectura, sobre un documento inventado; la última pregunta real, solo a pedido y con aviso
+
+- **Fecha:** 22 oct 2026 · **Tema:** Servicios de IA · **Estado:** en revisión (agente sin consulta, se confirma al verla en la app: P-278)
+- **El problema:** El dueño pidió ver en Ajustes cada pregunta al modelo tal como sale, con su versión (P-278). Copiar el texto de las preguntas en la pantalla se desactualizaría en silencio; mostrar solo preguntas reales expone texto de documentos del estudio y no sirve para las que nunca se hicieron.
+- **Qué se decidió y por qué:** Cada pregunta se arma con la misma función que usa la lectura, sobre un documento inventado (una carta y un recibo), con los catálogos vigentes y con lo que cambia en cada caso resaltado; una prueba comprueba que sin las marcas el texto es el mismo que arma la función. La última pregunta que salió se lee de la base solo al abrirla, con el aviso de que trae texto de documentos del estudio. El reconocimiento de escaneos y el chat no se guardan ni tienen versión, y la pantalla lo dice; ponerles versión se propone en P-280, y mostrar las del chat con Codex y las de «Investigar en internet» queda en P-288.
+- **Quién decidió:** agente sin consulta (sobre el pedido del dueño).
