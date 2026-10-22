@@ -576,6 +576,79 @@ fn the_section_lists_every_template_with_its_documents_fields_and_type() {
 }
 
 #[test]
+fn what_a_person_names_survives_every_build_of_the_template_even_with_another_principal() {
+    use super::template::FieldChoice;
+    let may = invoice("0003-00001377", "15/05/2026", "01/04/2026", "30/04/2026", "98.000,00", "20.580,00", "118.580,00", "25/05/2026");
+    let (dir, base, origin) = base_with(&[
+        ("marzo.md", march().into_bytes()),
+        ("abril.md", april().into_bytes()),
+        ("mayo.md", may.into_bytes()),
+    ]);
+    let first = base.templates(&Visible::All).unwrap().remove(0);
+    let principal = first.principal.content_id;
+    assert_eq!(first.name, None);
+    base.name_template(principal, Some("  Factura mensual ")).unwrap();
+    let choose = |position: i64, choice: FieldChoice| base.choose_template_field(principal, position, &choice);
+    choose(0, FieldChoice { name: Some("Número de factura".into()), ..Default::default() }).unwrap();
+    choose(4, FieldChoice { what: Some("importe".into()), fixed: true, fixed_value: Some("100,00".into()), ..Default::default() }).unwrap();
+    // What it is must be something a field can be; a fixed one needs its value.
+    assert!(choose(1, FieldChoice { what: Some("planeta".into()), ..Default::default() }).is_err());
+    assert!(choose(1, FieldChoice { fixed: true, ..Default::default() }).is_err());
+    assert!(base.choose_template_field(principal, 99, &FieldChoice::default()).is_err());
+
+    let shown = |base: &crate::docbase::DocBase| {
+        let list = base.templates(&Visible::All).unwrap();
+        let template = base.similar_template(&Visible::All, list[0].principal.location_id).unwrap().unwrap();
+        (list[0].name.clone(), template)
+    };
+    let (name, template) = shown(&base);
+    assert_eq!(name.as_deref(), Some("Factura mensual"));
+    assert_eq!(template.name.as_deref(), Some("Factura mensual"));
+    assert!(template.whats.iter().any(|w| w == "persona") && template.whats.iter().any(|w| w == "fecha"));
+    let number = &template.fields[0];
+    assert_eq!((number.name.as_deref(), number.name_source.as_deref()), (Some("Número de factura"), Some("person")));
+    assert_eq!((number.what.as_deref(), number.what_source.as_deref()), (Some("identificador"), Some("kind")));
+    let net = &template.fields[4];
+    assert_eq!((net.what.as_deref(), net.what_source.as_deref()), (Some("importe"), Some("person")));
+    assert!(net.fixed);
+    assert_eq!(net.fixed_value.as_deref(), Some("100,00"));
+    // A field nobody named has no name: the screen names it by its kind.
+    assert_eq!(template.fields[1].name, None);
+
+    // Built again with nothing changed: everything stays.
+    base.conn().execute("UPDATE similar_template SET fingerprint = 'otra'", []).unwrap();
+    assert_eq!(base.similar_templates_refresh().unwrap(), 1);
+    let (name, again) = shown(&base);
+    assert_eq!(name.as_deref(), Some("Factura mensual"));
+    assert_eq!(again.fields[0].name.as_deref(), Some("Número de factura"));
+
+    // A longer invoice joins the family and becomes its principal: the
+    // template is built again under it, and what the person named follows.
+    let june = format!(
+        "{} Gracias por abonar en término; ante cualquier consulta comuníquese con la administración.",
+        invoice("0003-00001455", "15/06/2026", "01/05/2026", "31/05/2026", "101.000,00", "21.210,00", "122.210,00", "25/06/2026")
+    );
+    dir.write("o/junio.md", june.as_bytes());
+    settle(&base, &origin);
+    let (name, after) = shown(&base);
+    assert_eq!(after.documents.len(), 4);
+    assert_ne!(after.principal, principal, "the longest invoice is the principal now");
+    assert_eq!(name.as_deref(), Some("Factura mensual"));
+    let number = after.fields.iter().find(|f| f.name.as_deref() == Some("Número de factura")).expect("the number keeps its name");
+    assert_eq!(number.values.iter().filter(|v| v.starts_with("0003-")).count(), 4);
+    assert!(after.fields.iter().any(|f| f.fixed && f.fixed_value.as_deref() == Some("100,00")));
+
+    // Back to the automatic name and field.
+    let principal = after.principal;
+    base.name_template(principal, None).unwrap();
+    let position = after.fields.iter().position(|f| f.name.as_deref() == Some("Número de factura")).unwrap() as i64;
+    base.choose_template_field(principal, position, &FieldChoice::default()).unwrap();
+    let (name, cleared) = shown(&base);
+    assert_eq!(name, None);
+    assert!(cleared.fields.iter().all(|f| f.name.as_deref() != Some("Número de factura")));
+}
+
+#[test]
 fn two_copies_of_the_same_form_are_possibly_the_same_document() {
     let page = |date: &str| {
         format!(

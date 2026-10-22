@@ -491,6 +491,36 @@ export interface TemplateField {
   sameAs: number | null
   /** The value of each document, in the order of `Template.documents`; empty: nothing there. */
   values: string[]
+  /**
+   * The name it is shown with: what a person wrote, the name its text gives
+   * it, or the model's; `null`: by its kind and order, from the vocabulary.
+   */
+  name: string | null
+  nameSource: "person" | "label" | "model" | null
+  /** What it is: a type of entity ("persona"…) or a kind of data ("fecha"…); `null` when nothing says. */
+  what: string | null
+  whatSource: "person" | "model" | "kind" | null
+  /** A person marked it fixed: it is written always as `fixedValue`, and not asked when generating. */
+  fixed: boolean
+  fixedValue: string | null
+}
+
+/** What a person decides about a field of a template; all empty: back to the automatic ones. */
+export interface FieldChoice {
+  name: string | null
+  what: string | null
+  fixed: boolean
+  fixedValue: string | null
+}
+
+/** Names a template, or gives it back its automatic name (`null`). */
+export function nameTemplate(principal: number, name: string | null): Promise<void> {
+  return invoke<void>("docbase_name_template", { principal, name })
+}
+
+/** What a person decides about the field at `position` of a template. */
+export function chooseTemplateField(principal: number, position: number, choice: FieldChoice): Promise<void> {
+  return invoke<void>("docbase_choose_template_field", { principal, position, choice })
 }
 
 /**
@@ -511,6 +541,10 @@ export interface Template extends TemplateKind {
   possiblySame: [number, number][]
   computedAt: number
   format: TemplateFormat
+  /** The name a person gave it; `null`: its automatic name. */
+  name: string | null
+  /** What a field can be, for a person to choose. */
+  whats: string[]
 }
 
 /**
@@ -531,6 +565,8 @@ export type TemplateFormat = "word" | "pdf-text" | "pdf-form" | "scan" | "text"
 /** A template in the list of the section «Plantillas». */
 export interface TemplateSummary extends TemplateKind {
   principal: DocRef
+  /** The name a person gave it; `null`: its automatic name. */
+  name: string | null
   state: "proposed" | "confirmed"
   /** The documents of it, the principal included. */
   documents: number

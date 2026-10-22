@@ -449,6 +449,32 @@ pub fn docbase_templates(state: State<'_, DocBaseState>) -> Result<Vec<similar::
     state.base()?.templates(&Visible::All)
 }
 
+/// Names the template of this principal, or gives it back its automatic
+/// name (`None`). Kept apart from the template: it survives every time the
+/// template is built again (D-488).
+#[tauri::command(async)]
+pub fn docbase_name_template(app: tauri::AppHandle, state: State<'_, DocBaseState>, principal: i64, name: Option<String>) -> Result<(), String> {
+    state.base()?.name_template(principal, name.as_deref())?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(())
+}
+
+/// What a person decides about a field of a template: its name, what it
+/// is, whether it is fixed and with what value; all empty, back to the
+/// automatic ones. A name a person writes is never overwritten (D-488).
+#[tauri::command(async)]
+pub fn docbase_choose_template_field(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    principal: i64,
+    position: i64,
+    choice: similar::template::FieldChoice,
+) -> Result<(), String> {
+    state.base()?.choose_template_field(principal, position, &choice)?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(())
+}
+
 /// The relations a person can choose, as the catalog lists them. Their
 /// names come from the vocabulary.
 #[tauri::command(async)]

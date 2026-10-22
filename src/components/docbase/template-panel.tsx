@@ -1,14 +1,15 @@
-import { useState } from "react"
-import { ChevronDown, ChevronRight, LayoutTemplate } from "lucide-react"
+import { Fragment, useState } from "react"
+import { ChevronDown, ChevronRight, LayoutTemplate, Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { getSimilarTemplate, type SimilarGroup, type Template } from "@/commands/docbase"
+import { getSimilarTemplate, type FieldChoice, type SimilarGroup, type Template } from "@/commands/docbase"
 import { relationName, vocabulary, type Vocabulary } from "@/vocabulary"
 import { cn } from "@/lib/utils"
 import { useTemplatesStore } from "@/stores/templates-store"
 import { useWikiStore } from "@/stores/wiki-store"
 import { formatCount, plural } from "./format"
 import { StatusBadge } from "./page"
-import { fieldName, fieldRows, placeLabel, possiblySameNames, rowIndexOf, templateSummary } from "./template"
+import { fieldName, fieldNote, fieldRows, nameSourceText, placeLabel, possiblySameNames, rowIndexOf, templateSummary } from "./template"
+import { FieldEditor } from "./template-field-editor"
 import { useDocbaseQuery } from "./use-docbase-query"
 
 const SELECT_CLASS =
@@ -133,6 +134,8 @@ export function TemplatePanel({
   initialColumn,
   onOpen,
   heading = true,
+  onChooseField,
+  busy = false,
   words = vocabulary(),
 }: {
   template: Template
@@ -141,10 +144,17 @@ export function TemplatePanel({
   onOpen: (locationId: number) => void
   /** Its own title and state; the section «Plantillas» shows them above. */
   heading?: boolean
+  /**
+   * When given, a person can rename each field, say what it is and fix it
+   * (the section «Plantillas»); `false` from it keeps the editor open.
+   */
+  onChooseField?: (position: number, choice: FieldChoice) => Promise<boolean | void> | boolean | void
+  busy?: boolean
   words?: Vocabulary
 }) {
   const [column, setColumn] = useState<number | null>(initialColumn)
   const [selected, setSelected] = useState<number | null>(null)
+  const [editing, setEditing] = useState<number | null>(null)
   const [showText, setShowText] = useState(true)
   const rows = fieldRows(template)
   const same = possiblySameNames(template)
@@ -265,30 +275,70 @@ export function TemplatePanel({
               </thead>
               <tbody>
                 {rows.map((row) => (
-                  <tr
-                    key={row.index}
-                    className={cn("border-t align-top", selected === row.index && "bg-primary/10")}
-                    onClick={() => setSelected(row.index)}
-                  >
-                    <th className="px-2 py-1.5 text-left font-medium whitespace-nowrap">
-                      {fieldName(row.field, words)}
-                      {row.field.formName && (
-                        <div className="text-xs font-normal text-muted-foreground">
-                          del formulario: «{row.field.formName}»
-                        </div>
-                      )}
-                      {row.places > 1 && (
-                        <div className="text-xs font-normal text-muted-foreground">
-                          {plural(row.places, "lugar", "lugares")} del texto
-                        </div>
-                      )}
-                    </th>
-                    {row.field.values.map((value, index) => (
-                      <td key={index} className="px-2 py-1.5 break-words" title={value || undefined}>
-                        {value ? <span className="line-clamp-4">{value}</span> : <span className="text-muted-foreground">—</span>}
-                      </td>
-                    ))}
-                  </tr>
+                  <Fragment key={row.index}>
+                    <tr
+                      className={cn("border-t align-top", selected === row.index && "bg-primary/10")}
+                      onClick={() => setSelected(row.index)}
+                    >
+                      <th className="px-2 py-1.5 text-left font-medium whitespace-nowrap">
+                        <span className="flex items-center gap-1">
+                          {fieldName(row.field, words)}
+                          {onChooseField && (
+                            <Button
+                              size="icon-xs"
+                              variant="ghost"
+                              title="Cambiar el nombre, qué es o si es fijo"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                setEditing(editing === row.index ? null : row.index)
+                              }}
+                            >
+                              <Pencil />
+                            </Button>
+                          )}
+                        </span>
+                        {nameSourceText(row.field) && (
+                          <div className="text-xs font-normal text-muted-foreground">{nameSourceText(row.field)}</div>
+                        )}
+                        {row.field.formName && row.field.name !== row.field.formName && (
+                          <div className="text-xs font-normal text-muted-foreground">
+                            del formulario: «{row.field.formName}»
+                          </div>
+                        )}
+                        {fieldNote(row.field, words) && (
+                          <div className="text-xs font-normal text-muted-foreground">{fieldNote(row.field, words)}</div>
+                        )}
+                        {row.places > 1 && (
+                          <div className="text-xs font-normal text-muted-foreground">
+                            {plural(row.places, "lugar", "lugares")} del texto
+                          </div>
+                        )}
+                      </th>
+                      {row.field.values.map((value, index) => (
+                        <td key={index} className="px-2 py-1.5 break-words" title={value || undefined}>
+                          {value ? <span className="line-clamp-4">{value}</span> : <span className="text-muted-foreground">—</span>}
+                        </td>
+                      ))}
+                    </tr>
+                    {onChooseField && editing === row.index && (
+                      <tr className="border-t bg-muted/30">
+                        <td colSpan={template.documents.length + 1} className="px-3 py-2">
+                          <FieldEditor
+                            field={row.field}
+                            whats={template.whats}
+                            busy={busy}
+                            words={words}
+                            onCancel={() => setEditing(null)}
+                            onSave={(choice) => {
+                              void Promise.resolve(onChooseField(row.index, choice)).then((saved) => {
+                                if (saved !== false) setEditing(null)
+                              })
+                            }}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>

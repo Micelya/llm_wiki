@@ -3,17 +3,25 @@ import { describe, expect, it, vi } from "vitest"
 import type { Template, TemplateField, TemplateSummary } from "@/commands/docbase"
 import { vocabularyFor } from "@/vocabulary"
 import {
+  automaticTemplateName,
+  choiceOf,
+  decided,
+  distinctValues,
   fieldName,
+  fieldNote,
   fieldRows,
   fieldsLine,
   formatName,
+  nameSourceText,
   placeLabel,
   possiblySameNames,
   rowIndexOf,
   templateName,
   templateSummary,
   templatesSummary,
+  whatName,
 } from "./template"
+import { FieldEditor } from "./template-field-editor"
 import { TemplatePanel } from "./template-panel"
 import { TemplateDetail, TemplateTable } from "./templates-view"
 import { docRef } from "./similar.fixtures"
@@ -24,8 +32,23 @@ vi.mock("@/commands/docbase", () => ({}))
 const words = vocabularyFor("legal", "es")
 
 function field(kind: TemplateField["kind"], ordinal: number, values: string[], extra: Partial<TemplateField> = {}): TemplateField {
-  return { kind, ordinal, formName: null, sameAs: null, values, ...extra }
+  return {
+    kind,
+    ordinal,
+    formName: null,
+    sameAs: null,
+    values,
+    name: null,
+    nameSource: null,
+    what: null,
+    whatSource: null,
+    fixed: false,
+    fixedValue: null,
+    ...extra,
+  }
 }
+
+const WHATS = ["persona", "organizacion", "asunto", "fecha", "importe", "numero", "identificador", "texto"]
 
 /** Three invented receipts: a name, an amount said twice and a date change. */
 function receipts(): Template {
@@ -61,7 +84,22 @@ function receipts(): Template {
     proposedTypeName: null,
     typeRank: null,
     format: "pdf-text",
+    name: null,
+    whats: WHATS,
   }
+}
+
+/** The receipts, with what a person and the model said of their fields. */
+function named(): Template {
+  const template = receipts()
+  template.name = "Recibo de honorarios"
+  template.fields = [
+    field("name", 1, ["Ana Torres", "Bruno Vega", "Carla Ruiz"], { name: "Quien paga", nameSource: "person", what: "persona", whatSource: "model" }),
+    field("amount", 1, ["1.500,00", "2.750,00", "980,50"], { name: "Importe", nameSource: "model", what: "importe", whatSource: "kind" }),
+    field("date", 1, ["10/01/2026", "", "10/03/2026"], { what: "fecha", whatSource: "kind", fixed: true, fixedValue: "10/01/2026" }),
+    field("amount", 1, ["1.500,00", "2.750,00", "980,50"], { sameAs: 1, name: "Importe", nameSource: "model" }),
+  ]
+  return template
 }
 
 function text(html: string): string {
@@ -137,9 +175,100 @@ describe("what the template screen says", () => {
   })
 })
 
+describe("the names of a template and of its fields", () => {
+  it("shows the name a person, the text or the model gave a field, and says where it comes from", () => {
+    const [who, amount, date] = named().fields
+    expect(fieldName(who, words)).toBe("Quien paga")
+    expect(nameSourceText(who)).toBe("nombre puesto por una persona")
+    expect(nameSourceText(amount)).toBe("nombre puesto por el modelo")
+    expect(nameSourceText({ nameSource: "label", formName: null })).toBe("rótulo del texto")
+    expect(nameSourceText({ nameSource: "label", formName: "Nombre" })).toBe("nombre del formulario")
+    expect(fieldName(date, words)).toBe("Fecha 1")
+    expect(nameSourceText(date)).toBeNull()
+    expect(placeLabel(named(), 3, null, words)).toBe("Importe")
+  })
+
+  it("says what a field is with the words of the profession, and whether it is fixed", () => {
+    expect(whatName("asunto", words)).toBe("Caso")
+    expect(whatName("persona", words)).toBe("Persona")
+    expect(whatName("organizacion", words)).toBe("Organización")
+    expect(whatName("fecha", words)).toBe("Fecha")
+    expect(whatName("identificador", words)).toBe("Identificador")
+    expect(whatName("texto", words)).toBe("Texto")
+    const [who, , date] = named().fields
+    expect(fieldNote(who, words)).toBe("Persona")
+    expect(fieldNote(date, words)).toBe("Fecha · fijo: «10/01/2026»")
+    expect(fieldNote(field("name", 1, []), words)).toBeNull()
+  })
+
+  it("starts the editor with what a person decided, and only that", () => {
+    const [who, amount, date] = named().fields
+    expect(choiceOf(who)).toEqual({ name: "Quien paga", what: null, fixed: false, fixedValue: null })
+    expect(choiceOf(amount)).toEqual({ name: null, what: null, fixed: false, fixedValue: null })
+    expect(choiceOf(date)).toEqual({ name: null, what: null, fixed: true, fixedValue: "10/01/2026" })
+    expect([who, amount, date].map(decided)).toEqual([true, false, true])
+    expect(distinctValues(field("name", 1, ["Ana", "", "Ana", "Bruno"]))).toEqual(["Ana", "Bruno"])
+  })
+
+  it("names a template by what a person wrote before its type", () => {
+    expect(templateName(named(), "Recibo enero.pdf", words)).toBe("Recibo de honorarios")
+    expect(automaticTemplateName(named(), "Recibo enero.pdf", words)).toBe("Recibo")
+  })
+
+  it("lets a person edit each field in the section, and nowhere else", () => {
+    const editable = text(
+      renderToStaticMarkup(
+        <TemplatePanel template={named()} initialColumn={null} onOpen={() => {}} onChooseField={() => true} words={words} />,
+      ),
+    )
+    expect(editable).toContain("Quien paga nombre puesto por una persona Persona")
+    expect(editable).toContain("Importe nombre puesto por el modelo Importe 2 lugares del texto")
+    expect(editable).toContain("Fecha 1 Fecha · fijo: «10/01/2026»")
+    expect(editable).toContain("Recibí de Quien paga la suma de $ Importe el día Fecha 1")
+    const html = renderToStaticMarkup(<TemplatePanel template={named()} initialColumn={null} onOpen={() => {}} words={words} />)
+    expect(html).not.toContain("Cambiar el nombre, qué es o si es fijo")
+    expect(
+      renderToStaticMarkup(<TemplatePanel template={named()} initialColumn={null} onOpen={() => {}} onChooseField={() => true} words={words} />),
+    ).toContain("Cambiar el nombre, qué es o si es fijo")
+  })
+
+  it("offers in the editor the automatic name and what it is, the values to fix it with and the way back", () => {
+    const [who, amount] = named().fields
+    const html = text(
+      renderToStaticMarkup(<FieldEditor field={amount} whats={WHATS} busy={false} onSave={() => {}} onCancel={() => {}} words={words} />),
+    )
+    expect(html).toContain("Automático: Importe")
+    expect(html).toContain("Caso")
+    expect(html).toContain("Fijo: no se pide al generar un documento y se escribe siempre igual")
+    expect(html).not.toContain("Volver a lo automático")
+    const decidedHtml = renderToStaticMarkup(
+      <FieldEditor field={who} whats={WHATS} busy={false} onSave={() => {}} onCancel={() => {}} words={words} />,
+    )
+    expect(decidedHtml).toContain('value="Quien paga"')
+    expect(decidedHtml).toContain('placeholder="Nombre 1"')
+    expect(text(decidedHtml)).toContain("Volver a lo automático")
+    const fixed = text(
+      renderToStaticMarkup(
+        <FieldEditor field={named().fields[2]} whats={WHATS} busy={false} onSave={() => {}} onCancel={() => {}} words={words} />,
+      ),
+    )
+    expect(fixed).toContain("10/01/2026 10/03/2026 (nada) Otro…")
+  })
+
+  it("shows the name a person gave the template, with the way back to the automatic one", () => {
+    const html = text(renderToStaticMarkup(<TemplateDetail template={named()} onOpen={() => {}} onRename={async () => true} words={words} />))
+    expect(html).toContain("Recibo de honorarios")
+    expect(html).toContain("Volver al nombre automático")
+    expect(text(renderToStaticMarkup(<TemplateDetail template={receipts()} onOpen={() => {}} onRename={async () => true} words={words} />))).not.toContain(
+      "Volver al nombre automático",
+    )
+  })
+})
+
 function summary(patch: Partial<TemplateSummary> = {}): TemplateSummary {
   return {
     principal: docRef(1, "Recibo enero.pdf"),
+    name: null,
     docType: "recibo",
     proposedTypeName: null,
     typeRank: null,

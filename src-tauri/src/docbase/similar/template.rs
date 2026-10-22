@@ -33,7 +33,7 @@ use super::store::{content_of_location, doc_ref, DocRef};
 use super::text::{self, Gap, Prepared, Raw};
 
 /// Version of the computation: changing it builds every template again.
-pub const ENGINE: &str = "template-1";
+pub const ENGINE: &str = "template-2";
 /// The relation of a family's member that puts it in the template.
 pub const TEMPLATE_RELATION: &str = "same-template";
 /// A value longer than this is cut (the whole text stays in the document).
@@ -90,6 +90,10 @@ pub struct Field {
     /// The same field said again (every document says there what it says
     /// in that one): the index of its first place, whose name it takes.
     pub same_as: Option<usize>,
+    /// The words of the template around it (`anchors`): what was said
+    /// about the field is found again by them when the template is built
+    /// again.
+    pub anchor: String,
 }
 
 /// A template as built.
@@ -293,7 +297,7 @@ pub fn build(principal: &Text, members: &[&Text]) -> Built {
             let mine = span_tokens(&span.slots, 0);
             let gap = if mine.is_empty() { Gap::Space } else { p.text.tokens[mine.start].1 };
             out.field(fields.len(), gap, &before, &after);
-            fields.push(Field { kind: span.kind, ordinal: 0, form_name: None, values, same_as: None });
+            fields.push(Field { kind: span.kind, ordinal: 0, form_name: None, values, same_as: None, anchor: String::new() });
             s = span.slots.end;
             next_span += 1;
         } else {
@@ -313,6 +317,10 @@ pub fn build(principal: &Text, members: &[&Text]) -> Built {
 
     fields.extend(form_fields(&sides));
     name_fields(&mut fields);
+    let form_names: Vec<Option<String>> = fields.iter().map(|field| field.form_name.clone()).collect();
+    for (field, anchor) in fields.iter_mut().zip(field_anchors(&segments, &form_names)) {
+        field.anchor = anchor;
+    }
 
     let documents: Vec<i64> = sides.iter().map(|side| side.text.id).collect();
     let same = possibly_same(&documents, &fields);
@@ -354,6 +362,85 @@ fn name_fields(fields: &mut [Field]) {
             }
         }
     }
+}
+
+/// Words of the template on each side of a field that find it again.
+const ANCHOR_WORDS: usize = 4;
+
+/// The anchor of each field (`form_names` says which are of a form): the
+/// words of the template before and after its first place, normalized,
+/// another field said as "_" ("recibi de|la suma de"); for a field of a
+/// form, its name there and its order among those of that name. Two
+/// fields with the same words around them are told apart by their order
+/// ("…#2"). The values are never part of it: it is the shared text.
+fn field_anchors(segments: &[Segment], form_names: &[Option<String>]) -> Vec<String> {
+    let mut words: Vec<String> = Vec::new();
+    let mut first_at: HashMap<usize, usize> = HashMap::new();
+    for segment in segments {
+        match segment {
+            Segment::Text { text } => words.extend(text::normalized(text).split(' ').filter(|w| !w.is_empty()).map(str::to_string)),
+            Segment::Field { field } => {
+                first_at.entry(*field).or_insert(words.len());
+                words.push("_".to_string());
+            }
+        }
+    }
+    let mut seen: HashMap<String, usize> = HashMap::new();
+    let mut out = Vec::with_capacity(form_names.len());
+    for (index, form_name) in form_names.iter().enumerate() {
+        let base = match (first_at.get(&index), form_name) {
+            (Some(&at), _) => {
+                let before = words[at.saturating_sub(ANCHOR_WORDS)..at].join(" ");
+                let after = words[at + 1..(at + 1 + ANCHOR_WORDS).min(words.len())].join(" ");
+                format!("{before}|{after}")
+            }
+            (None, Some(name)) => format!("form:{}", name.trim().to_lowercase()),
+            (None, None) => "|".to_string(),
+        };
+        let n = seen.entry(base.clone()).or_default();
+        *n += 1;
+        out.push(if *n == 1 { base } else { format!("{base}#{n}") });
+    }
+    out
+}
+
+/// The words before and after a field in its anchor, without its order.
+fn anchor_sides(anchor: &str) -> (&str, &str) {
+    let core = match anchor.rsplit_once('#') {
+        Some((core, n)) if !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()) => core,
+        _ => anchor,
+    };
+    core.split_once('|').unwrap_or((core, ""))
+}
+
+/// Pairs the anchors something was kept by (`kept`) with those of the
+/// fields of a template built again (`fields`): the same anchor first;
+/// then, among the rest, the only field with the same words before it,
+/// and then after it, when only one kept anchor has them too. Returns the
+/// kept anchors that found their field under another anchor, with it.
+fn reattach(kept: &[String], fields: &[String]) -> Vec<(String, String)> {
+    let mut free_kept: Vec<&String> = kept.iter().filter(|k| !fields.contains(k)).collect();
+    let mut free_fields: Vec<&String> = fields.iter().filter(|f| !kept.contains(f)).collect();
+    let mut moved = Vec::new();
+    for side in [0, 1] {
+        let part = |anchor: &str| -> String {
+            let (before, after) = anchor_sides(anchor);
+            if side == 0 { before } else { after }.to_string()
+        };
+        let mut index = 0;
+        while index < free_kept.len() {
+            let wanted = part(free_kept[index]);
+            let rivals = free_kept.iter().filter(|k| part(k) == wanted).count();
+            let found: Vec<usize> = (0..free_fields.len()).filter(|&f| part(free_fields[f]) == wanted).collect();
+            if !wanted.is_empty() && rivals == 1 && found.len() == 1 {
+                let field = free_fields.remove(found[0]);
+                moved.push((free_kept.remove(index).clone(), field.clone()));
+            } else {
+                index += 1;
+            }
+        }
+    }
+    moved
 }
 
 /// Writes the segments of the template's text.
@@ -481,6 +568,7 @@ fn form_fields(sides: &[Side]) -> Vec<Field> {
             form_name: Some(key.0),
             values,
             same_as: None,
+            anchor: String::new(),
         });
     }
     out
@@ -543,6 +631,131 @@ pub struct TemplateField {
     pub same_as: Option<i64>,
     /// In the order of `Template::documents`.
     pub values: Vec<String>,
+    /// The name it is shown with (`resolve_names`); `None`: by its kind and
+    /// order, with the words of the vocabulary ("Fecha 2").
+    pub name: Option<String>,
+    /// Where that name comes from: `person`, `label` (the form or the text
+    /// before it) or `model`.
+    pub name_source: Option<String>,
+    /// What it is (`whats`): a person, a date…; `None` when nothing says.
+    pub what: Option<String>,
+    /// Where that comes from: `person`, `model` or `kind` (the kind of
+    /// data the comparison sees).
+    pub what_source: Option<String>,
+    /// A person marked it fixed: it is not asked when a document is
+    /// generated, and `fixed_value` is written there.
+    pub fixed: bool,
+    pub fixed_value: Option<String>,
+    /// What a person decided, and what the label and the model said,
+    /// before the layers are put together.
+    #[serde(skip)]
+    said: Said,
+}
+
+/// What each layer says of a field's name and of what it is.
+#[derive(Debug, Clone, Default)]
+struct Said {
+    person_name: Option<String>,
+    person_what: Option<String>,
+    label: Option<String>,
+    model_name: Option<String>,
+    model_what: Option<String>,
+}
+
+/// What a field can be (`TemplateField::what`), besides the types of
+/// entity of the knowledge layer's vocabulary: the kinds of data a
+/// document is generated with.
+pub const DATA_WHATS: [&str; 5] = ["fecha", "importe", "numero", "identificador", "texto"];
+
+/// Everything a field can be: the types of entity of the vocabulary in use
+/// (a person, an organization, a matter), then the kinds of data.
+pub fn whats() -> Vec<String> {
+    crate::docbase::knowledge::vocabulary::vocabulary()
+        .entity_types
+        .iter()
+        .map(|t| t.id.clone())
+        .chain(DATA_WHATS.iter().map(|w| w.to_string()))
+        .collect()
+}
+
+/// What a field of this kind of data is, when its kind says it.
+fn what_of_kind(kind: Kind) -> Option<&'static str> {
+    match kind {
+        Kind::Identifier => Some("identificador"),
+        Kind::Amount => Some("importe"),
+        Kind::Date => Some("fecha"),
+        Kind::Number => Some("numero"),
+        Kind::Wording => Some("texto"),
+        // A name may be a person's, an organization's or a matter's.
+        Kind::Name | Kind::Field => None,
+    }
+}
+
+/// Puts the layers together (D-488): the name is what a person wrote; or
+/// the name the text gives the field (`label`); or the model's; or none
+/// (its kind and order, on the screen). What it is: a person's choice, or
+/// the model's, or what its kind of data says. A field said again takes
+/// all of it from its first place. Two fields named alike by the program
+/// or the model are told apart by their order: "Fecha", "Fecha (2)".
+fn resolve_names(fields: &mut [TemplateField]) {
+    let mut used: HashMap<String, usize> = HashMap::new();
+    for index in 0..fields.len() {
+        if let Some(original) = fields[index].same_as.map(|o| o as usize).filter(|o| *o < index) {
+            let (name, source, what, what_source) = {
+                let first = &fields[original];
+                (first.name.clone(), first.name_source.clone(), first.what.clone(), first.what_source.clone())
+            };
+            let (fixed, fixed_value) = (fields[original].fixed, fields[original].fixed_value.clone());
+            let field = &mut fields[index];
+            (field.name, field.name_source, field.what, field.what_source) = (name, source, what, what_source);
+            (field.fixed, field.fixed_value) = (fixed, fixed_value);
+            continue;
+        }
+        let field = &mut fields[index];
+        let said = &field.said;
+        let (name, source) = match (&said.person_name, &said.label, &said.model_name) {
+            (Some(name), _, _) => (Some(name.clone()), Some("person")),
+            (None, Some(label), _) => (Some(label.clone()), Some("label")),
+            (None, None, Some(name)) => (Some(name.clone()), Some("model")),
+            (None, None, None) => (None, None),
+        };
+        let name = name.map(|name| {
+            let n = used.entry(name.to_lowercase()).or_default();
+            *n += 1;
+            if *n > 1 && source != Some("person") {
+                format!("{name} ({n})")
+            } else {
+                name
+            }
+        });
+        let (what, what_source) = match (&said.person_what, &said.model_what, what_of_kind(field.kind)) {
+            (Some(what), _, _) => (Some(what.clone()), Some("person")),
+            (None, Some(what), _) => (Some(what.clone()), Some("model")),
+            (None, None, Some(what)) => (Some(what.to_string()), Some("kind")),
+            (None, None, None) => (None, None),
+        };
+        field.name = name;
+        field.name_source = source.map(str::to_string);
+        field.what = what;
+        field.what_source = what_source.map(str::to_string);
+    }
+}
+
+/// What a person decides about a field of a template (D-488). Kept apart
+/// from the template, by the words around the field, so it survives every
+/// time the template is built again.
+#[derive(Debug, Clone, Default, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct FieldChoice {
+    /// Its name; empty or none: the automatic one.
+    pub name: Option<String>,
+    /// What it is, one of `whats`; none: the automatic one.
+    pub what: Option<String>,
+    /// It is written always the same and not asked when generating.
+    pub fixed: bool,
+    /// What is written when it is fixed (one of the values of the
+    /// documents, or another; empty: nothing).
+    pub fixed_value: Option<String>,
 }
 
 /// The template of a family, for the screens.
@@ -569,6 +782,10 @@ pub struct Template {
     pub kind: TemplateKind,
     /// Where its format comes from (`format_of`).
     pub format: String,
+    /// The name a person gave it, kept apart from it (`template_naming`).
+    pub name: Option<String>,
+    /// What a field can be, for the choice of a person (`whats`).
+    pub whats: Vec<String>,
 }
 
 /// The type of document of a template's principal, which names the
@@ -592,6 +809,8 @@ pub struct TemplateSummary {
     pub principal: DocRef,
     #[serde(flatten)]
     pub kind: TemplateKind,
+    /// The name a person gave it.
+    pub name: Option<String>,
     /// "confirmed" or "proposed", as `Template::state`.
     pub state: String,
     /// The documents of it the caller sees, the principal included.
@@ -868,6 +1087,7 @@ impl DocBase {
             out.push(TemplateSummary {
                 principal: head,
                 kind: kinds.remove(&principal).unwrap_or_default(),
+                name: template_name(&conn, principal)?,
                 state: state_of(&documents),
                 documents: documents.len() as i64,
                 fields,
@@ -956,6 +1176,11 @@ impl DocBase {
     fn save_template(&self, principal: i64, print: &str, built: Option<&Built>) -> Result<(), String> {
         let mut conn = self.conn();
         let tx = conn.transaction().map_err(sql_err)?;
+        let previous: Option<i64> = tx
+            .query_row("SELECT naming FROM similar_template WHERE principal = ?1", [principal], |row| row.get(0))
+            .optional()
+            .map_err(sql_err)?
+            .flatten();
         tx.execute("DELETE FROM similar_template WHERE principal = ?1", [principal]).map_err(sql_err)?;
         // A family whose texts cannot be read keeps its fingerprint, with
         // no documents, so it is not tried again until it changes.
@@ -966,10 +1191,14 @@ impl DocBase {
             ),
             None => ("[]".to_string(), "[]".to_string()),
         };
+        let naming = match built {
+            Some(built) => Some(claim_naming(&tx, principal, previous, &built.documents)?),
+            None => previous,
+        };
         tx.execute(
-            "INSERT INTO similar_template (principal, fingerprint, segments, same_documents, computed_at)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![principal, print, segments, same, now_ms()],
+            "INSERT INTO similar_template (principal, fingerprint, segments, same_documents, computed_at, naming)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![principal, print, segments, same, now_ms(), naming],
         )
         .map_err(sql_err)?;
         if let Some(built) = built {
@@ -980,11 +1209,23 @@ impl DocBase {
                 )
                 .map_err(sql_err)?;
             }
+            if let Some(naming) = naming {
+                let anchors: Vec<String> = built.fields.iter().filter(|f| f.same_as.is_none()).map(|f| f.anchor.clone()).collect();
+                follow_fields(&tx, naming, &anchors)?;
+            }
             for (position, field) in built.fields.iter().enumerate() {
                 tx.execute(
-                    "INSERT INTO similar_template_field (principal, position, kind, ordinal, form_name, same_as)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                    params![principal, position as i64, kind_id(field.kind), field.ordinal as i64, field.form_name, field.same_as.map(|i| i as i64)],
+                    "INSERT INTO similar_template_field (principal, position, kind, ordinal, form_name, same_as, anchor)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                    params![
+                        principal,
+                        position as i64,
+                        kind_id(field.kind),
+                        field.ordinal as i64,
+                        field.form_name,
+                        field.same_as.map(|i| i as i64),
+                        field.anchor
+                    ],
                 )
                 .map_err(sql_err)?;
                 for (id, value) in built.documents.iter().zip(&field.values) {
@@ -1025,25 +1266,7 @@ impl DocBase {
         }
         let documents = template_documents(&conn, visible, principal)?;
         let shown: Vec<i64> = documents.iter().map(|d| d.doc.content_id).collect();
-        let mut fields: Vec<TemplateField> = {
-            let mut statement = conn
-                .prepare("SELECT kind, ordinal, form_name, same_as FROM similar_template_field WHERE principal = ?1 ORDER BY position")
-                .map_err(sql_err)?;
-            let rows = statement
-                .query_map([principal], |row| {
-                    Ok(TemplateField {
-                        kind: kind_from(&row.get::<_, String>(0)?),
-                        ordinal: row.get(1)?,
-                        form_name: row.get(2)?,
-                        same_as: row.get(3)?,
-                        values: vec![String::new(); shown.len()],
-                    })
-                })
-                .map_err(sql_err)?
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(sql_err)?;
-            rows
-        };
+        let mut fields = read_fields(&conn, principal, shown.len())?;
         {
             let marks = vec!["?"; shown.len().max(1)].join(", ");
             let mut statement = conn
@@ -1064,6 +1287,7 @@ impl DocBase {
                 }
             }
         }
+        resolve_names(&mut fields);
         let possibly_same = possibly_same_of(&conn, &same, &shown)?;
         let has_form = fields.iter().any(|f| f.form_name.is_some());
         Ok(Some(Template {
@@ -1077,8 +1301,243 @@ impl DocBase {
             computed_at,
             kind: template_kinds(&conn)?.remove(&principal).unwrap_or_default(),
             format: format_of(&conn, principal, has_form)?,
+            name: template_name(&conn, principal)?,
+            whats: whats(),
         }))
     }
+
+    /// Names a template, or gives it back its automatic name (`None` or
+    /// empty). Kept apart from the template (`template_naming`): it
+    /// survives every time the template is built again.
+    pub fn name_template(&self, principal: i64, name: Option<&str>) -> Result<(), String> {
+        let conn = self.conn();
+        let naming = naming_of(&conn, principal)?;
+        let name = name.map(str::trim).filter(|n| !n.is_empty());
+        conn.execute(
+            "UPDATE template_naming SET name = ?2, named_at = CASE WHEN ?2 IS NULL THEN NULL ELSE ?3 END WHERE id = ?1",
+            params![naming, name, now_ms()],
+        )
+        .map_err(sql_err)?;
+        Ok(())
+    }
+
+    /// Records what a person decides about the field at `position` of a
+    /// template (the field it says again, when it is one): its name, what
+    /// it is, whether it is fixed and with what value. All of it empty: the
+    /// field goes back to what the program and the model say. Kept apart
+    /// from the template, by the words around the field.
+    pub fn choose_template_field(&self, principal: i64, position: i64, choice: &FieldChoice) -> Result<(), String> {
+        let conn = self.conn();
+        let naming = naming_of(&conn, principal)?;
+        let found: Option<(String, Option<i64>)> = conn
+            .query_row(
+                "SELECT anchor, same_as FROM similar_template_field WHERE principal = ?1 AND position = ?2",
+                params![principal, position],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()
+            .map_err(sql_err)?;
+        let Some((mut anchor, same_as)) = found else {
+            return Err("Ese campo ya no está en la plantilla".to_string());
+        };
+        if let Some(original) = same_as {
+            anchor = conn
+                .query_row(
+                    "SELECT anchor FROM similar_template_field WHERE principal = ?1 AND position = ?2",
+                    params![principal, original],
+                    |row| row.get(0),
+                )
+                .map_err(sql_err)?;
+        }
+        let name = choice.name.as_deref().map(str::trim).filter(|n| !n.is_empty()).map(str::to_string);
+        let what = choice.what.as_deref().map(str::trim).filter(|w| !w.is_empty()).map(str::to_string);
+        if let Some(what) = &what {
+            if !whats().contains(what) {
+                return Err(format!("'{what}' no es algo que pueda ser un campo"));
+            }
+        }
+        let fixed_value = match (choice.fixed, &choice.fixed_value) {
+            (true, Some(value)) => Some(value.chars().take(VALUE_MAX_CHARS).collect::<String>()),
+            (true, None) => return Err("Un campo fijo necesita el valor que se escribe siempre".to_string()),
+            (false, _) => None,
+        };
+        if name.is_none() && what.is_none() && !choice.fixed {
+            conn.execute("DELETE FROM template_field_choice WHERE naming = ?1 AND anchor = ?2", params![naming, anchor])
+                .map_err(sql_err)?;
+            return Ok(());
+        }
+        conn.execute(
+            "INSERT OR REPLACE INTO template_field_choice (naming, anchor, name, what, fixed, fixed_value, decided_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![naming, anchor, name, what, choice.fixed, fixed_value, now_ms()],
+        )
+        .map_err(sql_err)?;
+        Ok(())
+    }
+}
+
+/// The fields of a template in order, each with what a person decided and
+/// what the model said of it (by its anchor, in the template's naming), and
+/// room for the value of each of `documents` documents.
+fn read_fields(conn: &Connection, principal: i64, documents: usize) -> Result<Vec<TemplateField>, String> {
+    let mut statement = conn
+        .prepare(
+            "SELECT f.kind, f.ordinal, f.form_name, f.same_as, f.label,
+                    c.name, c.what, coalesce(c.fixed, 0), c.fixed_value, a.name, a.what
+             FROM similar_template_field f
+             JOIN similar_template t ON t.principal = f.principal
+             LEFT JOIN template_field_choice c ON c.naming = t.naming AND c.anchor = f.anchor
+             LEFT JOIN template_field_answer a ON a.naming = t.naming AND a.anchor = f.anchor
+             WHERE f.principal = ?1 ORDER BY f.position",
+        )
+        .map_err(sql_err)?;
+    let rows = statement
+        .query_map([principal], |row| {
+            Ok(TemplateField {
+                kind: kind_from(&row.get::<_, String>(0)?),
+                ordinal: row.get(1)?,
+                form_name: row.get(2)?,
+                same_as: row.get(3)?,
+                values: vec![String::new(); documents],
+                name: None,
+                name_source: None,
+                what: None,
+                what_source: None,
+                fixed: row.get(7)?,
+                fixed_value: row.get(8)?,
+                said: Said {
+                    label: row.get(4)?,
+                    person_name: row.get(5)?,
+                    person_what: row.get(6)?,
+                    model_name: row.get(9)?,
+                    model_what: row.get(10)?,
+                },
+            })
+        })
+        .map_err(sql_err)?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(sql_err)?;
+    Ok(rows)
+}
+
+/// The name a person gave the template of this principal.
+fn template_name(conn: &Connection, principal: i64) -> Result<Option<String>, String> {
+    Ok(conn
+        .query_row(
+            "SELECT n.name FROM similar_template t JOIN template_naming n ON n.id = t.naming WHERE t.principal = ?1",
+            [principal],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(sql_err)?
+        .flatten())
+}
+
+/// The lasting identity of the template of this principal, given to it now
+/// when it has none (a template built before there were names).
+fn naming_of(conn: &Connection, principal: i64) -> Result<i64, String> {
+    let found: Option<Option<i64>> = conn
+        .query_row(
+            "SELECT naming FROM similar_template t WHERE principal = ?1
+               AND EXISTS (SELECT 1 FROM similar_template_document d WHERE d.principal = t.principal)",
+            [principal],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(sql_err)?;
+    match found {
+        None => Err("Esa plantilla ya no está: su familia de documentos cambió".to_string()),
+        Some(Some(naming)) => Ok(naming),
+        Some(None) => {
+            let documents: Vec<i64> = {
+                let mut statement = conn
+                    .prepare("SELECT content_id FROM similar_template_document WHERE principal = ?1 ORDER BY position")
+                    .map_err(sql_err)?;
+                let rows = statement
+                    .query_map([principal], |row| row.get(0))
+                    .map_err(sql_err)?
+                    .collect::<Result<Vec<i64>, _>>()
+                    .map_err(sql_err)?;
+                rows
+            };
+            let naming = claim_naming(conn, principal, None, &documents)?;
+            conn.execute("UPDATE similar_template SET naming = ?2 WHERE principal = ?1", params![principal, naming])
+                .map_err(sql_err)?;
+            Ok(naming)
+        }
+    }
+}
+
+/// The lasting identity (`template_naming`) of the template of `principal`
+/// being built with these documents: the one of its previous build; or
+/// else the one no other template has that shares with it more than half
+/// of the documents of the smaller of the two (the family grew, lost a
+/// document or changed its principal), the one that shares the most first;
+/// or else a new one. It remembers these documents.
+fn claim_naming(conn: &Connection, principal: i64, previous: Option<i64>, documents: &[i64]) -> Result<i64, String> {
+    let found = match previous {
+        Some(naming) => Some(naming),
+        None => {
+            let mut statement = conn
+                .prepare(
+                    "SELECT id, documents FROM template_naming WHERE id NOT IN (
+                        SELECT naming FROM similar_template WHERE naming IS NOT NULL AND principal != ?1)
+                     ORDER BY built_at DESC, id DESC",
+                )
+                .map_err(sql_err)?;
+            let rows = statement
+                .query_map([principal], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)))
+                .map_err(sql_err)?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(sql_err)?;
+            let mut best: Option<(usize, i64)> = None;
+            for (naming, kept) in rows {
+                let kept: Vec<i64> = serde_json::from_str(&kept).unwrap_or_default();
+                let shared = kept.iter().filter(|id| documents.contains(id)).count();
+                let smaller = kept.len().min(documents.len());
+                if shared * 2 > smaller && best.is_none_or(|(most, _)| shared > most) {
+                    best = Some((shared, naming));
+                }
+            }
+            best.map(|(_, naming)| naming)
+        }
+    };
+    let now = now_ms();
+    let kept = serde_json::to_string(documents).map_err(|e| e.to_string())?;
+    match found {
+        Some(naming) => {
+            conn.execute("UPDATE template_naming SET documents = ?2, built_at = ?3 WHERE id = ?1", params![naming, kept, now])
+                .map_err(sql_err)?;
+            Ok(naming)
+        }
+        None => {
+            conn.execute("INSERT INTO template_naming (documents, built_at) VALUES (?1, ?2)", params![kept, now]).map_err(sql_err)?;
+            Ok(conn.last_insert_rowid())
+        }
+    }
+}
+
+/// What was decided and answered about the fields of a template follows
+/// them when it is built again (`reattach`): a field whose words around it
+/// changed keeps what a person decided and what the model said of it.
+/// What finds no field stays, in case the field comes back.
+fn follow_fields(conn: &Connection, naming: i64, anchors: &[String]) -> Result<(), String> {
+    for table in ["template_field_choice", "template_field_answer"] {
+        let kept: Vec<String> = {
+            let mut statement = conn.prepare(&format!("SELECT anchor FROM {table} WHERE naming = ?1")).map_err(sql_err)?;
+            let rows = statement
+                .query_map([naming], |row| row.get(0))
+                .map_err(sql_err)?
+                .collect::<Result<Vec<String>, _>>()
+                .map_err(sql_err)?;
+            rows
+        };
+        for (old, new) in reattach(&kept, anchors) {
+            conn.execute(&format!("UPDATE {table} SET anchor = ?3 WHERE naming = ?1 AND anchor = ?2"), params![naming, old, new])
+                .map_err(sql_err)?;
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -1189,6 +1648,92 @@ mod tests {
             "Recibo N° [identifier1]. Talón para el cliente. Recibo N° [identifier1]. Talón para el banco."
         );
         assert_eq!(made.fields[1].same_as, Some(0));
+    }
+
+    #[test]
+    fn each_field_is_anchored_by_the_shared_words_around_it_never_by_its_values() {
+        let made = built(&[
+            "Recibí de Ana Torres la suma de $ 1.500,00 el día 10/02/2026 en concepto de honorarios.",
+            "Recibí de Bruno Vega la suma de $ 2.750,00 el día 12/03/2026 en concepto de honorarios.",
+        ]);
+        let anchors: Vec<&str> = made.fields.iter().map(|f| f.anchor.as_str()).collect();
+        assert_eq!(anchors, ["recibi de|la suma de _", "_ la suma de|el dia _ en", "de _ el dia|en concepto de honorarios"]);
+        // The same words around two fields: told apart by their order.
+        let twice = field_anchors(
+            &[Segment::Text { text: "Fecha: ".into() }, Segment::Field { field: 0 }, Segment::Text { text: " Fecha: ".into() }, Segment::Field { field: 1 }],
+            &[None, None, Some("Nombre".into()), Some("Nombre".into())],
+        );
+        assert_eq!(twice, ["fecha|fecha _", "fecha _ fecha|", "form:nombre", "form:nombre#2"]);
+        assert_eq!(anchor_sides("a b|c d#2"), ("a b", "c d"));
+    }
+
+    #[test]
+    fn what_was_kept_follows_its_field_when_the_words_on_one_side_still_say_which() {
+        let kept: Vec<String> = ["a b|c d", "x|y", "p|q", "m|n"].map(String::from).to_vec();
+        let fields: Vec<String> = ["a b|c e", "z|y", "p|q", "h|k"].map(String::from).to_vec();
+        let moved = reattach(&kept, &fields);
+        assert_eq!(moved, vec![("a b|c d".to_string(), "a b|c e".to_string()), ("x|y".to_string(), "z|y".to_string())]);
+        // Two kept with the same words before, one field: nobody can tell which.
+        let kept: Vec<String> = ["a|b", "a|c"].map(String::from).to_vec();
+        assert!(reattach(&kept, &["a|d".to_string()]).is_empty());
+    }
+
+    fn shown(kind: Kind, said: Said) -> TemplateField {
+        TemplateField {
+            kind,
+            ordinal: 1,
+            form_name: None,
+            same_as: None,
+            values: Vec::new(),
+            name: None,
+            name_source: None,
+            what: None,
+            what_source: None,
+            fixed: false,
+            fixed_value: None,
+            said,
+        }
+    }
+
+    #[test]
+    fn a_person_wins_then_the_text_then_the_model_and_alike_names_are_told_apart() {
+        let model = |name: &str, what: &str| Said { model_name: Some(name.into()), model_what: Some(what.into()), ..Default::default() };
+        let mut fields = vec![
+            shown(Kind::Name, Said { person_name: Some("Quien paga".into()), label: Some("Recibí".into()), ..model("Pagador", "persona") }),
+            shown(Kind::Date, Said { label: Some("Fecha".into()), ..model("Fecha de pago", "fecha") }),
+            shown(Kind::Date, model("Fecha", "fecha")),
+            shown(Kind::Name, Said { person_what: Some("organizacion".into()), ..model("Pagador", "persona") }),
+            shown(Kind::Number, Said::default()),
+            shown(Kind::Name, Said::default()),
+        ];
+        fields.push(TemplateField { same_as: Some(1), ..shown(Kind::Date, Said::default()) });
+        resolve_names(&mut fields);
+        let names: Vec<(Option<&str>, Option<&str>)> = fields.iter().map(|f| (f.name.as_deref(), f.name_source.as_deref())).collect();
+        assert_eq!(
+            names,
+            [
+                (Some("Quien paga"), Some("person")),
+                (Some("Fecha"), Some("label")),
+                (Some("Fecha (2)"), Some("model")),
+                (Some("Pagador"), Some("model")),
+                (None, None),
+                (None, None),
+                (Some("Fecha"), Some("label")),
+            ]
+        );
+        let whats: Vec<(Option<&str>, Option<&str>)> = fields.iter().map(|f| (f.what.as_deref(), f.what_source.as_deref())).collect();
+        assert_eq!(
+            whats,
+            [
+                (Some("persona"), Some("model")),
+                (Some("fecha"), Some("model")),
+                (Some("fecha"), Some("model")),
+                (Some("organizacion"), Some("person")),
+                (Some("numero"), Some("kind")),
+                (None, None),
+                (Some("fecha"), Some("model")),
+            ]
+        );
     }
 
     #[test]

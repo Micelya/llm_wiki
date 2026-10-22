@@ -1,13 +1,23 @@
-import { ArrowLeft } from "lucide-react"
+import { useState } from "react"
+import { ArrowLeft, Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { getSimilarTemplate, listTemplates, type Template, type TemplateSummary } from "@/commands/docbase"
+import {
+  chooseTemplateField,
+  getSimilarTemplate,
+  listTemplates,
+  nameTemplate,
+  type FieldChoice,
+  type Template,
+  type TemplateSummary,
+} from "@/commands/docbase"
 import { goToTarget } from "@/components/attention/navigate"
-import { useOpenDocument } from "@/components/knowledge/shared"
+import { NameForm } from "@/components/knowledge/matter-edit"
+import { useAction, useOpenDocument } from "@/components/knowledge/shared"
 import { useTemplatesStore } from "@/stores/templates-store"
 import { vocabulary, type Vocabulary } from "@/vocabulary"
 import { plural } from "./format"
 import { DocbasePage, EmptyNote, ErrorNote, StatusBadge } from "./page"
-import { fieldRows, fieldsLine, formatName, templateName, templatesSummary } from "./template"
+import { automaticTemplateName, fieldRows, fieldsLine, formatName, templateName, templatesSummary } from "./template"
 import { TemplatePanel, TemplateStateBadge } from "./template-panel"
 import { useDocbaseQuery } from "./use-docbase-query"
 
@@ -89,6 +99,17 @@ function TemplateDetailView({ principalLocationId, onBack }: { principalLocation
   const words = vocabulary()
   const template = useDocbaseQuery(`similar-template:${principalLocationId}`, () => getSimilarTemplate(principalLocationId))
   const openDocument = useOpenDocument()
+  const action = useAction()
+  // What a person decides is saved and the screen reads it again.
+  const decide = async (run: () => Promise<void>): Promise<boolean> => {
+    let saved = false
+    await action.run(async () => {
+      await run()
+      saved = true
+      template.reload()
+    })
+    return saved
+  }
   return (
     <DocbasePage
       title={words.templates.name}
@@ -99,11 +120,26 @@ function TemplateDetailView({ principalLocationId, onBack }: { principalLocation
       }
     >
       <div className="mx-auto flex max-w-6xl flex-col gap-4">
-        {template.error && <ErrorNote>{template.error}</ErrorNote>}
+        {(template.error || action.problem) && <ErrorNote>{template.error ?? action.problem}</ErrorNote>}
         {!template.loading && !template.data && !template.error && (
           <EmptyNote>Esta {words.templates.one} ya no está: su familia de documentos cambió.</EmptyNote>
         )}
-        {template.data && <TemplateDetail template={template.data} onOpen={(id) => openDocument(id)} words={words} />}
+        {template.data && (
+          <TemplateDetail
+            template={template.data}
+            onOpen={(id) => openDocument(id)}
+            busy={action.busy}
+            onRename={(name) => {
+              const principal = template.data?.principal
+              return principal === undefined ? Promise.resolve(false) : decide(() => nameTemplate(principal, name))
+            }}
+            onChooseField={(position, choice) => {
+              const principal = template.data?.principal
+              return principal === undefined ? Promise.resolve(false) : decide(() => chooseTemplateField(principal, position, choice))
+            }}
+            words={words}
+          />
+        )}
       </div>
     </DocbasePage>
   )
@@ -113,20 +149,52 @@ function TemplateDetailView({ principalLocationId, onBack }: { principalLocation
 export function TemplateDetail({
   template,
   onOpen,
+  onRename,
+  onChooseField,
+  busy = false,
   words = vocabulary(),
 }: {
   template: Template
   onOpen: (locationId: number) => void
+  /** A person names it, or gives it back its automatic name (`null`); `false`: it was not saved. */
+  onRename?: (name: string | null) => Promise<boolean>
+  onChooseField?: (position: number, choice: FieldChoice) => Promise<boolean>
+  busy?: boolean
   words?: Vocabulary
 }) {
+  const [renaming, setRenaming] = useState(false)
   const principal = template.documents[0]?.doc
   const fields = fieldRows(template).length
+  const automatic = automaticTemplateName(template, principal?.name ?? "", words)
   return (
     <>
       <div className="flex flex-col gap-1">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="min-w-0 font-serif text-2xl break-words">{templateName(template, principal?.name ?? "", words)}</h2>
+          {renaming && onRename ? (
+            <NameForm
+              initial={template.name ?? ""}
+              placeholder={automatic}
+              saveLabel="Guardar"
+              busy={busy}
+              onCancel={() => setRenaming(false)}
+              onSave={(name) => void onRename(name).then((saved) => saved && setRenaming(false))}
+            />
+          ) : (
+            <>
+              <h2 className="min-w-0 font-serif text-2xl break-words">{templateName(template, principal?.name ?? "", words)}</h2>
+              {onRename && (
+                <Button size="icon-xs" variant="ghost" title="Cambiar el nombre" onClick={() => setRenaming(true)}>
+                  <Pencil />
+                </Button>
+              )}
+            </>
+          )}
           <TemplateStateBadge state={template.state} words={words} />
+          {template.name && onRename && !renaming && (
+            <Button size="xs" variant="ghost" disabled={busy} title={`El automático es «${automatic}»`} onClick={() => void onRename(null)}>
+              Volver al nombre automático
+            </Button>
+          )}
         </div>
         <p className="text-sm text-muted-foreground">
           {[
@@ -151,7 +219,15 @@ export function TemplateDetail({
           El texto salió de un escaneo: lo leyó el reconocimiento y puede tener errores.
         </div>
       )}
-      <TemplatePanel template={template} initialColumn={null} onOpen={onOpen} heading={false} words={words} />
+      <TemplatePanel
+        template={template}
+        initialColumn={null}
+        onOpen={onOpen}
+        heading={false}
+        onChooseField={onChooseField}
+        busy={busy}
+        words={words}
+      />
     </>
   )
 }

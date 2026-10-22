@@ -481,6 +481,8 @@ pub fn run() {
             docbase::commands::docbase_similar_relations,
             docbase::commands::docbase_similar_template,
             docbase::commands::docbase_templates,
+            docbase::commands::docbase_name_template,
+            docbase::commands::docbase_choose_template_field,
             docbase::commands::docbase_types_plan,
             docbase::commands::docbase_proposed_types,
             docbase::commands::docbase_decide_type,
