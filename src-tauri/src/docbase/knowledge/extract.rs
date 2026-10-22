@@ -579,6 +579,30 @@ pub fn schema(vocabulary: &Vocabulary) -> serde_json::Value {
     })
 }
 
+/// The question about the invented document of Ajustes (`questions.rs`),
+/// built by `prompt` as `questions` builds it for a document of the base:
+/// what the base would know of it (the type it is said to be, the data the
+/// rules of that type find in its text, the identifiers by their shape) and
+/// its first part. `part` writes each value that changes in each case.
+pub(crate) fn example_question(part: crate::docbase::questions::Part) -> (String, serde_json::Value) {
+    use crate::docbase::questions::{example, FILE, KNOWN, TEXT};
+    let vocabulary = vocabulary();
+    let catalog = crate::docbase::similar::types::catalog();
+    let doc_type = example::document_type(catalog);
+    let rules: Vec<&crate::docbase::similar::types::DataRule> = doc_type.map(|t| t.data.iter().collect()).unwrap_or_default();
+    let (data, _) = crate::docbase::similar::data::extract(&rules, example::TEXT, &[]);
+    let hints = Hints {
+        name: part(FILE, example::FILE),
+        doc_type: doc_type.map(|t| part(KNOWN, &t.id)),
+        stage: doc_type.and_then(|t| t.stages.first()).map(|s| part(KNOWN, s)),
+        data: data.into_iter().map(|d| Datum { value: part(KNOWN, &d.value), ..d }).collect(),
+        shapes: identifiers_by_shape(example::TEXT).iter().map(|s| part(KNOWN, s)).collect(),
+    };
+    let parts = parts(example::TEXT);
+    let first = parts.first().cloned().unwrap_or_default();
+    (prompt(vocabulary, &hints, &part(TEXT, &first), 0, parts.len()), schema(vocabulary))
+}
+
 /// The class of a claim when the text says none.
 pub const NO_CLASS: &str = "ninguna";
 /// The state of an amount when the text says none (P-136).

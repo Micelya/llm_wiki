@@ -486,6 +486,8 @@ pub fn run() {
             docbase::commands::docbase_types_run,
             docbase::commands::docbase_ai_services,
             docbase::commands::docbase_set_ai_services,
+            docbase::commands::docbase_model_questions,
+            docbase::commands::docbase_model_question_last,
             docbase::commands::docbase_document_type,
             docbase::commands::docbase_document_types,
             docbase::commands::docbase_knowledge_status,

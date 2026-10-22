@@ -1238,6 +1238,11 @@ struct Context {
     identifiers: HashMap<i64, Vec<(String, String, String)>>,
 }
 
+/// What a document says of a mention, as the question shows it.
+fn fact(predicate: &str, object: &str) -> String {
+    format!("{}: {object}", predicate.replace('_', " "))
+}
+
 fn context(conn: &Connection, rows: &[Row], clusters: &[Cluster], identifiers: HashMap<i64, Vec<(String, String, String)>>) -> Result<Context, String> {
     let mut documents = HashMap::new();
     for cluster in clusters {
@@ -1260,7 +1265,7 @@ fn context(conn: &Connection, rows: &[Row], clusters: &[Cluster], identifiers: H
             _ => None,
         };
         if let Some(object) = object {
-            facts.entry(subject).or_default().push(format!("{}: {object}", predicate.replace('_', " ")));
+            facts.entry(subject).or_default().push(fact(&predicate, &object));
         }
     }
     let mut by_content: HashMap<i64, Vec<usize>> = HashMap::new();
@@ -1428,6 +1433,59 @@ identificador, el mismo domicilio, el mismo asunto, las mismas personas); si no 
         prompt,
         schema: schema(),
     }
+}
+
+/// The question of Ajustes (`questions.rs`) about two invented documents
+/// that name a person, once by name and once with an initial: the mentions
+/// grouped by `clusters`, each side described by `describe` and the whole
+/// written by `question`, as `resolve` does. `part` writes each side, which
+/// changes in each case.
+pub(crate) fn example_question(part: crate::docbase::questions::Part) -> (String, serde_json::Value) {
+    use crate::docbase::questions::{example, term, CANDIDATE, PRINCIPAL};
+    let vocabulary = vocabulary();
+    let roles: Vec<&str> = vocabulary.roles.iter().map(|r| r.id.as_str()).collect();
+    let kinds: Vec<&str> = vocabulary.identifiers.iter().map(|t| t.id.as_str()).collect();
+    let values: Vec<&str> = vocabulary.predicates.iter().filter(|p| !p.is_money() && !p.takes_entity()).map(|p| p.id.as_str()).collect();
+    let row = |id: i64, content_id: i64, reference: &str, kind: &str, written: &str, role: &str, quote: &str| Row {
+        id,
+        content_id,
+        reference: reference.to_string(),
+        same_as: None,
+        kind: kind.to_string(),
+        written: written.to_string(),
+        normalized: super::quote::words(written).join(" "),
+        role: term(&roles, role),
+        quote: quote.to_string(),
+        entity: None,
+        defined: false,
+        hint: None,
+    };
+    let rows = vec![
+        row(1, 1, "a", PERSON, example::PERSON, "destinatario", example::PERSON_QUOTE),
+        row(2, 1, "b", ORGANIZATION, example::COMPANY, "remitente", example::COMPANY_QUOTE),
+        row(3, 2, "a", PERSON, example::PERSON_SHORT, "parte", example::PERSON_SHORT_QUOTE),
+        row(4, 2, "b", ORGANIZATION, example::COMPANY, "parte", example::COMPANY_OTHER_QUOTE),
+    ];
+    let identifiers: HashMap<i64, Vec<(String, String, String)>> =
+        HashMap::from([(1, vec![(term(&kinds, "dni"), example::PERSON_ID.to_string(), example::PERSON_QUOTE.to_string())])]);
+    let hashes: HashMap<i64, String> = HashMap::from([(1, "ejemplo-1".to_string()), (2, "ejemplo-2".to_string())]);
+    let clusters = clusters(vocabulary, &rows, &identifiers, &hashes);
+    let address = term(&values, "domicilio");
+    let mut by_content: HashMap<i64, Vec<usize>> = HashMap::new();
+    for (i, cluster) in clusters.iter().enumerate() {
+        by_content.entry(cluster.content_id).or_default().push(i);
+    }
+    let context = Context {
+        documents: HashMap::from([(1, example::FILE.to_string()), (2, example::OTHER_FILE.to_string())]),
+        facts: HashMap::from([(1, vec![fact(&address, example::ADDRESS)]), (3, vec![fact(&address, example::ADDRESS)])]),
+        by_content,
+        identifiers,
+    };
+    let person_of = |content: i64| clusters.iter().position(|c| c.content_id == content && c.kind == PERSON).expect("an invented person");
+    let principal = describe(&rows, &clusters, &[person_of(1)], &context);
+    let candidate = describe(&rows, &clusters, &[person_of(2)], &context);
+    let asked = question(vocabulary, PERSON, &part(PRINCIPAL, &principal), &[part(CANDIDATE, &candidate)], 1, false);
+    (asked.prompt, asked.schema)
 }
 
 pub fn schema() -> serde_json::Value {

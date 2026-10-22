@@ -770,6 +770,80 @@ export function setAiServices(services: AiServices): Promise<AiServicesView> {
   return invoke<AiServicesView>("docbase_set_ai_services", { services })
 }
 
+// ── What is asked of the model (P-278, `docbase/questions.rs`) ──────────
+
+/** A piece of a question: the same in every case, or a value that changes in each case (`part` says which). */
+export interface QuestionSegment {
+  text: string
+  part: string | null
+}
+
+/** One text sent to the model, in order: the question, or the system text and the message of the chat. */
+export interface QuestionSent {
+  title: string
+  segments: QuestionSegment[]
+}
+
+/** A catalog a question is written with, and which one is in use. */
+export interface QuestionCatalog {
+  file: string
+  name: string
+  /** The one of the data folder (true) or the one that comes with the app. */
+  fromFolder: boolean
+  folderPath: string | null
+  /** A file in the data folder that is not in use (not valid, or put there after the app opened). */
+  unusedFile: boolean
+}
+
+export interface QuestionVersionCount {
+  version: string
+  count: number
+}
+
+/** A question the base or the chat asks the model. */
+export interface ModelQuestion {
+  id: string
+  name: string
+  purpose: string
+  when: string
+  note: string | null
+  /** Null: the question has no version. */
+  version: string | null
+  catalogs: QuestionCatalog[]
+  /** The service of the registry that answers it, and its engine. */
+  service: AiServiceId
+  engine: EngineChoice | null
+  /** Why it is not asked now, when it is not. */
+  engineNote: string | null
+  /** How it is built over an invented document, by the same functions as the reading. */
+  example: QuestionSent[]
+  noExample: string | null
+  /** The shape of the answer it asks for, as JSON. */
+  answerShape: string | null
+  /** The base keeps each one asked. */
+  kept: boolean
+  /** How many the base keeps of each version, the current one first. */
+  keptByVersion: QuestionVersionCount[]
+}
+
+/** The last question of its current version the base keeps; its text carries the text of the firm's documents. */
+export interface AskedQuestion {
+  version: string
+  engine: string
+  askedAt: number
+  prompt: string
+}
+
+/** Every question the base and the chat ask the model. Asks nothing. */
+export function listModelQuestions(): Promise<ModelQuestion[]> {
+  return invoke<ModelQuestion[]>("docbase_model_questions")
+}
+
+/** The last question `id` of its current version the base keeps, or null. */
+export function lastModelQuestion(id: string): Promise<AskedQuestion | null> {
+  return invoke<AskedQuestion | null>("docbase_model_question_last", { id })
+}
+
 /**
  * Asks the base to recognize the text of scans (P-242), with the automatic
  * reading on or off: these documents, every one waiting (`null`), or the

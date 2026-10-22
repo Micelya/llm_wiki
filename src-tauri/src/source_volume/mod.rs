@@ -20,3 +20,5 @@ pub mod recognized_store;
 mod recognition_codex;
 
 pub use provider::{LocalFolderProvider, SourceEntry, SourceProvider};
+/// What the recognition of scans asks about each image.
+pub(crate) use recognition_codex::PROMPT as RECOGNITION_PROMPT;

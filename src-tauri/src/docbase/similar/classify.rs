@@ -1496,6 +1496,61 @@ fn data_question(
     }))
 }
 
+/// The question about the type of the invented document of Ajustes
+/// (`questions.rs`), built by `type_prompt` as `type_question` builds it:
+/// the principal of a group with a copy that changes in one word, with the
+/// catalog in use and what people decided about the types the model
+/// proposed (in `conn`, when there is a base). `part` writes each value
+/// that changes in each case.
+pub(crate) fn example_type_question(
+    conn: Option<&Connection>,
+    part: crate::docbase::questions::Part,
+) -> Result<(String, serde_json::Value), String> {
+    use crate::docbase::questions::{example, FILE, GROUP, TEXT};
+    let catalog = types::catalog();
+    let decisions = match conn {
+        Some(conn) => read_type_decisions(conn)?,
+        None => TypeDecisions::default(),
+    };
+    let one_word = super::changes::Changes { removed_words: 1, added_words: 1, ..Default::default() };
+    let member = MemberView {
+        name: part(GROUP, example::COPY_FILE),
+        description: part(GROUP, &super::propose::describe("near-identical", 1.0, &one_word)),
+        marks: marks_text(catalog, &[]),
+    };
+    let prompt = type_prompt(catalog, &decisions, &part(FILE, example::FILE), &part(TEXT, example::TEXT), &[], &[member]);
+    Ok((prompt, type_schema()))
+}
+
+/// The question about the data of the invented document of Ajustes
+/// (`questions.rs`), built by `data_prompt` as `data_question` builds it:
+/// it is only asked for the required data of a type the rules do not find,
+/// so the type is the first of the catalog in use whose required data the
+/// rules do not find in the invented text (or, when they find them all, the
+/// first with required data, asking for them). None when no type of the
+/// catalog has required data.
+pub(crate) fn example_data_question(part: crate::docbase::questions::Part) -> Option<(String, serde_json::Value)> {
+    use crate::docbase::questions::{example, FILE, KNOWN, TEXT};
+    let catalog = types::catalog();
+    let with_required: Vec<&DocType> = catalog.document_types().filter(|t| t.data.iter().any(|d| d.required)).collect();
+    let missing_in = |t: &DocType| {
+        let rules = data_rules(catalog, Some(&t.id), &[]);
+        let (_, missing) = data::extract(&rules, example::TEXT, &[]);
+        rules.into_iter().filter(|r| missing.contains(&r.id)).collect::<Vec<&DataRule>>()
+    };
+    let (about, fields) = match with_required.iter().find(|t| !missing_in(t).is_empty()) {
+        Some(t) => (*t, missing_in(t)),
+        None => {
+            let t = *with_required.first()?;
+            (t, t.data.iter().filter(|d| d.required).collect())
+        }
+    };
+    // The type is what the base says of the document: it changes in each case.
+    let shown = DocType { id: part(KNOWN, &about.id), description: part(KNOWN, about.description.trim()), ..about.clone() };
+    let prompt = data_prompt(&shown, &fields, &part(FILE, example::FILE), &part(TEXT, example::TEXT));
+    Some((prompt, data_schema(&fields)))
+}
+
 pub(super) fn read_types(conn: &Connection, only: Option<i64>) -> Result<BTreeMap<i64, DocumentType>, String> {
     let mut statement = conn
         .prepare(

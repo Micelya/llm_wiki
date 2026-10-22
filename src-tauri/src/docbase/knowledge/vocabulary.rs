@@ -1075,10 +1075,17 @@ impl Vocabulary {
 }
 
 static INSTALLED: OnceLock<Vocabulary> = OnceLock::new();
+/// The file the vocabulary in use came from, when it is not the built-in.
+static INSTALLED_FROM: OnceLock<std::path::PathBuf> = OnceLock::new();
 
 /// The vocabulary in use: the one installed at start, or the built-in.
 pub fn vocabulary() -> &'static Vocabulary {
     INSTALLED.get_or_init(Vocabulary::builtin)
+}
+
+/// The file the vocabulary in use came from; none for the built-in one.
+pub fn installed_from() -> Option<&'static std::path::Path> {
+    INSTALLED_FROM.get().map(|p| p.as_path())
 }
 
 /// Uses the vocabulary in `path` instead of the built-in one, when the
@@ -1089,7 +1096,9 @@ pub fn install_from(path: &std::path::Path) {
     };
     match Vocabulary::parse(&text) {
         Ok(vocabulary) => {
-            let _ = INSTALLED.set(vocabulary);
+            if INSTALLED.set(vocabulary).is_ok() {
+                let _ = INSTALLED_FROM.set(path.to_path_buf());
+            }
         }
         Err(error) => eprintln!("[docbase] {}: {error}; using the built-in knowledge vocabulary", path.display()),
     }

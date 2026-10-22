@@ -32,6 +32,7 @@ use super::similar::types::RelationDef;
 use crate::source_volume::asking::{asker_for, AskConfig};
 use super::services::{AiServices, AiServicesView};
 use super::query::{Activity, DocumentDetail, DocumentFilter, DocumentPage, Health, LocationRef, OriginSummary};
+use super::questions::{AskedQuestion, ModelQuestion};
 use super::tree::FolderListing;
 use super::worker::{self, Wake};
 use super::{DocBase, Visible, PRIVATE_DB_FILE};
@@ -505,6 +506,24 @@ pub fn docbase_types_run(
 #[tauri::command(async)]
 pub fn docbase_ai_services(state: State<'_, DocBaseState>) -> Result<AiServicesView, String> {
     state.base()?.ai_services()
+}
+
+/// What the base and the chat ask the model (P-278): each question with its
+/// version, how it is built over an invented document, the catalogs it is
+/// written with and the engine that answers it. Asks nothing and writes
+/// nothing; without a base, the questions all the same.
+#[tauri::command(async)]
+pub fn docbase_model_questions(app: tauri::AppHandle, state: State<'_, DocBaseState>) -> Result<Vec<ModelQuestion>, String> {
+    // Where a catalog can be replaced (`start`).
+    let folder = app.path().app_data_dir().ok().map(|dir| dir.join("docbase"));
+    super::questions::model_questions(state.base().ok().map(|base| base.as_ref()), folder.as_deref())
+}
+
+/// The last question of its current version the base keeps, with its whole
+/// text: it carries the text of the documents it was about.
+#[tauri::command(async)]
+pub fn docbase_model_question_last(state: State<'_, DocBaseState>, id: String) -> Result<Option<AskedQuestion>, String> {
+    state.base()?.last_model_question(&id)
 }
 
 /// Saves the registry of the AI services: the next request uses it, and

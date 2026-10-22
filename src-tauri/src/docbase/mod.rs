@@ -28,6 +28,7 @@ pub mod labels;
 pub mod origins;
 pub mod progress;
 pub mod query;
+pub mod questions;
 pub mod recognize;
 pub mod search;
 pub mod services;
