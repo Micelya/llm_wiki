@@ -14,6 +14,8 @@ import { normalizeEndpoint } from "@/lib/endpoint-normalizer"
 import { AZURE_OPENAI_API_VERSION } from "@/lib/azure-openai"
 import { testLlmConnection, testLlmFunction, type ProviderTestResult } from "@/lib/connection-tests"
 import { normalizeReasoningForProvider, resolveReasoningCapabilities } from "@/lib/reasoning-capabilities"
+import { engineOfProvider, servicesAfterConnectionChange, servicesUsing } from "@/lib/ai-services"
+import { updateAiServices, useAiServicesStore } from "@/stores/ai-services-store"
 
 const HTTP_HEADER_NAME_RE = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/
 
@@ -45,8 +47,8 @@ export function LlmProviderSection() {
   const setActivePresetId = useWikiStore((s) => s.setActivePresetId)
   const setLlmConfig = useWikiStore((s) => s.setLlmConfig)
   const llmConfig = useWikiStore((s) => s.llmConfig)
-  const taskModelRouting = useWikiStore((s) => s.taskModelRouting)
   const setTaskModelRouting = useWikiStore((s) => s.setTaskModelRouting)
+  const services = useAiServicesStore((s) => s.services)
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [savedId, setSavedId] = useState<string | null>(null)
@@ -95,25 +97,48 @@ export function LlmProviderSection() {
         setLlmConfig(resolveConfig(preset, merged, llmConfig))
       }
     }
+    // The model and reasoning of the connection «Preguntar al modelo» uses
+    // go with it (the registry of AI services, D-443).
+    if (patch.model !== undefined || patch.codexReasoningEffort !== undefined) {
+      const change = {
+        model: patch.model !== undefined ? merged.model ?? "" : undefined,
+        codexReasoningEffort: patch.codexReasoningEffort,
+      }
+      updateAiServices((current) => servicesAfterConnectionChange(current, id, change)).catch((error) =>
+        console.error("Failed to save the AI services:", error),
+      )
+    }
     setSavedId(id)
     setTimeout(() => setSavedId((cur) => (cur === id ? null : cur)), 1500)
   }
 
+  /**
+   * Turning a connection on is choosing it for «Preguntar al modelo» (the
+   * registry of AI services, D-443); turning it off leaves the service
+   * without an engine.
+   */
   function toggleActive(id: string) {
     const state = useWikiStore.getState()
-    const next = id === state.activePresetId ? null : id
-    setActivePresetId(next)
-    persist(state.providerConfigs, next).catch(() => {})
-  }
-
-  async function updateTaskRouting(task: "chat" | "ingest", value: string) {
-    const next = {
-      ...taskModelRouting,
-      [task === "chat" ? "chatPresetId" : "ingestPresetId"]: value || null,
-    }
-    setTaskModelRouting(next)
-    const { saveTaskModelRouting } = await import("@/lib/project-store")
-    await saveTaskModelRouting(next)
+    const preset = findLlmPreset(id, state.customLlmPresets)
+    const current = useAiServicesStore.getState().services
+    const turningOff = current.ask.engine?.connection === id || (!current.ask.engine && id === state.activePresetId)
+    if (!preset && !turningOff) return
+    const override = state.providerConfigs[id] ?? {}
+    const engine = turningOff || !preset
+      ? null
+      : {
+          engine: engineOfProvider(preset.provider),
+          connection: id,
+          model: (override.model ?? preset.defaultModel ?? "").trim(),
+          reasoning: preset.provider === "codex-cli" ? codexReasoningEffort(override.codexReasoningEffort) : "",
+        }
+    updateAiServices((latest) => ({ ...latest, ask: { ...latest.ask, engine } })).catch((error) => {
+      console.error("Failed to save the AI services:", error)
+      // Without the base the choice still reaches the chat, as before.
+      const next = engine ? id : null
+      setActivePresetId(next)
+      persist(state.providerConfigs, next).catch(() => {})
+    })
   }
 
   async function addCustomPreset() {
@@ -145,6 +170,8 @@ export function LlmProviderSection() {
   async function deleteCustomPreset(id: string) {
     const state = useWikiStore.getState()
     if (state.activePresetId === id) return
+    // A connection a service uses stays (Ajustes → Servicios de IA).
+    if (servicesUsing(useAiServicesStore.getState().services, id).length > 0) return
     const nextPresets = state.customLlmPresets.filter((preset) => preset.id !== id)
     const { [id]: _removed, ...nextConfigs } = state.providerConfigs
     const nextRouting = {
@@ -165,35 +192,12 @@ export function LlmProviderSection() {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-semibold">{t("settings.sections.llm.title")}</h2>
+        <h2 className="text-xl font-semibold">Conexiones con modelos</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          {t("settings.sections.llm.description")}
-        </p>
-      </div>
-
-      <div className="grid gap-3 rounded-md border bg-muted/20 p-3 sm:grid-cols-2">
-        <TaskModelSelect
-          id="chat-task-model"
-          label={t("settings.sections.llm.taskRouting.chat")}
-          value={taskModelRouting.chatPresetId ?? ""}
-          onChange={(value) => void updateTaskRouting("chat", value).catch((error) => {
-            console.error("Failed to save chat model routing:", error)
-          })}
-          fallbackLabel={t("settings.sections.llm.taskRouting.activeDefault")}
-          presets={presets}
-        />
-        <TaskModelSelect
-          id="ingest-task-model"
-          label={t("settings.sections.llm.taskRouting.ingest")}
-          value={taskModelRouting.ingestPresetId ?? ""}
-          onChange={(value) => void updateTaskRouting("ingest", value).catch((error) => {
-            console.error("Failed to save ingest model routing:", error)
-          })}
-          fallbackLabel={t("settings.sections.llm.taskRouting.activeDefault")}
-          presets={presets}
-        />
-        <p className="text-xs text-muted-foreground sm:col-span-2">
-          {t("settings.sections.llm.taskRouting.hint")}
+          Los datos para conectarse con cada proveedor de modelos: su clave, su dirección, el modelo de siempre. Una
+          conexión la pueden usar varios servicios; cuál usa cada uno se elige en Ajustes → Servicios de IA. Activar
+          una acá es elegirla para «Preguntar al modelo». Las claves se guardan en el llavero del sistema, no en un
+          archivo.
         </p>
       </div>
 
@@ -218,6 +222,7 @@ export function LlmProviderSection() {
             isExpanded={!!expanded[preset.id]}
             savedHere={savedId === preset.id}
             onToggleActive={() => toggleActive(preset.id)}
+            usedBy={servicesUsing(services, preset.id)}
             onToggleExpand={() => toggleExpand(preset.id)}
             onChange={(patch) => updateOverride(preset.id, patch)}
             isUserCustom={preset.id.startsWith("custom-")}
@@ -230,37 +235,14 @@ export function LlmProviderSection() {
   )
 }
 
-function TaskModelSelect({
-  id,
-  label,
-  value,
-  onChange,
-  fallbackLabel,
-  presets,
-}: {
-  id: string
-  label: string
-  value: string
-  onChange: (value: string) => void
-  fallbackLabel: string
-  presets: LlmPreset[]
-}) {
-  return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id}>{label}</Label>
-      <select
-        id={id}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-      >
-        <option value="">{fallbackLabel}</option>
-        {presets.map((preset) => (
-          <option key={preset.id} value={preset.id}>{preset.label}</option>
-        ))}
-      </select>
-    </div>
-  )
+const SERVICE_WORDS: Record<string, string> = {
+  ask: "Preguntar al modelo",
+  recognize: "Reconocer escaneos",
+  research: "Investigar en internet",
+}
+
+function serviceWords(service: string): string {
+  return SERVICE_WORDS[service] ?? service
 }
 
 interface PresetRowProps {
@@ -270,6 +252,8 @@ interface PresetRowProps {
   isExpanded: boolean
   savedHere: boolean
   onToggleActive: () => void
+  /** The AI services that use this connection. */
+  usedBy: string[]
   onToggleExpand: () => void
   onChange: (patch: ProviderOverride) => void
   isUserCustom: boolean
@@ -289,6 +273,7 @@ function PresetRow({
   isExpanded,
   savedHere,
   onToggleActive,
+  usedBy,
   onToggleExpand,
   onChange,
   isUserCustom,
@@ -383,6 +368,9 @@ function PresetRow({
             )}
             {savedHere && (
               <span className="shrink-0 text-[10px] text-emerald-600">{t("settings.sections.llm.savedBadge")}</span>
+            )}
+            {usedBy.length > 0 && (
+              <span className="shrink-0 truncate text-[10px] text-muted-foreground">En uso: {usedBy.map(serviceWords).join(", ")}</span>
             )}
           </div>
           {preset.hint && (

@@ -2,7 +2,9 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { DocumentDetail, DocumentEntities, EntityDetail, KnowledgeArticle, MatterDetail } from "@/commands/docbase"
 import { DocumentDetailView } from "@/components/docbase/document-detail"
-import { useWikiStore } from "@/stores/wiki-store"
+import { useAiServicesStore } from "@/stores/ai-services-store"
+import { NO_SERVICES } from "@/lib/ai-services"
+import type { AiServices } from "@/commands/docbase"
 import { EntityDetailView } from "./entity-detail"
 import { MatterDetailView } from "./matters-view"
 
@@ -106,6 +108,8 @@ const DOCUMENT_ARTICLE = article(
 const DOCUMENT_ENTITIES: DocumentEntities = {
   contentId: 5,
   state: "done",
+  older: false,
+  reread: false,
   error: null,
   entities: [{ entityId: "ent-1", kind: "organizacion", name: "Inmobiliaria Ficticia SA", written: ["Inmobiliaria Ficticia SA"], roles: ["parte"], pagePath: null }],
   references: [],
@@ -196,11 +200,35 @@ describe("the screen of a document", () => {
     expect(article).toContain("Ver «Datos y correcciones»")
   })
 
+  it("is titled by its article, and the name of its file stays in its data (P-182)", () => {
+    base.answers["document-article"] = { ...DOCUMENT_ARTICLE, title: "Contrato de locación de Inmobiliaria Ficticia SA" }
+    const article = renderToStaticMarkup(<DocumentDetailView locationId={10} onBack={() => {}} />)
+    expect(article).toContain(">Contrato de locación de Inmobiliaria Ficticia SA</h1>")
+    expect(text(article)).not.toContain("Locación de ejemplo.pdf")
+    const data = text(renderToStaticMarkup(<DocumentDetailView locationId={10} onBack={() => {}} initialTab="data" />))
+    expect(data).toContain("Locación de ejemplo.pdf")
+  })
+
+  it("offers to ask the chat about the document, once it has its text (P-243)", () => {
+    const html = renderToStaticMarkup(<DocumentDetailView locationId={10} onBack={() => {}} />)
+    expect(html).toMatch(/<button[^>]*title="Abre el chat con este documento adjunto"[^>]*>.*?Preguntar al chat sobre este documento<\/button>/)
+    base.answers.document = documentDetail({ contentId: null, state: "unread", text: null })
+    const unread = renderToStaticMarkup(<DocumentDetailView locationId={10} onBack={() => {}} />)
+    expect(unread).toMatch(/<button[^>]*disabled=""[^>]*>.*?Preguntar al chat sobre este documento<\/button>/)
+  })
+
   it("says a file not read yet has no article", () => {
     base.answers.document = documentDetail({ contentId: null, state: "unread", text: null })
     const html = renderToStaticMarkup(<DocumentDetailView locationId={10} onBack={() => {}} initialTab="article" />)
     expect(text(html)).toContain("Este archivo todavía no se leyó: no tiene artículo.")
   })
+})
+
+
+/** The registry with «Reconocer escaneos» on Codex with this model (made up). */
+const recognizing = (model: string): AiServices => ({
+  ...NO_SERVICES,
+  recognize: { engine: { engine: "codex-cli", connection: "codex-cli", model, reasoning: "" }, alternative: null },
 })
 
 describe("the recognition of a scan, on the screen of its document (P-242)", () => {
@@ -210,7 +238,7 @@ describe("the recognition of a scan, on the screen of its document (P-242)", () 
   beforeEach(() => {
     base.answers["document-article"] = null
     base.answers["document-entities"] = { ...DOCUMENT_ENTITIES, entities: [], matters: [] }
-    useWikiStore.setState({ llmConfig: { ...useWikiStore.getState().llmConfig, provider: "codex-cli", model: "modelo-de-prueba" } })
+    useAiServicesStore.setState({ services: recognizing("modelo-de-prueba") })
   })
 
   it("offers «Reconocer el texto» first in «Datos y correcciones», with what it costs", () => {
@@ -233,7 +261,7 @@ describe("the recognition of a scan, on the screen of its document (P-242)", () 
   })
 
   it("says how to choose an engine when the model chosen cannot read images, and does not offer the button", () => {
-    useWikiStore.setState({ llmConfig: { ...useWikiStore.getState().llmConfig, provider: "openai" } })
+    useAiServicesStore.setState({ services: NO_SERVICES })
     base.answers.document = scan()
     const html = renderToStaticMarkup(<DocumentDetailView locationId={10} onBack={() => {}} initialTab="data" />)
     expect(text(html)).toContain("Falta elegir el motor que reconoce escaneos")
@@ -356,6 +384,20 @@ describe("the screen of a person or organization, on the same tabs", () => {
     expect(shown).toContain("Investigación en internet")
     expect(shown).toContain("Notas")
     expect(shown).not.toContain("Se escribe")
+  })
+
+  it("shows the quotes of its article as numbered notes, not as a list at its foot (D-441)", () => {
+    base.answers.article = article(
+      "ent-1",
+      "---\ntype: entity\n---\n\n# Ficticia SA\n\n## Lo que dicen los documentos\n\nTiene domicilio en Calle Inventada 100.[^1]\n\n[^1]: Domicilio: Calle Inventada 100 — «con domicilio en Calle Inventada 100» ([[contrato-de-prueba|Contrato de prueba.pdf]])\n",
+    )
+    const html = renderToStaticMarkup(<EntityDetailView id="ent-1" onBack={() => {}} />)
+    expect(html).toMatch(/<button[^>]*data-note="1"[^>]*>\[1\]<\/button>/)
+    const shown = text(html)
+    expect(shown).toContain("Tiene domicilio en Calle Inventada 100.")
+    // The quote shows when the number is touched, not before.
+    expect(shown).not.toContain("con domicilio en Calle Inventada 100")
+    expect(shown).not.toContain("[^1]")
   })
 
   it("keeps its data in «Datos y correcciones», now with the notes at the foot too", () => {

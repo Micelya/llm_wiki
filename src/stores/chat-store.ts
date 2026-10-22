@@ -2,6 +2,7 @@ import { create } from "zustand"
 import type { ChatMessage, ContentBlock } from "@/lib/llm-client"
 import i18n from "@/i18n"
 import type { ChatAgentFileChange, ChatAgentMode, ChatAgentStep, ChatRetrievalMode, ChatUserInputRequest } from "@/lib/chat-agent-types"
+import type { ChatDocument } from "@/lib/chat-documents"
 
 /**
  * An image attached to a user message. Field names mirror the
@@ -22,6 +23,8 @@ export interface Conversation {
   updatedAt: number
   selectedSkills?: string[]
   contextFiles?: string[]
+  /** Documents of the base attached to the conversation (P-243). */
+  contextDocuments?: ChatDocument[]
 }
 
 export interface MessageReference {
@@ -46,6 +49,7 @@ export interface DisplayMessage {
   userInputRequest?: ChatUserInputRequest  // dynamic schema-driven form requested by backend Agent
   images?: MessageImage[]  // images attached to a user message (vision input)
   contextFiles?: string[]  // absolute project files explicitly attached to this user turn
+  contextDocuments?: ChatDocument[]  // documents of the base attached to this user turn (P-243)
 }
 
 export interface ChatState {
@@ -61,6 +65,8 @@ export interface ChatState {
   retrievalMode: ChatRetrievalMode
   selectedSkills: string[]
   selectedContextFiles: string[]
+  /** Documents of the base attached to the open conversation (P-243). */
+  selectedContextDocuments: ChatDocument[]
   disabledSkills: string[]
 
   // Conversation management
@@ -71,7 +77,7 @@ export interface ChatState {
 
   // Message management
   addMessage: (role: DisplayMessage["role"], content: string, images?: MessageImage[]) => void
-  addMessageToConversation: (conversationId: string, role: DisplayMessage["role"], content: string, images?: MessageImage[], contextFiles?: string[]) => void
+  addMessageToConversation: (conversationId: string, role: DisplayMessage["role"], content: string, images?: MessageImage[], contextFiles?: string[], contextDocuments?: ChatDocument[]) => void
   setMessages: (messages: DisplayMessage[]) => void
   setConversations: (conversations: Conversation[]) => void
   setStreaming: (streaming: boolean) => void
@@ -86,6 +92,7 @@ export interface ChatState {
   setRetrievalMode: (mode: ChatRetrievalMode) => void
   setSelectedSkills: (skills: string[]) => void
   setSelectedContextFiles: (paths: string[]) => void
+  setSelectedContextDocuments: (documents: ChatDocument[]) => void
   setDisabledSkills: (skills: string[]) => void
   removeLastAssistantMessage: () => void  // for regenerate: remove last assistant reply
 
@@ -117,6 +124,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   retrievalMode: "standard",
   selectedSkills: [],
   selectedContextFiles: [],
+  selectedContextDocuments: [],
   disabledSkills: [],
 
   createConversation: () => {
@@ -129,6 +137,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       updatedAt: now,
       selectedSkills: [],
       contextFiles: [],
+      contextDocuments: [],
     }
     set((state) => ({
       conversations: [newConversation, ...state.conversations],
@@ -137,6 +146,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       streamingContent: "",
       selectedSkills: [],
       selectedContextFiles: [],
+      selectedContextDocuments: [],
     }))
     return id
   },
@@ -154,6 +164,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         activeConversationId: newActiveId,
         selectedSkills: remaining.find((conversation) => conversation.id === newActiveId)?.selectedSkills ?? [],
         selectedContextFiles: remaining.find((conversation) => conversation.id === newActiveId)?.contextFiles ?? [],
+        selectedContextDocuments: remaining.find((conversation) => conversation.id === newActiveId)?.contextDocuments ?? [],
       }
     }),
 
@@ -163,6 +174,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       streamingContent: "",
       selectedSkills: state.conversations.find((conversation) => conversation.id === id)?.selectedSkills ?? [],
       selectedContextFiles: state.conversations.find((conversation) => conversation.id === id)?.contextFiles ?? [],
+      selectedContextDocuments: state.conversations.find((conversation) => conversation.id === id)?.contextDocuments ?? [],
     })),
 
   renameConversation: (id, title) =>
@@ -178,7 +190,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     get().addMessageToConversation(activeConversationId, role, content, images)
   },
 
-  addMessageToConversation: (conversationId, role, content, images, contextFiles) =>
+  addMessageToConversation: (conversationId, role, content, images, contextFiles, contextDocuments) =>
     set((state) => {
       const { conversations } = state
       if (!conversations.some((conversation) => conversation.id === conversationId)) return state
@@ -191,6 +203,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         conversationId,
         ...(images && images.length > 0 ? { images } : {}),
         ...(contextFiles && contextFiles.length > 0 ? { contextFiles } : {}),
+        ...(contextDocuments && contextDocuments.length > 0 ? { contextDocuments } : {}),
       }
 
       // Auto-set title from first user message (first 50 chars)
@@ -230,6 +243,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       conversations,
       selectedSkills: conversations.find((conversation) => conversation.id === state.activeConversationId)?.selectedSkills ?? [],
       selectedContextFiles: conversations.find((conversation) => conversation.id === state.activeConversationId)?.contextFiles ?? [],
+      selectedContextDocuments: conversations.find((conversation) => conversation.id === state.activeConversationId)?.contextDocuments ?? [],
     })),
 
   setStreaming: (isStreaming) => set((state) => ({
@@ -336,6 +350,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
         ? state.conversations.map((conversation) =>
             conversation.id === state.activeConversationId
               ? { ...conversation, contextFiles: selectedContextFiles }
+              : conversation
+          )
+        : state.conversations,
+    })),
+
+  setSelectedContextDocuments: (selectedContextDocuments) =>
+    set((state) => ({
+      selectedContextDocuments,
+      conversations: state.activeConversationId
+        ? state.conversations.map((conversation) =>
+            conversation.id === state.activeConversationId
+              ? { ...conversation, contextDocuments: selectedContextDocuments }
               : conversation
           )
         : state.conversations,

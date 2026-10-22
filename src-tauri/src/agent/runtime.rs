@@ -195,6 +195,9 @@ impl AgentRuntime {
             },
         );
         let mut references = Vec::new();
+        // The documents of the base the user attached (P-243): read from
+        // the base, and cited among the references of the answer.
+        let attached = self.attach_documents(&request, &mut references, &mut tool_events, &mut events, &event_sink);
         let permission_policy = PermissionPolicy::api_default();
         let router = route_query(message, request.mode, &request.tools);
         let skills = load_project_skills(&self.project_path, &request.skills);
@@ -260,6 +263,7 @@ impl AgentRuntime {
                     events,
                     event_sink,
                     cancellation.as_ref(),
+                    attached,
                 )
                 .await;
         }
@@ -1153,6 +1157,7 @@ impl AgentRuntime {
                 references: &references,
                 retrieval_summary: &retrieval_summary,
                 explicit_files: &explicit_files,
+                documents: &attached,
             }),
             self.llm_config.as_ref(),
         );
@@ -1274,6 +1279,51 @@ impl AgentRuntime {
 }
 
 impl AgentRuntime {
+    /// The documents of the base attached to the turn, read from the base,
+    /// each one added to the references so the answer cites it; the
+    /// activity of the turn says how many were attached.
+    fn attach_documents(
+        &self,
+        request: &AgentChatRequest,
+        references: &mut Vec<AgentReference>,
+        tool_events: &mut Vec<AgentToolEvent>,
+        events: &mut Vec<AgentEvent>,
+        event_sink: &Option<AgentEventSink>,
+    ) -> Vec<super::base_tools::AttachedDocument> {
+        if request.context_documents.is_empty() {
+            return Vec::new();
+        }
+        let found = match self.base.as_deref() {
+            Some(base) => super::base_tools::attached_documents(base, &request.context_documents),
+            None => Err("the document base is not open".to_string()),
+        };
+        let (attached, status, detail) = match found {
+            Ok(attached) => {
+                let detail = format!(
+                    "{} of {} document(s) of the base attached",
+                    attached.len(),
+                    request.context_documents.len().min(super::base_tools::MAX_ATTACHED_DOCUMENTS)
+                );
+                let status = if attached.is_empty() { "failed" } else { "completed" };
+                (attached, status, detail)
+            }
+            Err(error) => (Vec::new(), "failed", format!("failed: {error}")),
+        };
+        for document in &attached {
+            if !references.iter().any(|r| r.path == document.path) {
+                references.push(super::base_tools::attached_reference(document));
+            }
+        }
+        tool_emit_event(
+            tool_events,
+            events,
+            event_sink,
+            AgentToolEvent { tool: "context.documents".to_string(), status: status.to_string(), detail: Some(detail.clone()) },
+        );
+        emit_event(events, event_sink, AgentEvent::tool_end("context.documents", Some(detail)));
+        attached
+    }
+
     #[allow(clippy::too_many_arguments)]
     async fn run_agent_loop(
         &self,
@@ -1289,6 +1339,7 @@ impl AgentRuntime {
         mut events: Vec<AgentEvent>,
         event_sink: Option<AgentEventSink>,
         cancellation: Option<&AgentCancellationToken>,
+        attached: Vec<super::base_tools::AttachedDocument>,
     ) -> Result<AgentChatResponse, String> {
         let config = self
             .llm_config
@@ -1426,6 +1477,7 @@ impl AgentRuntime {
                     // every iteration.
                     retrieval_summary: "",
                     explicit_files: &explicit_files,
+                    documents: &attached,
                 }),
                 self.llm_config.as_ref(),
             );
@@ -4065,6 +4117,38 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_document_attached_from_the_base_is_cited_among_the_references() {
+        let project = temp_project("attached-document");
+        let base = test_base();
+        let location: i64 = base
+            .as_ref()
+            .unwrap()
+            .conn()
+            .query_row("SELECT id FROM location LIMIT 1", [], |row| row.get(0))
+            .unwrap();
+        let runtime = AgentRuntime::new("project-1", project.to_string_lossy(), None, None, None).with_base(base);
+        let ask = |documents: Vec<i64>| AgentChatRequest {
+            message: "¿qué dice este documento?".to_string(),
+            session_id: Some("s1".to_string()),
+            tools: AgentToolOptions { wiki: true, web: false, anytxt: false },
+            context_documents: documents,
+            allow_empty_retrieval: true,
+            ..Default::default()
+        };
+        let response = runtime.run_once(ask(vec![location])).await.unwrap();
+        assert_eq!(response.references[0].path, "wiki/sources/contrato-prueba.md");
+        assert_eq!(response.references[0].kind, "document");
+        assert_eq!(response.references[0].snippet.as_deref(), Some("Adjuntado al mensaje · o1"));
+        let attached = response.tool_events.iter().find(|e| e.tool == "context.documents").unwrap();
+        assert_eq!((attached.status.as_str(), attached.detail.as_deref()), ("completed", Some("1 of 1 document(s) of the base attached")));
+
+        // A document no longer in the base is said, and the turn goes on.
+        let response = runtime.run_once(ask(vec![9_999])).await.unwrap();
+        let attached = response.tool_events.iter().find(|e| e.tool == "context.documents").unwrap();
+        assert_eq!(attached.status, "failed");
+    }
+
+    #[tokio::test]
     async fn unconfigured_generator_never_returns_router_diagnostics_as_an_answer() {
         let project = temp_project("no-generator-diagnostic");
         let runtime = AgentRuntime::new(
@@ -4735,6 +4819,7 @@ mod tests {
             references: &[],
             retrieval_summary: "",
             explicit_files: &[],
+            documents: &[],
         });
         assert!(!built.system.contains("generated overview evidence"));
         assert!(!built.system.contains("domain schema evidence"));

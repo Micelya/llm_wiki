@@ -30,6 +30,7 @@ pub mod progress;
 pub mod query;
 pub mod recognize;
 pub mod search;
+pub mod services;
 mod scan;
 mod schema;
 pub mod similar;
@@ -37,6 +38,7 @@ pub mod similar;
 pub(crate) mod testing;
 pub mod text;
 pub mod tree;
+pub mod work_origin;
 mod worker;
 
 use std::path::{Path, PathBuf};

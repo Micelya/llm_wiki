@@ -49,6 +49,8 @@ use crate::source_volume::asking::DocumentAsker;
 mod family;
 mod import;
 #[cfg(test)]
+mod check_rebuild;
+#[cfg(test)]
 mod check_retire;
 
 pub(crate) use family::document_title;
@@ -65,7 +67,7 @@ pub const SYNTHESIS_PROMPT: &str = "sintesis-3";
 /// Raised when a change in the program changes what a projection writes
 /// (which names have a page, what a block lists): every page is written
 /// again from the record, without asking more.
-const PROJECTION_VERSION: &str = "proyeccion-11";
+const PROJECTION_VERSION: &str = "proyeccion-12";
 /// The task its answers are kept under in `model_answer`.
 pub const TASK: &str = "synthesis";
 /// The words of the vocabulary (`pages.words`) a page is written with.
@@ -75,9 +77,8 @@ pub const WORDS: &[&str] = &[
     "saysNothing",
     "saysPending",
     "conflicts",
-    "references",
-    "saidList",
-    "saidOthers",
+    "saysMore",
+    "saysMoreOne",
     "documents",
     "withoutMatter",
     "related",
@@ -140,11 +141,11 @@ pub const WORDS: &[&str] = &[
     "doubtWhy-identity",
     "doubtWhy-attribution",
     "doubtWhy-states",
+    "doubtWhy-contradicted",
     "docSummary",
     "docKind",
     "docDate",
     "docPending",
-    "docQuote",
     "docAmounts",
     "docVersions",
     "docVersionsNote",
@@ -155,6 +156,9 @@ pub const WORDS: &[&str] = &[
     "docThis",
     "docProposed",
     "docJoined",
+    "docTitleFrom",
+    "docTitleTo",
+    "docTitleBetween",
 ];
 /// Claims of one entity described in its question; the rest are left
 /// out of the synthesis (the list of documents is always complete).
@@ -448,14 +452,18 @@ pub(crate) fn digit_runs(text: &str) -> BTreeSet<String> {
     out
 }
 
-/// Takes out references written by the model inside a sentence ("[2]").
+/// Takes out references written by the model inside a sentence ("[2]",
+/// "[^2]": the page numbers its notes itself).
 fn without_markers(text: &str) -> String {
     let mut out = String::new();
     let mut rest = text;
     while let Some(start) = rest.find('[') {
         let after = &rest[start + 1..];
         match after.find(']') {
-            Some(end) if !after[..end].is_empty() && after[..end].chars().all(|c| c.is_ascii_digit() || c == ',' || c == ' ') => {
+            Some(end)
+                if !after[..end].trim_start_matches('^').is_empty()
+                    && after[..end].trim_start_matches('^').chars().all(|c| c.is_ascii_digit() || c == ',' || c == ' ') =>
+            {
                 out.push_str(rest[..start].trim_end());
                 rest = &after[end + 1..];
             }
@@ -574,11 +582,12 @@ pub(crate) fn localized_dates(vocabulary: &Vocabulary, text: &str) -> String {
                 continue;
             }
         }
-        // "December 30, 2021"
+        // "December 30, 2021", also in the brackets of a form ("[JANUARY 1°, 2026]").
         if i + 2 < tokens.len() {
-            if let (Some(m), Some(d), Some((y, rest))) = (month_of(tokens[i]), day(tokens[i + 1]), year(tokens[i + 2])) {
+            let open: String = tokens[i].chars().take_while(|c| matches!(c, '[' | '(')).collect();
+            if let (Some(m), Some(d), Some((y, rest))) = (month_of(&tokens[i][open.len()..]), day(tokens[i + 1]), year(tokens[i + 2])) {
                 if tokens[i + 1].ends_with(',') || tokens[i + 1].chars().all(|c| c.is_ascii_alphanumeric()) {
-                    out.push(format!("{}{rest}", render(d, m, &y)));
+                    out.push(format!("{open}{}{rest}", render(d, m, &y)));
                     i += 3;
                     continue;
                 }
@@ -601,6 +610,126 @@ pub(crate) fn localized_dates(vocabulary: &Vocabulary, text: &str) -> String {
 /// A quote on one line, as a list item needs it.
 pub(crate) fn one_line(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// A date written with numbers and separators ("16.04.2026", "16/04/2026",
+/// "16-04-2026", "2026-04-16", "18/octubre/2024"), in the words of the
+/// pages; the day first unless it cannot be.
+fn separated_date(vocabulary: &Vocabulary, token: &str) -> Option<String> {
+    let words = &vocabulary.pages;
+    let months: Vec<&str> = words.word("months").split(',').map(str::trim).filter(|m| !m.is_empty()).collect();
+    let format = words.word("dateFormat");
+    if months.len() != 12 || !format.contains("{month}") {
+        return None;
+    }
+    let parts: Vec<&str> = token.split(['.', '/', '-']).map(str::trim).collect();
+    if parts.len() != 3 || parts.iter().any(|p| p.is_empty()) {
+        return None;
+    }
+    let digits = |p: &str| p.chars().all(|c| c.is_ascii_digit());
+    let number = |p: &str| p.parse::<u32>().unwrap_or(0);
+    // A month in words: the pages' or English, whole or its first three letters.
+    let month_word = |p: &str| -> Option<u32> {
+        let w = quote::words(p).join(" ");
+        let own = months.iter().position(|m| quote::words(m).join(" ") == w);
+        let english = ENGLISH_MONTHS.iter().position(|m| *m == w || (w.len() == 3 && m.starts_with(&w)));
+        own.or(english).map(|i| i as u32 + 1)
+    };
+    let (day, month, year) = if parts[0].len() == 4 && digits(parts[0]) {
+        (parts[2], parts[1], parts[0])
+    } else {
+        (parts[0], parts[1], parts[2])
+    };
+    if !digits(day) || !digits(year) || year.len() != 4 {
+        return None;
+    }
+    let mut month_number = if digits(month) { number(month) } else { month_word(month)? };
+    let mut day_number = number(day);
+    if month_number > 12 && day_number <= 12 {
+        std::mem::swap(&mut day_number, &mut month_number);
+    }
+    ((1..=31).contains(&day_number) && (1..=12).contains(&month_number))
+        .then(|| format.replace("{day}", &day_number.to_string()).replace("{month}", months[month_number as usize - 1]).replace("{year}", year))
+}
+
+/// Whether a word is a time of day ("17:06", "17:06:26").
+fn is_time(word: &str) -> bool {
+    word.contains(':') && word.chars().all(|c| c.is_ascii_digit() || c == ':')
+}
+
+/// A date as the pages write it (`dateFormat`, "16 de abril de 2026"),
+/// from the ways documents and readings write one: with numbers and
+/// separators (and a time after it, which stays), in English, or in
+/// capitals. Anything else stays as written.
+pub(crate) fn spelled_date(vocabulary: &Vocabulary, text: &str) -> String {
+    let text = one_line(text);
+    let (head, tail) = match text.split_once(' ') {
+        Some((head, tail)) => (head, Some(tail)),
+        None => (text.as_str(), None),
+    };
+    if let Some(date) = separated_date(vocabulary, head) {
+        match tail {
+            None => return date,
+            Some(time) if time.split(' ').all(is_time) => return format!("{date} {time}"),
+            Some(_) => {}
+        }
+    }
+    let local = localized_dates(vocabulary, &text);
+    // "12 DE JUNIO DE 2026", as a form writes it.
+    if local.chars().any(char::is_uppercase) && !local.chars().any(char::is_lowercase) {
+        return local.to_lowercase();
+    }
+    local
+}
+
+/// The date a title says (P-182): the spelled date without its time, when
+/// it starts with its day or its month; none for one written otherwise
+/// ("de octubre de 2024", what a reading kept of a longer date).
+pub(crate) fn title_date(vocabulary: &Vocabulary, text: &str) -> Option<String> {
+    let spelled = spelled_date(vocabulary, text);
+    let words: Vec<&str> = spelled.split(' ').filter(|w| !is_time(w)).collect();
+    let first = quote::words(words.first()?).join(" ");
+    let months: Vec<String> = vocabulary.pages.word("months").split(',').map(|m| quote::words(m).join(" ")).collect();
+    let starts = first.chars().next().is_some_and(|c| c.is_ascii_digit()) || months.contains(&first);
+    starts.then(|| words.join(" "))
+}
+
+/// The numbered notes of a page (D-441): the quotes its text rests on, each
+/// with its document, are notes `[^n]` where the text says them, written
+/// once at the end of the page (`[^n]: …`, the way markdown writes notes).
+/// The article shows the number and, when it is touched, the note; the
+/// same note is numbered once, in the order the text first names it.
+#[derive(Debug, Default)]
+pub(crate) struct Notes {
+    list: Vec<String>,
+}
+
+impl Notes {
+    /// The mark of a note where the text says it.
+    pub(crate) fn mark(&mut self, text: &str) -> String {
+        let text = one_line(text);
+        if text.is_empty() {
+            return String::new();
+        }
+        let number = match self.list.iter().position(|t| *t == text) {
+            Some(index) => index + 1,
+            None => {
+                self.list.push(text);
+                self.list.len()
+            }
+        };
+        format!("[^{number}]")
+    }
+
+    /// The notes, for the end of the page; nothing when there is none.
+    pub(crate) fn block(&self) -> String {
+        if self.list.is_empty() {
+            return String::new();
+        }
+        let mut out: String = self.list.iter().enumerate().map(|(i, text)| format!("[^{}]: {text}\n", i + 1)).collect();
+        out.push('\n');
+        out
+    }
 }
 
 /// Whether an entity has a page, by the rule of its type (D-196): it
@@ -1067,6 +1196,7 @@ fn synthesis_question(vocabulary: &Vocabulary, record: &Record, entity: &Entity,
                     "identity" => Some("no es seguro de quién se habla"),
                     "attribution" => Some("la cita nombra a otra persona u organización"),
                     "states" => Some("los documentos dicen estados distintos"),
+                    "contradicted" => Some("el mismo documento dice un estado civil que no corresponde"),
                     _ => None,
                 })
                 .collect();
@@ -1339,12 +1469,37 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
         out.push_str(&format!("{}: {}\n\n", words.word("groupOf"), list.join(" · ")));
     }
 
-    // What the documents say.
+    // What the documents say. Each sentence carries its notes: the claims
+    // it rests on, with their quotes and documents (D-441). What the
+    // synthesis did not use is in «Datos y correcciones», with its quote
+    // and its actions: the article says how many there are.
     let mut synthesis = None;
     let mut sentences = 0;
     let mut discarded = 0;
+    let mut notes = Notes::default();
     out.push_str(&format!("## {}\n\n", words.word("says")));
     let mut used: BTreeSet<usize> = BTreeSet::new();
+    // The note of a claim: what it says, how sure the record is of it, and
+    // each quote with its document.
+    let note_of = |index: usize| -> String {
+        let claim = &claims[index];
+        let quotes: Vec<String> = claim
+            .evidence
+            .iter()
+            .map(|(content, quote, page)| {
+                let at = page.map(|p| format!(", {} {p}", words.word("page"))).unwrap_or_default();
+                format!("«{}» ({}{at})", one_line(quote), document_link(record, *content))
+            })
+            .collect();
+        let time = claim.valid_from.as_deref().map(|t| format!(" ({})", localized_dates(vocabulary, &one_line(t)))).unwrap_or_default();
+        format!(
+            "{}: {}{time}{} — {}",
+            claim_label(vocabulary, record, claim),
+            localized_dates(vocabulary, &one_line(&object_text(record, claim))),
+            certainty_mark(vocabulary, claim),
+            quotes.join("; ")
+        )
+    };
     if claims.is_empty() {
         out.push_str(words.word("saysNothing"));
         out.push_str("\n\n");
@@ -1360,13 +1515,13 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
                     .iter()
                     .map(|(text, refs)| {
                         used.extend(refs.iter().copied());
-                        let numbers: Vec<String> = refs.iter().map(|r| (r + 1).to_string()).collect();
+                        let marks: String = refs.iter().map(|r| notes.mark(&note_of(*r))).collect();
                         // Never as a firm fact (D-322): a sentence that rests
                         // on a doubtful claim is marked, unless it says so.
                         let doubtful = refs.iter().any(|r| claims[*r].doubtful_beyond_conflict());
                         let said = text.to_lowercase().contains(&unsure.to_lowercase());
                         let mark = if doubtful && !said { format!(" *({unsure})*") } else { String::new() };
-                        format!("{}{mark} [{}]", localized_dates(vocabulary, text), numbers.join(", "))
+                        format!("{}{mark}{marks}", localized_dates(vocabulary, text))
                     })
                     .collect();
                 if lines.is_empty() {
@@ -1392,50 +1547,21 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
         if !conflicts.is_empty() {
             out.push_str(&format!("**{}**\n\n", words.word("conflicts")));
             for (predicate, indexes) in &conflicts {
-                let values: Vec<String> =
-                    indexes.iter().map(|i| format!("«{}» [{}]", localized_dates(vocabulary, &one_line(&object_text(record, &claims[*i]))), i + 1)).collect();
+                let values: Vec<String> = indexes
+                    .iter()
+                    .map(|i| format!("«{}»{}", localized_dates(vocabulary, &one_line(&object_text(record, &claims[*i]))), notes.mark(&note_of(*i))))
+                    .collect();
                 used.extend(indexes.iter().copied());
                 out.push_str(&format!("- {}: {}\n", vocabulary.predicate_label(predicate), values.join(" · ")));
             }
             out.push('\n');
         }
-        let reference = |index: usize| -> String {
-            let claim = &claims[index];
-            let quotes: Vec<String> = claim
-                .evidence
-                .iter()
-                .map(|(content, quote, page)| {
-                    let at = page.map(|p| format!(", {} {p}", words.word("page"))).unwrap_or_default();
-                    format!("«{}» ({}{at})", one_line(quote), document_link(record, *content))
-                })
-                .collect();
-            let time = claim.valid_from.as_deref().map(|t| format!(" ({})", localized_dates(vocabulary, &one_line(t)))).unwrap_or_default();
-            format!(
-                "- [{}] {}: {}{time}{} — {}\n",
-                index + 1,
-                claim_label(vocabulary, record, claim),
-                localized_dates(vocabulary, &one_line(&object_text(record, claim))),
-                certainty_mark(vocabulary, claim),
-                quotes.join("; ")
-            )
-        };
-        if !used.is_empty() {
-            out.push_str(&format!("### {}\n\n", words.word("references")));
-            for index in &used {
-                out.push_str(&reference(*index));
-            }
-            out.push('\n');
-        }
         // What the synthesis did not use, left out or could not be asked
-        // about is listed as it is, with its quote: nothing in the record
-        // goes missing from the page (D-236).
-        let unused: Vec<usize> = (0..claims.len()).filter(|i| !used.contains(i)).collect();
-        if !unused.is_empty() {
-            out.push_str(&format!("### {}\n\n", words.word(if used.is_empty() { "saidList" } else { "saidOthers" })));
-            for index in unused {
-                out.push_str(&reference(index));
-            }
-            out.push('\n');
+        // about: how many, and where they are (none goes missing, D-236).
+        let unused = (0..claims.len()).filter(|i| !used.contains(i)).count();
+        if !used.is_empty() && unused > 0 {
+            let more = if unused == 1 { words.word("saysMoreOne").to_string() } else { words.word("saysMore").replace("{n}", &unused.to_string()) };
+            out.push_str(&format!("{more}\n\n"));
         }
     }
 
@@ -1571,7 +1697,7 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
     if !ties.is_empty() {
         out.push_str(&format!("## {}\n\n", words.word("relations")));
         for ((label, other), quotes) in &ties {
-            out.push_str(&format!("- {label} {} — {}\n", name_of(other), quotes.join("; ")));
+            out.push_str(&format!("- {label} {}{}\n", name_of(other), notes.mark(&quotes.join("; "))));
         }
         out.push('\n');
     }
@@ -1585,6 +1711,7 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
         }
         out.push('\n');
     }
+    out.push_str(&notes.block());
     Rendered { text: out, synthesis, sentences, discarded }
 }
 
@@ -1979,7 +2106,9 @@ fn render_matter(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<Stri
         out.push('\n');
     }
 
-    // What its documents say of whom appears in them, with the quotes.
+    // What its documents say of whom appears in them, each with its note:
+    // the quotes and their documents (D-441).
+    let mut notes = Notes::default();
     let mut said: Vec<String> = Vec::new();
     for (entity, _, _) in &people {
         for claim in entity.claims.iter().filter(|c| !c.mirrored) {
@@ -2004,7 +2133,8 @@ fn render_matter(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<Stri
             };
             let conflict = if claim.state == "conflict" { format!(" ({})", words.word("conflicts").to_lowercase()) } else { String::new() };
             let mark = certainty_mark(vocabulary, claim);
-            said.push(format!("- {subject} — {}: {object}{conflict}{mark} — {}\n", claim_label(vocabulary, record, claim), quotes.join("; ")));
+            let note = notes.mark(&quotes.join("; "));
+            said.push(format!("- {subject} — {}: {object}{conflict}{mark}{note}\n", claim_label(vocabulary, record, claim)));
         }
     }
     if !said.is_empty() {
@@ -2042,39 +2172,17 @@ fn render_matter(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<Stri
         }
         out.push('\n');
     }
-    let mut why: Vec<String> = Vec::new();
-    for (content, reasons) in &matter.documents {
-        let mut by: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
-        for reason in reasons {
-            let text = match reason.kind.as_str() {
-                "persona" => words.word("matterByPerson").to_string(),
-                "documento" => format!("{} «{}»", words.word("matterSameDocument"), reason.value),
-                "asunto" => format!(
-                    "{} ({})",
-                    words.word("matterSameMatter"),
-                    record.entities.get(&reason.value).map(|e| one_line(&e.name)).unwrap_or_else(|| reason.value.clone())
-                ),
-                "numero" => format!("{} {}", words.word("matterSameNumber"), reason.value),
-                _ => format!("{} {}", words.word("matterSameAmount"), reason.value.replace('.', " ")),
-            };
-            by.entry(text).or_default().insert(document_link(record, reason.with));
+    // Why its documents go together, in one line: how many documents each
+    // kind of reason holds (D-268). Each document with its reasons is in
+    // «Datos y correcciones»: the documents are listed once (D-441).
+    let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
+    for reasons in matter.documents.values() {
+        let kinds: BTreeSet<&str> = reasons.iter().map(|r| r.kind.as_str()).collect();
+        for kind in kinds {
+            *counts.entry(kind).or_default() += 1;
         }
-        if by.is_empty() {
-            continue;
-        }
-        let parts: Vec<String> = by.into_iter().map(|(text, with)| format!("{text}: {}", with.into_iter().collect::<Vec<_>>().join(", "))).collect();
-        why.push(format!("- {} — {}\n", document_link(record, *content), parts.join("; ")));
     }
-    if !why.is_empty() {
-        // Summarized and folded (D-268): how many documents each kind of
-        // reason holds, and the detail under the fold.
-        let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
-        for reasons in matter.documents.values() {
-            let kinds: BTreeSet<&str> = reasons.iter().map(|r| r.kind.as_str()).collect();
-            for kind in kinds {
-                *counts.entry(kind).or_default() += 1;
-            }
-        }
+    if !counts.is_empty() {
         let label = |kind: &str| -> &str {
             match kind {
                 "persona" => words.word("matterByPerson"),
@@ -2086,16 +2194,13 @@ fn render_matter(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<Stri
         };
         let summary: Vec<String> = counts.iter().map(|(kind, n)| format!("{} ({n})", label(kind))).collect();
         out.push_str(&format!(
-            "> [!info]- {} — {}: {}\n",
+            "*{}* — {}: {}\n\n",
             words.word("matterWhy"),
             words.word("matterWhyMany").replace("{n}", &contents.len().to_string()),
             summary.join(", ")
         ));
-        for line in why {
-            out.push_str(&format!("> {line}"));
-        }
-        out.push('\n');
     }
+    out.push_str(&notes.block());
     Rendered { text: out, synthesis: None, sentences: 0, discarded: 0 }
 }
 
@@ -2349,7 +2454,7 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
     }
     // The documents and their versions (D-340), with the name of each of
     // their files; a copy a person passed over is named by the one chosen.
-    let families = family::families(base, vocabulary)?;
+    let mut families = family::families(base, vocabulary)?;
     let identities: HashMap<i64, String> = {
         let passed = passed_over(&base.conn())?;
         families
@@ -2375,6 +2480,8 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
         report.reason = Some("unchanged".into());
         return Ok(());
     }
+    // The readable title of each document's page (P-182).
+    families.titles = family::titles(&base.conn(), vocabulary, &record, &families)?;
 
     // Which entities have a page, and where.
     let folder = vocabulary.pages.folder().to_string();
@@ -2634,6 +2741,20 @@ mod page_rule_tests {
             entity.documents.entry(*content).or_default().insert(role.to_string());
         }
         entity
+    }
+
+    #[test]
+    fn a_note_is_numbered_once_in_the_order_the_text_names_it() {
+        let mut notes = Notes::default();
+        assert_eq!(notes.mark("«uno» (a)"), "[^1]");
+        assert_eq!(notes.mark("«dos»\n (b)"), "[^2]");
+        assert_eq!(notes.mark("«uno»  (a)"), "[^1]");
+        assert_eq!(notes.mark("  "), "");
+        assert_eq!(notes.block(), "[^1]: «uno» (a)\n[^2]: «dos» (b)\n\n");
+        assert_eq!(Notes::default().block(), "");
+        // What the model writes as a reference goes: the page numbers its notes.
+        assert_eq!(without_markers("Vive en Calle Uno 100. [2] Tiene [^3] un dato [1, 2]."), "Vive en Calle Uno 100. Tiene un dato.");
+        assert_eq!(without_markers("Ver [nota] y [^a]."), "Ver [nota] y [^a].");
     }
 
     #[test]

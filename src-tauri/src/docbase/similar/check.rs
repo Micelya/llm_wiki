@@ -488,6 +488,9 @@ const GENERIC: &[&str] = &[
     "link", "calle", "social", "nro", "inscripcion", "tribunal", "juzgado", "declara", "presentacion", "letrado",
     "inicia", "despacho", "remision", "pase", "notificado", "notifica", "efecto", "destino", "tasa", "resuelva",
     "ordene", "informe", "herederos", "externo", "contable", "admite", "adjunta",
+    // Words of a succession (22 oct: the sheet of a judicial file), which the
+    // vocabulary of kinship and inheritance uses.
+    "causante", "matrimonio", "oficio", "derecho", "sucesion", "sucesorio", "declaratoria",
 ];
 
 /// Words the program uses for its own reasons that a case happens to share:
@@ -496,6 +499,22 @@ const GENERIC: &[&str] = &[
 /// project, and a letter of the Greek alphabet. They say nothing about a
 /// case.
 const NOT_OF_CASES: &[&str] = &["google", "luna", "tea", "foundation", "grant", "iota"];
+
+/// Words of the names of public bodies (courts, registries, the official
+/// gazette, public banks, the bar), common words of the trade: an
+/// organization of a sheet without a legal form named only with them (and
+/// with numbers) is vocabulary, not a case. A person or a company is
+/// always a case.
+const PUBLIC_BODY_WORDS: &[&str] = &[
+    "juzgado", "juzgados", "nacional", "nacion", "primera", "instancia", "inst", "1ra", "civil", "comercial", "fuero", "colegio",
+    "publico", "publica", "publicos", "abogados", "capital", "federal", "archivo", "general", "poder", "judicial", "registro", "reg",
+    "estado", "capacidad", "personas", "buenos", "aires", "ciudad", "autonoma", "camara", "apelaciones", "ministerio", "fiscal",
+    "fiscalia", "agente", "propiedad", "inmueble", "horizontal", "juicios", "universales", "csj", "boletin", "oficial", "republica",
+    "argentina", "automotor", "seccional", "secc", "departamento", "dpto", "policia", "division", "delegaciones", "administracion",
+    "gubernamental", "ingresos", "direccion", "rentas", "escribanos", "actos", "ultima", "voluntad", "banco", "bancociudad", "consejo",
+    "profesional", "ciencias", "economicas", "sistema", "integrado", "previsional", "inspeccion", "justicia", "corte", "suprema",
+    "cpacf", "cpce", "agip", "gcba", "igj", "sipa", "informe", "testamento", "nac", "nro",
+];
 
 /// Words in a text, normalized as everywhere else.
 fn tokens(text: &str) -> Vec<String> {
@@ -521,12 +540,11 @@ fn generic_words(catalog: &Catalog) -> BTreeSet<String> {
     generic
 }
 
-fn case_terms(
-    answers: &Answers,
-    entities: Option<&crate::docbase::knowledge::check::Sheet>,
-    catalog: &Catalog,
-) -> BTreeMap<String, String> {
-    let generic = generic_words(catalog);
+fn case_terms(answers: &Answers, entities: &[crate::docbase::knowledge::check::Sheet], catalog: &Catalog) -> BTreeMap<String, String> {
+    // A word of a file name that is a common word of the names of public
+    // bodies (a court, a registry) says nothing of a case either.
+    let mut generic = generic_words(catalog);
+    generic.extend(PUBLIC_BODY_WORDS.iter().map(|w| w.to_string()));
     let mut names: Vec<String> = Vec::new();
     for pair in &answers.pairs {
         names.push(pair.a.clone());
@@ -534,7 +552,7 @@ fn case_terms(
     }
     names.extend(answers.documents.iter().map(|d| d.path.clone()));
     // Of an identifier, only its numbers: its words ("number") are generic.
-    for entity in entities.map(|s| s.entities.as_slice()).unwrap_or_default() {
+    for entity in entities.iter().flat_map(|s| s.entities.iter()) {
         for identifier in &entity.identifiers {
             names.extend(tokens(&identifier.value).into_iter().filter(|w| w.chars().any(|c| c.is_ascii_digit())));
         }
@@ -581,14 +599,24 @@ fn case_terms(
 /// The names of people and organizations of the entity sheet, as phrases
 /// of two words or more with one that is not generic: a single word of a
 /// name is often an ordinary word (a plan, a city), a whole name is not.
-fn entity_phrases(entities: &crate::docbase::knowledge::check::Sheet, catalog: &Catalog) -> BTreeMap<String, String> {
+fn entity_phrases(sheets: &[crate::docbase::knowledge::check::Sheet], catalog: &Catalog) -> BTreeMap<String, String> {
     let generic = generic_words(catalog);
+    let vocabulary = crate::docbase::knowledge::vocabulary::vocabulary();
     let mut phrases = BTreeMap::new();
-    for entity in entities.entities.iter().filter(|e| e.kind != "asunto") {
-        let names = std::iter::once(&entity.name).chain(&entity.aliases).chain(entity.mentions.iter().map(|m| &m.as_written));
+    for entity in sheets.iter().flat_map(|s| s.entities.iter()).filter(|e| e.kind != "asunto") {
+        let names: Vec<&String> =
+            std::iter::once(&entity.name).chain(&entity.aliases).chain(entity.mentions.iter().map(|m| &m.as_written)).collect();
+        // A public body (an organization without a legal form) is named with
+        // the common words of the trade too.
+        let public_body = entity.kind == "organizacion"
+            && names.iter().all(|n| crate::docbase::knowledge::names::key(vocabulary, "organizacion", n).form.is_none());
+        let common = |w: &String| generic.contains(w) || (public_body && PUBLIC_BODY_WORDS.contains(&w.as_str()));
         for name in names {
             let words = tokens(name);
-            if words.len() >= 2 && words.iter().any(|w| w.len() >= 3 && !generic.contains(w)) {
+            // Of a public body, its numbers (of a court, of a section) are
+            // not a case either.
+            let counts = |w: &String| w.len() >= 3 && !common(w) && !(public_body && w.chars().all(|c| c.is_ascii_digit()));
+            if words.len() >= 2 && words.iter().any(counts) {
                 phrases.entry(format!(" {} ", words.join(" "))).or_insert_with(|| entity.id.clone());
             }
         }
@@ -617,12 +645,15 @@ fn no_case_of_the_answer_sheet_is_in_the_program() {
         return;
     };
     let catalog = Catalog::builtin();
-    let entities = crate::docbase::knowledge::check::sheet();
-    if entities.is_none() {
-        println!("MICELYA_ENTITY_ANSWERS is not set or not readable: the entity sheet is not checked");
+    // Every entity sheet (MICELYA_ENTITY_ANSWERS names one or several,
+    // separated by `;`).
+    let entities = crate::docbase::knowledge::check::sheets();
+    if entities.is_empty() {
+        println!("MICELYA_ENTITY_ANSWERS is not set or not readable: the entity sheets are not checked");
     }
-    let terms = case_terms(&answers, entities.as_ref(), &catalog);
-    let phrases = entities.as_ref().map(|e| entity_phrases(e, &catalog)).unwrap_or_default();
+    println!("entity sheets read: {}", entities.len());
+    let terms = case_terms(&answers, &entities, &catalog);
+    let phrases = entity_phrases(&entities, &catalog);
     println!(
         "case terms looked for: {}: {}",
         terms.len(),

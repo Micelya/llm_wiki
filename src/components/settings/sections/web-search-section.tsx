@@ -12,6 +12,7 @@ import {
   type SearchProviderOverride,
 } from "@/stores/wiki-store"
 import { normalizeAnyTxtConfig } from "@/lib/anytxt-search"
+import { updateAiServices } from "@/stores/ai-services-store"
 import {
   SEARXNG_CATEGORY_OPTIONS,
   SERPAPI_ENGINE_OPTIONS,
@@ -109,9 +110,18 @@ export function WebSearchSection() {
     setTimeout(() => setSavedId((cur) => (cur === id ? null : cur)), 1500)
   }
 
+  /**
+   * Turning a search provider on is choosing it for «Investigar en
+   * internet» (the registry of AI services, D-443).
+   */
   function toggleActive(id: Exclude<SearchProvider, "none">) {
     const nextProvider = resolvedConfig.provider === id ? "none" : id
-    persist(resolveSearchConfig({ ...resolvedConfig, provider: nextProvider })).catch(() => {})
+    const engine = nextProvider === "none" ? null : { engine: nextProvider, connection: nextProvider, model: "", reasoning: "" }
+    updateAiServices((current) => ({ ...current, research: { ...current.research, engine } })).catch((error) => {
+      console.error("Failed to save the AI services:", error)
+      // Without the base the choice still reaches the research, as before.
+      persist(resolveSearchConfig({ ...resolvedConfig, provider: nextProvider })).catch(() => {})
+    })
   }
 
   async function testProvider(id: Exclude<SearchProvider, "none">) {

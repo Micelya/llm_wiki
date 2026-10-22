@@ -45,20 +45,37 @@ export function useDocbaseQuery<T>(key: string, run: () => Promise<T>): DocbaseQ
   useEffect(() => {
     setLoading(true)
     reload()
-    let disposed = false
-    let unlisten: (() => void) | null = null
-    onDocbaseChanged(reload)
-      .then((stop) => {
-        if (disposed) stop()
-        else unlisten = stop
-      })
-      .catch(() => {})
+    const subscription = onDocbaseChanged(reload)
     return () => {
-      disposed = true
       latest.current++
-      unlisten?.()
+      stopListening(subscription)
     }
   }, [key, reload])
 
   return { data, error, loading, reload }
+}
+
+/**
+ * Stops listening to an event of the app once the subscription is in
+ * place. Tauri answers `listen` before the page has registered the
+ * listener, so a stop that comes right away (a screen that mounts and
+ * unmounts at once, as React does twice in development) fails with
+ * «Cannot read properties of undefined (reading 'handlerId')» and leaves
+ * the listener behind: it is tried again a moment later, a few times.
+ */
+export function stopListening(subscription: Promise<() => unknown>, tries = 5, pause = 50): void {
+  subscription.then(
+    (stop) => {
+      const attempt = (left: number) => {
+        Promise.resolve()
+          .then(stop)
+          .catch(() => {
+            if (left > 1) setTimeout(() => attempt(left - 1), pause)
+          })
+      }
+      attempt(tries)
+    },
+    // It never listened: there is nothing to stop.
+    () => {},
+  )
 }

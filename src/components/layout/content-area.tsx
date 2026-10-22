@@ -13,6 +13,7 @@ import { DocumentTypesReview } from "@/components/docbase/document-types-review"
 import { EntitiesView } from "@/components/knowledge/entities-view"
 import { IdentityDoubtsView } from "@/components/knowledge/doubts-view"
 import { MattersView } from "@/components/knowledge/matters-view"
+import { PortalsView } from "@/components/portals/portals-view"
 
 export function ContentArea() {
   const activeView = useWikiStore((s) => s.activeView)
@@ -43,6 +44,8 @@ export function ContentArea() {
       return <IdentityDoubtsView />
     case "matters":
       return <MattersView />
+    case "portals":
+      return <PortalsView />
     case "home":
     default:
       return <HomeView />

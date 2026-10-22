@@ -6,6 +6,7 @@ import { plural } from "@/components/docbase/format"
 import { useDocbaseQuery } from "@/components/docbase/use-docbase-query"
 import { rolesInWords } from "./knowledge"
 import { AddToMatter } from "./matter-edit"
+import { ReadAgainButton } from "./read-again"
 import { Section, useAction, useOpenEntity, useOpenMatter } from "./shared"
 
 /**
@@ -21,12 +22,27 @@ export function DocumentEntitiesSection({ locationId }: { locationId: number }) 
   const data = found.data
   if (!data || data.contentId === null) return null
   const title = `${words.knowledge.entities} (${data.entities.length})`
+  const read = data.state !== "pending" || data.reread
   return (
-    <Section title={title}>
-      {data.state === "pending" || data.state === "stale" ? (
+    <Section
+      title={title}
+      action={read && !data.reread ? <ReadAgainButton target={{ locationId }} onDone={found.reload} /> : undefined}
+    >
+      {data.reread && (
+        <p className="mb-2 text-sm text-muted-foreground">
+          Pediste volver a leerlo con el modelo: se lee de nuevo primero que el resto. Hasta entonces queda la lectura que tiene.
+        </p>
+      )}
+      {data.older && !data.reread && data.state === "done" && (
+        <p className="mb-2 text-xs text-muted-foreground">
+          Se leyó con una versión anterior de la lectura. Sigue valiendo y se controla con las reglas de ahora; para leerlo
+          de nuevo con la versión actual, usá «Volver a leer con el modelo».
+        </p>
+      )}
+      {(data.state === "pending" || data.state === "stale") && !data.reread ? (
         <p className="text-sm text-muted-foreground">
-          {data.state === "pending" ? "Todavía no se leyó" : "Su texto cambió y se va a volver a leer"}: se lee mientras la
-          lectura automática está activa.
+          {data.state === "pending" ? "Todavía no se leyó" : "Se va a volver a leer porque cambió su texto o falló su lectura"}:
+          se lee mientras la lectura automática está activa.
         </p>
       ) : data.state === "failed" ? (
         <p className="text-sm text-muted-foreground">

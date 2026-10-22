@@ -273,6 +273,10 @@ pub struct DocumentEntities {
     pub content_id: Option<i64>,
     /// "done", "failed", "stale" or "pending".
     pub state: String,
+    /// Read with an earlier version of the instructions (D-432).
+    pub older: bool,
+    /// A person asked to read it again, and it waits for it.
+    pub reread: bool,
     pub error: Option<String>,
     pub entities: Vec<DocumentEntity>,
     /// The record numbers, files and acts it refers to: data of the
@@ -844,6 +848,8 @@ impl DocBase {
         let mut out = DocumentEntities {
             content_id: known.content_id,
             state: known.state.clone(),
+            older: known.older,
+            reread: known.reread,
             error: known.error.clone(),
             entities: Vec::new(),
             references: Vec::new(),

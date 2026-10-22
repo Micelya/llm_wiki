@@ -126,46 +126,70 @@ pub struct Prepared {
     pub raws: Vec<Raw>,
 }
 
+/// What separates a token of the text from the one before it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Gap {
+    Space,
+    /// Another line of the same paragraph.
+    Line,
+    /// A blank line or a new page: another block of text.
+    Paragraph,
+}
+
+/// Calls `token` with each whitespace-separated token of the text that
+/// takes part in the comparison (without the pages in `skip` and the
+/// lines that hold one of `drop`), as written, and what separates it from
+/// the one before. `Prepared::new` and the templates read the text this
+/// same way, so their tokens are the same.
+pub fn walk<'a>(pages: &[Vec<&'a str>], skip: &[usize], drop: &[String], mut token: impl FnMut(&'a str, Gap)) {
+    let mut gap = Gap::Paragraph;
+    for (index, page) in pages.iter().enumerate() {
+        if skip.contains(&index) {
+            continue;
+        }
+        for line in page {
+            if line.trim().is_empty() {
+                gap = Gap::Paragraph;
+                continue;
+            }
+            if !drop.is_empty() {
+                let line_text = padded(line);
+                if drop.iter().any(|phrase| line_text.contains(phrase.as_str())) {
+                    continue;
+                }
+            }
+            for raw in line.split_whitespace() {
+                token(raw, gap);
+                gap = Gap::Space;
+            }
+            gap = Gap::Line;
+        }
+        // A new page usually starts a new block of text.
+        gap = Gap::Paragraph;
+    }
+}
+
 impl Prepared {
     /// Builds it from the pages of a text, without the pages in `skip`
     /// and without the lines that hold one of `drop` (normalized, padded
     /// phrases).
     pub fn new(pages: &[Vec<&str>], skip: &[usize], drop: &[String]) -> Self {
         let mut prepared = Prepared::default();
-        let mut next_starts = true;
-        for (index, page) in pages.iter().enumerate() {
-            if skip.contains(&index) {
-                continue;
-            }
-            for line in page {
-                if line.trim().is_empty() {
-                    next_starts = true;
-                    continue;
-                }
-                if !drop.is_empty() {
-                    let line_text = padded(line);
-                    if drop.iter().any(|phrase| line_text.contains(phrase.as_str())) {
-                        continue;
-                    }
-                }
-                for raw in line.split_whitespace() {
-                    let raw_index = prepared.raws.len();
-                    prepared.raws.push(Raw {
-                        text: trim_token(raw).to_string(),
-                        sentence_start: next_starts,
-                    });
-                    each_word(raw, |word, _| {
-                        prepared.words.push(Word {
-                            key: word.to_string(),
-                            raw: raw_index,
-                        })
-                    });
-                    next_starts = ends_sentence(raw);
-                }
-            }
-            // A new page usually starts a new block of text.
-            next_starts = true;
-        }
+        let mut sentence_ended = true;
+        walk(pages, skip, drop, |raw, gap| {
+            let raw_index = prepared.raws.len();
+            prepared.raws.push(Raw {
+                text: trim_token(raw).to_string(),
+                sentence_start: gap == Gap::Paragraph || sentence_ended,
+            });
+            each_word(raw, |word, _| {
+                prepared.words.push(Word {
+                    key: word.to_string(),
+                    raw: raw_index,
+                })
+            });
+            sentence_ended = ends_sentence(raw);
+        });
         prepared
     }
 

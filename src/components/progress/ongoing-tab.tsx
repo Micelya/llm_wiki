@@ -28,7 +28,7 @@ import { formatCount } from "@/components/docbase/format"
 import { useDocbaseQuery } from "@/components/docbase/use-docbase-query"
 import { useRecognize, useRecognitionEngine, type Recognize } from "@/components/docbase/recognition"
 import { useProgressStore } from "@/stores/progress-store"
-import { useProgress } from "./use-progress"
+import { ReadAgainButton as ReadAgainWithModel } from "@/components/knowledge/read-again"
 
 /** Things listed when a stage is opened; the rest are counted. */
 export const STAGE_ITEMS = 50
@@ -38,12 +38,13 @@ export const STAGE_ITEMS = 50
  * processing, done and to do, in the order they happen; each one opens
  * into its documents with a button to open each. Above, whether the
  * automatic reading is on, and the origin or folder it is narrowed to.
- * `extra` is what other parts of the app raise as in progress.
+ * `progress` is of that origin or folder (the attention view asks for it,
+ * so the figure of the tab and the tab say the same); `extra` is what
+ * other parts of the app raise as in progress.
  */
-export function OngoingTab({ extra }: { extra?: ReactNode }) {
+export function OngoingTab({ progress, error, extra }: { progress: Progress | null; error: string | null; extra?: ReactNode }) {
   const scope = useAttentionViewStore((s) => s.scope)
   const setScope = useAttentionViewStore((s) => s.setScope)
-  const { progress, error } = useProgress(scope)
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3">
@@ -69,7 +70,7 @@ function ReadingState({ progress }: { progress: Progress | null }) {
       </div>
       <p className="text-xs text-muted-foreground">
         {progress && !progress.engineChosen
-          ? "Falta elegir un modelo en Ajustes: sin él, las etapas que usan el modelo no avanzan."
+          ? "Falta elegir el motor de «Preguntar al modelo» en Ajustes → Servicios de IA: sin él, las etapas que usan el modelo no avanzan."
           : on
             ? "Las etapas que usan el modelo avanzan solas."
             : "Las etapas que usan el modelo esperan hasta que la actives."}
@@ -182,6 +183,7 @@ export function StageLine({
   const scans = stage.id === "recognition"
   const recognitionEngine = useRecognitionEngine()
   const recognize = useRecognize()
+  const refresh = useProgressStore((s) => s.refresh)
   const [open, setOpen] = useState(initialOpen)
   const [items, setItems] = useState<StageItems | null>(initialItems)
   const [problem, setProblem] = useState<string | null>(null)
@@ -260,7 +262,7 @@ export function StageLine({
                   : "En pausa: la lectura automática está apagada. Podés reconocerlos a pedido, todos o de a uno."
                 : engineChosen
                   ? "En pausa: sigue cuando actives la lectura automática."
-                  : "En pausa: falta elegir un modelo en Ajustes."}
+                  : "En pausa: falta elegir el motor de «Preguntar al modelo» en Ajustes → Servicios de IA."}
             </p>
           )}
           {scans && stage.state === "running" && !backgroundReading && (
@@ -271,6 +273,14 @@ export function StageLine({
           {stage.error && <ModelErrorNote stage={stage} />}
         </div>
         {stage.id === "reading" && stage.failed > 0 && <ReadAgainButton onProblem={setProblem} />}
+        {/* Reading again with the model what was read, over the scope chosen above (D-432). */}
+        {stage.id === "reading" && stage.done > 0 && (
+          <ReadAgainWithModel
+            target={scope.originId ? { originId: scope.originId, folder: scope.folder ?? null } : {}}
+            label={scope.originId ? (scope.folder ? "Volver a leer esta carpeta" : "Volver a leer este origen") : "Volver a leer todo"}
+            onDone={refresh}
+          />
+        )}
         {scans && <RecognizeButtons stage={stage} recognize={recognize} engine={recognitionEngine.id} />}
       </div>
       {(problem || (scans && recognize.problem)) && (

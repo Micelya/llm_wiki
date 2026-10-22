@@ -69,18 +69,6 @@ pub fn marker(engine_id: &str) -> String {
     format!("<!-- texto-reconocido motor=\"{engine_id}\" -->")
 }
 
-/// Where recognized pages of `source` were kept before they moved to
-/// the recognized store: next to its extracted-text cache, addressed by
-/// the path the app asked for. Only read now, to take that text over.
-pub fn page_cache_dir(requested_source: &Path) -> PathBuf {
-    let parent = requested_source.parent().unwrap_or(Path::new("."));
-    let name = requested_source
-        .file_name()
-        .unwrap_or_default()
-        .to_string_lossy();
-    parent.join(".cache").join(format!("{name}.recognized"))
-}
-
 /// Text of a standalone image source. An image already read is not read
 /// again.
 pub fn recognize_image_source(
@@ -410,14 +398,6 @@ mod tests {
         assert!(recognizer_for(&config).is_err());
         let codex = RecognitionConfig { engine: "codex-cli".to_string(), model: "m".to_string() };
         assert_eq!(engine_id(&codex).unwrap(), "codex-cli:m");
-    }
-
-    #[test]
-    fn page_cache_lives_beside_the_text_cache_of_the_requested_path() {
-        assert_eq!(
-            page_cache_dir(Path::new("/p/raw/sources/Docs/a b.pdf")),
-            Path::new("/p/raw/sources/Docs/.cache/a b.pdf.recognized")
-        );
     }
 
     #[test]

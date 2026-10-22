@@ -27,6 +27,14 @@ pub const STAGES: [&str; 9] = ["origins", "text", "recognition", "similar", "typ
 /// (`worker::ask_step`); they run only while the automatic reading is on.
 pub const MODEL_STAGES: [&str; 5] = ["types", "reading", "resolve", "matters", "pages"];
 
+/// The stages whose work left the base cannot count by itself: the
+/// matters the model proposes and the pages it writes depend on all the
+/// stages before, and how many questions they have left is known only
+/// when the engine goes through them. Until the engine's first pass
+/// through each since the app opened, it is not shown as done: it waits
+/// for that first pass (D-452).
+pub const FIRST_LAP_STAGES: [&str; 2] = ["matters", "pages"];
+
 /// The stage a question to the model belongs to, by its task.
 pub fn stage_of_task(task: &str) -> &'static str {
     match task {
@@ -123,9 +131,9 @@ pub(crate) struct EngineNow {
     pub left: BTreeMap<&'static str, usize>,
     pub last_error: Option<ModelError>,
     /// The document whose text is being recognized now (`recognize.rs`).
+    /// What a person asked to recognize is kept in the base
+    /// (`recognition_request`), so it survives closing the app.
     pub recognizing: Option<Recognizing>,
-    /// The documents a person asked to recognize, in the order asked.
-    pub requested: Vec<i64>,
     /// How many times the provider failed on each document (its limit, no
     /// connection) since it was last asked for.
     pub recognition_tries: BTreeMap<i64, usize>,
@@ -221,29 +229,13 @@ impl EngineState {
         });
     }
 
-    /// A person asked to recognize these documents: they go after the
-    /// ones already asked for, each once, with its failures forgotten.
-    pub(crate) fn request_recognition(&self, contents: &[i64]) {
+    /// A person asked again to recognize these documents: the failures of
+    /// the provider on them are forgotten.
+    pub(crate) fn forget_recognition_tries(&self, contents: &[i64]) {
         self.with(|now| {
             for content in contents {
                 now.recognition_tries.remove(content);
-                if !now.requested.contains(content) {
-                    now.requested.push(*content);
-                }
             }
-        });
-    }
-
-    /// The first document a person asked to recognize, still to do.
-    pub(crate) fn next_requested(&self) -> Option<i64> {
-        self.with(|now| now.requested.first().copied())
-    }
-
-    /// The recognition of a document ended, well or for good.
-    pub(crate) fn recognition_ended(&self, content: i64) {
-        self.with(|now| {
-            now.requested.retain(|c| *c != content);
-            now.recognition_tries.remove(&content);
         });
     }
 
@@ -318,6 +310,20 @@ impl Scope {
         self.origin().is_none()
     }
 
+    /// The documents of the scope (its files not left out).
+    pub(crate) fn contents(&self, conn: &Connection) -> Result<BTreeSet<i64>, String> {
+        let (condition, bound) = self.location_sql("l.origin_id", "l.folder");
+        let mut statement = conn
+            .prepare(&format!(
+                "SELECT DISTINCT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash
+                 WHERE NOT {} AND {condition}",
+                super::excluded_sql!()
+            ))
+            .map_err(sql_err)?;
+        let rows = statement.query_map(params_from_iter(bound), |row| row.get::<_, i64>(0)).map_err(sql_err)?;
+        rows.collect::<Result<BTreeSet<i64>, _>>().map_err(sql_err)
+    }
+
     /// SQL condition on the origin and folder columns of a location, with
     /// its parameters.
     fn location_sql(&self, origin_column: &str, folder_column: &str) -> (String, Vec<Value>) {
@@ -368,7 +374,8 @@ pub struct Stage {
     /// Figures of its own: `questions` left at its last run, `grouped` and
     /// `loose` documents of the matters; for the scans, the `pages` that
     /// wait, the documents whose pages are not counted yet (`uncounted`)
-    /// and those a person asked for (`requested`).
+    /// and those a person asked for (`requested`); `firstLap` (1) while a
+    /// stage of `FIRST_LAP_STAGES` waits for the engine's first pass.
     pub extra: BTreeMap<&'static str, usize>,
 }
 
@@ -558,16 +565,7 @@ impl DocBase {
 
 impl<'a> Facts<'a> {
     fn gather(conn: &Connection, scope: &'a Scope, reading_on: bool, now: EngineNow) -> Result<Self, String> {
-        let (condition, bound) = scope.location_sql("l.origin_id", "l.folder");
-        let mut statement = conn
-            .prepare(&format!(
-                "SELECT DISTINCT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash
-                 WHERE NOT {} AND {condition}",
-                super::excluded_sql!()
-            ))
-            .map_err(sql_err)?;
-        let rows = statement.query_map(params_from_iter(bound), |row| row.get::<_, i64>(0)).map_err(sql_err)?;
-        let active = rows.collect::<Result<BTreeSet<i64>, _>>().map_err(sql_err)?;
+        let active = scope.contents(conn)?;
         let engine = super::similar::classify::ask_engine(conn)?;
         let recognizer = super::recognize::recognition_engine(conn)?
             .and_then(|config| crate::source_volume::recognition::engine_id(&config).ok());
@@ -693,7 +691,10 @@ fn recognition_members(conn: &Connection, facts: &Facts) -> Result<Members, Stri
             None => members.push(Key::Content(content), PENDING),
         }
     }
-    let requested = facts.now.requested.iter().filter(|c| facts.active.contains(c)).count();
+    let requested = super::recognize::requested_recognitions(conn)?
+        .into_iter()
+        .filter(|c| facts.active.contains(c))
+        .count();
     members.extra.insert("pages", pages);
     members.extra.insert("uncounted", uncounted);
     members.extra.insert("requested", requested);
@@ -780,14 +781,23 @@ fn types_members(conn: &Connection, facts: &Facts) -> Result<Members, String> {
 /// Each document read by the model to know whom it names.
 fn reading_members(facts: &Facts, standings: &[super::knowledge::extract::Standing]) -> Result<Members, String> {
     let mut members = Members::new("documents");
+    let (mut older, mut requested) = (0, 0);
     for standing in standings.iter().filter(|s| facts.active.contains(&s.content_id)) {
         let status = match &standing.reading {
             Some(reading) if reading.current && reading.state == "done" => DONE,
             Some(reading) if reading.current => FAILED,
             _ => PENDING,
         };
+        // Read with earlier instructions, kept as they are; and asked by a
+        // person to read again (D-432).
+        if let Some(reading) = &standing.reading {
+            older += usize::from(reading.current && reading.older);
+            requested += usize::from(reading.reread);
+        }
         members.push(Key::Content(standing.content_id), status);
     }
+    members.extra.insert("older", older);
+    members.extra.insert("requested", requested);
     Ok(members)
 }
 
@@ -906,15 +916,24 @@ fn pages_members(conn: &Connection, facts: &Facts, resolving: bool) -> Result<Me
 
 /// The figures and the state of every stage.
 fn summarize(conn: &Connection, facts: &Facts, members: Vec<Members>) -> Result<Progress, String> {
-    let work = |m: &Members| m.count(PENDING) > 0 || m.other_work;
     let index = |id: &str| STAGES.iter().position(|s| *s == id).unwrap_or(0);
+    // Before the engine's first pass through it, a stage of
+    // `FIRST_LAP_STAGES` may have work nobody counted yet: once something
+    // was read, or it has things of its own, it waits for that pass.
+    let read_any = members[index("reading")].count(DONE) > 0;
+    let first_lap: Vec<bool> = STAGES
+        .iter()
+        .zip(&members)
+        .map(|(id, m)| FIRST_LAP_STAGES.contains(id) && !facts.now.left.contains_key(*id) && (read_any || !m.items.is_empty()))
+        .collect();
+    let work = |i: usize| members[i].count(PENDING) > 0 || members[i].other_work || first_lap[i];
     // The stage the questions to the model are at: the one the engine said,
     // while it has work; otherwise the first one with work, in its order.
     let active_model = facts
         .now
         .model_stage
-        .filter(|stage| work(&members[index(stage)]))
-        .or_else(|| MODEL_STAGES.iter().copied().find(|stage| work(&members[index(*stage)])));
+        .filter(|stage| work(index(stage)))
+        .or_else(|| MODEL_STAGES.iter().copied().find(|stage| work(index(stage))));
     let error_stage: Option<&str> = facts.now.last_error.as_ref().map(|error| match error.stage.as_deref() {
         Some(stage) => STAGES.iter().copied().find(|s| *s == stage).unwrap_or("types"),
         None => active_model.unwrap_or("types"),
@@ -925,10 +944,13 @@ fn summarize(conn: &Connection, facts: &Facts, members: Vec<Members>) -> Result<
     let mut stages = Vec::new();
     let mut in_process: BTreeSet<Key> = BTreeSet::new();
     let mut paused: BTreeSet<Key> = BTreeSet::new();
-    for (id, members) in STAGES.iter().copied().zip(members) {
+    for (i, (id, mut members)) in STAGES.iter().copied().zip(members).enumerate() {
         let pending = members.count(PENDING);
         let failed = members.count(FAILED);
-        let has_work = pending > 0 || members.other_work;
+        let has_work = pending > 0 || members.other_work || first_lap[i];
+        if first_lap[i] {
+            members.extra.insert("firstLap", 1);
+        }
         let error = facts.now.last_error.clone().filter(|_| error_stage == Some(id));
         let model = MODEL_STAGES.contains(&id);
         let state = if id == "recognition" {
@@ -1268,12 +1290,66 @@ del inmueble del domicilio inventado el día del vencimiento, sin observaciones 
         base.knowledge_resolve(Some(&asker), 50).unwrap();
         base.knowledge_propose_matters(Some(&asker), 50).unwrap();
         base.knowledge_project(Some(&asker), 50).unwrap();
+        // The engine went through the matters and the pages, with nothing left.
+        base.engine_state().ran("matters", 0);
+        base.engine_state().ran("pages", 0);
         let progress = base.progress(&Scope::default()).unwrap();
         assert_eq!(stage(&progress, "resolve").state, "done");
         assert_eq!(figures(&progress, "resolve"), (2, 0, 0, 2));
         assert_eq!(stage(&progress, "matters").extra["loose"], 2);
         assert!(progress.stages.iter().all(|s| s.state == "done"), "{:?}", states(&progress));
         assert_eq!((progress.in_process, progress.paused), (0, 0));
+    }
+
+    #[test]
+    fn the_matters_and_the_pages_wait_for_the_first_pass_of_the_engine() {
+        let (_dir, base) = base_with(&[("contrato.txt", LEASE), ("nueva/nota.txt", NOTE)]);
+        let asker = model();
+        base.types_run(&asker, 50).unwrap();
+        base.knowledge_run(&asker, 50).unwrap();
+        base.knowledge_resolve(Some(&asker), 50).unwrap();
+        base.knowledge_propose_matters(Some(&asker), 50).unwrap();
+        base.knowledge_project(Some(&asker), 50).unwrap();
+        // Read with an earlier version of the question (D-432): kept as read.
+        base.conn().execute("UPDATE knowledge_extraction SET prompt_version = 'conocimiento-0'", []).unwrap();
+
+        // The app just opened, with the automatic reading off: nothing tells
+        // what the matters and the pages have left, so they are not done.
+        let progress = base.progress(&Scope::default()).unwrap();
+        assert_eq!(stage(&progress, "reading").state, "done");
+        assert_eq!(stage(&progress, "reading").extra["older"], 2);
+        for id in ["matters", "pages"] {
+            assert_eq!(stage(&progress, id).state, "paused", "{id}");
+            assert_eq!(stage(&progress, id).extra.get("firstLap"), Some(&1), "{id}");
+        }
+        // No document of theirs is counted as waiting.
+        assert_eq!((progress.in_process, progress.paused), (0, 0));
+        // The same in a folder.
+        let folder = Scope { origin_id: base.origins(&Visible::All).unwrap().first().map(|o| o.id.clone()), folder: Some("nueva".into()) };
+        assert_eq!(stage(&base.progress(&folder).unwrap(), "matters").state, "paused");
+
+        // With the reading on, the engine goes to the matters, then the pages.
+        turn_reading_on(&base);
+        let progress = base.progress(&Scope::default()).unwrap();
+        assert_eq!(stage(&progress, "matters").state, "running");
+        assert_eq!(stage(&progress, "pages").state, "waiting");
+        // Its pass made, with nothing left, both are done; what was read
+        // with the earlier version still says so.
+        base.engine_state().ran("matters", 0);
+        base.engine_state().ran("pages", 0);
+        let progress = base.progress(&Scope::default()).unwrap();
+        assert!(progress.stages.iter().all(|s| s.state == "done"), "{:?}", states(&progress));
+        assert!(progress.stages.iter().all(|s| !s.extra.contains_key("firstLap")));
+        assert_eq!(stage(&progress, "reading").extra["older"], 2);
+    }
+
+    #[test]
+    fn with_nothing_read_the_matters_and_the_pages_have_nothing_to_wait_for() {
+        let (_dir, base) = base_with(&[("contrato.txt", LEASE)]);
+        let progress = base.progress(&Scope::default()).unwrap();
+        for id in ["matters", "pages"] {
+            assert_eq!((stage(&progress, id).state, stage(&progress, id).total), ("done", 0), "{id}");
+        }
     }
 
     #[test]

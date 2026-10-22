@@ -464,6 +464,52 @@ export interface SimilarGroup {
   pending: number
   /** Of `pending`, those whose proposed relation makes both one document. */
   pendingSameDocument: number
+  /** How many fields its template has (each once), when it shares one. */
+  templateFields: number | null
+  /** Pairs of its template's documents where nothing changes but a few words, undecided: possibly the same document. */
+  possiblySame: number
+}
+
+/** A piece of a template's text: what all its documents say, or a field. */
+export type TemplateSegment = { text: string } | { field: number }
+
+/** A document of a template, and the state of its pair with the principal (`null` for the principal). */
+export interface TemplateDocument {
+  doc: DocRef
+  state: SimilarState | null
+}
+
+/** A field of a template: what changes from one document to another. */
+export interface TemplateField {
+  /** The kind of thing it is; its name comes from the vocabulary ("Fecha 2"). */
+  kind: ChangeKind
+  /** Its order among the fields of its kind, from 1. */
+  ordinal: number
+  /** For a field of a form, its name in the form. */
+  formName: string | null
+  /** The same field said again: the index of its first place, whose name it takes. */
+  sameAs: number | null
+  /** The value of each document, in the order of `Template.documents`; empty: nothing there. */
+  values: string[]
+}
+
+/**
+ * The template of a family of the same template: the text its documents
+ * share, with the fields that change, and the value of each document.
+ * Built without a model, also for families nobody confirmed ("proposed").
+ */
+export interface Template {
+  principal: number
+  /** The document asked about (its content id). */
+  asked: number
+  /** The principal first. */
+  documents: TemplateDocument[]
+  state: "proposed" | "confirmed"
+  segments: TemplateSegment[]
+  fields: TemplateField[]
+  /** Pairs of documents (content ids) where nothing changes but a few words: possibly the same document. */
+  possiblySame: [number, number][]
+  computedAt: number
 }
 
 /** The documents similar to the one at this location. */
@@ -516,6 +562,11 @@ export function getSimilarPending(): Promise<SimilarPending> {
 
 export function listSimilarGroups(): Promise<SimilarGroup[]> {
   return invoke<SimilarGroup[]>("docbase_similar_groups")
+}
+
+/** The template the document at this location shares with its family, or `null`. */
+export function getSimilarTemplate(locationId: number): Promise<Template | null> {
+  return invoke<Template | null>("docbase_similar_template", { locationId })
 }
 
 export function listSimilarRelations(): Promise<RelationDef[]> {
@@ -641,20 +692,82 @@ export function runTypes(engine: AskConfig, maxQuestions?: number): Promise<Type
   return invoke<TypesRunReport>("docbase_types_run", { engine, maxQuestions: maxQuestions ?? null })
 }
 
-/** The engine that answers while the archive's wiki is active; null stops it. */
-export function setAskEngine(engine: AskConfig | null): Promise<void> {
-  return invoke<void>("docbase_set_ask_engine", { engine })
-}
-
 /** Which engine recognizes the text of scans, and with which model. */
 export interface RecognitionConfig {
   engine: "codex-cli"
   model: string
 }
 
-/** The engine that recognizes the text of scans; null: none can. */
-export function setRecognitionEngine(engine: RecognitionConfig | null): Promise<void> {
-  return invoke<void>("docbase_set_recognition_engine", { engine })
+/** The AI services of the registry (P-141, `docbase/services.rs`). */
+export type AiServiceId = "ask" | "recognize" | "research"
+
+/** One engine chosen for a service. */
+export interface EngineChoice {
+  /** The engine, as the catalog names it (`codex-cli`, `tavily`…). */
+  engine: string
+  /** The shared connection it uses (a preset of Conexiones, a search provider); empty: the engine's own. */
+  connection: string
+  model: string
+  /** `low`, `medium` or `high` for an engine that offers it; empty: the model's default. */
+  reasoning: string
+}
+
+/** What a service uses: its engine and an optional alternative. */
+export interface ServiceChoice {
+  engine: EngineChoice | null
+  alternative: EngineChoice | null
+}
+
+/** The registry: which engine each AI service uses. */
+export interface AiServices {
+  ask: ServiceChoice
+  recognize: ServiceChoice
+  research: ServiceChoice
+}
+
+export type CapabilityLevel = "yes" | "partial" | "no"
+
+/** One engine of the catalog, for one service (`resources/catalog/ai-engines.json`). */
+export interface CatalogEngine {
+  service: AiServiceId
+  id: string
+  name: string
+  /** `local`: a program on this computer; `api`: a provider's API; `search`: a web search. */
+  kind: "local" | "api" | "search"
+  /** The base runs it by itself (today only Codex). */
+  inBase: boolean
+  /** It takes a reasoning level. */
+  reasoning: boolean
+  /** What it says it can do, when it declares it. */
+  capabilities?: Partial<Record<string, CapabilityLevel>>
+  languages?: string[]
+  /** Where what it is sent is processed. */
+  processing: string
+  /** What its provider keeps. */
+  retention: string
+}
+
+export interface EnginesCatalog {
+  services: { id: AiServiceId; name: string; purpose: string }[]
+  capabilities: { id: string; name: string }[]
+  engines: CatalogEngine[]
+}
+
+export interface AiServicesView {
+  services: AiServices
+  /** False until the registry is saved once: until then it is what the base had. */
+  saved: boolean
+  catalog: EnginesCatalog
+}
+
+/** The registry of the AI services, with the catalog of engines. */
+export function getAiServices(): Promise<AiServicesView> {
+  return invoke<AiServicesView>("docbase_ai_services")
+}
+
+/** Saves the registry; the next request of each service uses it. */
+export function setAiServices(services: AiServices): Promise<AiServicesView> {
+  return invoke<AiServicesView>("docbase_set_ai_services", { services })
 }
 
 /**
@@ -719,6 +832,10 @@ export interface KnowledgeStatus {
   documents: number
   extracted: number
   stale: number
+  /** Read with an earlier version of the instructions, kept as they are (D-432). */
+  older: number
+  /** Asked by a person to read again, waiting for it. */
+  reread: number
   pending: number
   failed: number
   mentions: number
@@ -780,6 +897,10 @@ export interface KnowledgeDiscarded {
 export interface DocumentKnowledge {
   contentId: number | null
   state: "done" | "failed" | "stale" | "pending"
+  /** Read with an earlier version of the instructions (D-432). */
+  older: boolean
+  /** A person asked to read it again, and it waits for it. */
+  reread: boolean
   engine: string | null
   extractedAt: number | null
   mentions: KnowledgeMentionView[]
@@ -887,7 +1008,7 @@ export interface ClaimView {
    * "doubtful".
    */
   certainty: "quoted" | "confirmed" | "doubtful" | "corrected"
-  /** Why: "conflict", "identity", "attribution", "states", "by-person". */
+  /** Why: "conflict", "identity", "attribution", "states", "contradicted", "by-person". */
   reasons: string[]
 }
 
@@ -1143,6 +1264,10 @@ export interface DocumentReference {
 export interface DocumentEntities {
   contentId: number | null
   state: "done" | "failed" | "stale" | "pending"
+  /** Read with an earlier version of the instructions (D-432). */
+  older: boolean
+  /** A person asked to read it again, and it waits for it. */
+  reread: boolean
   error: string | null
   entities: DocumentEntity[]
   references: DocumentReference[]
@@ -1470,7 +1595,9 @@ export interface ProgressStage {
   /**
    * `questions` left at its last run; `grouped` and `loose` for the
    * matters; for the scans, the `pages` that wait, the documents whose
-   * pages are not counted yet (`uncounted`) and those asked for (`requested`).
+   * pages are not counted yet (`uncounted`) and those asked for (`requested`);
+   * `firstLap` (1) while the matters or the pages wait for the engine's
+   * first pass since the app opened (D-452).
    */
   extra: Record<string, number>
 }
@@ -1543,6 +1670,35 @@ export function undoIdentityDecision(id: number): Promise<void> {
 /** Reads again the documents whose reading failed; returns how many. */
 export function knowledgeReadAgainFailed(): Promise<number> {
   return invoke<number>("docbase_knowledge_read_again_failed")
+}
+
+/**
+ * What a person asks to read again with the model (D-432): the document at
+ * a location, the documents of an origin or of a folder of it, or (nothing
+ * said) the whole archive.
+ */
+export interface RereadTarget {
+  locationId?: number | null
+  originId?: string | null
+  folder?: string | null
+}
+
+/** What reading them again takes: documents already read and questions to the model. */
+export interface RereadPlan {
+  documents: number
+  questions: number
+  /** Of those, the ones already asked to read again. */
+  requested: number
+  engine: AskConfig | null
+}
+
+export function getRereadPlan(target: RereadTarget = {}): Promise<RereadPlan> {
+  return invoke<RereadPlan>("docbase_knowledge_reread_plan", { target })
+}
+
+/** Asks to read them again with new answers of the model; kept in the base until it is done. */
+export function requestReread(target: RereadTarget = {}): Promise<number> {
+  return invoke<number>("docbase_knowledge_reread", { target })
 }
 
 export function getKnowledgeAttention(): Promise<KnowledgeAttention> {

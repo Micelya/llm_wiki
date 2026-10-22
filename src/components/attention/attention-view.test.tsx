@@ -31,7 +31,15 @@ import { progress, stage } from "@/lib/progress/progress.fixtures"
 import { useAttentionStore } from "@/stores/attention-store"
 import { useAttentionViewStore } from "@/stores/attention-view-store"
 import { useProgressStore } from "@/stores/progress-store"
-import { useWikiStore } from "@/stores/wiki-store"
+import { useAiServicesStore } from "@/stores/ai-services-store"
+import { NO_SERVICES } from "@/lib/ai-services"
+import type { AiServices } from "@/commands/docbase"
+
+/** The registry with «Reconocer escaneos» on Codex with this model (made up). */
+const recognizing = (model: string): AiServices => ({
+  ...NO_SERVICES,
+  recognize: { engine: { engine: "codex-cli", connection: "codex-cli", model, reasoning: "" }, alternative: null },
+})
 import { vocabularyFor } from "@/vocabulary"
 import { HomeView } from "@/components/docbase/home-view"
 import { itemTarget, StageItemsList, StageLine } from "@/components/progress/ongoing-tab"
@@ -159,6 +167,18 @@ describe("the attention view in tabs", () => {
     ])
     expect(text(html)).toContain("Un problema inventado")
     expect(text(html)).not.toContain("Una decisión inventada")
+  })
+
+  it("counts in «En curso» over the origin or folder the tab is narrowed to", () => {
+    useProgressStore.setState({ progress: halfway })
+    const ongoing = () => tabs(renderToStaticMarkup(<AttentionView />)).find((tab) => tab.title.startsWith("En curso"))?.title
+    expect(ongoing()).toBe("En curso 5")
+    useAttentionViewStore.setState({ scope: { originId: "o1", folder: "nueva" } })
+    base.answers["progress:o1/nueva"] = progress({ reading: { state: "running", done: 3, total: 68, pending: 65 } })
+    expect(ongoing()).toBe("En curso 1")
+    // Everything done in that folder: no figure.
+    base.answers["progress:o1/nueva"] = progress()
+    expect(ongoing()).toBe("En curso")
   })
 
   it("keeps the tab the person chose", () => {
@@ -303,7 +323,7 @@ describe("the scans in «En curso» (P-242)", () => {
   const scans = stage("recognition", { state: "paused", done: 0, total: 2, pending: 1, failed: 1, extra: { pages: 8 } })
 
   beforeEach(() => {
-    useWikiStore.setState({ llmConfig: { ...useWikiStore.getState().llmConfig, provider: "codex-cli", model: "modelo-de-prueba" } })
+    useAiServicesStore.setState({ services: recognizing("modelo-de-prueba") })
   })
 
   it("with the reading off, says it and offers to recognize them all, or one by one, and to retry", () => {
@@ -322,10 +342,10 @@ describe("the scans in «En curso» (P-242)", () => {
   })
 
   it("says how to choose the engine when there is none, and offers no button that works", () => {
-    useWikiStore.setState({ llmConfig: { ...useWikiStore.getState().llmConfig, provider: "openai" } })
+    useAiServicesStore.setState({ services: NO_SERVICES })
     const html = renderToStaticMarkup(<StageLine stage={scans} scope={{}} engineChosen initialOpen initialItems={items} />)
     const shown = text(html)
-    expect(shown).toContain("Falta elegir el motor que reconoce escaneos: en Ajustes → LLM Models, elegí «Codex CLI (local)».")
+    expect(shown).toContain("Falta elegir el motor que reconoce escaneos: en Ajustes → Servicios de IA, elegí uno para «Reconocer escaneos».")
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Reconocer todos<\/button>/)
     // Without an engine, the documents have no button to recognize them.
     expect(shown).not.toContain("Reconocer Abrir")

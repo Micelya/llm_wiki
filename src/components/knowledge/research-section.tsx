@@ -48,7 +48,7 @@ export function ResearchSection({ objectId, name }: { objectId: string; name: st
     if (!hasConfiguredDeepResearchSources(searchApiConfig)) {
       await appDialog.alert({
         title: "Falta configurar la búsqueda",
-        message: "Para investigar en internet hace falta un buscador configurado en Ajustes.",
+        message: "Para investigar en internet hace falta elegir un buscador en Ajustes → Servicios de IA, con sus datos cargados en «Búsqueda en internet».",
       })
       return
     }

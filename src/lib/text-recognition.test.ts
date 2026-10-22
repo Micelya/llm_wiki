@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest"
-import { useWikiStore } from "@/stores/wiki-store"
+import { useAiServicesStore } from "@/stores/ai-services-store"
+import { NO_SERVICES } from "@/lib/ai-services"
 import { scansWaiting } from "@/components/docbase/background-reading-panel"
 import { progress } from "@/lib/progress/progress.fixtures"
 import {
@@ -14,16 +15,22 @@ import {
 } from "./text-recognition"
 
 // Every text below is made up.
-const initial = useWikiStore.getState().llmConfig
+afterEach(() => useAiServicesStore.setState({ services: NO_SERVICES }))
 
-afterEach(() => useWikiStore.setState({ llmConfig: initial }))
+function recognizeWith(engine: string, model: string) {
+  useAiServicesStore.setState({
+    services: { ...NO_SERVICES, recognize: { engine: { engine, connection: engine, model, reasoning: "" }, alternative: null } },
+  })
+}
 
 describe("the engine that recognizes scans", () => {
-  it("is the model chosen in Ajustes when it is the Codex CLI, and none otherwise", () => {
-    useWikiStore.setState({ llmConfig: { ...initial, provider: "codex-cli", model: "modelo-de-prueba" } })
+  it("is the one of «Reconocer escaneos» when the base can run it, and none otherwise", () => {
+    recognizeWith("codex-cli", "modelo-de-prueba")
     expect(getRecognitionConfig()).toEqual({ engine: "codex-cli", model: "modelo-de-prueba" })
     expect(recognitionEngineId(getRecognitionConfig())).toBe("codex-cli:modelo-de-prueba")
-    useWikiStore.setState({ llmConfig: { ...initial, provider: "anthropic", model: "otro" } })
+    recognizeWith("otro-motor", "otro")
+    expect(getRecognitionConfig()).toBeNull()
+    useAiServicesStore.setState({ services: NO_SERVICES })
     expect(getRecognitionConfig()).toBeNull()
     expect(recognitionEngineId(null)).toBeNull()
     expect(recognitionEngineId({ engine: "codex-cli", model: " " })).toBe("codex-cli")

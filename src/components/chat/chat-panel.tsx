@@ -15,7 +15,8 @@ import { buildCliRetrievedContext, cliRequestSkills, cliSearchTopK } from "@/lib
 import { readFile } from "@/commands/fs"
 import { revealItemInDir } from "@tauri-apps/plugin-opener"
 import { deleteChatConversation } from "@/lib/persist"
-import { getPageText } from "@/commands/docbase"
+import { getDocument, getPageText } from "@/commands/docbase"
+import { attachedDocumentsContext, searchChatDocuments } from "@/lib/chat-documents"
 import { SavedQueriesList } from "@/components/chat/saved-queries"
 import { getFileName, isAbsolutePath, normalizePath } from "@/lib/path-utils"
 import { hasConfiguredAnyTxt } from "@/lib/anytxt-search"
@@ -27,8 +28,6 @@ import { parseFrontmatter } from "@/lib/frontmatter"
 import { getFileCategory, getFileExtension, isTextReadable } from "@/lib/file-types"
 import { summarizeAgentFileChange } from "@/lib/agent-file-activity"
 import { ReferenceKnowledgeGraph } from "@/components/chat/reference-knowledge-graph"
-
-const NO_CONTEXT_FILES: string[] = []
 
 type InternalChatSendOptions = ChatSendOptions & {
   suppressUserMessage?: boolean
@@ -476,6 +475,8 @@ export function ChatPanel() {
   const setRetrievalMode = useChatStore((s) => s.setRetrievalMode)
   const setSelectedSkills = useChatStore((s) => s.setSelectedSkills)
   const setSelectedContextFiles = useChatStore((s) => s.setSelectedContextFiles)
+  const selectedContextDocuments = useChatStore((s) => s.selectedContextDocuments)
+  const setSelectedContextDocuments = useChatStore((s) => s.setSelectedContextDocuments)
 
   // Derive active messages via selector to re-render on message changes
   const allMessages = useChatStore((s) => s.messages)
@@ -495,9 +496,6 @@ export function ChatPanel() {
   const searchApiConfig = useWikiStore((s) => s.searchApiConfig)
   const anyTxtAvailable = hasConfiguredAnyTxt(searchApiConfig.anyTxt)
   const imageInputAvailable = supportsImageInput(llmConfig)
-  // The files of a wiki project could be attached; the base has no such
-  // folder, so there is nothing to offer.
-  const availableContextFiles = NO_CONTEXT_FILES
 
   const abortRef = useRef<AbortController | null>(null)
   const activeRunSessionIdRef = useRef<string | null>(null)
@@ -723,6 +721,7 @@ export function ChatPanel() {
         retrievalMode: useChatStore.getState().retrievalMode,
         skills: useChatStore.getState().selectedSkills,
         contextFiles: useChatStore.getState().selectedContextFiles,
+        contextDocuments: useChatStore.getState().selectedContextDocuments,
         skillMode: useChatStore.getState().selectedSkills.length > 0 ? "explicit" : "auto",
       }
       const allowedSkills = enabledSkillIds(
@@ -745,7 +744,7 @@ export function ChatPanel() {
         const messageContextFiles = workspace
           ? sendOptions.contextFiles.map((path) => projectAbsolutePath(workspace, path))
           : []
-        addMessageToConversation(convId, "user", text, images, messageContextFiles)
+        addMessageToConversation(convId, "user", text, images, messageContextFiles, sendOptions.contextDocuments)
       }
       setStreamingConversationId(convId)
       setStreaming(true)
@@ -1000,6 +999,8 @@ export function ChatPanel() {
                 historyExplicit: true,
                 skills: requestSkills,
                 contextFiles: sendOptions.contextFiles,
+                // Read from the base by the backend, and cited (P-243).
+                contextDocuments: sendOptions.contextDocuments.map((document) => document.locationId),
                 skillMode: requestedSkillMode,
                 approvedShellCommands: sendOptions.approvedShellCommands ?? [],
                 shellCommand: sendOptions.shellCommand,
@@ -1076,6 +1077,7 @@ export function ChatPanel() {
             includeContent: sendOptions.agentMode === "deep",
             skills: cliRequestSkills(requestedSkillMode, requestSkills),
             contextFiles: sendOptions.contextFiles,
+            contextDocuments: sendOptions.contextDocuments.map((document) => document.locationId),
             skillMode: requestedSkillMode,
             historyExplicit: true,
             approvedShellCommands: sendOptions.approvedShellCommands ?? [],
@@ -1124,12 +1126,18 @@ export function ChatPanel() {
           references: backendReferences,
           readPage: (path) => getPageText(path).then((page) => page?.text ?? ""),
         })
+        // The documents attached, with their text from the base (P-243):
+        // the CLI answers only from what it is handed.
+        const attachedContext = await attachedDocumentsContext(sendOptions.contextDocuments, (locationId) =>
+          getDocument(locationId).then((document) => document?.text ?? null),
+        )
         if (!isCurrentRun()) return
-        const contextText = retrievedContext
+        const evidence = [attachedContext, retrievedContext].filter((part) => part.trim().length > 0).join("\n\n")
+        const contextText = evidence
           ? [
               "You have access to the context of the document base below. Use it as retrieved evidence when it is relevant.",
               "",
-              retrievedContext,
+              evidence,
               "",
               `User request: ${text}`,
             ].join("\n")
@@ -1367,6 +1375,7 @@ export function ChatPanel() {
         retrievalMode: useChatStore.getState().retrievalMode,
         skills: useChatStore.getState().selectedSkills,
         contextFiles: useChatStore.getState().selectedContextFiles,
+        contextDocuments: useChatStore.getState().selectedContextDocuments,
         skillMode: useChatStore.getState().selectedSkills.length > 0 ? "explicit" : "auto",
         approvedShellCommands: [command.trim()],
         shellCommand: command.trim(),
@@ -1399,6 +1408,7 @@ export function ChatPanel() {
       retrievalMode: useChatStore.getState().retrievalMode,
       skills: useChatStore.getState().selectedSkills,
       contextFiles: useChatStore.getState().selectedContextFiles,
+      contextDocuments: useChatStore.getState().selectedContextDocuments,
       skillMode: useChatStore.getState().selectedSkills.length > 0 ? "explicit" : "auto",
     })
     return true
@@ -1466,7 +1476,9 @@ export function ChatPanel() {
           retrievalMode={retrievalMode}
           availableSkills={availableSkills}
           selectedSkills={selectedSkills}
-          availableContextFiles={availableContextFiles}
+          searchDocuments={searchChatDocuments}
+          selectedDocuments={selectedContextDocuments}
+          onSelectedDocumentsChange={setSelectedContextDocuments}
           selectedContextFiles={selectedContextFiles}
           onUseWebSearchChange={setUseWebSearch}
           onUseAnyTxtSearchChange={setUseAnyTxtSearch}

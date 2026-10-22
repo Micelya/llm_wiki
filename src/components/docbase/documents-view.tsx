@@ -21,6 +21,7 @@ import { LabelChip } from "./labels"
 import { DocbasePage, EmptyNote, ErrorNote } from "./page"
 import { formatCount, formatDate, formatSize } from "./format"
 import { groupLabel } from "./similar"
+import { FamilyTemplateLine } from "./template-panel"
 import { rowTypeLabel } from "./document-types"
 import { documentTypeName, vocabulary } from "@/vocabulary"
 import { useDocbaseQuery } from "./use-docbase-query"
@@ -204,6 +205,11 @@ function DocumentList() {
         </div>
 
         {documents.error && <ErrorNote>{documents.error}</ErrorNote>}
+
+        {filter.similarGroup != null &&
+          (similarGroups.data ?? [])
+            .filter((group) => group.principal.contentId === filter.similarGroup)
+            .map((group) => <FamilyTemplateLine key={group.principal.contentId} group={group} onOpen={openDocument} />)}
 
         {!documents.loading && rows.length === 0 ? (
           <EmptyNote>

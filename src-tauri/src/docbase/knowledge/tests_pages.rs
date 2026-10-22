@@ -167,6 +167,18 @@ fn overview(base: &DocBase) -> String {
     base.knowledge_overview().unwrap().expect("an overview").body
 }
 
+/// The note (D-441) the first mark after `after` names on a page, as the
+/// end of the page writes it (`[^n]: …`).
+pub(crate) fn note_after(page: &str, after: &str) -> String {
+    let at = page.find(after).unwrap_or_else(|| panic!("no {after:?} in {page}")) + after.len();
+    let rest = &page[at..];
+    let start = rest.find("[^").unwrap_or_else(|| panic!("no note after {after:?} in {page}"));
+    let label: String = rest[start + 2..].chars().take_while(|c| *c != ']').collect();
+    let definition = format!("\n[^{label}]: ");
+    let from = page.find(&definition).unwrap_or_else(|| panic!("no note {label} in {page}")) + definition.len();
+    page[from..].lines().next().unwrap_or_default().to_string()
+}
+
 pub(crate) fn page_of<'a>(pages: &'a [(String, String)], title: &str) -> &'a str {
     pages
         .iter()
@@ -204,14 +216,24 @@ fn every_entity_with_a_page_has_all_its_documents_and_only_verified_sentences() 
     // Grouped by matter: the lease under its file number, the receipt apart.
     assert!(person.contains("### [[expediente-1234-2020-"), "{person}");
     assert!(person.contains("### Sin asunto identificado"), "{person}");
-    // What the documents say: one sentence per claim, with its reference
-    // and its quote; the invented amount and the reference to nothing are
-    // thrown away.
-    assert!(person.contains("Calle Uno 100. [1]") || person.contains("Calle Uno 100. [2]"), "{person}");
+    // What the documents say: one sentence per claim, with its note; the
+    // invented amount and the reference to nothing are thrown away.
+    assert!(person.contains("Calle Uno 100.[^"), "{person}");
     assert!(person.contains("$ 5.000"), "{person}");
     assert!(!person.contains("999"), "{person}");
     assert!(!person.contains("Algo sin respaldo"), "{person}");
-    assert!(person.contains("### Referencias") && person.contains("«a favor de Ejemplo Uno S.A. por $ 5.000»"), "{person}");
+    // Each note says the claim, its quote and its document, at the end of
+    // the page, numbered in the order the text names them (D-441); no list
+    // of references nor of other data repeats them.
+    let address = note_after(person, "Calle Uno 100.");
+    assert!(address.starts_with("Domicilio: Calle Uno 100 — «Persona Dos, DNI 22.222.222, con domicilio en Calle Uno 100» ([["), "{address}");
+    assert!(address.ends_with("|a.txt]])"), "{address}");
+    assert!(note_after(person, "$ 5.000").contains("«a favor de Ejemplo Uno S.A. por $ 5.000» ([["), "{person}");
+    let first = person.find("[^1]").expect("a first note");
+    assert!(first < person.find("[^2]").expect("a second note") && person.contains("\n[^1]: ") && person.contains("\n[^2]: "), "{person}");
+    for gone in ["### Referencias", "### Otros datos", "dato por dato", " [1]", " [2]"] {
+        assert!(!person.contains(gone), "{gone}: {person}");
+    }
     assert!(person.contains("DNI 22.222.222 (2 documentos)"), "{person}");
     assert_eq!(report.discarded, 2 * synthesis_calls(&asker), "{report:?}");
     // Related entities, as links to their pages.
@@ -289,6 +311,101 @@ fn a_date_in_english_is_written_in_the_language_of_the_pages() {
     assert_eq!(pages::localized_dates(&words, "el 23 días del mes de Octubre de 2025, tenía"), "el 23 de octubre de 2025, tenía");
     // An ordinal day, as Spanish writing in English puts it (D-283).
     assert_eq!(pages::localized_dates(&words, "rige desde el JANUARY 1°, 2026 (inicio)"), "rige desde el 1 de enero de 2026 (inicio)");
+    // In the brackets of a form.
+    assert_eq!(pages::localized_dates(&words, "celebrado as of [JANUARY 1°, 2026] y"), "celebrado as of [1 de enero de 2026] y");
+}
+
+#[test]
+fn a_date_of_a_document_or_a_reading_is_spelled_as_the_pages_write_it() {
+    use super::vocabulary::Vocabulary;
+    let words = Vocabulary::builtin();
+    for (written, spelled) in [
+        ("16.04.2026", "16 de abril de 2026"),
+        ("28/08/2026", "28 de agosto de 2026"),
+        ("29-04-2026", "29 de abril de 2026"),
+        ("2026-04-16", "16 de abril de 2026"),
+        // The month first only when the day cannot be.
+        ("12/31/2021", "31 de diciembre de 2021"),
+        ("12 DE JUNIO DE 2026", "12 de junio de 2026"),
+        ("December 30, 2021", "30 de diciembre de 2021"),
+        ("Abril 2026", "Abril 2026"),
+        ("31/02/20", "31/02/20"),
+        // With its time, which stays; with its month in words.
+        ("18/10/2024 17:06:26", "18 de octubre de 2024 17:06:26"),
+        ("18/octubre/2024", "18 de octubre de 2024"),
+        ("16.04.2026 en Ciudad", "16.04.2026 en Ciudad"),
+    ] {
+        assert_eq!(pages::spelled_date(&words, written), spelled, "{written}");
+    }
+    // A title says a date that starts with its day or its month, without its time.
+    assert_eq!(pages::title_date(&words, "18/10/2024 17:06:26").as_deref(), Some("18 de octubre de 2024"));
+    assert_eq!(pages::title_date(&words, "Abril 2026").as_deref(), Some("Abril 2026"));
+    assert_eq!(pages::title_date(&words, "de octubre de 2024"), None);
+}
+
+const F: &str = "DOC-F. Factura 0001-00000123 de Ejemplo Uno S.A. a Persona Dos. Fecha: 16.04.2026. Vence el March 3, 2026. Total $ 500.";
+
+/// The reading of an invoice: who sends it to whom, its date, and a point
+/// of its summary with a date in English.
+fn invoice_model() -> FakeModel {
+    FakeModel::new("falso:1", |prompt| {
+        if is_synthesis(prompt) {
+            synthesis(prompt)
+        } else if is_knowledge(prompt) {
+            let none = serde_json::json!([]);
+            let mentions = vec![
+                mention("o", "organizacion", "Ejemplo Uno S.A.", "emisor", "Factura 0001-00000123 de Ejemplo Uno S.A.", none.clone()),
+                mention("p", "persona", "Persona Dos", "destinatario", "a Persona Dos", none),
+            ];
+            let mut said: serde_json::Value = serde_json::from_str(&answer(mentions, vec![])).unwrap();
+            said["fecha_documento"] = serde_json::json!("16.04.2026");
+            said["resumen"] = serde_json::json!({
+                "tema": "Factura de Ejemplo Uno S.A. a Persona Dos.",
+                "puntos": [{ "texto": "Vence el March 3, 2026.", "menciones": [], "cita": "Vence el March 3, 2026", "pagina": null }]
+            });
+            said.to_string()
+        } else if prompt.contains("Hay que decidir si cada candidato es la misma entidad") {
+            serde_json::json!({ "respuestas": [] }).to_string()
+        } else {
+            type_answer("factura")
+        }
+    })
+}
+
+/// The page of a document is titled by what the base knows of it (P-182):
+/// its kind, its number, who sends it to whom and its date, never its
+/// file's name, which stays in the data; its dates are written as the
+/// pages write them, its quotes as the document does (D-442).
+#[test]
+fn the_page_of_a_document_has_a_readable_title_and_its_dates_in_the_words_of_the_pages() {
+    let (_dir, base) = base_with(&[("scan-001.txt", F)]);
+    let asker = invoice_model();
+    read(&base, &asker);
+    let content = content_of(&base, "scan-001.txt");
+    base.conn()
+        .execute(
+            "INSERT OR REPLACE INTO document_data (content_id, doc_type, data, missing, question, basis, computed_at)
+             VALUES (?1, 'factura', ?2, '[]', NULL, 'prueba', 0)",
+            rusqlite::params![
+                content,
+                serde_json::json!([{ "field": "numero", "value": "0001-00000123" }, { "field": "fecha-de-emision", "value": "16.04.2026" }]).to_string()
+            ],
+        )
+        .unwrap();
+    base.knowledge_project(Some(&asker), 50).unwrap();
+    let page = page(&base, "wiki/sources/scan-001.md");
+    assert!(
+        page.contains("title: \"Factura 0001-00000123 de Ejemplo Uno S.A. a Persona Dos · 16 de abril de 2026\"\nfile: \"scan-001.txt\"\n"),
+        "{page}"
+    );
+    assert!(page.contains("# Factura 0001-00000123 de Ejemplo Uno S.A. a Persona Dos · 16 de abril de 2026\n"), "{page}");
+    assert!(page.contains("Fecha: 16 de abril de 2026"), "{page}");
+    assert!(page.contains("- fecha de emision: 16 de abril de 2026\n"), "{page}");
+    assert!(page.contains("- Vence el 3 de marzo de 2026.[^1]\n"), "{page}");
+    assert_eq!(note_after(&page, "Vence el 3 de marzo de 2026."), "«Vence el March 3, 2026»");
+    // The page of who sends it links to it by the name of its file.
+    let company = page_of(&entity_pages(&base), "Ejemplo Uno S.A.").to_string();
+    assert!(company.contains("|scan-001.txt]] — emisor"), "{company}");
 }
 
 #[test]
@@ -330,7 +447,12 @@ fn every_document_gets_its_page_from_the_base_and_the_notes_of_an_older_one_come
     let report = base.knowledge_project(Some(&asker), 50).unwrap();
     assert_eq!((report.source_pages, report.blocks_written), (2, 2), "{report:?}");
     let a = page(&base, "wiki/sources/a.md");
-    assert!(a.starts_with("---\ntype: source\ntitle: \"a\"\ndocument_id: doc-") && a.contains("generated_by: micelya-conocimiento"), "{a}");
+    // Titled by its kind and its parties (P-182); its file in the data.
+    assert!(
+        a.starts_with("---\ntype: source\ntitle: \"Contrato entre Ejemplo Uno S.A. y Persona Dos\"\nfile: \"a.txt\"\ndocument_id: doc-")
+            && a.contains("generated_by: micelya-conocimiento"),
+        "{a}"
+    );
     assert!(a.contains(BLOCK_START) && a.contains("[[persona-dos-") && a.contains("· Persona — parte"), "{a}");
     // What the old ingest wrote is not there; the notes of a person are.
     assert!(!a.contains("Resumen del documento.") && a.trim_end().ends_with("Nota vieja."), "{a}");
@@ -372,9 +494,11 @@ fn without_a_model_the_pages_are_written_and_the_synthesis_waits() {
     assert_eq!(report.left, 2, "{report:?}");
     let person = page_of(&entity_pages(&base), "Persona Dos").to_string();
     assert!(person.contains("La síntesis todavía no está escrita"), "{person}");
-    // Meanwhile what the documents say is listed as it is, with its quote.
-    assert!(person.contains("### Lo que dicen, dato por dato"), "{person}");
-    assert!(person.contains("«a favor de Ejemplo Uno S.A. por $ 5.000»") && person.contains("Calle Uno 100 —"), "{person}");
+    // Meanwhile what the documents say is in «Datos y correcciones», with
+    // its quote and its actions: the article says so, and does not repeat
+    // it (D-441).
+    assert!(person.contains("Cada dato, con su cita, está en «Datos y correcciones»."), "{person}");
+    assert!(!person.contains("dato por dato") && !person.contains("Calle Uno 100 —"), "{person}");
     assert!(person.contains("## Documentos (2)"));
     // The next run with a model writes it.
     let report = base.knowledge_project(Some(&asker), 5).unwrap();
@@ -383,7 +507,7 @@ fn without_a_model_the_pages_are_written_and_the_synthesis_waits() {
 }
 
 #[test]
-fn a_claim_the_synthesis_leaves_out_is_still_on_the_page() {
+fn a_claim_the_synthesis_leaves_out_is_counted_on_the_page_and_kept_in_its_data() {
     let (_dir, base, _project, _) = archive(&[("a.txt", A), ("b.txt", B)]);
     // A synthesis that only writes about the first claim.
     let terse = FakeModel::new("falso:1", |prompt| {
@@ -395,13 +519,14 @@ fn a_claim_the_synthesis_leaves_out_is_still_on_the_page() {
     });
     base.knowledge_project(Some(&terse), 5).unwrap();
     let person = page_of(&entity_pages(&base), "Persona Dos").to_string();
-    assert!(person.contains("Tiene un dato. [1]"), "{person}");
-    let references = person.find("### Referencias").expect("references");
-    let others = person.find("### Otros datos de los documentos").unwrap_or_else(|| panic!("{person}"));
-    assert!(references < others, "{person}");
-    // The second claim, not written: listed with its number and quote.
-    assert!(person[others..].contains("- [2] "), "{person}");
-    assert!(!person[references..others].contains("- [2] "), "{person}");
+    assert!(person.contains("Tiene un dato.[^1]"), "{person}");
+    // The second claim, not written: the page says one more is in
+    // «Datos y correcciones» (D-441), where it is with its quote.
+    assert!(person.contains("Hay un dato más de los documentos, con su cita, en «Datos y correcciones»."), "{person}");
+    assert!(!person.contains("[^2]") && !person.contains("### Otros datos"), "{person}");
+    let id = object_in(&person);
+    let detail = base.knowledge_entity(&Visible::All, &id).unwrap().expect("its data");
+    assert_eq!(detail.claims.iter().filter(|c| c.state != "retired").count(), 2, "{:?}", detail.claims);
 }
 
 #[test]
@@ -543,9 +668,13 @@ fn the_page_of_a_document_is_written_from_its_summary() {
     let asked_before = asker.asked.lock().unwrap().len();
     base.knowledge_project(Some(&asker), 50).unwrap();
     let a = page(&base, "wiki/sources/a.md");
-    assert!(a.starts_with("---\ntype: source\ntitle: \"a\"\ndocument_id: doc-") && a.contains("generated_by: micelya-conocimiento"), "{a}");
+    assert!(a.starts_with("---\ntype: source\ntitle: \"Contrato entre Ejemplo Uno S.A. y Persona Dos\"\n") && a.contains("generated_by: micelya-conocimiento"), "{a}");
+    assert!(a.contains("# Contrato entre Ejemplo Uno S.A. y Persona Dos\n"), "{a}");
     assert!(a.contains("Contrato de locación entre") && a.contains("## Lo esencial"), "{a}");
-    assert!(a.contains("Calle Uno 100. — dice: «Persona Dos, DNI 22.222.222, con domicilio en Calle Uno 100»"), "{a}");
+    // Each point with its quote as a note (D-441).
+    assert!(a.contains("- Persona Dos tiene domicilio en Calle Uno 100.[^1]\n"), "{a}");
+    assert_eq!(note_after(&a, "tiene domicilio en Calle Uno 100."), "«Persona Dos, DNI 22.222.222, con domicilio en Calle Uno 100»");
+    assert!(!a.contains("— dice:"), "{a}");
     assert!(!a.contains("## Versiones de este documento"), "one version: {a}");
     assert!(!a.contains("Lo que escribió el modelo antes."), "{a}");
     assert!(!a.contains("Importes entre las partes"), "no amount in this document: {a}");
@@ -652,20 +781,23 @@ fn the_versions_of_a_document_share_a_page_and_say_which_version_says_what() {
     // notes of the old page of the draft.
     assert_eq!(sources(), vec!["t.md".to_string(), "v2.md".to_string()]);
     let page = page(&base, "wiki/sources/v2.md");
-    assert!(page.contains("title: \"v2\"") && page.contains("# v2\n"), "{page}");
+    // Titled by its kind; two pages that would read the same say their
+    // file too (P-182).
+    assert!(page.contains("title: \"Contrato (v2)\"") && page.contains("# Contrato (v2)\n") && page.contains("file: \"v2.txt\""), "{page}");
     assert!(page.contains(&identity_of(&base, "v1.txt")) && page.contains(&identity_of(&base, "v2.txt")), "{page}");
     assert!(page.contains("## Versiones de este documento") && page.contains("- **firmado**") && page.contains("- **borrador**"), "{page}");
     assert!(page.contains("- firmado es el ejemplar firmado de borrador"), "{page}");
-    // Each price with its version; the term both say, once and without one.
-    assert!(page.contains("El precio es $ 1.200. — dice: «Precio total $ 1.200» (firmado)"), "{page}");
-    assert!(page.contains("El precio es $ 1.000. — dice: «Precio total $ 1.000» (borrador)"), "{page}");
+    // Each price with its version, in its note; the term both say, once
+    // and without one.
+    assert_eq!(note_after(&page, "El precio es $ 1.200."), "«Precio total $ 1.200» (firmado)");
+    assert_eq!(note_after(&page, "El precio es $ 1.000."), "«Precio total $ 1.000» (borrador)");
     assert_eq!(page.matches("El plazo es de doce meses.").count(), 1, "{page}");
-    assert!(page.contains("«Plazo de doce meses»\n"), "{page}");
+    assert_eq!(note_after(&page, "El plazo es de doce meses."), "«Plazo de doce meses»");
     assert!(page.contains("- precio: $ 1.200 (firmado), $ 1.000 (borrador)\n") && page.contains("- plazo: doce meses\n"), "{page}");
     // The document of the same template: its own page, linked.
-    assert!(page.contains("## Documentos relacionados") && page.contains("- misma plantilla: [[t|t]]"), "{page}");
+    assert!(page.contains("## Documentos relacionados") && page.contains("- misma plantilla: [[t|Contrato (t)]]"), "{page}");
     let template = super::tests_pages::page(&base, "wiki/sources/t.md");
-    assert!(template.contains("- misma plantilla: [[v2|v2]]") && !template.contains("Versiones"), "{template}");
+    assert!(template.contains("- misma plantilla: [[v2|Contrato (v2)]]") && !template.contains("Versiones"), "{template}");
     assert!(page.trim_end().ends_with("Nota del borrador."), "{page}");
     assert!(!page.contains("Texto viejo."), "{page}");
 
@@ -676,7 +808,7 @@ fn the_versions_of_a_document_share_a_page_and_say_which_version_says_what() {
     assert_eq!(report.source_pages, 3, "{report:?}");
     assert_eq!(sources(), vec!["t.md".to_string(), format!("v2-{}.md", v1.max(v2)), "v2.md".to_string()]);
     let draft = super::tests_pages::page(&base, "wiki/sources/v2.md");
-    assert!(draft.contains("title: \"v1\"") && !draft.contains("Versiones") && draft.trim_end().ends_with("Nota del borrador."), "{draft}");
+    assert!(draft.contains("title: \"Contrato (v1)\"") && !draft.contains("Versiones") && draft.trim_end().ends_with("Nota del borrador."), "{draft}");
     // Nothing of it was written in the old wiki's folder.
     assert_eq!(std::fs::read_dir(project.join("wiki/sources")).unwrap().count(), 1);
 }

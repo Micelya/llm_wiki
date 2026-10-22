@@ -3,7 +3,6 @@ import { ChevronDown, ChevronRight, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useAppDialog } from "@/stores/app-dialog-store"
 import { useAttentionViewStore, type AttentionTab } from "@/stores/attention-view-store"
-import { useProgressStore } from "@/stores/progress-store"
 import { noticesOf, summaryText } from "@/lib/attention/order"
 import type { AttentionAction, AttentionCase, AttentionNotice } from "@/lib/attention/types"
 import { ongoingCount } from "@/lib/progress/stages"
@@ -11,6 +10,7 @@ import { vocabulary } from "@/vocabulary"
 import { DocbasePage, EmptyNote, ErrorNote, StatusBadge } from "@/components/docbase/page"
 import { formatCount, plural } from "@/components/docbase/format"
 import { OngoingTab } from "@/components/progress/ongoing-tab"
+import { useProgress } from "@/components/progress/use-progress"
 import { goToTarget } from "./navigate"
 import { useAttention } from "./use-attention"
 
@@ -35,11 +35,13 @@ export function shownTab(chosen: AttentionTab | null, counts: Record<AttentionTa
  * «En curso», each with how many things it has. Each line says what
  * happens, why it matters and what to do, and brings its action; opened,
  * it shows its cases one by one. «En curso» shows every stage of the
- * processing, done and to do.
+ * processing, done and to do; its figure counts over the origin or folder
+ * the tab is narrowed to, as the tab does.
  */
 export function AttentionView() {
   const { notices, counts } = useAttention()
-  const progress = useProgressStore((s) => s.progress)
+  const scope = useAttentionViewStore((s) => s.scope)
+  const { progress, error } = useProgress(scope)
   const chosen = useAttentionViewStore((s) => s.tab)
   const setTab = useAttentionViewStore((s) => s.setTab)
   const words = vocabulary()
@@ -68,7 +70,11 @@ export function AttentionView() {
         </nav>
         <div role="tabpanel" data-tab={tab}>
           {tab === "ongoing" ? (
-            <OngoingTab extra={lines.ongoing.length > 0 ? <NoticeList lines={lines.ongoing} /> : null} />
+            <OngoingTab
+              progress={progress}
+              error={error}
+              extra={lines.ongoing.length > 0 ? <NoticeList lines={lines.ongoing} /> : null}
+            />
           ) : lines[tab].length === 0 ? (
             <p className="rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">{empty}</p>
           ) : (

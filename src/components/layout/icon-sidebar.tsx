@@ -1,7 +1,7 @@
 import { PRODUCT_NAME } from "@/lib/app-identity"
 import {
   FileText, Search, Network, Settings, Globe, MessageSquare, Sparkles,
-  HardDrive, Files, Home, BellDot, Users, Briefcase,
+  HardDrive, Files, Home, BellDot, Users, Briefcase, Landmark,
 } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useWikiStore } from "@/stores/wiki-store"
@@ -17,6 +17,7 @@ import {
 import { navigationCount } from "@/lib/attention/order"
 import { useAttention } from "@/components/attention/use-attention"
 import { vocabulary } from "@/vocabulary"
+import { usePortalStatus } from "@/components/portals/use-portal-status"
 
 type NavView = WikiState["activeView"]
 
@@ -37,6 +38,7 @@ function docbaseNavItems(): { view: NavView; icon: typeof FileText; label: strin
     { view: "entities", icon: Users, label: vocabulary().knowledge.entities },
     { view: "matters", icon: Briefcase, label: vocabulary().knowledge.matters },
     { view: "origins", icon: HardDrive, label: "Orígenes" },
+    { view: "portals", icon: Landmark, label: vocabulary().portals.name },
   ]
 }
 
@@ -45,6 +47,8 @@ export function IconSidebar() {
   const activeView = useWikiStore((s) => s.activeView)
   const setActiveView = useWikiStore((s) => s.setActiveView)
   const attentionCount = navigationCount(useAttention().counts)
+  // The portal waits for a person (its challenge, signing in).
+  const portalNeedsPerson = usePortalStatus()?.progress.state === "needs-person"
   const researchPanelOpen = useResearchStore((s) => s.panelOpen)
   const researchActiveCount = useResearchStore((s) => s.tasks.filter((t) => t.status !== "done" && t.status !== "error").length)
   const toggleResearchPanel = useResearchStore((s) => s.setPanelOpen)
@@ -92,10 +96,14 @@ export function IconSidebar() {
                     {attentionCount > 99 ? "99+" : attentionCount}
                   </span>
                 )}
+                {view === "portals" && portalNeedsPerson && (
+                  <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-amber-500" />
+                )}
               </TooltipTrigger>
               <TooltipContent side="right">
                 {label}
                 {view === "attention" && attentionCount > 0 && ` (${attentionCount})`}
+                {view === "portals" && portalNeedsPerson && " (el portal te necesita)"}
               </TooltipContent>
             </Tooltip>
           ))}

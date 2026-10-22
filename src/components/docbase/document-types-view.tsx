@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react"
 import { Shapes } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { getDocumentType, getTypesPlan, runTypes } from "@/commands/docbase"
-import { getAskConfig } from "@/lib/document-asking"
+import { MISSING_ASK_ENGINE, useAskConfig } from "@/lib/document-asking"
 import { useAppDialog } from "@/stores/app-dialog-store"
 import { useWikiStore } from "@/stores/wiki-store"
 import { documentTypeName, stageName, vocabulary } from "@/vocabulary"
@@ -37,12 +37,14 @@ export function DocumentTypesPanel() {
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  // Every hook goes before the first return: React needs the same ones in
+  // every render, loading or loaded.
+  const engine = useAskConfig()
 
   const data = plan.data
   if (!data) return plan.error ? <ErrorNote>{plan.error}</ErrorNote> : null
   if (data.documents === 0) return null
 
-  const engine = getAskConfig()
   const questions = questionsText(data)
 
   async function run() {
@@ -85,7 +87,7 @@ export function DocumentTypesPanel() {
             size="sm"
             onClick={run}
             disabled={busy || !engine}
-            title={engine ? undefined : "Hace falta un modelo de Codex CLI configurado para preguntar."}
+            title={engine ? undefined : MISSING_ASK_ENGINE}
           >
             {busy ? "Preguntando…" : "Reconocer tipos"}
           </Button>
@@ -103,7 +105,7 @@ export function DocumentTypesPanel() {
         </p>
         {!engine && questions && (
           <p className="text-xs text-muted-foreground">
-            Para preguntar hace falta elegir Codex CLI como modelo en la configuración.
+            {MISSING_ASK_ENGINE}
           </p>
         )}
         {data.proposedTypes.length > 0 && (

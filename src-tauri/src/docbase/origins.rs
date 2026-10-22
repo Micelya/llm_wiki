@@ -179,20 +179,29 @@ pub(crate) fn ensure_general_project(conn: &Connection) -> Result<String, String
 /// Whether `inner` is `outer` or sits somewhere under it, comparing the
 /// way Windows does.
 fn contains(outer: &Path, inner: &Path) -> bool {
-    let normalize = |path: &Path| -> Vec<String> {
+    path_inside(outer, inner).is_some()
+}
+
+/// The path of `inner` inside `outer`, with `/` (empty: they are the same
+/// folder), when it is inside; the letters compared without case, as
+/// Windows does, and the path given with the letters of `inner`.
+pub(crate) fn path_inside(outer: &Path, inner: &Path) -> Option<String> {
+    let parts = |path: &Path| -> Vec<String> {
         path.components()
             .filter_map(|component| match component {
-                std::path::Component::Normal(part) => Some(part.to_string_lossy().to_lowercase()),
-                std::path::Component::Prefix(prefix) => {
-                    Some(prefix.as_os_str().to_string_lossy().to_lowercase())
-                }
+                std::path::Component::Normal(part) => Some(part.to_string_lossy().to_string()),
+                std::path::Component::Prefix(prefix) => Some(prefix.as_os_str().to_string_lossy().to_string()),
                 _ => None,
             })
             .collect()
     };
-    let outer = normalize(outer);
-    let inner = normalize(inner);
-    inner.len() >= outer.len() && inner[..outer.len()] == outer[..]
+    let outer = parts(outer);
+    let inner = parts(inner);
+    let same = |a: &String, b: &String| a.to_lowercase() == b.to_lowercase();
+    if inner.len() < outer.len() || !outer.iter().zip(&inner).all(|(a, b)| same(a, b)) {
+        return None;
+    }
+    Some(inner[outer.len()..].join("/"))
 }
 
 #[cfg(test)]

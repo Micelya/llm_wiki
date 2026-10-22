@@ -64,7 +64,7 @@ const RESOLUTION_SETTING: &str = "knowledge-resolution";
 /// Why a group of mentions has no entity: it is a reference (D-377).
 pub(crate) const REFERENCE: &str = "referencia";
 /// Raised when a change in the program changes what a resolution gives.
-const RESOLUTION_VERSION: &str = "resolucion-12";
+const RESOLUTION_VERSION: &str = "resolucion-14";
 
 fn resolution_basis() -> String {
     format!("{RESOLUTION_VERSION}|{IDENTITY_PROMPT}|{}", vocabulary().digest)
@@ -520,7 +520,7 @@ fn coreference(vocabulary: &Vocabulary, out: &mut Vec<Cluster>) {
                 continue;
             }
             let target = complete[0];
-            let apart = out[short].strong.iter().any(|(kind, values)| out[target].strong.get(kind).is_some_and(|other| values.is_disjoint(other)));
+            let apart = out[short].strong.iter().any(|(kind, values)| out[target].strong.get(kind).is_some_and(|other| !names::same_identifier(values, other)));
             if apart || !vocabulary.is_a_name(ORGANIZATION, &out[target].name.joined()) {
                 continue;
             }
@@ -546,6 +546,36 @@ fn coreference(vocabulary: &Vocabulary, out: &mut Vec<Cluster>) {
         index += 1;
         keep
     });
+}
+
+/// The group a verdict said of a group that is gone stands for now (D-458):
+/// the one group of the same document and type whose name is within the
+/// old one ("Registro X" for "Sigla Registro X", once the document is read
+/// again); else, the groups of that very name in other documents, when the
+/// names and identifiers already made them one entity.
+fn heir_of_group(clusters: &[Cluster], resolver: &mut Resolver, key: &str) -> Option<usize> {
+    let (content, kind, normalized) = parse_cluster_key(key)?;
+    let old: BTreeSet<&str> = normalized.split(' ').filter(|w| !w.is_empty()).collect();
+    let within: Vec<usize> = (0..clusters.len())
+        .filter(|&i| clusters[i].content_id == content && clusters[i].kind == kind && clusters[i].excluded.is_none())
+        .filter(|&i| {
+            clusters[i].names.iter().any(|n| {
+                let words: BTreeSet<&str> = n.split(' ').filter(|w| !w.is_empty()).collect();
+                words.len() >= 2 && words.is_subset(&old)
+            })
+        })
+        .collect();
+    match within.as_slice() {
+        [one] => return Some(*one),
+        [] => {}
+        _ => return None,
+    }
+    let same: Vec<usize> = (0..clusters.len())
+        .filter(|&i| clusters[i].kind == kind && clusters[i].excluded.is_none() && clusters[i].names.contains(&normalized))
+        .collect();
+    let first = *same.first()?;
+    let root = resolver.find(first);
+    same.iter().all(|&i| resolver.find(i) == root).then_some(first)
 }
 
 /// The group of each name of a document: what a key of a group refers to.
@@ -702,8 +732,10 @@ impl<'a> Resolver<'a> {
         if by_person {
             return None;
         }
+        // Another value of the same kind keeps them apart, unless it is the
+        // same one written with more or fewer characters (D-436).
         for (kind, values) in &self.strong[a] {
-            if self.strong[b].get(kind).is_some_and(|other| values.is_disjoint(other)) {
+            if self.strong[b].get(kind).is_some_and(|other| !names::same_identifier(values, other)) {
                 return Some("otro-identificador");
             }
         }
@@ -1496,23 +1528,50 @@ pub(crate) fn resolve(base: &DocBase, asking: &mut Asking, report: &mut ResolveR
         index.get(&(content, kind, normalized)).copied()
     };
     let mut verdicts: HashMap<(usize, usize), Verdict> = HashMap::new();
+    // A verdict one of whose groups is gone (its document was read again
+    // and names it otherwise) stands for the group that names it now
+    // (D-458), once the names have made the entities.
+    let mut orphans: Vec<(String, usize, Verdict)> = Vec::new();
     for ((a, b), verdict) in kept_verdicts {
-        if let (Some(x), Some(y)) = (group_of(&a), group_of(&b)) {
-            if x != y {
-                verdicts.insert((x.min(y), x.max(y)), verdict);
+        match (group_of(&a), group_of(&b)) {
+            (Some(x), Some(y)) => {
+                if x != y {
+                    verdicts.insert((x.min(y), x.max(y)), verdict);
+                }
             }
+            (None, Some(y)) => orphans.push((a, y, verdict)),
+            (Some(x), None) => orphans.push((b, x, verdict)),
+            (None, None) => {}
         }
     }
+    orphans.sort_by(|a, b| (&a.0, a.1).cmp(&(&b.0, b.1)));
     let mut resolver = Resolver::new(&clusters);
     resolver.persons(&decided);
     resolver.identifiers();
     resolver.same_names();
     let loose_areas = resolver.areas();
+    for (key, other, verdict) in orphans {
+        if let Some(x) = heir_of_group(&clusters, &mut resolver, &key) {
+            if x != other {
+                verdicts.entry((x.min(other), x.max(other))).or_insert(verdict);
+            }
+        }
+    }
 
     // 3. The model, for the candidates left, against each principal.
     let mut common = 0;
     let mut formless: BTreeMap<usize, BTreeSet<usize>> = BTreeMap::new();
-    let edges = candidates(&mut resolver, &mut common, &mut formless);
+    let mut edges = candidates(&mut resolver, &mut common, &mut formless);
+    // Two groups the model said are the same are candidates, whatever
+    // their names are now: what it said holds (R-20), without asking.
+    let mut said_same: Vec<(usize, usize)> = verdicts.iter().filter(|(_, v)| v.verdict == "same").map(|(&pair, _)| pair).collect();
+    said_same.sort();
+    for (x, y) in said_same {
+        let (rx, ry) = (resolver.find(x), resolver.find(y));
+        if rx != ry && clusters[x].excluded.is_none() && clusters[y].excluded.is_none() && resolver.apart(rx, ry, false).is_none() {
+            edges.entry((rx.min(ry), rx.max(ry))).or_insert("veredicto");
+        }
+    }
     report.common_keys = common;
     let core: Vec<usize> = (0..clusters.len()).map(|i| resolver.find(i)).collect();
     let mut members: BTreeMap<usize, Vec<usize>> = BTreeMap::new();

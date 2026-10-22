@@ -17,7 +17,9 @@
 //!   signing service's history page, the fields of a form, the digital
 //!   signatures embedded in a PDF.
 //! - **3 · Provisional families** (`store::families`): against a
-//!   principal document, never by chain (R-14).
+//!   principal document, never by chain (R-14). A family of the same
+//!   template gets its template: the text they share, its fields and the
+//!   value of each document (`template`).
 //!
 //! Passes 4 to 6, with the model only where it adds something:
 //!
@@ -45,6 +47,7 @@ pub mod marks;
 pub mod minhash;
 pub mod propose;
 pub mod store;
+pub mod template;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]

@@ -19,6 +19,7 @@ use super::knowledge::pages::ProjectReport;
 use super::knowledge::research::{Research, ResearchSource};
 use super::knowledge::resolve::ResolveReport;
 use super::knowledge::screens::{DocumentEntities, KnowledgeAttention, MatterDetail, MatterSummary};
+use super::knowledge::extract::{RereadPlan, RereadTarget};
 use super::knowledge::{DocumentKnowledge, KnowledgeStatus};
 use super::labels::{Label, LabelGroup, LabelRule};
 use super::origins::Origin;
@@ -29,7 +30,7 @@ use super::similar::classify::{DecidedType, DocumentType, ProposedType, RunRepor
 use super::similar::data::Datum;
 use super::similar::types::RelationDef;
 use crate::source_volume::asking::{asker_for, AskConfig};
-use crate::source_volume::recognition::RecognitionConfig;
+use super::services::{AiServices, AiServicesView};
 use super::query::{Activity, DocumentDetail, DocumentFilter, DocumentPage, Health, LocationRef, OriginSummary};
 use super::tree::FolderListing;
 use super::worker::{self, Wake};
@@ -51,6 +52,17 @@ impl DocBaseState {
         self.base
             .as_ref()
             .map_err(|error| format!("La base documental no está disponible: {error}"))
+    }
+
+    /// The base, for the parts of the app that bring documents into it
+    /// (the portals).
+    pub(crate) fn shared(&self) -> Result<Arc<DocBase>, String> {
+        self.base().cloned()
+    }
+
+    /// Asks the worker for a sweep of every origin now.
+    pub(crate) fn request_sweep(&self) {
+        self.wake.request_sweep();
     }
 }
 
@@ -420,6 +432,14 @@ pub fn docbase_similar_groups(state: State<'_, DocBaseState>) -> Result<Vec<Simi
     state.base()?.similar_groups(&Visible::All)
 }
 
+/// The template the document at this location shares with its family:
+/// the text they share with its fields, and the value of each document.
+/// `None` when it shares none.
+#[tauri::command(async)]
+pub fn docbase_similar_template(state: State<'_, DocBaseState>, location_id: i64) -> Result<Option<similar::template::Template>, String> {
+    state.base()?.similar_template(&Visible::All, location_id)
+}
+
 /// The relations a person can choose, as the catalog lists them. Their
 /// names come from the vocabulary.
 #[tauri::command(async)]
@@ -475,16 +495,27 @@ pub fn docbase_types_run(
 ) -> Result<RunReport, String> {
     let base = state.base()?.clone();
     let asker = asker_for(&engine)?;
-    base.set_ask_engine(Some(&engine))?;
     let report = base.types_run(asker.as_ref(), max_questions.unwrap_or(RUN_LIMIT))?;
     let _ = app.emit(CHANGED_EVENT, ());
     Ok(report)
 }
 
-/// The engine that answers while the archive's wiki is active, or none.
+/// The registry of the AI services (which engine each service uses), with
+/// the catalog of engines (P-141).
 #[tauri::command(async)]
-pub fn docbase_set_ask_engine(state: State<'_, DocBaseState>, engine: Option<AskConfig>) -> Result<(), String> {
-    state.base()?.set_ask_engine(engine.as_ref())
+pub fn docbase_ai_services(state: State<'_, DocBaseState>) -> Result<AiServicesView, String> {
+    state.base()?.ai_services()
+}
+
+/// Saves the registry of the AI services: the next request uses it, and
+/// the questions to the model stop waiting to see the change. The screens
+/// that show an engine read it from what this returns.
+#[tauri::command(async)]
+pub fn docbase_set_ai_services(state: State<'_, DocBaseState>, services: AiServices) -> Result<AiServicesView, String> {
+    let base = state.base()?;
+    base.set_ai_services(services)?;
+    state.ask_wake.request();
+    base.ai_services()
 }
 
 #[derive(Debug, Serialize)]
@@ -579,7 +610,6 @@ pub fn docbase_knowledge_run(
 ) -> Result<KnowledgeReport, String> {
     let base = state.base()?.clone();
     let asker = asker_for(&engine)?;
-    base.set_ask_engine(Some(&engine))?;
     let report = base.knowledge_run(asker.as_ref(), max_questions.unwrap_or(RUN_LIMIT))?;
     let _ = app.emit(CHANGED_EVENT, ());
     Ok(report)
@@ -849,12 +879,6 @@ pub fn docbase_set_background_reading(state: State<'_, DocBaseState>, on: bool) 
     state.base()?.set_background_reading(on)
 }
 
-/// The engine that recognizes the text of scans, from the model chosen in
-/// Ajustes; `None` when that model cannot read images.
-#[tauri::command(async)]
-pub fn docbase_set_recognition_engine(state: State<'_, DocBaseState>, engine: Option<RecognitionConfig>) -> Result<(), String> {
-    state.base()?.set_recognition_engine(engine.as_ref())
-}
 
 /// A person asks to recognize the text of scans (P-242), with the
 /// automatic reading on or off: these documents (`content_ids`), every one
@@ -875,7 +899,7 @@ pub fn docbase_recognize_text(
     };
     let base = state.base()?;
     if base.recognition_engine()?.is_none() {
-        return Err("Falta elegir el motor que reconoce escaneos: en Ajustes, elegí «Codex CLI (local)» como modelo.".to_string());
+        return Err("Falta elegir el motor que reconoce escaneos: en Ajustes → Servicios de IA, elegí uno para «Reconocer escaneos».".to_string());
     }
     let asked = base.request_recognition(&which)?;
     state.ask_wake.request();
@@ -949,6 +973,27 @@ pub fn docbase_knowledge_undo(app: tauri::AppHandle, state: State<'_, DocBaseSta
 #[tauri::command(async)]
 pub fn docbase_knowledge_read_again_failed(app: tauri::AppHandle, state: State<'_, DocBaseState>) -> Result<usize, String> {
     let count = state.base()?.knowledge_read_again_failed(&Visible::All)?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(count)
+}
+
+/// What reading again a document, the documents of an origin or folder, or
+/// the whole archive would take, for the notice of its cost (D-432).
+#[tauri::command(async)]
+pub fn docbase_knowledge_reread_plan(state: State<'_, DocBaseState>, target: Option<RereadTarget>) -> Result<RereadPlan, String> {
+    state.base()?.knowledge_reread_plan(&target.unwrap_or_default())
+}
+
+/// Asks to read them again with new answers of the model (D-432): kept in
+/// the base until it is done. Returns how many documents.
+#[tauri::command(async)]
+pub fn docbase_knowledge_reread(app: tauri::AppHandle, state: State<'_, DocBaseState>, target: Option<RereadTarget>) -> Result<usize, String> {
+    let base = state.base()?;
+    if super::similar::classify::ask_engine(&base.conn())?.is_none() {
+        return Err("Falta elegir el motor de «Preguntar al modelo» en Ajustes → Servicios de IA: sin él no se puede volver a leer.".to_string());
+    }
+    let count = base.knowledge_request_reread(&target.unwrap_or_default())?;
+    state.ask_wake.request();
     let _ = app.emit(CHANGED_EVENT, ());
     Ok(count)
 }

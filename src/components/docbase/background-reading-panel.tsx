@@ -1,11 +1,9 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { BookOpen, Pause, Play } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { getBackgroundReading, setAskEngine, setBackgroundReading, type Progress } from "@/commands/docbase"
-import { getAskConfig } from "@/lib/document-asking"
+import { getBackgroundReading, setBackgroundReading, type Progress } from "@/commands/docbase"
 import { useAppDialog } from "@/stores/app-dialog-store"
 import { useProgressStore } from "@/stores/progress-store"
-import { useWikiStore } from "@/stores/wiki-store"
 import { vocabulary } from "@/vocabulary"
 import { ErrorNote, Panel, StatusBadge } from "./page"
 import { plural } from "./format"
@@ -23,28 +21,20 @@ export interface BackgroundReading {
 
 /**
  * The automatic reading of the base (`background-reading`): with it on,
- * the base reads by itself, with the model configured, every document
- * that is added or changes in the folders. It does not start by itself,
- * because it uses the model. The one switch, shared by Orígenes and
- * «En curso» (D-424).
+ * the base reads by itself, with the engines of Ajustes → Servicios de IA
+ * (the base reads them from its registry at every request, D-443), every
+ * document that is added or changes in the folders. It does not start by
+ * itself, because it uses the model. The one switch, shared by Orígenes
+ * and «En curso» (D-424).
  */
 export function useBackgroundReading(): BackgroundReading {
   const reading = useDocbaseQuery("background-reading", getBackgroundReading)
-  const llmConfig = useWikiStore((s) => s.llmConfig)
   const refreshProgress = useProgressStore((s) => s.refresh)
   const progress = useProgressStore((s) => s.progress)
   const dialog = useAppDialog()
   const words = vocabulary()
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
-  const on = reading.data === true
-
-  // While it is on, the base asks with the model configured now; with no
-  // model that can answer, nothing is asked.
-  useEffect(() => {
-    if (!on) return
-    setAskEngine(getAskConfig()).catch((cause) => console.error("[docbase] failed to set the engine for questions:", cause))
-  }, [on, llmConfig])
 
   async function toggle(next: boolean) {
     const confirmed = await dialog.confirm(
@@ -73,7 +63,6 @@ export function useBackgroundReading(): BackgroundReading {
     setBusy(true)
     setProblem(null)
     try {
-      if (next) await setAskEngine(getAskConfig())
       await setBackgroundReading(next)
       reading.reload()
       refreshProgress()

@@ -23,7 +23,9 @@ path = "src/main.rs"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["protocol-asset", "tray-icon"] }
+# `unstable`: the portal's browser is a webview inside the main window
+# (`Window::add_child`, docs/design/portales-judiciales-propuesta.md).
+tauri = { version = "2", features = ["protocol-asset", "tray-icon", "unstable"] }
 tauri-plugin-opener = "2"
 tauri-plugin-autostart = "2.5.1"
 tauri-plugin-single-instance = "2"
@@ -35,6 +37,8 @@ pdfium-render = "0.9"
 tauri-plugin-store = "2.4.2"
 tauri-plugin-http = { version = "2", features = ["unsafe-headers"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
+# The web clipper's local server (clip_server.rs).
+tiny_http = "0.12"
 zip = "2"
 calamine = "0.34.0"
 docx-rs = "0.4.20"
@@ -69,6 +73,12 @@ html2text = { version = "0.17.1", default-features = false, features = ["xml"] }
 # data. `bundled` compiles SQLite in (with FTS5), so there is no system
 # library to find on Windows.
 rusqlite = { version = "0.40", features = ["bundled"] }
+# Reads the pages of the judicial portals (src/portals). Already built for
+# Tauri itself.
+dom_query = { version = "0.27", default-features = false }
+# API keys live in the system keychain (Credential Manager on Windows), not
+# in app-state.json (secrets.rs).
+keyring = { version = "3.6", features = ["windows-native", "apple-native", "linux-native"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }

@@ -7,7 +7,10 @@
 //!
 //! - by itself, in the background, while the automatic reading is on (the
 //!   same switch as the questions to the model: each page is a question);
-//! - when a person asks for it, even with the automatic reading off.
+//! - when a person asks for it, even with the automatic reading off. What
+//!   she asked for is kept in the base (`recognition_request`, in the order
+//!   asked) until it is read or fails for good, so closing the app does not
+//!   lose it.
 //!
 //! Once per document and engine: the pages already read are kept beside
 //! the base (`recognized/<file hash>/page-N.json`), so a failure half-way
@@ -34,12 +37,10 @@ use crate::source_volume::{LocalFolderProvider, SourceProvider};
 
 use super::similar::classify::stops_the_run;
 use super::text::EXTRACTION_ENGINE;
-use super::{sql_err, DocBase};
+use super::{now_ms, sql_err, DocBase};
 
 /// Folder, beside the database, where the recognized pages are kept.
 pub const RECOGNIZED_DIR: &str = "recognized";
-/// Where the engine that recognizes text is kept (`docbase_setting`).
-const RECOGNITION_ENGINE_SETTING: &str = "recognition-engine";
 /// After this many failures of the provider on the same document, the
 /// document is marked as failed: a page that never gets an answer must not
 /// hold the others back for ever.
@@ -74,13 +75,10 @@ pub enum RecognitionRequest {
     Failed,
 }
 
-/// The engine that recognizes text, as kept in the base.
+/// The engine that recognizes text: the one of «Reconocer escaneos» in the
+/// registry of AI services, when the base can run it (`services.rs`).
 pub(crate) fn recognition_engine(conn: &Connection) -> Result<Option<RecognitionConfig>, String> {
-    let value: Option<String> = conn
-        .query_row("SELECT value FROM docbase_setting WHERE key = ?1", [RECOGNITION_ENGINE_SETTING], |row| row.get(0))
-        .optional()
-        .map_err(sql_err)?;
-    Ok(value.and_then(|v| serde_json::from_str(&v).ok()))
+    super::services::recognition_engine(conn)
 }
 
 /// SQL condition: the content `c` has a copy that can be read now.
@@ -93,25 +91,17 @@ fn reachable_sql() -> String {
     REACHABLE_SQL.replace("{excluded}", super::excluded_sql!())
 }
 
-impl DocBase {
-    /// The engine that recognizes text; none clears it. The screens set it
-    /// from the model chosen in Ajustes.
-    pub fn set_recognition_engine(&self, engine: Option<&RecognitionConfig>) -> Result<(), String> {
-        let conn = self.conn();
-        match engine {
-            Some(engine) => conn
-                .execute(
-                    "INSERT OR REPLACE INTO docbase_setting (key, value) VALUES (?1, ?2)",
-                    params![RECOGNITION_ENGINE_SETTING, serde_json::to_string(engine).map_err(|e| e.to_string())?],
-                )
-                .map_err(sql_err)?,
-            None => conn
-                .execute("DELETE FROM docbase_setting WHERE key = ?1", [RECOGNITION_ENGINE_SETTING])
-                .map_err(sql_err)?,
-        };
-        Ok(())
-    }
+/// The documents a person asked to recognize and are still to do, in the
+/// order asked (kept in the base: they survive closing the app).
+pub(crate) fn requested_recognitions(conn: &Connection) -> Result<Vec<i64>, String> {
+    let mut statement = conn
+        .prepare("SELECT content_id FROM recognition_request ORDER BY position, content_id")
+        .map_err(sql_err)?;
+    let rows = statement.query_map([], |row| row.get::<_, i64>(0)).map_err(sql_err)?;
+    rows.collect::<Result<_, _>>().map_err(sql_err)
+}
 
+impl DocBase {
     pub fn recognition_engine(&self) -> Result<Option<RecognitionConfig>, String> {
         recognition_engine(&self.conn())
     }
@@ -163,21 +153,41 @@ impl DocBase {
                     }
                 }
             }
-            for id in &ids {
+            // After the ones already asked for, each once.
+            let last: i64 = conn
+                .query_row("SELECT coalesce(max(position), 0) FROM recognition_request", [], |row| row.get(0))
+                .map_err(sql_err)?;
+            let at = now_ms();
+            for (index, id) in ids.iter().enumerate() {
                 conn.execute("UPDATE content SET error = NULL WHERE id = ?1 AND state = 'needs-recognition'", [id])
                     .map_err(sql_err)?;
+                conn.execute(
+                    "INSERT OR IGNORE INTO recognition_request (content_id, position, asked_at) VALUES (?1, ?2, ?3)",
+                    params![id, last + 1 + index as i64, at],
+                )
+                .map_err(sql_err)?;
             }
             ids
         };
-        self.engine_state().request_recognition(&ids);
+        self.engine_state().forget_recognition_tries(&ids);
         Ok(ids.len())
+    }
+
+    /// The recognition of a document a person may have asked for ended,
+    /// well or for good: it is no longer asked for.
+    fn recognition_ended(&self, content: i64) -> Result<(), String> {
+        self.conn()
+            .execute("DELETE FROM recognition_request WHERE content_id = ?1", [content])
+            .map_err(sql_err)?;
+        self.engine_state().forget_recognition_tries(&[content]);
+        Ok(())
     }
 
     /// The document to recognize next: the first one a person asked for,
     /// or, while the automatic reading is on, the next one waiting that did
     /// not fail and can be read now.
     pub fn next_recognition(&self) -> Result<Option<i64>, String> {
-        if let Some(id) = self.engine_state().next_requested() {
+        if let Some(id) = requested_recognitions(&self.conn())?.first().copied() {
             return Ok(Some(id));
         }
         if !self.background_reading()? {
@@ -211,12 +221,12 @@ impl DocBase {
         state.recognizing(None);
         match result {
             Ok(true) => {
-                state.recognition_ended(content);
+                self.recognition_ended(content)?;
                 state.recognized();
                 Ok(RecognitionStep::Recognized(content))
             }
             Ok(false) => {
-                state.recognition_ended(content);
+                self.recognition_ended(content)?;
                 Ok(RecognitionStep::Skipped(content))
             }
             Err(error) if stops_the_run(&error) && state.recognition_tried(content) < MAX_PROVIDER_TRIES => {
@@ -224,7 +234,7 @@ impl DocBase {
                 Ok(RecognitionStep::Stopped(error))
             }
             Err(error) => {
-                state.recognition_ended(content);
+                self.recognition_ended(content)?;
                 // The failure is of the document: a failure of the provider
                 // before it is behind.
                 state.forget_error_of("recognition");
@@ -650,6 +660,38 @@ del edificio inventado hasta que alguna de las partes la retire, con aviso de un
         assert!(steps.contains(&RecognitionStep::Recognized(one)) && steps.contains(&RecognitionStep::Recognized(two)), "{steps:?}");
         assert_eq!(retry.calls(), 2);
         assert!(text_of(&base, "dos.pdf").0.contains("CONTRATO DE LOCACIÓN"));
+    }
+
+    #[test]
+    fn what_a_person_asked_to_recognize_survives_closing_the_app() {
+        let dir = TempDir::new();
+        dir.write("o/uno.png", &fixture("pagina-prueba.png"));
+        dir.write("o/dos.pdf", &fixture("escaneo-2-paginas.pdf"));
+        let path = dir.path().join("base").join("private.sqlite3");
+        let (one, two) = {
+            let base = DocBase::open(&path).unwrap();
+            let origin = base.add_origin("O", &dir.path().join("o"), &[]).unwrap();
+            settle(&base, &origin.id);
+            base.set_recognition_engine(Some(&engine("m"))).unwrap();
+            let (one, two) = (content_of(&base, "uno.png"), content_of(&base, "dos.pdf"));
+            // Asked in this order, the reading off; the app closes before.
+            assert_eq!(base.request_recognition(&RecognitionRequest::These(vec![two, one])).unwrap(), 2);
+            (one, two)
+        };
+        let base = DocBase::open(&path).unwrap();
+        // Opened again, the requests are there, in their order, and the
+        // stage says they were asked for.
+        assert_eq!(base.next_recognition().unwrap(), Some(two));
+        let stage = base.progress(&Scope::default()).unwrap().stages.into_iter().find(|s| s.id == "recognition").unwrap();
+        assert_eq!((stage.state, stage.extra["requested"]), ("running", 2));
+        // Asked again, nothing is repeated.
+        assert_eq!(base.request_recognition(&RecognitionRequest::These(vec![one])).unwrap(), 1);
+        assert_eq!(requested_recognitions(&base.conn()).unwrap(), vec![two, one]);
+        // Read, they are no longer asked for; with the reading off nothing else is read.
+        let recognizer = fake("m", vec![Ok(PAGE_ONE), Ok(PAGE_TWO), Ok(NOTE)]);
+        assert_eq!(run(&base, &recognizer), vec![RecognitionStep::Recognized(two), RecognitionStep::Recognized(one)]);
+        assert!(requested_recognitions(&base.conn()).unwrap().is_empty());
+        assert_eq!(base.next_recognition().unwrap(), None);
     }
 
     #[test]

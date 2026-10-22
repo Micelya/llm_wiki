@@ -15,11 +15,17 @@
 //!   quote that is in the text, with the name of the mention, the value of
 //!   the identifier or of the claim inside it. Everything else is
 //!   discarded and counted, with its reason.
-//! - **When.** A document is read again only when its text, the version of
-//!   the question or the vocabulary changed (`basis`). Every answer is
-//!   kept with the engine and model that gave it: the same question is not
-//!   asked twice (R-20). A document whose type is still to be asked waits
-//!   for it: the type goes into the question.
+//! - **When.** A document is read once, and again only when its text
+//!   changes, its reading failed under other instructions, or a person
+//!   asks (D-432): new instructions (the question, the vocabulary) leave
+//!   the readings made before as they are, marked as of an earlier
+//!   version (`older`). A new check of the program (`READING_CHECK`, the
+//!   words it checks with) is applied to them again from the answers kept,
+//!   without asking the model (`knowledge_recheck`). Reading again because
+//!   a person asked takes new answers of the model. Every answer is kept
+//!   with the engine and model that gave it: the same question is not
+//!   asked twice by itself (R-20). A document whose type is still to be
+//!   asked waits for it: the type goes into the question.
 
 use std::collections::{BTreeSet, HashMap};
 
@@ -29,7 +35,7 @@ use sha2::{Digest, Sha256};
 
 use super::quote::{self, Located};
 use super::{names, read_checks, values};
-use super::vocabulary::{vocabulary, Vocabulary};
+use super::vocabulary::{vocabulary, RoleReference, Vocabulary};
 use super::{mark_dirty, visible_content, Discarded};
 use crate::docbase::similar::changes::{classify as kind_of_token, Kind};
 use crate::docbase::similar::classify::{
@@ -41,9 +47,12 @@ use crate::docbase::{now_ms, sql_err, DocBase, Visible};
 use crate::source_volume::asking::DocumentAsker;
 use crate::source_volume::catalog::{is_page_heading, RECOGNIZED_MARKER_START};
 
-/// Version of the question. Changing the prompt changes it, and every
-/// document is read again.
-pub const KNOWLEDGE_PROMPT: &str = "conocimiento-5";
+/// Version of the question. Changing the prompt changes it: the readings
+/// made before are kept, as of an earlier version (D-432). `conocimiento-7`
+/// asks for one claim per pair a sentence joins (each parent of each
+/// child), of every person of the document, with a quote that names both
+/// and skips nothing (D-459).
+pub const KNOWLEDGE_PROMPT: &str = "conocimiento-7";
 /// The task the answers are kept under in `model_answer`.
 pub const TASK: &str = "knowledge";
 /// Words of text in one question; a longer document is read in parts of
@@ -75,6 +84,8 @@ pub struct KnowledgeReport {
     pub left: usize,
     /// Documents waiting for their type to be asked first.
     pub waiting_for_type: usize,
+    /// Readings checked again from the answers kept, without asking.
+    pub rechecked: usize,
     pub mentions: usize,
     pub evidence: usize,
     pub discarded: usize,
@@ -90,6 +101,7 @@ impl KnowledgeReport {
         self.unusable += other.unusable;
         self.left = other.left;
         self.waiting_for_type = other.waiting_for_type;
+        self.rechecked += other.rechecked;
         self.mentions += other.mentions;
         self.evidence += other.evidence;
         self.discarded += other.discarded;
@@ -124,9 +136,21 @@ fn text_hash(body: &str) -> String {
     Sha256::digest(body.as_bytes()).iter().take(16).map(|b| format!("{b:02x}")).collect()
 }
 
-/// What a reading is decided on: when it is the same, nothing is read again.
+/// What a reading was asked with: the version of the question, what it
+/// says of the vocabulary and the text. Another basis on the same text is a
+/// reading of an earlier version (D-432).
 fn basis(vocabulary: &Vocabulary, text_hash: &str) -> String {
-    fingerprint(&[KNOWLEDGE_PROMPT, &vocabulary.reading_digest, text_hash])
+    fingerprint(&[KNOWLEDGE_PROMPT, &vocabulary.asking_digest, text_hash])
+}
+
+/// How the basis of a reading starts when a person asked to read it again
+/// (`releer:<when>|<basis>`): kept in the base, so that the request
+/// survives closing the app, and gone when the new reading is written.
+const REREAD: &str = "releer:";
+
+/// When a person asked to read it again, from its basis.
+fn reread_since(basis: &str) -> Option<i64> {
+    basis.strip_prefix(REREAD)?.split('|').next()?.parse().ok()
 }
 
 /// How the reading of one document stands.
@@ -142,8 +166,21 @@ pub(crate) struct Standing {
 pub(crate) struct ReadingRow {
     pub state: String,
     pub basis: String,
-    /// Read on the current text, question and vocabulary.
+    /// Nothing to ask the model about it: a reading of its current text
+    /// that stands (done, or failed under the current instructions), and
+    /// no person asked to read it again (D-432).
     pub current: bool,
+    /// Asked with an earlier version of the instructions (the question or
+    /// what it says of the vocabulary): kept, and read again only when a
+    /// person asks.
+    pub older: bool,
+    /// Checked with an earlier version of the program's check: checked
+    /// again from the answers kept, without asking the model.
+    pub to_check: bool,
+    /// A person asked to read it again (with new answers of the model).
+    pub reread: bool,
+    /// The fingerprint of the text it was read on.
+    pub hash: String,
     pub discarded: String,
 }
 
@@ -158,7 +195,7 @@ pub(crate) fn standings(conn: &Connection, visible: &Visible, only: Option<i64>)
     values.extend(params.into_iter().map(rusqlite::types::Value::from));
     let mut statement = conn
         .prepare(&format!(
-            "SELECT c.id, d.created_at, k.state, k.basis, k.text_at, k.prompt_version, k.vocabulary, k.discarded
+            "SELECT c.id, d.created_at, k.state, k.basis, k.text_at, k.prompt_version, k.vocabulary, k.discarded, k.text_hash
              FROM content c JOIN derivative d ON d.content_id = c.id AND d.kind = 'text'
              LEFT JOIN knowledge_extraction k ON k.content_id = c.id
              WHERE c.state = 'processed' AND coalesce(c.word_count, 0) >= ?1 AND (?2 IS NULL OR c.id = ?2) AND {condition}
@@ -177,10 +214,20 @@ pub(crate) fn standings(conn: &Connection, visible: &Visible, only: Option<i64>)
                     let read_at: i64 = row.get(4)?;
                     let prompt: String = row.get(5)?;
                     let vocabulary_digest: String = row.get(6)?;
+                    let basis_kept: String = row.get(3)?;
+                    let hash: String = row.get(8)?;
+                    let reread = basis_kept.starts_with(REREAD);
+                    let asked_with = basis_kept.rsplit('|').next().unwrap_or_default();
+                    let older = prompt != KNOWLEDGE_PROMPT || asked_with != basis(vocabulary, &hash);
+                    let failed = state == "failed";
                     Some(ReadingRow {
+                        current: read_at == text_at && !reread && !(failed && older),
+                        older,
+                        to_check: !failed && vocabulary_digest != vocabulary.reading_digest,
+                        reread,
+                        hash,
                         state,
-                        basis: row.get(3)?,
-                        current: read_at == text_at && prompt == KNOWLEDGE_PROMPT && vocabulary_digest == vocabulary.reading_digest,
+                        basis: basis_kept,
                         discarded: row.get(7)?,
                     })
                 }
@@ -342,7 +389,8 @@ que nombra, con qué papel aparece cada uno, y lo que el documento dice de ellos
 Reglas:\n\
 - Solo lo que dice este documento. No agregues nada que sepas por otro lado ni completes datos que el texto no trae.\n\
 - Cada cita es un fragmento copiado literalmente del texto, continuo, de no más de 40 palabras, sin puntos suspensivos ni cambios. \
-Se va a comprobar que esté en el texto: lo que no esté, se descarta.\n\
+Si la frase es más larga, la cita es el tramo continuo que hace falta (en una relación, el que nombra a los dos); nunca saltees \
+palabras con «...» o «…»: esa cita se descarta. Se va a comprobar que esté en el texto: lo que no esté, se descarta.\n\
 - Una mención por cada forma en que el documento escribe a una entidad y por cada papel que tiene. \"escrito\" es el nombre \
 tal como aparece, y su cita lo contiene. Si dos menciones de este documento son la misma entidad (\"el locatario\" y su nombre, \
 la sigla y la razón social), en \"misma_que\" de la segunda poné la \"ref\" de la primera; si no, null. No registres un pronombre \
@@ -359,8 +407,12 @@ una organización: si el documento trata de un asunto, van en la mención del as
 mención como objeto, va en \"objeto_ref\" y \"objeto_valor\" es null; si lleva un valor, va en \"objeto_valor\" tal como está \
 escrito, dentro de la cita, y \"objeto_ref\" es null. \"tiempo\" es la fecha o el período del hecho si el documento lo dice, \
 tal como está escrito; si no, null. \"clase\" es la clase del dato cuando el predicado tiene clases y el texto la dice; si no, \"ninguna\".\n\
-- Una relación con consecuencias jurídicas (representa a, socio de, beneficiario final de, cónyuge de, parte en) se registra solo \
-si la cita nombra a los dos: quién y de quién.\n\
+- Una relación con consecuencias jurídicas (una representación, una sociedad, un beneficiario final, un matrimonio, un \
+parentesco, una herencia, ser parte en un asunto) se registra solo si la cita nombra a los dos: quién y de quién, por su nombre o \
+por el papel que el documento le da a uno solo de ellos. El sujeto y el objeto son dos menciones distintas, cada una en el lado \
+que dice el predicado: nunca la misma en los dos lados. Una frase que une a varias personas da una afirmación por cada par, todas \
+con esa misma cita (el predicado de la filiación trae un ejemplo). Un parentesco se registra una sola vez por cada par, con un solo \
+predicado (no repitas su inverso), y van los de cada persona que el documento nombra, no solo los de su titular.\n\
 - El dinero no va en \"afirmaciones\" sino en \"importes\": {money} \"deudor\" y \"acreedor\" son \"ref\" de menciones de personas \
 u organizaciones de este documento, ya resueltos los términos definidos (si el texto dice «la Empresa adeuda a la Locadora», el \
 deudor es la mención que el documento definió como «la Empresa»). Si el texto no dice una de las dos partes, el importe no va. \
@@ -740,6 +792,12 @@ fn normalized(text: &str) -> String {
     quote::words(text).join(" ")
 }
 
+/// Whether a quote leaves words out with an ellipsis (D-460): when the text
+/// does not have it, the reason it is discarded says so.
+fn skips_words(quote: &str) -> bool {
+    quote.contains("...") || quote.contains('…')
+}
+
 fn applies(types: &[String], kind: &str) -> bool {
     types.is_empty() || types.iter().any(|t| t == kind)
 }
@@ -797,6 +855,404 @@ fn label_verified(text: &Located, quote_text: &str, value: &[String], label: Opt
         .any(|&l| starts.iter().any(|&s| s >= l + label_words.len() && s - (l + label_words.len()) <= window))
 }
 
+/// The reasons a claim is checked again once the rest of its document is
+/// known: a side its quote may name by the role it has in it (D-456).
+const DEFERRED: [&str; 3] = ["objeto-fuera-de-la-cita", "sujeto-fuera-de-la-cita", "objeto-desconocido"];
+
+/// Who the role references of the vocabulary name in one document (D-456):
+/// for each one, the groups (by their names) on its side of the relations
+/// kept of the document.
+struct Roles<'a> {
+    named: Vec<(&'a RoleReference, Vec<Vec<Vec<String>>>)>,
+}
+
+impl<'a> Roles<'a> {
+    fn of(vocabulary: &'a Vocabulary, reading: &Reading, group_names: &HashMap<String, Vec<Vec<String>>>, signers: &BTreeSet<String>) -> Self {
+        let named = vocabulary
+            .reading
+            .role_references
+            .iter()
+            .map(|role| {
+                let add = |groups: &mut Vec<Vec<Vec<String>>>, reference: Option<&String>| {
+                    if let Some(names) = reference.and_then(|r| group_names.get(r)).filter(|n| !n.is_empty()) {
+                        if !groups.contains(names) {
+                            groups.push(names.clone());
+                        }
+                    }
+                };
+                let mut groups: Vec<Vec<Vec<String>>> = Vec::new();
+                for item in reading.evidence.iter().filter(|e| e.predicate == role.predicate && (!role.by_signer || signers.contains(&e.subject))) {
+                    add(&mut groups, if role.side == "object" { item.object_mention.as_ref() } else { Some(&item.subject) });
+                }
+                // Without such relations, who has one of its roles in the
+                // document (the parties of a lawyer's writ), not the signer.
+                if groups.is_empty() && !role.mention_roles.is_empty() && (!role.by_signer || !signers.is_empty()) {
+                    for mention in reading.mentions.iter().filter(|m| role.mention_roles.contains(&m.role) && !signers.contains(&m.reference)) {
+                        add(&mut groups, Some(&mention.reference));
+                    }
+                }
+                (role, groups)
+            })
+            .collect();
+        Roles { named }
+    }
+
+    /// Whether a quote names the group of these names by a role it has in
+    /// the document (one of the role's own, when it names one only).
+    fn names(&self, quote_words: &[String], names: Option<&Vec<Vec<String>>>) -> bool {
+        let Some(names) = names.filter(|n| !n.is_empty()) else { return false };
+        self.named.iter().any(|(role, groups)| (!role.single || groups.len() == 1) && groups.contains(names) && role.in_quote(quote_words))
+    }
+
+    /// The one group the roles some words have name, if they name one.
+    fn single(&self, words: &[String]) -> Option<Vec<Vec<String>>> {
+        let mut found: Option<&Vec<Vec<String>>> = None;
+        for (role, groups) in &self.named {
+            if groups.len() == 1 && role.in_quote(words) {
+                if found.is_some_and(|f| f != &groups[0]) {
+                    return None;
+                }
+                found = Some(&groups[0]);
+            }
+        }
+        found.cloned()
+    }
+}
+
+/// What the check of the claims of one reading works with (D-250, D-433 to
+/// D-437, D-456, D-457).
+struct ClaimCheck<'a> {
+    vocabulary: &'a Vocabulary,
+    body: &'a str,
+    text: &'a Located,
+    certificate: &'a BTreeSet<Option<i64>>,
+    window: usize,
+    refs: &'a HashMap<(usize, String), String>,
+    kinds: &'a HashMap<String, String>,
+    group_names: &'a HashMap<String, Vec<Vec<String>>>,
+    signers: &'a BTreeSet<String>,
+    /// One of each entity of the document: a mention, its type and the
+    /// names of its group.
+    groups: Vec<(String, String, Vec<Vec<String>>)>,
+}
+
+/// A claim the check does not keep: why, and what it said.
+struct Dropped {
+    reason: &'static str,
+    said: String,
+}
+
+/// A claim the check keeps, and what it corrected of it.
+struct Checked {
+    evidence: Evidence,
+    corrections: Vec<(&'static str, String)>,
+}
+
+fn keep_claim(reading: &mut Reading, checked: Checked, quote: &str) {
+    for (reason, said) in &checked.corrections {
+        corrected(reading, reason, said, quote);
+    }
+    push_evidence(reading, checked.evidence);
+}
+
+impl ClaimCheck<'_> {
+    fn names(&self, reference: &str) -> Option<&Vec<Vec<String>>> {
+        self.group_names.get(reference)
+    }
+
+    fn named_in(&self, quote_words: &[String], reference: &str) -> bool {
+        self.names(reference).is_some_and(|names| names.iter().any(|n| read_checks::name_in_quote(quote_words, n)))
+    }
+
+    /// The children a filiation says (D-457): the person named last before
+    /// its words ("hijo de") in the quote, or by a role there; when the quote
+    /// starts with them, or with the words that go on with the parents ("y
+    /// de"), or names no one before them ("DNI 1.234.567, hijo de"), the
+    /// person the text names last before them, wherever the text has the
+    /// quote (the same line of two certificates names two children). The
+    /// parent is never the child, nor is anyone when the quote names the
+    /// parent before those words ("X, hijo de Y" does not make X a parent).
+    fn children(&self, quote_words: &[String], parent: Option<&Vec<Vec<String>>>, roles: Option<&Roles>) -> Vec<Vec<Vec<String>>> {
+        let rules = &self.vocabulary.reading.filiation;
+        let cues = rules.cue_words();
+        if cues.is_empty() || rules.window == 0 {
+            return Vec::new();
+        }
+        let people: Vec<&Vec<Vec<String>>> = self.groups.iter().filter(|(_, kind, _)| kind == PERSON_KIND).map(|(_, _, names)| names).collect();
+        // Who the words name last, when it is not the parent.
+        let others = rules.other_words();
+        let child_in = |words: &[String]| read_checks::last_named(words, &people, &others).filter(|g| Some(*g) != parent).cloned();
+        let starts_at = |words: &[String], i: usize| cues.iter().any(|c| words[i..].starts_with(c));
+        let anchors: Vec<usize> = match (0..quote_words.len()).find(|&i| starts_at(quote_words, i)) {
+            Some(at) if at > 0 => {
+                let before = &quote_words[..at];
+                let places = read_checks::named_places(before, &people, &[]);
+                if people.iter().zip(&places).any(|(g, p)| Some(*g) == parent && !p.is_empty()) {
+                    return Vec::new();
+                }
+                if let Some(child) = child_in(before) {
+                    return vec![child];
+                }
+                if self.vocabulary.reading.role_references.iter().any(|r| r.in_quote(before)) {
+                    return roles.and_then(|r| r.single(before)).filter(|g| Some(g) != parent).into_iter().collect();
+                }
+                self.text.starts(quote_words).into_iter().map(|s| s + at).collect()
+            }
+            Some(_) => self.text.starts(quote_words),
+            None => {
+                if !rules.join_words().iter().any(|j| quote_words.starts_with(j)) {
+                    return Vec::new();
+                }
+                let words = self.text.words();
+                self.text
+                    .starts(quote_words)
+                    .into_iter()
+                    .filter_map(|s| (s.saturating_sub(rules.window)..s).rev().find(|&i| starts_at(words, i)))
+                    .collect()
+            }
+        };
+        let words = self.text.words();
+        let mut found: Vec<Vec<Vec<String>>> = Vec::new();
+        for anchor in anchors {
+            if let Some(child) = child_in(&words[anchor.saturating_sub(rules.window)..anchor]) {
+                if !found.contains(&child) {
+                    found.push(child);
+                }
+            }
+        }
+        found
+    }
+
+    /// Whether a filiation of the quote says the group of `child` is a child.
+    fn is_child(&self, quote_words: &[String], parent: Option<&Vec<Vec<String>>>, roles: Option<&Roles>, child: Option<&Vec<Vec<String>>>) -> bool {
+        child.is_some_and(|c| self.children(quote_words, parent, roles).contains(c))
+    }
+
+    /// A mention of the group of these names.
+    fn mention_of(&self, names: &Vec<Vec<String>>) -> Option<String> {
+        self.groups.iter().find(|(_, kind, other)| kind == PERSON_KIND && other == names).map(|(reference, _, _)| reference.clone())
+    }
+
+    /// The matter of the document named after the subject (the succession
+    /// of X): the one entity of the reading of the relation's object types
+    /// whose name holds one of the subject's names (D-456).
+    fn matter_named_after(&self, predicate: &super::vocabulary::Predicate, subject: &str) -> Option<String> {
+        let own = self.names(subject)?;
+        let found: Vec<&String> = self
+            .groups
+            .iter()
+            .filter(|(_, kind, _)| !predicate.object_types.is_empty() && applies(&predicate.object_types, kind))
+            .filter(|(_, _, names)| names.iter().any(|m| own.iter().any(|n| n.len() >= 2 && read_checks::name_in_quote(m, n))))
+            .map(|(reference, _, _)| reference)
+            .collect();
+        match found.as_slice() {
+            [one] => Some((*one).clone()),
+            _ => None,
+        }
+    }
+
+    /// Checks one claim of a part of the reading. With `roles`, a side its
+    /// quote names by the role it has in the document counts as named.
+    fn claim(&self, part: usize, said: &AnswerClaim, roles: Option<&Roles>) -> Result<Checked, Dropped> {
+        let vocabulary = self.vocabulary;
+        let dropped = |reason: &'static str| Dropped { reason, said: said.predicado.clone() };
+        let mut corrections: Vec<(&'static str, String)> = Vec::new();
+        let Some(predicate) = vocabulary.predicate(&said.predicado).filter(|p| !p.is_money()) else {
+            return Err(dropped("predicado-desconocido"));
+        };
+        let Some(mut subject) = self.refs.get(&(part, said.sujeto.clone())).cloned() else {
+            return Err(dropped("sujeto-desconocido"));
+        };
+        let mut object_ref: Option<String> = said.objeto_ref.as_ref().and_then(|r| self.refs.get(&(part, r.clone()))).cloned();
+        // The two sides given the other way round, as their types say (a
+        // matter as the subject of what is said of a person in it), D-456.
+        if predicate.takes_entity() && !applies(&predicate.subject, &self.kinds[&subject]) {
+            let swapped = object_ref
+                .clone()
+                .filter(|o| applies(&predicate.subject, &self.kinds[o]) && applies(&predicate.object_types, &self.kinds[&subject]));
+            if let Some(object) = swapped {
+                corrections.push(("lados-dados-vuelta", said.predicado.clone()));
+                object_ref = Some(std::mem::replace(&mut subject, object));
+            }
+        }
+        if !applies(&predicate.subject, &self.kinds[&subject]) {
+            return Err(dropped("no-corresponde-al-tipo"));
+        }
+        let value_words = if predicate.takes_entity() { Vec::new() } else { quote::words(said.objeto_valor.as_deref().unwrap_or_default()) };
+        let Some(page) = locate_value(self.text, &said.cita, &value_words, said.pagina, self.window) else {
+            // A quote that skips words is not the text (D-460).
+            return Err(dropped(if skips_words(&said.cita) { "cita-con-puntos-suspensivos" } else { "cita-no-encontrada" }));
+        };
+        // The record of a signing service says who signed, when and
+        // with what title and address, not when a bond starts or who
+        // is a party of the act (D-288): only what it can say is kept.
+        if self.certificate.contains(&page) && !vocabulary.reading.certificate_claims.iter().any(|p| p == &predicate.id) {
+            return Err(dropped("dato-de-la-constancia-de-firma"));
+        }
+        let quote_words = quote::words(&said.cita);
+        // A filiation: from the parent to the child, or the other way round.
+        let filiation = &vocabulary.reading.filiation.predicate;
+        let parent_to_child = !filiation.is_empty() && &predicate.id == filiation;
+        let child_to_parent = !filiation.is_empty() && &predicate.inverse_of == filiation;
+        let (mut object_mention, object_value) = if predicate.takes_entity() {
+            match object_ref.clone() {
+                Some(object) if applies(&predicate.object_types, &self.kinds[&object]) && object != subject => (Some(object), None),
+                given => {
+                    if let Some(matter) = predicate.object_from_document.then(|| self.matter_named_after(predicate, &subject)).flatten() {
+                        // A relation with the matter of the document (D-456).
+                        corrections.push(("asunto-del-documento", said.predicado.clone()));
+                        (Some(matter), None)
+                    } else if parent_to_child && given.as_deref().is_none_or(|g| g == subject) {
+                        // The parent given as both sides, or without the
+                        // child: the child is who the filiation of the text
+                        // says, when it says one (D-457, D-460).
+                        let children = self.children(&quote_words, self.names(&subject), roles);
+                        let child = match children.as_slice() {
+                            [one] => self.mention_of(one).filter(|c| c != &subject),
+                            _ => None,
+                        };
+                        let Some(child) = child else { return Err(dropped("objeto-desconocido")) };
+                        corrections.push(("hijo-de-la-filiacion", said.predicado.clone()));
+                        (Some(child), None)
+                    } else {
+                        return Err(dropped("objeto-desconocido"));
+                    }
+                }
+            }
+        } else {
+            let value = said.objeto_valor.clone().unwrap_or_default().trim().to_string();
+            if value.is_empty() || !quote::contains(&quote_words, &quote::words(&value)) {
+                return Err(Dropped { reason: "valor-fuera-de-la-cita", said: format!("{}: {value}", said.predicado) });
+            }
+            (None, Some(value))
+        };
+        // A filiation given the other way round: the filiation of the quote
+        // says the one given as the parent is the child of the other ("Z,
+        // hijo de X" given as Z parent of X), D-460.
+        if let Some(object) = object_mention.clone().filter(|_| parent_to_child || child_to_parent) {
+            let (parent, child) = if parent_to_child { (&object, &subject) } else { (&subject, &object) };
+            if self.is_child(&quote_words, self.names(parent), roles, self.names(child)) {
+                corrections.push(("filiacion-dada-vuelta", said.predicado.clone()));
+                object_mention = Some(std::mem::replace(&mut subject, object));
+            }
+        }
+        // What has legal consequences names its object in the quote
+        // (D-250).
+        if predicate.object_in_quote {
+            let object = object_mention.as_deref().expect("an entity");
+            let mut named = self.named_in(&quote_words, object);
+            // A signature block or "X, representada por Y": the
+            // organization named right before the quote (P-122, D-269).
+            let rules = &vocabulary.reading;
+            let acts_for = quote_words.iter().any(|w| {
+                rules.representation_cues.iter().any(|cue| if cue.chars().count() <= 3 { w == cue } else { w.starts_with(cue.as_str()) })
+            });
+            if !named && acts_for && rules.object_window > 0 && rules.object_before.iter().any(|p| *p == predicate.id) && self.kinds[object] == super::names::ORGANIZATION {
+                if let Some(own) = self.names(object) {
+                    let organizations: Vec<&Vec<Vec<String>>> = self
+                        .group_names
+                        .iter()
+                        .filter(|(r, _)| self.kinds.get(r.as_str()).is_some_and(|k| k == super::names::ORGANIZATION))
+                        .map(|(_, n)| n)
+                        .collect();
+                    named = read_checks::nearest_before(self.body, &said.cita, &organizations, own, rules.object_window);
+                }
+            }
+            // By the role it has in the document (D-456).
+            if !named {
+                named = roles.is_some_and(|r| r.names(&quote_words, self.names(object)));
+            }
+            // The child of a filiation, named right before it (D-457).
+            if !named && parent_to_child {
+                named = self.is_child(&quote_words, self.names(&subject), roles, self.names(object));
+            }
+            if !named {
+                return Err(dropped("objeto-fuera-de-la-cita"));
+            }
+        }
+        if let Some(object) = object_mention.as_deref() {
+            // A name that cannot be this side of the relation (a court
+            // does not represent anyone nor is a party), D-435.
+            let has = |reference: &str, list: &[String]| {
+                !list.is_empty() && self.names(reference).is_some_and(|names| names.iter().any(|n| super::vocabulary::name_has(n, list)))
+            };
+            if has(&subject, &predicate.subject_not) || has(object, &predicate.object_not) {
+                return Err(dropped("no-corresponde-al-nombre"));
+            }
+            // The words of the relation where they say it: before the
+            // name of the object, or after it (D-435).
+            let names = self.names(object).cloned().unwrap_or_default();
+            if (!predicate.lead_cues.is_empty() || !predicate.trail_cues.is_empty())
+                && names.iter().any(|n| !read_checks::positions(&quote_words, n).is_empty())
+                && !read_checks::cue_around(&quote_words, &names, &predicate.lead_cues, &predicate.trail_cues)
+            {
+                return Err(dropped("vinculo-fuera-de-la-cita"));
+            }
+            // A relation between two people names its subject too: a
+            // quote that does not was given to someone else (D-433). The
+            // first person names whoever signs the document; a role of the
+            // document, who has it (D-456); a filiation, its child (D-457).
+            if predicate.subject_in_quote {
+                let own = self.named_in(&quote_words, &subject);
+                let first_person = self.signers.contains(&subject) && quote_words.iter().any(|w| vocabulary.reading.first_person.iter().any(|f| f == w));
+                let by_role = roles.is_some_and(|r| r.names(&quote_words, self.names(&subject)));
+                let by_filiation =
+                    child_to_parent && self.is_child(&quote_words, self.names(object), roles, self.names(&subject));
+                if !own && !first_person && !by_role && !by_filiation {
+                    return Err(dropped("sujeto-fuera-de-la-cita"));
+                }
+            }
+            // Between the two names, words that say the relation is of
+            // others (the children named after their parents' union).
+            if !predicate.not_between.is_empty() {
+                let own = self.names(&subject).cloned().unwrap_or_default();
+                if read_checks::apart_by(&quote_words, &own, &names, &predicate.not_between, &predicate.cues) {
+                    return Err(dropped("vinculo-de-otros"));
+                }
+            }
+        }
+        // A time is kept only when it is in the quote too.
+        let fact_time = said
+            .tiempo
+            .clone()
+            .map(|t| t.trim().to_string())
+            .filter(|t| !t.is_empty() && quote::contains(&quote_words, &quote::words(t)));
+        let class = said
+            .clase
+            .as_deref()
+            .filter(|c| *c != NO_CLASS && predicate.classes().any(|q| q.id == *c))
+            .map(str::to_string);
+        let mut detail = serde_json::Map::new();
+        if let Some(class) = &class {
+            detail.insert("clase".into(), class.clone().into());
+        }
+        if let Some(label) = said.rotulo.as_deref().map(str::trim).filter(|l| label_verified(self.text, &said.cita, &value_words, Some(l), self.window)) {
+            detail.insert("rotulo".into(), label.into());
+        }
+        // The other side of a relation is kept as that relation, once
+        // ("hijo de" as "padre o madre de", swapped).
+        let (subject, object_mention, predicate_id) = match (predicate.inverse_of.as_str(), object_mention) {
+            ("", object) => (subject, object, predicate.id.clone()),
+            (other, Some(object)) => (object, Some(subject), other.to_string()),
+            (_, None) => return Err(dropped("objeto-desconocido")),
+        };
+        Ok(Checked {
+            evidence: Evidence {
+                subject,
+                predicate: predicate_id,
+                object_mention,
+                object_value,
+                quote: said.cita.trim().to_string(),
+                page,
+                fact_time,
+                amount: None,
+                detail: (!detail.is_empty()).then_some(serde_json::Value::Object(detail)),
+            },
+            corrections,
+        })
+    }
+}
+
 /// Checks the answers about the parts of one document against its text,
 /// and puts them together: the mentions of every part, the same mention
 /// (type, name and role) once, and each claim once.
@@ -825,7 +1281,11 @@ pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &
             };
             let written = said.escrito.trim().to_string();
             let name = quote::words(&written);
-            let Some(page) = locate_value(&text, &said.cita, &name, said.pagina, window) else {
+            // An item of a list whose quote repeats the head of the list
+            // (D-437) is where the rest of its quote is.
+            let located = locate_value(&text, &said.cita, &name, said.pagina, window)
+                .or_else(|| read_checks::list_item(&text, &quote::words(&said.cita), window).map(|at| text.page_at(at)));
+            let Some(page) = located else {
                 discard(&mut reading, "mention", "cita-no-encontrada", &written, &said.cita);
                 continue;
             };
@@ -966,105 +1426,65 @@ pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &
     // the mentions that are the same entity (the defined term and what it
     // defines, the short name and the full one).
     let group_names = group_names(&reading.mentions);
+    // Whoever signs or writes the document: the mentions of a group with a
+    // role of a signer, for a quote in the first person (D-434).
+    let signers: BTreeSet<String> = {
+        let signer_groups: Vec<&Vec<Vec<String>>> = reading
+            .mentions
+            .iter()
+            .filter(|m| vocabulary.reading.signer_roles.iter().any(|r| r == &m.role))
+            .filter_map(|m| group_names.get(&m.reference))
+            .collect();
+        reading
+            .mentions
+            .iter()
+            .filter(|m| group_names.get(&m.reference).is_some_and(|g| !g.is_empty() && signer_groups.contains(&g)))
+            .map(|m| m.reference.clone())
+            .collect()
+    };
+    // One group of each entity of the document, with a mention of it: who a
+    // filiation or a relation with the matter of the document can be.
+    let mut groups: Vec<(String, String, Vec<Vec<String>>)> = Vec::new();
+    for mention in &reading.mentions {
+        let Some(names) = group_names.get(&mention.reference).filter(|n| !n.is_empty()) else { continue };
+        if !groups.iter().any(|(_, kind, other)| kind == &mention.kind && other == names) {
+            groups.push((mention.reference.clone(), mention.kind.clone(), names.clone()));
+        }
+    }
+    let check = ClaimCheck {
+        vocabulary,
+        body,
+        text: &text,
+        certificate: &certificate,
+        window,
+        refs: &refs,
+        kinds: &kinds,
+        group_names: &group_names,
+        signers: &signers,
+        groups,
+    };
+    // A claim whose quote names a side only by the role it has in the
+    // document is checked again once the rest of the document is (D-456).
+    let mut deferred: Vec<(usize, &AnswerClaim)> = Vec::new();
     for (part, answer) in answers.iter().enumerate() {
         for said in &answer.afirmaciones {
-            let Some(predicate) = vocabulary.predicate(&said.predicado).filter(|p| !p.is_money()) else {
-                discard(&mut reading, "claim", "predicado-desconocido", &said.predicado, &said.cita);
-                continue;
-            };
-            let Some(subject) = refs.get(&(part, said.sujeto.clone())).cloned() else {
-                discard(&mut reading, "claim", "sujeto-desconocido", &said.predicado, &said.cita);
-                continue;
-            };
-            if !applies(&predicate.subject, &kinds[&subject]) {
-                discard(&mut reading, "claim", "no-corresponde-al-tipo", &said.predicado, &said.cita);
-                continue;
+            match check.claim(part, said, None) {
+                Ok(checked) => keep_claim(&mut reading, checked, &said.cita),
+                Err(dropped) if DEFERRED.contains(&dropped.reason) && !vocabulary.reading.role_references.is_empty() => deferred.push((part, said)),
+                Err(dropped) => discard(&mut reading, "claim", dropped.reason, &dropped.said, &said.cita),
             }
-            let value_words = if predicate.takes_entity() { Vec::new() } else { quote::words(said.objeto_valor.as_deref().unwrap_or_default()) };
-            let Some(page) = locate_value(&text, &said.cita, &value_words, said.pagina, window) else {
-                discard(&mut reading, "claim", "cita-no-encontrada", &said.predicado, &said.cita);
-                continue;
-            };
-            // The record of a signing service says who signed, when and
-            // with what title and address, not when a bond starts or who
-            // is a party of the act (D-288): only what it can say is kept.
-            if certificate.contains(&page) && !vocabulary.reading.certificate_claims.iter().any(|p| p == &predicate.id) {
-                discard(&mut reading, "claim", "dato-de-la-constancia-de-firma", &said.predicado, &said.cita);
-                continue;
-            }
-            let quote_words = quote::words(&said.cita);
-            let (object_mention, object_value) = if predicate.takes_entity() {
-                match said.objeto_ref.as_ref().and_then(|r| refs.get(&(part, r.clone()))) {
-                    Some(object) if applies(&predicate.object_types, &kinds[object]) && object != &subject => (Some(object.clone()), None),
-                    _ => {
-                        discard(&mut reading, "claim", "objeto-desconocido", &said.predicado, &said.cita);
-                        continue;
-                    }
-                }
-            } else {
-                let value = said.objeto_valor.clone().unwrap_or_default().trim().to_string();
-                if value.is_empty() || !quote::contains(&quote_words, &quote::words(&value)) {
-                    discard(&mut reading, "claim", "valor-fuera-de-la-cita", &format!("{}: {value}", said.predicado), &said.cita);
-                    continue;
-                }
-                (None, Some(value))
-            };
-            // What has legal consequences names its object in the quote
-            // (D-250).
-            if predicate.object_in_quote {
-                let object = object_mention.as_deref().expect("an entity");
-                let mut named = group_names.get(object).is_some_and(|names| names.iter().any(|n| read_checks::name_in_quote(&quote_words, n)));
-                // A signature block or "X, representada por Y": the
-                // organization named right before the quote (P-122, D-269).
-                let rules = &vocabulary.reading;
-                let acts_for = quote_words.iter().any(|w| {
-                    rules.representation_cues.iter().any(|cue| if cue.chars().count() <= 3 { w == cue } else { w.starts_with(cue.as_str()) })
-                });
-                if !named && acts_for && rules.object_window > 0 && rules.object_before.iter().any(|p| *p == predicate.id) && kinds[object] == super::names::ORGANIZATION {
-                    if let Some(own) = group_names.get(object) {
-                        let organizations: Vec<&Vec<Vec<String>>> =
-                            group_names.iter().filter(|(r, _)| kinds.get(r.as_str()).is_some_and(|k| k == super::names::ORGANIZATION)).map(|(_, n)| n).collect();
-                        named = read_checks::nearest_before(body, &said.cita, &organizations, own, rules.object_window);
-                    }
-                }
-                if !named {
-                    discard(&mut reading, "claim", "objeto-fuera-de-la-cita", &said.predicado, &said.cita);
-                    continue;
-                }
-            }
-            // A time is kept only when it is in the quote too.
-            let fact_time = said
-                .tiempo
-                .clone()
-                .map(|t| t.trim().to_string())
-                .filter(|t| !t.is_empty() && quote::contains(&quote_words, &quote::words(t)));
-            let class = said
-                .clase
-                .as_deref()
-                .filter(|c| *c != NO_CLASS && predicate.classes().any(|q| q.id == *c))
-                .map(str::to_string);
-            let mut detail = serde_json::Map::new();
-            if let Some(class) = &class {
-                detail.insert("clase".into(), class.clone().into());
-            }
-            if let Some(label) = said.rotulo.as_deref().map(str::trim).filter(|l| label_verified(&text, &said.cita, &value_words, Some(l), window)) {
-                detail.insert("rotulo".into(), label.into());
-            }
-            let evidence = Evidence {
-                subject,
-                predicate: predicate.id.clone(),
-                object_mention,
-                object_value,
-                quote: said.cita.trim().to_string(),
-                page,
-                fact_time,
-                amount: None,
-                detail: (!detail.is_empty()).then_some(serde_json::Value::Object(detail)),
-            };
-            push_evidence(&mut reading, evidence);
         }
         for said in &answer.importes {
             amount_evidence(vocabulary, &text, &refs, &kinds, &group_names, part, said, &mut reading);
+        }
+    }
+    if !deferred.is_empty() {
+        let roles = Roles::of(vocabulary, &reading, &group_names, &signers);
+        for (part, said) in deferred {
+            match check.claim(part, said, Some(&roles)) {
+                Ok(checked) => keep_claim(&mut reading, checked, &said.cita),
+                Err(dropped) => discard(&mut reading, "claim", dropped.reason, &dropped.said, &said.cita),
+            }
         }
     }
     other_person(vocabulary, body, &mut reading);
@@ -1696,13 +2116,22 @@ fn signature_block(vocabulary: &Vocabulary, group_names: &HashMap<String, Vec<Ve
     }
 }
 
-/// A document to read, with its questions.
+/// A document to read, or to check again, and what its reading is written
+/// with.
 struct Pending {
     content_id: i64,
     basis: String,
+    /// The version of the question its reading was asked with.
+    prompt_version: String,
     text_hash: String,
     text_at: i64,
     body: String,
+    /// A person asked to read it again at this time: only answers of the
+    /// model given since then count (D-432).
+    fresh_since: Option<i64>,
+    /// When it was read, for a reading checked again (it was not read
+    /// now); `None`: now.
+    extracted_at: Option<i64>,
 }
 
 /// The questions about a document, one per part, and the identifiers the
@@ -1734,7 +2163,7 @@ fn questions(conn: &Connection, vocabulary: &Vocabulary, content_id: i64, body: 
 fn write_reading(
     conn: &mut Connection,
     pending: &Pending,
-    questions: &[Question],
+    keys: &[String],
     engine: &str,
     reading: Result<&Reading, &str>,
 ) -> Result<(), String> {
@@ -1743,7 +2172,6 @@ fn write_reading(
     tx.execute("DELETE FROM knowledge_mention WHERE content_id = ?1", [pending.content_id]).map_err(sql_err)?;
     tx.execute("DELETE FROM knowledge_evidence WHERE content_id = ?1", [pending.content_id]).map_err(sql_err)?;
     tx.execute("DELETE FROM knowledge_summary WHERE content_id = ?1", [pending.content_id]).map_err(sql_err)?;
-    let keys: Vec<&str> = questions.iter().map(|q| q.key.as_str()).collect();
     let doc_date = reading.ok().and_then(|r| r.doc_date.clone());
     let (state, mentions, evidence, discarded, error) = match reading {
         Ok(reading) => {
@@ -1852,18 +2280,18 @@ fn write_reading(
             pending.content_id,
             state,
             pending.basis,
-            KNOWLEDGE_PROMPT,
+            pending.prompt_version,
             vocabulary.reading_digest,
             pending.text_hash,
             pending.text_at,
             engine,
             serde_json::to_string(&keys).map_err(|e| e.to_string())?,
-            questions.len() as i64,
+            keys.len() as i64,
             mentions as i64,
             evidence as i64,
             discarded,
             error,
-            now_ms(),
+            pending.extracted_at.unwrap_or_else(now_ms),
             doc_date
         ],
     )
@@ -1875,17 +2303,67 @@ fn write_reading(
     tx.commit().map_err(sql_err)
 }
 
+/// An answer kept for a question by this engine, when it was given after
+/// `since` (a person asked to read the document again then): an answer
+/// from before does not count (D-432).
+fn kept_answer(conn: &Connection, key: &str, engine: Option<&str>, since: Option<i64>) -> Result<Option<String>, String> {
+    let Some(since) = since else { return cached_answer(conn, key, engine) };
+    let found: Option<(String, i64)> = match engine {
+        Some(engine) => conn
+            .query_row("SELECT answer, asked_at FROM model_answer WHERE question = ?1 AND engine = ?2", params![key, engine], |row| {
+                Ok((row.get(0)?, row.get(1)?))
+            })
+            .optional()
+            .map_err(sql_err)?,
+        None => conn
+            .query_row("SELECT answer, asked_at FROM model_answer WHERE question = ?1 ORDER BY asked_at DESC LIMIT 1", [key], |row| {
+                Ok((row.get(0)?, row.get(1)?))
+            })
+            .optional()
+            .map_err(sql_err)?,
+    };
+    Ok(found.filter(|(_, at)| *at >= since).map(|(answer, _)| answer))
+}
+
+/// What a person asks to read again (D-432): the document at a location,
+/// or every document of an origin or of a folder of it; nothing said, the
+/// whole archive.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct RereadTarget {
+    pub location_id: Option<i64>,
+    pub origin_id: Option<String>,
+    pub folder: Option<String>,
+}
+
+/// What reading them again takes, for the notice shown before: how many
+/// documents and how many questions to the model (one per part of each).
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RereadPlan {
+    pub documents: usize,
+    pub questions: usize,
+    /// Of those, the ones a person already asked to read again.
+    pub requested: usize,
+    pub engine: Option<crate::source_volume::asking::AskConfig>,
+}
+
 impl DocBase {
-    /// The documents still to read: never read, or read on another basis.
-    /// Those whose type is still to be asked are left out and counted.
-    fn knowledge_pending(&self) -> Result<(Vec<Pending>, usize), String> {
-        let stale: Vec<Standing> = standings(&self.conn(), &Visible::All, None)?
+    /// The documents to ask the model about: never read, read over another
+    /// text, failed under other instructions, or asked again by a person
+    /// (those first; `only_requested`: only those). A reading of an earlier
+    /// version of the instructions is not one of them (D-432). Those whose
+    /// type is still to be asked are left out and counted.
+    fn knowledge_pending(&self, only_requested: bool) -> Result<(Vec<Pending>, usize), String> {
+        let mut stale: Vec<Standing> = standings(&self.conn(), &Visible::All, None)?
             .into_iter()
             .filter(|s| !s.reading.as_ref().is_some_and(|r| r.current))
+            .filter(|s| !only_requested || s.reading.as_ref().is_some_and(|r| r.reread))
             .collect();
         if stale.is_empty() {
             return Ok((Vec::new(), 0));
         }
+        stale.sort_by_key(|s| !s.reading.as_ref().is_some_and(|r| r.reread));
         let waiting = self.contents_waiting_for_type()?;
         let vocabulary = vocabulary();
         let conn = self.conn();
@@ -1896,30 +2374,157 @@ impl DocBase {
                 .query_row("SELECT body FROM derivative WHERE content_id = ?1 AND kind = 'text'", [standing.content_id], |row| row.get(0))
                 .map_err(sql_err)?;
             let hash = text_hash(&body);
-            let basis = basis(vocabulary, &hash);
-            if standing.reading.as_ref().is_some_and(|r| r.basis == basis) {
-                // The same text written again: the reading stands.
-                conn.execute(
-                    "UPDATE knowledge_extraction SET text_at = ?1, prompt_version = ?2, vocabulary = ?3 WHERE content_id = ?4",
-                    params![standing.text_at, KNOWLEDGE_PROMPT, vocabulary.reading_digest, standing.content_id],
-                )
-                .map_err(sql_err)?;
+            let reading = standing.reading.as_ref();
+            if reading.is_some_and(|r| !r.reread && r.hash == hash && !(r.state == "failed" && r.older)) {
+                // The same text written again: the reading stands as it was.
+                conn.execute("UPDATE knowledge_extraction SET text_at = ?1 WHERE content_id = ?2", params![standing.text_at, standing.content_id])
+                    .map_err(sql_err)?;
                 continue;
             }
             if waiting.contains(&standing.content_id) {
                 waiting_count += 1;
                 continue;
             }
-            pending.push(Pending { content_id: standing.content_id, basis, text_hash: hash, text_at: standing.text_at, body });
+            pending.push(Pending {
+                content_id: standing.content_id,
+                basis: basis(vocabulary, &hash),
+                prompt_version: KNOWLEDGE_PROMPT.to_string(),
+                text_hash: hash,
+                text_at: standing.text_at,
+                body,
+                fresh_since: reading.filter(|r| r.reread).and_then(|r| reread_since(&r.basis)),
+                extracted_at: None,
+            });
         }
         Ok((pending, waiting_count))
+    }
+
+    /// Checks again, from the answers kept, the readings checked with an
+    /// earlier version of the program's check or of its words, at most
+    /// `limit` of them (D-432): it asks the model nothing. A reading whose
+    /// answers are not all kept any more is left as it was, and not looked
+    /// at again until the check changes. Returns how many were checked.
+    pub fn knowledge_recheck(&self, limit: usize) -> Result<usize, String> {
+        let vocabulary = vocabulary();
+        let due: Vec<i64> = standings(&self.conn(), &Visible::All, None)?
+            .into_iter()
+            .filter(|s| s.reading.as_ref().is_some_and(|r| r.current && r.to_check))
+            .map(|s| s.content_id)
+            .take(limit)
+            .collect();
+        for &content_id in &due {
+            let mut conn = self.conn();
+            #[allow(clippy::type_complexity)]
+            let (basis_kept, prompt_version, hash, text_at, engine, keys, extracted_at): (String, String, String, i64, Option<String>, String, i64) = conn
+                .query_row(
+                    "SELECT basis, prompt_version, text_hash, text_at, engine, questions, extracted_at FROM knowledge_extraction WHERE content_id = ?1",
+                    [content_id],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?)),
+                )
+                .map_err(sql_err)?;
+            let keys: Vec<String> = serde_json::from_str(&keys).unwrap_or_default();
+            let mut answers: Vec<Answer> = Vec::new();
+            for key in &keys {
+                let kept = match cached_answer(&conn, key, engine.as_deref())? {
+                    Some(answer) => Some(answer),
+                    None => cached_answer(&conn, key, None)?,
+                };
+                match kept.as_deref().map(parse_json::<Answer>) {
+                    Some(Ok(answer)) => answers.push(answer),
+                    _ => break,
+                }
+            }
+            if keys.is_empty() || answers.len() < keys.len() {
+                conn.execute("UPDATE knowledge_extraction SET vocabulary = ?1 WHERE content_id = ?2", params![vocabulary.reading_digest, content_id])
+                    .map_err(sql_err)?;
+                continue;
+            }
+            let body = classify::body_of(&conn, content_id)?;
+            let reading = verify(vocabulary, &body, &identifiers_by_shape(&body), &answers);
+            let pending = Pending {
+                content_id,
+                basis: basis_kept,
+                prompt_version,
+                text_hash: hash,
+                text_at,
+                body,
+                fresh_since: None,
+                extracted_at: Some(extracted_at),
+            };
+            write_reading(&mut conn, &pending, &keys, engine.as_deref().unwrap_or_default(), Ok(&reading))?;
+        }
+        Ok(due.len())
+    }
+
+    /// The documents of a target, among those with enough text to read.
+    fn reread_standings(&self, target: &RereadTarget) -> Result<Vec<Standing>, String> {
+        let conn = self.conn();
+        let contents: BTreeSet<i64> = match target.location_id {
+            Some(location) => conn
+                .query_row("SELECT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.id = ?1", [location], |row| row.get(0))
+                .optional()
+                .map_err(sql_err)?
+                .into_iter()
+                .collect(),
+            None => crate::docbase::progress::Scope { origin_id: target.origin_id.clone(), folder: target.folder.clone() }.contents(&conn)?,
+        };
+        Ok(standings(&conn, &Visible::All, None)?.into_iter().filter(|s| contents.contains(&s.content_id)).collect())
+    }
+
+    /// What reading the documents of `target` again would take (D-432):
+    /// the documents already read, and one question per part of each.
+    pub fn knowledge_reread_plan(&self, target: &RereadTarget) -> Result<RereadPlan, String> {
+        let standings = self.reread_standings(target)?;
+        let conn = self.conn();
+        let mut plan = RereadPlan { engine: classify::ask_engine(&conn)?, ..Default::default() };
+        for standing in standings {
+            let Some(reading) = &standing.reading else { continue };
+            plan.documents += 1;
+            if reading.reread {
+                plan.requested += 1;
+            }
+            let parts_kept: i64 = conn
+                .query_row("SELECT parts FROM knowledge_extraction WHERE content_id = ?1", [standing.content_id], |row| row.get(0))
+                .map_err(sql_err)?;
+            plan.questions += if parts_kept > 0 { parts_kept as usize } else { parts(&classify::body_of(&conn, standing.content_id)?).len().max(1) };
+        }
+        Ok(plan)
+    }
+
+    /// Asks to read again the documents of `target` already read (D-432):
+    /// kept in the base, so that it survives closing the app, until the new
+    /// reading is written. The model is asked again, without the answers it
+    /// gave before. Returns how many documents were asked.
+    pub fn knowledge_request_reread(&self, target: &RereadTarget) -> Result<usize, String> {
+        let standings = self.reread_standings(target)?;
+        let now = now_ms();
+        let conn = self.conn();
+        let mut count = 0;
+        for standing in standings {
+            let Some(reading) = &standing.reading else { continue };
+            count += 1;
+            if reading.reread {
+                continue;
+            }
+            conn.execute(
+                "UPDATE knowledge_extraction SET basis = ?1 WHERE content_id = ?2",
+                params![format!("{REREAD}{now}|{}", reading.basis), standing.content_id],
+            )
+            .map_err(sql_err)?;
+        }
+        Ok(count)
+    }
+
+    /// How many documents a person asked to read again wait for it.
+    pub fn knowledge_rereads_waiting(&self) -> Result<usize, String> {
+        Ok(standings(&self.conn(), &Visible::All, None)?.iter().filter(|s| s.reading.as_ref().is_some_and(|r| r.reread)).count())
     }
 
     /// The questions the pending documents take (for the evaluation, which
     /// warms its cache with them before the run).
     #[cfg(test)]
     pub(crate) fn knowledge_questions(&self) -> Result<Vec<Question>, String> {
-        let (pending, _) = self.knowledge_pending()?;
+        let (pending, _) = self.knowledge_pending(false)?;
         let conn = self.conn();
         let mut out = Vec::new();
         for item in pending {
@@ -1934,7 +2539,7 @@ impl DocBase {
     pub fn knowledge_plan(&self) -> Result<KnowledgePlan, String> {
         let engine = classify::ask_engine(&self.conn())?;
         let engine_id = engine.as_ref().map(crate::source_volume::asking::engine_id);
-        let (pending, waiting) = self.knowledge_pending()?;
+        let (pending, waiting) = self.knowledge_pending(false)?;
         let conn = self.conn();
         let mut count = 0;
         let min_words = vocabulary().attention.empty_min_words;
@@ -1942,7 +2547,7 @@ impl DocBase {
             let part_words: Vec<usize> = parts(&item.body).iter().map(|p| p.split_whitespace().count()).collect();
             for (index, question) in questions(&conn, vocabulary(), item.content_id, &item.body)?.0.into_iter().enumerate() {
                 let long = part_words.get(index).copied().unwrap_or(0) >= min_words;
-                let kept = cached_answer(&conn, &question.key, engine_id.as_deref())?.filter(|a| !(long && is_empty_answer(a)));
+                let kept = kept_answer(&conn, &question.key, engine_id.as_deref(), item.fresh_since)?.filter(|a| !(long && is_empty_answer(a)));
                 if kept.is_none() {
                     count += 1;
                 }
@@ -1969,12 +2574,27 @@ impl DocBase {
     }
 
     /// Reads what is pending, asking the model at most `max_questions`
-    /// questions, and writes what passes the check. One run asks at a time.
+    /// questions, and writes what passes the check; first, the readings
+    /// to check again are checked from the answers kept. One run asks at a
+    /// time.
     pub fn knowledge_run(&self, asker: &dyn DocumentAsker, max_questions: usize) -> Result<KnowledgeReport, String> {
+        self.reading_run(asker, max_questions, false)
+    }
+
+    /// Reads again only what a person asked to read again (D-432): with
+    /// the automatic reading off, what was asked is read all the same.
+    pub fn knowledge_run_requested(&self, asker: &dyn DocumentAsker, max_questions: usize) -> Result<KnowledgeReport, String> {
+        self.reading_run(asker, max_questions, true)
+    }
+
+    fn reading_run(&self, asker: &dyn DocumentAsker, max_questions: usize, only_requested: bool) -> Result<KnowledgeReport, String> {
         let mut report = KnowledgeReport::default();
-        let (pending, waiting) = self.knowledge_pending()?;
-        report.waiting_for_type = waiting;
         let _one_at_a_time = ASKING.lock().unwrap_or_else(|p| p.into_inner());
+        if !only_requested {
+            report.rechecked = self.knowledge_recheck(usize::MAX)?;
+        }
+        let (pending, waiting) = self.knowledge_pending(only_requested)?;
+        report.waiting_for_type = waiting;
         let vocabulary = vocabulary();
         let engine = asker.engine_id();
         let mut budget = max_questions;
@@ -1985,6 +2605,7 @@ impl DocBase {
                 continue;
             }
             let (item_questions, shapes) = questions(&self.conn(), vocabulary, item.content_id, &item.body)?;
+            let keys: Vec<String> = item_questions.iter().map(|q| q.key.clone()).collect();
             let part_words: Vec<usize> = parts(&item.body).iter().map(|p| p.split_whitespace().count()).collect();
             let rules = &vocabulary.attention;
             let mut answers: Vec<String> = Vec::new();
@@ -1994,7 +2615,7 @@ impl DocBase {
                 // kept one does not count, and it is asked again (D-235).
                 let long = part_words.get(index).copied().unwrap_or(0) >= rules.empty_min_words;
                 let usable = |answer: &str| !(long && is_empty_answer(answer));
-                if let Some(answer) = cached_answer(&self.conn(), &question.key, Some(&engine))?.filter(|a| usable(a)) {
+                if let Some(answer) = kept_answer(&self.conn(), &question.key, Some(&engine), item.fresh_since)?.filter(|a| usable(a)) {
                     answers.push(answer);
                     continue;
                 }
@@ -2004,7 +2625,7 @@ impl DocBase {
                     attempts += 1;
                     budget -= 1;
                     report.asked += 1;
-                    match ask_fresh(self, asker, question, &engine, &usable) {
+                    match ask_fresh(self, asker, question, &engine, &usable, item.fresh_since) {
                         Ok(Some(answer)) => {
                             got = Some(answer);
                             break;
@@ -2035,7 +2656,7 @@ impl DocBase {
             if empty_parts > 0 {
                 let error = empty_reading_error(empty_parts, item_questions.len(), rules.empty_attempts.max(1));
                 let mut conn = self.conn();
-                write_reading(&mut conn, &item, &item_questions, &engine, Err(&error))?;
+                write_reading(&mut conn, &item, &keys, &engine, Err(&error))?;
                 report.unusable += 1;
                 report.errors.push(format!("{error} ({})", item.content_id));
                 continue;
@@ -2048,11 +2669,11 @@ impl DocBase {
                     report.mentions += reading.mentions.len();
                     report.evidence += reading.evidence.len();
                     report.discarded += reading.discarded.len();
-                    write_reading(&mut conn, &item, &item_questions, &engine, Ok(&reading))?;
+                    write_reading(&mut conn, &item, &keys, &engine, Ok(&reading))?;
                     report.extracted += 1;
                 }
                 Err(error) => {
-                    write_reading(&mut conn, &item, &item_questions, &engine, Err(&error))?;
+                    write_reading(&mut conn, &item, &keys, &engine, Err(&error))?;
                     report.unusable += 1;
                     report.errors.push(format!("{error} ({})", item.content_id));
                 }
@@ -2062,7 +2683,7 @@ impl DocBase {
     }
 }
 
-/// Whether an answer names nobody and says nothing. An answer that does
+// Whether an answer names nobody and says nothing. An answer that does
 /// not have the shape asked for is not empty: it is unusable.
 fn is_empty_answer(answer: &str) -> bool {
     parse_json::<Answer>(answer).is_ok_and(|a| a.menciones.is_empty() && a.afirmaciones.is_empty())
@@ -2077,8 +2698,9 @@ fn ask_fresh(
     question: &Question,
     engine: &str,
     usable: &dyn Fn(&str) -> bool,
+    since: Option<i64>,
 ) -> Result<Option<String>, String> {
-    if let Some(answer) = cached_answer(&base.conn(), &question.key, Some(engine))?.filter(|a| usable(a)) {
+    if let Some(answer) = kept_answer(&base.conn(), &question.key, Some(engine), since)?.filter(|a| usable(a)) {
         return Ok(Some(answer));
     }
     // What «En curso» shows as being read now (progress.rs).

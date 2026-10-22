@@ -143,8 +143,9 @@ export function reasonInWords(reason: MatterReason, words: Vocabulary = vocabula
 /**
  * One matter, with the same two tabs as a person or organization (D-389,
  * D-423): «Artículo», the one the base writes for it (its parties with
- * their role, what its documents say, its documents with their type and
- * why each is in it) and the research on internet; «Datos y correcciones»,
+ * their role, what its documents say with their quotes as notes, its
+ * documents once with their type, and why they go together) and the
+ * research on internet; «Datos y correcciones»,
  * what a person decides of it: its name, confirming or discarding it, its
  * documents firm and proposed, putting one in or taking it out, and the
  * decisions, to undo. The notes of a person at the foot of both.

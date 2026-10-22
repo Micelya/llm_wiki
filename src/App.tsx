@@ -5,7 +5,9 @@ import i18n from "@/i18n"
 import { useWikiStore } from "@/stores/wiki-store"
 import { useChatStore } from "@/stores/chat-store"
 import { BASE_FONT_SIZE_PX, useZoomStore } from "@/stores/zoom-store"
-import { loadLlmConfig, loadLanguage, loadSearchApiConfig, loadOutputLanguage, loadProviderConfigs, loadCustomLlmPresets, loadActivePresetId, loadTaskModelRouting, loadProxyConfig, loadGeneralConfig, loadZoomLevel } from "@/lib/project-store"
+import { loadLlmConfig, loadLanguage, loadSearchApiConfig, loadOutputLanguage, loadProviderConfigs, loadCustomLlmPresets, loadActivePresetId, loadTaskModelRouting, loadProxyConfig, loadGeneralConfig, loadZoomLevel, loadSettingsKeys, loadFloatingPreviews } from "@/lib/project-store"
+import { usePreviewCardsStore } from "@/stores/preview-cards-store"
+import { initAiServices } from "@/stores/ai-services-store"
 import { loadChatHistory, loadChatPreferences } from "@/lib/persist"
 import { setupAutoSave, resumeAutoSave } from "@/lib/auto-save"
 import { RELEASES_REPO } from "@/lib/app-identity"
@@ -194,7 +196,12 @@ function App() {
         const savedZoom = await loadZoomLevel()
         applyDocumentZoom(savedZoom)
         useZoomStore.getState().setLevel(savedZoom)
+        // The floating cards of the articles (P-246): on unless turned off.
+        usePreviewCardsStore.getState().setEnabled(await loadFloatingPreviews().catch(() => true))
 
+        // The API keys are in the system keychain (D-444): read them before
+        // the settings that carry them.
+        await loadSettingsKeys()
         const savedConfig = await loadLlmConfig()
         if (savedConfig) {
           useWikiStore.getState().setLlmConfig(savedConfig)
@@ -234,6 +241,13 @@ function App() {
         const savedSearchConfig = await loadSearchApiConfig()
         if (savedSearchConfig) {
           useWikiStore.getState().setSearchApiConfig(savedSearchConfig)
+        }
+        // Which engine each AI service uses, from the base (D-443); the
+        // first time it is made from the settings just loaded.
+        try {
+          await initAiServices()
+        } catch (err) {
+          console.warn("[ai-services] the registry of the AI services could not be read:", err)
         }
         const savedProxy = await loadProxyConfig()
         if (savedProxy) {

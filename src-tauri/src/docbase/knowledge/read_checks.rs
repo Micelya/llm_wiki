@@ -37,7 +37,85 @@ pub fn positions(haystack: &[String], needle: &[String]) -> Vec<usize> {
 /// words or more) with all its words, the way a form writes a name in two
 /// fields ("Apellidos: Dos · Nombres: Persona"). D-248.
 pub fn name_in_quote(quote_words: &[String], name: &[String]) -> bool {
-    quote::contains(quote_words, name) || (name.len() >= 2 && name.iter().all(|w| quote_words.contains(w)))
+    quote::contains(quote_words, name) || (name.len() >= 2 && name.iter().all(|w| quote_words.iter().any(|q| same_word(q, w))))
+}
+
+/// The same word, or the same in plural ("factura" and "facturas" of a
+/// list, "invoice" and "invoices"): a name the model writes in the
+/// singular for one item of a list the text writes in the plural.
+fn same_word(text: &str, name: &str) -> bool {
+    text == name
+        || (name.chars().count() >= 3
+            && text.strip_prefix(name).is_some_and(|rest| rest == "s" || rest == "es"))
+}
+
+/// Whether a word of `lead` comes before a name of the object in the quote,
+/// or a word of `trail` after it (D-435): the words of a relation where
+/// they say it ("apoderado de Y", "Y, representada por"). A word of the
+/// lists is matched by how it starts; one of three letters or less, whole.
+pub fn cue_around(quote_words: &[String], names: &[Vec<String>], lead: &[String], trail: &[String]) -> bool {
+    let is = |w: &String, list: &[String]| list.iter().any(|c| if c.chars().count() <= 3 { w == c } else { w.starts_with(c.as_str()) });
+    names.iter().any(|name| {
+        positions(quote_words, name).into_iter().any(|start| {
+            let end = start + name.len();
+            quote_words[..start].iter().any(|w| is(w, lead)) || quote_words[end..].iter().any(|w| is(w, trail))
+        })
+    })
+}
+
+/// Where the names of a relation's two sides are in the quote: for each
+/// name, its longest beginning of two words or more (or the whole name)
+/// that is there as one run.
+fn spans(quote_words: &[String], names: &[Vec<String>]) -> Vec<(usize, usize)> {
+    let mut out = Vec::new();
+    for name in names.iter().filter(|n| !n.is_empty()) {
+        let shortest = name.len().min(2);
+        for len in (shortest..=name.len()).rev() {
+            let found = positions(quote_words, &name[..len]);
+            if !found.is_empty() {
+                out.extend(found.into_iter().map(|start| (start, start + len)));
+                break;
+            }
+        }
+    }
+    out
+}
+
+/// Whether the words between the names of the two sides of a relation say
+/// it is of others (D-433): one of `between` (whole words: "hijos",
+/// "nacieron") and none of `cues` (how they start: "casad", "matrimoni")
+/// between the two nearest names. In "de la unión de A y B nacieron tres
+/// hijos, a saber: C", C is a child of A and B, not a spouse of either.
+pub fn apart_by(quote_words: &[String], a: &[Vec<String>], b: &[Vec<String>], between: &[String], cues: &[String]) -> bool {
+    let (xs, ys) = (spans(quote_words, a), spans(quote_words, b));
+    let gap = |x: &(usize, usize), y: &(usize, usize)| -> Option<(usize, usize)> {
+        if x.1 <= y.0 {
+            Some((x.1, y.0))
+        } else if y.1 <= x.0 {
+            Some((y.1, x.0))
+        } else {
+            None
+        }
+    };
+    let nearest = xs.iter().flat_map(|x| ys.iter().filter_map(move |y| gap(x, y))).min_by_key(|(from, to)| to - from);
+    let Some((from, to)) = nearest else { return false };
+    let region = &quote_words[from..to];
+    region.iter().any(|w| between.iter().any(|b| b == w))
+        && !region.iter().any(|w| cues.iter().any(|c| if c.chars().count() <= 3 { w == c } else { w.starts_with(c.as_str()) }))
+}
+
+/// Where an item of a list of numbers is when the quote repeats the word
+/// that heads the list before it ("facturas N2 con fecha…" for "facturas
+/// N1 con fecha…, N2 con fecha…"): the rest of the quote, which starts
+/// with a number, as one run of the text, and the head word before it, at
+/// most `window` words away. The position of the rest, or `None` (D-437).
+pub fn list_item(text: &quote::Located, quote_words: &[String], window: usize) -> Option<usize> {
+    let (Some(head), Some(first)) = (quote_words.first(), quote_words.get(1)) else { return None };
+    if quote_words.len() < 4 || !first.chars().any(|c| c.is_ascii_digit()) {
+        return None;
+    }
+    let heads = text.starts(std::slice::from_ref(head));
+    text.starts(&quote_words[1..]).into_iter().find(|&s| heads.iter().any(|&h| h < s && s - (h + 1) <= window))
 }
 
 /// Whether the organization the text names last before a quote, within
@@ -65,6 +143,52 @@ pub fn nearest_before(body: &str, quote_text: &str, organizations: &[&Vec<Vec<St
     };
     let nearest = organizations.iter().filter_map(|names| last_end(names).map(|end| (end, *names))).max_by_key(|(end, _)| *end);
     nearest.is_some_and(|(_, names)| names == object)
+}
+
+/// Where each group (by its names, normalized words) is named in `words`,
+/// as (start, end): the places of its names that are not inside a longer
+/// name of another group ("Uno Dos" inside "Persona Uno Dos"), nor right
+/// after one of `after` (words that make it someone else: "casado con").
+pub fn named_places(words: &[String], groups: &[&Vec<Vec<String>>], after: &[Vec<String>]) -> Vec<Vec<(usize, usize)>> {
+    let all: Vec<Vec<(usize, usize)>> = groups
+        .iter()
+        .map(|names| names.iter().filter(|n| !n.is_empty()).flat_map(|n| positions(words, n).into_iter().map(move |p| (p, p + n.len()))).collect())
+        .collect();
+    let introduced = |s: usize| after.iter().any(|a| !a.is_empty() && s >= a.len() && words[s - a.len()..s] == a[..]);
+    all.iter()
+        .enumerate()
+        .map(|(g, places)| {
+            places
+                .iter()
+                .copied()
+                .filter(|&(s, e)| !all.iter().enumerate().any(|(h, other)| h != g && other.iter().any(|&(os, oe)| os <= s && e <= oe && oe - os > e - s)))
+                .filter(|&(s, _)| !introduced(s))
+                .collect()
+        })
+        .collect()
+}
+
+/// The group (by its names, normalized words) named last in `words` (its
+/// name ends last, the longer first when two end at the same word), not
+/// counting a name right after one of `after`: who the words name last
+/// (D-457). `None` when no group is named there, or two are named alike at
+/// the end.
+pub fn last_named<'a>(words: &[String], groups: &[&'a Vec<Vec<String>>], after: &[Vec<String>]) -> Option<&'a Vec<Vec<String>>> {
+    let places = named_places(words, groups, after);
+    let mut best: Option<((usize, usize), &'a Vec<Vec<String>>)> = None;
+    let mut tied = false;
+    for (&names, list) in groups.iter().zip(&places) {
+        let Some(place) = list.iter().map(|&(s, e)| (e, e - s)).max() else { continue };
+        match best {
+            Some((other, _)) if other == place => tied = true,
+            Some((other, _)) if other > place => {}
+            _ => {
+                best = Some((place, names));
+                tied = false;
+            }
+        }
+    }
+    best.filter(|_| !tied).map(|(_, names)| names)
 }
 
 fn lowercase_unaccented(text: &str) -> Vec<char> {

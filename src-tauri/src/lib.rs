@@ -1,11 +1,15 @@
 mod agent;
+mod clip_server;
 mod commands;
 mod docbase;
 mod panic_guard;
+mod portals;
 mod proxy;
+mod secrets;
 mod source_volume;
 mod tray;
 mod types;
+mod work_folder;
 
 use serde_json::Value;
 use std::sync::Mutex;
@@ -246,7 +250,14 @@ fn agent_home(app: &tauri::AppHandle) -> Result<AgentHome, String> {
 fn load_agent_app_state(app: &tauri::AppHandle) -> Option<Value> {
     let path = app.path().app_data_dir().ok()?.join("app-state.json");
     let raw = std::fs::read_to_string(path).ok()?;
-    serde_json::from_str(&raw).ok()
+    let mut parsed: Value = serde_json::from_str(&raw).ok()?;
+    // The keys are in the keychain, not in the file (secrets.rs). Only the
+    // main model and the web search are read here.
+    if let Some(settings) = parsed.as_object_mut() {
+        settings.remove("providerConfigs");
+        secrets::fill_keys(settings, &secrets::Keychain);
+    }
+    Some(parsed)
 }
 
 fn load_agent_runtime_config(app: &tauri::AppHandle) -> AgentRuntimeConfig {
@@ -321,6 +332,29 @@ fn tray_available<R: tauri::Runtime>(window: &tauri::Window<R>) -> bool {
         .unwrap_or(false)
 }
 
+/// How the web clipper's local server is: `starting`, `running`,
+/// `port-in-use` or `stopped`.
+#[tauri::command]
+fn clip_server_status() -> String {
+    clip_server::state().to_string()
+}
+
+/// Every command of the app answers only to the app's own webview: the
+/// view of a judicial portal, a remote page inside the same window, never
+/// reaches them (D-447). Tauri already refuses them to a remote page that
+/// no capability names; this does not depend on that.
+fn only_app_webview<R: tauri::Runtime>(
+    handler: impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + Sync + 'static,
+) -> impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + Sync + 'static {
+    move |invoke| {
+        if !portals::is_app_webview(invoke.message.webview_ref().label()) {
+            invoke.resolver.reject("Este pedido solo se acepta desde la ventana de la app");
+            return true;
+        }
+        handler(invoke)
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     apply_linux_webkit_compat_env();
@@ -370,6 +404,10 @@ pub fn run() {
             } else {
                 eprintln!("[proxy] could not resolve app_data_dir");
             }
+            // The API keys still written in app-state.json move to the
+            // system keychain, before the screens read the settings
+            // (secrets.rs, D-444).
+            secrets::move_keys_of_app_state(app.handle());
             // Registry of running `claude` subprocesses, keyed by the
             // frontend-generated stream id. Populated by claude_cli_spawn,
             // drained on process exit or by claude_cli_kill.
@@ -379,7 +417,12 @@ pub fn run() {
             app.manage(agent::cancel::AgentCancellationRegistry::default());
             app.manage(CloseBehaviorState(Mutex::new("minimize".to_string())));
             app.manage(TrayAvailabilityState(Mutex::new(false)));
+            app.manage(portals::view::PortalState::default());
             docbase::commands::start(app.handle());
+            // The work folder exists with its folders and is an origin
+            // (D-450); the web clipper's server saves the clips there.
+            work_folder::start(app.handle());
+            clip_server::start(app.handle().clone());
             let tray_available = match tray::create_tray(app.handle()) {
                 Ok(()) => true,
                 Err(err) => {
@@ -397,7 +440,10 @@ pub fn run() {
             }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![
+        // A reload of the app's page leaves the portals' views on top of
+        // the new page: they are hidden until «Portales» asks for them.
+        .on_page_load(portals::view::hide_on_app_reload)
+        .invoke_handler(only_app_webview::<tauri::Wry>(tauri::generate_handler![
             commands::fs::read_file,
             commands::fs::write_file,
             commands::fs::list_directory,
@@ -432,12 +478,14 @@ pub fn run() {
             docbase::commands::docbase_similar_open_pairs,
             docbase::commands::docbase_similar_groups,
             docbase::commands::docbase_similar_relations,
+            docbase::commands::docbase_similar_template,
             docbase::commands::docbase_types_plan,
             docbase::commands::docbase_proposed_types,
             docbase::commands::docbase_decide_type,
             docbase::commands::docbase_decided_types,
             docbase::commands::docbase_types_run,
-            docbase::commands::docbase_set_ask_engine,
+            docbase::commands::docbase_ai_services,
+            docbase::commands::docbase_set_ai_services,
             docbase::commands::docbase_document_type,
             docbase::commands::docbase_document_types,
             docbase::commands::docbase_knowledge_status,
@@ -472,7 +520,6 @@ pub fn run() {
             docbase::commands::docbase_background_reading,
             docbase::commands::docbase_set_background_reading,
             docbase::commands::docbase_progress,
-            docbase::commands::docbase_set_recognition_engine,
             docbase::commands::docbase_recognize_text,
             docbase::commands::docbase_progress_items,
             docbase::commands::docbase_progress_folders,
@@ -481,6 +528,8 @@ pub fn run() {
             docbase::commands::docbase_knowledge_decide,
             docbase::commands::docbase_knowledge_undo,
             docbase::commands::docbase_knowledge_read_again_failed,
+            docbase::commands::docbase_knowledge_reread_plan,
+            docbase::commands::docbase_knowledge_reread,
             docbase::commands::docbase_knowledge_decide_many,
             docbase::commands::docbase_knowledge_attention,
             docbase::commands::docbase_knowledge_matters,
@@ -511,7 +560,26 @@ pub fn run() {
             commands::codex_cli::codex_cli_kill,
             set_proxy_env,
             set_close_behavior,
-        ])
+            portals::view::portal_show,
+            portals::view::portal_hide,
+            portals::view::portal_fetch,
+            portals::view::portal_update_all,
+            portals::view::portal_stop,
+            portals::view::portal_go_on,
+            portals::view::portal_manual,
+            portals::view::portal_status,
+            portals::view::portal_followed,
+            portals::view::portal_jurisdictions,
+            portals::view::portal_open_folder,
+            work_folder::work_folder_status,
+            secrets::secrets_read,
+            secrets::secrets_write,
+            work_folder::work_folder_set,
+            work_folder::work_folder_open,
+            work_folder::work_folder_new_clips,
+            work_folder::work_folder_clips_seen,
+            clip_server_status,
+        ]))
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
@@ -570,7 +638,9 @@ pub fn run() {
             {
                 if !has_visible_windows {
                     use tauri::Manager;
-                    if let Some(window) = app.get_webview_window("main") {
+                    // `get_window`: with the portal's view inside it, the
+                    // main window is no longer a single-webview window.
+                    if let Some(window) = app.get_window("main") {
                         let _ = window.show();
                         let _ = window.set_focus();
                     }

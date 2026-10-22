@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { CheckCheck, ChevronDown, ChevronRight } from "lucide-react"
+import { CheckCheck, ChevronDown, ChevronRight, LayoutTemplate } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   decideSimilarMany,
@@ -20,6 +20,7 @@ import { relationName, vocabulary } from "@/vocabulary"
 import { DocbasePage, EmptyNote, ErrorNote, Panel, StatusBadge } from "./page"
 import { formatCount, plural } from "./format"
 import { decideAndFollow, SimilarCard } from "./similar-documents"
+import { FamilyTemplate } from "./template-panel"
 import { familyPairs, orderFamilies, orderOpenPairs, templateConfirmations, TEMPLATE_RELATION } from "./similar"
 import { useDocbaseQuery } from "./use-docbase-query"
 
@@ -161,8 +162,18 @@ function FamilyCard({
               {plural(group.pendingSameDocument, "podría ser el mismo", "podrían ser el mismo")}
             </StatusBadge>
           )}
+          {group.possiblySame > 0 && (
+            <StatusBadge tone="busy">
+              {plural(group.possiblySame, "par sin datos que cambien", "pares sin datos que cambien")}
+            </StatusBadge>
+          )}
           {sameTemplatePending > 0 && (
             <StatusBadge tone="neutral">{formatCount(sameTemplatePending)} de la misma plantilla, sin confirmar</StatusBadge>
+          )}
+          {group.templateFields !== null && (
+            <StatusBadge tone="neutral">
+              plantilla: {plural(group.templateFields, "campo", "campos")}
+            </StatusBadge>
           )}
           {group.flags.includes("large") && <StatusBadge tone="warning">creció mucho</StatusBadge>}
           {group.flags.includes("dispersed") && <StatusBadge tone="warning">dispersa</StatusBadge>}
@@ -189,6 +200,7 @@ function FamilyPairs({
   const dialog = useAppDialog()
   const [problem, setProblem] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [showTemplate, setShowTemplate] = useState(group.possiblySame > 0)
   const words = vocabulary()
   const items = similar.data ? familyPairs(similar.data, group, relations) : null
 
@@ -236,6 +248,11 @@ function FamilyPairs({
         <Button size="sm" variant="outline" onClick={() => open(principal.locationId)}>
           Abrir el principal
         </Button>
+        {group.templateFields !== null && (
+          <Button size="sm" variant="outline" aria-expanded={showTemplate} onClick={() => setShowTemplate(!showTemplate)}>
+            <LayoutTemplate /> {showTemplate ? "Ocultar la plantilla" : "Ver la plantilla"}
+          </Button>
+        )}
         {sameTemplatePending > 0 && (
           <Button size="sm" disabled={busy || !similar.data} onClick={() => void confirmTemplate()}>
             <CheckCheck /> Confirmar la familia como «{relationName(TEMPLATE_RELATION, words)}» (
@@ -243,6 +260,11 @@ function FamilyPairs({
           </Button>
         )}
       </div>
+      {showTemplate && group.templateFields !== null && (
+        <div className="rounded-md border px-4 py-3">
+          <FamilyTemplate principalLocationId={principal.locationId} onOpen={open} />
+        </div>
+      )}
       {items === null ? (
         <p className="text-xs text-muted-foreground">Buscando los pares…</p>
       ) : items.length === 0 ? (

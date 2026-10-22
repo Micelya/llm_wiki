@@ -6,7 +6,7 @@ vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(() => Promise.resolve(()
 import type { Health, Home, OriginSummary } from "@/commands/docbase"
 import { vocabularyFor } from "@/vocabulary"
 import { docRef, similarGroup } from "@/components/docbase/similar.fixtures"
-import { docbaseNotices, similarNotice, type DocbaseFacts } from "./docbase"
+import { clipsNotice, docbaseNotices, similarNotice, type DocbaseFacts } from "./docbase"
 
 const words = vocabularyFor("legal", "es")
 
@@ -120,6 +120,15 @@ describe("similar documents in the attention view", () => {
     expect(similarNotice({ pairs: 5, groups: 1, sameDocumentPairs: 0 }, groups)).toBeNull()
   })
 
+  it("escalates two of the same template where no field changes: possibly the same document", () => {
+    const group = { ...similarGroup(principal, [docRef(11, "a.docx"), docRef(12, "b.docx")], 2), possiblySame: 1 }
+    const line = similarNotice({ pairs: 2, groups: 1, sameDocumentPairs: 0 }, [group])!
+    expect(line.title).toBe("1 par de documentos podría ser el mismo documento")
+    expect(line.count).toBe(1)
+    expect(line.cases?.[0].detail).toContain("1 par de la misma plantilla no cambia en ningún dato")
+    expect(line.cases?.[0].actions?.[0]).toMatchObject({ target: { view: "similar", principal: 10 } })
+  })
+
   it("counts one decision per family and one per pair outside families", () => {
     const groups = [
       similarGroup(docRef(20, "Facturas.pdf"), [docRef(21, "x.pdf")], 1),
@@ -141,5 +150,33 @@ describe("similar documents in the attention view", () => {
     const after = docbaseNotices(facts({}, { similarPending: { pairs: 1, groups: 0, sameDocumentPairs: 0 } }), words)
     expect(before.map((n) => n.id)).toEqual(["docbase:similar"])
     expect(after).toEqual([])
+  })
+})
+
+describe("the new web clips", () => {
+  const clip = (locationId: number, name: string) => ({
+    locationId,
+    name,
+    folder: "Recortes web",
+    originName: "Carpeta de trabajo",
+    firstSeenAt: Date.now(),
+  })
+
+  it("says nothing when no clip came in since they were seen", () => {
+    expect(clipsNotice({ total: 0, files: [] })).toBeNull()
+    expect(clipsNotice(null)).toBeNull()
+    expect(docbaseNotices(facts({}, { newClips: { total: 0, files: [] } }), words)).toEqual([])
+  })
+
+  it("lists each new clip, opens it as a document and goes away once seen", () => {
+    const line = clipsNotice({ total: 3, files: [clip(7, "2026-03-04 Una nota.md"), clip(8, "2026-03-04 Otra nota.md")] })!
+    expect(line).toMatchObject({ id: "docbase:clips", kind: "decision", count: 3, title: "3 recortes web nuevos" })
+    expect(line.actions.map((a) => a.label)).toEqual(["Ya los vi", "Abrir la carpeta"])
+    expect(line.resolvedWhen).toContain("Ya los vi")
+    expect(line.cases?.map((c) => c.title)).toEqual(["2026-03-04 Una nota", "2026-03-04 Otra nota"])
+    expect(line.cases?.[0].actions?.[0]).toMatchObject({ kind: "go", target: { view: "document", locationId: 7 } })
+    expect(line.moreCases).toBe(1)
+    const lines = docbaseNotices(facts({}, { newClips: { total: 1, files: [clip(7, "a.md")] } }), words)
+    expect(lines.map((n) => n.title)).toEqual(["1 recorte web nuevo"])
   })
 })

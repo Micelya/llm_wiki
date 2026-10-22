@@ -34,6 +34,20 @@ export interface Vocabulary {
     /** One sentence under the title. */
     description: string
   }
+  /**
+   * The page that brings records from the judicial portals (P-248), and
+   * what the profession calls one record of a court ("Expediente").
+   */
+  portals: {
+    /** Its name in the navigation and as its title: "Portales". */
+    name: string
+    /** One sentence under its title. */
+    description: string
+    /** One record: "Expediente". */
+    record: string
+    /** Several: "Expedientes". */
+    records: string
+  }
   /** Label groups offered to start with, most general first. */
   suggestedGroups: string[]
   /** The language the base writes its articles in when the user chose none, as an output-language value. */
@@ -56,6 +70,11 @@ export interface Vocabulary {
   stages: Record<string, string>
   /** The names of the data of each type (`numero-de-envio`, `total`…), by id. */
   dataFields: Record<string, string>
+  /**
+   * The fields of a template by the kind of thing they are (`date`,
+   * `amount`, `name`…), to be followed by their order: "Fecha 2".
+   */
+  templateFields: Record<string, string>
   /**
    * The words of the knowledge layer's screens: who and what the
    * documents name. The ids are those of the layer's vocabulary
@@ -219,6 +238,11 @@ export function stageName(id: string, words: Vocabulary = vocabulary()): string 
 /** The name of a datum of a document type. */
 export function dataFieldName(id: string, words: Vocabulary = vocabulary()): string {
   return words.dataFields[id] ?? idInWords(id)
+}
+
+/** The name of a field of a template: its kind and its order ("Fecha 2"). */
+export function templateFieldName(kind: string, ordinal: number, words: Vocabulary = vocabulary()): string {
+  return `${words.templateFields[kind] ?? idInWords(kind)} ${ordinal}`
 }
 
 /** The name of a type of entity, in singular or plural. */

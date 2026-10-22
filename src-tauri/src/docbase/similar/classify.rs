@@ -47,8 +47,6 @@ pub const MAX_MEMBERS_IN_QUESTION: usize = 30;
 /// Relations after which a member is in the principal's stage, unless
 /// its own marks say another one.
 pub const SAME_STAGE: &[&str] = &["near-identical", "same-template", "version"];
-/// Setting with the engine that answers while the archive's wiki is active.
-const ASK_ENGINE_SETTING: &str = "ask-engine";
 /// Whether the base reads on its own (`docbase_setting`, V20).
 pub(crate) const BACKGROUND_READING_SETTING: &str = "background-reading";
 
@@ -1363,22 +1361,6 @@ impl DocBase {
         Ok(read_data(&self.conn(), None)?.into_iter().map(|(k, v)| (k, v.unwrap_or_default())).collect())
     }
 
-    /// The engine that answers while the archive's wiki is active; none
-    /// clears it.
-    pub fn set_ask_engine(&self, engine: Option<&AskConfig>) -> Result<(), String> {
-        let conn = self.conn();
-        match engine {
-            Some(engine) => conn
-                .execute(
-                    "INSERT OR REPLACE INTO docbase_setting (key, value) VALUES (?1, ?2)",
-                    params![ASK_ENGINE_SETTING, serde_json::to_string(engine).map_err(|e| e.to_string())?],
-                )
-                .map_err(sql_err)?,
-            None => conn.execute("DELETE FROM docbase_setting WHERE key = ?1", [ASK_ENGINE_SETTING]).map_err(sql_err)?,
-        };
-        Ok(())
-    }
-
     /// Whether the base reads its documents on its own, in the background
     /// (D-402): the setting `background-reading`, off until someone turns
     /// it on. It no longer depends on a wiki.
@@ -1429,12 +1411,10 @@ pub(crate) fn ask_and_keep(base: &DocBase, asker: &dyn DocumentAsker, question: 
     Ok(answer)
 }
 
+/// The engine the base asks with: the one of «Preguntar al modelo» in the
+/// registry of AI services, when the base can run it (`services.rs`).
 pub(crate) fn ask_engine(conn: &Connection) -> Result<Option<AskConfig>, String> {
-    let value: Option<String> = conn
-        .query_row("SELECT value FROM docbase_setting WHERE key = ?1", [ASK_ENGINE_SETTING], |row| row.get(0))
-        .optional()
-        .map_err(sql_err)?;
-    Ok(value.and_then(|v| serde_json::from_str(&v).ok()))
+    super::super::services::ask_engine(conn)
 }
 
 /// A failure after which asking more in the same run only wastes time:

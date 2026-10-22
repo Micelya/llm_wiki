@@ -15,6 +15,8 @@ const IDLE_WAIT: Duration = Duration::from_secs(20);
 const HASH_BATCH: usize = 8;
 const TEXT_BATCH: usize = 2;
 const SIMILAR_BATCH: usize = 2;
+/// Readings checked again from the answers kept per step.
+const RECHECK_BATCH: usize = 4;
 /// Documents waiting for recognition whose pages are counted per step.
 const SCAN_PAGES_BATCH: usize = 2;
 const NOTIFY_EVERY: Duration = Duration::from_millis(800);
@@ -138,6 +140,9 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
     if let Some(wait) = recognition_step(base, on_change) {
         return wait;
     }
+    if let Some(wait) = requested_reading_step(base, on_change) {
+        return wait;
+    }
     let state = base.engine_state();
     let engine = match base.background_ask_engine() {
         Ok(Some(engine)) => engine,
@@ -186,7 +191,7 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
     match base.knowledge_run(asker.as_ref(), 1) {
         Ok(report) => {
             state.ran("reading", report.left);
-            if report.extracted + report.unusable > 0 {
+            if report.extracted + report.unusable + report.rechecked > 0 {
                 on_change();
             }
             if report.failed > 0 {
@@ -229,7 +234,10 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
     state.at_stage(Some("matters"));
     match base.knowledge_propose_matters(Some(asker.as_ref()), 1) {
         Ok(report) => {
-            state.ran("matters", report.left);
+            // Skipped while identities are being resolved: not a pass (D-452).
+            if !report.skipped {
+                state.ran("matters", report.left);
+            }
             if report.failed > 0 {
                 eprintln!("[docbase] matters of the knowledge layer: {}", report.errors.join("; "));
                 return failed("matters", &report.errors);
@@ -251,7 +259,9 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
     state.at_stage(Some("pages"));
     match base.knowledge_project(Some(asker.as_ref()), 1) {
         Ok(report) => {
-            state.ran("pages", report.left);
+            if report.reason.as_deref() != Some("resolving") {
+                state.ran("pages", report.left);
+            }
             if report.wrote() {
                 on_change();
                 on_pages();
@@ -271,6 +281,58 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
         Err(error) => {
             eprintln!("[docbase] {error}");
             ASK_IDLE
+        }
+    }
+}
+
+/// The documents a person asked to read again (D-432), with the automatic
+/// reading on or off, before the rest: one question at a time. Once none is
+/// left, what they named is resolved again without asking. `None` when
+/// there is none, or no engine: the questions go on.
+fn requested_reading_step(base: &DocBase, on_change: &dyn Fn()) -> Option<Duration> {
+    match base.knowledge_rereads_waiting() {
+        Ok(0) => return None,
+        Ok(_) => {}
+        Err(error) => {
+            eprintln!("[docbase] {error}");
+            return None;
+        }
+    }
+    let engine = match super::similar::classify::ask_engine(&base.conn()) {
+        Ok(Some(engine)) => engine,
+        Ok(None) => return None,
+        Err(error) => {
+            eprintln!("[docbase] {error}");
+            return None;
+        }
+    };
+    let asker = crate::source_volume::asking::asker_for(&engine).ok()?;
+    let state = base.engine_state();
+    state.at_stage(Some("reading"));
+    match base.knowledge_run_requested(asker.as_ref(), 1) {
+        Ok(report) => {
+            if report.extracted + report.unusable > 0 {
+                on_change();
+            }
+            if report.failed > 0 {
+                eprintln!("[docbase] reading again what was asked: {}", report.errors.join("; "));
+                state.failed(Some("reading"), &report.errors.join("; "), Some(ASK_BACKOFF));
+                return Some(ASK_BACKOFF);
+            }
+            if report.asked == 0 && report.extracted == 0 {
+                // Nothing could be asked (the type of the document waits):
+                // the other questions go on.
+                return None;
+            }
+            if base.knowledge_rereads_waiting().unwrap_or(0) == 0 {
+                let _ = base.knowledge_resolve(None, 0);
+                on_change();
+            }
+            Some(Duration::ZERO)
+        }
+        Err(error) => {
+            eprintln!("[docbase] {error}");
+            None
         }
     }
 }
@@ -362,6 +424,11 @@ fn step(base: &DocBase) -> Result<bool, String> {
         return Ok(true);
     }
     if base.purge_orphans()? > 0 {
+        return Ok(true);
+    }
+    // Readings checked with an earlier version of the program's check are
+    // checked again from the answers kept, without the model (D-432).
+    if base.knowledge_recheck(RECHECK_BATCH)? > 0 {
         return Ok(true);
     }
     // Similar documents: only once every text is read, a little at a

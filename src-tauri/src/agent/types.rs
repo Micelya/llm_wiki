@@ -120,6 +120,11 @@ pub struct AgentChatRequest {
     // filesystem read channel.
     #[serde(default)]
     pub context_files: Vec<String>,
+    // Documents of the base the user attached in the chat (P-243), by the
+    // id of their location: their text is read from the base, never from a
+    // file on disk, with their name and where they are, and they are cited.
+    #[serde(default)]
+    pub context_documents: Vec<i64>,
     #[serde(default)]
     pub skill_mode: AgentSkillMode,
     // Security boundary: these commands must come from an explicit trusted
@@ -159,6 +164,7 @@ impl Default for AgentChatRequest {
             history_explicit: false,
             skills: Vec::new(),
             context_files: Vec::new(),
+            context_documents: Vec::new(),
             skill_mode: AgentSkillMode::default(),
             approved_shell_commands: Vec::new(),
             shell_command: None,

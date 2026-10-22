@@ -14,6 +14,8 @@ import {
   isAcceptedImageType,
   messageImageToDataUrl,
 } from "@/lib/chat-image-utils"
+import { withDocument, type ChatDocument } from "@/lib/chat-documents"
+import { DocumentChip, DocumentOptions, DocumentPicker, useDocumentSearch, type SearchDocuments } from "./chat-document-picker"
 
 export interface ChatSendOptions {
   useWebSearch: boolean
@@ -22,6 +24,8 @@ export interface ChatSendOptions {
   retrievalMode: ChatRetrievalMode
   skills: string[]
   contextFiles: string[]
+  /** Documents of the base attached to the message (P-243). */
+  contextDocuments: ChatDocument[]
   skillMode?: "auto" | "explicit"
   approvedShellCommands?: string[]
   shellCommand?: string
@@ -139,7 +143,10 @@ interface ChatInputProps {
   retrievalMode: ChatRetrievalMode
   availableSkills: ChatSkillOption[]
   selectedSkills: string[]
-  availableContextFiles: string[]
+  /** Searches the base for documents to attach («@» in the message, or the search box). */
+  searchDocuments: SearchDocuments
+  selectedDocuments: ChatDocument[]
+  onSelectedDocumentsChange: (documents: ChatDocument[]) => void
   selectedContextFiles: string[]
   onUseWebSearchChange: (enabled: boolean) => void
   onUseAnyTxtSearchChange: (enabled: boolean) => void
@@ -162,7 +169,9 @@ export function ChatInput({
   retrievalMode,
   availableSkills,
   selectedSkills,
-  availableContextFiles,
+  searchDocuments,
+  selectedDocuments,
+  onSelectedDocumentsChange,
   selectedContextFiles,
   onUseWebSearchChange,
   onUseAnyTxtSearchChange,
@@ -184,6 +193,8 @@ export function ChatInput({
   const [dismissedSlashKey, setDismissedSlashKey] = useState<string | null>(null)
   const [contextFileIndex, setContextFileIndex] = useState(0)
   const [dismissedContextKey, setDismissedContextKey] = useState<string | null>(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerQuery, setPickerQuery] = useState("")
   const inputFrameRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -220,14 +231,14 @@ export function ChatInput({
     [cursorPosition, value],
   )
   const contextFileKey = slashSkillTokenKey(value, contextFileTrigger)
-  const contextFileOptions = useMemo(() => {
-    if (!contextFileTrigger) return []
-    const query = contextFileTrigger.query.toLowerCase()
-    return availableContextFiles
-      .filter((path) => !selectedContextFiles.includes(path))
-      .filter((path) => !query || path.toLowerCase().includes(query))
-      .slice(0, 50)
-  }, [availableContextFiles, contextFileTrigger, selectedContextFiles])
+  // The documents of the base the search finds (P-243): for «@» typed in
+  // the message, or for the search box of «Documento».
+  const typedDocumentQuery = contextFileTrigger && contextFileKey !== dismissedContextKey ? contextFileTrigger.query : null
+  const foundDocuments = useDocumentSearch(typedDocumentQuery ?? (pickerOpen ? pickerQuery : null), searchDocuments, selectedDocuments)
+  const contextFileOptions = useMemo(
+    () => (foundDocuments ?? []).filter((document) => !selectedDocuments.some((item) => item.locationId === document.locationId)),
+    [foundDocuments, selectedDocuments],
+  )
   const showContextFiles = Boolean(
     contextFileTrigger
     && contextFileKey !== dismissedContextKey
@@ -254,6 +265,7 @@ export function ChatInput({
       const frame = inputFrameRef.current
       if (!frame || frame.contains(event.target as Node)) return
       setShowSkills(false)
+      setPickerOpen(false)
       if (slashSkillKey) setDismissedSlashKey(slashSkillKey)
       if (contextFileKey) setDismissedContextKey(contextFileKey)
     }
@@ -378,6 +390,7 @@ export function ChatInput({
       retrievalMode,
       skills: selectedSkills,
       contextFiles: selectedContextFiles,
+      contextDocuments: selectedDocuments,
       skillMode: selectedSkills.length > 0 ? "explicit" : "auto",
     })
     setValue("")
@@ -387,7 +400,7 @@ export function ChatInput({
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto"
     }
-  }, [agentMode, imageInputAvailable, images, isStreaming, onSend, retrievalMode, selectedContextFiles, selectedSkills, t, useAnyTxtSearch, useWebSearch, value])
+  }, [agentMode, imageInputAvailable, images, isStreaming, onSend, retrievalMode, selectedContextFiles, selectedDocuments, selectedSkills, t, useAnyTxtSearch, useWebSearch, value])
 
   const applySlashSkill = useCallback(
     (skill: ChatSkillOption) => {
@@ -413,21 +426,29 @@ export function ChatInput({
     [onSelectedSkillsChange, selectedSkills, slashSkillTrigger, value],
   )
 
-  const applyContextFile = useCallback((path: string) => {
+  const applyContextFile = useCallback((document: ChatDocument) => {
     const trigger = contextFileTrigger
     if (!trigger) return
     const edit = removeSlashSkillToken(value, trigger)
     setValue(edit.value)
     setCursorPosition(edit.cursor)
     setDismissedContextKey(null)
-    onSelectedContextFilesChange([...selectedContextFiles, path])
+    onSelectedDocumentsChange(withDocument(selectedDocuments, document))
     requestAnimationFrame(() => {
       const textarea = textareaRef.current
       if (!textarea) return
       textarea.focus()
       textarea.setSelectionRange(edit.cursor, edit.cursor)
     })
-  }, [contextFileTrigger, onSelectedContextFilesChange, selectedContextFiles, value])
+  }, [contextFileTrigger, onSelectedDocumentsChange, selectedDocuments, value])
+
+  /** A document chosen in the search box of «Documento». */
+  const pickDocument = useCallback((document: ChatDocument) => {
+    onSelectedDocumentsChange(withDocument(selectedDocuments, document))
+    setPickerOpen(false)
+    setPickerQuery("")
+    requestAnimationFrame(() => textareaRef.current?.focus())
+  }, [onSelectedDocumentsChange, selectedDocuments])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -461,8 +482,8 @@ export function ChatInput({
         }
         if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
           e.preventDefault()
-          const path = contextFileOptions[contextFileIndex] ?? contextFileOptions[0]
-          if (path) applyContextFile(path)
+          const document = contextFileOptions[contextFileIndex] ?? contextFileOptions[0]
+          if (document) applyContextFile(document)
           return
         }
         if (e.key === "Escape") {
@@ -571,6 +592,13 @@ export function ChatInput({
           </p>
         )}
         <div className="flex flex-wrap items-start gap-1 px-1">
+          {selectedDocuments.map((document) => (
+            <DocumentChip
+              key={document.locationId}
+              document={document}
+              onRemove={() => onSelectedDocumentsChange(selectedDocuments.filter((item) => item.locationId !== document.locationId))}
+            />
+          ))}
           {selectedContextFiles.map((path) => (
             <span
               key={path}
@@ -662,25 +690,22 @@ export function ChatInput({
         {showContextFiles && (
           <div className="absolute bottom-[4.75rem] left-4 right-4 z-30 max-w-xl rounded-md border border-border bg-popover p-1.5 text-popover-foreground shadow-lg">
             <div className="px-2 pb-1 text-[11px] font-medium text-muted-foreground">
-              {t("chat.contextFileHint")}
+              Documentos de la base: elegí uno para adjuntarlo al mensaje.
             </div>
-            <div className="max-h-64 overflow-y-auto">
-              {contextFileOptions.map((path, index) => (
-                <button
-                  key={path}
-                  type="button"
-                  onMouseDown={(event) => {
-                    event.preventDefault()
-                    applyContextFile(path)
-                  }}
-                  className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs ${index === contextFileIndex ? "bg-accent" : "hover:bg-accent/60"}`}
-                >
-                  <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  <span className="min-w-0 flex-1 truncate">{path}</span>
-                </button>
-              ))}
-            </div>
+            <DocumentOptions options={contextFileOptions} activeIndex={contextFileIndex} onPick={applyContextFile} />
           </div>
+        )}
+        {pickerOpen && !showContextFiles && !isStreaming && (
+          <DocumentPicker
+            query={pickerQuery}
+            options={foundDocuments}
+            onQuery={setPickerQuery}
+            onPick={pickDocument}
+            onClose={() => {
+              setPickerOpen(false)
+              requestAnimationFrame(() => textareaRef.current?.focus())
+            }}
+          />
         )}
         <input
           ref={fileInputRef}
@@ -706,6 +731,20 @@ export function ChatInput({
                 <span className="hidden sm:inline">{t("chat.attachImage")}</span>
               </button>
             </span>
+            <button
+              type="button"
+              aria-expanded={pickerOpen}
+              onClick={() => {
+                setShowSkills(false)
+                setPickerOpen((open) => !open)
+              }}
+              disabled={isStreaming}
+              className={searchToggleClass(selectedDocuments.length > 0)}
+              title="Adjuntar un documento de la base (también podés escribir @ y parte de su nombre)"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Documento</span>
+            </button>
             <button
               type="button"
               aria-pressed={useWebSearch}
