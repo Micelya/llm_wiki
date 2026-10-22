@@ -9,6 +9,7 @@ import {
   Network,
   History,
   Settings,
+  Sparkles,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { invoke } from "@tauri-apps/api/core"
@@ -37,10 +38,12 @@ import { GeneralSection } from "./sections/general-section"
 import { ChangelogSection } from "./sections/changelog-section"
 import { AboutSection } from "./sections/about-section"
 import { WorkFolderSection } from "./sections/work-folder-section"
+import { AiServicesSection } from "./sections/ai-services-section"
 
 type CategoryId =
   | "general"
   | "work-folder"
+  | "ai-services"
   | "llm"
   | "web-search"
   | "network"
@@ -63,8 +66,11 @@ interface Category {
 const CATEGORIES: Category[] = [
   { id: "general", labelKey: "settings.categories.general", icon: Settings },
   { id: "work-folder", labelKey: "", label: "Carpeta de trabajo", icon: FolderOpen },
-  { id: "llm", labelKey: "settings.categories.llm", icon: Bot },
-  { id: "web-search", labelKey: "settings.categories.webSearch", icon: Globe },
+  // Which engine each AI service uses (P-141); the two after it keep the
+  // data of each provider (the shared connections).
+  { id: "ai-services", labelKey: "", label: "Servicios de IA", icon: Sparkles },
+  { id: "llm", labelKey: "settings.categories.llm", label: "Conexiones con modelos", icon: Bot },
+  { id: "web-search", labelKey: "settings.categories.webSearch", label: "Búsqueda en internet", icon: Globe },
   { id: "network", labelKey: "settings.categories.network", icon: Network },
   { id: "output", labelKey: "settings.categories.output", icon: Languages },
   { id: "interface", labelKey: "settings.categories.interface", icon: Palette },
@@ -131,7 +137,7 @@ export function SettingsView() {
   // per version.
   const updateAvailable = useUpdateStore((s) => hasAvailableUpdate(s))
 
-  const [active, setActive] = useState<CategoryId>("llm")
+  const [active, setActive] = useState<CategoryId>("ai-services")
   const [saved, setSaved] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [currentTheme, setCurrentTheme] = useState<AppTheme>("system")
@@ -351,6 +357,9 @@ export function SettingsView() {
       case "work-folder":
         // Applies at once: the folder becomes an origin of the base.
         return <WorkFolderSection />
+      case "ai-services":
+        // Applies at once: the base reads the registry at every request.
+        return <AiServicesSection onOpen={setActive} />
       case "llm":
         // The LLM section manages its own store state (per-provider
         // configs + active preset) and persists directly — it bypasses
@@ -431,7 +440,7 @@ export function SettingsView() {
         {/* Global Save bar hidden for sections that persist inline:
             - "llm" saves per-row on every edit (independent per-preset state)
             - "about" has no draft-bound fields */}
-        {active !== "about" && active !== "llm" && active !== "work-folder" && (
+        {active !== "about" && active !== "llm" && active !== "work-folder" && active !== "ai-services" && (
           <div className="shrink-0 border-t bg-background/80 backdrop-blur px-8 py-3">
             <div className="mx-auto flex max-w-2xl items-center justify-between gap-4">
               <p className={`text-xs ${saveError ? "text-destructive" : "text-muted-foreground"}`}>

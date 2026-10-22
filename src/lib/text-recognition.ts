@@ -4,23 +4,17 @@
  *
  * The reading happens in the base (Rust, `docbase/recognize.rs`), behind
  * an engine-neutral contract (`TextRecognizer`); this module only says
- * which engine the configured model is, so callers never name one. The
- * retired ingest took it from the image-description setting when it used
- * the main model and that model was the Codex CLI; that setting no longer
- * exists, so it is the main model alone (D-429). Today only the Codex CLI
- * can read images from Rust.
+ * which engine is chosen, so callers never name one. It is the engine of
+ * «Reconocer escaneos» in the registry of AI services (Ajustes → Servicios
+ * de IA, D-443), when the base can run it: today only Codex.
  */
 import type { RecognitionConfig } from "@/commands/docbase"
-import { useWikiStore } from "@/stores/wiki-store"
+import { recognitionConfigOfServices } from "@/lib/ai-services"
+import { useAiServicesStore } from "@/stores/ai-services-store"
 
-/** The engine that recognizes scans with the model chosen now; null when that model cannot. */
+/** The engine that recognizes scans; null when none the base can run is chosen. */
 export function getRecognitionConfig(): RecognitionConfig | null {
-  return recognitionConfigOf(useWikiStore.getState().llmConfig)
-}
-
-export function recognitionConfigOf(llmConfig: { provider: string; model: string }): RecognitionConfig | null {
-  if (llmConfig.provider !== "codex-cli") return null
-  return { engine: "codex-cli", model: llmConfig.model }
+  return recognitionConfigOfServices(useAiServicesStore.getState().services)
 }
 
 /** The name the base saves the text of that engine with (as `recognition::engine_id` in Rust). */
@@ -32,7 +26,7 @@ export function recognitionEngineId(config: RecognitionConfig | null): string | 
 
 /** What a stage or a document says when no engine can recognize scans. */
 export const MISSING_ENGINE =
-  "Falta elegir el motor que reconoce escaneos: en Ajustes → LLM Models, elegí «Codex CLI (local)»."
+  "Falta elegir el motor que reconoce escaneos: en Ajustes → Servicios de IA, elegí uno para «Reconocer escaneos»."
 
 /** What it costs, in words. */
 export const RECOGNITION_COST = "Cada página es una pregunta al modelo: consume cupo o costo de ese proveedor."

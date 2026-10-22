@@ -385,34 +385,38 @@ fn only_proposed_types_can_be_decided_and_a_name_is_needed() {
     assert!(other.decide_type("receta-de-cocina", &confirm("  ")).is_err());
 }
 
+/// A fake model that answers under the name of an engine the base can
+/// choose (the registry of AI services only takes those, D-443).
+struct Named<'a>(&'a FakeModel, &'static str);
+
+impl DocumentAsker for Named<'_> {
+    fn engine_id(&self) -> String {
+        self.1.to_string()
+    }
+    fn ask(&self, prompt: &str, schema: &serde_json::Value) -> Result<String, String> {
+        self.0.ask(prompt, schema)
+    }
+}
+
 #[test]
 fn once_an_engine_is_chosen_only_its_answers_count() {
     let (_dir, base) = base_with(&[("receta.md", RECIPE.to_string())]);
     let model = FakeModel::new(|_| type_answer("factura", None, &[]));
-    base.types_run(&model, 10).unwrap();
+    base.types_run(&Named(&model, "codex-cli:1"), 10).unwrap();
     let forget = || base.conn().execute_batch("DELETE FROM document_type; DELETE FROM document_data;").unwrap();
     // No engine chosen yet: any answer kept counts.
     forget();
     assert_eq!(base.types_plan().unwrap().type_questions, 0);
     // The engine and model that answered it.
-    base.set_ask_engine(Some(&AskConfig { engine: "falso".into(), model: "1".into(), ..Default::default() })).unwrap();
+    base.set_ask_engine(Some(&AskConfig { engine: "codex-cli".into(), model: "1".into(), ..Default::default() })).unwrap();
     forget();
     assert_eq!(base.types_plan().unwrap().type_questions, 0);
     // Another model: the question is asked again, and its answer kept apart.
-    base.set_ask_engine(Some(&AskConfig { engine: "falso".into(), model: "2".into(), ..Default::default() })).unwrap();
+    base.set_ask_engine(Some(&AskConfig { engine: "codex-cli".into(), model: "2".into(), ..Default::default() })).unwrap();
     forget();
     assert_eq!(base.types_plan().unwrap().type_questions, 1);
     let other = FakeModel::new(|_| type_answer("factura", None, &[]));
-    struct Two<'a>(&'a FakeModel);
-    impl DocumentAsker for Two<'_> {
-        fn engine_id(&self) -> String {
-            "falso:2".to_string()
-        }
-        fn ask(&self, prompt: &str, schema: &serde_json::Value) -> Result<String, String> {
-            self.0.ask(prompt, schema)
-        }
-    }
-    assert_eq!(base.types_run(&Two(&other), 10).unwrap().asked, 1);
+    assert_eq!(base.types_run(&Named(&other, "codex-cli:2"), 10).unwrap().asked, 1);
     let answers: i64 = base.conn().query_row("SELECT count(*) FROM model_answer WHERE task = 'type'", [], |row| row.get(0)).unwrap();
     assert_eq!(answers, 2);
 }

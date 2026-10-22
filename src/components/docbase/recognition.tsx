@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { Loader2, ScanText } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { recognizeText, setRecognitionEngine, type DocumentDetail } from "@/commands/docbase"
+import { recognizeText, type DocumentDetail } from "@/commands/docbase"
 import {
   engineName,
   illegibleParts,
@@ -9,36 +9,20 @@ import {
   MISSING_ENGINE,
   pageList,
   RECOGNITION_COST,
-  recognitionConfigOf,
   recognitionEngineId,
   recognitionFailureText,
 } from "@/lib/text-recognition"
 import { useProgressStore } from "@/stores/progress-store"
-import { useWikiStore } from "@/stores/wiki-store"
+import { recognitionConfigOfServices } from "@/lib/ai-services"
+import { useAiServicesStore } from "@/stores/ai-services-store"
 import { vocabulary } from "@/vocabulary"
 import { ErrorNote } from "./page"
 import { formatDate } from "./format"
 
-/**
- * Mounted once with the layout: tells the base which engine recognizes
- * scans, from the model chosen in Ajustes, whenever it changes (with the
- * automatic reading on or off: a person may ask for one at any time).
- */
-export function RecognitionEngineSync() {
-  const llmConfig = useWikiStore((s) => s.llmConfig)
-  const config = recognitionConfigOf(llmConfig)
-  const key = recognitionEngineId(config)
-  useEffect(() => {
-    setRecognitionEngine(config).catch((cause) => console.error("[docbase] failed to set the engine for scans:", cause))
-    // The engine is compared by its name, not by object.
-  }, [key])
-  return null
-}
-
-/** The engine that recognizes scans with the model chosen now, and its name in the base. */
+/** The engine of «Reconocer escaneos» chosen now, and its name in the base. */
 export function useRecognitionEngine(): { id: string | null; name: string | null } {
-  const llmConfig = useWikiStore((s) => s.llmConfig)
-  const id = recognitionEngineId(recognitionConfigOf(llmConfig))
+  const services = useAiServicesStore((s) => s.services)
+  const id = recognitionEngineId(recognitionConfigOfServices(services))
   return { id, name: id ? engineName(id) : null }
 }
 

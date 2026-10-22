@@ -70,7 +70,7 @@ function ReadingState({ progress }: { progress: Progress | null }) {
       </div>
       <p className="text-xs text-muted-foreground">
         {progress && !progress.engineChosen
-          ? "Falta elegir un modelo en Ajustes: sin él, las etapas que usan el modelo no avanzan."
+          ? "Falta elegir el motor de «Preguntar al modelo» en Ajustes → Servicios de IA: sin él, las etapas que usan el modelo no avanzan."
           : on
             ? "Las etapas que usan el modelo avanzan solas."
             : "Las etapas que usan el modelo esperan hasta que la actives."}
@@ -262,7 +262,7 @@ export function StageLine({
                   : "En pausa: la lectura automática está apagada. Podés reconocerlos a pedido, todos o de a uno."
                 : engineChosen
                   ? "En pausa: sigue cuando actives la lectura automática."
-                  : "En pausa: falta elegir un modelo en Ajustes."}
+                  : "En pausa: falta elegir el motor de «Preguntar al modelo» en Ajustes → Servicios de IA."}
             </p>
           )}
           {scans && stage.state === "running" && !backgroundReading && (

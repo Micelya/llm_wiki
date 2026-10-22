@@ -692,20 +692,82 @@ export function runTypes(engine: AskConfig, maxQuestions?: number): Promise<Type
   return invoke<TypesRunReport>("docbase_types_run", { engine, maxQuestions: maxQuestions ?? null })
 }
 
-/** The engine that answers while the archive's wiki is active; null stops it. */
-export function setAskEngine(engine: AskConfig | null): Promise<void> {
-  return invoke<void>("docbase_set_ask_engine", { engine })
-}
-
 /** Which engine recognizes the text of scans, and with which model. */
 export interface RecognitionConfig {
   engine: "codex-cli"
   model: string
 }
 
-/** The engine that recognizes the text of scans; null: none can. */
-export function setRecognitionEngine(engine: RecognitionConfig | null): Promise<void> {
-  return invoke<void>("docbase_set_recognition_engine", { engine })
+/** The AI services of the registry (P-141, `docbase/services.rs`). */
+export type AiServiceId = "ask" | "recognize" | "research"
+
+/** One engine chosen for a service. */
+export interface EngineChoice {
+  /** The engine, as the catalog names it (`codex-cli`, `tavily`…). */
+  engine: string
+  /** The shared connection it uses (a preset of Conexiones, a search provider); empty: the engine's own. */
+  connection: string
+  model: string
+  /** `low`, `medium` or `high` for an engine that offers it; empty: the model's default. */
+  reasoning: string
+}
+
+/** What a service uses: its engine and an optional alternative. */
+export interface ServiceChoice {
+  engine: EngineChoice | null
+  alternative: EngineChoice | null
+}
+
+/** The registry: which engine each AI service uses. */
+export interface AiServices {
+  ask: ServiceChoice
+  recognize: ServiceChoice
+  research: ServiceChoice
+}
+
+export type CapabilityLevel = "yes" | "partial" | "no"
+
+/** One engine of the catalog, for one service (`resources/catalog/ai-engines.json`). */
+export interface CatalogEngine {
+  service: AiServiceId
+  id: string
+  name: string
+  /** `local`: a program on this computer; `api`: a provider's API; `search`: a web search. */
+  kind: "local" | "api" | "search"
+  /** The base runs it by itself (today only Codex). */
+  inBase: boolean
+  /** It takes a reasoning level. */
+  reasoning: boolean
+  /** What it says it can do, when it declares it. */
+  capabilities?: Partial<Record<string, CapabilityLevel>>
+  languages?: string[]
+  /** Where what it is sent is processed. */
+  processing: string
+  /** What its provider keeps. */
+  retention: string
+}
+
+export interface EnginesCatalog {
+  services: { id: AiServiceId; name: string; purpose: string }[]
+  capabilities: { id: string; name: string }[]
+  engines: CatalogEngine[]
+}
+
+export interface AiServicesView {
+  services: AiServices
+  /** False until the registry is saved once: until then it is what the base had. */
+  saved: boolean
+  catalog: EnginesCatalog
+}
+
+/** The registry of the AI services, with the catalog of engines. */
+export function getAiServices(): Promise<AiServicesView> {
+  return invoke<AiServicesView>("docbase_ai_services")
+}
+
+/** Saves the registry; the next request of each service uses it. */
+export function setAiServices(services: AiServices): Promise<AiServicesView> {
+  return invoke<AiServicesView>("docbase_set_ai_services", { services })
 }
 
 /**

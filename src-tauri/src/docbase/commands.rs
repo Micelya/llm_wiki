@@ -30,7 +30,7 @@ use super::similar::classify::{DecidedType, DocumentType, ProposedType, RunRepor
 use super::similar::data::Datum;
 use super::similar::types::RelationDef;
 use crate::source_volume::asking::{asker_for, AskConfig};
-use crate::source_volume::recognition::RecognitionConfig;
+use super::services::{AiServices, AiServicesView};
 use super::query::{Activity, DocumentDetail, DocumentFilter, DocumentPage, Health, LocationRef, OriginSummary};
 use super::tree::FolderListing;
 use super::worker::{self, Wake};
@@ -495,16 +495,27 @@ pub fn docbase_types_run(
 ) -> Result<RunReport, String> {
     let base = state.base()?.clone();
     let asker = asker_for(&engine)?;
-    base.set_ask_engine(Some(&engine))?;
     let report = base.types_run(asker.as_ref(), max_questions.unwrap_or(RUN_LIMIT))?;
     let _ = app.emit(CHANGED_EVENT, ());
     Ok(report)
 }
 
-/// The engine that answers while the archive's wiki is active, or none.
+/// The registry of the AI services (which engine each service uses), with
+/// the catalog of engines (P-141).
 #[tauri::command(async)]
-pub fn docbase_set_ask_engine(state: State<'_, DocBaseState>, engine: Option<AskConfig>) -> Result<(), String> {
-    state.base()?.set_ask_engine(engine.as_ref())
+pub fn docbase_ai_services(state: State<'_, DocBaseState>) -> Result<AiServicesView, String> {
+    state.base()?.ai_services()
+}
+
+/// Saves the registry of the AI services: the next request uses it, and
+/// the questions to the model stop waiting to see the change. The screens
+/// that show an engine read it from what this returns.
+#[tauri::command(async)]
+pub fn docbase_set_ai_services(state: State<'_, DocBaseState>, services: AiServices) -> Result<AiServicesView, String> {
+    let base = state.base()?;
+    base.set_ai_services(services)?;
+    state.ask_wake.request();
+    base.ai_services()
 }
 
 #[derive(Debug, Serialize)]
@@ -599,7 +610,6 @@ pub fn docbase_knowledge_run(
 ) -> Result<KnowledgeReport, String> {
     let base = state.base()?.clone();
     let asker = asker_for(&engine)?;
-    base.set_ask_engine(Some(&engine))?;
     let report = base.knowledge_run(asker.as_ref(), max_questions.unwrap_or(RUN_LIMIT))?;
     let _ = app.emit(CHANGED_EVENT, ());
     Ok(report)
@@ -869,12 +879,6 @@ pub fn docbase_set_background_reading(state: State<'_, DocBaseState>, on: bool) 
     state.base()?.set_background_reading(on)
 }
 
-/// The engine that recognizes the text of scans, from the model chosen in
-/// Ajustes; `None` when that model cannot read images.
-#[tauri::command(async)]
-pub fn docbase_set_recognition_engine(state: State<'_, DocBaseState>, engine: Option<RecognitionConfig>) -> Result<(), String> {
-    state.base()?.set_recognition_engine(engine.as_ref())
-}
 
 /// A person asks to recognize the text of scans (P-242), with the
 /// automatic reading on or off: these documents (`content_ids`), every one
@@ -895,7 +899,7 @@ pub fn docbase_recognize_text(
     };
     let base = state.base()?;
     if base.recognition_engine()?.is_none() {
-        return Err("Falta elegir el motor que reconoce escaneos: en Ajustes, elegí «Codex CLI (local)» como modelo.".to_string());
+        return Err("Falta elegir el motor que reconoce escaneos: en Ajustes → Servicios de IA, elegí uno para «Reconocer escaneos».".to_string());
     }
     let asked = base.request_recognition(&which)?;
     state.ask_wake.request();
@@ -986,7 +990,7 @@ pub fn docbase_knowledge_reread_plan(state: State<'_, DocBaseState>, target: Opt
 pub fn docbase_knowledge_reread(app: tauri::AppHandle, state: State<'_, DocBaseState>, target: Option<RereadTarget>) -> Result<usize, String> {
     let base = state.base()?;
     if super::similar::classify::ask_engine(&base.conn())?.is_none() {
-        return Err("Falta elegir un modelo en Ajustes: sin él no se puede volver a leer.".to_string());
+        return Err("Falta elegir el motor de «Preguntar al modelo» en Ajustes → Servicios de IA: sin él no se puede volver a leer.".to_string());
     }
     let count = base.knowledge_request_reread(&target.unwrap_or_default())?;
     state.ask_wake.request();

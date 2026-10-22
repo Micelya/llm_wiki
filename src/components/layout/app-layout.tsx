@@ -9,7 +9,6 @@ import { ErrorBoundary } from "@/components/error-boundary"
 import { AttentionSources } from "@/components/attention/sources-host"
 import { ProgressPoller } from "@/components/progress/use-progress"
 import { ProgressLine } from "@/components/progress/progress-line"
-import { RecognitionEngineSync } from "@/components/docbase/recognition"
 import { isResearchPanelVisible } from "./research-panel-nav"
 
 export function AppLayout() {
@@ -58,7 +57,6 @@ export function AppLayout() {
     <div className="flex h-full flex-col bg-background text-foreground">
       <AttentionSources />
       <ProgressPoller />
-      <RecognitionEngineSync />
       <UpdateBanner />
       <div className="flex min-h-0 flex-1">
         <IconSidebar />

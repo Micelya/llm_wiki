@@ -5,6 +5,7 @@ mod docbase;
 mod panic_guard;
 mod portals;
 mod proxy;
+mod secrets;
 mod source_volume;
 mod tray;
 mod types;
@@ -249,7 +250,14 @@ fn agent_home(app: &tauri::AppHandle) -> Result<AgentHome, String> {
 fn load_agent_app_state(app: &tauri::AppHandle) -> Option<Value> {
     let path = app.path().app_data_dir().ok()?.join("app-state.json");
     let raw = std::fs::read_to_string(path).ok()?;
-    serde_json::from_str(&raw).ok()
+    let mut parsed: Value = serde_json::from_str(&raw).ok()?;
+    // The keys are in the keychain, not in the file (secrets.rs). Only the
+    // main model and the web search are read here.
+    if let Some(settings) = parsed.as_object_mut() {
+        settings.remove("providerConfigs");
+        secrets::fill_keys(settings, &secrets::Keychain);
+    }
+    Some(parsed)
 }
 
 fn load_agent_runtime_config(app: &tauri::AppHandle) -> AgentRuntimeConfig {
@@ -396,6 +404,10 @@ pub fn run() {
             } else {
                 eprintln!("[proxy] could not resolve app_data_dir");
             }
+            // The API keys still written in app-state.json move to the
+            // system keychain, before the screens read the settings
+            // (secrets.rs, D-444).
+            secrets::move_keys_of_app_state(app.handle());
             // Registry of running `claude` subprocesses, keyed by the
             // frontend-generated stream id. Populated by claude_cli_spawn,
             // drained on process exit or by claude_cli_kill.
@@ -469,7 +481,8 @@ pub fn run() {
             docbase::commands::docbase_decide_type,
             docbase::commands::docbase_decided_types,
             docbase::commands::docbase_types_run,
-            docbase::commands::docbase_set_ask_engine,
+            docbase::commands::docbase_ai_services,
+            docbase::commands::docbase_set_ai_services,
             docbase::commands::docbase_document_type,
             docbase::commands::docbase_document_types,
             docbase::commands::docbase_knowledge_status,
@@ -504,7 +517,6 @@ pub fn run() {
             docbase::commands::docbase_background_reading,
             docbase::commands::docbase_set_background_reading,
             docbase::commands::docbase_progress,
-            docbase::commands::docbase_set_recognition_engine,
             docbase::commands::docbase_recognize_text,
             docbase::commands::docbase_progress_items,
             docbase::commands::docbase_progress_folders,
@@ -557,6 +569,8 @@ pub fn run() {
             portals::view::portal_jurisdictions,
             portals::view::portal_open_folder,
             work_folder::work_folder_status,
+            secrets::secrets_read,
+            secrets::secrets_write,
             work_folder::work_folder_set,
             work_folder::work_folder_open,
             work_folder::work_folder_new_clips,

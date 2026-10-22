@@ -2,7 +2,9 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { DocumentDetail, DocumentEntities, EntityDetail, KnowledgeArticle, MatterDetail } from "@/commands/docbase"
 import { DocumentDetailView } from "@/components/docbase/document-detail"
-import { useWikiStore } from "@/stores/wiki-store"
+import { useAiServicesStore } from "@/stores/ai-services-store"
+import { NO_SERVICES } from "@/lib/ai-services"
+import type { AiServices } from "@/commands/docbase"
 import { EntityDetailView } from "./entity-detail"
 import { MatterDetailView } from "./matters-view"
 
@@ -214,6 +216,13 @@ describe("the screen of a document", () => {
   })
 })
 
+
+/** The registry with «Reconocer escaneos» on Codex with this model (made up). */
+const recognizing = (model: string): AiServices => ({
+  ...NO_SERVICES,
+  recognize: { engine: { engine: "codex-cli", connection: "codex-cli", model, reasoning: "" }, alternative: null },
+})
+
 describe("the recognition of a scan, on the screen of its document (P-242)", () => {
   const scan = () =>
     documentDetail({ state: "needs-recognition", text: null, textEngine: null, textAt: null, wordCount: null, name: "Escaneo de prueba.pdf" })
@@ -221,7 +230,7 @@ describe("the recognition of a scan, on the screen of its document (P-242)", () 
   beforeEach(() => {
     base.answers["document-article"] = null
     base.answers["document-entities"] = { ...DOCUMENT_ENTITIES, entities: [], matters: [] }
-    useWikiStore.setState({ llmConfig: { ...useWikiStore.getState().llmConfig, provider: "codex-cli", model: "modelo-de-prueba" } })
+    useAiServicesStore.setState({ services: recognizing("modelo-de-prueba") })
   })
 
   it("offers «Reconocer el texto» first in «Datos y correcciones», with what it costs", () => {
@@ -244,7 +253,7 @@ describe("the recognition of a scan, on the screen of its document (P-242)", () 
   })
 
   it("says how to choose an engine when the model chosen cannot read images, and does not offer the button", () => {
-    useWikiStore.setState({ llmConfig: { ...useWikiStore.getState().llmConfig, provider: "openai" } })
+    useAiServicesStore.setState({ services: NO_SERVICES })
     base.answers.document = scan()
     const html = renderToStaticMarkup(<DocumentDetailView locationId={10} onBack={() => {}} initialTab="data" />)
     expect(text(html)).toContain("Falta elegir el motor que reconoce escaneos")

@@ -38,8 +38,6 @@ use super::{sql_err, DocBase};
 
 /// Folder, beside the database, where the recognized pages are kept.
 pub const RECOGNIZED_DIR: &str = "recognized";
-/// Where the engine that recognizes text is kept (`docbase_setting`).
-const RECOGNITION_ENGINE_SETTING: &str = "recognition-engine";
 /// After this many failures of the provider on the same document, the
 /// document is marked as failed: a page that never gets an answer must not
 /// hold the others back for ever.
@@ -74,13 +72,10 @@ pub enum RecognitionRequest {
     Failed,
 }
 
-/// The engine that recognizes text, as kept in the base.
+/// The engine that recognizes text: the one of «Reconocer escaneos» in the
+/// registry of AI services, when the base can run it (`services.rs`).
 pub(crate) fn recognition_engine(conn: &Connection) -> Result<Option<RecognitionConfig>, String> {
-    let value: Option<String> = conn
-        .query_row("SELECT value FROM docbase_setting WHERE key = ?1", [RECOGNITION_ENGINE_SETTING], |row| row.get(0))
-        .optional()
-        .map_err(sql_err)?;
-    Ok(value.and_then(|v| serde_json::from_str(&v).ok()))
+    super::services::recognition_engine(conn)
 }
 
 /// SQL condition: the content `c` has a copy that can be read now.
@@ -94,24 +89,6 @@ fn reachable_sql() -> String {
 }
 
 impl DocBase {
-    /// The engine that recognizes text; none clears it. The screens set it
-    /// from the model chosen in Ajustes.
-    pub fn set_recognition_engine(&self, engine: Option<&RecognitionConfig>) -> Result<(), String> {
-        let conn = self.conn();
-        match engine {
-            Some(engine) => conn
-                .execute(
-                    "INSERT OR REPLACE INTO docbase_setting (key, value) VALUES (?1, ?2)",
-                    params![RECOGNITION_ENGINE_SETTING, serde_json::to_string(engine).map_err(|e| e.to_string())?],
-                )
-                .map_err(sql_err)?,
-            None => conn
-                .execute("DELETE FROM docbase_setting WHERE key = ?1", [RECOGNITION_ENGINE_SETTING])
-                .map_err(sql_err)?,
-        };
-        Ok(())
-    }
-
     pub fn recognition_engine(&self) -> Result<Option<RecognitionConfig>, String> {
         recognition_engine(&self.conn())
     }

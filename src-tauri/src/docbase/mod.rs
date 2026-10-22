@@ -30,6 +30,7 @@ pub mod progress;
 pub mod query;
 pub mod recognize;
 pub mod search;
+pub mod services;
 mod scan;
 mod schema;
 pub mod similar;

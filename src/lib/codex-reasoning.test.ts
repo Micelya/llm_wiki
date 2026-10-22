@@ -3,8 +3,8 @@ import { CODEX_REASONING_LEVELS, DEFAULT_CODEX_REASONING, codexReasoningEffort }
 import { resolveConfig } from "@/components/settings/preset-resolver"
 import { findLlmPreset, type LlmPreset } from "@/components/settings/llm-presets"
 import type { LlmConfig } from "@/stores/wiki-store"
-import { useWikiStore } from "@/stores/wiki-store"
-import { getAskConfig } from "./document-asking"
+import { askConfigOf, servicesFromSettings } from "./ai-services"
+import type { SearchApiConfig } from "@/stores/wiki-store"
 
 const fallback: LlmConfig = {
   provider: "openai",
@@ -41,14 +41,14 @@ describe("Codex reasoning level", () => {
   })
 
   it("goes with the engine that answers the questions about documents", () => {
-    const before = useWikiStore.getState().llmConfig
-    try {
-      useWikiStore.setState({ llmConfig: { ...fallback, provider: "codex-cli", model: "m", codexReasoningEffort: "low" } })
-      expect(getAskConfig()).toEqual({ engine: "codex-cli", model: "m", reasoning: "low" })
-      useWikiStore.setState({ llmConfig: { ...fallback, provider: "codex-cli", model: "m" } })
-      expect(getAskConfig()?.reasoning).toBe(DEFAULT_CODEX_REASONING)
-    } finally {
-      useWikiStore.setState({ llmConfig: before })
-    }
+    const search = { provider: "none", apiKey: "" } as SearchApiConfig
+    const ask = (llmConfig: LlmConfig) =>
+      askConfigOf(servicesFromSettings({ llmConfig, activePresetId: "codex-cli", searchApiConfig: search }))
+    expect(ask({ ...fallback, provider: "codex-cli", model: "m", codexReasoningEffort: "low" })).toEqual({
+      engine: "codex-cli",
+      model: "m",
+      reasoning: "low",
+    })
+    expect(ask({ ...fallback, provider: "codex-cli", model: "m" })?.reasoning).toBe(DEFAULT_CODEX_REASONING)
   })
 })

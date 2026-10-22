@@ -1,0 +1,199 @@
+{
+  "version": 1,
+  "about": "Engines each AI service can use (P-141, D-445): what each one says it can do, where it processes what it is sent and what its provider keeps. Shown in Ajustes → Servicios de IA. An entry is one engine for one service; `inBase` says the base can run it by itself (today only Codex).",
+  "services": [
+    {
+      "id": "ask",
+      "name": "Preguntar al modelo",
+      "purpose": "Lee cada documento (tipo, datos, personas, organizaciones, afirmaciones, asuntos y síntesis) y contesta en el chat."
+    },
+    {
+      "id": "recognize",
+      "name": "Reconocer escaneos",
+      "purpose": "Saca el texto de los escaneos, las fotos y las páginas de PDF que son solo imagen."
+    },
+    {
+      "id": "research",
+      "name": "Investigar en internet",
+      "purpose": "Busca en internet sobre una persona, una organización o un asunto; la síntesis la escribe el motor de «Preguntar al modelo»."
+    }
+  ],
+  "capabilities": [
+    { "id": "text", "name": "Texto impreso" },
+    { "id": "tables", "name": "Tablas" },
+    { "id": "checkboxes", "name": "Casillas marcadas" },
+    { "id": "handwriting", "name": "Manuscrito" }
+  ],
+  "engines": [
+    {
+      "service": "ask",
+      "id": "codex-cli",
+      "name": "Codex",
+      "kind": "local",
+      "inBase": true,
+      "reasoning": true,
+      "languages": ["castellano", "inglés", "otros"],
+      "processing": "Lo que se pregunta (el texto del documento o del chat) sale de esta computadora: el programa Codex lo manda a OpenAI con la cuenta con la que se inició sesión en Codex.",
+      "retention": "OpenAI lo trata según el plan de esa cuenta. En un plan personal, revisá en ChatGPT → Configuración → Controles de datos si lo enviado se usa para mejorar sus modelos; en un plan de empresa no se usa para entrenar."
+    },
+    {
+      "service": "ask",
+      "id": "claude-code",
+      "name": "Claude Code",
+      "kind": "local",
+      "inBase": false,
+      "reasoning": false,
+      "languages": ["castellano", "inglés", "otros"],
+      "processing": "Sale de esta computadora: el programa Claude Code lo manda a Anthropic con la cuenta con la que se inició sesión.",
+      "retention": "Anthropic lo trata según las condiciones de esa cuenta; revisalas antes de mandar documentos sensibles."
+    },
+    {
+      "service": "ask",
+      "id": "openai",
+      "name": "OpenAI (API)",
+      "kind": "api",
+      "inBase": false,
+      "reasoning": false,
+      "languages": ["castellano", "inglés", "otros"],
+      "processing": "Se manda a los servidores de OpenAI con la clave cargada en Conexiones.",
+      "retention": "Según las condiciones de la API de OpenAI: no usa lo enviado para entrenar salvo que se acepte, y puede conservarlo hasta 30 días para controlar abusos."
+    },
+    {
+      "service": "ask",
+      "id": "anthropic",
+      "name": "Anthropic (API)",
+      "kind": "api",
+      "inBase": false,
+      "reasoning": false,
+      "languages": ["castellano", "inglés", "otros"],
+      "processing": "Se manda a los servidores de Anthropic con la clave cargada en Conexiones.",
+      "retention": "Según las condiciones comerciales de Anthropic: no usa lo enviado para entrenar y lo conserva por un tiempo limitado; revisalas antes de mandar documentos sensibles."
+    },
+    {
+      "service": "ask",
+      "id": "google",
+      "name": "Google Gemini (API)",
+      "kind": "api",
+      "inBase": false,
+      "reasoning": false,
+      "languages": ["castellano", "inglés", "otros"],
+      "processing": "Se manda a los servidores de Google con la clave cargada en Conexiones.",
+      "retention": "Según las condiciones de la API de Gemini: en el nivel gratuito Google puede usar lo enviado para mejorar sus productos; en el pago, no."
+    },
+    {
+      "service": "ask",
+      "id": "azure",
+      "name": "Azure OpenAI",
+      "kind": "api",
+      "inBase": false,
+      "reasoning": false,
+      "languages": ["castellano", "inglés", "otros"],
+      "processing": "Se manda al recurso de Azure configurado en Conexiones, en la región elegida al crearlo.",
+      "retention": "Según las condiciones de Azure OpenAI: no se usa para entrenar y puede conservarse hasta 30 días para controlar abusos, salvo que Microsoft lo haya desactivado para la cuenta."
+    },
+    {
+      "service": "ask",
+      "id": "ollama",
+      "name": "Ollama",
+      "kind": "local",
+      "inBase": false,
+      "reasoning": false,
+      "languages": ["según el modelo"],
+      "processing": "Se procesa en el servidor de Ollama configurado en Conexiones: si es esta computadora, nada sale de ella.",
+      "retention": "Ollama en esta computadora no manda nada a un proveedor."
+    },
+    {
+      "service": "ask",
+      "id": "custom",
+      "name": "Otro proveedor (API)",
+      "kind": "api",
+      "inBase": false,
+      "reasoning": false,
+      "languages": ["según el modelo"],
+      "processing": "Se manda al servidor del proveedor configurado en Conexiones.",
+      "retention": "Según las condiciones de ese proveedor; revisalas antes de mandar documentos sensibles."
+    },
+    {
+      "service": "recognize",
+      "id": "codex-cli",
+      "name": "Codex",
+      "kind": "local",
+      "inBase": true,
+      "reasoning": false,
+      "capabilities": { "text": "yes", "tables": "yes", "checkboxes": "partial", "handwriting": "partial" },
+      "languages": ["castellano", "inglés", "otros"],
+      "processing": "Cada página se convierte en imagen en esta computadora y el programa Codex la manda a OpenAI con la cuenta con la que se inició sesión en Codex; es una pregunta al modelo por página.",
+      "retention": "OpenAI lo trata según el plan de esa cuenta. En un plan personal, revisá en ChatGPT → Configuración → Controles de datos si lo enviado se usa para mejorar sus modelos; en un plan de empresa no se usa para entrenar."
+    },
+    {
+      "service": "research",
+      "id": "tavily",
+      "name": "Tavily",
+      "kind": "search",
+      "inBase": false,
+      "reasoning": false,
+      "processing": "Se mandan a Tavily las palabras de la búsqueda (pueden llevar nombres de personas u organizaciones de la base); los documentos no salen.",
+      "retention": "Según las condiciones de Tavily."
+    },
+    {
+      "service": "research",
+      "id": "serpapi",
+      "name": "SerpApi",
+      "kind": "search",
+      "inBase": false,
+      "reasoning": false,
+      "processing": "Se mandan a SerpApi las palabras de la búsqueda (pueden llevar nombres de personas u organizaciones de la base); los documentos no salen.",
+      "retention": "Según las condiciones de SerpApi."
+    },
+    {
+      "service": "research",
+      "id": "searxng",
+      "name": "SearXNG",
+      "kind": "search",
+      "inBase": false,
+      "reasoning": false,
+      "processing": "Se mandan las palabras de la búsqueda al servidor de SearXNG configurado (puede ser propio); los documentos no salen.",
+      "retention": "Depende de quién administra ese servidor."
+    },
+    {
+      "service": "research",
+      "id": "brave",
+      "name": "Brave Search",
+      "kind": "search",
+      "inBase": false,
+      "reasoning": false,
+      "processing": "Se mandan a Brave las palabras de la búsqueda (pueden llevar nombres de personas u organizaciones de la base); los documentos no salen.",
+      "retention": "Según las condiciones de la API de Brave Search."
+    },
+    {
+      "service": "research",
+      "id": "bocha",
+      "name": "Bocha",
+      "kind": "search",
+      "inBase": false,
+      "reasoning": false,
+      "processing": "Se mandan a Bocha las palabras de la búsqueda (pueden llevar nombres de personas u organizaciones de la base); los documentos no salen.",
+      "retention": "Según las condiciones de Bocha."
+    },
+    {
+      "service": "research",
+      "id": "firecrawl",
+      "name": "Firecrawl",
+      "kind": "search",
+      "inBase": false,
+      "reasoning": false,
+      "processing": "Se mandan a Firecrawl las palabras de la búsqueda (pueden llevar nombres de personas u organizaciones de la base); los documentos no salen.",
+      "retention": "Según las condiciones de Firecrawl."
+    },
+    {
+      "service": "research",
+      "id": "ollama",
+      "name": "Búsqueda web de Ollama",
+      "kind": "search",
+      "inBase": false,
+      "reasoning": false,
+      "processing": "Se mandan a Ollama las palabras de la búsqueda (pueden llevar nombres de personas u organizaciones de la base); los documentos no salen.",
+      "retention": "Según las condiciones de Ollama."
+    }
+  ]
+}

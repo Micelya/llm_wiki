@@ -1442,12 +1442,12 @@
       "titulo": "Aislar la configuración y el uso de los servicios de IA",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "Pedido del dueño del 2026-10-17 (D-291): Micelya Core va a ofrecer los servicios de IA (preguntas, lectura de imágenes, vectores) con sus proveedores configurables; la app debe poder usarlo y mantener proveedores propios. Agrupar la configuración y el uso en un solo lugar, con un contrato por servicio, para que Core sea un proveedor más. No es el foco ahora; hacerlo cuando se toque esa parte. 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/.",
+      "estado": "a-verificar",
+      "detalle": "Pedido del dueño del 2026-10-17 (D-291): Micelya Core va a ofrecer los servicios de IA (preguntas, lectura de imágenes, vectores) con sus proveedores configurables; la app debe poder usarlo y mantener proveedores propios. Agrupar la configuración y el uso en un solo lugar, con un contrato por servicio, para que Core sea un proveedor más. No es el foco ahora; hacerlo cuando se toque esa parte. 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/. 22 oct (paso 1 del plan, D-443 a D-445): Ajustes → Servicios de IA con un renglón por servicio (preguntar al modelo, reconocer escaneos, investigar en internet), su motor, modelo, razonamiento y un alternativo opcional, lo que declara cada motor, dónde procesa y qué guarda su proveedor, y las conexiones en uso; el registro vive en la base, que lo lee en cada pedido; al abrir la primera vez se arma con los ajustes de antes (mismos motores y modelos); las claves de API pasan al llavero del sistema. Falta que el dueño lo vea en la app.",
       "depende_de": [],
-      "referencia": "docs/design/wiki-sobre-la-base-propuesta.md (sección 9); D-291; P-063; P-140; docs/design/servicios-de-ia-propuesta.md",
+      "referencia": "docs/design/wiki-sobre-la-base-propuesta.md (sección 9); D-291; P-063; P-140; docs/design/servicios-de-ia-propuesta.md; D-443 a D-445; src-tauri/src/docbase/services.rs; src-tauri/src/secrets.rs; src-tauri/resources/catalog/ai-engines.json; src/components/settings/sections/ai-services-section.tsx",
       "creado": "2026-10-17",
-      "actualizado": "2026-10-21"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-142",
@@ -2281,6 +2281,30 @@
       "detalle": "Después de la relectura de la sucesión con conocimiento-7 (P-271), ver qué parentescos se siguen perdiendo por el control y no por la pregunta: (1) abuelo, tío, sobrino y nieto dados con la misma persona en los dos lados («X en su carácter de nieto de Y y de sobrino de Z»): las palabras de filiación del catálogo (D-457) son solo de «padre o madre de» y podrían extenderse a esos parentescos; (2) la filiación de un acta con campos, cuando el nombre del inscripto y el campo «Padre:» están a más de 40 palabras: aceptarla por los rótulos del acta; (3) el hijo en los dos lados con un solo padre nombrado, que hoy se descarta (D-460).",
       "depende_de": ["P-271"],
       "referencia": "D-457, D-459, D-460; src-tauri/src/docbase/knowledge/extract.rs (ClaimCheck); src-tauri/resources/catalog/knowledge.json (reading.filiation)",
+      "creado": "2026-10-22",
+      "actualizado": "2026-10-22"
+    },
+    {
+      "id": "P-261",
+      "titulo": "Usar el motor alternativo y avisar cuando el motor elegido no puede",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Desde D-445 cada servicio puede tener un motor alternativo y cada motor declara qué sabe leer (texto, tablas, casillas, manuscrito), pero la base todavía no usa el alternativo ni compara lo que un documento necesita con lo que el motor declara. Cuando haya un segundo motor de reconocimiento (Core, paso 5 del plan): mandar al alternativo lo que el principal no lee (por ejemplo, manuscrito en castellano) y avisar en Atención cuando el motor elegido no puede con un documento.",
+      "depende_de": ["P-141"],
+      "referencia": "D-445; src-tauri/src/docbase/services.rs; src-tauri/resources/catalog/ai-engines.json; docs/design/servicios-de-ia-propuesta.md (2.1, reglas 1 y 5)",
+      "creado": "2026-10-22",
+      "actualizado": "2026-10-22"
+    },
+    {
+      "id": "P-262",
+      "titulo": "Decidir qué hacer con las claves viejas de funciones retiradas en app-state.json",
+      "tipo": "decision",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "detalle": "El archivo de ajustes conserva campos de funciones que se retiraron con el wiki (lectura de PDF con MinerU, descripción de imágenes, vectores, la API local) que pueden tener claves o tokens en texto plano; nada los lee y D-444 no los movió. Decidir si se borran del archivo o se pasan al llavero por si vuelven esas funciones.",
+      "depende_de": [],
+      "referencia": "D-444; src-tauri/src/secrets.rs",
       "creado": "2026-10-22",
       "actualizado": "2026-10-22"
     },

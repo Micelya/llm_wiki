@@ -1,10 +1,23 @@
 /**
  * The app's settings, kept in `app-state.json` in the app's data folder.
- * They are all global: there are no projects (W6).
+ * They are all global: there are no projects (W6). The API keys are not
+ * written here but in the system keychain (`secrets.ts`, D-444): the
+ * file keeps them empty, unless the keychain cannot be used.
  */
 import { load } from "@tauri-apps/plugin-store"
 import type { CustomLlmPreset, GeneralConfig, LlmConfig, SearchApiConfig, OutputLanguage, ProviderConfigs, ProxyConfig, TaskModelRoutingConfig } from "@/stores/wiki-store"
 import { DEFAULT_ZOOM_LEVEL, clampZoomLevel } from "@/stores/zoom-store"
+import {
+  LLM_KEY,
+  SEARCH_KEY,
+  keepKeys,
+  keyNamesOf,
+  loadKeys,
+  providerKey,
+  searchProviderKey,
+  withKey,
+  withoutKey,
+} from "@/lib/secrets"
 
 const STORE_NAME = "app-state.json"
 
@@ -19,24 +32,54 @@ const TASK_MODEL_ROUTING_KEY = "taskModelRouting"
 const CUSTOM_LLM_PRESETS_KEY = "customLlmPresets"
 let customLlmPresetWrite = Promise.resolve()
 
+/**
+ * Reads from the keychain the keys of the settings saved, once, when the
+ * app opens and before loading them. False when the keychain cannot be
+ * read: then the keys stay in the file.
+ */
+export async function loadSettingsKeys(): Promise<boolean> {
+  const store = await getStore()
+  return loadKeys(
+    keyNamesOf({
+      llmConfig: await store.get(LLM_CONFIG_KEY),
+      providerConfigs: await store.get(PROVIDER_CONFIGS_KEY),
+      searchApiConfig: await store.get(SEARCH_API_KEY),
+    }),
+  )
+}
+
 export async function saveLlmConfig(config: LlmConfig): Promise<void> {
   const store = await getStore()
-  await store.set(LLM_CONFIG_KEY, config)
+  const free = await keepKeys({ [LLM_KEY]: config.apiKey ?? "" })
+  await store.set(LLM_CONFIG_KEY, free.has(LLM_KEY) ? withoutKey(config) : config)
 }
 
 export async function loadLlmConfig(): Promise<LlmConfig | null> {
   const store = await getStore()
-  return (await store.get<LlmConfig>(LLM_CONFIG_KEY)) ?? null
+  const config = await store.get<LlmConfig>(LLM_CONFIG_KEY)
+  return config ? withKey(config, LLM_KEY) : null
+}
+
+/** The connections without the keys the keychain keeps. */
+export async function providerConfigsForFile(configs: ProviderConfigs): Promise<ProviderConfigs> {
+  const free = await keepKeys(
+    Object.fromEntries(Object.entries(configs).map(([id, config]) => [providerKey(id), config.apiKey ?? ""])),
+  )
+  return Object.fromEntries(
+    Object.entries(configs).map(([id, config]) => [id, free.has(providerKey(id)) ? withoutKey(config) : config]),
+  )
 }
 
 export async function saveProviderConfigs(configs: ProviderConfigs): Promise<void> {
   const store = await getStore()
-  await store.set(PROVIDER_CONFIGS_KEY, configs)
+  await store.set(PROVIDER_CONFIGS_KEY, await providerConfigsForFile(configs))
 }
 
 export async function loadProviderConfigs(): Promise<ProviderConfigs | null> {
   const store = await getStore()
-  return (await store.get<ProviderConfigs>(PROVIDER_CONFIGS_KEY)) ?? null
+  const configs = await store.get<ProviderConfigs>(PROVIDER_CONFIGS_KEY)
+  if (!configs) return null
+  return Object.fromEntries(Object.entries(configs).map(([id, config]) => [id, withKey(config, providerKey(id))]))
 }
 
 export async function saveCustomLlmPresets(presets: CustomLlmPreset[]): Promise<void> {
@@ -98,14 +141,40 @@ export async function loadTaskModelRouting(): Promise<TaskModelRoutingConfig | n
 
 const SEARCH_API_KEY = "searchApiConfig"
 
+/** The web search without the keys the keychain keeps. */
+export async function searchApiConfigForFile(config: SearchApiConfig): Promise<SearchApiConfig> {
+  const providers = Object.entries(config.providerConfigs ?? {})
+  const free = await keepKeys({
+    [SEARCH_KEY]: config.apiKey ?? "",
+    ...Object.fromEntries(providers.map(([id, override]) => [searchProviderKey(id), override?.apiKey ?? ""])),
+  })
+  const forFile = free.has(SEARCH_KEY) ? withoutKey(config) : config
+  if (!config.providerConfigs) return forFile
+  return {
+    ...forFile,
+    providerConfigs: Object.fromEntries(
+      providers.map(([id, override]) => [id, override && free.has(searchProviderKey(id)) ? withoutKey(override) : override]),
+    ),
+  }
+}
+
 export async function saveSearchApiConfig(config: SearchApiConfig): Promise<void> {
   const store = await getStore()
-  await store.set(SEARCH_API_KEY, config)
+  await store.set(SEARCH_API_KEY, await searchApiConfigForFile(config))
 }
 
 export async function loadSearchApiConfig(): Promise<SearchApiConfig | null> {
   const store = await getStore()
-  return (await store.get<SearchApiConfig>(SEARCH_API_KEY)) ?? null
+  const config = await store.get<SearchApiConfig>(SEARCH_API_KEY)
+  if (!config) return null
+  const filled = withKey(config, SEARCH_KEY)
+  if (!filled.providerConfigs) return filled
+  return {
+    ...filled,
+    providerConfigs: Object.fromEntries(
+      Object.entries(filled.providerConfigs).map(([id, override]) => [id, override ? withKey(override, searchProviderKey(id)) : override]),
+    ),
+  }
 }
 
 function normalizeZoomLevel(level: unknown): number {

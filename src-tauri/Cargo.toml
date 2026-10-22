@@ -76,6 +76,9 @@ rusqlite = { version = "0.40", features = ["bundled"] }
 # Reads the pages of the judicial portals (src/portals). Already built for
 # Tauri itself.
 dom_query = { version = "0.27", default-features = false }
+# API keys live in the system keychain (Credential Manager on Windows), not
+# in app-state.json (secrets.rs).
+keyring = { version = "3.6", features = ["windows-native", "apple-native", "linux-native"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }

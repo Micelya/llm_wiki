@@ -56,7 +56,7 @@ export function ReadAgainButton({
         return
       }
       if (!plan.engine) {
-        setProblem("Falta elegir un modelo en Ajustes: sin él no se puede volver a leer.")
+        setProblem("Falta elegir el motor de «Preguntar al modelo» en Ajustes → Servicios de IA: sin él no se puede volver a leer.")
         return
       }
       const confirmed = await dialog.confirm({
