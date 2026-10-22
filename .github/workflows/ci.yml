@@ -11,16 +11,67 @@ on:
 permissions:
   contents: read
 
-jobs:
-  check:
-    strategy:
-      fail-fast: false
-      matrix:
-        # Windows only for now. macOS and Linux come back when the app is
-        # more stable (pendiente P-082); their steps below stay in place.
-        platform: [windows-latest]
+# A newer push to the same pull request replaces the run still going.
+# Runs on main are never cancelled.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-    runs-on: ${{ matrix.platform }}
+jobs:
+  # The fast checks, on Linux: types, the interface tests and the Rust tests.
+  pruebas:
+    name: pruebas (ubuntu)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Install dependencies (Ubuntu)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf protobuf-compiler
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: src-tauri
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Check types
+        run: npx tsc --noEmit -p tsconfig.app.json
+
+      - name: Interface tests
+        run: npm run test:mocks
+
+      # The Rust crate embeds the built interface (frontendDist).
+      - name: Build the interface
+        run: npx vite build
+
+      - name: Rust tests
+        working-directory: src-tauri
+        run: cargo test --lib --locked
+
+  # The app is shipped for Windows: it has to keep compiling there.
+  # macOS and Linux builds come back when the app is more stable
+  # (pendiente P-082).
+  compilacion-windows:
+    name: compilación (windows)
+    runs-on: windows-latest
+    timeout-minutes: 60
 
     steps:
       - name: Checkout
@@ -31,18 +82,7 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable
 
-      - name: Install protoc (macOS)
-        if: matrix.platform == 'macos-latest'
-        run: brew install protobuf
-
-      - name: Install dependencies (Ubuntu)
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf protobuf-compiler
-
       - name: Install protoc (Windows)
-        if: matrix.platform == 'windows-latest'
         run: choco install protoc -y
 
       - name: Rust cache
@@ -64,3 +104,22 @@ jobs:
       - name: Check Rust build
         working-directory: src-tauri
         run: cargo build --locked
+
+  # The only check the protection of main requires (P-282). Its name never
+  # changes and it always reports: it passes when every job above passed,
+  # and fails when any of them failed, was cancelled or ran out of time.
+  verificacion:
+    name: verificacion
+    needs: [pruebas, compilacion-windows]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Result of the checks
+        env:
+          PRUEBAS: ${{ needs.pruebas.result }}
+          WINDOWS: ${{ needs.compilacion-windows.result }}
+        run: |
+          echo "pruebas: $PRUEBAS; compilación en Windows: $WINDOWS"
+          test "$PRUEBAS" = success && test "$WINDOWS" = success
