@@ -13,6 +13,8 @@ import { getHtmlLang, getTextDirection } from "@/lib/language-metadata"
 import { openWikiPath } from "@/lib/open-wiki-path"
 import { useWikiStore } from "@/stores/wiki-store"
 import { MermaidDiagram, unwrapMermaidPre } from "@/components/mermaid-diagram"
+import { noteLabel } from "@/lib/article-notes"
+import { NoteMark } from "./note-mark"
 
 interface WikiReaderProps {
   body: string
@@ -28,6 +30,11 @@ interface WikiReaderProps {
    * resolution.
    */
   filePath?: string
+  /**
+   * The notes of an article (`splitNotes`, D-441): each link to one of
+   * them is shown as its number, which shows the note when touched.
+   */
+  notes?: Record<string, string>
 }
 
 /**
@@ -42,7 +49,7 @@ interface WikiReaderProps {
  * of what the link names (`openWikiPath`), giving the user
  * single-click navigation between pages.
  */
-export function WikiReader({ body, sourceBody, sourceOffset = 0, filePath }: WikiReaderProps) {
+export function WikiReader({ body, sourceBody, sourceOffset = 0, filePath, notes }: WikiReaderProps) {
   // Local images load only from the agent's folder, where the chat's outputs are.
   const imageRoot = useWikiStore((s) => s.agentWorkspace)
   // Image embeds (`![[…]]`) must be rewritten BEFORE the generic
@@ -115,6 +122,8 @@ export function WikiReader({ body, sourceBody, sourceOffset = 0, filePath }: Wik
           blockquote: ({ node, children, ...props }) => <blockquote {...sourceAttrs(node)} {...props}>{children}</blockquote>,
           a: ({ href, children, ...props }) => {
             const h = typeof href === "string" ? href : ""
+            const label = notes ? noteLabel(h) : null
+            if (notes && label !== null && label in notes) return <NoteMark label={label} note={notes[label]} />
             const isWikilink = h.startsWith("#")
             return (
               <a

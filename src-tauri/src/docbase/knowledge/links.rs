@@ -89,7 +89,8 @@ pub fn safe_forms(mentions: &[(String, String, Option<String>)], is_generic: imp
 }
 
 /// Byte ranges of the text where nothing is linked: the header, headings,
-/// code, and existing links.
+/// code, existing links, and the notes of the page (`[^1]: «…»`, D-441):
+/// a quote stays as the document writes it.
 fn closed_ranges(text: &str) -> Vec<(usize, usize)> {
     let mut closed = Vec::new();
     let mut at = 0;
@@ -111,7 +112,8 @@ fn closed_ranges(text: &str) -> Vec<(usize, usize)> {
             closed.push((start, at));
             continue;
         }
-        if in_fence || trimmed.trim_start().starts_with('#') || trimmed.trim_start().starts_with("<!--") {
+        let opening = trimmed.trim_start();
+        if in_fence || opening.starts_with('#') || opening.starts_with("<!--") || opening.starts_with("[^") {
             closed.push((start, at));
             continue;
         }

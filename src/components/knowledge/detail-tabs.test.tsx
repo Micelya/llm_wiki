@@ -198,6 +198,15 @@ describe("the screen of a document", () => {
     expect(article).toContain("Ver «Datos y correcciones»")
   })
 
+  it("is titled by its article, and the name of its file stays in its data (P-182)", () => {
+    base.answers["document-article"] = { ...DOCUMENT_ARTICLE, title: "Contrato de locación de Inmobiliaria Ficticia SA" }
+    const article = renderToStaticMarkup(<DocumentDetailView locationId={10} onBack={() => {}} />)
+    expect(article).toContain(">Contrato de locación de Inmobiliaria Ficticia SA</h1>")
+    expect(text(article)).not.toContain("Locación de ejemplo.pdf")
+    const data = text(renderToStaticMarkup(<DocumentDetailView locationId={10} onBack={() => {}} initialTab="data" />))
+    expect(data).toContain("Locación de ejemplo.pdf")
+  })
+
   it("says a file not read yet has no article", () => {
     base.answers.document = documentDetail({ contentId: null, state: "unread", text: null })
     const html = renderToStaticMarkup(<DocumentDetailView locationId={10} onBack={() => {}} initialTab="article" />)
@@ -358,6 +367,20 @@ describe("the screen of a person or organization, on the same tabs", () => {
     expect(shown).toContain("Investigación en internet")
     expect(shown).toContain("Notas")
     expect(shown).not.toContain("Se escribe")
+  })
+
+  it("shows the quotes of its article as numbered notes, not as a list at its foot (D-441)", () => {
+    base.answers.article = article(
+      "ent-1",
+      "---\ntype: entity\n---\n\n# Ficticia SA\n\n## Lo que dicen los documentos\n\nTiene domicilio en Calle Inventada 100.[^1]\n\n[^1]: Domicilio: Calle Inventada 100 — «con domicilio en Calle Inventada 100» ([[contrato-de-prueba|Contrato de prueba.pdf]])\n",
+    )
+    const html = renderToStaticMarkup(<EntityDetailView id="ent-1" onBack={() => {}} />)
+    expect(html).toMatch(/<button[^>]*data-note="1"[^>]*>\[1\]<\/button>/)
+    const shown = text(html)
+    expect(shown).toContain("Tiene domicilio en Calle Inventada 100.")
+    // The quote shows when the number is touched, not before.
+    expect(shown).not.toContain("con domicilio en Calle Inventada 100")
+    expect(shown).not.toContain("[^1]")
   })
 
   it("keeps its data in «Datos y correcciones», now with the notes at the foot too", () => {

@@ -87,7 +87,9 @@ function DocumentScreen({
     <DetailTabs
       back="Documentos"
       onBack={onBack}
-      title={<h1 className="font-serif text-2xl break-words">{document?.name ?? "Documento"}</h1>}
+      // Its article's title, readable (P-182); the name of its file stays in
+      // its data, at the head of the fact box.
+      title={<h1 className="font-serif text-2xl break-words">{page?.title || document?.name || "Documento"}</h1>}
       actions={
         document ? (
           <>

@@ -44,11 +44,23 @@ pub(super) struct Families {
     pub across: Vec<Tie>,
     /// What the wiki calls each file of each document (`<origin>/<path>`).
     pub identities: BTreeMap<i64, Vec<String>>,
+    /// The readable title of each family's page (`titles`), once the
+    /// record is loaded.
+    pub titles: BTreeMap<String, String>,
 }
 
 impl Families {
     pub fn family_of(&self, content: i64) -> Option<&Family> {
         self.of.get(&content).map(|&i| &self.list[i])
+    }
+
+    /// The title of a family's page: its readable title, or the name of
+    /// the file of its principal version.
+    pub fn title(&self, conn: &Connection, record: &Record, family: &Family) -> Result<String, String> {
+        match self.titles.get(&family.id) {
+            Some(title) => Ok(title.clone()),
+            None => file_title(conn, record, family.members[0]),
+        }
     }
 
     /// What the pages of documents depend on besides the record: which
@@ -192,14 +204,176 @@ pub(super) fn families(base: &DocBase, vocabulary: &Vocabulary) -> Result<Famili
     Ok(out)
 }
 
-/// The title of a document's page: the name of the file of the version
-/// it is named after, without its extension.
-pub(super) fn title_of(conn: &Connection, record: &Record, content: i64) -> Result<String, String> {
+/// The name of the file of a document, without its extension: what its
+/// page's path is made of (D-340), and its title when the base knows
+/// nothing else of it.
+pub(super) fn file_title(conn: &Connection, record: &Record, content: i64) -> Result<String, String> {
     let name = match record.documents.get(&content) {
         Some(document) if !document.name.is_empty() => document.name.clone(),
         _ => classify::name_of(conn, content)?,
     };
     Ok(title_of_name(name, content))
+}
+
+/// The name of a document's type: the one proposed with a type the
+/// catalog did not have ("Resolución judicial"), or its id in words with
+/// its first letter in capitals ("Carta documento").
+fn type_name(conn: &Connection, content: i64) -> Result<Option<String>, String> {
+    let row: Option<(String, Option<String>)> = conn
+        .query_row("SELECT doc_type, proposed_name FROM document_type WHERE content_id = ?1", [content], |row| Ok((row.get(0)?, row.get(1)?)))
+        .optional()
+        .map_err(sql_err)?;
+    Ok(row.filter(|(id, _)| !id.trim().is_empty()).map(|(id, proposed)| {
+        match proposed.map(|p| one_line(&p)).filter(|p| !p.is_empty()) {
+            Some(name) => name,
+            None => {
+                let words = id.replace('-', " ");
+                let mut chars = words.chars();
+                chars.next().map(|c| c.to_uppercase().collect::<String>() + chars.as_str()).unwrap_or_default()
+            }
+        }
+    }))
+}
+
+/// The data of a document as the base keeps it: (field, value), in order.
+fn data_of(conn: &Connection, content: i64) -> Result<Vec<(String, String)>, String> {
+    let row: Option<String> =
+        conn.query_row("SELECT data FROM document_data WHERE content_id = ?1", [content], |row| row.get(0)).optional().map_err(sql_err)?;
+    let list: Vec<serde_json::Value> = row.and_then(|d| serde_json::from_str(&d).ok()).unwrap_or_default();
+    Ok(list
+        .iter()
+        .filter_map(|item| Some((item.get("field")?.as_str()?.to_string(), one_line(item.get("value")?.as_str()?))))
+        .filter(|(_, value)| !value.is_empty())
+        .collect())
+}
+
+/// The kind of a datum of a type of document (`identifier`, `date`…), as
+/// the catalog of types says it.
+fn data_kind(doc_type: Option<&str>, field: &str) -> Option<String> {
+    let doc_type = doc_type?;
+    let rule = crate::docbase::similar::types::catalog().types.iter().find(|t| t.id == doc_type)?.data.iter().find(|d| d.id == field)?;
+    Some(rule.kind.clone())
+}
+
+/// Who a document's title names (P-182): by their roles in it, who it is
+/// from and to whom, or between whom it is (two at most a side: more are
+/// not named); empty when it names none of them.
+fn parties_of(vocabulary: &Vocabulary, record: &Record, content: i64) -> String {
+    let words = &vocabulary.pages;
+    let roles = &words.title_roles;
+    let named = |wanted: &[String], not: &[String]| -> Vec<String> {
+        let mut list: Vec<String> = record
+            .entities
+            .values()
+            .filter(|e| e.state == "active" && e.kind != vocabulary.matters.kind && vocabulary.is_a_name(&e.kind, &e.name))
+            .filter(|e| e.documents.get(&content).is_some_and(|r| r.iter().any(|role| wanted.contains(role))))
+            .map(|e| one_line(&e.name))
+            .filter(|name| !not.contains(name))
+            .collect();
+        list.sort();
+        list.dedup();
+        list
+    };
+    let and = |list: &[String]| list.join(words.word("partiesAnd"));
+    let fits = |list: &[String]| !list.is_empty() && list.len() <= 2;
+    let from = named(&roles.from, &[]);
+    let to = named(&roles.to, &from);
+    let mut parts: Vec<String> = Vec::new();
+    if fits(&from) {
+        parts.push(format!("{} {}", words.word("docTitleFrom"), and(&from)));
+    }
+    if fits(&to) {
+        parts.push(format!("{} {}", words.word("docTitleTo"), and(&to)));
+    }
+    if parts.is_empty() {
+        let mut not = from.clone();
+        not.extend(to);
+        let between = named(&roles.between, &not);
+        match between.len() {
+            1 => parts.push(format!("{} {}", words.word("docTitleFrom"), between[0])),
+            2 => parts.push(format!("{} {}", words.word("docTitleBetween"), and(&between))),
+            _ => {}
+        }
+    }
+    parts.join(" ")
+}
+
+/// The readable title of a document (P-182, D-442), from what the base
+/// knows of it, without the model: its kind, its number, who it is from
+/// and to whom (or between whom) and its date ("Factura 0001-00000001 de
+/// Ejemplo Uno S.A. a Persona Dos · 1 de marzo de 2024"); the topic of its
+/// summary when its kind is not known; none when the base knows neither.
+fn readable_title(conn: &Connection, vocabulary: &Vocabulary, record: &Record, content: i64) -> Result<Option<String>, String> {
+    let doc_type: Option<String> = conn
+        .query_row("SELECT doc_type FROM document_type WHERE content_id = ?1", [content], |row| row.get(0))
+        .optional()
+        .map_err(sql_err)?;
+    let Some(doc_type) = doc_type.filter(|t| !t.trim().is_empty()) else {
+        let topic: Option<String> = conn
+            .query_row("SELECT topic FROM knowledge_summary WHERE content_id = ?1", [content], |row| row.get(0))
+            .optional()
+            .map_err(sql_err)?
+            .flatten();
+        return Ok(topic.map(|t| localized_dates(vocabulary, one_line(&t).trim_end_matches('.'))).filter(|t| !t.is_empty()));
+    };
+    let mut title = type_name(conn, content)?.unwrap_or_else(|| doc_type.replace('-', " "));
+    let data = data_of(conn, content)?;
+    // Its number: the first one the catalog of its type gives it once.
+    let single = |field: &str| {
+        crate::docbase::similar::types::catalog()
+            .types
+            .iter()
+            .find(|t| t.id == doc_type)
+            .and_then(|t| t.data.iter().find(|d| d.id == field))
+            .is_some_and(|d| !d.many)
+    };
+    let kind_of = |field: &str| data_kind(Some(&doc_type), field);
+    // A long one (the id of an envelope of a signing service) says nothing
+    // to a reader.
+    let short = |value: &str| value.chars().count() <= 24;
+    if let Some((_, number)) = data.iter().find(|(field, value)| kind_of(field).as_deref() == Some("identifier") && single(field) && short(value)) {
+        title.push_str(&format!(" {number}"));
+    }
+    let parties = parties_of(vocabulary, record, content);
+    if !parties.is_empty() {
+        title.push_str(&format!(" {parties}"));
+    }
+    let read: Option<String> = conn
+        .query_row("SELECT doc_date FROM knowledge_extraction WHERE content_id = ?1", [content], |row| row.get(0))
+        .optional()
+        .map_err(sql_err)?
+        .flatten();
+    let date = read
+        .filter(|d| !d.trim().is_empty())
+        .or_else(|| data.iter().find(|(field, _)| kind_of(field).as_deref() == Some("date")).map(|(_, value)| value.clone()));
+    if let Some(date) = date.and_then(|d| title_date(vocabulary, &d)) {
+        title.push_str(&format!(" · {date}"));
+    }
+    Ok(Some(title.replace(['[', ']', '|'], " ").split_whitespace().collect::<Vec<_>>().join(" ")))
+}
+
+/// The readable title of each family's page, from the version it is named
+/// after (`readable_title`), or its file's name. Two pages that would read
+/// the same say their file's name too. The file's name stays in the data.
+pub(super) fn titles(conn: &Connection, vocabulary: &Vocabulary, record: &Record, families: &Families) -> Result<BTreeMap<String, String>, String> {
+    let mut out: BTreeMap<String, (String, String)> = BTreeMap::new();
+    for family in &families.list {
+        let principal = family.members[0];
+        let file = file_title(conn, record, principal)?;
+        let title = readable_title(conn, vocabulary, record, principal)?.unwrap_or_else(|| file.clone());
+        out.insert(family.id.clone(), (title, file));
+    }
+    let mut seen: HashMap<String, usize> = HashMap::new();
+    for (title, _) in out.values() {
+        *seen.entry(title.to_lowercase()).or_default() += 1;
+    }
+    Ok(out
+        .into_iter()
+        .map(|(id, (title, file))| {
+            let shown = if seen[&title.to_lowercase()] > 1 && title != file { format!("{title} ({file})") } else { title };
+            (id, shown)
+        })
+        .collect())
 }
 
 /// The title of a document without the record: its file's name without
@@ -246,7 +420,7 @@ pub(super) fn page_paths(
         if out.contains_key(&family.id) {
             continue;
         }
-        let title = title_of(conn, record, family.members[0])?;
+        let title = file_title(conn, record, family.members[0])?;
         let mut path = format!("{folder}/{}.md", slug(&title, "documento"));
         if taken.contains(&path.to_lowercase()) || owned.contains(&path.to_lowercase()) {
             path = format!("{folder}/{}-{}.md", slug(&title, "documento"), family.id.trim_start_matches("doc-"));
@@ -308,11 +482,11 @@ fn facts_of(conn: &Connection, vocabulary: &Vocabulary, content: i64) -> Result<
         .flatten();
     let mut facts: Vec<String> = Vec::new();
     if let Some(kind) = doc_type {
-        let kind = kind.replace('-', " ");
+        let kind = type_name(conn, content)?.unwrap_or_else(|| kind.replace('-', " "));
         facts.push(format!("{}: {}", words.word("docKind"), stage.map(|s| format!("{kind} ({})", s.replace('-', " "))).unwrap_or(kind)));
     }
     if let Some(date) = date {
-        facts.push(format!("{}: {}", words.word("docDate"), one_line(&date)));
+        facts.push(format!("{}: {}", words.word("docDate"), spelled_date(vocabulary, &date)));
     }
     Ok(facts)
 }
@@ -360,7 +534,8 @@ pub(super) fn render_document(
 ) -> Result<String, String> {
     let words = &vocabulary.pages;
     let principal = family.members[0];
-    let title = title_of(conn, record, principal)?;
+    let title = families.title(conn, record, family)?;
+    let file = classify::name_of(conn, principal)?;
     let labels = version_labels(conn, vocabulary, family)?;
     let label_of = |content: i64| family.members.iter().position(|c| *c == content).map(|i| labels[i].clone()).unwrap_or_default();
     let several = family.members.len() > 1;
@@ -374,11 +549,14 @@ pub(super) fn render_document(
     }
     let quoted: Vec<String> = sources.iter().map(|s| serde_json::to_string(s).unwrap_or_default()).collect();
     let mut out = format!(
-        "---\ntype: source\ntitle: {}\ndocument_id: {}\nsources: [{}]\ngenerated_by: {GENERATED_BY}\n---\n\n# {title}\n\n",
+        "---\ntype: source\ntitle: {}\nfile: {}\ndocument_id: {}\nsources: [{}]\ngenerated_by: {GENERATED_BY}\n---\n\n# {title}\n\n",
         yaml_string(&title),
+        yaml_string(&file),
         family.id,
         quoted.join(", ")
     );
+    // The quotes of its summary, as notes (D-441).
+    let mut notes = Notes::default();
 
     // The summaries of the one reading, by version.
     let mut summaries: Vec<(i64, Option<String>, Vec<super::super::extract::SummaryPoint>)> = Vec::new();
@@ -391,8 +569,11 @@ pub(super) fn render_document(
             summaries.push((content, topic, serde_json::from_str(&points).unwrap_or_default()));
         }
     }
-    if let Some(topic) = summaries.iter().find_map(|(_, t, _)| t.clone()) {
-        out.push_str(&format!("{topic}\n\n"));
+    // Its topic, unless it is the title already.
+    if let Some(topic) = summaries.iter().find_map(|(_, t, _)| t.clone()).map(|t| localized_dates(vocabulary, &one_line(&t))) {
+        if topic.trim_end_matches('.') != title {
+            out.push_str(&format!("{topic}\n\n"));
+        }
     }
     let facts = facts_of(conn, vocabulary, principal)?;
     if !facts.is_empty() {
@@ -440,20 +621,12 @@ pub(super) fn render_document(
     // The data of its type, each with the versions that have it.
     let mut data: BTreeMap<(String, String), BTreeSet<i64>> = BTreeMap::new();
     let mut order: Vec<(String, String)> = Vec::new();
+    let principal_type: Option<String> =
+        conn.query_row("SELECT doc_type FROM document_type WHERE content_id = ?1", [principal], |row| row.get(0)).optional().map_err(sql_err)?;
     for &content in &family.members {
-        let row: Option<String> = conn
-            .query_row("SELECT data FROM document_data WHERE content_id = ?1", [content], |row| row.get(0))
-            .optional()
-            .map_err(sql_err)?;
-        let list: Vec<serde_json::Value> = row.and_then(|d| serde_json::from_str(&d).ok()).unwrap_or_default();
-        for item in list {
-            let (Some(field), Some(value)) = (item.get("field").and_then(|f| f.as_str()), item.get("value").and_then(|v| v.as_str())) else {
-                continue;
-            };
-            let key = (field.to_string(), one_line(value));
-            if key.1.is_empty() {
-                continue;
-            }
+        for (field, value) in data_of(conn, content)? {
+            let value = if data_kind(principal_type.as_deref(), &field).as_deref() == Some("date") { spelled_date(vocabulary, &value) } else { value };
+            let key = (field, value);
             if !data.contains_key(&key) {
                 order.push(key.clone());
             }
@@ -525,14 +698,8 @@ pub(super) fn render_document(
             let mut with: BTreeSet<i64> = texts.iter().filter(|(_, w)| quote::contains(w, &said)).map(|(c, _)| *c).collect();
             with.insert(*content);
             let page = point.page.map(|p| format!(", {} {p}", words.word("page"))).unwrap_or_default();
-            lines.push(format!(
-                "- {}{} — {}: «{}»{page}{}\n",
-                point.text,
-                marks.concat(),
-                words.word("docQuote"),
-                one_line(&point.quote),
-                versions_mark(&labels, family, &with)
-            ));
+            let note = notes.mark(&format!("«{}»{page}{}", one_line(&point.quote), versions_mark(&labels, family, &with)));
+            lines.push(format!("- {}{}{note}\n", localized_dates(vocabulary, &one_line(&point.text)), marks.concat()));
         }
     }
     if !lines.is_empty() {
@@ -552,7 +719,7 @@ pub(super) fn render_document(
                 continue;
             }
             let other = claim.object_entity.as_ref().and_then(|o| record.entities.get(o)).map(|o| o.name.clone()).unwrap_or_default();
-            let when = claim.valid_from.as_deref().map(|t| format!(" · {}", one_line(t))).unwrap_or_default();
+            let when = claim.valid_from.as_deref().map(|t| format!(" · {}", localized_dates(vocabulary, &one_line(t)))).unwrap_or_default();
             amounts.push(format!(
                 "- {} → {other}: {}{when}{}{}\n",
                 entity.name,
@@ -580,7 +747,7 @@ pub(super) fn render_document(
         };
         let Some(other_family) = families.family_of(other) else { continue };
         let Some(path) = paths.get(&other_family.id) else { continue };
-        let target = link(path, &title_of(conn, record, other_family.members[0])?);
+        let target = link(path, &families.title(conn, record, other_family)?);
         let (label, directed) = relation_words(vocabulary, &tie.relation);
         let this = if several { format!("{} ({})", words.word("docThis"), label_of(mine)) } else { words.word("docThis").to_string() };
         let line = match tie.subject.filter(|_| directed) {
@@ -596,6 +763,11 @@ pub(super) fn render_document(
     }
     if !lines.is_empty() || !amounts.is_empty() {
         out.push_str(&format!("*{}*\n", words.word("certainLegend")));
+    }
+    let block = notes.block();
+    if !block.is_empty() {
+        out.push('\n');
+        out.push_str(&block);
     }
     Ok(out)
 }

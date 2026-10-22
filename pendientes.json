@@ -1646,12 +1646,12 @@
       "titulo": "Título legible de la página de un documento",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "La página de un documento se titula con el nombre del archivo de su versión principal, sin extensión (D-340): es dato de la base pero a veces no dice qué es («Summary», «Screenshot …»). Evaluar un título desde el tipo y las partes (sin modelo) o desde el tema del resumen, y cómo afecta enlaces y búsqueda (N5).",
+      "estado": "a-verificar",
+      "detalle": "La página de un documento se titula con el nombre del archivo de su versión principal, sin extensión (D-340): es dato de la base pero a veces no dice qué es («Summary», «Screenshot …»). Evaluar un título desde el tipo y las partes (sin modelo) o desde el tema del resumen, y cómo afecta enlaces y búsqueda (N5). Hecho el 22 oct (paso 5, D-442): el título sale del tipo, el número, de quién a quién (o entre quiénes) y la fecha, sin modelo; sin tipo, el tema del resumen. El nombre del archivo queda en la cabecera de la página (file:), en el recuadro de datos y en las listas de documentos; la ruta de la página no cambia. En la copia: 109 páginas, ninguna titulada solo por su archivo; 13 que se leerían igual llevan además el nombre del archivo (ver P-259). Falta verlo en la app.",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/knowledge/pages/family.rs (title_of); D-340",
       "creado": "2026-10-18",
-      "actualizado": "2026-10-18"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-190",
@@ -1804,11 +1804,11 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "N6b: queda una frase sobre el programa («lo propuso el modelo por su contenido») y cientos de «propuesta por el cálculo de parecidos»; fechas y fragmentos en inglés en la redacción; rótulos de formulario tomados como datos y como asuntos; un título de página partido por un acento; formatos de números y fechas mezclados. Prioridad 4.",
+      "detalle": "N6b: queda una frase sobre el programa («lo propuso el modelo por su contenido») y cientos de «propuesta por el cálculo de parecidos»; fechas y fragmentos en inglés en la redacción; rótulos de formulario tomados como datos y como asuntos; un título de página partido por un acento; formatos de números y fechas mezclados. Prioridad 4. En parte el 22 oct (paso 5, D-441 y D-442): las páginas ya no dicen «lo propuso el modelo» ni «propuesta por el cálculo de parecidos» (dicen «sin confirmar»), y las fechas de la página del documento se escriben en castellano (también las escritas con números y separadores). Queda: rótulos de formulario tomados como datos y como asuntos, el título partido por un acento y los formatos de números.",
       "depende_de": [],
       "referencia": "D-364; desatendido-4/N6-defectos.md",
       "creado": "2026-10-18",
-      "actualizado": "2026-10-18"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-209",
@@ -1936,13 +1936,13 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
-      "detalle": "En parte resuelto en W3 (D-407): el artículo de persona u organización, asunto y documento sale de la base (ya no del archivo del wiki), sus enlaces abren la pantalla de lo que nombran sin ningún proyecto abierto, y debajo dice cuándo lo escribió la app y que una corrección se ve cuando lo vuelve a escribir. Queda: una corrección en «Datos y correcciones» se ve en el artículo recién cuando la proyección de fondo lo reescribe (corre con la lectura de fondo, que se rige por «Lectura automática», D-405). Ver si hace falta armarlo en el momento con el mismo código de knowledge/pages.rs.",
+      "detalle": "En parte resuelto en W3 (D-407): el artículo de persona u organización, asunto y documento sale de la base (ya no del archivo del wiki), sus enlaces abren la pantalla de lo que nombran sin ningún proyecto abierto, y debajo dice cuándo lo escribió la app y que una corrección se ve cuando lo vuelve a escribir. Queda: una corrección en «Datos y correcciones» se ve en el artículo recién cuando la proyección de fondo lo reescribe (corre con la lectura de fondo, que se rige por «Lectura automática», D-405). Ver si hace falta armarlo en el momento con el mismo código de knowledge/pages.rs. Paso 5 (D-441): el artículo ya no repite dato por dato lo que «Datos y correcciones» muestra al instante; la síntesis y sus notas siguen mostrando una corrección cuando la app vuelve a escribir la página.",
       "depende_de": [
         "P-214"
       ],
       "referencia": "D-389; D-407",
       "creado": "2026-10-20",
-      "actualizado": "2026-10-21"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-225",
@@ -2093,12 +2093,12 @@
       "titulo": "Sin repeticiones en las páginas: citas dentro del texto, una sola lista de documentos",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "El dueño vio (21 oct) que en persona u organización «Referencias» y «Documentos» llevan a los mismos documentos; además «Referencias» y «Otros datos» repiten lo que la pestaña «Datos y correcciones» ya muestra con su cita y sus acciones. Las citas pasan a notas numeradas dentro del texto del Artículo (al pasar o tocar se ve la cita y se abre el documento); «Referencias» y «Otros datos» salen del Artículo; «Documentos» queda una vez, por asunto. Mismo criterio en documento y asunto. No cambia la síntesis ni sus preguntas al modelo.",
+      "estado": "a-verificar",
+      "detalle": "El dueño vio (21 oct) que en persona u organización «Referencias» y «Documentos» llevan a los mismos documentos; además «Referencias» y «Otros datos» repiten lo que la pestaña «Datos y correcciones» ya muestra con su cita y sus acciones. Las citas pasan a notas numeradas dentro del texto del Artículo (al pasar o tocar se ve la cita y se abre el documento); «Referencias» y «Otros datos» salen del Artículo; «Documentos» queda una vez, por asunto. Mismo criterio en documento y asunto. No cambia la síntesis ni sus preguntas al modelo. Hecho el 22 oct (paso 5, D-441): las citas de la síntesis, de los datos en conflicto, de los vínculos, de lo que dicen los documentos del caso y de lo esencial del documento son notas numeradas; tocar el número muestra la cita y su documento, que se abre desde su nombre. «Referencias» y «Otros datos» salieron del artículo (una línea dice cuántos datos más hay en «Datos y correcciones»); «Documentos» queda una vez, por caso; en el caso, por qué van juntos sus documentos queda en una línea. Falta verlo en la app.",
       "depende_de": [],
       "referencia": "docs/design/servicios-de-ia-propuesta.md (2.6, paso 0b); src-tauri/src/docbase/knowledge/pages.rs render()",
       "creado": "2026-10-21",
-      "actualizado": "2026-10-21"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-246",
@@ -2221,6 +2221,30 @@
         "P-247"
       ],
       "referencia": "D-439; src-tauri/src/docbase/similar/template.rs",
+      "creado": "2026-10-22",
+      "actualizado": "2026-10-22"
+    },
+    {
+      "id": "P-259",
+      "titulo": "Títulos de documentos repetidos o largos",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Con D-442, en la copia 13 de 109 páginas de documentos se leerían igual (las providencias de un mismo juzgado sin fecha leída, las boletas sin partes) y llevan el nombre del archivo entre paréntesis, largo en los expedientes; 29 títulos pasan de 100 letras por los nombres largos de los organismos; los tipos del catálogo sin nombre propuesto salen sin acentos. Evaluar un título corto escrito por el modelo en la misma lectura (sin pregunta aparte), o distinguirlos por su fecha o su número cuando la lectura los tenga.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/knowledge/pages/family.rs (titles, readable_title); D-442",
+      "creado": "2026-10-22",
+      "actualizado": "2026-10-22"
+    },
+    {
+      "id": "P-260",
+      "titulo": "Decidir si las 19 síntesis y 7 preguntas de identidad que deja el re-control se hacen solas",
+      "tipo": "decision",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "detalle": "Medido el 22 oct sobre la copia del respaldo del paso 3, sin modelo: con los pasos 2 y 4, el trabajo de fondo haría 7 preguntas de identidad (candidatos nuevos tras D-436) y, después, 19 preguntas de síntesis de personas u organizaciones cuyos datos cambiaron al re-controlarse (D-432 a D-434). No las causa el rearmado de las páginas del paso 5 (son las mismas 19 antes y después), pero se harían solas con la lectura automática encendida. Decidir si van solas o solo a pedido, como releer (D-432).",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/knowledge/pages/check_rebuild.rs; src-tauri/src/docbase/worker.rs; D-432",
       "creado": "2026-10-22",
       "actualizado": "2026-10-22"
     }

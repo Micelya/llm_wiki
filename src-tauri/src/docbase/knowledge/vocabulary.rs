@@ -440,6 +440,23 @@ pub struct Pages {
     /// Headings and phrases of the pages, by key.
     #[serde(default)]
     pub words: std::collections::BTreeMap<String, String>,
+    /// Who the title of a document's page names, by their roles in it
+    /// (P-182).
+    #[serde(default)]
+    pub title_roles: TitleRoles,
+}
+
+/// The roles of who sends a document, of whom it goes to, and of who it is
+/// between when it says neither (a contract).
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TitleRoles {
+    #[serde(default)]
+    pub from: Vec<String>,
+    #[serde(default)]
+    pub to: Vec<String>,
+    #[serde(default)]
+    pub between: Vec<String>,
 }
 
 /// When an entity of one type has a page: it appears in `min_documents`
@@ -1017,6 +1034,11 @@ mod tests {
         }
         for key in super::super::pages::WORDS {
             assert!(vocabulary.pages.words.contains_key(*key), "the pages have no word for {key}");
+        }
+        let titles = &vocabulary.pages.title_roles;
+        assert!(!titles.from.is_empty() && !titles.to.is_empty() && !titles.between.is_empty());
+        for role in titles.from.iter().chain(&titles.to).chain(&titles.between) {
+            assert!(vocabulary.role(role).is_some(), "the titles of documents name an unknown role {role}");
         }
         for term in vocabulary.entity_types.iter().chain(&vocabulary.roles).chain(&vocabulary.identifiers) {
             assert!(!term.label.is_empty(), "{} has no label", term.id);

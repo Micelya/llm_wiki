@@ -1,7 +1,9 @@
+import { useMemo } from "react"
 import { getPageWords } from "@/commands/docbase"
 import { formatAgo } from "@/components/docbase/format"
 import { useDocbaseQuery } from "@/components/docbase/use-docbase-query"
 import { WikiReader } from "@/components/editor/wiki-reader"
+import { splitNotes } from "@/lib/article-notes"
 
 let pageWords: Promise<Record<string, string>> | null = null
 
@@ -26,13 +28,15 @@ export function usePageWords(): ((id: string) => string) | null {
 
 /**
  * An article as the projection last wrote it in the base (D-407): its
- * links open the screen of what they name. A correction shows in it when
+ * links open the screen of what they name, and the number of each note
+ * shows its quote and its document (D-441). A correction shows in it when
  * the app writes it again, in the background.
  */
 export function ArticleText({ body, writtenAt }: { body: string; writtenAt?: number }) {
+  const { body: text, notes } = useMemo(() => splitNotes(body), [body])
   return (
     <div>
-      <WikiReader body={body} />
+      <WikiReader body={text} notes={notes} />
       {writtenAt !== undefined && (
         <p className="mt-4 text-xs text-muted-foreground">
           Lo escribió la app {formatAgo(writtenAt)}, desde los documentos. Una corrección se ve acá cuando lo vuelve a escribir.

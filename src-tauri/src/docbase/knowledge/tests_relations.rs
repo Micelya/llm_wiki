@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use super::decide::IdentityDecision;
 use super::tests::{answer, amount, base_with, claim, empty_answer, is_knowledge, mention, type_answer, FakeModel};
-use super::tests_pages::{entity_pages, is_synthesis, page_of, read, synthesis};
+use super::tests_pages::{entity_pages, is_synthesis, note_after, object_in, page_of, read, synthesis};
 use crate::docbase::testing::TempDir;
 use crate::docbase::{DocBase, Visible};
 
@@ -156,9 +156,22 @@ fn documents_of_one_matter_go_together_by_what_is_specific_to_it() {
     let matter = pages.iter().find(|(_, t)| t.contains("entity_id: mat-")).map(|(_, t)| t.as_str()).expect("a page of the matter");
     assert!(matter.contains("entity_kind: asunto") && matter.contains("## Documentos (3)"), "{matter}");
     assert!(matter.contains("## Partes y personas") && matter.contains("Persona Dos") && matter.contains("Ejemplo Uno S.A."), "{matter}");
-    assert!(matter.contains("> [!info]- Por qué estos documentos van juntos — 3 documentos:"), "{matter}");
-    assert!(matter.contains("comparten el número 000100012345") && matter.contains("comparten el importe 1 234 56"), "{matter}");
+    // Why they go together, in one line; each document with its reasons is
+    // in «Datos y correcciones», and the documents are listed once (D-441).
+    assert!(matter.contains("*Por qué estos documentos van juntos* — 3 documentos: "), "{matter}");
+    assert!(matter.contains("comparten el importe (2)") && matter.contains("comparten el número (2)"), "{matter}");
+    assert!(!matter.contains("comparten el número 000100012345") && !matter.contains("> [!info]-"), "{matter}");
+    let listed = &matter[..matter.find("\n[^1]: ").unwrap_or(matter.len())];
+    for file in ["f.txt", "l.txt", "r.txt"] {
+        assert_eq!(listed.matches(&format!("|{file}]]")).count(), 1, "{file} more than once: {matter}");
+    }
+    let id = object_in(matter);
+    let detail = base.knowledge_matter(&Visible::All, &id).unwrap().expect("its data");
+    let reasons: Vec<String> = detail.documents.iter().flat_map(|d| d.reasons.iter().map(|r| format!("{} {}", r.kind, r.value))).collect();
+    assert!(reasons.iter().any(|r| r == "numero 000100012345") && reasons.iter().any(|r| r.starts_with("importe ")), "{reasons:?}");
+    // What its documents say, each with its quote as a note.
     assert!(matter.contains("$ 1.234,56"), "{matter}");
+    assert!(note_after(matter, "$ 1.234,56").contains("([["), "{matter}");
     // The person's documents, by matter; the note of another subject apart.
     let person = page_of(&pages, "Persona Dos");
     // Named by its parties, never by the invoice (D-267); its documents
@@ -224,12 +237,14 @@ fn the_model_proposes_the_matter_of_a_loose_document_and_it_stays_a_proposal() {
     let matter = pages.iter().find(|(_, t)| t.contains("entity_id: mat-")).map(|(_, t)| t.as_str()).unwrap();
     assert!(matter.contains("### Posiblemente de este asunto") && matter.contains("|p.txt]] — certeza media: por los hechos"), "{matter}");
     assert!(matter.contains("## Documentos (3)"), "{matter}");
+    // Proposed, without a word about the program (P-208).
+    assert!(matter.contains("*sin confirmar: una persona los confirma o los descarta en «Datos y correcciones»*") && !matter.contains("el modelo"), "{matter}");
     // A shared reference as the documents write it, never its normalized
-    // form (D-381).
-    assert!(
-        ["Factura 0001-00012345", "factura 0001-00012345"].iter().any(|w| matter.contains(&format!("nombran el mismo asunto ({w})"))),
-        "{matter}"
-    );
+    // form (D-381): in «Datos y correcciones», with each document.
+    let id = object_in(matter);
+    let detail = base.knowledge_matter(&Visible::All, &id).unwrap().expect("its data");
+    let names: Vec<String> = detail.documents.iter().flat_map(|d| d.reasons.iter().filter_map(|r| r.value_name.clone())).collect();
+    assert!(names.iter().any(|n| n.eq_ignore_ascii_case("Factura 0001-00012345")), "{names:?}");
     let person = page_of(&pages, "Persona Dos");
     assert!(person.contains("|p.txt]] — remitente · contrato (propuesto)"), "{person}");
     // Asking again asks nothing.
