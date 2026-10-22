@@ -688,6 +688,104 @@ fn the_text_names_most_fields_of_an_invoice_and_a_form_and_none_in_a_sentence() 
     assert_eq!((named, total), (9, 13));
 }
 
+/// The model names the fields the text does not, by itself, once per
+/// template (a simulated engine, R-24): its answer is kept with its
+/// version, a name that repeats a value is dropped, nothing is asked twice
+/// and it survives a new build; a person's name goes over it.
+#[test]
+fn the_model_names_the_fields_without_a_name_once_and_a_person_goes_over_it() {
+    use crate::docbase::knowledge::tests::FakeModel;
+    use crate::docbase::progress::Scope;
+    let files = receipts("C");
+    let refs: Vec<(&str, Vec<u8>)> = files.iter().map(|(n, b)| (n.as_str(), b.clone())).collect();
+    let (_dir, base, _) = base_with(&refs);
+    let principal = base.templates(&Visible::All).unwrap()[0].principal.clone();
+    // Who pays, how much and the day: all in the middle of a sentence.
+    assert_eq!(super::naming::waiting_templates(&base.conn()).unwrap(), [(principal.content_id, 3)]);
+    assert_eq!(base.templates(&Visible::All).unwrap()[0].waiting_fields, 3);
+    let stage = |base: &crate::docbase::DocBase| {
+        let progress = base.progress(&Scope::default()).unwrap();
+        let stage = progress.stages.into_iter().find(|s| s.id == "templates").unwrap();
+        (stage.unit, stage.total, stage.done, stage.pending)
+    };
+    assert_eq!(stage(&base), ("templates", 1, 0, 1));
+
+    let model = FakeModel::new("codex-cli:prueba", |prompt| {
+        assert!(prompt.contains("[campo 1]") && prompt.contains("[campo 3]"), "{prompt}");
+        serde_json::json!({ "campos": [
+            { "campo": 1, "nombre": "Dos", "que_es": "persona" },
+            { "campo": 2, "nombre": "Importe de los honorarios", "que_es": "importe" },
+            { "campo": 3, "nombre": "Fecha de la consulta", "que_es": "Fecha" }
+        ]})
+        .to_string()
+    });
+    let report = base.templates_naming_run(&model, 5).unwrap();
+    assert_eq!((report.asked, report.named, report.failed, report.left), (1, 2, 0, 0), "{:?}", report.errors);
+    let template = base.similar_template(&Visible::All, principal.location_id).unwrap().unwrap();
+    let names: Vec<(Option<&str>, Option<&str>, Option<&str>)> =
+        template.fields.iter().map(|f| (f.name.as_deref(), f.name_source.as_deref(), f.what.as_deref())).collect();
+    assert_eq!(
+        names,
+        [
+            // "Dos" is what a document says there: not a name.
+            (None, None, Some("persona")),
+            (Some("Importe de los honorarios"), Some("model"), Some("importe")),
+            (Some("Fecha de la consulta"), Some("model"), Some("fecha")),
+        ]
+    );
+    // Kept with its version, as the other questions; «En curso» has it done.
+    let kept: (i64, String) = base
+        .conn()
+        .query_row(
+            "SELECT count(*), max(prompt_version) FROM model_answer WHERE task = ?1",
+            [super::naming::FIELDS_TASK],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(kept, (1, super::naming::FIELDS_PROMPT.to_string()));
+    assert!(base.last_model_question("template-fields").unwrap().unwrap().prompt.contains("[campo 2]"));
+    assert_eq!(stage(&base), ("templates", 1, 1, 0));
+    assert_eq!(base.templates(&Visible::All).unwrap()[0].waiting_fields, 0);
+
+    // Nothing is asked again, not even after the template is built again.
+    assert_eq!(base.templates_naming_run(&model, 5).unwrap().asked, 0);
+    base.conn().execute("UPDATE similar_template SET fingerprint = 'otra'", []).unwrap();
+    base.similar_templates_refresh().unwrap();
+    assert_eq!(base.templates_naming_run(&model, 5).unwrap().asked, 0);
+    assert_eq!(model.asked.lock().unwrap().len(), 1);
+    let again = base.similar_template(&Visible::All, principal.location_id).unwrap().unwrap();
+    assert_eq!(again.fields[2].name.as_deref(), Some("Fecha de la consulta"));
+
+    // A person's name goes over the model's, and the model never writes over it.
+    let choice = super::template::FieldChoice { name: Some("Día de la consulta".into()), ..Default::default() };
+    base.choose_template_field(again.principal, 2, &choice).unwrap();
+    let mine = base.similar_template(&Visible::All, principal.location_id).unwrap().unwrap();
+    assert_eq!((mine.fields[2].name.as_deref(), mine.fields[2].name_source.as_deref()), (Some("Día de la consulta"), Some("person")));
+    assert_eq!(mine.fields[2].what.as_deref(), Some("fecha"));
+}
+
+#[test]
+fn a_provider_that_fails_leaves_the_template_for_later_and_stops_the_run() {
+    use crate::source_volume::asking::DocumentAsker;
+    struct AtItsLimit;
+    impl DocumentAsker for AtItsLimit {
+        fn engine_id(&self) -> String {
+            "codex-cli:prueba".into()
+        }
+        fn ask(&self, _prompt: &str, _schema: &serde_json::Value) -> Result<String, String> {
+            Err("You've hit your usage limit".into())
+        }
+    }
+    let mut files = receipts("D");
+    files.extend(receipts("EEE"));
+    let refs: Vec<(&str, Vec<u8>)> = files.iter().map(|(n, b)| (n.as_str(), b.clone())).collect();
+    let (_dir, base, _) = base_with(&refs);
+    assert_eq!(base.templates(&Visible::All).unwrap().len(), 2);
+    let report = base.templates_naming_run(&AtItsLimit, 5).unwrap();
+    assert_eq!((report.asked, report.failed, report.left), (1, 1, 1));
+    assert_eq!(super::naming::waiting_templates(&base.conn()).unwrap().iter().map(|(_, n)| n).sum::<usize>(), 6);
+}
+
 #[test]
 fn two_copies_of_the_same_form_are_possibly_the_same_document() {
     let page = |date: &str| {

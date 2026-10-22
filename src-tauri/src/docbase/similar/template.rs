@@ -9,8 +9,8 @@
 //! the same. Each field is told apart by its form (`changes::classify`):
 //! an identifier, an amount, a date, a name, a number or wording, and
 //! named in layers (D-488): what a person wrote; the name its text gives it
-//! at no cost (its name in a form, a clear label before it); the model's;
-//! or its kind and order ("Fecha 2"). What a person decides
+//! at no cost (its name in a form, a clear label before it); the model's
+//! (`naming`); or its kind and order ("Fecha 2"). What a person decides
 //! is kept apart, by the words around the field, and survives every
 //! build. The filled-in fields of a form are fields of the template too.
 //!
@@ -991,6 +991,8 @@ pub struct TemplateSummary {
     pub format: String,
     /// Pairs of its documents possibly the same document, undecided.
     pub possibly_same: i64,
+    /// Fields whose name (or what they are) waits for the model.
+    pub waiting_fields: i64,
 }
 
 /// What a template is built from: its documents, their texts and the
@@ -1050,7 +1052,7 @@ fn kind_id(kind: Kind) -> String {
     serde_json::to_value(kind).ok().and_then(|v| v.as_str().map(str::to_string)).unwrap_or_default()
 }
 
-fn kind_from(id: &str) -> Kind {
+pub(super) fn kind_from(id: &str) -> Kind {
     serde_json::from_value(serde_json::Value::String(id.to_string())).unwrap_or(Kind::Wording)
 }
 
@@ -1263,6 +1265,7 @@ impl DocBase {
                 wording_fields,
                 format: format_of(&conn, principal, has_form)?,
                 possibly_same: possibly_same_of(&conn, &same, &shown)?.len() as i64,
+                waiting_fields: super::naming::waiting_fields(&conn, principal)? as i64,
             });
         }
         out.sort_by(|a, b| b.documents.cmp(&a.documents).then(a.principal.content_id.cmp(&b.principal.content_id)));

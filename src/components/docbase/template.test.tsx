@@ -223,7 +223,7 @@ describe("the names of a template and of its fields", () => {
     )
     expect(editable).toContain("Quien paga nombre puesto por una persona Persona")
     expect(editable).toContain("Importe nombre puesto por el modelo Importe 2 lugares del texto")
-    expect(editable).toContain("Fecha 1 Fecha · fijo: «10/01/2026»")
+    expect(editable).toContain("Fecha 1 sin nombre todavía: lo nombra el modelo Fecha · fijo: «10/01/2026»")
     expect(editable).toContain("Recibí de Quien paga la suma de $ Importe el día Fecha 1")
     const html = renderToStaticMarkup(<TemplatePanel template={named()} initialColumn={null} onOpen={() => {}} words={words} />)
     expect(html).not.toContain("Cambiar el nombre, qué es o si es fijo")
@@ -278,6 +278,7 @@ function summary(patch: Partial<TemplateSummary> = {}): TemplateSummary {
     wordingFields: 0,
     format: "pdf-text",
     possiblySame: 0,
+    waitingFields: 0,
     ...patch,
   }
 }
@@ -345,6 +346,22 @@ describe("the section «Plantillas»", () => {
     expect(html).toContain("posiblemente el mismo documento")
     expect(html).toContain("el texto salió de un escaneo")
     expect(html).toContain("3 documentos · 1 campo · Escaneo")
+    expect(html).not.toContain("esperan su nombre")
+  })
+
+  it("says which fields wait for the model, which names them by itself", () => {
+    const list = [summary({ waitingFields: 2 }), summary({ principal: docRef(4, "Otro.pdf"), waitingFields: 1 })]
+    const html = text(renderToStaticMarkup(<TemplateTable templates={list} onOpen={() => {}} words={words} />))
+    expect(html).toContain(
+      "3 campos esperan su nombre: el texto no los nombra y los nombra el modelo, solo, mientras la lectura automática está activa. Lo que escribas vos nunca se pisa.",
+    )
+    expect(html).toContain("3 documentos · 3 campos · PDF con texto · 2 sin nombre todavía")
+    expect(html).not.toContain("Nombrar los campos con el modelo")
+    const panel = text(
+      renderToStaticMarkup(<TemplatePanel template={receipts()} initialColumn={null} onOpen={() => {}} onChooseField={() => true} words={words} />),
+    )
+    expect(panel).toContain("Nombre 1 sin nombre todavía: lo nombra el modelo")
+    expect(panel).toContain("el modelo solo les pone nombre a los campos que el texto no nombra")
   })
 
   it("shows the detail of a proposal with its notice, the way to confirm its family and the panel of today", () => {

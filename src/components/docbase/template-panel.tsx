@@ -170,7 +170,7 @@ export function TemplatePanel({
       )}
       <p className="text-xs text-muted-foreground">
         Lo que todos los documentos dicen igual es la plantilla; lo resaltado cambia de un documento a otro. La armó la
-        app comparando los textos, sin preguntarle a ningún modelo
+        app comparando los textos, sin modelo; el modelo solo les pone nombre a los campos que el texto no nombra
         {template.state === "confirmed"
           ? "."
           : `: es una propuesta hasta que se confirme la familia como «${relationName("same-template", words)}».`}
@@ -299,6 +299,9 @@ export function TemplatePanel({
                         </span>
                         {nameSourceText(row.field) && (
                           <div className="text-xs font-normal text-muted-foreground">{nameSourceText(row.field)}</div>
+                        )}
+                        {onChooseField && row.field.nameSource === null && (
+                          <div className="text-xs font-normal text-muted-foreground">sin nombre todavía: lo nombra el modelo</div>
                         )}
                         {row.field.formName && row.field.name !== row.field.formName && (
                           <div className="text-xs font-normal text-muted-foreground">

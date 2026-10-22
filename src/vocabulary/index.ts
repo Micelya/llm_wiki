@@ -68,6 +68,8 @@ export interface Vocabulary {
      */
     proposed: string
     confirmed: string
+    /** None of them yet, agreeing with the term: "Ninguna plantilla todavía". */
+    noneYet: string
   }
   /** Label groups offered to start with, most general first. */
   suggestedGroups: string[]

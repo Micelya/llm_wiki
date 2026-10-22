@@ -47,6 +47,11 @@ export function stageText(id: StageId, words: Vocabulary = vocabulary()): StageT
         title: "Tipo y datos de cada documento",
         explanation: "El modelo dice qué es cada documento, en qué etapa está y cuáles son sus datos principales.",
       }
+    case "templates":
+      return {
+        title: `${words.templates.name}: nombres de los campos`,
+        explanation: `El modelo les pone nombre a los campos de cada ${words.templates.one} que su texto no nombra, y dice qué es cada uno (una persona, una fecha, un importe…). Una pregunta por ${words.templates.one}; lo que escribe una persona nunca se pisa.`,
+      }
     case "reading":
       return {
         title: "Lectura con el modelo: a quiénes nombran",
@@ -83,7 +88,7 @@ export function stateLabel(stage: Pick<ProgressStage, "id" | "state">): string {
   return labels[stage.state]
 }
 
-const UNITS: Record<ProgressStage["unit"], [string, string]> = {
+const UNITS: Record<Exclude<ProgressStage["unit"], "templates">, [string, string]> = {
   origins: ["carpeta", "carpetas"],
   files: ["archivo", "archivos"],
   documents: ["documento", "documentos"],
@@ -91,7 +96,12 @@ const UNITS: Record<ProgressStage["unit"], [string, string]> = {
 }
 
 /** "12 de 68 documentos"; "Ningún documento todavía" when it has nothing. */
-export function stageFigures(stage: ProgressStage): string {
+export function stageFigures(stage: ProgressStage, words: Vocabulary = vocabulary()): string {
+  // The templates are counted with the profession's word for them.
+  if (stage.unit === "templates") {
+    if (stage.total === 0) return words.templates.noneYet
+    return `${formatCount(stage.done)} de ${plural(stage.total, words.templates.one, words.templates.many)}`
+  }
   const [one, many] = UNITS[stage.unit]
   if (stage.total === 0) return `${stage.unit === "pages" || stage.unit === "origins" ? "Ninguna" : "Ningún"} ${one} todavía`
   return `${formatCount(stage.done)} de ${plural(stage.total, one, many)}`

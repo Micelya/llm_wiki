@@ -32,6 +32,8 @@ describe("the stages of «En curso» in words", () => {
     expect(stageText("matters", words).title).toBe("Casos")
     expect(stageText("reading", words).explanation).toContain("personas y organizaciones")
     expect(stageText("recognition", words).explanation).toContain("cada página es una pregunta al modelo")
+    expect(stageText("templates", words).title).toBe("Plantillas: nombres de los campos")
+    expect(stageText("templates", words).explanation).toContain("Una pregunta por plantilla")
   })
 
   it("says how each stage stands, the scans like the others", () => {
@@ -45,6 +47,9 @@ describe("the stages of «En curso» in words", () => {
     expect(stageFigures(stage("text", { done: 1, total: 1 }))).toBe("1 de 1 archivo")
     expect(stageFigures(stage("pages", { done: 0, total: 0 }))).toBe("Ninguna página todavía")
     expect(stageFigures(stage("types", { done: 0, total: 0 }))).toBe("Ningún documento todavía")
+    // The templates, with the profession's word.
+    expect(stageFigures(stage("templates", { done: 3, total: 12 }), words)).toBe("3 de 12 plantillas")
+    expect(stageFigures(stage("templates", { done: 0, total: 0 }), words)).toBe("Ninguna plantilla todavía")
     expect(stageShare(stage("reading", { done: 17, total: 68 }))).toBe(0.25)
     expect(stageShare(stage("reading", { done: 0, total: 0 }))).toBeNull()
   })

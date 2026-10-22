@@ -15,7 +15,7 @@ import { NameForm } from "@/components/knowledge/matter-edit"
 import { useAction, useOpenDocument } from "@/components/knowledge/shared"
 import { useTemplatesStore } from "@/stores/templates-store"
 import { vocabulary, type Vocabulary } from "@/vocabulary"
-import { plural } from "./format"
+import { formatCount, plural } from "./format"
 import { DocbasePage, EmptyNote, ErrorNote, StatusBadge } from "./page"
 import { automaticTemplateName, fieldRows, fieldsLine, formatName, templateName, templatesSummary } from "./template"
 import { TemplatePanel, TemplateStateBadge } from "./template-panel"
@@ -67,9 +67,16 @@ export function TemplateTable({
   onOpen: (principalLocationId: number) => void
   words?: Vocabulary
 }) {
+  const waiting = templates.reduce((sum, t) => sum + t.waitingFields, 0)
   return (
     <>
       <p className="text-sm text-muted-foreground">{templatesSummary(templates, words)}</p>
+      {waiting > 0 && (
+        <p className="text-sm text-muted-foreground">
+          {plural(waiting, "campo espera", "campos esperan")} su nombre: el texto no los nombra y los nombra el modelo, solo,
+          mientras la lectura automática está activa. Lo que escribas vos nunca se pisa.
+        </p>
+      )}
       <ul className="divide-y rounded-lg border bg-card">
         {templates.map((template) => (
           <li key={template.principal.contentId}>
@@ -84,7 +91,14 @@ export function TemplateTable({
                 {template.format === "scan" && <StatusBadge tone="warning">el texto salió de un escaneo</StatusBadge>}
               </span>
               <span className="text-xs text-muted-foreground">
-                {[plural(template.documents, "documento", "documentos"), fieldsLine(template), formatName(template.format)].join(" · ")}
+                {[
+                  plural(template.documents, "documento", "documentos"),
+                  fieldsLine(template),
+                  formatName(template.format),
+                  template.waitingFields > 0 ? `${formatCount(template.waitingFields)} sin nombre todavía` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
               </span>
             </button>
           </li>

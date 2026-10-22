@@ -205,12 +205,14 @@ describe("«En curso»", () => {
       ["recognition", "running"],
       ["similar", "done"],
       ["types", "done"],
+      ["templates", "done"],
       ["reading", "running"],
       ["resolve", "waiting"],
       ["matters", "error"],
       ["pages", "paused"],
     ])
     const shown = text(html)
+    expect(shown).toContain("Plantillas: nombres de los campos Hecha")
     // A finished stage stays, with its figures.
     expect(shown).toContain("Tipo y datos de cada documento Hecha")
     expect(shown).toContain("68 de 68 documentos")
@@ -230,7 +232,7 @@ describe("«En curso»", () => {
     expect(shown).toContain("Vuelve a intentar a las 14:15.")
     expect(shown).toContain("Páginas (artículos) En pausa")
     // Each stage opens.
-    expect([...html.matchAll(/aria-expanded="false"/g)].length).toBe(9)
+    expect([...html.matchAll(/aria-expanded="false"/g)].length).toBe(10)
   })
 
   it("says whether the automatic reading is on, with the switch to pause it", () => {

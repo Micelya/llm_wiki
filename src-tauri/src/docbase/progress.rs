@@ -20,12 +20,13 @@ use serde::{Deserialize, Serialize};
 use super::query::rows_sql;
 use super::{now_ms, origins, sql_err, DocBase, Visible};
 
-/// The stages, in the order a document goes through them.
-pub const STAGES: [&str; 9] = ["origins", "text", "recognition", "similar", "types", "reading", "resolve", "matters", "pages"];
+/// The stages, in the order a document goes through them; `templates`
+/// goes over the templates of the families, naming their fields (D-488).
+pub const STAGES: [&str; 10] = ["origins", "text", "recognition", "similar", "types", "templates", "reading", "resolve", "matters", "pages"];
 
 /// The stages that ask the model, in the order the engine asks
 /// (`worker::ask_step`); they run only while the automatic reading is on.
-pub const MODEL_STAGES: [&str; 5] = ["types", "reading", "resolve", "matters", "pages"];
+pub const MODEL_STAGES: [&str; 6] = ["types", "templates", "reading", "resolve", "matters", "pages"];
 
 /// The stages whose work left the base cannot count by itself: the
 /// matters the model proposes and the pages it writes depend on all the
@@ -39,6 +40,7 @@ pub const FIRST_LAP_STAGES: [&str; 2] = ["matters", "pages"];
 pub fn stage_of_task(task: &str) -> &'static str {
     match task {
         "type" | "data" => "types",
+        super::similar::naming::FIELDS_TASK => "templates",
         "knowledge" => "reading",
         "identity" => "resolve",
         "matter" => "matters",
@@ -354,7 +356,7 @@ pub struct Stage {
     /// `done`, `running`, `waiting` (its turn), `paused` (the automatic
     /// reading is off, or no model or engine was chosen) or `error`.
     pub state: &'static str,
-    /// What it counts: `origins`, `files`, `documents` or `pages`.
+    /// What it counts: `origins`, `files`, `documents`, `templates` or `pages`.
     pub unit: &'static str,
     /// What it goes over: done, pending and failed.
     pub total: usize,
@@ -605,6 +607,7 @@ fn all_members(conn: &Connection, facts: &Facts) -> Result<Vec<Members>, String>
         recognition_members(conn, facts)?,
         similar_members(conn, facts)?,
         types_members(conn, facts)?,
+        templates_members(conn, facts)?,
         reading_members(facts, &standings)?,
         resolve,
         matters_members(conn, facts, &read, &waiting_resolution, resolving)?,
@@ -775,6 +778,25 @@ fn types_members(conn: &Connection, facts: &Facts) -> Result<Members, String> {
         }
     }
     members.extra.insert("questions", facts.now.left.get("types").copied().unwrap_or(0));
+    Ok(members)
+}
+
+/// Each template of a family, by its principal: its fields that its text
+/// does not name wait for the model (D-488).
+fn templates_members(conn: &Connection, facts: &Facts) -> Result<Members, String> {
+    let mut members = Members::new("templates");
+    for (principal, waiting) in super::similar::naming::waiting_templates(conn)? {
+        if !facts.active.contains(&principal) {
+            continue;
+        }
+        if waiting == 0 {
+            members.push(Key::Content(principal), DONE);
+        } else {
+            let detail = if waiting == 1 { "1 campo sin nombre".to_string() } else { format!("{waiting} campos sin nombre") };
+            members.items.push((Key::Content(principal), PENDING, Some(detail)));
+        }
+    }
+    members.extra.insert("questions", facts.now.left.get("templates").copied().unwrap_or(0));
     Ok(members)
 }
 
@@ -1250,16 +1272,19 @@ del inmueble del domicilio inventado el día del vencimiento, sin observaciones 
         assert_eq!(figures(&progress, "similar"), (2, 0, 0, 2));
         assert_eq!(figures(&progress, "types"), (0, 2, 0, 2));
         assert_eq!(
-            states(&progress)[..6],
+            states(&progress)[..7],
             [
                 ("origins", "done"),
                 ("text", "done"),
                 ("recognition", "done"),
                 ("similar", "done"),
                 ("types", "paused"),
+                // No template: nothing to name.
+                ("templates", "done"),
                 ("reading", "paused"),
             ]
         );
+        assert_eq!(stage(&progress, "templates").unit, "templates");
         assert_eq!((progress.in_process, progress.paused), (0, 2));
         assert!(!progress.background_reading);
 

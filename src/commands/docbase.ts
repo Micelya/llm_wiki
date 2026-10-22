@@ -576,6 +576,8 @@ export interface TemplateSummary extends TemplateKind {
   format: TemplateFormat
   /** Pairs of its documents possibly the same document, undecided. */
   possiblySame: number
+  /** Fields whose name (or what they are) waits for the model. */
+  waitingFields: number
 }
 
 /** Every template of the base, for the section «Plantillas». */
@@ -1682,6 +1684,7 @@ export type StageId =
   | "recognition"
   | "similar"
   | "types"
+  | "templates"
   | "reading"
   | "resolve"
   | "matters"
@@ -1733,7 +1736,7 @@ export interface StageItem {
 export interface ProgressStage {
   id: StageId
   state: StageState
-  unit: "origins" | "files" | "documents" | "pages"
+  unit: "origins" | "files" | "documents" | "templates" | "pages"
   /** Done, pending and failed. */
   total: number
   done: number

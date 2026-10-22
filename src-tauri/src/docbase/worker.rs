@@ -100,7 +100,8 @@ const ASK_IDLE: Duration = Duration::from_secs(30);
 const ASK_BACKOFF: Duration = Duration::from_secs(10 * 60);
 
 /// Starts the thread that asks the model: first the text of the scans
-/// (P-242), then the type, stage and data of each document, then its
+/// (P-242), then the type, stage and data of each document, then the
+/// names of the fields of the templates (D-488), then its
 /// reading for the knowledge layer, then the identities of what was read
 /// (D-192), then the pages of the archive's wiki that are a projection of
 /// the record (D-199). One
@@ -179,6 +180,28 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
                 return failed("types", &report.errors);
             }
             if report.asked + report.data_asked > 0 {
+                return Duration::ZERO;
+            }
+        }
+        Err(error) => {
+            eprintln!("[docbase] {error}");
+            return ASK_IDLE;
+        }
+    }
+    // The names of the fields of the templates that their text does not
+    // give, one template at a time (D-488).
+    state.at_stage(Some("templates"));
+    match base.templates_naming_run(asker.as_ref(), 1) {
+        Ok(report) => {
+            state.ran("templates", report.left);
+            if report.asked + report.named > 0 {
+                on_change();
+            }
+            if report.failed > 0 {
+                eprintln!("[docbase] names of the fields of the templates: {}", report.errors.join("; "));
+                return failed("templates", &report.errors);
+            }
+            if report.asked > 0 {
                 return Duration::ZERO;
             }
         }

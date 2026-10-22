@@ -43,7 +43,6 @@ const END: char = '\u{E002}';
 /// between the marks (`marked`).
 pub(crate) type Part<'a> = &'a dyn Fn(&str, &str) -> String;
 
-#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn plain(_kind: &str, value: &str) -> String {
     value.to_string()
 }
@@ -65,6 +64,8 @@ pub(crate) const QUOTE: &str = "cita";
 pub(crate) const LANGUAGE: &str = "idioma";
 pub(crate) const DOCUMENT: &str = "documento";
 pub(crate) const MATTER: &str = "asunto";
+pub(crate) const TEMPLATE: &str = "plantilla";
+pub(crate) const VALUES: &str = "valores";
 const OVERVIEW: &str = "panorama";
 const WORKSPACE: &str = "carpeta";
 const REQUEST: &str = "pedido";
@@ -85,6 +86,8 @@ fn kind_label(kind: &str) -> &str {
         LANGUAGE => "el idioma elegido para el archivo",
         DOCUMENT => "lo que la base sabe del documento",
         MATTER => "un asunto con sus documentos y sus partes",
+        TEMPLATE => "el texto común de una plantilla y los nombres de sus campos",
+        VALUES => "lo que dicen los documentos en un campo",
         OVERVIEW => "el panorama del archivo",
         WORKSPACE => "la carpeta de trabajo del chat",
         REQUEST => "lo que escribió la persona",
@@ -126,6 +129,17 @@ Buenos Aires, 20 de marzo de 2025.";
     pub const COMPANY_OTHER_QUOTE: &str = "por la factura 0001-00000001 de Ejemplo Uno S.A.";
     /// The matter the two documents are about.
     pub const MATTER: &str = "Reclamo por la factura 0001-00000001";
+    /// Two receipts of the same model, for the question about the fields
+    /// of a template: who paid, how much and for what change; the date
+    /// has its label.
+    pub const RECEIPT: &str = "## Page 1\n\nRECIBO\n\
+Recibí de Persona Dos la suma de $ 100.000 en concepto de honorarios por la consulta inicial.\n\
+Fecha: 20/03/2025\n\
+Persona Tres, por Ejemplo Uno S.A.";
+    pub const OTHER_RECEIPT: &str = "## Page 1\n\nRECIBO\n\
+Recibí de Organización Cinco la suma de $ 85.000 en concepto de honorarios por la revisión del contrato.\n\
+Fecha: 02/04/2025\n\
+Persona Tres, por Ejemplo Uno S.A.";
     /// For the chat: the folder of the archive, its overview, what a person
     /// wrote and what the search found.
     pub const PROJECT: &str = "C:/Ejemplo/Micelya";
@@ -241,6 +255,21 @@ programa verificó en el texto no alcanzan para decidirlo.",
         when: "Después de saber el tipo, y solo si las reglas no encontraron un dato obligatorio de ese tipo.",
         note: Some("En el ejemplo, el tipo es el primero del catálogo con un dato obligatorio que las reglas no encuentran en el \
 documento inventado."),
+    },
+    Definition {
+        id: "template-fields",
+        task: Some(super::similar::naming::FIELDS_TASK),
+        version: Some(super::similar::naming::FIELDS_PROMPT),
+        service: Service::Ask,
+        catalogs: &[CatalogFile::Knowledge],
+        name: "Los nombres de los campos de una plantilla",
+        purpose: "Nombra los campos de una plantilla que su texto no nombra (los que están en medio de una frase) y dice qué es \
+cada uno: una persona, una organización, un asunto, una fecha, un importe… El programa descarta un nombre que repite un valor \
+de los documentos, y lo que escribe una persona nunca se pisa.",
+        when: "Una vez por plantilla con campos sin nombre, sola, mientras la lectura automática está activa. Otra vez solo \
+para los campos nuevos, cuando la plantilla cambia.",
+        note: Some("Los campos que ya tienen nombre, por su rótulo en el texto o por el formulario, no se preguntan; de un campo \
+que es un nombre se pregunta igual qué es."),
     },
     Definition {
         id: "identity",
@@ -410,6 +439,10 @@ fn built(id: &str, conn: Option<&Connection>, part: Part) -> Result<Built, Strin
             one(prompt, schema)
         }
         "data" => super::similar::classify::example_data_question(part).and_then(|(prompt, schema)| one(prompt, schema)),
+        "template-fields" => {
+            let (prompt, schema) = super::similar::naming::example_question(part);
+            one(prompt, schema)
+        }
         "identity" => {
             let (prompt, schema) = resolve::example_question(part);
             one(prompt, schema)
@@ -666,6 +699,7 @@ mod tests {
                         assert!(parts.contains(&kind_label(FILE)), "{}: {parts:?}", definition.id);
                         assert!(schema.is_some(), "{}", definition.id);
                     }
+                    "template-fields" => assert!(parts.contains(&kind_label(TEMPLATE)) && parts.contains(&kind_label(VALUES))),
                     "identity" => assert!(parts.contains(&kind_label(PRINCIPAL)) && parts.contains(&kind_label(CANDIDATE))),
                     "synthesis" => assert!(parts.contains(&kind_label(CLAIM)) && parts.contains(&kind_label(QUOTE))),
                     "matter" => assert!(parts.contains(&kind_label(DOCUMENT)) && parts.contains(&kind_label(MATTER))),
@@ -682,11 +716,12 @@ mod tests {
         let base = base_with_a_secret();
         let questions = model_questions(Some(&base), None).unwrap();
         let ids: Vec<&str> = questions.iter().map(|q| q.id.as_str()).collect();
-        assert_eq!(ids, ["knowledge", "type", "data", "identity", "synthesis", "matter", "recognition", "chat"]);
+        assert_eq!(ids, ["knowledge", "type", "data", "template-fields", "identity", "synthesis", "matter", "recognition", "chat"]);
         let version = |id: &str| questions.iter().find(|q| q.id == id).unwrap().version.clone();
         assert_eq!(version("knowledge").as_deref(), Some(extract::KNOWLEDGE_PROMPT));
         assert_eq!(version("type").as_deref(), Some(TYPE_PROMPT));
         assert_eq!(version("data").as_deref(), Some(DATA_PROMPT));
+        assert_eq!(version("template-fields").as_deref(), Some(super::super::similar::naming::FIELDS_PROMPT));
         assert_eq!(version("identity").as_deref(), Some(resolve::IDENTITY_PROMPT));
         assert_eq!(version("synthesis").as_deref(), Some(pages::SYNTHESIS_PROMPT));
         assert_eq!(version("matter").as_deref(), Some(matters::MATTER_PROMPT));

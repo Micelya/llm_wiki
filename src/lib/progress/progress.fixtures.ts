@@ -2,10 +2,11 @@ import type { Progress, ProgressStage, StageId } from "@/commands/docbase"
 
 /** Made-up figures of the stages of «En curso», for the tests. */
 
-export const IDS: StageId[] = ["origins", "text", "recognition", "similar", "types", "reading", "resolve", "matters", "pages"]
+export const IDS: StageId[] = ["origins", "text", "recognition", "similar", "types", "templates", "reading", "resolve", "matters", "pages"]
 
 export function stage(id: StageId, patch: Partial<ProgressStage> = {}): ProgressStage {
-  const unit = id === "origins" ? "origins" : id === "text" ? "files" : id === "pages" ? "pages" : "documents"
+  const unit =
+    id === "origins" ? "origins" : id === "text" ? "files" : id === "pages" ? "pages" : id === "templates" ? "templates" : "documents"
   return {
     id,
     state: "done",
