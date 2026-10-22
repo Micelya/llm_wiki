@@ -436,6 +436,9 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-491 | 22 oct | Portales | La ventana del portal pasa a https las direcciones http del PJN, espera sin tocar nada mientras el portal procesa una consulta y enfoca el desafío | en revisión (agente sin consulta, se confirma en la prueba real: P-281) |
 | D-492 | 22 oct | Plantillas | Generar desde una plantilla: un Word simple en «Generados», valores tomados de la base con su origen, el documento dentro de su caso y reconocido como generado | en revisión (agente sin consulta, se confirma al verla en la app: P-285) |
 | D-493 | 22 oct | Interfaz | Se aprueba la maqueta con la marca, y en Inicio se reserva el lugar de las actividades y la agenda, mostrando solo lo que ya existe | vigente |
+| D-494 | 22 oct | Servicios de IA | Core lee hasta 4 páginas a la vez, y esta computadora lleva un registro de sus lecturas para borrar solo las propias | en revisión (agente sin consulta, se confirma al verla en la app: P-292, P-294) |
+| D-495 | 22 oct | API local | El servidor único dentro de la máquina para el recortador y los demás programas entra en el producto mínimo, si se puede | vigente |
+| D-496 | 22 oct | Distribución | Una actualización de la app tiene que respetar los datos generados con una versión anterior | vigente |
 
 ---
 
@@ -5284,3 +5287,24 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **El problema:** La maqueta de tres pantallas con la marca (D-469) estaba para aprobar. No tenía el bloque de actividades y agenda («Mi semana») de las maquetas de mayo, que el dueño quiere tener presente.
 - **Qué se decidió y por qué:** La maqueta queda aprobada para aplicarla a toda la app. Inicio reserva el lugar de «Mi semana»: desde ya muestra lo que existe (los casos activos y lo que espera en Atención) y suma los plazos, la agenda, las aprobaciones y las reuniones cuando existan (P-059, P-062), sin mostrar nada que todavía no funcione.
 - **Quién decidió:** dueño del producto (la reserva del lugar; mostrar solo lo que existe es la propuesta del agente).
+
+### D-494 · Core lee hasta 4 páginas a la vez, y esta computadora lleva un registro de sus lecturas para borrar solo las propias
+
+- **Fecha:** 22 oct 2026 · **Tema:** Servicios de IA · **Estado:** en revisión (agente sin consulta, se confirma al verla en la app: P-292, P-294)
+- **El problema:** Por páginas y de a una, Core tardaba 15 a 19 s por página (un escaneo de 23 páginas, unos 7 minutos), y al repetir un pedido sin respuesta el motor podía borrar pedidos de otra computadora que comparte la credencial.
+- **Qué se decidió y por qué:** Hasta 4 páginas a la vez, cada una con su recorrido completo, su huella y su borrado; si una falla, las que están en curso terminan y se borran y no arranca ninguna más. Un registro local (micelya-core-lecturas.json, sin nada de los documentos) guarda los identificadores de las lecturas que pidió esta computadora hasta que Core confirma el borrado; solo esas se borran. Una lectura de otra computadora con la misma imagen se usa sin pagar de nuevo y no se borra. Lo que quedó en Core por un corte se borra recién después de una hora, para poder recuperarlo sin volver a pagar. Si Core no deja borrar una lectura, la página se guarda igual, Atención lo avisa con «Reintentar ahora» y la app reintenta cada 10 minutos. Medido con un escaneo inventado de 8 páginas: de 102 s a 34 s.
+- **Quién decidió:** agente sin consulta.
+
+### D-495 · El servidor único dentro de la máquina para el recortador y los demás programas entra en el producto mínimo, si se puede
+
+- **Fecha:** 22 oct 2026 · **Tema:** API local · **Estado:** vigente
+- **El problema:** El servidor único (D-487) estaba sin fecha, y el producto mínimo (D-463) no lo incluía.
+- **Qué se decidió y por qué:** Entra en el producto mínimo si se puede. Primero, una propuesta de diseño con qué puede ver y qué puede hacer cada programa (P-227).
+- **Quién decidió:** dueño del producto.
+
+### D-496 · Una actualización de la app tiene que respetar los datos generados con una versión anterior
+
+- **Fecha:** 22 oct 2026 · **Tema:** Distribución · **Estado:** vigente
+- **El problema:** Al generar el instalador para el estudio de referencia hay que prever que la app se va a actualizar mientras se usa, y que los abogados ya van a tener datos cargados.
+- **Qué se decidió y por qué:** Es un requisito del producto mínimo (P-297). Los datos siguen en la carpeta propia del usuario, separados del programa, y la base cambia de forma sola y solo hacia adelante. Propuesta del agente, a confirmar: un respaldo automático de la base antes de cada cambio de forma, y una prueba de actualización desde la versión anterior antes de cada entrega.
+- **Quién decidió:** dueño del producto (el requisito); agente (cómo cumplirlo, a confirmar).
