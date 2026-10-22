@@ -308,6 +308,21 @@ export async function loadUpdateCheckState(): Promise<PersistedUpdateCheckState 
   )
 }
 
+const FLOATING_PREVIEWS_KEY = "floatingPreviews"
+
+/** Whether the articles show floating cards of their notes and links (P-246). */
+export async function saveFloatingPreviews(enabled: boolean): Promise<void> {
+  const store = await getStore()
+  await store.set(FLOATING_PREVIEWS_KEY, enabled)
+  await store.save()
+}
+
+/** On unless the person turned them off. */
+export async function loadFloatingPreviews(): Promise<boolean> {
+  const store = await getStore()
+  return (await store.get<boolean>(FLOATING_PREVIEWS_KEY)) !== false
+}
+
 const ZOOM_LEVEL_KEY = "zoomLevel"
 
 export async function saveZoomLevel(level: number): Promise<void> {

@@ -5,6 +5,8 @@ import type { SettingsDraft, DraftSetter } from "../settings-types"
 import type { AppTheme } from "@/lib/theme"
 import { useState, useEffect } from "react"
 import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL, ZOOM_STEP, clampZoomLevel, roundZoomLevel } from "@/stores/zoom-store"
+import { usePreviewCardsStore } from "@/stores/preview-cards-store"
+import { saveFloatingPreviews } from "@/lib/project-store"
 
 interface Props {
   draft: SettingsDraft
@@ -153,6 +155,52 @@ export function InterfaceSection({ draft, setDraft, onThemeChange }: Props) {
           {t("settings.sections.interface.zoomHint")}
         </p>
       </div>
+
+      <FloatingPreviewsSetting />
+    </div>
+  )
+}
+
+/**
+ * The floating cards of the articles (P-246): on by default; turned off,
+ * a note still shows its quote when pressed and a link is a plain link.
+ * It applies at once, without the Save button (D-455).
+ */
+export function FloatingPreviewsSetting() {
+  const enabled = usePreviewCardsStore((s) => s.enabled)
+  const setEnabled = usePreviewCardsStore((s) => s.setEnabled)
+  const [error, setError] = useState<string | null>(null)
+
+  async function change(next: boolean) {
+    setEnabled(next)
+    setError(null)
+    try {
+      await saveFloatingPreviews(next)
+    } catch (cause) {
+      setError(`No se pudo guardar la preferencia: ${cause instanceof Error ? cause.message : String(cause)}`)
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <Label>Vistas previas flotantes</Label>
+      <label className="flex items-start gap-2">
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => void change(e.target.checked)}
+          className="mt-0.5 h-4 w-4"
+        />
+        <div className="space-y-1">
+          <span className="text-sm">Mostrar una tarjeta al pasar el mouse por una nota o un enlace de un artículo</span>
+          <p className="text-xs text-muted-foreground">
+            La tarjeta de una nota muestra la cita y su documento; la de un enlace, el tipo y un resumen corto de la
+            ficha. También se abre al llegar con el teclado. Apagada, una nota muestra su cita al tocarla y un enlace
+            abre la ficha directamente. Se aplica al instante, sin el botón Guardar.
+          </p>
+          {error && <p className="text-xs text-destructive">{error}</p>}
+        </div>
+      </label>
     </div>
   )
 }

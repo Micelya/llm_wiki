@@ -2105,14 +2105,14 @@
       "titulo": "Citas y enlaces con vista previa flotante (hovercard o popover; tooltip donde corresponda)",
       "tipo": "codigo",
       "responsable": "ambos",
-      "estado": "pendiente",
-      "detalle": "Ampliación pedida por el dueño (21 oct) de P-245: las citas numeradas del artículo y los enlaces a documentos, personas, organizaciones y asuntos evolucionan al patrón de vista previa flotante (hovercard o popover, como las vistas previas de Wikipedia), y a tooltip donde alcance. Punto de partida: las sugerencias de docs/design/hovercards-sugerencias.md (demoras, zona segura, teclado y táctil, contenido precalculado desde la base, librerías a evaluar). Definir el diseño con el dueño antes de construirlo; se hace más adelante.",
+      "estado": "a-verificar",
+      "detalle": "Corrida del 22 oct, paso 10 (D-454, D-455): las notas numeradas y los enlaces de los artículos muestran una tarjeta al dejar el mouse encima medio segundo o al llegar con el teclado (Tab); se cierra al salir, con Escape o tocando afuera. La de una nota tiene la cita, su documento y «Abrir el documento»; tocarla, hacer clic o Enter la dejan abierta como antes. La de un enlace tiene el tipo, el nombre, un resumen corto sacado del artículo (sin modelo) y «Abrir»; en pantalla táctil el primer toque la muestra y el segundo abre. Se apaga en Ajustes → Interfaz. Probado solo con casos inventados, sin abrir la app. Falta que el dueño lo vea en la app; los ajustes que pida siguen en P-270.",
       "depende_de": [
         "P-245"
       ],
-      "referencia": "docs/design/hovercards-sugerencias.md; docs/design/servicios-de-ia-propuesta.md (2.6)",
+      "referencia": "D-454, D-455; docs/design/hovercards-sugerencias.md; src/components/ui/preview-card.tsx; src/components/editor/note-mark.tsx; src/components/editor/page-link.tsx; src/lib/preview-card-behavior.ts; src/lib/article-preview.ts; src/lib/link-preview.ts",
       "creado": "2026-10-21",
-      "actualizado": "2026-10-21"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-247",
@@ -2377,6 +2377,18 @@
       "detalle": "El paso 9 (D-453) adjunta documentos. P-243 pedía también personas, organizaciones y casos: sumarlos al mismo buscador, con su artículo y sus datos de la base (lo que lee base.read), citados igual, y «Preguntar al chat» desde su página.",
       "depende_de": ["P-243"],
       "referencia": "D-453; src/lib/chat-documents.ts; src-tauri/src/agent/base_tools.rs",
+      "creado": "2026-10-22",
+      "actualizado": "2026-10-22"
+    },
+    {
+      "id": "P-270",
+      "titulo": "Ajustar las vistas previas flotantes después de verlas",
+      "tipo": "codigo",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "detalle": "Después de que el dueño vea P-246 en la app: ajustar las demoras (500 ms para abrir, 300 ms para cerrar) y el largo del resumen si hace falta; decidir si la tarjeta de un enlace lleva también el teclado a su botón (hoy Enter abre el enlace directamente); llevar las tarjetas a otros lugares (las listas de Documentos, Personas y Casos, las referencias del chat) y, si un día los artículos tienen imagen, mostrarla. Si sacar el resumen del artículo al vuelo resulta pobre, guardar un resumen corto por artículo cuando la app lo escribe.",
+      "depende_de": ["P-246"],
+      "referencia": "D-454, D-455; docs/design/hovercards-sugerencias.md",
       "creado": "2026-10-22",
       "actualizado": "2026-10-22"
     }

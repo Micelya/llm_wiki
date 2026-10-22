@@ -15,6 +15,7 @@ import { useWikiStore } from "@/stores/wiki-store"
 import { MermaidDiagram, unwrapMermaidPre } from "@/components/mermaid-diagram"
 import { noteLabel } from "@/lib/article-notes"
 import { NoteMark } from "./note-mark"
+import { PageLink } from "./page-link"
 
 interface WikiReaderProps {
   body: string
@@ -32,7 +33,8 @@ interface WikiReaderProps {
   filePath?: string
   /**
    * The notes of an article (`splitNotes`, D-441): each link to one of
-   * them is shown as its number, which shows the note when touched.
+   * them is shown as its number, which shows the note in a card when
+   * touched, hovered or reached with the keyboard (P-246).
    */
   notes?: Record<string, string>
 }
@@ -124,6 +126,9 @@ export function WikiReader({ body, sourceBody, sourceOffset = 0, filePath, notes
             const h = typeof href === "string" ? href : ""
             const label = notes ? noteLabel(h) : null
             if (notes && label !== null && label in notes) return <NoteMark label={label} note={notes[label]} />
+            // A link between pages shows a card of what it names (P-246);
+            // not the marks of markdown's own footnotes.
+            if (h.length > 1 && h.startsWith("#") && !h.startsWith("#user-content-")) return <PageLink href={h}>{children}</PageLink>
             const isWikilink = h.startsWith("#")
             return (
               <a
