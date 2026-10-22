@@ -325,9 +325,12 @@ function LockBar({ status, onRun }: { status: PortalStatus | null; onRun: (actio
     )
   }
   if (status?.running && progress?.state === "needs-person") {
-    const what = progress.person === "login" ? "iniciar sesión" : "resolver el desafío"
+    const text =
+      progress.person === "login"
+        ? "Te toca: el portal pide iniciar sesión. Hacelo en la ventana; Micelya sigue sola cuando la página cambie."
+        : "Te toca: resolvé el desafío en el recuadro resaltado de la ventana del portal y después tocá «Consultar». Micelya sigue sola cuando la página cambie."
     return (
-      <Bar tone="warning" text={`Te toca: el portal pide ${what}. Hacelo en la ventana; Micelya sigue sola cuando la página cambie.`}>
+      <Bar tone="warning" text={text}>
         <Button size="xs" onClick={() => onRun(() => portalGoOn())}>
           Ya lo resolví, seguir
         </Button>

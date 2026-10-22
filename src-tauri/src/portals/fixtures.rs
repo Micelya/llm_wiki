@@ -298,6 +298,13 @@ pub struct FakePortal {
     pub cancel_while_busy: bool,
     /// Whether the view was locked at each look at the sign.
     pub busy_locks: Vec<bool>,
+    /// Whether the focus on the challenge was on at each look at the sign.
+    pub busy_focused: Vec<bool>,
+    /// The focus on the challenge: on or off, each change, and the screen
+    /// each time it was turned on.
+    pub focused: bool,
+    pub focus_log: Vec<bool>,
+    pub focused_on: Vec<FakeScreen>,
     pub locked: bool,
     pub lock_log: Vec<bool>,
     /// The state of the walk each time the view was unlocked.
@@ -338,6 +345,10 @@ impl FakePortal {
             loading_left: 0,
             cancel_while_busy: false,
             busy_locks: Vec::new(),
+            busy_focused: Vec::new(),
+            focused: false,
+            focus_log: Vec::new(),
+            focused_on: Vec::new(),
             locked: true,
             lock_log: Vec::new(),
             unlocked_while: Vec::new(),
@@ -425,7 +436,9 @@ impl FakePortal {
                 self.screen = FakeScreen::Form;
             }
             FakeScreen::Form if self.form_challenge => {
-                // Solves the challenge and presses «Consultar».
+                // Solves the challenge (the focus goes by itself) and
+                // presses «Consultar».
+                self.focused = false;
                 self.form_challenge = false;
                 self.presses.push("persona: Consultar".to_string());
                 self.consult();
@@ -458,6 +471,7 @@ impl Browser for FakePortal {
         }
         if self.busy_left > 0 {
             self.busy_locks.push(self.locked);
+            self.busy_focused.push(self.focused);
             self.busy_left -= 1;
             let html = form_page_with(false, None, true);
             if !self.in_course() {
@@ -549,6 +563,16 @@ impl Browser for FakePortal {
             self.lock_log.push(locked);
         }
         self.locked = locked;
+    }
+
+    fn focus(&mut self, on: bool) {
+        if on && !self.focused {
+            self.focused_on.push(self.screen.clone());
+        }
+        if self.focus_log.last() != Some(&on) && (on || !self.focus_log.is_empty()) {
+            self.focus_log.push(on);
+        }
+        self.focused = on;
     }
 
     fn wait(&mut self, _time: Duration) {}

@@ -14,6 +14,8 @@
 //!   app may press or fill (`data-micelya`); to only look (while a person
 //!   solves the challenge) it marks nothing on the page, only on a copy.
 //! - `click`, `fill`, `download`: on the element with a mark.
+//! - `focus`: while the person solves the portal's challenge, the page is
+//!   taken to its box and everything else is darkened (`FOCUS`).
 
 use super::page::{HIDDEN, MARK, VALUE};
 
@@ -100,8 +102,10 @@ pub fn snapshot(act: bool) -> String {
         if (el.type !== 'password') copied[j].setAttribute('{VALUE}', el.value || '');
       }}
     }}
-    var lock = copy.querySelector('#micelya-lock');
-    if (lock) lock.parentNode.removeChild(lock);
+    ['#micelya-lock', '#micelya-focus'].forEach(function (own) {{
+      var layer = copy.querySelector(own);
+      if (layer) layer.parentNode.removeChild(layer);
+    }});
     return {{ url: location.href, ready: document.readyState, html: copy.outerHTML }};
   }} catch (e) {{
     return {{ url: location.href, error: String(e) }};
@@ -184,6 +188,129 @@ pub fn lock(locked: bool, note: &str) -> String {
     format!("(window.__micelya ? window.__micelya.lock({locked}, {}) : null)", js_string(note))
 }
 
+/// The focus on the portal's challenge, a function of `on`, evaluated in
+/// the page (never in its frames).
+///
+/// - Its box is the challenge's frame (an `iframe` that names `captcha` in
+///   its id, name, class or address, as `captcha-frame` of the PJN), or
+///   else the «Ver desafío» button.
+/// - On: the page is taken to the box once, and a layer of the app's own
+///   (not of the portal) darkens everything else: one shade cut by an
+///   exact hole over the box (an even-odd `clip-path`, which also leaves
+///   the hole out of its clicks), following its size and place on every
+///   frame. The shade takes the clicks outside the hole and does nothing
+///   with them (the wheel still scrolls the page); inside the hole nothing
+///   of the app is in the way. A note over the hole says what to do, and
+///   lets the person take the layer away for this page.
+/// - It goes by itself when the challenge is solved (the form's
+///   `captcha-response` field has a value), when the box goes, or with the
+///   page. It never changes the challenge nor the form; it only reads the
+///   value of that field. Under the lock's layer (`INIT`).
+/// - Answers `on`, `off`, `none` (no box), `solved` or `dismissed`.
+pub const FOCUS: &str = r#"function (on) {
+  var ID = 'micelya-focus';
+  var state = window.__micelyaFocus || (window.__micelyaFocus = { frame: 0, dismissed: false });
+  var remove = function () {
+    if (state.frame) cancelAnimationFrame(state.frame);
+    state.frame = 0;
+    var old = document.getElementById(ID);
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+  };
+  var solved = function () {
+    var fields = document.querySelectorAll('[name="captcha-response"], [id="captcha-response"], ' +
+      '[name$=":captcha-response"], [id$=":captcha-response"]');
+    for (var i = 0; i < fields.length; i++) if (fields[i].value) return true;
+    return false;
+  };
+  var shown = function (el) { return el.getClientRects().length > 0; };
+  var findBox = function () {
+    var frames = document.getElementsByTagName('iframe');
+    for (var i = 0; i < frames.length; i++) {
+      var f = frames[i];
+      var names = [f.id, f.name, f.className, f.getAttribute('src')].join(' ').toLowerCase();
+      if (names.indexOf('captcha') >= 0 && shown(f)) return f;
+    }
+    var buttons = document.querySelectorAll('button, a, input[type="button"], input[type="submit"]');
+    for (var j = 0; j < buttons.length; j++) {
+      var b = buttons[j];
+      var words = (b.tagName === 'INPUT' ? b.value : b.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
+      if (words.normalize) words = words.normalize('NFD').replace(/[̀-ͯ]/g, '');
+      if (words.indexOf('ver desafio') === 0 && words.length <= 40 && shown(b)) return b;
+    }
+    return null;
+  };
+  if (!on) { state.dismissed = false; remove(); return 'off'; }
+  if (state.dismissed) { remove(); return 'dismissed'; }
+  if (solved()) { remove(); return 'solved'; }
+  if (document.getElementById(ID)) return 'on';
+  var box = findBox();
+  if (!box || !document.body) return 'none';
+  var swallow = function (el) {
+    ['click', 'dblclick', 'auxclick', 'mousedown', 'mouseup', 'pointerdown', 'pointerup', 'touchstart', 'contextmenu']
+      .forEach(function (t) { el.addEventListener(t, function (e) { e.stopPropagation(); e.preventDefault(); }); });
+  };
+  var layer = document.createElement('div');
+  layer.id = ID;
+  layer.setAttribute('style', 'position:fixed;inset:0;z-index:2147483646;pointer-events:none;');
+  var shade = document.createElement('div');
+  swallow(shade);
+  layer.appendChild(shade);
+  var ring = document.createElement('div');
+  layer.appendChild(ring);
+  var note = document.createElement('div');
+  note.setAttribute('style', 'position:fixed;pointer-events:auto;max-width:340px;padding:8px 12px;border-radius:6px;' +
+    'background:#1e293b;color:#fff;font:13px/1.35 system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.35);');
+  var text = document.createElement('div');
+  text.textContent = 'Resolvé el desafío en este recuadro. Cuando lo resuelvas, tocá «Consultar».';
+  var away = document.createElement('button');
+  away.type = 'button';
+  away.textContent = 'Quitar el oscurecido';
+  away.setAttribute('style', 'margin-top:6px;padding:2px 8px;border:1px solid #94a3b8;border-radius:4px;' +
+    'background:transparent;color:#e2e8f0;font:12px system-ui,sans-serif;cursor:pointer;');
+  away.addEventListener('click', function () { state.dismissed = true; remove(); });
+  note.appendChild(text);
+  note.appendChild(away);
+  swallow(note);
+  layer.appendChild(note);
+  document.documentElement.appendChild(layer);
+  try { box.scrollIntoView({ block: 'center', inline: 'nearest' }); } catch (e) { box.scrollIntoView(); }
+  var last = '';
+  var place = function (x, y, w, h) {
+    var hole = [[x, y], [x, y + h], [x + w, y + h], [x + w, y], [x, y]].map(function (p) {
+      return p[0] + 'px ' + p[1] + 'px';
+    }).join(',');
+    shade.setAttribute('style', 'position:fixed;inset:0;background:rgba(15,23,42,0.62);pointer-events:auto;' +
+      'clip-path:polygon(evenodd,0 0,100% 0,100% 100%,0 100%,0 0,' + hole + ');');
+    ring.setAttribute('style', 'position:fixed;box-sizing:border-box;pointer-events:none;border:3px solid #f59e0b;' +
+      'border-radius:6px;left:' + x + 'px;top:' + y + 'px;width:' + w + 'px;height:' + h + 'px;');
+    var width = document.documentElement.clientWidth;
+    var above = y - note.offsetHeight - 10;
+    var top = above >= 4 ? above : y + h + 10;
+    var left = Math.max(8, Math.min(x, width - note.offsetWidth - 8));
+    note.style.top = top + 'px';
+    note.style.left = left + 'px';
+  };
+  var tick = function () {
+    state.frame = 0;
+    if (!document.getElementById(ID)) return;
+    if (!box.isConnected || !shown(box) || solved()) { remove(); return; }
+    var r = box.getBoundingClientRect();
+    var pad = 6;
+    var x = Math.round(r.left - pad), y = Math.round(r.top - pad);
+    var w = Math.round(r.width + 2 * pad), h = Math.round(r.height + 2 * pad);
+    var key = [x, y, w, h, window.innerWidth, window.innerHeight].join(',');
+    if (key !== last) { last = key; place(x, y, w, h); }
+    state.frame = requestAnimationFrame(tick);
+  };
+  tick();
+  return 'on';
+}"#;
+
+/// Turns the focus on the challenge on or off (`FOCUS`).
+pub fn focus(on: bool) -> String {
+    format!("({FOCUS})({on})")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -219,5 +346,28 @@ mod tests {
     fn locking_takes_the_focus_away() {
         assert!(INIT.contains("if (locked) unfocus();"));
         assert!(INIT.contains("active.blur()"));
+    }
+
+    #[test]
+    fn the_focus_on_the_challenge_is_a_layer_of_its_own_under_the_lock() {
+        assert!(focus(true).ends_with("})(true)"));
+        assert!(focus(false).ends_with("})(false)"));
+        // Under the lock's layer, and the layer itself takes no click: only
+        // its shade, out of the hole, does, and does nothing with them.
+        assert!(INIT.contains("z-index:2147483647"));
+        assert!(FOCUS.contains("z-index:2147483646;pointer-events:none;"));
+        assert!(FOCUS.contains("clip-path:polygon(evenodd,"));
+        assert!(FOCUS.contains("e.stopPropagation(); e.preventDefault();"));
+        assert!(!FOCUS.contains("'wheel'"), "the wheel still scrolls the page");
+        // It follows the box on every frame, and goes once it is solved.
+        assert!(FOCUS.contains("requestAnimationFrame(tick)"));
+        assert!(FOCUS.contains("captcha-response"));
+        // It never touches the challenge nor the form: it adds its own layer
+        // and only reads.
+        for touching in [".value =", ".click()", ".submit(", "setAttribute('value'", "postMessage", ".focus()"] {
+            assert!(!FOCUS.contains(touching), "the focus does `{touching}`");
+        }
+        // The page is read without the app's own layers.
+        assert!(snapshot(false).contains("'#micelya-lock', '#micelya-focus'"));
     }
 }

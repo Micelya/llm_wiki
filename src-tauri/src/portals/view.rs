@@ -406,6 +406,10 @@ impl Browser for ViewBrowser {
         let _ = self.view.eval(scripts::lock(locked, note));
     }
 
+    fn focus(&mut self, on: bool) {
+        let _ = self.view.eval(scripts::focus(on));
+    }
+
     fn wait(&mut self, time: Duration) {
         let until = Instant::now() + time;
         while Instant::now() < until && !self.cancelled() {

@@ -67,6 +67,9 @@ pub trait Browser {
     /// `destination`.
     fn download(&mut self, mark: &str, destination: &Path) -> Result<Fetched, String>;
     fn lock(&mut self, locked: bool, note: &str);
+    /// Turns on or off the focus on the portal's challenge: the page is
+    /// taken to its box and everything else is darkened (`scripts::FOCUS`).
+    fn focus(&mut self, on: bool);
     fn wait(&mut self, time: Duration);
     fn cancelled(&self) -> bool;
     /// Whether the person said they finished what the portal asked.
@@ -385,22 +388,26 @@ impl Walk<'_> {
     }
 
     /// Unlocks the view for what only a person does, and only looks at it
-    /// until the page changes or the person says to go on. When the person
-    /// presses «Consultar», the app waits for the portal to process it
-    /// (`settle`) without locking the view.
+    /// until the page changes or the person says to go on. For the
+    /// challenge, the focus: the page is taken to its box and the rest is
+    /// darkened (put again every turn: a new page loses it; it goes by
+    /// itself once solved). When the person presses «Consultar», the app
+    /// waits for the portal to process it (`settle`) without locking the
+    /// view.
     fn wait_person(&self, browser: &mut dyn Browser, run: &mut Run, screen: Screen) -> Result<Waited, Stop> {
         let tell = |run: &mut Run, screen: &Screen| {
             let (person, message) = match screen {
                 Screen::Login => ("login", "El portal pide iniciar sesión: hacelo en la ventana del portal. Micelya sigue sola cuando entres."),
                 _ => (
                     "challenge",
-                    "El portal pide resolver un desafío: resolvelo en la ventana del portal y tocá «Consultar». Micelya sigue sola cuando la página cambie.",
+                    "El portal pide resolver un desafío: resolvelo en el recuadro resaltado de la ventana del portal y después tocá «Consultar». Micelya sigue sola cuando la página cambie.",
                 ),
             };
             run.progress.state = "needs-person".to_string();
             run.progress.person = Some(person.to_string());
             run.progress.message = message.to_string();
         };
+        let challenge = |screen: &Screen| matches!(screen, Screen::Challenge | Screen::Form { challenge: true });
         tell(run, &screen);
         browser.report(&run.progress);
         let mut start = self.page(browser, false)?;
@@ -412,6 +419,9 @@ impl Walk<'_> {
             }
             // Every turn: a new page of the portal starts locked.
             browser.lock(false, "");
+            if challenge(&current) {
+                browser.focus(true);
+            }
             if browser.take_go_on() {
                 break Ok(Waited::GoOn);
             }
@@ -420,7 +430,9 @@ impl Walk<'_> {
                 Look::Page(page) => page,
                 Look::Busy => {
                     // The person pressed «Consultar»: the portal works on
-                    // it, and its «Cancelar» must stay at hand.
+                    // it, and its «Cancelar» must stay at hand, not under
+                    // the focus.
+                    browser.focus(false);
                     break self.settle(browser, run, &start, false).map(|_| Waited::Submitted);
                 }
                 Look::Loading => {
@@ -447,6 +459,7 @@ impl Walk<'_> {
             }
             break Ok(Waited::PageChanged);
         };
+        browser.focus(false);
         browser.lock(true, WORKING_NOTE);
         let result = outcome?;
         run.progress.state = "working".to_string();

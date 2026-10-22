@@ -6,7 +6,7 @@
 use std::fs;
 use std::path::Path;
 
-use super::fixtures::{self, entries, FakePortal, RecordView, NOTE_CUIT, NOTE_TEXT};
+use super::fixtures::{self, entries, FakePortal, FakeScreen, RecordView, NOTE_CUIT, NOTE_TEXT};
 use super::page::Page;
 use super::pjn::{Pjn, START_URL};
 use super::store::{self, state, Entry, EntryKey, RecordFile};
@@ -246,6 +246,10 @@ fn the_challenge_stops_the_app_unlocks_the_view_and_the_walk_goes_on() {
     assert_eq!(portal.unlocked_while, vec!["needs-person", "needs-person"]);
     assert_eq!(portal.lock_log, vec![true, false, true, false, true]);
     assert!(portal.locked);
+    // Each time, the focus on the challenge, and off after.
+    assert_eq!(portal.focus_log, vec![true, false, true, false]);
+    assert_eq!(portal.focused_on, vec![FakeScreen::Form, FakeScreen::Record]);
+    assert!(!portal.focused);
     // While it was the person's turn, the app pressed nothing: the person
     // pressed «Consultar».
     assert_eq!(portal.presses, vec!["persona: Consultar", "Siguiente"]);
@@ -319,6 +323,9 @@ fn a_query_the_person_pressed_is_never_pressed_again_and_cancelar_works() {
     assert_eq!(portal.presses, vec!["persona: Consultar", "persona: Cancelar", "persona: Consultar"]);
     assert!(!portal.busy_locks.is_empty());
     assert!(portal.busy_locks.iter().all(|locked| !locked), "{:?}", portal.busy_locks);
+    // Nor was the focus on the challenge over the portal's «Cancelar».
+    assert!(portal.busy_focused.iter().all(|focused| !focused), "{:?}", portal.busy_focused);
+    assert_eq!(portal.focus_log, vec![true, false, true, false]);
     // After the cancelled query the form went back to the person; while
     // the second one was processed, the person had nothing to do.
     assert_eq!(portal.unlocked_while, vec!["needs-person", "needs-person"]);
@@ -409,6 +416,8 @@ fn signing_in_is_left_to_the_person() {
     let outcome = walk_with(dir.path(), &store::NoneKnown).run(&mut portal, &key()).unwrap();
     assert!(portal.reports.iter().any(|r| r.person.as_deref() == Some("login")));
     assert_eq!(outcome.downloaded, 3);
+    // Signing in has no focus.
+    assert!(portal.focus_log.is_empty());
 }
 
 #[test]
