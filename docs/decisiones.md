@@ -434,6 +434,8 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-489 | 22 oct | Servicios de IA | El motor de lectura de Core manda cada página como una imagen JPEG hecha por la base, guarda aparte las palabras dudosas y paga una sola vez cada página | en revisión (agente sin consulta, se confirma al verla en la app: P-063) |
 | D-490 | 22 oct | Plantillas | La sección «Plantillas»: nombre por el tipo del documento principal, lo que decide una persona guardado aparte, el rótulo claro y una pregunta automática al modelo por plantilla | en revisión (agente sin consulta, se confirma al verla en la app: P-287, P-257) |
 | D-491 | 22 oct | Portales | La ventana del portal pasa a https las direcciones http del PJN, espera sin tocar nada mientras el portal procesa una consulta y enfoca el desafío | en revisión (agente sin consulta, se confirma en la prueba real: P-281) |
+| D-492 | 22 oct | Plantillas | Generar desde una plantilla: un Word simple en «Generados», valores tomados de la base con su origen, el documento dentro de su caso y reconocido como generado | en revisión (agente sin consulta, se confirma al verla en la app: P-285) |
+| D-493 | 22 oct | Interfaz | Se aprueba la maqueta con la marca, y en Inicio se reserva el lugar de las actividades y la agenda, mostrando solo lo que ya existe | vigente |
 
 ---
 
@@ -5268,3 +5270,17 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **El problema:** En la prueba real la consulta quedaba para siempre en «Consulta en proceso»: el servidor del PJN redirige a una dirección http antes de la https, y la ventana del portal rechazaba todo lo que no fuera https. Además, la app volvía a bloquear la ventana y a tocar «Consultar» mientras el portal procesaba la primera consulta. Y el dueño pidió enfocar solo el desafío.
 - **Qué se decidió y por qué:** Una dirección http de pjn.gov.ar se cancela y se abre la misma con https (nada se carga sin cifrar; como mucho tres veces seguidas). Después de «Consultar», mientras la página carga o dice «Consulta en proceso», la app espera hasta 2 minutos sin volver a tocar «Consultar» y con la ventana libre para «Cancelar». Las ventanas emergentes siguen rechazadas (el desafío y la consulta ocurren en la página) y los diálogos funcionan. Modo foco: cuando le toca a la persona el desafío, la página baja hasta su recuadro y el resto se oscurece con un hueco exacto que sigue su tamaño; se quita solo cuando el desafío queda resuelto o la persona lo saca, y nunca se usa para iniciar sesión.
 - **Quién decidió:** agente, sobre la causa que encontró el agente de claude.ai y el pedido del dueño.
+
+### D-492 · Generar desde una plantilla: un Word simple en «Generados», valores tomados de la base con su origen, el documento dentro de su caso y reconocido como generado
+
+- **Fecha:** 22 oct 2026 · **Tema:** Plantillas · **Estado:** en revisión (agente sin consulta, se confirma al verla en la app: P-285)
+- **El problema:** Para generar el Word simple (D-488) faltaba decidir qué conserva del original, qué pasa con un campo vacío, qué se registra, cómo entra al caso y cómo no se confunde con los documentos de la familia.
+- **Qué se decidió y por qué:** Un .docx nuevo en A4, Times New Roman 12, con los párrafos de la plantilla y los valores (sin negritas, sangrías, tablas ni membrete). Un campo vacío queda afuera si es opcional; si no, sale entre corchetes y resaltado para completarlo en Word. Se registra la plantilla con su versión y nombre de entonces, cada valor con su origen, el caso y el archivo con su huella (versión 24 del esquema). Al elegir una persona se sugieren su DNI, su CUIT y su domicilio en los campos que los piden, sin pisar lo escrito. El documento entra al caso como decisión de una persona (si se edita, entra de nuevo; si alguien lo saca, no vuelve). Nunca es el principal de la familia ni un documento de la plantilla y no dispara «posiblemente el mismo documento».
+- **Quién decidió:** agente sin consulta.
+
+### D-493 · Se aprueba la maqueta con la marca, y en Inicio se reserva el lugar de las actividades y la agenda, mostrando solo lo que ya existe
+
+- **Fecha:** 22 oct 2026 · **Tema:** Interfaz · **Estado:** vigente
+- **El problema:** La maqueta de tres pantallas con la marca (D-469) estaba para aprobar. No tenía el bloque de actividades y agenda («Mi semana») de las maquetas de mayo, que el dueño quiere tener presente.
+- **Qué se decidió y por qué:** La maqueta queda aprobada para aplicarla a toda la app. Inicio reserva el lugar de «Mi semana»: desde ya muestra lo que existe (los casos activos y lo que espera en Atención) y suma los plazos, la agenda, las aprobaciones y las reuniones cuando existan (P-059, P-062), sin mostrar nada que todavía no funcione.
+- **Quién decidió:** dueño del producto (la reserva del lugar; mostrar solo lo que existe es la propuesta del agente).
