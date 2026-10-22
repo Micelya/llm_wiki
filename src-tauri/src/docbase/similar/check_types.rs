@@ -87,6 +87,14 @@ impl TextRecognizer for Counting<'_> {
         self.calls.set(self.calls.get() + 1);
         inner.recognize(image)
     }
+
+    fn recognize_page(&self, image: &Path, page: u32) -> Result<recognition::PageReading, String> {
+        let Some(inner) = self.inner else {
+            return Err("recognition is off (MICELYA_RECOGNIZE)".to_string());
+        };
+        self.calls.set(self.calls.get() + 1);
+        inner.recognize_page(image, page)
+    }
 }
 
 fn copy_seed(seeds: &str, cache: &Path, hash: &str) {

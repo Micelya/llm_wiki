@@ -18,6 +18,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use super::recognition_codex::CodexRecognizer;
+use super::recognition_core::CoreRecognizer;
 use super::recognized_store::{Part, RecognizedStore};
 
 /// A PDF page with fewer non-whitespace characters than this is treated
@@ -25,7 +26,10 @@ use super::recognized_store::{Part, RecognizedStore};
 /// to tell a text page from a scan with only a page number or watermark.
 const MIN_PAGE_TEXT_CHARS: usize = 80;
 /// Long side, in pixels, of a page rendered for recognition.
-const RENDER_LONG_SIDE_PX: i32 = 2000;
+pub(crate) const RENDER_LONG_SIDE_PX: i32 = 2000;
+/// What a page an engine could not read at all says, as Codex marks what
+/// it cannot read: the screens offer it to another engine.
+pub const UNREADABLE: &str = "[ilegible]";
 
 /// Which engine recognizes text, and with which model.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -34,6 +38,27 @@ pub struct RecognitionConfig {
     pub engine: String,
     #[serde(default)]
     pub model: String,
+}
+
+/// A word an engine is not sure it read well, as it says (Micelya Core
+/// gives the confidence of each word).
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct DoubtfulWord {
+    pub word: String,
+    /// Its line in the page, counting from 1.
+    pub line: usize,
+    /// How sure the engine is, from 0 to 100.
+    pub percent: u8,
+}
+
+/// What an engine read on one page.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PageReading {
+    pub text: String,
+    /// The words it doubts, when it says how sure it is.
+    pub doubtful: Vec<DoubtfulWord>,
+    /// The model that read it, as its provider says (`textract-1.0`).
+    pub read_by: Option<String>,
 }
 
 pub trait TextRecognizer {
@@ -45,11 +70,20 @@ pub trait TextRecognizer {
     /// rather than return a partial or empty answer, so a page is never
     /// cached as blank because of a transient problem.
     fn recognize(&self, image: &Path) -> Result<String, String>;
+
+    /// Page `page` of a document (1 for a photo), with what the engine
+    /// says beyond the text. By default, the text of `recognize`.
+    fn recognize_page(&self, image: &Path, page: u32) -> Result<PageReading, String> {
+        let _ = page;
+        self.recognize(image).map(|text| PageReading { text, ..Default::default() })
+    }
 }
 
 pub fn recognizer_for(config: &RecognitionConfig) -> Result<Box<dyn TextRecognizer>, String> {
     match config.engine.as_str() {
         "codex-cli" => Ok(Box::new(CodexRecognizer::new(&config.model))),
+        // Its connection is read from the keychain when it reads its first page.
+        "core" => Ok(Box::new(CoreRecognizer::new(&config.model))),
         other => Err(format!("Unknown text recognition engine: '{other}'")),
     }
 }
@@ -79,10 +113,7 @@ pub fn recognize_image_source(
     let entry = match store.get(Part::Image) {
         Some(entry) => entry,
         None => {
-            let entry = RecognizedPage {
-                engine_id: recognizer.engine_id(),
-                text: recognizer.recognize(image)?.trim().to_string(),
-            };
+            let entry = RecognizedPage::of(recognizer.engine_id(), recognizer.recognize_page(image, 1)?);
             store.put(Part::Image, &entry)?;
             entry
         }
@@ -143,11 +174,7 @@ pub fn complete_pdf_text_reporting(
             }
         };
         let result = render_page(pdf, page, &dir).and_then(|image| {
-            let text = recognizer.recognize(&image)?;
-            let entry = RecognizedPage {
-                engine_id: recognizer.engine_id(),
-                text: text.trim().to_string(),
-            };
+            let entry = RecognizedPage::of(recognizer.engine_id(), recognizer.recognize_page(&image, page)?);
             store.put(Part::Page(page), &entry)?;
             Ok(entry)
         });
@@ -170,10 +197,21 @@ pub fn complete_pdf_text_reporting(
     Ok(splice_recognized_pages(extracted, &recognized))
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RecognizedPage {
     pub engine_id: String,
     pub text: String,
+    /// The words the engine doubts (kept beside the text, which they do
+    /// not change).
+    pub doubtful: Vec<DoubtfulWord>,
+    /// The model that read it, as its provider says.
+    pub read_by: Option<String>,
+}
+
+impl RecognizedPage {
+    fn of(engine_id: String, reading: PageReading) -> Self {
+        Self { engine_id, text: reading.text.trim().to_string(), doubtful: reading.doubtful, read_by: reading.read_by }
+    }
 }
 
 /// Insert each recognized page at the end of its `## Page N` section.
@@ -240,7 +278,7 @@ pub fn textless_pages(pdf: &Path) -> Result<Vec<u32>, String> {
 }
 
 /// Render one page to a PNG in `dest_dir` and return its path.
-fn render_page(pdf: &Path, page: u32, dest_dir: &Path) -> Result<PathBuf, String> {
+pub(crate) fn render_page(pdf: &Path, page: u32, dest_dir: &Path) -> Result<PathBuf, String> {
     use pdfium_render::prelude::*;
 
     let _guard = crate::commands::fs::lock_pdfium();
@@ -327,6 +365,7 @@ mod tests {
         RecognizedPage {
             engine_id: "falso:1".to_string(),
             text: text.to_string(),
+            ..Default::default()
         }
     }
 
@@ -398,6 +437,9 @@ mod tests {
         assert!(recognizer_for(&config).is_err());
         let codex = RecognitionConfig { engine: "codex-cli".to_string(), model: "m".to_string() };
         assert_eq!(engine_id(&codex).unwrap(), "codex-cli:m");
+        // Core's needs nothing to be named: its connection is read later.
+        let core = RecognitionConfig { engine: "core".to_string(), model: String::new() };
+        assert_eq!(engine_id(&core).unwrap(), "core:textract-1.0");
     }
 
     #[test]

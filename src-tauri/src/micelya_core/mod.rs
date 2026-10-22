@@ -25,7 +25,9 @@ use client::{CoreClient, CoreError, Side, Timing};
 
 /// Its name in the keychain.
 pub const CONNECTION_KEY: &str = "connection:micelya-core";
-/// How the choices of the registry of AI services name it.
+/// How the choices of the registry of AI services and the catalog of
+/// engines name it (the screens use it; the tests check they agree).
+#[allow(dead_code)]
 pub const CONNECTION_ID: &str = "micelya-core";
 /// How many readings «Probar la conexión» asks for (the most the API gives at once).
 const TEST_LIST_LIMIT: u32 = 100;
@@ -78,7 +80,7 @@ pub struct ConnectionFields {
 pub struct ConnectionView {
     #[serde(flatten)]
     pub fields: ConnectionFields,
-    /// The environment of Core it was given for (`dev-ecs`…); not edited here.
+    /// The environment of Core it was given for (development, production…); not edited here.
     pub environment: String,
     /// Whether a secret is kept (it is never shown).
     pub has_secret: bool,

@@ -537,6 +537,11 @@ fn engine_note(definition: &Definition, engine: Option<&EngineChoice>) -> Option
         None => Some(format!("Sin motor en {service}, esta pregunta no se hace.")),
         // The chat runs in the app, with any engine.
         Some(_) if definition.id == "chat" => None,
+        // Textract takes no instructions.
+        Some(choice) if definition.id == "recognition" && choice.engine == "core" => Some(
+            "Micelya Core no recibe esta pregunta: lee cada página con Textract, sin instrucciones, y devuelve sus renglones con la confianza de cada palabra."
+                .to_string(),
+        ),
         Some(choice) if !services::runs_in_base(definition.service, &choice.engine) => {
             Some("La base no pregunta con este motor: hasta elegir Codex, esta pregunta no se hace.".to_string())
         }
@@ -710,6 +715,10 @@ mod tests {
         // Without an engine in the registry, the base says it does not ask.
         assert!(reading.engine.is_none());
         assert!(reading.engine_note.as_deref().unwrap().contains("no se hace"));
+        // Micelya Core reads scans without this question.
+        let core = EngineChoice { engine: "core".into(), ..Default::default() };
+        let recognition = DEFINITIONS.iter().find(|d| d.id == "recognition").unwrap();
+        assert!(engine_note(recognition, Some(&core)).unwrap().contains("no recibe esta pregunta"));
         // The catalogs that come with the app are in use.
         assert!(reading.catalogs.iter().all(|c| !c.from_folder && !c.unused_file));
         assert_eq!(reading.catalogs.len(), 2);

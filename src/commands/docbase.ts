@@ -694,7 +694,8 @@ export function runTypes(engine: AskConfig, maxQuestions?: number): Promise<Type
 
 /** Which engine recognizes the text of scans, and with which model. */
 export interface RecognitionConfig {
-  engine: "codex-cli"
+  /** Codex, or Micelya Core (Textract, page by page). */
+  engine: "codex-cli" | "core"
   model: string
 }
 
@@ -734,10 +735,18 @@ export interface CatalogEngine {
   name: string
   /** `local`: a program on this computer; `api`: a provider's API; `search`: a web search. */
   kind: "local" | "api" | "search"
-  /** The base runs it by itself (today only Codex). */
+  /** The base runs it by itself (today Codex, and Micelya Core for the scans). */
   inBase: boolean
   /** It takes a reasoning level. */
   reasoning: boolean
+  /** The shared connection it needs (Ajustes → Conexiones), when it is one of those. */
+  connection?: string
+  /** The model it is saved with when none is chosen. */
+  defaultModel?: string
+  /** False: the person does not choose the model (the provider says which one reads). */
+  modelChoice?: boolean
+  /** How it reads, in words. */
+  notes?: string
   /** What it says it can do, when it declares it. */
   capabilities?: Partial<Record<string, CapabilityLevel>>
   languages?: string[]

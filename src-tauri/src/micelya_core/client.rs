@@ -13,7 +13,7 @@
 //! commands of Ajustes run it where blocking is allowed (`spawn_blocking`).
 //! Every wait has a limit (`Timing`).
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -280,6 +280,79 @@ pub struct ReadingRequest {
     pub filename: String,
 }
 
+/// Where and how to upload the file of a reading (`DocumentReadingUpload`):
+/// straight to the storage, without the permit. Its address is signed, so
+/// it is never printed.
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Upload {
+    pub url: String,
+    #[serde(default = "put")]
+    pub method: String,
+    /// To be sent as they are.
+    #[serde(default)]
+    pub headers: BTreeMap<String, String>,
+    #[serde(default)]
+    pub expires_at: Option<String>,
+}
+
+fn put() -> String {
+    "PUT".to_string()
+}
+
+impl std::fmt::Debug for Upload {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Upload").field("method", &self.method).field("expires_at", &self.expires_at).finish_non_exhaustive()
+    }
+}
+
+/// What asking for a reading answers: the reading and where to upload its
+/// file (`DocumentReadingAccepted`); or, when Core already has a reading
+/// of the same file, in progress or done, that one, with where to upload
+/// only if it still waits for the file (`DocumentReadingFound`).
+#[derive(Debug, Clone, Deserialize)]
+pub struct Requested {
+    pub request: ReadingRequest,
+    #[serde(default)]
+    pub upload: Option<Upload>,
+}
+
+/// The result of a reading that ended well (`DocumentReadingResult`).
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReadingResult {
+    /// The whole text in reading order: the lines of a page joined by a
+    /// line break, the pages by a blank line.
+    #[serde(default)]
+    pub text: String,
+    #[serde(default)]
+    pub lines: Vec<Line>,
+    /// Who read it (`textract`).
+    #[serde(default)]
+    pub provider: Option<String>,
+    /// The version of its model (`1.0`).
+    #[serde(default)]
+    pub model_version: Option<String>,
+}
+
+/// One line of a reading, in reading order, with its words.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct Line {
+    #[serde(default)]
+    pub text: String,
+    #[serde(default)]
+    pub words: Vec<Word>,
+}
+
+/// One word, with how sure the provider is of it (0 to 1).
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct Word {
+    #[serde(default)]
+    pub text: String,
+    #[serde(default)]
+    pub confidence: f64,
+}
+
 pub struct CoreClient {
     connection: CoreConnection,
     http: Client,
@@ -401,6 +474,72 @@ impl CoreClient {
         }
         let body = self.repeating(|| self.call(Method::GET, &path, |r| r), |_| {})?;
         parsed(Side::Api, &body)
+    }
+
+    /// Asks for the reading of a file of `bytes` bytes named `filename`,
+    /// with its SHA-256 (`createDocumentReading`): Core gives back the
+    /// reading it already has of the same file, in progress or done,
+    /// instead of reading it again. Not repeated here: whoever asks looks
+    /// at the list before asking again.
+    pub fn request_reading(&self, filename: &str, bytes: usize, content_type: &str, sha256: &str) -> Result<Requested, CoreError> {
+        let body = serde_json::json!({ "filename": filename, "bytes": bytes, "contentType": content_type, "contentSha256": sha256 });
+        let answer = self.call(Method::POST, "tenant/document-readings", |r| r.json(&body))?;
+        parsed(Side::Api, &answer)
+    }
+
+    /// Uploads the file of a reading where `upload` says, with its headers
+    /// and without the permit.
+    pub fn upload(&self, upload: &Upload, bytes: &[u8]) -> Result<(), CoreError> {
+        let method = Method::from_bytes(upload.method.as_bytes()).unwrap_or(Method::PUT);
+        let seconds = self.timing.upload.as_secs();
+        self.repeating(
+            || {
+                let mut request = self.http.request(method.clone(), &upload.url).timeout(self.timing.upload);
+                for (name, value) in &upload.headers {
+                    request = request.header(name.as_str(), value.as_str());
+                }
+                answer(Side::Upload, seconds, request.body(bytes.to_vec()).send()).map(|_| ())
+            },
+            |_| {},
+        )
+    }
+
+    fn reading_path(id: &str, rest: &str) -> String {
+        format!("tenant/document-readings/{}{rest}", urlencoding(id))
+    }
+
+    /// Tells Core the file was uploaded (`confirmDocumentReadingUpload`);
+    /// telling it again changes nothing.
+    pub fn confirm_upload(&self, id: &str) -> Result<ReadingRequest, CoreError> {
+        let path = Self::reading_path(id, "/uploaded");
+        let body = self.repeating(|| self.call(Method::POST, &path, |r| r), |_| {})?;
+        parsed(Side::Api, &body)
+    }
+
+    /// How a reading stands (`getDocumentReading`).
+    pub fn reading(&self, id: &str) -> Result<ReadingRequest, CoreError> {
+        let path = Self::reading_path(id, "");
+        let body = self.repeating(|| self.call(Method::GET, &path, |r| r), |_| {})?;
+        parsed(Side::Api, &body)
+    }
+
+    /// The result of a reading that ended well (`getDocumentReadingResult`).
+    pub fn result(&self, id: &str) -> Result<ReadingResult, CoreError> {
+        let path = Self::reading_path(id, "/result");
+        let body = self.repeating(|| self.call(Method::GET, &path, |r| r), |_| {})?;
+        parsed(Side::Api, &body)
+    }
+
+    /// Deletes a reading in Core, with its text (`deleteDocumentReading`);
+    /// one already deleted is no error. Textract keeps its own result 7
+    /// days and has no way to delete it before.
+    pub fn delete_reading(&self, id: &str) -> Result<(), CoreError> {
+        let path = Self::reading_path(id, "");
+        match self.repeating(|| self.call(Method::DELETE, &path, |r| r), |_| {}) {
+            Ok(_) => Ok(()),
+            Err(error) if error.status() == Some(404) => Ok(()),
+            Err(error) => Err(error),
+        }
     }
 }
 

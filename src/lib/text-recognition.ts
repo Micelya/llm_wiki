@@ -6,7 +6,7 @@
  * an engine-neutral contract (`TextRecognizer`); this module only says
  * which engine is chosen, so callers never name one. It is the engine of
  * «Reconocer escaneos» in the registry of AI services (Ajustes → Servicios
- * de IA, D-443), when the base can run it: today only Codex.
+ * de IA, D-443), when the base can run it: today Codex or Micelya Core.
  */
 import type { RecognitionConfig } from "@/commands/docbase"
 import { recognitionConfigOfServices } from "@/lib/ai-services"
@@ -31,7 +31,7 @@ export const MISSING_ENGINE =
 /** What it costs, in words. */
 export const RECOGNITION_COST = "Cada página es una pregunta al modelo: consume cupo o costo de ese proveedor."
 
-const ENGINE_NAMES: Record<string, string> = { "codex-cli": "Codex" }
+const ENGINE_NAMES: Record<string, string> = { "codex-cli": "Codex", core: "Micelya Core" }
 
 /** Whether a text was produced by a recognition engine, not by plain extraction. */
 export function isRecognitionEngine(engine: string | null | undefined): engine is string {
@@ -51,7 +51,16 @@ export function recognitionFailureText(message: string): string {
   const said = message.toLowerCase()
   const page = /\bpage (\d+)/.exec(said)
   const where = page ? ` (página ${page[1]})` : ""
-  if (said.includes("cannot be reached")) return "No se encuentra el archivo: revisá que su carpeta esté conectada."
+  if (said.includes("no connection with micelya core")) {
+    return "Falta la conexión con Micelya Core: cargala en Ajustes → Conexiones."
+  }
+  if (said.includes("rejected the credential")) return "Micelya Core rechazó la credencial: revisala en Ajustes → Conexiones."
+  const core = /micelya core could not read the page: ([\s\S]+)$/i.exec(message)
+  if (core) return `Micelya Core no pudo leer ${page ? `la página ${page[1]}` : "la página"}: ${core[1].trim()}`
+  if (said.includes("could not be deleted in micelya core")) {
+    return `Micelya Core leyó la página pero no se pudo borrar su lectura allí${where}: se vuelve a intentar más tarde, sin pagarla de nuevo.`
+  }
+  if (said.includes("cannot be reached: its folder")) return "No se encuentra el archivo: revisá que su carpeta esté conectada."
   if (/usage limit|hit your limit|rate limit|429|quota|too many requests/.test(said)) {
     return `El proveedor del modelo llegó a su límite de uso${where}.`
   }

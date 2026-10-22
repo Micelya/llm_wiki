@@ -18,6 +18,8 @@ pub mod recognition;
 pub mod recognized_store;
 #[allow(dead_code)]
 mod recognition_codex;
+// Text recognition through Micelya Core (Textract), page by page (D-483).
+pub(crate) mod recognition_core;
 
 pub use provider::{LocalFolderProvider, SourceEntry, SourceProvider};
 /// What the recognition of scans asks about each image.

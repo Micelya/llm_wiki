@@ -100,8 +100,8 @@ export function askConfigOf(services: AiServices): AskConfig | null {
 /** What the base recognizes scans with (as `services::recognition_engine`); null when it cannot. */
 export function recognitionConfigOfServices(services: AiServices): RecognitionConfig | null {
   const choice = services.recognize.engine
-  if (choice?.engine !== "codex-cli") return null
-  return { engine: "codex-cli", model: choice.model }
+  if (choice?.engine !== "codex-cli" && choice?.engine !== "core") return null
+  return { engine: choice.engine, model: choice.model }
 }
 
 /**

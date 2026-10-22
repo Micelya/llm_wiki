@@ -55,6 +55,47 @@ pub(crate) struct FakeState {
     pub list_status: Option<u16>,
     /// The next lists answer these errors, one each.
     pub list_failures: Vec<u16>,
+    /// Every reading asked for, deleted or not.
+    pub readings: Vec<FakeReading>,
+    /// How the next readings end.
+    pub outcome: Outcome,
+    /// How many looks a reading in progress takes to end.
+    pub looks_to_end: usize,
+    /// What the result says read it.
+    pub model_version: String,
+    /// The next requests for a reading answer these errors, one each, after
+    /// registering it (the answer is lost on the way).
+    pub request_failures: Vec<u16>,
+    /// The next deletions answer these errors, one each.
+    pub delete_failures: Vec<u16>,
+}
+
+/// How a reading ends.
+#[derive(Debug, Clone)]
+pub(crate) enum Outcome {
+    /// It is read: these lines, each with its words and their confidence.
+    Read(Vec<Vec<(&'static str, f64)>>),
+    /// It fails, with this reason.
+    Fails(&'static str),
+    /// The file never arrived in time.
+    Expires,
+    /// It never ends.
+    NeverEnds,
+}
+
+/// A reading the fake keeps.
+#[derive(Debug, Clone)]
+pub(crate) struct FakeReading {
+    pub id: String,
+    pub filename: String,
+    pub sha256: String,
+    pub status: String,
+    pub stage: Option<String>,
+    pub failure: Option<String>,
+    pub looks: usize,
+    pub uploaded: Option<Vec<u8>>,
+    pub outcome: Outcome,
+    pub deleted: bool,
 }
 
 impl Default for FakeState {
@@ -68,7 +109,20 @@ impl Default for FakeState {
             listed: 0,
             list_status: None,
             list_failures: Vec::new(),
+            readings: Vec::new(),
+            outcome: Outcome::Read(vec![vec![("Texto", 0.99), ("de", 0.99), ("prueba", 0.95)]]),
+            looks_to_end: 2,
+            model_version: "1.0".into(),
+            request_failures: Vec::new(),
+            delete_failures: Vec::new(),
         }
+    }
+}
+
+impl FakeState {
+    /// The readings not deleted.
+    pub fn kept(&self) -> Vec<&FakeReading> {
+        self.readings.iter().filter(|r| !r.deleted).collect()
     }
 }
 
@@ -188,8 +242,55 @@ fn form(body: &[u8]) -> Vec<(String, String)> {
         .collect()
 }
 
-fn handle(state: &mut FakeState, _url: &str, seen: &Seen) -> (u16, Value) {
+fn request_json(reading: &FakeReading) -> Value {
+    let done = reading.status == "succeeded";
+    json!({ "id": reading.id, "status": reading.status, "stage": reading.stage, "requestedAt": chrono::Utc::now().to_rfc3339(),
+            "failure": reading.failure, "filename": reading.filename, "requestedBy": "persona-de-prueba", "ownership": "personal",
+            "pages": if done { json!(1) } else { Value::Null }, "characters": if done { json!(10) } else { Value::Null },
+            "cancellable": false, "analysis": null })
+}
+
+fn upload_json(url: &str, reading: &FakeReading) -> Value {
+    json!({ "url": format!("{url}/subidas/{}?firma=firma-de-prueba", reading.id), "method": "PUT",
+            "headers": { "Content-Type": "image/jpeg", "x-amz-meta-prueba": "1" }, "expiresAt": "2099-01-01T00:00:00Z" })
+}
+
+fn result_json(reading: &FakeReading, model_version: &str) -> Value {
+    let Outcome::Read(lines) = &reading.outcome else {
+        return Value::Null;
+    };
+    let lines: Vec<Value> = lines
+        .iter()
+        .enumerate()
+        .map(|(index, words)| {
+            let text = words.iter().map(|(w, _)| *w).collect::<Vec<_>>().join(" ");
+            let confidence = words.iter().map(|(_, c)| *c).fold(1.0_f64, f64::min);
+            json!({ "page": 1, "text": text, "confidence": confidence,
+                    "boundingBox": { "left": 0.1, "top": 0.05 * index as f64, "width": 0.8, "height": 0.04 },
+                    "words": words.iter().map(|(w, c)| json!({ "text": w, "confidence": c })).collect::<Vec<_>>() })
+        })
+        .collect();
+    let text = lines.iter().map(|l| l["text"].as_str().unwrap_or("").to_string()).collect::<Vec<_>>().join("\n");
+    json!({ "id": reading.id, "filename": reading.filename, "requestedBy": "persona-de-prueba", "ownership": "personal",
+            "pages": 1, "text": text, "lines": lines, "requestedAt": "2026-01-01T00:00:00Z", "completedAt": "2026-01-01T00:00:01Z",
+            "provider": "textract", "modelVersion": model_version, "analysis": null })
+}
+
+fn handle(state: &mut FakeState, url: &str, seen: &Seen) -> (u16, Value) {
     let (path, _query) = seen.path.split_once('?').unwrap_or((&seen.path, ""));
+    // The upload goes straight to the storage, without the permit.
+    if let Some(id) = path.strip_prefix("/subidas/") {
+        if seen.method != "PUT" || seen.header("authorization").is_some() {
+            return (400, Value::Null);
+        }
+        return match state.readings.iter_mut().find(|r| r.id == id && !r.deleted) {
+            Some(reading) => {
+                reading.uploaded = Some(seen.body.clone());
+                (200, Value::Null)
+            }
+            None => (404, Value::Null),
+        };
+    }
     if path == "/realms/prueba/protocol/openid-connect/token" && seen.method == "POST" {
         let fields = form(&seen.body);
         let field = |name: &str| fields.iter().find(|(k, _)| k == name).map(|(_, v)| v.as_str()).unwrap_or("");
@@ -236,8 +337,105 @@ fn handle(state: &mut FakeState, _url: &str, seen: &Seen) -> (u16, Value) {
                             "pages": 1, "characters": 10, "cancellable": false, "analysis": null })
                 })
                 .collect();
+            let mut items = items;
+            items.splice(0..0, state.readings.iter().rev().filter(|r| !r.deleted).map(request_json));
             (200, json!({ "items": items, "nextCursor": null }))
         }
-        _ => problem(404, "not_found", "No existe"),
+        ("POST", "tenant/document-readings") => {
+            let asked: Value = serde_json::from_slice(&seen.body).unwrap_or(Value::Null);
+            let filename = asked["filename"].as_str().unwrap_or("").to_string();
+            if !filename.ends_with(".jpg") && !filename.ends_with(".png") && !filename.ends_with(".pdf") {
+                return problem(422, "document_reading.filename_not_allowed", "El nombre no se admite");
+            }
+            let sha256 = asked["contentSha256"].as_str().unwrap_or("").to_string();
+            // The same file, in progress or read: that reading, not another.
+            if let Some(found) = state.readings.iter().find(|r| {
+                !r.deleted && !sha256.is_empty() && r.sha256 == sha256 && (r.status == "in_progress" || r.status == "succeeded")
+            }) {
+                let upload = if found.stage.as_deref() == Some("awaiting_input") { upload_json(url, found) } else { Value::Null };
+                return (200, json!({ "request": request_json(found), "upload": upload }));
+            }
+            let reading = FakeReading {
+                id: format!("lectura-{}", state.readings.len() + 1),
+                filename,
+                sha256,
+                status: "in_progress".into(),
+                stage: Some("awaiting_input".into()),
+                failure: None,
+                looks: 0,
+                uploaded: None,
+                outcome: state.outcome.clone(),
+                deleted: false,
+            };
+            let answer = json!({ "request": request_json(&reading), "upload": upload_json(url, &reading) });
+            state.readings.push(reading);
+            if !state.request_failures.is_empty() {
+                let status = state.request_failures.remove(0);
+                return problem(status, "DEPENDENCY_UNAVAILABLE", "La respuesta se perdió");
+            }
+            (202, answer)
+        }
+        (method, route) => {
+            let Some(rest) = route.strip_prefix("tenant/document-readings/") else {
+                return problem(404, "not_found", "No existe");
+            };
+            let (id, action) = rest.split_once('/').unwrap_or((rest, ""));
+            if method == "DELETE" && !state.delete_failures.is_empty() {
+                let status = state.delete_failures.remove(0);
+                return problem(status, "DEPENDENCY_UNAVAILABLE", "No se pudo borrar");
+            }
+            let (looks_to_end, model_version) = (state.looks_to_end, state.model_version.clone());
+            let Some(reading) = state.readings.iter_mut().find(|r| r.id == id && !r.deleted) else {
+                return problem(404, "not_found", "No existe");
+            };
+            match (method, action) {
+                ("POST", "uploaded") => {
+                    if reading.uploaded.is_none() {
+                        return problem(409, "document_reading.upload_not_found", "No llegó el documento");
+                    }
+                    if reading.stage.as_deref() == Some("awaiting_input") {
+                        reading.stage = Some("queued".into());
+                    }
+                    (200, request_json(reading))
+                }
+                ("GET", "") => {
+                    if reading.status == "in_progress" {
+                        reading.looks += 1;
+                        let started = reading.stage.as_deref() != Some("awaiting_input");
+                        if reading.looks >= looks_to_end && (started || matches!(reading.outcome, Outcome::Expires)) {
+                            match reading.outcome.clone() {
+                                Outcome::Read(_) => reading.status = "succeeded".into(),
+                                Outcome::Fails(reason) => {
+                                    reading.status = "failed".into();
+                                    reading.failure = Some(reason.into());
+                                }
+                                Outcome::Expires => {
+                                    reading.status = "expired".into();
+                                    reading.failure = Some("El documento no llegó a tiempo.".into());
+                                }
+                                Outcome::NeverEnds => {}
+                            }
+                            if reading.status != "in_progress" {
+                                reading.stage = None;
+                            }
+                        } else if started {
+                            reading.stage = Some("awaiting_provider".into());
+                        }
+                    }
+                    (200, request_json(reading))
+                }
+                ("GET", "result") => {
+                    if reading.status != "succeeded" {
+                        return problem(409, "document_reading.not_finished", "No terminó");
+                    }
+                    (200, result_json(reading, &model_version))
+                }
+                ("DELETE", "") => {
+                    reading.deleted = true;
+                    (204, Value::Null)
+                }
+                _ => problem(404, "not_found", "No existe"),
+            }
+        }
     }
 }

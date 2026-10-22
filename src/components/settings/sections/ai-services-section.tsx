@@ -16,10 +16,14 @@ import {
 import { CODEX_REASONING_LEVELS, codexReasoningEffort } from "@/lib/codex-reasoning"
 import { resolveSearchConfig } from "@/lib/web-search"
 import { updateAiServices, useAiServicesStore } from "@/stores/ai-services-store"
+import { loadCoreConnection, useCoreConnectionStore } from "@/stores/core-connection-store"
 import { useWikiStore, type ProviderConfigs, type SearchProviderOverride } from "@/stores/wiki-store"
 
 /** Where the data of a connection is edited. */
-export type ConnectionsPlace = "llm" | "web-search"
+export type ConnectionsPlace = "llm" | "web-search" | "connections"
+
+/** The shared connections of Ajustes → Conexiones, by the name the catalog gives them. */
+const SHARED_CONNECTIONS: Record<string, string> = { "micelya-core": "Micelya Core" }
 
 const ICONS: Record<AiServiceId, typeof Cpu> = { ask: Sparkles, recognize: ScanText, research: Globe }
 
@@ -38,6 +42,7 @@ export function AiServicesSection({ onOpen }: { onOpen: (place: ConnectionsPlace
   const providerConfigs = useWikiStore((s) => s.providerConfigs)
   const searchApiConfig = useWikiStore((s) => s.searchApiConfig)
   const taskModelRouting = useWikiStore((s) => s.taskModelRouting)
+  const coreConnected = useCoreConnectionStore((s) => !!s.connection?.hasSecret)
   const [problem, setProblem] = useState<string | null>(null)
   const [saved, setSaved] = useState<AiServiceId | null>(null)
   const presets = useMemo(() => availableLlmPresets(customLlmPresets), [customLlmPresets])
@@ -45,6 +50,11 @@ export function AiServicesSection({ onOpen }: { onOpen: (place: ConnectionsPlace
   // As in «Búsqueda en internet»: Firecrawl works without a key, SearXNG needs its address.
   const searchConfigured = (id: string) =>
     id === "firecrawl" || (id === "searxng" ? !!searchConfigs[id]?.searXngUrl : !!searchConfigs[id]?.apiKey)
+  // Whether the shared connection an engine needs is loaded (today only Micelya Core's).
+  const connected = (connection: string | undefined) => !connection || (connection === "micelya-core" && coreConnected)
+  useEffect(() => {
+    void loadCoreConnection()
+  }, [])
 
   async function change(service: AiServiceId, part: "engine" | "alternative", choice: EngineChoice | null) {
     setProblem(null)
@@ -87,8 +97,9 @@ export function AiServicesSection({ onOpen }: { onOpen: (place: ConnectionsPlace
         <h2 className="text-xl font-semibold">Servicios de IA</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Qué motor usa cada servicio, con qué modelo, y uno alternativo si hace falta. La base lee esta elección en cada
-          pedido: un cambio se usa en el próximo. Los datos para conectarse con cada proveedor están en «Conexiones con
-          modelos» y «Búsqueda en internet»; sus claves se guardan en el llavero del sistema, no en un archivo.
+          pedido: un cambio se usa en el próximo. Los datos para conectarse con cada proveedor están en «Conexiones»
+          (Micelya Core), «Conexiones con modelos» y «Búsqueda en internet»; sus claves se guardan en el llavero del
+          sistema, no en un archivo.
         </p>
       </div>
 
@@ -118,11 +129,23 @@ export function AiServicesSection({ onOpen }: { onOpen: (place: ConnectionsPlace
               presets={presets}
               providerConfigs={providerConfigs}
               searchConfigured={searchConfigured}
+              connected={connected}
               choice={choice.engine}
               onChange={(next) => void change(service.id, "engine", next)}
             />
 
-            {choice.engine && engine && <EngineFacts catalog={catalog} engine={engine} />}
+            {choice.engine && engine && <EngineFacts catalog={catalog} engine={engine} model={choice.engine.model} />}
+            {choice.engine && engine?.connection && !connected(engine.connection) && (
+              <div className="flex flex-wrap items-center gap-2 text-xs text-amber-700 dark:text-amber-400">
+                <span>
+                  Falta la conexión con {SHARED_CONNECTIONS[engine.connection] ?? engine.connection}: sin ella no se lee
+                  nada con este motor.
+                </span>
+                <Button variant="outline" size="sm" onClick={() => onOpen("connections")}>
+                  Ir a Conexiones
+                </Button>
+              </div>
+            )}
             {choice.engine && engine && !engine.inBase && service.id !== "research" && (
               <p className="text-xs text-amber-700 dark:text-amber-400">
                 {service.id === "ask"
@@ -169,6 +192,7 @@ export function AiServicesSection({ onOpen }: { onOpen: (place: ConnectionsPlace
                   presets={presets}
                   providerConfigs={providerConfigs}
                   searchConfigured={searchConfigured}
+                  connected={connected}
                   choice={choice.alternative}
                   onChange={(next) => void change(service.id, "alternative", next)}
                 />
@@ -215,15 +239,17 @@ function connectionsInUse(services: AiServices, presets: LlmPreset[], catalog: E
   for (const id of ["ask", "recognize", "research"] as const) {
     for (const choice of [services[id].engine, services[id].alternative]) {
       if (!choice?.connection) continue
-      const place: ConnectionsPlace = id === "research" ? "web-search" : "llm"
+      const shared = SHARED_CONNECTIONS[choice.connection]
+      const place: ConnectionsPlace = shared ? "connections" : id === "research" ? "web-search" : "llm"
       const key = `${place}:${choice.connection}`
       if (found.has(key)) continue
-      const label =
-        place === "llm"
+      const label = shared
+        ? shared
+        : place === "llm"
           ? presets.find((preset) => preset.id === choice.connection)?.label ?? choice.connection
           : catalogEngine(catalog, "research", choice.connection)?.name ?? choice.connection
       const names = servicesUsing(services, choice.connection)
-        .filter((service) => (place === "web-search") === (service === "research"))
+        .filter((service) => shared || (place === "web-search") === (service === "research"))
         .map((service) => catalog.services.find((s) => s.id === service)?.name ?? service)
       found.set(key, { id: choice.connection, label, place, services: names })
     }
@@ -238,12 +264,14 @@ interface ChoiceEditorProps {
   presets: LlmPreset[]
   providerConfigs: ProviderConfigs
   searchConfigured: (id: string) => boolean
+  /** Whether the shared connection an engine needs is loaded. */
+  connected: (connection: string | undefined) => boolean
   choice: EngineChoice | null
   onChange: (choice: EngineChoice | null) => void
 }
 
 /** The engine of a service (or its alternative), with its model and reasoning. */
-function ChoiceEditor({ label, service, catalog, presets, providerConfigs, searchConfigured, choice, onChange }: ChoiceEditorProps) {
+function ChoiceEditor({ label, service, catalog, presets, providerConfigs, searchConfigured, connected, choice, onChange }: ChoiceEditorProps) {
   const options = engineOptions(service, catalog, presets)
   const engine = catalogEngine(catalog, service, choice?.engine)
   const [model, setModel] = useState(choice?.model ?? "")
@@ -262,7 +290,7 @@ function ChoiceEditor({ label, service, catalog, presets, providerConfigs, searc
     onChange({
       engine: option.engine,
       connection: option.connection,
-      model: service === "research" ? "" : (saved?.model ?? optionPreset?.defaultModel ?? "").trim(),
+      model: service === "research" ? "" : (saved?.model ?? optionPreset?.defaultModel ?? entry?.defaultModel ?? "").trim(),
       reasoning: entry?.reasoning ? codexReasoningEffort(saved?.codexReasoningEffort) : "",
     })
   }
@@ -283,15 +311,20 @@ function ChoiceEditor({ label, service, catalog, presets, providerConfigs, searc
           className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
         >
           <option value="">Ninguno</option>
-          {options.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-              {service === "research" && !searchConfigured(option.connection) ? " (faltan sus datos)" : ""}
-            </option>
-          ))}
+          {options.map((option) => {
+            // An engine whose shared connection is not loaded cannot be chosen.
+            const missing = !connected(catalogEngine(catalog, service, option.engine)?.connection)
+            return (
+              <option key={option.value} value={option.value} disabled={missing && option.value !== (choice ? optionValue(service, choice) : "")}>
+                {option.label}
+                {service === "research" && !searchConfigured(option.connection) ? " (faltan sus datos)" : ""}
+                {missing ? " (falta la conexión)" : ""}
+              </option>
+            )
+          })}
         </select>
       </div>
-      {choice && service !== "research" && (
+      {choice && service !== "research" && engine?.modelChoice !== false && (
         <div className="space-y-1.5">
           <Label htmlFor={`${id}-model`}>Modelo</Label>
           <Input
@@ -364,12 +397,14 @@ function engineOptions(service: AiServiceId, catalog: EnginesCatalog, presets: L
       value: engine.id,
       label: engine.name,
       engine: engine.id,
-      connection: service === "recognize" ? presets.find((p) => engineOfProvider(p.provider) === engine.id)?.id ?? engine.id : engine.id,
+      connection:
+        engine.connection ??
+        (service === "recognize" ? presets.find((p) => engineOfProvider(p.provider) === engine.id)?.id ?? engine.id : engine.id),
     }))
 }
 
 /** What an engine says it can do, where it processes and what its provider keeps. */
-function EngineFacts({ catalog, engine }: { catalog: EnginesCatalog; engine: CatalogEngine }) {
+function EngineFacts({ catalog, engine, model }: { catalog: EnginesCatalog; engine: CatalogEngine; model: string }) {
   const capabilities = engine.capabilities
     ? catalog.capabilities
         .filter((capability) => engine.capabilities?.[capability.id])
@@ -381,6 +416,18 @@ function EngineFacts({ catalog, engine }: { catalog: EnginesCatalog; engine: Cat
         <>
           <dt className="font-medium">Sabe leer</dt>
           <dd className="text-muted-foreground">{capabilities.join(" · ")} (lo que declara; se confirma comparando con escaneos reales)</dd>
+        </>
+      )}
+      {engine.modelChoice === false && model && (
+        <>
+          <dt className="font-medium">Modelo</dt>
+          <dd className="text-muted-foreground">{model} (el que usa el proveedor; queda guardado con cada texto)</dd>
+        </>
+      )}
+      {engine.notes && (
+        <>
+          <dt className="font-medium">Cómo lee</dt>
+          <dd className="text-muted-foreground">{engine.notes}</dd>
         </>
       )}
       {engine.languages && engine.languages.length > 0 && (

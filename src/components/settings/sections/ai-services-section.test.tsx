@@ -4,6 +4,7 @@ import type { AiServices, EngineChoice, EnginesCatalog } from "@/commands/docbas
 import catalog from "../../../../src-tauri/resources/catalog/ai-engines.json"
 import { NO_SERVICES } from "@/lib/ai-services"
 import { useAiServicesStore } from "@/stores/ai-services-store"
+import { useCoreConnectionStore } from "@/stores/core-connection-store"
 import { useWikiStore } from "@/stores/wiki-store"
 import { AiServicesSection } from "./ai-services-section"
 
@@ -38,6 +39,7 @@ const services: AiServices = {
   recognize: { engine: choice("codex-cli", "codex-cli", "modelo-a"), alternative: null },
   research: { engine: choice("tavily", "tavily"), alternative: null },
 }
+const coreFields = { api: "https://api.ejemplo.invalid/v1", issuer: "https://emisor.ejemplo.invalid/realms/prueba", tenant: "t", clientId: "c" }
 
 function shown(): { html: string; words: string } {
   const html = renderToStaticMarkup(<AiServicesSection onOpen={() => {}} />)
@@ -47,6 +49,7 @@ function shown(): { html: string; words: string } {
 beforeEach(() => {
   useAiServicesStore.setState({ services, catalog: catalog as EnginesCatalog, loaded: true })
   useWikiStore.setState({ taskModelRouting: { chatPresetId: null, ingestPresetId: null }, customLlmPresets: [], providerConfigs: {} })
+  useCoreConnectionStore.setState({ connection: null, loaded: true, problem: null })
 })
 
 describe("Ajustes → Servicios de IA", () => {
@@ -85,6 +88,29 @@ describe("Ajustes → Servicios de IA", () => {
     expect(words).toContain("Sin motor, los escaneos quedan sin texto.")
     expect(words).toContain("Sin buscador no se puede investigar en internet.")
     expect(words).toContain("El chat usa otro motor, elegido antes: Claude Code CLI")
+  })
+
+  it("offers Micelya Core to recognize scans only with its connection, and says where it processes", () => {
+    useCoreConnectionStore.setState({ connection: null, loaded: true })
+    let { html } = shown()
+    expect(html).toMatch(/<option value="core" disabled="">Micelya Core \(Textract\) \(falta la conexión\)<\/option>/)
+
+    useAiServicesStore.setState({
+      services: { ...services, recognize: { engine: choice("core", "micelya-core", "textract-1.0"), alternative: null } },
+    })
+    let words = shown().words
+    expect(words).toContain("Falta la conexión con Micelya Core: sin ella no se lee nada con este motor. Ir a Conexiones")
+
+    useCoreConnectionStore.setState({ connection: { ...coreFields, environment: "", hasSecret: true } })
+    ;({ html, words } = shown())
+    expect(html).toMatch(/<option value="core" selected="">Micelya Core \(Textract\)<\/option>/)
+    expect(words).not.toContain("Falta la conexión con Micelya Core")
+    expect(words).toContain("Modelo textract-1.0 (el que usa el proveedor")
+    expect(words).toContain("Procesa en Oregón (Estados Unidos).")
+    expect(words).toContain("Textract guarda el resultado 7 días. Desktop borra cada lectura en Core apenas la guarda.")
+    expect(words).toContain("Texto impreso: sí · Tablas: no · Casillas marcadas: no · Manuscrito: a veces")
+    expect(words).not.toContain("La base todavía no reconoce escaneos con este motor.")
+    expect(words).toContain("Micelya Core — Reconocer escaneos")
   })
 
   it("says so when the base cannot be read", () => {
