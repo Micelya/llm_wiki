@@ -404,15 +404,24 @@ impl CoreClient {
         Ok(permit.access_token)
     }
 
-    /// The permit kept while it lasts, or a new one.
-    fn permit(&self) -> Result<String, CoreError> {
-        let kept = permits()
+    fn kept_permit(&self) -> Option<String> {
+        permits()
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .get(&permit_key(&self.connection))
             .filter(|permit| permit.until > Instant::now())
-            .map(|permit| permit.token.clone());
-        match kept {
+            .map(|permit| permit.token.clone())
+    }
+
+    /// The permit kept while it lasts, or a new one. One is asked at a
+    /// time: the pages read at once that need one wait for it and share it.
+    fn permit(&self) -> Result<String, CoreError> {
+        if let Some(token) = self.kept_permit() {
+            return Ok(token);
+        }
+        static ASKING: Mutex<()> = Mutex::new(());
+        let _asking = ASKING.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        match self.kept_permit() {
             Some(token) => Ok(token),
             None => self.new_permit(),
         }

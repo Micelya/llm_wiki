@@ -68,6 +68,10 @@ pub(crate) struct FakeState {
     pub request_failures: Vec<u16>,
     /// The next deletions answer these errors, one each.
     pub delete_failures: Vec<u16>,
+    /// The readings asked with these names fail at their first look.
+    pub fails_named: Vec<String>,
+    /// The most readings asked and not deleted at the same time.
+    pub open_most: usize,
 }
 
 /// How a reading ends.
@@ -75,6 +79,9 @@ pub(crate) struct FakeState {
 pub(crate) enum Outcome {
     /// It is read: these lines, each with its words and their confidence.
     Read(Vec<Vec<(&'static str, f64)>>),
+    /// It is read: one line that says the name it was asked with
+    /// («Lectura de pagina-3.jpg»).
+    Named,
     /// It fails, with this reason.
     Fails(&'static str),
     /// The file never arrived in time.
@@ -93,6 +100,8 @@ pub(crate) struct FakeReading {
     pub stage: Option<String>,
     pub failure: Option<String>,
     pub looks: usize,
+    /// How many looks it takes to end.
+    pub looks_to_end: usize,
     pub uploaded: Option<Vec<u8>>,
     pub outcome: Outcome,
     pub deleted: bool,
@@ -115,6 +124,8 @@ impl Default for FakeState {
             model_version: "1.0".into(),
             request_failures: Vec::new(),
             delete_failures: Vec::new(),
+            fails_named: Vec::new(),
+            open_most: 0,
         }
     }
 }
@@ -256,14 +267,16 @@ fn upload_json(url: &str, reading: &FakeReading) -> Value {
 }
 
 fn result_json(reading: &FakeReading, model_version: &str) -> Value {
-    let Outcome::Read(lines) = &reading.outcome else {
-        return Value::Null;
+    let lines: Vec<Vec<(String, f64)>> = match &reading.outcome {
+        Outcome::Read(lines) => lines.iter().map(|words| words.iter().map(|(w, c)| (w.to_string(), *c)).collect()).collect(),
+        Outcome::Named => vec![vec![("Lectura".into(), 0.99), ("de".into(), 0.99), (reading.filename.clone(), 0.99)]],
+        _ => return Value::Null,
     };
     let lines: Vec<Value> = lines
         .iter()
         .enumerate()
         .map(|(index, words)| {
-            let text = words.iter().map(|(w, _)| *w).collect::<Vec<_>>().join(" ");
+            let text = words.iter().map(|(w, _)| w.as_str()).collect::<Vec<_>>().join(" ");
             let confidence = words.iter().map(|(_, c)| *c).fold(1.0_f64, f64::min);
             json!({ "page": 1, "text": text, "confidence": confidence,
                     "boundingBox": { "left": 0.1, "top": 0.05 * index as f64, "width": 0.8, "height": 0.04 },
@@ -355,6 +368,7 @@ fn handle(state: &mut FakeState, url: &str, seen: &Seen) -> (u16, Value) {
                 let upload = if found.stage.as_deref() == Some("awaiting_input") { upload_json(url, found) } else { Value::Null };
                 return (200, json!({ "request": request_json(found), "upload": upload }));
             }
+            let fails = state.fails_named.contains(&filename);
             let reading = FakeReading {
                 id: format!("lectura-{}", state.readings.len() + 1),
                 filename,
@@ -363,12 +377,15 @@ fn handle(state: &mut FakeState, url: &str, seen: &Seen) -> (u16, Value) {
                 stage: Some("awaiting_input".into()),
                 failure: None,
                 looks: 0,
+                looks_to_end: if fails { 1 } else { state.looks_to_end },
                 uploaded: None,
-                outcome: state.outcome.clone(),
+                outcome: if fails { Outcome::Fails("El proveedor no pudo leer esta página.") } else { state.outcome.clone() },
                 deleted: false,
             };
             let answer = json!({ "request": request_json(&reading), "upload": upload_json(url, &reading) });
             state.readings.push(reading);
+            let open = state.kept().len();
+            state.open_most = state.open_most.max(open);
             if !state.request_failures.is_empty() {
                 let status = state.request_failures.remove(0);
                 return problem(status, "DEPENDENCY_UNAVAILABLE", "La respuesta se perdió");
@@ -384,7 +401,7 @@ fn handle(state: &mut FakeState, url: &str, seen: &Seen) -> (u16, Value) {
                 let status = state.delete_failures.remove(0);
                 return problem(status, "DEPENDENCY_UNAVAILABLE", "No se pudo borrar");
             }
-            let (looks_to_end, model_version) = (state.looks_to_end, state.model_version.clone());
+            let model_version = state.model_version.clone();
             let Some(reading) = state.readings.iter_mut().find(|r| r.id == id && !r.deleted) else {
                 return problem(404, "not_found", "No existe");
             };
@@ -402,9 +419,9 @@ fn handle(state: &mut FakeState, url: &str, seen: &Seen) -> (u16, Value) {
                     if reading.status == "in_progress" {
                         reading.looks += 1;
                         let started = reading.stage.as_deref() != Some("awaiting_input");
-                        if reading.looks >= looks_to_end && (started || matches!(reading.outcome, Outcome::Expires)) {
+                        if reading.looks >= reading.looks_to_end && (started || matches!(reading.outcome, Outcome::Expires)) {
                             match reading.outcome.clone() {
-                                Outcome::Read(_) => reading.status = "succeeded".into(),
+                                Outcome::Read(_) | Outcome::Named => reading.status = "succeeded".into(),
                                 Outcome::Fails(reason) => {
                                     reading.status = "failed".into();
                                     reading.failure = Some(reason.into());

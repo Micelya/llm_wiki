@@ -14,6 +14,7 @@
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use serde::{Deserialize, Serialize};
 
@@ -77,6 +78,67 @@ pub trait TextRecognizer {
         let _ = page;
         self.recognize(image).map(|text| PageReading { text, ..Default::default() })
     }
+
+    /// The pages `pages` of a document, each read from the image
+    /// `image(page)` makes of it: `done` is told of each one as it ends, in
+    /// the order they end, and says whether to go on. After a page fails no
+    /// other page starts. By default one page after the other; an engine
+    /// that reads several at once says so here (Micelya Core, P-292).
+    fn recognize_pages(&self, pages: &[u32], image: &PageImage<'_>, done: &mut dyn FnMut(u32, Result<PageReading, String>) -> bool) {
+        for &page in pages {
+            let reading = image(page).and_then(|image| self.recognize_page(&image, page));
+            let failed = reading.is_err();
+            if !done(page, reading) || failed {
+                break;
+            }
+        }
+    }
+}
+
+/// Makes the image of a page of a document, to be read; an engine that
+/// reads several pages at once calls it from several threads.
+pub type PageImage<'a> = dyn Fn(u32) -> Result<PathBuf, String> + Sync + 'a;
+
+/// Reads `pages` with `read`, up to `at_once` at the same time, each on a
+/// thread of its own, and tells `done`, on the calling thread, of each page
+/// as it ends, in the order they end; `done` says whether to go on. After a
+/// page fails, or `done` says to stop, no other page starts; those under
+/// way end and are told, so nothing already read (and paid) is lost.
+pub(crate) fn pages_at_once<T: Send>(
+    at_once: usize,
+    pages: &[u32],
+    read: &(dyn Fn(u32) -> Result<T, String> + Sync),
+    done: &mut dyn FnMut(u32, Result<T, String>) -> bool,
+) {
+    let stop = AtomicBool::new(false);
+    let next = AtomicUsize::new(0);
+    let (sender, received) = std::sync::mpsc::channel();
+    std::thread::scope(|scope| {
+        for _ in 0..at_once.clamp(1, pages.len().max(1)) {
+            let sender = sender.clone();
+            let (stop, next) = (&stop, &next);
+            scope.spawn(move || {
+                while !stop.load(Ordering::SeqCst) {
+                    let Some(&page) = pages.get(next.fetch_add(1, Ordering::SeqCst)) else {
+                        break;
+                    };
+                    let result = read(page);
+                    if result.is_err() {
+                        stop.store(true, Ordering::SeqCst);
+                    }
+                    if sender.send((page, result)).is_err() {
+                        break;
+                    }
+                }
+            });
+        }
+        drop(sender);
+        for (page, result) in received {
+            if !done(page, result) {
+                stop.store(true, Ordering::SeqCst);
+            }
+        }
+    });
 }
 
 pub fn recognizer_for(config: &RecognitionConfig) -> Result<Box<dyn TextRecognizer>, String> {
@@ -139,60 +201,71 @@ pub fn complete_pdf_text(
 }
 
 /// Same as `complete_pdf_text`; `on_page(position, total)` is called for
-/// each page that needs recognition, before it is read, counting from 1.
+/// each page that needs recognition, before it is read, counting from 1
+/// (from the engine's threads when it reads several pages at once).
+///
+/// The engine reads the pages not read yet (`recognize_pages`): one after
+/// the other, or several at once, each kept as soon as it is read, in its
+/// own section whatever the order they end in. The failure told is the one
+/// of the first page that failed.
 pub fn complete_pdf_text_reporting(
     pdf: &Path,
     extracted: &str,
     store: &RecognizedStore,
     recognizer: &dyn TextRecognizer,
-    on_page: &dyn Fn(usize, usize),
+    on_page: &(dyn Fn(usize, usize) + Sync),
 ) -> Result<String, String> {
     let pages = textless_pages(pdf)?;
     if pages.is_empty() {
         return Ok(extracted.to_string());
     }
     let total = pages.len();
+    let position = |page: u32| pages.iter().position(|p| *p == page).map_or(0, |index| index + 1);
 
     let mut recognized = BTreeMap::new();
-    let mut scratch: Option<PathBuf> = None;
-    let mut failure = None;
-    for (index, page) in pages.into_iter().enumerate() {
-        on_page(index + 1, total);
-        if let Some(hit) = store.get(Part::Page(page)) {
-            recognized.insert(page, hit);
-            continue;
-        }
-        let dir = match &scratch {
-            Some(dir) => dir.clone(),
-            None => {
-                let dir = std::env::temp_dir()
-                    .join(format!("micelya-recognition-{}", uuid::Uuid::new_v4()));
-                fs::create_dir_all(&dir)
-                    .map_err(|e| format!("Failed to create '{}': {e}", dir.display()))?;
-                scratch = Some(dir.clone());
-                dir
+    let mut to_read = Vec::new();
+    for (index, page) in pages.iter().enumerate() {
+        match store.get(Part::Page(*page)) {
+            Some(hit) => {
+                on_page(index + 1, total);
+                recognized.insert(*page, hit);
             }
-        };
-        let result = render_page(pdf, page, &dir).and_then(|image| {
-            let entry = RecognizedPage::of(recognizer.engine_id(), recognizer.recognize_page(&image, page)?);
+            None => to_read.push(*page),
+        }
+    }
+    if to_read.is_empty() {
+        return Ok(splice_recognized_pages(extracted, &recognized));
+    }
+    let dir = std::env::temp_dir().join(format!("micelya-recognition-{}", uuid::Uuid::new_v4()));
+    fs::create_dir_all(&dir).map_err(|e| format!("Failed to create '{}': {e}", dir.display()))?;
+    let engine = recognizer.engine_id();
+    let mut failure: Option<(u32, String)> = None;
+    let image = |page: u32| {
+        on_page(position(page), total);
+        render_page(pdf, page, &dir)
+    };
+    recognizer.recognize_pages(&to_read, &image, &mut |page, reading| {
+        let kept = reading.and_then(|reading| {
+            let entry = RecognizedPage::of(engine.clone(), reading);
             store.put(Part::Page(page), &entry)?;
             Ok(entry)
         });
-        match result {
+        match kept {
             Ok(entry) => {
                 recognized.insert(page, entry);
+                true
             }
             Err(err) => {
-                failure = Some(format!("Text recognition failed on page {page}: {err}"));
-                break;
+                if failure.as_ref().is_none_or(|(first, _)| page < *first) {
+                    failure = Some((page, err));
+                }
+                false
             }
         }
-    }
-    if let Some(dir) = scratch {
-        let _ = fs::remove_dir_all(dir);
-    }
-    if let Some(err) = failure {
-        return Err(err);
+    });
+    let _ = fs::remove_dir_all(&dir);
+    if let Some((page, err)) = failure {
+        return Err(format!("Text recognition failed on page {page}: {err}"));
     }
     Ok(splice_recognized_pages(extracted, &recognized))
 }
@@ -459,7 +532,7 @@ mod tests {
     fn each_page_needing_recognition_is_reported_in_order() {
         let pdf = fixture("escaneo-2-paginas.pdf");
         let recognizer = FakeRecognizer::new(vec![Ok("primera"), Ok("segunda")]);
-        let seen = std::cell::RefCell::new(Vec::new());
+        let seen = std::sync::Mutex::new(Vec::new());
 
         complete_pdf_text_reporting(
             &pdf,
@@ -474,11 +547,11 @@ mod tests {
 ",
             &RecognizedStore::at(scratch()),
             &recognizer,
-            &|page, total| seen.borrow_mut().push((page, total)),
+            &|page, total| seen.lock().unwrap().push((page, total)),
         )
         .unwrap();
 
-        assert_eq!(*seen.borrow(), vec![(1, 2), (2, 2)]);
+        assert_eq!(*seen.lock().unwrap(), vec![(1, 2), (2, 2)]);
     }
 
     #[test]
@@ -526,6 +599,52 @@ mod tests {
         assert!(text.contains("primera") && text.contains("segunda"));
         assert_eq!(retry.calls(), 1);
         let _ = fs::remove_dir_all(cache_dir);
+    }
+
+    #[test]
+    fn pages_go_at_once_up_to_the_limit_and_none_starts_after_one_fails() {
+        let reading_now = AtomicUsize::new(0);
+        let most = AtomicUsize::new(0);
+        let read = |page: u32| {
+            let now = reading_now.fetch_add(1, Ordering::SeqCst) + 1;
+            most.fetch_max(now, Ordering::SeqCst);
+            // Page 3 fails soon; the others take longer.
+            std::thread::sleep(std::time::Duration::from_millis(if page == 3 { 40 } else { 200 }));
+            reading_now.fetch_sub(1, Ordering::SeqCst);
+            if page == 3 {
+                Err("falla de prueba".to_string())
+            } else {
+                Ok(page * 10)
+            }
+        };
+        let all: Vec<u32> = (1..=10).collect();
+
+        let mut ended = BTreeMap::new();
+        pages_at_once(4, &all[..2].iter().chain(&all[3..]).copied().collect::<Vec<_>>(), &read, &mut |page, result| {
+            ended.insert(page, result.unwrap());
+            true
+        });
+        assert_eq!(ended.len(), 9);
+        assert!(ended.iter().all(|(page, value)| *value == page * 10));
+        assert_eq!(most.load(Ordering::SeqCst), 4);
+
+        // Page 3 fails: the pages under way end and are told, no other starts.
+        let mut ended = BTreeMap::new();
+        pages_at_once(4, &all, &read, &mut |page, result| {
+            ended.insert(page, result);
+            true
+        });
+        assert_eq!(ended.keys().copied().collect::<Vec<_>>(), [1, 2, 3, 4]);
+        assert!(ended[&3].is_err() && ended[&4].is_ok());
+
+        // One at a time, in order.
+        let mut order = Vec::new();
+        most.store(0, Ordering::SeqCst);
+        pages_at_once(1, &[5, 6, 7], &read, &mut |page, _| {
+            order.push(page);
+            true
+        });
+        assert_eq!((order, most.load(Ordering::SeqCst)), (vec![5, 6, 7], 1));
     }
 
     #[test]

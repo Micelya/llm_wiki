@@ -138,7 +138,7 @@
       "capabilities": { "text": "yes", "tables": "no", "checkboxes": "no", "handwriting": "partial" },
       "languages": ["castellano", "inglés", "portugués", "francés", "alemán", "italiano"],
       "notes": "Lee el texto renglón por renglón, con la confianza de cada palabra: las de menos de 90 % quedan marcadas como dudosas. Las tablas salen como renglones, sin sus columnas, y las casillas no se leen (Core los ofrece aparte, más adelante). El manuscrito, solo en inglés. Cuesta centavos de dólar por página, en la cuenta de Core.",
-      "processing": "Procesa en Oregón (Estados Unidos). Cada página se convierte en imagen en esta computadora y se manda sola, con un nombre genérico (pagina-N.jpg), nunca el del archivo.",
+      "processing": "Procesa en Oregón (Estados Unidos). Cada página se convierte en imagen en esta computadora y se manda aparte (hasta 4 a la vez), con un nombre genérico (pagina-N.jpg), nunca el del archivo.",
       "retention": "Textract guarda el resultado 7 días. Desktop borra cada lectura en Core apenas la guarda."
     },
     {

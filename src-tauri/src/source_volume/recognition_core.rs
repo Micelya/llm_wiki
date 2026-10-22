@@ -19,6 +19,15 @@
 //! and deleted then); and when asking got no answer, the list is looked at
 //! before asking again, so a reading registered anyway is not left behind.
 //!
+//! Several pages at once (P-292): each page takes 15 to 19 seconds in Core,
+//! nearly all of it waiting, so up to `PAGES_AT_ONCE` pages of a document
+//! go at the same time, each with its whole walk (its own reading, deleted
+//! at its end) on a thread of its own. Each page is kept in its own section
+//! whatever the order they end in. After a page fails no other page
+//! starts; those under way end, so what Core read is kept and every
+//! reading is deleted. Two pages with the same image at the same time are
+//! read once: the second waits for the first.
+//!
 //! What comes back: the lines of the page, each word with its confidence. A
 //! page without lines is one Textract could not read (Core does not say so
 //! otherwise): it is kept as «[ilegible]», as Codex marks what it cannot
@@ -27,6 +36,7 @@
 //! (`recognized/<hash>/page-N.json`); the text is not changed, so the search
 //! and the reading see it as it was read.
 
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -41,11 +51,16 @@ use crate::micelya_core::client::{CoreClient, CoreError, ReadingRequest, Reading
 use crate::micelya_core::{saved_connection, CoreConnection};
 
 use super::file_hash::hex;
-use super::recognition::{DoubtfulWord, PageReading, TextRecognizer, RENDER_LONG_SIDE_PX, UNREADABLE};
+use super::recognition::{pages_at_once, DoubtfulWord, PageImage, PageReading, TextRecognizer, RENDER_LONG_SIDE_PX, UNREADABLE};
 
 /// The model Core reads with today (the `provider` and `modelVersion` of
 /// its results).
 pub const DEFAULT_MODEL: &str = "textract-1.0";
+/// How many pages of a document are read in Core at the same time (P-292).
+/// Core publishes no limit per minute and does not answer 429; with 4, a
+/// scan of 23 pages takes about 6 rounds of 15 to 19 seconds instead of 23.
+/// To change it, change this number (1 reads one page after the other).
+pub const PAGES_AT_ONCE: usize = 4;
 /// What the base is told when there is no connection to read with; its
 /// words make it wait and try again later (`stops_the_run`).
 pub const NO_CONNECTION: &str = "There is no connection with Micelya Core: load it in Ajustes → Conexiones";
@@ -71,6 +86,11 @@ pub struct CoreRecognizer {
     /// Every reading asked for in Core, in order; each one is deleted at
     /// the end of its page.
     asked: Mutex<Vec<String>>,
+    /// How many pages are read at the same time.
+    at_once: usize,
+    /// The pages being read now, by the hash of their image: a page with
+    /// the same image as one under way waits for its reading.
+    same_image: Mutex<HashMap<String, Arc<Mutex<Option<PageReading>>>>>,
 }
 
 impl CoreRecognizer {
@@ -84,6 +104,13 @@ impl CoreRecognizer {
         Self::make(model, Some(connection), timing)
     }
 
+    /// The same, reading `at_once` pages at the same time.
+    #[cfg(test)]
+    pub(crate) fn reading_at_once(mut self, at_once: usize) -> Self {
+        self.at_once = at_once.max(1);
+        self
+    }
+
     fn make(model: &str, connection: Option<CoreConnection>, timing: Timing) -> Self {
         let model = model.trim();
         Self {
@@ -92,6 +119,8 @@ impl CoreRecognizer {
             timing,
             client: Mutex::new(None),
             asked: Mutex::new(Vec::new()),
+            at_once: PAGES_AT_ONCE,
+            same_image: Mutex::new(HashMap::new()),
         }
     }
 
@@ -131,13 +160,45 @@ impl TextRecognizer for CoreRecognizer {
     fn recognize_page(&self, image: &Path, page: u32) -> Result<PageReading, String> {
         let jpeg = page_jpeg(image)?;
         let client = self.client()?;
+        // A page with the same image as one under way waits for its reading.
+        let sha256 = hex(&Sha256::digest(&jpeg));
+        let slot = self.same_image.lock().unwrap_or_else(|p| p.into_inner()).entry(sha256.clone()).or_default().clone();
+        let reading = {
+            let mut same = slot.lock().unwrap_or_else(|p| p.into_inner());
+            match same.as_ref() {
+                Some(reading) => Ok(reading.clone()),
+                None => {
+                    let read = self.read_one(&client, page, &jpeg);
+                    if let Ok(reading) = &read {
+                        *same = Some(reading.clone());
+                    }
+                    read
+                }
+            }
+        };
+        // The last page that held it lets it go.
+        let mut under_way = self.same_image.lock().unwrap_or_else(|p| p.into_inner());
+        if under_way.get(&sha256).is_some_and(|kept| Arc::ptr_eq(kept, &slot)) && Arc::strong_count(&slot) == 2 {
+            under_way.remove(&sha256);
+        }
+        reading
+    }
+
+    fn recognize_pages(&self, pages: &[u32], image: &PageImage<'_>, done: &mut dyn FnMut(u32, Result<PageReading, String>) -> bool) {
+        pages_at_once(self.at_once, pages, &|page| image(page).and_then(|image| self.recognize_page(&image, page)), done)
+    }
+}
+
+impl CoreRecognizer {
+    /// The whole walk of one page in Core, as `pagina-N.jpg`.
+    fn read_one(&self, client: &CoreClient, page: u32, jpeg: &[u8]) -> Result<PageReading, String> {
         let remember = |id: &str| {
             let mut asked = self.asked.lock().unwrap_or_else(|p| p.into_inner());
             if !asked.iter().any(|known| known == id) {
                 asked.push(id.to_string());
             }
         };
-        let result = read_page(&client, &format!("pagina-{page}.jpg"), &jpeg, &remember)?;
+        let result = read_page(client, &format!("pagina-{page}.jpg"), jpeg, &remember)?;
         let reading = page_reading(&result);
         if let Some(read_by) = reading.read_by.as_deref().filter(|by| *by != self.model) {
             // Kept with the name of the engine chosen, so it is found again
@@ -324,6 +385,7 @@ fn page_reading(result: &ReadingResult) -> PageReading {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
     use std::path::PathBuf;
     use std::time::Duration;
 
@@ -511,6 +573,134 @@ mod tests {
         assert!(core.with(|state| state.kept().is_empty()));
     }
 
+    /// `count` images of a page, each a different gray (each one is a
+    /// different image for Core).
+    fn images(dir: &Path, count: u8) -> Vec<PathBuf> {
+        (1..=count)
+            .map(|n| {
+                let path = dir.join(format!("imagen-{n}.png"));
+                image::GrayImage::from_pixel(60, 40, image::Luma([n * 20])).save(&path).unwrap();
+                path
+            })
+            .collect()
+    }
+
+    #[test]
+    fn several_pages_are_read_at_once_never_more_than_the_limit_each_with_its_own_text() {
+        let core = FakeCore::start();
+        // Each reading takes a while, so the pages overlap.
+        core.with(|state| {
+            state.outcome = Outcome::Named;
+            state.looks_to_end = 30;
+        });
+        let dir = scratch();
+        let images = images(&dir, 9);
+        let recognizer = recognizer(&core);
+        let pages: Vec<u32> = (1..=9).collect();
+        let mut texts = BTreeMap::new();
+        recognizer.recognize_pages(&pages, &|page| Ok(images[page as usize - 1].clone()), &mut |page, reading| {
+            texts.insert(page, reading.unwrap().text);
+            true
+        });
+        assert_eq!(texts.len(), 9);
+        for (page, text) in &texts {
+            assert_eq!(text, &format!("Lectura de pagina-{page}.jpg"));
+        }
+        assert_eq!(core.with(|state| state.open_most), PAGES_AT_ONCE);
+        // One reading per page, each with its generic name, every one deleted.
+        let mut names: Vec<String> = core.with(|state| state.readings.iter().map(|r| r.filename.clone()).collect());
+        names.sort();
+        assert_eq!(names, (1..=9).map(|n| format!("pagina-{n}.jpg")).collect::<Vec<_>>());
+        assert!(core.with(|state| state.kept().is_empty()));
+        assert_eq!(recognizer.asked().len(), 9);
+        // One permit for all of them.
+        assert_eq!(core.with(|state| state.permits_given), 1);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn when_a_page_fails_the_pages_under_way_end_and_every_reading_is_deleted() {
+        let core = FakeCore::start();
+        core.with(|state| {
+            state.outcome = Outcome::Named;
+            state.looks_to_end = 30;
+            state.fails_named = vec!["pagina-2.jpg".into()];
+        });
+        let dir = scratch();
+        let images = images(&dir, 8);
+        let recognizer = recognizer(&core);
+        let pages: Vec<u32> = (1..=8).collect();
+        let mut ended = BTreeMap::new();
+        recognizer.recognize_pages(&pages, &|page| Ok(images[page as usize - 1].clone()), &mut |page, reading| {
+            ended.insert(page, reading);
+            true
+        });
+        // The pages under way when it failed ended and were read; no other started.
+        assert_eq!(ended.keys().copied().collect::<Vec<_>>(), [1, 2, 3, 4]);
+        let error = ended[&2].as_ref().unwrap_err();
+        assert!(error.contains("could not read the page: El proveedor no pudo leer esta página."), "{error}");
+        for page in [1, 3, 4] {
+            assert_eq!(ended[&page].as_ref().unwrap().text, format!("Lectura de pagina-{page}.jpg"));
+        }
+        assert_eq!(core.with(|state| state.readings.len()), 4);
+        assert!(core.with(|state| state.kept().is_empty()));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn pages_with_the_same_image_at_the_same_time_are_read_once() {
+        let core = FakeCore::start();
+        core.with(|state| {
+            state.outcome = READ();
+            state.looks_to_end = 20;
+        });
+        let image = fixture("pagina-prueba.png");
+        let recognizer = recognizer(&core);
+        let mut texts = BTreeMap::new();
+        recognizer.recognize_pages(&[1, 2, 3], &|_| Ok(image.clone()), &mut |page, reading| {
+            texts.insert(page, reading.unwrap().text);
+            true
+        });
+        assert_eq!(texts.len(), 3);
+        assert!(texts.values().all(|text| text.starts_with("CONTRATO DE PRUEBA")), "{texts:?}");
+        assert_eq!(core.with(|state| state.readings.len()), 1);
+        assert!(core.with(|state| state.kept().is_empty()));
+    }
+
+    /// The text between `## Page {page}` and the next page.
+    fn section(text: &str, page: u32) -> &str {
+        let heading = format!("## Page {page}\n");
+        let start = text.find(&heading).unwrap_or_else(|| panic!("no page {page} in {text}")) + heading.len();
+        let end = text[start..].find("## Page ").map_or(text.len(), |next| start + next);
+        &text[start..end]
+    }
+
+    #[test]
+    fn a_scan_read_several_pages_at_once_keeps_each_page_in_its_own_section() {
+        let core = FakeCore::start();
+        core.with(|state| {
+            state.outcome = Outcome::Named;
+            state.looks_to_end = 10;
+        });
+        let dir = scratch();
+        let pdf = dir.join("escaneo.pdf");
+        let lines: Vec<String> = (1..=6).map(|n| format!("Hoja {n}")).collect();
+        let pages: Vec<[&str; 1]> = lines.iter().map(|line| [line.as_str()]).collect();
+        let pages: Vec<&[&str]> = pages.iter().map(|page| &page[..]).collect();
+        std::fs::write(&pdf, invented_pdf(&pages)).unwrap();
+        let extracted = (1..=6).map(|n| format!("## Page {n}\n\n\n")).collect::<Vec<_>>().join("\n");
+        let store = super::super::recognized_store::RecognizedStore::at(dir.join("leidas"));
+        let text = super::super::recognition::complete_pdf_text(&pdf, &extracted, &store, &recognizer(&core)).unwrap();
+        for page in 1..=6 {
+            let own = section(&text, page);
+            assert!(own.contains(&format!("Lectura de pagina-{page}.jpg")), "page {page}: {own}");
+            assert_eq!(own.matches("Lectura de").count(), 1, "page {page}: {own}");
+        }
+        assert_eq!(core.with(|state| state.readings.len()), 6);
+        assert!(core.with(|state| state.kept().is_empty()));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
     #[test]
     fn a_large_photo_goes_smaller_and_without_its_metadata() {
         let dir = scratch();
@@ -566,66 +756,61 @@ mod tests {
     /// Talks to the real Micelya Core with the connection of the keychain
     /// and costs cents, so it only runs on request, once:
     /// `cargo test --lib real_core -- --ignored --nocapture`.
-    /// The document is invented: a letter, a receipt and a blank page.
+    /// The document is invented: eight pages of a scan (a letter, a receipt
+    /// and other made-up papers, and a blank page), read through the base
+    /// one page at a time and then `PAGES_AT_ONCE` at once, to tell how
+    /// long each takes.
     #[test]
     #[ignore = "uses the real Micelya Core with the credential of the keychain; costs cents"]
-    fn real_core_reads_an_invented_document_page_by_page_and_deletes_every_reading() {
+    fn real_core_reads_an_invented_scan_one_page_at_a_time_and_several_at_once_and_deletes_every_reading() {
         let connection = saved_connection().unwrap().expect("the connection with Micelya Core in the keychain");
         let clock = Instant::now();
         let test = crate::micelya_core::test_connection(&connection, Timing::default());
         println!("probar la conexión: {test:?} ({:.1} s)", clock.elapsed().as_secs_f64());
         assert!(test.ok);
 
+        // Few words per page, so the base takes each one as a scan.
+        let pages: [&[&str]; 8] = [
+            &["CARTA DE PRUEBA", "Ciudad Inventada, 3 de marzo", "Persona Inventada"],
+            &["RECIBO DE PRUEBA 0001", "Importe 12.345,67", "CUIT 30-11111111-1"],
+            &["NOTA FICTICIA 3", "Expediente 1234/2026"],
+            &["ACTA DE PRUEBA 4", "Sin valor legal"],
+            &["FACTURA INVENTADA 5", "Total 987,65"],
+            &["CONSTANCIA FICTICIA 6", "Estudio Ejemplo"],
+            &["PODER DE PRUEBA 7", "Otorgante Inventado"],
+            &[],
+        ];
+        let first_words = ["CARTA", "RECIBO", "NOTA", "ACTA", "FACTURA", "CONSTANCIA", "PODER"];
         let dir = scratch();
-        let pdf = dir.join("documento-inventado.pdf");
-        std::fs::write(
-            &pdf,
-            invented_pdf(&[
-                &[
-                    "CARTA DE PRUEBA",
-                    "Ciudad Inventada, 3 de marzo de 2026",
-                    "Estimada Persona Inventada:",
-                    "Le informamos que el expediente ficticio numero 1234/2026",
-                    "quedo archivado. Esta carta es inventada y no se refiere a nadie.",
-                    "Saludos cordiales,",
-                    "Estudio Ejemplo",
-                ],
-                &[
-                    "RECIBO DE PRUEBA N. 0001-00004567",
-                    "Recibi de Persona Inventada la suma de pesos 12.345,67",
-                    "en concepto de honorarios ficticios del mes de abril.",
-                    "CUIT 30-11111111-1",
-                ],
-                &[],
-            ]),
-        )
-        .unwrap();
-        let recognizer = CoreRecognizer::with_connection(DEFAULT_MODEL, connection.clone(), Timing::default());
-        let mut texts = Vec::new();
-        for page in 1..=3 {
-            let image = super::super::recognition::render_page(&pdf, page, &dir).unwrap();
-            let started = Instant::now();
-            let reading = recognizer.recognize_page(&image, page).unwrap();
-            println!(
-                "página {page}: {:.1} s, {} renglones, {} palabras dudosas, leída por {:?}\n{}\n",
-                started.elapsed().as_secs_f64(),
-                reading.text.lines().count(),
-                reading.doubtful.len(),
-                reading.read_by,
-                reading.text
-            );
-            texts.push(reading.text);
-        }
-        println!("en total: {:.1} s, {} lecturas", clock.elapsed().as_secs_f64(), recognizer.asked().len());
-        assert!(texts[0].contains("CARTA DE PRUEBA"), "{}", texts[0]);
-        assert!(texts[1].contains("RECIBO DE PRUEBA"), "{}", texts[1]);
-        assert_eq!(texts[2], UNREADABLE);
+        let pdf = dir.join("escaneo-inventado.pdf");
+        std::fs::write(&pdf, invented_pdf(&pages)).unwrap();
+        assert_eq!(super::super::recognition::textless_pages(&pdf).unwrap(), (1..=8).collect::<Vec<u32>>());
+        let extracted = (1..=8).map(|n| format!("## Page {n}\n\n\n")).collect::<Vec<_>>().join("\n");
 
-        // Every reading was deleted in Core.
-        let client = CoreClient::new(connection, Timing::default()).unwrap();
-        for id in recognizer.asked() {
-            assert_eq!(client.reading(&id).unwrap_err().status(), Some(404), "the reading {id} is still in Core");
+        let mut times = Vec::new();
+        for at_once in [1, PAGES_AT_ONCE] {
+            let recognizer = CoreRecognizer::with_connection(DEFAULT_MODEL, connection.clone(), Timing::default()).reading_at_once(at_once);
+            let store = super::super::recognized_store::RecognizedStore::at(dir.join(format!("leidas-{at_once}")));
+            let started = Instant::now();
+            let text = super::super::recognition::complete_pdf_text(&pdf, &extracted, &store, &recognizer).unwrap();
+            let seconds = started.elapsed().as_secs_f64();
+            println!("{at_once} a la vez: {seconds:.1} s para 8 páginas, {} lecturas", recognizer.asked().len());
+            for (index, word) in first_words.iter().enumerate() {
+                let page = index as u32 + 1;
+                let own = section(&text, page);
+                println!("  página {page}: {}", own.lines().filter(|l| !l.trim().is_empty() && !l.starts_with("<!--")).collect::<Vec<_>>().join(" / "));
+                assert!(own.contains(word), "page {page}: {own}");
+            }
+            assert!(section(&text, 8).contains(UNREADABLE), "{}", section(&text, 8));
+
+            // Every reading was deleted in Core.
+            let client = CoreClient::new(connection.clone(), Timing::default()).unwrap();
+            for id in recognizer.asked() {
+                assert_eq!(client.reading(&id).unwrap_err().status(), Some(404), "the reading {id} is still in Core");
+            }
+            times.push(seconds);
         }
+        println!("antes (de a una): {:.1} s; después ({PAGES_AT_ONCE} a la vez): {:.1} s; en total {:.1} s", times[0], times[1], clock.elapsed().as_secs_f64());
         let _ = std::fs::remove_dir_all(dir);
     }
 }

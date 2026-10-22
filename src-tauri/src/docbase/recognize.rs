@@ -760,8 +760,10 @@ del edificio inventado hasta que alguna de las partes la retire, con aviso de un
         assert_eq!(by, "core:textract-1.0");
         assert_eq!(text.matches(&recognition::marker("core:textract-1.0")).count(), 2, "{text}");
         assert!(text.contains("CONTRATO DE LOCACIÓN"));
-        // One reading per page, each named by its page, every one deleted.
-        let names: Vec<String> = core.with(|state| state.readings.iter().map(|r| r.filename.clone()).collect());
+        // One reading per page, each named by its page (both at once, in
+        // any order), every one deleted.
+        let mut names: Vec<String> = core.with(|state| state.readings.iter().map(|r| r.filename.clone()).collect());
+        names.sort();
         assert_eq!(names, ["pagina-1.jpg", "pagina-2.jpg"]);
         assert!(core.with(|state| state.kept().is_empty()));
         // The doubtful words are kept beside the text, which they do not change.
