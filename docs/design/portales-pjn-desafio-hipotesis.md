@@ -2,7 +2,8 @@
 
 - **Pendiente:** P-281 (Portales: el desafío del PJN queda bloqueado y no se puede resolver).
 - **Estado:** hipótesis, no decisión. La escribió el agente de Claude Code de la sesión del 21 y 22 de octubre; el dueño la trajo el 22 oct por la tarde para guardarla junto al pendiente.
-- **Verificado el 22 oct (tarde), sin reproducir todavía:** la documentación de Tauri 2.11.1 dice "Windows: scripts are always added to subframes" (`tauri-2.11.1/src/webview/mod.rs`, línea 830), y la capa de Windows (`wry` 0.55.1) instala todos los guiones de inicio con `AddScriptToExecuteOnDocumentCreated`, sin distinguir la página principal de los recuadros. `INIT` no mira en qué marco corre y arranca bloqueado; el desbloqueo se manda solo a la página principal.
+- **Causa comprobada el 22 oct (tarde) con una página inventada** (un recuadro de otro origen, en Chromium, que también corre el guion en cada marco): con el guion viejo el recuadro quedaba bloqueado con su cartel; con el arreglo (commit f9c9fe9, D-480) responde. Falta la prueba real con el dueño en el portal.
+- **Verificado antes, en el código:** la documentación de Tauri 2.11.1 dice "Windows: scripts are always added to subframes" (`tauri-2.11.1/src/webview/mod.rs`, línea 830), y la capa de Windows (`wry` 0.55.1) instala todos los guiones de inicio con `AddScriptToExecuteOnDocumentCreated`, sin distinguir la página principal de los recuadros. `INIT` no mira en qué marco corre y arranca bloqueado; el desbloqueo se manda solo a la página principal.
 
 El texto que sigue es el original, sin cambios.
 

@@ -491,6 +491,9 @@ const GENERIC: &[&str] = &[
     // Words of a succession (22 oct: the sheet of a judicial file), which the
     // vocabulary of kinship and inheritance uses.
     "causante", "matrimonio", "oficio", "derecho", "sucesion", "sucesorio", "declaratoria",
+    // A word of any written text (22 oct: "the documentation of Tauri" in a
+    // design note).
+    "documentacion",
 ];
 
 /// Words the program uses for its own reasons that a case happens to share:
