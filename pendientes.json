@@ -2081,12 +2081,12 @@
       "titulo": "Respuesta de Core al mensaje 001 (reconocimiento de texto y conexión)",
       "tipo": "decision",
       "responsable": "ambos",
-      "estado": "pendiente",
-      "detalle": "Desktop pidió a Core, por el buzón docs/dropbox/core/ (mensaje 001), acceso de desarrollo con un usuario técnico, inicio de sesión de cada persona desde la app de escritorio, que el resultado diga qué proveedor leyó, pedidos repetidos, no guardar el resultado en Core, opciones de análisis (casillas, tablas, firmas), proveedor por pedido (manuscrito en castellano), y aclaraciones sobre ambiente, contrato, límites, región, uso de datos, cupos y lo que viene. Leer la respuesta en docs/dropbox/desktop/ del repositorio de Core (extrimian/mi-platform, rama dev) y reflejarla en el diseño y los pendientes.",
+      "estado": "en-curso",
+      "detalle": "Desktop pidió a Core, por el buzón docs/dropbox/core/ (mensaje 001), acceso de desarrollo con un usuario técnico, inicio de sesión de cada persona desde la app de escritorio, que el resultado diga qué proveedor leyó, pedidos repetidos, no guardar el resultado en Core, opciones de análisis (casillas, tablas, firmas), proveedor por pedido (manuscrito en castellano), y aclaraciones sobre ambiente, contrato, límites, región, uso de datos, cupos y lo que viene. Leer la respuesta en docs/dropbox/desktop/ del repositorio de Core (extrimian/mi-platform, rama dev) y reflejarla en el diseño y los pendientes. 22 oct: Core respondió (docs/dropbox/desktop/2026-10-21-001-reconocimiento-y-conexion.md en extrimian/mi-platform, rama dev, 306 líneas, estado «respondido», cada punto marcado (a) ya existe, (b) se puede hacer sin decisión, (c) lo decide el dueño de Core, (e) aceptado). Falta leerla entera y reflejarla en servicios-de-ia-propuesta.md, en los pendientes y, si hace falta, en un mensaje 002.",
       "depende_de": [],
       "referencia": "docs/dropbox/core/2026-10-21-001-reconocimiento-y-conexion.md; D-421",
       "creado": "2026-10-21",
-      "actualizado": "2026-10-21"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-245",
@@ -2132,7 +2132,7 @@
       "tipo": "decision",
       "responsable": "ambos",
       "estado": "a-verificar",
-      "detalle": "Pedido del dueño (21 oct). Propuesta en docs/design/portales-judiciales-propuesta.md: una ventana del portal dentro de la app con perfil propio; el operador resuelve el desafío o inicia sesión (nunca se saltea); la app sigue sola en la misma sesión, descarga las actuaciones a una carpeta de un origen con sus datos y propone un asunto con la referencia del expediente. Un conector por portal. Revisar la propuesta y sus decisiones abiertas; primer paso: prototipo con el operador sobre un expediente de ejemplo. Construido el 22 oct (paso 7, D-446 a D-449): «Portales» en el menú, con el formulario, los expedientes seguidos y la ventana del portal dentro de la página; la app recorre las actuaciones, baja lo nuevo a Expedientes\\PJN con sus datos y crea el caso confirmado; se detiene y habilita la ventana ante el desafío o el inicio de sesión. Probado solo con páginas inventadas: falta la prueba real con el dueño.",
+      "detalle": "Pedido del dueño (21 oct). Propuesta en docs/design/portales-judiciales-propuesta.md: una ventana del portal dentro de la app con perfil propio; el operador resuelve el desafío o inicia sesión (nunca se saltea); la app sigue sola en la misma sesión, descarga las actuaciones a una carpeta de un origen con sus datos y propone un asunto con la referencia del expediente. Un conector por portal. Revisar la propuesta y sus decisiones abiertas; primer paso: prototipo con el operador sobre un expediente de ejemplo. Construido el 22 oct (paso 7, D-446 a D-449): «Portales» en el menú, con el formulario, los expedientes seguidos y la ventana del portal dentro de la página; la app recorre las actuaciones, baja lo nuevo a Expedientes\\PJN con sus datos y crea el caso confirmado; se detiene y habilita la ventana ante el desafío o el inicio de sesión. Probado solo con páginas inventadas: falta la prueba real con el dueño. 22 oct, primera prueba real del dueño: la app completa el formulario del portal y avisa «Te toca», pero el desafío no se puede resolver porque queda bloqueado (P-281).",
       "depende_de": [],
       "referencia": "docs/design/portales-judiciales-propuesta.md; src-tauri/src/portals; src/components/portals; D-446 a D-449",
       "creado": "2026-10-21",
@@ -2255,8 +2255,8 @@
       "titulo": "Decidir si se relee la sucesión con una pregunta que pida las filiaciones completas",
       "tipo": "decision",
       "responsable": "ambos",
-      "estado": "en-curso",
-      "detalle": "22 oct (D-459, D-460): pregunta cambiada (conocimiento-7); falta la relectura de la sucesión que pide el agente principal (78 preguntas para 68 documentos) y medir después con check_relations. Antes: con las respuestas guardadas (D-456, D-457), de las 104 relaciones de padre, madre e hijo de la hoja de la sucesión se encuentran 35 (antes 4). De las 69 que faltan, el modelo no devolvió 38; 9 las dio con el padre en los dos lados sin que el texto diga quién es el hijo, 4 con el hijo en los dos lados, 4 al revés, y 14 con una cita que no alcanza (con puntos suspensivos, «de dicha unión», cortada antes del nombre). Abuelos, tíos, sobrinos y nietos casi no los devolvió (11 afirmaciones para 32 relaciones). Haría falta que la pregunta pida, en una filiación, una afirmación por cada padre con el hijo como objeto (nunca la misma persona de los dos lados) y una cita del nombre del hijo al del padre; en partidas y actas, la filiación de cada persona del acta; y los parentescos dichos como «sus sobrinos A y B» o «su hermano A» con los dos lados. Sería otra relectura de la sucesión con cuota (68 documentos, 78 preguntas): la decide el dueño.",
+      "estado": "a-verificar",
+      "detalle": "22 oct (D-459, D-460): pregunta cambiada (conocimiento-7); falta la relectura de la sucesión que pide el agente principal (78 preguntas para 68 documentos) y medir después con check_relations. Antes: con las respuestas guardadas (D-456, D-457), de las 104 relaciones de padre, madre e hijo de la hoja de la sucesión se encuentran 35 (antes 4). De las 69 que faltan, el modelo no devolvió 38; 9 las dio con el padre en los dos lados sin que el texto diga quién es el hijo, 4 con el hijo en los dos lados, 4 al revés, y 14 con una cita que no alcanza (con puntos suspensivos, «de dicha unión», cortada antes del nombre). Abuelos, tíos, sobrinos y nietos casi no los devolvió (11 afirmaciones para 32 relaciones). Haría falta que la pregunta pida, en una filiación, una afirmación por cada padre con el hijo como objeto (nunca la misma persona de los dos lados) y una cita del nombre del hijo al del padre; en partidas y actas, la filiación de cada persona del acta; y los parentescos dichos como «sus sobrinos A y B» o «su hermano A» con los dos lados. Sería otra relectura de la sucesión con cuota (68 documentos, 78 preguntas): la decide el dueño. 22 oct: la relectura de la sucesión con conocimiento-7 se hizo (78 preguntas, solo esa carpeta); padre 30/50, madre 25/47; falta que el dueño lo vea.",
       "depende_de": [],
       "referencia": "D-456, D-457, D-459, D-460; src-tauri/src/docbase/knowledge/extract.rs (prompt); src-tauri/resources/catalog/knowledge.json; src-tauri/src/docbase/knowledge/check_relations.rs",
       "creado": "2026-10-22",
@@ -2455,6 +2455,58 @@
       "detalle": "Después de la corrida del 22 oct, los documentos fuera de la carpeta del expediente de prueba quedaron \"leídos con una versión anterior\" (D-432: no se releen solos). Releerlos con conocimiento-7 sumaría parentescos y citas mejor armadas, con una pregunta al modelo por documento (o más en los largos). El aviso de «Volver a leer» muestra el costo exacto. 22 oct: el dueño pidió releerlos; se releyeron los 66 (75 preguntas, solo esa carpeta). Las 134 lecturas quedaron con la pregunta conocimiento-7.",
       "depende_de": [],
       "referencia": "D-432; D-459; docs/sessions/2026-10-22-sesion-15.md",
+      "creado": "2026-10-22",
+      "actualizado": "2026-10-22"
+    },
+    {
+      "id": "P-278",
+      "titulo": "Ver en Ajustes lo que se le pregunta al modelo",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Una pantalla de solo lectura, «Lo que se le pregunta al modelo», con cada pregunta tal como sale (lectura conocimiento-7, tipo y datos, quién es quién, síntesis de páginas, casos, reconocimiento de escaneos, chat) y su versión, armada con el catálogo vigente. Hoy el armazón de cada pregunta está en el código (extract.rs prompt, classify.rs type_prompt y data_prompt, resolve.rs, pages.rs, matters.rs, recognition_codex.rs, agent/) y lo propio del oficio en los catálogos knowledge.json y document-types.json. Acordado con el dueño el 22 oct: es lo primero de la próxima sesión.",
+      "depende_de": [],
+      "referencia": "docs/sessions/2026-10-22-sesion-16.md",
+      "creado": "2026-10-22",
+      "actualizado": "2026-10-22"
+    },
+    {
+      "id": "P-279",
+      "titulo": "Editar desde la app los catálogos que forman las preguntas",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Los catálogos knowledge.json (tipos, roles, identificadores, relaciones y sus descripciones) y document-types.json ya se pueden reemplazar por un archivo con la misma forma en %APPDATA%/com.micelya.desktop/docbase/ (commands.rs 77-79), pero sin pantalla. Hacer un editor por estudio o vertical con validación, aviso de cuántos documentos quedarían leídos con una versión anterior (D-432) y medición contra las hojas de respuestas antes de adoptar. Verificar también qué pasa hoy si ese archivo tiene un error de formato.",
+      "depende_de": [
+        "P-278"
+      ],
+      "referencia": "docs/sessions/2026-10-22-sesion-16.md",
+      "creado": "2026-10-22",
+      "actualizado": "2026-10-22"
+    },
+    {
+      "id": "P-280",
+      "titulo": "El armazón de cada pregunta como plantilla con versión",
+      "tipo": "decision",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "detalle": "Sacar del código el texto fijo de cada pregunta a plantillas con versión automática (huella), o agregar un párrafo de instrucciones del estudio al final. Riesgo: el programa espera una respuesta con estructura exacta y la controla; un cambio sin medir puede romper la lectura en silencio. Decidir con el dueño después de P-278 y P-279.",
+      "depende_de": [
+        "P-279"
+      ],
+      "referencia": "docs/sessions/2026-10-22-sesion-16.md",
+      "creado": "2026-10-22",
+      "actualizado": "2026-10-22"
+    },
+    {
+      "id": "P-281",
+      "titulo": "Portales: el desafío del PJN queda bloqueado y no se puede resolver",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Prueba real del dueño (22 oct): la app completa jurisdicción, número y año en el portal y avisa «Te toca», pero el botón «Ver desafío» no responde y muestra «Micelya está usando esta ventana». Causa probable (por el código, sin reproducir): el guion de bloqueo INIT (src-tauri/src/portals/scripts.rs) se instala en cada página, también dentro del recuadro del desafío (un iframe de otro dominio), y el desbloqueo (__micelya.lock(false)) se evalúa solo en la página principal; el iframe queda bloqueado. Arreglo probable: que el bloqueo solo actúe en la página principal (window.top === window) y que la capa no cubra el recuadro del desafío, o desbloquear en todos los marcos. Probar con una página inventada con un iframe y después con el dueño.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/portals/scripts.rs; P-248",
       "creado": "2026-10-22",
       "actualizado": "2026-10-22"
     }
