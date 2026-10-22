@@ -10,8 +10,10 @@
 //!   own webview, the portal's pages are remote (Tauri refuses the app's
 //!   commands to a remote page that no capability names, and every app
 //!   command is refused to any webview but the app's own, `lib.rs`), and
-//!   it can only go to the portal's addresses. Nothing is downloaded but
-//!   what the app asks for.
+//!   it can only go to the portal's addresses (one of them without
+//!   encryption, as the PJN redirects to, is opened with `https`; nothing
+//!   is loaded without encryption). It opens no window of its own. Nothing
+//!   is downloaded but what the app asks for.
 //! - The app reads it with its own scripts and `eval_with_callback`
 //!   (`scripts.rs`): the page never sends anything to the app.
 //! - One runner, one record at a time, from a queue. The page follows it
@@ -30,7 +32,7 @@ use tauri::{AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, State, Ur
 use super::page::Snapshot;
 use super::store::{self, Followed, KnownFiles, NoneKnown};
 use super::walk::{Browser, Fetched, Progress, Stop, Walk};
-use super::{connector, expedientes_folder, scripts, work_folder, CaseKey, Connector, APP_WEBVIEW};
+use super::{connector, expedientes_folder, navigation, scripts, work_folder, CaseKey, Connector, Navigation, Upgrades, APP_WEBVIEW};
 use crate::docbase::commands::{DocBaseState, CHANGED_EVENT};
 use crate::docbase::DocBase;
 
@@ -255,11 +257,36 @@ fn create_view(app: &AppHandle, shared: &Arc<Shared>, connector: &'static dyn Co
     let start = Url::parse(connector.start_url()).map_err(|e| e.to_string())?;
     let downloads = shared.clone();
     let loads = shared.clone();
+    let upgrades = Mutex::new(Upgrades::default());
+    let (navigator, own_label) = (app.clone(), label.to_string());
     let builder = WebviewBuilder::new(label.to_string(), WebviewUrl::External(start))
         .data_directory(profile)
         .initialization_script(scripts::INIT)
-        .on_navigation(move |url| connector.allows(url))
-        .on_new_window(|_, _| NewWindowResponse::Deny)
+        // Also called for the server's redirects (WebView2's
+        // NavigationStarting, `wry` 0.55.1), as the PJN's after «Consultar»
+        // to `http://…/expediente.seam`: that one is cancelled and the same
+        // address opened with `https`.
+        .on_navigation(move |url| match navigation(connector, url) {
+            Navigation::Allow => true,
+            Navigation::Upgrade(secure) => {
+                let admitted = upgrades.lock().unwrap_or_else(|p| p.into_inner()).admit(&secure, Instant::now());
+                if admitted {
+                    open_later(&navigator, &own_label, secure);
+                } else {
+                    eprintln!("[portals] the portal keeps sending the view to http: {url} is not followed again");
+                }
+                false
+            }
+            Navigation::Refuse => false,
+        })
+        // No window of its own: the challenge and the query are in the
+        // page. A request of the portal is only told (for the real test).
+        .on_new_window(move |url, _| {
+            if !matches!(navigation(connector, &url), Navigation::Refuse) {
+                eprintln!("[portals] the portal asked to open a window (refused): {url}");
+            }
+            NewWindowResponse::Deny
+        })
         .on_download(move |_, event| on_download(&downloads, event))
         .on_page_load(move |view, payload| {
             if payload.event() != PageLoadEvent::Finished {
@@ -276,6 +303,25 @@ fn create_view(app: &AppHandle, shared: &Arc<Shared>, connector: &'static dyn Co
             }
         });
     window.add_child(builder, position, size).map_err(|e| format!("No se pudo abrir el portal: {e}"))
+}
+
+/// Opens an address in the view once the navigation being decided is
+/// over. The decision runs on the main thread, where Tauri would carry out
+/// a navigation at once, inside WebView2's own event (`send_user_message`
+/// of `tauri-runtime-wry`); from another thread it is queued to the event
+/// loop instead, and nothing waits for it.
+fn open_later(app: &AppHandle, label: &str, url: Url) {
+    let (app, label) = (app.clone(), label.to_string());
+    let spawned = std::thread::Builder::new().name("portal-https".to_string()).spawn(move || {
+        if let Some(view) = app.get_webview(&label) {
+            if let Err(error) = view.navigate(url) {
+                eprintln!("[portals] the https address could not be opened: {error}");
+            }
+        }
+    });
+    if let Err(error) = spawned {
+        eprintln!("[portals] the https address could not be opened: {error}");
+    }
 }
 
 /// The view, as the walk drives it.

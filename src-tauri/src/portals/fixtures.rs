@@ -9,7 +9,8 @@
 //! a pager with a moving window of ten numbers, the current page as a
 //! `<span>` and arrows that are icons named by their `title`; a second
 //! paged table, «Notas», with who looked at the record; the related
-//! records; the challenge present or absent.
+//! records; the challenge present or absent; the sign «Consulta en
+//! proceso», with its own «Cancelar», while the portal processes a query.
 
 use std::collections::HashSet;
 use std::fs;
@@ -81,6 +82,21 @@ fn challenge_box(present: bool) -> &'static str {
 }
 
 pub fn form_page(challenge: bool, message: Option<&str>) -> String {
+    form_page_with(challenge, message, false)
+}
+
+/// The portal's sign of a query in course, with its own «Cancelar»: always
+/// in the page, shown only while a query is processed.
+fn busy_sign(busy: bool) -> String {
+    let hidden = if busy { "" } else { r#" style="display:none""# };
+    format!(
+        r#"<div id="j_idt50:procesando" class="popup-consulta"{hidden}><div class="popup-cuerpo"><span>Consulta en proceso…</span>
+<button type="button" id="j_idt50:cancelar">Cancelar</button></div></div>"#
+    )
+}
+
+/// The form; `busy`: while the portal processes the query, with its sign.
+pub fn form_page_with(challenge: bool, message: Option<&str>, busy: bool) -> String {
     let message = message.map(|m| format!(r#"<ul class="rf-msgs"><li class="rf-msgs-err">{m}</li></ul>"#)).unwrap_or_default();
     wrap(&format!(
         r#"<h2>Consulta pública de expedientes</h2>{message}
@@ -96,8 +112,10 @@ pub fn form_page(challenge: bool, message: Option<&str>) -> String {
 </table>
 {}
 <input type="submit" id="j_idt12:consultar" value="Consultar">
-</form>"#,
-        challenge_box(challenge)
+</form>
+{}"#,
+        challenge_box(challenge),
+        busy_sign(busy)
     ))
 }
 
@@ -266,6 +284,20 @@ pub struct FakePortal {
     /// The person solves what is asked after this many looks.
     pub person_after: usize,
     looks: usize,
+    /// After «Consultar» (the app's or the person's), the portal shows its
+    /// sign «Consulta en proceso» for this many looks (`usize::MAX`: it
+    /// never ends), then the page loads for `query_loading` looks, and
+    /// then the record is there.
+    pub query_busy: usize,
+    pub query_loading: usize,
+    busy_left: usize,
+    loading_left: usize,
+    /// The person presses the portal's «Cancelar» the first time they see
+    /// the sign with the view free: the form comes back with its
+    /// challenge.
+    pub cancel_while_busy: bool,
+    /// Whether the view was locked at each look at the sign.
+    pub busy_locks: Vec<bool>,
     pub locked: bool,
     pub lock_log: Vec<bool>,
     /// The state of the walk each time the view was unlocked.
@@ -300,6 +332,12 @@ impl FakePortal {
             title_on_icon: false,
             person_after: 2,
             looks: 0,
+            query_busy: 0,
+            query_loading: 0,
+            busy_left: 0,
+            loading_left: 0,
+            cancel_while_busy: false,
+            busy_locks: Vec::new(),
             locked: true,
             lock_log: Vec::new(),
             unlocked_while: Vec::new(),
@@ -339,9 +377,41 @@ impl FakePortal {
         }
     }
 
+    /// Whether a query is in course: the sign shows, or the page loads.
+    fn in_course(&self) -> bool {
+        self.busy_left > 0 || self.loading_left > 0
+    }
+
+    /// «Consultar» with nothing left to solve: the portal processes the
+    /// query, and then shows the record.
+    fn consult(&mut self) {
+        self.busy_left = self.query_busy;
+        self.loading_left = self.query_loading;
+        if !self.in_course() {
+            self.arrive();
+        }
+    }
+
+    fn arrive(&mut self) {
+        self.screen = FakeScreen::Record;
+        self.page = 1;
+    }
+
     /// What the person does while the view is theirs.
     fn person(&mut self) {
         if self.locked {
+            return;
+        }
+        if self.busy_left > 0 && self.cancel_while_busy {
+            self.cancel_while_busy = false;
+            self.presses.push("persona: Cancelar".to_string());
+            self.busy_left = 0;
+            self.loading_left = 0;
+            self.form_challenge = true;
+            self.looks = 0;
+            return;
+        }
+        if self.in_course() {
             return;
         }
         self.looks += 1;
@@ -358,8 +428,7 @@ impl FakePortal {
                 // Solves the challenge and presses «Consultar».
                 self.form_challenge = false;
                 self.presses.push("persona: Consultar".to_string());
-                self.screen = FakeScreen::Record;
-                self.page = 1;
+                self.consult();
             }
             FakeScreen::Record if self.record_challenge => {
                 self.record_challenge = false;
@@ -387,6 +456,27 @@ impl Browser for FakePortal {
         if !act {
             self.person();
         }
+        if self.busy_left > 0 {
+            self.busy_locks.push(self.locked);
+            self.busy_left -= 1;
+            let html = form_page_with(false, None, true);
+            if !self.in_course() {
+                self.arrive();
+            }
+            self.generation += 1;
+            let marked = mark(&html, self.generation, act);
+            if act {
+                self.last = Some(Page::parse(START_URL, &marked));
+            }
+            return Ok(Snapshot { url: START_URL.to_string(), ready: "complete".to_string(), html: marked, error: None });
+        }
+        if self.loading_left > 0 {
+            self.loading_left -= 1;
+            if !self.in_course() {
+                self.arrive();
+            }
+            return Ok(Snapshot { url: START_URL.to_string(), ready: "loading".to_string(), html: String::new(), error: None });
+        }
         let (url, html) = self.html();
         self.generation += 1;
         let marked = mark(&html, self.generation, act);
@@ -402,12 +492,15 @@ impl Browser for FakePortal {
         let notes_start = page.els.iter().position(|e| e.attr("id") == Some("expediente:notas-table")).unwrap_or(usize::MAX);
         let named = |name: &str| el.title() == name || page.children(index).iter().any(|&c| page.el(c).title() == name);
         if el.label() == "Consultar" {
+            if self.in_course() {
+                self.presses.push("Consultar sobre una consulta en curso".to_string());
+                return Ok(true);
+            }
             self.presses.push("Consultar".to_string());
             if self.form_challenge {
                 return Ok(true);
             }
-            self.screen = FakeScreen::Record;
-            self.page = 1;
+            self.consult();
         } else if named("Siguiente") && index > notes_start {
             self.presses.push("Siguiente de Notas".to_string());
             self.notes_page += 1;

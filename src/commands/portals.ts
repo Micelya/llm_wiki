@@ -12,6 +12,8 @@ export interface PortalProgress {
   reference: string | null
   /** What the portal asks a person: `challenge` or `login`. */
   person: string | null
+  /** The portal is processing a query: the app waits and the window is free for its «Cancelar». */
+  busy: boolean
   page: number | null
   seen: number
   withDocument: number

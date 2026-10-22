@@ -4,7 +4,11 @@
 //!    to the portal's form, fill it, and press «Consultar». When the
 //!    portal asks for a person (its challenge, signing in), unlock the
 //!    view, say so, and only look until the page changes (or the person
-//!    says to go on); then lock it again and go on.
+//!    says to go on); then lock it again and go on. For the challenge,
+//!    the page is taken to its box and the rest is darkened. After
+//!    «Consultar» (the app's or the person's), while the portal processes
+//!    the query, wait without pressing it again and with the view free for
+//!    the portal's own «Cancelar».
 //! 2. Walk its pages: read the table of entries, take each new document,
 //!    press «Siguiente», wait until the table changes; until there is no
 //!    «Siguiente» or the page does not change.
@@ -24,7 +28,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 
@@ -80,6 +84,9 @@ pub struct Progress {
     pub reference: Option<String>,
     /// What the portal asks a person: `challenge` or `login`.
     pub person: Option<String>,
+    /// The portal is processing a query («Consulta en proceso»): the app
+    /// waits and the view is free for the portal's own «Cancelar».
+    pub busy: bool,
     pub page: Option<u32>,
     /// Entries seen, with a document, downloaded now, already there,
     /// failed.
@@ -112,6 +119,10 @@ pub struct Walk<'a> {
     pub looks: usize,
     /// Between two looks while a person does what the portal asks.
     pub person_poll: Duration,
+    /// How many looks, and how long, the app waits at most while the
+    /// portal processes a query.
+    pub query_looks: usize,
+    pub query_time: Duration,
 }
 
 impl<'a> Walk<'a> {
@@ -124,8 +135,26 @@ impl<'a> Walk<'a> {
             poll: Duration::from_millis(300),
             looks: 100,
             person_poll: Duration::from_millis(1500),
+            query_looks: 400,
+            query_time: Duration::from_secs(120),
         }
     }
+}
+
+/// What the app says while the portal processes a query.
+pub const QUERY_IN_COURSE: &str =
+    "El portal está procesando la consulta. Micelya espera sin tocar nada; si se traba, podés tocar «Cancelar» en la ventana del portal.";
+
+/// What the walk says when the portal never finishes a query.
+pub const QUERY_STUCK: &str = "El portal se quedó en «Consulta en proceso» y no mostró el expediente. Con «Usar la ventana yo» podés tocar «Cancelar» en el portal; después volvé a pedirlo.";
+
+/// A look at the page while the portal may still be working.
+enum Look {
+    /// It is loading, or does not answer yet.
+    Loading,
+    /// It shows the portal's sign of a query in course.
+    Busy,
+    Page(Page),
 }
 
 #[derive(Default)]
@@ -162,6 +191,8 @@ enum Step {
 enum Waited {
     PageChanged,
     GoOn,
+    /// The person pressed «Consultar» and the portal processed it.
+    Submitted,
 }
 
 impl Walk<'_> {
@@ -299,7 +330,18 @@ impl Walk<'_> {
                         // asks for something only a person sees.
                         if challenge || submits > 0 {
                             person_done = true;
-                            press = self.wait_person(browser, run, Screen::Form { challenge: true })? == Waited::GoOn;
+                            match self.wait_person(browser, run, Screen::Form { challenge: true })? {
+                                Waited::GoOn => {}
+                                Waited::PageChanged => press = false,
+                                Waited::Submitted => {
+                                    // The person's own query: never pressed
+                                    // again over it; what follows is read
+                                    // again, and a form is the person's.
+                                    submits += 1;
+                                    person_done = false;
+                                    continue;
+                                }
+                            }
                         }
                     }
                     if !press {
@@ -322,15 +364,7 @@ impl Walk<'_> {
                     }
                     submits += 1;
                     person_done = false;
-                    let before = self.connector.message(&page);
-                    for _ in 0..self.looks {
-                        browser.wait(self.poll);
-                        let after = self.page(browser, false)?;
-                        let screen = self.connector.screen(&after);
-                        if !matches!(screen, Screen::Form { .. }) || after.url != page.url || self.connector.message(&after) != before {
-                            break;
-                        }
-                    }
+                    self.settle(browser, run, &page, true)?;
                 }
                 Screen::Other => {
                     if !navigated {
@@ -351,7 +385,9 @@ impl Walk<'_> {
     }
 
     /// Unlocks the view for what only a person does, and only looks at it
-    /// until the page changes or the person says to go on.
+    /// until the page changes or the person says to go on. When the person
+    /// presses «Consultar», the app waits for the portal to process it
+    /// (`settle`) without locking the view.
     fn wait_person(&self, browser: &mut dyn Browser, run: &mut Run, screen: Screen) -> Result<Waited, Stop> {
         let tell = |run: &mut Run, screen: &Screen| {
             let (person, message) = match screen {
@@ -369,18 +405,33 @@ impl Walk<'_> {
         browser.report(&run.progress);
         let mut start = self.page(browser, false)?;
         let mut current = self.connector.screen(&start);
-        let result = loop {
+        let mut loading = 0;
+        let outcome = loop {
             if browser.cancelled() {
-                browser.lock(true, WORKING_NOTE);
-                return Err(Stop::Cancelled);
+                break Err(Stop::Cancelled);
             }
             // Every turn: a new page of the portal starts locked.
             browser.lock(false, "");
             if browser.take_go_on() {
-                break Waited::GoOn;
+                break Ok(Waited::GoOn);
             }
             browser.wait(self.person_poll);
-            let page = self.page(browser, false)?;
+            let page = match self.look(browser) {
+                Look::Page(page) => page,
+                Look::Busy => {
+                    // The person pressed «Consultar»: the portal works on
+                    // it, and its «Cancelar» must stay at hand.
+                    break self.settle(browser, run, &start, false).map(|_| Waited::Submitted);
+                }
+                Look::Loading => {
+                    loading += 1;
+                    if loading > self.looks {
+                        break Err(Stop::Failed("El portal no responde: revisá la conexión y probá de nuevo".to_string()));
+                    }
+                    continue;
+                }
+            };
+            loading = 0;
             let now = self.connector.screen(&page);
             if page.url == start.url && now == current {
                 continue;
@@ -394,13 +445,95 @@ impl Walk<'_> {
                 start = page;
                 continue;
             }
-            break Waited::PageChanged;
+            break Ok(Waited::PageChanged);
         };
         browser.lock(true, WORKING_NOTE);
+        let result = outcome?;
         run.progress.state = "working".to_string();
         run.progress.person = None;
         self.say(browser, run, "Gracias: Micelya sigue sola.".to_string());
         Ok(result)
+    }
+
+    /// The page, only looked at, while the portal may still be working.
+    fn look(&self, browser: &mut dyn Browser) -> Look {
+        match browser.snapshot(false) {
+            Ok(snapshot) if snapshot.error.is_none() && !snapshot.html.is_empty() && snapshot.ready != "loading" => {
+                let page = Page::parse(&snapshot.url, &snapshot.html);
+                if self.connector.busy(&page) {
+                    Look::Busy
+                } else {
+                    Look::Page(page)
+                }
+            }
+            _ => Look::Loading,
+        }
+    }
+
+    /// After «Consultar», pressed by the app (`by_app`) or by the person:
+    /// while the portal works on the query (its sign «Consulta en proceso»,
+    /// or a page still loading) the app waits, up to `query_looks` looks
+    /// and `query_time`, without pressing anything and with the view
+    /// unlocked while the sign shows, so the portal's own «Cancelar»
+    /// works. It ends when the page shows something else: the record, a
+    /// message of the portal, the form without the sign. `before` is the
+    /// page where «Consultar» was pressed; after the app's own press
+    /// nothing may have changed yet, and a form that does not change in
+    /// `looks` looks is left as it is (the walk hands it to the person).
+    fn settle(&self, browser: &mut dyn Browser, run: &mut Run, before: &Page, by_app: bool) -> Result<(), Stop> {
+        let mut unlocked = false;
+        let result = self.settle_looks(browser, run, before, by_app, &mut unlocked);
+        if unlocked {
+            browser.lock(true, WORKING_NOTE);
+        }
+        if run.progress.busy {
+            run.progress.busy = false;
+            browser.report(&run.progress);
+        }
+        result
+    }
+
+    fn settle_looks(&self, browser: &mut dyn Browser, run: &mut Run, before: &Page, by_app: bool, unlocked: &mut bool) -> Result<(), Stop> {
+        let before_message = self.connector.message(before);
+        let deadline = Instant::now() + self.query_time;
+        let mut moved = !by_app;
+        for look in 0..self.query_looks {
+            self.check(browser)?;
+            if Instant::now() >= deadline {
+                break;
+            }
+            browser.wait(self.poll);
+            match self.look(browser) {
+                Look::Loading => moved = true,
+                Look::Busy => {
+                    moved = true;
+                    if !run.progress.busy {
+                        // Nothing to do for the person now (also after
+                        // their own «Consultar»).
+                        run.progress.state = "working".to_string();
+                        run.progress.person = None;
+                        run.progress.busy = true;
+                        self.say(browser, run, QUERY_IN_COURSE.to_string());
+                    }
+                    // Every turn: a new page of the portal starts locked.
+                    browser.lock(false, "");
+                    *unlocked = true;
+                }
+                Look::Page(page) => {
+                    let changed = !matches!(self.connector.screen(&page), Screen::Form { .. })
+                        || page.url != before.url
+                        || self.connector.message(&page) != before_message;
+                    if moved || changed || look + 1 >= self.looks {
+                        return Ok(());
+                    }
+                }
+            }
+        }
+        if moved {
+            Err(Stop::Failed(QUERY_STUCK.to_string()))
+        } else {
+            Ok(())
+        }
     }
 
     /// Walks the pages of the record from the one the view shows.

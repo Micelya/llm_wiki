@@ -316,6 +316,14 @@ function LockBar({ status, onRun }: { status: PortalStatus | null; onRun: (actio
       </Bar>
     )
   }
+  if (status?.running && progress?.busy) {
+    return (
+      <Bar
+        tone="busy"
+        text="El portal está procesando la consulta: Micelya espera sin tocar nada. La ventana queda libre por si querés tocar «Cancelar» en el portal."
+      />
+    )
+  }
   if (status?.running && progress?.state === "needs-person") {
     const what = progress.person === "login" ? "iniciar sesión" : "resolver el desafío"
     return (
