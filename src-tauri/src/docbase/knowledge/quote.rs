@@ -76,6 +76,11 @@ impl Located {
         found
     }
 
+    /// The words of the text, in order (what `starts` counts positions in).
+    pub fn words(&self) -> &[String] {
+        &self.words
+    }
+
     /// The page of the word at `position`.
     pub fn page_at(&self, position: usize) -> Option<i64> {
         self.pages.get(position).copied().flatten()

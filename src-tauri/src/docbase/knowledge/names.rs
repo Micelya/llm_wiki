@@ -125,7 +125,10 @@ pub fn key(vocabulary: &Vocabulary, kind: &str, written: &str) -> NameKey {
     let mut words: Vec<String> = quote::words(&rest);
     let stop: BTreeSet<&str> = identity.stopwords.iter().map(String::as_str).collect();
     let titles: BTreeSet<&str> = identity.titles.iter().map(String::as_str).collect();
-    let counts = |w: &String| !stop.contains(w.as_str()) && !(kind == PERSON && titles.contains(w.as_str()));
+    // An acronym written letter by letter ("A.E.B."): every letter counts,
+    // even one that alone would be a word to leave out ("e", "y"), D-458.
+    let letters = words.len() >= 2 && words.iter().all(|w| w.chars().count() == 1);
+    let counts = |w: &String| letters || (!stop.contains(w.as_str()) && !(kind == PERSON && titles.contains(w.as_str())));
     let full: Vec<String> = words.iter().filter(|w| counts(w)).cloned().collect();
     let mut form = None;
     if kind == ORGANIZATION {
@@ -327,8 +330,12 @@ fn organizations(a: &NameKey, b: &NameKey) -> Likeness {
     } else {
         let (short, long) = if a.words.len() <= b.words.len() { (&a.words, &b.words) } else { (&b.words, &a.words) };
         let aligned = align(short, long);
+        // An acronym, written as one word or letter by letter ("A.B.C.",
+        // whose words are its letters), D-458.
         let acronym = |one: &[String], other: &[String]| {
-            one.len() == 1 && other.len() >= 2 && one[0].chars().count() >= 2 && one[0] == initials(other)
+            let letters = one.len() >= 2 && one.iter().all(|w| w.chars().count() == 1);
+            let written = if letters { one.concat() } else if one.len() == 1 { one[0].clone() } else { return false };
+            other.len() >= 2 && written.chars().count() >= 2 && written == initials(other)
         };
         if short.len() < long.len() && aligned.is_some_and(|(equal, initials, _)| equal > 0 && initials == 0) {
             Likeness::Maybe("nombre-parcial")

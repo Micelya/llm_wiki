@@ -145,6 +145,52 @@ pub fn nearest_before(body: &str, quote_text: &str, organizations: &[&Vec<Vec<St
     nearest.is_some_and(|(_, names)| names == object)
 }
 
+/// Where each group (by its names, normalized words) is named in `words`,
+/// as (start, end): the places of its names that are not inside a longer
+/// name of another group ("Uno Dos" inside "Persona Uno Dos"), nor right
+/// after one of `after` (words that make it someone else: "casado con").
+pub fn named_places(words: &[String], groups: &[&Vec<Vec<String>>], after: &[Vec<String>]) -> Vec<Vec<(usize, usize)>> {
+    let all: Vec<Vec<(usize, usize)>> = groups
+        .iter()
+        .map(|names| names.iter().filter(|n| !n.is_empty()).flat_map(|n| positions(words, n).into_iter().map(move |p| (p, p + n.len()))).collect())
+        .collect();
+    let introduced = |s: usize| after.iter().any(|a| !a.is_empty() && s >= a.len() && words[s - a.len()..s] == a[..]);
+    all.iter()
+        .enumerate()
+        .map(|(g, places)| {
+            places
+                .iter()
+                .copied()
+                .filter(|&(s, e)| !all.iter().enumerate().any(|(h, other)| h != g && other.iter().any(|&(os, oe)| os <= s && e <= oe && oe - os > e - s)))
+                .filter(|&(s, _)| !introduced(s))
+                .collect()
+        })
+        .collect()
+}
+
+/// The group (by its names, normalized words) named last in `words` (its
+/// name ends last, the longer first when two end at the same word), not
+/// counting a name right after one of `after`: who the words name last
+/// (D-457). `None` when no group is named there, or two are named alike at
+/// the end.
+pub fn last_named<'a>(words: &[String], groups: &[&'a Vec<Vec<String>>], after: &[Vec<String>]) -> Option<&'a Vec<Vec<String>>> {
+    let places = named_places(words, groups, after);
+    let mut best: Option<((usize, usize), &'a Vec<Vec<String>>)> = None;
+    let mut tied = false;
+    for (&names, list) in groups.iter().zip(&places) {
+        let Some(place) = list.iter().map(|&(s, e)| (e, e - s)).max() else { continue };
+        match best {
+            Some((other, _)) if other == place => tied = true,
+            Some((other, _)) if other > place => {}
+            _ => {
+                best = Some((place, names));
+                tied = false;
+            }
+        }
+    }
+    best.filter(|_| !tied).map(|(_, names)| names)
+}
+
 fn lowercase_unaccented(text: &str) -> Vec<char> {
     text.chars()
         .flat_map(char::to_lowercase)

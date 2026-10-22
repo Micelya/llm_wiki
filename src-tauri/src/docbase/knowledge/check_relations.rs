@@ -311,6 +311,8 @@ struct Measure {
     /// them are split into several entities of the record.
     entities: usize,
     split: Vec<(String, usize)>,
+    /// The same, with the best match of each mention of the sheet only.
+    split_best: Vec<(String, usize)>,
 }
 
 fn measure(record: &Record, sheet: &Sheet) -> Measure {
@@ -324,6 +326,7 @@ fn measure(record: &Record, sheet: &Sheet) -> Measure {
         wrong: Vec::new(),
         entities: 0,
         split: Vec::new(),
+        split_best: Vec::new(),
     };
     for relation in &sheet.relations {
         match found(record, sheet, relation) {
@@ -361,17 +364,19 @@ fn measure(record: &Record, sheet: &Sheet) -> Measure {
             }
         }
     }
-    // The entities of the record each entity of the sheet went to.
+    // The entities of the record each entity of the sheet went to: every
+    // mention whose name matches (`split`), and the best match of each
+    // mention of the sheet (`split_best`).
     for entity in sheet.entities.iter().filter(|e| e.kind != "asunto") {
         let mut held: BTreeSet<String> = BTreeSet::new();
+        let mut best: BTreeSet<String> = BTreeSet::new();
         for mention in &entity.mentions {
             let Some(content) = record.by_path.get(&key(&format!("{}/{}", sheet.root, mention.path))).copied() else { continue };
             let written = normalized(&mention.as_written);
-            for found in record.mentions.get(&content).into_iter().flatten() {
-                if found.kind == entity.kind && names_match(&written, &found.normalized) {
-                    held.extend(found.entity.clone());
-                }
-            }
+            let found: Vec<&Mention> =
+                record.mentions.get(&content).into_iter().flatten().filter(|f| f.kind == entity.kind && names_match(&written, &f.normalized)).collect();
+            held.extend(found.iter().filter_map(|f| f.entity.clone()));
+            best.extend(best_match(sheet, entity, &mention.path, &written, &found));
         }
         if held.is_empty() {
             continue;
@@ -380,8 +385,42 @@ fn measure(record: &Record, sheet: &Sheet) -> Measure {
         if held.len() > 1 {
             out.split.push((entity.id.clone(), held.len()));
         }
+        if best.len() > 1 {
+            out.split_best.push((entity.id.clone(), best.len()));
+        }
     }
     out
+}
+
+/// The entities of the record a mention of the sheet is, among the mentions
+/// of its document whose name matches: the ones written the same, if any;
+/// else those whose words the entity's names have more of than any other
+/// entity of the sheet has ("Persona Dos Ejemplo" is not "Persona Uno Dos Ejemplo"
+/// when the sheet has both; a short name of the sheet, "Registro de la
+/// Propiedad", does not take in another registry of the same document).
+fn best_match(sheet: &Sheet, entity: &SheetEntity, path: &str, written: &str, found: &[&Mention]) -> BTreeSet<String> {
+    let exact: BTreeSet<String> = found.iter().filter(|f| f.normalized == written).filter_map(|f| f.entity.clone()).collect();
+    if !exact.is_empty() {
+        return exact;
+    }
+    // How many of the words of a name of the record the names of an entity
+    // of the sheet have.
+    let covered = |e: &SheetEntity, name: &str| -> usize {
+        let names = names_in(e, path);
+        if !names.iter().any(|n| names_match(n, name)) {
+            return 0;
+        }
+        let words: BTreeSet<&str> = names.iter().flat_map(|n| n.split(' ')).collect();
+        name.split(' ').filter(|w| words.contains(w)).count()
+    };
+    found
+        .iter()
+        .filter(|f| {
+            let own = covered(entity, &f.normalized);
+            own > 0 && sheet.entities.iter().filter(|o| o.id != entity.id && o.kind == entity.kind).all(|o| covered(o, &f.normalized) < own)
+        })
+        .filter_map(|f| f.entity.clone())
+        .collect()
 }
 
 fn print(label: &str, sheet: &Sheet, m: &Measure, noisy: usize) {
@@ -415,6 +454,7 @@ fn print(label: &str, sheet: &Sheet, m: &Measure, noisy: usize) {
         m.split.len(),
         m.split
     );
+    println!("   split, by the best match of each mention of the sheet: {} {:?}", m.split_best.len(), m.split_best);
     println!("   readings that lost many quotes (attention): {noisy}");
 }
 
@@ -460,9 +500,27 @@ fn relations_against_the_sheets() {
         report.doubts,
         plan.documents
     );
+    let status = base.knowledge_status(&Visible::All).unwrap();
+    println!(
+        "   readings now: {} done, {} of an earlier version, {} to ask again; questions about identities left for the model: {}",
+        status.extracted, status.older, status.stale, report.left
+    );
     // What the pages of what changed would ask the model (their syntheses),
     // answers kept aside: the normal cost of data that changed.
     let engine = crate::docbase::similar::classify::ask_engine(&base.conn()).unwrap().map(|c| crate::source_volume::asking::engine_id(&c));
+    if let (Some(engine), true) = (&engine, report.left > 0) {
+        // The questions about identities the app would ask (each with its
+        // principal, cut short); until they are answered the pages wait
+        // for the resolution. On this copy the wait is lifted to count what
+        // the pages would ask with the record as it is now.
+        let questions = base.identity_questions(engine).unwrap();
+        println!("   questions about identities the resolution would ask now: {}", questions.len());
+        for question in &questions {
+            let principal = question.prompt.split("Principal:\n").nth(1).unwrap_or_default().lines().next().unwrap_or_default();
+            println!("      principal: {}", principal.chars().take(120).collect::<String>());
+        }
+        base.conn().execute("DELETE FROM knowledge_dirty WHERE scope IN ('resolve', 'retire')", []).unwrap();
+    }
     if let Some(engine) = engine {
         let questions = base.synthesis_questions(&engine).unwrap();
         let conn = base.conn();

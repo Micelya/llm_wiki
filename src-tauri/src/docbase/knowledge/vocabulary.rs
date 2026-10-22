@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 /// The version of the program's check of a reading (`extract::verify`).
-const READING_CHECK: &str = "lectura-12";
+const READING_CHECK: &str = "lectura-13";
 
 const BUILTIN: &str = include_str!("../../../resources/catalog/knowledge.json");
 
@@ -373,6 +373,91 @@ pub struct ReadingRules {
     /// document, for `first_person`.
     #[serde(default)]
     pub signer_roles: Vec<String>,
+    /// How a quote names someone by the role they have in the document
+    /// ("el causante", "mis mandantes") instead of by their name (D-456).
+    #[serde(default)]
+    pub role_references: Vec<RoleReference>,
+    /// How a text says who is the child of a filiation ("X, hijo de A y
+    /// de B"), D-457.
+    #[serde(default)]
+    pub filiation: Filiation,
+}
+
+/// Words with which a document names someone by the role they have in it
+/// (D-456): "el causante" is the person whose succession the document is
+/// about, "mis mandantes" are the people the signer represents. They name
+/// the entities on one side of a relation of the same document; a quote
+/// with them names those entities as if it wrote their names.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RoleReference {
+    /// By language, the words (normalized; one or several in a row).
+    #[serde(default)]
+    pub words: std::collections::BTreeMap<String, Vec<String>>,
+    /// The relation of the same document whose side they name.
+    pub predicate: String,
+    /// "subject" or "object": the side of the relation they name.
+    #[serde(default)]
+    pub side: String,
+    /// Only the relations whose subject signs the document ("mis
+    /// mandantes": those the signer represents).
+    #[serde(default)]
+    pub by_signer: bool,
+    /// When the document has none of those relations, the mentions with one
+    /// of these roles in it ("parte": whom a lawyer's writ is for), not the
+    /// signer's own; with `by_signer`, only in a document someone signs.
+    #[serde(default)]
+    pub mention_roles: Vec<String>,
+    /// They name one only ("el causante"): when the document has several on
+    /// that side, they name none.
+    #[serde(default)]
+    pub single: bool,
+}
+
+impl RoleReference {
+    /// Whether a quote (normalized words) has its words.
+    pub fn in_quote(&self, quote_words: &[String]) -> bool {
+        self.words.values().flatten().any(|w| super::quote::contains(quote_words, &super::quote::words(w)))
+    }
+}
+
+/// The words of a filiation (D-457): in "X, hijo de A y de B" the child is
+/// the person named right before the words that say it, in the quote or
+/// before it in the text.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Filiation {
+    /// The relation from the parent to the child ("padre o madre de").
+    #[serde(default)]
+    pub predicate: String,
+    /// By language, the words that start a filiation ("hijo de").
+    #[serde(default)]
+    pub cues: std::collections::BTreeMap<String, Vec<String>>,
+    /// By language, the words that go on with the list of parents ("y de").
+    #[serde(default)]
+    pub joins: std::collections::BTreeMap<String, Vec<String>>,
+    /// By language, the words right before a name that make it someone
+    /// else than the child ("casado con": the spouse listed before the
+    /// parents of a certificate).
+    #[serde(default)]
+    pub others: std::collections::BTreeMap<String, Vec<String>>,
+    /// How many words before the filiation the child can be named.
+    #[serde(default)]
+    pub window: usize,
+}
+
+impl Filiation {
+    pub fn cue_words(&self) -> Vec<Vec<String>> {
+        self.cues.values().flatten().map(|c| super::quote::words(c)).filter(|w| !w.is_empty()).collect()
+    }
+
+    pub fn join_words(&self) -> Vec<Vec<String>> {
+        self.joins.values().flatten().map(|c| super::quote::words(c)).filter(|w| !w.is_empty()).collect()
+    }
+
+    pub fn other_words(&self) -> Vec<Vec<String>> {
+        self.others.values().flatten().map(|c| super::quote::words(c)).filter(|w| !w.is_empty()).collect()
+    }
 }
 
 fn sixty() -> usize {
@@ -654,6 +739,12 @@ pub struct Predicate {
     /// doubtful (D-434).
     #[serde(default)]
     pub contradicted_by: Option<Contradiction>,
+    /// A relation with the matter of the document (being the person whose
+    /// succession it is): when the reading gives no matter as its object
+    /// (none, or the person herself), the object is the matter of the
+    /// document whose name holds the subject's name, when it is one (D-456).
+    #[serde(default)]
+    pub object_from_document: bool,
     /// A value whose time, when the quote does not say one, is the date of
     /// its document: two values at different dates are a history.
     #[serde(default)]
@@ -768,7 +859,8 @@ impl Vocabulary {
                 .map(|p| {
                     serde_json::json!([
                         &p.id, &p.description, &p.subject, &p.object, &p.object_types, &p.shape, &p.qualifiers, p.object_in_quote,
-                        p.subject_in_quote, &p.inverse_of, &p.lead_cues, &p.trail_cues, &p.subject_not, &p.object_not, &p.not_between, &p.cues
+                        p.subject_in_quote, &p.inverse_of, &p.lead_cues, &p.trail_cues, &p.subject_not, &p.object_not, &p.not_between, &p.cues,
+                        p.object_from_document
                     ])
                 })
                 .collect::<Vec<_>>(),

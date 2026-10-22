@@ -35,7 +35,7 @@ use sha2::{Digest, Sha256};
 
 use super::quote::{self, Located};
 use super::{names, read_checks, values};
-use super::vocabulary::{vocabulary, Vocabulary};
+use super::vocabulary::{vocabulary, RoleReference, Vocabulary};
 use super::{mark_dirty, visible_content, Discarded};
 use crate::docbase::similar::changes::{classify as kind_of_token, Kind};
 use crate::docbase::similar::classify::{
@@ -842,6 +842,393 @@ fn label_verified(text: &Located, quote_text: &str, value: &[String], label: Opt
         .any(|&l| starts.iter().any(|&s| s >= l + label_words.len() && s - (l + label_words.len()) <= window))
 }
 
+/// The reasons a claim is checked again once the rest of its document is
+/// known: a side its quote may name by the role it has in it (D-456).
+const DEFERRED: [&str; 3] = ["objeto-fuera-de-la-cita", "sujeto-fuera-de-la-cita", "objeto-desconocido"];
+
+/// Who the role references of the vocabulary name in one document (D-456):
+/// for each one, the groups (by their names) on its side of the relations
+/// kept of the document.
+struct Roles<'a> {
+    named: Vec<(&'a RoleReference, Vec<Vec<Vec<String>>>)>,
+}
+
+impl<'a> Roles<'a> {
+    fn of(vocabulary: &'a Vocabulary, reading: &Reading, group_names: &HashMap<String, Vec<Vec<String>>>, signers: &BTreeSet<String>) -> Self {
+        let named = vocabulary
+            .reading
+            .role_references
+            .iter()
+            .map(|role| {
+                let add = |groups: &mut Vec<Vec<Vec<String>>>, reference: Option<&String>| {
+                    if let Some(names) = reference.and_then(|r| group_names.get(r)).filter(|n| !n.is_empty()) {
+                        if !groups.contains(names) {
+                            groups.push(names.clone());
+                        }
+                    }
+                };
+                let mut groups: Vec<Vec<Vec<String>>> = Vec::new();
+                for item in reading.evidence.iter().filter(|e| e.predicate == role.predicate && (!role.by_signer || signers.contains(&e.subject))) {
+                    add(&mut groups, if role.side == "object" { item.object_mention.as_ref() } else { Some(&item.subject) });
+                }
+                // Without such relations, who has one of its roles in the
+                // document (the parties of a lawyer's writ), not the signer.
+                if groups.is_empty() && !role.mention_roles.is_empty() && (!role.by_signer || !signers.is_empty()) {
+                    for mention in reading.mentions.iter().filter(|m| role.mention_roles.contains(&m.role) && !signers.contains(&m.reference)) {
+                        add(&mut groups, Some(&mention.reference));
+                    }
+                }
+                (role, groups)
+            })
+            .collect();
+        Roles { named }
+    }
+
+    /// Whether a quote names the group of these names by a role it has in
+    /// the document (one of the role's own, when it names one only).
+    fn names(&self, quote_words: &[String], names: Option<&Vec<Vec<String>>>) -> bool {
+        let Some(names) = names.filter(|n| !n.is_empty()) else { return false };
+        self.named.iter().any(|(role, groups)| (!role.single || groups.len() == 1) && groups.contains(names) && role.in_quote(quote_words))
+    }
+
+    /// The one group the roles some words have name, if they name one.
+    fn single(&self, words: &[String]) -> Option<Vec<Vec<String>>> {
+        let mut found: Option<&Vec<Vec<String>>> = None;
+        for (role, groups) in &self.named {
+            if groups.len() == 1 && role.in_quote(words) {
+                if found.is_some_and(|f| f != &groups[0]) {
+                    return None;
+                }
+                found = Some(&groups[0]);
+            }
+        }
+        found.cloned()
+    }
+}
+
+/// What the check of the claims of one reading works with (D-250, D-433 to
+/// D-437, D-456, D-457).
+struct ClaimCheck<'a> {
+    vocabulary: &'a Vocabulary,
+    body: &'a str,
+    text: &'a Located,
+    certificate: &'a BTreeSet<Option<i64>>,
+    window: usize,
+    refs: &'a HashMap<(usize, String), String>,
+    kinds: &'a HashMap<String, String>,
+    group_names: &'a HashMap<String, Vec<Vec<String>>>,
+    signers: &'a BTreeSet<String>,
+    /// One of each entity of the document: a mention, its type and the
+    /// names of its group.
+    groups: Vec<(String, String, Vec<Vec<String>>)>,
+}
+
+/// A claim the check does not keep: why, and what it said.
+struct Dropped {
+    reason: &'static str,
+    said: String,
+}
+
+/// A claim the check keeps, and what it corrected of it.
+struct Checked {
+    evidence: Evidence,
+    corrections: Vec<(&'static str, String)>,
+}
+
+fn keep_claim(reading: &mut Reading, checked: Checked, quote: &str) {
+    for (reason, said) in &checked.corrections {
+        corrected(reading, reason, said, quote);
+    }
+    push_evidence(reading, checked.evidence);
+}
+
+impl ClaimCheck<'_> {
+    fn names(&self, reference: &str) -> Option<&Vec<Vec<String>>> {
+        self.group_names.get(reference)
+    }
+
+    fn named_in(&self, quote_words: &[String], reference: &str) -> bool {
+        self.names(reference).is_some_and(|names| names.iter().any(|n| read_checks::name_in_quote(quote_words, n)))
+    }
+
+    /// The children a filiation says (D-457): the person named last before
+    /// its words ("hijo de") in the quote, or by a role there; when the quote
+    /// starts with them, or with the words that go on with the parents ("y
+    /// de"), or names no one before them ("DNI 1.234.567, hijo de"), the
+    /// person the text names last before them, wherever the text has the
+    /// quote (the same line of two certificates names two children). The
+    /// parent is never the child, nor is anyone when the quote names the
+    /// parent before those words ("X, hijo de Y" does not make X a parent).
+    fn children(&self, quote_words: &[String], parent: Option<&Vec<Vec<String>>>, roles: Option<&Roles>) -> Vec<Vec<Vec<String>>> {
+        let rules = &self.vocabulary.reading.filiation;
+        let cues = rules.cue_words();
+        if cues.is_empty() || rules.window == 0 {
+            return Vec::new();
+        }
+        let people: Vec<&Vec<Vec<String>>> = self.groups.iter().filter(|(_, kind, _)| kind == PERSON_KIND).map(|(_, _, names)| names).collect();
+        // Who the words name last, when it is not the parent.
+        let others = rules.other_words();
+        let child_in = |words: &[String]| read_checks::last_named(words, &people, &others).filter(|g| Some(*g) != parent).cloned();
+        let starts_at = |words: &[String], i: usize| cues.iter().any(|c| words[i..].starts_with(c));
+        let anchors: Vec<usize> = match (0..quote_words.len()).find(|&i| starts_at(quote_words, i)) {
+            Some(at) if at > 0 => {
+                let before = &quote_words[..at];
+                let places = read_checks::named_places(before, &people, &[]);
+                if people.iter().zip(&places).any(|(g, p)| Some(*g) == parent && !p.is_empty()) {
+                    return Vec::new();
+                }
+                if let Some(child) = child_in(before) {
+                    return vec![child];
+                }
+                if self.vocabulary.reading.role_references.iter().any(|r| r.in_quote(before)) {
+                    return roles.and_then(|r| r.single(before)).filter(|g| Some(g) != parent).into_iter().collect();
+                }
+                self.text.starts(quote_words).into_iter().map(|s| s + at).collect()
+            }
+            Some(_) => self.text.starts(quote_words),
+            None => {
+                if !rules.join_words().iter().any(|j| quote_words.starts_with(j)) {
+                    return Vec::new();
+                }
+                let words = self.text.words();
+                self.text
+                    .starts(quote_words)
+                    .into_iter()
+                    .filter_map(|s| (s.saturating_sub(rules.window)..s).rev().find(|&i| starts_at(words, i)))
+                    .collect()
+            }
+        };
+        let words = self.text.words();
+        let mut found: Vec<Vec<Vec<String>>> = Vec::new();
+        for anchor in anchors {
+            if let Some(child) = child_in(&words[anchor.saturating_sub(rules.window)..anchor]) {
+                if !found.contains(&child) {
+                    found.push(child);
+                }
+            }
+        }
+        found
+    }
+
+    /// Whether a filiation of the quote says the group of `child` is a child.
+    fn is_child(&self, quote_words: &[String], parent: Option<&Vec<Vec<String>>>, roles: Option<&Roles>, child: Option<&Vec<Vec<String>>>) -> bool {
+        child.is_some_and(|c| self.children(quote_words, parent, roles).contains(c))
+    }
+
+    /// A mention of the group of these names.
+    fn mention_of(&self, names: &Vec<Vec<String>>) -> Option<String> {
+        self.groups.iter().find(|(_, kind, other)| kind == PERSON_KIND && other == names).map(|(reference, _, _)| reference.clone())
+    }
+
+    /// The matter of the document named after the subject (the succession
+    /// of X): the one entity of the reading of the relation's object types
+    /// whose name holds one of the subject's names (D-456).
+    fn matter_named_after(&self, predicate: &super::vocabulary::Predicate, subject: &str) -> Option<String> {
+        let own = self.names(subject)?;
+        let found: Vec<&String> = self
+            .groups
+            .iter()
+            .filter(|(_, kind, _)| !predicate.object_types.is_empty() && applies(&predicate.object_types, kind))
+            .filter(|(_, _, names)| names.iter().any(|m| own.iter().any(|n| n.len() >= 2 && read_checks::name_in_quote(m, n))))
+            .map(|(reference, _, _)| reference)
+            .collect();
+        match found.as_slice() {
+            [one] => Some((*one).clone()),
+            _ => None,
+        }
+    }
+
+    /// Checks one claim of a part of the reading. With `roles`, a side its
+    /// quote names by the role it has in the document counts as named.
+    fn claim(&self, part: usize, said: &AnswerClaim, roles: Option<&Roles>) -> Result<Checked, Dropped> {
+        let vocabulary = self.vocabulary;
+        let dropped = |reason: &'static str| Dropped { reason, said: said.predicado.clone() };
+        let mut corrections: Vec<(&'static str, String)> = Vec::new();
+        let Some(predicate) = vocabulary.predicate(&said.predicado).filter(|p| !p.is_money()) else {
+            return Err(dropped("predicado-desconocido"));
+        };
+        let Some(mut subject) = self.refs.get(&(part, said.sujeto.clone())).cloned() else {
+            return Err(dropped("sujeto-desconocido"));
+        };
+        let mut object_ref: Option<String> = said.objeto_ref.as_ref().and_then(|r| self.refs.get(&(part, r.clone()))).cloned();
+        // The two sides given the other way round, as their types say (a
+        // matter as the subject of what is said of a person in it), D-456.
+        if predicate.takes_entity() && !applies(&predicate.subject, &self.kinds[&subject]) {
+            let swapped = object_ref
+                .clone()
+                .filter(|o| applies(&predicate.subject, &self.kinds[o]) && applies(&predicate.object_types, &self.kinds[&subject]));
+            if let Some(object) = swapped {
+                corrections.push(("lados-dados-vuelta", said.predicado.clone()));
+                object_ref = Some(std::mem::replace(&mut subject, object));
+            }
+        }
+        if !applies(&predicate.subject, &self.kinds[&subject]) {
+            return Err(dropped("no-corresponde-al-tipo"));
+        }
+        let value_words = if predicate.takes_entity() { Vec::new() } else { quote::words(said.objeto_valor.as_deref().unwrap_or_default()) };
+        let Some(page) = locate_value(self.text, &said.cita, &value_words, said.pagina, self.window) else {
+            return Err(dropped("cita-no-encontrada"));
+        };
+        // The record of a signing service says who signed, when and
+        // with what title and address, not when a bond starts or who
+        // is a party of the act (D-288): only what it can say is kept.
+        if self.certificate.contains(&page) && !vocabulary.reading.certificate_claims.iter().any(|p| p == &predicate.id) {
+            return Err(dropped("dato-de-la-constancia-de-firma"));
+        }
+        let quote_words = quote::words(&said.cita);
+        // A filiation: from the parent to the child, or the other way round.
+        let filiation = &vocabulary.reading.filiation.predicate;
+        let parent_to_child = !filiation.is_empty() && &predicate.id == filiation;
+        let child_to_parent = !filiation.is_empty() && &predicate.inverse_of == filiation;
+        let (object_mention, object_value) = if predicate.takes_entity() {
+            match object_ref.clone() {
+                Some(object) if applies(&predicate.object_types, &self.kinds[&object]) && object != subject => (Some(object), None),
+                given => {
+                    if let Some(matter) = predicate.object_from_document.then(|| self.matter_named_after(predicate, &subject)).flatten() {
+                        // A relation with the matter of the document (D-456).
+                        corrections.push(("asunto-del-documento", said.predicado.clone()));
+                        (Some(matter), None)
+                    } else if parent_to_child && given.as_deref() == Some(subject.as_str()) {
+                        // The parent given as both sides: the child is who
+                        // the filiation of the text says, when it says one
+                        // (D-457).
+                        let children = self.children(&quote_words, self.names(&subject), roles);
+                        let child = match children.as_slice() {
+                            [one] => self.mention_of(one).filter(|c| c != &subject),
+                            _ => None,
+                        };
+                        let Some(child) = child else { return Err(dropped("objeto-desconocido")) };
+                        corrections.push(("hijo-de-la-filiacion", said.predicado.clone()));
+                        (Some(child), None)
+                    } else {
+                        return Err(dropped("objeto-desconocido"));
+                    }
+                }
+            }
+        } else {
+            let value = said.objeto_valor.clone().unwrap_or_default().trim().to_string();
+            if value.is_empty() || !quote::contains(&quote_words, &quote::words(&value)) {
+                return Err(Dropped { reason: "valor-fuera-de-la-cita", said: format!("{}: {value}", said.predicado) });
+            }
+            (None, Some(value))
+        };
+        // What has legal consequences names its object in the quote
+        // (D-250).
+        if predicate.object_in_quote {
+            let object = object_mention.as_deref().expect("an entity");
+            let mut named = self.named_in(&quote_words, object);
+            // A signature block or "X, representada por Y": the
+            // organization named right before the quote (P-122, D-269).
+            let rules = &vocabulary.reading;
+            let acts_for = quote_words.iter().any(|w| {
+                rules.representation_cues.iter().any(|cue| if cue.chars().count() <= 3 { w == cue } else { w.starts_with(cue.as_str()) })
+            });
+            if !named && acts_for && rules.object_window > 0 && rules.object_before.iter().any(|p| *p == predicate.id) && self.kinds[object] == super::names::ORGANIZATION {
+                if let Some(own) = self.names(object) {
+                    let organizations: Vec<&Vec<Vec<String>>> = self
+                        .group_names
+                        .iter()
+                        .filter(|(r, _)| self.kinds.get(r.as_str()).is_some_and(|k| k == super::names::ORGANIZATION))
+                        .map(|(_, n)| n)
+                        .collect();
+                    named = read_checks::nearest_before(self.body, &said.cita, &organizations, own, rules.object_window);
+                }
+            }
+            // By the role it has in the document (D-456).
+            if !named {
+                named = roles.is_some_and(|r| r.names(&quote_words, self.names(object)));
+            }
+            // The child of a filiation, named right before it (D-457).
+            if !named && parent_to_child {
+                named = self.is_child(&quote_words, self.names(&subject), roles, self.names(object));
+            }
+            if !named {
+                return Err(dropped("objeto-fuera-de-la-cita"));
+            }
+        }
+        if let Some(object) = object_mention.as_deref() {
+            // A name that cannot be this side of the relation (a court
+            // does not represent anyone nor is a party), D-435.
+            let has = |reference: &str, list: &[String]| {
+                !list.is_empty() && self.names(reference).is_some_and(|names| names.iter().any(|n| super::vocabulary::name_has(n, list)))
+            };
+            if has(&subject, &predicate.subject_not) || has(object, &predicate.object_not) {
+                return Err(dropped("no-corresponde-al-nombre"));
+            }
+            // The words of the relation where they say it: before the
+            // name of the object, or after it (D-435).
+            let names = self.names(object).cloned().unwrap_or_default();
+            if (!predicate.lead_cues.is_empty() || !predicate.trail_cues.is_empty())
+                && names.iter().any(|n| !read_checks::positions(&quote_words, n).is_empty())
+                && !read_checks::cue_around(&quote_words, &names, &predicate.lead_cues, &predicate.trail_cues)
+            {
+                return Err(dropped("vinculo-fuera-de-la-cita"));
+            }
+            // A relation between two people names its subject too: a
+            // quote that does not was given to someone else (D-433). The
+            // first person names whoever signs the document; a role of the
+            // document, who has it (D-456); a filiation, its child (D-457).
+            if predicate.subject_in_quote {
+                let own = self.named_in(&quote_words, &subject);
+                let first_person = self.signers.contains(&subject) && quote_words.iter().any(|w| vocabulary.reading.first_person.iter().any(|f| f == w));
+                let by_role = roles.is_some_and(|r| r.names(&quote_words, self.names(&subject)));
+                let by_filiation =
+                    child_to_parent && self.is_child(&quote_words, self.names(object), roles, self.names(&subject));
+                if !own && !first_person && !by_role && !by_filiation {
+                    return Err(dropped("sujeto-fuera-de-la-cita"));
+                }
+            }
+            // Between the two names, words that say the relation is of
+            // others (the children named after their parents' union).
+            if !predicate.not_between.is_empty() {
+                let own = self.names(&subject).cloned().unwrap_or_default();
+                if read_checks::apart_by(&quote_words, &own, &names, &predicate.not_between, &predicate.cues) {
+                    return Err(dropped("vinculo-de-otros"));
+                }
+            }
+        }
+        // A time is kept only when it is in the quote too.
+        let fact_time = said
+            .tiempo
+            .clone()
+            .map(|t| t.trim().to_string())
+            .filter(|t| !t.is_empty() && quote::contains(&quote_words, &quote::words(t)));
+        let class = said
+            .clase
+            .as_deref()
+            .filter(|c| *c != NO_CLASS && predicate.classes().any(|q| q.id == *c))
+            .map(str::to_string);
+        let mut detail = serde_json::Map::new();
+        if let Some(class) = &class {
+            detail.insert("clase".into(), class.clone().into());
+        }
+        if let Some(label) = said.rotulo.as_deref().map(str::trim).filter(|l| label_verified(self.text, &said.cita, &value_words, Some(l), self.window)) {
+            detail.insert("rotulo".into(), label.into());
+        }
+        // The other side of a relation is kept as that relation, once
+        // ("hijo de" as "padre o madre de", swapped).
+        let (subject, object_mention, predicate_id) = match (predicate.inverse_of.as_str(), object_mention) {
+            ("", object) => (subject, object, predicate.id.clone()),
+            (other, Some(object)) => (object, Some(subject), other.to_string()),
+            (_, None) => return Err(dropped("objeto-desconocido")),
+        };
+        Ok(Checked {
+            evidence: Evidence {
+                subject,
+                predicate: predicate_id,
+                object_mention,
+                object_value,
+                quote: said.cita.trim().to_string(),
+                page,
+                fact_time,
+                amount: None,
+                detail: (!detail.is_empty()).then_some(serde_json::Value::Object(detail)),
+            },
+            corrections,
+        })
+    }
+}
+
 /// Checks the answers about the parts of one document against its text,
 /// and puts them together: the mentions of every part, the same mention
 /// (type, name and role) once, and each claim once.
@@ -1031,154 +1418,49 @@ pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &
             .map(|m| m.reference.clone())
             .collect()
     };
+    // One group of each entity of the document, with a mention of it: who a
+    // filiation or a relation with the matter of the document can be.
+    let mut groups: Vec<(String, String, Vec<Vec<String>>)> = Vec::new();
+    for mention in &reading.mentions {
+        let Some(names) = group_names.get(&mention.reference).filter(|n| !n.is_empty()) else { continue };
+        if !groups.iter().any(|(_, kind, other)| kind == &mention.kind && other == names) {
+            groups.push((mention.reference.clone(), mention.kind.clone(), names.clone()));
+        }
+    }
+    let check = ClaimCheck {
+        vocabulary,
+        body,
+        text: &text,
+        certificate: &certificate,
+        window,
+        refs: &refs,
+        kinds: &kinds,
+        group_names: &group_names,
+        signers: &signers,
+        groups,
+    };
+    // A claim whose quote names a side only by the role it has in the
+    // document is checked again once the rest of the document is (D-456).
+    let mut deferred: Vec<(usize, &AnswerClaim)> = Vec::new();
     for (part, answer) in answers.iter().enumerate() {
         for said in &answer.afirmaciones {
-            let Some(predicate) = vocabulary.predicate(&said.predicado).filter(|p| !p.is_money()) else {
-                discard(&mut reading, "claim", "predicado-desconocido", &said.predicado, &said.cita);
-                continue;
-            };
-            let Some(subject) = refs.get(&(part, said.sujeto.clone())).cloned() else {
-                discard(&mut reading, "claim", "sujeto-desconocido", &said.predicado, &said.cita);
-                continue;
-            };
-            if !applies(&predicate.subject, &kinds[&subject]) {
-                discard(&mut reading, "claim", "no-corresponde-al-tipo", &said.predicado, &said.cita);
-                continue;
+            match check.claim(part, said, None) {
+                Ok(checked) => keep_claim(&mut reading, checked, &said.cita),
+                Err(dropped) if DEFERRED.contains(&dropped.reason) && !vocabulary.reading.role_references.is_empty() => deferred.push((part, said)),
+                Err(dropped) => discard(&mut reading, "claim", dropped.reason, &dropped.said, &said.cita),
             }
-            let value_words = if predicate.takes_entity() { Vec::new() } else { quote::words(said.objeto_valor.as_deref().unwrap_or_default()) };
-            let Some(page) = locate_value(&text, &said.cita, &value_words, said.pagina, window) else {
-                discard(&mut reading, "claim", "cita-no-encontrada", &said.predicado, &said.cita);
-                continue;
-            };
-            // The record of a signing service says who signed, when and
-            // with what title and address, not when a bond starts or who
-            // is a party of the act (D-288): only what it can say is kept.
-            if certificate.contains(&page) && !vocabulary.reading.certificate_claims.iter().any(|p| p == &predicate.id) {
-                discard(&mut reading, "claim", "dato-de-la-constancia-de-firma", &said.predicado, &said.cita);
-                continue;
-            }
-            let quote_words = quote::words(&said.cita);
-            let (object_mention, object_value) = if predicate.takes_entity() {
-                match said.objeto_ref.as_ref().and_then(|r| refs.get(&(part, r.clone()))) {
-                    Some(object) if applies(&predicate.object_types, &kinds[object]) && object != &subject => (Some(object.clone()), None),
-                    _ => {
-                        discard(&mut reading, "claim", "objeto-desconocido", &said.predicado, &said.cita);
-                        continue;
-                    }
-                }
-            } else {
-                let value = said.objeto_valor.clone().unwrap_or_default().trim().to_string();
-                if value.is_empty() || !quote::contains(&quote_words, &quote::words(&value)) {
-                    discard(&mut reading, "claim", "valor-fuera-de-la-cita", &format!("{}: {value}", said.predicado), &said.cita);
-                    continue;
-                }
-                (None, Some(value))
-            };
-            // What has legal consequences names its object in the quote
-            // (D-250).
-            if predicate.object_in_quote {
-                let object = object_mention.as_deref().expect("an entity");
-                let mut named = group_names.get(object).is_some_and(|names| names.iter().any(|n| read_checks::name_in_quote(&quote_words, n)));
-                // A signature block or "X, representada por Y": the
-                // organization named right before the quote (P-122, D-269).
-                let rules = &vocabulary.reading;
-                let acts_for = quote_words.iter().any(|w| {
-                    rules.representation_cues.iter().any(|cue| if cue.chars().count() <= 3 { w == cue } else { w.starts_with(cue.as_str()) })
-                });
-                if !named && acts_for && rules.object_window > 0 && rules.object_before.iter().any(|p| *p == predicate.id) && kinds[object] == super::names::ORGANIZATION {
-                    if let Some(own) = group_names.get(object) {
-                        let organizations: Vec<&Vec<Vec<String>>> =
-                            group_names.iter().filter(|(r, _)| kinds.get(r.as_str()).is_some_and(|k| k == super::names::ORGANIZATION)).map(|(_, n)| n).collect();
-                        named = read_checks::nearest_before(body, &said.cita, &organizations, own, rules.object_window);
-                    }
-                }
-                if !named {
-                    discard(&mut reading, "claim", "objeto-fuera-de-la-cita", &said.predicado, &said.cita);
-                    continue;
-                }
-            }
-            if let Some(object) = object_mention.as_deref() {
-                // A name that cannot be this side of the relation (a court
-                // does not represent anyone nor is a party), D-435.
-                let has = |reference: &str, list: &[String]| {
-                    !list.is_empty() && group_names.get(reference).is_some_and(|names| names.iter().any(|n| super::vocabulary::name_has(n, list)))
-                };
-                if has(&subject, &predicate.subject_not) || has(object, &predicate.object_not) {
-                    discard(&mut reading, "claim", "no-corresponde-al-nombre", &said.predicado, &said.cita);
-                    continue;
-                }
-                // The words of the relation where they say it: before the
-                // name of the object, or after it (D-435).
-                let names = group_names.get(object).cloned().unwrap_or_default();
-                if (!predicate.lead_cues.is_empty() || !predicate.trail_cues.is_empty())
-                    && names.iter().any(|n| !read_checks::positions(&quote_words, n).is_empty())
-                    && !read_checks::cue_around(&quote_words, &names, &predicate.lead_cues, &predicate.trail_cues)
-                {
-                    discard(&mut reading, "claim", "vinculo-fuera-de-la-cita", &said.predicado, &said.cita);
-                    continue;
-                }
-                // A relation between two people names its subject too: a
-                // quote that does not was given to someone else (D-433). The
-                // first person names whoever signs the document.
-                if predicate.subject_in_quote {
-                    let own = group_names.get(&subject).is_some_and(|names| names.iter().any(|n| read_checks::name_in_quote(&quote_words, n)));
-                    let first_person = signers.contains(&subject)
-                        && quote_words.iter().any(|w| vocabulary.reading.first_person.iter().any(|f| f == w));
-                    if !own && !first_person {
-                        discard(&mut reading, "claim", "sujeto-fuera-de-la-cita", &said.predicado, &said.cita);
-                        continue;
-                    }
-                }
-                // Between the two names, words that say the relation is of
-                // others (the children named after their parents' union).
-                if !predicate.not_between.is_empty() {
-                    let own = group_names.get(&subject).cloned().unwrap_or_default();
-                    if read_checks::apart_by(&quote_words, &own, &names, &predicate.not_between, &predicate.cues) {
-                        discard(&mut reading, "claim", "vinculo-de-otros", &said.predicado, &said.cita);
-                        continue;
-                    }
-                }
-            }
-            // A time is kept only when it is in the quote too.
-            let fact_time = said
-                .tiempo
-                .clone()
-                .map(|t| t.trim().to_string())
-                .filter(|t| !t.is_empty() && quote::contains(&quote_words, &quote::words(t)));
-            let class = said
-                .clase
-                .as_deref()
-                .filter(|c| *c != NO_CLASS && predicate.classes().any(|q| q.id == *c))
-                .map(str::to_string);
-            let mut detail = serde_json::Map::new();
-            if let Some(class) = &class {
-                detail.insert("clase".into(), class.clone().into());
-            }
-            if let Some(label) = said.rotulo.as_deref().map(str::trim).filter(|l| label_verified(&text, &said.cita, &value_words, Some(l), window)) {
-                detail.insert("rotulo".into(), label.into());
-            }
-            // The other side of a relation is kept as that relation, once
-            // ("hijo de" as "padre o madre de", swapped).
-            let (subject, object_mention, predicate_id) = match (predicate.inverse_of.as_str(), object_mention) {
-                ("", object) => (subject, object, predicate.id.clone()),
-                (other, Some(object)) => (object, Some(subject), other.to_string()),
-                (_, None) => continue,
-            };
-            let evidence = Evidence {
-                subject,
-                predicate: predicate_id,
-                object_mention,
-                object_value,
-                quote: said.cita.trim().to_string(),
-                page,
-                fact_time,
-                amount: None,
-                detail: (!detail.is_empty()).then_some(serde_json::Value::Object(detail)),
-            };
-            push_evidence(&mut reading, evidence);
         }
         for said in &answer.importes {
             amount_evidence(vocabulary, &text, &refs, &kinds, &group_names, part, said, &mut reading);
+        }
+    }
+    if !deferred.is_empty() {
+        let roles = Roles::of(vocabulary, &reading, &group_names, &signers);
+        for (part, said) in deferred {
+            match check.claim(part, said, Some(&roles)) {
+                Ok(checked) => keep_claim(&mut reading, checked, &said.cita),
+                Err(dropped) => discard(&mut reading, "claim", dropped.reason, &dropped.said, &said.cita),
+            }
         }
     }
     other_person(vocabulary, body, &mut reading);

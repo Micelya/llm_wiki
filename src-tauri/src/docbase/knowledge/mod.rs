@@ -72,6 +72,8 @@ mod tests_relations;
 #[cfg(test)]
 mod tests_reread;
 #[cfg(test)]
+mod tests_roles;
+#[cfg(test)]
 mod tests_screens;
 #[cfg(test)]
 mod tests_says;

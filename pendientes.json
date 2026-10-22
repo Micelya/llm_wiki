@@ -2168,9 +2168,9 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "a-verificar",
-      "detalle": "Corrida del 22 oct, paso 2 (D-432 a D-437): un cambio de catálogo o de pregunta ya no relee el archivo con el modelo; lo leído se controla de nuevo con las respuestas guardadas y se relee solo a pedido («Volver a leer con el modelo» en el documento, en Orígenes y en «En curso», con aviso de costo y guardado en la base). La cita de una relación entre personas nombra a las dos; parentescos y herencia en el catálogo; dudas por atribución y por estado civil contradictorio en las relaciones; «representa a» con sentido; un identificador escrito con más o menos caracteres no parte fichas; un ítem de lista se encuentra. Medido sobre la copia (sin modelo): las dos relaciones de cónyuge mal atribuidas de la sucesión desaparecen, de 12 relaciones inventadas que quedaban firmes queda 1 (una deuda), el abogado y el causante quedan en una ficha cada uno y el aviso de citas perdidas desaparece. Falta que el dueño lo vea en la app y que el paso 3 relea la sucesión.",
+      "detalle": "Corrida del 22 oct, paso 2 (D-432 a D-437): un cambio de catálogo o de pregunta ya no relee el archivo con el modelo; lo leído se controla de nuevo con las respuestas guardadas y se relee solo a pedido («Volver a leer con el modelo» en el documento, en Orígenes y en «En curso», con aviso de costo y guardado en la base). La cita de una relación entre personas nombra a las dos; parentescos y herencia en el catálogo; dudas por atribución y por estado civil contradictorio en las relaciones; «representa a» con sentido; un identificador escrito con más o menos caracteres no parte fichas; un ítem de lista se encuentra. Medido sobre la copia (sin modelo): las dos relaciones de cónyuge mal atribuidas de la sucesión desaparecen, de 12 relaciones inventadas que quedaban firmes queda 1 (una deuda), el abogado y el causante quedan en una ficha cada uno y el aviso de citas perdidas desaparece. Falta que el dueño lo vea en la app y que el paso 3 relea la sucesión. Paso 2b (D-456 a D-458): las citas que nombran a alguien por su papel («el causante», «mis mandantes»), las filiaciones («X, hijo de A») y la sigla con puntos: con las mismas respuestas del modelo, las relaciones firmes de la hoja de la sucesión pasan de 69 a 103 y lo que no existe sigue sin quedar firme en su documento.",
       "depende_de": [],
-      "referencia": "D-432 a D-437; src-tauri/src/docbase/knowledge/extract.rs; src-tauri/src/docbase/knowledge/claims.rs; src-tauri/resources/catalog/knowledge.json; src/components/knowledge/read-again.tsx; src-tauri/src/docbase/knowledge/check_relations.rs",
+      "referencia": "D-432 a D-437; src-tauri/src/docbase/knowledge/extract.rs; src-tauri/src/docbase/knowledge/claims.rs; src-tauri/resources/catalog/knowledge.json; src/components/knowledge/read-again.tsx; src-tauri/src/docbase/knowledge/check_relations.rs; D-456 a D-458; src-tauri/src/docbase/knowledge/tests_roles.rs",
       "creado": "2026-10-22",
       "actualizado": "2026-10-22"
     },
@@ -2242,9 +2242,33 @@
       "tipo": "decision",
       "responsable": "ambos",
       "estado": "pendiente",
-      "detalle": "Medido el 22 oct sobre la copia del respaldo del paso 3, sin modelo: con los pasos 2 y 4, el trabajo de fondo haría 7 preguntas de identidad (candidatos nuevos tras D-436) y, después, 19 preguntas de síntesis de personas u organizaciones cuyos datos cambiaron al re-controlarse (D-432 a D-434). No las causa el rearmado de las páginas del paso 5 (son las mismas 19 antes y después), pero se harían solas con la lectura automática encendida. Decidir si van solas o solo a pedido, como releer (D-432).",
+      "detalle": "Medido el 22 oct sobre la copia del respaldo del paso 3, sin modelo: con los pasos 2 y 4, el trabajo de fondo haría 7 preguntas de identidad (candidatos nuevos tras D-436) y, después, 19 preguntas de síntesis de personas u organizaciones cuyos datos cambiaron al re-controlarse (D-432 a D-434). No las causa el rearmado de las páginas del paso 5 (son las mismas 19 antes y después), pero se harían solas con la lectura automática encendida. Decidir si van solas o solo a pedido, como releer (D-432). Con el paso 2b (D-456 a D-458), la copia de medir3 deja 8 preguntas de identidad y 17 de síntesis.",
       "depende_de": [],
       "referencia": "src-tauri/src/docbase/knowledge/pages/check_rebuild.rs; src-tauri/src/docbase/worker.rs; D-432",
+      "creado": "2026-10-22",
+      "actualizado": "2026-10-22"
+    },
+    {
+      "id": "P-271",
+      "titulo": "Decidir si se relee la sucesión con una pregunta que pida las filiaciones completas",
+      "tipo": "decision",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "detalle": "Con las respuestas guardadas (D-456, D-457), de las 104 relaciones de padre, madre e hijo de la hoja de la sucesión se encuentran 35 (antes 4). De las 69 que faltan, el modelo no devolvió 38; 9 las dio con el padre en los dos lados sin que el texto diga quién es el hijo, 4 con el hijo en los dos lados, 4 al revés, y 14 con una cita que no alcanza (con puntos suspensivos, «de dicha unión», cortada antes del nombre). Abuelos, tíos, sobrinos y nietos casi no los devolvió (11 afirmaciones para 32 relaciones). Haría falta que la pregunta pida, en una filiación, una afirmación por cada padre con el hijo como objeto (nunca la misma persona de los dos lados) y una cita del nombre del hijo al del padre; en partidas y actas, la filiación de cada persona del acta; y los parentescos dichos como «sus sobrinos A y B» o «su hermano A» con los dos lados. Sería otra relectura de la sucesión con cuota (68 documentos, 78 preguntas): la decide el dueño.",
+      "depende_de": [],
+      "referencia": "D-456, D-457; src-tauri/src/docbase/knowledge/extract.rs (prompt); src-tauri/src/docbase/knowledge/check_relations.rs",
+      "creado": "2026-10-22",
+      "actualizado": "2026-10-22"
+    },
+    {
+      "id": "P-272",
+      "titulo": "Fichas partidas que quedan en la sucesión",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Quedan 8 entidades de la hoja de la sucesión en dos fichas cada una (medición nueva de D-458): en 5 el modelo dijo «dudosa» o «distinta» (una persona con dos fechas de nacimiento; un organismo nombrado solo «Archivo»; un organismo con nombre corto y largo; un registro de la capital; un registro y el colegio que lo lleva): las decide una persona en Atención, y la de la persona está entre las preguntas de identidad que la app haría ahora; 2 organismos nunca se comparan (una abreviatura y un cargo escrito como nombre, P-255); y un abogado tiene su matrícula leída distinta en dos escaneos («tomo» y «folio» escritos de otra manera y un dígito distinto), que lo separa: ver si una matrícula se compara por sus números de tomo y folio.",
+      "depende_de": [],
+      "referencia": "D-458; src-tauri/src/docbase/knowledge/names.rs; src-tauri/src/docbase/knowledge/resolve.rs; P-255",
       "creado": "2026-10-22",
       "actualizado": "2026-10-22"
     }

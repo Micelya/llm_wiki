@@ -349,6 +349,65 @@ fn load_signers(conn: &Connection, vocabulary: &Vocabulary) -> Result<HashSet<(i
     Ok(out)
 }
 
+/// Who each role reference of the vocabulary names in each document
+/// (D-456): by document and role (its place in the list), the entities on
+/// its side of the document's relations.
+fn role_entities(
+    conn: &Connection,
+    vocabulary: &Vocabulary,
+    pieces: &[Piece],
+    signers: &HashSet<(i64, String)>,
+) -> Result<HashMap<(i64, usize), BTreeSet<String>>, String> {
+    let roles = &vocabulary.reading.role_references;
+    let mut out: HashMap<(i64, usize), BTreeSet<String>> = HashMap::new();
+    for piece in pieces {
+        for (index, role) in roles.iter().enumerate() {
+            if piece.predicate != role.predicate {
+                continue;
+            }
+            if role.by_signer && !piece.subject_entity.as_ref().is_some_and(|s| signers.contains(&(piece.content, s.clone()))) {
+                continue;
+            }
+            let side = if role.side == "object" { piece.object_entity.as_ref() } else { piece.subject_entity.as_ref() };
+            if let Some(entity) = side {
+                out.entry((piece.content, index)).or_default().insert(entity.clone());
+            }
+        }
+    }
+    // Without such relations in a document, who has one of the role's
+    // roles in it (the parties of a lawyer's writ), not the signer.
+    if roles.iter().any(|r| !r.mention_roles.is_empty()) {
+        let signed: HashSet<i64> = signers.iter().map(|(content, _)| *content).collect();
+        let mut statement =
+            conn.prepare("SELECT content_id, entity_id, role FROM knowledge_mention WHERE entity_id IS NOT NULL ORDER BY id").map_err(sql_err)?;
+        let rows = statement
+            .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)))
+            .map_err(sql_err)?;
+        let mut holders: HashMap<(i64, usize), BTreeSet<String>> = HashMap::new();
+        for row in rows {
+            let (content, entity, held) = row.map_err(sql_err)?;
+            for (index, role) in roles.iter().enumerate() {
+                if role.mention_roles.contains(&held) && (!role.by_signer || signed.contains(&content)) && !signers.contains(&(content, entity.clone())) {
+                    holders.entry((content, index)).or_default().insert(entity.clone());
+                }
+            }
+        }
+        for (key, entities) in holders {
+            out.entry(key).or_insert(entities);
+        }
+    }
+    Ok(out)
+}
+
+/// Whether the quote of a piece names an entity by the role it has in the
+/// piece's document ("el causante", "mis mandantes"), D-456.
+fn named_by_role(vocabulary: &Vocabulary, roles: &HashMap<(i64, usize), BTreeSet<String>>, piece: &Piece, entity: &str) -> bool {
+    let words = quote::words(&piece.quote);
+    vocabulary.reading.role_references.iter().enumerate().any(|(index, role)| {
+        roles.get(&(piece.content, index)).is_some_and(|named| named.contains(entity) && (!role.single || named.len() == 1)) && role.in_quote(&words)
+    })
+}
+
 /// What the context of a value is found with: the resolved mentions of
 /// each document, and the entities each subject is related to in it.
 fn load_context(conn: &Connection) -> Result<(Named, HashMap<i64, BTreeSet<String>>), String> {
@@ -389,6 +448,7 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, decided: &
     let pieces = load_pieces(conn)?;
     let (named, related) = load_context(conn)?;
     let signers = load_signers(conn, vocabulary)?;
+    let roles = role_entities(conn, vocabulary, &pieces, &signers)?;
     let doubted = doubted_mentions(conn)?;
 
     // The context of each piece, and its value once its shape is checked
@@ -633,13 +693,17 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, decided: &
             reasons.insert("attribution");
         }
         // A relation whose every quote names others and not its subject
-        // (the object aside; the first person is whoever signs), D-434.
+        // (the object aside; the first person is whoever signs; a role of
+        // the document, who has it), D-434, D-456.
         if let Some(object) = draft.object_entity.as_deref().filter(|_| definition.is_some_and(|p| p.attribution)) {
             let first_person = |p: &Piece| {
                 signers.contains(&(p.content, draft.subject.clone()))
                     && quote::words(&p.quote).iter().any(|w| vocabulary.reading.first_person.iter().any(|f| f == w))
             };
-            if !list.is_empty() && list.iter().all(|p| !first_person(p) && names_someone_else(vocabulary, &named, p, draft.subject.as_str(), Some(object))) {
+            let by_role = |p: &Piece| named_by_role(vocabulary, &roles, p, draft.subject.as_str());
+            if !list.is_empty()
+                && list.iter().all(|p| !first_person(p) && !by_role(p) && names_someone_else(vocabulary, &named, p, draft.subject.as_str(), Some(object)))
+            {
                 reasons.insert("attribution");
             }
         }
