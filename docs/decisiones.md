@@ -432,6 +432,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-487 | 22 oct | API local | Un solo servidor dentro de la máquina para todos los programas (el recortador web y otros asistentes), sobre toda la base; el servidor propio del recortador se reemplaza | vigente |
 | D-488 | 22 oct | Plantillas | Plantillas: la plantilla queda unida solo a sus documentos de origen; lo generado, a su caso; los campos se nombran por el rótulo, el modelo y la persona; en el producto mínimo sale un Word simple | vigente |
 | D-489 | 22 oct | Servicios de IA | El motor de lectura de Core manda cada página como una imagen JPEG hecha por la base, guarda aparte las palabras dudosas y paga una sola vez cada página | en revisión (agente sin consulta, se confirma al verla en la app: P-063) |
+| D-490 | 22 oct | Plantillas | La sección «Plantillas»: nombre por el tipo del documento principal, lo que decide una persona guardado aparte, el rótulo claro y una pregunta automática al modelo por plantilla | en revisión (agente sin consulta, se confirma al verla en la app: P-287, P-257) |
 
 ---
 
@@ -5251,4 +5252,11 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Fecha:** 22 oct 2026 · **Tema:** Servicios de IA · **Estado:** en revisión (agente sin consulta, se confirma al verla en la app: P-063)
 - **El problema:** Para leer por páginas (D-483) había que elegir cómo mandar cada página a Core, qué hacer con la confianza de cada palabra, cómo nombrar el motor y cómo no pagar dos veces una página si se corta la conexión.
 - **Qué se decidió y por qué:** Cada página va sola como JPEG en gris de hasta 2000 píxeles, hecha de la misma imagen que la base ya arma para Codex (así la comparación de motores es pareja y no viajan datos internos del PDF), con nombre «pagina-N.jpg». Una página sin renglones queda «[ilegible]»; las palabras con confianza menor a 0,90 se guardan aparte, sin cambiar el texto. El motor se nombra por el modelo de Servicios de IA (core:textract-1.0) y cada página guarda la versión que informa Core. Cada página va con su huella: antes de repetir un pedido sin respuesta se mira la lista, y una lectura que no se pudo borrar se recupera sin volver a cobrarla. El secreto de una conexión nunca vuelve a las pantallas.
+- **Quién decidió:** agente sin consulta.
+
+### D-490 · La sección «Plantillas»: nombre por el tipo del documento principal, lo que decide una persona guardado aparte, el rótulo claro y una pregunta automática al modelo por plantilla
+
+- **Fecha:** 22 oct 2026 · **Tema:** Plantillas · **Estado:** en revisión (agente sin consulta, se confirma al verla en la app: P-287, P-257)
+- **El problema:** Para construir la sección y los nombres de los campos (D-488) faltaba decidir cómo se llama una plantilla que nadie renombró, cómo sobrevive lo que decide una persona cuando la plantilla se vuelve a armar, qué cuenta como rótulo claro y qué le pregunta el modelo.
+- **Qué se decidió y por qué:** Una plantilla sin nombre propio se llama como el tipo de su documento principal (la segunda del mismo tipo, «(2)»). Lo que decide una persona (nombres, «Qué es», «Fijo») se guarda aparte: una plantilla se reconoce por los documentos que comparte y un campo por las palabras que lo rodean, nunca por sus valores (versión 23 del esquema; motor «template-3», que rearma cada plantilla una vez). Rótulo claro: termina en «:» o «N°», hasta cinco palabras, sin comas ni datos. El resto lo nombra la pregunta automática «campos-1», una por plantilla, con la lectura automática encendida; además dice si un campo que es un nombre es una persona, una organización o un caso (amplía un poco la regla de D-488, porque solo el modelo puede decirlo). Nunca pisa lo que escribió una persona y tiene su etapa en «En curso».
 - **Quién decidió:** agente sin consulta.

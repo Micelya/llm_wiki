@@ -1348,11 +1348,9 @@
       "id": "P-257",
       "titulo": "Campos de las plantillas con nombre y mejor cortados",
       "tipo": "codigo",
-      "responsable": "claude",
-      "estado": "pendiente",
-      "prioridad": 3,
-      "tema": "parecidos y plantillas",
-      "detalle": "Las plantillas (D-439) nombran cada campo por su clase («Fecha 2», «Nombre 3») y lo cortan donde termina lo común. En la copia se ven tres límites: dos datos pegados quedan en un campo (un número y su fecha), un texto que solo el principal tiene largo (una familia cuyo principal es mucho más largo) queda como un campo «Texto» grande, y los valores en mayúsculas de un formulario salen como «Nombre». Ver si se nombran por lo que dicen (con el modelo, una pregunta por plantilla, o con el nombre del campo del formulario) y si se separan los datos pegados; medir con la copia antes.",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "detalle": "Las plantillas (D-439) nombran cada campo por su clase («Fecha 2», «Nombre 3») y lo cortan donde termina lo común. En la copia se ven tres límites: dos datos pegados quedan en un campo (un número y su fecha), un texto que solo el principal tiene largo (una familia cuyo principal es mucho más largo) queda como un campo «Texto» grande, y los valores en mayúsculas de un formulario salen como «Nombre». Ver si se nombran por lo que dicen (con el modelo, una pregunta por plantilla, o con el nombre del campo del formulario) y si se separan los datos pegados; medir con la copia antes. 2026-10-22 (tarde): construido (commits fd9aa00 y 8b5eeaa, D-490): nombres sin costo por el rótulo claro o el nombre del formulario (36 de 188 campos en una copia de la base real) y, para el resto, la pregunta automática al modelo «campos-1», una por plantilla, con la lectura automática encendida. Falta que el dueño lo vea en la app.",
       "depende_de": [
         "P-247"
       ],
@@ -1687,10 +1685,8 @@
       "estado": "pendiente",
       "prioridad": 1,
       "tema": "parecidos y plantillas",
-      "detalle": "Parte del producto mínimo (D-463, D-466). Desde la sección «Plantillas» elegir una, completar sus campos (a mano o con datos de la base: personas, organizaciones, casos) y generar el documento en la carpeta de trabajo, con el formato del original. Antes de construirlo, una propuesta de diseño para que la apruebe el dueño: de dónde sale el texto de la plantilla (las familias de «misma plantilla», D-438), qué formatos se generan y cómo se nombran los campos (P-257). 2026-10-22 (tarde): decidido (D-488): en el producto mínimo sale un Word simple, sin membrete, en la carpeta «Generados»; el documento generado se une a su caso; la plantilla no se une a casos ni personas, solo a los documentos de los que salió; se puede generar desde una plantilla propuesta, con aviso. El membrete y el Word original quedan para después, con prioridad (P-295).",
-      "depende_de": [
-        "P-287"
-      ],
+      "detalle": "Parte del producto mínimo (D-463, D-466). Desde la sección «Plantillas» elegir una, completar sus campos (a mano o con datos de la base: personas, organizaciones, casos) y generar el documento en la carpeta de trabajo, con el formato del original. Antes de construirlo, una propuesta de diseño para que la apruebe el dueño: de dónde sale el texto de la plantilla (las familias de «misma plantilla», D-438), qué formatos se generan y cómo se nombran los campos (P-257). 2026-10-22 (tarde): decidido (D-488): en el producto mínimo sale un Word simple, sin membrete, en la carpeta «Generados»; el documento generado se une a su caso; la plantilla no se une a casos ni personas, solo a los documentos de los que salió; se puede generar desde una plantilla propuesta, con aviso. El membrete y el Word original quedan para después, con prioridad (P-295). 2026-10-22 (tarde): la sección y los nombres están (P-287, P-257); faltan los pasos 5 a 7 de la propuesta: generar el Word simple, completar con datos de la base y reconocer lo generado.",
+      "depende_de": [],
       "referencia": "D-438 a D-440; D-466",
       "creado": "2026-10-22",
       "actualizado": "2026-10-22"
@@ -1713,11 +1709,9 @@
       "id": "P-287",
       "titulo": "Sección «Plantillas»: ver todas las plantillas con sus campos y sus documentos",
       "tipo": "codigo",
-      "responsable": "claude",
-      "estado": "pendiente",
-      "prioridad": 1,
-      "tema": "parecidos y plantillas",
-      "detalle": "Pedido del dueño (D-466): hoy una plantilla solo se ve desde un documento de su familia. Una sección propia con todas las plantillas de la base (también las de familias propuestas), con su texto común, sus campos y los documentos que la usan. Es la entrada para generar documentos (P-285). 2026-10-22 (tarde): nombres de los campos (D-488): el rótulo del texto donde se pueda; el modelo nombra solo el resto, sin botón para confirmar; una persona siempre puede renombrar y lo suyo nunca se pisa.",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "detalle": "Pedido del dueño (D-466): hoy una plantilla solo se ve desde un documento de su familia. Una sección propia con todas las plantillas de la base (también las de familias propuestas), con su texto común, sus campos y los documentos que la usan. Es la entrada para generar documentos (P-285). 2026-10-22 (tarde): nombres de los campos (D-488): el rótulo del texto donde se pueda; el modelo nombra solo el resto, sin botón para confirmar; una persona siempre puede renombrar y lo suyo nunca se pisa. 2026-10-22 (tarde): construida (commits 7e51be4 y 5fc2916, D-490): «Plantillas» en el menú, entre «Casos» y «Orígenes», con la lista (nombre, propuesta o confirmada, documentos, campos, formato de origen, avisos) y el detalle; renombrar la plantilla y sus campos, «Qué es» y «Fijo», guardado aparte para que sobreviva cuando la plantilla se vuelve a armar. La base pasa a la versión 23 del esquema. Falta que el dueño la vea en la app.",
       "depende_de": [],
       "referencia": "D-438 a D-440; D-466",
       "creado": "2026-10-22",
