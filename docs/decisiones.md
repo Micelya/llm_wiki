@@ -427,6 +427,11 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-482 | 22 oct | Servicios de IA | Los documentos de clientes se pueden procesar en Micelya Core aunque corra en Estados Unidos; el dueño asume esa responsabilidad | vigente |
 | D-483 | 22 oct | Reconocimiento | Los escaneos se mandan a Core por páginas o piezas, no enteros, para poder pedir después un tratamiento distinto según el tipo de cada una | vigente |
 | D-484 | 22 oct | Conocimiento | Las preguntas de quién es quién y de resumen que siguen a un cambio en lo leído se hacen solas con la lectura automática encendida, mostrando cuántas son y con un tope de 50 | vigente |
+| D-485 | 22 oct | Producto | LLM-Wiki deja de ser la identidad visible de la app; Acerca de lleva los enlaces de Micelya y queda solo el aviso legal que pide la licencia GPL v3 | vigente |
+| D-486 | 22 oct | Reconocimiento | «Describir imágenes» pasa a ser «Identificar las piezas de un documento» y lo hace Micelya Core | vigente |
+| D-487 | 22 oct | API local | Un solo servidor dentro de la máquina para todos los programas (el recortador web y otros asistentes), sobre toda la base; el servidor propio del recortador se reemplaza | vigente |
+| D-488 | 22 oct | Plantillas | Plantillas: la plantilla queda unida solo a sus documentos de origen; lo generado, a su caso; los campos se nombran por el rótulo, el modelo y la persona; en el producto mínimo sale un Word simple | vigente |
+| D-489 | 22 oct | Servicios de IA | El motor de lectura de Core manda cada página como una imagen JPEG hecha por la base, guarda aparte las palabras dudosas y paga una sola vez cada página | en revisión (agente sin consulta, se confirma al verla en la app: P-063) |
 
 ---
 
@@ -5212,3 +5217,38 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **El problema:** Cuando cambia algo de lo leído (una relectura, o un control nuevo de las respuestas guardadas, D-432), cambian algunas fichas y la app quiere hacer preguntas nuevas de quién es quién y de resumen (el 22 oct, unas 8 y 17). No estaba decidido si van solas o solo a pedido (P-260).
 - **Qué se decidió y por qué:** Van solas con la lectura automática encendida, porque son pocas y cortas y mejoran las fichas. «En curso» muestra cuántas va a hacer; si pasan de 50, la app pide permiso antes de seguir.
 - **Quién decidió:** dueño del producto (sobre la propuesta del agente).
+
+### D-485 · LLM-Wiki deja de ser la identidad visible de la app; Acerca de lleva los enlaces de Micelya y queda solo el aviso legal que pide la licencia GPL v3
+
+- **Fecha:** 22 oct 2026 · **Tema:** Producto · **Estado:** vigente
+- **El problema:** La app todavía muestra LLM-Wiki y el enlace al proyecto original (por ejemplo en Ajustes → Acerca de), y el dueño quiere quitarlos como parte del producto mínimo. Pero el original tiene licencia GPL v3: mientras la app tenga código derivado y se entregue a terceros, la licencia pide conservar el aviso de derechos del autor, indicar que la versión fue modificada y mostrar en la interfaz un aviso legal con la licencia, la falta de garantía y dónde está el código fuente.
+- **Qué se decidió y por qué:** Se quita LLM-Wiki como nombre e identidad en todas partes; Acerca de lleva el repositorio de GitHub (github.com/Micelya/llm_wiki) y https://micelya.com/; queda una sola sección «Avisos legales» con el aviso que pide la licencia (P-290). Más adelante, una reescritura para dejar la licencia (P-291), y entonces se quita de todos lados. Que la licencia lo pide es la lectura del agente: lo tiene que confirmar un abogado.
+- **Quién decidió:** dueño del producto (sobre la propuesta del agente).
+
+### D-486 · «Describir imágenes» pasa a ser «Identificar las piezas de un documento» y lo hace Micelya Core
+
+- **Fecha:** 22 oct 2026 · **Tema:** Reconocimiento · **Estado:** vigente
+- **El problema:** El «describir imágenes» del LLM-Wiki (un modelo de visión le ponía una descripción a cada imagen antes de escribir la página) se retiró con el wiki y ya no tiene sentido como estaba. Pero un escaneo judicial suele juntar un escrito, fotos de DNI, facturas y manuscritos, y para leer bien cada cosa hay que saber qué es cada pieza.
+- **Qué se decidió y por qué:** Se renombra «Identificar las piezas de un documento»: partir un escaneo en piezas, decir qué es cada una y dónde está, y leer cada pieza con su tratamiento (DNI, facturas y otros documentos conocidos). Lo implementa Core, que tiene Bedrock además de Textract (mensaje 003). Desktop usa lo que devuelva Core, lo muestra en el documento y saltea las páginas en blanco (P-173).
+- **Quién decidió:** dueño del producto.
+
+### D-487 · Un solo servidor dentro de la máquina para todos los programas (el recortador web y otros asistentes), sobre toda la base; el servidor propio del recortador se reemplaza
+
+- **Fecha:** 22 oct 2026 · **Tema:** API local · **Estado:** vigente
+- **El problema:** Con el retiro del wiki salió la API local que usaban otros programas (D-400). En la corrida del 21 oct un agente agregó, sin consultar, un servidor propio solo para el recortador web (clip_server.rs), y otros asistentes no tienen cómo usar la base. El dueño no quiere servidores sueltos por programa.
+- **Qué se decidió y por qué:** Se restablece un solo servidor dentro de la máquina (la API local, con MCP para otros asistentes) que deja usar toda la estructura actual de la base; el recortador lo usa y su servidor propio desaparece. Antes de construirlo, una propuesta de diseño: qué puede leer y qué puede hacer cada programa (P-227). Reemplaza en parte lo del recortador de D-450 y D-451.
+- **Quién decidió:** dueño del producto.
+
+### D-488 · Plantillas: la plantilla queda unida solo a sus documentos de origen; lo generado, a su caso; los campos se nombran por el rótulo, el modelo y la persona; en el producto mínimo sale un Word simple
+
+- **Fecha:** 22 oct 2026 · **Tema:** Plantillas · **Estado:** vigente
+- **El problema:** La propuesta de diseño de la sección «Plantillas» y de generar documentos (22 oct) dejaba nueve decisiones abiertas: formato de salida, membrete, nombres de los campos, plantillas sin confirmar, carpeta y vínculos de lo generado.
+- **Qué se decidió y por qué:** Se aprueba con estos matices del dueño: (1) la plantilla no se une a casos ni a personas ni guarda sus datos: solo su texto común y sus campos, unida a los documentos de los que salió; (2) el documento generado, ya completado con los datos de un cliente, sí se une al caso para el que se generó; (3) los nombres de los campos salen del rótulo del texto donde se pueda, el modelo nombra solo el resto sin botón para confirmar, y una persona siempre puede renombrar sin que se pise; (4) en el producto mínimo sale un Word simple, sin membrete, en la carpeta «Generados» de la carpeta de trabajo, sin subcarpetas por caso; (5) el membrete y copiar el Word original quedan para después, con prioridad (P-295); (6) se puede generar desde una plantilla propuesta, con aviso; (7) la sección se llama «Plantillas», desde el vocabulario.
+- **Quién decidió:** dueño del producto (sobre la propuesta del agente).
+
+### D-489 · El motor de lectura de Core manda cada página como una imagen JPEG hecha por la base, guarda aparte las palabras dudosas y paga una sola vez cada página
+
+- **Fecha:** 22 oct 2026 · **Tema:** Servicios de IA · **Estado:** en revisión (agente sin consulta, se confirma al verla en la app: P-063)
+- **El problema:** Para leer por páginas (D-483) había que elegir cómo mandar cada página a Core, qué hacer con la confianza de cada palabra, cómo nombrar el motor y cómo no pagar dos veces una página si se corta la conexión.
+- **Qué se decidió y por qué:** Cada página va sola como JPEG en gris de hasta 2000 píxeles, hecha de la misma imagen que la base ya arma para Codex (así la comparación de motores es pareja y no viajan datos internos del PDF), con nombre «pagina-N.jpg». Una página sin renglones queda «[ilegible]»; las palabras con confianza menor a 0,90 se guardan aparte, sin cambiar el texto. El motor se nombra por el modelo de Servicios de IA (core:textract-1.0) y cada página guarda la versión que informa Core. Cada página va con su huella: antes de repetir un pedido sin respuesta se mira la lista, y una lectura que no se pudo borrar se recupera sin volver a cobrarla. El secreto de una conexión nunca vuelve a las pantallas.
+- **Quién decidió:** agente sin consulta.
