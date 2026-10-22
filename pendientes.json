@@ -1912,11 +1912,11 @@
       "tipo": "decision",
       "responsable": "ambos",
       "estado": "pendiente",
-      "detalle": "En la base de partida queda un cuarto asunto propuesto: dos boletas que comparten el importe y que la comparación de parecidos relaciona como misma plantilla (cambian identificadores y fechas), no como versiones. Si son el mismo documento, basta con descartarlo en Atención o unirlas como el mismo documento; si pasa seguido, ver si dos documentos de la misma plantilla unidos solo por un importe deben proponerse.",
+      "detalle": "En la base de partida queda un cuarto asunto propuesto: dos boletas que comparten el importe y que la comparación de parecidos relaciona como misma plantilla (cambian identificadores y fechas), no como versiones. Si son el mismo documento, basta con descartarlo en Atención o unirlas como el mismo documento; si pasa seguido, ver si dos documentos de la misma plantilla unidos solo por un importe deben proponerse. Con D-440 (22 oct), dos documentos de una plantilla en los que no cambia ningún dato (o a lo sumo unas palabras) quedan marcados «posiblemente el mismo documento» y se avisan en Atención. Las dos boletas de este pendiente no entran: su plantilla muestra que cambian el número de boleta, la fecha y el código de barras (el importe es parte de la plantilla), así que son boletas distintas. Queda la pregunta del asunto: si dos documentos de la misma plantilla unidos solo por un importe deben proponerse como un caso.",
       "depende_de": [],
       "referencia": "D-381; desatendido-5/S3-medicion.txt",
       "creado": "2026-10-20",
-      "actualizado": "2026-10-21"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-219",
@@ -2119,12 +2119,12 @@
       "titulo": "Extraer las plantillas de los documentos y mostrarlas",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "Prioridad alta (dueño, 21 oct). Hoy la base solo detecta que dos documentos comparten plantilla (relación «misma plantilla, otros datos», con qué datos cambian) y los agrupa en familias; no arma ni guarda la plantilla. Hacer: por cada familia de misma plantilla, el texto común con los campos variables (alineando los textos, sin modelo; el modelo solo si agrega valor para nombrar los campos), guardado en la base; una pantalla (o pestaña de la familia) con la plantilla, sus campos y el valor de cada documento; enlace desde el documento. Más adelante: crear documentos nuevos desde una plantilla (etapa 5 del diseño de la base). Antecedentes: medición de pasajes repetidos (P-211, N7).",
+      "estado": "a-verificar",
+      "detalle": "Corrida del 22 oct, paso 4 (D-438 a D-440): cada familia de la misma plantilla tiene su plantilla en la base (versión 21): el texto común con los campos que cambian y el valor de cada documento, armada sin modelo alineando cada documento con el principal, también para las familias propuestas, y vuelta a armar sola cuando la familia cambia. Los campos se nombran por su clase («Fecha 2»). Se ve en «Datos y correcciones» del documento (arriba de sus parecidos), en la pantalla de documentos parecidos por familia y en Documentos al filtrar por una familia. Medido en la copia: 12 de 19 familias con plantilla, 188 campos, medio segundo. Falta que el dueño lo vea en la app. Más adelante: crear documentos nuevos desde una plantilla (etapa 5 del diseño de la base) y nombrar los campos por lo que son (P-257).",
       "depende_de": [],
-      "referencia": "docs/design/base-documental.md (plantilla y datos); docs/design/servicios-de-ia-propuesta.md (paso 0d)",
+      "referencia": "D-438 a D-440; src-tauri/src/docbase/similar/template.rs; src/components/docbase/template-panel.tsx; docs/design/base-documental.md (plantilla y datos)",
       "creado": "2026-10-21",
-      "actualizado": "2026-10-21"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-248",
@@ -2207,6 +2207,20 @@
       "detalle": "La hoja de la sucesión usa vínculos que el catálogo no tiene y que por eso no se midieron: funcionario de (juez, secretario o empleado de un juzgado u organismo; 50), transfiere a (13), radicado en (un expediente en un juzgado; 6), patrocinante de (6), conexo con (5), reclama contra (4), parte de (3) y auditor de (1). Decidir cuáles suma el catálogo (cada uno alarga la pregunta al modelo) y cuáles quedan como datos del documento.",
       "depende_de": [],
       "referencia": "src-tauri/resources/catalog/knowledge.json; src-tauri/src/docbase/knowledge/check_relations.rs",
+      "creado": "2026-10-22",
+      "actualizado": "2026-10-22"
+    },
+    {
+      "id": "P-257",
+      "titulo": "Campos de las plantillas con nombre y mejor cortados",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Las plantillas (D-439) nombran cada campo por su clase («Fecha 2», «Nombre 3») y lo cortan donde termina lo común. En la copia se ven tres límites: dos datos pegados quedan en un campo (un número y su fecha), un texto que solo el principal tiene largo (una familia cuyo principal es mucho más largo) queda como un campo «Texto» grande, y los valores en mayúsculas de un formulario salen como «Nombre». Ver si se nombran por lo que dicen (con el modelo, una pregunta por plantilla, o con el nombre del campo del formulario) y si se separan los datos pegados; medir con la copia antes.",
+      "depende_de": [
+        "P-247"
+      ],
+      "referencia": "D-439; src-tauri/src/docbase/similar/template.rs",
       "creado": "2026-10-22",
       "actualizado": "2026-10-22"
     }

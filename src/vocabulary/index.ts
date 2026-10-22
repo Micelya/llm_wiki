@@ -57,6 +57,11 @@ export interface Vocabulary {
   /** The names of the data of each type (`numero-de-envio`, `total`…), by id. */
   dataFields: Record<string, string>
   /**
+   * The fields of a template by the kind of thing they are (`date`,
+   * `amount`, `name`…), to be followed by their order: "Fecha 2".
+   */
+  templateFields: Record<string, string>
+  /**
    * The words of the knowledge layer's screens: who and what the
    * documents name. The ids are those of the layer's vocabulary
    * (`src-tauri/resources/catalog/knowledge.json`); an id nobody named
@@ -219,6 +224,11 @@ export function stageName(id: string, words: Vocabulary = vocabulary()): string 
 /** The name of a datum of a document type. */
 export function dataFieldName(id: string, words: Vocabulary = vocabulary()): string {
   return words.dataFields[id] ?? idInWords(id)
+}
+
+/** The name of a field of a template: its kind and its order ("Fecha 2"). */
+export function templateFieldName(kind: string, ordinal: number, words: Vocabulary = vocabulary()): string {
+  return `${words.templateFields[kind] ?? idInWords(kind)} ${ordinal}`
 }
 
 /** The name of a type of entity, in singular or plural. */

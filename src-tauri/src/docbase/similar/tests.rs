@@ -451,3 +451,103 @@ fn a_family_of_the_same_template_is_confirmed_at_once_and_the_rest_stays_open() 
     let error = base.decide_similar_many(&bad).unwrap_err();
     assert!(error.starts_with("Se guardaron 0 de 1"), "{error}");
 }
+
+#[test]
+fn a_family_of_the_same_template_has_its_template_and_follows_its_family() {
+    let may = invoice("0003-00001377", "15/05/2026", "01/04/2026", "30/04/2026", "98.000,00", "20.580,00", "118.580,00", "25/05/2026");
+    let (_dir, base, _) = base_with(&[
+        ("marzo.md", march().into_bytes()),
+        ("abril.md", april().into_bytes()),
+        ("mayo.md", may.into_bytes()),
+    ]);
+    let group = base.similar_groups(&Visible::All).unwrap().remove(0);
+    let template = base
+        .similar_template(&Visible::All, row(&base, "abril.md").location_id)
+        .unwrap()
+        .expect("a member reaches the template of its family");
+    assert_eq!(template.principal, group.principal.content_id);
+    assert_eq!(template.asked, content(&base, "abril.md"));
+    assert_eq!(template.state, "proposed", "nobody confirmed the family");
+    assert_eq!(template.documents.len(), 3);
+    assert_eq!(template.documents[0].doc.content_id, template.principal);
+    assert_eq!(group.template_fields, Some(template.fields.len() as i64));
+    // The number, four dates and three amounts change; the rest is the template.
+    let kinds: Vec<String> = template
+        .fields
+        .iter()
+        .map(|f| format!("{}{}", serde_json::to_value(f.kind).unwrap().as_str().unwrap(), f.ordinal))
+        .collect();
+    assert_eq!(kinds, ["identifier1", "date1", "date2", "date3", "amount1", "amount2", "amount3", "date4"]);
+    let text: String = template
+        .segments
+        .iter()
+        .filter_map(|s| match s {
+            super::template::Segment::Text { text } => Some(text.as_str()),
+            super::template::Segment::Field { .. } => None,
+        })
+        .collect();
+    assert!(text.contains("Cliente: Ejemplo Tres S.A., CUIT 30-11111111-1."), "{text}");
+    assert!(!text.contains("120.000,00") && !text.contains("15/03/2026"), "{text}");
+    let column = template.documents.iter().position(|d| d.doc.name == "marzo.md").unwrap();
+    assert_eq!(template.fields[0].values[column], "0003-00001234");
+    assert_eq!(template.fields[4].values[column], "120.000,00");
+    assert!(template.possibly_same.is_empty());
+
+    // Confirming the family makes it a confirmed template; nothing is built again.
+    let principal = template.principal;
+    let decisions: Vec<super::PairDecision> = template.documents[1..]
+        .iter()
+        .map(|d| super::PairDecision {
+            content_id: principal,
+            other_content_id: d.doc.content_id,
+            decision: Decision::Join { relation: "same-template".into(), wiki_source: None },
+            evidence_hash: None,
+        })
+        .collect();
+    base.decide_similar_many(&decisions).unwrap();
+    let confirmed = base.similar_template(&Visible::All, row(&base, "marzo.md").location_id).unwrap().unwrap();
+    assert_eq!(confirmed.state, "confirmed");
+    assert_eq!(confirmed.computed_at, template.computed_at);
+    assert_eq!(base.similar_templates_refresh().unwrap(), 0, "nothing changed");
+
+    // A member taken out of the family leaves the template.
+    let gone = &template.documents[2].doc;
+    base.decide_similar(principal, gone.content_id, &Decision::Discard, None).unwrap();
+    let after = base.similar_template(&Visible::All, template.documents[0].doc.location_id).unwrap().unwrap();
+    assert_eq!(after.documents.len(), 2);
+    assert!(after.documents.iter().all(|d| d.doc.content_id != gone.content_id));
+    assert!(base.similar_template(&Visible::All, gone.location_id).unwrap().is_none());
+}
+
+#[test]
+fn two_copies_of_the_same_form_are_possibly_the_same_document() {
+    let page = |date: &str| {
+        format!(
+            "Ficha de cliente persona humana. Fecha de alta: {date}. Complete todos los campos con los datos de la persona,              indique domicilio real y constituido, actividad principal, origen de los fondos, si reviste la condicion de              persona expuesta politicamente y firme al pie de cada hoja de este formulario."
+        )
+    };
+    // The longest is the principal; the other two are the same person's,
+    // one word apart.
+    let (_dir, base, _) = base_with(&[
+        ("ficha uno.pdf", filled_form(&page("01/02/2026"), "Ana Torres")),
+        ("ficha dos.pdf", filled_form(&format!("{} Muchas gracias por su tiempo.", page("05/06/2026")), "Bruno Vega")),
+        ("ficha tres.pdf", filled_form(&page("01/02/2026").replace("al pie", "al final"), "Ana Torres")),
+    ]);
+    let groups = base.similar_groups(&Visible::All).unwrap();
+    assert_eq!(groups.len(), 1);
+    assert_eq!(groups[0].principal.name, "ficha dos.pdf");
+    let template = base.similar_template(&Visible::All, groups[0].principal.location_id).unwrap().unwrap();
+    assert_eq!(template.documents.len(), 3);
+    // The name of the form is a field, beside those of the text.
+    let form: Vec<_> = template.fields.iter().filter(|f| f.form_name.is_some()).collect();
+    assert_eq!(form.len(), 1);
+    assert_eq!(form[0].form_name.as_deref(), Some("Nombre"));
+    // The two forms of the same person change nothing but a word: possibly the same document.
+    let (uno, tres) = (content(&base, "ficha uno.pdf"), content(&base, "ficha tres.pdf"));
+    assert_eq!(template.possibly_same, vec![[uno.min(tres), uno.max(tres)]]);
+    assert_eq!(groups[0].possibly_same, 1);
+    // Once a person decides about the two, it is no longer shown.
+    base.decide_similar(uno, tres, &Decision::Discard, None).unwrap();
+    let template = base.similar_template(&Visible::All, groups[0].principal.location_id).unwrap().unwrap();
+    assert!(template.possibly_same.is_empty());
+}

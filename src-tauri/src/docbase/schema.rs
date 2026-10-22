@@ -10,7 +10,64 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14, V15, V16, V17, V18, V19, V20];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14, V15, V16, V17, V18, V19, V20, V21];
+
+/// The template of each family of the same template (P-247, D-438): the
+/// text its documents share, with the fields that change, and the value
+/// of each document in each field. Computed from the texts, without a
+/// model, also for the families nobody confirmed; built again whenever
+/// its family changes (`fingerprint`: its documents, their texts and the
+/// engine). Nothing here is a decision of a person.
+///
+/// - `similar_template`: one per family, by its principal. `segments`:
+///   the text, as a JSON list of `{"text"}` and `{"field": n}`;
+///   `same_documents`: pairs of documents (JSON `[a, b]`) where no field
+///   changes but a few words, possibly the same document (P-218).
+/// - `similar_template_document`: its documents, the principal first.
+/// - `similar_template_field`: its fields in order (`position`), with
+///   the kind of thing each is (`kind`: identifier, amount, date, name…),
+///   its order among those of its kind (`ordinal`: "Fecha 2"), for a
+///   field of a form its name there (`form_name`), and for the same field
+///   said again (the number of a receipt on each stub) the position of its
+///   first place (`same_as`).
+/// - `similar_template_value`: what each document says in each field
+///   (empty: nothing there).
+const V21: &str = "
+CREATE TABLE similar_template (
+    principal       INTEGER PRIMARY KEY REFERENCES content (id) ON DELETE CASCADE,
+    fingerprint     TEXT NOT NULL,
+    segments        TEXT NOT NULL DEFAULT '[]',
+    same_documents  TEXT NOT NULL DEFAULT '[]',
+    computed_at     INTEGER NOT NULL
+);
+
+CREATE TABLE similar_template_document (
+    principal   INTEGER NOT NULL REFERENCES similar_template (principal) ON DELETE CASCADE,
+    content_id  INTEGER NOT NULL REFERENCES content (id) ON DELETE CASCADE,
+    position    INTEGER NOT NULL,
+    PRIMARY KEY (principal, content_id)
+);
+CREATE INDEX similar_template_document_by_content ON similar_template_document (content_id);
+
+CREATE TABLE similar_template_field (
+    principal   INTEGER NOT NULL REFERENCES similar_template (principal) ON DELETE CASCADE,
+    position    INTEGER NOT NULL,
+    kind        TEXT NOT NULL,
+    ordinal     INTEGER NOT NULL,
+    form_name   TEXT,
+    same_as     INTEGER,
+    PRIMARY KEY (principal, position)
+);
+
+CREATE TABLE similar_template_value (
+    principal   INTEGER NOT NULL,
+    position    INTEGER NOT NULL,
+    content_id  INTEGER NOT NULL REFERENCES content (id) ON DELETE CASCADE,
+    value       TEXT NOT NULL,
+    PRIMARY KEY (principal, position, content_id),
+    FOREIGN KEY (principal, position) REFERENCES similar_template_field (principal, position) ON DELETE CASCADE
+);
+";
 
 /// The base without the wiki's folder (D-396, D-402): what the files of
 /// the wiki held lives here.
@@ -1094,6 +1151,51 @@ mod tests {
             .query_row("SELECT count(*) FROM sqlite_master WHERE type = 'index' AND tbl_name = 'knowledge_decision'", [], |row| row.get(0))
             .unwrap();
         assert_eq!(indexes, 2);
+    }
+
+    /// A base at version 20 gets the templates' tables empty, and keeps
+    /// its families: the templates are built from them afterwards.
+    #[test]
+    fn a_base_at_version_20_gets_the_templates_and_keeps_its_families() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+        for (index, migration) in MIGRATIONS.iter().enumerate().take(20) {
+            conn.execute_batch(migration).unwrap();
+            conn.pragma_update(None, "user_version", index as i64 + 1).unwrap();
+        }
+        conn.execute_batch(
+            "INSERT INTO content (id, state, first_seen_at) VALUES (1, 'processed', 1), (2, 'processed', 1);
+             INSERT INTO similar_group (principal, members, computed_at) VALUES (1, 2, 1);
+             INSERT INTO similar_group_member (principal, content_id, relation, cover) VALUES (1, 1, NULL, NULL), (1, 2, 'same-template', 0.9);",
+        )
+        .unwrap();
+        migrate(&mut conn).unwrap();
+        let version: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0)).unwrap();
+        assert_eq!(version, CURRENT_VERSION);
+        let members: i64 = conn.query_row("SELECT count(*) FROM similar_group_member", [], |row| row.get(0)).unwrap();
+        assert_eq!(members, 2);
+        for table in ["similar_template", "similar_template_document", "similar_template_field", "similar_template_value"] {
+            let rows: i64 = conn.query_row(&format!("SELECT count(*) FROM {table}"), [], |row| row.get(0)).unwrap();
+            assert_eq!(rows, 0, "{table}");
+        }
+        // A template goes away with its principal, and its fields and values with it.
+        conn.execute_batch(
+            "INSERT INTO similar_template (principal, fingerprint, computed_at) VALUES (1, 'x', 1);
+             INSERT INTO similar_template_document (principal, content_id, position) VALUES (1, 1, 0), (1, 2, 1);
+             INSERT INTO similar_template_field (principal, position, kind, ordinal) VALUES (1, 0, 'date', 1);
+             INSERT INTO similar_template_value (principal, position, content_id, value) VALUES (1, 0, 1, 'a'), (1, 0, 2, 'b');
+             DELETE FROM content WHERE id = 1;",
+        )
+        .unwrap();
+        let left: i64 = conn
+            .query_row(
+                "SELECT (SELECT count(*) FROM similar_template) + (SELECT count(*) FROM similar_template_field)
+                      + (SELECT count(*) FROM similar_template_value) + (SELECT count(*) FROM similar_template_document)",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(left, 0);
     }
 
     /// The owner's base is at version 8 (the type decisions of the

@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import { Check, Columns2, Undo2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -15,6 +15,7 @@ import { relationName, vocabulary, type Vocabulary } from "@/vocabulary"
 import { formatDate } from "./format"
 import { DiffPanel } from "./diff-panel"
 import { StatusBadge } from "./page"
+import { DocumentTemplate } from "./template-panel"
 import {
   currentRelation,
   makesOneDocument,
@@ -61,6 +62,7 @@ export function SimilarDocuments({
       locationId={locationId}
       onOpen={openDocument}
       onDecide={decide}
+      before={<DocumentTemplate locationId={locationId} onOpen={openDocument} />}
     />
   )
 }
@@ -94,6 +96,7 @@ export function SimilarList({
   onOpen,
   onDecide,
   words = vocabulary(),
+  before,
 }: {
   items: SimilarDocument[]
   relations: RelationDef[]
@@ -103,6 +106,8 @@ export function SimilarList({
   onOpen: (locationId: number) => void
   onDecide: (item: SimilarDocument, decision: SimilarDecision) => Promise<void> | void
   words?: Vocabulary
+  /** Shown first: the template the document shares with its family. */
+  before?: ReactNode
 }) {
   const waiting = items.filter((item) => item.state === "proposed").length
   return (
@@ -111,6 +116,7 @@ export function SimilarList({
         Documentos parecidos ({items.length})
       </h2>
       <div className="mt-3">
+        {before}
         {items.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Ningún otro documento de la base comparte buena parte de su texto con este.

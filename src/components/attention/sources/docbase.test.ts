@@ -120,6 +120,15 @@ describe("similar documents in the attention view", () => {
     expect(similarNotice({ pairs: 5, groups: 1, sameDocumentPairs: 0 }, groups)).toBeNull()
   })
 
+  it("escalates two of the same template where no field changes: possibly the same document", () => {
+    const group = { ...similarGroup(principal, [docRef(11, "a.docx"), docRef(12, "b.docx")], 2), possiblySame: 1 }
+    const line = similarNotice({ pairs: 2, groups: 1, sameDocumentPairs: 0 }, [group])!
+    expect(line.title).toBe("1 par de documentos podría ser el mismo documento")
+    expect(line.count).toBe(1)
+    expect(line.cases?.[0].detail).toContain("1 par de la misma plantilla no cambia en ningún dato")
+    expect(line.cases?.[0].actions?.[0]).toMatchObject({ target: { view: "similar", principal: 10 } })
+  })
+
   it("counts one decision per family and one per pair outside families", () => {
     const groups = [
       similarGroup(docRef(20, "Facturas.pdf"), [docRef(21, "x.pdf")], 1),

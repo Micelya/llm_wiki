@@ -421,6 +421,14 @@ pub fn docbase_similar_groups(state: State<'_, DocBaseState>) -> Result<Vec<Simi
     state.base()?.similar_groups(&Visible::All)
 }
 
+/// The template the document at this location shares with its family:
+/// the text they share with its fields, and the value of each document.
+/// `None` when it shares none.
+#[tauri::command(async)]
+pub fn docbase_similar_template(state: State<'_, DocBaseState>, location_id: i64) -> Result<Option<similar::template::Template>, String> {
+    state.base()?.similar_template(&Visible::All, location_id)
+}
+
 /// The relations a person can choose, as the catalog lists them. Their
 /// names come from the vocabulary.
 #[tauri::command(async)]

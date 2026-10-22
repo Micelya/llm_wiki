@@ -380,6 +380,9 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-435 | 22 oct | Conocimiento | «Representa a» necesita sus palabras donde lo dicen; un juzgado no representa ni es parte; heredar «en representación» no es representar | en revisión |
 | D-436 | 22 oct | Conocimiento | Un identificador fuerte escrito con más o menos caracteres no separa dos fichas | en revisión |
 | D-437 | 22 oct | Conocimiento | Un ítem de una lista se encuentra donde la lista lo tiene, con su nombre en singular o plural | en revisión |
+| D-438 | 22 oct | Parecidos | Cada familia de la misma plantilla tiene su plantilla guardada en la base (versión 21), también las propuestas | vigente |
+| D-439 | 22 oct | Parecidos | La plantilla se arma alineando cada documento con el principal, sin modelo; sus campos se nombran por su clase y se ve desde el documento, la familia y Documentos | en revisión |
+| D-440 | 22 oct | Parecidos | Dos documentos de una plantilla en los que no cambia ningún dato son posiblemente el mismo documento | en revisión |
 
 ---
 
@@ -4835,4 +4838,25 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Fecha:** 22 oct 2026 · **Tema:** Conocimiento · **Estado:** en revisión (agente sin consulta, P-066)
 - **El problema:** Atención mostraba «1 documento perdió muchas citas al leerlo». No era un escaneo: es un documento de texto que rechaza una lista de facturas. El modelo copió cada factura con la palabra de la lista delante («facturas N2 con fecha…», que el texto no tiene así) y la nombró en singular («factura N2»), y el control descartó seis de siete cosas.
 - **Qué se decidió y por qué:** la cita de una mención cuya primera palabra encabeza una lista de números, y cuyo resto (que empieza con un número) está tal cual en el texto a menos de `labelWindow` palabras de esa palabra, se encuentra ahí. Un nombre de dos palabras o más está en su cita también si alguna de sus palabras está en plural («factura» y «facturas»). Con la copia, el aviso desaparece y el documento conserva sus facturas. Las citas de afirmaciones siguen pidiendo el texto tal cual.
+- **Quién decidió:** agente sin consulta.
+
+### D-438 · Cada familia de la misma plantilla tiene su plantilla guardada en la base (versión 21), también las propuestas
+
+- **Fecha:** 22 oct 2026 · **Tema:** Parecidos · **Estado:** vigente
+- **El problema:** la base detectaba que dos documentos comparten la plantilla («Misma plantilla, otros datos») y los agrupaba en familias, pero no armaba ni guardaba la plantilla: el texto común, los campos que cambian y el valor de cada documento (P-247). Ninguna familia de la copia está confirmada por una persona.
+- **Qué se decidió y por qué:** la base pasa a la versión 21 con cuatro tablas nuevas: la plantilla de cada familia (por su documento principal, con su texto y una huella de lo que la armó), sus documentos, sus campos y el valor de cada documento en cada campo. Se arma también para las familias que nadie confirmó, y la pantalla la muestra como «Propuesta» hasta que se confirme la familia. Se vuelve a armar sola cuando cambia la familia (otro documento, otro texto, otro motor); si no cambió nada, no se toca.
+- **Quién decidió:** el dueño del producto, 21 oct.
+
+### D-439 · La plantilla se arma alineando cada documento con el principal, sin modelo; sus campos se nombran por su clase y se ve desde el documento, la familia y Documentos
+
+- **Fecha:** 22 oct 2026 · **Tema:** Parecidos · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** hacía falta decidir cómo se arma la plantilla sin preguntarle a un modelo, qué documentos de la familia entran, cómo se nombran los campos y desde dónde se llega a verla.
+- **Qué se decidió y por qué:** cada miembro se alinea palabra por palabra con el documento principal de su familia (la misma comparación de parecidos). Una palabra del principal es de la plantilla cuando todos los miembros la tienen entera y en el mismo lugar; entre dos palabras de la plantilla, lo que dice cada documento es el valor de un campo si no todos dicen lo mismo (un tramo que solo uno tiene es un campo vacío en los demás). Para que un campo sea un dato y no pedazos: un nombre con una palabra corta en el medio («de») es un solo campo; los signos que todos los valores tienen en el borde («$», el punto final) quedan en la plantilla; el mismo valor dicho otra vez (el número de una boleta en cada talón) es el mismo campo. Los campos llenados de un formulario son campos de la plantilla, con su nombre en el formulario al lado. Entran el principal y los miembros cuya relación con él es «Misma plantilla, otros datos»: una versión o un ejemplar firmado del principal es el mismo documento, no otros datos. Cada campo se nombra por la clase de dato que es, como ya la distingue la comparación (identificador, importe, fecha, número, nombre, campo de formulario o texto), con su orden: «Fecha 2»; las palabras salen del vocabulario de la vertical. Se ve en tres lugares: en «Datos y correcciones» del documento, arriba de sus documentos parecidos («Comparte la plantilla con N documentos más · Ver la plantilla»); en la pantalla de documentos parecidos, por familia (adonde lleva Atención); y en Documentos, al filtrar por una familia. La plantilla muestra el texto común con los campos resaltados (con sus nombres o con los datos del documento que se elija) y una tabla campo por documento. Medido sobre la copia de la base: 12 de las 19 familias comparten plantilla, con 188 campos en total (de 2 a 30 por plantilla); armarlas todas lleva medio segundo y revisarlas sin cambios, 2 milésimas.
+- **Quién decidió:** agente sin consulta.
+
+### D-440 · Dos documentos de una plantilla en los que no cambia ningún dato son posiblemente el mismo documento
+
+- **Fecha:** 22 oct 2026 · **Tema:** Parecidos · **Estado:** en revisión (agente sin consulta, P-066)
+- **El problema:** dos documentos sin ningún campo que cambie, o con cambios mínimos de redacción, no son «la misma plantilla con otros datos» (P-218): son posiblemente el mismo documento y una persona tiene que revisarlo.
+- **Qué se decidió y por qué:** dentro de cada plantilla se comparan los documentos de a dos. Si no difieren en ningún campo, o difieren en tres palabras o menos y ninguna es un dato (una palabra con mayúscula cuenta como nombre y un campo de formulario que cambia, como dato), el par queda marcado «posiblemente el mismo documento». Se avisa en la plantilla, en la familia y en Atención, junto con los pares que podrían ser el mismo documento; el aviso se va cuando una persona decide ese par (lo une o lo descarta). En la copia de la base no aparece ninguno: el par de boletas de P-218 cambia en número, fecha y código de barras, así que son dos boletas distintas.
 - **Quién decidió:** agente sin consulta.

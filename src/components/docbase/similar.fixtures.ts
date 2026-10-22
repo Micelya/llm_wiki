@@ -100,5 +100,7 @@ export function similarGroup(
     flags,
     pending,
     pendingSameDocument: oneDocument ? pending : 0,
+    templateFields: relation === "same-template" ? 3 : null,
+    possiblySame: 0,
   }
 }

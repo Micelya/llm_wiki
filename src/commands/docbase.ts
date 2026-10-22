@@ -464,6 +464,52 @@ export interface SimilarGroup {
   pending: number
   /** Of `pending`, those whose proposed relation makes both one document. */
   pendingSameDocument: number
+  /** How many fields its template has (each once), when it shares one. */
+  templateFields: number | null
+  /** Pairs of its template's documents where nothing changes but a few words, undecided: possibly the same document. */
+  possiblySame: number
+}
+
+/** A piece of a template's text: what all its documents say, or a field. */
+export type TemplateSegment = { text: string } | { field: number }
+
+/** A document of a template, and the state of its pair with the principal (`null` for the principal). */
+export interface TemplateDocument {
+  doc: DocRef
+  state: SimilarState | null
+}
+
+/** A field of a template: what changes from one document to another. */
+export interface TemplateField {
+  /** The kind of thing it is; its name comes from the vocabulary ("Fecha 2"). */
+  kind: ChangeKind
+  /** Its order among the fields of its kind, from 1. */
+  ordinal: number
+  /** For a field of a form, its name in the form. */
+  formName: string | null
+  /** The same field said again: the index of its first place, whose name it takes. */
+  sameAs: number | null
+  /** The value of each document, in the order of `Template.documents`; empty: nothing there. */
+  values: string[]
+}
+
+/**
+ * The template of a family of the same template: the text its documents
+ * share, with the fields that change, and the value of each document.
+ * Built without a model, also for families nobody confirmed ("proposed").
+ */
+export interface Template {
+  principal: number
+  /** The document asked about (its content id). */
+  asked: number
+  /** The principal first. */
+  documents: TemplateDocument[]
+  state: "proposed" | "confirmed"
+  segments: TemplateSegment[]
+  fields: TemplateField[]
+  /** Pairs of documents (content ids) where nothing changes but a few words: possibly the same document. */
+  possiblySame: [number, number][]
+  computedAt: number
 }
 
 /** The documents similar to the one at this location. */
@@ -516,6 +562,11 @@ export function getSimilarPending(): Promise<SimilarPending> {
 
 export function listSimilarGroups(): Promise<SimilarGroup[]> {
   return invoke<SimilarGroup[]>("docbase_similar_groups")
+}
+
+/** The template the document at this location shares with its family, or `null`. */
+export function getSimilarTemplate(locationId: number): Promise<Template | null> {
+  return invoke<Template | null>("docbase_similar_template", { locationId })
 }
 
 export function listSimilarRelations(): Promise<RelationDef[]> {

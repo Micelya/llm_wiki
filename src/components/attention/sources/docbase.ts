@@ -211,18 +211,30 @@ async function loadDocumentCases(state: DocumentState, withReasons: boolean): Pr
  * Similar documents that could be the same document: one decision per
  * family (it is decided from its principal) and one per pair outside
  * families. "Same template", "contained in" and plain "similar" are not
- * escalated: they are two different documents.
+ * escalated: they are two different documents, except two of the same
+ * template where no field changes (P-218), which are possibly the same.
  */
 export function similarNotice(pending: SimilarPending | null, groups: SimilarGroup[] | null): AttentionNotice | null {
-  if (!pending || pending.sameDocumentPairs === 0) return null
-  const families = (groups ?? []).filter((group) => group.pendingSameDocument > 0)
+  const possiblySame = (groups ?? []).reduce((sum, group) => sum + group.possiblySame, 0)
+  if (!pending || pending.sameDocumentPairs + possiblySame === 0) return null
+  const families = (groups ?? []).filter((group) => group.pendingSameDocument > 0 || group.possiblySame > 0)
   const inFamilies = families.reduce((sum, group) => sum + group.pendingSameDocument, 0)
   const loose = Math.max(0, pending.sameDocumentPairs - inFamilies)
   const decisions = families.length + loose
   const cases: AttentionCase[] = families.map((group) => ({
     id: `family:${group.principal.contentId}`,
     title: `«${group.principal.name}»`,
-    detail: `${plural(group.pendingSameDocument, "documento podría ser el mismo", "documentos podrían ser el mismo")} · familia de ${formatCount(group.members.length)}`,
+    detail: [
+      group.pendingSameDocument > 0
+        ? plural(group.pendingSameDocument, "documento podría ser el mismo", "documentos podrían ser el mismo")
+        : null,
+      group.possiblySame > 0
+        ? plural(group.possiblySame, "par de la misma plantilla no cambia en ningún dato", "pares de la misma plantilla no cambian en ningún dato")
+        : null,
+      `familia de ${formatCount(group.members.length)}`,
+    ]
+      .filter(Boolean)
+      .join(" · "),
     actions: [{ kind: "go", label: "Resolver", target: { view: "similar", principal: group.principal.contentId } }],
   }))
   if (loose > 0) {
@@ -240,12 +252,12 @@ export function similarNotice(pending: SimilarPending | null, groups: SimilarGro
     priority: "normal",
     count: decisions,
     title: plural(
-      pending.sameDocumentPairs,
+      pending.sameDocumentPairs + possiblySame,
       "par de documentos podría ser el mismo documento",
       "pares de documentos podrían ser el mismo documento",
     ),
     explanation:
-      "Prácticamente el mismo, un ejemplar firmado o una versión: si se unen, cuenta uno solo, el que elijas, y no se repite lo que dicen.",
+      "Prácticamente el mismo, un ejemplar firmado, una versión o dos de la misma plantilla en los que no cambia ningún dato: si se unen, cuenta uno solo, el que elijas, y no se repite lo que dicen.",
     todo: "Unilos con la relación que corresponda, elegí otra o descartalos.",
     resolvedWhen: "Desaparece cuando cada par se une o se descarta.",
     actions: [{ kind: "go", label: "Resolver parecidos", target: { view: "similar", principal: families[0]?.principal.contentId ?? null } }],

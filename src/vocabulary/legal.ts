@@ -70,6 +70,15 @@ export const legal: Vertical = {
         concepto: "Concepto",
         identificacion: "Identificación",
       },
+      templateFields: {
+        identifier: "Identificador",
+        amount: "Importe",
+        date: "Fecha",
+        number: "Número",
+        name: "Nombre",
+        field: "Campo",
+        wording: "Texto",
+      },
       knowledge: {
         entities: "Personas y organizaciones",
         entitiesDescription:
@@ -210,6 +219,15 @@ export const legal: Vertical = {
         importe: "Amount",
         concepto: "Concept",
         identificacion: "Identification",
+      },
+      templateFields: {
+        identifier: "Identifier",
+        amount: "Amount",
+        date: "Date",
+        number: "Number",
+        name: "Name",
+        field: "Field",
+        wording: "Text",
       },
       knowledge: {
         entities: "People and organizations",

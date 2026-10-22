@@ -172,6 +172,11 @@ pub struct SimilarGroup {
     pub pending: i64,
     /// Of `pending`, those whose proposed relation makes both one document.
     pub pending_same_document: i64,
+    /// How many fields its template has, when it shares one.
+    pub template_fields: Option<i64>,
+    /// Pairs of its template's documents where nothing changes but a few
+    /// words, still undecided: possibly the same document (P-218).
+    pub possibly_same: i64,
 }
 
 /// One decision of `decide_similar_many`.
@@ -264,7 +269,12 @@ impl DocBase {
             self.similar_regroup()?;
             self.types_refresh()?;
         }
-        Ok(forgotten + measured)
+        if measured > 0 || dirty_left > 0 {
+            return Ok(forgotten + measured);
+        }
+        // A base that comes from before the templates (V21) builds them
+        // once, without waiting for its families to change.
+        Ok(forgotten + self.similar_templates_refresh()?)
     }
 
     /// Forgets everything computed (never a decision) so it is computed
@@ -275,6 +285,8 @@ impl DocBase {
             .execute_batch(
                 "DELETE FROM similar_signature; DELETE FROM similar_common; DELETE FROM document_marks;
                  DELETE FROM similar_dirty; DELETE FROM similar_group;
+                 DELETE FROM similar_template_value; DELETE FROM similar_template_field;
+                 DELETE FROM similar_template_document; DELETE FROM similar_template;
                  DELETE FROM similar_pair WHERE state = 'proposed';
                  DELETE FROM document_type; DELETE FROM document_data;",
             )
@@ -469,8 +481,14 @@ impl DocBase {
     }
 
     /// Pass 3: families against a principal document (R-14), from the
-    /// pairs no one discarded.
+    /// pairs no one discarded, and the template of each family of the
+    /// same template (`template`), built again where its family changed.
     pub fn similar_regroup(&self) -> Result<(), String> {
+        self.regroup_families()?;
+        self.similar_templates_refresh().map(|_| ())
+    }
+
+    fn regroup_families(&self) -> Result<(), String> {
         let mut conn = self.conn();
         let tx = conn.transaction().map_err(sql_err)?;
         let mut adjacent: BTreeMap<i64, BTreeMap<i64, (String, f64)>> = BTreeMap::new();
@@ -800,12 +818,15 @@ impl DocBase {
                     list.push(GroupMember { doc, relation, cover, state });
                 }
             }
+            let template = super::template::summary(&conn, principal)?;
             out.push(SimilarGroup {
                 principal: head,
                 members: list,
                 flags: serde_json::from_str(&flags).unwrap_or_default(),
                 pending,
                 pending_same_document,
+                template_fields: template.map(|(fields, _)| fields),
+                possibly_same: template.map(|(_, same)| same).unwrap_or(0),
             });
         }
         Ok(out)
@@ -1253,7 +1274,7 @@ pub fn families(
     out
 }
 
-fn content_of_location(conn: &Connection, location_id: i64) -> Result<Option<i64>, String> {
+pub(super) fn content_of_location(conn: &Connection, location_id: i64) -> Result<Option<i64>, String> {
     conn.query_row(
         "SELECT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.id = ?1",
         [location_id],
@@ -1277,7 +1298,7 @@ fn visible_content(visible: &Visible, column: &str) -> (String, Vec<Value>) {
 }
 
 /// The location that stands for a content: the first visible one.
-fn doc_ref(conn: &Connection, visible: &Visible, content_id: i64) -> Result<Option<DocRef>, String> {
+pub(super) fn doc_ref(conn: &Connection, visible: &Visible, content_id: i64) -> Result<Option<DocRef>, String> {
     let (condition, bound) = visible.condition("l.origin_id");
     let bound: Vec<Value> = std::iter::once(Value::Integer(content_id))
         .chain(bound.into_iter().map(Value::Text))
