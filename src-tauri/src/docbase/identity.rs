@@ -51,6 +51,31 @@ impl DocBase {
         Ok(jobs.len())
     }
 
+    /// Reads now the bytes of one location still unknown (a file the app
+    /// has just written), without waiting for its turn.
+    pub(crate) fn hash_location(&self, location_id: i64) -> Result<(), String> {
+        let found: Option<(String, String, String, i64, i64)> = self
+            .conn()
+            .query_row(
+                "SELECT l.origin_id, l.rel_path, o.location, l.size, l.mtime_ms
+                 FROM location l JOIN origin o ON o.id = l.origin_id
+                 WHERE l.id = ?1 AND l.hash_state = 'pending' AND l.kind = 'file'",
+                [location_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+            )
+            .optional()
+            .map_err(sql_err)?;
+        let Some((origin_id, rel_path, root, size, mtime_ms)) = found else {
+            return Ok(());
+        };
+        let Some(path) = LocalFolderProvider::new(root).local_path(&rel_path) else {
+            return Ok(());
+        };
+        let job = Job { location_id, origin_id, rel_path, path, size, mtime_ms };
+        let outcome = file_sha256(&job.path);
+        self.apply_hash(&job, outcome)
+    }
+
     fn next_hash_jobs(&self, limit: usize) -> Result<Vec<Job>, String> {
         let conn = self.conn();
         let mut statement = conn

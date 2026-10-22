@@ -821,6 +821,27 @@ pub struct TemplateField {
     said: Said,
 }
 
+#[cfg(test)]
+impl TemplateField {
+    /// A field of this kind with these values and nothing said of it.
+    pub(super) fn for_tests(kind: Kind, values: Vec<String>) -> Self {
+        TemplateField {
+            kind,
+            ordinal: 1,
+            form_name: None,
+            same_as: None,
+            values,
+            name: None,
+            name_source: None,
+            what: None,
+            what_source: None,
+            fixed: false,
+            fixed_value: None,
+            said: Said::default(),
+        }
+    }
+}
+
 /// What each layer says of a field's name and of what it is.
 #[derive(Debug, Clone, Default)]
 struct Said {
@@ -1591,6 +1612,66 @@ fn read_fields(conn: &Connection, principal: i64, documents: usize) -> Result<Ve
         .collect::<Result<Vec<_>, _>>()
         .map_err(sql_err)?;
     Ok(rows)
+}
+
+/// A template as a document is generated from it (`generate`): its text,
+/// its fields with what each of its documents says there and what was
+/// decided of them, its lasting identity and when it was built.
+pub(super) struct ForGeneration {
+    pub segments: Vec<Segment>,
+    /// With the values of every document of the template.
+    pub fields: Vec<TemplateField>,
+    pub naming: Option<i64>,
+    pub computed_at: i64,
+}
+
+/// The template of this principal, to generate a document from it.
+pub(super) fn for_generation(conn: &Connection, principal: i64) -> Result<Option<ForGeneration>, String> {
+    let row: Option<(String, i64, Option<i64>)> = conn
+        .query_row(
+            "SELECT segments, computed_at, naming FROM similar_template t WHERE principal = ?1
+               AND EXISTS (SELECT 1 FROM similar_template_document d WHERE d.principal = t.principal)",
+            [principal],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .optional()
+        .map_err(sql_err)?;
+    let Some((segments, computed_at, naming)) = row else {
+        return Ok(None);
+    };
+    let documents: Vec<i64> = {
+        let mut statement = conn
+            .prepare("SELECT content_id FROM similar_template_document WHERE principal = ?1 ORDER BY position")
+            .map_err(sql_err)?;
+        let rows = statement
+            .query_map([principal], |row| row.get(0))
+            .map_err(sql_err)?
+            .collect::<Result<Vec<i64>, _>>()
+            .map_err(sql_err)?;
+        rows
+    };
+    let mut fields = read_fields(conn, principal, documents.len())?;
+    {
+        let mut statement = conn
+            .prepare("SELECT position, content_id, value FROM similar_template_value WHERE principal = ?1")
+            .map_err(sql_err)?;
+        let rows = statement
+            .query_map([principal], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, String>(2)?)))
+            .map_err(sql_err)?;
+        for row in rows {
+            let (position, id, value) = row.map_err(sql_err)?;
+            if let (Some(field), Some(column)) = (fields.get_mut(position as usize), documents.iter().position(|d| *d == id)) {
+                field.values[column] = value;
+            }
+        }
+    }
+    resolve_names(&mut fields);
+    Ok(Some(ForGeneration {
+        segments: serde_json::from_str(&segments).unwrap_or_default(),
+        fields,
+        naming,
+        computed_at,
+    }))
 }
 
 /// The name a person gave the template of this principal.

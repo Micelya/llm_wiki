@@ -3,6 +3,7 @@ import { open } from "@tauri-apps/plugin-dialog"
 import { FolderOpen } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useAppDialog } from "@/stores/app-dialog-store"
+import { vocabulary } from "@/vocabulary"
 import {
   getClipServerState,
   getWorkFolder,
@@ -26,6 +27,7 @@ const SERVER_STATE: Record<ClipServerState, string> = {
  */
 export function WorkFolderSection() {
   const dialog = useAppDialog()
+  const words = vocabulary()
   const [status, setStatus] = useState<WorkFolderStatus | null>(null)
   const [server, setServer] = useState<ClipServerState | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
@@ -68,7 +70,7 @@ export function WorkFolderSection() {
     }
   }
 
-  const openFolder = (which?: "clips" | "records") => {
+  const openFolder = (which?: "clips" | "records" | "generated") => {
     setProblem(null)
     openWorkFolder(which).catch((cause) => setProblem(String(cause)))
   }
@@ -78,9 +80,9 @@ export function WorkFolderSection() {
       <div>
         <h2 className="text-xl font-semibold">Carpeta de trabajo</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          La carpeta donde Micelya guarda lo que trae por su cuenta: los recortes de páginas web y los expedientes de los
-          portales. Es un origen de la base: lo que se guarda ahí se lee como cualquier documento. Los cambios se aplican
-          al momento.
+          La carpeta donde Micelya guarda lo que trae por su cuenta: los recortes de páginas web, los expedientes de los
+          portales y los documentos que genera desde una {words.templates.one}. Es un origen de la base: lo que se guarda
+          ahí se lee como cualquier documento. Los cambios se aplican al momento.
         </p>
       </div>
 
@@ -114,6 +116,17 @@ export function WorkFolderSection() {
                 «Expedientes» <span className="text-xs text-muted-foreground">— lo que se trae de «Portales»</span>
               </span>
               <Button variant="ghost" size="sm" onClick={() => openFolder("records")}>
+                Abrir
+              </Button>
+            </li>
+            <li className="flex items-center justify-between gap-2">
+              <span>
+                «Generados»{" "}
+                <span className="text-xs text-muted-foreground">
+                  — los documentos generados desde «{words.templates.name}»
+                </span>
+              </span>
+              <Button variant="ghost" size="sm" onClick={() => openFolder("generated")}>
                 Abrir
               </Button>
             </li>

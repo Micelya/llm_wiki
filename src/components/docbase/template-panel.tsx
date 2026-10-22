@@ -25,6 +25,7 @@ export function DocumentTemplate({ locationId, onOpen }: { locationId: number; o
   const template = useDocbaseQuery(`similar-template:${locationId}`, () => getSimilarTemplate(locationId))
   const [open, setOpen] = useState(false)
   const openInSection = useOpenTemplate()
+  const generateFrom = useGenerateFromTemplate()
   const words = vocabulary()
   const data = template.data
   if (!data) return null
@@ -46,6 +47,11 @@ export function DocumentTemplate({ locationId, onOpen }: { locationId: number; o
               Abrir en {words.templates.name}
             </Button>
           )}
+          {data.documents[0] && (
+            <Button size="sm" variant="ghost" onClick={() => generateFrom(data.documents[0].doc.locationId)}>
+              Generar uno nuevo con esta {words.templates.one}
+            </Button>
+          )}
         </div>
       </div>
       {open && (
@@ -63,6 +69,16 @@ export function useOpenTemplate(): (principalLocationId: number) => void {
   const openTemplate = useTemplatesStore((s) => s.openTemplate)
   return (principalLocationId) => {
     openTemplate(principalLocationId)
+    setActiveView("templates")
+  }
+}
+
+/** Opens, in the section «Plantillas», the screen to generate a document from a template, by its principal. */
+export function useGenerateFromTemplate(): (principalLocationId: number) => void {
+  const setActiveView = useWikiStore((s) => s.setActiveView)
+  const generateFrom = useTemplatesStore((s) => s.generateFrom)
+  return (principalLocationId) => {
+    generateFrom(principalLocationId)
     setActiveView("templates")
   }
 }

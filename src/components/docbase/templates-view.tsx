@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { ArrowLeft, Pencil } from "lucide-react"
+import { ArrowLeft, FileText, Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   chooseTemplateField,
@@ -18,6 +18,7 @@ import { vocabulary, type Vocabulary } from "@/vocabulary"
 import { formatCount, plural } from "./format"
 import { DocbasePage, EmptyNote, ErrorNote, StatusBadge } from "./page"
 import { automaticTemplateName, fieldRows, fieldsLine, formatName, templateName, templatesSummary } from "./template"
+import { TemplateGenerateView } from "./template-generate-view"
 import { TemplatePanel, TemplateStateBadge } from "./template-panel"
 import { useDocbaseQuery } from "./use-docbase-query"
 
@@ -26,18 +27,36 @@ import { useDocbaseQuery } from "./use-docbase-query"
  * in its documents, and the detail of one. The name of the section and of
  * a template come from the vocabulary of the profession. A template that
  * is a proposal (its family is not confirmed) can be seen and used, with a
- * notice.
+ * notice; a document is generated from it on a screen of its own.
  */
 export function TemplatesView() {
   const principal = useTemplatesStore((s) => s.principal)
+  const generating = useTemplatesStore((s) => s.generating)
   const openTemplate = useTemplatesStore((s) => s.openTemplate)
-  if (principal !== null) {
-    return <TemplateDetailView key={principal} principalLocationId={principal} onBack={() => openTemplate(null)} />
+  const generateFrom = useTemplatesStore((s) => s.generateFrom)
+  if (principal !== null && generating) {
+    return <TemplateGenerateView key={principal} principalLocationId={principal} onBack={() => openTemplate(principal)} />
   }
-  return <TemplateList onOpen={openTemplate} />
+  if (principal !== null) {
+    return (
+      <TemplateDetailView
+        key={principal}
+        principalLocationId={principal}
+        onBack={() => openTemplate(null)}
+        onGenerate={() => generateFrom(principal)}
+      />
+    )
+  }
+  return <TemplateList onOpen={openTemplate} onGenerate={generateFrom} />
 }
 
-function TemplateList({ onOpen }: { onOpen: (principalLocationId: number) => void }) {
+function TemplateList({
+  onOpen,
+  onGenerate,
+}: {
+  onOpen: (principalLocationId: number) => void
+  onGenerate: (principalLocationId: number) => void
+}) {
   const words = vocabulary()
   const templates = useDocbaseQuery("templates", listTemplates)
   const rows = templates.data ?? []
@@ -51,7 +70,7 @@ function TemplateList({ onOpen }: { onOpen: (principalLocationId: number) => voi
             otros datos.
           </EmptyNote>
         )}
-        {rows.length > 0 && <TemplateTable templates={rows} onOpen={onOpen} words={words} />}
+        {rows.length > 0 && <TemplateTable templates={rows} onOpen={onOpen} onGenerate={onGenerate} words={words} />}
       </div>
     </DocbasePage>
   )
@@ -61,10 +80,13 @@ function TemplateList({ onOpen }: { onOpen: (principalLocationId: number) => voi
 export function TemplateTable({
   templates,
   onOpen,
+  onGenerate,
   words = vocabulary(),
 }: {
   templates: TemplateSummary[]
   onOpen: (principalLocationId: number) => void
+  /** Generates a document from the template of this principal. */
+  onGenerate?: (principalLocationId: number) => void
   words?: Vocabulary
 }) {
   const waiting = templates.reduce((sum, t) => sum + t.waitingFields, 0)
@@ -79,9 +101,9 @@ export function TemplateTable({
       )}
       <ul className="divide-y rounded-lg border bg-card">
         {templates.map((template) => (
-          <li key={template.principal.contentId}>
+          <li key={template.principal.contentId} className="flex items-center gap-2 hover:bg-muted/50">
             <button
-              className="flex w-full flex-col gap-1 px-4 py-2.5 text-left hover:bg-muted/50"
+              className="flex min-w-0 flex-1 flex-col gap-1 px-4 py-2.5 text-left"
               onClick={() => onOpen(template.principal.locationId)}
             >
               <span className="flex flex-wrap items-center gap-2">
@@ -101,6 +123,17 @@ export function TemplateTable({
                   .join(" · ")}
               </span>
             </button>
+            {onGenerate && (
+              <Button
+                className="mr-3 shrink-0"
+                size="sm"
+                variant="outline"
+                title={`Generar un documento con esta ${words.templates.one}`}
+                onClick={() => onGenerate(template.principal.locationId)}
+              >
+                <FileText /> Generar
+              </Button>
+            )}
           </li>
         ))}
       </ul>
@@ -109,7 +142,15 @@ export function TemplateTable({
 }
 
 /** One template: its name, its state, its notices and the panel of today with the text and the fields. */
-function TemplateDetailView({ principalLocationId, onBack }: { principalLocationId: number; onBack: () => void }) {
+function TemplateDetailView({
+  principalLocationId,
+  onBack,
+  onGenerate,
+}: {
+  principalLocationId: number
+  onBack: () => void
+  onGenerate: () => void
+}) {
   const words = vocabulary()
   const template = useDocbaseQuery(`similar-template:${principalLocationId}`, () => getSimilarTemplate(principalLocationId))
   const openDocument = useOpenDocument()
@@ -142,6 +183,7 @@ function TemplateDetailView({ principalLocationId, onBack }: { principalLocation
           <TemplateDetail
             template={template.data}
             onOpen={(id) => openDocument(id)}
+            onGenerate={onGenerate}
             busy={action.busy}
             onRename={(name) => {
               const principal = template.data?.principal
@@ -163,6 +205,7 @@ function TemplateDetailView({ principalLocationId, onBack }: { principalLocation
 export function TemplateDetail({
   template,
   onOpen,
+  onGenerate,
   onRename,
   onChooseField,
   busy = false,
@@ -170,6 +213,8 @@ export function TemplateDetail({
 }: {
   template: Template
   onOpen: (locationId: number) => void
+  /** Generates a document from it. */
+  onGenerate?: () => void
   /** A person names it, or gives it back its automatic name (`null`); `false`: it was not saved. */
   onRename?: (name: string | null) => Promise<boolean>
   onChooseField?: (position: number, choice: FieldChoice) => Promise<boolean>
@@ -204,6 +249,11 @@ export function TemplateDetail({
             </>
           )}
           <TemplateStateBadge state={template.state} words={words} />
+          {onGenerate && !renaming && (
+            <Button size="sm" className="ml-auto" onClick={onGenerate}>
+              <FileText /> Generar un documento
+            </Button>
+          )}
           {template.name && onRename && !renaming && (
             <Button size="xs" variant="ghost" disabled={busy} title={`El automático es «${automatic}»`} onClick={() => void onRename(null)}>
               Volver al nombre automático

@@ -585,6 +585,64 @@ export function listTemplates(): Promise<TemplateSummary[]> {
   return invoke<TemplateSummary[]>("docbase_templates")
 }
 
+/**
+ * Where the value of a field of a generated document came from: written or
+ * chosen by a person (`hand`), a person or organization of the base
+ * (`entity`), what the base knows of it, such as its DNI or its address
+ * (`card`), a matter (`matter`), one of the template's documents
+ * (`document`), the calendar (`date`) or the field's fixed value (`fixed`).
+ */
+export type GeneratedValueSource = "hand" | "entity" | "card" | "matter" | "document" | "date" | "fixed"
+
+/** The value of a field of a document to generate, by the position of its first place. */
+export interface GivenValue {
+  position: number
+  /** Its name as the screen shows it. */
+  name: string
+  value: string
+  source: GeneratedValueSource
+  /** What it came from: `entity:<id>`, `matter:<id>`, `content:<id>`. */
+  reference: string | null
+}
+
+/** What a person asks to generate from a template. */
+export interface GenerateRequest {
+  /** The template, by its principal (content id). */
+  principal: number
+  /** Its name as the screen shows it. */
+  templateName: string
+  values: GivenValue[]
+  /** The matter it is generated for. */
+  matterId: string | null
+  /** The name of the file; `null`: the template's and the date. */
+  fileName: string | null
+  /** The document whose data it started with (content id). */
+  fromDocument: number | null
+}
+
+/** A document generated from a template: its record, its file and where the base has it. */
+export interface GeneratedDocument {
+  id: number
+  path: string
+  fileName: string
+  locationId: number | null
+  contentId: number | null
+  /** It is in the matter it was generated for. */
+  inMatter: boolean
+  /** The fields left empty that the Word shows by name, to be filled in Word. */
+  missing: string[]
+}
+
+/** Generates a simple Word from a template in «Generados» of the work folder, with its record (D-488). */
+export function generateDocument(request: GenerateRequest): Promise<GeneratedDocument> {
+  return invoke<GeneratedDocument>("docbase_generate_document", { request })
+}
+
+/** Opens a generated document in Word, or shows it in its folder (`reveal`). */
+export function openGenerated(id: number, reveal = false): Promise<void> {
+  return invoke<void>("docbase_open_generated", { id, reveal })
+}
+
 /** The documents similar to the one at this location. */
 export function listSimilarDocuments(locationId: number): Promise<SimilarDocument[]> {
   return invoke<SimilarDocument[]>("docbase_similar_documents", { locationId })

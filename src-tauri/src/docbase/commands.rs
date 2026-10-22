@@ -475,6 +475,35 @@ pub fn docbase_choose_template_field(
     Ok(())
 }
 
+/// Generates a document from a template (D-488): a simple Word in the
+/// folder «Generados» of the work folder, with the values given, and its
+/// record in the base. The base takes the file at once.
+#[tauri::command(async)]
+pub fn docbase_generate_document(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    request: similar::generate::GenerateRequest,
+) -> Result<similar::generate::Generated, String> {
+    let base = state.base()?;
+    let place = crate::work_folder::generated_place(&app, base)?;
+    let generated = base.generate_document(&place, &request)?;
+    // Its text is read by the worker, as for any new file.
+    state.request_sweep();
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(generated)
+}
+
+/// Opens a generated document in its program (Word), or shows it in its
+/// folder (`reveal`).
+#[tauri::command(async)]
+pub fn docbase_open_generated(app: tauri::AppHandle, state: State<'_, DocBaseState>, id: i64, reveal: bool) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let path = state.base()?.generated_path(id)?;
+    let path = path.to_string_lossy().to_string();
+    let opened = if reveal { app.opener().reveal_item_in_dir(&path) } else { app.opener().open_path(path.clone(), None::<&str>) };
+    opened.map_err(|e| format!("No se pudo abrir '{path}': {e}"))
+}
+
 /// The relations a person can choose, as the catalog lists them. Their
 /// names come from the vocabulary.
 #[tauri::command(async)]

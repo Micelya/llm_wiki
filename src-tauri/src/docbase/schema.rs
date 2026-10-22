@@ -10,7 +10,50 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14, V15, V16, V17, V18, V19, V20, V21, V22, V23];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14, V15, V16, V17, V18, V19, V20, V21, V22, V23, V24];
+
+/// The documents generated from a template (D-488): a Word written in the
+/// folder «Generados» of the work folder, with the template's text and the
+/// values a person gave. The record does not hang from the template, which
+/// is built again whenever its family changes, nor from the matter: it
+/// says what was done, and survives both.
+///
+/// - `naming`: the lasting identity of the template (`template_naming`);
+///   `principal`, `template_name`, `template_engine` and `template_built_at`:
+///   the template as it was (its principal, its name, its version).
+/// - `matter_id`, `matter_name`: the matter it was generated for, if any.
+/// - `from_document`: the document whose data it started with, if any.
+/// - `origin_id`, `rel_path`: where the file was written, inside the work
+///   folder's origin; `file_hash`: the SHA-256 of what was written.
+/// - `field_values`: each field, with its name, its value and where the value
+///   came from (JSON).
+/// - `content_id`: the document the base found at that place (it changes
+///   when a person edits the Word); `matter_content`: the one put in the
+///   matter, as a person's choice.
+const V24: &str = "
+CREATE TABLE generated_document (
+    id                 INTEGER PRIMARY KEY,
+    naming             INTEGER,
+    principal          INTEGER,
+    template_name      TEXT NOT NULL,
+    template_engine    TEXT NOT NULL,
+    template_built_at  INTEGER NOT NULL,
+    matter_id          TEXT,
+    matter_name        TEXT,
+    from_document      INTEGER,
+    origin_id          TEXT NOT NULL,
+    rel_path           TEXT NOT NULL,
+    file_hash          TEXT NOT NULL,
+    field_values       TEXT NOT NULL DEFAULT '[]',
+    generated_at       INTEGER NOT NULL,
+    content_id         INTEGER REFERENCES content (id) ON DELETE SET NULL,
+    matter_content     INTEGER
+);
+CREATE INDEX generated_document_by_naming ON generated_document (naming);
+CREATE INDEX generated_document_by_hash ON generated_document (file_hash);
+CREATE INDEX generated_document_by_place ON generated_document (origin_id, rel_path);
+CREATE INDEX generated_document_by_content ON generated_document (content_id);
+";
 
 /// The names of the templates and of their fields (D-488), apart from the
 /// templates, which are built again whenever their family changes. A
@@ -1350,6 +1393,41 @@ mod tests {
             })
             .unwrap();
         assert_eq!(left, 0);
+    }
+
+    /// A base at version 23 gets the record of the generated documents,
+    /// empty, and keeps what it had; the record survives its document.
+    #[test]
+    fn a_base_at_version_23_gets_the_record_of_the_generated_documents() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+        for (index, migration) in MIGRATIONS.iter().enumerate().take(23) {
+            conn.execute_batch(migration).unwrap();
+            conn.pragma_update(None, "user_version", index as i64 + 1).unwrap();
+        }
+        conn.execute_batch(
+            "INSERT INTO content (id, state, first_seen_at) VALUES (1, 'processed', 1);
+             INSERT INTO template_naming (id, documents, name, built_at) VALUES (7, '[1]', 'Mi modelo', 1);",
+        )
+        .unwrap();
+        migrate(&mut conn).unwrap();
+        let version: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0)).unwrap();
+        assert_eq!(version, CURRENT_VERSION);
+        let rows: i64 = conn.query_row("SELECT count(*) FROM generated_document", [], |row| row.get(0)).unwrap();
+        assert_eq!(rows, 0);
+        let names: i64 = conn.query_row("SELECT count(*) FROM template_naming", [], |row| row.get(0)).unwrap();
+        assert_eq!(names, 1);
+        conn.execute_batch(
+            "INSERT INTO generated_document (naming, template_name, template_engine, template_built_at, origin_id, rel_path,
+                                             file_hash, generated_at, content_id)
+             VALUES (7, 'Mi modelo', 'template-3', 1, 'o', 'Generados/a.docx', 'h', 1, 1);
+             DELETE FROM content;",
+        )
+        .unwrap();
+        let left: (i64, Option<i64>) = conn
+            .query_row("SELECT count(*), max(content_id) FROM generated_document", [], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap();
+        assert_eq!(left, (1, None), "the record stays when its document goes");
     }
 
     /// The owner's base is at version 8 (the type decisions of the

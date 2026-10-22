@@ -819,3 +819,174 @@ fn two_copies_of_the_same_form_are_possibly_the_same_document() {
     let template = base.similar_template(&Visible::All, groups[0].principal.location_id).unwrap().unwrap();
     assert!(template.possibly_same.is_empty());
 }
+
+// ── Documents generated from a template (D-488) ────────────────────────
+
+/// Three invented receipts of one template, from three invented people.
+fn fees() -> Vec<(String, Vec<u8>)> {
+    [("Lucía Benítez", "1.500,00", "10/01/2026"), ("Marcos Quiroga", "2.750,00", "10/02/2026"), ("Nora Salvatierra", "980,50", "10/03/2026")]
+        .iter()
+        .enumerate()
+        .map(|(i, (who, amount, date))| {
+            let body = format!(
+                "RECIBO DE HONORARIOS.\n\nRecibí de {who} la suma de pesos $ {amount} en concepto de honorarios profesionales \
+                 por la consulta del día {date}, según lo convenido entre las partes en el acuerdo de servicios vigente.\n\n{}",
+                words(0..30, 7)
+            );
+            (format!("honorarios {i}.md"), body.into_bytes())
+        })
+        .collect()
+}
+
+/// The base with the receipts, its work folder as an origin and the place
+/// of the generated documents in it.
+fn with_work_folder() -> (TempDir, DocBase, super::generate::Place, String) {
+    let files = fees();
+    let refs: Vec<(&str, Vec<u8>)> = files.iter().map(|(n, b)| (n.as_str(), b.clone())).collect();
+    let (dir, base, _) = base_with(&refs);
+    let work = dir.folder("trabajo");
+    let origin = crate::work_folder::register(&base, &work).unwrap().origin;
+    crate::work_folder::prepare(&work).unwrap();
+    let place = super::generate::Place::inside(&base, &work.join(crate::work_folder::GENERATED)).unwrap();
+    (dir, base, place, origin.id)
+}
+
+fn given(position: usize, name: &str, value: &str, source: &str) -> super::generate::GivenValue {
+    super::generate::GivenValue { position: position as i64, name: name.into(), value: value.into(), source: source.into(), reference: None }
+}
+
+/// The positions of the name, the amount and the date of the receipts' template.
+fn fee_fields(template: &super::template::Template) -> (usize, usize, usize) {
+    let at = |kind: &str| {
+        template
+            .fields
+            .iter()
+            .position(|f| serde_json::to_value(f.kind).unwrap() == kind)
+            .unwrap_or_else(|| panic!("no {kind} field"))
+    };
+    (at("name"), at("amount"), at("date"))
+}
+
+/// The text of a Word, one line per paragraph.
+fn word_text(path: &str) -> String {
+    let docx = docx_rs::read_docx(&std::fs::read(path).unwrap()).expect("the Word opens");
+    let mut out = Vec::new();
+    for child in docx.document.children {
+        if let docx_rs::DocumentChild::Paragraph(paragraph) = child {
+            let mut text = String::new();
+            for child in &paragraph.children {
+                if let docx_rs::ParagraphChild::Run(run) = child {
+                    for child in &run.children {
+                        if let docx_rs::RunChild::Text(t) = child {
+                            text.push_str(&t.text);
+                        }
+                    }
+                }
+            }
+            out.push(text);
+        }
+    }
+    out.join("\n")
+}
+
+fn fees_template(base: &DocBase) -> super::template::Template {
+    let summary = base.templates(&Visible::All).unwrap().remove(0);
+    base.similar_template(&Visible::All, summary.principal.location_id).unwrap().unwrap()
+}
+
+#[test]
+fn a_document_generated_from_a_template_is_a_word_with_its_text_and_values_and_its_record() {
+    let (_dir, base, place, work_origin) = with_work_folder();
+    let template = fees_template(&base);
+    let (name, amount, date) = fee_fields(&template);
+    let request = super::generate::GenerateRequest {
+        principal: template.principal,
+        template_name: "Recibo de honorarios".into(),
+        values: vec![
+            given(name, "Quien paga", "Julián Ferreyra", "hand"),
+            given(amount, "Importe", "3.333,33", "hand"),
+            given(date, "Fecha", "22/10/2026", "date"),
+        ],
+        file_name: Some("Recibo de honorarios - Julián Ferreyra - 2026-10-22".into()),
+        ..Default::default()
+    };
+    let generated = base.generate_document(&place, &request).unwrap();
+    assert_eq!(generated.file_name, "Recibo de honorarios - Julián Ferreyra - 2026-10-22.docx");
+    assert!(generated.missing.is_empty());
+
+    // It opens as a Word: the template's text, with the values in place.
+    let text = word_text(&generated.path);
+    assert!(text.starts_with("RECIBO DE HONORARIOS.\nRecibí de Julián Ferreyra la suma de pesos $ 3.333,33"), "{text}");
+    assert!(text.contains("por la consulta del día 22/10/2026, según lo convenido entre las partes"), "{text}");
+    for other in ["Lucía Benítez", "Marcos Quiroga", "1.500,00", "10/01/2026"] {
+        assert!(!text.contains(other), "no value of the template's documents: {other}");
+    }
+
+    // Its record: the template it came from, its version and its name then,
+    // each value with where it came from, and where the file went.
+    let (naming, template_name, engine, values, rel_path, from_document): (Option<i64>, String, String, String, String, Option<i64>) = base
+        .conn()
+        .query_row(
+            "SELECT naming, template_name, template_engine, field_values, rel_path, from_document FROM generated_document WHERE id = ?1",
+            [generated.id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)),
+        )
+        .unwrap();
+    let template_naming: Option<i64> =
+        base.conn().query_row("SELECT naming FROM similar_template WHERE principal = ?1", [template.principal], |row| row.get(0)).unwrap();
+    assert!(naming.is_some());
+    assert_eq!(naming, template_naming);
+    assert_eq!(template_name, "Recibo de honorarios");
+    assert_eq!(engine, super::template::ENGINE);
+    assert_eq!(rel_path, "Generados/Recibo de honorarios - Julián Ferreyra - 2026-10-22.docx");
+    assert_eq!(from_document, None);
+    let values: Vec<super::generate::GivenValue> = serde_json::from_str(&values).unwrap();
+    assert_eq!(values.len(), 3);
+    let payer = values.iter().find(|v| v.position == name as i64).unwrap();
+    assert_eq!((payer.name.as_str(), payer.value.as_str(), payer.source.as_str()), ("Quien paga", "Julián Ferreyra", "hand"));
+
+    // The base has it at once, in the work folder's origin, and reads it as any document.
+    let location = generated.location_id.expect("the base has the file");
+    assert!(generated.content_id.is_some());
+    settle(&base, &work_origin);
+    let found = row(&base, &generated.file_name);
+    assert_eq!(found.location_id, location);
+    assert_eq!(found.folder, "Generados");
+    assert_eq!(found.state, "processed");
+
+    // Another one with the same name never writes over it.
+    let again = base.generate_document(&place, &request).unwrap();
+    assert_eq!(again.file_name, "Recibo de honorarios - Julián Ferreyra - 2026-10-22 (2).docx");
+    assert!(std::path::Path::new(&generated.path).is_file());
+}
+
+#[test]
+fn a_document_generated_with_a_field_left_empty_says_which_and_starts_from_a_document() {
+    let (_dir, base, place, _) = with_work_folder();
+    let template = fees_template(&base);
+    let (name, amount, date) = fee_fields(&template);
+    let column = 1;
+    let source = template.documents[column].doc.content_id;
+    let request = super::generate::GenerateRequest {
+        principal: template.principal,
+        template_name: "Recibo".into(),
+        values: vec![
+            given(name, "Quien paga", "", "hand"),
+            given(amount, "Importe", &template.fields[amount].values[column], "document"),
+            given(date, "Fecha", "23/10/2026", "hand"),
+        ],
+        from_document: Some(source),
+        ..Default::default()
+    };
+    let generated = base.generate_document(&place, &request).unwrap();
+    assert_eq!(generated.missing, ["Quien paga"]);
+    assert!(generated.file_name.starts_with("Recibo 20"), "the template's name and the date: {}", generated.file_name);
+    let text = word_text(&generated.path);
+    assert!(text.contains("Recibí de [Quien paga] la suma de pesos"), "{text}");
+    let from: Option<i64> =
+        base.conn().query_row("SELECT from_document FROM generated_document WHERE id = ?1", [generated.id], |row| row.get(0)).unwrap();
+    assert_eq!(from, Some(source));
+    // A template that is no more cannot be generated from.
+    let gone = super::generate::GenerateRequest { principal: 999_999, ..request };
+    assert!(base.generate_document(&place, &gone).is_err());
+}
