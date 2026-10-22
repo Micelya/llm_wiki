@@ -388,13 +388,18 @@ fn what_is_not_a_pdf_is_not_kept_and_is_tried_again() {
 #[test]
 fn the_record_goes_into_the_base_as_a_confirmed_matter_with_its_documents() {
     let dir = TempDir::new();
-    let expedientes = dir.path().join("trabajo").join("Expedientes");
+    let work = dir.path().join("trabajo");
+    let expedientes = work.join("Expedientes");
     let mut portal = FakePortal::new(REFERENCE, TITLE, entries(3, 20));
     walk_with(&expedientes, &store::NoneKnown).run(&mut portal, &key()).unwrap();
     let base = DocBase::open(&dir.path().join("base.sqlite3")).unwrap();
-    let (origin, inside) = store::ensure_origin(&base, &expedientes).unwrap();
-    assert_eq!(inside, "");
-    assert_eq!(base.origin(&origin).unwrap().unwrap().name, "Expedientes");
+    // The records' folder is part of the work folder's origin, never an
+    // origin of its own (D-451).
+    let (origin, inside) = store::ensure_origin(&base, &work, &expedientes).unwrap();
+    assert_eq!(inside, "Expedientes");
+    assert_eq!(base.origin(&origin).unwrap().unwrap().name, "Carpeta de trabajo");
+    assert_eq!(base.origin(&origin).unwrap().unwrap().root(), work);
+    assert_eq!(base.origins(&crate::docbase::Visible::All).unwrap().len(), 1);
     base.scan_origin(&origin).unwrap();
     base.hash_pending(100).unwrap();
     // The data files are not documents of the base.
@@ -408,7 +413,7 @@ fn the_record_goes_into_the_base_as_a_confirmed_matter_with_its_documents() {
     let folder = store::record_folder(&expedientes.join("PJN"), &key());
     let mut record: RecordFile = store::load(&folder).unwrap().unwrap();
     let rel = store::rel_inside(&inside, "PJN", &key());
-    assert_eq!(rel, "PJN/ZZZ 4321-2011");
+    assert_eq!(rel, "Expedientes/PJN/ZZZ 4321-2011");
     assert_eq!(store::ensure_matter(&base, &mut record, &origin, &rel).unwrap(), 3);
     let matter = record.matter_id.clone().unwrap();
     let (name, origin_kind, confirmation): (String, String, String) = base
@@ -425,9 +430,38 @@ fn the_record_goes_into_the_base_as_a_confirmed_matter_with_its_documents() {
     let work = other.folder("trabajo");
     let base = DocBase::open(&other.path().join("base.sqlite3")).unwrap();
     let origin = base.add_origin("Trabajo", &work, &[]).unwrap();
-    let (found, inside) = store::ensure_origin(&base, &work.join("Expedientes")).unwrap();
+    let (found, inside) = store::ensure_origin(&base, &work, &work.join("Expedientes")).unwrap();
     assert_eq!((found, inside.as_str()), (origin.id, "Expedientes"));
     assert_eq!(store::rel_inside(&inside, "PJN", &key()), "Expedientes/PJN/ZZZ 4321-2011");
+    // A records' origin made before inside the work folder (the first
+    // version of the portals) joins the work folder's, with its documents
+    // and their matter.
+    let third = TempDir::new();
+    let work = third.path().join("trabajo");
+    let expedientes = work.join("Expedientes");
+    let mut portal = FakePortal::new(REFERENCE, TITLE, entries(3, 20));
+    walk_with(&expedientes, &store::NoneKnown).run(&mut portal, &key()).unwrap();
+    let base = DocBase::open(&third.path().join("base.sqlite3")).unwrap();
+    let old = base.add_origin("Expedientes", &expedientes, &[]).unwrap();
+    base.scan_origin(&old.id).unwrap();
+    base.hash_pending(100).unwrap();
+    let folder = store::record_folder(&expedientes.join("PJN"), &key());
+    let mut record: RecordFile = store::load(&folder).unwrap().unwrap();
+    assert_eq!(store::ensure_matter(&base, &mut record, &old.id, "PJN/ZZZ 4321-2011").unwrap(), 3);
+    let (origin, inside) = store::ensure_origin(&base, &work, &expedientes).unwrap();
+    assert_eq!(inside, "Expedientes");
+    let origins = base.origins(&crate::docbase::Visible::All).unwrap();
+    assert_eq!(origins.iter().map(|o| (o.id.as_str(), o.name.as_str())).collect::<Vec<_>>(), [(origin.as_str(), "Carpeta de trabajo")]);
+    let rel = store::rel_inside(&inside, "PJN", &key());
+    // Nothing is lost: the same documents, already in the matter.
+    assert_eq!(store::ensure_matter(&base, &mut record, &origin, &rel).unwrap(), 0);
+    let in_matter: i64 = base
+        .conn()
+        .query_row("SELECT count(*) FROM knowledge_matter_choice WHERE matter_id = ?1", [record.matter_id.clone().unwrap()], |r| r.get(0))
+        .unwrap();
+    assert_eq!(in_matter, 3);
+    let report = base.scan_origin(&origin).unwrap();
+    assert_eq!((report.added, report.removed), (0, 0));
 }
 
 #[test]

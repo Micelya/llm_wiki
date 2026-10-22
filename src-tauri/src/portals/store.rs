@@ -24,6 +24,7 @@ use rusqlite::params;
 use serde::{Deserialize, Serialize};
 
 use super::{CaseKey, Linked, RecordData, Row};
+use crate::docbase::origins::path_inside;
 use crate::docbase::{sql_err, DocBase, Visible};
 
 /// The file of each record.
@@ -532,34 +533,25 @@ pub fn followed_view(list: &[(PathBuf, RecordFile)]) -> Vec<Followed> {
         .collect()
 }
 
-/// The origin of the base that holds the records' folder: one that holds
-/// it already (the work folder, from step 8), or a new one, «Expedientes».
+/// The origin of the base that holds the records' folder, `folder`, inside
+/// the work folder `work`: the work folder's own, made now if needed, or
+/// one that holds it already (D-451). Never an origin for the records'
+/// folder alone: the base takes no origin inside another, and one made
+/// before by the first version of the portals joins the work folder's.
 /// Returns its id and the path of the folder inside it.
-pub fn ensure_origin(base: &DocBase, folder: &Path) -> Result<(String, String), String> {
+pub fn ensure_origin(base: &DocBase, work: &Path, folder: &Path) -> Result<(String, String), String> {
     fs::create_dir_all(folder).map_err(|e| format!("No se pudo crear {}: {e}", folder.display()))?;
+    crate::work_folder::prepare(work)?;
+    let registered = crate::work_folder::register(base, work);
     for origin in base.origins(&Visible::All)? {
-        if let Some(rest) = inside(&origin.root(), folder) {
+        if let Some(rest) = path_inside(&origin.root(), folder) {
             return Ok((origin.id, rest));
         }
     }
-    let taken: Vec<String> = base.origins(&Visible::All)?.into_iter().map(|o| o.name.to_lowercase()).collect();
-    let name = ["Expedientes", "Expedientes de portales", "Expedientes traídos de portales"]
-        .into_iter()
-        .find(|n| !taken.contains(&n.to_lowercase()))
-        .ok_or("Ya hay orígenes con los nombres que usa la app para los expedientes")?;
-    let origin = base.add_origin(name, folder, &[])?;
-    Ok((origin.id, String::new()))
-}
-
-/// The path of `folder` inside `root`, with `/` (empty: it is the root),
-/// when it is inside; the letters compared without case, as Windows does.
-fn inside(root: &Path, folder: &Path) -> Option<String> {
-    let root: Vec<String> = root.components().map(|c| c.as_os_str().to_string_lossy().to_lowercase()).collect();
-    let folder: Vec<String> = folder.components().map(|c| c.as_os_str().to_string_lossy().to_string()).collect();
-    if folder.len() < root.len() || root.iter().zip(&folder).any(|(a, b)| *a != b.to_lowercase()) {
-        return None;
-    }
-    Some(folder[root.len()..].join("/"))
+    Err(match registered {
+        Err(error) => error,
+        Ok(_) => format!("La carpeta {} no está dentro de la carpeta de trabajo", folder.display()),
+    })
 }
 
 /// The matter of the record: made confirmed, by a person's request, with

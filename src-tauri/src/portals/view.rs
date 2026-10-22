@@ -30,7 +30,7 @@ use tauri::{AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, State, Ur
 use super::page::Snapshot;
 use super::store::{self, Followed, KnownFiles, NoneKnown};
 use super::walk::{Browser, Fetched, Progress, Stop, Walk};
-use super::{connector, expedientes_folder, scripts, CaseKey, Connector, APP_WEBVIEW};
+use super::{connector, expedientes_folder, scripts, work_folder, CaseKey, Connector, APP_WEBVIEW};
 use crate::docbase::commands::{DocBaseState, CHANGED_EVENT};
 use crate::docbase::DocBase;
 
@@ -355,6 +355,7 @@ fn run_job(app: &AppHandle, shared: &Arc<Shared>, job: &Job) -> Result<Progress,
     let view = app
         .get_webview(&view_label(connector))
         .ok_or_else(|| Stop::Failed("Abrí la página «Portales» para que la app pueda usar el portal".to_string()))?;
+    let work = work_folder(app).map_err(Stop::Failed)?;
     let expedientes = expedientes_folder(app).map_err(Stop::Failed)?;
     let docbase = app.state::<DocBaseState>();
     let base = docbase.shared().ok();
@@ -367,7 +368,7 @@ fn run_job(app: &AppHandle, shared: &Arc<Shared>, job: &Job) -> Result<Progress,
     let progress = walk.run(&mut browser, &job.key);
     // Whatever happened, what was brought goes to the base.
     if let Some(base) = &base {
-        if let Err(error) = integrate(base, &expedientes, connector, &job.key) {
+        if let Err(error) = integrate(base, &work, &expedientes, connector, &job.key) {
             eprintln!("[portals] the record could not go into the base: {error}");
         }
         docbase.request_sweep();
@@ -378,7 +379,7 @@ fn run_job(app: &AppHandle, shared: &Arc<Shared>, job: &Job) -> Result<Progress,
 
 /// The record's folder in the base (its origin), and its confirmed matter
 /// with the documents the base already inventoried.
-fn integrate(base: &DocBase, expedientes: &Path, connector: &dyn Connector, key: &CaseKey) -> Result<(), String> {
+fn integrate(base: &DocBase, work: &Path, expedientes: &Path, connector: &dyn Connector, key: &CaseKey) -> Result<(), String> {
     let folder = store::record_folder(&expedientes.join(connector.folder()), key);
     let Some(mut record) = store::load(&folder)? else {
         return Ok(());
@@ -386,7 +387,7 @@ fn integrate(base: &DocBase, expedientes: &Path, connector: &dyn Connector, key:
     if record.updated_at.is_none() && !record.entries.iter().any(|e| e.file.is_some()) {
         return Ok(());
     }
-    let (origin, inside) = store::ensure_origin(base, expedientes)?;
+    let (origin, inside) = store::ensure_origin(base, work, expedientes)?;
     base.scan_origin(&origin)?;
     store::ensure_matter(base, &mut record, &origin, &store::rel_inside(&inside, connector.folder(), key))?;
     store::save(&folder, &record)
@@ -510,13 +511,14 @@ pub struct FollowedList {
 #[tauri::command(async)]
 pub fn portal_followed(app: AppHandle, docbase: State<'_, DocBaseState>, portal: String) -> Result<FollowedList, String> {
     let connector = connector(&portal)?;
+    let work = work_folder(&app)?;
     let expedientes = expedientes_folder(&app)?;
     let folder = expedientes.join(connector.folder());
     let list = store::followed(&folder);
     if let Ok(base) = docbase.shared() {
         for (_, record) in &list {
             if record.updated_at.is_some() {
-                if let Err(error) = integrate_documents(&base, &expedientes, connector, &record.key) {
+                if let Err(error) = integrate_documents(&base, &work, &expedientes, connector, &record.key) {
                     eprintln!("[portals] {error}");
                 }
             }
@@ -528,12 +530,12 @@ pub fn portal_followed(app: AppHandle, docbase: State<'_, DocBaseState>, portal:
 
 /// Puts in the matter the documents the base inventoried, without
 /// sweeping again.
-fn integrate_documents(base: &DocBase, expedientes: &Path, connector: &dyn Connector, key: &CaseKey) -> Result<(), String> {
+fn integrate_documents(base: &DocBase, work: &Path, expedientes: &Path, connector: &dyn Connector, key: &CaseKey) -> Result<(), String> {
     let folder = store::record_folder(&expedientes.join(connector.folder()), key);
     let Some(mut record) = store::load(&folder)? else {
         return Ok(());
     };
-    let (origin, inside) = store::ensure_origin(base, expedientes)?;
+    let (origin, inside) = store::ensure_origin(base, work, expedientes)?;
     let before = record.matter_id.clone();
     let added = store::ensure_matter(base, &mut record, &origin, &store::rel_inside(&inside, connector.folder(), key))?;
     if added > 0 || before != record.matter_id {

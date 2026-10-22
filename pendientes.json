@@ -1973,12 +1973,12 @@
       "titulo": "API local y recortador web (Clip) sobre la base",
       "tipo": "codigo",
       "responsable": "ambos",
-      "estado": "pendiente",
-      "detalle": "Salen con el retiro del wiki (D-400) porque trabajaban sobre los proyectos y los archivos del wiki. Rehacerlos sobre la base: qué expone la API y con qué permisos, y dónde guarda el recortador lo que se trae de la web (separado de lo que dicen los documentos, como la investigación, D-397). 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/.",
+      "estado": "en-curso",
+      "detalle": "Salen con el retiro del wiki (D-400) porque trabajaban sobre los proyectos y los archivos del wiki. Rehacerlos sobre la base: qué expone la API y con qué permisos, y dónde guarda el recortador lo que se trae de la web (separado de lo que dicen los documentos, como la investigación, D-397). 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/. 22 oct: el recortador está hecho (D-450, D-451): la extensión «Micelya Clipper» y su servidor local guardan cada página como archivo markdown en «Recortes web» de la carpeta de trabajo, que es un origen de la base; Atención avisa de los recortes nuevos. Falta la prueba del dueño con el navegador. Queda pendiente la API local y el servidor MCP.",
       "depende_de": [],
-      "referencia": "D-400; docs/design/retiro-del-wiki.md; docs/design/servicios-de-ia-propuesta.md",
+      "referencia": "D-400; D-450; D-451; docs/design/retiro-del-wiki.md; docs/design/servicios-de-ia-propuesta.md; src-tauri/src/clip_server.rs; extension/",
       "creado": "2026-10-21",
-      "actualizado": "2026-10-21"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-228",
@@ -2317,6 +2317,18 @@
       "detalle": "Decisión abierta 5 del diseño: antes de usar «Portales» con clientes, revisar con un abogado el reglamento del portal del PJN y las acordadas sobre su uso (la app no saltea el desafío, va a ritmo de persona y solo ve lo que el usuario puede ver).",
       "depende_de": ["P-248"],
       "referencia": "docs/design/portales-judiciales-propuesta.md (sección 5); D-446",
+      "creado": "2026-10-22",
+      "actualizado": "2026-10-22"
+    },
+    {
+      "id": "P-266",
+      "titulo": "Instalar Micelya Clipper sin el repositorio, con la marca de Micelya",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Hoy la extensión se carga «descomprimida» desde la carpeta extension del repositorio (Ajustes → Carpeta de trabajo explica cómo), con los íconos heredados. Para un estudio: empaquetarla con la app o publicarla en la tienda de Chrome y Edge, con los íconos y colores de la marca (P-057).",
+      "depende_de": ["P-227"],
+      "referencia": "extension/; D-450; D-451",
       "creado": "2026-10-22",
       "actualizado": "2026-10-22"
     }

@@ -29,7 +29,6 @@ mod tests;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
-use tauri::Manager;
 
 use page::Page;
 
@@ -43,19 +42,15 @@ pub fn is_app_webview(label: &str) -> bool {
 }
 
 /// The folder where the records brought from the portals are kept:
-/// `<carpeta de trabajo>\Expedientes`.
-///
-/// The work folder does not exist yet in the app (step 8 adds it): until
-/// then it is `<Documentos>\Micelya`. Step 8 connects it here, and only
-/// here.
+/// `<carpeta de trabajo>\Expedientes` (`work_folder`, D-450). It is part of
+/// the work folder's origin, never an origin of its own (D-451).
 pub fn expedientes_folder(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    let work = app
-        .path()
-        .document_dir()
-        .map(|documents| documents.join("Micelya"))
-        .or_else(|_| app.path().app_data_dir())
-        .map_err(|e| format!("No se encontró la carpeta de trabajo: {e}"))?;
-    Ok(work.join("Expedientes"))
+    crate::work_folder::records_folder(app)
+}
+
+/// The work folder that holds the records' folder.
+pub fn work_folder(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    crate::work_folder::folder(app)
 }
 
 /// One record of a portal: its jurisdiction (the portal's code, "CIV"),

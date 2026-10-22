@@ -37,6 +37,7 @@ pub mod similar;
 pub(crate) mod testing;
 pub mod text;
 pub mod tree;
+pub mod work_origin;
 mod worker;
 
 use std::path::{Path, PathBuf};

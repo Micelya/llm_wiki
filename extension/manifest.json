@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "Micelya Clipper",
+  "version": "0.2.0",
+  "description": "Guarda la página que estás leyendo en la carpeta de trabajo de Micelya, en «Recortes web».",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": [
+    "http://127.0.0.1:19827/*",
+    "http://localhost:19827/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Micelya Clipper",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "commands": {
+    "clip-current-page": {
+      "suggested_key": {
+        "default": "Alt+Shift+L",
+        "mac": "Command+Shift+L"
+      },
+      "description": "Guardar la página actual en Micelya"
+    }
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["Readability.js", "Turndown.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

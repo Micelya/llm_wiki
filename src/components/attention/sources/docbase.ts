@@ -12,16 +12,18 @@ import {
   type SimilarGroup,
   type SimilarPending,
 } from "@/commands/docbase"
+import { listNewClips, markClipsSeen, openWorkFolder, type NewFiles } from "@/commands/work-folder"
 import { DEFAULT_DOCUMENT_FILTER } from "@/stores/docbase-store"
 import type { AttentionCase, AttentionNotice } from "@/lib/attention/types"
 import { documentTypeName, vocabulary, type Vocabulary } from "@/vocabulary"
-import { formatCount, plural } from "@/components/docbase/format"
+import { formatAgo, formatCount, plural } from "@/components/docbase/format"
 import { useDocbaseQuery } from "@/components/docbase/use-docbase-query"
 
 /**
  * What the document base raises: origins that cannot be read, files and
  * documents that could not be processed, similar documents that could be
- * the same one, and document types the model proposed. All of it is about
+ * the same one, document types the model proposed, and the web clips saved
+ * since a person last looked at them (D-450). All of it is about
  * the archive (the space), whatever project is open. How far it went
  * reading is in the stages of «En curso» (`progress`, D-424).
  */
@@ -35,6 +37,8 @@ export interface DocbaseFacts {
   similarPending: SimilarPending | null
   groups: SimilarGroup[] | null
   proposedTypes: ProposedType[] | null
+  /** The clips of «Recortes web» a person has not seen yet. */
+  newClips?: NewFiles | null
 }
 
 export function docbaseNotices(facts: DocbaseFacts, words: Vocabulary = vocabulary()): AttentionNotice[] {
@@ -162,6 +166,9 @@ export function docbaseNotices(facts: DocbaseFacts, words: Vocabulary = vocabula
     )
   }
 
+  const clips = clipsNotice(facts.newClips)
+  if (clips) out.push(clips)
+
   // What is in progress (reading the files, their text, the text of the
   // images) is in the stages of «En curso» (D-424), not here.
   return out
@@ -265,12 +272,46 @@ export function similarNotice(pending: SimilarPending | null, groups: SimilarGro
   }
 }
 
+/**
+ * The web clips saved with Micelya Clipper since a person last looked at
+ * them: they are already documents of the base, in «Recortes web» of the
+ * work folder; the line is there so someone sees what came in.
+ */
+export function clipsNotice(clips: NewFiles | null | undefined): AttentionNotice | null {
+  if (!clips || clips.total === 0) return null
+  return {
+    source: DOCBASE_SOURCE,
+    id: `${DOCBASE_SOURCE}:clips`,
+    kind: "decision",
+    topic: "clips",
+    priority: "normal",
+    count: clips.total,
+    title: plural(clips.total, "recorte web nuevo", "recortes web nuevos"),
+    explanation:
+      "Se guardaron con Micelya Clipper en «Recortes web», en la carpeta de trabajo, y la base los lee como cualquier documento.",
+    todo: "Miralos. Si alguno no sirve, borralo de la carpeta.",
+    resolvedWhen: "Desaparece cuando tocás «Ya los vi»; vuelve con el próximo recorte.",
+    actions: [
+      { kind: "run", label: "Ya los vi", run: () => markClipsSeen() },
+      { kind: "run", label: "Abrir la carpeta", run: () => openWorkFolder("clips") },
+    ],
+    cases: clips.files.map((file) => ({
+      id: String(file.locationId),
+      title: file.name.replace(/\.md$/i, ""),
+      detail: `guardado ${formatAgo(file.firstSeenAt)}`,
+      actions: [{ kind: "go", label: "Abrir", target: { view: "document", locationId: file.locationId } }],
+    })),
+    moreCases: Math.max(0, clips.total - clips.files.length),
+  }
+}
+
 /** The source itself: asks the base again whenever it says something changed. */
 export function useDocbaseNotices(): AttentionNotice[] | null {
   const home = useDocbaseQuery("attention:home", getHome)
   const pending = useDocbaseQuery("attention:similar-pending", getSimilarPending)
   const groups = useDocbaseQuery("attention:similar-groups", listSimilarGroups)
   const types = useDocbaseQuery("attention:proposed-types", listProposedTypes)
+  const clips = useDocbaseQuery("attention:new-clips", listNewClips)
   if (home.error) throw new Error(home.error)
   if (!home.data) return null
   return docbaseNotices({
@@ -278,5 +319,6 @@ export function useDocbaseNotices(): AttentionNotice[] | null {
     similarPending: pending.data,
     groups: groups.data,
     proposedTypes: types.data,
+    newClips: clips.data,
   })
 }

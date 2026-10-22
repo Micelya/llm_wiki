@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   Bot,
+  FolderOpen,
   Globe,
   Languages,
   Palette,
@@ -35,9 +36,11 @@ import { NetworkSection } from "./sections/network-section"
 import { GeneralSection } from "./sections/general-section"
 import { ChangelogSection } from "./sections/changelog-section"
 import { AboutSection } from "./sections/about-section"
+import { WorkFolderSection } from "./sections/work-folder-section"
 
 type CategoryId =
   | "general"
+  | "work-folder"
   | "llm"
   | "web-search"
   | "network"
@@ -52,11 +55,14 @@ interface Category {
    *  switching language in Settings → Interface takes effect without
    *  remounting this component (Bug #53). */
   labelKey: string
+  /** Its name in Spanish when it has no translation key (Micelya's own sections). */
+  label?: string
   icon: typeof Bot
 }
 
 const CATEGORIES: Category[] = [
   { id: "general", labelKey: "settings.categories.general", icon: Settings },
+  { id: "work-folder", labelKey: "", label: "Carpeta de trabajo", icon: FolderOpen },
   { id: "llm", labelKey: "settings.categories.llm", icon: Bot },
   { id: "web-search", labelKey: "settings.categories.webSearch", icon: Globe },
   { id: "network", labelKey: "settings.categories.network", icon: Network },
@@ -342,6 +348,9 @@ export function SettingsView() {
     switch (active) {
       case "general":
         return <GeneralSection draft={draft} setDraft={setDraft} />
+      case "work-folder":
+        // Applies at once: the folder becomes an origin of the base.
+        return <WorkFolderSection />
       case "llm":
         // The LLM section manages its own store state (per-provider
         // configs + active preset) and persists directly — it bypasses
@@ -399,7 +408,7 @@ export function SettingsView() {
                     isActive ? "text-primary" : "text-muted-foreground/80 group-hover:text-accent-foreground"
                   }`}
                 />
-                <span className="truncate">{t(c.labelKey)}</span>
+                <span className="truncate">{c.label ?? t(c.labelKey)}</span>
                 {showUpdateDot && (
                   <span
                     className="ml-auto h-2 w-2 shrink-0 rounded-full bg-red-500"
@@ -422,7 +431,7 @@ export function SettingsView() {
         {/* Global Save bar hidden for sections that persist inline:
             - "llm" saves per-row on every edit (independent per-preset state)
             - "about" has no draft-bound fields */}
-        {active !== "about" && active !== "llm" && (
+        {active !== "about" && active !== "llm" && active !== "work-folder" && (
           <div className="shrink-0 border-t bg-background/80 backdrop-blur px-8 py-3">
             <div className="mx-auto flex max-w-2xl items-center justify-between gap-4">
               <p className={`text-xs ${saveError ? "text-destructive" : "text-muted-foreground"}`}>
