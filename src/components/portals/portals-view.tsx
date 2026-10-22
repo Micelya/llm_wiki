@@ -5,13 +5,11 @@ import { Input } from "@/components/ui/input"
 import {
   PJN,
   fetchRecord,
-  hidePortal,
   listFollowed,
   listJurisdictions,
   openPortalFolder,
   portalGoOn,
   setPortalManual,
-  showPortal,
   stopPortal,
   updateAllRecords,
   type FollowedRecord,
@@ -22,6 +20,7 @@ import { EmptyNote, ErrorNote, Panel, StatusBadge, type Tone } from "@/component
 import { formatAgo, plural } from "@/components/docbase/format"
 import { useDocbaseQuery } from "@/components/docbase/use-docbase-query"
 import { vocabulary } from "@/vocabulary"
+import { portalWindow } from "./portal-window"
 import { publishPortalStatus, usePortalStatus } from "./use-portal-status"
 
 const STATES: Record<string, { tone: Tone; label: string }> = {
@@ -356,7 +355,8 @@ function Bar({ tone, text, children }: { tone: keyof typeof BAR_TONES; text: str
 
 /**
  * The area the portal's window goes over. The window is drawn by the
- * system on top of the page, so it follows this area's place and size.
+ * system on top of the page, so it follows this area's place and size,
+ * and it is hidden when the page goes (`portal-window.ts`).
  */
 function PortalArea({ onProblem }: { onProblem: (problem: string) => void }) {
   const area = useRef<HTMLDivElement>(null)
@@ -367,16 +367,15 @@ function PortalArea({ onProblem }: { onProblem: (problem: string) => void }) {
   useEffect(() => {
     const element = area.current
     if (!element) return
-    let last = ""
+    const portal = portalWindow(PJN)
     let gone = false
     const sync = () => {
       if (gone) return
       const box = element.getBoundingClientRect()
       const rect = { x: Math.round(box.left), y: Math.round(box.top), width: Math.round(box.width), height: Math.round(box.height) }
-      const key = `${rect.x},${rect.y},${rect.width},${rect.height}`
-      if (key === last) return
-      last = key
-      showPortal(PJN, rect).catch((cause) => report.current(String(cause)))
+      portal.show(rect).catch((cause) => {
+        if (!gone) report.current(String(cause))
+      })
     }
     sync()
     const observer = new ResizeObserver(sync)
@@ -389,7 +388,7 @@ function PortalArea({ onProblem }: { onProblem: (problem: string) => void }) {
       observer.disconnect()
       window.removeEventListener("resize", sync)
       window.clearInterval(timer)
-      hidePortal(PJN).catch(() => {})
+      portal.hide().catch(() => {})
     }
   }, [])
   return <div ref={area} className="min-h-0 flex-1 bg-muted/30" />

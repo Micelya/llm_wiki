@@ -24,7 +24,7 @@ use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
-use tauri::webview::{DownloadEvent, NewWindowResponse, PageLoadEvent, WebviewBuilder};
+use tauri::webview::{DownloadEvent, NewWindowResponse, PageLoadEvent, PageLoadPayload, WebviewBuilder};
 use tauri::{AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, State, Url, Webview, WebviewUrl};
 
 use super::page::Snapshot;
@@ -40,8 +40,11 @@ pub const STATUS_EVENT: &str = "portal://status";
 /// What the lock says while nothing is being done.
 const IDLE_NOTE: &str = "Micelya maneja esta ventana: pedí un expediente en la página y se habilita sola cuando el portal te necesite";
 
+/// The start of the label of every portal's view.
+const VIEW_PREFIX: &str = "portal-";
+
 fn view_label(connector: &dyn Connector) -> String {
-    format!("portal-{}", connector.id())
+    format!("{VIEW_PREFIX}{}", connector.id())
 }
 
 #[derive(Default)]
@@ -55,6 +58,8 @@ struct Shared {
     signal: Condvar,
     download: Mutex<Slot>,
     download_signal: Condvar,
+    /// One show or hide of the view at a time (`show_view`).
+    views: Mutex<()>,
 }
 
 impl Shared {
@@ -144,12 +149,100 @@ fn on_download(shared: &Shared, event: DownloadEvent<'_>) -> bool {
     }
 }
 
-/// Creates the view the first time, over the area the page gives it.
-fn ensure_view(app: &AppHandle, shared: &Arc<Shared>, connector: &'static dyn Connector, position: LogicalPosition<f64>, size: LogicalSize<f64>) -> Result<Webview, String> {
-    let label = view_label(connector);
-    if let Some(view) = app.get_webview(&label) {
-        return Ok(view);
+/// An area of the app's window, in logical pixels.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct Place {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+/// Where the portals' views are: the app's window, or a fake in the tests.
+pub(crate) trait Views {
+    type View;
+    fn find(&self, label: &str) -> Option<Self::View>;
+    fn create(&self, label: &str, place: Place) -> Result<Self::View, String>;
+    /// Puts the view over `place` and shows it.
+    fn place(&self, view: &Self::View, place: Place) -> Result<(), String>;
+    fn hide(&self, view: &Self::View) -> Result<(), String>;
+}
+
+/// Shows the view over `place`. The view outlives the page (it leaves, it
+/// reloads, and in development React mounts it twice), so one that exists
+/// is placed and shown again, never created a second time; the gate keeps
+/// two requests from creating it at once.
+pub(crate) fn show_view<V: Views>(views: &V, gate: &Mutex<()>, label: &str, place: Place) -> Result<(), String> {
+    let _one_at_a_time = gate.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let view = match views.find(label) {
+        Some(view) => view,
+        None => match views.create(label, place) {
+            Ok(view) => view,
+            // Made meanwhile by something that does not pass the gate.
+            Err(error) => views.find(label).ok_or(error)?,
+        },
+    };
+    views.place(&view, place)
+}
+
+/// Hides the view, when there is one, so it does not cover other pages.
+pub(crate) fn hide_view<V: Views>(views: &V, gate: &Mutex<()>, label: &str) -> Result<(), String> {
+    let _one_at_a_time = gate.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    match views.find(label) {
+        Some(view) => views.hide(&view),
+        None => Ok(()),
     }
+}
+
+/// The views of a portal inside the app's window.
+struct AppViews<'a> {
+    app: &'a AppHandle,
+    shared: &'a Arc<Shared>,
+    connector: &'static dyn Connector,
+}
+
+impl Views for AppViews<'_> {
+    type View = Webview;
+
+    fn find(&self, label: &str) -> Option<Webview> {
+        self.app.get_webview(label)
+    }
+
+    fn create(&self, label: &str, place: Place) -> Result<Webview, String> {
+        create_view(self.app, self.shared, self.connector, label, place)
+    }
+
+    fn place(&self, view: &Webview, place: Place) -> Result<(), String> {
+        view.set_position(LogicalPosition::new(place.x, place.y)).map_err(|e| e.to_string())?;
+        view.set_size(LogicalSize::new(place.width, place.height)).map_err(|e| e.to_string())?;
+        view.show().map_err(|e| e.to_string())
+    }
+
+    fn hide(&self, view: &Webview) -> Result<(), String> {
+        view.hide().map_err(|e| e.to_string())
+    }
+}
+
+/// When the app's own page loads again (a reload), hides the portals'
+/// views: they outlive it and would cover whatever the new page shows
+/// until the «Portales» page asks for them again. It does not wait for the
+/// gate: this runs on the main thread, which a view being created waits
+/// for.
+pub fn hide_on_app_reload<R: tauri::Runtime>(webview: &Webview<R>, payload: &PageLoadPayload<'_>) {
+    if payload.event() != PageLoadEvent::Started || !super::is_app_webview(webview.label()) {
+        return;
+    }
+    for (label, view) in webview.app_handle().webviews() {
+        if label.starts_with(VIEW_PREFIX) {
+            let _ = view.hide();
+        }
+    }
+}
+
+/// Creates the view over the area the page gives it.
+fn create_view(app: &AppHandle, shared: &Arc<Shared>, connector: &'static dyn Connector, label: &str, place: Place) -> Result<Webview, String> {
+    let position = LogicalPosition::new(place.x, place.y);
+    let size = LogicalSize::new(place.width, place.height);
     let window = app.get_window(APP_WEBVIEW).ok_or("No se encontró la ventana de la app")?;
     let profile = app
         .path()
@@ -162,7 +255,7 @@ fn ensure_view(app: &AppHandle, shared: &Arc<Shared>, connector: &'static dyn Co
     let start = Url::parse(connector.start_url()).map_err(|e| e.to_string())?;
     let downloads = shared.clone();
     let loads = shared.clone();
-    let builder = WebviewBuilder::new(label, WebviewUrl::External(start))
+    let builder = WebviewBuilder::new(label.to_string(), WebviewUrl::External(start))
         .data_directory(profile)
         .initialization_script(scripts::INIT)
         .on_navigation(move |url| connector.allows(url))
@@ -409,29 +502,24 @@ fn enqueue(app: &AppHandle, state: &PortalState, jobs: Vec<Job>) -> PortalStatus
 }
 
 /// Shows the view over the area the page leaves for it (logical pixels of
-/// the window), creating it the first time.
+/// the window), creating it only if there is none.
 #[tauri::command(async)]
 pub fn portal_show(app: AppHandle, state: State<'_, PortalState>, portal: String, x: f64, y: f64, width: f64, height: f64) -> Result<(), String> {
     let connector = connector(&portal)?;
+    let views = AppViews { app: &app, shared: &state.shared, connector };
     if width < 20.0 || height < 20.0 {
-        return portal_hide(app, portal);
+        return hide_view(&views, &state.shared.views, &view_label(connector));
     }
-    let position = LogicalPosition::new(x.max(0.0), y.max(0.0));
-    let size = LogicalSize::new(width, height);
-    let view = ensure_view(&app, &state.shared, connector, position, size)?;
-    view.set_position(position).map_err(|e| e.to_string())?;
-    view.set_size(size).map_err(|e| e.to_string())?;
-    view.show().map_err(|e| e.to_string())
+    let place = Place { x: x.max(0.0), y: y.max(0.0), width, height };
+    show_view(&views, &state.shared.views, &view_label(connector), place)
 }
 
 /// Hides the view (the page left); a walk in course goes on.
 #[tauri::command(async)]
-pub fn portal_hide(app: AppHandle, portal: String) -> Result<(), String> {
+pub fn portal_hide(app: AppHandle, state: State<'_, PortalState>, portal: String) -> Result<(), String> {
     let connector = connector(&portal)?;
-    if let Some(view) = app.get_webview(&view_label(connector)) {
-        view.hide().map_err(|e| e.to_string())?;
-    }
-    Ok(())
+    let views = AppViews { app: &app, shared: &state.shared, connector };
+    hide_view(&views, &state.shared.views, &view_label(connector))
 }
 
 /// Brings a record (or what is new of one already followed).
@@ -572,4 +660,149 @@ pub fn portal_open_folder(app: AppHandle, portal: String, record: Option<String>
     app.opener()
         .open_path(folder.to_string_lossy().to_string(), None::<&str>)
         .map_err(|e| format!("No se pudo abrir la carpeta: {e}"))
+}
+
+#[cfg(test)]
+mod tests {
+    //! Showing and hiding the portal's view, with the views of a fake
+    //! window: the page mounts twice, leaves, comes back, or asks twice at
+    //! once.
+
+    use std::collections::HashMap;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{Arc, Mutex};
+    use std::time::Duration;
+
+    use super::{hide_view, show_view, Place, Views};
+
+    const LABEL: &str = "portal-zzz";
+    const AREA: Place = Place { x: 400.0, y: 120.0, width: 800.0, height: 600.0 };
+    const MOVED: Place = Place { x: 460.0, y: 120.0, width: 740.0, height: 600.0 };
+
+    #[derive(Debug, Clone, PartialEq)]
+    struct Shown {
+        visible: bool,
+        place: Place,
+    }
+
+    /// A window that makes its views as Tauri does: it checks the label,
+    /// takes a while to make the view, and only then keeps it.
+    #[derive(Default)]
+    struct FakeWindow {
+        views: Mutex<HashMap<String, Shown>>,
+        created: AtomicUsize,
+        slow: Duration,
+        /// Making the view fails with this.
+        refuse: Option<&'static str>,
+        /// Someone else makes the view while this one fails.
+        made_meanwhile: bool,
+    }
+
+    impl FakeWindow {
+        fn shown(&self) -> Option<Shown> {
+            self.views.lock().unwrap().get(LABEL).cloned()
+        }
+    }
+
+    impl Views for FakeWindow {
+        type View = String;
+
+        fn find(&self, label: &str) -> Option<String> {
+            self.views.lock().unwrap().contains_key(label).then(|| label.to_string())
+        }
+
+        fn create(&self, label: &str, place: Place) -> Result<String, String> {
+            if self.views.lock().unwrap().contains_key(label) {
+                return Err(format!("a webview with label `{label}` already exists"));
+            }
+            std::thread::sleep(self.slow);
+            if let Some(problem) = self.refuse {
+                if self.made_meanwhile {
+                    self.views.lock().unwrap().insert(label.to_string(), Shown { visible: true, place });
+                }
+                return Err(problem.to_string());
+            }
+            self.created.fetch_add(1, Ordering::SeqCst);
+            self.views.lock().unwrap().insert(label.to_string(), Shown { visible: true, place });
+            Ok(label.to_string())
+        }
+
+        fn place(&self, view: &String, place: Place) -> Result<(), String> {
+            let mut views = self.views.lock().unwrap();
+            let shown = views.get_mut(view).ok_or("no view")?;
+            shown.visible = true;
+            shown.place = place;
+            Ok(())
+        }
+
+        fn hide(&self, view: &String) -> Result<(), String> {
+            let mut views = self.views.lock().unwrap();
+            views.get_mut(view).ok_or("no view")?.visible = false;
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn the_view_is_made_once_and_then_placed_again() {
+        let window = FakeWindow::default();
+        let gate = Mutex::new(());
+        show_view(&window, &gate, LABEL, AREA).unwrap();
+        show_view(&window, &gate, LABEL, AREA).unwrap();
+        show_view(&window, &gate, LABEL, MOVED).unwrap();
+        assert_eq!(window.created.load(Ordering::SeqCst), 1);
+        assert_eq!(window.shown(), Some(Shown { visible: true, place: MOVED }));
+    }
+
+    #[test]
+    fn leaving_the_page_hides_it_and_coming_back_shows_it_again() {
+        let window = FakeWindow::default();
+        let gate = Mutex::new(());
+        show_view(&window, &gate, LABEL, AREA).unwrap();
+        hide_view(&window, &gate, LABEL).unwrap();
+        assert_eq!(window.shown().map(|s| s.visible), Some(false));
+        show_view(&window, &gate, LABEL, AREA).unwrap();
+        assert_eq!(window.shown(), Some(Shown { visible: true, place: AREA }));
+        assert_eq!(window.created.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn hiding_before_there_is_a_view_does_nothing() {
+        let window = FakeWindow::default();
+        hide_view(&window, &Mutex::new(()), LABEL).unwrap();
+        assert_eq!(window.shown(), None);
+        assert_eq!(window.created.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn two_requests_at_once_make_one_view_and_neither_fails() {
+        let window = Arc::new(FakeWindow { slow: Duration::from_millis(60), ..FakeWindow::default() });
+        let gate = Arc::new(Mutex::new(()));
+        let requests: Vec<_> = [AREA, MOVED]
+            .into_iter()
+            .map(|place| {
+                let (window, gate) = (window.clone(), gate.clone());
+                std::thread::spawn(move || show_view(window.as_ref(), &gate, LABEL, place))
+            })
+            .collect();
+        for request in requests {
+            request.join().unwrap().unwrap();
+        }
+        assert_eq!(window.created.load(Ordering::SeqCst), 1);
+        assert_eq!(window.shown().map(|s| s.visible), Some(true));
+    }
+
+    #[test]
+    fn a_view_made_meanwhile_is_used_instead_of_failing() {
+        let window = FakeWindow { refuse: Some("a webview with label `portal-zzz` already exists"), made_meanwhile: true, ..FakeWindow::default() };
+        show_view(&window, &Mutex::new(()), LABEL, MOVED).unwrap();
+        assert_eq!(window.shown(), Some(Shown { visible: true, place: MOVED }));
+    }
+
+    #[test]
+    fn a_view_that_cannot_be_made_says_why() {
+        let window = FakeWindow { refuse: Some("No se pudo abrir el portal"), ..FakeWindow::default() };
+        let problem = show_view(&window, &Mutex::new(()), LABEL, AREA).unwrap_err();
+        assert_eq!(problem, "No se pudo abrir el portal");
+        assert_eq!(window.shown(), None);
+    }
 }

@@ -37,12 +37,14 @@ export function DocumentTypesPanel() {
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  // Every hook goes before the first return: React needs the same ones in
+  // every render, loading or loaded.
+  const engine = useAskConfig()
 
   const data = plan.data
   if (!data) return plan.error ? <ErrorNote>{plan.error}</ErrorNote> : null
   if (data.documents === 0) return null
 
-  const engine = useAskConfig()
   const questions = questionsText(data)
 
   async function run() {

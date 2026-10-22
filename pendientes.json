@@ -2391,6 +2391,30 @@
       "referencia": "D-454, D-455; docs/design/hovercards-sugerencias.md",
       "creado": "2026-10-22",
       "actualizado": "2026-10-22"
+    },
+    {
+      "id": "P-274",
+      "titulo": "Ver en la app que Orígenes y Portales abren bien",
+      "tipo": "verificacion",
+      "responsable": "ambos",
+      "estado": "a-verificar",
+      "detalle": "Arreglado el 22 oct (paso 12b) sin abrir la app: Orígenes ya no se rompe con «Rendered more hooks than during the previous render» (el panel de tipos de documento pedía un dato después de salir antes, mientras cargaba), y la ventana del portal se crea una sola vez y se oculta al salir o al recargar (D-461). En la app: abrir Orígenes y esperar a que cargue; abrir Portales y ver la página del portal; ir a otra pantalla (no tiene que quedar tapada), volver (se ve de nuevo), recargar con la página abierta; y mirar que la consola ya no diga «reading 'handlerId'».",
+      "depende_de": [],
+      "referencia": "D-461; src/components/docbase/document-types-view.tsx; src/components/portals/portal-window.ts; src-tauri/src/portals/view.rs; src/components/docbase/use-docbase-query.ts; P-248",
+      "creado": "2026-10-22",
+      "actualizado": "2026-10-22"
+    },
+    {
+      "id": "P-275",
+      "titulo": "Pruebas de pantallas que se vuelven a dibujar",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Las pruebas de interfaz dibujan cada pantalla una sola vez, a texto, sin navegador simulado, y por eso no vieron la falla de Orígenes, que aparece al pasar de cargando a cargado. Desde el paso 12b una ayuda de prueba (hooksOf) compara los pedidos que hace un componente en cada estado, apoyada en una parte interna de React que puede cambiar con una versión nueva (la prueba fallaría a la vista). Sumar un navegador simulado para las pruebas (un paquete de desarrollo) permitiría dibujar dos veces, montar y desmontar de verdad, y probar así también la página de Portales.",
+      "depende_de": [],
+      "referencia": "src/test-helpers/hook-order.ts; src/components/docbase/document-types-view.test.tsx; vite.config.ts (test.environment)",
+      "creado": "2026-10-22",
+      "actualizado": "2026-10-22"
     }
   ]
 }

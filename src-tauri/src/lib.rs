@@ -440,6 +440,9 @@ pub fn run() {
             }
             Ok(())
         })
+        // A reload of the app's page leaves the portals' views on top of
+        // the new page: they are hidden until «Portales» asks for them.
+        .on_page_load(portals::view::hide_on_app_reload)
         .invoke_handler(only_app_webview::<tauri::Wry>(tauri::generate_handler![
             commands::fs::read_file,
             commands::fs::write_file,
