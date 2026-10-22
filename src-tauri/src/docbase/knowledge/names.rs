@@ -516,7 +516,27 @@ pub fn block_keys(key: &NameKey) -> Vec<String> {
 
 /// An identifier as compared: letters and digits only, lowercase.
 pub fn identifier_value(value: &str) -> String {
-    value.chars().filter(|c| c.is_alphanumeric()).flat_map(char::to_lowercase).collect()
+    // The ordinal signs of a registration ("Tº 1 Fº 2") are not part of
+    // it: written or not, it is the same one (D-436).
+    value.chars().filter(|c| c.is_alphanumeric() && !matches!(c, 'º' | 'ª')).flat_map(char::to_lowercase).collect()
+}
+
+/// Whether two sets of values of one kind of strong identifier have one
+/// that is the same: equal, or written with more or fewer characters
+/// (`written_otherwise`).
+pub fn same_identifier(a: &std::collections::BTreeSet<String>, b: &std::collections::BTreeSet<String>) -> bool {
+    a.iter().any(|x| b.iter().any(|y| x == y || written_otherwise(x, y)))
+}
+
+/// Whether two values of a strong identifier are the same one written with
+/// more or fewer characters (D-436): one holds the other whole, and the
+/// shorter has six digits or more. A tax number written without the digits
+/// of its type, a registration with the initials of the body that keeps it,
+/// a document number with the letter of its kind: they do not keep two
+/// mentions apart, and they join nothing by themselves.
+pub fn written_otherwise(a: &str, b: &str) -> bool {
+    let (short, long) = if a.chars().count() <= b.chars().count() { (a, b) } else { (b, a) };
+    short != long && short.chars().filter(|c| c.is_ascii_digit()).count() >= 6 && long.contains(short)
 }
 
 /// Whether two different identifiers of the same kind may be one misread

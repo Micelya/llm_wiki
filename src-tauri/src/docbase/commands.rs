@@ -19,6 +19,7 @@ use super::knowledge::pages::ProjectReport;
 use super::knowledge::research::{Research, ResearchSource};
 use super::knowledge::resolve::ResolveReport;
 use super::knowledge::screens::{DocumentEntities, KnowledgeAttention, MatterDetail, MatterSummary};
+use super::knowledge::extract::{RereadPlan, RereadTarget};
 use super::knowledge::{DocumentKnowledge, KnowledgeStatus};
 use super::labels::{Label, LabelGroup, LabelRule};
 use super::origins::Origin;
@@ -949,6 +950,27 @@ pub fn docbase_knowledge_undo(app: tauri::AppHandle, state: State<'_, DocBaseSta
 #[tauri::command(async)]
 pub fn docbase_knowledge_read_again_failed(app: tauri::AppHandle, state: State<'_, DocBaseState>) -> Result<usize, String> {
     let count = state.base()?.knowledge_read_again_failed(&Visible::All)?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(count)
+}
+
+/// What reading again a document, the documents of an origin or folder, or
+/// the whole archive would take, for the notice of its cost (D-432).
+#[tauri::command(async)]
+pub fn docbase_knowledge_reread_plan(state: State<'_, DocBaseState>, target: Option<RereadTarget>) -> Result<RereadPlan, String> {
+    state.base()?.knowledge_reread_plan(&target.unwrap_or_default())
+}
+
+/// Asks to read them again with new answers of the model (D-432): kept in
+/// the base until it is done. Returns how many documents.
+#[tauri::command(async)]
+pub fn docbase_knowledge_reread(app: tauri::AppHandle, state: State<'_, DocBaseState>, target: Option<RereadTarget>) -> Result<usize, String> {
+    let base = state.base()?;
+    if super::similar::classify::ask_engine(&base.conn())?.is_none() {
+        return Err("Falta elegir un modelo en Ajustes: sin él no se puede volver a leer.".to_string());
+    }
+    let count = base.knowledge_request_reread(&target.unwrap_or_default())?;
+    state.ask_wake.request();
     let _ = app.emit(CHANGED_EVENT, ());
     Ok(count)
 }

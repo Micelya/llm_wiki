@@ -36,6 +36,8 @@ mod check_identity;
 mod check_attention;
 #[cfg(test)]
 mod check_pages;
+#[cfg(test)]
+mod check_relations;
 pub(crate) mod anchors;
 pub mod articles;
 pub(crate) mod changes;
@@ -67,6 +69,8 @@ mod tests_groups;
 pub(crate) mod tests_pages;
 #[cfg(test)]
 mod tests_relations;
+#[cfg(test)]
+mod tests_reread;
 #[cfg(test)]
 mod tests_screens;
 #[cfg(test)]
@@ -107,8 +111,14 @@ pub struct KnowledgeStatus {
     pub documents: usize,
     /// Read with the current question and vocabulary, over their current text.
     pub extracted: usize,
-    /// Read, but over another text, question or vocabulary: read again.
+    /// To ask the model about again: read over another text, failed under
+    /// other instructions, or asked again by a person.
     pub stale: usize,
+    /// Read with an earlier version of the instructions, kept as they are
+    /// until a person asks to read them again (D-432).
+    pub older: usize,
+    /// A person asked to read them again; they wait for it.
+    pub reread: usize,
     /// Still to read (never read, or stale).
     pub pending: usize,
     /// The model's answer could not be used.
@@ -199,6 +209,10 @@ pub struct DocumentKnowledge {
     pub content_id: Option<i64>,
     /// "done", "failed", "stale" or "pending".
     pub state: String,
+    /// Read with an earlier version of the instructions (D-432).
+    pub older: bool,
+    /// A person asked to read it again, and it waits for it.
+    pub reread: bool,
     pub engine: Option<String>,
     pub extracted_at: Option<i64>,
     pub mentions: Vec<MentionView>,
@@ -217,10 +231,12 @@ impl DocBase {
         for standing in standings {
             let Some(reading) = standing.reading else { continue };
             read += 1;
+            status.reread += usize::from(reading.reread);
             if !reading.current {
                 status.stale += 1;
                 continue;
             }
+            status.older += usize::from(reading.older);
             match reading.state.as_str() {
                 "done" => status.extracted += 1,
                 _ => status.failed += 1,
@@ -340,10 +356,10 @@ pub(crate) fn knowledge_of_content(conn: &Connection, content_id: i64) -> Result
         .optional()
         .map_err(sql_err)?;
     if let Some((state, engine, at, discarded, error)) = row {
-        let current = extract::standings(conn, &Visible::All, Some(content_id))?
-            .first()
-            .and_then(|s| s.reading.as_ref())
-            .is_some_and(|r| r.current);
+        let standing = extract::standings(conn, &Visible::All, Some(content_id))?.into_iter().next().and_then(|s| s.reading);
+        let current = standing.as_ref().is_some_and(|r| r.current);
+        out.older = standing.as_ref().is_some_and(|r| r.older);
+        out.reread = standing.as_ref().is_some_and(|r| r.reread);
         out.state = if current { state } else { "stale".into() };
         out.engine = engine;
         out.extracted_at = Some(at);

@@ -6,11 +6,14 @@
 //! knowledge.json`, compiled in, and replaced at start by a file of the
 //! same shape in the app's data folder when there is one, like the
 //! catalog of document types. Each entry carries a description in words:
-//! that is what the model reads. Changing what the reading uses (types,
+//! that is what the model reads. Changing what the question says (types,
 //! roles, identifiers, predicates and their descriptions) changes its
-//! `reading_digest`, and every document is read again; the words of the
-//! resolution of identities (`identity`) and the marks `strong` and
-//! `single` do not (D-193).
+//! `asking_digest`: the readings made before are kept, marked as of an
+//! earlier version, and read again only when a person asks (D-432).
+//! Changing what the program checks of a reading changes its
+//! `reading_digest`: every reading is checked again from the answers kept,
+//! without asking the model. The words of the resolution of identities
+//! (`identity`) and the marks `strong` and `single` change neither (D-193).
 
 use std::sync::OnceLock;
 
@@ -18,7 +21,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 /// The version of the program's check of a reading (`extract::verify`).
-const READING_CHECK: &str = "lectura-11";
+const READING_CHECK: &str = "lectura-12";
 
 const BUILTIN: &str = include_str!("../../../resources/catalog/knowledge.json");
 
@@ -57,12 +60,18 @@ pub struct Vocabulary {
     /// Fingerprint of the vocabulary text.
     #[serde(skip)]
     pub digest: String,
-    /// Fingerprint of what the reading of a document uses (types, roles,
-    /// identifiers and predicates, with their descriptions): changing
-    /// anything else (the words of the resolution of identities, which
-    /// identifiers are strong) does not read the archive again.
+    /// Fingerprint of what the reading of a document is checked with (the
+    /// words of the question and of the program's checks): when it
+    /// changes, every reading is checked again from the answers kept,
+    /// without asking the model. The words of the resolution of identities
+    /// and which identifiers are strong do not change it.
     #[serde(skip)]
     pub reading_digest: String,
+    /// Fingerprint of what the question to the model says of the
+    /// vocabulary (the question of an empty document): when it changes,
+    /// the readings made before are of an earlier version (D-432).
+    #[serde(skip)]
+    pub asking_digest: String,
 }
 
 /// The words the resolution of identities works with (D-186).
@@ -355,6 +364,15 @@ pub struct ReadingRules {
     /// organization before the quote is not taken as its object.
     #[serde(default)]
     pub representation_cues: Vec<String>,
+    /// Words with which whoever signs a document speaks of herself ("mi",
+    /// "el suscripto", "the undersigned"), normalized: a quote with one of
+    /// them names the signer (D-434).
+    #[serde(default)]
+    pub first_person: Vec<String>,
+    /// The roles of a mention that make it whoever signs or writes the
+    /// document, for `first_person`.
+    #[serde(default)]
+    pub signer_roles: Vec<String>,
 }
 
 fn sixty() -> usize {
@@ -553,6 +571,7 @@ pub struct Predicate {
     pub shape: String,
     /// Words (or how they start, normalized) of which the quote of a claim
     /// needs one to say it ("adeud", "saldo" for a debt); none: any quote.
+    /// One of several words is a run of whole words.
     #[serde(default)]
     pub cues: Vec<String>,
     /// Words (or how they start) that say the quote is about something
@@ -575,10 +594,87 @@ pub struct Predicate {
     /// the beneficial owner of) is kept only when the quote says of whom.
     #[serde(default)]
     pub object_in_quote: bool,
+    /// A relation whose subject must be named in the quote too (a spouse, a
+    /// kinship): a quote that names others and not the subject was given to
+    /// the wrong person (D-433).
+    #[serde(default)]
+    pub subject_in_quote: bool,
+    /// A relation that is doubtful when every quote of it names other
+    /// people or organizations and not its subject (the object aside; the
+    /// first person counts as whoever signs the document), D-434.
+    #[serde(default)]
+    pub attribution: bool,
+    /// A relation that is the other side of another one ("hijo de" is the
+    /// other side of "padre o madre de"): it is kept as that one, with its
+    /// subject and object swapped, so that it is stored once and shown from
+    /// both sides.
+    #[serde(default)]
+    pub inverse_of: String,
+    /// Beginnings of words of which one comes before the name of the
+    /// object in the quote ("apoderado de Y", "en representación de Y"),
+    /// or, `trail_cues`, after it ("Y, representada por"): a quote that
+    /// names the object only away from them (a professional registration
+    /// before "en representación de") does not say the relation (D-435).
+    #[serde(default)]
+    pub lead_cues: Vec<String>,
+    #[serde(default)]
+    pub trail_cues: Vec<String>,
+    /// Words (normalized; one or several in a row) of a name that cannot
+    /// be the subject, or the object, of the relation: a court does not
+    /// represent anyone nor is a party in the case it hears (D-435).
+    #[serde(default)]
+    pub subject_not: Vec<String>,
+    #[serde(default)]
+    pub object_not: Vec<String>,
+    /// Whole words that, between the names of the subject and the object
+    /// and without a word of `cues` there, say the relation is of others:
+    /// the children named after the union of their parents are not their
+    /// spouses (D-433).
+    #[serde(default)]
+    pub not_between: Vec<String>,
+    /// What the same document must not say of either side for the relation
+    /// to be firm: a person said to be single and the spouse of someone is
+    /// doubtful (D-434).
+    #[serde(default)]
+    pub contradicted_by: Option<Contradiction>,
     /// A value whose time, when the quote does not say one, is the date of
     /// its document: two values at different dates are a history.
     #[serde(default)]
     pub time_from_document: bool,
+}
+
+/// Values of another predicate, said of the subject or the object in the
+/// same document, that do not fit a relation (D-434): by language, the
+/// beginnings of their words.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Contradiction {
+    pub predicate: String,
+    #[serde(default)]
+    pub words: std::collections::BTreeMap<String, Vec<String>>,
+}
+
+impl Contradiction {
+    /// Whether a value (normalized words) is one of them, in any language.
+    pub fn says(&self, value: &str) -> bool {
+        let words: Vec<&str> = value.split_whitespace().collect();
+        self.words.values().flatten().any(|cue| {
+            let cue: Vec<&str> = cue.split_whitespace().collect();
+            match cue.as_slice() {
+                [one] => words.iter().any(|w| w.starts_with(one)),
+                many => !many.is_empty() && words.windows(many.len()).any(|w| w == many),
+            }
+        })
+    }
+}
+
+/// Whether a name (normalized words) has one of `list` (each one word or
+/// several in a row, normalized) as its words.
+pub fn name_has(name: &[String], list: &[String]) -> bool {
+    list.iter().any(|entry| {
+        let entry: Vec<&str> = entry.split_whitespace().collect();
+        !entry.is_empty() && name.windows(entry.len()).any(|w| w.iter().map(String::as_str).eq(entry.iter().copied()))
+    })
 }
 
 /// A kind of value, told by words of the quote (normalized, each a run of
@@ -628,16 +724,36 @@ impl Vocabulary {
                 return Err(format!("Predicate '{}': an amount between two parties takes an entity as object", predicate.id));
             }
         }
+        for predicate in &vocabulary.predicates {
+            if !predicate.inverse_of.is_empty() {
+                let fits = vocabulary.predicates.iter().any(|p| p.id == predicate.inverse_of && p.takes_entity() && p.inverse_of.is_empty());
+                if !fits || !predicate.takes_entity() {
+                    return Err(format!("Predicate '{}': inverseOf must name a relation that is not itself the other side of one", predicate.id));
+                }
+            }
+            if let Some(contradiction) = &predicate.contradicted_by {
+                if !vocabulary.predicates.iter().any(|p| p.id == contradiction.predicate) {
+                    return Err(format!("Predicate '{}': contradictedBy names an unknown predicate", predicate.id));
+                }
+            }
+        }
         let digest = Sha256::digest(text.as_bytes());
         vocabulary.digest = format!("v{}-{}", vocabulary.version, digest.iter().take(8).map(|b| format!("{b:02x}")).collect::<String>());
         let read = serde_json::json!({
             "types": vocabulary.entity_types.iter().map(|t| (&t.id, &t.description, &t.types)).collect::<Vec<_>>(),
             "roles": vocabulary.roles.iter().map(|t| (&t.id, &t.description, &t.types)).collect::<Vec<_>>(),
             "identifiers": vocabulary.identifiers.iter().map(|t| (&t.id, &t.description, &t.types, &t.labels, t.identifies)).collect::<Vec<_>>(),
+            // Every word of a predicate the check uses (the quote that must
+            // name both sides, the cues, the names that cannot be a side).
             "predicates": vocabulary
                 .predicates
                 .iter()
-                .map(|p| (&p.id, &p.description, &p.subject, &p.object, &p.object_types, &p.shape, &p.qualifiers, p.object_in_quote))
+                .map(|p| {
+                    serde_json::json!([
+                        &p.id, &p.description, &p.subject, &p.object, &p.object_types, &p.shape, &p.qualifiers, p.object_in_quote,
+                        p.subject_in_quote, &p.inverse_of, &p.lead_cues, &p.trail_cues, &p.subject_not, &p.object_not, &p.not_between, &p.cues
+                    ])
+                })
                 .collect::<Vec<_>>(),
             // The kinds of amount are asked; the direction of a quote and
             // the other checks of a reading are computed from these words.
@@ -653,6 +769,11 @@ impl Vocabulary {
         });
         let digest = Sha256::digest(read.to_string().as_bytes());
         vocabulary.reading_digest = format!("r-{}", digest.iter().take(8).map(|b| format!("{b:02x}")).collect::<String>());
+        // What the question says of the vocabulary: the question of an
+        // empty document, which has every word of it the model reads.
+        let asked = super::extract::prompt(&vocabulary, &super::extract::Hints::default(), "", 0, 1);
+        let digest = Sha256::digest(asked.as_bytes());
+        vocabulary.asking_digest = format!("q-{}", digest.iter().take(8).map(|b| format!("{b:02x}")).collect::<String>());
         Ok(vocabulary)
     }
 

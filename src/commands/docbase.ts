@@ -719,6 +719,10 @@ export interface KnowledgeStatus {
   documents: number
   extracted: number
   stale: number
+  /** Read with an earlier version of the instructions, kept as they are (D-432). */
+  older: number
+  /** Asked by a person to read again, waiting for it. */
+  reread: number
   pending: number
   failed: number
   mentions: number
@@ -780,6 +784,10 @@ export interface KnowledgeDiscarded {
 export interface DocumentKnowledge {
   contentId: number | null
   state: "done" | "failed" | "stale" | "pending"
+  /** Read with an earlier version of the instructions (D-432). */
+  older: boolean
+  /** A person asked to read it again, and it waits for it. */
+  reread: boolean
   engine: string | null
   extractedAt: number | null
   mentions: KnowledgeMentionView[]
@@ -887,7 +895,7 @@ export interface ClaimView {
    * "doubtful".
    */
   certainty: "quoted" | "confirmed" | "doubtful" | "corrected"
-  /** Why: "conflict", "identity", "attribution", "states", "by-person". */
+  /** Why: "conflict", "identity", "attribution", "states", "contradicted", "by-person". */
   reasons: string[]
 }
 
@@ -1143,6 +1151,10 @@ export interface DocumentReference {
 export interface DocumentEntities {
   contentId: number | null
   state: "done" | "failed" | "stale" | "pending"
+  /** Read with an earlier version of the instructions (D-432). */
+  older: boolean
+  /** A person asked to read it again, and it waits for it. */
+  reread: boolean
   error: string | null
   entities: DocumentEntity[]
   references: DocumentReference[]
@@ -1543,6 +1555,35 @@ export function undoIdentityDecision(id: number): Promise<void> {
 /** Reads again the documents whose reading failed; returns how many. */
 export function knowledgeReadAgainFailed(): Promise<number> {
   return invoke<number>("docbase_knowledge_read_again_failed")
+}
+
+/**
+ * What a person asks to read again with the model (D-432): the document at
+ * a location, the documents of an origin or of a folder of it, or (nothing
+ * said) the whole archive.
+ */
+export interface RereadTarget {
+  locationId?: number | null
+  originId?: string | null
+  folder?: string | null
+}
+
+/** What reading them again takes: documents already read and questions to the model. */
+export interface RereadPlan {
+  documents: number
+  questions: number
+  /** Of those, the ones already asked to read again. */
+  requested: number
+  engine: AskConfig | null
+}
+
+export function getRereadPlan(target: RereadTarget = {}): Promise<RereadPlan> {
+  return invoke<RereadPlan>("docbase_knowledge_reread_plan", { target })
+}
+
+/** Asks to read them again with new answers of the model; kept in the base until it is done. */
+export function requestReread(target: RereadTarget = {}): Promise<number> {
+  return invoke<number>("docbase_knowledge_reread", { target })
 }
 
 export function getKnowledgeAttention(): Promise<KnowledgeAttention> {

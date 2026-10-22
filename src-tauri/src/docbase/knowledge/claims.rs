@@ -232,7 +232,18 @@ fn identifier_values(conn: &Connection) -> Result<HashSet<String>, String> {
 fn says(vocabulary: &Vocabulary, piece: &Piece, identifiers: &HashSet<String>) -> bool {
     let quote = quote::words(&piece.quote);
     let Some(definition) = vocabulary.predicate(&piece.predicate) else { return true };
-    let has = |list: &[String]| quote.iter().any(|w| list.iter().any(|c| w.starts_with(c.as_str())));
+    // A cue of one word is how a word starts; one of several, a run of
+    // whole words ("fallecido con anterioridad").
+    let has = |list: &[String]| {
+        list.iter().any(|c| {
+            let words: Vec<String> = c.split_whitespace().map(str::to_string).collect();
+            match words.len() {
+                0 => false,
+                1 => quote.iter().any(|w| w.starts_with(c.as_str())),
+                _ => quote::contains(&quote, &words),
+            }
+        })
+    };
     // The words of a tax next to an amount between parties are checked
     // next to its amount, when it is read (D-244).
     let not_cues = if definition.is_money() { &[][..] } else { &definition.not_cues[..] };
@@ -319,6 +330,25 @@ fn load_pieces(conn: &Connection) -> Result<Vec<Piece>, String> {
     Ok(pieces)
 }
 
+/// Whoever signs or writes each document (an entity with a mention of a
+/// role of `reading.signerRoles` in it): what the first person of a quote
+/// names (D-434).
+fn load_signers(conn: &Connection, vocabulary: &Vocabulary) -> Result<HashSet<(i64, String)>, String> {
+    let mut out = HashSet::new();
+    let mut statement =
+        conn.prepare("SELECT content_id, entity_id, role FROM knowledge_mention WHERE entity_id IS NOT NULL").map_err(sql_err)?;
+    let rows = statement
+        .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)))
+        .map_err(sql_err)?;
+    for row in rows {
+        let (content, entity, role) = row.map_err(sql_err)?;
+        if vocabulary.reading.signer_roles.iter().any(|r| r == &role) {
+            out.insert((content, entity));
+        }
+    }
+    Ok(out)
+}
+
 /// What the context of a value is found with: the resolved mentions of
 /// each document, and the entities each subject is related to in it.
 fn load_context(conn: &Connection) -> Result<(Named, HashMap<i64, BTreeSet<String>>), String> {
@@ -358,6 +388,7 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, decided: &
     let wrong = &decided.wrong;
     let pieces = load_pieces(conn)?;
     let (named, related) = load_context(conn)?;
+    let signers = load_signers(conn, vocabulary)?;
     let doubted = doubted_mentions(conn)?;
 
     // The context of each piece, and its value once its shape is checked
@@ -570,6 +601,14 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, decided: &
 
     // How sure each claim is (D-320).
     let by_id: HashMap<i64, &Piece> = pieces.iter().map(|p| (p.id, p)).collect();
+    // The values each document gives each entity, by predicate, for what
+    // a relation must not be said with (D-434).
+    let mut said_of: HashMap<(i64, String, String), Vec<String>> = HashMap::new();
+    for piece in pieces.iter().filter(|p| p.object_name.is_none()) {
+        if let (Some(entity), Some(value)) = (&piece.subject_entity, piece.normalized.as_ref().or(piece.value.as_ref())) {
+            said_of.entry((piece.content, entity.clone(), piece.predicate.clone())).or_default().push(quote::words(value).join(" "));
+        }
+    }
     for (key, draft) in drafts.iter_mut() {
         let mut reasons: BTreeSet<&str> = BTreeSet::new();
         if draft.state == "conflict" {
@@ -584,13 +623,39 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, decided: &
         {
             reasons.insert("identity");
         }
-        let money = vocabulary.predicate(&draft.predicate).is_some_and(|p| p.is_money());
+        let definition = vocabulary.predicate(&draft.predicate);
+        let money = definition.is_some_and(|p| p.is_money());
         if draft.object_entity.is_none()
             && !money
             && !list.is_empty()
             && list.iter().all(|p| names_someone_else(vocabulary, &named, p, draft.subject.as_str(), draft.context.as_deref()))
         {
             reasons.insert("attribution");
+        }
+        // A relation whose every quote names others and not its subject
+        // (the object aside; the first person is whoever signs), D-434.
+        if let Some(object) = draft.object_entity.as_deref().filter(|_| definition.is_some_and(|p| p.attribution)) {
+            let first_person = |p: &Piece| {
+                signers.contains(&(p.content, draft.subject.clone()))
+                    && quote::words(&p.quote).iter().any(|w| vocabulary.reading.first_person.iter().any(|f| f == w))
+            };
+            if !list.is_empty() && list.iter().all(|p| !first_person(p) && names_someone_else(vocabulary, &named, p, draft.subject.as_str(), Some(object))) {
+                reasons.insert("attribution");
+            }
+        }
+        // A relation the same document contradicts (a person said to be
+        // single and the spouse of someone), in every document, D-434.
+        if let (Some(object), Some(contradiction)) = (draft.object_entity.as_deref(), definition.and_then(|p| p.contradicted_by.as_ref())) {
+            let contradicted = |p: &Piece| {
+                [draft.subject.as_str(), object].iter().any(|entity| {
+                    said_of
+                        .get(&(p.content, entity.to_string(), contradiction.predicate.clone()))
+                        .is_some_and(|values| values.iter().any(|v| contradiction.says(v)))
+                })
+            };
+            if !list.is_empty() && list.iter().all(|p| contradicted(p)) {
+                reasons.insert("contradicted");
+            }
         }
         let by_person = corrected.contains(key)
             || list.iter().any(|p| p.subject_by.as_deref() == Some("persona") || p.object_by.as_deref() == Some("persona"));

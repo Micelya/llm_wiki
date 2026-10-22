@@ -22,7 +22,9 @@
 //!   it names real people), `{"root", "entities": [{"id", "type", "name",
 //!   "aliases", "identifiers", "mentions": [{"path", "as_written",
 //!   "role"}], "claims": [{"predicate", "object", "path", "quote"}]}]}`,
-//!   with paths relative to `root`.
+//!   with paths relative to `root`; it may also have `relations` and
+//!   `not_relations` between its entities (`check_relations.rs`). Several
+//!   sheets go separated by `;`: this run compares with the first.
 //! - `MICELYA_ASK_CACHE`: a file where the model's answers are kept
 //!   between runs, by engine and question: a second run asks nothing
 //!   already asked. `MICELYA_ASK_PARALLEL`: questions asked at the same
@@ -64,6 +66,22 @@ pub(crate) struct Sheet {
     /// The matters: groups of documents.
     #[serde(default)]
     pub matters: Vec<SheetMatter>,
+    /// The relations a document says between two of its entities, and
+    /// the ones it does not say that a hasty reader could make up.
+    #[serde(default)]
+    pub relations: Vec<SheetRelation>,
+    #[serde(default)]
+    pub not_relations: Vec<SheetRelation>,
+}
+
+/// A relation of the sheet between two of its entities, in one document
+/// (the sheet also has the words that say it, read by hand).
+#[derive(Debug, Deserialize)]
+pub(crate) struct SheetRelation {
+    pub subject: String,
+    pub predicate: String,
+    pub object: String,
+    pub path: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -126,17 +144,29 @@ pub(crate) struct SheetClaim {
     pub quote: String,
 }
 
-/// The entity answer sheet named in `MICELYA_ENTITY_ANSWERS`.
+/// The entity answer sheet named in `MICELYA_ENTITY_ANSWERS` (the first,
+/// when it names several).
 pub(crate) fn sheet() -> Option<Sheet> {
-    let path = std::env::var("MICELYA_ENTITY_ANSWERS").ok()?;
-    let text = std::fs::read_to_string(&path).ok()?;
-    match serde_json::from_str(&text) {
-        Ok(sheet) => Some(sheet),
-        Err(error) => {
-            println!("the entity answer sheet {path} is not readable: {error}");
-            None
+    sheets().into_iter().next()
+}
+
+/// Every entity answer sheet named in `MICELYA_ENTITY_ANSWERS`: one path,
+/// or several separated by `;` (the sheet of a folder of the set, the one of
+/// a judicial file).
+pub(crate) fn sheets() -> Vec<Sheet> {
+    let Ok(paths) = std::env::var("MICELYA_ENTITY_ANSWERS") else { return Vec::new() };
+    let mut out = Vec::new();
+    for path in paths.split(';').map(str::trim).filter(|p| !p.is_empty()) {
+        let Ok(text) = std::fs::read_to_string(path) else {
+            println!("the entity answer sheet {path} is not readable");
+            continue;
+        };
+        match serde_json::from_str(&text) {
+            Ok(sheet) => out.push(sheet),
+            Err(error) => println!("the entity answer sheet {path} is not readable: {error}"),
         }
     }
+    out
 }
 
 /// The model, with its answers kept in `MICELYA_ASK_CACHE` by engine and

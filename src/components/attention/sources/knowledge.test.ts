@@ -16,6 +16,8 @@ function status(patch: Partial<KnowledgeStatus> = {}): KnowledgeStatus {
     documents: 10,
     extracted: 10,
     stale: 0,
+    older: 0,
+    reread: 0,
     pending: 0,
     failed: 0,
     mentions: 40,

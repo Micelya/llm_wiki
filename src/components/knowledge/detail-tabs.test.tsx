@@ -106,6 +106,8 @@ const DOCUMENT_ARTICLE = article(
 const DOCUMENT_ENTITIES: DocumentEntities = {
   contentId: 5,
   state: "done",
+  older: false,
+  reread: false,
   error: null,
   entities: [{ entityId: "ent-1", kind: "organizacion", name: "Inmobiliaria Ficticia SA", written: ["Inmobiliaria Ficticia SA"], roles: ["parte"], pagePath: null }],
   references: [],

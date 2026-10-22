@@ -318,6 +318,20 @@ impl Scope {
         self.origin().is_none()
     }
 
+    /// The documents of the scope (its files not left out).
+    pub(crate) fn contents(&self, conn: &Connection) -> Result<BTreeSet<i64>, String> {
+        let (condition, bound) = self.location_sql("l.origin_id", "l.folder");
+        let mut statement = conn
+            .prepare(&format!(
+                "SELECT DISTINCT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash
+                 WHERE NOT {} AND {condition}",
+                super::excluded_sql!()
+            ))
+            .map_err(sql_err)?;
+        let rows = statement.query_map(params_from_iter(bound), |row| row.get::<_, i64>(0)).map_err(sql_err)?;
+        rows.collect::<Result<BTreeSet<i64>, _>>().map_err(sql_err)
+    }
+
     /// SQL condition on the origin and folder columns of a location, with
     /// its parameters.
     fn location_sql(&self, origin_column: &str, folder_column: &str) -> (String, Vec<Value>) {
@@ -558,16 +572,7 @@ impl DocBase {
 
 impl<'a> Facts<'a> {
     fn gather(conn: &Connection, scope: &'a Scope, reading_on: bool, now: EngineNow) -> Result<Self, String> {
-        let (condition, bound) = scope.location_sql("l.origin_id", "l.folder");
-        let mut statement = conn
-            .prepare(&format!(
-                "SELECT DISTINCT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash
-                 WHERE NOT {} AND {condition}",
-                super::excluded_sql!()
-            ))
-            .map_err(sql_err)?;
-        let rows = statement.query_map(params_from_iter(bound), |row| row.get::<_, i64>(0)).map_err(sql_err)?;
-        let active = rows.collect::<Result<BTreeSet<i64>, _>>().map_err(sql_err)?;
+        let active = scope.contents(conn)?;
         let engine = super::similar::classify::ask_engine(conn)?;
         let recognizer = super::recognize::recognition_engine(conn)?
             .and_then(|config| crate::source_volume::recognition::engine_id(&config).ok());
@@ -780,14 +785,23 @@ fn types_members(conn: &Connection, facts: &Facts) -> Result<Members, String> {
 /// Each document read by the model to know whom it names.
 fn reading_members(facts: &Facts, standings: &[super::knowledge::extract::Standing]) -> Result<Members, String> {
     let mut members = Members::new("documents");
+    let (mut older, mut requested) = (0, 0);
     for standing in standings.iter().filter(|s| facts.active.contains(&s.content_id)) {
         let status = match &standing.reading {
             Some(reading) if reading.current && reading.state == "done" => DONE,
             Some(reading) if reading.current => FAILED,
             _ => PENDING,
         };
+        // Read with earlier instructions, kept as they are; and asked by a
+        // person to read again (D-432).
+        if let Some(reading) = &standing.reading {
+            older += usize::from(reading.current && reading.older);
+            requested += usize::from(reading.reread);
+        }
         members.push(Key::Content(standing.content_id), status);
     }
+    members.extra.insert("older", older);
+    members.extra.insert("requested", requested);
     Ok(members)
 }
 

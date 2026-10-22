@@ -153,6 +153,11 @@ describe("certaintyInWords", () => {
     expect(said.why).toBe("la cita nombra a otra persona u organización")
   })
 
+  it("says when the same document contradicts a relation", () => {
+    const said = certaintyInWords({ certainty: "doubtful", reasons: ["contradicted"] })
+    expect(said.why).toBe("el mismo documento dice un estado civil que no corresponde")
+  })
+
   it("names the word of a person", () => {
     expect(certaintyInWords({ certainty: "confirmed", reasons: [] }).label).toBe("confirmado por una persona")
     expect(certaintyInWords({ certainty: "corrected", reasons: ["by-person"] }).tone).toBe("person")

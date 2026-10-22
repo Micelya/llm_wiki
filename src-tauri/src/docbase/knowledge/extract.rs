@@ -15,11 +15,17 @@
 //!   quote that is in the text, with the name of the mention, the value of
 //!   the identifier or of the claim inside it. Everything else is
 //!   discarded and counted, with its reason.
-//! - **When.** A document is read again only when its text, the version of
-//!   the question or the vocabulary changed (`basis`). Every answer is
-//!   kept with the engine and model that gave it: the same question is not
-//!   asked twice (R-20). A document whose type is still to be asked waits
-//!   for it: the type goes into the question.
+//! - **When.** A document is read once, and again only when its text
+//!   changes, its reading failed under other instructions, or a person
+//!   asks (D-432): new instructions (the question, the vocabulary) leave
+//!   the readings made before as they are, marked as of an earlier
+//!   version (`older`). A new check of the program (`READING_CHECK`, the
+//!   words it checks with) is applied to them again from the answers kept,
+//!   without asking the model (`knowledge_recheck`). Reading again because
+//!   a person asked takes new answers of the model. Every answer is kept
+//!   with the engine and model that gave it: the same question is not
+//!   asked twice by itself (R-20). A document whose type is still to be
+//!   asked waits for it: the type goes into the question.
 
 use std::collections::{BTreeSet, HashMap};
 
@@ -41,9 +47,9 @@ use crate::docbase::{now_ms, sql_err, DocBase, Visible};
 use crate::source_volume::asking::DocumentAsker;
 use crate::source_volume::catalog::{is_page_heading, RECOGNIZED_MARKER_START};
 
-/// Version of the question. Changing the prompt changes it, and every
-/// document is read again.
-pub const KNOWLEDGE_PROMPT: &str = "conocimiento-5";
+/// Version of the question. Changing the prompt changes it: the readings
+/// made before are kept, as of an earlier version (D-432).
+pub const KNOWLEDGE_PROMPT: &str = "conocimiento-6";
 /// The task the answers are kept under in `model_answer`.
 pub const TASK: &str = "knowledge";
 /// Words of text in one question; a longer document is read in parts of
@@ -75,6 +81,8 @@ pub struct KnowledgeReport {
     pub left: usize,
     /// Documents waiting for their type to be asked first.
     pub waiting_for_type: usize,
+    /// Readings checked again from the answers kept, without asking.
+    pub rechecked: usize,
     pub mentions: usize,
     pub evidence: usize,
     pub discarded: usize,
@@ -90,6 +98,7 @@ impl KnowledgeReport {
         self.unusable += other.unusable;
         self.left = other.left;
         self.waiting_for_type = other.waiting_for_type;
+        self.rechecked += other.rechecked;
         self.mentions += other.mentions;
         self.evidence += other.evidence;
         self.discarded += other.discarded;
@@ -124,9 +133,21 @@ fn text_hash(body: &str) -> String {
     Sha256::digest(body.as_bytes()).iter().take(16).map(|b| format!("{b:02x}")).collect()
 }
 
-/// What a reading is decided on: when it is the same, nothing is read again.
+/// What a reading was asked with: the version of the question, what it
+/// says of the vocabulary and the text. Another basis on the same text is a
+/// reading of an earlier version (D-432).
 fn basis(vocabulary: &Vocabulary, text_hash: &str) -> String {
-    fingerprint(&[KNOWLEDGE_PROMPT, &vocabulary.reading_digest, text_hash])
+    fingerprint(&[KNOWLEDGE_PROMPT, &vocabulary.asking_digest, text_hash])
+}
+
+/// How the basis of a reading starts when a person asked to read it again
+/// (`releer:<when>|<basis>`): kept in the base, so that the request
+/// survives closing the app, and gone when the new reading is written.
+const REREAD: &str = "releer:";
+
+/// When a person asked to read it again, from its basis.
+fn reread_since(basis: &str) -> Option<i64> {
+    basis.strip_prefix(REREAD)?.split('|').next()?.parse().ok()
 }
 
 /// How the reading of one document stands.
@@ -142,8 +163,21 @@ pub(crate) struct Standing {
 pub(crate) struct ReadingRow {
     pub state: String,
     pub basis: String,
-    /// Read on the current text, question and vocabulary.
+    /// Nothing to ask the model about it: a reading of its current text
+    /// that stands (done, or failed under the current instructions), and
+    /// no person asked to read it again (D-432).
     pub current: bool,
+    /// Asked with an earlier version of the instructions (the question or
+    /// what it says of the vocabulary): kept, and read again only when a
+    /// person asks.
+    pub older: bool,
+    /// Checked with an earlier version of the program's check: checked
+    /// again from the answers kept, without asking the model.
+    pub to_check: bool,
+    /// A person asked to read it again (with new answers of the model).
+    pub reread: bool,
+    /// The fingerprint of the text it was read on.
+    pub hash: String,
     pub discarded: String,
 }
 
@@ -158,7 +192,7 @@ pub(crate) fn standings(conn: &Connection, visible: &Visible, only: Option<i64>)
     values.extend(params.into_iter().map(rusqlite::types::Value::from));
     let mut statement = conn
         .prepare(&format!(
-            "SELECT c.id, d.created_at, k.state, k.basis, k.text_at, k.prompt_version, k.vocabulary, k.discarded
+            "SELECT c.id, d.created_at, k.state, k.basis, k.text_at, k.prompt_version, k.vocabulary, k.discarded, k.text_hash
              FROM content c JOIN derivative d ON d.content_id = c.id AND d.kind = 'text'
              LEFT JOIN knowledge_extraction k ON k.content_id = c.id
              WHERE c.state = 'processed' AND coalesce(c.word_count, 0) >= ?1 AND (?2 IS NULL OR c.id = ?2) AND {condition}
@@ -177,10 +211,20 @@ pub(crate) fn standings(conn: &Connection, visible: &Visible, only: Option<i64>)
                     let read_at: i64 = row.get(4)?;
                     let prompt: String = row.get(5)?;
                     let vocabulary_digest: String = row.get(6)?;
+                    let basis_kept: String = row.get(3)?;
+                    let hash: String = row.get(8)?;
+                    let reread = basis_kept.starts_with(REREAD);
+                    let asked_with = basis_kept.rsplit('|').next().unwrap_or_default();
+                    let older = prompt != KNOWLEDGE_PROMPT || asked_with != basis(vocabulary, &hash);
+                    let failed = state == "failed";
                     Some(ReadingRow {
+                        current: read_at == text_at && !reread && !(failed && older),
+                        older,
+                        to_check: !failed && vocabulary_digest != vocabulary.reading_digest,
+                        reread,
+                        hash,
                         state,
-                        basis: row.get(3)?,
-                        current: read_at == text_at && prompt == KNOWLEDGE_PROMPT && vocabulary_digest == vocabulary.reading_digest,
+                        basis: basis_kept,
                         discarded: row.get(7)?,
                     })
                 }
@@ -359,8 +403,9 @@ una organización: si el documento trata de un asunto, van en la mención del as
 mención como objeto, va en \"objeto_ref\" y \"objeto_valor\" es null; si lleva un valor, va en \"objeto_valor\" tal como está \
 escrito, dentro de la cita, y \"objeto_ref\" es null. \"tiempo\" es la fecha o el período del hecho si el documento lo dice, \
 tal como está escrito; si no, null. \"clase\" es la clase del dato cuando el predicado tiene clases y el texto la dice; si no, \"ninguna\".\n\
-- Una relación con consecuencias jurídicas (representa a, socio de, beneficiario final de, cónyuge de, parte en) se registra solo \
-si la cita nombra a los dos: quién y de quién.\n\
+- Una relación con consecuencias jurídicas (una representación, una sociedad, un beneficiario final, un matrimonio, un \
+parentesco, una herencia, ser parte en un asunto) se registra solo si la cita nombra a los dos: quién y de quién. Un parentesco \
+se registra una sola vez, con el predicado que lo dice desde quien lo tiene.\n\
 - El dinero no va en \"afirmaciones\" sino en \"importes\": {money} \"deudor\" y \"acreedor\" son \"ref\" de menciones de personas \
 u organizaciones de este documento, ya resueltos los términos definidos (si el texto dice «la Empresa adeuda a la Locadora», el \
 deudor es la mención que el documento definió como «la Empresa»). Si el texto no dice una de las dos partes, el importe no va. \
@@ -825,7 +870,11 @@ pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &
             };
             let written = said.escrito.trim().to_string();
             let name = quote::words(&written);
-            let Some(page) = locate_value(&text, &said.cita, &name, said.pagina, window) else {
+            // An item of a list whose quote repeats the head of the list
+            // (D-437) is where the rest of its quote is.
+            let located = locate_value(&text, &said.cita, &name, said.pagina, window)
+                .or_else(|| read_checks::list_item(&text, &quote::words(&said.cita), window).map(|at| text.page_at(at)));
+            let Some(page) = located else {
                 discard(&mut reading, "mention", "cita-no-encontrada", &written, &said.cita);
                 continue;
             };
@@ -966,6 +1015,22 @@ pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &
     // the mentions that are the same entity (the defined term and what it
     // defines, the short name and the full one).
     let group_names = group_names(&reading.mentions);
+    // Whoever signs or writes the document: the mentions of a group with a
+    // role of a signer, for a quote in the first person (D-434).
+    let signers: BTreeSet<String> = {
+        let signer_groups: Vec<&Vec<Vec<String>>> = reading
+            .mentions
+            .iter()
+            .filter(|m| vocabulary.reading.signer_roles.iter().any(|r| r == &m.role))
+            .filter_map(|m| group_names.get(&m.reference))
+            .collect();
+        reading
+            .mentions
+            .iter()
+            .filter(|m| group_names.get(&m.reference).is_some_and(|g| !g.is_empty() && signer_groups.contains(&g)))
+            .map(|m| m.reference.clone())
+            .collect()
+    };
     for (part, answer) in answers.iter().enumerate() {
         for said in &answer.afirmaciones {
             let Some(predicate) = vocabulary.predicate(&said.predicado).filter(|p| !p.is_money()) else {
@@ -1032,6 +1097,48 @@ pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &
                     continue;
                 }
             }
+            if let Some(object) = object_mention.as_deref() {
+                // A name that cannot be this side of the relation (a court
+                // does not represent anyone nor is a party), D-435.
+                let has = |reference: &str, list: &[String]| {
+                    !list.is_empty() && group_names.get(reference).is_some_and(|names| names.iter().any(|n| super::vocabulary::name_has(n, list)))
+                };
+                if has(&subject, &predicate.subject_not) || has(object, &predicate.object_not) {
+                    discard(&mut reading, "claim", "no-corresponde-al-nombre", &said.predicado, &said.cita);
+                    continue;
+                }
+                // The words of the relation where they say it: before the
+                // name of the object, or after it (D-435).
+                let names = group_names.get(object).cloned().unwrap_or_default();
+                if (!predicate.lead_cues.is_empty() || !predicate.trail_cues.is_empty())
+                    && names.iter().any(|n| !read_checks::positions(&quote_words, n).is_empty())
+                    && !read_checks::cue_around(&quote_words, &names, &predicate.lead_cues, &predicate.trail_cues)
+                {
+                    discard(&mut reading, "claim", "vinculo-fuera-de-la-cita", &said.predicado, &said.cita);
+                    continue;
+                }
+                // A relation between two people names its subject too: a
+                // quote that does not was given to someone else (D-433). The
+                // first person names whoever signs the document.
+                if predicate.subject_in_quote {
+                    let own = group_names.get(&subject).is_some_and(|names| names.iter().any(|n| read_checks::name_in_quote(&quote_words, n)));
+                    let first_person = signers.contains(&subject)
+                        && quote_words.iter().any(|w| vocabulary.reading.first_person.iter().any(|f| f == w));
+                    if !own && !first_person {
+                        discard(&mut reading, "claim", "sujeto-fuera-de-la-cita", &said.predicado, &said.cita);
+                        continue;
+                    }
+                }
+                // Between the two names, words that say the relation is of
+                // others (the children named after their parents' union).
+                if !predicate.not_between.is_empty() {
+                    let own = group_names.get(&subject).cloned().unwrap_or_default();
+                    if read_checks::apart_by(&quote_words, &own, &names, &predicate.not_between, &predicate.cues) {
+                        discard(&mut reading, "claim", "vinculo-de-otros", &said.predicado, &said.cita);
+                        continue;
+                    }
+                }
+            }
             // A time is kept only when it is in the quote too.
             let fact_time = said
                 .tiempo
@@ -1050,9 +1157,16 @@ pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &
             if let Some(label) = said.rotulo.as_deref().map(str::trim).filter(|l| label_verified(&text, &said.cita, &value_words, Some(l), window)) {
                 detail.insert("rotulo".into(), label.into());
             }
+            // The other side of a relation is kept as that relation, once
+            // ("hijo de" as "padre o madre de", swapped).
+            let (subject, object_mention, predicate_id) = match (predicate.inverse_of.as_str(), object_mention) {
+                ("", object) => (subject, object, predicate.id.clone()),
+                (other, Some(object)) => (object, Some(subject), other.to_string()),
+                (_, None) => continue,
+            };
             let evidence = Evidence {
                 subject,
-                predicate: predicate.id.clone(),
+                predicate: predicate_id,
                 object_mention,
                 object_value,
                 quote: said.cita.trim().to_string(),
@@ -1696,13 +1810,22 @@ fn signature_block(vocabulary: &Vocabulary, group_names: &HashMap<String, Vec<Ve
     }
 }
 
-/// A document to read, with its questions.
+/// A document to read, or to check again, and what its reading is written
+/// with.
 struct Pending {
     content_id: i64,
     basis: String,
+    /// The version of the question its reading was asked with.
+    prompt_version: String,
     text_hash: String,
     text_at: i64,
     body: String,
+    /// A person asked to read it again at this time: only answers of the
+    /// model given since then count (D-432).
+    fresh_since: Option<i64>,
+    /// When it was read, for a reading checked again (it was not read
+    /// now); `None`: now.
+    extracted_at: Option<i64>,
 }
 
 /// The questions about a document, one per part, and the identifiers the
@@ -1734,7 +1857,7 @@ fn questions(conn: &Connection, vocabulary: &Vocabulary, content_id: i64, body: 
 fn write_reading(
     conn: &mut Connection,
     pending: &Pending,
-    questions: &[Question],
+    keys: &[String],
     engine: &str,
     reading: Result<&Reading, &str>,
 ) -> Result<(), String> {
@@ -1743,7 +1866,6 @@ fn write_reading(
     tx.execute("DELETE FROM knowledge_mention WHERE content_id = ?1", [pending.content_id]).map_err(sql_err)?;
     tx.execute("DELETE FROM knowledge_evidence WHERE content_id = ?1", [pending.content_id]).map_err(sql_err)?;
     tx.execute("DELETE FROM knowledge_summary WHERE content_id = ?1", [pending.content_id]).map_err(sql_err)?;
-    let keys: Vec<&str> = questions.iter().map(|q| q.key.as_str()).collect();
     let doc_date = reading.ok().and_then(|r| r.doc_date.clone());
     let (state, mentions, evidence, discarded, error) = match reading {
         Ok(reading) => {
@@ -1852,18 +1974,18 @@ fn write_reading(
             pending.content_id,
             state,
             pending.basis,
-            KNOWLEDGE_PROMPT,
+            pending.prompt_version,
             vocabulary.reading_digest,
             pending.text_hash,
             pending.text_at,
             engine,
             serde_json::to_string(&keys).map_err(|e| e.to_string())?,
-            questions.len() as i64,
+            keys.len() as i64,
             mentions as i64,
             evidence as i64,
             discarded,
             error,
-            now_ms(),
+            pending.extracted_at.unwrap_or_else(now_ms),
             doc_date
         ],
     )
@@ -1875,17 +1997,67 @@ fn write_reading(
     tx.commit().map_err(sql_err)
 }
 
+/// An answer kept for a question by this engine, when it was given after
+/// `since` (a person asked to read the document again then): an answer
+/// from before does not count (D-432).
+fn kept_answer(conn: &Connection, key: &str, engine: Option<&str>, since: Option<i64>) -> Result<Option<String>, String> {
+    let Some(since) = since else { return cached_answer(conn, key, engine) };
+    let found: Option<(String, i64)> = match engine {
+        Some(engine) => conn
+            .query_row("SELECT answer, asked_at FROM model_answer WHERE question = ?1 AND engine = ?2", params![key, engine], |row| {
+                Ok((row.get(0)?, row.get(1)?))
+            })
+            .optional()
+            .map_err(sql_err)?,
+        None => conn
+            .query_row("SELECT answer, asked_at FROM model_answer WHERE question = ?1 ORDER BY asked_at DESC LIMIT 1", [key], |row| {
+                Ok((row.get(0)?, row.get(1)?))
+            })
+            .optional()
+            .map_err(sql_err)?,
+    };
+    Ok(found.filter(|(_, at)| *at >= since).map(|(answer, _)| answer))
+}
+
+/// What a person asks to read again (D-432): the document at a location,
+/// or every document of an origin or of a folder of it; nothing said, the
+/// whole archive.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct RereadTarget {
+    pub location_id: Option<i64>,
+    pub origin_id: Option<String>,
+    pub folder: Option<String>,
+}
+
+/// What reading them again takes, for the notice shown before: how many
+/// documents and how many questions to the model (one per part of each).
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RereadPlan {
+    pub documents: usize,
+    pub questions: usize,
+    /// Of those, the ones a person already asked to read again.
+    pub requested: usize,
+    pub engine: Option<crate::source_volume::asking::AskConfig>,
+}
+
 impl DocBase {
-    /// The documents still to read: never read, or read on another basis.
-    /// Those whose type is still to be asked are left out and counted.
-    fn knowledge_pending(&self) -> Result<(Vec<Pending>, usize), String> {
-        let stale: Vec<Standing> = standings(&self.conn(), &Visible::All, None)?
+    /// The documents to ask the model about: never read, read over another
+    /// text, failed under other instructions, or asked again by a person
+    /// (those first; `only_requested`: only those). A reading of an earlier
+    /// version of the instructions is not one of them (D-432). Those whose
+    /// type is still to be asked are left out and counted.
+    fn knowledge_pending(&self, only_requested: bool) -> Result<(Vec<Pending>, usize), String> {
+        let mut stale: Vec<Standing> = standings(&self.conn(), &Visible::All, None)?
             .into_iter()
             .filter(|s| !s.reading.as_ref().is_some_and(|r| r.current))
+            .filter(|s| !only_requested || s.reading.as_ref().is_some_and(|r| r.reread))
             .collect();
         if stale.is_empty() {
             return Ok((Vec::new(), 0));
         }
+        stale.sort_by_key(|s| !s.reading.as_ref().is_some_and(|r| r.reread));
         let waiting = self.contents_waiting_for_type()?;
         let vocabulary = vocabulary();
         let conn = self.conn();
@@ -1896,30 +2068,157 @@ impl DocBase {
                 .query_row("SELECT body FROM derivative WHERE content_id = ?1 AND kind = 'text'", [standing.content_id], |row| row.get(0))
                 .map_err(sql_err)?;
             let hash = text_hash(&body);
-            let basis = basis(vocabulary, &hash);
-            if standing.reading.as_ref().is_some_and(|r| r.basis == basis) {
-                // The same text written again: the reading stands.
-                conn.execute(
-                    "UPDATE knowledge_extraction SET text_at = ?1, prompt_version = ?2, vocabulary = ?3 WHERE content_id = ?4",
-                    params![standing.text_at, KNOWLEDGE_PROMPT, vocabulary.reading_digest, standing.content_id],
-                )
-                .map_err(sql_err)?;
+            let reading = standing.reading.as_ref();
+            if reading.is_some_and(|r| !r.reread && r.hash == hash && !(r.state == "failed" && r.older)) {
+                // The same text written again: the reading stands as it was.
+                conn.execute("UPDATE knowledge_extraction SET text_at = ?1 WHERE content_id = ?2", params![standing.text_at, standing.content_id])
+                    .map_err(sql_err)?;
                 continue;
             }
             if waiting.contains(&standing.content_id) {
                 waiting_count += 1;
                 continue;
             }
-            pending.push(Pending { content_id: standing.content_id, basis, text_hash: hash, text_at: standing.text_at, body });
+            pending.push(Pending {
+                content_id: standing.content_id,
+                basis: basis(vocabulary, &hash),
+                prompt_version: KNOWLEDGE_PROMPT.to_string(),
+                text_hash: hash,
+                text_at: standing.text_at,
+                body,
+                fresh_since: reading.filter(|r| r.reread).and_then(|r| reread_since(&r.basis)),
+                extracted_at: None,
+            });
         }
         Ok((pending, waiting_count))
+    }
+
+    /// Checks again, from the answers kept, the readings checked with an
+    /// earlier version of the program's check or of its words, at most
+    /// `limit` of them (D-432): it asks the model nothing. A reading whose
+    /// answers are not all kept any more is left as it was, and not looked
+    /// at again until the check changes. Returns how many were checked.
+    pub fn knowledge_recheck(&self, limit: usize) -> Result<usize, String> {
+        let vocabulary = vocabulary();
+        let due: Vec<i64> = standings(&self.conn(), &Visible::All, None)?
+            .into_iter()
+            .filter(|s| s.reading.as_ref().is_some_and(|r| r.current && r.to_check))
+            .map(|s| s.content_id)
+            .take(limit)
+            .collect();
+        for &content_id in &due {
+            let mut conn = self.conn();
+            #[allow(clippy::type_complexity)]
+            let (basis_kept, prompt_version, hash, text_at, engine, keys, extracted_at): (String, String, String, i64, Option<String>, String, i64) = conn
+                .query_row(
+                    "SELECT basis, prompt_version, text_hash, text_at, engine, questions, extracted_at FROM knowledge_extraction WHERE content_id = ?1",
+                    [content_id],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?)),
+                )
+                .map_err(sql_err)?;
+            let keys: Vec<String> = serde_json::from_str(&keys).unwrap_or_default();
+            let mut answers: Vec<Answer> = Vec::new();
+            for key in &keys {
+                let kept = match cached_answer(&conn, key, engine.as_deref())? {
+                    Some(answer) => Some(answer),
+                    None => cached_answer(&conn, key, None)?,
+                };
+                match kept.as_deref().map(parse_json::<Answer>) {
+                    Some(Ok(answer)) => answers.push(answer),
+                    _ => break,
+                }
+            }
+            if keys.is_empty() || answers.len() < keys.len() {
+                conn.execute("UPDATE knowledge_extraction SET vocabulary = ?1 WHERE content_id = ?2", params![vocabulary.reading_digest, content_id])
+                    .map_err(sql_err)?;
+                continue;
+            }
+            let body = classify::body_of(&conn, content_id)?;
+            let reading = verify(vocabulary, &body, &identifiers_by_shape(&body), &answers);
+            let pending = Pending {
+                content_id,
+                basis: basis_kept,
+                prompt_version,
+                text_hash: hash,
+                text_at,
+                body,
+                fresh_since: None,
+                extracted_at: Some(extracted_at),
+            };
+            write_reading(&mut conn, &pending, &keys, engine.as_deref().unwrap_or_default(), Ok(&reading))?;
+        }
+        Ok(due.len())
+    }
+
+    /// The documents of a target, among those with enough text to read.
+    fn reread_standings(&self, target: &RereadTarget) -> Result<Vec<Standing>, String> {
+        let conn = self.conn();
+        let contents: BTreeSet<i64> = match target.location_id {
+            Some(location) => conn
+                .query_row("SELECT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.id = ?1", [location], |row| row.get(0))
+                .optional()
+                .map_err(sql_err)?
+                .into_iter()
+                .collect(),
+            None => crate::docbase::progress::Scope { origin_id: target.origin_id.clone(), folder: target.folder.clone() }.contents(&conn)?,
+        };
+        Ok(standings(&conn, &Visible::All, None)?.into_iter().filter(|s| contents.contains(&s.content_id)).collect())
+    }
+
+    /// What reading the documents of `target` again would take (D-432):
+    /// the documents already read, and one question per part of each.
+    pub fn knowledge_reread_plan(&self, target: &RereadTarget) -> Result<RereadPlan, String> {
+        let standings = self.reread_standings(target)?;
+        let conn = self.conn();
+        let mut plan = RereadPlan { engine: classify::ask_engine(&conn)?, ..Default::default() };
+        for standing in standings {
+            let Some(reading) = &standing.reading else { continue };
+            plan.documents += 1;
+            if reading.reread {
+                plan.requested += 1;
+            }
+            let parts_kept: i64 = conn
+                .query_row("SELECT parts FROM knowledge_extraction WHERE content_id = ?1", [standing.content_id], |row| row.get(0))
+                .map_err(sql_err)?;
+            plan.questions += if parts_kept > 0 { parts_kept as usize } else { parts(&classify::body_of(&conn, standing.content_id)?).len().max(1) };
+        }
+        Ok(plan)
+    }
+
+    /// Asks to read again the documents of `target` already read (D-432):
+    /// kept in the base, so that it survives closing the app, until the new
+    /// reading is written. The model is asked again, without the answers it
+    /// gave before. Returns how many documents were asked.
+    pub fn knowledge_request_reread(&self, target: &RereadTarget) -> Result<usize, String> {
+        let standings = self.reread_standings(target)?;
+        let now = now_ms();
+        let conn = self.conn();
+        let mut count = 0;
+        for standing in standings {
+            let Some(reading) = &standing.reading else { continue };
+            count += 1;
+            if reading.reread {
+                continue;
+            }
+            conn.execute(
+                "UPDATE knowledge_extraction SET basis = ?1 WHERE content_id = ?2",
+                params![format!("{REREAD}{now}|{}", reading.basis), standing.content_id],
+            )
+            .map_err(sql_err)?;
+        }
+        Ok(count)
+    }
+
+    /// How many documents a person asked to read again wait for it.
+    pub fn knowledge_rereads_waiting(&self) -> Result<usize, String> {
+        Ok(standings(&self.conn(), &Visible::All, None)?.iter().filter(|s| s.reading.as_ref().is_some_and(|r| r.reread)).count())
     }
 
     /// The questions the pending documents take (for the evaluation, which
     /// warms its cache with them before the run).
     #[cfg(test)]
     pub(crate) fn knowledge_questions(&self) -> Result<Vec<Question>, String> {
-        let (pending, _) = self.knowledge_pending()?;
+        let (pending, _) = self.knowledge_pending(false)?;
         let conn = self.conn();
         let mut out = Vec::new();
         for item in pending {
@@ -1934,7 +2233,7 @@ impl DocBase {
     pub fn knowledge_plan(&self) -> Result<KnowledgePlan, String> {
         let engine = classify::ask_engine(&self.conn())?;
         let engine_id = engine.as_ref().map(crate::source_volume::asking::engine_id);
-        let (pending, waiting) = self.knowledge_pending()?;
+        let (pending, waiting) = self.knowledge_pending(false)?;
         let conn = self.conn();
         let mut count = 0;
         let min_words = vocabulary().attention.empty_min_words;
@@ -1942,7 +2241,7 @@ impl DocBase {
             let part_words: Vec<usize> = parts(&item.body).iter().map(|p| p.split_whitespace().count()).collect();
             for (index, question) in questions(&conn, vocabulary(), item.content_id, &item.body)?.0.into_iter().enumerate() {
                 let long = part_words.get(index).copied().unwrap_or(0) >= min_words;
-                let kept = cached_answer(&conn, &question.key, engine_id.as_deref())?.filter(|a| !(long && is_empty_answer(a)));
+                let kept = kept_answer(&conn, &question.key, engine_id.as_deref(), item.fresh_since)?.filter(|a| !(long && is_empty_answer(a)));
                 if kept.is_none() {
                     count += 1;
                 }
@@ -1969,12 +2268,27 @@ impl DocBase {
     }
 
     /// Reads what is pending, asking the model at most `max_questions`
-    /// questions, and writes what passes the check. One run asks at a time.
+    /// questions, and writes what passes the check; first, the readings
+    /// to check again are checked from the answers kept. One run asks at a
+    /// time.
     pub fn knowledge_run(&self, asker: &dyn DocumentAsker, max_questions: usize) -> Result<KnowledgeReport, String> {
+        self.reading_run(asker, max_questions, false)
+    }
+
+    /// Reads again only what a person asked to read again (D-432): with
+    /// the automatic reading off, what was asked is read all the same.
+    pub fn knowledge_run_requested(&self, asker: &dyn DocumentAsker, max_questions: usize) -> Result<KnowledgeReport, String> {
+        self.reading_run(asker, max_questions, true)
+    }
+
+    fn reading_run(&self, asker: &dyn DocumentAsker, max_questions: usize, only_requested: bool) -> Result<KnowledgeReport, String> {
         let mut report = KnowledgeReport::default();
-        let (pending, waiting) = self.knowledge_pending()?;
-        report.waiting_for_type = waiting;
         let _one_at_a_time = ASKING.lock().unwrap_or_else(|p| p.into_inner());
+        if !only_requested {
+            report.rechecked = self.knowledge_recheck(usize::MAX)?;
+        }
+        let (pending, waiting) = self.knowledge_pending(only_requested)?;
+        report.waiting_for_type = waiting;
         let vocabulary = vocabulary();
         let engine = asker.engine_id();
         let mut budget = max_questions;
@@ -1985,6 +2299,7 @@ impl DocBase {
                 continue;
             }
             let (item_questions, shapes) = questions(&self.conn(), vocabulary, item.content_id, &item.body)?;
+            let keys: Vec<String> = item_questions.iter().map(|q| q.key.clone()).collect();
             let part_words: Vec<usize> = parts(&item.body).iter().map(|p| p.split_whitespace().count()).collect();
             let rules = &vocabulary.attention;
             let mut answers: Vec<String> = Vec::new();
@@ -1994,7 +2309,7 @@ impl DocBase {
                 // kept one does not count, and it is asked again (D-235).
                 let long = part_words.get(index).copied().unwrap_or(0) >= rules.empty_min_words;
                 let usable = |answer: &str| !(long && is_empty_answer(answer));
-                if let Some(answer) = cached_answer(&self.conn(), &question.key, Some(&engine))?.filter(|a| usable(a)) {
+                if let Some(answer) = kept_answer(&self.conn(), &question.key, Some(&engine), item.fresh_since)?.filter(|a| usable(a)) {
                     answers.push(answer);
                     continue;
                 }
@@ -2004,7 +2319,7 @@ impl DocBase {
                     attempts += 1;
                     budget -= 1;
                     report.asked += 1;
-                    match ask_fresh(self, asker, question, &engine, &usable) {
+                    match ask_fresh(self, asker, question, &engine, &usable, item.fresh_since) {
                         Ok(Some(answer)) => {
                             got = Some(answer);
                             break;
@@ -2035,7 +2350,7 @@ impl DocBase {
             if empty_parts > 0 {
                 let error = empty_reading_error(empty_parts, item_questions.len(), rules.empty_attempts.max(1));
                 let mut conn = self.conn();
-                write_reading(&mut conn, &item, &item_questions, &engine, Err(&error))?;
+                write_reading(&mut conn, &item, &keys, &engine, Err(&error))?;
                 report.unusable += 1;
                 report.errors.push(format!("{error} ({})", item.content_id));
                 continue;
@@ -2048,11 +2363,11 @@ impl DocBase {
                     report.mentions += reading.mentions.len();
                     report.evidence += reading.evidence.len();
                     report.discarded += reading.discarded.len();
-                    write_reading(&mut conn, &item, &item_questions, &engine, Ok(&reading))?;
+                    write_reading(&mut conn, &item, &keys, &engine, Ok(&reading))?;
                     report.extracted += 1;
                 }
                 Err(error) => {
-                    write_reading(&mut conn, &item, &item_questions, &engine, Err(&error))?;
+                    write_reading(&mut conn, &item, &keys, &engine, Err(&error))?;
                     report.unusable += 1;
                     report.errors.push(format!("{error} ({})", item.content_id));
                 }
@@ -2062,7 +2377,7 @@ impl DocBase {
     }
 }
 
-/// Whether an answer names nobody and says nothing. An answer that does
+// Whether an answer names nobody and says nothing. An answer that does
 /// not have the shape asked for is not empty: it is unusable.
 fn is_empty_answer(answer: &str) -> bool {
     parse_json::<Answer>(answer).is_ok_and(|a| a.menciones.is_empty() && a.afirmaciones.is_empty())
@@ -2077,8 +2392,9 @@ fn ask_fresh(
     question: &Question,
     engine: &str,
     usable: &dyn Fn(&str) -> bool,
+    since: Option<i64>,
 ) -> Result<Option<String>, String> {
-    if let Some(answer) = cached_answer(&base.conn(), &question.key, Some(engine))?.filter(|a| usable(a)) {
+    if let Some(answer) = kept_answer(&base.conn(), &question.key, Some(engine), since)?.filter(|a| usable(a)) {
         return Ok(Some(answer));
     }
     // What «En curso» shows as being read now (progress.rs).

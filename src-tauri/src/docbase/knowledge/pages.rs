@@ -140,6 +140,7 @@ pub const WORDS: &[&str] = &[
     "doubtWhy-identity",
     "doubtWhy-attribution",
     "doubtWhy-states",
+    "doubtWhy-contradicted",
     "docSummary",
     "docKind",
     "docDate",
@@ -1067,6 +1068,7 @@ fn synthesis_question(vocabulary: &Vocabulary, record: &Record, entity: &Entity,
                     "identity" => Some("no es seguro de quién se habla"),
                     "attribution" => Some("la cita nombra a otra persona u organización"),
                     "states" => Some("los documentos dicen estados distintos"),
+                    "contradicted" => Some("el mismo documento dice un estado civil que no corresponde"),
                     _ => None,
                 })
                 .collect();

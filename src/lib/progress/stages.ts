@@ -117,6 +117,12 @@ export function stageDetails(stage: ProgressStage, words: Vocabulary = vocabular
   } else if (stage.out > 0) {
     out.push(stage.out === 1 ? "1 queda afuera" : `${formatCount(stage.out)} quedan afuera`)
   }
+  if (stage.id === "reading") {
+    const requested = stage.extra.requested ?? 0
+    const older = stage.extra.older ?? 0
+    if (requested > 0) out.push(plural(requested, "pedido para volver a leer", "pedidos para volver a leer"))
+    if (older > 0) out.push(plural(older, "leído con una versión anterior", "leídos con una versión anterior"))
+  }
   const questions = stage.extra.questions ?? 0
   if (questions > 0 && stage.state !== "done") {
     out.push(plural(questions, "pregunta pendiente al modelo", "preguntas pendientes al modelo"))

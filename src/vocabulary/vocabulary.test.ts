@@ -12,6 +12,12 @@ function catalog(): {
   return JSON.parse(readFileSync(file, "utf8"))
 }
 
+/** The predicates of the knowledge layer, with the other side when they have one. */
+function knowledgePredicates(): { id: string; inverseLabel?: string }[] {
+  const file = join(process.cwd(), "src-tauri", "resources", "catalog", "knowledge.json")
+  return JSON.parse(readFileSync(file, "utf8")).predicates
+}
+
 /** The relations the catalog of the engine lists, by id. */
 function catalogRelations(): { id: string; directed: boolean }[] {
   return catalog().relations
@@ -37,6 +43,17 @@ describe("vocabulary by vertical and language", () => {
     const languages = Object.values(legal.languages)
     for (const language of languages) {
       expect(shape(language)).toEqual(shape(languages[0]))
+    }
+  })
+})
+
+describe("names of what the documents say of an entity", () => {
+  it("names every predicate of the catalog in every language, and its other side when it has one", () => {
+    for (const language of Object.values(legal.languages)) {
+      for (const predicate of knowledgePredicates()) {
+        expect(language.knowledge.predicates[predicate.id]?.name, predicate.id).toBeTruthy()
+        if (predicate.inverseLabel) expect(language.knowledge.predicates[predicate.id]?.of, predicate.id).toBeTruthy()
+      }
     }
   })
 })

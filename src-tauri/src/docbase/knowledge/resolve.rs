@@ -64,7 +64,7 @@ const RESOLUTION_SETTING: &str = "knowledge-resolution";
 /// Why a group of mentions has no entity: it is a reference (D-377).
 pub(crate) const REFERENCE: &str = "referencia";
 /// Raised when a change in the program changes what a resolution gives.
-const RESOLUTION_VERSION: &str = "resolucion-12";
+const RESOLUTION_VERSION: &str = "resolucion-13";
 
 fn resolution_basis() -> String {
     format!("{RESOLUTION_VERSION}|{IDENTITY_PROMPT}|{}", vocabulary().digest)
@@ -520,7 +520,7 @@ fn coreference(vocabulary: &Vocabulary, out: &mut Vec<Cluster>) {
                 continue;
             }
             let target = complete[0];
-            let apart = out[short].strong.iter().any(|(kind, values)| out[target].strong.get(kind).is_some_and(|other| values.is_disjoint(other)));
+            let apart = out[short].strong.iter().any(|(kind, values)| out[target].strong.get(kind).is_some_and(|other| !names::same_identifier(values, other)));
             if apart || !vocabulary.is_a_name(ORGANIZATION, &out[target].name.joined()) {
                 continue;
             }
@@ -702,8 +702,10 @@ impl<'a> Resolver<'a> {
         if by_person {
             return None;
         }
+        // Another value of the same kind keeps them apart, unless it is the
+        // same one written with more or fewer characters (D-436).
         for (kind, values) in &self.strong[a] {
-            if self.strong[b].get(kind).is_some_and(|other| values.is_disjoint(other)) {
+            if self.strong[b].get(kind).is_some_and(|other| !names::same_identifier(values, other)) {
                 return Some("otro-identificador");
             }
         }

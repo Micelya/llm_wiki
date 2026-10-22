@@ -845,11 +845,11 @@
       "tipo": "decision",
       "responsable": "ambos",
       "estado": "pendiente",
-      "detalle": "Cambiar de modelo no vuelve a leer lo que la capa de conocimiento ya extrajo (D-180). Decidir si la app ofrece releer todo el archivo, o solo lo que falló, cuando el dueño elige otro modelo, y con qué aviso de costo.",
+      "detalle": "Cambiar de modelo no vuelve a leer lo que la capa de conocimiento ya extrajo (D-180). Decidir si la app ofrece releer todo el archivo, o solo lo que falló, cuando el dueño elige otro modelo, y con qué aviso de costo. Cubierto en parte por D-432 (22 oct): la app ya ofrece «Volver a leer con el modelo» por documento, origen, carpeta o todo, con aviso de cuántos documentos y preguntas son; falta decidir si se ofrece sola cuando el dueño elige otro modelo.",
       "depende_de": [],
       "referencia": "docs/decisiones.md (D-180); src-tauri/src/docbase/knowledge/extract.rs",
       "creado": "2026-10-16",
-      "actualizado": "2026-10-16"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-091",
@@ -2161,6 +2161,54 @@
       "referencia": "src-tauri/src/source_volume/recognition_progress.rs, src-tauri/src/source_volume/recognized_store.rs",
       "creado": "2026-10-21",
       "actualizado": "2026-10-21"
+    },
+    {
+      "id": "P-253",
+      "titulo": "Relaciones con control y parentescos",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "a-verificar",
+      "detalle": "Corrida del 22 oct, paso 2 (D-432 a D-437): un cambio de catálogo o de pregunta ya no relee el archivo con el modelo; lo leído se controla de nuevo con las respuestas guardadas y se relee solo a pedido («Volver a leer con el modelo» en el documento, en Orígenes y en «En curso», con aviso de costo y guardado en la base). La cita de una relación entre personas nombra a las dos; parentescos y herencia en el catálogo; dudas por atribución y por estado civil contradictorio en las relaciones; «representa a» con sentido; un identificador escrito con más o menos caracteres no parte fichas; un ítem de lista se encuentra. Medido sobre la copia (sin modelo): las dos relaciones de cónyuge mal atribuidas de la sucesión desaparecen, de 12 relaciones inventadas que quedaban firmes queda 1 (una deuda), el abogado y el causante quedan en una ficha cada uno y el aviso de citas perdidas desaparece. Falta que el dueño lo vea en la app y que el paso 3 relea la sucesión.",
+      "depende_de": [],
+      "referencia": "D-432 a D-437; src-tauri/src/docbase/knowledge/extract.rs; src-tauri/src/docbase/knowledge/claims.rs; src-tauri/resources/catalog/knowledge.json; src/components/knowledge/read-again.tsx; src-tauri/src/docbase/knowledge/check_relations.rs",
+      "creado": "2026-10-22",
+      "actualizado": "2026-10-22"
+    },
+    {
+      "id": "P-254",
+      "titulo": "Citas de la hoja de la sucesión que no están en el texto de la base",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "La hoja de la sucesión (paso 1 del 22 oct) tiene 76 citas que no están en el texto que guarda la base, por tres causas: firmas digitales que solo están en la imagen de la página, campos de formulario de PDF que la extracción no saca, y escaneos que el reconocimiento escribió con otras palabras. Lo que dicen esas citas no puede pasar el control de citas: hay que sacar esos textos (firmas, campos) o reconocerlos mejor. No se arregló en el paso 2.",
+      "depende_de": [],
+      "referencia": "conjunto-prueba/entidades-sucesion.json (las citas con match no, fuera del repositorio); src-tauri/src/docbase/text.rs; src-tauri/src/docbase/recognize.rs",
+      "creado": "2026-10-22",
+      "actualizado": "2026-10-22"
+    },
+    {
+      "id": "P-255",
+      "titulo": "Organismos partidos en varias fichas por una abreviatura o un nombre corto",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Con D-436 la copia ya no tiene personas partidas, pero siguen partidos algunos organismos públicos: uno escrito con abreviaturas («D.G. Reg. …»), uno con su nombre corto y su nombre largo, un registro y el colegio que lo lleva. Sin identificador, el nombre solo no los une, y en la copia no se hizo la pregunta al modelo sobre identidades. Ver si alcanza con esa pregunta o hace falta una regla general de abreviaturas.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/docbase/knowledge/resolve.rs; src-tauri/src/docbase/knowledge/names.rs",
+      "creado": "2026-10-22",
+      "actualizado": "2026-10-22"
+    },
+    {
+      "id": "P-256",
+      "titulo": "Decidir si entran al catálogo los vínculos de un expediente que la hoja usa y el catálogo no tiene",
+      "tipo": "decision",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "detalle": "La hoja de la sucesión usa vínculos que el catálogo no tiene y que por eso no se midieron: funcionario de (juez, secretario o empleado de un juzgado u organismo; 50), transfiere a (13), radicado en (un expediente en un juzgado; 6), patrocinante de (6), conexo con (5), reclama contra (4), parte de (3) y auditor de (1). Decidir cuáles suma el catálogo (cada uno alarga la pregunta al modelo) y cuáles quedan como datos del documento.",
+      "depende_de": [],
+      "referencia": "src-tauri/resources/catalog/knowledge.json; src-tauri/src/docbase/knowledge/check_relations.rs",
+      "creado": "2026-10-22",
+      "actualizado": "2026-10-22"
     }
   ]
 }

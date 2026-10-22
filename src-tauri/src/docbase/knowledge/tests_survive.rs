@@ -122,13 +122,19 @@ impl Archive {
             .unwrap_or_else(|_| panic!("no document {file}"))
     }
 
-    /// The document read again with another question: the same text, and
-    /// the model asked again (its earlier answers forgotten).
+    /// The document read again because a person asked (D-432): the same
+    /// text, and the model asked again (its earlier answers forgotten).
     fn read_again(&self, file: &str, variant: usize) {
         let content = self.content(file);
         self.variant.store(variant, Ordering::SeqCst);
+        let location: i64 = self
+            .base
+            .conn()
+            .query_row("SELECT l.id FROM location l JOIN file f ON f.hash = l.file_hash WHERE f.content_id = ?1 LIMIT 1", [content], |r| r.get(0))
+            .unwrap();
+        let target = super::extract::RereadTarget { location_id: Some(location), ..Default::default() };
+        assert_eq!(self.base.knowledge_request_reread(&target).unwrap(), 1);
         let conn = self.base.conn();
-        conn.execute("UPDATE knowledge_extraction SET prompt_version = 'otra', basis = 'otra' WHERE content_id = ?1", [content]).unwrap();
         conn.execute("DELETE FROM model_answer WHERE content_id = ?1", [content]).unwrap();
         drop(conn);
         read(&self.base, &self.model);

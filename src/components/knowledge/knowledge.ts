@@ -279,6 +279,8 @@ export function certaintyInWords(claim: Pick<ClaimView, "certainty" | "reasons">
           return "la cita nombra a otra persona u organización"
         case "states":
           return "los documentos dicen estados distintos del importe"
+        case "contradicted":
+          return "el mismo documento dice un estado civil que no corresponde"
         default:
           return null
       }

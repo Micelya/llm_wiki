@@ -14,6 +14,7 @@ import {
   type FolderPreview,
   type OriginSummary,
 } from "@/commands/docbase"
+import { ReadAgainButton } from "@/components/knowledge/read-again"
 import { DocumentTypesPanel } from "./document-types-view"
 import { BackgroundReadingPanel } from "./background-reading-panel"
 import { IconAction, OriginTree, type TreeActions } from "./origin-tree"
@@ -323,6 +324,10 @@ function OriginCard({
               <OriginTree originId={origin.id} actions={actions} />
             </div>
           )}
+        </div>
+        {/* Reading again what was read, with the model (D-432). */}
+        <div className="flex justify-end">
+          <ReadAgainButton target={{ originId: origin.id }} label="Volver a leer este origen con el modelo" />
         </div>
       </div>
     </Panel>

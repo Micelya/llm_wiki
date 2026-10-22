@@ -28,6 +28,7 @@ import { formatCount } from "@/components/docbase/format"
 import { useDocbaseQuery } from "@/components/docbase/use-docbase-query"
 import { useRecognize, useRecognitionEngine, type Recognize } from "@/components/docbase/recognition"
 import { useProgressStore } from "@/stores/progress-store"
+import { ReadAgainButton as ReadAgainWithModel } from "@/components/knowledge/read-again"
 import { useProgress } from "./use-progress"
 
 /** Things listed when a stage is opened; the rest are counted. */
@@ -182,6 +183,7 @@ export function StageLine({
   const scans = stage.id === "recognition"
   const recognitionEngine = useRecognitionEngine()
   const recognize = useRecognize()
+  const refresh = useProgressStore((s) => s.refresh)
   const [open, setOpen] = useState(initialOpen)
   const [items, setItems] = useState<StageItems | null>(initialItems)
   const [problem, setProblem] = useState<string | null>(null)
@@ -271,6 +273,14 @@ export function StageLine({
           {stage.error && <ModelErrorNote stage={stage} />}
         </div>
         {stage.id === "reading" && stage.failed > 0 && <ReadAgainButton onProblem={setProblem} />}
+        {/* Reading again with the model what was read, over the scope chosen above (D-432). */}
+        {stage.id === "reading" && stage.done > 0 && (
+          <ReadAgainWithModel
+            target={scope.originId ? { originId: scope.originId, folder: scope.folder ?? null } : {}}
+            label={scope.originId ? (scope.folder ? "Volver a leer esta carpeta" : "Volver a leer este origen") : "Volver a leer todo"}
+            onDone={refresh}
+          />
+        )}
         {scans && <RecognizeButtons stage={stage} recognize={recognize} engine={recognitionEngine.id} />}
       </div>
       {(problem || (scans && recognize.problem)) && (
