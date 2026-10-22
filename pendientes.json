@@ -368,11 +368,11 @@
       "tipo": "decision",
       "responsable": "usuario",
       "estado": "pendiente",
-      "detalle": "La comprobación que exige la protección de main solo compila (interfaz y Rust); no ejecuta 'npm run test:mocks' ni 'cargo test'. Hoy las pruebas se corren a mano antes de cada PR. Agregarlas hace más lento cada PR y obliga a resolver antes las 7 fallas conocidas de Windows (P-020) y las intermitentes (P-045).",
+      "detalle": "La comprobación que exige la protección de main solo compila (interfaz y Rust); no ejecuta 'npm run test:mocks' ni 'cargo test'. Hoy las pruebas se corren a mano antes de cada PR. Agregarlas hace más lento cada PR y obliga a resolver antes las 7 fallas conocidas de Windows (P-020) y las intermitentes (P-045). 22 oct: se decide junto con P-282.",
       "depende_de": [],
       "referencia": ".github/workflows/ci.yml",
       "creado": "2026-10-08",
-      "actualizado": "2026-10-08"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-047",
@@ -2507,6 +2507,18 @@
       "detalle": "Prueba real del dueño (22 oct): la app completa jurisdicción, número y año en el portal y avisa «Te toca», pero el botón «Ver desafío» no responde y muestra «Micelya está usando esta ventana». Causa probable (por el código, sin reproducir): el guion de bloqueo INIT (src-tauri/src/portals/scripts.rs) se instala en cada página, también dentro del recuadro del desafío (un iframe de otro dominio), y el desbloqueo (__micelya.lock(false)) se evalúa solo en la página principal; el iframe queda bloqueado. Arreglo probable: que el bloqueo solo actúe en la página principal (window.top === window) y que la capa no cubra el recuadro del desafío, o desbloquear en todos los marcos. Probar con una página inventada con un iframe y después con el dueño.",
       "depende_de": [],
       "referencia": "src-tauri/src/portals/scripts.rs; P-248",
+      "creado": "2026-10-22",
+      "actualizado": "2026-10-22"
+    },
+    {
+      "id": "P-282",
+      "titulo": "Comprobación automática de GitHub confiable: que nunca quede esperando",
+      "tipo": "codigo",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "detalle": "22 oct: el pedido de integración #63 quedó con la comprobación exigida «en cola» sin máquina mientras GitHub daba la ejecución por terminada; coincidió con un incidente de GitHub Actions (14:35 UTC). Causa de fondo: el conjunto de reglas proteger-main exige la comprobación «check (windows-latest)», cuyo nombre sale de la matriz de .github/workflows/ci.yml; depende de máquinas Windows (más lentas en arrancar y más afectadas por incidentes) y se rompe si cambia la matriz; además no corre las pruebas (P-046). Propuesta: (1) un trabajo «puerta» con nombre fijo (por ejemplo «verificacion») que siempre informa (needs de los demás, if: always()) y es el único exigido; (2) las pruebas rápidas (tsc con tsconfig.app.json, vitest de mocks, cargo test --lib) en ubuntu-latest con timeout-minutes; (3) la compilación en Windows como trabajo aparte, informado por la puerta; (4) concurrency por rama con cancel-in-progress; (5) actualizar el conjunto de reglas (lo hace el dueño o con su permiso) para exigir la puerta. Probar en una rama antes de cambiar la regla.",
+      "depende_de": [],
+      "referencia": ".github/workflows/ci.yml; conjunto de reglas proteger-main (id 24614800); P-046",
       "creado": "2026-10-22",
       "actualizado": "2026-10-22"
     }
