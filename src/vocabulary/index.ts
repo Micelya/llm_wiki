@@ -34,6 +34,20 @@ export interface Vocabulary {
     /** One sentence under the title. */
     description: string
   }
+  /**
+   * The page that brings records from the judicial portals (P-248), and
+   * what the profession calls one record of a court ("Expediente").
+   */
+  portals: {
+    /** Its name in the navigation and as its title: "Portales". */
+    name: string
+    /** One sentence under its title. */
+    description: string
+    /** One record: "Expediente". */
+    record: string
+    /** Several: "Expedientes". */
+    records: string
+  }
   /** Label groups offered to start with, most general first. */
   suggestedGroups: string[]
   /** The language the base writes its articles in when the user chose none, as an output-language value. */

@@ -53,6 +53,17 @@ impl DocBaseState {
             .as_ref()
             .map_err(|error| format!("La base documental no está disponible: {error}"))
     }
+
+    /// The base, for the parts of the app that bring documents into it
+    /// (the portals).
+    pub(crate) fn shared(&self) -> Result<Arc<DocBase>, String> {
+        self.base().cloned()
+    }
+
+    /// Asks the worker for a sweep of every origin now.
+    pub(crate) fn request_sweep(&self) {
+        self.wake.request_sweep();
+    }
 }
 
 /// Opens the private space's base in the app's local data folder and

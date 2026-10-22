@@ -2131,12 +2131,12 @@
       "titulo": "Traer expedientes de portales judiciales con un navegador asistido (primero el SCW del PJN)",
       "tipo": "decision",
       "responsable": "ambos",
-      "estado": "pendiente",
-      "detalle": "Pedido del dueño (21 oct). Propuesta en docs/design/portales-judiciales-propuesta.md: una ventana del portal dentro de la app con perfil propio; el operador resuelve el desafío o inicia sesión (nunca se saltea); la app sigue sola en la misma sesión, descarga las actuaciones a una carpeta de un origen con sus datos y propone un asunto con la referencia del expediente. Un conector por portal. Revisar la propuesta y sus decisiones abiertas; primer paso: prototipo con el operador sobre un expediente de ejemplo.",
+      "estado": "a-verificar",
+      "detalle": "Pedido del dueño (21 oct). Propuesta en docs/design/portales-judiciales-propuesta.md: una ventana del portal dentro de la app con perfil propio; el operador resuelve el desafío o inicia sesión (nunca se saltea); la app sigue sola en la misma sesión, descarga las actuaciones a una carpeta de un origen con sus datos y propone un asunto con la referencia del expediente. Un conector por portal. Revisar la propuesta y sus decisiones abiertas; primer paso: prototipo con el operador sobre un expediente de ejemplo. Construido el 22 oct (paso 7, D-446 a D-449): «Portales» en el menú, con el formulario, los expedientes seguidos y la ventana del portal dentro de la página; la app recorre las actuaciones, baja lo nuevo a Expedientes\\PJN con sus datos y crea el caso confirmado; se detiene y habilita la ventana ante el desafío o el inicio de sesión. Probado solo con páginas inventadas: falta la prueba real con el dueño.",
       "depende_de": [],
-      "referencia": "docs/design/portales-judiciales-propuesta.md",
+      "referencia": "docs/design/portales-judiciales-propuesta.md; src-tauri/src/portals; src/components/portals; D-446 a D-449",
       "creado": "2026-10-21",
-      "actualizado": "2026-10-21"
+      "actualizado": "2026-10-22"
     },
     {
       "id": "P-249",
@@ -2281,6 +2281,42 @@
       "detalle": "Después de la relectura de la sucesión con conocimiento-7 (P-271), ver qué parentescos se siguen perdiendo por el control y no por la pregunta: (1) abuelo, tío, sobrino y nieto dados con la misma persona en los dos lados («X en su carácter de nieto de Y y de sobrino de Z»): las palabras de filiación del catálogo (D-457) son solo de «padre o madre de» y podrían extenderse a esos parentescos; (2) la filiación de un acta con campos, cuando el nombre del inscripto y el campo «Padre:» están a más de 40 palabras: aceptarla por los rótulos del acta; (3) el hijo en los dos lados con un solo padre nombrado, que hoy se descarta (D-460).",
       "depende_de": ["P-271"],
       "referencia": "D-457, D-459, D-460; src-tauri/src/docbase/knowledge/extract.rs (ClaimCheck); src-tauri/resources/catalog/knowledge.json (reading.filiation)",
+      "creado": "2026-10-22",
+      "actualizado": "2026-10-22"
+    },
+    {
+      "id": "P-263",
+      "titulo": "Traer también las actuaciones de «Ver históricas» del PJN",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "El expediente del portal del PJN tiene una página aparte, «Ver históricas», con las actuaciones viejas; el recorrido de P-248 no la visita. Sumarla al conector del PJN (con su propia tabla y paginador) después de la primera prueba real con el dueño.",
+      "depende_de": ["P-248"],
+      "referencia": "src-tauri/src/portals/pjn.rs; D-449",
+      "creado": "2026-10-22",
+      "actualizado": "2026-10-22"
+    },
+    {
+      "id": "P-264",
+      "titulo": "Conectores para otros portales judiciales",
+      "tipo": "decision",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "detalle": "El navegador de «Portales» separa lo común (vista, bloqueo, descargas, guardado, estado) de lo propio de cada portal (un conector). Decidir qué portales siguen (provinciales, de la Ciudad, administrativos) y sumar cada uno como un conector nuevo.",
+      "depende_de": ["P-248"],
+      "referencia": "src-tauri/src/portals/mod.rs (Connector); docs/design/portales-judiciales-propuesta.md",
+      "creado": "2026-10-22",
+      "actualizado": "2026-10-22"
+    },
+    {
+      "id": "P-265",
+      "titulo": "Revisar con un abogado los términos de uso de los portales judiciales",
+      "tipo": "decision",
+      "responsable": "usuario",
+      "estado": "pendiente",
+      "detalle": "Decisión abierta 5 del diseño: antes de usar «Portales» con clientes, revisar con un abogado el reglamento del portal del PJN y las acordadas sobre su uso (la app no saltea el desafío, va a ritmo de persona y solo ve lo que el usuario puede ver).",
+      "depende_de": ["P-248"],
+      "referencia": "docs/design/portales-judiciales-propuesta.md (sección 5); D-446",
       "creado": "2026-10-22",
       "actualizado": "2026-10-22"
     }

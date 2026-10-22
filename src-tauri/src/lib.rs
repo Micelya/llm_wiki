@@ -2,6 +2,7 @@ mod agent;
 mod commands;
 mod docbase;
 mod panic_guard;
+mod portals;
 mod proxy;
 mod source_volume;
 mod tray;
@@ -321,6 +322,22 @@ fn tray_available<R: tauri::Runtime>(window: &tauri::Window<R>) -> bool {
         .unwrap_or(false)
 }
 
+/// Every command of the app answers only to the app's own webview: the
+/// view of a judicial portal, a remote page inside the same window, never
+/// reaches them (D-447). Tauri already refuses them to a remote page that
+/// no capability names; this does not depend on that.
+fn only_app_webview<R: tauri::Runtime>(
+    handler: impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + Sync + 'static,
+) -> impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + Sync + 'static {
+    move |invoke| {
+        if !portals::is_app_webview(invoke.message.webview_ref().label()) {
+            invoke.resolver.reject("Este pedido solo se acepta desde la ventana de la app");
+            return true;
+        }
+        handler(invoke)
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     apply_linux_webkit_compat_env();
@@ -379,6 +396,7 @@ pub fn run() {
             app.manage(agent::cancel::AgentCancellationRegistry::default());
             app.manage(CloseBehaviorState(Mutex::new("minimize".to_string())));
             app.manage(TrayAvailabilityState(Mutex::new(false)));
+            app.manage(portals::view::PortalState::default());
             docbase::commands::start(app.handle());
             let tray_available = match tray::create_tray(app.handle()) {
                 Ok(()) => true,
@@ -397,7 +415,7 @@ pub fn run() {
             }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![
+        .invoke_handler(only_app_webview::<tauri::Wry>(tauri::generate_handler![
             commands::fs::read_file,
             commands::fs::write_file,
             commands::fs::list_directory,
@@ -514,7 +532,18 @@ pub fn run() {
             commands::codex_cli::codex_cli_kill,
             set_proxy_env,
             set_close_behavior,
-        ])
+            portals::view::portal_show,
+            portals::view::portal_hide,
+            portals::view::portal_fetch,
+            portals::view::portal_update_all,
+            portals::view::portal_stop,
+            portals::view::portal_go_on,
+            portals::view::portal_manual,
+            portals::view::portal_status,
+            portals::view::portal_followed,
+            portals::view::portal_jurisdictions,
+            portals::view::portal_open_folder,
+        ]))
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
@@ -573,7 +602,9 @@ pub fn run() {
             {
                 if !has_visible_windows {
                     use tauri::Manager;
-                    if let Some(window) = app.get_webview_window("main") {
+                    // `get_window`: with the portal's view inside it, the
+                    // main window is no longer a single-webview window.
+                    if let Some(window) = app.get_window("main") {
                         let _ = window.show();
                         let _ = window.set_focus();
                     }

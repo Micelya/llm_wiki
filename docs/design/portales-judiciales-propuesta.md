@@ -1,6 +1,6 @@
 # Portales judiciales en la app: navegador asistido — propuesta
 
-**Estado:** propuesta para revisar · 21 de octubre de 2026 · nada de esto está construido
+**Estado:** propuesta del 21 de octubre de 2026 · construido el 22 de octubre para el PJN (página «Portales», D-446 a D-449), probado solo con páginas inventadas: falta la prueba real con el dueño
 **Alcance:** traer a la base documental los expedientes y sus actuaciones desde portales judiciales, empezando por el Sistema de Consulta Web del Poder Judicial de la Nación (SCW, `https://scw.pjn.gov.ar/scw/home.seam`), sin saltear los controles del portal. Pendiente P-248.
 
 ## 1. Lo que sabemos del portal (21 oct)

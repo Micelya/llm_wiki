@@ -253,6 +253,8 @@ fn is_inventoried(rel_path: &str) -> bool {
         || name.starts_with("~$")
         || SKIPPED_FILES.contains(&lower.as_str())
         || lower.ends_with(".tmp")
+        // The data the app keeps next to what it brings from a portal.
+        || lower.ends_with(".micelya.json")
         || lower.ends_with(".crdownload")
         || lower.ends_with(".partial"))
 }
@@ -374,6 +376,11 @@ mod tests {
         assert!(!is_inventoried("fuentes/.cache/carta.pdf.txt"));
         assert!(!is_inventoried("$RECYCLE.BIN/x.pdf"));
         assert!(!is_inventoried("descarga.pdf.crdownload"));
+        // What the app keeps next to the records it brings from a portal.
+        assert!(!is_inventoried("Expedientes/PJN/ZZZ 1-2020/expediente.micelya.json"));
+        assert!(!is_inventoried("Expedientes/PJN/ZZZ 1-2020/ZZZ1-2020_fs1_2020-01-02_ESCRITO.micelya.json"));
+        assert!(!is_inventoried("Expedientes/PJN/.descargas/a.pdf"));
+        assert!(is_inventoried("Expedientes/PJN/ZZZ 1-2020/ZZZ1-2020_fs1_2020-01-02_ESCRITO.pdf"));
     }
 
     #[test]

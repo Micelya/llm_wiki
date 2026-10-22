@@ -15,6 +15,13 @@ export const legal: Vertical = {
         name: "Atención",
         description: "Lo que requiere a una persona: problemas, decisiones y lo que la app está haciendo.",
       },
+      portals: {
+        name: "Portales",
+        description:
+          "Traé los expedientes de los portales judiciales a tu base: la app recorre el portal sola y te pide ayuda solo cuando el portal pide resolver un desafío o iniciar sesión.",
+        record: "Expediente",
+        records: "Expedientes",
+      },
       suggestedGroups: ["Cliente", "Caso"],
       wikiLanguage: "Spanish",
       relations: {
@@ -164,6 +171,13 @@ export const legal: Vertical = {
       attention: {
         name: "Attention",
         description: "What needs a person: problems, decisions and what the app is doing.",
+      },
+      portals: {
+        name: "Portals",
+        description:
+          "Bring the case files of the court portals into your base: the app walks the portal by itself and asks for your help only when the portal asks to solve a challenge or to sign in.",
+        record: "Case file",
+        records: "Case files",
       },
       suggestedGroups: ["Client", "Matter"],
       wikiLanguage: "English",
