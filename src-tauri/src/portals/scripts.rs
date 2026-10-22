@@ -9,6 +9,7 @@
 //!   While locked, a layer over the page and a listener on the whole
 //!   window stop every click and key of a person (the events a person
 //!   makes are `isTrusted`; the app's own clicks are not, and pass).
+//!   Only on the page itself, never inside a frame of it (see `INIT`).
 //! - `snapshot`: the page's HTML. To act, it first marks the elements the
 //!   app may press or fill (`data-micelya`); to only look (while a person
 //!   solves the challenge) it marks nothing on the page, only on a copy.
@@ -17,7 +18,19 @@
 use super::page::{HIDDEN, MARK, VALUE};
 
 /// The lock, installed on every page of the view. It starts locked.
+///
+/// - Only on the page itself. On Windows the view runs it in every frame
+///   too (Tauri: "scripts are always added to subframes"), and the app
+///   unlocks only the page (`lock` is evaluated in the page, never in its
+///   frames): a frame that locked itself, like the portal's challenge, a
+///   frame of another site, would stay locked for good. While the page is
+///   locked its layer covers its frames too, so a click on a frame lands
+///   on the layer.
+/// - Locking takes the focus away from where it is (a field, or a frame:
+///   the keys of a frame do not pass by the page's listener), so the
+///   person cannot go on typing there while the app works.
 pub const INIT: &str = r#"(function () {
+  if (window.top !== window) return;
   if (window.__micelya) return;
   var locked = true;
   var note = 'Micelya está usando esta ventana';
@@ -47,8 +60,12 @@ pub const INIT: &str = r#"(function () {
     var tagEl = document.getElementById('micelya-lock-note');
     if (tagEl) tagEl.textContent = note;
   };
+  var unfocus = function () {
+    var active = document.activeElement;
+    if (active && active !== document.body && typeof active.blur === 'function') active.blur();
+  };
   window.__micelya = {
-    lock: function (value, text) { locked = !!value; if (text) note = text; render(); return locked; }
+    lock: function (value, text) { locked = !!value; if (text) note = text; if (locked) unfocus(); render(); return locked; }
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', render);
   else render();
@@ -185,5 +202,22 @@ mod tests {
     fn the_lock_only_stops_what_a_person_does() {
         assert!(INIT.contains("e.isTrusted"));
         assert!(INIT.contains("var locked = true"));
+    }
+
+    #[test]
+    fn the_lock_stays_out_of_the_frames_of_the_page() {
+        // Windows runs it in every frame too, and the app unlocks only the
+        // page: a frame must leave before it locks anything.
+        let guard = INIT.find("if (window.top !== window) return;").expect("the lock checks it is the page itself");
+        for later in ["var locked = true", "window.addEventListener(t, stop, true)", "document.createElement('div')", "window.__micelya = {"] {
+            let at = INIT.find(later).unwrap_or_else(|| panic!("`{later}` is not in the lock"));
+            assert!(guard < at, "the lock does `{later}` before it checks it is the page itself");
+        }
+    }
+
+    #[test]
+    fn locking_takes_the_focus_away() {
+        assert!(INIT.contains("if (locked) unfocus();"));
+        assert!(INIT.contains("active.blur()"));
     }
 }
