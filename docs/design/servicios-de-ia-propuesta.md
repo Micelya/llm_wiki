@@ -1,6 +1,6 @@
 # Servicios de IA configurables, reconocimiento de texto y recuperación de Clip y la API — especificación y plan
 
-**Estado:** propuesta para revisar · 21 de octubre de 2026 · nada de esto está construido
+**Estado:** en construcción · actualizado el 22 de octubre de 2026 con la respuesta de Core al mensaje 001 y la primera lectura real por Core · construidos los pasos 0a a 3; los pasos 4 y 5 son parte del producto mínimo (D-463, D-468)
 **Alcance:** cómo se configuran y usan los servicios de IA en Desktop (con Micelya Core como un proveedor más), cómo la base reconoce sola el texto de escaneos e imágenes, y cómo se recuperan sobre la base el recortador web (Clip) y el acceso para otros asistentes (API local y MCP). Incluye, por pedido del dueño del 21 oct, el formato uniforme de las pantallas de documento, persona u organización y asunto, porque va primero en el plan. Lo que se pide o se pregunta al equipo de Core está en [`docs/dropbox/core/`](../dropbox/core/).
 
 ## 1. Por qué
@@ -16,12 +16,12 @@
 
 | Servicio | Para qué | Motores posibles |
 |---|---|---|
-| Preguntar al modelo | Tipo y datos de cada documento, lectura (personas, afirmaciones, resumen), identidad, asuntos, síntesis, chat | Codex o Claude Code (línea de comandos), API de un proveedor, Core (cuando ofrezca inferencia con lo que hace falta) |
+| Preguntar al modelo | Tipo y datos de cada documento, lectura (personas, afirmaciones, resumen), identidad, asuntos, síntesis, chat | Codex o Claude Code (línea de comandos), API de un proveedor, Core: pedidos de texto a modelos (`executePrompt`), solo texto, sin instrucciones de sistema, herramientas ni respuesta con estructura; Desktop pide el JSON dentro del texto y lo controla (paso 4b) |
 | Reconocer texto de imágenes | Escaneos, fotos, PDF sin texto | Codex (el que existe hoy), Core (Textract), otros más adelante (un modelo que lea imágenes vía API, un reconocedor local) |
-| Describir imágenes | Lo que hay en una imagen dentro de un documento (P-173) | Un modelo que lea imágenes; Core (Bedrock con imágenes, si lo ofrece) |
+| Describir imágenes | Lo que hay en una imagen dentro de un documento (P-173) | Un modelo que lea imágenes; Core no recibe imágenes en sus modelos (respuesta 001-R11, lo decide el dueño de Core) |
 | Investigar en internet | Búsqueda web y síntesis (por ficha, D-397) | Buscadores configurables (los de hoy) + el motor de preguntas |
 | Transcribir audio | Reuniones (P-062, más adelante) | Core (Transcribe), otros |
-| Vectores | Búsqueda por significado (más adelante) | Core, local |
+| Vectores | Búsqueda por significado: se retiró con el wiki y hoy no hay nada que la haga | Core (bases documentales con búsqueda que devuelve fragmentos, mensaje 002), local |
 
 Reglas:
 
@@ -30,7 +30,7 @@ Reglas:
 3. **Cada resultado guarda qué motor lo produjo** (como hoy `codex-cli:gpt-6-luna`), para poder comparar, volver a pedir con otro motor y explicar de dónde salió un dato.
 4. **Conexiones compartidas:** los datos para hablar con un proveedor (por ejemplo Core: dirección, organización, credencial) se cargan una vez y los usan todos los servicios que lo elijan. Los secretos van al **llavero del sistema operativo**, no a un archivo de configuración.
 5. **Capacidades declaradas:** cada motor dice qué sabe hacer (por ejemplo: texto, tablas, casillas, firmas, manuscrito, idiomas). La base pide lo que necesita y avisa en Atención cuando el motor elegido no puede (por ejemplo, "este formulario tiene casillas y el motor elegido no las lee").
-6. **Costo y privacidad a la vista:** Ajustes muestra, para cada motor, dónde se procesa el documento y qué guarda el proveedor (por ejemplo, Textract conserva el resultado 7 días en Estados Unidos). El uso del modelo sigue la regla de siempre: se usa donde agrega valor, con aviso de costo (D-150).
+6. **Costo y privacidad a la vista:** Ajustes muestra, para cada motor, dónde se procesa el documento y qué guarda el proveedor. Core: procesa en Oregón (Estados Unidos); Textract guarda el resultado 7 días y no se puede borrar antes; la política que impide que Amazon use los datos todavía no está aplicada (Core P-167). El dueño asume procesar ahí los documentos de clientes (D-482). Desktop borra la lectura en Core apenas la guarda y le manda un nombre genérico, no el del archivo. El uso del modelo sigue la regla de siempre: se usa donde agrega valor, con aviso de costo (D-150).
 
 ### 2.2 Reconocimiento de texto en la base (P-242)
 
@@ -45,12 +45,22 @@ Reglas:
 
 ### 2.3 Core como proveedor
 
-- **Conexión** (Ajustes → Conexiones → Micelya Core): dirección de la API, dirección de inicio de sesión, organización (tenant) y credencial. Botón "Probar la conexión".
+Lo que sigue sale de la respuesta de Core al mensaje 001 (`docs/dropbox/desktop/2026-10-21-001-reconocimiento-y-conexion.md` del repositorio de Core) y de la prueba del 22 oct con el usuario técnico de desarrollo.
+
+- **Conexión** (Ajustes → Conexiones → Micelya Core): dirección de la API (desarrollo: `https://api.core.micelya.net/v1`), emisor de Keycloak, organización y credencial. La organización y la credencial van al **llavero del sistema operativo** (hoy, para las pruebas, en el llavero de Windows con el nombre `connection:micelya-core`), nunca al repositorio ni al buzón. "Probar la conexión" pide el permiso de acceso (dura una hora) y la lista de lecturas.
 - **Autenticación:**
-  - **para empezar,** un usuario técnico de una organización de prueba (identificador y secreto, en el llavero);
-  - **como destino,** el inicio de sesión de cada persona desde la app (cada abogado con su usuario), cuando Core tenga un cliente para escritorio. Ver el pedido a Core.
-- **Motor de reconocimiento de Core:** implementa `TextRecognizer` con la lectura asincrónica de Core: pedir, subir el archivo, avisar, consultar el estado con espera creciente y un tope, leer el resultado y **borrarlo en Core** después de guardarlo en la base (privacidad). Envía el archivo entero cuando se puede (Core admite PDF de varias páginas).
-- **Contrato:** los tipos de Desktop salen del mismo archivo de contrato de Core (`packages/contracts/src/http/openapi.yaml`); las pruebas de Desktop usan un **Core simulado**, para no depender de que el ambiente de Core esté disponible.
+  - **hoy,** un usuario técnico por organización (`client_credentials`). Sus lecturas son "personales" de ese usuario: todas las PC que comparten la credencial ven las mismas;
+  - **como destino,** Core aceptó las dos variantes: cada persona inicia sesión en el navegador del sistema y vuelve a la app (código de autorización con PKCE, renovación en el llavero), o la app actúa como usuario técnico de la organización. Falta que Core las especifique (Core P-177 y Core P-178).
+- **Motor de reconocimiento de Core** (implementa `TextRecognizer`):
+  - **los cinco pasos:** pedir (con un nombre genérico), subir antes de que venza el permiso de 15 minutos, avisar, consultar cada 5 segundos (Core no avisa cuando termina) y leer; después, **borrar en Core** la lectura guardada;
+  - **por páginas o piezas, no el documento entero** (D-483): un escaneo de muchas páginas suele juntar cosas distintas (un escrito, fotos de DNI, facturas, manuscritos). Desktop manda cada página o pieza por separado, guarda el resultado de cada una y, cuando Core lo ofrezca, pide un tratamiento distinto según el tipo (DNI, facturas y otros documentos conocidos, que Core está evaluando). Además evita el límite de 100 páginas, que falla al final y se cobra igual. Límites: PDF y TIFF hasta 50 MB, JPEG y PNG hasta 10 MB;
+  - **páginas sin leer:** Core no informa las páginas que Textract no pudo leer; llegan sin renglones. Desktop las marca como hoy marca «[ilegible]» y las ofrece a otro motor;
+  - **confianza:** cada renglón y cada palabra traen la suya (de 0 a 1). Desktop marca lo dudoso (umbral provisional: 0,90);
+  - **motor y versión:** el resultado trae `provider` y `modelVersion`; se guardan como motor (`core:textract-1.0`);
+  - **fallas y reintentos:** el motivo de una falla es un texto para mostrar, no para decidir; antes de repetir un pedido se mira la lista, para no pagar dos veces.
+- **Primera lectura real (22 oct):** un escrito judicial escaneado de 23 páginas, con muchas fotos de documentos y manuscritos, en 27 s de punta a punta (unos 3,5 centavos de dólar). Leyó las 23 páginas, pero el 26 % de las palabras quedó con confianza menor a 0,90, concentrado en las páginas de imágenes difíciles; la lectura de Codex del mismo archivo tenía 84 huecos «[ilegible]», y coinciden tres de cada cuatro palabras y 34 de unos 50 números. Para elegir motor hay que comparar página por página contra el original (paso 6).
+- **Preguntar al modelo por Core** (paso 4b): `executePrompt` recibe un modelo y un texto y devuelve un texto, sin historial. Desktop arma la pregunta entera en el texto, pide la respuesta en JSON y la controla como hoy; el chat necesita además un protocolo de acciones en el texto (P-286). Faltan el permiso `inference.execute`, la lista de modelos habilitados y el límite de tamaño del texto (mensaje 002).
+- **Contrato:** `packages/contracts/src/http/openapi.yaml` de Core, versión 0.5.0-draft, con referencias entre archivos y todavía sin validar con una herramienta de OpenAPI. Los tipos de Desktop se generan de ahí; las pruebas usan un **Core simulado**, para no depender de que el ambiente de desarrollo esté disponible (se puede reiniciar y borrar organizaciones y credenciales).
 - **Coordinación:** Desktop escribe en `docs/dropbox/core/` de este repositorio; Core responde en `docs/dropbox/desktop/` de su repositorio (ver `CLAUDE.md`).
 
 ### 2.4 Clip sobre la base (P-227)
@@ -91,15 +101,16 @@ Esfuerzo relativo (nunca en tiempo). Cada paso tiene algo visible para revisar e
 | 0d | **Plantillas de documentos** (P-247, prioridad del dueño): extraer la plantilla de cada familia de "misma plantilla" (texto común y campos variables, alineando los textos, sin modelo), mostrarla con sus campos y el valor de cada documento. Más adelante, documentos nuevos desde una plantilla. | Mediano | — |
 | 1 | **Registro de servicios y motores:** un lugar único en Ajustes con un renglón por servicio (preguntar, reconocer texto, investigar), su motor, su configuración y su motor alternativo; conexiones compartidas; secretos en el llavero; capacidades declaradas. Migra la configuración actual (`ask-engine`, ajustes del chat) sin cambiar el comportamiento. | Mediano | — |
 | 2 | **Reconocimiento en la base (P-242)** con el motor que existe (Codex): en segundo plano con la lectura automática, a pedido desde el documento y Atención, una vez por documento y motor. | Mediano | 1 |
-| 3 | **Pedido a Core** (`docs/dropbox/core/`), respuesta y acuerdo; organización de prueba y usuario técnico. No es código. | Chico | — |
-| 4 | **Conexión con Core** en Ajustes y "Probar la conexión"; Core simulado para las pruebas; tipos desde el contrato de Core. | Mediano | 1, 3 |
-| 5 | **Motor de reconocimiento de Core** (Textract), con borrado del resultado en Core después de guardarlo. | Mediano | 4 |
-| 6 | **Comparación de motores** con escaneos reales del estudio (con aviso de cupo): códigos e importes carácter por carácter, casillas, manuscrito, sellos, costo y tiempo. El dueño elige el motor por defecto y el alternativo. | Chico a mediano | 2, 5 |
+| 3 | **Pedido a Core** (`docs/dropbox/core/`), respuesta y acuerdo; organización de prueba y usuario técnico. Hecho el 22 oct: respuesta al 001 leída, acceso probado; sigue el mensaje 002. | Chico | — |
+| 4 | **Conexión con Core** en Ajustes y "Probar la conexión"; Core simulado para las pruebas; tipos desde el contrato de Core. Parte del producto mínimo. | Mediano | 1, 3 |
+| 4b | **Preguntar al modelo por Core**: la lectura, quién es quién, resúmenes, casos y el chat con un modelo de Core, pidiendo el JSON dentro del texto. Parte del producto mínimo: el estudio de referencia no usa Codex (D-468). | Mediano a grande | 4 y la respuesta al 002 |
+| 5 | **Motor de reconocimiento de Core** (Textract), por páginas o piezas, con las páginas sin leer marcadas y el borrado en Core. Parte del producto mínimo. | Mediano | 4 |
+| 6 | **Comparación de motores** página por página contra el original, empezando por la carpeta de prueba del PJN (la lectura de Codex ya está guardada; Core cuesta centavos): códigos e importes carácter por carácter, casillas, manuscrito, sellos, costo y tiempo. El dueño elige el motor por defecto y el alternativo. | Chico a mediano | 2, 5 |
 | 7 | **Clip sobre la base.** | Mediano | — |
 | 8 | **API local y MCP sobre la base**, de solo lectura primero. | Grande | 1 |
-| 9 | **Opciones de análisis** (tablas, casillas, firmas) y **lectura de imágenes con un modelo** cuando Core las ofrezca. | Según lo que ofrezca Core | 5 y la respuesta de Core |
+| 9 | **Opciones de análisis** (tablas, formularios, firmas, consultas; están en el contrato de Core desde el 22 oct) y tratamiento por tipo de pieza (DNI, facturas), cuando Core los ofrezca. | Según lo que ofrezca Core | 5 y la respuesta al 002 |
 
-**Prioridad propuesta:** primero 0a, 0b, 0c y 0d (lo que se ve todos los días y las plantillas, sin modelo salvo la pregunta de prueba); después 1 y 2 (los escaneos nuevos quedan sin leer hasta entonces); el 3 corre en paralelo desde ya; 4 a 6 cuando Core responda; 7 y 8 después. Los pasos 1 y 2 sirven aunque Core tarde.
+**Prioridad:** los pasos 0a a 3 están hechos. Ahora, por el producto mínimo (D-463), 4, 5 y 4b; después 6, 9, 7 y 8.
 
 ## 4. Decisiones abiertas para el dueño
 
@@ -107,4 +118,4 @@ Esfuerzo relativo (nunca en tiempo). Cada paso tiene algo visible para revisar e
 2. Si el reconocimiento corre solo con la lectura automática o también siempre a pedido (propuesta: las dos).
 3. Carpeta donde se guardan los recortes de Clip.
 4. Si la API local permite guardar notas o consultas, o solo leer.
-5. Si un documento con datos personales sensibles puede salir del país para reconocerlo (Textract procesa en Estados Unidos) o hace falta un motor local o regional para esos casos.
+5. ~~Si un documento con datos personales sensibles puede salir del país~~ Decidido el 22 oct: el dueño asume que Core procese en Estados Unidos los documentos de clientes (D-482).
