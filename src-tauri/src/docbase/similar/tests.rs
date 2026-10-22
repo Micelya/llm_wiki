@@ -612,8 +612,10 @@ fn what_a_person_names_survives_every_build_of_the_template_even_with_another_pr
     assert_eq!((net.what.as_deref(), net.what_source.as_deref()), (Some("importe"), Some("person")));
     assert!(net.fixed);
     assert_eq!(net.fixed_value.as_deref(), Some("100,00"));
-    // A field nobody named has no name: the screen names it by its kind.
-    assert_eq!(template.fields[1].name, None);
+    // A field nobody named has the name its label gives it; the person's
+    // name goes over the label.
+    let issued = &template.fields[1];
+    assert_eq!((issued.name.as_deref(), issued.name_source.as_deref()), (Some("Fecha de emisión"), Some("label")));
 
     // Built again with nothing changed: everything stays.
     base.conn().execute("UPDATE similar_template SET fingerprint = 'otra'", []).unwrap();
@@ -646,6 +648,44 @@ fn what_a_person_names_survives_every_build_of_the_template_even_with_another_pr
     let (name, cleared) = shown(&base);
     assert_eq!(name, None);
     assert!(cleared.fields.iter().all(|f| f.name.as_deref() != Some("Número de factura")));
+    // Back to its label.
+    assert_eq!(cleared.fields[position as usize].name.as_deref(), Some("Factura B N°"));
+}
+
+/// How many fields of invented templates the text names at no cost: the
+/// labels of an invoice and the names of a form; a receipt whose fields
+/// are all in the middle of a sentence leaves them to the model.
+#[test]
+fn the_text_names_most_fields_of_an_invoice_and_a_form_and_none_in_a_sentence() {
+    let may = invoice("0003-00001377", "15/05/2026", "01/04/2026", "30/04/2026", "98.000,00", "20.580,00", "118.580,00", "25/05/2026");
+    let form = |date: &str| {
+        format!(
+            "Ficha de cliente persona humana. Fecha de alta: {date}. Complete todos los campos con los datos de la persona, \
+             indique domicilio real y constituido, actividad principal, origen de los fondos y firme al pie de cada hoja."
+        )
+    };
+    let mut files: Vec<(String, Vec<u8>)> =
+        vec![("marzo.md".into(), march().into_bytes()), ("abril.md".into(), april().into_bytes()), ("mayo.md".into(), may.into_bytes())];
+    files.extend(receipts("B"));
+    files.push(("ficha uno.pdf".into(), filled_form(&form("01/02/2026"), "Persona Uno")));
+    files.push(("ficha dos.pdf".into(), filled_form(&form("05/06/2026"), "Persona Dos")));
+    let refs: Vec<(&str, Vec<u8>)> = files.iter().map(|(n, b)| (n.as_str(), b.clone())).collect();
+    let (_dir, base, _) = base_with(&refs);
+    let mut named = 0;
+    let mut total = 0;
+    let mut by_template: Vec<(usize, usize)> = Vec::new();
+    for summary in base.templates(&Visible::All).unwrap() {
+        let template = base.similar_template(&Visible::All, summary.principal.location_id).unwrap().unwrap();
+        let fields: Vec<_> = template.fields.iter().filter(|f| f.same_as.is_none()).collect();
+        let free = fields.iter().filter(|f| f.name_source.as_deref() == Some("label")).count();
+        by_template.push((free, fields.len()));
+        named += free;
+        total += fields.len();
+    }
+    by_template.sort();
+    // The receipt: none of 3; the form: its date and its name, 2 of 2; the invoice: 7 of 8.
+    assert_eq!(by_template, [(0, 3), (2, 2), (7, 8)]);
+    assert_eq!((named, total), (9, 13));
 }
 
 #[test]

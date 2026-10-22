@@ -7,9 +7,12 @@
 //! member has it, whole, in the same place. Between two such tokens, what
 //! each document says is the value of a field when not all of them say
 //! the same. Each field is told apart by its form (`changes::classify`):
-//! an identifier, an amount, a date, a name, a number or wording; at this
-//! stage it is named by its kind and its order ("Fecha 2"). The filled-in
-//! fields of a form are fields of the template too.
+//! an identifier, an amount, a date, a name, a number or wording, and
+//! named in layers (D-488): what a person wrote; the name its text gives it
+//! at no cost (its name in a form, a clear label before it); the model's;
+//! or its kind and order ("Fecha 2"). What a person decides
+//! is kept apart, by the words around the field, and survives every
+//! build. The filled-in fields of a form are fields of the template too.
 //!
 //! Two documents of the family where no field changes, or only a few
 //! words of wording, are not the same template with other data: they are
@@ -33,7 +36,7 @@ use super::store::{content_of_location, doc_ref, DocRef};
 use super::text::{self, Gap, Prepared, Raw};
 
 /// Version of the computation: changing it builds every template again.
-pub const ENGINE: &str = "template-2";
+pub const ENGINE: &str = "template-3";
 /// The relation of a family's member that puts it in the template.
 pub const TEMPLATE_RELATION: &str = "same-template";
 /// A value longer than this is cut (the whole text stays in the document).
@@ -94,6 +97,9 @@ pub struct Field {
     /// about the field is found again by them when the template is built
     /// again.
     pub anchor: String,
+    /// The name its text gives it, at no cost (`field_labels`): its name in
+    /// the form, or the label right before it ("Fecha de emisión:").
+    pub label: Option<String>,
 }
 
 /// A template as built.
@@ -297,7 +303,7 @@ pub fn build(principal: &Text, members: &[&Text]) -> Built {
             let mine = span_tokens(&span.slots, 0);
             let gap = if mine.is_empty() { Gap::Space } else { p.text.tokens[mine.start].1 };
             out.field(fields.len(), gap, &before, &after);
-            fields.push(Field { kind: span.kind, ordinal: 0, form_name: None, values, same_as: None, anchor: String::new() });
+            fields.push(Field { kind: span.kind, ordinal: 0, form_name: None, values, same_as: None, anchor: String::new(), label: None });
             s = span.slots.end;
             next_span += 1;
         } else {
@@ -320,6 +326,10 @@ pub fn build(principal: &Text, members: &[&Text]) -> Built {
     let form_names: Vec<Option<String>> = fields.iter().map(|field| field.form_name.clone()).collect();
     for (field, anchor) in fields.iter_mut().zip(field_anchors(&segments, &form_names)) {
         field.anchor = anchor;
+    }
+    let originals: Vec<bool> = fields.iter().map(|field| field.same_as.is_none()).collect();
+    for (field, label) in fields.iter_mut().zip(field_labels(&segments, &form_names, &originals)) {
+        field.label = label;
     }
 
     let documents: Vec<i64> = sides.iter().map(|side| side.text.id).collect();
@@ -402,6 +412,164 @@ fn field_anchors(segments: &[Segment], form_names: &[Option<String>]) -> Vec<Str
         out.push(if *n == 1 { base } else { format!("{base}#{n}") });
     }
     out
+}
+
+/// The name the text gives each field at no cost, without the model
+/// (D-488): a field of a form, its name there when it is a name and not a
+/// technical one ("Text1"); a field of the text, the label right before it
+/// on its line when it is clear: it ends in ":" ("Fecha de emisión:") or
+/// in the sign of a number ("Factura N°"), it is short and it holds no
+/// data. A field in the middle of a sentence ("…domiciliado en [campo]")
+/// has none: the model names it. `originals` says which fields are the
+/// first place of their field; the others take its name.
+fn field_labels(segments: &[Segment], form_names: &[Option<String>], originals: &[bool]) -> Vec<Option<String>> {
+    // The text of its line before each field's first place, from the start
+    // of the line or from the field before it; for a field that starts its
+    // line, the whole line before it ("Fecha de alta:\n[campo]").
+    let mut before: HashMap<usize, String> = HashMap::new();
+    let mut line = String::new();
+    let mut previous = String::new();
+    for segment in segments {
+        match segment {
+            Segment::Text { text } => {
+                let mut parts = text.split('\n');
+                if let Some(first) = parts.next() {
+                    line.push_str(first);
+                }
+                for part in parts {
+                    previous = std::mem::take(&mut line);
+                    line.push_str(part);
+                }
+            }
+            Segment::Field { field } => {
+                let own = if line.trim().is_empty() { previous.clone() } else { line.clone() };
+                before.entry(*field).or_insert(own);
+                line.clear();
+                previous.clear();
+            }
+        }
+    }
+    (0..form_names.len())
+        .map(|index| {
+            if !originals.get(index).copied().unwrap_or(true) {
+                return None;
+            }
+            match (before.get(&index), &form_names[index]) {
+                (Some(text), _) => label_before(text),
+                (None, Some(name)) => form_label(name),
+                (None, None) => None,
+            }
+        })
+        .collect()
+}
+
+/// The signs a text writes before a number ("N°", "Nro."), lowercase.
+const NUMBER_SIGNS: &[&str] = &["n°", "nº", "n.º", "n.°", "nro", "nro.", "núm.", "num.", "número", "numero", "no."];
+/// Currency signs the label of an amount may end in ("Total: $"), lowercase.
+const CURRENCY_SIGNS: &[&str] = &["$", "u$s", "us$", "usd", "ars", "€", "eur"];
+/// Short words of a label all in capitals that are not initials.
+const SHORT_WORDS: &[&str] = &["de", "del", "la", "el", "los", "las", "y", "e", "o", "u", "en", "a", "al", "por", "con", "sin", "su", "sus", "the", "of", "and", "to"];
+/// Initials of four letters or more, which stay in capitals.
+const INITIALS: &[&str] = &["CUIT", "CUIL", "CUIM", "CDI", "NUP", "IBAN", "SWIFT"];
+/// The longest label taken from the text.
+const LABEL_MAX_WORDS: usize = 5;
+const LABEL_MAX_CHARS: usize = 40;
+
+/// The label a line ends in right before a field, when it is clear.
+fn label_before(line: &str) -> Option<String> {
+    let mut words: Vec<&str> = line.split_whitespace().collect();
+    // "Total a pagar: $ [campo]": the sign of the currency is not the label.
+    while words.last().is_some_and(|last| CURRENCY_SIGNS.contains(&last.to_lowercase().as_str())) {
+        words.pop();
+    }
+    let mut text = words.join(" ");
+    let colon = text.ends_with(':');
+    if colon {
+        text.pop();
+    }
+    // Only what comes after the end of the sentence before it.
+    if let Some(at) = [". ", "; ", ": ", "? ", "! "].iter().filter_map(|sep| text.rfind(sep).map(|at| at + sep.len())).max() {
+        text = text[at..].to_string();
+    }
+    let text = text.trim_start_matches(|c: char| !c.is_alphanumeric()).trim();
+    let mut words: Vec<&str> = text.split_whitespace().collect();
+    let number = words.last().is_some_and(|last| NUMBER_SIGNS.contains(&last.to_lowercase().as_str()));
+    if !colon && !number {
+        return None;
+    }
+    if number && words.len() == 1 {
+        return Some("Número".to_string());
+    }
+    if colon && number {
+        // "DNI N°:" is the DNI.
+        words.pop();
+    }
+    clear_name(&words.join(" "))
+}
+
+/// The name of a field of a form, when it is a name and not a technical
+/// one: "Nombre_y_apellido" is «Nombre y apellido»; "Text1", "Check Box3"
+/// or "form1[0].f1[0]" say nothing.
+fn form_label(name: &str) -> Option<String> {
+    let last = name.rsplit('.').find(|part| !part.trim().is_empty()).unwrap_or(name);
+    let mut plain = String::new();
+    let mut depth = 0usize;
+    for c in last.chars() {
+        match c {
+            '[' => depth += 1,
+            ']' => depth = depth.saturating_sub(1),
+            '_' | '-' if depth == 0 => plain.push(' '),
+            c if depth == 0 => plain.push(c),
+            _ => {}
+        }
+    }
+    let plain = plain.split_whitespace().collect::<Vec<_>>().join(" ");
+    let words = text::normalized(&plain);
+    const TECHNICAL: &[&str] =
+        &["text", "texto", "campo", "field", "fill", "check box", "checkbox", "casilla", "textbox", "untitled", "sin titulo", "boton", "button"];
+    let stem = words.trim_end_matches(|c: char| c.is_ascii_digit() || c == ' ');
+    if stem.chars().count() < 2 || TECHNICAL.contains(&stem) {
+        return None;
+    }
+    clear_name(&plain)
+}
+
+/// A label as a name: short, with letters, without data (an identifier,
+/// an amount or a date), and with the capital letters of a name: «Factura
+/// B N°» for "FACTURA B N°"; «DNI» stays.
+fn clear_name(label: &str) -> Option<String> {
+    let label = label.trim().trim_end_matches(['.', ',', ';']).trim();
+    let words: Vec<&str> = label.split_whitespace().collect();
+    if words.is_empty() || words.len() > LABEL_MAX_WORDS || label.chars().count() > LABEL_MAX_CHARS || label.contains(',') {
+        return None;
+    }
+    let lettered = words.iter().any(|word| word.chars().filter(|c| c.is_alphabetic()).count() >= 2);
+    if !label.chars().next().is_some_and(char::is_alphabetic) || !lettered {
+        return None;
+    }
+    let data = words.iter().any(|word| {
+        let raw = Raw { text: word.to_string(), sentence_start: false };
+        matches!(classify(&raw), Kind::Identifier | Kind::Amount | Kind::Date)
+    });
+    if data {
+        return None;
+    }
+    // In a label all in capitals, the words go to lowercase but the short
+    // ones that are initials ("DNI", "IVA") and those of `INITIALS`.
+    let shouting = label.chars().filter(|c| c.is_alphabetic()).all(char::is_uppercase);
+    let joined = words
+        .iter()
+        .map(|word| {
+            let letters = word.chars().filter(|c| c.is_alphabetic()).count();
+            let lower = word.to_lowercase();
+            let initials = (letters <= 3 && !SHORT_WORDS.contains(&lower.as_str())) || INITIALS.contains(word);
+            if shouting && !initials { lower } else { word.to_string() }
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+    let mut chars = joined.chars();
+    let first = chars.next()?;
+    Some(first.to_uppercase().chain(chars).collect())
 }
 
 /// The words before and after a field in its anchor, without its order.
@@ -569,6 +737,7 @@ fn form_fields(sides: &[Side]) -> Vec<Field> {
             values,
             same_as: None,
             anchor: String::new(),
+            label: None,
         });
     }
     out
@@ -1215,8 +1384,8 @@ impl DocBase {
             }
             for (position, field) in built.fields.iter().enumerate() {
                 tx.execute(
-                    "INSERT INTO similar_template_field (principal, position, kind, ordinal, form_name, same_as, anchor)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                    "INSERT INTO similar_template_field (principal, position, kind, ordinal, form_name, same_as, anchor, label)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
                     params![
                         principal,
                         position as i64,
@@ -1224,7 +1393,8 @@ impl DocBase {
                         field.ordinal as i64,
                         field.form_name,
                         field.same_as.map(|i| i as i64),
-                        field.anchor
+                        field.anchor,
+                        field.label
                     ],
                 )
                 .map_err(sql_err)?;
@@ -1668,6 +1838,61 @@ mod tests {
     }
 
     #[test]
+    fn a_clear_label_before_a_field_names_it_and_a_field_in_a_sentence_has_none() {
+        assert_eq!(label_before(". Fecha de emisión: ").as_deref(), Some("Fecha de emisión"));
+        assert_eq!(label_before("según contrato vigente. Total a pagar: $ ").as_deref(), Some("Total a pagar"));
+        assert_eq!(label_before("FACTURA B N° ").as_deref(), Some("Factura B N°"));
+        assert_eq!(label_before("DNI N°: ").as_deref(), Some("DNI"));
+        assert_eq!(label_before("N° ").as_deref(), Some("Número"));
+        assert_eq!(label_before("IVA 21 %: $ ").as_deref(), Some("IVA 21 %"));
+        assert_eq!(label_before("DOMICILIO REAL: ").as_deref(), Some("Domicilio real"));
+        assert_eq!(label_before("FECHA DE PAGO: ").as_deref(), Some("Fecha de pago"));
+        assert_eq!(label_before("CUIT DEL LOCADOR: ").as_deref(), Some("CUIT del locador"));
+        // In the middle of a sentence, a long line, data, a list: no clear label.
+        assert_eq!(label_before("Recibí de "), None);
+        assert_eq!(label_before(" al "), None);
+        assert_eq!(label_before("que por la presente se deja constancia de lo siguiente: "), None);
+        assert_eq!(label_before("Vence el 10/02/2026: "), None);
+        assert_eq!(label_before("Nombre y apellido, DNI: "), None);
+        assert_eq!(label_before(""), None);
+        // A form's own names, unless they are technical.
+        assert_eq!(form_label("Nombre_y_apellido").as_deref(), Some("Nombre y apellido"));
+        assert_eq!(form_label("form1[0].page1[0].Domicilio[0]").as_deref(), Some("Domicilio"));
+        assert_eq!(form_label("Text1"), None);
+        assert_eq!(form_label("Check Box3"), None);
+        assert_eq!(form_label("CUIT").as_deref(), Some("CUIT"));
+    }
+
+    #[test]
+    fn an_invoice_names_its_fields_by_its_labels_and_the_one_in_a_sentence_stays_for_the_model() {
+        let invoice = |number: &str, issued: &str, from: &str, to: &str, total: &str| {
+            format!("FACTURA B N° {number}. Fecha de emisión: {issued}. Período facturado: {from} al {to}. Total a pagar: $ {total}. Gracias.")
+        };
+        let made = built(&[
+            &invoice("0003-00001234", "15/03/2026", "01/02/2026", "28/02/2026", "145.200,00"),
+            &invoice("0003-00001290", "14/04/2026", "01/03/2026", "31/03/2026", "159.115,00"),
+        ]);
+        let labels: Vec<Option<&str>> = made.fields.iter().map(|f| f.label.as_deref()).collect();
+        assert_eq!(labels, [Some("Factura B N°"), Some("Fecha de emisión"), Some("Período facturado"), None, Some("Total a pagar")]);
+        // A field said again takes the name of its first place.
+        let twice = built(&[
+            "Recibo N° 0001-00001234. Talón para el cliente. Recibo N° 0001-00001234. Talón para el banco.",
+            "Recibo N° 0001-00005678. Talón para el cliente. Recibo N° 0001-00005678. Talón para el banco.",
+        ]);
+        assert_eq!(twice.fields[0].label.as_deref(), Some("Recibo N°"));
+        assert_eq!(twice.fields[1].label, None);
+        // A label on the line before; not across a paragraph.
+        let made = built(&["Fecha de alta:\n10/02/2026\n\nObservaciones:\n\nsin novedad", "Fecha de alta:\n12/03/2026\n\nObservaciones:\n\ncon novedad"]);
+        let labels: Vec<Option<&str>> = made.fields.iter().map(|f| f.label.as_deref()).collect();
+        assert_eq!(labels, [Some("Fecha de alta"), None]);
+        // A form's field, by its name there.
+        let page = "Ficha de cliente. Complete los datos de la persona y firme al pie.";
+        let one = Text::new(1, &text::pages(page), &[], &[], vec![("Nombre".into(), "Ana Torres".into())]);
+        let two = Text::new(2, &text::pages(page), &[], &[], vec![("Nombre".into(), "Bruno Vega".into())]);
+        assert_eq!(build(&one, &[&two]).fields[0].label.as_deref(), Some("Nombre"));
+    }
+
+    #[test]
     fn what_was_kept_follows_its_field_when_the_words_on_one_side_still_say_which() {
         let kept: Vec<String> = ["a b|c d", "x|y", "p|q", "m|n"].map(String::from).to_vec();
         let fields: Vec<String> = ["a b|c e", "z|y", "p|q", "h|k"].map(String::from).to_vec();
@@ -1766,6 +1991,7 @@ mod tests {
         let groups = base.similar_groups(&Visible::All).unwrap();
         let mut dump = String::new();
         let mut total_fields = 0;
+        let mut labelled = 0;
         let mut with_template = 0;
         for group in &groups {
             let Some(fields) = group.template_fields else {
@@ -1775,6 +2001,7 @@ mod tests {
             with_template += 1;
             total_fields += fields;
             let template = base.similar_template(&Visible::All, group.principal.location_id).unwrap().unwrap();
+            labelled += template.fields.iter().filter(|f| f.same_as.is_none() && f.name_source.as_deref() == Some("label")).count();
             let mut kinds: BTreeMap<String, usize> = BTreeMap::new();
             for field in &template.fields {
                 *kinds.entry(format!("{}{}", kind_id(field.kind), if field.form_name.is_some() { "(form)" } else { "" })).or_default() += 1;
@@ -1819,7 +2046,10 @@ mod tests {
 ", kind_id(field.kind), field.ordinal, field.form_name, field.values));
             }
         }
-        println!("families with a template: {with_template} of {}; fields in all: {total_fields}", groups.len());
+        println!(
+            "families with a template: {with_template} of {}; fields in all: {total_fields}; named by their text at no cost: {labelled}",
+            groups.len()
+        );
         if let Ok(path) = std::env::var("MICELYA_TEMPLATE_DUMP") {
             std::fs::write(path, dump).unwrap();
         }
