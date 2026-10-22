@@ -1,15 +1,26 @@
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it, vi } from "vitest"
-import type { GeneratedDocument, MatterSummary, Template, TemplateField } from "@/commands/docbase"
+import type { EntityDetail, GeneratedDocument, MatterParty, MatterSummary, Template, TemplateField } from "@/commands/docbase"
 import { vocabularyFor } from "@/vocabulary"
 import {
+  applySuggestions,
+  cardKindOf,
+  dateStyleOf,
+  entityOptions,
+  formatDateIn,
   generationRequest,
   generationRows,
+  initialValues,
+  isoFromDate,
+  matterValues,
   missingNames,
   preview,
+  relatedRows,
   suggestedFileName,
+  suggestionsFrom,
   todayIso,
   valuesFromDocument,
+  withMatter,
   type FieldValues,
 } from "./template-generate"
 import { GenerateForm } from "./template-generate-view"
@@ -193,7 +204,9 @@ describe("generating a document from a template", () => {
     expect(html).toContain("Fijo: «Mendoza»")
     expect(html).toContain("Ninguna: queda afuera")
     expect(html).toContain("Recibí de [Quien paga] la suma de $ [Importe]")
-    expect(html).toContain("Faltan 3 campos: «Quien paga», «Importe», «Fecha 1». Se puede generar igual")
+    // The date starts as today, written as the documents write it.
+    expect(html).toContain("el día 22/10/2026")
+    expect(html).toContain("Faltan 2 campos: «Quien paga», «Importe». Se puede generar igual")
     expect(markup).toContain('value="Recibo de honorarios - 2026-10-22"')
     expect(html).not.toContain("Lugar puede quedar vacío")
     expect(html).toContain("Generar el Word")
@@ -259,5 +272,165 @@ describe("generating a document from a template", () => {
     expect(html).toContain("Mostrar en la carpeta")
     expect(html).toContain("Ver el documento")
     expect(html).toContain("Generar otro")
+  })
+})
+
+
+/** An invented lease: a tenant with her DNI and address, a landlord company with its CUIT, a date and the matter. */
+function lease(): Template {
+  return {
+    ...receipts(),
+    segments: [
+      { text: "Entre " },
+      { field: 0 },
+      { text: ", DNI " },
+      { field: 1 },
+      { text: ", con domicilio en " },
+      { field: 2 },
+      { text: ", y " },
+      { field: 3 },
+      { text: ", CUIT " },
+      { field: 4 },
+      { text: ", el día " },
+      { field: 5 },
+      { text: ", en el caso " },
+      { field: 6 },
+      { text: "." },
+    ],
+    fields: [
+      field("name", ["Ana Torres", "Carla Ruiz"], { name: "Locataria", nameSource: "model", what: "persona", whatSource: "model" }),
+      field("identifier", ["30.123.456", "28.987.654"], { name: "DNI", nameSource: "label", what: "identificador", whatSource: "kind" }),
+      field("wording", ["Calle Falsa 123", "Av. Inventada 456"], { name: "Domicilio de la locataria", nameSource: "model", what: "texto" }),
+      field("name", ["Inmobiliaria Ejemplo S.A.", "Rentas Inventadas S.R.L."], { name: "Locadora", nameSource: "model", what: "organizacion" }),
+      field("identifier", ["30-11111111-1", "30-22222222-2"], { what: "identificador", whatSource: "kind" }),
+      field("date", ["10 de febrero de 2026", "3 de marzo de 2026"], { what: "fecha", whatSource: "kind" }),
+      field("name", ["Torres c/ Vega", "Ruiz c/ Paz"], { name: "Expediente", nameSource: "model", what: "asunto" }),
+    ],
+  }
+}
+
+function card(): EntityDetail {
+  return {
+    id: "e-ana",
+    kind: "persona",
+    name: "Ana Torres",
+    state: "active",
+    mergedInto: null,
+    aliases: [],
+    identifiers: [
+      { kind: "cuit", value: "27-30123456-4", documents: 1 },
+      { kind: "dni", value: "30.123.456", documents: 4 },
+    ],
+    mentions: [],
+    claims: [
+      {
+        id: 1,
+        predicate: "domicilio",
+        objectEntity: null,
+        objectName: null,
+        objectValue: "Calle Falsa 123, Córdoba",
+        state: "supported",
+        validFrom: null,
+        evidence: [],
+        certainty: "quoted",
+        reasons: [],
+      },
+    ],
+    doubts: [],
+    pagePath: null,
+    matters: [],
+    decisions: [],
+    incoming: [],
+  }
+}
+
+describe("filling a document with data of the base", () => {
+  it("writes today as the documents write their dates, and reads back what the calendar chose", () => {
+    expect(dateStyleOf(["10/02/2026", "03/04/2026"])).toEqual({ kind: "numeric", separator: "/", padded: true, fullYear: true })
+    expect(dateStyleOf(["10 de febrero de 2026", "3 de marzo de 2026"])).toEqual({ kind: "long" })
+    expect(dateStyleOf(["1-2-26", "10-12-26"]).kind).toBe("numeric")
+    expect(dateStyleOf([])).toEqual({ kind: "numeric", separator: "/", padded: true, fullYear: true })
+    expect(formatDateIn("2026-10-02", dateStyleOf(["10/02/2026"]))).toBe("02/10/2026")
+    expect(formatDateIn("2026-10-02", { kind: "long" })).toBe("2 de octubre de 2026")
+    expect(formatDateIn("2026-10-02", dateStyleOf(["1-2-26"]))).toBe("2-10-26")
+    expect(isoFromDate("02/10/2026")).toBe("2026-10-02")
+    expect(isoFromDate("2 de octubre de 2026")).toBe("2026-10-02")
+    expect(isoFromDate("el lunes")).toBeNull()
+    const rows = generationRows(lease(), words)
+    expect(initialValues(rows, "2026-10-22")[5]).toEqual({ value: "22 de octubre de 2026", source: "date", reference: null })
+    expect(Object.keys(initialValues(rows, "2026-10-22"))).toEqual(["5"])
+  })
+
+  it("knows which fields are the DNI, the CUIT and the address of the person before them", () => {
+    const rows = generationRows(lease(), words)
+    expect(rows.map((row) => row.input)).toEqual(["entity", "typed", "wording", "entity", "typed", "date", "matter"])
+    expect(rows.map((row) => cardKindOf(row, words))).toEqual([null, "dni", "domicilio", null, "cuit", null, null])
+    const tenant = relatedRows(rows, rows[0], words)
+    expect(tenant.map((r) => [r.row.index, r.card])).toEqual([
+      [1, "dni"],
+      [2, "domicilio"],
+    ])
+    expect(relatedRows(rows, rows[3], words).map((r) => [r.row.index, r.card])).toEqual([[4, "cuit"]])
+  })
+
+  it("suggests the DNI and the address from what the base knows, never over what a person wrote", () => {
+    const rows = generationRows(lease(), words)
+    const suggested = suggestionsFrom(card(), relatedRows(rows, rows[0], words))
+    expect(suggested).toEqual({
+      1: { value: "30.123.456", source: "card", reference: "entity:e-ana" },
+      2: { value: "Calle Falsa 123, Córdoba", source: "card", reference: "entity:e-ana" },
+    })
+    const written: FieldValues = { 2: { value: "Otra calle 1", source: "hand", reference: null } }
+    const applied = applySuggestions(written, suggested)
+    expect(applied[1].value).toBe("30.123.456")
+    expect(applied[2].value).toBe("Otra calle 1")
+    // A later choice replaces an earlier suggestion.
+    const again = applySuggestions(applied, { 1: { value: "99.999.999", source: "card", reference: "entity:e-otra" } })
+    expect(again[1].value).toBe("99.999.999")
+  })
+
+  it("offers the people of the matter first, of the field's type, then those the search found", () => {
+    const parties: MatterParty[] = [
+      { entityId: "e-ana", kind: "persona", name: "Ana Torres", roles: ["parte"], documents: 3 },
+      { entityId: "o-1", kind: "organizacion", name: "Inmobiliaria Ejemplo S.A.", roles: ["parte"], documents: 2 },
+    ]
+    const found = [
+      { id: "e-ana", kind: "persona", name: "Ana Torres", mentions: 9, documents: 4, aliases: [] },
+      { id: "e-ant", kind: "persona", name: "Antonio Pérez", mentions: 2, documents: 1, aliases: [] },
+    ]
+    expect(entityOptions("persona", "", parties, found).map((o) => [o.name, o.ofMatter])).toEqual([
+      ["Ana Torres", true],
+      ["Antonio Pérez", false],
+    ])
+    // What is typed narrows the matter's; the search already looked for it.
+    expect(entityOptions("persona", "anto", parties, [found[1]]).map((o) => o.name)).toEqual(["Antonio Pérez"])
+    expect(entityOptions(null, "", parties, []).map((o) => o.name)).toEqual(["Ana Torres", "Inmobiliaria Ejemplo S.A."])
+  })
+
+  it("fills the fields that are a matter with the matter chosen, by its name or the number of its record", () => {
+    expect(matterValues({ name: "Torres c/ Vega (CIV 1234/2026)" })).toEqual([
+      { label: "su nombre", value: "Torres c/ Vega (CIV 1234/2026)" },
+      { label: "su número de expediente", value: "CIV 1234/2026" },
+    ])
+    expect(matterValues({ name: "Torres c/ Vega" })).toHaveLength(1)
+    const rows = generationRows(lease(), words)
+    const filled = withMatter({}, rows, { id: "m1", name: "Torres c/ Vega" })
+    expect(filled[6]).toEqual({ value: "Torres c/ Vega", source: "matter", reference: "matter:m1" })
+    expect(withMatter({ 6: { value: "Otro", source: "hand", reference: null } }, rows, { id: "m1", name: "Torres c/ Vega" })[6].value).toBe("Otro")
+    expect(withMatter(filled, rows, null)[6]).toBeUndefined()
+  })
+
+  it("shows a person to choose from the base, the calendar of a date and the matters for a matter", () => {
+    const markup = renderToStaticMarkup(
+      <GenerateForm template={lease()} matters={matters} onGenerate={() => {}} today="2026-10-22" words={words} />,
+    )
+    const html = text(markup)
+    expect(html).toContain("Elegí de «Personas y organizaciones» o escribilo a mano.")
+    expect(markup).toContain('type="date"')
+    expect(markup).toContain('value="22 de octubre de 2026"')
+    expect(markup).toContain('value="2026-10-22"')
+    expect(html).toContain("Elegir un caso…")
+    expect(html).toContain("Torres c/ Vega")
+    expect(html).toContain("el día 22 de octubre de 2026")
   })
 })

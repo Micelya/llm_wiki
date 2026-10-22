@@ -17,7 +17,10 @@
 //!
 //! The base finds the file as any other of the work folder. The record
 //! follows it (`generated_settle`): by its place, which keeps it when a
-//! person edits the Word, or else by the bytes it was written with.
+//! person edits the Word, or else by the bytes it was written with. Once
+//! the base has its document, it goes into the matter it was generated
+//! for, as a person's decision (D-386): generating it for that matter is
+//! one. The template is never joined to the matter nor to its people.
 
 use std::collections::HashSet;
 use std::fs;
@@ -527,35 +530,78 @@ impl DocBase {
 
     /// Follows each generated document to the document the base has of it:
     /// the one at the place it was written (a person may have edited the
-    /// Word there), or else the one with the bytes it was written with.
-    /// Returns how many records changed.
+    /// Word there), or else the one with the bytes it was written with; and
+    /// puts that document in the matter it was generated for, as a person's
+    /// choice, once: a person who takes it out of the matter has the last
+    /// word, also over a later edit of the Word. Returns how many records
+    /// changed.
     pub fn generated_settle(&self) -> Result<usize, String> {
-        let conn = self.conn();
-        let rows: Vec<(i64, Option<i64>, Option<i64>)> = {
+        type Row = (i64, Option<i64>, Option<i64>, Option<String>, Option<i64>);
+        let rows: Vec<Row> = {
+            let conn = self.conn();
             let mut statement = conn
                 .prepare(
                     "SELECT g.id, g.content_id, coalesce(
                         (SELECT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash
                          WHERE l.origin_id = g.origin_id AND l.rel_path = g.rel_path),
-                        (SELECT f.content_id FROM file f WHERE f.hash = g.file_hash))
+                        (SELECT f.content_id FROM file f WHERE f.hash = g.file_hash)),
+                        g.matter_id, g.matter_content
                      FROM generated_document g",
                 )
                 .map_err(sql_err)?;
             let rows = statement
-                .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+                .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)))
                 .map_err(sql_err)?
-                .collect::<Result<Vec<_>, _>>()
+                .collect::<Result<Vec<Row>, _>>()
                 .map_err(sql_err)?;
             rows
         };
         let mut changed = 0;
-        for (id, kept, found) in rows {
-            if found.is_some() && found != kept {
-                conn.execute("UPDATE generated_document SET content_id = ?2 WHERE id = ?1", params![id, found]).map_err(sql_err)?;
+        for (id, kept, found, matter, in_matter) in rows {
+            let Some(content) = found else { continue };
+            if Some(content) != kept {
+                self.conn()
+                    .execute("UPDATE generated_document SET content_id = ?2 WHERE id = ?1", params![id, content])
+                    .map_err(sql_err)?;
                 changed += 1;
             }
+            let Some(matter) = matter else { continue };
+            if in_matter == Some(content) || !self.may_put_in_matter(&matter, in_matter)? {
+                continue;
+            }
+            self.knowledge_choose_matter_document(&matter, &format!("content:{content}"), "in")?;
+            self.conn()
+                .execute("UPDATE generated_document SET matter_content = ?2 WHERE id = ?1", params![id, content])
+                .map_err(sql_err)?;
+            changed += 1;
         }
         Ok(changed)
+    }
+
+    /// Whether a generated document goes into its matter now: the matter is
+    /// still active, and no person took out of it the document put there
+    /// before (`previous`).
+    fn may_put_in_matter(&self, matter_id: &str, previous: Option<i64>) -> Result<bool, String> {
+        let conn = self.conn();
+        let active: bool = conn
+            .query_row("SELECT count(*) FROM knowledge_matter WHERE id = ?1 AND state = 'active'", [matter_id], |row| {
+                row.get::<_, i64>(0)
+            })
+            .map_err(sql_err)?
+            > 0;
+        let taken_out = match previous {
+            Some(previous) => {
+                conn.query_row(
+                    "SELECT count(*) FROM knowledge_matter_choice WHERE matter_id = ?1 AND content_id = ?2 AND choice = 'out'",
+                    params![matter_id, previous],
+                    |row| row.get::<_, i64>(0),
+                )
+                .map_err(sql_err)?
+                    > 0
+            }
+            None => false,
+        };
+        Ok(active && !taken_out)
     }
 
     /// Where the file of a generated document is now: at the place it was

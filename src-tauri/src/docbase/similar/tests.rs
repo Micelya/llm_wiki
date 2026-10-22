@@ -990,3 +990,101 @@ fn a_document_generated_with_a_field_left_empty_says_which_and_starts_from_a_doc
     let gone = super::generate::GenerateRequest { principal: 999_999, ..request };
     assert!(base.generate_document(&place, &gone).is_err());
 }
+
+#[test]
+fn a_document_generated_for_a_matter_goes_into_it_as_a_persons_decision_and_the_template_does_not() {
+    let (_dir, base, place, work_origin) = with_work_folder();
+    let template = fees_template(&base);
+    let (name, amount, date) = fee_fields(&template);
+    let matter = base.knowledge_create_matter("Ferreyra c/ Quiroga", &[]).unwrap();
+    let request = super::generate::GenerateRequest {
+        principal: template.principal,
+        template_name: "Recibo de honorarios".into(),
+        values: vec![
+            super::generate::GivenValue {
+                position: name as i64,
+                name: "Quien paga".into(),
+                value: "Julián Ferreyra".into(),
+                source: "entity".into(),
+                reference: Some("entity:e-1".into()),
+            },
+            given(amount, "Importe", "3.333,33", "hand"),
+            given(date, "Fecha", "22/10/2026", "date"),
+        ],
+        matter_id: Some(matter.clone()),
+        ..Default::default()
+    };
+    let generated = base.generate_document(&place, &request).unwrap();
+    let content = generated.content_id.expect("the base has its document");
+    assert!(generated.in_matter, "it is in its matter at once");
+    let choice: String = base
+        .conn()
+        .query_row(
+            "SELECT choice FROM knowledge_matter_choice WHERE matter_id = ?1 AND content_id = ?2",
+            rusqlite::params![matter, content],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(choice, "in", "a person's decision");
+    let recorded: (Option<String>, Option<String>) = base
+        .conn()
+        .query_row("SELECT matter_id, matter_name FROM generated_document WHERE id = ?1", [generated.id], |row| {
+            Ok((row.get(0)?, row.get(1)?))
+        })
+        .unwrap();
+    assert_eq!(recorded, (Some(matter.clone()), Some("Ferreyra c/ Quiroga".to_string())));
+    let values: String =
+        base.conn().query_row("SELECT field_values FROM generated_document WHERE id = ?1", [generated.id], |row| row.get(0)).unwrap();
+    assert!(values.contains("\"reference\":\"entity:e-1\""), "{values}");
+    // Only the generated document: none of the template's.
+    let in_matter: i64 = base
+        .conn()
+        .query_row("SELECT count(*) FROM knowledge_matter_choice WHERE matter_id = ?1", [&matter], |row| row.get(0))
+        .unwrap();
+    assert_eq!(in_matter, 1);
+    for document in &template.documents {
+        let joined: i64 = base
+            .conn()
+            .query_row("SELECT count(*) FROM knowledge_matter_document WHERE content_id = ?1", [document.doc.content_id], |row| row.get(0))
+            .unwrap();
+        assert_eq!(joined, 0, "the template is not joined to the matter");
+    }
+
+    // A person edits the Word where it is: its new document goes into the matter.
+    let edited = super::generate::word(
+        &vec![vec![vec![super::generate::Piece::Text(format!(
+            "RECIBO DE HONORARIOS corregido a mano. Recibí de Julián Ferreyra la suma de pesos $ 4.000,00. {}",
+            words(0..30, 3)
+        ))]]],
+        "2026-10-23T10:00:00.000Z",
+    )
+    .unwrap();
+    std::fs::write(&generated.path, edited).unwrap();
+    settle(&base, &work_origin);
+    base.generated_settle().unwrap();
+    let (now, put): (Option<i64>, Option<i64>) = base
+        .conn()
+        .query_row("SELECT content_id, matter_content FROM generated_document WHERE id = ?1", [generated.id], |row| {
+            Ok((row.get(0)?, row.get(1)?))
+        })
+        .unwrap();
+    assert!(now.is_some() && now != Some(content), "the record follows the edited Word");
+    assert_eq!(put, now);
+
+    // Taken out of the matter by a person, it is not put back.
+    base.knowledge_choose_matter_document(&matter, &format!("content:{}", now.unwrap()), "out").unwrap();
+    assert_eq!(base.generated_settle().unwrap(), 0);
+    let choice: String = base
+        .conn()
+        .query_row(
+            "SELECT choice FROM knowledge_matter_choice WHERE matter_id = ?1 AND content_id = ?2",
+            rusqlite::params![matter, now.unwrap()],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(choice, "out");
+
+    // A matter that is no more: nothing is generated for it.
+    let gone = super::generate::GenerateRequest { matter_id: Some("mat-que-no-existe".into()), ..request };
+    assert!(base.generate_document(&place, &gone).is_err());
+}
