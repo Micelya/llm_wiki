@@ -62,6 +62,8 @@ pub(crate) mod tests;
 #[cfg(test)]
 mod tests_changes;
 #[cfg(test)]
+mod tests_filiations;
+#[cfg(test)]
 mod tests_identity;
 #[cfg(test)]
 mod tests_groups;

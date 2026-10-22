@@ -17,6 +17,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use super::check::{names_match, normalized, open_base, save_copy, sheets, Sheet, SheetEntity};
+use super::extract::RereadTarget;
 use crate::docbase::similar::check_types::{key, paths_by_content};
 use crate::docbase::{DocBase, Visible};
 
@@ -458,6 +459,18 @@ fn print(label: &str, sheet: &Sheet, m: &Measure, noisy: usize) {
     println!("   readings that lost many quotes (attention): {noisy}");
 }
 
+/// The folder of the origin a sheet's documents are in: the first folder of
+/// the paths of its mentions, when they all share one.
+fn sheet_folder(sheet: &Sheet) -> Option<String> {
+    let mut folders = sheet
+        .entities
+        .iter()
+        .flat_map(|e| e.mentions.iter())
+        .map(|m| m.path.replace('\\', "/").split_once('/').map(|(first, _)| first.to_string()));
+    let first = folders.next()??;
+    folders.all(|f| f.as_deref() == Some(first.as_str())).then_some(first)
+}
+
 fn answers(base: &DocBase) -> i64 {
     base.conn().query_row("SELECT count(*) FROM model_answer", [], |r| r.get(0)).unwrap()
 }
@@ -482,6 +495,19 @@ fn relations_against_the_sheets() {
     }
     let status = base.knowledge_status(&Visible::All).unwrap();
     println!("\n   readings: {} done, {} of an earlier version, {} to ask again", status.extracted, status.older, status.stale);
+    // What reading the folder of each sheet again would take, if a person
+    // asked (D-432, D-459): nothing is asked here.
+    for sheet in &sheets {
+        let origin: Option<String> =
+            base.conn().query_row("SELECT id FROM origin WHERE location = ?1", [&sheet.root], |row| row.get(0)).ok();
+        let (Some(origin), Some(folder)) = (origin, sheet_folder(sheet)) else { continue };
+        let target = RereadTarget { location_id: None, origin_id: Some(origin), folder: Some(folder.clone()) };
+        let plan = base.knowledge_reread_plan(&target).unwrap();
+        println!(
+            "   reading again the folder «{folder}» of a sheet, if a person asks: {} questions for {} documents ({} asked already)",
+            plan.questions, plan.documents, plan.requested
+        );
+    }
 
     // The check of now over the answers kept, and the identities again
     // with the verdicts kept: nothing is asked.

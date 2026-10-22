@@ -48,8 +48,11 @@ use crate::source_volume::asking::DocumentAsker;
 use crate::source_volume::catalog::{is_page_heading, RECOGNIZED_MARKER_START};
 
 /// Version of the question. Changing the prompt changes it: the readings
-/// made before are kept, as of an earlier version (D-432).
-pub const KNOWLEDGE_PROMPT: &str = "conocimiento-6";
+/// made before are kept, as of an earlier version (D-432). `conocimiento-7`
+/// asks for one claim per pair a sentence joins (each parent of each
+/// child), of every person of the document, with a quote that names both
+/// and skips nothing (D-459).
+pub const KNOWLEDGE_PROMPT: &str = "conocimiento-7";
 /// The task the answers are kept under in `model_answer`.
 pub const TASK: &str = "knowledge";
 /// Words of text in one question; a longer document is read in parts of
@@ -386,7 +389,8 @@ que nombra, con qué papel aparece cada uno, y lo que el documento dice de ellos
 Reglas:\n\
 - Solo lo que dice este documento. No agregues nada que sepas por otro lado ni completes datos que el texto no trae.\n\
 - Cada cita es un fragmento copiado literalmente del texto, continuo, de no más de 40 palabras, sin puntos suspensivos ni cambios. \
-Se va a comprobar que esté en el texto: lo que no esté, se descarta.\n\
+Si la frase es más larga, la cita es el tramo continuo que hace falta (en una relación, el que nombra a los dos); nunca saltees \
+palabras con «...» o «…»: esa cita se descarta. Se va a comprobar que esté en el texto: lo que no esté, se descarta.\n\
 - Una mención por cada forma en que el documento escribe a una entidad y por cada papel que tiene. \"escrito\" es el nombre \
 tal como aparece, y su cita lo contiene. Si dos menciones de este documento son la misma entidad (\"el locatario\" y su nombre, \
 la sigla y la razón social), en \"misma_que\" de la segunda poné la \"ref\" de la primera; si no, null. No registres un pronombre \
@@ -404,8 +408,11 @@ mención como objeto, va en \"objeto_ref\" y \"objeto_valor\" es null; si lleva 
 escrito, dentro de la cita, y \"objeto_ref\" es null. \"tiempo\" es la fecha o el período del hecho si el documento lo dice, \
 tal como está escrito; si no, null. \"clase\" es la clase del dato cuando el predicado tiene clases y el texto la dice; si no, \"ninguna\".\n\
 - Una relación con consecuencias jurídicas (una representación, una sociedad, un beneficiario final, un matrimonio, un \
-parentesco, una herencia, ser parte en un asunto) se registra solo si la cita nombra a los dos: quién y de quién. Un parentesco \
-se registra una sola vez, con el predicado que lo dice desde quien lo tiene.\n\
+parentesco, una herencia, ser parte en un asunto) se registra solo si la cita nombra a los dos: quién y de quién, por su nombre o \
+por el papel que el documento le da a uno solo de ellos. El sujeto y el objeto son dos menciones distintas, cada una en el lado \
+que dice el predicado: nunca la misma en los dos lados. Una frase que une a varias personas da una afirmación por cada par, todas \
+con esa misma cita (el predicado de la filiación trae un ejemplo). Un parentesco se registra una sola vez por cada par, con un solo \
+predicado (no repitas su inverso), y van los de cada persona que el documento nombra, no solo los de su titular.\n\
 - El dinero no va en \"afirmaciones\" sino en \"importes\": {money} \"deudor\" y \"acreedor\" son \"ref\" de menciones de personas \
 u organizaciones de este documento, ya resueltos los términos definidos (si el texto dice «la Empresa adeuda a la Locadora», el \
 deudor es la mención que el documento definió como «la Empresa»). Si el texto no dice una de las dos partes, el importe no va. \
@@ -785,6 +792,12 @@ fn normalized(text: &str) -> String {
     quote::words(text).join(" ")
 }
 
+/// Whether a quote leaves words out with an ellipsis (D-460): when the text
+/// does not have it, the reason it is discarded says so.
+fn skips_words(quote: &str) -> bool {
+    quote.contains("...") || quote.contains('…')
+}
+
 fn applies(types: &[String], kind: &str) -> bool {
     types.is_empty() || types.iter().any(|t| t == kind)
 }
@@ -1067,7 +1080,8 @@ impl ClaimCheck<'_> {
         }
         let value_words = if predicate.takes_entity() { Vec::new() } else { quote::words(said.objeto_valor.as_deref().unwrap_or_default()) };
         let Some(page) = locate_value(self.text, &said.cita, &value_words, said.pagina, self.window) else {
-            return Err(dropped("cita-no-encontrada"));
+            // A quote that skips words is not the text (D-460).
+            return Err(dropped(if skips_words(&said.cita) { "cita-con-puntos-suspensivos" } else { "cita-no-encontrada" }));
         };
         // The record of a signing service says who signed, when and
         // with what title and address, not when a bond starts or who
@@ -1080,7 +1094,7 @@ impl ClaimCheck<'_> {
         let filiation = &vocabulary.reading.filiation.predicate;
         let parent_to_child = !filiation.is_empty() && &predicate.id == filiation;
         let child_to_parent = !filiation.is_empty() && &predicate.inverse_of == filiation;
-        let (object_mention, object_value) = if predicate.takes_entity() {
+        let (mut object_mention, object_value) = if predicate.takes_entity() {
             match object_ref.clone() {
                 Some(object) if applies(&predicate.object_types, &self.kinds[&object]) && object != subject => (Some(object), None),
                 given => {
@@ -1088,10 +1102,10 @@ impl ClaimCheck<'_> {
                         // A relation with the matter of the document (D-456).
                         corrections.push(("asunto-del-documento", said.predicado.clone()));
                         (Some(matter), None)
-                    } else if parent_to_child && given.as_deref() == Some(subject.as_str()) {
-                        // The parent given as both sides: the child is who
-                        // the filiation of the text says, when it says one
-                        // (D-457).
+                    } else if parent_to_child && given.as_deref().is_none_or(|g| g == subject) {
+                        // The parent given as both sides, or without the
+                        // child: the child is who the filiation of the text
+                        // says, when it says one (D-457, D-460).
                         let children = self.children(&quote_words, self.names(&subject), roles);
                         let child = match children.as_slice() {
                             [one] => self.mention_of(one).filter(|c| c != &subject),
@@ -1112,6 +1126,16 @@ impl ClaimCheck<'_> {
             }
             (None, Some(value))
         };
+        // A filiation given the other way round: the filiation of the quote
+        // says the one given as the parent is the child of the other ("Z,
+        // hijo de X" given as Z parent of X), D-460.
+        if let Some(object) = object_mention.clone().filter(|_| parent_to_child || child_to_parent) {
+            let (parent, child) = if parent_to_child { (&object, &subject) } else { (&subject, &object) };
+            if self.is_child(&quote_words, self.names(parent), roles, self.names(child)) {
+                corrections.push(("filiacion-dada-vuelta", said.predicado.clone()));
+                object_mention = Some(std::mem::replace(&mut subject, object));
+            }
+        }
         // What has legal consequences names its object in the quote
         // (D-250).
         if predicate.object_in_quote {

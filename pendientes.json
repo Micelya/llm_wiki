@@ -2253,10 +2253,10 @@
       "titulo": "Decidir si se relee la sucesión con una pregunta que pida las filiaciones completas",
       "tipo": "decision",
       "responsable": "ambos",
-      "estado": "pendiente",
-      "detalle": "Con las respuestas guardadas (D-456, D-457), de las 104 relaciones de padre, madre e hijo de la hoja de la sucesión se encuentran 35 (antes 4). De las 69 que faltan, el modelo no devolvió 38; 9 las dio con el padre en los dos lados sin que el texto diga quién es el hijo, 4 con el hijo en los dos lados, 4 al revés, y 14 con una cita que no alcanza (con puntos suspensivos, «de dicha unión», cortada antes del nombre). Abuelos, tíos, sobrinos y nietos casi no los devolvió (11 afirmaciones para 32 relaciones). Haría falta que la pregunta pida, en una filiación, una afirmación por cada padre con el hijo como objeto (nunca la misma persona de los dos lados) y una cita del nombre del hijo al del padre; en partidas y actas, la filiación de cada persona del acta; y los parentescos dichos como «sus sobrinos A y B» o «su hermano A» con los dos lados. Sería otra relectura de la sucesión con cuota (68 documentos, 78 preguntas): la decide el dueño.",
+      "estado": "en-curso",
+      "detalle": "22 oct (D-459, D-460): pregunta cambiada (conocimiento-7); falta la relectura de la sucesión que pide el agente principal (78 preguntas para 68 documentos) y medir después con check_relations. Antes: con las respuestas guardadas (D-456, D-457), de las 104 relaciones de padre, madre e hijo de la hoja de la sucesión se encuentran 35 (antes 4). De las 69 que faltan, el modelo no devolvió 38; 9 las dio con el padre en los dos lados sin que el texto diga quién es el hijo, 4 con el hijo en los dos lados, 4 al revés, y 14 con una cita que no alcanza (con puntos suspensivos, «de dicha unión», cortada antes del nombre). Abuelos, tíos, sobrinos y nietos casi no los devolvió (11 afirmaciones para 32 relaciones). Haría falta que la pregunta pida, en una filiación, una afirmación por cada padre con el hijo como objeto (nunca la misma persona de los dos lados) y una cita del nombre del hijo al del padre; en partidas y actas, la filiación de cada persona del acta; y los parentescos dichos como «sus sobrinos A y B» o «su hermano A» con los dos lados. Sería otra relectura de la sucesión con cuota (68 documentos, 78 preguntas): la decide el dueño.",
       "depende_de": [],
-      "referencia": "D-456, D-457; src-tauri/src/docbase/knowledge/extract.rs (prompt); src-tauri/src/docbase/knowledge/check_relations.rs",
+      "referencia": "D-456, D-457, D-459, D-460; src-tauri/src/docbase/knowledge/extract.rs (prompt); src-tauri/resources/catalog/knowledge.json; src-tauri/src/docbase/knowledge/check_relations.rs",
       "creado": "2026-10-22",
       "actualizado": "2026-10-22"
     },
@@ -2269,6 +2269,18 @@
       "detalle": "Quedan 8 entidades de la hoja de la sucesión en dos fichas cada una (medición nueva de D-458): en 5 el modelo dijo «dudosa» o «distinta» (una persona con dos fechas de nacimiento; un organismo nombrado solo «Archivo»; un organismo con nombre corto y largo; un registro de la capital; un registro y el colegio que lo lleva): las decide una persona en Atención, y la de la persona está entre las preguntas de identidad que la app haría ahora; 2 organismos nunca se comparan (una abreviatura y un cargo escrito como nombre, P-255); y un abogado tiene su matrícula leída distinta en dos escaneos («tomo» y «folio» escritos de otra manera y un dígito distinto), que lo separa: ver si una matrícula se compara por sus números de tomo y folio.",
       "depende_de": [],
       "referencia": "D-458; src-tauri/src/docbase/knowledge/names.rs; src-tauri/src/docbase/knowledge/resolve.rs; P-255",
+      "creado": "2026-10-22",
+      "actualizado": "2026-10-22"
+    },
+    {
+      "id": "P-273",
+      "titulo": "Parentescos que el control todavía no puede aceptar después de la relectura",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "detalle": "Después de la relectura de la sucesión con conocimiento-7 (P-271), ver qué parentescos se siguen perdiendo por el control y no por la pregunta: (1) abuelo, tío, sobrino y nieto dados con la misma persona en los dos lados («X en su carácter de nieto de Y y de sobrino de Z»): las palabras de filiación del catálogo (D-457) son solo de «padre o madre de» y podrían extenderse a esos parentescos; (2) la filiación de un acta con campos, cuando el nombre del inscripto y el campo «Padre:» están a más de 40 palabras: aceptarla por los rótulos del acta; (3) el hijo en los dos lados con un solo padre nombrado, que hoy se descarta (D-460).",
+      "depende_de": ["P-271"],
+      "referencia": "D-457, D-459, D-460; src-tauri/src/docbase/knowledge/extract.rs (ClaimCheck); src-tauri/resources/catalog/knowledge.json (reading.filiation)",
       "creado": "2026-10-22",
       "actualizado": "2026-10-22"
     }
