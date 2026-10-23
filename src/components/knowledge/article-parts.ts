@@ -313,7 +313,7 @@ export function relatedCards(body: string): RelatedCard[] | null {
 /**
  * The initials of a name, for its card: the first and the last word that
  * start with a capital, leaving out abbreviations like «S.A.»: «Talleres
- * Inventados S.A.» → «TI», «Luis Alberto Ficticio» → «LF».
+ * Inventados S.A.» → «TI», «Luis Rodolfo Ficticio» → «LF».
  */
 export function initials(name: string): string {
   const words = name

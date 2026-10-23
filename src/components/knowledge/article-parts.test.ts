@@ -65,13 +65,13 @@ const PERSON = [
   "## Vínculos",
   "",
   "- Empleado de [[empresa-ficticia|Empresa Ficticia SA]][1](#micelya-nota-1)",
-  "- Cónyuge de *(sin confirmar: no es seguro de quién se habla)* [[pedro-inventado|Pedro Inventado]][4](#micelya-nota-4)",
+  "- Cónyuge de *(sin confirmar: no es seguro de quién se habla)* [[bautista-inventado|Bautista Inventado]][4](#micelya-nota-4)",
   "- Hijo o hija de Nadie Conocido",
   "",
   "## Relacionados",
   "",
   "- [[empresa-ficticia|Empresa Ficticia SA]] · Organización — 2 documentos en común",
-  "- [[pedro-inventado|Pedro Inventado]] · Persona",
+  "- [[bautista-inventado|Bautista Inventado]] · Persona",
 ].join("\n")
 
 const MATTER = [
@@ -193,7 +193,7 @@ describe("the lists of a page", () => {
       { label: "Empleado de", value: "[[empresa-ficticia|Empresa Ficticia SA]][1](#micelya-nota-1)" },
       {
         label: "Cónyuge de",
-        value: "[[pedro-inventado|Pedro Inventado]] *(sin confirmar: no es seguro de quién se habla)*[4](#micelya-nota-4)",
+        value: "[[bautista-inventado|Bautista Inventado]] *(sin confirmar: no es seguro de quién se habla)*[4](#micelya-nota-4)",
       },
       { label: "", value: "Hijo o hija de Nadie Conocido" },
     ])
@@ -202,11 +202,11 @@ describe("the lists of a page", () => {
   it("reads the related ones as cards, with their initials", () => {
     expect(relatedCards(parseArticle(PERSON, word).sections[3].body)).toEqual([
       { link: "[[empresa-ficticia|Empresa Ficticia SA]]", name: "Empresa Ficticia SA", type: "Organización", shared: "2 documentos en común" },
-      { link: "[[pedro-inventado|Pedro Inventado]]", name: "Pedro Inventado", type: "Persona", shared: null },
+      { link: "[[bautista-inventado|Bautista Inventado]]", name: "Bautista Inventado", type: "Persona", shared: null },
     ])
     expect(initials("Talleres Inventados S.A.")).toBe("TI")
-    expect(initials("Luis Alberto Ficticio")).toBe("LF")
-    expect(initials("«Pedro» de la Nada")).toBe("PN")
+    expect(initials("Luis Rodolfo Ficticio")).toBe("LF")
+    expect(initials("«Bautista» de la Nada")).toBe("BN")
     expect(initials("acme")).toBe("A")
   })
 
