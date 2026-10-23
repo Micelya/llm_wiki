@@ -89,6 +89,14 @@ struct Control {
 struct Job {
     portal: &'static str,
     key: CaseKey,
+    /// Go through every page of the record («Revisar todo el expediente»).
+    full: bool,
+}
+
+impl Job {
+    fn same_record(&self, other: &Job) -> bool {
+        self.portal == other.portal && self.key == other.key
+    }
 }
 
 /// The download the app asked for: where it goes, and how it went.
@@ -506,7 +514,8 @@ fn run_job(app: &AppHandle, shared: &Arc<Shared>, job: &Job) -> Result<Progress,
         Some(base) => base.as_ref(),
         None => &NoneKnown,
     };
-    let walk = Walk::new(connector, expedientes.join(connector.folder()), known);
+    let mut walk = Walk::new(connector, expedientes.join(connector.folder()), known);
+    walk.full = job.full;
     let mut browser = ViewBrowser { app: app.clone(), shared: shared.clone(), view };
     let progress = walk.run(&mut browser, &job.key);
     // Whatever happened, what was brought goes to the base.
@@ -536,13 +545,25 @@ fn integrate(base: &DocBase, work: &Path, expedientes: &Path, connector: &dyn Co
     store::save(&folder, &record)
 }
 
+/// Puts a record in the queue once: one already waiting is asked to go
+/// through it all if this one asks; one running now is queued again only
+/// when this one goes through more of it.
+fn queue_job(control: &mut Control, job: Job) {
+    if let Some(waiting) = control.queue.iter_mut().find(|waiting| waiting.same_record(&job)) {
+        waiting.full |= job.full;
+        return;
+    }
+    let running = control.running.as_ref().is_some_and(|running| running.same_record(&job) && (running.full || !job.full));
+    if !running {
+        control.queue.push_back(job);
+    }
+}
+
 fn enqueue(app: &AppHandle, state: &PortalState, jobs: Vec<Job>) -> PortalStatus {
     {
         let mut control = state.shared.control();
         for job in jobs {
-            if control.running.as_ref() != Some(&job) && !control.queue.contains(&job) {
-                control.queue.push_back(job);
-            }
+            queue_job(&mut control, job);
         }
     }
     start_runner(app, &state.shared);
@@ -572,12 +593,21 @@ pub fn portal_hide(app: AppHandle, state: State<'_, PortalState>, portal: String
     hide_view(&views, &state.shared.views, &view_label(connector))
 }
 
-/// Brings a record (or what is new of one already followed).
+/// Brings a record (or what is new of one already followed); `full`: goes
+/// through every page of it, also those the app already has whole.
 #[tauri::command(async)]
-pub fn portal_fetch(app: AppHandle, state: State<'_, PortalState>, portal: String, jurisdiction: String, number: String, year: String) -> Result<PortalStatus, String> {
+pub fn portal_fetch(
+    app: AppHandle,
+    state: State<'_, PortalState>,
+    portal: String,
+    jurisdiction: String,
+    number: String,
+    year: String,
+    full: Option<bool>,
+) -> Result<PortalStatus, String> {
     let connector = connector(&portal)?;
     let key = CaseKey::new(&jurisdiction, &number, &year)?;
-    Ok(enqueue(&app, &state, vec![Job { portal: connector.id(), key }]))
+    Ok(enqueue(&app, &state, vec![Job { portal: connector.id(), key, full: full.unwrap_or(false) }]))
 }
 
 /// What is new of every record followed in a portal, one after the other.
@@ -585,7 +615,7 @@ pub fn portal_fetch(app: AppHandle, state: State<'_, PortalState>, portal: Strin
 pub fn portal_update_all(app: AppHandle, state: State<'_, PortalState>, portal: String) -> Result<PortalStatus, String> {
     let connector = connector(&portal)?;
     let folder = expedientes_folder(&app)?.join(connector.folder());
-    let jobs = store::followed(&folder).into_iter().map(|(_, record)| Job { portal: connector.id(), key: record.key }).collect();
+    let jobs = store::followed(&folder).into_iter().map(|(_, record)| Job { portal: connector.id(), key: record.key, full: false }).collect();
     Ok(enqueue(&app, &state, jobs))
 }
 
@@ -790,6 +820,32 @@ mod tests {
             views.get_mut(view).ok_or("no view")?.visible = false;
             Ok(())
         }
+    }
+
+    #[test]
+    fn a_record_is_queued_once_and_a_whole_review_is_not_lost() {
+        use super::{queue_job, Control, Job};
+        let key = crate::portals::CaseKey::new("ZZZ", "4321", "2011").unwrap();
+        let other = crate::portals::CaseKey::new("ZZZ", "1", "2012").unwrap();
+        let job = |key: &crate::portals::CaseKey, full: bool| Job { portal: "pjn", key: key.clone(), full };
+        let mut control = Control::default();
+        queue_job(&mut control, job(&key, false));
+        queue_job(&mut control, job(&key, false));
+        queue_job(&mut control, job(&other, false));
+        assert_eq!(control.queue.len(), 2);
+        // Asked to go through it all while it waits: the one waiting does.
+        queue_job(&mut control, job(&key, true));
+        assert_eq!(control.queue.len(), 2);
+        assert!(control.queue[0].full);
+        // While it runs: again only if this one goes through more of it.
+        let mut control = Control { running: Some(job(&key, false)), ..Control::default() };
+        queue_job(&mut control, job(&key, false));
+        assert!(control.queue.is_empty());
+        queue_job(&mut control, job(&key, true));
+        assert_eq!(control.queue.len(), 1);
+        let mut control = Control { running: Some(job(&key, true)), ..Control::default() };
+        queue_job(&mut control, job(&key, false));
+        assert!(control.queue.is_empty());
     }
 
     #[test]

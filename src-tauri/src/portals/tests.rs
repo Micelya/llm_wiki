@@ -626,12 +626,125 @@ fn a_cut_walk_resumes_where_it_left_and_never_downloads_twice() {
     assert!(second.downloads.iter().all(|d| !first.downloads.contains(d)));
     assert_eq!(outcome.already, 5);
     assert_eq!(pdfs_in(&folder).len(), total);
-    // A third time, nothing.
+    // A third time, nothing (these invented dates do not come newest
+    // first, so it goes through every page).
     let mut third = FakePortal::new(REFERENCE, TITLE, list);
     let outcome = walk_with(dir.path(), &store::NoneKnown).run(&mut third, &key()).unwrap();
     assert!(third.downloads.is_empty());
     assert_eq!(outcome.already, total);
+    assert_eq!(outcome.known_from, None);
     assert!(outcome.message.contains("0 documentos nuevos"), "{}", outcome.message);
+}
+
+/// `count` invented SCW entries, all of them newer than those of `scw_entries`.
+fn newer_entries(count: usize, first_document: u32) -> Vec<fixtures::FakeEntry> {
+    let mut newer = fixtures::scw_entries(count, first_document);
+    for (i, e) in newer.iter_mut().enumerate() {
+        e.date = format!("{}/12/2026", 20 - i);
+        e.detail = format!("NOVEDAD INVENTADA {i}");
+    }
+    newer
+}
+
+#[test]
+fn an_update_stops_at_the_first_page_it_already_had_whole() {
+    let dir = TempDir::new();
+    let list = fixtures::scw_entries(50, 700);
+    let mut first = FakePortal::new(REFERENCE, TITLE, list.clone());
+    first.scw = true;
+    let outcome = walk_with(dir.path(), &store::NoneKnown).run(&mut first, &key()).unwrap();
+    // The first time, every page (the file did not exist).
+    assert_eq!(first.presses, vec!["Consultar", "Siguiente", "Siguiente", "Siguiente"]);
+    assert_eq!(outcome.known_from, None);
+    let folder = dir.path().join("PJN").join("ZZZ 4321-2011");
+    assert!(store::load(&folder).unwrap().unwrap().complete);
+    // Three new entries on top: page 1 has them, page 2 is all known, and
+    // the pages after it are older.
+    let mut now = newer_entries(3, 900);
+    now.extend(list.iter().cloned());
+    let mut second = FakePortal::new(REFERENCE, TITLE, now.clone());
+    second.scw = true;
+    let outcome = walk_with(dir.path(), &store::NoneKnown).run(&mut second, &key()).unwrap();
+    assert_eq!(second.presses, vec!["Consultar", "Siguiente"]);
+    let mut got = second.downloads.clone();
+    got.sort();
+    let mut want: Vec<u32> = now[..3].iter().filter_map(|e| e.document).collect();
+    want.sort();
+    assert_eq!(got, want);
+    assert_eq!(outcome.known_from, Some(2));
+    assert_eq!(outcome.seen, 30);
+    assert!(store::load(&folder).unwrap().unwrap().complete);
+    assert!(outcome.message.contains("desde la página 2 ya estaba todo"), "{}", outcome.message);
+    // «Revisar todo el expediente»: every page, and nothing to bring.
+    let mut whole = FakePortal::new(REFERENCE, TITLE, now.clone());
+    whole.scw = true;
+    let mut walk = walk_with(dir.path(), &store::NoneKnown);
+    walk.full = true;
+    let outcome = walk.run(&mut whole, &key()).unwrap();
+    assert_eq!(whole.presses, vec!["Consultar", "Siguiente", "Siguiente", "Siguiente"]);
+    assert!(whole.downloads.is_empty());
+    assert_eq!((outcome.seen, outcome.known_from), (53, None));
+}
+
+#[test]
+fn a_walk_that_did_not_end_leaves_the_next_one_going_through_it_all() {
+    let dir = TempDir::new();
+    let list = fixtures::scw_entries(50, 700);
+    let folder = dir.path().join("PJN").join("ZZZ 4321-2011");
+    let mut first = FakePortal::new(REFERENCE, TITLE, list.clone());
+    first.scw = true;
+    walk_with(dir.path(), &store::NoneKnown).run(&mut first, &key()).unwrap();
+    // 18 new entries: the first page is all new; cut while on it.
+    let mut now = newer_entries(18, 900);
+    now.extend(list.iter().cloned());
+    let mut cut = FakePortal::new(REFERENCE, TITLE, now.clone());
+    cut.scw = true;
+    cut.stop_after = Some(9);
+    assert!(matches!(walk_with(dir.path(), &store::NoneKnown).run(&mut cut, &key()), Err(Stop::Cancelled)));
+    assert!(!store::load(&folder).unwrap().unwrap().complete);
+    // The next one does not stop at page 1, which it now has whole: the
+    // new entries of page 2 were never seen.
+    let mut next = FakePortal::new(REFERENCE, TITLE, now.clone());
+    next.scw = true;
+    let outcome = walk_with(dir.path(), &store::NoneKnown).run(&mut next, &key()).unwrap();
+    assert_eq!(next.presses.iter().filter(|p| *p == "Siguiente").count(), 4);
+    let new_documents = now[..18].iter().filter(|e| e.document.is_some()).count();
+    assert_eq!(cut.downloads.len() + next.downloads.len(), new_documents);
+    assert_eq!(outcome.known_from, None);
+    assert!(store::load(&folder).unwrap().unwrap().complete);
+}
+
+#[test]
+fn what_failed_on_a_later_page_is_tried_again_before_stopping() {
+    let dir = TempDir::new();
+    let list = fixtures::scw_entries(50, 700);
+    let bad = list[40..].iter().find_map(|e| e.document).unwrap();
+    let mut first = FakePortal::new(REFERENCE, TITLE, list.clone());
+    first.scw = true;
+    first.not_pdf.insert(bad);
+    let outcome = walk_with(dir.path(), &store::NoneKnown).run(&mut first, &key()).unwrap();
+    assert_eq!(outcome.failed, 1);
+    let mut second = FakePortal::new(REFERENCE, TITLE, list);
+    second.scw = true;
+    let outcome = walk_with(dir.path(), &store::NoneKnown).run(&mut second, &key()).unwrap();
+    assert_eq!(second.downloads, vec![bad]);
+    assert_eq!(second.presses.iter().filter(|p| *p == "Siguiente").count(), 3);
+    assert_eq!((outcome.failed, outcome.known_from), (0, None));
+}
+
+#[test]
+fn entries_that_do_not_come_newest_first_never_stop_the_walk_early() {
+    let dir = TempDir::new();
+    let mut list = fixtures::scw_entries(50, 700);
+    list.reverse();
+    let mut first = FakePortal::new(REFERENCE, TITLE, list.clone());
+    first.scw = true;
+    walk_with(dir.path(), &store::NoneKnown).run(&mut first, &key()).unwrap();
+    let mut second = FakePortal::new(REFERENCE, TITLE, list);
+    second.scw = true;
+    let outcome = walk_with(dir.path(), &store::NoneKnown).run(&mut second, &key()).unwrap();
+    assert_eq!(second.presses.iter().filter(|p| *p == "Siguiente").count(), 3);
+    assert_eq!(outcome.known_from, None);
 }
 
 #[test]

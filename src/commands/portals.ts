@@ -15,6 +15,8 @@ export interface PortalProgress {
   /** The portal is processing a query: the app waits and the window is free for its «Cancelar». */
   busy: boolean
   page: number | null
+  /** The walk stopped at this page because the app already had it whole, and the ones after it. */
+  knownFrom: number | null
   seen: number
   withDocument: number
   downloaded: number
@@ -85,9 +87,12 @@ export function hidePortal(portal: string): Promise<void> {
   return invoke<void>("portal_hide", { portal })
 }
 
-/** Brings a record, or what is new of one already followed. */
-export function fetchRecord(portal: string, jurisdiction: string, number: string, year: string): Promise<PortalStatus> {
-  return invoke<PortalStatus>("portal_fetch", { portal, jurisdiction, number, year })
+/**
+ * Brings a record, or what is new of one already followed. `full`: goes
+ * through every page of it, also those the app already has whole.
+ */
+export function fetchRecord(portal: string, jurisdiction: string, number: string, year: string, full = false): Promise<PortalStatus> {
+  return invoke<PortalStatus>("portal_fetch", { portal, jurisdiction, number, year, full })
 }
 
 export function updateAllRecords(portal: string): Promise<PortalStatus> {

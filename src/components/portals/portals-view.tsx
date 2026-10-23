@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
-import { FolderOpen, Hand, RefreshCw, Square, Download, Play } from "lucide-react"
+import { FolderOpen, Hand, ListChecks, RefreshCw, Square, Download, Play } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -99,6 +99,9 @@ export function PortalsView() {
                   record={record}
                   running={status?.running === record.reference}
                   onUpdate={() => run(() => fetchRecord(PJN, record.jurisdiction, String(record.number), String(record.year)))}
+                  onReviewAll={() =>
+                    run(() => fetchRecord(PJN, record.jurisdiction, String(record.number), String(record.year), true))
+                  }
                   onFolder={() => run(() => openPortalFolder(PJN, folderName(record)))}
                   onFetchLinked={(j, n, y) => run(() => fetchRecord(PJN, j, n, y))}
                 />
@@ -235,12 +238,14 @@ function FollowedItem({
   record,
   running,
   onUpdate,
+  onReviewAll,
   onFolder,
   onFetchLinked,
 }: {
   record: FollowedRecord
   running: boolean
   onUpdate: () => void
+  onReviewAll: () => void
   onFolder: () => void
   onFetchLinked: (jurisdiction: string, number: string, year: string) => void
 }) {
@@ -268,10 +273,27 @@ function FollowedItem({
         {record.failed > 0 ? `, ${record.failed} por reintentar` : ""})
       </p>
       {record.lastResult && <p className="text-xs">{record.lastResult}</p>}
-      <div className="flex gap-2">
-        <Button size="xs" variant="outline" disabled={running} onClick={onUpdate}>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          size="xs"
+          variant="outline"
+          disabled={running}
+          onClick={onUpdate}
+          title="Trae lo nuevo: recorre las páginas hasta la primera que ya estaba entera"
+        >
           <RefreshCw /> {running ? "Actualizando…" : "Actualizar"}
         </Button>
+        {!Number.isNaN(updated) && (
+          <Button
+            size="xs"
+            variant="ghost"
+            disabled={running}
+            onClick={onReviewAll}
+            title="Recorre todas las páginas del expediente, también las que ya estaban, y trae lo que falte"
+          >
+            <ListChecks /> Revisar todo el expediente
+          </Button>
+        )}
         <Button size="xs" variant="ghost" onClick={onFolder}>
           <FolderOpen /> Carpeta
         </Button>

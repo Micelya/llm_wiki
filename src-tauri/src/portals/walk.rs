@@ -11,7 +11,13 @@
 //!    the portal's own «Cancelar».
 //! 2. Walk its pages: read the table of entries, take each new document,
 //!    press «Siguiente», wait until the table changes; until there is no
-//!    «Siguiente» or the page does not change.
+//!    «Siguiente» or the page does not change. The portal lists the entries
+//!    newest first and only adds new ones (a judicial record never changes
+//!    what it has): when the record's file is whole (`complete`), the walk
+//!    stops at the first page it already knew whole, unless it is asked to
+//!    go through it all (`full`, «Revisar todo el expediente»), something
+//!    of the record is still to be brought, or the dates are not in that
+//!    order.
 //! 3. For each entry with a document: if the app already downloaded it
 //!    (and it is still there with its size), or the base already has it
 //!    by its name, leave it; otherwise download it, check that it is a
@@ -91,6 +97,9 @@ pub struct Progress {
     /// waits and the view is free for the portal's own «Cancelar».
     pub busy: bool,
     pub page: Option<u32>,
+    /// The walk stopped at this page because the app already had it whole,
+    /// and the pages after it too.
+    pub known_from: Option<u32>,
     /// Entries seen, with a document, downloaded now, already there,
     /// failed.
     pub seen: usize,
@@ -126,6 +135,9 @@ pub struct Walk<'a> {
     /// portal processes a query.
     pub query_looks: usize,
     pub query_time: Duration,
+    /// Go through every page of the table, also those the app already has
+    /// whole («Revisar todo el expediente»).
+    pub full: bool,
 }
 
 impl<'a> Walk<'a> {
@@ -140,6 +152,7 @@ impl<'a> Walk<'a> {
             person_poll: Duration::from_millis(1500),
             query_looks: 400,
             query_time: Duration::from_secs(120),
+            full: false,
         }
     }
 }
@@ -163,6 +176,15 @@ enum Look {
 #[derive(Default)]
 struct Run {
     progress: Progress,
+    /// The walk may stop at the first page it already knew whole.
+    may_stop: bool,
+    /// The entries the record's file already had settled when the walk
+    /// started.
+    settled_before: HashSet<EntryKey>,
+    /// The date (yyyymmdd) of the last entry read, and whether some entry
+    /// was newer than the one before it (then the walk never stops early).
+    last_date: Option<String>,
+    out_of_order: bool,
     seen: HashSet<EntryKey>,
     downloaded: HashSet<EntryKey>,
     already: HashSet<EntryKey>,
@@ -179,7 +201,9 @@ impl Run {
 }
 
 enum End {
-    Done,
+    /// `whole`: it went through the table up to its last page, or up to a
+    /// page it already knew whole.
+    Done { whole: bool },
     /// The record is not on the view any more (a challenge, the session
     /// ended): reach it again.
     Again,
@@ -204,8 +228,11 @@ impl Walk<'_> {
         let folder = store::record_folder(&self.portal_folder, key);
         let mut record = store::load(&folder).map_err(Stop::Failed)?.unwrap_or_else(|| RecordFile::new(self.connector.id(), key));
         self.tidy(&mut record);
+        let mut run = Run { may_stop: record.complete && !self.full, ..Run::default() };
+        run.settled_before = record.entries.iter().filter(|e| e.settled()).map(Entry::key).collect();
+        // Whole again only when this walk gets to the end.
+        record.complete = false;
         store::save(&folder, &record).map_err(Stop::Failed)?;
-        let mut run = Run::default();
         run.progress.state = "working".to_string();
         run.progress.reference = Some(key.display());
         browser.lock(true, WORKING_NOTE);
@@ -218,7 +245,10 @@ impl Walk<'_> {
             }
             self.reach(browser, &mut run, key)?;
             match self.pages(browser, &mut run, key, &folder, &mut record)? {
-                End::Done => break,
+                End::Done { whole } => {
+                    record.complete = whole;
+                    break;
+                }
                 End::Again => continue,
             }
         }
@@ -575,7 +605,7 @@ impl Walk<'_> {
             }
             let shown = self.connector.record(&page);
             if !signatures.insert(shown.signature.clone()) {
-                return Ok(End::Done);
+                return Ok(End::Done { whole: false });
             }
             run.progress.page = shown.page_number;
             take_data(record, &shown);
@@ -584,6 +614,12 @@ impl Walk<'_> {
                     run.progress.warnings.push(warning);
                 }
             }
+            self.follow_order(run, &shown);
+            // Every entry of the page was settled before this walk.
+            let known = !shown.rows.is_empty()
+                && shown.unread.rows == 0
+                && shown.rows.iter().all(|r| run.settled_before.contains(&EntryKey::of(r)));
+            let brought_before = run.downloaded.len() + run.failed.len();
             for row in &shown.rows {
                 if let Step::Again = self.entry(browser, run, key, folder, record, row)? {
                     return Ok(End::Again);
@@ -591,8 +627,17 @@ impl Walk<'_> {
             }
             store::save(folder, record).map_err(Stop::Failed)?;
             let Some(next) = shown.next.clone() else {
-                return Ok(End::Done);
+                return Ok(End::Done { whole: true });
             };
+            // Nothing of this page was new nor had to be brought: what
+            // follows is older, and the app already has it.
+            let untouched = run.downloaded.len() + run.failed.len() == brought_before;
+            if run.may_stop && known && untouched && !run.out_of_order && !unfinished_elsewhere(record, run) {
+                run.progress.known_from = shown.page_number;
+                let page = shown.page_number.map(|n| format!(" {n}")).unwrap_or_default();
+                self.say(browser, run, format!("La página{page} ya estaba entera: lo anterior de un expediente no cambia, así que no hace falta seguir."));
+                return Ok(End::Done { whole: true });
+            }
             let following = shown.page_number.map(|n| format!(" {}", n + 1)).unwrap_or_default();
             self.say(browser, run, format!("Pasando a la página{following}…"));
             browser.wait(self.pause);
@@ -621,8 +666,20 @@ impl Walk<'_> {
                     "La página{} no cambió al pedir la siguiente: se tomó como la última",
                     shown.page_number.map(|n| format!(" {n}")).unwrap_or_default()
                 ));
-                return Ok(End::Done);
+                return Ok(End::Done { whole: false });
             }
+        }
+    }
+
+    /// Whether the entries keep coming newest first, as the walk needs to
+    /// stop early.
+    fn follow_order(&self, run: &mut Run, shown: &RecordPage) {
+        for row in &shown.rows {
+            let Some(date) = store::canonical_date(&row.date) else { continue };
+            if run.last_date.as_ref().is_some_and(|last| &date > last) {
+                run.out_of_order = true;
+            }
+            run.last_date = Some(date);
         }
     }
 
@@ -835,6 +892,12 @@ fn take_data(record: &mut RecordFile, shown: &RecordPage) {
     }
 }
 
+/// Something of the record is still to be brought on a page this walk has
+/// not read: the walk must get to it.
+fn unfinished_elsewhere(record: &RecordFile, run: &Run) -> bool {
+    record.entries.iter().any(|e| e.unfinished() && !run.seen.contains(&e.key()))
+}
+
 fn same_size(path: &Path, size: Option<u64>) -> bool {
     fs::metadata(path).map(|m| Some(m.len()) == size && m.len() > 0).unwrap_or(false)
 }
@@ -870,6 +933,9 @@ fn summary(record: &RecordFile, run: &Run) -> String {
     }
     if p.failed > 0 {
         parts.push(format!("{} no se pudieron bajar", p.failed));
+    }
+    if let Some(page) = p.known_from {
+        parts.push(format!("desde la página {page} ya estaba todo"));
     }
     format!("{}.", parts.join("; "))
 }
