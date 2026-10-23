@@ -26,7 +26,7 @@ const STORE_FILE: &str = "app-state.json";
 /// Where the folder is kept in it.
 const STORE_KEY: &str = "workspaceDir";
 
-/// The web clips (`clip_server`).
+/// The web clips (`local_server::clip`).
 pub const CLIPS: &str = "Recortes web";
 /// The records brought from the portals (`portals`).
 pub const RECORDS: &str = "Expedientes";

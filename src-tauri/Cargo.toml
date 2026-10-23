@@ -38,7 +38,8 @@ tauri-plugin-store = "2.4.2"
 tauri-plugin-http = { version = "2", features = ["unsafe-headers"] }
 # `blocking`: Micelya Core is asked from the worker threads (micelya_core).
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream", "blocking"] }
-# The web clipper's local server (clip_server.rs).
+# The app's one server inside the machine: the web clipper, the local API
+# and the MCP (local_server).
 tiny_http = "0.12"
 zip = "2"
 calamine = "0.34.0"

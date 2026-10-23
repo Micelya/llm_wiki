@@ -1,7 +1,7 @@
 mod agent;
-mod clip_server;
 mod commands;
 mod docbase;
+mod local_server;
 mod micelya_core;
 mod operations;
 mod panic_guard;
@@ -334,13 +334,6 @@ fn tray_available<R: tauri::Runtime>(window: &tauri::Window<R>) -> bool {
         .unwrap_or(false)
 }
 
-/// How the web clipper's local server is: `starting`, `running`,
-/// `port-in-use` or `stopped`.
-#[tauri::command]
-fn clip_server_status() -> String {
-    clip_server::state().to_string()
-}
-
 /// Every command of the app answers only to the app's own webview: the
 /// view of a judicial portal, a remote page inside the same window, never
 /// reaches them (D-447). Tauri already refuses them to a remote page that
@@ -432,9 +425,10 @@ pub fn run() {
             }
             docbase::commands::start(app.handle());
             // The work folder exists with its folders and is an origin
-            // (D-450); the web clipper's server saves the clips there.
+            // (D-450); the web clipper saves the clips there, through the
+            // app's one server inside the machine (D-495).
             work_folder::start(app.handle());
-            clip_server::start(app.handle().clone());
+            local_server::start(app.handle().clone());
             let tray_available = match tray::create_tray(app.handle()) {
                 Ok(()) => true,
                 Err(err) => {
@@ -608,7 +602,7 @@ pub fn run() {
             work_folder::work_folder_open,
             work_folder::work_folder_new_clips,
             work_folder::work_folder_clips_seen,
-            clip_server_status,
+            local_server::commands::local_server_status,
             operations::commands::operations_contract,
             operations::commands::operations_card,
             operations::commands::operations_choose,

@@ -57,9 +57,9 @@ export function markClipsSeen(): Promise<void> {
   return invoke("work_folder_clips_seen")
 }
 
-/** How the web clipper's local server is. */
+/** How the app's one server inside the machine is (the web clipper goes through it). */
 export type ClipServerState = "starting" | "running" | "port-in-use" | "stopped"
 
 export function getClipServerState(): Promise<ClipServerState> {
-  return invoke<ClipServerState>("clip_server_status")
+  return invoke<{ state: ClipServerState }>("local_server_status").then((status) => status.state)
 }
