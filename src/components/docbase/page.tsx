@@ -1,7 +1,15 @@
 import type { ReactNode } from "react"
-import { cn } from "@/lib/utils"
+import type { LucideIcon } from "lucide-react"
+import { Badge, type Tone as BrandTone } from "@/components/ui/badge"
+import { Callout } from "@/components/ui/callout"
 
-/** Frame shared by the document base screens: title, actions, scrolling body. */
+export { Panel } from "@/components/ui/panel"
+
+/**
+ * Frame shared by the document base screens: the name of the screen large
+ * in Mulish, what it is in grey below, its actions at the right, and the
+ * body that scrolls.
+ */
 export function DocbasePage({
   title,
   subtitle,
@@ -15,80 +23,59 @@ export function DocbasePage({
 }) {
   return (
     <div className="flex h-full flex-col">
-      <header className="flex shrink-0 items-start justify-between gap-4 border-b px-8 py-5">
+      <header className="flex shrink-0 items-start justify-between gap-4 border-b bg-background px-10 pt-7 pb-5">
         <div className="min-w-0">
-          <h1 className="text-xl font-semibold">{title}</h1>
-          {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
+          <h1 className="font-ui text-[1.75rem] leading-tight font-bold tracking-[-0.01em] text-strong">{title}</h1>
+          {subtitle && (
+            <p className="mt-1 font-ui text-sm font-medium text-muted-foreground first-letter:uppercase">{subtitle}</p>
+          )}
         </div>
         {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto px-8 py-6">{children}</div>
+      <div className="min-h-0 flex-1 overflow-y-auto px-10 py-7">{children}</div>
     </div>
   )
 }
 
 export type Tone = "neutral" | "ok" | "busy" | "warning" | "error"
 
-const TONES: Record<Tone, string> = {
-  neutral: "bg-muted text-muted-foreground",
-  ok: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
-  busy: "bg-blue-500/10 text-blue-700 dark:text-blue-400",
-  warning: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
-  error: "bg-destructive/10 text-destructive",
+const BRAND_TONE: Record<Tone, BrandTone> = {
+  neutral: "neutral",
+  ok: "ok",
+  busy: "info",
+  warning: "warn",
+  error: "err",
 }
 
-export function StatusBadge({ tone, children, title }: { tone: Tone; children: ReactNode; title?: string }) {
-  return (
-    <span
-      title={title}
-      className={cn(
-        "inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium whitespace-nowrap",
-        TONES[tone],
-      )}
-    >
-      {children}
-    </span>
-  )
-}
-
-export function Panel({
-  title,
-  count,
-  action,
+/**
+ * A small label in a list. Its words say the state; an `icon` can go with
+ * them (the style guide's badges always carry one where they tell a state).
+ */
+export function StatusBadge({
+  tone,
   children,
-  className,
+  title,
+  icon = null,
+  spin = false,
 }: {
-  title?: ReactNode
-  count?: ReactNode
-  action?: ReactNode
+  tone: Tone
   children: ReactNode
-  className?: string
+  title?: string
+  icon?: LucideIcon | null
+  spin?: boolean
 }) {
   return (
-    <section className={cn("rounded-lg border bg-card", className)}>
-      {title && (
-        <div className="flex items-center justify-between gap-3 border-b px-4 py-2.5">
-          <h2 className="flex items-center gap-2 text-sm font-semibold">
-            {title}
-            {count !== undefined && (
-              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                {count}
-              </span>
-            )}
-          </h2>
-          {action}
-        </div>
-      )}
-      <div className="px-4 py-3">{children}</div>
-    </section>
+    <Badge tone={BRAND_TONE[tone]} icon={icon} spin={spin} title={title} className="h-auto rounded px-1.5 py-0.5 font-semibold">
+      {children}
+    </Badge>
   )
 }
 
 export function ErrorNote({ children }: { children: ReactNode }) {
   return (
-    <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+    <Callout tone="err" title={null} className="px-3 py-2">
       {children}
-    </div>
+    </Callout>
   )
 }
 
