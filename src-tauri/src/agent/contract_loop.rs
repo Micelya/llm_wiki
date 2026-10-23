@@ -288,6 +288,58 @@ fn screen_for(name: &str) -> Option<&'static str> {
     None
 }
 
+/// The parts of the user text of a turn.
+struct Parts<'m> {
+    history: String,
+    documents: String,
+    observed: String,
+    unseen_images: bool,
+    message: &'m str,
+    continuing: bool,
+    used: usize,
+    max: usize,
+}
+
+fn render_observed(observed: &[Observed]) -> String {
+    observed
+        .iter()
+        .enumerate()
+        .map(|(i, o)| format!("{}. {}{}:\n{}", i + 1, o.what, if o.summarized { " (resumido)" } else { "" }, escape_parts(&o.text)))
+        .collect::<Vec<_>>()
+        .join("\n\n")
+}
+
+/// The user text of a turn, with its parts marked (3.3): the conversation,
+/// the attached documents, what was observed and the request.
+fn compose(parts: &Parts<'_>) -> String {
+    let mut out = String::new();
+    if !parts.history.is_empty() {
+        out.push_str(&format!("<CONVERSACION>\n{}\n</CONVERSACION>\n\n", parts.history));
+    }
+    if !parts.documents.is_empty() {
+        out.push_str(&format!("<DOCUMENTOS>\nLos documentos adjuntos al mensaje («este documento», «estos»):\n\n{}</DOCUMENTOS>\n\n", parts.documents));
+    }
+    let observed = if parts.observed.is_empty() { "Nada todavía." } else { parts.observed.as_str() };
+    out.push_str(&format!("<OBSERVADO>\n{observed}\n</OBSERVADO>\n\n"));
+    if parts.unseen_images {
+        out.push_str("(La persona adjuntó imágenes que este motor no puede ver: decíselo si hacen falta.)\n\n");
+    }
+    out.push_str(&format!("<PEDIDO>\n{}\n</PEDIDO>\n\n", escape_parts(parts.message.trim())));
+    if parts.continuing {
+        out.push_str("La persona pidió seguir buscando: seguí desde lo observado, sin repetir lo que ya leíste.\n");
+    }
+    out.push_str(&prompt::budget_line(parts.used, parts.max));
+    out.push_str("\nDevolvé ahora el bloque JSON del paso siguiente.");
+    out
+}
+
+/// The user text of a turn over an invented case, for «Lo que se le
+/// pregunta al modelo» (D-481): the request, and one search observed.
+pub(crate) fn example_user_text(message: &str, observed_what: &str, observed_text: &str, used: usize, max: usize) -> String {
+    let observed = render_observed(&[Observed { what: observed_what.to_string(), text: observed_text.to_string(), summarized: false }]);
+    compose(&Parts { history: String::new(), documents: String::new(), observed, unseen_images: false, message, continuing: false, used, max })
+}
+
 /// The turn of the chat, with what the runtime already did.
 pub(super) struct Turn<'a> {
     pub request: &'a AgentChatRequest,
@@ -406,14 +458,14 @@ struct Loop<'a> {
 }
 
 impl<'a> Loop<'a> {
-    fn render_history(&self) -> String {
+    fn render_history(&self, budget: usize) -> String {
         let mut lines: Vec<String> = Vec::new();
         let mut total = 0;
         for message in self.turn.request.history.iter().rev() {
             let who = if message.role == "user" { "persona" } else { "asistente" };
             let line = format!("{who}: {}", trim_chars(message.content.trim(), 4_000));
             total += line.chars().count();
-            if total > MAX_HISTORY_CHARS {
+            if total > budget {
                 break;
             }
             lines.push(line);
@@ -450,51 +502,57 @@ impl<'a> Loop<'a> {
     }
 
     fn render_observed(&self) -> String {
-        self.state
-            .observed
-            .iter()
-            .enumerate()
-            .map(|(i, o)| format!("{}. {}{}:\n{}", i + 1, o.what, if o.summarized { " (resumido)" } else { "" }, escape_parts(&o.text)))
-            .collect::<Vec<_>>()
-            .join("\n\n")
+        render_observed(&self.state.observed)
     }
 
-    /// The user part of a turn, fitted to the engine: the oldest
-    /// observations are summarized first, then the conversation is cut;
-    /// the instructions and the request are never touched (5.4).
+    /// The user part of a turn, fitted to the engine (5.4): the oldest
+    /// observations are summarized first, then the conversation is cut,
+    /// then the text of the attached documents; the instructions and the
+    /// request are never touched.
     fn user_text(&mut self, max: usize, continuing: bool) -> String {
+        let room = self.turn.context_chars.saturating_sub(self.instructions.chars().count());
+        let mut history_budget = MAX_HISTORY_CHARS;
+        let mut documents_budget = MAX_DOCUMENTS_CHARS;
         loop {
-            let history = self.render_history();
-            let documents = self.render_documents(MAX_DOCUMENTS_CHARS);
-            let mut out = String::new();
-            if !history.is_empty() {
-                out.push_str(&format!("<CONVERSACION>\n{history}\n</CONVERSACION>\n\n"));
-            }
-            if !documents.is_empty() {
-                out.push_str(&format!("<DOCUMENTOS>\nLos documentos adjuntos al mensaje («este documento», «estos»):\n\n{documents}</DOCUMENTOS>\n\n"));
-            }
-            let observed = self.render_observed();
-            out.push_str(&format!("<OBSERVADO>\n{}\n</OBSERVADO>\n\n", if observed.is_empty() { "Nada todavía.".to_string() } else { observed }));
-            if self.turn.text_only && !self.turn.request.images.is_empty() {
-                out.push_str("(La persona adjuntó imágenes que este motor no puede ver: decíselo si hacen falta.)\n\n");
-            }
-            out.push_str(&format!("<PEDIDO>\n{}\n</PEDIDO>\n\n", escape_parts(self.turn.message.trim())));
-            if continuing {
-                out.push_str("La persona pidió seguir buscando: seguí desde lo observado, sin repetir lo que ya leíste.\n");
-            }
-            out.push_str(&prompt::budget_line(self.state.used, max));
-            out.push_str("\nDevolvé ahora el bloque JSON del paso siguiente.");
-            let total = self.instructions.chars().count() + out.chars().count();
-            if total <= self.turn.context_chars {
+            let parts = Parts {
+                history: self.render_history(history_budget),
+                documents: self.render_documents(documents_budget),
+                observed: self.render_observed(),
+                unseen_images: self.turn.text_only && !self.turn.request.images.is_empty(),
+                message: self.turn.message,
+                continuing,
+                used: self.state.used,
+                max,
+            };
+            let out = compose(&parts);
+            if out.chars().count() <= room {
                 return out;
             }
-            // Summarize the oldest observation not summarized yet.
             if let Some(oldest) = self.state.observed.iter_mut().find(|o| !o.summarized && o.text.chars().count() > SUMMARY_CHARS) {
                 oldest.text = trim_chars(&oldest.text, SUMMARY_CHARS);
                 oldest.summarized = true;
                 continue;
             }
-            return trim_chars(&out, self.turn.context_chars.saturating_sub(self.instructions.chars().count()).max(4_000));
+            if history_budget > 0 {
+                history_budget /= 2;
+                if history_budget < 1_000 {
+                    history_budget = 0;
+                }
+                continue;
+            }
+            if documents_budget > 0 {
+                documents_budget /= 2;
+                if documents_budget < 1_000 {
+                    documents_budget = 0;
+                }
+                continue;
+            }
+            // The oldest observations go, whole.
+            if self.state.observed.len() > 1 {
+                self.state.observed.remove(0);
+                continue;
+            }
+            return out;
         }
     }
 
