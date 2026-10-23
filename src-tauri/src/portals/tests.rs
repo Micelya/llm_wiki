@@ -99,6 +99,194 @@ fn the_record_page_is_read_by_its_labels_from_the_table_of_entries() {
     assert_eq!(record.page_number, Some(3));
 }
 
+/// The day of an invented date has one digit ("7/11/2025").
+fn short_day(date: &str) -> bool {
+    date.split('/').next().is_some_and(|day| day.len() == 1)
+}
+
+#[test]
+fn the_page_of_the_scw_is_read_whole_with_its_dates_without_a_zero() {
+    let list = fixtures::scw_entries(40, 700);
+    // The first page has rows whose day has one digit, as the portal
+    // writes it: the reader of before left them out.
+    assert!(list[..15].iter().filter(|e| short_day(&e.date)).count() >= 4);
+    let page = marked(&fixtures::scw_record_page(&record_view(&list, 1, false, false)), fixtures::RECORD_URL);
+    assert_eq!(Pjn.screen(&page), Screen::Record);
+    assert!(!Pjn.busy(&page), "the hidden signs of «Consulta en proceso» are not the sign");
+    let record = Pjn.record(&page);
+    assert_eq!(record.rows.len(), 15);
+    assert_eq!(record.unread, super::Unread::default());
+    assert_eq!(record.page_number, Some(1));
+    assert!(record.next.is_some());
+    // The main data, each label in a box of its own.
+    assert_eq!(record.data.shown, Some(key()));
+    assert_eq!(record.data.title.as_deref(), Some(TITLE));
+    assert_eq!(record.data.jurisdiction.as_deref(), Some("Cámara Inventada de Prueba"));
+    assert_eq!(record.data.office.as_deref(), Some("JUZGADO INVENTADO 99 - SECRETARIA Nº 98"));
+    assert_eq!(record.data.situation.as_deref(), Some("EN LETRA"));
+    for (row, fake) in record.rows.iter().zip(&list[..15]) {
+        // Without the labels only a screen reader says.
+        assert_eq!(row.kind, fake.kind);
+        assert_eq!(row.detail, fake.detail);
+        assert_eq!(row.folios, fake.folios);
+        assert_eq!(row.office.as_deref(), Some("099"));
+        // The date, with its zeros.
+        assert_eq!(store::canonical_date(&row.date), store::canonical_date(&fake.date));
+        assert_eq!(row.date.len(), 10, "{}", row.date);
+        // «Descargar» in the first cell, never «Ver».
+        assert_eq!(row.download.is_some(), fake.document.is_some(), "{} {}", fake.kind, fake.date);
+        if let (Some(link), Some(id)) = (&row.download, fake.document) {
+            let href = link.href.as_deref().unwrap();
+            assert!(href.contains(&format!("id=doc-{id}-")) && href.ends_with("&download=true"), "{href}");
+        }
+    }
+    let with_document = record.rows.iter().filter(|r| r.download.is_some()).count();
+    assert_eq!(with_document, 9);
+    // The last page: no «Siguiente».
+    let page = marked(&fixtures::scw_record_page(&record_view(&list, 3, false, false)), fixtures::RECORD_URL);
+    let record = Pjn.record(&page);
+    assert_eq!((record.rows.len(), record.next.is_none(), record.page_number), (10, true, Some(3)));
+}
+
+#[test]
+fn a_row_that_cannot_be_read_is_told_never_left_out_in_silence() {
+    let mut list = fixtures::scw_entries(20, 700);
+    list[2].date = "s/f".to_string();
+    assert!(list[2].document.is_some());
+    let page = marked(&fixtures::scw_record_page(&record_view(&list, 1, false, false)), fixtures::RECORD_URL);
+    let record = Pjn.record(&page);
+    assert_eq!(record.rows.len(), 14);
+    assert_eq!(record.unread, super::Unread { rows: 1, with_document: 1 });
+    let dir = TempDir::new();
+    let mut portal = FakePortal::new(REFERENCE, TITLE, list);
+    portal.scw = true;
+    let outcome = walk_with(dir.path(), &store::NoneKnown).run(&mut portal, &key()).unwrap();
+    assert_eq!(
+        outcome.warnings,
+        vec!["La página 1 tiene 1 fila que la app no pudo leer como actuaciones, 1 con documento: no se trajeron. Mirala en el portal y avisá."]
+    );
+}
+
+#[test]
+fn dates_are_found_with_one_or_two_digits_and_written_with_two() {
+    use super::pjn::{find_date, without_label};
+    for (text, date) in [
+        ("7/11/2025", Some("07/11/2025")),
+        ("Fecha: 3/10/2025", Some("03/10/2025")),
+        ("14/11/2025", Some("14/11/2025")),
+        ("05/3/2024", Some("05/03/2024")),
+        ("INFORME [Presentado 11/11/2025 14:01]", Some("11/11/2025")),
+        ("123/11/2025", None),
+        ("1/13/2025", None),
+        ("5/3/20251", None),
+        ("5/3/25", None),
+        ("sin fecha", None),
+    ] {
+        assert_eq!(find_date(text).as_deref(), date, "{text}");
+    }
+    assert_eq!(without_label("Tipo actuacion: FIRMA DESPACHO"), "FIRMA DESPACHO");
+    assert_eq!(without_label("Detalle: EN LETRA"), "EN LETRA");
+    assert_eq!(without_label("Oficina: 099"), "099");
+    assert_eq!(without_label("OFICIO: AL REGISTRO INVENTADO"), "OFICIO: AL REGISTRO INVENTADO");
+    assert_eq!(without_label("ESCRITO AGREGADO"), "ESCRITO AGREGADO");
+}
+
+#[test]
+fn the_walk_over_the_scw_brings_every_entry_and_every_document() {
+    let dir = TempDir::new();
+    let list = fixtures::scw_entries(40, 700);
+    let documents: Vec<u32> = list.iter().filter_map(|e| e.document).collect();
+    let mut portal = FakePortal::new(REFERENCE, TITLE, list.clone());
+    portal.scw = true;
+    let outcome = walk_with(dir.path(), &store::NoneKnown).run(&mut portal, &key()).unwrap();
+    assert_eq!(outcome.seen, 40);
+    assert_eq!(outcome.with_document, documents.len());
+    let mut got = portal.downloads.clone();
+    got.sort();
+    let mut want = documents.clone();
+    want.sort();
+    assert_eq!(got, want);
+    assert!(outcome.warnings.is_empty(), "{:?}", outcome.warnings);
+    assert_eq!(portal.presses, vec!["Consultar", "Siguiente", "Siguiente"]);
+    let folder = dir.path().join("PJN").join("ZZZ 4321-2011");
+    let record = store::load(&folder).unwrap().unwrap();
+    assert_eq!(record.data.title.as_deref(), Some(TITLE));
+    assert_eq!(record.entries.len(), 40);
+    // Named without the screen reader's labels.
+    assert!(pdfs_in(&folder).iter().all(|n| !n.to_uppercase().contains("TIPO-ACTUACION") && !n.contains("Detalle")), "{:?}", pdfs_in(&folder));
+}
+
+/// What the reader of before kept of a record of the SCW: only the rows
+/// whose day has two digits, with the labels of the screen reader in
+/// their kind, detail and office, and their documents downloaded with
+/// those names.
+fn kept_by_the_old_reader(folder: &Path, list: &[fixtures::FakeEntry]) -> Vec<String> {
+    let mut record = RecordFile::new("pjn", &key());
+    let mut names = Vec::new();
+    for fake in list.iter().filter(|e| !short_day(&e.date)) {
+        let mut entry = Entry {
+            date: fake.date.clone(),
+            kind: format!("Tipo actuacion: {}", fake.kind),
+            detail: format!("Detalle: {}", fake.detail),
+            folios: fake.folios.clone(),
+            office: Some(format!("Oficina: {}", fake.office)),
+            has_document: fake.document.is_some(),
+            state: state::NO_DOCUMENT.to_string(),
+            ..Entry::default()
+        };
+        if fake.document.is_some() {
+            let name = store::document_name(&key(), &entry);
+            let body = format!("%PDF-1.4 bajado antes {name}");
+            fs::create_dir_all(folder).unwrap();
+            fs::write(folder.join(&name), &body).unwrap();
+            entry.state = state::DOWNLOADED.to_string();
+            entry.size = Some(body.len() as u64);
+            entry.file = Some(name.clone());
+            names.push(name);
+        }
+        record.entries.push(entry);
+    }
+    record.updated_at = Some(store::now_text());
+    store::save(folder, &record).unwrap();
+    names
+}
+
+#[test]
+fn an_update_brings_what_the_old_reader_left_out_and_downloads_nothing_twice() {
+    let dir = TempDir::new();
+    let list = fixtures::scw_entries(40, 700);
+    let folder = dir.path().join("PJN").join("ZZZ 4321-2011");
+    let before = kept_by_the_old_reader(&folder, &list);
+    assert!(before.iter().all(|n| n.contains("TIPO-ACTUACION")), "{before:?}");
+    let left_out: Vec<u32> = list.iter().filter(|e| short_day(&e.date)).filter_map(|e| e.document).collect();
+    assert!(!left_out.is_empty() && !before.is_empty());
+    let mut portal = FakePortal::new(REFERENCE, TITLE, list.clone());
+    portal.scw = true;
+    let outcome = walk_with(dir.path(), &store::NoneKnown).run(&mut portal, &key()).unwrap();
+    // Only what was left out is downloaded.
+    let mut got = portal.downloads.clone();
+    got.sort();
+    let mut want = left_out.clone();
+    want.sort();
+    assert_eq!(got, want);
+    assert_eq!(outcome.downloaded, left_out.len());
+    assert_eq!(outcome.already, before.len());
+    assert!(outcome.warnings.is_empty(), "{:?}", outcome.warnings);
+    // Every entry once, read as now; the files of before keep their names.
+    let record = store::load(&folder).unwrap().unwrap();
+    assert_eq!(record.entries.len(), 40);
+    assert!(record.entries.iter().all(|e| !e.kind.starts_with("Tipo") && !e.detail.starts_with("Detalle")));
+    assert_eq!(record.entries.iter().filter(|e| e.office.as_deref() == Some("099")).count(), 40);
+    let names = pdfs_in(&folder);
+    assert_eq!(names.len(), before.len() + left_out.len());
+    assert!(before.iter().all(|n| names.contains(n)));
+    // And again: nothing.
+    let mut again = FakePortal::new(REFERENCE, TITLE, list);
+    again.scw = true;
+    walk_with(dir.path(), &store::NoneKnown).run(&mut again, &key()).unwrap();
+    assert!(again.downloads.is_empty(), "{:?}", again.downloads);
+}
+
 #[test]
 fn each_screen_is_told_by_what_a_person_reads() {
     let list = entries(5, 1);

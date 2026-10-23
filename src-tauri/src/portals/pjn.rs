@@ -6,11 +6,16 @@
 //!
 //! - The form: a jurisdiction (a list), a number and a year, and before
 //!   "Consultar" an anti-robot challenge ("Ver desafío") a person solves.
-//! - The record (`expediente.seam`): its main data, and the table of its
-//!   entries ("actuaciones"), 15 per page, paged by AJAX. The table is the
-//!   one with the column "A FS."; each entry with a document has a
-//!   "Descargar" link (a GET that answers the PDF with the session); the
-//!   "MOVIMIENTO" ones have none. "Ver" opens a viewer: never used.
+//! - The record (`expediente.seam`): its main data (each label in a box of
+//!   its own, its value in the next one), and the table of its entries
+//!   ("actuaciones"), 15 per page, newest first, paged by AJAX. The table
+//!   is the one with the column "A FS."; each entry with a document has a
+//!   "Descargar" link in its first cell (a GET that answers the PDF with
+//!   the session); the "MOVIMIENTO" and "EVENTO" ones have none, nor
+//!   folios. "Ver" opens a viewer: never used. The dates are written with
+//!   the day and the month without a zero ("7/11/2025"), and every cell
+//!   starts with a label only a screen reader says ("Fecha: ", "Tipo
+//!   actuacion: "), which is not part of what the cell says.
 //! - The pager: a moving window of about ten numbers, the current page as
 //!   a `<span>`, and arrows that are icons named by their `title`
 //!   ("Primera página", "Anterior", "Siguiente", "Última página"). It is
@@ -18,8 +23,8 @@
 //!   paged table, «Notas» (who looked at the record), which is never read
 //!   nor kept.
 
-use super::page::{label_norm, norm, Page};
-use super::{find_case_keys, CaseKey, Connector, DownloadLink, FormPlan, Linked, RecordData, RecordPage, Row, Screen};
+use super::page::{label_norm, norm, El, Page};
+use super::{find_case_keys, CaseKey, Connector, DownloadLink, FormPlan, Linked, RecordData, RecordPage, Row, Screen, Unread};
 
 pub struct Pjn;
 
@@ -35,6 +40,15 @@ const PAGER_NAMES: &[&str] = &["siguiente", "anterior", "primera pagina", "ultim
 /// The words of the sign the portal shows while it processes a query
 /// (with its own «Cancelar»), normalized.
 const BUSY_SIGNS: &[&str] = &["consulta en proceso", "procesando la consulta", "procesando consulta"];
+
+/// The labels only a screen reader says at the start of each cell of the
+/// table of entries, normalized (`label_norm`).
+const SCREEN_READER_LABELS: &[&str] =
+    &["oficina", "fecha", "tipo actuacion", "tipo de actuacion", "tipo", "detalle", "descripcion", "descripcion / detalle", "fojas", "a fs"];
+
+/// The classes that hide an element from the eyes and leave it for a
+/// screen reader.
+const SCREEN_READER_CLASSES: &[&str] = &["sr-only", "visually-hidden", "screenreader-only", "ui-helper-hidden-accessible"];
 
 impl Connector for Pjn {
     fn id(&self) -> &'static str {
@@ -104,13 +118,14 @@ impl Connector for Pjn {
             return RecordPage {
                 data: RecordData::default(),
                 rows: Vec::new(),
+                unread: Unread::default(),
                 next: None,
                 page_number: None,
                 signature: String::new(),
                 linked: Vec::new(),
             };
         };
-        let rows = entries(page, &table);
+        let (rows, unread) = entries(page, &table);
         let (next, page_number) = pager(page, table.table);
         let signature = format!(
             "{}|{}|{}",
@@ -118,7 +133,14 @@ impl Connector for Pjn {
             rows.len(),
             rows.first().map(|r| format!("{} {} {} {}", r.date, r.kind, r.folios, r.detail)).unwrap_or_default()
         );
-        RecordPage { data: record_data(page, table.table), rows, next, page_number, signature, linked: linked(page, table.table) }
+        RecordPage { data: record_data(page, table.table), rows, unread, next, page_number, signature, linked: linked(page, table.table) }
+    }
+
+    /// What an earlier version of this connector kept of an entry, with
+    /// the label only a screen reader says ("Tipo actuacion: MOVIMIENTO"),
+    /// is read without it, as the cell is read now.
+    fn tidy(&self, text: &str) -> String {
+        without_label(text)
     }
 
     fn message(&self, page: &Page) -> Option<String> {
@@ -353,48 +375,113 @@ fn entries_table(page: &Page) -> Option<EntriesTable> {
     Some(found)
 }
 
-/// "dd/mm/yyyy" inside a text, as it is written.
+/// A date inside a text, "d/m/yyyy" with the day and the month of one or
+/// two digits ("7/11/2025", as the portal writes them, or "07/11/2025"),
+/// written "dd/mm/yyyy".
 pub fn find_date(text: &str) -> Option<String> {
     let chars: Vec<char> = text.chars().collect();
+    let digits = |from: usize| chars[from.min(chars.len())..].iter().take_while(|c| c.is_ascii_digit()).count();
+    let number = |from: usize, len: usize| chars[from..from + len].iter().collect::<String>().parse::<u32>().ok();
     for start in 0..chars.len() {
-        let rest: String = chars[start..].iter().take(10).collect();
-        let b = rest.as_bytes();
-        if b.len() == 10
-            && b[0..2].iter().all(u8::is_ascii_digit)
-            && b[2] == b'/'
-            && b[3..5].iter().all(u8::is_ascii_digit)
-            && b[5] == b'/'
-            && b[6..10].iter().all(u8::is_ascii_digit)
-            && (start == 0 || !chars[start - 1].is_ascii_digit())
-        {
-            return Some(rest);
+        if !chars[start].is_ascii_digit() || (start > 0 && chars[start - 1].is_ascii_digit()) {
+            continue;
+        }
+        let day_len = digits(start);
+        let first_slash = start + day_len;
+        if !(1..=2).contains(&day_len) || chars.get(first_slash) != Some(&'/') {
+            continue;
+        }
+        let month_len = digits(first_slash + 1);
+        let second_slash = first_slash + 1 + month_len;
+        if !(1..=2).contains(&month_len) || chars.get(second_slash) != Some(&'/') {
+            continue;
+        }
+        if digits(second_slash + 1) != 4 {
+            continue;
+        }
+        let (Some(day), Some(month), Some(year)) =
+            (number(start, day_len), number(first_slash + 1, month_len), number(second_slash + 1, 4))
+        else {
+            continue;
+        };
+        if (1..=31).contains(&day) && (1..=12).contains(&month) {
+            return Some(format!("{day:02}/{month:02}/{year:04}"));
         }
     }
     None
 }
 
-fn entries(page: &Page, table: &EntriesTable) -> Vec<Row> {
+/// Whether an element is there only for a screen reader.
+fn screen_reader_only(el: &El) -> bool {
+    let class = el.attr("class").unwrap_or("").to_lowercase();
+    class.split_whitespace().any(|c| SCREEN_READER_CLASSES.contains(&c))
+}
+
+/// A text without the label only a screen reader says at its start
+/// ("Fecha: 7/11/2025" is "7/11/2025").
+pub fn without_label(text: &str) -> String {
+    let text = text.trim();
+    if let Some((head, rest)) = text.split_once(':') {
+        if head.chars().count() <= 24 && SCREEN_READER_LABELS.contains(&label_norm(head).as_str()) {
+            return rest.trim().to_string();
+        }
+    }
+    text.to_string()
+}
+
+/// What a cell says to the eyes: its text without what is there only for
+/// a screen reader.
+fn cell_text(page: &Page, cell: usize) -> String {
+    let mut text = page.el(cell).text.clone();
+    for inner in cell + 1..=page.el(cell).end {
+        let el = page.el(inner);
+        if el.text.is_empty() || !screen_reader_only(el) {
+            continue;
+        }
+        if let Some(rest) = text.strip_prefix(el.text.as_str()) {
+            text = rest.trim_start().to_string();
+        } else if let Some(rest) = text.strip_suffix(el.text.as_str()) {
+            text = rest.trim_end().to_string();
+        }
+    }
+    without_label(&text)
+}
+
+/// The entries of the table, and the rows of it that could not be read as
+/// one: none should be, so they are told, never left out in silence.
+fn entries(page: &Page, table: &EntriesTable) -> (Vec<Row>, Unread) {
     let in_footer = |row: usize| page.ancestor(row, &["tfoot", "table"]).is_some_and(|a| page.el(a).tag == "tfoot");
-    (table.table + 1..=page.el(table.table).end)
+    let mut unread = Unread::default();
+    let rows = (table.table + 1..=page.el(table.table).end)
         .filter(|&r| page.el(r).tag == "tr" && r != table.header)
         .filter(|&r| page.ancestor(r, &["table"]) == Some(table.table) && !in_footer(r))
         .filter_map(|r| {
             let cells = cells(page, r);
-            if cells.iter().any(|&c| page.el(c).tag == "th") {
+            if cells.is_empty() || cells.iter().any(|&c| page.el(c).tag == "th") {
                 return None;
             }
-            let text = |column: Option<usize>| column.and_then(|c| cells.get(c)).map(|&c| page.el(c).text.clone());
-            let date = text(table.date).as_deref().and_then(find_date)?;
+            let text = |column: Option<usize>| column.and_then(|c| cells.get(c)).map(|&c| cell_text(page, c));
+            let download = download_link(page, r);
+            let Some(date) = text(table.date).as_deref().and_then(find_date) else {
+                // A row of the table that says something (not a note that
+                // spans it) is an entry that could not be read.
+                if cells.len() > 2 && !page.el(r).text.is_empty() {
+                    unread.rows += 1;
+                    unread.with_document += usize::from(download.is_some());
+                }
+                return None;
+            };
             Some(Row {
                 date,
                 kind: text(table.kind).unwrap_or_default(),
                 detail: text(table.detail).unwrap_or_default(),
                 folios: text(table.folios).unwrap_or_default(),
                 office: text(table.office).filter(|o| !o.is_empty()),
-                download: download_link(page, r),
+                download,
             })
         })
-        .collect()
+        .collect();
+    (rows, unread)
 }
 
 /// The "Descargar" link of an entry: by its words, or by the `title` of
@@ -488,22 +575,27 @@ fn current_page(page: &Page, arrow: usize, range: &std::ops::Range<usize>) -> Op
     None
 }
 
-/// A value next to its label, before the table of entries.
+/// A value next to its label, before the table of entries: the next box
+/// after the label, or after the box that holds it (the portal puts each
+/// label in a box of its own and its value in the next one), or the rest
+/// of the text of the box.
 fn labeled(page: &Page, names: &[&str], before: usize) -> Option<String> {
     for label in page.labels(names, 0..before) {
-        let el = page.el(label);
-        let sibling = el.parent.and_then(|p| page.children(p).into_iter().find(|&c| c > label));
-        if let Some(value) = sibling.map(|s| page.el(s).text.clone()).filter(|t| !t.is_empty()) {
-            return Some(value);
-        }
-        if let Some(parent) = el.parent {
+        let mut node = label;
+        for _ in 0..3 {
+            let Some(parent) = page.el(node).parent else { break };
+            let sibling = page.children(parent).into_iter().filter(|&c| c > node).map(|c| page.el(c).text.clone()).find(|t| !t.is_empty());
+            if let Some(value) = sibling {
+                return Some(value);
+            }
             let whole = &page.el(parent).text;
-            if let Some(rest) = whole.strip_prefix(el.text.as_str()) {
+            if let Some(rest) = whole.strip_prefix(page.el(node).text.as_str()) {
                 let rest = rest.trim_start_matches(':').trim();
                 if !rest.is_empty() {
                     return Some(rest.to_string());
                 }
             }
+            node = parent;
         }
     }
     None
@@ -517,7 +609,7 @@ fn record_data(page: &Page, table: usize) -> RecordData {
         title: labeled(page, &["caratula"], table),
         jurisdiction: labeled(page, &["jurisdiccion"], table),
         office: labeled(page, &["dependencia"], table),
-        situation: labeled(page, &["situacion actual", "situacion"], table),
+        situation: labeled(page, &["situacion actual", "sit. actual", "sit actual", "situacion"], table),
     }
 }
 

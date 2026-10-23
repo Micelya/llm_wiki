@@ -203,6 +203,7 @@ impl Walk<'_> {
     pub fn run(&self, browser: &mut dyn Browser, key: &CaseKey) -> Result<Progress, Stop> {
         let folder = store::record_folder(&self.portal_folder, key);
         let mut record = store::load(&folder).map_err(Stop::Failed)?.unwrap_or_else(|| RecordFile::new(self.connector.id(), key));
+        self.tidy(&mut record);
         store::save(&folder, &record).map_err(Stop::Failed)?;
         let mut run = Run::default();
         run.progress.state = "working".to_string();
@@ -231,6 +232,20 @@ impl Walk<'_> {
         run.progress.person = None;
         browser.report(&run.progress);
         Ok(run.progress)
+    }
+
+    /// The entries kept by an earlier version of the connector, read as it
+    /// reads them now (`Connector::tidy`): each keeps its key, so what was
+    /// downloaded is not downloaded again. Their files keep their names.
+    fn tidy(&self, record: &mut RecordFile) {
+        for entry in &mut record.entries {
+            for text in [&mut entry.date, &mut entry.kind, &mut entry.detail, &mut entry.folios] {
+                *text = self.connector.tidy(text);
+            }
+            if let Some(office) = &mut entry.office {
+                *office = self.connector.tidy(office);
+            }
+        }
     }
 
     fn say(&self, browser: &mut dyn Browser, run: &mut Run, message: String) {
@@ -564,16 +579,9 @@ impl Walk<'_> {
             }
             run.progress.page = shown.page_number;
             take_data(record, &shown);
-            if let Some(full) = self.connector.rows_per_page() {
-                if shown.next.is_some() && shown.rows.len() != full {
-                    let warning = format!(
-                        "La página {} mostró {} actuaciones y no {full}",
-                        shown.page_number.map(|n| n.to_string()).unwrap_or_else(|| "?".to_string()),
-                        shown.rows.len()
-                    );
-                    if !run.progress.warnings.contains(&warning) {
-                        run.progress.warnings.push(warning);
-                    }
+            if let Some(warning) = page_warning(&shown, self.connector.rows_per_page()) {
+                if !run.progress.warnings.contains(&warning) {
+                    run.progress.warnings.push(warning);
                 }
             }
             for row in &shown.rows {
@@ -777,6 +785,33 @@ impl Walk<'_> {
             run.progress.warnings.push(format!("{missing} documentos quedaron sin bajar: se intentan en la próxima actualización"));
         }
     }
+}
+
+/// What a page of the table says that does not add up: rows the connector
+/// could not read as entries (said exactly), or, when every row was read,
+/// fewer entries than a full page while there are more pages.
+fn page_warning(shown: &RecordPage, full: Option<usize>) -> Option<String> {
+    let number = shown.page_number.map(|n| n.to_string()).unwrap_or_else(|| "?".to_string());
+    let unread = shown.unread;
+    if unread.rows > 0 {
+        let rows = if unread.rows == 1 { "1 fila".to_string() } else { format!("{} filas", unread.rows) };
+        let documents = match unread.with_document {
+            0 => String::new(),
+            1 => ", 1 con documento".to_string(),
+            n => format!(", {n} con documento"),
+        };
+        return Some(format!(
+            "La página {number} tiene {rows} que la app no pudo leer como actuaciones{documents}: no se trajeron. Mirala en el portal y avisá."
+        ));
+    }
+    let full = full?;
+    if shown.next.is_some() && shown.rows.len() != full {
+        return Some(format!(
+            "La página {number} mostró {} actuaciones y no {full} como las demás: mirala en el portal; si tiene más, avisá.",
+            shown.rows.len()
+        ));
+    }
+    None
 }
 
 fn take_data(record: &mut RecordFile, shown: &RecordPage) {
