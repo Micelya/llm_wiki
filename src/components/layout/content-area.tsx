@@ -15,6 +15,7 @@ import { IdentityDoubtsView } from "@/components/knowledge/doubts-view"
 import { MattersView } from "@/components/knowledge/matters-view"
 import { PortalsView } from "@/components/portals/portals-view"
 import { TemplatesView } from "@/components/docbase/templates-view"
+import { ProgramRequestsView } from "@/components/operations/program-requests-view"
 
 export function ContentArea() {
   const activeView = useWikiStore((s) => s.activeView)
@@ -49,6 +50,8 @@ export function ContentArea() {
       return <TemplatesView />
     case "portals":
       return <PortalsView />
+    case "program-requests":
+      return <ProgramRequestsView />
     case "home":
     default:
       return <HomeView />

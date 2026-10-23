@@ -23,6 +23,20 @@ function message(cause: unknown): string {
 }
 
 /**
+ * Who proposed a card, in words: the chat's model, a screen, or a program
+ * connected to the server inside the machine, by the name it had (D-495).
+ */
+export function proposedByText(card: Card): string {
+  const { caller, engine } = card.proposedBy
+  if (caller === "chat") {
+    const model = engine ? ` (${engine.split(":").slice(1).join(":") || engine})` : ""
+    return `Lo propuso el modelo${model}.`
+  }
+  if (caller === "screen") return "Desde la pantalla."
+  return `Lo pidió «${engine || caller.replace(/^program:/, "")}», un programa conectado.`
+}
+
+/**
  * The card of a change the chat proposed (4.2): what it will do, with the
  * verb and the count; each thing as the base keeps it, with a box to
  * untick it and a way to open it; what was not found; «¿Cuál?» when a name
@@ -150,7 +164,6 @@ export function OperationCardView({ card: initial, onChange }: { card: Card; onC
     else if (item.locationId !== null) openDocument(item.locationId)
   }
 
-  const engine = card.proposedBy.engine ? ` (${card.proposedBy.engine.split(":").slice(1).join(":") || card.proposedBy.engine})` : ""
   const target = card.target
 
   return (
@@ -236,7 +249,7 @@ export function OperationCardView({ card: initial, onChange }: { card: Card; onC
       </div>
       {waiting && card.undoNote && <div className="mt-2 text-xs text-muted-foreground">{card.undoNote}</div>}
       <div className="mt-2 text-[11px] text-muted-foreground">
-        {card.proposedBy.caller === "chat" ? `Lo propuso el modelo${engine}.` : card.proposedBy.caller === "screen" ? "Desde la pantalla." : `Lo pidió ${card.proposedBy.caller.replace(/^program:/, "")}.`}
+        {proposedByText(card)}
         {waiting ? " Todavía no se hizo nada." : ""}
       </div>
     </div>

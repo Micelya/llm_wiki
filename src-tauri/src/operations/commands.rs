@@ -86,3 +86,13 @@ pub fn operations_apply(app: tauri::AppHandle, state: State<'_, DocBaseState>, o
 pub fn operations_log(state: State<'_, DocBaseState>, filter: Option<String>, limit: Option<usize>) -> Result<Vec<LogEntry>, String> {
     super::log::list(&*state.shared()?, filter.as_deref(), limit.unwrap_or(100).min(1_000))
 }
+
+/// The changes other programs asked for that wait for a person (Atención,
+/// «Pedidos de otros programas»), each with its card as the base is now.
+/// The ones nobody decided in seven days expire first.
+#[tauri::command(async)]
+pub fn operations_program_requests(state: State<'_, DocBaseState>) -> Result<Vec<Card>, String> {
+    let base = state.shared()?;
+    super::log::expire_program_requests(&base, crate::docbase::now_ms())?;
+    super::log::program_requests(&base)?.into_iter().map(|entry| flow::current(&base, entry.id)).collect()
+}

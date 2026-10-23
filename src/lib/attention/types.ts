@@ -49,6 +49,8 @@ export type AttentionTarget =
   | { view: "matters"; matterId?: string | null }
   /** The judicial portals («Portales»). */
   | { view: "portals" }
+  /** The changes other programs asked for, each with its card (D-495). */
+  | { view: "program-requests" }
 
 /** A button of a line or of one of its cases. */
 export type AttentionAction =

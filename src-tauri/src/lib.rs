@@ -619,6 +619,7 @@ pub fn run() {
             operations::commands::operations_undo,
             operations::commands::operations_apply,
             operations::commands::operations_log,
+            operations::commands::operations_program_requests,
         ]))
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {

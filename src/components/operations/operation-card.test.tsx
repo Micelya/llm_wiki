@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it, vi } from "vitest"
 import { operationHistoryLine, type OperationCard } from "@/commands/operations"
 import { useChatStore } from "@/stores/chat-store"
-import { OperationCardView } from "./operation-card"
+import { OperationCardView, proposedByText } from "./operation-card"
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(() => Promise.reject(new Error("sin app"))) }))
 
@@ -77,6 +77,16 @@ describe("the card of a change the chat proposed", () => {
     expect(shown).toContain("Cancelar")
     expect(shown).toContain("Lo propuso el modelo (gpt-6-luna@high). Todavía no se hizo nada.")
     expect(shown).not.toContain("Deshacer")
+  })
+
+  it("a change another program asked for says the program by its name, without a request of the person", () => {
+    const shown = text(
+      renderToStaticMarkup(<OperationCardView card={card({ request: null, proposedBy: { caller: "program:prg-1a2b3c4d5e", engine: "Asistente de prueba" } })} />),
+    )
+    expect(shown).toContain("Lo pidió «Asistente de prueba», un programa conectado. Todavía no se hizo nada.")
+    expect(shown).not.toContain("Lo pediste")
+    expect(proposedByText(card({ proposedBy: { caller: "program:prg-1a2b3c4d5e", engine: null } }))).toBe("Lo pidió «prg-1a2b3c4d5e», un programa conectado.")
+    expect(proposedByText(card({ proposedBy: { caller: "screen", engine: null } }))).toBe("Desde la pantalla.")
   })
 
   it("folds a long list and blocks what cannot be confirmed", () => {

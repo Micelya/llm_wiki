@@ -2,6 +2,7 @@ import { vocabulary } from "@/vocabulary"
 import type { AttentionNotice, AttentionSourceInfo } from "@/lib/attention/types"
 import { DOCBASE_SOURCE, useDocbaseNotices } from "./docbase"
 import { KNOWLEDGE_SOURCE, useKnowledgeNotices } from "./knowledge"
+import { OPERATIONS_SOURCE, useProgramRequestNotices } from "./operations"
 import { PORTALS_SOURCE, usePortalNotices } from "./portals"
 
 /**
@@ -27,4 +28,5 @@ export const ATTENTION_SOURCES: AttentionSource[] = [
   { id: DOCBASE_SOURCE, label: "la base documental", useNotices: useDocbaseNotices },
   { id: KNOWLEDGE_SOURCE, label: `el registro de ${vocabulary().knowledge.entities.toLowerCase()}`, useNotices: useKnowledgeNotices },
   { id: PORTALS_SOURCE, label: `los ${vocabulary().portals.name.toLowerCase()}`, useNotices: usePortalNotices },
+  { id: OPERATIONS_SOURCE, label: "los programas conectados", useNotices: useProgramRequestNotices },
 ]

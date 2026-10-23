@@ -149,6 +149,7 @@ pub fn get(base: &DocBase, id: &str) -> Result<Option<Program>, String> {
 }
 
 /// The name of a program, also of one removed (for the record).
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn name_of(base: &DocBase, id: &str) -> Result<Option<String>, String> {
     base.conn().query_row("SELECT name FROM local_program WHERE id = ?1", [id], |row| row.get(0)).optional().map_err(sql_err)
 }

@@ -118,6 +118,11 @@ export function undoOperation(id: number, force = false): Promise<OperationUndon
   return invoke<OperationUndone>("operations_undo", { id, force })
 }
 
+/** The changes other programs asked for that wait for a person (Atención), each with its card. */
+export function listProgramRequests(): Promise<OperationCard[]> {
+  return invoke<OperationCard[]>("operations_program_requests")
+}
+
 /** A button of a screen does an operation of the contract at once (the person decides), kept in the record. */
 export function applyOperation(operation: string, data: Record<string, unknown>): Promise<OperationCard> {
   return invoke<OperationCard>("operations_apply", { operation, data })
