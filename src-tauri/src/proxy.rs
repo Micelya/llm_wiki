@@ -146,6 +146,12 @@ pub fn configure_http_client(builder: reqwest::ClientBuilder) -> reqwest::Client
     builder.danger_accept_invalid_certs(ACCEPT_INVALID_CERTS.load(Ordering::Relaxed))
 }
 
+/// The same policy for the blocking clients (Micelya Core, asked from the
+/// worker threads: `micelya_core::client`).
+pub fn configure_blocking_http_client(builder: reqwest::blocking::ClientBuilder) -> reqwest::blocking::ClientBuilder {
+    builder.danger_accept_invalid_certs(ACCEPT_INVALID_CERTS.load(Ordering::Relaxed))
+}
+
 /// Strip embedded basic-auth credentials from a URL before logging.
 /// `http://user:pass@host:port` → `http://***@host:port`. URLs
 /// without credentials pass through untouched. Used so stderr /

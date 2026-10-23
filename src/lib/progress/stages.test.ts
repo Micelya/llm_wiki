@@ -32,6 +32,8 @@ describe("the stages of «En curso» in words", () => {
     expect(stageText("matters", words).title).toBe("Casos")
     expect(stageText("reading", words).explanation).toContain("personas y organizaciones")
     expect(stageText("recognition", words).explanation).toContain("cada página es una pregunta al modelo")
+    expect(stageText("templates", words).title).toBe("Plantillas: nombres de los campos")
+    expect(stageText("templates", words).explanation).toContain("Una pregunta por plantilla")
   })
 
   it("says how each stage stands, the scans like the others", () => {
@@ -45,6 +47,9 @@ describe("the stages of «En curso» in words", () => {
     expect(stageFigures(stage("text", { done: 1, total: 1 }))).toBe("1 de 1 archivo")
     expect(stageFigures(stage("pages", { done: 0, total: 0 }))).toBe("Ninguna página todavía")
     expect(stageFigures(stage("types", { done: 0, total: 0 }))).toBe("Ningún documento todavía")
+    // The templates, with the profession's word.
+    expect(stageFigures(stage("templates", { done: 3, total: 12 }), words)).toBe("3 de 12 plantillas")
+    expect(stageFigures(stage("templates", { done: 0, total: 0 }), words)).toBe("Ninguna plantilla todavía")
     expect(stageShare(stage("reading", { done: 17, total: 68 }))).toBe(0.25)
     expect(stageShare(stage("reading", { done: 0, total: 0 }))).toBeNull()
   })
@@ -60,8 +65,10 @@ describe("the stages of «En curso» in words", () => {
     // Its pass made, nothing of that is said.
     expect(waitsFirstLap(stage("matters"))).toBe(false)
     expect(stageDetails(stage("matters", { extra: { grouped: 4, loose: 8 } }), words)).toEqual(["4 en un caso", "8 sueltos"])
-    // The reading still says what was read with an earlier version.
-    expect(stageDetails(stage("reading", { extra: { older: 134 } }), words)).toEqual(["134 leídos con una versión anterior"])
+    // The reading still says what was read with another version or model (D-465).
+    expect(stageDetails(stage("reading", { extra: { outdated: 134 } }), words)).toEqual([
+      "134 leídos con otra versión de la pregunta o con otro modelo",
+    ])
   })
 
   it("tells what is left, what failed and what is out", () => {
@@ -129,6 +136,14 @@ describe("the line at the foot of the window", () => {
     expect(activityLine(waiting, words)).toEqual({ tone: "paused", text: "Falta elegir el motor que reconoce escaneos: 3 documentos esperan" })
     const off = progress({ recognition: { state: "paused", pending: 3 } }, { paused: 3, backgroundReading: false, recognitionEngine: "codex-cli:m" })
     expect(activityLine(off, words)?.text).toBe("Lectura automática en pausa: 3 documentos esperan")
+  })
+
+  it("says when the questions that go by themselves wait for a person (D-484)", () => {
+    const held = progress(
+      { resolve: { state: "paused", pending: 2, extra: { held: 1 } } },
+      { paused: 2, autoQuestions: { pending: 60, asked: 0, cap: 50, held: "resolve", decision: null } },
+    )
+    expect(activityLine(held, words)).toEqual({ tone: "paused", text: "Esperando tu permiso para 60 preguntas al modelo" })
   })
 
   it("says everything is up to date when nothing waits", () => {

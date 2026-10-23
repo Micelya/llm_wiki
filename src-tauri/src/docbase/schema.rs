@@ -10,7 +10,106 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14, V15, V16, V17, V18, V19, V20, V21, V22];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14, V15, V16, V17, V18, V19, V20, V21, V22, V23, V24];
+
+/// The documents generated from a template (D-488): a Word written in the
+/// folder «Generados» of the work folder, with the template's text and the
+/// values a person gave. The record does not hang from the template, which
+/// is built again whenever its family changes, nor from the matter: it
+/// says what was done, and survives both.
+///
+/// - `naming`: the lasting identity of the template (`template_naming`);
+///   `principal`, `template_name`, `template_engine` and `template_built_at`:
+///   the template as it was (its principal, its name, its version).
+/// - `matter_id`, `matter_name`: the matter it was generated for, if any.
+/// - `from_document`: the document whose data it started with, if any.
+/// - `origin_id`, `rel_path`: where the file was written, inside the work
+///   folder's origin; `file_hash`: the SHA-256 of what was written.
+/// - `field_values`: each field, with its name, its value and where the value
+///   came from (JSON).
+/// - `content_id`: the document the base found at that place (it changes
+///   when a person edits the Word); `matter_content`: the one put in the
+///   matter, as a person's choice.
+const V24: &str = "
+CREATE TABLE generated_document (
+    id                 INTEGER PRIMARY KEY,
+    naming             INTEGER,
+    principal          INTEGER,
+    template_name      TEXT NOT NULL,
+    template_engine    TEXT NOT NULL,
+    template_built_at  INTEGER NOT NULL,
+    matter_id          TEXT,
+    matter_name        TEXT,
+    from_document      INTEGER,
+    origin_id          TEXT NOT NULL,
+    rel_path           TEXT NOT NULL,
+    file_hash          TEXT NOT NULL,
+    field_values       TEXT NOT NULL DEFAULT '[]',
+    generated_at       INTEGER NOT NULL,
+    content_id         INTEGER REFERENCES content (id) ON DELETE SET NULL,
+    matter_content     INTEGER
+);
+CREATE INDEX generated_document_by_naming ON generated_document (naming);
+CREATE INDEX generated_document_by_hash ON generated_document (file_hash);
+CREATE INDEX generated_document_by_place ON generated_document (origin_id, rel_path);
+CREATE INDEX generated_document_by_content ON generated_document (content_id);
+";
+
+/// The names of the templates and of their fields (D-488), apart from the
+/// templates, which are built again whenever their family changes. A
+/// template is not joined to a matter nor to a person and keeps none of
+/// their data: only its shared text, its fields and the documents it came
+/// from.
+///
+/// - `template_naming`: the lasting identity of a template, across its
+///   rebuilds and a change of its principal: the documents it had when it
+///   was last built (JSON list of content ids) and the name a person gave
+///   it. A template being built takes the one of its previous build, or the
+///   one no other template has that shares with it most of the documents.
+/// - `similar_template.naming`: the one each template took.
+/// - `similar_template_field.anchor`: the words of the template around the
+///   field, by which what was said about it is found again when the
+///   template is built again; `label`: the name its text gives it (its name
+///   in the form, the label before it), computed with the template.
+/// - `template_field_choice`: what a person decided about a field: its
+///   name, what it is (a person, a date…), whether it is fixed and with
+///   what value. The program never writes it.
+/// - `template_field_answer`: what the model said of a field (its name and
+///   what it is) and the question it answered (`model_answer`).
+const V23: &str = "
+CREATE TABLE template_naming (
+    id          INTEGER PRIMARY KEY,
+    documents   TEXT NOT NULL DEFAULT '[]',
+    name        TEXT,
+    named_at    INTEGER,
+    built_at    INTEGER NOT NULL
+);
+
+ALTER TABLE similar_template ADD COLUMN naming INTEGER REFERENCES template_naming (id) ON DELETE SET NULL;
+ALTER TABLE similar_template_field ADD COLUMN anchor TEXT NOT NULL DEFAULT '';
+ALTER TABLE similar_template_field ADD COLUMN label TEXT;
+
+CREATE TABLE template_field_choice (
+    naming       INTEGER NOT NULL REFERENCES template_naming (id) ON DELETE CASCADE,
+    anchor       TEXT NOT NULL,
+    name         TEXT,
+    what         TEXT,
+    fixed        INTEGER NOT NULL DEFAULT 0,
+    fixed_value  TEXT,
+    decided_at   INTEGER NOT NULL,
+    PRIMARY KEY (naming, anchor)
+);
+
+CREATE TABLE template_field_answer (
+    naming       INTEGER NOT NULL REFERENCES template_naming (id) ON DELETE CASCADE,
+    anchor       TEXT NOT NULL,
+    name         TEXT,
+    what         TEXT,
+    question     TEXT NOT NULL,
+    answered_at  INTEGER NOT NULL,
+    PRIMARY KEY (naming, anchor)
+);
+";
 
 /// What a person asked to recognize (P-242, D-452): the documents whose
 /// text is only pixels that she asked the base to read, in the order she
@@ -1230,6 +1329,105 @@ mod tests {
         conn.execute("INSERT INTO recognition_request (content_id, position, asked_at) VALUES (1, 1, 1)", []).unwrap();
         conn.execute("DELETE FROM content WHERE id = 1", []).unwrap();
         assert_eq!(count(&conn), 0);
+    }
+
+    /// A base at version 22 keeps its templates as they are, with no anchor
+    /// nor label yet (they are built again with them), and gets the names
+    /// kept apart, empty; what a person decided goes away only with the
+    /// identity of its template, never with a rebuild of the template.
+    #[test]
+    fn a_base_at_version_22_keeps_its_templates_and_gets_the_names_apart() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+        for (index, migration) in MIGRATIONS.iter().enumerate().take(22) {
+            conn.execute_batch(migration).unwrap();
+            conn.pragma_update(None, "user_version", index as i64 + 1).unwrap();
+        }
+        conn.execute_batch(
+            "INSERT INTO content (id, state, first_seen_at) VALUES (1, 'processed', 1), (2, 'processed', 1);
+             INSERT INTO similar_template (principal, fingerprint, segments, computed_at) VALUES (1, 'x', '[{\"field\":0}]', 1);
+             INSERT INTO similar_template_document (principal, content_id, position) VALUES (1, 1, 0), (1, 2, 1);
+             INSERT INTO similar_template_field (principal, position, kind, ordinal) VALUES (1, 0, 'date', 1);
+             INSERT INTO similar_template_value (principal, position, content_id, value) VALUES (1, 0, 1, 'a'), (1, 0, 2, 'b');",
+        )
+        .unwrap();
+        migrate(&mut conn).unwrap();
+        let version: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0)).unwrap();
+        assert_eq!(version, CURRENT_VERSION);
+        let field: (String, Option<String>, Option<i64>) = conn
+            .query_row(
+                "SELECT f.anchor, f.label, t.naming FROM similar_template_field f JOIN similar_template t ON t.principal = f.principal",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(field, (String::new(), None, None));
+        let values: i64 = conn.query_row("SELECT count(*) FROM similar_template_value", [], |row| row.get(0)).unwrap();
+        assert_eq!(values, 2);
+        for table in ["template_naming", "template_field_choice", "template_field_answer"] {
+            let rows: i64 = conn.query_row(&format!("SELECT count(*) FROM {table}"), [], |row| row.get(0)).unwrap();
+            assert_eq!(rows, 0, "{table}");
+        }
+        // A rebuild of the template leaves what was decided about its fields.
+        conn.execute_batch(
+            "INSERT INTO template_naming (id, documents, name, built_at) VALUES (7, '[1,2]', 'Mi modelo', 1);
+             UPDATE similar_template SET naming = 7;
+             INSERT INTO template_field_choice (naming, anchor, name, decided_at) VALUES (7, 'recibi de|la suma', 'Quien paga', 1);
+             INSERT INTO template_field_answer (naming, anchor, name, question, answered_at) VALUES (7, 'el dia|en concepto', 'Fecha', 'campos-1:x', 1);
+             DELETE FROM similar_template;",
+        )
+        .unwrap();
+        let kept: i64 = conn
+            .query_row(
+                "SELECT (SELECT count(*) FROM template_naming) + (SELECT count(*) FROM template_field_choice)
+                      + (SELECT count(*) FROM template_field_answer)",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(kept, 3);
+        conn.execute("DELETE FROM template_naming", []).unwrap();
+        let left: i64 = conn
+            .query_row("SELECT (SELECT count(*) FROM template_field_choice) + (SELECT count(*) FROM template_field_answer)", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(left, 0);
+    }
+
+    /// A base at version 23 gets the record of the generated documents,
+    /// empty, and keeps what it had; the record survives its document.
+    #[test]
+    fn a_base_at_version_23_gets_the_record_of_the_generated_documents() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+        for (index, migration) in MIGRATIONS.iter().enumerate().take(23) {
+            conn.execute_batch(migration).unwrap();
+            conn.pragma_update(None, "user_version", index as i64 + 1).unwrap();
+        }
+        conn.execute_batch(
+            "INSERT INTO content (id, state, first_seen_at) VALUES (1, 'processed', 1);
+             INSERT INTO template_naming (id, documents, name, built_at) VALUES (7, '[1]', 'Mi modelo', 1);",
+        )
+        .unwrap();
+        migrate(&mut conn).unwrap();
+        let version: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0)).unwrap();
+        assert_eq!(version, CURRENT_VERSION);
+        let rows: i64 = conn.query_row("SELECT count(*) FROM generated_document", [], |row| row.get(0)).unwrap();
+        assert_eq!(rows, 0);
+        let names: i64 = conn.query_row("SELECT count(*) FROM template_naming", [], |row| row.get(0)).unwrap();
+        assert_eq!(names, 1);
+        conn.execute_batch(
+            "INSERT INTO generated_document (naming, template_name, template_engine, template_built_at, origin_id, rel_path,
+                                             file_hash, generated_at, content_id)
+             VALUES (7, 'Mi modelo', 'template-3', 1, 'o', 'Generados/a.docx', 'h', 1, 1);
+             DELETE FROM content;",
+        )
+        .unwrap();
+        let left: (i64, Option<i64>) = conn
+            .query_row("SELECT count(*), max(content_id) FROM generated_document", [], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap();
+        assert_eq!(left, (1, None), "the record stays when its document goes");
     }
 
     /// The owner's base is at version 8 (the type decisions of the

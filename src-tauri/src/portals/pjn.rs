@@ -32,6 +32,10 @@ const FOLIOS_HEADERS: &[&str] = &["a fs.", "a fs", "fs.", "fojas", "a fojas"];
 const NEXT: &str = "siguiente";
 const PAGER_NAMES: &[&str] = &["siguiente", "anterior", "primera pagina", "ultima pagina", "primera", "ultima"];
 
+/// The words of the sign the portal shows while it processes a query
+/// (with its own «Cancelar»), normalized.
+const BUSY_SIGNS: &[&str] = &["consulta en proceso", "procesando la consulta", "procesando consulta"];
+
 impl Connector for Pjn {
     fn id(&self) -> &'static str {
         "pjn"
@@ -130,6 +134,23 @@ impl Connector for Pjn {
             })
             .map(|(_, el)| el.text.clone())
             .next()
+    }
+
+    /// The deepest element with the words of the sign (a wrapper's text
+    /// also holds what is hidden inside it), short, out of any table, and
+    /// visible.
+    fn busy(&self, page: &Page) -> bool {
+        let says = |i: usize| {
+            let text = norm(&page.el(i).text);
+            BUSY_SIGNS.iter().any(|sign| text.contains(sign))
+        };
+        (0..page.len()).any(|i| {
+            says(i)
+                && page.el(i).text.chars().count() <= 120
+                && !page.children(i).into_iter().any(says)
+                && page.ancestor(i, &["td", "th"]).is_none()
+                && page.visible(i)
+        })
     }
 
     fn rows_per_page(&self) -> Option<usize> {

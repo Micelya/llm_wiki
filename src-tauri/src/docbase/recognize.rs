@@ -742,6 +742,54 @@ del edificio inventado hasta que alguna de las partes la retire, con aviso de un
     }
 
     #[test]
+    fn a_scan_is_read_by_micelya_core_page_by_page_and_nothing_is_left_in_core() {
+        use crate::micelya_core::fake::{FakeCore, Outcome};
+        use crate::source_volume::recognition_core::CoreRecognizer;
+        use crate::source_volume::recognized_store::Part;
+
+        let (_dir, base, _) = base_of(&[("escaneo.pdf", fixture("escaneo-2-paginas.pdf"))]);
+        base.set_recognition_engine(Some(&RecognitionConfig { engine: "core".into(), model: "textract-1.0".into() })).unwrap();
+        turn_reading_on(&base);
+        let core = FakeCore::start();
+        core.with(|state| state.outcome = Outcome::Read(vec![vec![("CONTRATO", 0.99), ("DE", 0.99), ("LOCACIÓN", 0.71)]]));
+        let recognizer = CoreRecognizer::with_connection("textract-1.0", core.connection(), FakeCore::timing());
+        let content = content_of(&base, "escaneo.pdf");
+        assert_eq!(run(&base, &recognizer), vec![RecognitionStep::Recognized(content)]);
+
+        let (text, by) = text_of(&base, "escaneo.pdf");
+        assert_eq!(by, "core:textract-1.0");
+        assert_eq!(text.matches(&recognition::marker("core:textract-1.0")).count(), 2, "{text}");
+        assert!(text.contains("CONTRATO DE LOCACIÓN"));
+        // One reading per page, each named by its page (both at once, in
+        // any order), every one deleted.
+        let mut names: Vec<String> = core.with(|state| state.readings.iter().map(|r| r.filename.clone()).collect());
+        names.sort();
+        assert_eq!(names, ["pagina-1.jpg", "pagina-2.jpg"]);
+        assert!(core.with(|state| state.kept().is_empty()));
+        // The doubtful words are kept beside the text, which they do not change.
+        let hash: String = base
+            .conn()
+            .query_row("SELECT f.hash FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.name = 'escaneo.pdf'", [], |row| row.get(0))
+            .unwrap();
+        let page = RecognizedStore::at(base.recognized.join(&hash)).get(Part::Page(1)).unwrap();
+        assert_eq!(page.doubtful.len(), 1);
+        assert_eq!((page.doubtful[0].word.as_str(), page.doubtful[0].percent), ("LOCACIÓN", 71));
+        assert_eq!(page.read_by.as_deref(), Some("textract-1.0"));
+
+        // Core cannot be reached: the scan keeps waiting, the stage says so.
+        let (_dir, other, _) = base_of(&[("otro.png", fixture("pagina-prueba.png"))]);
+        other.set_recognition_engine(Some(&RecognitionConfig { engine: "core".into(), model: String::new() })).unwrap();
+        turn_reading_on(&other);
+        let mut gone = core.connection();
+        gone.issuer = "http://127.0.0.1:9/realms/prueba".into();
+        let unreachable = CoreRecognizer::with_connection("", gone, FakeCore::timing());
+        assert!(matches!(run(&other, &unreachable)[..], [RecognitionStep::Stopped(_)]));
+        assert_eq!(state_of(&other, "otro.png"), "needs-recognition");
+        let stage = other.progress(&Scope::default()).unwrap().stages.into_iter().find(|s| s.id == "recognition").unwrap();
+        assert_eq!(stage.error.as_ref().unwrap().kind, "connection");
+    }
+
+    #[test]
     fn the_stage_tells_the_pages_that_wait_and_the_page_being_read() {
         let (_dir, base, _) = base_of(&[("uno.png", fixture("pagina-prueba.png")), ("dos.pdf", fixture("escaneo-2-paginas.pdf"))]);
         let stage = |base: &DocBase| base.progress(&Scope::default()).unwrap().stages.into_iter().find(|s| s.id == "recognition").unwrap();

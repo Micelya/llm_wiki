@@ -182,6 +182,23 @@ pub(crate) struct ReadingRow {
     /// The fingerprint of the text it was read on.
     pub hash: String,
     pub discarded: String,
+    /// The engine and model it was read with, as they save their answers.
+    pub engine: Option<String>,
+}
+
+impl ReadingRow {
+    /// Read with another model than `answering` (the engine in use, as it
+    /// saves its answers): unknown when either is not known.
+    pub fn other_model(&self, answering: Option<&str>) -> bool {
+        matches!((answering, self.engine.as_deref()), (Some(now), Some(then)) if !then.is_empty() && then != now)
+    }
+
+    /// A reading that stands but was made with another version of the
+    /// question or with another model (D-465): kept as it is, and read
+    /// again only when a person asks.
+    pub fn outdated(&self, answering: Option<&str>) -> bool {
+        self.current && self.state == "done" && (self.older || self.other_model(answering))
+    }
 }
 
 /// The documents with enough text to be read (all of them, or `only`),
@@ -195,7 +212,8 @@ pub(crate) fn standings(conn: &Connection, visible: &Visible, only: Option<i64>)
     values.extend(params.into_iter().map(rusqlite::types::Value::from));
     let mut statement = conn
         .prepare(&format!(
-            "SELECT c.id, d.created_at, k.state, k.basis, k.text_at, k.prompt_version, k.vocabulary, k.discarded, k.text_hash
+            "SELECT c.id, d.created_at, k.state, k.basis, k.text_at, k.prompt_version, k.vocabulary, k.discarded, k.text_hash,
+                    k.engine
              FROM content c JOIN derivative d ON d.content_id = c.id AND d.kind = 'text'
              LEFT JOIN knowledge_extraction k ON k.content_id = c.id
              WHERE c.state = 'processed' AND coalesce(c.word_count, 0) >= ?1 AND (?2 IS NULL OR c.id = ?2) AND {condition}
@@ -229,6 +247,7 @@ pub(crate) fn standings(conn: &Connection, visible: &Visible, only: Option<i64>)
                         state,
                         basis: basis_kept,
                         discarded: row.get(7)?,
+                        engine: row.get(9)?,
                     })
                 }
                 None => None,
@@ -577,6 +596,30 @@ pub fn schema(vocabulary: &Vocabulary) -> serde_json::Value {
             }
         }
     })
+}
+
+/// The question about the invented document of Ajustes (`questions.rs`),
+/// built by `prompt` as `questions` builds it for a document of the base:
+/// what the base would know of it (the type it is said to be, the data the
+/// rules of that type find in its text, the identifiers by their shape) and
+/// its first part. `part` writes each value that changes in each case.
+pub(crate) fn example_question(part: crate::docbase::questions::Part) -> (String, serde_json::Value) {
+    use crate::docbase::questions::{example, FILE, KNOWN, TEXT};
+    let vocabulary = vocabulary();
+    let catalog = crate::docbase::similar::types::catalog();
+    let doc_type = example::document_type(catalog);
+    let rules: Vec<&crate::docbase::similar::types::DataRule> = doc_type.map(|t| t.data.iter().collect()).unwrap_or_default();
+    let (data, _) = crate::docbase::similar::data::extract(&rules, example::TEXT, &[]);
+    let hints = Hints {
+        name: part(FILE, example::FILE),
+        doc_type: doc_type.map(|t| part(KNOWN, &t.id)),
+        stage: doc_type.and_then(|t| t.stages.first()).map(|s| part(KNOWN, s)),
+        data: data.into_iter().map(|d| Datum { value: part(KNOWN, &d.value), ..d }).collect(),
+        shapes: identifiers_by_shape(example::TEXT).iter().map(|s| part(KNOWN, s)).collect(),
+    };
+    let parts = parts(example::TEXT);
+    let first = parts.first().cloned().unwrap_or_default();
+    (prompt(vocabulary, &hints, &part(TEXT, &first), 0, parts.len()), schema(vocabulary))
 }
 
 /// The class of a claim when the text says none.
@@ -2327,13 +2370,15 @@ fn kept_answer(conn: &Connection, key: &str, engine: Option<&str>, since: Option
 
 /// What a person asks to read again (D-432): the document at a location,
 /// or every document of an origin or of a folder of it; nothing said, the
-/// whole archive.
+/// whole archive. `outdated`: of those, only the ones read with another
+/// version of the question or with another model (D-465).
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct RereadTarget {
     pub location_id: Option<i64>,
     pub origin_id: Option<String>,
     pub folder: Option<String>,
+    pub outdated: bool,
 }
 
 /// What reading them again takes, for the notice shown before: how many
@@ -2345,6 +2390,11 @@ pub struct RereadPlan {
     pub questions: usize,
     /// Of those, the ones a person already asked to read again.
     pub requested: usize,
+    /// Of those, the ones read with another version of the question, and
+    /// the ones read with another model than the one in use (D-465); a
+    /// document can be both.
+    pub older_version: usize,
+    pub other_model: usize,
     pub engine: Option<crate::source_volume::asking::AskConfig>,
 }
 
@@ -2456,8 +2506,16 @@ impl DocBase {
         Ok(due.len())
     }
 
-    /// The documents of a target, among those with enough text to read.
+    /// The name the engine in use saves its answers with; `None` when no
+    /// engine was chosen.
+    fn answering(&self) -> Result<Option<String>, String> {
+        Ok(classify::ask_engine(&self.conn())?.as_ref().map(crate::source_volume::asking::engine_id))
+    }
+
+    /// The documents of a target, among those with enough text to read
+    /// (with `outdated`, only those read with another version or model).
     fn reread_standings(&self, target: &RereadTarget) -> Result<Vec<Standing>, String> {
+        let answering = if target.outdated { self.answering()? } else { None };
         let conn = self.conn();
         let contents: BTreeSet<i64> = match target.location_id {
             Some(location) => conn
@@ -2468,13 +2526,18 @@ impl DocBase {
                 .collect(),
             None => crate::docbase::progress::Scope { origin_id: target.origin_id.clone(), folder: target.folder.clone() }.contents(&conn)?,
         };
-        Ok(standings(&conn, &Visible::All, None)?.into_iter().filter(|s| contents.contains(&s.content_id)).collect())
+        Ok(standings(&conn, &Visible::All, None)?
+            .into_iter()
+            .filter(|s| contents.contains(&s.content_id))
+            .filter(|s| !target.outdated || s.reading.as_ref().is_some_and(|r| r.outdated(answering.as_deref())))
+            .collect())
     }
 
     /// What reading the documents of `target` again would take (D-432):
     /// the documents already read, and one question per part of each.
     pub fn knowledge_reread_plan(&self, target: &RereadTarget) -> Result<RereadPlan, String> {
         let standings = self.reread_standings(target)?;
+        let answering = self.answering()?;
         let conn = self.conn();
         let mut plan = RereadPlan { engine: classify::ask_engine(&conn)?, ..Default::default() };
         for standing in standings {
@@ -2482,6 +2545,10 @@ impl DocBase {
             plan.documents += 1;
             if reading.reread {
                 plan.requested += 1;
+            }
+            if reading.outdated(answering.as_deref()) {
+                plan.older_version += usize::from(reading.older);
+                plan.other_model += usize::from(reading.other_model(answering.as_deref()));
             }
             let parts_kept: i64 = conn
                 .query_row("SELECT parts FROM knowledge_extraction WHERE content_id = ?1", [standing.content_id], |row| row.get(0))

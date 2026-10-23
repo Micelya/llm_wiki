@@ -30,6 +30,8 @@
 //!   and the model only for what they did not find.
 //! - **6 · Relations by type** (`by_type`): the rules of the type confirm
 //!   or correct what pass 1 measured.
+//! - **The names of a template's fields** (`naming`): one question per
+//!   template, only for the fields its text does not name (D-488).
 //!
 //! Nothing here joins two documents: it proposes, and a person decides
 //! (R-06). The rules it follows are `docs/design/reglas-de-procesamiento.md`.
@@ -43,8 +45,10 @@ pub(crate) mod check;
 pub(crate) mod check_types;
 pub mod classify;
 pub mod data;
+pub mod generate;
 pub mod marks;
 pub mod minhash;
+pub mod naming;
 pub mod propose;
 pub mod store;
 pub mod template;

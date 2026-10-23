@@ -120,6 +120,61 @@ fn a_person_asks_to_read_again_and_the_model_is_asked_anew_once() {
     assert_eq!(base.knowledge_rereads_waiting().unwrap(), 1);
 }
 
+const SECOND_ACT: &str = "DOC-ACTA. Persona Tres Ejemplo y Persona Cuatro Ejemplo contrajeron matrimonio el 2 de abril de un año.";
+
+/// The engine in use: Codex with a model of these tests (made up).
+fn choose(base: &DocBase, model: &str) {
+    let config = crate::source_volume::asking::AskConfig { engine: "codex-cli".into(), model: model.into(), ..Default::default() };
+    base.set_ask_engine(Some(&config)).unwrap();
+}
+
+#[test]
+fn what_was_read_with_another_version_or_model_is_counted_and_read_again_only_when_asked() {
+    let (_dir, base) = base_with(&[("acta.txt", ACT), ("segunda.txt", SECOND_ACT)]);
+    let reader = FakeModel::new("codex-cli:m", |prompt| if is_knowledge(prompt) { act_answer() } else { type_answer("acta") });
+    choose(&base, "m");
+    assert_eq!(read(&base, &reader).asked, 2);
+    let outdated = RereadTarget { outdated: true, ..Default::default() };
+    let whole = crate::docbase::progress::Scope::default();
+    let counted = |base: &DocBase| base.progress(&whole).unwrap().stages.iter().find(|s| s.id == "reading").unwrap().extra["outdated"];
+
+    // Read with the model in use and the question of now: nothing to say.
+    assert_eq!(base.knowledge_reread_plan(&outdated).unwrap().documents, 0);
+    assert_eq!(counted(&base), 0);
+
+    // Another model chosen: both were read with another one.
+    choose(&base, "otro");
+    let plan = base.knowledge_reread_plan(&outdated).unwrap();
+    assert_eq!((plan.documents, plan.questions, plan.other_model, plan.older_version), (2, 2, 2, 0), "{plan:?}");
+    assert_eq!(counted(&base), 2);
+
+    // One of them with an earlier version of the question too: still two documents.
+    base.conn()
+        .execute("UPDATE knowledge_extraction SET prompt_version = 'conocimiento-0' WHERE content_id = (SELECT min(content_id) FROM knowledge_extraction)", [])
+        .unwrap();
+    let plan = base.knowledge_reread_plan(&outdated).unwrap();
+    assert_eq!((plan.documents, plan.other_model, plan.older_version), (2, 2, 1), "{plan:?}");
+    // The whole archive counts them too.
+    let all = base.knowledge_reread_plan(&RereadTarget::default()).unwrap();
+    assert_eq!((all.documents, all.other_model, all.older_version), (2, 2, 1), "{all:?}");
+
+    // Back to the model that read them: only the one of the earlier version.
+    choose(&base, "m");
+    let plan = base.knowledge_reread_plan(&outdated).unwrap();
+    assert_eq!((plan.documents, plan.other_model, plan.older_version), (1, 0, 1), "{plan:?}");
+
+    // Nothing is read again by itself.
+    choose(&base, "otro");
+    assert_eq!(read(&base, &forbidden()).asked, 0);
+    assert_eq!(counted(&base), 2);
+
+    // Asked by a person: both wait to be read again, and are no longer counted.
+    assert_eq!(base.knowledge_request_reread(&outdated).unwrap(), 2);
+    assert_eq!(base.knowledge_rereads_waiting().unwrap(), 2);
+    assert_eq!(base.knowledge_reread_plan(&outdated).unwrap().documents, 0);
+    assert_eq!(counted(&base), 0);
+}
+
 fn reading_of(body: &str, said: String) -> Reading {
     let answer: Answer = serde_json::from_str(&said).unwrap();
     verify(&Vocabulary::builtin(), body, &[], &[answer])

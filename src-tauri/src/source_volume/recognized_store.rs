@@ -10,15 +10,16 @@
 //!
 //! Each part is one small JSON file — `page-<n>.json` for a PDF page,
 //! `image.json` for a standalone image — holding the text and the engine
-//! that read it. Nothing is ever written next to the original file. The
-//! base keeps its store beside the database (`docbase::recognize`).
+//! that read it, and, when the engine says so, the words it doubts and the
+//! model that read it. Nothing is ever written next to the original file.
+//! The base keeps its store beside the database (`docbase::recognize`).
 
 use std::fs;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use super::recognition::RecognizedPage;
+use super::recognition::{DoubtfulWord, RecognizedPage};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Part {
@@ -32,6 +33,10 @@ pub enum Part {
 struct StoredPart {
     engine: String,
     text: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    doubtful: Vec<DoubtfulWord>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    read_by: Option<String>,
 }
 
 pub struct RecognizedStore {
@@ -67,6 +72,8 @@ impl RecognizedStore {
         let stored = StoredPart {
             engine: entry.engine_id.clone(),
             text: entry.text.clone(),
+            doubtful: entry.doubtful.clone(),
+            read_by: entry.read_by.clone(),
         };
         let json = serde_json::to_string_pretty(&stored).map_err(|e| e.to_string())?;
         let path = self.part_file(part);
@@ -79,6 +86,8 @@ impl RecognizedStore {
         Some(RecognizedPage {
             engine_id: stored.engine,
             text: stored.text,
+            doubtful: stored.doubtful,
+            read_by: stored.read_by,
         })
     }
 

@@ -13,8 +13,11 @@
 //! The engines a service can choose, what each one says it can do, where it
 //! processes what it is sent and what its provider keeps are a catalog
 //! (`resources/catalog/ai-engines.json`). The base runs by itself only the
-//! engines marked `inBase` (today Codex); a service set to another engine
-//! is, for the base, a service without an engine, as before the registry.
+//! engines marked `inBase` (today Codex, and Micelya Core for the scans); a
+//! service set to another engine is, for the base, a service without an
+//! engine, as before the registry. An engine whose model the person does
+//! not choose (Core says which one reads) is saved with the one of the
+//! catalog (`defaultModel`).
 //!
 //! Before the registry existed the base kept its two engines apart
 //! (`ask-engine`, `recognition-engine`); until the registry is saved they
@@ -130,6 +133,9 @@ struct CatalogEngine {
     in_base: bool,
     #[serde(default)]
     reasoning: bool,
+    /// The model it is saved with when none is given.
+    #[serde(default)]
+    default_model: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -233,11 +239,18 @@ fn invalid_choice(service: Service, choice: &EngineChoice) -> Option<String> {
     None
 }
 
-fn normalized(choice: EngineChoice) -> EngineChoice {
+fn normalized(service: Service, choice: EngineChoice) -> EngineChoice {
+    let engine = choice.engine.trim().to_string();
+    let mut model = choice.model.trim().to_string();
+    if model.is_empty() {
+        if let Some(default) = catalog_engine(service, &engine).and_then(|entry| entry.default_model.clone()) {
+            model = default;
+        }
+    }
     EngineChoice {
-        engine: choice.engine.trim().to_string(),
+        engine,
         connection: choice.connection.trim().to_string(),
-        model: choice.model.trim().to_string(),
+        model,
         reasoning: choice.reasoning.trim().to_lowercase(),
     }
 }
@@ -264,8 +277,8 @@ impl DocBase {
         let mut checked = AiServices::default();
         for service in [Service::Ask, Service::Recognize, Service::Research] {
             let given = services.service(service).clone();
-            let engine = given.engine.map(normalized).filter(|c| !c.engine.is_empty());
-            let alternative = given.alternative.map(normalized).filter(|c| !c.engine.is_empty());
+            let engine = given.engine.map(|c| normalized(service, c)).filter(|c| !c.engine.is_empty());
+            let alternative = given.alternative.map(|c| normalized(service, c)).filter(|c| !c.engine.is_empty());
             for choice in engine.iter().chain(alternative.iter()) {
                 if let Some(error) = invalid_choice(service, choice) {
                     return Err(error);
@@ -355,6 +368,8 @@ mod tests {
         assert_eq!(services, ["ask", "recognize", "research"]);
         assert!(runs_in_base(Service::Ask, "codex-cli"));
         assert!(runs_in_base(Service::Recognize, "codex-cli"));
+        assert!(runs_in_base(Service::Recognize, "core"));
+        assert!(!runs_in_base(Service::Ask, "core"));
         assert!(!runs_in_base(Service::Ask, "openai"));
         assert!(!runs_in_base(Service::Recognize, "openai"));
         assert!(!runs_in_base(Service::Research, "tavily"));
@@ -460,6 +475,30 @@ mod tests {
         // An empty engine is no engine.
         assert!(with(Service::Research, EngineChoice::default()).is_ok());
         assert_eq!(base.ai_services().unwrap().services.research.engine, None);
+    }
+
+    #[test]
+    fn micelya_core_recognizes_scans_with_its_own_model_and_its_shared_connection() {
+        let base = DocBase::in_memory().unwrap();
+        let core = EngineChoice { engine: "core".into(), connection: crate::micelya_core::CONNECTION_ID.into(), ..Default::default() };
+        base.set_ai_services(AiServices { recognize: ServiceChoice { engine: Some(core), alternative: None }, ..Default::default() })
+            .unwrap();
+        let saved = base.ai_services().unwrap().services.recognize.engine.unwrap();
+        assert_eq!((saved.model.as_str(), saved.connection.as_str()), ("textract-1.0", "micelya-core"));
+        let config = recognition_engine(&base.conn()).unwrap().unwrap();
+        assert_eq!(crate::source_volume::recognition::engine_id(&config).unwrap(), "core:textract-1.0");
+        let entry = catalog_value()["engines"].as_array().unwrap().iter().find(|e| e["service"] == "recognize" && e["id"] == "core").unwrap();
+        assert_eq!(entry["connection"], crate::micelya_core::CONNECTION_ID);
+        for words in ["Oregón (Estados Unidos)", "pagina-N.jpg"] {
+            assert!(entry["processing"].as_str().unwrap().contains(words), "{entry}");
+        }
+        for words in ["Textract guarda el resultado 7 días", "Desktop borra cada lectura en Core apenas la guarda"] {
+            assert!(entry["retention"].as_str().unwrap().contains(words), "{entry}");
+        }
+        // Core reads scans, it does not answer questions (yet).
+        let mut ask = AiServices::default();
+        ask.ask.engine = Some(EngineChoice { engine: "core".into(), ..Default::default() });
+        assert!(base.set_ai_services(ask).is_err());
     }
 
     #[test]

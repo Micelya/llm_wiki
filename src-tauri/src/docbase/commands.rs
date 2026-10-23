@@ -32,6 +32,7 @@ use super::similar::types::RelationDef;
 use crate::source_volume::asking::{asker_for, AskConfig};
 use super::services::{AiServices, AiServicesView};
 use super::query::{Activity, DocumentDetail, DocumentFilter, DocumentPage, Health, LocationRef, OriginSummary};
+use super::questions::{AskedQuestion, ModelQuestion};
 use super::tree::FolderListing;
 use super::worker::{self, Wake};
 use super::{DocBase, Visible, PRIVATE_DB_FILE};
@@ -440,6 +441,69 @@ pub fn docbase_similar_template(state: State<'_, DocBaseState>, location_id: i64
     state.base()?.similar_template(&Visible::All, location_id)
 }
 
+/// Every template of the base, for the section «Plantillas» (D-466): its
+/// principal, its type, how many documents and fields it has, where its
+/// format comes from and its warnings. Reads only.
+#[tauri::command(async)]
+pub fn docbase_templates(state: State<'_, DocBaseState>) -> Result<Vec<similar::template::TemplateSummary>, String> {
+    state.base()?.templates(&Visible::All)
+}
+
+/// Names the template of this principal, or gives it back its automatic
+/// name (`None`). Kept apart from the template: it survives every time the
+/// template is built again (D-488).
+#[tauri::command(async)]
+pub fn docbase_name_template(app: tauri::AppHandle, state: State<'_, DocBaseState>, principal: i64, name: Option<String>) -> Result<(), String> {
+    state.base()?.name_template(principal, name.as_deref())?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(())
+}
+
+/// What a person decides about a field of a template: its name, what it
+/// is, whether it is fixed and with what value; all empty, back to the
+/// automatic ones. A name a person writes is never overwritten (D-488).
+#[tauri::command(async)]
+pub fn docbase_choose_template_field(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    principal: i64,
+    position: i64,
+    choice: similar::template::FieldChoice,
+) -> Result<(), String> {
+    state.base()?.choose_template_field(principal, position, &choice)?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(())
+}
+
+/// Generates a document from a template (D-488): a simple Word in the
+/// folder «Generados» of the work folder, with the values given, and its
+/// record in the base. The base takes the file at once.
+#[tauri::command(async)]
+pub fn docbase_generate_document(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    request: similar::generate::GenerateRequest,
+) -> Result<similar::generate::Generated, String> {
+    let base = state.base()?;
+    let place = crate::work_folder::generated_place(&app, base)?;
+    let generated = base.generate_document(&place, &request)?;
+    // Its text is read by the worker, as for any new file.
+    state.request_sweep();
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(generated)
+}
+
+/// Opens a generated document in its program (Word), or shows it in its
+/// folder (`reveal`).
+#[tauri::command(async)]
+pub fn docbase_open_generated(app: tauri::AppHandle, state: State<'_, DocBaseState>, id: i64, reveal: bool) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let path = state.base()?.generated_path(id)?;
+    let path = path.to_string_lossy().to_string();
+    let opened = if reveal { app.opener().reveal_item_in_dir(&path) } else { app.opener().open_path(path.clone(), None::<&str>) };
+    opened.map_err(|e| format!("No se pudo abrir '{path}': {e}"))
+}
+
 /// The relations a person can choose, as the catalog lists them. Their
 /// names come from the vocabulary.
 #[tauri::command(async)]
@@ -505,6 +569,24 @@ pub fn docbase_types_run(
 #[tauri::command(async)]
 pub fn docbase_ai_services(state: State<'_, DocBaseState>) -> Result<AiServicesView, String> {
     state.base()?.ai_services()
+}
+
+/// What the base and the chat ask the model (P-278): each question with its
+/// version, how it is built over an invented document, the catalogs it is
+/// written with and the engine that answers it. Asks nothing and writes
+/// nothing; without a base, the questions all the same.
+#[tauri::command(async)]
+pub fn docbase_model_questions(app: tauri::AppHandle, state: State<'_, DocBaseState>) -> Result<Vec<ModelQuestion>, String> {
+    // Where a catalog can be replaced (`start`).
+    let folder = app.path().app_data_dir().ok().map(|dir| dir.join("docbase"));
+    super::questions::model_questions(state.base().ok().map(|base| base.as_ref()), folder.as_deref())
+}
+
+/// The last question of its current version the base keeps, with its whole
+/// text: it carries the text of the documents it was about.
+#[tauri::command(async)]
+pub fn docbase_model_question_last(state: State<'_, DocBaseState>, id: String) -> Result<Option<AskedQuestion>, String> {
+    state.base()?.last_model_question(&id)
 }
 
 /// Saves the registry of the AI services: the next request uses it, and
@@ -996,6 +1078,17 @@ pub fn docbase_knowledge_reread(app: tauri::AppHandle, state: State<'_, DocBaseS
     state.ask_wake.request();
     let _ = app.emit(CHANGED_EVENT, ());
     Ok(count)
+}
+
+/// What a person says of the round of questions of «quién es quién» and of
+/// the summaries that passed its cap (D-484): `go`, they are asked now;
+/// otherwise they are left for later.
+#[tauri::command(async)]
+pub fn docbase_auto_questions_decide(app: tauri::AppHandle, state: State<'_, DocBaseState>, go: bool) -> Result<(), String> {
+    state.base()?.auto_questions_decide(go)?;
+    state.ask_wake.request();
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(())
 }
 
 /// Keeps and applies several decisions of the user at once, with one

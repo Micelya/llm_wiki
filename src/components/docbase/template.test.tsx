@@ -1,9 +1,29 @@
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it, vi } from "vitest"
-import type { Template, TemplateField } from "@/commands/docbase"
+import type { Template, TemplateField, TemplateSummary } from "@/commands/docbase"
 import { vocabularyFor } from "@/vocabulary"
-import { fieldName, fieldRows, placeLabel, possiblySameNames, rowIndexOf, templateSummary } from "./template"
+import {
+  automaticTemplateName,
+  choiceOf,
+  decided,
+  distinctValues,
+  fieldName,
+  fieldNote,
+  fieldRows,
+  fieldsLine,
+  formatName,
+  nameSourceText,
+  placeLabel,
+  possiblySameNames,
+  rowIndexOf,
+  templateName,
+  templateSummary,
+  templatesSummary,
+  whatName,
+} from "./template"
+import { FieldEditor } from "./template-field-editor"
 import { TemplatePanel } from "./template-panel"
+import { TemplateDetail, TemplateTable } from "./templates-view"
 import { docRef } from "./similar.fixtures"
 
 // The panel talks to the base only through its props here.
@@ -12,8 +32,23 @@ vi.mock("@/commands/docbase", () => ({}))
 const words = vocabularyFor("legal", "es")
 
 function field(kind: TemplateField["kind"], ordinal: number, values: string[], extra: Partial<TemplateField> = {}): TemplateField {
-  return { kind, ordinal, formName: null, sameAs: null, values, ...extra }
+  return {
+    kind,
+    ordinal,
+    formName: null,
+    sameAs: null,
+    values,
+    name: null,
+    nameSource: null,
+    what: null,
+    whatSource: null,
+    fixed: false,
+    fixedValue: null,
+    ...extra,
+  }
 }
+
+const WHATS = ["persona", "organizacion", "asunto", "fecha", "importe", "numero", "identificador", "texto"]
 
 /** Three invented receipts: a name, an amount said twice and a date change. */
 function receipts(): Template {
@@ -45,7 +80,27 @@ function receipts(): Template {
     ],
     possiblySame: [],
     computedAt: 1,
+    docType: "recibo",
+    proposedTypeName: null,
+    typeRank: null,
+    format: "pdf-text",
+    name: null,
+    whats: WHATS,
+    generated: [],
   }
+}
+
+/** The receipts, with what a person and the model said of their fields. */
+function named(): Template {
+  const template = receipts()
+  template.name = "Recibo de honorarios"
+  template.fields = [
+    field("name", 1, ["Ana Torres", "Bruno Vega", "Carla Ruiz"], { name: "Quien paga", nameSource: "person", what: "persona", whatSource: "model" }),
+    field("amount", 1, ["1.500,00", "2.750,00", "980,50"], { name: "Importe", nameSource: "model", what: "importe", whatSource: "kind" }),
+    field("date", 1, ["10/01/2026", "", "10/03/2026"], { what: "fecha", whatSource: "kind", fixed: true, fixedValue: "10/01/2026" }),
+    field("amount", 1, ["1.500,00", "2.750,00", "980,50"], { sameAs: 1, name: "Importe", nameSource: "model" }),
+  ]
+  return template
 }
 
 function text(html: string): string {
@@ -91,7 +146,144 @@ describe("what the template screen says", () => {
     const template = { ...receipts(), possiblySame: [[1, 3]] as [number, number][] }
     expect(possiblySameNames(template)).toEqual([["Recibo enero.pdf", "Recibo marzo.pdf"]])
   })
+
+  it("names a template by the type of its principal, with its order when another has the same type", () => {
+    expect(templateName(receipts(), "Recibo enero.pdf", words)).toBe("Recibo")
+    expect(templateName({ ...receipts(), typeRank: 1 }, "Recibo enero.pdf", words)).toBe("Recibo")
+    expect(templateName({ ...receipts(), typeRank: 2 }, "Recibo enero.pdf", words)).toBe("Recibo (2)")
+    // A type the model proposed, by the name it proposed.
+    expect(templateName({ ...receipts(), docType: "poder-general", proposedTypeName: "Poder general" }, "x.pdf", words)).toBe(
+      "Poder general",
+    )
+    // No type yet: by its principal, with the word of the profession.
+    expect(templateName({ ...receipts(), docType: null }, "Recibo enero.pdf", words)).toBe("Plantilla «Recibo enero.pdf»")
+    expect(templateName({ ...receipts(), docType: null }, "a.pdf", vocabularyFor("legal", "en"))).toBe("Template «a.pdf»")
+  })
+
+  it("says where the format comes from and sums the list up", () => {
+    expect(formatName("word")).toBe("Word")
+    expect(formatName("scan")).toBe("Escaneo")
+    expect(formatName("pdf-form")).toBe("Formulario PDF")
+    const one = summary({ documents: 5 })
+    expect(templatesSummary([one, summary({ documents: 2 })], words)).toBe(
+      "2 plantillas con 7 documentos. Todavía no se confirmó ninguna familia.",
+    )
+    expect(templatesSummary([one, summary({ state: "confirmed" })], words)).toBe("2 plantillas con 8 documentos. 1 de 2 con la familia confirmada.")
+    expect(templatesSummary([summary({ state: "confirmed" })], words)).toBe("1 plantilla con 3 documentos. Las familias de todas están confirmadas.")
+    expect(fieldsLine({ fields: 8, wordingFields: 2 })).toBe("8 campos · 2 textos que cambian")
+    expect(fieldsLine({ fields: 1, wordingFields: 0 })).toBe("1 campo")
+    expect(fieldsLine({ fields: 0, wordingFields: 0 })).toBe("ningún campo cambia")
+  })
 })
+
+describe("the names of a template and of its fields", () => {
+  it("shows the name a person, the text or the model gave a field, and says where it comes from", () => {
+    const [who, amount, date] = named().fields
+    expect(fieldName(who, words)).toBe("Quien paga")
+    expect(nameSourceText(who)).toBe("nombre puesto por una persona")
+    expect(nameSourceText(amount)).toBe("nombre puesto por el modelo")
+    expect(nameSourceText({ nameSource: "label", formName: null })).toBe("rótulo del texto")
+    expect(nameSourceText({ nameSource: "label", formName: "Nombre" })).toBe("nombre del formulario")
+    expect(fieldName(date, words)).toBe("Fecha 1")
+    expect(nameSourceText(date)).toBeNull()
+    expect(placeLabel(named(), 3, null, words)).toBe("Importe")
+  })
+
+  it("says what a field is with the words of the profession, and whether it is fixed", () => {
+    expect(whatName("asunto", words)).toBe("Caso")
+    expect(whatName("persona", words)).toBe("Persona")
+    expect(whatName("organizacion", words)).toBe("Organización")
+    expect(whatName("fecha", words)).toBe("Fecha")
+    expect(whatName("identificador", words)).toBe("Identificador")
+    expect(whatName("texto", words)).toBe("Texto")
+    const [who, , date] = named().fields
+    expect(fieldNote(who, words)).toBe("Persona")
+    expect(fieldNote(date, words)).toBe("Fecha · fijo: «10/01/2026»")
+    expect(fieldNote(field("name", 1, []), words)).toBeNull()
+  })
+
+  it("starts the editor with what a person decided, and only that", () => {
+    const [who, amount, date] = named().fields
+    expect(choiceOf(who)).toEqual({ name: "Quien paga", what: null, fixed: false, fixedValue: null })
+    expect(choiceOf(amount)).toEqual({ name: null, what: null, fixed: false, fixedValue: null })
+    expect(choiceOf(date)).toEqual({ name: null, what: null, fixed: true, fixedValue: "10/01/2026" })
+    expect([who, amount, date].map(decided)).toEqual([true, false, true])
+    expect(distinctValues(field("name", 1, ["Ana", "", "Ana", "Bruno"]))).toEqual(["Ana", "Bruno"])
+  })
+
+  it("names a template by what a person wrote before its type", () => {
+    expect(templateName(named(), "Recibo enero.pdf", words)).toBe("Recibo de honorarios")
+    expect(automaticTemplateName(named(), "Recibo enero.pdf", words)).toBe("Recibo")
+  })
+
+  it("lets a person edit each field in the section, and nowhere else", () => {
+    const editable = text(
+      renderToStaticMarkup(
+        <TemplatePanel template={named()} initialColumn={null} onOpen={() => {}} onChooseField={() => true} words={words} />,
+      ),
+    )
+    expect(editable).toContain("Quien paga nombre puesto por una persona Persona")
+    expect(editable).toContain("Importe nombre puesto por el modelo Importe 2 lugares del texto")
+    expect(editable).toContain("Fecha 1 sin nombre todavía: lo nombra el modelo Fecha · fijo: «10/01/2026»")
+    expect(editable).toContain("Recibí de Quien paga la suma de $ Importe el día Fecha 1")
+    const html = renderToStaticMarkup(<TemplatePanel template={named()} initialColumn={null} onOpen={() => {}} words={words} />)
+    expect(html).not.toContain("Cambiar el nombre, qué es o si es fijo")
+    expect(
+      renderToStaticMarkup(<TemplatePanel template={named()} initialColumn={null} onOpen={() => {}} onChooseField={() => true} words={words} />),
+    ).toContain("Cambiar el nombre, qué es o si es fijo")
+  })
+
+  it("offers in the editor the automatic name and what it is, the values to fix it with and the way back", () => {
+    const [who, amount] = named().fields
+    const html = text(
+      renderToStaticMarkup(<FieldEditor field={amount} whats={WHATS} busy={false} onSave={() => {}} onCancel={() => {}} words={words} />),
+    )
+    expect(html).toContain("Automático: Importe")
+    expect(html).toContain("Caso")
+    expect(html).toContain("Fijo: no se pide al generar un documento y se escribe siempre igual")
+    expect(html).not.toContain("Volver a lo automático")
+    const decidedHtml = renderToStaticMarkup(
+      <FieldEditor field={who} whats={WHATS} busy={false} onSave={() => {}} onCancel={() => {}} words={words} />,
+    )
+    expect(decidedHtml).toContain('value="Quien paga"')
+    expect(decidedHtml).toContain('placeholder="Nombre 1"')
+    expect(text(decidedHtml)).toContain("Volver a lo automático")
+    const fixed = text(
+      renderToStaticMarkup(
+        <FieldEditor field={named().fields[2]} whats={WHATS} busy={false} onSave={() => {}} onCancel={() => {}} words={words} />,
+      ),
+    )
+    expect(fixed).toContain("10/01/2026 10/03/2026 (nada) Otro…")
+  })
+
+  it("shows the name a person gave the template, with the way back to the automatic one", () => {
+    const html = text(renderToStaticMarkup(<TemplateDetail template={named()} onOpen={() => {}} onRename={async () => true} words={words} />))
+    expect(html).toContain("Recibo de honorarios")
+    expect(html).toContain("Volver al nombre automático")
+    expect(text(renderToStaticMarkup(<TemplateDetail template={receipts()} onOpen={() => {}} onRename={async () => true} words={words} />))).not.toContain(
+      "Volver al nombre automático",
+    )
+  })
+})
+
+function summary(patch: Partial<TemplateSummary> = {}): TemplateSummary {
+  return {
+    principal: docRef(1, "Recibo enero.pdf"),
+    name: null,
+    docType: "recibo",
+    proposedTypeName: null,
+    typeRank: null,
+    state: "proposed",
+    documents: 3,
+    fields: 3,
+    wordingFields: 0,
+    format: "pdf-text",
+    possiblySame: 0,
+    waitingFields: 0,
+    generated: 0,
+    ...patch,
+  }
+}
 
 describe("the template panel", () => {
   it("shows the shared text with the fields in their place and a table of values", () => {
@@ -125,11 +317,67 @@ describe("the template panel", () => {
     expect(html).toContain("Ningún campo cambia entre estos documentos.")
   })
 
+  it("leaves its title to the section when asked", () => {
+    const html = text(
+      renderToStaticMarkup(<TemplatePanel template={receipts()} initialColumn={null} onOpen={() => {}} heading={false} words={words} />),
+    )
+    expect(html).not.toContain("Plantilla Propuesta")
+    expect(html).toContain("Los campos, documento por documento (3)")
+  })
+
   it("says a confirmed template is confirmed", () => {
     const html = text(
       renderToStaticMarkup(<TemplatePanel template={{ ...receipts(), state: "confirmed" }} initialColumn={null} onOpen={() => {}} words={words} />),
     )
     expect(html).toContain("Confirmada")
     expect(html).not.toContain("es una propuesta")
+  })
+})
+
+describe("the section «Plantillas»", () => {
+  it("lists each template with its name, state, documents, fields, format and notices", () => {
+    const list = [
+      summary({ documents: 5, fields: 8, wordingFields: 2 }),
+      summary({ principal: docRef(4, "Ficha.pdf"), docType: null, format: "scan", possiblySame: 1, fields: 1 }),
+    ]
+    const html = text(renderToStaticMarkup(<TemplateTable templates={list} onOpen={() => {}} words={words} />))
+    expect(html).toContain("2 plantillas con 8 documentos. Todavía no se confirmó ninguna familia.")
+    expect(html).toContain("Recibo Propuesta")
+    expect(html).toContain("5 documentos · 8 campos · 2 textos que cambian · PDF con texto")
+    expect(html).toContain("Plantilla «Ficha.pdf»")
+    expect(html).toContain("posiblemente el mismo documento")
+    expect(html).toContain("el texto salió de un escaneo")
+    expect(html).toContain("3 documentos · 1 campo · Escaneo")
+    expect(html).not.toContain("esperan su nombre")
+  })
+
+  it("says which fields wait for the model, which names them by itself", () => {
+    const list = [summary({ waitingFields: 2 }), summary({ principal: docRef(4, "Otro.pdf"), waitingFields: 1 })]
+    const html = text(renderToStaticMarkup(<TemplateTable templates={list} onOpen={() => {}} words={words} />))
+    expect(html).toContain(
+      "3 campos esperan su nombre: el texto no los nombra y los nombra el modelo, solo, mientras la lectura automática está activa. Lo que escribas vos nunca se pisa.",
+    )
+    expect(html).toContain("3 documentos · 3 campos · PDF con texto · 2 sin nombre todavía")
+    expect(html).not.toContain("Nombrar los campos con el modelo")
+    const panel = text(
+      renderToStaticMarkup(<TemplatePanel template={receipts()} initialColumn={null} onOpen={() => {}} onChooseField={() => true} words={words} />),
+    )
+    expect(panel).toContain("Nombre 1 sin nombre todavía: lo nombra el modelo")
+    expect(panel).toContain("el modelo solo les pone nombre a los campos que el texto no nombra")
+  })
+
+  it("shows the detail of a proposal with its notice, the way to confirm its family and the panel of today", () => {
+    const html = text(renderToStaticMarkup(<TemplateDetail template={receipts()} onOpen={() => {}} words={words} />))
+    expect(html).toContain("Recibo Propuesta")
+    expect(html).toContain("3 documentos · 3 campos · formato del principal: PDF con texto")
+    expect(html).toContain("Es una propuesta: nadie confirmó todavía que estos documentos son de la misma familia. Se puede ver y usar igual.")
+    expect(html).toContain("Confirmar la familia")
+    expect(html).toContain("Recibí de Nombre 1 la suma de $ Importe 1")
+    expect(html).not.toContain("salió de un escaneo")
+    const scan = text(
+      renderToStaticMarkup(<TemplateDetail template={{ ...receipts(), state: "confirmed", format: "scan" }} onOpen={() => {}} words={words} />),
+    )
+    expect(scan).toContain("El texto salió de un escaneo: lo leyó el reconocimiento y puede tener errores.")
+    expect(scan).not.toContain("Confirmar la familia")
   })
 })

@@ -2,10 +2,12 @@ import { useEffect, useState, type ReactNode } from "react"
 import { AlertCircle, CheckCircle2, ChevronDown, ChevronRight, Clock, Loader2, PauseCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
+  decideAutoQuestions,
   knowledgeReadAgainFailed,
   listOrigins,
   listProgressFolders,
   listStageItems,
+  type AutoQuestions,
   type Progress,
   type ProgressScope,
   type ProgressStage,
@@ -24,7 +26,7 @@ import {
   useBackgroundReading,
 } from "@/components/docbase/background-reading-panel"
 import { EmptyNote, ErrorNote, StatusBadge, type Tone } from "@/components/docbase/page"
-import { formatCount } from "@/components/docbase/format"
+import { formatCount, plural } from "@/components/docbase/format"
 import { useDocbaseQuery } from "@/components/docbase/use-docbase-query"
 import { useRecognize, useRecognitionEngine, type Recognize } from "@/components/docbase/recognition"
 import { useProgressStore } from "@/stores/progress-store"
@@ -51,9 +53,112 @@ export function OngoingTab({ progress, error, extra }: { progress: Progress | nu
         <ReadingState progress={progress} />
         <ScopePicker scope={scope} onChange={setScope} />
       </div>
+      {progress?.autoQuestions && <AutoQuestionsLine round={progress.autoQuestions} />}
       {error && <ErrorNote>{error}</ErrorNote>}
       {progress ? <StageList progress={progress} scope={scope} /> : !error && <EmptyNote>Buscando…</EmptyNote>}
+      <ReadAllAgain />
       {extra}
+    </div>
+  )
+}
+
+/** What the round of automatic questions has, in words (D-484). */
+export function autoQuestionsText(round: AutoQuestions): { title: string; explanation: string } | null {
+  const total = round.asked + round.pending
+  if (round.pending === 0) return null
+  const questions = plural(round.pending, "pregunta", "preguntas")
+  const done = round.asked > 0 ? ` (ya hizo ${formatCount(round.asked)} de ${formatCount(total)})` : ""
+  if (round.held && round.decision === "later") {
+    return {
+      title: `Dejaste para después ${questions} de quién es quién y de resumen de las fichas`,
+      explanation:
+        "Hasta que sigas, algunas identidades quedan sin resolver y algunas fichas sin su resumen. Usan la cuota de tu proveedor.",
+    }
+  }
+  if (round.held) {
+    return {
+      title: `La app espera tu permiso para hacer ${questions} al modelo`,
+      explanation:
+        `Son preguntas de quién es quién y de resumen de las fichas${done}, que siguen a un cambio en lo leído. ` +
+        `Pasan de ${formatCount(round.cap)}, así que la app no sigue sin tu permiso. Usan la cuota de tu proveedor.`,
+    }
+  }
+  return {
+    title: `La app va a hacer ${questions} de quién es quién y de resumen de las fichas${done}`,
+    explanation: `Van solas mientras la lectura automática está activa. Si en total pasan de ${formatCount(round.cap)}, la app pide permiso antes de seguir.`,
+  }
+}
+
+/**
+ * The questions of «quién es quién» and of the summaries that follow a
+ * change in what was read (D-484): how many it is going to ask and, past
+ * the cap, the permission to go on or to leave them for later.
+ */
+export function AutoQuestionsLine({ round }: { round: AutoQuestions }) {
+  const [busy, setBusy] = useState(false)
+  const [problem, setProblem] = useState<string | null>(null)
+  const refresh = useProgressStore((s) => s.refresh)
+  const text = autoQuestionsText(round)
+  if (!text) return null
+  async function decide(go: boolean) {
+    setBusy(true)
+    setProblem(null)
+    try {
+      await decideAutoQuestions(go)
+      refresh()
+    } catch (cause) {
+      setProblem(String(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const held = round.held !== null
+  return (
+    <div
+      className={`flex flex-wrap items-start justify-between gap-3 rounded-lg border px-4 py-3 ${held ? "border-amber-500/40 bg-amber-500/5" : "bg-card"}`}
+      data-auto-questions={held ? "held" : "going"}
+    >
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium">{text.title}</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">{text.explanation}</p>
+        {problem && <ErrorNote>{problem}</ErrorNote>}
+      </div>
+      {held && (
+        <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+          <Button size="sm" disabled={busy} onClick={() => void decide(true)}>
+            {busy && <Loader2 className="animate-spin" />}
+            {round.decision === "later" ? "Hacerlas ahora" : `Seguir con las ${formatCount(round.pending)}`}
+          </Button>
+          {round.decision !== "later" && (
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => void decide(false)}>
+              Dejarlas para después
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Always there (D-465): reading again with the model every document of the
+ * archive already read, whatever the tab is narrowed to. Nothing is read
+ * again by itself; the button says first how many questions it takes and
+ * asks to confirm.
+ */
+export function ReadAllAgain() {
+  const refresh = useProgressStore((s) => s.refresh)
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border bg-card px-4 py-3" data-reread="all">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium">Volver a leer todo el archivo</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Nada se vuelve a leer solo, ni al cambiar la pregunta de lectura ni al cambiar de modelo. Si querés, la app le
+          vuelve a preguntar al modelo por cada documento ya leído, sin usar las respuestas de antes; antes te dice cuántas
+          preguntas son.
+        </p>
+      </div>
+      <ReadAgainWithModel target={{}} label="Volver a leer todo el archivo" onDone={refresh} />
     </div>
   )
 }
@@ -260,9 +365,11 @@ export function StageLine({
                 ? !recognitionEngine.id
                   ? MISSING_ENGINE
                   : "En pausa: la lectura automática está apagada. Podés reconocerlos a pedido, todos o de a uno."
-                : engineChosen
-                  ? "En pausa: sigue cuando actives la lectura automática."
-                  : "En pausa: falta elegir el motor de «Preguntar al modelo» en Ajustes → Servicios de IA."}
+                : (stage.extra.held ?? 0) > 0
+                  ? "En pausa: sus preguntas al modelo esperan tu permiso (más arriba)."
+                  : engineChosen
+                    ? "En pausa: sigue cuando actives la lectura automática."
+                    : "En pausa: falta elegir el motor de «Preguntar al modelo» en Ajustes → Servicios de IA."}
             </p>
           )}
           {scans && stage.state === "running" && !backgroundReading && (
@@ -273,11 +380,12 @@ export function StageLine({
           {stage.error && <ModelErrorNote stage={stage} />}
         </div>
         {stage.id === "reading" && stage.failed > 0 && <ReadAgainButton onProblem={setProblem} />}
-        {/* Reading again with the model what was read, over the scope chosen above (D-432). */}
-        {stage.id === "reading" && stage.done > 0 && (
+        {/* Reading again with the model what was read in the origin or folder
+            chosen above (D-432); the whole archive is below the stages (D-465). */}
+        {stage.id === "reading" && stage.done > 0 && scope.originId && (
           <ReadAgainWithModel
-            target={scope.originId ? { originId: scope.originId, folder: scope.folder ?? null } : {}}
-            label={scope.originId ? (scope.folder ? "Volver a leer esta carpeta" : "Volver a leer este origen") : "Volver a leer todo"}
+            target={{ originId: scope.originId, folder: scope.folder ?? null }}
+            label={scope.folder ? "Volver a leer esta carpeta" : "Volver a leer este origen"}
             onDone={refresh}
           />
         )}

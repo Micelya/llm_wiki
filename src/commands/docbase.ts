@@ -237,6 +237,31 @@ export interface DocumentDetail extends DocumentRow {
   textAt: number | null
   /** Every location of this document, this one first. */
   locations: LocationRef[]
+  /** When it was generated from a template: when, from which and for which matter (D-488). */
+  generated: GeneratedLine | null
+}
+
+/** What the screen of a generated document says of it. */
+export interface GeneratedLine {
+  /** Its record. */
+  id: number
+  generatedAt: number
+  /** The name the template had then. */
+  templateName: string
+  /** The location of the template's principal now, to open it; `null` when the template is no more. */
+  templateLocation: number | null
+  matterId: string | null
+  matterName: string | null
+}
+
+/** A document generated with a template, in the template's screen. */
+export interface GeneratedEntry {
+  id: number
+  generatedAt: number
+  fileName: string
+  matterName: string | null
+  /** Where the base has it; `null` until it finds it, or when it is gone. */
+  locationId: number | null
 }
 
 /** How the archive is doing, in numbers. */
@@ -491,6 +516,36 @@ export interface TemplateField {
   sameAs: number | null
   /** The value of each document, in the order of `Template.documents`; empty: nothing there. */
   values: string[]
+  /**
+   * The name it is shown with: what a person wrote, the name its text gives
+   * it, or the model's; `null`: by its kind and order, from the vocabulary.
+   */
+  name: string | null
+  nameSource: "person" | "label" | "model" | null
+  /** What it is: a type of entity ("persona"…) or a kind of data ("fecha"…); `null` when nothing says. */
+  what: string | null
+  whatSource: "person" | "model" | "kind" | null
+  /** A person marked it fixed: it is written always as `fixedValue`, and not asked when generating. */
+  fixed: boolean
+  fixedValue: string | null
+}
+
+/** What a person decides about a field of a template; all empty: back to the automatic ones. */
+export interface FieldChoice {
+  name: string | null
+  what: string | null
+  fixed: boolean
+  fixedValue: string | null
+}
+
+/** Names a template, or gives it back its automatic name (`null`). */
+export function nameTemplate(principal: number, name: string | null): Promise<void> {
+  return invoke<void>("docbase_name_template", { principal, name })
+}
+
+/** What a person decides about the field at `position` of a template. */
+export function chooseTemplateField(principal: number, position: number, choice: FieldChoice): Promise<void> {
+  return invoke<void>("docbase_choose_template_field", { principal, position, choice })
 }
 
 /**
@@ -498,7 +553,7 @@ export interface TemplateField {
  * share, with the fields that change, and the value of each document.
  * Built without a model, also for families nobody confirmed ("proposed").
  */
-export interface Template {
+export interface Template extends TemplateKind {
   principal: number
   /** The document asked about (its content id). */
   asked: number
@@ -510,6 +565,111 @@ export interface Template {
   /** Pairs of documents (content ids) where nothing changes but a few words: possibly the same document. */
   possiblySame: [number, number][]
   computedAt: number
+  format: TemplateFormat
+  /** The name a person gave it; `null`: its automatic name. */
+  name: string | null
+  /** What a field can be, for a person to choose. */
+  whats: string[]
+  /** The documents generated with it, the latest first. */
+  generated: GeneratedEntry[]
+}
+
+/**
+ * The type of document of a template's principal, which names the template
+ * until a person names it, and its order among the templates whose
+ * principal has the same type, when there is more than one.
+ */
+export interface TemplateKind {
+  docType: string | null
+  /** The name the model proposed for a type outside the catalog, or the one a person confirmed. */
+  proposedTypeName: string | null
+  typeRank: number | null
+}
+
+/** Where the format of a template comes from, as its principal is. */
+export type TemplateFormat = "word" | "pdf-text" | "pdf-form" | "scan" | "text"
+
+/** A template in the list of the section «Plantillas». */
+export interface TemplateSummary extends TemplateKind {
+  principal: DocRef
+  /** The name a person gave it; `null`: its automatic name. */
+  name: string | null
+  state: "proposed" | "confirmed"
+  /** The documents of it, the principal included. */
+  documents: number
+  /** Its fields, each once; of them, the wording that changes. */
+  fields: number
+  wordingFields: number
+  format: TemplateFormat
+  /** Pairs of its documents possibly the same document, undecided. */
+  possiblySame: number
+  /** Fields whose name (or what they are) waits for the model. */
+  waitingFields: number
+  /** Documents generated with it. */
+  generated: number
+}
+
+/** Every template of the base, for the section «Plantillas». */
+export function listTemplates(): Promise<TemplateSummary[]> {
+  return invoke<TemplateSummary[]>("docbase_templates")
+}
+
+/**
+ * Where the value of a field of a generated document came from: written or
+ * chosen by a person (`hand`), a person or organization of the base
+ * (`entity`), what the base knows of it, such as its DNI or its address
+ * (`card`), a matter (`matter`), one of the template's documents
+ * (`document`), the calendar (`date`) or the field's fixed value (`fixed`).
+ */
+export type GeneratedValueSource = "hand" | "entity" | "card" | "matter" | "document" | "date" | "fixed"
+
+/** The value of a field of a document to generate, by the position of its first place. */
+export interface GivenValue {
+  position: number
+  /** Its name as the screen shows it. */
+  name: string
+  value: string
+  source: GeneratedValueSource
+  /** What it came from: `entity:<id>`, `matter:<id>`, `content:<id>`. */
+  reference: string | null
+}
+
+/** What a person asks to generate from a template. */
+export interface GenerateRequest {
+  /** The template, by its principal (content id). */
+  principal: number
+  /** Its name as the screen shows it. */
+  templateName: string
+  values: GivenValue[]
+  /** The matter it is generated for. */
+  matterId: string | null
+  /** The name of the file; `null`: the template's and the date. */
+  fileName: string | null
+  /** The document whose data it started with (content id). */
+  fromDocument: number | null
+}
+
+/** A document generated from a template: its record, its file and where the base has it. */
+export interface GeneratedDocument {
+  id: number
+  path: string
+  fileName: string
+  locationId: number | null
+  contentId: number | null
+  /** It is in the matter it was generated for. */
+  inMatter: boolean
+  /** The fields left empty that the Word shows by name, to be filled in Word. */
+  missing: string[]
+}
+
+/** Generates a simple Word from a template in «Generados» of the work folder, with its record (D-488). */
+export function generateDocument(request: GenerateRequest): Promise<GeneratedDocument> {
+  return invoke<GeneratedDocument>("docbase_generate_document", { request })
+}
+
+/** Opens a generated document in Word, or shows it in its folder (`reveal`). */
+export function openGenerated(id: number, reveal = false): Promise<void> {
+  return invoke<void>("docbase_open_generated", { id, reveal })
 }
 
 /** The documents similar to the one at this location. */
@@ -694,7 +854,8 @@ export function runTypes(engine: AskConfig, maxQuestions?: number): Promise<Type
 
 /** Which engine recognizes the text of scans, and with which model. */
 export interface RecognitionConfig {
-  engine: "codex-cli"
+  /** Codex, or Micelya Core (Textract, page by page). */
+  engine: "codex-cli" | "core"
   model: string
 }
 
@@ -734,10 +895,18 @@ export interface CatalogEngine {
   name: string
   /** `local`: a program on this computer; `api`: a provider's API; `search`: a web search. */
   kind: "local" | "api" | "search"
-  /** The base runs it by itself (today only Codex). */
+  /** The base runs it by itself (today Codex, and Micelya Core for the scans). */
   inBase: boolean
   /** It takes a reasoning level. */
   reasoning: boolean
+  /** The shared connection it needs (Ajustes → Conexiones), when it is one of those. */
+  connection?: string
+  /** The model it is saved with when none is chosen. */
+  defaultModel?: string
+  /** False: the person does not choose the model (the provider says which one reads). */
+  modelChoice?: boolean
+  /** How it reads, in words. */
+  notes?: string
   /** What it says it can do, when it declares it. */
   capabilities?: Partial<Record<string, CapabilityLevel>>
   languages?: string[]
@@ -768,6 +937,80 @@ export function getAiServices(): Promise<AiServicesView> {
 /** Saves the registry; the next request of each service uses it. */
 export function setAiServices(services: AiServices): Promise<AiServicesView> {
   return invoke<AiServicesView>("docbase_set_ai_services", { services })
+}
+
+// ── What is asked of the model (P-278, `docbase/questions.rs`) ──────────
+
+/** A piece of a question: the same in every case, or a value that changes in each case (`part` says which). */
+export interface QuestionSegment {
+  text: string
+  part: string | null
+}
+
+/** One text sent to the model, in order: the question, or the system text and the message of the chat. */
+export interface QuestionSent {
+  title: string
+  segments: QuestionSegment[]
+}
+
+/** A catalog a question is written with, and which one is in use. */
+export interface QuestionCatalog {
+  file: string
+  name: string
+  /** The one of the data folder (true) or the one that comes with the app. */
+  fromFolder: boolean
+  folderPath: string | null
+  /** A file in the data folder that is not in use (not valid, or put there after the app opened). */
+  unusedFile: boolean
+}
+
+export interface QuestionVersionCount {
+  version: string
+  count: number
+}
+
+/** A question the base or the chat asks the model. */
+export interface ModelQuestion {
+  id: string
+  name: string
+  purpose: string
+  when: string
+  note: string | null
+  /** Null: the question has no version. */
+  version: string | null
+  catalogs: QuestionCatalog[]
+  /** The service of the registry that answers it, and its engine. */
+  service: AiServiceId
+  engine: EngineChoice | null
+  /** Why it is not asked now, when it is not. */
+  engineNote: string | null
+  /** How it is built over an invented document, by the same functions as the reading. */
+  example: QuestionSent[]
+  noExample: string | null
+  /** The shape of the answer it asks for, as JSON. */
+  answerShape: string | null
+  /** The base keeps each one asked. */
+  kept: boolean
+  /** How many the base keeps of each version, the current one first. */
+  keptByVersion: QuestionVersionCount[]
+}
+
+/** The last question of its current version the base keeps; its text carries the text of the firm's documents. */
+export interface AskedQuestion {
+  version: string
+  engine: string
+  askedAt: number
+  prompt: string
+}
+
+/** Every question the base and the chat ask the model. Asks nothing. */
+export function listModelQuestions(): Promise<ModelQuestion[]> {
+  return invoke<ModelQuestion[]>("docbase_model_questions")
+}
+
+/** The last question `id` of its current version the base keeps, or null. */
+export function lastModelQuestion(id: string): Promise<AskedQuestion | null> {
+  return invoke<AskedQuestion | null>("docbase_model_question_last", { id })
 }
 
 /**
@@ -1528,6 +1771,7 @@ export type StageId =
   | "recognition"
   | "similar"
   | "types"
+  | "templates"
   | "reading"
   | "resolve"
   | "matters"
@@ -1579,7 +1823,7 @@ export interface StageItem {
 export interface ProgressStage {
   id: StageId
   state: StageState
-  unit: "origins" | "files" | "documents" | "pages"
+  unit: "origins" | "files" | "documents" | "templates" | "pages"
   /** Done, pending and failed. */
   total: number
   done: number
@@ -1597,7 +1841,9 @@ export interface ProgressStage {
    * matters; for the scans, the `pages` that wait, the documents whose
    * pages are not counted yet (`uncounted`) and those asked for (`requested`);
    * `firstLap` (1) while the matters or the pages wait for the engine's
-   * first pass since the app opened (D-452).
+   * first pass since the app opened (D-452); `held` (1) while its questions
+   * wait for a person (D-484); for the reading, the documents read with
+   * another version or model (`outdated`, D-465).
    */
   extra: Record<string, number>
 }
@@ -1613,6 +1859,31 @@ export interface Progress {
   /** The engine that recognizes scans, as it names its text; null when none was chosen. */
   recognitionEngine?: string | null
   lastError: ModelError | null
+  /** The questions of «quién es quién» and of the summaries that go by themselves (D-484). */
+  autoQuestions?: AutoQuestions | null
+}
+
+/**
+ * The round of questions of «quién es quién» and of the summaries of the
+ * pages that follow a change in what was read (D-484): they go by
+ * themselves with the automatic reading on; past `cap`, a person says
+ * whether to go on.
+ */
+export interface AutoQuestions {
+  /** Questions left, as last counted. */
+  pending: number
+  /** Asked since the round began. */
+  asked: number
+  cap: number
+  /** The stage whose questions wait for a person, when one does. */
+  held: "resolve" | "pages" | null
+  /** What a person said of the round. */
+  decision: "allowed" | "later" | null
+}
+
+/** `go`: the questions of the round are asked now; otherwise they are left for later (D-484). */
+export function decideAutoQuestions(go: boolean): Promise<void> {
+  return invoke<void>("docbase_auto_questions_decide", { go })
 }
 
 export interface StageItems {
@@ -1681,7 +1952,12 @@ export interface RereadTarget {
   locationId?: number | null
   originId?: string | null
   folder?: string | null
+  /** Of those, only the ones read with another version of the question or with another model (D-465). */
+  outdated?: boolean
 }
+
+/** The documents of the archive read with another version of the question or with another model (D-465). */
+export const OUTDATED_READINGS: RereadTarget = { outdated: true }
 
 /** What reading them again takes: documents already read and questions to the model. */
 export interface RereadPlan {
@@ -1689,6 +1965,9 @@ export interface RereadPlan {
   questions: number
   /** Of those, the ones already asked to read again. */
   requested: number
+  /** Of those, the ones read with another version of the question, and with another model than the one in use; a document can be both. */
+  olderVersion: number
+  otherModel: number
   engine: AskConfig | null
 }
 

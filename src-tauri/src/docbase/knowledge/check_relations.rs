@@ -501,7 +501,7 @@ fn relations_against_the_sheets() {
         let origin: Option<String> =
             base.conn().query_row("SELECT id FROM origin WHERE location = ?1", [&sheet.root], |row| row.get(0)).ok();
         let (Some(origin), Some(folder)) = (origin, sheet_folder(sheet)) else { continue };
-        let target = RereadTarget { location_id: None, origin_id: Some(origin), folder: Some(folder.clone()) };
+        let target = RereadTarget { location_id: None, origin_id: Some(origin), folder: Some(folder.clone()), ..Default::default() };
         let plan = base.knowledge_reread_plan(&target).unwrap();
         println!(
             "   reading again the folder «{folder}» of a sheet, if a person asks: {} questions for {} documents ({} asked already)",

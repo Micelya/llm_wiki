@@ -262,10 +262,69 @@ pub trait Connector: Send + Sync {
     fn record(&self, page: &Page) -> RecordPage;
     /// A message the portal shows (a record that does not exist…).
     fn message(&self, page: &Page) -> Option<String>;
+    /// Whether the portal is still working on a query: it shows its own
+    /// sign of a query in course («Consulta en proceso»).
+    fn busy(&self, page: &Page) -> bool;
     /// How many entries a full page of the record has, when it is fixed.
     fn rows_per_page(&self) -> Option<usize>;
     /// Its jurisdictions, by code and name, for the form of the app.
     fn jurisdictions(&self) -> Vec<(&'static str, &'static str)>;
+}
+
+/// What the view does with an address it is about to go to.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Navigation {
+    /// It goes.
+    Allow,
+    /// An address of the portal without encryption (`http`), as the PJN
+    /// redirects to after «Consultar»: the view does not go there, and opens
+    /// the same address with `https` instead. Nothing is ever loaded
+    /// without encryption.
+    Upgrade(tauri::Url),
+    /// It does not go.
+    Refuse,
+}
+
+/// Decides where the view may go: the portal's own addresses; the same
+/// ones without encryption are taken to `https` (only with the default
+/// port, and only when the `https` one is the portal's); anything else is
+/// refused.
+pub fn navigation(connector: &dyn Connector, url: &tauri::Url) -> Navigation {
+    if connector.allows(url) {
+        return Navigation::Allow;
+    }
+    if url.scheme() == "http" && url.port().is_none() && url.username().is_empty() && url.password().is_none() {
+        let mut secure = url.clone();
+        if secure.set_scheme("https").is_ok() && connector.allows(&secure) {
+            return Navigation::Upgrade(secure);
+        }
+    }
+    Navigation::Refuse
+}
+
+/// The addresses taken to `https` lately, so a portal that keeps sending
+/// the view back to `http` (a loop) is not followed forever.
+#[derive(Debug, Default)]
+pub struct Upgrades {
+    recent: std::collections::VecDeque<(String, std::time::Instant)>,
+}
+
+impl Upgrades {
+    /// How many times the same address may be taken to `https` in
+    /// `WINDOW`.
+    pub const MAX_SAME: usize = 3;
+    pub const WINDOW: std::time::Duration = std::time::Duration::from_secs(30);
+
+    /// Whether this address may be taken to `https` now; remembers it.
+    pub fn admit(&mut self, url: &tauri::Url, now: std::time::Instant) -> bool {
+        self.recent.retain(|(_, at)| now.saturating_duration_since(*at) < Self::WINDOW);
+        let same = self.recent.iter().filter(|(seen, _)| seen == url.as_str()).count();
+        if same >= Self::MAX_SAME {
+            return false;
+        }
+        self.recent.push_back((url.as_str().to_string(), now));
+        true
+    }
 }
 
 /// The connector of a portal, by its id.

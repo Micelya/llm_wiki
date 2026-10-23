@@ -901,16 +901,22 @@ fn parties_by_document(conn: &Connection, vocabulary: &Vocabulary) -> Result<BTr
     Ok(out)
 }
 
+/// What a question shows of a document: its name and type, who appears in
+/// it (kind, name, role), what it says of them (predicate, object, quote),
+/// and its text.
+struct DocumentView {
+    name: String,
+    doc_type: Option<String>,
+    shown: BTreeSet<(String, String, String)>,
+    facts: Vec<(String, String, String)>,
+    body: Option<String>,
+}
+
 /// A document, as a question shows it: its name and type, who appears in
 /// it and with what role, what it says of them, and how it starts.
 fn describe_document(conn: &Connection, vocabulary: &Vocabulary, content: i64) -> Result<String, String> {
     let name = crate::docbase::similar::classify::name_of(conn, content)?;
     let doc_type: Option<String> = conn.query_row("SELECT doc_type FROM document_type WHERE content_id = ?1", [content], |row| row.get(0)).ok();
-    let mut out = format!("Documento: {name}");
-    if let Some(doc_type) = doc_type {
-        out.push_str(&format!(" ({})", doc_type.replace('-', " ")));
-    }
-    out.push('\n');
     let mut statement = conn
         .prepare(
             "SELECT DISTINCT e.name AS name, e.kind AS kind, m.role AS role FROM knowledge_mention m JOIN knowledge_entity e ON e.id = m.entity_id
@@ -939,14 +945,6 @@ fn describe_document(conn: &Connection, vocabulary: &Vocabulary, content: i64) -
             shown.insert((kind, name, role));
         }
     }
-    let rows: Vec<(String, String, String)> = shown.into_iter().map(|(kind, name, role)| (name, kind, role)).collect();
-    if !rows.is_empty() {
-        let named: Vec<String> = rows
-            .iter()
-            .map(|(name, kind, role)| format!("{} ({}, {})", one_line(name), vocabulary.type_label(kind), vocabulary.role_label(role)))
-            .collect();
-        out.push_str(&format!("- Nombra a: {}\n", named.join("; ")));
-    }
     let mut statement = conn
         .prepare(
             "SELECT e.predicate, coalesce(e.object_value, CASE WHEN e.amount IS NOT NULL THEN e.amount || ' — ' || o.written ELSE o.written END), e.quote
@@ -959,28 +957,43 @@ fn describe_document(conn: &Connection, vocabulary: &Vocabulary, content: i64) -
         .map_err(sql_err)?
         .collect::<Result<_, _>>()
         .map_err(sql_err)?;
-    for (predicate, object, quote_text) in facts {
-        out.push_str(&format!("- {}: {} («{}»)\n", vocabulary.predicate_label(&predicate), one_line(&object), one_line(&quote_text)));
-    }
     let body: Option<String> =
         conn.query_row("SELECT body FROM derivative WHERE content_id = ?1 AND kind = 'text'", [content], |row| row.get(0)).ok();
-    if let Some(body) = body {
+    Ok(document_text(vocabulary, &DocumentView { name, doc_type, shown, facts, body }))
+}
+
+/// What a question says of a document.
+fn document_text(vocabulary: &Vocabulary, view: &DocumentView) -> String {
+    let mut out = format!("Documento: {}", view.name);
+    if let Some(doc_type) = &view.doc_type {
+        out.push_str(&format!(" ({})", doc_type.replace('-', " ")));
+    }
+    out.push('\n');
+    let rows: Vec<(&String, &String, &String)> = view.shown.iter().map(|(kind, name, role)| (name, kind, role)).collect();
+    if !rows.is_empty() {
+        let named: Vec<String> = rows
+            .iter()
+            .map(|(name, kind, role)| format!("{} ({}, {})", one_line(name), vocabulary.type_label(kind), vocabulary.role_label(role)))
+            .collect();
+        out.push_str(&format!("- Nombra a: {}\n", named.join("; ")));
+    }
+    for (predicate, object, quote_text) in &view.facts {
+        out.push_str(&format!("- {}: {} («{}»)\n", vocabulary.predicate_label(predicate), one_line(object), one_line(quote_text)));
+    }
+    if let Some(body) = &view.body {
         let opening: Vec<&str> = body.split_whitespace().filter(|w| !w.starts_with("##")).take(OPENING_WORDS).collect();
         out.push_str(&format!("- Empieza así: «{}»\n", opening.join(" ")));
     }
-    Ok(out)
+    out
 }
 
 /// A matter, as a question shows it: its name, its documents and parties.
 fn describe_matter(conn: &Connection, vocabulary: &Vocabulary, name: &str, documents: &BTreeSet<i64>, parties: &BTreeSet<String>) -> Result<String, String> {
-    let mut out = format!("Asunto: {}\n", one_line(name));
+    let mut shown: Vec<(String, Option<String>)> = Vec::new();
     for content in documents.iter().take(MATTER_DOCUMENTS) {
         let doc_name = crate::docbase::similar::classify::name_of(conn, *content)?;
         let doc_type: Option<String> = conn.query_row("SELECT doc_type FROM document_type WHERE content_id = ?1", [content], |row| row.get(0)).ok();
-        out.push_str(&format!("- Documento: {doc_name}{}\n", doc_type.map(|t| format!(" ({})", t.replace('-', " "))).unwrap_or_default()));
-    }
-    if documents.len() > MATTER_DOCUMENTS {
-        out.push_str(&format!("- y {} documentos más\n", documents.len() - MATTER_DOCUMENTS));
+        shown.push((doc_name, doc_type));
     }
     let mut names: Vec<String> = Vec::new();
     for id in parties {
@@ -988,11 +1001,24 @@ fn describe_matter(conn: &Connection, vocabulary: &Vocabulary, name: &str, docum
             names.push(format!("{} ({})", one_line(&entity), vocabulary.type_label(&kind)));
         }
     }
+    Ok(matter_text(name, &shown, documents.len(), names))
+}
+
+/// What a question says of a matter: its name, the first of its documents
+/// (name and type) of the `total` it has, and its parties in words.
+fn matter_text(name: &str, documents: &[(String, Option<String>)], total: usize, mut names: Vec<String>) -> String {
+    let mut out = format!("Asunto: {}\n", one_line(name));
+    for (doc_name, doc_type) in documents {
+        out.push_str(&format!("- Documento: {doc_name}{}\n", doc_type.as_ref().map(|t| format!(" ({})", t.replace('-', " "))).unwrap_or_default()));
+    }
+    if total > MATTER_DOCUMENTS {
+        out.push_str(&format!("- y {} documentos más\n", total - MATTER_DOCUMENTS));
+    }
     names.sort();
     if !names.is_empty() {
         out.push_str(&format!("- Partes y personas: {}\n", names.join("; ")));
     }
-    Ok(out)
+    out
 }
 
 fn matter_question(document: &str, matters: &[String], content_id: i64) -> Question {
@@ -1022,6 +1048,47 @@ Respondé solo con el JSON pedido: {{\"asunto\": número del asunto o 0, \"certe
         prompt,
         schema: schema(),
     }
+}
+
+/// The question of Ajustes (`questions.rs`) about an invented receipt and
+/// the invented matter of the letter it pays: each one written by
+/// `document_text` and `matter_text`, as `describe_document` and
+/// `describe_matter` write them from the base, and the whole by
+/// `matter_question`. `part` writes each of the two, which change in each
+/// case.
+pub(crate) fn example_question(part: crate::docbase::questions::Part) -> (String, serde_json::Value) {
+    use crate::docbase::questions::{example, term, DOCUMENT, MATTER};
+    let vocabulary = super::vocabulary::vocabulary();
+    let catalog = crate::docbase::similar::types::catalog();
+    let roles: Vec<&str> = vocabulary.roles.iter().map(|r| r.id.as_str()).collect();
+    let values: Vec<&str> = vocabulary.predicates.iter().filter(|p| !p.is_money() && !p.takes_entity()).map(|p| p.id.as_str()).collect();
+    let type_ids: Vec<&str> = catalog.document_types().map(|t| t.id.as_str()).collect();
+    let party = term(&roles, "parte");
+    let receipt = document_text(
+        vocabulary,
+        &DocumentView {
+            name: example::OTHER_FILE.to_string(),
+            doc_type: Some(term(&type_ids, "recibo")),
+            shown: BTreeSet::from([
+                (names::PERSON.to_string(), example::PERSON_SHORT.to_string(), party.clone()),
+                (names::ORGANIZATION.to_string(), example::COMPANY.to_string(), party.clone()),
+            ]),
+            facts: vec![(term(&values, "domicilio"), example::ADDRESS.to_string(), example::PERSON_SHORT_QUOTE.to_string())],
+            body: Some(example::OTHER_TEXT.to_string()),
+        },
+    );
+    let letter = example::document_type(catalog).map(|t| t.id.clone());
+    let matter = matter_text(
+        example::MATTER,
+        &[(example::FILE.to_string(), letter)],
+        1,
+        vec![
+            format!("{} ({})", one_line(example::COMPANY), vocabulary.type_label(names::ORGANIZATION)),
+            format!("{} ({})", one_line(example::PERSON), vocabulary.type_label(names::PERSON)),
+        ],
+    );
+    let asked = matter_question(&part(DOCUMENT, &receipt), &[part(MATTER, &matter)], 2);
+    (asked.prompt, asked.schema)
 }
 
 impl crate::docbase::DocBase {

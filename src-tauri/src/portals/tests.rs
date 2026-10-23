@@ -6,12 +6,12 @@
 use std::fs;
 use std::path::Path;
 
-use super::fixtures::{self, entries, FakePortal, RecordView, NOTE_CUIT, NOTE_TEXT};
+use super::fixtures::{self, entries, FakePortal, FakeScreen, RecordView, NOTE_CUIT, NOTE_TEXT};
 use super::page::Page;
 use super::pjn::{Pjn, START_URL};
 use super::store::{self, state, Entry, EntryKey, RecordFile};
-use super::walk::{Stop, Walk};
-use super::{find_case_keys, is_app_webview, CaseKey, Connector, Screen};
+use super::walk::{Stop, Walk, QUERY_IN_COURSE, QUERY_STUCK};
+use super::{find_case_keys, is_app_webview, navigation, CaseKey, Connector, Navigation, Screen, Upgrades};
 use crate::docbase::testing::TempDir;
 use crate::docbase::DocBase;
 
@@ -246,6 +246,10 @@ fn the_challenge_stops_the_app_unlocks_the_view_and_the_walk_goes_on() {
     assert_eq!(portal.unlocked_while, vec!["needs-person", "needs-person"]);
     assert_eq!(portal.lock_log, vec![true, false, true, false, true]);
     assert!(portal.locked);
+    // Each time, the focus on the challenge, and off after.
+    assert_eq!(portal.focus_log, vec![true, false, true, false]);
+    assert_eq!(portal.focused_on, vec![FakeScreen::Form, FakeScreen::Record]);
+    assert!(!portal.focused);
     // While it was the person's turn, the app pressed nothing: the person
     // pressed «Consultar».
     assert_eq!(portal.presses, vec!["persona: Consultar", "Siguiente"]);
@@ -266,6 +270,127 @@ fn a_form_that_does_not_move_on_is_handed_to_the_person() {
     assert_eq!(portal.presses, vec!["Consultar", "persona: Consultar"]);
     assert_eq!(portal.unlocked_while, vec!["needs-person"]);
     assert_eq!(outcome.downloaded, 3);
+}
+
+#[test]
+fn the_sign_of_a_query_in_course_is_read_only_while_it_shows() {
+    let page = |html: String| marked(&html, START_URL);
+    let busy = page(fixtures::form_page_with(false, None, true));
+    assert!(Pjn.busy(&busy));
+    // While it shows, the page is still the form.
+    assert_eq!(Pjn.screen(&busy), Screen::Form { challenge: false });
+    // The sign is always in the page, hidden.
+    let idle = fixtures::form_page(true, None);
+    assert!(idle.contains("Consulta en proceso"));
+    assert!(!Pjn.busy(&page(idle)));
+    assert!(!Pjn.busy(&marked(&fixtures::record_page(&record_view(&entries(5, 1), 1, false, false)), fixtures::RECORD_URL)));
+    // A small wrapper around the hidden sign is not the sign.
+    let wrapped = r#"<html><body><div id="estado"><div style="display:none"><span>Consulta en proceso</span></div></div></body></html>"#;
+    assert!(!Pjn.busy(&page(wrapped.to_string())));
+    assert!(Pjn.busy(&page(wrapped.replace(r#" style="display:none""#, ""))));
+}
+
+#[test]
+fn a_query_the_app_pressed_is_waited_for_with_the_view_free_and_never_pressed_again() {
+    let dir = TempDir::new();
+    let mut portal = FakePortal::new(REFERENCE, TITLE, entries(4, 1));
+    portal.query_busy = 3;
+    portal.query_loading = 2;
+    let outcome = walk_with(dir.path(), &store::NoneKnown).run(&mut portal, &key()).unwrap();
+    // «Consultar» once: never again while the portal processed it.
+    assert_eq!(portal.presses, vec!["Consultar"]);
+    // The app saw the sign at its first look, and from then on the view
+    // was free for the portal's «Cancelar»; locked again after.
+    assert_eq!(portal.busy_locks, vec![true, false, false]);
+    assert_eq!(portal.unlocked_while, vec!["working"]);
+    assert!(portal.locked);
+    assert!(portal.reports.iter().any(|r| r.busy && r.message == QUERY_IN_COURSE));
+    assert!(!outcome.busy);
+    assert_eq!(outcome.downloaded, 3);
+}
+
+#[test]
+fn a_query_the_person_pressed_is_never_pressed_again_and_cancelar_works() {
+    let dir = TempDir::new();
+    let mut portal = FakePortal::new(REFERENCE, TITLE, entries(4, 1));
+    portal.form_challenge = true;
+    portal.query_busy = 3;
+    portal.cancel_while_busy = true;
+    let outcome = walk_with(dir.path(), &store::NoneKnown).run(&mut portal, &key()).unwrap();
+    // The person pressed «Consultar», then the portal's «Cancelar» (the
+    // view was free), and «Consultar» again after the challenge: the app
+    // pressed none of them.
+    assert_eq!(portal.presses, vec!["persona: Consultar", "persona: Cancelar", "persona: Consultar"]);
+    assert!(!portal.busy_locks.is_empty());
+    assert!(portal.busy_locks.iter().all(|locked| !locked), "{:?}", portal.busy_locks);
+    // Nor was the focus on the challenge over the portal's «Cancelar».
+    assert!(portal.busy_focused.iter().all(|focused| !focused), "{:?}", portal.busy_focused);
+    assert_eq!(portal.focus_log, vec![true, false, true, false]);
+    // After the cancelled query the form went back to the person; while
+    // the second one was processed, the person had nothing to do.
+    assert_eq!(portal.unlocked_while, vec!["needs-person", "needs-person"]);
+    assert!(portal.reports.iter().any(|r| r.busy && r.state == "working" && r.person.is_none()));
+    assert!(portal.locked);
+    assert_eq!(outcome.downloaded, 3);
+}
+
+#[test]
+fn a_query_that_never_ends_stops_with_what_to_do() {
+    let dir = TempDir::new();
+    let mut portal = FakePortal::new(REFERENCE, TITLE, entries(4, 1));
+    portal.query_busy = usize::MAX;
+    let mut walk = walk_with(dir.path(), &store::NoneKnown);
+    walk.query_looks = 12;
+    match walk.run(&mut portal, &key()) {
+        Err(Stop::Failed(message)) => assert_eq!(message, QUERY_STUCK),
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(portal.presses, vec!["Consultar"]);
+    assert_eq!(portal.busy_locks.len(), 12);
+    assert!(portal.locked);
+}
+
+#[test]
+fn an_address_of_the_portal_without_encryption_is_opened_with_https() {
+    let go = |url: &str| navigation(&Pjn, &tauri::Url::parse(url).unwrap());
+    assert_eq!(go(START_URL), Navigation::Allow);
+    assert_eq!(go("about:blank"), Navigation::Allow);
+    // The PJN's redirect after «Consultar».
+    assert_eq!(
+        go("http://scw.pjn.gov.ar/scw/expediente.seam?cid=1234567"),
+        Navigation::Upgrade(tauri::Url::parse("https://scw.pjn.gov.ar/scw/expediente.seam?cid=1234567").unwrap())
+    );
+    assert_eq!(go("http://pjn.gov.ar/"), Navigation::Upgrade(tauri::Url::parse("https://pjn.gov.ar/").unwrap()));
+    assert_eq!(go("http://scw.pjn.gov.ar:80/scw/home.seam"), Navigation::Upgrade(tauri::Url::parse(START_URL).unwrap()));
+    for refused in [
+        "http://scw.pjn.gov.ar:8080/scw/home.seam",
+        "http://usuario:clave@scw.pjn.gov.ar/scw/home.seam",
+        "http://pjn.gov.ar.example.com/",
+        "http://example.com/",
+        "http://localhost:1420/",
+        "http://tauri.localhost/",
+        "https://example.com/",
+        "ftp://scw.pjn.gov.ar/",
+        "file:///C:/Windows/win.ini",
+        "javascript:alert(1)",
+    ] {
+        assert_eq!(go(refused), Navigation::Refuse, "{refused}");
+    }
+}
+
+#[test]
+fn a_portal_that_keeps_sending_the_view_to_http_is_not_followed_forever() {
+    let url = tauri::Url::parse("https://scw.pjn.gov.ar/scw/expediente.seam?cid=1").unwrap();
+    let other = tauri::Url::parse("https://scw.pjn.gov.ar/scw/expediente.seam?cid=2").unwrap();
+    let mut upgrades = Upgrades::default();
+    let now = std::time::Instant::now();
+    for _ in 0..Upgrades::MAX_SAME {
+        assert!(upgrades.admit(&url, now));
+    }
+    assert!(!upgrades.admit(&url, now));
+    assert!(upgrades.admit(&other, now));
+    // Later, the same address is followed again.
+    assert!(upgrades.admit(&url, now + Upgrades::WINDOW));
 }
 
 #[test]
@@ -291,6 +416,8 @@ fn signing_in_is_left_to_the_person() {
     let outcome = walk_with(dir.path(), &store::NoneKnown).run(&mut portal, &key()).unwrap();
     assert!(portal.reports.iter().any(|r| r.person.as_deref() == Some("login")));
     assert_eq!(outcome.downloaded, 3);
+    // Signing in has no focus.
+    assert!(portal.focus_log.is_empty());
 }
 
 #[test]

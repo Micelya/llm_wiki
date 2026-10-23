@@ -1,17 +1,45 @@
-import { useCallback } from "react"
+import { useCallback, useState, type ReactNode } from "react"
 import { Download, RefreshCw, CheckCircle2, Sparkles } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { openUrl } from "@tauri-apps/plugin-opener"
 import { Button } from "@/components/ui/button"
 import { useUpdateStore, hasAvailableUpdate } from "@/stores/update-store"
 import { checkForUpdates, toLatestReleaseUrl } from "@/lib/update-check"
-import { RELEASES_REPO } from "@/lib/app-identity"
+import { LEGAL_NOTICE, PRODUCT_NAME, RELEASES_REPO, SITE_URL, SOURCE_URL } from "@/lib/app-identity"
+import { LICENSE_TEXT } from "@/lib/license"
 import { saveUpdateCheckState } from "@/lib/project-store"
 import { useAppDialog } from "@/stores/app-dialog-store"
 
-export function AboutSection() {
+/** A link that opens in the system's browser, shown without its scheme. */
+function ExternalLink({ url, children }: { url: string; children?: ReactNode }) {
+  // Tauri 2's webview doesn't honor `target="_blank"` for external URLs:
+  // clicking would do nothing or replace the app with the page. The opener
+  // plugin always lands in the system browser.
+  return (
+    <a
+      className="cursor-pointer underline underline-offset-2 hover:text-primary"
+      href={url}
+      onClick={(e) => {
+        e.preventDefault()
+        void openUrl(url).catch((err) => {
+          console.error("[about] openUrl failed:", err)
+        })
+      }}
+    >
+      {children ?? url.replace(/^https?:\/\//, "").replace(/\/$/, "")}
+    </a>
+  )
+}
+
+/**
+ * Ajustes → Acerca de (D-485): the app, its version and its links; the
+ * update check; and the legal notice the licence of the code it derives
+ * from asks for, with the full text of the licence.
+ */
+export function AboutSection({ licenseOpen = false }: { licenseOpen?: boolean } = {}) {
   const { t } = useTranslation()
   const updateStore = useUpdateStore()
+  const [showLicense, setShowLicense] = useState(licenseOpen)
 
   const handleCheckNow = useCallback(async () => {
     useUpdateStore.getState().setChecking(true)
@@ -53,10 +81,6 @@ export function AboutSection() {
     })
   }, [])
 
-  const rows: Array<{ label: string; value: string; mono?: boolean }> = [
-    { label: t("settings.sections.about.version"), value: `v${__APP_VERSION__}`, mono: true },
-  ]
-
   // About panel = user-initiated navigation. They came here on
   // purpose (often guided by the gear / About red dot) and expect
   // to see WHY the dot is there. So this surface ignores the
@@ -78,19 +102,27 @@ export function AboutSection() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold">{t("settings.sections.about.title")}</h2>
+        <h2 className="text-xl font-semibold">Acerca de</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          {t("settings.sections.about.description")}
+          La versión de la app, dónde está su código y sus avisos legales.
         </p>
       </div>
 
-      <div className="rounded-md border divide-y">
-        {rows.map((r) => (
-          <div key={r.label} className="flex items-center justify-between px-4 py-2.5">
-            <span className="text-sm text-muted-foreground">{r.label}</span>
-            <span className={`text-sm ${r.mono ? "font-mono" : ""}`}>{r.value}</span>
-          </div>
-        ))}
+      <div className="rounded-md border p-4 text-sm" data-about="app">
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="text-base font-semibold">{PRODUCT_NAME}</span>
+          <span className="font-mono text-sm">
+            <span className="sr-only">Versión </span>v{__APP_VERSION__}
+          </span>
+        </div>
+        <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
+          <li>
+            Sitio: <ExternalLink url={SITE_URL} />
+          </li>
+          <li>
+            Código fuente: <ExternalLink url={SOURCE_URL} />
+          </li>
+        </ul>
       </div>
 
       {/* ── Update check card ──────────────────────────────────── */}
@@ -152,33 +184,19 @@ export function AboutSection() {
         </label>
       </div>
 
-      <div className="rounded-md border p-4 text-sm">
-        <div className="font-medium">LLM Wiki</div>
-        <p className="mt-1 text-xs text-muted-foreground">
-          {t("settings.sections.about.appDescription")}
-          {" "}
-          {/*
-           * Tauri 2's webview doesn't honor `target="_blank"` for
-           * external URLs by default — clicking would either do
-           * nothing or replace the in-app webview with the github
-           * page (terrible UX). Route through the opener plugin
-           * via onClick + preventDefault so it always lands in the
-           * system browser.
-           */}
-          <a
-            className="cursor-pointer underline underline-offset-2 hover:text-primary"
-            href="https://github.com/nashsu/llm_wiki"
-            onClick={(e) => {
-              e.preventDefault()
-              void openUrl("https://github.com/nashsu/llm_wiki").catch((err) => {
-                console.error("[about] openUrl failed:", err)
-              })
-            }}
-          >
-            github.com/nashsu/llm_wiki
-          </a>
-        </p>
-      </div>
+      {/* The only place that names the project the code derives from (D-485). */}
+      <section className="space-y-2 rounded-md border p-4 text-sm" data-about="legal">
+        <h3 className="font-medium">Avisos legales</h3>
+        <p className="text-xs leading-relaxed text-muted-foreground">{LEGAL_NOTICE}</p>
+        <Button variant="outline" size="sm" aria-expanded={showLicense} onClick={() => setShowLicense(!showLicense)}>
+          {showLicense ? "Ocultar la licencia" : "Ver el texto completo de la licencia"}
+        </Button>
+        {showLicense && (
+          <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/40 px-3 py-2 font-mono text-[11px] leading-relaxed">
+            {LICENSE_TEXT}
+          </pre>
+        )}
+      </section>
     </div>
   )
 }

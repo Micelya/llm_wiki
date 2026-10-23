@@ -34,11 +34,15 @@ describe("the engine that recognizes scans", () => {
     expect(getRecognitionConfig()).toBeNull()
     expect(recognitionEngineId(null)).toBeNull()
     expect(recognitionEngineId({ engine: "codex-cli", model: " " })).toBe("codex-cli")
+    // Micelya Core, with the model the registry saves it with (as `engine_id` in Rust).
+    recognizeWith("core", "textract-1.0")
+    expect(recognitionEngineId(getRecognitionConfig())).toBe("core:textract-1.0")
   })
 
   it("is named in words, and told apart from plain extraction", () => {
     expect(engineName("codex-cli:modelo-de-prueba")).toBe("Codex (modelo-de-prueba)")
     expect(engineName("codex-cli")).toBe("Codex")
+    expect(engineName("core:textract-1.0")).toBe("Micelya Core (textract-1.0)")
     expect(isRecognitionEngine("codex-cli:m")).toBe(true)
     expect(isRecognitionEngine("extraction")).toBe(false)
     expect(isRecognitionEngine(null)).toBe(false)
@@ -58,6 +62,23 @@ describe("what a recognition says", () => {
     )
     expect(recognitionFailureText("Codex returned an empty answer")).toBe("El motor no devolvió texto.")
     expect(recognitionFailureText("algo raro")).toBe("El motor que reconoce el texto falló.")
+  })
+
+  it("tells the failures of Micelya Core in words, with its own reason", () => {
+    expect(recognitionFailureText("There is no connection with Micelya Core: load it in Ajustes → Conexiones")).toBe(
+      "Falta la conexión con Micelya Core: cargala en Ajustes → Conexiones.",
+    )
+    expect(recognitionFailureText("Micelya Core rejected the credential (issuer, 401 invalid_client)")).toContain("rechazó la credencial")
+    expect(
+      recognitionFailureText("Text recognition failed on page 3: Micelya Core could not read the page: El proveedor no pudo leer el documento."),
+    ).toBe("Micelya Core no pudo leer la página 3: El proveedor no pudo leer el documento.")
+    expect(recognitionFailureText("Micelya Core cannot be reached (API): no connection (refused)")).toBe(
+      "El motor no respondió a tiempo, o no hay conexión.",
+    )
+    expect(recognitionFailureText("Micelya Core is at its usage limit (429)")).toContain("límite de uso")
+    expect(
+      recognitionFailureText("Text recognition failed on page 1: The page was read but its reading could not be deleted in Micelya Core: x"),
+    ).toContain("sin pagarla de nuevo")
   })
 
   it("finds the pages the engine could not read", () => {

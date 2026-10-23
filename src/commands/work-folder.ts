@@ -9,6 +9,8 @@ export interface WorkFolderStatus {
   path: string
   clips: string
   records: string
+  /** «Generados»: the documents generated from a template. */
+  generated: string
   /** The origin of the base that holds it. */
   originName: string | null
   /** That origin is the folder itself, not one that holds it. */
@@ -27,8 +29,8 @@ export function setWorkFolder(path: string): Promise<WorkFolderStatus> {
   return invoke<WorkFolderStatus>("work_folder_set", { path })
 }
 
-/** Opens the work folder, or its clips or records. */
-export function openWorkFolder(which?: "clips" | "records"): Promise<void> {
+/** Opens the work folder, or its clips, records or generated documents. */
+export function openWorkFolder(which?: "clips" | "records" | "generated"): Promise<void> {
   return invoke("work_folder_open", { which: which ?? null })
 }
 

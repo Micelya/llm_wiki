@@ -1142,7 +1142,7 @@ export function ChatPanel() {
               `User request: ${text}`,
             ].join("\n")
           : [
-              "No relevant LLM Wiki evidence was retrieved for this request.",
+              "No relevant evidence from the document base was retrieved for this request.",
               "Answer the request directly with the selected CLI provider. Clearly distinguish general knowledge from project evidence.",
               "",
               `User request: ${text}`,
@@ -1160,7 +1160,7 @@ export function ChatPanel() {
         const finalMessages: LlmChatMessage[] = [
           {
             role: "system",
-            content: "Use retrieved LLM Wiki context when available. If none was retrieved, answer directly and do not imply that general knowledge came from the project.",
+            content: "Use the retrieved context of the document base when available. If none was retrieved, answer directly and do not imply that general knowledge came from the project.",
           },
           ...(sendOptions.historyOverride ?? chatMessagesToLLM(priorMessages)),
           { role: "user", content: userContent },

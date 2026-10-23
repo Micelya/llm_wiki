@@ -18,7 +18,9 @@ use super::recognition::TextRecognizer;
 const TIMEOUT: Duration = Duration::from_secs(300);
 const STDERR_TAIL_BYTES: usize = 2000;
 
-const PROMPT: &str = "\
+/// What is asked about each image; Ajustes shows it as it is
+/// (`docbase/questions.rs`).
+pub(crate) const PROMPT: &str = "\
 Transcribí todo el texto visible en la imagen adjunta. Es una página de un documento.
 
 Reglas:

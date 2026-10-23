@@ -100,7 +100,8 @@ const ASK_IDLE: Duration = Duration::from_secs(30);
 const ASK_BACKOFF: Duration = Duration::from_secs(10 * 60);
 
 /// Starts the thread that asks the model: first the text of the scans
-/// (P-242), then the type, stage and data of each document, then its
+/// (P-242), then the type, stage and data of each document, then the
+/// names of the fields of the templates (D-488), then its
 /// reading for the knowledge layer, then the identities of what was read
 /// (D-192), then the pages of the archive's wiki that are a projection of
 /// the record (D-199). One
@@ -137,6 +138,11 @@ pub fn spawn_asking(
 /// many questions each stage had left and the last failure of the model,
 /// with when it tries again: what «En curso» shows (D-424).
 fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Duration {
+    // The readings of this computer left in Micelya Core are tried again
+    // every few minutes (P-294); nothing is sent when there are none.
+    if crate::micelya_core::ledger::retry_left_readings(false) {
+        on_change();
+    }
     if let Some(wait) = recognition_step(base, on_change) {
         return wait;
     }
@@ -187,6 +193,28 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
             return ASK_IDLE;
         }
     }
+    // The names of the fields of the templates that their text does not
+    // give, one template at a time (D-488).
+    state.at_stage(Some("templates"));
+    match base.templates_naming_run(asker.as_ref(), 1) {
+        Ok(report) => {
+            state.ran("templates", report.left);
+            if report.asked + report.named > 0 {
+                on_change();
+            }
+            if report.failed > 0 {
+                eprintln!("[docbase] names of the fields of the templates: {}", report.errors.join("; "));
+                return failed("templates", &report.errors);
+            }
+            if report.asked > 0 {
+                return Duration::ZERO;
+            }
+        }
+        Err(error) => {
+            eprintln!("[docbase] {error}");
+            return ASK_IDLE;
+        }
+    }
     state.at_stage(Some("reading"));
     match base.knowledge_run(asker.as_ref(), 1) {
         Ok(report) => {
@@ -208,11 +236,22 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
         }
     }
     // Nothing left to read: the identities of what was read, one question
-    // at a time too.
+    // at a time too. With the pages, they are the round of questions that
+    // goes by itself up to its cap; past it, a person says whether to go
+    // on (D-484).
     state.at_stage(Some("resolve"));
+    match base.auto_questions_go("resolve") {
+        Ok(true) => {}
+        Ok(false) => return ASK_IDLE,
+        Err(error) => {
+            eprintln!("[docbase] {error}");
+            return ASK_IDLE;
+        }
+    }
     match base.knowledge_resolve(Some(asker.as_ref()), 1) {
         Ok(report) => {
             state.ran("resolve", report.left);
+            state.auto_asked(report.asked);
             if report.changed > 0 {
                 on_change();
             }
@@ -257,11 +296,20 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
     // wiki wrote its pages of documents, this leaves every page of entity
     // up to date with the whole archive.
     state.at_stage(Some("pages"));
+    match base.auto_questions_go("pages") {
+        Ok(true) => {}
+        Ok(false) => return ASK_IDLE,
+        Err(error) => {
+            eprintln!("[docbase] {error}");
+            return ASK_IDLE;
+        }
+    }
     match base.knowledge_project(Some(asker.as_ref()), 1) {
         Ok(report) => {
             if report.reason.as_deref() != Some("resolving") {
                 state.ran("pages", report.left);
             }
+            state.auto_asked(report.asked);
             if report.wrote() {
                 on_change();
                 on_pages();
@@ -273,8 +321,12 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
             if report.asked > 0 || report.left > 0 {
                 Duration::ZERO
             } else {
-                // Nothing left to ask anywhere.
+                // Nothing left to ask anywhere: the round of automatic
+                // questions is over (D-484).
                 state.at_stage(None);
+                if let Err(error) = base.auto_questions_round_over() {
+                    eprintln!("[docbase] {error}");
+                }
                 ASK_IDLE
             }
         }
@@ -414,6 +466,13 @@ fn sweep(base: &DocBase) -> bool {
 fn step(base: &DocBase) -> Result<bool, String> {
     if base.hash_pending(HASH_BATCH)? > 0 {
         return Ok(true);
+    }
+    // A document generated from a template follows its file, before its
+    // text is read (D-488). A failure there never holds the rest back.
+    match base.generated_settle() {
+        Ok(changed) if changed > 0 => return Ok(true),
+        Ok(_) => {}
+        Err(error) => eprintln!("[docbase] generated documents: {error}"),
     }
     // Texts an older extraction wrote that the current one reads better
     // (a form's ticked boxes) go back to be extracted, once per version.

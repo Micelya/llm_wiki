@@ -264,9 +264,27 @@ impl DocBase {
 /// Saves the text of a content. If another content already has this
 /// same text, the two are one document: this one's files join the other
 /// and this one goes away. Returns the content that keeps the text.
+///
+/// A document generated from a template (D-488) is never another one with
+/// the same text (the one of the template whose data it started with): it
+/// stays a document of its own, without the identity of its text.
 fn store(tx: &Transaction<'_>, content_id: i64, text: &str, engine: &str, state: &str) -> Result<i64, String> {
     let now = now_ms();
     let identity = fingerprint(text);
+    if identity.is_some() && super::similar::generate::is_generated(tx, content_id)? {
+        let taken: bool = tx
+            .query_row(
+                "SELECT count(*) FROM content WHERE text_hash = ?1 AND id != ?2",
+                params![identity.as_ref().map(|(hash, _)| hash.clone()), content_id],
+                |row| row.get::<_, i64>(0),
+            )
+            .map_err(sql_err)?
+            > 0;
+        if taken {
+            let words = identity.map(|(_, words)| words).unwrap_or_default();
+            return store_alone(tx, content_id, text, engine, state, words as i64, now);
+        }
+    }
     if let Some((text_hash, _)) = &identity {
         let twin: Option<i64> = tx
             .query_row(
@@ -307,6 +325,25 @@ fn store(tx: &Transaction<'_>, content_id: i64, text: &str, engine: &str, state:
         .map_err(sql_err)?;
     tx.execute("INSERT INTO content_fts (rowid, body) VALUES (?1, ?2)", params![content_id, text])
         .map_err(sql_err)?;
+    super::search::index_content(tx, content_id)?;
+    Ok(content_id)
+}
+
+/// Saves the text of a content that keeps no identity of its text.
+fn store_alone(tx: &Transaction<'_>, content_id: i64, text: &str, engine: &str, state: &str, words: i64, now: i64) -> Result<i64, String> {
+    tx.execute(
+        "UPDATE content SET state = ?1, text_hash = NULL, word_count = ?2, error = NULL, processed_at = ?3 WHERE id = ?4",
+        params![state, words, now, content_id],
+    )
+    .map_err(sql_err)?;
+    tx.execute(
+        "INSERT INTO derivative (content_id, kind, engine, body, created_at) VALUES (?1, 'text', ?2, ?3, ?4)
+         ON CONFLICT (content_id, kind) DO UPDATE SET engine = excluded.engine, body = excluded.body, created_at = excluded.created_at",
+        params![content_id, engine, text, now],
+    )
+    .map_err(sql_err)?;
+    tx.execute("DELETE FROM content_fts WHERE rowid = ?1", [content_id]).map_err(sql_err)?;
+    tx.execute("INSERT INTO content_fts (rowid, body) VALUES (?1, ?2)", params![content_id, text]).map_err(sql_err)?;
     super::search::index_content(tx, content_id)?;
     Ok(content_id)
 }

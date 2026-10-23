@@ -2,6 +2,7 @@ mod agent;
 mod clip_server;
 mod commands;
 mod docbase;
+mod micelya_core;
 mod panic_guard;
 mod portals;
 mod proxy;
@@ -404,6 +405,11 @@ pub fn run() {
             } else {
                 eprintln!("[proxy] could not resolve app_data_dir");
             }
+            // The readings this computer asked for in Micelya Core and not
+            // deleted yet are kept beside the app's data (P-294).
+            if let Ok(dir) = app.path().app_data_dir() {
+                micelya_core::ledger::install(&dir);
+            }
             // The API keys still written in app-state.json move to the
             // system keychain, before the screens read the settings
             // (secrets.rs, D-444).
@@ -479,6 +485,11 @@ pub fn run() {
             docbase::commands::docbase_similar_groups,
             docbase::commands::docbase_similar_relations,
             docbase::commands::docbase_similar_template,
+            docbase::commands::docbase_templates,
+            docbase::commands::docbase_name_template,
+            docbase::commands::docbase_choose_template_field,
+            docbase::commands::docbase_generate_document,
+            docbase::commands::docbase_open_generated,
             docbase::commands::docbase_types_plan,
             docbase::commands::docbase_proposed_types,
             docbase::commands::docbase_decide_type,
@@ -486,6 +497,8 @@ pub fn run() {
             docbase::commands::docbase_types_run,
             docbase::commands::docbase_ai_services,
             docbase::commands::docbase_set_ai_services,
+            docbase::commands::docbase_model_questions,
+            docbase::commands::docbase_model_question_last,
             docbase::commands::docbase_document_type,
             docbase::commands::docbase_document_types,
             docbase::commands::docbase_knowledge_status,
@@ -530,6 +543,7 @@ pub fn run() {
             docbase::commands::docbase_knowledge_read_again_failed,
             docbase::commands::docbase_knowledge_reread_plan,
             docbase::commands::docbase_knowledge_reread,
+            docbase::commands::docbase_auto_questions_decide,
             docbase::commands::docbase_knowledge_decide_many,
             docbase::commands::docbase_knowledge_attention,
             docbase::commands::docbase_knowledge_matters,
@@ -574,6 +588,12 @@ pub fn run() {
             work_folder::work_folder_status,
             secrets::secrets_read,
             secrets::secrets_write,
+            micelya_core::micelya_core_connection,
+            micelya_core::micelya_core_save_connection,
+            micelya_core::micelya_core_remove_connection,
+            micelya_core::micelya_core_test_connection,
+            micelya_core::micelya_core_left_readings,
+            micelya_core::micelya_core_delete_left_readings,
             work_folder::work_folder_set,
             work_folder::work_folder_open,
             work_folder::work_folder_new_clips,

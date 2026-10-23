@@ -6,7 +6,7 @@ vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(() => Promise.resolve(()
 import type { Health, Home, OriginSummary } from "@/commands/docbase"
 import { vocabularyFor } from "@/vocabulary"
 import { docRef, similarGroup } from "@/components/docbase/similar.fixtures"
-import { clipsNotice, docbaseNotices, similarNotice, type DocbaseFacts } from "./docbase"
+import { clipsNotice, coreLeftNotice, docbaseNotices, similarNotice, type DocbaseFacts } from "./docbase"
 
 const words = vocabularyFor("legal", "es")
 
@@ -178,5 +178,40 @@ describe("the new web clips", () => {
     expect(line.moreCases).toBe(1)
     const lines = docbaseNotices(facts({}, { newClips: { total: 1, files: [clip(7, "a.md")] } }), words)
     expect(lines.map((n) => n.title)).toEqual(["1 recorte web nuevo"])
+  })
+})
+
+describe("the readings Micelya Core refused to delete", () => {
+  const now = Date.UTC(2026, 9, 22, 20, 0)
+  const left = (id: string, name: string, refused: string | null) => ({
+    id,
+    name,
+    askedAt: now - 5 * 60_000,
+    kept: true,
+    refused,
+    triedAt: now,
+  })
+
+  it("says nothing while Core deleted everything this computer asked for", () => {
+    expect(coreLeftNotice([])).toBeNull()
+    expect(coreLeftNotice(null)).toBeNull()
+    expect(docbaseNotices(facts({}, { coreLeft: [] }), words)).toEqual([])
+  })
+
+  it("is a problem with each reading, its reason, a retry and the connections", () => {
+    const reason = "Micelya Core rejected the credential (API, 403 PERMISSION_DENIED)"
+    const line = coreLeftNotice([left("l-1", "pagina-3.jpg", reason), left("l-2", "pagina-4.jpg", reason)], now)!
+    expect(line).toMatchObject({ id: "docbase:core-readings", kind: "problem", priority: "high", count: 2 })
+    expect(line.title).toBe("2 lecturas no se pudieron borrar en Micelya Core")
+    expect(line.explanation).toContain("texto de sus páginas")
+    expect(line.todo).toContain("Ajustes → Conexiones")
+    expect(line.todo).toContain("cada 10 minutos")
+    expect(line.resolvedWhen).toBe("Desaparece cuando se borran.")
+    expect(line.actions.map((a) => a.label)).toEqual(["Reintentar ahora", "Ver conexiones"])
+    expect(line.actions[1]).toMatchObject({ kind: "go", target: { view: "settings" } })
+    expect(line.cases?.map((c) => c.title)).toEqual(["pagina-3.jpg", "pagina-4.jpg"])
+    expect(line.cases?.[0].detail).toBe(`${reason} · pedida hace 5 min`)
+    const lines = docbaseNotices(facts({}, { coreLeft: [left("l-1", "pagina-1.jpg", reason)] }), words)
+    expect(lines.map((n) => n.title)).toEqual(["1 lectura no se pudo borrar en Micelya Core"])
   })
 })

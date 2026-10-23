@@ -39,7 +39,7 @@ interface LlmConfig {
    */
   ingestReasoning?: ReasoningConfig
   /**
-   * Local CLI providers only. When true, LLM Wiki asks Claude/Codex CLI
+   * Local CLI providers only. When true, the app asks Claude/Codex CLI
    * to ignore user-level rules/config/MCP/tool state where the CLI exposes
    * such controls. Default false preserves existing advanced-user setups.
    */
@@ -212,6 +212,8 @@ interface WikiState {
     | "attention" | "similar" | "document-types"
     // Who and what the documents name (the knowledge layer).
     | "entities" | "identity-doubts" | "matters"
+    // The templates the documents share (D-466).
+    | "templates"
     // The judicial portals (P-248).
     | "portals"
   llmConfig: LlmConfig

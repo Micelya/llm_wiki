@@ -47,6 +47,11 @@ export function stageText(id: StageId, words: Vocabulary = vocabulary()): StageT
         title: "Tipo y datos de cada documento",
         explanation: "El modelo dice qué es cada documento, en qué etapa está y cuáles son sus datos principales.",
       }
+    case "templates":
+      return {
+        title: `${words.templates.name}: nombres de los campos`,
+        explanation: `El modelo les pone nombre a los campos de cada ${words.templates.one} que su texto no nombra, y dice qué es cada uno (una persona, una fecha, un importe…). Una pregunta por ${words.templates.one}; lo que escribe una persona nunca se pisa.`,
+      }
     case "reading":
       return {
         title: "Lectura con el modelo: a quiénes nombran",
@@ -83,7 +88,7 @@ export function stateLabel(stage: Pick<ProgressStage, "id" | "state">): string {
   return labels[stage.state]
 }
 
-const UNITS: Record<ProgressStage["unit"], [string, string]> = {
+const UNITS: Record<Exclude<ProgressStage["unit"], "templates">, [string, string]> = {
   origins: ["carpeta", "carpetas"],
   files: ["archivo", "archivos"],
   documents: ["documento", "documentos"],
@@ -91,7 +96,12 @@ const UNITS: Record<ProgressStage["unit"], [string, string]> = {
 }
 
 /** "12 de 68 documentos"; "Ningún documento todavía" when it has nothing. */
-export function stageFigures(stage: ProgressStage): string {
+export function stageFigures(stage: ProgressStage, words: Vocabulary = vocabulary()): string {
+  // The templates are counted with the profession's word for them.
+  if (stage.unit === "templates") {
+    if (stage.total === 0) return words.templates.noneYet
+    return `${formatCount(stage.done)} de ${plural(stage.total, words.templates.one, words.templates.many)}`
+  }
   const [one, many] = UNITS[stage.unit]
   if (stage.total === 0) return `${stage.unit === "pages" || stage.unit === "origins" ? "Ninguna" : "Ningún"} ${one} todavía`
   return `${formatCount(stage.done)} de ${plural(stage.total, one, many)}`
@@ -127,9 +137,13 @@ export function stageDetails(stage: ProgressStage, words: Vocabulary = vocabular
   }
   if (stage.id === "reading") {
     const requested = stage.extra.requested ?? 0
-    const older = stage.extra.older ?? 0
+    const outdated = stage.extra.outdated ?? 0
     if (requested > 0) out.push(plural(requested, "pedido para volver a leer", "pedidos para volver a leer"))
-    if (older > 0) out.push(plural(older, "leído con una versión anterior", "leídos con una versión anterior"))
+    if (outdated > 0) {
+      out.push(
+        plural(outdated, "leído con otra versión de la pregunta o con otro modelo", "leídos con otra versión de la pregunta o con otro modelo"),
+      )
+    }
   }
   const questions = stage.extra.questions ?? 0
   if (questions > 0 && stage.state !== "done") {
@@ -210,6 +224,13 @@ export function activityLine(progress: Progress | null, words: Vocabulary = voca
     const figures = running.total > 0 ? `, ${formatCount(running.done)} de ${formatCount(running.total)}` : ""
     const page = pageOf(running.current)
     return { tone: "busy", text: `Procesando: ${stageText(running.id, words).title}${figures}${page ? ` (${page})` : ""}` }
+  }
+  // The questions that go by themselves passed their cap (D-484).
+  if (progress.autoQuestions?.held && working.some((stage) => (stage.extra.held ?? 0) > 0)) {
+    return {
+      tone: "paused",
+      text: `Esperando tu permiso para ${plural(progress.autoQuestions.pending, "pregunta", "preguntas")} al modelo`,
+    }
   }
   const paused = working.filter((stage) => stage.state === "paused")
   if (paused.length > 0) {

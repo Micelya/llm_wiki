@@ -22,6 +22,16 @@ export const legal: Vertical = {
         record: "Expediente",
         records: "Expedientes",
       },
+      templates: {
+        name: "Plantillas",
+        description:
+          "Los modelos que comparten los documentos del archivo: el texto que dicen igual y los campos que cambian de uno a otro. La app los arma sola comparando los textos; cada uno es una propuesta hasta que confirmás su familia.",
+        one: "plantilla",
+        many: "plantillas",
+        proposed: "Propuesta",
+        confirmed: "Confirmada",
+        noneYet: "Ninguna plantilla todavía",
+      },
       suggestedGroups: ["Cliente", "Caso"],
       wikiLanguage: "Spanish",
       relations: {
@@ -178,6 +188,16 @@ export const legal: Vertical = {
           "Bring the case files of the court portals into your base: the app walks the portal by itself and asks for your help only when the portal asks to solve a challenge or to sign in.",
         record: "Case file",
         records: "Case files",
+      },
+      templates: {
+        name: "Templates",
+        description:
+          "The models the documents of the archive share: the text they say alike and the fields that change from one to another. The app builds them by comparing the texts; each one is a proposal until you confirm its family.",
+        one: "template",
+        many: "templates",
+        proposed: "Proposed",
+        confirmed: "Confirmed",
+        noneYet: "No templates yet",
       },
       suggestedGroups: ["Client", "Matter"],
       wikiLanguage: "English",

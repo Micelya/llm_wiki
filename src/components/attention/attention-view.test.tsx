@@ -42,7 +42,9 @@ const recognizing = (model: string): AiServices => ({
 })
 import { vocabularyFor } from "@/vocabulary"
 import { HomeView } from "@/components/docbase/home-view"
-import { itemTarget, StageItemsList, StageLine } from "@/components/progress/ongoing-tab"
+import { AutoQuestionsLine, autoQuestionsText, itemTarget, StageItemsList, StageLine } from "@/components/progress/ongoing-tab"
+import { decideAutoQuestions, type AutoQuestions } from "@/commands/docbase"
+import { invoke } from "@tauri-apps/api/core"
 import { ProgressLine } from "@/components/progress/progress-line"
 import { AttentionView, shownTab } from "./attention-view"
 
@@ -205,12 +207,14 @@ describe("«En curso»", () => {
       ["recognition", "running"],
       ["similar", "done"],
       ["types", "done"],
+      ["templates", "done"],
       ["reading", "running"],
       ["resolve", "waiting"],
       ["matters", "error"],
       ["pages", "paused"],
     ])
     const shown = text(html)
+    expect(shown).toContain("Plantillas: nombres de los campos Hecha")
     // A finished stage stays, with its figures.
     expect(shown).toContain("Tipo y datos de cada documento Hecha")
     expect(shown).toContain("68 de 68 documentos")
@@ -230,7 +234,7 @@ describe("«En curso»", () => {
     expect(shown).toContain("Vuelve a intentar a las 14:15.")
     expect(shown).toContain("Páginas (artículos) En pausa")
     // Each stage opens.
-    expect([...html.matchAll(/aria-expanded="false"/g)].length).toBe(9)
+    expect([...html.matchAll(/aria-expanded="false"/g)].length).toBe(10)
   })
 
   it("says whether the automatic reading is on, with the switch to pause it", () => {
@@ -260,6 +264,22 @@ describe("«En curso»", () => {
     expect(html).toMatch(/<option value="o1" selected="">Carpeta de prueba<\/option>/)
     expect(html).toMatch(/<option value="nueva" selected="">nueva \(68\)<\/option>/)
     expect(text(html)).toContain("anexos (5)")
+    // That folder can be read again from its reading; the whole archive, always (D-465).
+    expect(text(html)).toContain("Volver a leer esta carpeta")
+    expect(html).toContain('data-reread="all"')
+  })
+
+  it("always has the option to read the whole archive again, with what it costs said first (D-465)", () => {
+    // Whatever the figures: even before they come.
+    for (const shown of [halfway, null]) {
+      useProgressStore.setState({ progress: shown })
+      const html = renderToStaticMarkup(<AttentionView />)
+      const all = text(html.slice(html.indexOf('data-reread="all"')))
+      expect(all).toContain("Volver a leer todo el archivo Nada se vuelve a leer solo")
+      expect(all).toContain("antes te dice cuántas preguntas son.")
+      // The reading of the whole archive does not repeat it.
+      expect(text(html).match(/Volver a leer todo/g)?.length).toBe(2)
+    }
   })
 
   it("opens a stage into its documents, each with a button to open it", () => {
@@ -308,6 +328,55 @@ describe("«En curso»", () => {
       path: "wiki/personas/ejemplo.md",
     })
     expect(itemTarget({ ...items.items[0], locationId: null, contentId: null })).toEqual({ view: "origins" })
+  })
+})
+
+describe("the questions that go by themselves in «En curso» (D-484)", () => {
+  const round = (patch: Partial<AutoQuestions> = {}): AutoQuestions => ({
+    pending: 0,
+    asked: 0,
+    cap: 50,
+    held: null,
+    decision: null,
+    ...patch,
+  })
+
+  it("says how many it is going to ask, and nothing when there are none", () => {
+    expect(autoQuestionsText(round())).toBeNull()
+    expect(renderToStaticMarkup(<AutoQuestionsLine round={round()} />)).toBe("")
+    const going = text(renderToStaticMarkup(<AutoQuestionsLine round={round({ pending: 17, asked: 8 })} />))
+    expect(going).toContain("La app va a hacer 17 preguntas de quién es quién y de resumen de las fichas (ya hizo 8 de 25)")
+    expect(going).toContain("Si en total pasan de 50, la app pide permiso antes de seguir.")
+    expect(going).not.toContain("Seguir")
+    // Shown at the top of the tab.
+    useAttentionViewStore.setState({ tab: "ongoing" })
+    useProgressStore.setState({ progress: progress({}, { autoQuestions: round({ pending: 8 }) }) })
+    expect(text(renderToStaticMarkup(<AttentionView />))).toContain("La app va a hacer 8 preguntas de quién es quién")
+  })
+
+  it("past the cap, asks for permission to go on or to leave them for later", async () => {
+    const html = renderToStaticMarkup(<AutoQuestionsLine round={round({ pending: 60, held: "resolve" })} />)
+    expect(html).toContain('data-auto-questions="held"')
+    const held = text(html)
+    expect(held).toContain("La app espera tu permiso para hacer 60 preguntas al modelo")
+    expect(held).toContain("Pasan de 50, así que la app no sigue sin tu permiso.")
+    expect(held).toContain("Usan la cuota de tu proveedor.")
+    expect(held).toContain("Seguir con las 60")
+    expect(held).toContain("Dejarlas para después")
+    // Left for later: only the button to do them now.
+    const later = text(renderToStaticMarkup(<AutoQuestionsLine round={round({ pending: 60, held: "pages", decision: "later" })} />))
+    expect(later).toContain("Dejaste para después 60 preguntas de quién es quién y de resumen de las fichas")
+    expect(later).toContain("Hacerlas ahora")
+    expect(later).not.toContain("Dejarlas para después")
+    // The stage that waits says why.
+    const resolve = stage("resolve", { state: "paused", pending: 2, extra: { held: 1 } })
+    expect(text(renderToStaticMarkup(<StageLine stage={resolve} scope={{}} engineChosen />))).toContain(
+      "En pausa: sus preguntas al modelo esperan tu permiso (más arriba).",
+    )
+    // What a person says goes to the base.
+    vi.mocked(invoke).mockClear()
+    await decideAutoQuestions(false)
+    expect(invoke).toHaveBeenCalledWith("docbase_auto_questions_decide", { go: false })
   })
 })
 

@@ -1,12 +1,15 @@
-import { useState } from "react"
-import { ChevronDown, ChevronRight, LayoutTemplate } from "lucide-react"
+import { Fragment, useState } from "react"
+import { ChevronDown, ChevronRight, LayoutTemplate, Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { getSimilarTemplate, type SimilarGroup, type Template } from "@/commands/docbase"
+import { getSimilarTemplate, type FieldChoice, type SimilarGroup, type Template } from "@/commands/docbase"
 import { relationName, vocabulary, type Vocabulary } from "@/vocabulary"
 import { cn } from "@/lib/utils"
+import { useTemplatesStore } from "@/stores/templates-store"
+import { useWikiStore } from "@/stores/wiki-store"
 import { formatCount, plural } from "./format"
 import { StatusBadge } from "./page"
-import { fieldName, fieldRows, placeLabel, possiblySameNames, rowIndexOf, templateSummary } from "./template"
+import { fieldName, fieldNote, fieldRows, nameSourceText, placeLabel, possiblySameNames, rowIndexOf, templateSummary } from "./template"
+import { FieldEditor } from "./template-field-editor"
 import { useDocbaseQuery } from "./use-docbase-query"
 
 const SELECT_CLASS =
@@ -21,6 +24,9 @@ const SELECT_CLASS =
 export function DocumentTemplate({ locationId, onOpen }: { locationId: number; onOpen: (locationId: number) => void }) {
   const template = useDocbaseQuery(`similar-template:${locationId}`, () => getSimilarTemplate(locationId))
   const [open, setOpen] = useState(false)
+  const openInSection = useOpenTemplate()
+  const generateFrom = useGenerateFromTemplate()
+  const words = vocabulary()
   const data = template.data
   if (!data) return null
   const others = data.documents.length - 1
@@ -32,9 +38,21 @@ export function DocumentTemplate({ locationId, onOpen }: { locationId: number; o
           Comparte la plantilla con {plural(others, "documento más", "documentos más")}.{" "}
           <span className="text-muted-foreground">{templateSummary(data)}</span>
         </p>
-        <Button size="sm" variant="outline" aria-expanded={open} onClick={() => setOpen(!open)}>
-          <LayoutTemplate /> {open ? "Ocultar la plantilla" : "Ver la plantilla"}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" aria-expanded={open} onClick={() => setOpen(!open)}>
+            <LayoutTemplate /> {open ? "Ocultar la plantilla" : "Ver la plantilla"}
+          </Button>
+          {data.documents[0] && (
+            <Button size="sm" variant="ghost" onClick={() => openInSection(data.documents[0].doc.locationId)}>
+              Abrir en {words.templates.name}
+            </Button>
+          )}
+          {data.documents[0] && (
+            <Button size="sm" variant="ghost" onClick={() => generateFrom(data.documents[0].doc.locationId)}>
+              Generar uno nuevo con esta {words.templates.one}
+            </Button>
+          )}
+        </div>
       </div>
       {open && (
         <div className="mt-3">
@@ -43,6 +61,26 @@ export function DocumentTemplate({ locationId, onOpen }: { locationId: number; o
       )}
     </div>
   )
+}
+
+/** Opens a template in the section «Plantillas», by the location of its principal. */
+export function useOpenTemplate(): (principalLocationId: number) => void {
+  const setActiveView = useWikiStore((s) => s.setActiveView)
+  const openTemplate = useTemplatesStore((s) => s.openTemplate)
+  return (principalLocationId) => {
+    openTemplate(principalLocationId)
+    setActiveView("templates")
+  }
+}
+
+/** Opens, in the section «Plantillas», the screen to generate a document from a template, by its principal. */
+export function useGenerateFromTemplate(): (principalLocationId: number) => void {
+  const setActiveView = useWikiStore((s) => s.setActiveView)
+  const generateFrom = useTemplatesStore((s) => s.generateFrom)
+  return (principalLocationId) => {
+    generateFrom(principalLocationId)
+    setActiveView("templates")
+  }
 }
 
 /**
@@ -87,6 +125,21 @@ export function FamilyTemplate({ principalLocationId, onOpen }: { principalLocat
   return <TemplatePanel template={template.data} initialColumn={null} onOpen={onOpen} />
 }
 
+/** Whether a template is a proposal of the app or its family is confirmed. */
+export function TemplateStateBadge({ state, words = vocabulary() }: { state: Template["state"]; words?: Vocabulary }) {
+  return state === "confirmed" ? (
+    <StatusBadge tone="ok">{words.templates.confirmed}</StatusBadge>
+  ) : (
+    <StatusBadge tone="neutral" title="Nadie confirmó todavía su familia de documentos.">
+      {words.templates.proposed}
+    </StatusBadge>
+  )
+}
+
+function capitalized(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
 /**
  * A template: what its documents say alike, with the fields that change
  * marked in their place, and a table with the value of each document in
@@ -96,16 +149,28 @@ export function TemplatePanel({
   template,
   initialColumn,
   onOpen,
+  heading = true,
+  onChooseField,
+  busy = false,
   words = vocabulary(),
 }: {
   template: Template
   /** The document whose values the text shows at first; `null`: the names of the fields. */
   initialColumn: number | null
   onOpen: (locationId: number) => void
+  /** Its own title and state; the section «Plantillas» shows them above. */
+  heading?: boolean
+  /**
+   * When given, a person can rename each field, say what it is and fix it
+   * (the section «Plantillas»); `false` from it keeps the editor open.
+   */
+  onChooseField?: (position: number, choice: FieldChoice) => Promise<boolean | void> | boolean | void
+  busy?: boolean
   words?: Vocabulary
 }) {
   const [column, setColumn] = useState<number | null>(initialColumn)
   const [selected, setSelected] = useState<number | null>(null)
+  const [editing, setEditing] = useState<number | null>(null)
   const [showText, setShowText] = useState(true)
   const rows = fieldRows(template)
   const same = possiblySameNames(template)
@@ -113,19 +178,15 @@ export function TemplatePanel({
 
   return (
     <div className="flex flex-col gap-3" data-template={template.principal}>
-      <div className="flex flex-wrap items-center gap-2">
-        <h3 className="font-medium">Plantilla</h3>
-        {template.state === "confirmed" ? (
-          <StatusBadge tone="ok">Confirmada</StatusBadge>
-        ) : (
-          <StatusBadge tone="neutral" title="Nadie confirmó todavía que estos documentos son de la misma plantilla.">
-            Propuesta
-          </StatusBadge>
-        )}
-      </div>
+      {heading && (
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="font-medium">{capitalized(words.templates.one)}</h3>
+          <TemplateStateBadge state={template.state} words={words} />
+        </div>
+      )}
       <p className="text-xs text-muted-foreground">
         Lo que todos los documentos dicen igual es la plantilla; lo resaltado cambia de un documento a otro. La armó la
-        app comparando los textos, sin preguntarle a ningún modelo
+        app comparando los textos, sin modelo; el modelo solo les pone nombre a los campos que el texto no nombra
         {template.state === "confirmed"
           ? "."
           : `: es una propuesta hasta que se confirme la familia como «${relationName("same-template", words)}».`}
@@ -230,30 +291,73 @@ export function TemplatePanel({
               </thead>
               <tbody>
                 {rows.map((row) => (
-                  <tr
-                    key={row.index}
-                    className={cn("border-t align-top", selected === row.index && "bg-primary/10")}
-                    onClick={() => setSelected(row.index)}
-                  >
-                    <th className="px-2 py-1.5 text-left font-medium whitespace-nowrap">
-                      {fieldName(row.field, words)}
-                      {row.field.formName && (
-                        <div className="text-xs font-normal text-muted-foreground">
-                          del formulario: «{row.field.formName}»
-                        </div>
-                      )}
-                      {row.places > 1 && (
-                        <div className="text-xs font-normal text-muted-foreground">
-                          {plural(row.places, "lugar", "lugares")} del texto
-                        </div>
-                      )}
-                    </th>
-                    {row.field.values.map((value, index) => (
-                      <td key={index} className="px-2 py-1.5 break-words" title={value || undefined}>
-                        {value ? <span className="line-clamp-4">{value}</span> : <span className="text-muted-foreground">—</span>}
-                      </td>
-                    ))}
-                  </tr>
+                  <Fragment key={row.index}>
+                    <tr
+                      className={cn("border-t align-top", selected === row.index && "bg-primary/10")}
+                      onClick={() => setSelected(row.index)}
+                    >
+                      <th className="px-2 py-1.5 text-left font-medium whitespace-nowrap">
+                        <span className="flex items-center gap-1">
+                          {fieldName(row.field, words)}
+                          {onChooseField && (
+                            <Button
+                              size="icon-xs"
+                              variant="ghost"
+                              title="Cambiar el nombre, qué es o si es fijo"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                setEditing(editing === row.index ? null : row.index)
+                              }}
+                            >
+                              <Pencil />
+                            </Button>
+                          )}
+                        </span>
+                        {nameSourceText(row.field) && (
+                          <div className="text-xs font-normal text-muted-foreground">{nameSourceText(row.field)}</div>
+                        )}
+                        {onChooseField && row.field.nameSource === null && (
+                          <div className="text-xs font-normal text-muted-foreground">sin nombre todavía: lo nombra el modelo</div>
+                        )}
+                        {row.field.formName && row.field.name !== row.field.formName && (
+                          <div className="text-xs font-normal text-muted-foreground">
+                            del formulario: «{row.field.formName}»
+                          </div>
+                        )}
+                        {fieldNote(row.field, words) && (
+                          <div className="text-xs font-normal text-muted-foreground">{fieldNote(row.field, words)}</div>
+                        )}
+                        {row.places > 1 && (
+                          <div className="text-xs font-normal text-muted-foreground">
+                            {plural(row.places, "lugar", "lugares")} del texto
+                          </div>
+                        )}
+                      </th>
+                      {row.field.values.map((value, index) => (
+                        <td key={index} className="px-2 py-1.5 break-words" title={value || undefined}>
+                          {value ? <span className="line-clamp-4">{value}</span> : <span className="text-muted-foreground">—</span>}
+                        </td>
+                      ))}
+                    </tr>
+                    {onChooseField && editing === row.index && (
+                      <tr className="border-t bg-muted/30">
+                        <td colSpan={template.documents.length + 1} className="px-3 py-2">
+                          <FieldEditor
+                            field={row.field}
+                            whats={template.whats}
+                            busy={busy}
+                            words={words}
+                            onCancel={() => setEditing(null)}
+                            onSave={(choice) => {
+                              void Promise.resolve(onChooseField(row.index, choice)).then((saved) => {
+                                if (saved !== false) setEditing(null)
+                              })
+                            }}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>

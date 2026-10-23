@@ -1,6 +1,7 @@
 //! Micelya's work folder (D-450, D-451): where the app keeps what it brings
-//! by itself. The web clips go to «Recortes web» and the records of the
-//! judicial portals to «Expedientes». The folder is an origin of the base,
+//! by itself. The web clips go to «Recortes web», the records of the
+//! judicial portals to «Expedientes» and the documents generated from a
+//! template to «Generados» (D-488). The folder is an origin of the base,
 //! so what is saved there is inventoried like any document; its folders
 //! are part of it, never origins of their own.
 //!
@@ -29,8 +30,11 @@ const STORE_KEY: &str = "workspaceDir";
 pub const CLIPS: &str = "Recortes web";
 /// The records brought from the portals (`portals`).
 pub const RECORDS: &str = "Expedientes";
+/// The documents generated from a template (`docbase::similar::generate`),
+/// all together: the matter of each one is in the base, not in a folder.
+pub const GENERATED: &str = "Generados";
 /// The app's own folders inside the work folder.
-pub const APP_FOLDERS: &[&str] = &[CLIPS, RECORDS];
+pub const APP_FOLDERS: &[&str] = &[CLIPS, RECORDS, GENERATED];
 /// The names its origin can take, the first free one.
 const ORIGIN_NAMES: &[&str] = &["Carpeta de trabajo", "Carpeta de trabajo de Micelya", "Micelya"];
 /// When the person last saw the new clips (`docbase_setting`).
@@ -52,6 +56,17 @@ pub fn records_folder(app: &AppHandle) -> Result<PathBuf, String> {
 /// `<carpeta de trabajo>\Recortes web`.
 pub fn clips_folder(app: &AppHandle) -> Result<PathBuf, String> {
     folder(app).map(|work| work.join(CLIPS))
+}
+
+/// Where a document generated from a template goes: the folder
+/// «Generados» of the work folder, made if needed, inside its origin. The
+/// work folder is made an origin first when it is not one yet.
+pub fn generated_place(app: &AppHandle, base: &DocBase) -> Result<crate::docbase::similar::generate::Place, String> {
+    let work = folder(app)?;
+    fs::create_dir_all(&work).map_err(|e| format!("No se pudo crear {}: {e}", work.display()))?;
+    register(base, &work)?;
+    prepare(&work)?;
+    crate::docbase::similar::generate::Place::inside(base, &work.join(GENERATED))
 }
 
 fn chosen(app: &AppHandle) -> Option<PathBuf> {
@@ -105,6 +120,7 @@ pub struct WorkFolderStatus {
     pub path: String,
     pub clips: String,
     pub records: String,
+    pub generated: String,
     /// The origin of the base that holds it.
     pub origin_name: Option<String>,
     /// That origin is the folder itself (not one that holds it).
@@ -143,6 +159,7 @@ fn status_of(folder: &Path, work: Result<WorkOrigin, String>) -> WorkFolderStatu
         path: folder.to_string_lossy().to_string(),
         clips: folder.join(CLIPS).to_string_lossy().to_string(),
         records: folder.join(RECORDS).to_string_lossy().to_string(),
+        generated: folder.join(GENERATED).to_string_lossy().to_string(),
         origin_name,
         origin_own,
         error,
@@ -196,7 +213,8 @@ pub fn work_folder_set(app: AppHandle, docbase: State<'_, DocBaseState>, path: S
     Ok(status_of(&folder, Ok(work)))
 }
 
-/// Opens the work folder, or one of its folders (`clips`, `records`).
+/// Opens the work folder, or one of its folders (`clips`, `records`,
+/// `generated`).
 #[tauri::command(async)]
 pub fn work_folder_open(app: AppHandle, which: Option<String>) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
@@ -205,6 +223,7 @@ pub fn work_folder_open(app: AppHandle, which: Option<String>) -> Result<(), Str
         None | Some("") => work,
         Some("clips") => work.join(CLIPS),
         Some("records") => work.join(RECORDS),
+        Some("generated") => work.join(GENERATED),
         Some(other) => return Err(format!("No hay una carpeta «{other}» en la carpeta de trabajo")),
     };
     fs::create_dir_all(&target).map_err(|e| format!("No se pudo crear {}: {e}", target.display()))?;
@@ -238,7 +257,7 @@ mod tests {
         let dir = TempDir::new();
         let work = dir.path().join("trabajo");
         prepare(&work).unwrap();
-        assert!(work.join(CLIPS).is_dir() && work.join(RECORDS).is_dir());
+        assert!(work.join(CLIPS).is_dir() && work.join(RECORDS).is_dir() && work.join(GENERATED).is_dir());
         let base = DocBase::in_memory().unwrap();
         let origin = register(&base, &work).unwrap();
         assert_eq!(origin.origin.name, "Carpeta de trabajo");
@@ -246,6 +265,7 @@ mod tests {
         // origin of their own, and no other origin can be made there.
         assert!(base.add_origin("Expedientes", &work.join(RECORDS), &[]).is_err());
         assert!(base.add_origin("Recortes web", &work.join(CLIPS), &[]).is_err());
+        assert!(base.add_origin("Generados", &work.join(GENERATED), &[]).is_err());
         assert_eq!(base.origins(&Visible::All).unwrap().len(), 1);
         assert_eq!(normalize("C:/Usuarios/alguien/carpeta").to_string_lossy().contains('/'), !cfg!(windows));
     }

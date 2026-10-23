@@ -4,10 +4,10 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }))
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(() => Promise.resolve(() => {})) }))
 
 import { invoke } from "@tauri-apps/api/core"
-import type { DoubtView, KnowledgeAttention, KnowledgeStatus } from "@/commands/docbase"
+import type { DoubtView, KnowledgeAttention, KnowledgeStatus, RereadPlan } from "@/commands/docbase"
 import { attentionCounts } from "@/lib/attention/order"
 import { vocabularyFor } from "@/vocabulary"
-import { knowledgeNotices } from "./knowledge"
+import { knowledgeNotices, outdatedNotice } from "./knowledge"
 
 const words = vocabularyFor("legal", "es")
 
@@ -204,6 +204,54 @@ describe("knowledgeNotices", () => {
     expect(invoke).toHaveBeenCalledWith("docbase_knowledge_join_matter", expect.objectContaining({ document: "content:3", matterId: "mat-1" }))
     await reject.run()
     expect(invoke).toHaveBeenCalledWith("docbase_knowledge_leave_matter", expect.objectContaining({ document: "content:3", matterId: "mat-1" }))
+  })
+
+  it("tells how many documents were read with another version or model, with what reading them again costs (D-465)", async () => {
+    const plan = (patch: Partial<RereadPlan> = {}): RereadPlan => ({
+      documents: 0,
+      questions: 0,
+      requested: 0,
+      olderVersion: 0,
+      otherModel: 0,
+      engine: { engine: "codex-cli", model: "m" },
+      ...patch,
+    })
+    // Nothing read with another version or model: no line.
+    expect(outdatedNotice(plan())).toBeNull()
+    expect(outdatedNotice(null)).toBeNull()
+
+    // Only with another model.
+    expect(outdatedNotice(plan({ documents: 3, questions: 5, otherModel: 3 }))?.title).toBe(
+      "3 documentos quedaron leídos con otro modelo",
+    )
+    expect(outdatedNotice(plan({ documents: 1, questions: 1, olderVersion: 1 }))?.title).toBe(
+      "1 documento quedó leído con otra versión de la pregunta",
+    )
+
+    // Both, among the decisions, as something that can wait.
+    const notices = knowledgeNotices(
+      { attention: attention(), doubts: [], outdated: plan({ documents: 134, questions: 140, olderVersion: 134, otherModel: 20 }) },
+      words,
+    )
+    const line = notices.find((n) => n.topic === "reading-outdated")
+    expect(line).toMatchObject({ kind: "decision", priority: "low", count: 134 })
+    expect(line?.title).toBe("134 documentos quedaron leídos con otra versión de la pregunta o con otro modelo")
+    expect(line?.explanation).toContain("134 con otra versión de la pregunta y 20 con otro modelo.")
+    expect(line?.explanation).toContain("no se vuelve a leer sola")
+    expect(line?.explanation).toContain("140 preguntas al modelo")
+    // Its button says the cost first, and asks for those documents only.
+    const action = line?.actions[0]
+    if (action?.kind !== "run") throw new Error("expected a run action")
+    expect(action.label).toBe("Volver a leer con el modelo")
+    expect(action.confirm).toContain("Se van a volver a leer 134 documentos: son 140 preguntas al modelo")
+    vi.mocked(invoke).mockClear()
+    await action.run()
+    expect(invoke).toHaveBeenCalledWith("docbase_knowledge_reread", { target: { outdated: true } })
+
+    // Without an engine, it says where to choose one.
+    const unchosen = outdatedNotice(plan({ documents: 2, questions: 2, olderVersion: 2, engine: null }))
+    expect(unchosen?.actions).toEqual([{ kind: "go", label: "Elegir el motor", target: { view: "settings" } }])
+    expect(unchosen?.todo).toContain("Ajustes → Servicios de IA")
   })
 
   it("leaves the reading, the resolution and the pages in progress to the stages of «En curso»", () => {

@@ -1,7 +1,7 @@
 import { PRODUCT_NAME } from "@/lib/app-identity"
 import {
   FileText, Search, Network, Settings, Globe, MessageSquare, Sparkles,
-  HardDrive, Files, Home, BellDot, Users, Briefcase, Landmark,
+  HardDrive, Files, Home, BellDot, Users, Briefcase, Landmark, LayoutTemplate,
 } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useWikiStore } from "@/stores/wiki-store"
@@ -28,8 +28,8 @@ const NAV_ITEMS: { view: NavView; icon: typeof FileText; labelKey: string }[] = 
 ]
 
 // The document base screens are written in Spanish only for now, so their
-// labels are not translation keys; the attention view is named by the
-// vocabulary of the vertical.
+// labels are not translation keys; the attention view, the matters, the
+// templates and the portals are named by the vocabulary of the vertical.
 function docbaseNavItems(): { view: NavView; icon: typeof FileText; label: string }[] {
   return [
     { view: "home", icon: Home, label: "Inicio" },
@@ -37,6 +37,7 @@ function docbaseNavItems(): { view: NavView; icon: typeof FileText; label: strin
     { view: "documents", icon: Files, label: "Documentos" },
     { view: "entities", icon: Users, label: vocabulary().knowledge.entities },
     { view: "matters", icon: Briefcase, label: vocabulary().knowledge.matters },
+    { view: "templates", icon: LayoutTemplate, label: vocabulary().templates.name },
     { view: "origins", icon: HardDrive, label: "Orígenes" },
     { view: "portals", icon: Landmark, label: vocabulary().portals.name },
   ]

@@ -491,6 +491,10 @@ impl DocBase {
     fn regroup_families(&self) -> Result<(), String> {
         let mut conn = self.conn();
         let tx = conn.transaction().map_err(sql_err)?;
+        // A document generated from a template is never the same document
+        // as those it came from, nor the principal of a family (D-488).
+        super::generate::generated_pairs_as_template(&tx)?;
+        let generated = super::generate::generated_contents(&tx)?;
         let mut adjacent: BTreeMap<i64, BTreeMap<i64, (String, f64)>> = BTreeMap::new();
         {
             let mut statement = tx
@@ -530,7 +534,13 @@ impl DocBase {
                 completeness.insert(id, (marks.iter().any(|m| m.kind == "party-signature"), words));
             }
         }
-        let groups = families(&adjacent, &|id| completeness.get(&id).copied().unwrap_or((false, 0)));
+        let groups = families(&adjacent, &|id| {
+            if generated.contains(&id) {
+                (false, -1)
+            } else {
+                completeness.get(&id).copied().unwrap_or((false, 0))
+            }
+        });
 
         tx.execute("DELETE FROM similar_group", []).map_err(sql_err)?;
         let now = now_ms();

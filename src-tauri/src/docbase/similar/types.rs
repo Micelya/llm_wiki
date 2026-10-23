@@ -268,10 +268,17 @@ impl Catalog {
 }
 
 static INSTALLED: OnceLock<Catalog> = OnceLock::new();
+/// The file the catalog in use came from, when it is not the built-in one.
+static INSTALLED_FROM: OnceLock<std::path::PathBuf> = OnceLock::new();
 
 /// The catalog in use: the one installed at start, or the built-in one.
 pub fn catalog() -> &'static Catalog {
     INSTALLED.get_or_init(Catalog::builtin)
+}
+
+/// The file the catalog in use came from; none for the built-in one.
+pub fn installed_from() -> Option<&'static std::path::Path> {
+    INSTALLED_FROM.get().map(|p| p.as_path())
 }
 
 /// Uses the catalog in `path` instead of the built-in one, when the file
@@ -282,7 +289,9 @@ pub fn install_from(path: &std::path::Path) {
     };
     match Catalog::parse(&text) {
         Ok(catalog) => {
-            let _ = INSTALLED.set(catalog);
+            if INSTALLED.set(catalog).is_ok() {
+                let _ = INSTALLED_FROM.set(path.to_path_buf());
+            }
         }
         Err(error) => eprintln!("[docbase] {}: {error}; using the built-in catalog", path.display()),
     }

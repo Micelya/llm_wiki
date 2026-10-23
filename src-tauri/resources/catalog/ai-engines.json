@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "about": "Engines each AI service can use (P-141, D-445): what each one says it can do, where it processes what it is sent and what its provider keeps. Shown in Ajustes → Servicios de IA. An entry is one engine for one service; `inBase` says the base can run it by itself (today only Codex).",
+  "about": "Engines each AI service can use (P-141, D-445): what each one says it can do, where it processes what it is sent and what its provider keeps. Shown in Ajustes → Servicios de IA. An entry is one engine for one service; `inBase` says the base can run it by itself (today Codex, and Micelya Core for the scans); `connection` names the shared connection it needs (Ajustes → Conexiones); `defaultModel` is the model it is saved with when the person does not choose one (`modelChoice` false: the provider says which model reads).",
   "services": [
     {
       "id": "ask",
@@ -124,6 +124,22 @@
       "languages": ["castellano", "inglés", "otros"],
       "processing": "Cada página se convierte en imagen en esta computadora y el programa Codex la manda a OpenAI con la cuenta con la que se inició sesión en Codex; es una pregunta al modelo por página.",
       "retention": "OpenAI lo trata según el plan de esa cuenta. En un plan personal, revisá en ChatGPT → Configuración → Controles de datos si lo enviado se usa para mejorar sus modelos; en un plan de empresa no se usa para entrenar."
+    },
+    {
+      "service": "recognize",
+      "id": "core",
+      "name": "Micelya Core (Textract)",
+      "kind": "api",
+      "inBase": true,
+      "reasoning": false,
+      "connection": "micelya-core",
+      "defaultModel": "textract-1.0",
+      "modelChoice": false,
+      "capabilities": { "text": "yes", "tables": "no", "checkboxes": "no", "handwriting": "partial" },
+      "languages": ["castellano", "inglés", "portugués", "francés", "alemán", "italiano"],
+      "notes": "Lee el texto renglón por renglón, con la confianza de cada palabra: las de menos de 90 % quedan marcadas como dudosas. Las tablas salen como renglones, sin sus columnas, y las casillas no se leen (Core los ofrece aparte, más adelante). El manuscrito, solo en inglés. Cuesta centavos de dólar por página, en la cuenta de Core.",
+      "processing": "Procesa en Oregón (Estados Unidos). Cada página se convierte en imagen en esta computadora y se manda aparte (hasta 4 a la vez), con un nombre genérico (pagina-N.jpg), nunca el del archivo.",
+      "retention": "Textract guarda el resultado 7 días. Desktop borra cada lectura en Core apenas la guarda. Solo borra las que pidió esta computadora; si Core no deja borrar una, lo avisa en Atención y lo vuelve a intentar."
     },
     {
       "service": "research",

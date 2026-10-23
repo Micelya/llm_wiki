@@ -1260,6 +1260,69 @@ Respondé solo con el JSON pedido: {{\"oraciones\": [{{\"texto\": \"...\", \"afi
     }
 }
 
+/// The question of Ajustes (`questions.rs`) about an invented person with
+/// two claims of an invented document (where they live, whom they owe),
+/// numbered by `numbered` and written by `synthesis_question` as
+/// `project` does, in `language` when the archive has one. `part` writes
+/// each value that changes in each case.
+pub(crate) fn example_question(language: Option<&str>, part: crate::docbase::questions::Part) -> (String, serde_json::Value) {
+    use super::names::{ORGANIZATION, PERSON};
+    use crate::docbase::questions::{example, term, CLAIM, ENTITY, FILE, LANGUAGE, QUOTE};
+    let vocabulary = vocabulary();
+    let predicates = |entity: bool| -> Vec<&str> {
+        vocabulary.predicates.iter().filter(|p| !p.is_money() && p.takes_entity() == entity).map(|p| p.id.as_str()).collect()
+    };
+    let roles: Vec<&str> = vocabulary.roles.iter().map(|r| r.id.as_str()).collect();
+    let claim = |id: i64, predicate: String, object_entity: Option<String>, object_value: Option<String>, quote: &str| Claim {
+        id,
+        predicate,
+        context: None,
+        qualifier: None,
+        object_entity,
+        object_value,
+        state: "supported".to_string(),
+        valid_from: None,
+        evidence: vec![(1, part(QUOTE, quote), Some(1))],
+        amount: None,
+        detail: None,
+        mirrored: false,
+        certainty: super::claims::QUOTED.to_string(),
+        reasons: Vec::new(),
+    };
+    let company = Entity {
+        id: "ejemplo-organizacion".to_string(),
+        kind: ORGANIZATION.to_string(),
+        name: part(ENTITY, example::COMPANY),
+        state: "active".to_string(),
+        documents: BTreeMap::from([(1, BTreeSet::from([term(&roles, "remitente")]))]),
+        ..Default::default()
+    };
+    let person = Entity {
+        id: "ejemplo-persona".to_string(),
+        kind: PERSON.to_string(),
+        name: part(ENTITY, example::PERSON),
+        state: "active".to_string(),
+        documents: BTreeMap::from([(1, BTreeSet::from([term(&roles, "destinatario")]))]),
+        claims: vec![
+            claim(1, term(&predicates(false), "domicilio"), None, Some(part(CLAIM, example::ADDRESS)), example::PERSON_QUOTE),
+            claim(2, term(&predicates(true), "deudor_de"), Some(company.id.clone()), None, example::DEBT_QUOTE),
+        ],
+        ..Default::default()
+    };
+    let record = Record {
+        entities: BTreeMap::from([(person.id.clone(), person.clone()), (company.id.clone(), company)]),
+        documents: BTreeMap::from([(1, Document { name: part(FILE, example::FILE), ..Default::default() })]),
+        pages: BTreeMap::new(),
+        matters: BTreeMap::new(),
+        matter_of: BTreeMap::new(),
+        proposed: BTreeMap::new(),
+    };
+    let claims = numbered(vocabulary, &person);
+    let language = language.map(|l| part(LANGUAGE, l));
+    let asked = synthesis_question(vocabulary, &record, &person, synthesized(&claims), language.as_deref());
+    (asked.prompt, asked.schema)
+}
+
 pub fn schema() -> serde_json::Value {
     serde_json::json!({
         "type": "object",

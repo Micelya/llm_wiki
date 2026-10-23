@@ -16,6 +16,7 @@
 //!
 //! Design: `docs/design/base-documental.md`.
 
+pub mod auto_questions;
 pub mod bridge;
 pub mod chat_files;
 pub mod commands;
@@ -28,6 +29,7 @@ pub mod labels;
 pub mod origins;
 pub mod progress;
 pub mod query;
+pub mod questions;
 pub mod recognize;
 pub mod search;
 pub mod services;

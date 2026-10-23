@@ -10,7 +10,7 @@ import { useAppDialog } from "@/stores/app-dialog-store"
  * The notice before reading again with the model (D-432): how many
  * documents, how many questions, and what happens to what is there.
  */
-export function rereadConfirmMessage(plan: RereadPlan): string {
+export function rereadConfirmMessage(plan: Pick<RereadPlan, "documents" | "questions" | "requested">): string {
   const documents = plural(plan.documents, "documento", "documentos")
   const questions = plural(plan.questions, "pregunta al modelo", "preguntas al modelo")
   const already = plan.requested > 0 ? ` ${plural(plan.requested, "ya estaba pedido", "ya estaban pedidos")}.` : ""

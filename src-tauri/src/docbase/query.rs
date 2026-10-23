@@ -134,6 +134,9 @@ pub struct DocumentDetail {
     pub text_at: Option<i64>,
     /// Every visible location of this document, this one first.
     pub locations: Vec<LocationRef>,
+    /// When it was generated from a template: when, from which and for
+    /// which matter (D-488).
+    pub generated: Option<super::similar::generate::GeneratedLine>,
 }
 
 /// How the archive is doing, in numbers.
@@ -485,6 +488,10 @@ impl DocBase {
             Some(content_id) => locations_of(&conn, visible, content_id, location_id, file_hash.as_deref())?,
             None => Vec::new(),
         };
+        let generated = match row.content_id {
+            Some(content_id) => super::similar::generate::generated_line(&conn, content_id)?,
+            None => None,
+        };
 
         Ok(Some(DocumentDetail {
             path: absolute(&root, &row.rel_path),
@@ -497,6 +504,7 @@ impl DocBase {
             text_engine: text.as_ref().map(|(_, engine, _)| engine.clone()),
             text_at: text.map(|(.., at)| at),
             locations,
+            generated,
             row,
         }))
     }
