@@ -68,7 +68,9 @@ export function OperationCardView({ card: initial, onChange }: { card: Card; onC
   const ticked = doable.filter((i) => i.required || (i.key !== null && !unticked.has(i.key)))
   const needsItems = !["caso_renombrar", "caso_decidir", "caso_cambiar_estado", "consulta_guardar", "caso_crear"].includes(card.operation)
   const canConfirm = waiting && !card.blocked && (!needsItems || ticked.length > 0)
-  const shown = useMemo(() => (unfolded || card.items.length <= FOLDED_OVER ? card.items : card.items.slice(0, FOLDED_OVER)), [card.items, unfolded])
+  // Once decided, the card shows what it was done on.
+  const listed = useMemo(() => (waiting ? card.items : card.items.filter((i) => i.status === "ok")), [card.items, waiting])
+  const shown = useMemo(() => (unfolded || listed.length <= FOLDED_OVER ? listed : listed.slice(0, FOLDED_OVER)), [listed, unfolded])
 
   const run = async (action: () => Promise<void>) => {
     setBusy(true)
@@ -183,9 +185,9 @@ export function OperationCardView({ card: initial, onChange }: { card: Card; onC
           ))}
         </ul>
       )}
-      {card.items.length > FOLDED_OVER && !unfolded && (
+      {listed.length > FOLDED_OVER && !unfolded && (
         <button type="button" className="mt-1 text-xs text-primary hover:underline" onClick={() => setUnfolded(true)}>
-          y {card.items.length - FOLDED_OVER} más, ver todos
+          y {listed.length - FOLDED_OVER} más, ver todos
         </button>
       )}
 
