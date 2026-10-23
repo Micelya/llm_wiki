@@ -313,3 +313,68 @@ fn a_screen_button_applies_at_once_and_is_kept_in_the_record() {
     assert_eq!(base.knowledge_matter(&Visible::All, &matter).unwrap().unwrap().status, "open");
     assert!(flow::apply_now(&base, "buscar", &json!({ "consulta": "x" })).is_err());
 }
+
+/// The records of an invented archive, read by a stand-in model.
+fn records() -> (crate::docbase::testing::TempDir, DocBase) {
+    use crate::docbase::knowledge::tests_identity;
+    let (dir, base) = base_with(tests_identity::FILES);
+    tests_identity::run(&base, &tests_identity::model());
+    (dir, base)
+}
+
+fn person_with(base: &DocBase, document: &str, name: &str) -> String {
+    let conn = base.conn();
+    conn.query_row(
+        "SELECT m.entity_id FROM knowledge_mention m JOIN file f ON f.content_id = m.content_id JOIN location l ON l.file_hash = f.hash
+         JOIN knowledge_entity e ON e.id = m.entity_id WHERE l.name = ?1 AND m.written = ?2 AND e.state = 'active'",
+        [document, name],
+        |row| row.get(0),
+    )
+    .unwrap()
+}
+
+#[test]
+fn two_records_are_joined_from_a_card_that_shows_both_sides_and_separated_again_when_undone() {
+    let (_dir, base) = records();
+    let (one, other) = (person_with(&base, "a.txt", "Persona Dos"), person_with(&base, "c.txt", "Persona Dos"));
+    assert_ne!(one, other, "two people with the same name and another DNI");
+    let request = "estas dos fichas son la misma persona";
+    let card = card_of(flow::propose(&base, "fichas_unir", &json!({ "fichas": [one, other] }), &chat(request), &[]).unwrap());
+    assert!(card.title.starts_with("Unir las fichas «") && card.title.ends_with("«Persona Dos»: son la misma"), "{}", card.title);
+    assert!(card.items.iter().all(|i| i.required && i.status == "ok"));
+    let sides: Vec<Value> = card.items.iter().map(|i| i.detail.clone().unwrap()).collect();
+    assert!(sides[0]["identifiers"].to_string().contains("22.222.222"), "{sides:?}");
+    assert!(sides[1]["identifiers"].to_string().contains("44.444.444"), "{sides:?}");
+    assert!(card.blocked.is_none());
+    flow::confirm(&base, card.id, None, false, Some(&card.fingerprint)).unwrap();
+    // A decision of a person, with who asked for it, and the two are one.
+    let decision = base.knowledge_decisions().unwrap().into_iter().find(|d| d.kind == "join").unwrap();
+    assert_eq!(decision.note.as_deref(), Some(format!("pedido en el chat: «{request}»").as_str()));
+    assert!(decision.shown_evidence.contains("44.444.444"));
+    assert_eq!(person_with(&base, "a.txt", "Persona Dos"), person_with(&base, "c.txt", "Persona Dos"));
+    flow::undo(&base, card.id, false).unwrap();
+    assert_eq!(base.knowledge_decisions().unwrap().into_iter().find(|d| d.id == decision.id).unwrap().state, "undone");
+    assert_ne!(person_with(&base, "a.txt", "Persona Dos"), person_with(&base, "c.txt", "Persona Dos"));
+}
+
+#[test]
+fn a_record_is_separated_in_one_document_and_a_person_and_an_organization_are_never_joined() {
+    let (_dir, base) = records();
+    let person = person_with(&base, "a.txt", "Persona Dos");
+    assert_eq!(person, person_with(&base, "b.txt", "DOS, Persona"), "the DNI joined them");
+    let card = card_of(
+        flow::propose(&base, "fichas_separar", &json!({ "ficha": person, "documento": key(&base, "b.txt") }), &chat("en el recibo es otra persona"), &[]).unwrap(),
+    );
+    assert!(card.title.starts_with("Separar a «") && card.title.ends_with("en el documento «b.txt»: ahí es otra"), "{}", card.title);
+    flow::confirm(&base, card.id, None, false, None).unwrap();
+    assert_ne!(person_with(&base, "a.txt", "Persona Dos"), person_with(&base, "b.txt", "DOS, Persona"));
+    flow::undo(&base, card.id, false).unwrap();
+    assert_eq!(person_with(&base, "a.txt", "Persona Dos"), person_with(&base, "b.txt", "DOS, Persona"));
+
+    let company = person_with(&base, "a.txt", "Ejemplo Uno S.A.");
+    let mixed = flow::propose(&base, "fichas_unir", &json!({ "fichas": [person, company] }), &chat("son la misma"), &[]).unwrap();
+    match mixed {
+        Proposal::Nothing(why) => assert!(why.contains("una persona y la otra una organización"), "{why}"),
+        Proposal::Card(card) => panic!("a person and an organization cannot be one: {card:?}"),
+    }
+}
