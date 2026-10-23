@@ -1449,8 +1449,8 @@ export interface KnowledgeDecisionReview {
   reason: string
 }
 
-/** "open" for now (its life cycle is P-213). */
-export type MatterStatus = "open"
+/** Open, closed or archived (D-475): a closed or archived one leaves the list and Atención. */
+export type MatterStatus = "open" | "closed" | "archived"
 /** Who made it: the grouping ("proposed") or a person. */
 export type MatterOrigin = "proposed" | "person"
 /** What a person decided about it. */
