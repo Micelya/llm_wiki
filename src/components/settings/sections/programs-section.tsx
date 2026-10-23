@@ -173,7 +173,7 @@ export function ProgramsSection() {
         action={
           status && (
             <label className="flex items-center gap-2 text-sm">
-              <span className="text-muted-foreground">Programas</span>
+              <span className="text-muted-foreground">{status.programsEnabled ? "Programas permitidos" : "Programas apagados"}</span>
               <button
                 type="button"
                 role="switch"
@@ -357,7 +357,7 @@ function CopyLine({ label, text, copied, onCopy }: { label: string; text: string
 function CodeBox({ text, copied, onCopy }: { text: string; copied: boolean; onCopy: () => void }) {
   return (
     <div className="mt-1 flex items-start gap-2">
-      <pre className="min-w-0 flex-1 overflow-x-auto rounded-lg border bg-panel-sub px-3 py-2 font-mono text-xs whitespace-pre-wrap break-all text-strong">
+      <pre className="min-w-0 flex-1 overflow-x-auto rounded-lg border bg-panel-sub px-3 py-2 font-mono text-xs whitespace-pre-wrap [overflow-wrap:anywhere] text-strong">
         {text}
       </pre>
       <Button size="sm" variant="outline" onClick={onCopy}>
