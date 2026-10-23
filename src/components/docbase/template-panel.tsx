@@ -2,13 +2,23 @@ import { Fragment, useState } from "react"
 import { ChevronDown, ChevronRight, LayoutTemplate, Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { getSimilarTemplate, type FieldChoice, type SimilarGroup, type Template } from "@/commands/docbase"
-import { relationName, vocabulary, type Vocabulary } from "@/vocabulary"
+import { vocabulary, type Vocabulary } from "@/vocabulary"
 import { cn } from "@/lib/utils"
 import { useTemplatesStore } from "@/stores/templates-store"
 import { useWikiStore } from "@/stores/wiki-store"
 import { formatCount, plural } from "./format"
 import { StatusBadge } from "./page"
-import { fieldName, fieldNote, fieldRows, nameSourceText, placeLabel, possiblySameNames, rowIndexOf, templateSummary } from "./template"
+import {
+  fieldName,
+  fieldNote,
+  fieldRows,
+  madeWithLine,
+  nameSourceText,
+  placeLabel,
+  possiblySameNames,
+  rowIndexOf,
+  templateSummary,
+} from "./template"
 import { FieldEditor } from "./template-field-editor"
 import { useDocbaseQuery } from "./use-docbase-query"
 
@@ -16,10 +26,11 @@ const SELECT_CLASS =
   "h-7 max-w-full rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
 
 /**
- * The template a document shares with its family, in the document's
- * «Datos y correcciones» (section of similar documents): one line that
- * says it, and the template itself when asked. Nothing when it shares
- * none.
+ * The template a document was made with, at the head of its «Copias y
+ * versiones»: one line that says it ("Hecho con la plantilla «Recibo»,
+ * como 2 documentos más"), and the template itself when asked. The
+ * documents made with one template are different documents: nothing to
+ * decide (D-497). Nothing when it shares none.
  */
 export function DocumentTemplate({ locationId, onOpen }: { locationId: number; onOpen: (locationId: number) => void }) {
   const template = useDocbaseQuery(`similar-template:${locationId}`, () => getSimilarTemplate(locationId))
@@ -35,7 +46,7 @@ export function DocumentTemplate({ locationId, onOpen }: { locationId: number; o
     <div className="mb-4 rounded-md border bg-muted/20 px-4 py-3 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p>
-          Comparte la plantilla con {plural(others, "documento más", "documentos más")}.{" "}
+          {madeWithLine(data, data.documents[0]?.doc.name ?? "", others, words)}{" "}
           <span className="text-muted-foreground">{templateSummary(data)}</span>
         </p>
         <div className="flex flex-wrap gap-2">
@@ -125,15 +136,13 @@ export function FamilyTemplate({ principalLocationId, onOpen }: { principalLocat
   return <TemplatePanel template={template.data} initialColumn={null} onOpen={onOpen} />
 }
 
-/** Whether a template is a proposal of the app or its family is confirmed. */
+/**
+ * Whether a person confirmed every document of a template, before the
+ * documents of one template stopped waiting for a decision (D-497). A
+ * template no one confirmed says nothing: there is nothing to confirm.
+ */
 export function TemplateStateBadge({ state, words = vocabulary() }: { state: Template["state"]; words?: Vocabulary }) {
-  return state === "confirmed" ? (
-    <StatusBadge tone="ok">{words.templates.confirmed}</StatusBadge>
-  ) : (
-    <StatusBadge tone="neutral" title="Nadie confirmó todavía su familia de documentos.">
-      {words.templates.proposed}
-    </StatusBadge>
-  )
+  return state === "confirmed" ? <StatusBadge tone="ok">{words.templates.confirmed}</StatusBadge> : null
 }
 
 function capitalized(text: string): string {
@@ -143,7 +152,7 @@ function capitalized(text: string): string {
 /**
  * A template: what its documents say alike, with the fields that change
  * marked in their place, and a table with the value of each document in
- * each field. A proposal until a person confirms the family.
+ * each field. The documents made with it are different documents (D-497).
  */
 export function TemplatePanel({
   template,
@@ -186,10 +195,8 @@ export function TemplatePanel({
       )}
       <p className="text-xs text-muted-foreground">
         Lo que todos los documentos dicen igual es la plantilla; lo resaltado cambia de un documento a otro. La armó la
-        app comparando los textos, sin modelo; el modelo solo les pone nombre a los campos que el texto no nombra
-        {template.state === "confirmed"
-          ? "."
-          : `: es una propuesta hasta que se confirme la familia como «${relationName("same-template", words)}».`}
+        app comparando los textos, sin modelo; el modelo solo les pone nombre a los campos que el texto no nombra. Los
+        documentos hechos con ella son documentos distintos: no hay nada que decidir.
       </p>
 
       {same.map(([a, b]) => (
@@ -198,7 +205,7 @@ export function TemplatePanel({
           className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300"
         >
           En «{a}» y «{b}» no cambia ningún dato (a lo sumo unas palabras): posiblemente sean el mismo documento y no
-          la misma plantilla con otros datos. Revisalos en «Documentos parecidos»: si son el mismo, unilos como tales.
+          la misma plantilla con otros datos. Revisalos en «{words.copies.name}»: si son el mismo, unilos como tales.
         </div>
       ))}
 
@@ -283,7 +290,7 @@ export function TemplatePanel({
                         {d.doc.name}
                       </button>
                       <div className="font-normal text-muted-foreground">
-                        {index === 0 ? "principal" : d.state === "joined" ? "confirmado" : "sin confirmar"}
+                        {index === 0 ? "principal" : d.state === "joined" ? "confirmado" : "hecho con ella"}
                       </div>
                     </th>
                   ))}

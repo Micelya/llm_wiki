@@ -194,7 +194,7 @@ describe("generating a document from a template", () => {
     expect(html).toContain("Generar un documento")
     expect(html).toContain("Desde la plantilla «Recibo de honorarios»: 4 campos para completar.")
     expect(html).toContain("Sale un Word simple, sin membrete")
-    expect(html).toContain("Esta plantilla es una propuesta: nadie confirmó todavía que sus documentos son de la misma familia. Se puede generar igual")
+    expect(html).not.toContain("es una propuesta")
     expect(html).toContain("Para qué caso (opcional)")
     expect(html).toContain("Torres c/ Vega")
     expect(html).not.toContain("Un caso descartado")

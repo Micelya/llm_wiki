@@ -225,12 +225,6 @@ export function GenerateForm({
           original (negritas, sangrías, tablas).
         </p>
       </div>
-      {template.state === "proposed" && (
-        <Notice>
-          Esta {words.templates.one} es una propuesta: nadie confirmó todavía que sus documentos son de la misma familia. Se
-          puede generar igual; revisá el texto antes de usarlo.
-        </Notice>
-      )}
       {template.format === "scan" && (
         <Notice>El texto salió de un escaneo: lo leyó el reconocimiento y puede tener errores. Revisalo en el Word.</Notice>
       )}

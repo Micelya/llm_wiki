@@ -160,6 +160,23 @@ function capitalized(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
+/**
+ * What a document says of the template it shares with others (D-497):
+ * "Hecho con la plantilla «Recibo», como 2 documentos más." Documents made
+ * with one template are different documents; this is all they say of each
+ * other, with nothing to decide.
+ */
+export function madeWithLine(
+  kind: TemplateKind & { name?: string | null },
+  principalName: string,
+  others: number,
+  words: Vocabulary = vocabulary(),
+): string {
+  const which = kind.name || kind.docType ? `«${templateName(kind, principalName, words)}»` : `de «${principalName}»`
+  const head = `Hecho con la ${words.templates.one} ${which}`
+  return others > 0 ? `${head}, como ${plural(others, "documento más", "documentos más")}.` : `${head}.`
+}
+
 /** Where the format of a template comes from, in words. */
 export function formatName(format: TemplateFormat): string {
   const names: Record<TemplateFormat, string> = {
@@ -172,14 +189,14 @@ export function formatName(format: TemplateFormat): string {
   return names[format] ?? format
 }
 
-/** The line over the list: "12 plantillas con 49 documentos. Todavía no se confirmó ninguna familia." */
+/**
+ * The line over the list: "12 plantillas con 49 documentos." The documents
+ * made with a template are different documents: nothing waits to be
+ * confirmed (D-497).
+ */
 export function templatesSummary(templates: TemplateSummary[], words: Vocabulary = vocabulary()): string {
   const documents = templates.reduce((sum, t) => sum + t.documents, 0)
-  const confirmed = templates.filter((t) => t.state === "confirmed").length
-  const head = `${plural(templates.length, words.templates.one, words.templates.many)} con ${plural(documents, "documento", "documentos")}.`
-  if (confirmed === templates.length) return `${head} Las familias de todas están confirmadas.`
-  if (confirmed === 0) return `${head} Todavía no se confirmó ninguna familia.`
-  return `${head} ${formatCount(confirmed)} de ${formatCount(templates.length)} con la familia confirmada.`
+  return `${plural(templates.length, words.templates.one, words.templates.many)} con ${plural(documents, "documento", "documentos")}.`
 }
 
 /** The fields of a template in the list: "8 campos · 2 textos que cambian". */
