@@ -53,8 +53,8 @@ export const legal: Vertical = {
         "reply-to": { name: "Respuesta", of: "responde a" },
         "signing-certificate-of": { name: "Constancia de firma", of: "es la constancia de firma de" },
         "delivery-receipt-of": { name: "Acuse de recibo", of: "es el acuse de recibo de" },
-        "same-matter": { name: "Mismo asunto" },
-        "same-person-other-matter": { name: "Misma persona, otro asunto" },
+        "same-matter": { name: "Mismo caso" },
+        "same-person-other-matter": { name: "Misma persona, otro caso" },
       },
       documentTypes: {
         "carta-documento": "Carta documento",
@@ -117,7 +117,8 @@ export const legal: Vertical = {
         entityTypes: {
           persona: { one: "Persona", many: "Personas" },
           organizacion: { one: "Organización", many: "Organizaciones" },
-          asunto: { one: "Asunto", many: "Asuntos" },
+          // The screens say the matter as the menu does (P-057); the text of the pages keeps its own word (P-313).
+          asunto: { one: "Caso", many: "Casos" },
         },
         groups: { one: "Grupo de sociedades", many: "Grupos de sociedades" },
         roles: {
