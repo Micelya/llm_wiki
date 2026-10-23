@@ -192,7 +192,7 @@ export function LlmProviderSection() {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-semibold">Conexiones con modelos</h2>
+        <h2 className="font-ui text-[1.75rem] leading-tight font-bold tracking-[-0.01em] text-strong">Conexiones con modelos</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Los datos para conectarse con cada proveedor de modelos: su clave, su dirección, el modelo de siempre. Una
           conexión la pueden usar varios servicios; cuál usa cada uno se elige en Ajustes → Servicios de IA. Activar

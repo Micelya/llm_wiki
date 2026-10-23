@@ -176,7 +176,7 @@ export function WebSearchSection() {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-semibold">{t("settings.sections.webSearch.title")}</h2>
+        <h2 className="font-ui text-[1.75rem] leading-tight font-bold tracking-[-0.01em] text-strong">{t("settings.sections.webSearch.title")}</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           {t("settings.sections.webSearch.description")}
         </p>

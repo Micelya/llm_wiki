@@ -38,7 +38,7 @@ export function DataView({ status, problem, busy, onOpen, onRestore, onClose }: 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold">Datos y respaldos</h2>
+        <h2 className="font-ui text-[1.75rem] leading-tight font-bold tracking-[-0.01em] text-strong">Datos y respaldos</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Dónde guarda Micelya lo que hacés en la app (la base, los ajustes y el chat), separado del programa: instalar una
           versión nueva no lo toca. Antes de cada actualización que cambia la forma de la base, la app guarda sola un
@@ -67,7 +67,7 @@ export function DataView({ status, problem, busy, onOpen, onRestore, onClose }: 
 
       {status && opening?.newer && !status.restored && (
         <section className="space-y-3 rounded-md border p-4 text-sm" data-data="go-back">
-          <h3 className="font-medium">Volver a la versión de antes</h3>
+          <h3 className="font-ui text-[0.9375rem] font-bold text-strong">Volver a la versión de antes</h3>
           <p className="text-muted-foreground">
             Esta versión de Micelya ({status.appVersion}) es más vieja que la que escribió la base. Para seguir con esta
             versión, volvé al respaldo que se hizo antes de la actualización: se pierde lo que se hizo en la app después de
@@ -97,7 +97,7 @@ export function DataView({ status, problem, busy, onOpen, onRestore, onClose }: 
       )}
 
       <section className="space-y-3 rounded-md border p-4" data-data="folder">
-        <h3 className="text-sm font-medium">Tus datos</h3>
+        <h3 className="font-ui text-[0.9375rem] font-bold text-strong">Tus datos</h3>
         <div className="flex items-start gap-3">
           <FolderOpen className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
           <div className="min-w-0 flex-1 space-y-1 text-sm">
@@ -129,7 +129,7 @@ export function DataView({ status, problem, busy, onOpen, onRestore, onClose }: 
       </section>
 
       <section className="space-y-3 rounded-md border p-4" data-data="backups">
-        <h3 className="text-sm font-medium">Respaldos</h3>
+        <h3 className="font-ui text-[0.9375rem] font-bold text-strong">Respaldos</h3>
         <div className="flex items-start gap-3">
           <Archive className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
           <div className="min-w-0 flex-1 space-y-2 text-sm">

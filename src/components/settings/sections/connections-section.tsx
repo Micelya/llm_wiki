@@ -114,7 +114,7 @@ export function ConnectionsSection() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold">Conexiones</h2>
+        <h2 className="font-ui text-[1.75rem] leading-tight font-bold tracking-[-0.01em] text-strong">Conexiones</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Los datos para hablar con un proveedor se cargan una vez y los usan todos los servicios que lo eligen en «Servicios
           de IA». Los secretos se guardan en el llavero del sistema, no en un archivo, y no se vuelven a mostrar.
@@ -126,7 +126,7 @@ export function ConnectionsSection() {
           <Cloud className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-base font-semibold">Micelya Core</h3>
+              <h3 className="font-ui text-base font-bold text-strong">Micelya Core</h3>
               <span className={`text-xs ${connection ? "text-ok" : "text-muted-foreground"}`}>
                 {!loaded ? "Leyendo…" : connection ? "Cargada" : "Sin cargar"}
               </span>

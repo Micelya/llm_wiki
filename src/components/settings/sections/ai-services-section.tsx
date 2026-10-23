@@ -78,7 +78,7 @@ export function AiServicesSection({ onOpen }: { onOpen: (place: ConnectionsPlace
   if (!loaded || !catalog) {
     return (
       <div className="space-y-2">
-        <h2 className="text-xl font-semibold">Servicios de IA</h2>
+        <h2 className="font-ui text-[1.75rem] leading-tight font-bold tracking-[-0.01em] text-strong">Servicios de IA</h2>
         <p className="text-sm text-muted-foreground">
           No se pudo leer qué motor usa cada servicio: la base documental no está disponible.
         </p>
@@ -94,7 +94,7 @@ export function AiServicesSection({ onOpen }: { onOpen: (place: ConnectionsPlace
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold">Servicios de IA</h2>
+        <h2 className="font-ui text-[1.75rem] leading-tight font-bold tracking-[-0.01em] text-strong">Servicios de IA</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Qué motor usa cada servicio, con qué modelo, y uno alternativo si hace falta. La base lee esta elección en cada
           pedido: un cambio se usa en el próximo. Los datos para conectarse con cada proveedor están en «Conexiones»
@@ -115,7 +115,7 @@ export function AiServicesSection({ onOpen }: { onOpen: (place: ConnectionsPlace
               <Icon className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <h3 className="text-base font-semibold">{service.name}</h3>
+                  <h3 className="font-ui text-base font-bold text-strong">{service.name}</h3>
                   {saved === service.id && <span className="text-xs text-ok">Guardado</span>}
                 </div>
                 <p className="text-sm text-muted-foreground">{service.purpose}</p>
@@ -203,7 +203,7 @@ export function AiServicesSection({ onOpen }: { onOpen: (place: ConnectionsPlace
       })}
 
       <section className="space-y-3 rounded-md border p-4">
-        <h3 className="text-base font-semibold">Conexiones en uso</h3>
+        <h3 className="font-ui text-base font-bold text-strong">Conexiones en uso</h3>
         <p className="text-sm text-muted-foreground">
           Los datos de un proveedor (su clave, su dirección) se cargan una vez y los usan todos los servicios que lo eligen.
         </p>

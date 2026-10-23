@@ -63,7 +63,7 @@ export const LLM_PRESETS: LlmPreset[] = [
   {
     id: "anthropic",
     label: "Anthropic (Claude)",
-    hint: "Official Claude API",
+    hint: "La conexión oficial de Claude",
     provider: "anthropic",
     defaultModel: "claude-sonnet-4-5-20250929",
     // Cross-referenced with hermes-agent/hermes_cli/models.py:233-242.
@@ -84,7 +84,7 @@ export const LLM_PRESETS: LlmPreset[] = [
   {
     id: "claude-code-cli",
     label: "Claude Code CLI (local)",
-    hint: "Uses the local `claude` binary — no API key needed",
+    hint: "Usa el programa `claude` de esta computadora: no hace falta clave",
     provider: "claude-code",
     defaultModel: "claude-sonnet-4-6",
     // Mirrors anthropic preset; the CLI forwards to the same Anthropic
@@ -102,7 +102,7 @@ export const LLM_PRESETS: LlmPreset[] = [
   {
     id: "codex-cli",
     label: "Codex CLI (local)",
-    hint: "Uses the local `codex` binary — no API key needed",
+    hint: "Usa el programa `codex` de esta computadora: no hace falta clave",
     provider: "codex-cli",
     // The model that won the comparison of the questions about documents
     // (D-279), with the other one allowed (D-278).
@@ -113,7 +113,7 @@ export const LLM_PRESETS: LlmPreset[] = [
   {
     id: "openai",
     label: "OpenAI (GPT)",
-    hint: "Official OpenAI API",
+    hint: "La conexión oficial de OpenAI",
     provider: "openai",
     defaultModel: "gpt-4o",
     // Current public GPT models on api.openai.com. Reasoning models and
@@ -135,7 +135,7 @@ export const LLM_PRESETS: LlmPreset[] = [
   {
     id: "google",
     label: "Google (Gemini)",
-    hint: "Generative Language API",
+    hint: "La conexión de Google (Generative Language API)",
     provider: "google",
     defaultModel: "gemini-2.5-flash",
     // 2.5 generation is the current stable; 2.0 kept as fallback.
@@ -153,7 +153,7 @@ export const LLM_PRESETS: LlmPreset[] = [
   {
     id: "azure",
     label: "Azure OpenAI",
-    hint: "Azure OpenAI resource endpoint; Model field is the deployment name",
+    hint: "La dirección del recurso de Azure OpenAI; en «Modelo» va el nombre de la implementación",
     provider: "azure",
     baseUrl: "https://your-resource.openai.azure.com",
     defaultModel: "your-deployment-name",
@@ -493,7 +493,7 @@ export const LLM_PRESETS: LlmPreset[] = [
   {
     id: "ollama-local",
     label: "Ollama (Local)",
-    hint: "Self-hosted llama.cpp / Ollama",
+    hint: "llama.cpp u Ollama en esta computadora o en la red",
     provider: "ollama",
     baseUrl: "http://localhost:11434",
     // Intentionally no suggestedModels: local set depends on what the
@@ -520,7 +520,7 @@ export const LLM_PRESETS: LlmPreset[] = [
   {
     id: "custom",
     label: "Custom",
-    hint: "Any OpenAI- or Anthropic-compatible endpoint",
+    hint: "Cualquier dirección compatible con OpenAI o con Anthropic",
     provider: "custom",
     // Wire protocol is chosen via the "API 模式" toggle in the expanded
     // panel — no need for separate presets per mode. User supplies the
@@ -536,7 +536,7 @@ export function availableLlmPresets(customPresets: CustomLlmPreset[] = []): LlmP
     ...customPresets.map((preset) => ({
       id: preset.id,
       label: preset.label,
-      hint: "Custom OpenAI- or Anthropic-compatible endpoint",
+      hint: "Una dirección propia compatible con OpenAI o con Anthropic",
       provider: "custom" as const,
       apiMode: "chat_completions" as const,
     })),

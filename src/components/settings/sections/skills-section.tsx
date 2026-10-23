@@ -128,7 +128,7 @@ export function SkillsSection() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold">
+        <h2 className="font-ui text-[1.75rem] leading-tight font-bold tracking-[-0.01em] text-strong">
           {t("settings.sections.skills.title", { defaultValue: "Skills" })}
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">

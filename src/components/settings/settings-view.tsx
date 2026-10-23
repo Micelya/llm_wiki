@@ -409,8 +409,8 @@ export function SettingsView() {
     <div className="flex h-full overflow-hidden">
       {/* Sidebar — category nav. Matches the main menu's pill-on-accent
           pattern so the two navigational surfaces feel like one app. */}
-      <aside className="flex w-56 shrink-0 flex-col border-r bg-muted/30">
-        <div className="px-4 pb-2 pt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <aside className="flex w-64 shrink-0 flex-col border-r bg-sidebar">
+        <div className="px-4 pt-5 pb-2 font-ui text-[0.6875rem] font-bold tracking-[0.08em] text-muted-foreground uppercase">
           {t("settings.title")}
         </div>
         <nav className="flex-1 overflow-y-auto px-2 pb-3">
@@ -431,15 +431,15 @@ export function SettingsView() {
                 type="button"
                 onClick={() => setActive(c.id)}
                 aria-current={isActive ? "page" : undefined}
-                className={`group mb-0.5 flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-colors ${
+                className={`group mb-0.5 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-left font-ui text-[0.875rem] transition-colors ${
                   isActive
-                    ? "bg-foreground/[0.08] font-medium text-foreground ring-1 ring-border/70"
-                    : "text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground"
+                    ? "bg-brand-soft font-bold text-brand-ink"
+                    : "font-semibold text-muted-foreground hover:bg-hover hover:text-strong"
                 }`}
               >
                 <Icon
                   className={`h-4 w-4 shrink-0 transition-colors ${
-                    isActive ? "text-link" : "text-muted-foreground/80 group-hover:text-accent-foreground"
+                    isActive ? "text-brand-ink" : "text-muted-foreground group-hover:text-strong"
                   }`}
                 />
                 <span className="truncate">{c.label ?? t(c.labelKey)}</span>
@@ -458,17 +458,17 @@ export function SettingsView() {
 
       {/* Content */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        <div className="flex-1 overflow-y-auto px-8 py-6">
-          <div className="mx-auto max-w-2xl">{body}</div>
+        <div className="flex-1 overflow-y-auto px-10 py-7">
+          <div className="max-w-3xl">{body}</div>
         </div>
 
         {/* Global Save bar hidden for sections that persist inline:
             - "llm" saves per-row on every edit (independent per-preset state)
             - "about" has no draft-bound fields */}
         {active !== "about" && active !== "data" && active !== "llm" && active !== "work-folder" && active !== "ai-services" && active !== "connections" && active !== "model-questions" && (
-          <div className="shrink-0 border-t bg-background/80 backdrop-blur px-8 py-3">
-            <div className="mx-auto flex max-w-2xl items-center justify-between gap-4">
-              <p className={`text-xs ${saveError ? "text-destructive" : "text-muted-foreground"}`}>
+          <div className="shrink-0 border-t bg-bar px-10 py-3">
+            <div className="flex max-w-3xl items-center justify-between gap-4">
+              <p className={`text-[0.8125rem] ${saveError ? "text-err" : "text-muted-foreground"}`}>
                 {saveError
                   ? t("settings.saveFailed")
                   : saved

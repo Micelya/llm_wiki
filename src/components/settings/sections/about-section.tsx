@@ -102,7 +102,7 @@ export function AboutSection({ licenseOpen = false }: { licenseOpen?: boolean } 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold">Acerca de</h2>
+        <h2 className="font-ui text-[1.75rem] leading-tight font-bold tracking-[-0.01em] text-strong">Acerca de</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           La versión de la app, dónde está su código y sus avisos legales.
         </p>
@@ -186,7 +186,7 @@ export function AboutSection({ licenseOpen = false }: { licenseOpen?: boolean } 
 
       {/* The only place that names the project the code derives from (D-485). */}
       <section className="space-y-2 rounded-md border p-4 text-sm" data-about="legal">
-        <h3 className="font-medium">Avisos legales</h3>
+        <h3 className="font-ui text-[0.9375rem] font-bold text-strong">Avisos legales</h3>
         <p className="text-xs leading-relaxed text-muted-foreground">{LEGAL_NOTICE}</p>
         <Button variant="outline" size="sm" aria-expanded={showLicense} onClick={() => setShowLicense(!showLicense)}>
           {showLicense ? "Ocultar la licencia" : "Ver el texto completo de la licencia"}
