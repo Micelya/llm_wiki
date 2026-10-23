@@ -444,7 +444,8 @@ function DownloadProgress({
           </div>
           <StatusBadge tone="busy">Trabajando</StatusBadge>
         </div>
-        <p className="text-sm">{progress.message}</p>
+        {/* «Bajando …» is said below, with room for the name. */}
+        {!(progress.current && progress.message === `Bajando ${progress.current}`) && <p className="text-sm">{progress.message}</p>}
         <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {progressFigures(status).map((figure) => (
             <div key={figure.label} className="rounded-md border bg-background px-3 py-2">
