@@ -1840,14 +1840,14 @@
       "titulo": "Actualizar la app sin perder los datos de una versión anterior",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "a-verificar",
       "prioridad": 1,
       "tema": "pruebas y calidad",
-      "detalle": "Requisito del dueño para el instalador del producto mínimo (D-496): una actualización tiene que respetar los datos generados con una versión anterior. Los datos viven en la carpeta propia del usuario (%APPDATA%\\com.micelya.desktop), separados del programa, y la base cambia de forma sola al abrir y nunca para atrás. Falta: (1) que la app haga sola un respaldo de la base antes de cada cambio de forma; (2) antes de entregar, probar instalar la versión anterior, cargar datos, actualizar y comprobar que nada se pierda; (3) qué hacer si el dueño necesita volver a la versión anterior.",
+      "detalle": "Requisito del dueño para el instalador del producto mínimo (D-496): una actualización tiene que respetar los datos generados con una versión anterior. Los datos viven en la carpeta propia del usuario (%APPDATA%\\com.micelya.desktop), separados del programa, y la base cambia de forma sola al abrir y nunca para atrás. Falta: (1) que la app haga sola un respaldo de la base antes de cada cambio de forma; (2) antes de entregar, probar instalar la versión anterior, cargar datos, actualizar y comprobar que nada se pierda; (3) qué hacer si el dueño necesita volver a la versión anterior. 2026-10-23: Construido en la corrida desatendida (D-505; rama feat/session-18, commits 564557e a bc85b97): respaldo comprobado antes de cada cambio de forma, prueba de actualización de todas las versiones, Ajustes → «Datos y respaldos» y docs/design/actualizaciones.md. Falta la prueba con el instalador real, que se hace con el dueño: instalador A desde main (base 24) y B desde esta rama con versión 0.1.1, en otra cuenta de Windows, nunca con los datos reales; instalar A, cargar documentos y decisiones, instalar B encima y comprobar en Inicio, en las decisiones y en «Datos y respaldos». Para ver en la app: Ajustes → «Datos y respaldos» (con la base real en la versión 25 dice «Todavía no hay respaldos» hasta el próximo cambio de forma).",
       "depende_de": [],
       "referencia": "D-496; src-tauri/src/docbase/schema.rs",
       "creado": "2026-10-22",
-      "actualizado": "2026-10-22"
+      "actualizado": "2026-10-23"
     },
     {
       "id": "P-298",
@@ -1982,6 +1982,33 @@
         "P-286"
       ],
       "referencia": "docs/design/contrato-de-operaciones.md; D-498; D-504",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-307",
+      "titulo": "Subir la versión de la app para el instalador de la actualización",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "pruebas y calidad",
+      "detalle": "La prueba de actualizar sin perder datos (P-297, D-505) necesita dos instaladores con versiones distintas: el de main (0.1.0, base 24) y el de la rama nueva con 0.1.1. Subir la versión en los tres lugares donde vive (tauri.conf.json, Cargo.toml, package.json) antes de armar el instalador B.",
+      "depende_de": [],
+      "referencia": "docs/design/actualizaciones.md; P-297",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-308",
+      "titulo": "Decidir si los respaldos de la base van fuera de la carpeta de datos",
+      "tipo": "decision",
+      "responsable": "usuario",
+      "estado": "en-espera",
+      "tema": "pruebas y calidad",
+      "detalle": "Hoy los respaldos automáticos van dentro de la carpeta de datos de la app (D-505). Si alguien desinstala marcando la casilla que borra los datos, también se borran los respaldos. Alternativa: guardarlos en Documentos u otra carpeta que el desinstalador no toca, o quitar esa casilla del instalador. Se decide al armar el instalador de prueba.",
+      "depende_de": [],
+      "referencia": "D-505; docs/design/actualizaciones.md",
       "creado": "2026-10-23",
       "actualizado": "2026-10-23"
     }
