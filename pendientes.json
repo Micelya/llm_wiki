@@ -1171,8 +1171,8 @@
       "titulo": "API local y recortador web (Clip) sobre la base",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "en-curso",
-      "detalle": "Salen con el retiro del wiki (D-400) porque trabajaban sobre los proyectos y los archivos del wiki. Rehacerlos sobre la base: qué expone la API y con qué permisos, y dónde guarda el recortador lo que se trae de la web (separado de lo que dicen los documentos, como la investigación, D-397). 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/. 22 oct: el recortador está hecho (D-450, D-451): la extensión «Micelya Clipper» y su servidor local guardan cada página como archivo markdown en «Recortes web» de la carpeta de trabajo, que es un origen de la base; Atención avisa de los recortes nuevos. Falta la prueba del dueño con el navegador. Queda pendiente la API local y el servidor MCP. 2026-10-22 (tarde): el dueño pidió restablecer un solo servidor dentro de la máquina para que otros programas (el recortador web, otros asistentes por MCP) usen toda la estructura actual de la base (D-487). El servidor propio del recortador (clip_server.rs, de la corrida del 21 oct, decidido sin consulta) se reemplaza por ese servidor único. Antes de construirlo, una propuesta de diseño: qué puede leer y qué puede hacer cada programa (decisión abierta 4 de servicios-de-ia-propuesta.md). 2026-10-22 (noche): el dueño decidió que entra en el producto mínimo si se puede (D-495). Primero la propuesta de diseño. 2026-10-22 (noche): se diseña junto con el chat, sobre el mismo contrato de operaciones (D-498). 2026-10-23: Como P-286 (D-500): el servidor único se construye sobre el documento del contrato de operaciones sin esperar la aprobación; el dueño lo revisa al día siguiente. 2026-10-23: El documento del contrato está escrito (D-504): el servidor único usa 127.0.0.1:19827, la dirección del recortador, y se construye en la misma corrida después del chat con acciones.",
+      "estado": "a-verificar",
+      "detalle": "Salen con el retiro del wiki (D-400) porque trabajaban sobre los proyectos y los archivos del wiki. Rehacerlos sobre la base: qué expone la API y con qué permisos, y dónde guarda el recortador lo que se trae de la web (separado de lo que dicen los documentos, como la investigación, D-397). 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/. 22 oct: el recortador está hecho (D-450, D-451): la extensión «Micelya Clipper» y su servidor local guardan cada página como archivo markdown en «Recortes web» de la carpeta de trabajo, que es un origen de la base; Atención avisa de los recortes nuevos. Falta la prueba del dueño con el navegador. Queda pendiente la API local y el servidor MCP. 2026-10-22 (tarde): el dueño pidió restablecer un solo servidor dentro de la máquina para que otros programas (el recortador web, otros asistentes por MCP) usen toda la estructura actual de la base (D-487). El servidor propio del recortador (clip_server.rs, de la corrida del 21 oct, decidido sin consulta) se reemplaza por ese servidor único. Antes de construirlo, una propuesta de diseño: qué puede leer y qué puede hacer cada programa (decisión abierta 4 de servicios-de-ia-propuesta.md). 2026-10-22 (noche): el dueño decidió que entra en el producto mínimo si se puede (D-495). Primero la propuesta de diseño. 2026-10-22 (noche): se diseña junto con el chat, sobre el mismo contrato de operaciones (D-498). 2026-10-23: Como P-286 (D-500): el servidor único se construye sobre el documento del contrato de operaciones sin esperar la aprobación; el dueño lo revisa al día siguiente. 2026-10-23: El documento del contrato está escrito (D-504): el servidor único usa 127.0.0.1:19827, la dirección del recortador, y se construye en la misma corrida después del chat con acciones. 2026-10-23: Construido en la corrida desatendida (D-509; rama feat/session-18, commits 348bd3d a e887551), probado con datos inventados y con el cliente oficial de MCP contra un servidor de prueba. Para ver en la app: (1) con la extensión instalada, recortar una página (Alt+Mayús+L) y verla en «Recortes web» y en Atención; (2) en Ajustes → «Programas conectados», agregar «Claude Code de prueba» con «Leer y pedir cambios» y copiar el comando que muestra; (3) en una terminal, abrir claude y pedirle «buscá en Micelya las cartas de marzo» (usa cupo de Claude, no de Codex); (4) pedirle «agregá ese documento al caso X», ver el pedido en Atención, revisarlo, confirmar, mirar el caso y deshacer; (5) quitar el programa y comprobar que ya no se conecta. Riesgos: el token queda en texto en la configuración del otro programa; un programa lee toda la base, sin límite por origen.",
       "depende_de": [],
       "referencia": "D-400; D-450; D-451; docs/design/retiro-del-wiki.md; docs/design/servicios-de-ia-propuesta.md; src-tauri/src/clip_server.rs; extension/",
       "creado": "2026-10-21",
@@ -2099,6 +2099,22 @@
       "detalle": "La maqueta aprobada tiene una columna Fecha en las tablas de documentos de una persona y de un caso; no se puso porque el dato no llega a la pantalla (D-508). Sumarlo a la consulta y mostrarlo.",
       "depende_de": [],
       "referencia": "D-493; D-508",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-315",
+      "titulo": "Probar la configuración del MCP para Codex y para Claude Desktop",
+      "tipo": "verificacion",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "API local",
+      "detalle": "Ajustes → «Programas conectados» muestra cómo conectar Claude Code, Codex y otros asistentes al MCP del servidor único (D-509). Solo se probó el cliente oficial de MCP; la configuración para Codex no está probada y Claude Desktop puede necesitar el puente por línea de comandos (P-303). Probarlas con el dueño y avisando el cupo.",
+      "depende_de": [
+        "P-227"
+      ],
+      "referencia": "D-509; P-303",
       "creado": "2026-10-23",
       "actualizado": "2026-10-23"
     }
