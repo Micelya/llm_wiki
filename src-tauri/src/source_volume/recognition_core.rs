@@ -40,8 +40,8 @@
 //! at its end) on a thread of its own. Each page is kept in its own section
 //! whatever the order they end in. After a page fails no other page
 //! starts; those under way end, so what Core read is kept and every
-//! reading is deleted. Two pages with the same image at the same time are
-//! read once: the second waits for the first.
+//! reading is deleted. Two pages of a scan with the same image are read
+//! once: the second waits for the first, or takes its reading if it is done.
 //!
 //! What comes back: the lines of the page, each word with its confidence. A
 //! page without lines is one Textract could not read (Core does not say so
@@ -106,8 +106,9 @@ pub struct CoreRecognizer {
     ledger: Arc<Ledger>,
     /// How many pages are read at the same time.
     at_once: usize,
-    /// The pages being read now, by the hash of their image: a page with
-    /// the same image as one under way waits for its reading.
+    /// The readings of the pages of the scans under way, by the hash of
+    /// their image: a page with the same image waits for its reading or
+    /// takes it. Let go at the end of each scan.
     same_image: Mutex<HashMap<String, Arc<Mutex<Option<PageReading>>>>>,
 }
 
@@ -179,42 +180,56 @@ impl TextRecognizer for CoreRecognizer {
     }
 
     fn recognize(&self, image: &Path) -> Result<String, String> {
-        self.recognize_page(image, 1).map(|reading| reading.text)
+        let reading = self.recognize_page(image, 1).map(|reading| reading.text);
+        self.let_go();
+        reading
     }
 
     fn recognize_page(&self, image: &Path, page: u32) -> Result<PageReading, String> {
         let jpeg = page_jpeg(image)?;
         let client = self.client()?;
-        // A page with the same image as one under way waits for its reading.
+        // A page with the same image as another of the same scan waits for
+        // its reading, or takes it when it is done: the reading stays until
+        // the scan ends, so a page that starts late does not pay again.
         let sha256 = hex(&Sha256::digest(&jpeg));
-        let slot = self.same_image.lock().unwrap_or_else(|p| p.into_inner()).entry(sha256.clone()).or_default().clone();
-        let reading = {
-            let mut same = slot.lock().unwrap_or_else(|p| p.into_inner());
-            match same.as_ref() {
-                Some(reading) => Ok(reading.clone()),
-                None => {
-                    let read = self.read_one(&client, page, &jpeg);
-                    if let Ok(reading) = &read {
-                        *same = Some(reading.clone());
-                    }
-                    read
-                }
+        let slot = {
+            let mut same_image = self.same_image.lock().unwrap_or_else(|p| p.into_inner());
+            if same_image.len() > MAX_SAME_IMAGE {
+                same_image.retain(|_, slot| Arc::strong_count(slot) > 1);
             }
+            same_image.entry(sha256).or_default().clone()
         };
-        // The last page that held it lets it go.
-        let mut under_way = self.same_image.lock().unwrap_or_else(|p| p.into_inner());
-        if under_way.get(&sha256).is_some_and(|kept| Arc::ptr_eq(kept, &slot)) && Arc::strong_count(&slot) == 2 {
-            under_way.remove(&sha256);
+        let mut same = slot.lock().unwrap_or_else(|p| p.into_inner());
+        match same.as_ref() {
+            Some(reading) => Ok(reading.clone()),
+            None => {
+                let read = self.read_one(&client, page, &jpeg);
+                if let Ok(reading) = &read {
+                    *same = Some(reading.clone());
+                }
+                read
+            }
         }
-        reading
     }
 
     fn recognize_pages(&self, pages: &[u32], image: &PageImage<'_>, done: &mut dyn FnMut(u32, Result<PageReading, String>) -> bool) {
-        pages_at_once(self.at_once, pages, &|page| image(page).and_then(|image| self.recognize_page(&image, page)), done)
+        pages_at_once(self.at_once, pages, &|page| image(page).and_then(|image| self.recognize_page(&image, page)), done);
+        self.let_go();
     }
 }
 
+/// How many readings of an image are kept for the pages of a scan before the
+/// ones nobody is waiting for are let go (pages read one by one, outside a
+/// scan, would keep them otherwise).
+const MAX_SAME_IMAGE: usize = 256;
+
 impl CoreRecognizer {
+    /// Lets go of the readings of an image that no page is using any more:
+    /// at the end of a scan, or of one image.
+    fn let_go(&self) {
+        self.same_image.lock().unwrap_or_else(|p| p.into_inner()).retain(|_, slot| Arc::strong_count(slot) > 1);
+    }
+
     /// The whole walk of one page in Core, as `pagina-N.jpg`.
     fn read_one(&self, client: &CoreClient, page: u32, jpeg: &[u8]) -> Result<PageReading, String> {
         let remember = |id: &str| {
@@ -686,9 +701,12 @@ mod tests {
     fn the_permit_is_asked_again_when_core_refuses_it_between_pages() {
         let core = FakeCore::start();
         let recognizer = recognizer(&core);
-        recognizer.recognize_page(&fixture("pagina-prueba.png"), 1).unwrap();
+        // Two different images: a page with the same image as an earlier one
+        // of the same scan takes its reading and asks Core nothing.
+        let images = images(&scratch(), 2);
+        recognizer.recognize_page(&images[0], 1).unwrap();
         core.with(|state| state.refuse_permits_given_before = state.permits_given + 1);
-        recognizer.recognize_page(&fixture("pagina-prueba.png"), 2).unwrap();
+        recognizer.recognize_page(&images[1], 2).unwrap();
         assert_eq!(core.with(|state| state.permits_given), 2);
         assert!(core.with(|state| state.kept().is_empty()));
     }
