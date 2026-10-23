@@ -439,6 +439,9 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-494 | 22 oct | Servicios de IA | Core lee hasta 4 páginas a la vez, y esta computadora lleva un registro de sus lecturas para borrar solo las propias | en revisión (agente sin consulta, se confirma al verla en la app: P-292, P-294) |
 | D-495 | 22 oct | API local | El servidor único dentro de la máquina para el recortador y los demás programas entra en el producto mínimo, si se puede | vigente |
 | D-496 | 22 oct | Distribución | Una actualización de la app tiene que respetar los datos generados con una versión anterior | vigente |
+| D-497 | 22 oct | Parecidos | Dos documentos de la misma plantilla son documentos distintos: no son «parecidos» ni piden decisión; solo piden decisión las copias y versiones del mismo documento | vigente |
+| D-498 | 22 oct | Chat | El chat actúa sobre un contrato de operaciones, el mismo que van a exponer la API local y el MCP | vigente |
+| D-499 | 22 oct | Interfaz | Cómo se aplicaron Acerca de sin LLM-Wiki, «Volver a leer todo» y el tope de las preguntas automáticas | en revisión (agente sin consulta, se confirma al verla en la app: P-290, P-090, P-260) |
 
 ---
 
@@ -5308,3 +5311,24 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **El problema:** Al generar el instalador para el estudio de referencia hay que prever que la app se va a actualizar mientras se usa, y que los abogados ya van a tener datos cargados.
 - **Qué se decidió y por qué:** Es un requisito del producto mínimo (P-297). Los datos siguen en la carpeta propia del usuario, separados del programa, y la base cambia de forma sola y solo hacia adelante. Propuesta del agente, a confirmar: un respaldo automático de la base antes de cada cambio de forma, y una prueba de actualización desde la versión anterior antes de cada entrega.
 - **Quién decidió:** dueño del producto (el requisito); agente (cómo cumplirlo, a confirmar).
+
+### D-497 · Dos documentos de la misma plantilla son documentos distintos: no son «parecidos» ni piden decisión; solo piden decisión las copias y versiones del mismo documento
+
+- **Fecha:** 22 oct 2026 · **Tema:** Parecidos · **Estado:** vigente
+- **El problema:** «Documentos parecidos» mostraba juntos, y pidiendo una decisión por cada par, los documentos distintos hechos con la misma plantilla (136 de 341 pares en la base real) y las copias o versiones de un mismo documento. En documentos legales casi todo el texto coincide y cambian pocos datos, y son otros documentos: un contrato por USD 2 millones con un cliente y uno por USD 20 con otro no son parecidos (P-296).
+- **Qué se decidió y por qué:** Lo de la misma plantilla deja de ser un par a decidir: se muestra como «hecho con la plantilla …» en la plantilla y en el documento; los documentos generados entran así, sin pares. Solo piden decisión las relaciones de «mismo documento» (versión, copia firmada, contenido en, acuse de recibo, constancia de firma). La regla de «parecido» compara partes, montos, fechas, identificadores y números de expediente: si difieren, son documentos distintos. La base se limpia sola con la regla nueva cuando la app recalcula, sin editarla a mano. Es parte del producto mínimo.
+- **Quién decidió:** dueño del producto.
+
+### D-498 · El chat actúa sobre un contrato de operaciones, el mismo que van a exponer la API local y el MCP
+
+- **Fecha:** 22 oct 2026 · **Tema:** Chat · **Estado:** vigente
+- **El problema:** El chat va a poder hacer acciones que se le piden (P-286) y la app va a tener un servidor para otros programas (P-227). Diseñados por separado, el modelo, los otros programas y las pantallas podrían terminar haciendo lo mismo de formas distintas.
+- **Qué se decidió y por qué:** Una sola lista oficial de operaciones sobre la base (qué datos pide cada una, qué cambia, si pide confirmación), que usan el chat, la API local y el MCP, y en lo posible los botones. Las instrucciones del chat al modelo, en castellano, se arman desde esa lista. Además: con Codex el chat usa el mismo agente que los demás motores, y después lo mismo con Core; no propone acciones por su cuenta; crear la ficha de un grupo de sociedades y cerrar o archivar un caso también tienen botón; cada acción queda como decisión de una persona y en un registro de acciones del chat. Los topes (vueltas por mensaje y documentos por acción) se definen en la propuesta del contrato, con la idea de que sean visibles y extensibles en lugar de fijos, a confirmar por el dueño.
+- **Quién decidió:** dueño del producto (el contrato y las decisiones del chat); agente (los topes, a confirmar).
+
+### D-499 · Cómo se aplicaron Acerca de sin LLM-Wiki, «Volver a leer todo» y el tope de las preguntas automáticas
+
+- **Fecha:** 22 oct 2026 · **Tema:** Interfaz · **Estado:** en revisión (agente sin consulta, se confirma al verla en la app: P-290, P-090, P-260)
+- **El problema:** Al construir D-485, D-465 y D-484 quedaron decisiones de detalle sin consultar.
+- **Qué se decidió y por qué:** El registro de cambios muestra solo la versión 0.1.0 de Micelya Desktop (sale la historia de LLM-Wiki); la licencia va empaquetada y se ve sin internet; los nombres internos (crate, ejecutable, carpeta .llm-wiki/, variables LLM_WIKI_*) no se tocan porque cambiarlos rompe datos o compilación. «Otro modelo» se detecta comparando el motor guardado en cada lectura con el elegido, y también cuenta un cambio de razonamiento. El tope de 50 se cuenta antes de preguntar; si se pasa, la etapa se pausa con «Seguir con las N» o «Dejarlas para después» (que sobrevive al cierre), y si la ronda crece más de 50 sobre lo permitido vuelve a pedir permiso.
+- **Quién decidió:** agente sin consulta.
