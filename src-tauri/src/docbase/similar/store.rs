@@ -521,8 +521,9 @@ impl DocBase {
     /// reading names their parties and amounts later, a person merges two
     /// entities. The documents whose key data are not the ones their pairs
     /// were measured with are measured again, with their neighbours (R-15).
-    /// It looks only when what the base knows changed since the last time.
-    /// Returns how many it left to measure.
+    /// It looks only when what the base knows changed since the last time
+    /// (a few counts, so a step of two documents does not read every key
+    /// datum of the archive each time). Returns how many it left to measure.
     fn similar_key_data_check(&self) -> Result<usize, String> {
         let conn = self.conn();
         let now: String = conn
@@ -532,8 +533,7 @@ impl DocBase {
                      || '|' || (SELECT count(*) FROM knowledge_identifier)
                      || '|' || (SELECT count(*) || ':' || coalesce(max(id), 0) FROM knowledge_evidence)
                      || '|' || (SELECT count(*) || ':' || coalesce(max(computed_at), 0) FROM document_data)
-                     || '|' || (SELECT count(*) || ':' || count(merged_into) || ':' || coalesce(max(updated_at), 0) FROM knowledge_entity)
-                     || '|' || (SELECT count(*) FROM similar_key_data)",
+                     || '|' || (SELECT count(*) || ':' || count(merged_into) || ':' || coalesce(max(updated_at), 0) FROM knowledge_entity)",
                 [],
                 |row| row.get(0),
             )
