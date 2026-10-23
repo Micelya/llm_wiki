@@ -1,9 +1,10 @@
 //! The contract of operations (D-498, `docs/design/contrato-de-operaciones.md`):
 //! the one list of what can be asked of the base, by the chat, by the
-//! buttons of the screens and, in the next step, by the local API and the
-//! MCP. Each operation says what it asks for, what it changes, whether a
-//! person confirms it and how it is undone; the chat's instructions and
-//! its tools are written from this list, and so will the MCP's tools be.
+//! buttons of the screens, by the web clipper, and by other programs
+//! through the local API and the MCP (`local_server`). Each operation says
+//! what it asks for, what it changes, whether a person confirms it and how
+//! it is undone; the chat's instructions and the MCP's tools are written
+//! from this list.
 //!
 //! Nothing here depends on Tauri but `commands.rs`: the rest takes a
 //! `DocBase` and is tested with `DocBase::in_memory()`.
@@ -473,13 +474,14 @@ pub static OPERATIONS: &[Operation] = &[
         changes: "Un archivo nuevo en la carpeta de trabajo, que la base toma.",
         confirmation: Confirmation::None,
         undo: Undo::Not("El archivo queda en su carpeta: no se deshace desde la app."),
+        // `POST /clip` of the server inside the machine (`local_server::clip`),
+        // with the names the installed extension already sends.
         callers: &[Caller::Clipper],
-        ready: false,
+        ready: true,
     },
 ];
 
-/// Every operation of the contract (what the local API and the MCP of the
-/// next step list).
+/// Every operation of the contract.
 #[cfg_attr(not(test), allow(dead_code))]
 pub fn all() -> &'static [Operation] {
     OPERATIONS
@@ -618,8 +620,8 @@ impl Operation {
     }
 }
 
-/// The contract as a program reads it (Ajustes, the tests, the MCP of the
-/// next step): each operation with its words already filled.
+/// The contract as a program reads it (Ajustes, the tests): each operation
+/// with its words already filled.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OperationView {

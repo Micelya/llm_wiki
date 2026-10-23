@@ -71,7 +71,7 @@ pub fn call(base: &DocBase, program: &Program, name: &str, data: &Value) -> Resu
         return Err(refused(
             403,
             format!(
-                "«{}» solo tiene permiso para {}. Para que pueda pedir cambios, en Micelya: Ajustes → Programas conectados → «Leer y pedir cambios».",
+                "«{}» tiene el permiso «{}»: no puede pedir cambios. Para que pueda, en Micelya: Ajustes → Programas conectados → «Leer y pedir cambios».",
                 program.name,
                 program.permission.words()
             ),
