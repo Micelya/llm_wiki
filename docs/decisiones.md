@@ -442,6 +442,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-497 | 22 oct | Parecidos | Dos documentos de la misma plantilla son documentos distintos: no son «parecidos» ni piden decisión; solo piden decisión las copias y versiones del mismo documento | vigente |
 | D-498 | 22 oct | Chat | El chat actúa sobre un contrato de operaciones, el mismo que van a exponer la API local y el MCP | vigente |
 | D-499 | 22 oct | Interfaz | Cómo se aplicaron Acerca de sin LLM-Wiki, «Volver a leer todo» y el tope de las preguntas automáticas | en revisión (agente sin consulta, se confirma al verla en la app: P-290, P-090, P-260) |
+| D-500 | 23 oct | Forma de trabajo | En una corrida desatendida no se espera la aprobación del dueño: se asume la opción recomendada, se construye y se corrige al día siguiente | vigente |
 
 ---
 
@@ -5332,3 +5333,10 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **El problema:** Al construir D-485, D-465 y D-484 quedaron decisiones de detalle sin consultar.
 - **Qué se decidió y por qué:** El registro de cambios muestra solo la versión 0.1.0 de Micelya Desktop (sale la historia de LLM-Wiki); la licencia va empaquetada y se ve sin internet; los nombres internos (crate, ejecutable, carpeta .llm-wiki/, variables LLM_WIKI_*) no se tocan porque cambiarlos rompe datos o compilación. «Otro modelo» se detecta comparando el motor guardado en cada lectura con el elegido, y también cuenta un cambio de razonamiento. El tope de 50 se cuenta antes de preguntar; si se pasa, la etapa se pausa con «Seguir con las N» o «Dejarlas para después» (que sobrevive al cierre), y si la ronda crece más de 50 sobre lo permitido vuelve a pedir permiso.
 - **Quién decidió:** agente sin consulta.
+
+### D-500 · En una corrida desatendida no se espera la aprobación del dueño: se asume la opción recomendada, se construye y se corrige al día siguiente
+
+- **Fecha:** 23 oct 2026 · **Tema:** Forma de trabajo · **Estado:** vigente
+- **El problema:** La cola de la noche del 22 al 23 de octubre tenía pasos que esperaban la aprobación del dueño antes de construir: la propuesta del contrato de operaciones (D-498), y detrás de ella el chat con acciones (P-286) y el servidor único (P-227). El dueño duerme durante la corrida: esos pasos habrían quedado parados toda la noche.
+- **Qué se decidió y por qué:** En una corrida desatendida no se deja ningún paso esperando una respuesta del dueño. Donde haga falta una decisión que no está tomada, el agente asume la opción que recomienda, construye sobre ella y la anota como «decisión asumida», con la alternativa; al día siguiente el dueño revisa y corrige. Para esta corrida: el contrato de operaciones se escribe como documento de diseño con decisiones asumidas y se construye enseguida; los topes del chat se resuelven como le parezca mejor al agente (el dueño: «hacelo como mejor te parezca»). Queda para el día siguiente, con el dueño: la revisión de lo construido, Atención (dos o tres casos de cada tipo), el instalador de prueba (después de probar todo) y la integración real con Micelya Core, que todavía no respondió los mensajes 002 y 003. Fuera de las corridas desatendidas sigue valiendo mostrar la propuesta antes de cambiar un documento de diseño.
+- **Quién decidió:** el dueño del producto.
