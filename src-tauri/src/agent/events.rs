@@ -49,6 +49,11 @@ pub enum AgentEvent {
     OperationProposed {
         card: Box<crate::operations::Card>,
     },
+    /// The turns the answer used, at its end: whether it reached the cap
+    /// and where «Seguir buscando» goes on from.
+    Budget {
+        budget: super::types::AgentBudget,
+    },
     Done {
         session_id: String,
     },

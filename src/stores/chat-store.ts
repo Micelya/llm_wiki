@@ -3,6 +3,7 @@ import type { ChatMessage, ContentBlock } from "@/lib/llm-client"
 import i18n from "@/i18n"
 import type { ChatAgentFileChange, ChatAgentMode, ChatAgentStep, ChatRetrievalMode, ChatUserInputRequest } from "@/lib/chat-agent-types"
 import type { ChatDocument } from "@/lib/chat-documents"
+import type { AgentBudget, OperationCard } from "@/commands/operations"
 
 /**
  * An image attached to a user message. Field names mirror the
@@ -50,6 +51,14 @@ export interface DisplayMessage {
   images?: MessageImage[]  // images attached to a user message (vision input)
   contextFiles?: string[]  // absolute project files explicitly attached to this user turn
   contextDocuments?: ChatDocument[]  // documents of the base attached to this user turn (P-243)
+  operationCard?: OperationCard  // a change the chat proposed: the card a person confirms (D-498)
+  budget?: AgentBudget  // the turns the agent used, and where «Seguir buscando» goes on from
+}
+
+/** What an answer of the chat's agent brings besides its text. */
+export interface AssistantExtras {
+  operationCard?: OperationCard
+  budget?: AgentBudget
 }
 
 export interface ChatState {
@@ -83,7 +92,9 @@ export interface ChatState {
   setStreaming: (streaming: boolean) => void
   appendStreamToken: (token: string) => void
   finalizeStream: (content: string, references?: MessageReference[], agentSteps?: ChatAgentStep[], userInputRequest?: ChatUserInputRequest, agentFileChanges?: ChatAgentFileChange[]) => void
-  finalizeStreamForConversation: (conversationId: string, content: string, references?: MessageReference[], agentSteps?: ChatAgentStep[], userInputRequest?: ChatUserInputRequest, agentFileChanges?: ChatAgentFileChange[]) => void
+  finalizeStreamForConversation: (conversationId: string, content: string, references?: MessageReference[], agentSteps?: ChatAgentStep[], userInputRequest?: ChatUserInputRequest, agentFileChanges?: ChatAgentFileChange[], extras?: AssistantExtras) => void
+  /** The card of a message, as it is after a person confirmed, cancelled or undid it. */
+  setMessageOperationCard: (messageId: string, card: OperationCard) => void
   clearMessages: () => void
   setMaxHistoryMessages: (n: number) => void
   setUseWebSearch: (enabled: boolean) => void
@@ -278,7 +289,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     )
   },
 
-  finalizeStreamForConversation: (conversationId, content, references, agentSteps, userInputRequest, agentFileChanges) =>
+  finalizeStreamForConversation: (conversationId, content, references, agentSteps, userInputRequest, agentFileChanges, extras) =>
     set((state) => {
       const { conversations } = state
       if (!conversations.some((conversation) => conversation.id === conversationId)) {
@@ -298,6 +309,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         agentSteps,
         ...(agentFileChanges && agentFileChanges.length > 0 ? { agentFileChanges } : {}),
         ...(userInputRequest ? { userInputRequest } : {}),
+        ...(extras?.operationCard ? { operationCard: extras.operationCard } : {}),
+        ...(extras?.budget ? { budget: extras.budget } : {}),
       }
 
       return {
@@ -313,6 +326,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }),
 
 
+
+  setMessageOperationCard: (messageId, card) =>
+    set((state) => ({
+      messages: state.messages.map((message) => (message.id === messageId ? { ...message, operationCard: card } : message)),
+    })),
 
   clearMessages: () =>
     set((state) => ({

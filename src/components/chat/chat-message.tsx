@@ -36,6 +36,7 @@ import type { ChatAgentEvent, ChatAgentEventStage, ChatAgentStep, ChatUserInputF
 import { getFileCategory, getFileExtension, isTextReadable } from "@/lib/file-types"
 import { AgentFileActivity } from "@/components/chat/agent-file-activity"
 import { ReferenceKnowledgeGraph } from "@/components/chat/reference-knowledge-graph"
+import { OperationCardView } from "@/components/operations/operation-card"
 
 
 interface ChatMessageProps {
@@ -46,6 +47,8 @@ interface ChatMessageProps {
   onOpenContextDetails?: (references: MessageReference[]) => void
   onApproveShellCommand?: (command: string, assistantMessageId: string) => void
   onSubmitUserInput?: (request: ChatUserInputRequest, answers: Record<string, unknown>) => boolean
+  /** «Seguir buscando»: the agent goes on from where it reached its cap of turns. */
+  onContinue?: (message: DisplayMessage) => void
 }
 
 export interface ChatReferencePreview {
@@ -65,6 +68,7 @@ function ChatMessageImpl({
   onOpenContextDetails,
   onApproveShellCommand,
   onSubmitUserInput,
+  onContinue,
 }: ChatMessageProps) {
   const { t } = useTranslation()
   const isUser = message.role === "user"
@@ -172,6 +176,27 @@ function ChatMessageImpl({
             request={message.userInputRequest}
             onSubmit={onSubmitUserInput}
           />
+        )}
+        {isAssistant && message.operationCard && (
+          <OperationCardView
+            card={message.operationCard}
+            onChange={(card) => useChatStore.getState().setMessageOperationCard(message.id, card)}
+          />
+        )}
+        {isAssistant && message.budget?.reached && (
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground" data-testid="turn-cap">
+            <span>Llegué al tope de {message.budget.max} vueltas.</span>
+            {onContinue && message.budget.continuation && (
+              <button
+                type="button"
+                onClick={() => onContinue(message)}
+                className="rounded border px-2 py-0.5 text-foreground hover:bg-primary/10 hover:text-primary"
+                title="Suma otras tantas vueltas y sigue desde donde quedó. Cada vuelta es una pregunta más al modelo."
+              >
+                Seguir buscando
+              </button>
+            )}
+          </div>
         )}
         {isAssistant && hovered && (
           <div className="flex items-center gap-1">
@@ -298,6 +323,7 @@ export const ChatMessage = memo(ChatMessageImpl, (prev, next) =>
   && prev.onOpenReferencePreview === next.onOpenReferencePreview
   && prev.onApproveShellCommand === next.onApproveShellCommand
   && prev.onSubmitUserInput === next.onSubmitUserInput
+  && prev.onContinue === next.onContinue
 )
 
 function UserInputRequestPanel({

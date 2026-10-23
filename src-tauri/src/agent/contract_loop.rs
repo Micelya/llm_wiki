@@ -676,6 +676,8 @@ impl<'a> Loop<'a> {
         if self.turn.event_sink.is_some() && !answer.is_empty() {
             emit(&mut self.turn.events, &self.turn.event_sink, AgentEvent::MessageDelta { text: answer.clone() });
         }
+        let budget = AgentBudget { used: self.state.used, max, reached, continuation };
+        emit(&mut self.turn.events, &self.turn.event_sink, AgentEvent::Budget { budget: budget.clone() });
         emit(&mut self.turn.events, &self.turn.event_sink, AgentEvent::Done { session_id: self.turn.session_id.clone() });
         let usage = AgentUsage {
             prompt_chars: self.last_prompt_chars,
@@ -694,7 +696,7 @@ impl<'a> Loop<'a> {
             events: std::mem::take(&mut self.turn.events),
             user_input_request: form,
             operation_proposal: proposal,
-            budget: Some(AgentBudget { used: self.state.used, max, reached, continuation }),
+            budget: Some(budget),
             usage: Some(usage),
         }
     }
