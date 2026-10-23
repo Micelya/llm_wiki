@@ -1,19 +1,23 @@
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { Search, FileText } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { searchBase, type BaseSearchResult } from "@/commands/docbase"
 import { tokenizeQuery } from "@/lib/search"
 import { openWikiPath } from "@/lib/open-wiki-path"
 import { isImeComposing } from "@/lib/keyboard-utils"
+import { useSearchStore } from "@/stores/search-store"
 
 /**
  * The search of the base (D-408): the texts, numbers and summaries of
  * its documents, and the person, organization or matter the question
- * names. Each result opens the screen of what it is, never a file.
+ * names. Each result opens the screen of what it is, never a file. It is
+ * asked from the top bar (Ctrl K), and refined here.
  */
 export function SearchView() {
   const { t } = useTranslation()
-  const [query, setQuery] = useState("")
+  const asked = useSearchStore((s) => s.asked)
+  const askedQuery = useSearchStore((s) => s.query)
+  const [query, setQuery] = useState(askedQuery)
   const [results, setResults] = useState<BaseSearchResult[]>([])
   const [searching, setSearching] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
@@ -38,6 +42,13 @@ export function SearchView() {
       setSearching(false)
     }
   }, [])
+
+  // What the top bar asked, every time it asks.
+  useEffect(() => {
+    if (asked === 0) return
+    setQuery(askedQuery)
+    void doSearch(askedQuery)
+  }, [asked])
 
   async function handleOpen(result: BaseSearchResult) {
     setProblem(null)

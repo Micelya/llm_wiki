@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from "react"
 import { useWikiStore } from "@/stores/wiki-store"
-import { IconSidebar } from "./icon-sidebar"
+import { AppSidebar } from "./app-sidebar"
+import { TopBar } from "./top-bar"
 import { UpdateBanner } from "./update-banner"
 import { ContentArea } from "./content-area"
 import { ResearchPanel } from "./research-panel"
@@ -52,44 +53,47 @@ export function AppLayout() {
   const hasRightPanel = isResearchPanelVisible(activeView, researchPanelOpen)
 
   return (
-    // Outer column layout: full-width update banner on top (when an
-    // update is available AND not dismissed for this version), the
-    // IconSidebar + content row below.
+    // The bar of the brand on top, then the update banner when there is
+    // one; below, the menu at the left and the work area, with the lines
+    // of the portals and of the processing at its foot (D-426).
     <div className="flex h-full flex-col bg-background text-foreground">
       <AttentionSources />
       <ProgressPoller />
+      <TopBar />
       <UpdateBanner />
       <div className="flex min-h-0 flex-1">
-        <IconSidebar />
-        <div ref={containerRef} className="relative flex min-w-0 flex-1 overflow-hidden">
-          <div className="min-w-0 flex-1 overflow-hidden">
-            <ErrorBoundary>
-              <ContentArea />
-            </ErrorBoundary>
-          </div>
+        <AppSidebar />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div ref={containerRef} className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <ErrorBoundary>
+                <ContentArea />
+              </ErrorBoundary>
+            </div>
 
-          {hasRightPanel && (
-            <>
-              <div
-                className="w-1.5 shrink-0 cursor-col-resize bg-border/40 transition-colors hover:bg-primary/30 active:bg-primary/40"
-                onMouseDown={startDrag}
-              />
-              <div
-                className="flex shrink-0 flex-col overflow-hidden border-l"
-                style={{ width: rightWidth }}
-              >
-                <ErrorBoundary>
-                  <ResearchPanel />
-                </ErrorBoundary>
-              </div>
-            </>
-          )}
+            {hasRightPanel && (
+              <>
+                <div
+                  className="w-1.5 shrink-0 cursor-col-resize bg-border/40 transition-colors hover:bg-primary/30 active:bg-primary/40"
+                  onMouseDown={startDrag}
+                />
+                <div
+                  className="flex shrink-0 flex-col overflow-hidden border-l"
+                  style={{ width: rightWidth }}
+                >
+                  <ErrorBoundary>
+                    <ResearchPanel />
+                  </ErrorBoundary>
+                </div>
+              </>
+            )}
+          </div>
+          {/* A walk over a judicial portal, from any screen: it goes on while the person works elsewhere. */}
+          <PortalLine />
+          {/* What the app is processing, from any screen (D-426). */}
+          <ProgressLine />
         </div>
       </div>
-      {/* A walk over a judicial portal, from any screen: it goes on while the person works elsewhere. */}
-      <PortalLine />
-      {/* What the app is processing, from any screen (D-426). */}
-      <ProgressLine />
     </div>
   )
 }

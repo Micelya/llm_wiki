@@ -9,7 +9,7 @@ import { toLatestReleaseUrl } from "@/lib/update-check"
 /**
  * App-wide update-available banner.
  *
- * Sits above the main flex row (IconSidebar + content). Renders ONLY
+ * Sits under the top bar, above the main flex row (menu + content). Renders ONLY
  * when `shouldShowUpdateBanner(state)` returns true — that helper
  * already gates on:
  *   - we have a successful "available" check result
