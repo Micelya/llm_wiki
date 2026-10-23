@@ -56,7 +56,7 @@ describe("Ajustes → Datos y respaldos", () => {
     expect(words).toContain("Todavía no hay respaldos")
     expect(words).toContain("Abrir la carpeta de datos")
     expect(words).toContain("Abrir la carpeta de respaldos")
-    expect(words).toContain("no marques «Eliminar los datos de aplicación»")
+    expect(words).toContain("no marques «Eliminar los datos de aplicación» (en inglés, «Delete the application data»)")
     expect(words).not.toContain("Volver a este respaldo")
   })
 

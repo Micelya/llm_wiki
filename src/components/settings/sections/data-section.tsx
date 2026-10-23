@@ -168,7 +168,8 @@ export function DataView({ status, problem, busy, onOpen, onRestore, onClose }: 
       </section>
 
       <p className="text-xs text-muted-foreground">
-        Al desinstalar Micelya, no marques «Eliminar los datos de aplicación»: borra tus datos y también los respaldos.
+        Al desinstalar Micelya, no marques «Eliminar los datos de aplicación» (en inglés, «Delete the application data»):
+        borra tus datos y también los respaldos.
       </p>
 
       {problem && <p className="text-xs text-destructive">{problem}</p>}
