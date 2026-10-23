@@ -86,7 +86,7 @@ export function StatTile({
       <span className="mt-0.5 block text-[0.8125rem] text-muted-foreground">{label}</span>
     </>
   )
-  const box = "rounded-[10px] border bg-panel-sub px-3.5 py-3 text-left"
+  const box = "flex flex-col items-start justify-start rounded-[10px] border bg-panel-sub px-3.5 py-3 text-left"
   return onClick ? (
     <button className={cn(box, "transition-colors hover:border-border-strong hover:bg-hover")} onClick={onClick} title={title}>
       {body}

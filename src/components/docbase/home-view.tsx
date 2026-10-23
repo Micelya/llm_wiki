@@ -416,14 +416,17 @@ function RankList({ items }: { items: OverviewItem[] }) {
       <ol className="flex flex-col divide-y">
         {items.map((item, index) => (
           <li key={item.page} className="flex items-baseline gap-2.5 py-[7px] text-sm">
-            <span className="min-w-0 flex-1 truncate">
+            <span className="flex min-w-0 flex-1 items-baseline">
               <button
-                className="text-link hover:underline"
+                className="min-w-0 truncate text-left text-link hover:underline"
+                title={item.name}
                 onClick={async () => setGone((await openWikiPath(item.page)) ? null : item.name)}
               >
                 {item.name}
               </button>
-              {item.kind && <span className="text-[0.78125rem] text-muted-foreground"> · {item.kind}</span>}
+              {item.kind && (
+                <span className="shrink-0 pl-1 text-[0.78125rem] whitespace-nowrap text-muted-foreground">· {item.kind}</span>
+              )}
             </span>
             <span className="shrink-0 text-[0.8125rem] whitespace-nowrap text-muted-foreground tabular-nums">
               {index === 0 ? plural(item.documents, "documento", "documentos") : formatCount(item.documents)}
