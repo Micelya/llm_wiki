@@ -1,6 +1,8 @@
-import { useState, type ReactNode } from "react"
+import { useState } from "react"
 import { ChevronDown, ChevronRight, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Callout } from "@/components/ui/callout"
+import { Tab, TabList } from "@/components/ui/tabs"
 import { useAppDialog } from "@/stores/app-dialog-store"
 import { useAttentionViewStore, type AttentionTab } from "@/stores/attention-view-store"
 import { noticesOf, summaryText } from "@/lib/attention/order"
@@ -61,13 +63,19 @@ export function AttentionView() {
   return (
     <DocbasePage title={words.attention.name} subtitle={summary ?? words.attention.description}>
       <div className="mx-auto flex max-w-4xl flex-col gap-4">
-        <nav role="tablist" className="flex gap-1 border-b text-sm">
+        <TabList label={words.attention.name}>
           {ATTENTION_TABS.map((item) => (
-            <TabButton key={item.kind} active={tab === item.kind} count={tabCounts[item.kind]} onClick={() => setTab(item.kind)}>
+            <Tab
+              key={item.kind}
+              active={tab === item.kind}
+              count={tabCounts[item.kind] > 0 ? formatCount(tabCounts[item.kind]) : undefined}
+              countTone={item.kind === "problem" ? "err" : item.kind === "decision" ? "warn" : "neutral"}
+              onClick={() => setTab(item.kind)}
+            >
               {item.title}
-            </TabButton>
+            </Tab>
           ))}
-        </nav>
+        </TabList>
         <div role="tabpanel" data-tab={tab}>
           {tab === "ongoing" ? (
             <OngoingTab
@@ -76,29 +84,13 @@ export function AttentionView() {
               extra={lines.ongoing.length > 0 ? <NoticeList lines={lines.ongoing} /> : null}
             />
           ) : lines[tab].length === 0 ? (
-            <p className="rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">{empty}</p>
+            <Callout tone="quiet" title={null}>{empty}</Callout>
           ) : (
             <NoticeList lines={lines[tab]} />
           )}
         </div>
       </div>
     </DocbasePage>
-  )
-}
-
-function TabButton({ active, count, onClick, children }: { active: boolean; count: number; onClick: () => void; children: ReactNode }) {
-  return (
-    <button
-      role="tab"
-      aria-selected={active}
-      className={`-mb-px flex items-center gap-1.5 border-b-2 px-3 py-1.5 ${
-        active ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
-      }`}
-      onClick={onClick}
-    >
-      {children}
-      {count > 0 && <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">{formatCount(count)}</span>}
-    </button>
   )
 }
 
@@ -165,7 +157,7 @@ function NoticeLine({ notice }: { notice: AttentionNotice }) {
             aria-expanded={expandable ? open : undefined}
           >
             <span className="min-w-0 flex-1">
-              <span className="text-sm font-medium">{notice.title}</span>
+              <span className="font-ui text-[0.90625rem] font-bold text-strong">{notice.title}</span>
               {notice.scope && (
                 <span className="ml-2 align-middle">
                   <StatusBadge tone="neutral">{notice.scope}</StatusBadge>
@@ -184,8 +176,8 @@ function NoticeLine({ notice }: { notice: AttentionNotice }) {
                 <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
               ))}
           </button>
-          <p className="mt-0.5 text-xs text-muted-foreground">{notice.explanation}</p>
-          <p className="mt-0.5 text-xs">{notice.todo}</p>
+          <p className="mt-0.5 text-[0.8125rem] text-muted-foreground">{notice.explanation}</p>
+          <p className="mt-0.5 text-[0.8125rem]">{notice.todo}</p>
           {notice.progress && <Progress {...notice.progress} />}
         </div>
         {notice.actions.length > 0 && (
@@ -202,7 +194,7 @@ function NoticeLine({ notice }: { notice: AttentionNotice }) {
         </div>
       )}
       {open && (
-        <div className="mt-2 ml-5.5 rounded-md border bg-muted/20">
+        <div className="mt-2 ml-5.5 rounded-[10px] border bg-panel-sub">
           {loading ? (
             <p className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
               <Loader2 className="size-3 animate-spin" /> Buscando…
@@ -308,8 +300,8 @@ function Progress({ done, total }: { done: number; total: number }) {
   const share = total > 0 ? Math.min(1, done / total) : 0
   return (
     <div className="mt-2 flex items-center gap-2">
-      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-        <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${share * 100}%` }} />
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-border">
+        <div className="h-full rounded-full bg-grad-principal transition-all" style={{ width: `${share * 100}%` }} />
       </div>
       <span className="shrink-0 text-xs text-muted-foreground">
         {formatCount(done)} de {formatCount(total)}

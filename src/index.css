@@ -357,6 +357,17 @@
   ::selection {
     background: color-mix(in srgb, var(--brand) 22%, transparent);
     }
+  /* The choices of the native controls in the brand: the strong grey line
+     of a field, and the brand's colour for what is ticked or chosen. */
+  select {
+    border-color: var(--border-strong);
+    }
+  select:focus-visible {
+    border-color: var(--link);
+    }
+  input[type="checkbox"], input[type="radio"], input[type="range"], progress {
+    accent-color: var(--brand);
+    }
 }
 
 /* The text of an article, a research or a saved answer (WikiReader): Inter
