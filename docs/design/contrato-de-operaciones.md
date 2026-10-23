@@ -1,6 +1,6 @@
 # El contrato de operaciones: el chat con acciones, la API local y el MCP
 
-**Estado:** asumido en la corrida desatendida del 22-23 oct, a revisar por el dueño (D-500). El paso «chat con acciones» está construido en parte: qué, y las decisiones que se asumieron al construirlo, en la sección 12. El paso «servidor único con API local y MCP» se construye sobre este documento sin esperar la aprobación.
+**Estado:** asumido en la corrida desatendida del 22-23 oct, a revisar por el dueño (D-500). El paso «chat con acciones» está construido en parte: qué, y las decisiones que se asumieron al construirlo, en la sección 12. El paso «servidor único con API local y MCP» también está construido (sección 13). Ninguno de los dos lo vio el dueño todavía.
 
 **Sobre:** ejecutar acciones desde el chat (P-286), las preguntas del chat con Codex (P-288), la API local y el recortador sobre la base (P-227), el chat sobre un contrato (D-498), un solo servidor dentro de la máquina (D-487, D-495), la ficha de un grupo de sociedades (D-473) y cerrar o archivar un caso (D-475). Parte de la propuesta anterior del chat con acciones (borrador del 22 oct en la carpeta de turnos) y la reemplaza.
 
@@ -622,3 +622,30 @@ Nada de esto lo vio el dueño todavía en la app (D-154): está probado con un m
 12. **Codex en el chat** usa el razonamiento y el tope de minutos que ya tiene el chat en Ajustes (por defecto, alto y 10 minutos por vuelta).
 
 **Falta, en el orden del plan:** el grupo de sociedades a mano (A9: hace falta que el recálculo pueda crear la ficha de un grupo que no tiene ninguna mención propia, y una versión de la base para el tipo de decisión `group`); generar desde una plantilla abriendo la pantalla completada (A10); leer en tandas (A11; leer por partes, pasajes por documento o caso, resumir lo observado más viejo y el tamaño por motor sí están); Core en el chat (A13 a A15).
+
+## 13. Lo construido en el paso «servidor único» (23 oct, corrida desatendida)
+
+Nada de esto lo vio el dueño todavía en la app (D-154): está probado con datos inventados, sin modelo, y contra el cliente oficial de MCP (el paquete de `node_modules`), que se conecta, lista las herramientas, lee y deja un pedido.
+
+**Construido:**
+
+- **Un solo servidor** en `src-tauri/src/local_server/` (`clip_server.rs` se borró): `http://127.0.0.1:19827`, arranca con la app. Rechaza un pedido dirigido a otro nombre de la máquina (421), cualquier página web, también las de la misma máquina (403), y tiene los límites del programa original (120 pedidos por segundo, 64 a la vez, 1 MB por pedido, 8 MB por recorte).
+- **El recortador** (`clip.rs`) sigue con `GET /status` y `POST /clip`, sin token, como lo manda la extensión instalada: no hay que reinstalarla. `recorte_guardar` quedó como operación construida del contrato.
+- **Programas y tokens** (`programs.rs`, versión 27 de la base: `local_program` y `local_program_use`): agregar, copiar el token, renovar, cambiar el permiso, quitar; el token en el llavero como `local-program:<id>`, que las pantallas no leen por `secrets_read`; en la base, solo su SHA-256. Un interruptor (`docbase_setting` `local-programs`) apaga los programas sin tocar el recortador.
+- **La API local** (`api.rs`) y **el MCP** (`mcp.rs`) pasan por una sola puerta (`calls.rs`), sobre `offered_to`, `input_schema`, `read::read` y `flow::propose`, con `program:<id>` como quien pidió y el nombre del programa guardado en `engine`.
+- **Atención:** «Pedidos de otros programas» (`src/components/attention/sources/operations.ts`) lleva a una pantalla con la misma tarjeta del chat (`src/components/operations/program-requests-view.tsx`). Los pedidos sin decidir vencen a los 7 días, al arrancar el servidor o al listarlos.
+- **Ajustes → «Programas conectados»** (`src/components/settings/sections/programs-section.tsx`).
+
+**Decisiones asumidas al construir** (además de las de la sección 8):
+
+1. **El interruptor de Ajustes apaga los programas, no el recortador.** *Alternativa:* que apague todo el servidor, recortador incluido (lo que decía 11.8). *Por qué:* el recortador se usa hoy y no pide token; lo que puede preocupar son los programas.
+2. **Los programas están permitidos por defecto;** sin un programa agregado no hay token, así que no contesta nada. *Alternativa:* apagado hasta que la persona lo prenda.
+3. **El token** son 32 bytes al azar (de dos UUID versión 4, del generador del sistema) en base64, precedidos de `mcy_` para reconocerlo si queda copiado en algún lado. *Alternativa:* sin prefijo.
+4. **Si el llavero no guarda el token,** el programa se agrega igual y el token se muestra una sola vez (se puede renovar). *Alternativa:* no agregar el programa.
+5. **Quitar un programa** no borra su fila (queda con la fecha en que se quitó), para que el registro siga nombrándolo; lo que dejó pendiente se puede seguir decidiendo.
+6. **El MCP contesta la versión 2025-06-18** cuando el cliente pide una que no conoce (el cliente oficial pide la 2025-11-25 y acepta la 2025-06-18). No devuelve `Mcp-Session-Id`.
+7. **Un pedido de cambio por la API contesta 202** («aceptado, pendiente»); por el MCP, un resultado normal con el número de pedido. Un programa de solo lectura que pide un cambio recibe 403 por la API y un error de la herramienta por el MCP, con la explicación de cómo darle el permiso.
+8. **Se cuentan todos los usos de un programa** (lecturas y pedidos), por día y por operación, sin guardar qué leyó.
+9. **La configuración de Codex** que muestra Ajustes (`url` y `bearer_token_env_var` en `config.toml`) no se probó.
+
+**Falta:** el puente «de línea de comandos» para Claude Desktop, elegir el caso desde la extensión, «preguntarle al chat» desde afuera (B7); que el dueño conecte un asistente de verdad y lo vea en la app.
