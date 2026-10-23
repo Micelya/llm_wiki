@@ -346,11 +346,11 @@
       "tipo": "decision",
       "responsable": "usuario",
       "estado": "a-verificar",
-      "detalle": "Micelya Core es el módulo de la plataforma que dará los servicios de IA y relacionados; se desarrolla en paralelo, primero sobre servicios de Amazon y diseñado para no depender de ellos. En algún momento la app va a usarlo como infraestructura de IA. Por ahora es solo información de contexto: los proveedores de IA siguen siendo configurables por instancia. 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/. 2026-10-22: El estudio de referencia va a usar Micelya Core (D-468): la conexión es parte del producto mínimo (D-463). Primero reflejar la respuesta de Core (P-244); después la conexión en Ajustes y el motor de reconocimiento de Core (pasos 4 y 5 de servicios-de-ia-propuesta.md) y ver si las preguntas al modelo también van por Core. Probado el 22 oct con el usuario técnico de desarrollo (en el llavero de Windows, «connection:micelya-core»): un escrito de 23 páginas leído de punta a punta en 27 s y borrado después. 2026-10-22: respuesta al 001 llevada al diseño (sección 2.3 y pasos 4, 4b y 5 de servicios-de-ia-propuesta.md) y mensaje 002 enviado (pedido de integración #65). Lectura por páginas o piezas (D-483); el dueño asume procesar en Estados Unidos (D-482). Preguntar al modelo por Core (paso 4b) espera el permiso y los límites que se piden en el 002. 2026-10-22 (tarde): construidos la conexión (commit 3df768b; Ajustes → Conexiones → Micelya Core, con «Probar la conexión»; el secreto nunca vuelve a las pantallas) y el motor de lectura de Core (commit e58123d, D-489): cada página como JPEG en gris de hasta 2000 px con nombre genérico, borrada en Core al guardarla; página sin renglones «[ilegible]»; palabras con confianza menor a 0,90 guardadas como dudosas; motor core:textract-1.0. Prueba real con un documento inventado de 3 páginas: 58 s, las 3 lecturas borradas. Falta verlo en la app; preguntar al modelo por Core (paso 4b) espera el permiso pedido en el 002.",
+      "detalle": "Micelya Core es el módulo de la plataforma que dará los servicios de IA y relacionados; se desarrolla en paralelo, primero sobre servicios de Amazon y diseñado para no depender de ellos. En algún momento la app va a usarlo como infraestructura de IA. Por ahora es solo información de contexto: los proveedores de IA siguen siendo configurables por instancia. 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/. 2026-10-22: El estudio de referencia va a usar Micelya Core (D-468): la conexión es parte del producto mínimo (D-463). Primero reflejar la respuesta de Core (P-244); después la conexión en Ajustes y el motor de reconocimiento de Core (pasos 4 y 5 de servicios-de-ia-propuesta.md) y ver si las preguntas al modelo también van por Core. Probado el 22 oct con el usuario técnico de desarrollo (en el llavero de Windows, «connection:micelya-core»): un escrito de 23 páginas leído de punta a punta en 27 s y borrado después. 2026-10-22: respuesta al 001 llevada al diseño (sección 2.3 y pasos 4, 4b y 5 de servicios-de-ia-propuesta.md) y mensaje 002 enviado (pedido de integración #65). Lectura por páginas o piezas (D-483); el dueño asume procesar en Estados Unidos (D-482). Preguntar al modelo por Core (paso 4b) espera el permiso y los límites que se piden en el 002. 2026-10-22 (tarde): construidos la conexión (commit 3df768b; Ajustes → Conexiones → Micelya Core, con «Probar la conexión»; el secreto nunca vuelve a las pantallas) y el motor de lectura de Core (commit e58123d, D-489): cada página como JPEG en gris de hasta 2000 px con nombre genérico, borrada en Core al guardarla; página sin renglones «[ilegible]»; palabras con confianza menor a 0,90 guardadas como dudosas; motor core:textract-1.0. Prueba real con un documento inventado de 3 páginas: 58 s, las 3 lecturas borradas. Falta verlo en la app; preguntar al modelo por Core (paso 4b) espera el permiso pedido en el 002. 2026-10-23: La autenticación en Core va por persona con Keycloak, no con una cuenta del sistema (D-501, P-302).",
       "depende_de": [],
       "referencia": "Repo extrimian/mi-platform, rama dev; docs/design/servicios-de-ia-propuesta.md",
       "creado": "2026-10-11",
-      "actualizado": "2026-10-22"
+      "actualizado": "2026-10-23"
     },
     {
       "id": "P-064",
@@ -1906,6 +1906,20 @@
       "referencia": "P-248; src-tauri/src/portals/pjn.rs",
       "creado": "2026-10-22",
       "actualizado": "2026-10-22"
+    },
+    {
+      "id": "P-302",
+      "titulo": "Inicio de sesión en Micelya Core por persona, con Keycloak",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "en-espera",
+      "prioridad": 2,
+      "tema": "core",
+      "detalle": "Decisión del dueño (23 oct, D-501): la app se autentica en Core con Keycloak y por cada persona, no con una cuenta del sistema (el usuario técnico de hoy, client_credentials, queda solo para desarrollo). Cada persona inicia sesión en el navegador del sistema y vuelve a la app (código de autorización con PKCE, sin secreto dentro del programa), la renovación queda en el llavero, se puede cerrar la sesión, y las lecturas y preguntas a Core quedan a nombre de quien las pidió. No entra en la corrida del 22-23 oct. Cuando llegue el momento se definen con el dueño y con Core los detalles, entre ellos cómo se crean los usuarios del estudio de referencia en su organización de Keycloak. Espera que Core especifique el cliente de escritorio (Core P-177 y Core P-178; pedido 001-R2). El mensaje 002 (002-R2) pidió para el piloto un usuario técnico: hay que corregirlo con Core.",
+      "depende_de": [],
+      "referencia": "D-501; docs/design/servicios-de-ia-propuesta.md (Autenticación); docs/dropbox/core/2026-10-21-001 (001-R2) y 2026-10-22-002 (002-R2); src-tauri/src/micelya_core/",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
     }
   ]
 }

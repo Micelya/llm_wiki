@@ -443,6 +443,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-498 | 22 oct | Chat | El chat actúa sobre un contrato de operaciones, el mismo que van a exponer la API local y el MCP | vigente |
 | D-499 | 22 oct | Interfaz | Cómo se aplicaron Acerca de sin LLM-Wiki, «Volver a leer todo» y el tope de las preguntas automáticas | en revisión (agente sin consulta, se confirma al verla en la app: P-290, P-090, P-260) |
 | D-500 | 23 oct | Forma de trabajo | En una corrida desatendida no se espera la aprobación del dueño: se asume la opción recomendada, se construye y se corrige al día siguiente | vigente |
+| D-501 | 23 oct | Servicios de IA | La app se autentica en Micelya Core con Keycloak y por cada persona, no con una cuenta del sistema | vigente |
 
 ---
 
@@ -5339,4 +5340,11 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Fecha:** 23 oct 2026 · **Tema:** Forma de trabajo · **Estado:** vigente
 - **El problema:** La cola de la noche del 22 al 23 de octubre tenía pasos que esperaban la aprobación del dueño antes de construir: la propuesta del contrato de operaciones (D-498), y detrás de ella el chat con acciones (P-286) y el servidor único (P-227). El dueño duerme durante la corrida: esos pasos habrían quedado parados toda la noche.
 - **Qué se decidió y por qué:** En una corrida desatendida no se deja ningún paso esperando una respuesta del dueño. Donde haga falta una decisión que no está tomada, el agente asume la opción que recomienda, construye sobre ella y la anota como «decisión asumida», con la alternativa; al día siguiente el dueño revisa y corrige. Para esta corrida: el contrato de operaciones se escribe como documento de diseño con decisiones asumidas y se construye enseguida; los topes del chat se resuelven como le parezca mejor al agente (el dueño: «hacelo como mejor te parezca»). Queda para el día siguiente, con el dueño: la revisión de lo construido, Atención (dos o tres casos de cada tipo), el instalador de prueba (después de probar todo) y la integración real con Micelya Core, que todavía no respondió los mensajes 002 y 003. Fuera de las corridas desatendidas sigue valiendo mostrar la propuesta antes de cambiar un documento de diseño.
+- **Quién decidió:** el dueño del producto.
+
+### D-501 · La app se autentica en Micelya Core con Keycloak y por cada persona, no con una cuenta del sistema
+
+- **Fecha:** 23 oct 2026 · **Tema:** Servicios de IA · **Estado:** vigente
+- **El problema:** Hoy la app entra a Core con un usuario técnico de la organización (`client_credentials`): un secreto que no vence, copiado en cada computadora, con el que no se sabe qué persona pidió cada lectura ni se puede quitar el acceso a una sola. El diseño dejaba abiertas dos variantes para el destino (servicios-de-ia-propuesta.md, Autenticación): el inicio de sesión de cada persona o el usuario técnico de la organización. El mensaje 002 a Core pidió un usuario técnico para el piloto con el estudio de referencia.
+- **Qué se decidió y por qué:** La autenticación en Core se hace con Keycloak y por cada persona, no con una cuenta del sistema. Cada persona inicia sesión desde la app y lo que pide a Core queda a su nombre. El usuario técnico queda solo para desarrollo. No entra en la corrida de la noche del 22 al 23 de octubre; cuando llegue el momento de construirlo se definen con el dueño y con Core los detalles, entre ellos cómo se crean los usuarios del estudio de referencia en su organización de Keycloak. Reemplaza la variante «usuario técnico de la organización» del diseño y lo que pedía el 002-R2 para el piloto (P-302).
 - **Quién decidió:** el dueño del producto.
