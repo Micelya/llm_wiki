@@ -1629,10 +1629,10 @@
       "titulo": "Comprobación automática de GitHub confiable: que nunca quede esperando",
       "tipo": "decision",
       "responsable": "claude",
-      "estado": "en-curso",
+      "estado": "hecho",
       "prioridad": 1,
       "tema": "pruebas y calidad",
-      "detalle": "22 oct: el pedido de integración #63 quedó con la comprobación exigida «en cola» sin máquina mientras GitHub daba la ejecución por terminada; coincidió con un incidente de GitHub Actions (14:35 UTC). Causa de fondo: el conjunto de reglas proteger-main exige la comprobación «check (windows-latest)», cuyo nombre sale de la matriz de .github/workflows/ci.yml; depende de máquinas Windows (más lentas en arrancar y más afectadas por incidentes) y se rompe si cambia la matriz; además no corre las pruebas (P-046). Propuesta: (1) un trabajo «puerta» con nombre fijo (por ejemplo «verificacion») que siempre informa (needs de los demás, if: always()) y es el único exigido; (2) las pruebas rápidas (tsc con tsconfig.app.json, vitest de mocks, cargo test --lib) en ubuntu-latest con timeout-minutes; (3) la compilación en Windows como trabajo aparte, informado por la puerta; (4) concurrency por rama con cancel-in-progress; (5) actualizar el conjunto de reglas (lo hace el dueño o con su permiso) para exigir la puerta. Probar en una rama antes de cambiar la regla. 2026-10-22: absorbe P-046 («Decidir si la comprobación automática de GitHub ejecuta las pruebas»). 2026-10-22: El dueño aprobó el cambio (D-479). Pedido de integración propio, #64 (rama ci/verificacion): falta ver «verificacion» en verde y que el dueño apruebe cambiar la regla proteger-main.",
+      "detalle": "22 oct: el pedido de integración #63 quedó con la comprobación exigida «en cola» sin máquina mientras GitHub daba la ejecución por terminada; coincidió con un incidente de GitHub Actions (14:35 UTC). Causa de fondo: el conjunto de reglas proteger-main exige la comprobación «check (windows-latest)», cuyo nombre sale de la matriz de .github/workflows/ci.yml; depende de máquinas Windows (más lentas en arrancar y más afectadas por incidentes) y se rompe si cambia la matriz; además no corre las pruebas (P-046). Propuesta: (1) un trabajo «puerta» con nombre fijo (por ejemplo «verificacion») que siempre informa (needs de los demás, if: always()) y es el único exigido; (2) las pruebas rápidas (tsc con tsconfig.app.json, vitest de mocks, cargo test --lib) en ubuntu-latest con timeout-minutes; (3) la compilación en Windows como trabajo aparte, informado por la puerta; (4) concurrency por rama con cancel-in-progress; (5) actualizar el conjunto de reglas (lo hace el dueño o con su permiso) para exigir la puerta. Probar en una rama antes de cambiar la regla. 2026-10-22: absorbe P-046 («Decidir si la comprobación automática de GitHub ejecuta las pruebas»). 2026-10-22: El dueño aprobó el cambio (D-479). Pedido de integración propio, #64 (rama ci/verificacion): falta ver «verificacion» en verde y que el dueño apruebe cambiar la regla proteger-main. 2026-10-22 (noche): hecho. Pedido de integración #64 integrado; la regla proteger-main exige «verificacion» (GitHub Actions) y tiene la salida de emergencia para el administrador en pedidos de integración (D-479). Los pedidos #65 y #66 ya pasaron con la comprobación nueva.",
       "depende_de": [],
       "referencia": ".github/workflows/ci.yml; conjunto de reglas proteger-main (id 24614800); P-046",
       "creado": "2026-10-22",
@@ -1662,10 +1662,12 @@
       "depende_de": [
         "P-057",
         "P-063",
+        "P-300",
         "P-285",
         "P-286",
         "P-290",
         "P-227",
+        "P-296",
         "P-297",
         "P-006"
       ],
@@ -1821,7 +1823,7 @@
     },
     {
       "id": "P-296",
-      "titulo": "Los documentos generados aparecen como pares pendientes en «Documentos parecidos»",
+      "titulo": "«Documentos parecidos»: lo de la misma plantilla no es «parecido» ni pide decisión",
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
@@ -1872,6 +1874,20 @@
         "P-063"
       ],
       "referencia": "D-498; mensaje 002 a Core",
+      "creado": "2026-10-22",
+      "actualizado": "2026-10-22"
+    },
+    {
+      "id": "P-300",
+      "titulo": "Preguntar al modelo por Micelya Core (lectura, quién es quién, resúmenes, casos y chat)",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "servicios de IA",
+      "detalle": "Parte del producto mínimo: el estudio de referencia usa Core para todo, sin Codex (D-468). Paso 4b de servicios-de-ia-propuesta.md: un motor de preguntas que usa executePrompt de Core (solo texto: la pregunta entera en el texto, la respuesta en JSON controlada como hoy), elegible en Servicios de IA. Se construye y se prueba contra un Core simulado; la prueba real espera el permiso inference.execute y los límites pedidos en el mensaje 002. El chat sobre Core va con el contrato de operaciones (P-286).",
+      "depende_de": [],
+      "referencia": "servicios-de-ia-propuesta.md (2.3, paso 4b); mensaje 002 a Core",
       "creado": "2026-10-22",
       "actualizado": "2026-10-22"
     }
