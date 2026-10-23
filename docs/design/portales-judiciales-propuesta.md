@@ -61,3 +61,10 @@
 - El desafío puede pedirse muy seguido: la experiencia depende de esa frecuencia; se mide en el paso 1.
 - Bloqueos por exceso de pedidos: ritmo de persona y un expediente a la vez.
 - Expedientes restringidos o de competencias reservadas: la app no los ve y lo dice.
+
+## 7. Lo que mostró la primera prueba real (22 oct) y cómo quedó
+
+- **La tabla de actuaciones del SCW:** 15 filas por página, de la más nueva a la más vieja. El día de la fecha va sin cero y el mes con cero («7/09/2025»); cada celda empieza con un rótulo que solo lee un lector de pantalla («Fecha: », «Tipo actuacion: »); los botones «Descargar» y «Ver» van en la primera celda; MOVIMIENTO y EVENTO no tienen documento ni fojas. El lector de la primera versión solo tomaba fechas con dos cifras en el día y salteaba las de los días 1 a 9, con su documento: por eso las páginas «mostraban» 6 a 14 actuaciones. Ahora lee todas, y una fila que no pueda leer se avisa con su número exacto.
+- **Actualizar no recorre todo:** como un expediente judicial solo suma actuaciones, una actualización corta en la primera página que la app ya tenía entera, siempre que la anterior haya llegado al final, que no quede nada pendiente o fallido y que las fechas vengan de la más nueva a la más vieja. «Revisar todo el expediente» lo recorre entero.
+- **Descargas sin preguntar:** la ventana del portal concede sola, y solo a `pjn.gov.ar` y sus subdominios, el permiso de WebView2 de bajar varios archivos seguidos.
+- **La ventana se oculta mientras baja:** mientras la app trabaja sola, la ventana del portal se oculta y su lugar muestra el avance; vuelve cuando el portal pide a la persona, cuando procesa una consulta o con «Ver el portal». La persona puede ir a otras pantallas: el pie de la ventana y Atención dicen cómo va y cómo terminó.
