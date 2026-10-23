@@ -1162,10 +1162,25 @@ CREATE TABLE change (
 );
 ";
 
+/// The version of a base: 0 for one just created.
+pub fn version(conn: &Connection) -> Result<i64, String> {
+    conn.query_row("PRAGMA user_version", [], |row| row.get(0)).map_err(sql_err)
+}
+
+/// Takes an empty base to `version`, as an app of that version left it: the
+/// bases of the past, for the tests of an update.
+#[cfg(test)]
+pub(crate) fn build_at(conn: &mut Connection, version: i64) {
+    for (index, migration) in MIGRATIONS.iter().enumerate().take(version as usize) {
+        let tx = conn.transaction().unwrap();
+        tx.execute_batch(migration).unwrap();
+        tx.pragma_update(None, "user_version", index as i64 + 1).unwrap();
+        tx.commit().unwrap();
+    }
+}
+
 pub fn migrate(conn: &mut Connection) -> Result<(), String> {
-    let version: i64 = conn
-        .query_row("PRAGMA user_version", [], |row| row.get(0))
-        .map_err(sql_err)?;
+    let version = self::version(conn)?;
     if version > CURRENT_VERSION {
         return Err(format!(
             "The document base was written by a newer version of the app (schema {version}, this app knows {CURRENT_VERSION})"
