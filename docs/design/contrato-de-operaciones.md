@@ -1,6 +1,6 @@
 # El contrato de operaciones: el chat con acciones, la API local y el MCP
 
-**Estado:** asumido en la corrida desatendida del 22-23 oct, a revisar por el dueño (D-500). Nada de esto está construido todavía: los dos pasos siguientes de la cola («chat con acciones» y «servidor único con API local y MCP») se construyen sobre este documento sin esperar la aprobación.
+**Estado:** asumido en la corrida desatendida del 22-23 oct, a revisar por el dueño (D-500). El paso «chat con acciones» está construido en parte: qué, y las decisiones que se asumieron al construirlo, en la sección 12. El paso «servidor único con API local y MCP» se construye sobre este documento sin esperar la aprobación.
 
 **Sobre:** ejecutar acciones desde el chat (P-286), las preguntas del chat con Codex (P-288), la API local y el recortador sobre la base (P-227), el chat sobre un contrato (D-498), un solo servidor dentro de la máquina (D-487, D-495), la ficha de un grupo de sociedades (D-473) y cerrar o archivar un caso (D-475). Parte de la propuesta anterior del chat con acciones (borrador del 22 oct en la carpeta de turnos) y la reemplaza.
 
@@ -591,3 +591,34 @@ CREATE TABLE local_program_use (
 - **Fichas, grupo y estado del caso:** unir y separar con deshacer; la decisión `group` crea el grupo en el recálculo y deshacerla lo quita; cerrar un caso lo saca de Atención y de las propuestas.
 - **Servidor:** solo responde con el `Host` correcto; sin token, 401; con token de «solo leer», un cambio → 403; con «leer y pedir cambios», un cambio queda `proposed`; `tools/list` y `tools/call` por MCP con datos inventados; el recortador guarda una página inventada como hoy (las pruebas actuales de `clip_server.rs`).
 - Al final, como siempre: `cargo test --lib`, `npm run test:mocks`, `npx tsc --noEmit -p tsconfig.app.json` y la prueba de que ningún caso real está en el programa.
+
+---
+
+## 12. Lo construido en el paso «chat con acciones» (23 oct, corrida desatendida)
+
+Nada de esto lo vio el dueño todavía en la app (D-154): está probado con un modelo simulado.
+
+**Construido:**
+
+- **La lista, una sola vez:** `src-tauri/src/operations/mod.rs` (`OPERATIONS`, `find`, `offered_to(Caller)`, `Operation::input_schema`, `Operation::check`, `contract(words)`). Las 24 operaciones de 2.3 y 2.4 están en la lista; las que no están construidas tienen `ready: false` y nadie puede pedirlas (el grupo de sociedades, generar desde una plantilla, guardar un recorte, que sigue en `clip_server.rs`). **Para el servidor único:** `offered_to(Caller::ProgramRead | ProgramChange)` da las herramientas, `input_schema` su `inputSchema`, `read::read` las lecturas (incluido `estado_pedido`) y `flow::propose` con `Origin { caller: "program:<id>" }` deja el pedido en el registro como `proposed`. El vencimiento a los 7 días (`expired`) está en el esquema y falta hacerlo.
+- **Lecturas** (`read.rs`), **resolver nombres** (`resolve.rs`), **tarjeta y huella** (`card.rs`), **aplicar y deshacer** (`apply.rs`), **la vida de una propuesta** (`flow.rs`: proponer, elegir, confirmar, cancelar, deshacer, y `apply_now` para los botones), **registro** (`log.rs`, tabla `operation_log` en la versión 26 de la base), **instrucciones** (`prompt.rs`, versión `chat-1`), comandos de la ventana (`commands.rs`).
+- **Operaciones que cambian, listas:** agregar y sacar documentos de un caso, crear, renombrar, decidir, cerrar, archivar o reabrir un caso, unir y separar fichas (también una ficha en un documento), volver a leer documentos (con su costo) y guardar una consulta.
+- **El chat sobre el contrato:** `src-tauri/src/agent/contract_loop.rs`, con el protocolo de 11.6 (también entiende el viejo), hasta 3 lecturas por vuelta, una propuesta por respuesta, el evento de vueltas y la continuación de «Seguir buscando». **Codex** pasa por el mismo agente con `agent/text_engine.rs`.
+- **La tarjeta en el chat:** `src/components/operations/operation-card.tsx`; los botones «Cerrar», «Archivar» y «Reabrir» en el caso; las instrucciones enteras en «Lo que se le pregunta al modelo».
+
+**Decisiones asumidas al construir** (además de las de la sección 8):
+
+1. **Las palabras del contrato no van en `knowledge.json`** (contra la decisión asumida 17): cambiar ese archivo cambia su huella, y con ella la app vuelve a calcular todas las identidades y vuelve a escribir todas las páginas de la base real. Van en un archivo propio, chico, con «caso» y «ficha»; se puede reemplazar desde la carpeta de datos (`docbase/operations-words.json`).
+2. **Un documento que se encuentra solo por su texto, no por el nombre de su archivo, nunca se toma solo:** aparece en «¿Cuál?» aunque sea uno, para que la persona lo elija.
+3. **El agente viejo queda solo para los mensajes con habilidades elegidas a mano.** Con habilidades en «automático», el chat con acciones no las ofrece; con Codex, no se usan.
+4. **«Seguir buscando» suma otra vez el tope del modo** (4, 8 o 12; hasta 24 por vez). Lo observado se guarda en memoria una hora (32 continuaciones como mucho); si no está, la pregunta se hace de nuevo con la conversación.
+5. **En la última vuelta se le dice al modelo que responda;** si no responde, el chat contesta con lo encontrado (los documentos y sus pasajes), no con un error.
+6. **Un modelo que contesta texto suelto:** la primera vez se le pide el bloque; la segunda, su texto es la respuesta. Dos bloques mal armados seguidos: el chat contesta con lo encontrado.
+7. **Una operación que no existe:** la primera vez se le dice al modelo cuáles hay; la segunda, el chat le dice a la persona que no se puede hacer desde el chat y, si se puede adivinar, dónde se hace.
+8. **Una propuesta sin nada que hacer** (todo «no encontrado» o «ya está») no deja tarjeta ni entrada en el registro: vuelve al modelo para que lo diga.
+9. **«Vuelta i de n» va en el mensaje, no en las instrucciones,** para que las instrucciones sean las mismas en todas las vueltas y su versión no cambie.
+10. **Volver a leer pide siempre la segunda confirmación,** porque tiene costo.
+11. **Cerrado y archivado en la búsqueda general:** siguen apareciendo, todavía sin la marca; las lecturas del chat sí dicen su estado.
+12. **Codex en el chat** usa el razonamiento y el tope de minutos que ya tiene el chat en Ajustes (por defecto, alto y 10 minutos por vuelta).
+
+**Falta, en el orden del plan:** el grupo de sociedades a mano (A9: hace falta que el recálculo pueda crear la ficha de un grupo que no tiene ninguna mención propia, y una versión de la base para el tipo de decisión `group`); generar desde una plantilla abriendo la pantalla completada (A10); leer en tandas (A11; leer por partes, pasajes por documento o caso, resumir lo observado más viejo y el tamaño por motor sí están); Core en el chat (A13 a A15).
