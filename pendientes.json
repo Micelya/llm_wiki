@@ -1172,7 +1172,7 @@
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "en-curso",
-      "detalle": "Salen con el retiro del wiki (D-400) porque trabajaban sobre los proyectos y los archivos del wiki. Rehacerlos sobre la base: qué expone la API y con qué permisos, y dónde guarda el recortador lo que se trae de la web (separado de lo que dicen los documentos, como la investigación, D-397). 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/. 22 oct: el recortador está hecho (D-450, D-451): la extensión «Micelya Clipper» y su servidor local guardan cada página como archivo markdown en «Recortes web» de la carpeta de trabajo, que es un origen de la base; Atención avisa de los recortes nuevos. Falta la prueba del dueño con el navegador. Queda pendiente la API local y el servidor MCP. 2026-10-22 (tarde): el dueño pidió restablecer un solo servidor dentro de la máquina para que otros programas (el recortador web, otros asistentes por MCP) usen toda la estructura actual de la base (D-487). El servidor propio del recortador (clip_server.rs, de la corrida del 21 oct, decidido sin consulta) se reemplaza por ese servidor único. Antes de construirlo, una propuesta de diseño: qué puede leer y qué puede hacer cada programa (decisión abierta 4 de servicios-de-ia-propuesta.md). 2026-10-22 (noche): el dueño decidió que entra en el producto mínimo si se puede (D-495). Primero la propuesta de diseño. 2026-10-22 (noche): se diseña junto con el chat, sobre el mismo contrato de operaciones (D-498). 2026-10-23: Como P-286 (D-500): el servidor único se construye sobre el documento del contrato de operaciones sin esperar la aprobación; el dueño lo revisa al día siguiente.",
+      "detalle": "Salen con el retiro del wiki (D-400) porque trabajaban sobre los proyectos y los archivos del wiki. Rehacerlos sobre la base: qué expone la API y con qué permisos, y dónde guarda el recortador lo que se trae de la web (separado de lo que dicen los documentos, como la investigación, D-397). 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/. 22 oct: el recortador está hecho (D-450, D-451): la extensión «Micelya Clipper» y su servidor local guardan cada página como archivo markdown en «Recortes web» de la carpeta de trabajo, que es un origen de la base; Atención avisa de los recortes nuevos. Falta la prueba del dueño con el navegador. Queda pendiente la API local y el servidor MCP. 2026-10-22 (tarde): el dueño pidió restablecer un solo servidor dentro de la máquina para que otros programas (el recortador web, otros asistentes por MCP) usen toda la estructura actual de la base (D-487). El servidor propio del recortador (clip_server.rs, de la corrida del 21 oct, decidido sin consulta) se reemplaza por ese servidor único. Antes de construirlo, una propuesta de diseño: qué puede leer y qué puede hacer cada programa (decisión abierta 4 de servicios-de-ia-propuesta.md). 2026-10-22 (noche): el dueño decidió que entra en el producto mínimo si se puede (D-495). Primero la propuesta de diseño. 2026-10-22 (noche): se diseña junto con el chat, sobre el mismo contrato de operaciones (D-498). 2026-10-23: Como P-286 (D-500): el servidor único se construye sobre el documento del contrato de operaciones sin esperar la aprobación; el dueño lo revisa al día siguiente. 2026-10-23: El documento del contrato está escrito (D-504): el servidor único usa 127.0.0.1:19827, la dirección del recortador, y se construye en la misma corrida después del chat con acciones.",
       "depende_de": [],
       "referencia": "D-400; D-450; D-451; docs/design/retiro-del-wiki.md; docs/design/servicios-de-ia-propuesta.md; src-tauri/src/clip_server.rs; extension/",
       "creado": "2026-10-21",
@@ -1695,7 +1695,7 @@
       "estado": "pendiente",
       "prioridad": 1,
       "tema": "chat",
-      "detalle": "Parte del producto mínimo (D-463). Que el chat pueda hacer, además de responder, acciones sobre la base que hoy se hacen desde las pantallas: unir documentos en un caso, sacar uno, crear la ficha de un grupo de sociedades (D-473), unir o separar fichas, entre otras. Cada acción se muestra antes de hacerse y la confirma la persona; queda registrada como cualquier decisión de una persona, firme y reversible (D-174). Antes de construirlo, una propuesta de diseño con la lista de acciones para que la apruebe el dueño. 2026-10-22 (noche): el dueño decidió (D-498) que el chat actúe sobre un contrato de operaciones, que también va a exponer la API local y el MCP (P-227); con Codex usa el mismo agente que los demás motores (después, lo mismo con Core); no propone acciones por su cuenta; doble registro; instrucciones en castellano armadas desde el contrato. Falta la propuesta del contrato (llm_wiki_mi/desatendido-8/p9-contrato-de-operaciones.md) y que el dueño confirme la idea de topes visibles y extensibles en lugar de fijos. 2026-10-23: El dueño decidió (D-500) que en la corrida desatendida no se espera su aprobación: el contrato de operaciones se escribe como documento de diseño con decisiones asumidas y el chat con acciones se construye enseguida; los topes del chat, como le parezca mejor al agente. Lo revisa al día siguiente.",
+      "detalle": "Parte del producto mínimo (D-463). Que el chat pueda hacer, además de responder, acciones sobre la base que hoy se hacen desde las pantallas: unir documentos en un caso, sacar uno, crear la ficha de un grupo de sociedades (D-473), unir o separar fichas, entre otras. Cada acción se muestra antes de hacerse y la confirma la persona; queda registrada como cualquier decisión de una persona, firme y reversible (D-174). Antes de construirlo, una propuesta de diseño con la lista de acciones para que la apruebe el dueño. 2026-10-22 (noche): el dueño decidió (D-498) que el chat actúe sobre un contrato de operaciones, que también va a exponer la API local y el MCP (P-227); con Codex usa el mismo agente que los demás motores (después, lo mismo con Core); no propone acciones por su cuenta; doble registro; instrucciones en castellano armadas desde el contrato. Falta la propuesta del contrato (llm_wiki_mi/desatendido-8/p9-contrato-de-operaciones.md) y que el dueño confirme la idea de topes visibles y extensibles en lugar de fijos. 2026-10-23: El dueño decidió (D-500) que en la corrida desatendida no se espera su aprobación: el contrato de operaciones se escribe como documento de diseño con decisiones asumidas y el chat con acciones se construye enseguida; los topes del chat, como le parezca mejor al agente. Lo revisa al día siguiente. 2026-10-23: El documento del contrato está escrito (docs/design/contrato-de-operaciones.md, D-504, commit 1fb962b); el paso del chat con acciones se construye sobre él en la misma corrida.",
       "depende_de": [],
       "referencia": "src-tauri/src/agent/base_tools.rs; D-413; D-473",
       "creado": "2026-10-22",
@@ -1914,10 +1914,74 @@
       "responsable": "claude",
       "estado": "en-espera",
       "prioridad": 2,
-      "tema": "core",
+      "tema": "servicios de IA",
       "detalle": "Decisión del dueño (23 oct, D-501): la app se autentica en Core con Keycloak y por cada persona, no con una cuenta del sistema (el usuario técnico de hoy, client_credentials, queda solo para desarrollo). Cada persona inicia sesión en el navegador del sistema y vuelve a la app (código de autorización con PKCE, sin secreto dentro del programa), la renovación queda en el llavero, se puede cerrar la sesión, y las lecturas y preguntas a Core quedan a nombre de quien las pidió. No entra en la corrida del 22-23 oct. Cuando llegue el momento se definen con el dueño y con Core los detalles, entre ellos cómo se crean los usuarios del estudio de referencia en su organización de Keycloak. Espera que Core especifique el cliente de escritorio (Core P-177 y Core P-178; pedido 001-R2). El mensaje 002 (002-R2) pidió para el piloto un usuario técnico: hay que corregirlo con Core. 2026-10-23: Aclaración del dueño, para definir cuando se aborde el tema (probablemente el 23 oct): hay que resolver cómo se autentica y cómo trabaja la persona sin conexión. Sin conexión no puede consultar a Core, pero puede usar todo lo que funciona sin conexión. Keycloak va a emitir tokens que duran 90 días: quizás se puedan reusar sin conexión para saber quién es la persona. A definir: qué se exige al abrir la app sin conexión, qué pasa cuando vence o se revoca el token, y cómo se marca lo que se hizo sin conexión.",
       "depende_de": [],
       "referencia": "D-501; docs/design/servicios-de-ia-propuesta.md (Autenticación); docs/dropbox/core/2026-10-21-001 (001-R2) y 2026-10-22-002 (002-R2); src-tauri/src/micelya_core/",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-303",
+      "titulo": "Puente MCP por línea de comandos para asistentes que no aceptan MCP por HTTP",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "API local",
+      "detalle": "El servidor único expone el MCP por HTTP con token (D-504). Claude Code lo acepta; Codex y Claude Desktop hay que probarlos. Si alguno solo acepta MCP por línea de comandos, un puente chico que reenvíe al servidor único.",
+      "depende_de": [
+        "P-227"
+      ],
+      "referencia": "docs/design/contrato-de-operaciones.md; D-504",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-304",
+      "titulo": "Acciones del chat también con el motor de Claude Code",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "chat",
+      "detalle": "El contrato de operaciones deja a Claude Code sin acciones por ahora (D-504): hoy el chat con acciones funciona con Codex y con los proveedores con API. Sumar Claude Code sobre la misma lista.",
+      "depende_de": [
+        "P-286"
+      ],
+      "referencia": "docs/design/contrato-de-operaciones.md; D-504",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-305",
+      "titulo": "Que el recortador web deje elegir el caso del recorte",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "Micelya Clipper",
+      "detalle": "Hoy el recorte se guarda en «Recortes web» de la carpeta de trabajo sin caso. Con el servidor único (D-504), la extensión podría ofrecer elegir el caso al guardar.",
+      "depende_de": [
+        "P-227"
+      ],
+      "referencia": "extension/; D-504",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-306",
+      "titulo": "Pasar los botones de las pantallas por la lista de operaciones",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "chat",
+      "detalle": "D-498 pide que en lo posible los botones de las pantallas usen el mismo contrato de operaciones que el chat, la API local y el MCP. El producto mínimo solo lo hace para las operaciones nuevas; quedan los botones existentes.",
+      "depende_de": [
+        "P-286"
+      ],
+      "referencia": "docs/design/contrato-de-operaciones.md; D-498; D-504",
       "creado": "2026-10-23",
       "actualizado": "2026-10-23"
     }
