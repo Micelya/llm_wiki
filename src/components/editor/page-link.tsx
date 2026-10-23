@@ -5,7 +5,7 @@ import { CLOSED, linkPress, pressPointer, previewChange, type PreviewState } fro
 import { openPageObject, openWikiPath } from "@/lib/open-wiki-path"
 import { usePreviewCardsStore } from "@/stores/preview-cards-store"
 
-const LINK_CLASS = "cursor-pointer text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
+const LINK_CLASS = "cursor-pointer text-link underline decoration-[var(--link-line)] underline-offset-[3px] hover:decoration-link"
 
 /** The name a link (`#name`) gives what it opens. */
 function referenceOf(href: string): string {
@@ -114,15 +114,15 @@ export function LinkCard({ reference, onOpen }: { reference: string; onOpen: (pr
         </div>
       ) : preview ? (
         <>
-          <p className="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">{preview.typeLabel}</p>
-          <p className="truncate font-semibold text-foreground">{preview.title}</p>
-          <p className="line-clamp-3 flex-1 text-xs leading-relaxed text-muted-foreground">
+          <p className="font-ui text-[0.6875rem] font-bold tracking-[0.08em] text-muted-foreground uppercase">{preview.typeLabel}</p>
+          <p className="truncate font-ui text-[0.9375rem] font-bold text-strong">{preview.title}</p>
+          <p className="line-clamp-3 flex-1 text-[0.8125rem] leading-relaxed text-muted-foreground">
             {preview.summary ?? "Sin resumen todavía: lo que dicen los documentos está en su página."}
           </p>
           <button
             type="button"
             onClick={() => onOpen(preview)}
-            className="self-start rounded-sm text-xs font-medium text-primary hover:underline focus-visible:outline-2 focus-visible:outline-primary"
+            className="self-start rounded-sm font-ui text-[0.8125rem] font-bold text-link hover:underline focus-visible:outline-2 focus-visible:outline-ring"
           >
             Abrir
           </button>

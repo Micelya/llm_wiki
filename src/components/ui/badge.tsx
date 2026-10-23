@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { CircleAlert, CircleCheck, Info, TriangleAlert, type LucideIcon } from "lucide-react"
+import { Check, CircleAlert, CircleCheck, Info, TriangleAlert, type LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 /**
@@ -74,6 +74,41 @@ export function Badge({
       )}
     >
       {Icon && <Icon className={cn("size-3.5 shrink-0", spin && "animate-spin")} strokeWidth={2.2} aria-hidden />}
+      {children}
+    </span>
+  )
+}
+
+/**
+ * A mark inside a text, smaller than a badge: «sin confirmar» in amber and
+ * dashed (`doubt`), so a doubtful datum never reads as a firm one; data in
+ * which the documents differ in amber (`differ`); a person's word in the
+ * brand's soft magenta with a check (`person`). Its `title` says why.
+ */
+export function TextMark({
+  tone,
+  title,
+  className,
+  children,
+}: {
+  tone: "doubt" | "differ" | "person"
+  title?: string
+  className?: string
+  children: ReactNode
+}) {
+  return (
+    <span
+      title={title}
+      data-mark={tone}
+      className={cn(
+        "mx-0.5 inline-flex h-[18px] items-center gap-[3px] rounded px-1.5 align-[1px] font-ui text-[11.5px] leading-none font-bold tracking-[0.01em] whitespace-nowrap",
+        tone === "doubt" && "border border-dashed border-warn-line bg-warn-bg text-warn",
+        tone === "differ" && "border border-warn-line bg-warn-bg text-warn",
+        tone === "person" && "bg-brand-soft text-brand-ink",
+        className,
+      )}
+    >
+      {tone === "person" && <Check className="size-3 shrink-0" strokeWidth={2.4} aria-hidden />}
       {children}
     </span>
   )

@@ -181,7 +181,7 @@ describe("the screen of a document", () => {
     expect(shown).toContain("Inmobiliaria Ficticia SA")
     expect(shown).toContain("Caso de prueba")
     expect(shown).toContain("Agregar a un caso")
-    expect(shown).toContain("Ubicaciones (1)")
+    expect(shown).toContain("Ubicaciones 1")
     expect(shown).toContain("Contratos/Locación de ejemplo.pdf")
     expect(shown).toContain("Texto")
     expect(shown).toContain("El locador inventado alquila un local inventado.")
@@ -189,7 +189,7 @@ describe("the screen of a document", () => {
     expect(shown).toContain("Notas")
     expect(shown).not.toContain("El plazo es de dos años.")
     // The whole text goes last: after the places.
-    expect(shown.indexOf("El locador inventado")).toBeGreaterThan(shown.indexOf("Ubicaciones (1)"))
+    expect(shown.indexOf("El locador inventado")).toBeGreaterThan(shown.indexOf("Ubicaciones 1"))
   })
 
   it("opens on «Datos y correcciones» when it has no article, and the article tab says so", () => {
@@ -326,7 +326,7 @@ describe("the screen of a matter", () => {
     expect(selectedTab(html)).toBe("Datos y correcciones 2")
     expect(shown).toContain("Confirmar")
     expect(shown).toContain("Descartar")
-    expect(shown).toContain("Documentos (1)")
+    expect(shown).toContain("Documentos 1")
     expect(shown).toContain("Carta documento de prueba.pdf")
     expect(shown).toContain("Agregar documentos")
     expect(shown).toContain("Posiblemente de este caso")
@@ -413,6 +413,42 @@ describe("the screen of a person or organization, on the same tabs", () => {
     // The quote shows when the number is touched, not before.
     expect(shown).not.toContain("con domicilio en Calle Inventada 100")
     expect(shown).not.toContain("[^1]")
+  })
+
+  it("lays its article out as a page of an encyclopedia (D-493): where you are, its documents in a table, the doubtful marked, an index", () => {
+    base.answers["page-words"] = {
+      ...PAGE_WORDS,
+      says: "Lo que dicen los documentos",
+      documents: "Documentos",
+      conflicts: "Datos en los que los documentos difieren",
+      certainDoubtful: "sin confirmar",
+      proposed: "propuesto",
+    }
+    base.answers.entity = { ...entity, identifiers: [{ kind: "cuit", value: "30-00000000-0", documents: 2 }] }
+    base.answers.article = article(
+      "ent-1",
+      [
+        "---\ntype: entity\n---\n\n# Ficticia SA\n\n*Organización* · CUIT 30-00000000-0 (2 documentos)\n",
+        "## Lo que dicen los documentos\n\nTiene un local inventado *(sin confirmar)*.\n",
+        "**Datos en los que los documentos difieren**\n\n- Domicilio: «Calle 1» · «Calle 2»\n",
+        "## Documentos (1)\n\n- [[contrato-de-prueba|Contrato de prueba]] — parte · contrato\n",
+      ].join("\n"),
+    )
+    const html = renderToStaticMarkup(<EntityDetailView id="ent-1" onBack={() => {}} />)
+    const shown = text(html)
+    expect(html).toMatch(/<nav aria-label="Dónde estás"[^>]*>.*Personas y organizaciones.*Ficticia SA/)
+    expect(shown).toContain("Organización Ficticia SA")
+    expect(html).toContain('data-mark="doubt"')
+    expect(html).toContain('data-tone="warn"')
+    expect(shown).toContain("«Calle 1» o «Calle 2»")
+    expect(html).toMatch(/<th[^>]*>Su papel<\/th>/)
+    expect(html).toContain('href="#contrato-de-prueba"')
+    expect(html).toContain('data-infobox=""')
+    expect(shown).toContain("30-00000000-0")
+    expect(html).toContain('aria-label="En esta página"')
+    // The text of the page is not shown as written: its marks are the screen's.
+    expect(shown).not.toContain("*(sin confirmar)*")
+    expect(shown).not.toContain("**Datos")
   })
 
   it("keeps its data in «Datos y correcciones», now with the notes at the foot too", () => {

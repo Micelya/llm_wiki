@@ -31,7 +31,7 @@ const STATUS_WORDS: Record<ResearchTask["status"], string> = {
  * change; it is kept in the base with its sources, apart from what the
  * documents say.
  */
-export function ResearchSection({ objectId, name }: { objectId: string; name: string }) {
+export function ResearchSection({ objectId, name, id }: { objectId: string; name: string; id?: string }) {
   const researches = useDocbaseQuery(`research:${objectId}`, () => listResearchOf(objectId))
   const tasks = useResearchStore((s) => s.tasks)
   const llmConfig = useWikiStore((s) => s.llmConfig)
@@ -58,6 +58,7 @@ export function ResearchSection({ objectId, name }: { objectId: string; name: st
 
   return (
     <Section
+      id={id}
       title="Investigación en internet"
       action={
         topic === null && (
@@ -67,11 +68,11 @@ export function ResearchSection({ objectId, name }: { objectId: string; name: st
         )
       }
     >
-      <p className="mb-3 text-xs text-muted-foreground">
+      <p className="mb-2.5 text-[0.84375rem] text-muted-foreground">
         Lo que se encontró en internet sobre {name}. No sale de los documentos y no cambia lo que dicen.
       </p>
       {topic !== null && (
-        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border p-2">
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-[10px] border bg-card p-2">
           <input
             autoFocus
             value={topic}
@@ -80,7 +81,7 @@ export function ResearchSection({ objectId, name }: { objectId: string; name: st
               if (event.key === "Enter") void start()
               if (event.key === "Escape") setTopic(null)
             }}
-            className="min-w-[16rem] flex-1 rounded border bg-background px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-ring"
+            className="h-8 min-w-[16rem] flex-1 rounded-lg border border-border-strong bg-card px-3 text-sm outline-none focus:border-link focus:ring-3 focus:ring-ring/30"
             placeholder="Qué investigar"
           />
           <Button size="sm" disabled={!topic.trim()} onClick={() => void start()}>
@@ -98,7 +99,7 @@ export function ResearchSection({ objectId, name }: { objectId: string; name: st
         </p>
       ))}
       {failed.map((task) => (
-        <p key={task.id} className="mb-1 text-sm text-destructive">
+        <p key={task.id} className="mb-1 text-sm text-err">
           {task.topic}: {task.error ?? STATUS_WORDS.error}
         </p>
       ))}
@@ -164,22 +165,22 @@ export function ResearchItem({
   }
 
   return (
-    <div className={`rounded-md border ${compact ? "text-xs" : "text-sm"}`}>
+    <div className={`rounded-[10px] border bg-card ${compact ? "text-xs" : "text-sm"}`}>
       <div className="flex items-center gap-2 px-3 py-2">
         <button type="button" className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={() => setOpen(!open)}>
           {open ? <ChevronDown className="size-3.5 shrink-0" /> : <ChevronRight className="size-3.5 shrink-0" />}
-          <span className="truncate font-medium">{research.topic}</span>
+          <span className="truncate font-ui font-bold text-strong">{research.topic}</span>
           <span className="shrink-0 text-xs text-muted-foreground">
             {formatAgo(research.createdAt)} · {research.sources.length} {research.sources.length === 1 ? "fuente" : "fuentes"}
           </span>
         </button>
-        <button type="button" title="Borrar" className="shrink-0 rounded p-1 text-muted-foreground hover:text-destructive" onClick={() => void remove()}>
+        <button type="button" title="Borrar" className="shrink-0 rounded p-1 text-muted-foreground hover:bg-err-bg hover:text-err" onClick={() => void remove()}>
           <Trash2 className="size-3.5" />
         </button>
       </div>
       {open && (
         <div className="border-t px-3 py-2">
-          <WikiReader body={research.body} />
+          <WikiReader body={research.body} compact />
           {research.sources.length > 0 && (
             <ol className="mt-3 flex flex-col gap-1 border-t pt-2 text-xs">
               {research.sources.map((source) => (
@@ -188,7 +189,7 @@ export function ResearchItem({
                   <Globe2 className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
                   <button
                     type="button"
-                    className="min-w-0 truncate text-left text-primary hover:underline"
+                    className="min-w-0 truncate text-left text-link hover:underline"
                     title={source.url}
                     onClick={() => void openUrl(source.url).catch(() => {})}
                   >

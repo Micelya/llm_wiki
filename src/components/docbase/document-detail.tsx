@@ -22,9 +22,12 @@ import { GeneratedNotice } from "./template-generate-view"
 import { useOpenTemplate } from "./template-panel"
 import { useDocbaseQuery, type DocbaseQuery } from "./use-docbase-query"
 import { DocumentEntitiesSection } from "@/components/knowledge/document-entities"
-import { ArticleText, usePageWords } from "@/components/knowledge/article-text"
-import { DetailTabs, NoArticle, useDetailTab, type DetailTab } from "@/components/knowledge/detail-tabs"
+import { usePageWords } from "@/components/knowledge/article-text"
+import { ArticleBody, indexOf, useArticle, type ArticleModel } from "@/components/knowledge/article-page"
+import { DetailTabs, DetailTitle, NoArticle, useDetailTab, type DetailTab } from "@/components/knowledge/detail-tabs"
 import { articleBody, withoutEntityBlock, withoutListSection } from "@/components/knowledge/knowledge"
+import { InfoBox, InfoHeading, InfoRow, InfoRows, PageAside, PageIndex } from "@/components/knowledge/page-aside"
+import { Section } from "@/components/knowledge/shared"
 import { engineName, withoutRecognitionMarkers } from "@/lib/text-recognition"
 import { askChatAbout, chatDocumentOf } from "@/lib/chat-documents"
 
@@ -77,6 +80,11 @@ function DocumentScreen({
   const withoutArticle = document !== null && (contentId === null || (!article.loading && !page))
   const [tab, setTab] = useDetailTab(withoutArticle, initialTab)
   const openTemplate = useOpenTemplate()
+  const pageWord = usePageWords()
+  // Its article without what «Datos y correcciones» shows in its own sections (where it is, whom it names).
+  const shownBody = page ? withoutEntityBlock(articleBody(page.body)) : null
+  const model = useArticle(shownBody === null ? null : pageWord ? withoutListSection(shownBody, pageWord("docLocations")) : shownBody)
+  const index = indexOf(model, page ? [{ id: "notas", label: "Notas" }] : [])
 
   async function handleOpen(id: number, reveal: boolean) {
     setProblem(null)
@@ -91,13 +99,16 @@ function DocumentScreen({
     <DetailTabs
       back="Documentos"
       onBack={onBack}
+      current={page?.title || document?.name || "Documento"}
+      kicker="Documento"
       // Its article's title, readable (P-182); the name of its file stays in
       // its data, at the head of the fact box.
-      title={<h1 className="font-serif text-2xl break-words">{page?.title || document?.name || "Documento"}</h1>}
+      title={<DetailTitle>{page?.title || document?.name || "Documento"}</DetailTitle>}
+      facts={document?.docTypeName ? <span className="first-letter:uppercase">{document.docTypeName}</span> : null}
       actions={
         document ? (
           <>
-            <Button variant="outline" onClick={() => handleOpen(document.locationId, false)}>
+            <Button variant="secondary" onClick={() => handleOpen(document.locationId, false)}>
               <ExternalLink /> Abrir el original
             </Button>
             <Button variant="outline" onClick={() => handleOpen(document.locationId, true)}>
@@ -138,54 +149,45 @@ function DocumentScreen({
           <DocumentArticle
             document={document}
             article={page}
+            model={model}
             loading={article.loading}
             onShowData={() => setTab("data")}
           />
         ) : null
       }
-      data={
-        document ? (
-          <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
-            <main className="min-w-0">
-              {document.contentId === null ? (
-                <>
-                  <DocumentText document={document} />
-                  <Section title={`Ubicaciones (${document.locations.length || 1})`}>
-                    <Locations document={document} onOpen={handleOpen} />
-                  </Section>
-                </>
-              ) : (
-                <>
-                  {/* A scan first: what it needs is a person's action. */}
-                  <DocumentRecognition document={document} />
-                  <DocumentEntitiesSection locationId={document.locationId} />
-                  <Section title={`Ubicaciones (${document.locations.length || 1})`}>
-                    <Locations document={document} onOpen={handleOpen} />
-                  </Section>
-                  <SimilarDocuments locationId={document.locationId} name={document.name} onProblem={setProblem} />
-                  {/* The whole text last: it is the longest. */}
-                  <Section title="Texto">
-                    <DocumentText document={document} />
-                  </Section>
-                </>
-              )}
-            </main>
-            <aside>
-              <FactBox document={document} onChanged={detail.reload} onProblem={setProblem} />
-            </aside>
-          </div>
+      articleAside={
+        page && index.length > 1 ? (
+          <PageAside index={<PageIndex entries={index} jump={{ label: "Datos y correcciones", onClick: () => setTab("data") }} />} />
         ) : null
       }
+      data={
+        document ? (
+          document.contentId === null ? (
+            <>
+              <DocumentText document={document} />
+              <Section title="Ubicaciones" count={document.locations.length || 1}>
+                <Locations document={document} onOpen={handleOpen} />
+              </Section>
+            </>
+          ) : (
+            <>
+              {/* A scan first: what it needs is a person's action. */}
+              <DocumentRecognition document={document} />
+              <DocumentEntitiesSection locationId={document.locationId} />
+              <Section title="Ubicaciones" count={document.locations.length || 1}>
+                <Locations document={document} onOpen={handleOpen} />
+              </Section>
+              <SimilarDocuments locationId={document.locationId} name={document.name} onProblem={setProblem} />
+              {/* The whole text last: it is the longest. */}
+              <Section title="Texto">
+                <DocumentText document={document} />
+              </Section>
+            </>
+          )
+        ) : null
+      }
+      dataAside={document ? <PageAside box={<FactBox document={document} onChanged={detail.reload} onProblem={setProblem} />} /> : null}
     />
-  )
-}
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="mt-8 first:mt-0">
-      <h2 className="border-b pb-1 font-serif text-xl">{title}</h2>
-      <div className="mt-3">{children}</div>
-    </section>
   )
 }
 
@@ -193,8 +195,8 @@ function DocumentText({ document }: { document: DocumentDetail }) {
   const info = DOCUMENT_STATES[document.state] ?? DOCUMENT_STATES.unread
   if (!document.text) {
     return (
-      <div className="rounded-md border border-dashed px-4 py-6 text-sm text-muted-foreground">
-        <p className="font-medium text-foreground">{info.label}</p>
+      <div className="rounded-[10px] border border-dashed border-border-strong px-4 py-6 text-sm text-muted-foreground">
+        <p className="font-ui font-bold text-strong">{info.label}</p>
         <p className="mt-1">{info.hint}</p>
         {document.error && <p className="mt-2 font-mono text-xs break-words">{document.error}</p>}
       </div>
@@ -206,11 +208,11 @@ function DocumentText({ document }: { document: DocumentDetail }) {
   return (
     <div>
       {document.state === "needs-recognition" && (
-        <p className="mb-3 rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">
+        <p className="mb-3 rounded-[10px] border border-dashed border-border-strong px-3 py-2 text-sm text-muted-foreground">
           Parte de este documento es imagen: lo que sigue es solo el texto que se pudo extraer sin reconocerlo.
         </p>
       )}
-      <div className="font-serif text-[15px] leading-relaxed break-words whitespace-pre-wrap">
+      <div className="rounded-[10px] border bg-card px-5 py-4 text-[0.9375rem] leading-relaxed break-words whitespace-pre-wrap">
         {cut ? shown.slice(0, SHOWN_TEXT_LIMIT) : shown}
       </div>
       {cut && (
@@ -246,18 +248,18 @@ function Locations({
           },
         ]
   return (
-    <ul className="flex flex-col divide-y rounded-md border">
+    <ul className="flex flex-col divide-y rounded-[10px] border bg-card">
       {locations.map((location) => {
         const current = location.locationId === document.locationId
         return (
-          <li key={location.locationId} className="flex items-center justify-between gap-3 px-3 py-2">
+          <li key={location.locationId} className="flex items-center justify-between gap-3 px-3.5 py-2">
             <div className="min-w-0 text-sm">
               <div className="break-words">
                 {current ? (
                   <span className="font-medium">{location.relPath}</span>
                 ) : (
                   <button
-                    className="text-left text-primary hover:underline"
+                    className="text-left text-link hover:underline"
                     onClick={() => openDocument(location.locationId)}
                   >
                     {location.relPath}
@@ -296,15 +298,16 @@ function Locations({
 function DocumentArticle({
   document,
   article,
+  model,
   loading,
   onShowData,
 }: {
   document: DocumentDetail
   article: KnowledgeArticle | null
+  model: ArticleModel | null
   loading: boolean
   onShowData: () => void
 }) {
-  const pageWord = usePageWords()
   if (document.contentId !== null && loading && !article) return null
   if (!article) {
     return (
@@ -315,11 +318,10 @@ function DocumentArticle({
       </NoArticle>
     )
   }
-  if (!pageWord) return null
-  const body = withoutEntityBlock(articleBody(article.body))
+  if (!model) return null
   return (
     <article>
-      <ArticleText body={withoutListSection(body, pageWord("docLocations"))} writtenAt={article.writtenAt} />
+      <ArticleBody model={model} withRoles={false} onShowData={onShowData} writtenAt={article.writtenAt} />
     </article>
   )
 }
@@ -334,8 +336,7 @@ function FactBox({
   onProblem: (problem: string | null) => void
 }) {
   return (
-    <div className="rounded-md border bg-muted/30 text-sm">
-      <div className="border-b bg-muted px-3 py-2 text-center font-semibold break-words">{document.name}</div>
+    <InfoBox kind="Archivo" name={document.name}>
       <FactRows>
         <Fact label="Estado">
           <DocumentStateBadge state={document.state} />
@@ -355,7 +356,7 @@ function FactBox({
         />
       )}
       <FactHeading>Etiquetas</FactHeading>
-      <div className="flex flex-col gap-2 px-3 py-2">
+      <div className="flex flex-col gap-2 px-4 py-2.5">
         <div className="flex flex-wrap gap-1">
           {document.labels.length === 0 && <span className="text-xs text-muted-foreground">Sin etiquetas</span>}
           {document.labels.map((label) => (
@@ -399,20 +400,16 @@ function FactBox({
           </Fact>
         )}
       </FactRows>
-    </div>
+    </InfoBox>
   )
 }
 
 function FactHeading({ children }: { children: ReactNode }) {
-  return (
-    <div className="border-y bg-muted/60 px-3 py-1 text-center text-xs font-semibold text-muted-foreground">
-      {children}
-    </div>
-  )
+  return <InfoHeading>{children}</InfoHeading>
 }
 
 function FactRows({ children }: { children: ReactNode }) {
-  return <dl className="divide-y">{children}</dl>
+  return <InfoRows>{children}</InfoRows>
 }
 
 /** The whole fingerprint, selectable, with a button that copies it. */
@@ -432,7 +429,7 @@ function HashValue({ hash }: { hash: string }) {
       <span className="font-mono text-xs break-all select-all">{hash}</span>
       <button
         type="button"
-        className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+        className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-hover hover:text-strong"
         title={copied ? "Copiada" : "Copiar la huella"}
         aria-label="Copiar la huella"
         onClick={copy}
@@ -444,10 +441,5 @@ function HashValue({ hash }: { hash: string }) {
 }
 
 function Fact({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="grid grid-cols-[38%_minmax(0,1fr)] gap-2 px-3 py-1.5">
-      <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 break-words">{children}</dd>
-    </div>
-  )
+  return <InfoRow label={label}>{children}</InfoRow>
 }

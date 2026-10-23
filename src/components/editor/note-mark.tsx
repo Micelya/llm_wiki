@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useContext, useEffect, useMemo, useRef, useState } from "react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { PreviewCard, PreviewCardContent, PreviewCardTrigger } from "@/components/ui/preview-card"
@@ -7,6 +7,9 @@ import { CLOSED, notePress, pressPointer, previewChange, type PreviewState } fro
 import { hideHtmlComments, transformWikilinks } from "@/lib/wikilink-transform"
 import { openWikiPath } from "@/lib/open-wiki-path"
 import { usePreviewCardsStore } from "@/stores/preview-cards-store"
+import { TextMark } from "@/components/ui/badge"
+import { certaintyMark } from "@/components/knowledge/article-parts"
+import { MarksContext, plainText } from "./marks"
 
 const FOCUSABLE = "a[href], button:not([disabled])"
 
@@ -22,6 +25,7 @@ const FOCUSABLE = "a[href], button:not([disabled])"
  */
 export function NoteMark({ label, note }: { label: string; note: string }) {
   const enabled = usePreviewCardsStore((s) => s.enabled)
+  const marks = useContext(MarksContext)
   const [state, setState] = useState<PreviewState>(CLOSED)
   const shown = useMemo(() => transformWikilinks(hideHtmlComments(note)), [note])
   const source = useMemo(() => firstWikilink(note), [note])
@@ -107,7 +111,7 @@ export function NoteMark({ label, note }: { label: string; note: string }) {
           focusCard.current = outcome.focusCard
           setState(outcome.state)
         }}
-        className="mx-px cursor-pointer align-super text-[0.7em] font-medium leading-none text-primary hover:underline focus-visible:outline-2 focus-visible:outline-primary"
+        className="mx-px cursor-pointer rounded-[3px] px-px align-super font-ui text-[0.68em] leading-none font-bold text-link hover:underline focus-visible:outline-2 focus-visible:outline-ring aria-expanded:bg-brand-soft"
       >
         [{label}]
       </PreviewCardTrigger>
@@ -120,18 +124,29 @@ export function NoteMark({ label, note }: { label: string; note: string }) {
           className="outline-none"
           onKeyDown={leaveWithTab}
         >
-          <div className="max-h-60 overflow-y-auto px-3 pt-3 pb-2">
+          <div className="max-h-60 overflow-y-auto px-3.5 pt-3 pb-2.5 text-sm leading-relaxed">
+            <p className="mb-1 font-ui text-[0.6875rem] font-bold tracking-[0.08em] text-muted-foreground uppercase">Nota {label}</p>
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={{
                 p: ({ children }) => <p className="my-0">{children}</p>,
+                em: ({ children }) => {
+                  const said = marks ? plainText(children) : null
+                  const mark = said !== null && marks ? certaintyMark(said, marks) : null
+                  if (!mark) return <em>{children}</em>
+                  return (
+                    <TextMark tone={mark.tone} title={mark.why ?? undefined}>
+                      {mark.why ? `${mark.label}: ${mark.why}` : mark.label}
+                    </TextMark>
+                  )
+                },
                 a: ({ href, children }) => {
                   const target = typeof href === "string" ? href : ""
                   return (
                     <a
                       href={target || undefined}
                       onClick={(event) => follow(event, target)}
-                      className="cursor-pointer text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
+                      className="cursor-pointer text-link underline decoration-[var(--link-line)] underline-offset-[3px] hover:decoration-link"
                     >
                       {children}
                     </a>
@@ -143,12 +158,12 @@ export function NoteMark({ label, note }: { label: string; note: string }) {
             </ReactMarkdown>
           </div>
           {source && (
-            <div className="border-t px-3 py-2">
+            <div className="border-t px-3.5 py-2">
               <button
                 type="button"
                 data-card-open=""
                 onClick={() => open(source.target)}
-                className="max-w-full truncate rounded-sm text-start text-xs font-medium text-primary hover:underline focus-visible:outline-2 focus-visible:outline-primary"
+                className="max-w-full truncate rounded-sm text-start font-ui text-[0.8125rem] font-bold text-link hover:underline focus-visible:outline-2 focus-visible:outline-ring"
               >
                 Abrir el documento: {source.name}
               </button>

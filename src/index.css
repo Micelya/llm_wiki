@@ -359,6 +359,28 @@
     }
 }
 
+/* The text of an article, a research or a saved answer (WikiReader): Inter
+   at 16 px with a wide line, as the mockup reads (D-493); 14 px in a panel.
+   In the components layer, so a class on an element still wins. */
+@layer components {
+  .reading { font-size: 1rem; line-height: 1.7; color: var(--foreground); }
+  .reading.reading-compact { font-size: 0.875rem; line-height: 1.6; }
+  .reading p { margin: 0 0 0.875rem; }
+  .reading > :last-child { margin-bottom: 0; }
+  .reading ul, .reading ol { margin: 0 0 0.875rem; padding-inline-start: 1.25rem; }
+  .reading ul { list-style: disc; }
+  .reading ol { list-style: decimal; }
+  .reading li { margin: 0.25rem 0; }
+  .reading li::marker { color: var(--border-strong); }
+  .reading li > ul, .reading li > ol { margin: 0.25rem 0 0; }
+  .reading strong { font-weight: 600; color: var(--text-strong); }
+  .reading blockquote { margin: 0 0 0.875rem; border-inline-start: 3px solid var(--border-strong); padding: 0.125rem 0 0.125rem 0.875rem; color: var(--muted-foreground); }
+  .reading hr { margin: 1.5rem 0; border-color: var(--border); }
+  .reading code { font-size: 0.875em; background: var(--muted); padding: 0.1em 0.3em; border-radius: 4px; }
+  .reading pre { margin: 0 0 0.875rem; overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-sub); padding: 0.75rem 1rem; font-size: 0.875rem; }
+  .reading pre code { background: none; padding: 0; }
+}
+
 /* Legend scrollbar - left side */
 .legend-scroll {
   scrollbar-width: thin;

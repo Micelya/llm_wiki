@@ -12,7 +12,7 @@ import { Section, useAction } from "./shared"
  * writes, which no pass of the app changes. Saved when the person says
  * so; the same on the three screens. Empty, they go.
  */
-export function NotesEditor({ objectId }: { objectId: string }) {
+export function NotesEditor({ objectId, id = "notas" }: { objectId: string; id?: string }) {
   const notes = useDocbaseQuery(`notes:${objectId}`, () => getKnowledgeNotes(objectId))
   const action = useAction()
   // What the person is writing, while it differs from what is saved; the
@@ -31,7 +31,7 @@ export function NotesEditor({ objectId }: { objectId: string }) {
   }
 
   return (
-    <Section title="Notas">
+    <Section id={id} title="Notas">
       {(notes.error || action.problem) && (
         <div className="mb-2">
           <ErrorNote>{notes.error ?? action.problem}</ErrorNote>
@@ -39,13 +39,13 @@ export function NotesEditor({ objectId }: { objectId: string }) {
       )}
       <textarea
         aria-label="Notas"
-        className="min-h-28 w-full rounded-md border bg-background px-3 py-2 text-sm leading-relaxed placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        className="min-h-28 w-full rounded-[10px] border border-border-strong bg-card px-3.5 py-3 text-[0.9375rem] leading-relaxed placeholder:text-muted-foreground focus:border-link focus:ring-3 focus:ring-ring/30 focus:outline-none"
         value={draft ?? saved}
         placeholder="Lo que sabés y los documentos no dicen. La app no lo cambia."
         disabled={notes.loading && !notes.data}
         onChange={(event) => setDraft(event.target.value)}
       />
-      <div className="mt-2 flex items-center gap-2">
+      <div className="mt-2.5 flex items-center gap-2.5">
         <Button size="sm" disabled={!changed || action.busy} onClick={save}>
           Guardar
         </Button>
@@ -54,7 +54,7 @@ export function NotesEditor({ objectId }: { objectId: string }) {
             Descartar los cambios
           </Button>
         )}
-        <span className="text-xs text-muted-foreground">
+        <span className="text-[0.8125rem] text-muted-foreground">
           {changed ? "Sin guardar" : notes.data ? `Guardadas ${formatAgo(notes.data.updatedAt)}` : ""}
         </span>
       </div>

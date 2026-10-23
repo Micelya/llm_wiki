@@ -1,7 +1,10 @@
-import { useEffect, useState, type ReactNode } from "react"
+import { Fragment, useEffect, useState, type ReactNode } from "react"
 import { Link2, Undo2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { TextMark } from "@/components/ui/badge"
+import { Callout } from "@/components/ui/callout"
 import { Input } from "@/components/ui/input"
+import { MoreButton, Table, Td, useFirstRows } from "@/components/ui/table"
 import {
   decideIdentity,
   getEntity,
@@ -20,20 +23,27 @@ import { entityTypeName, identifierName, predicateName, roleName, vocabulary } f
 import { EmptyNote, ErrorNote, StatusBadge } from "@/components/docbase/page"
 import { formatDate, plural } from "@/components/docbase/format"
 import { useDocbaseQuery } from "@/components/docbase/use-docbase-query"
-import { ArticleText } from "./article-text"
-import { DetailTabs, NoArticle, useDetailTab, type DetailTab } from "./detail-tabs"
+import { ArticleBody, DocumentIcon, indexOf, useArticle, type ArticleModel } from "./article-page"
+import { DetailTabs, DetailTitle, NoArticle, useDetailTab, type DetailTab } from "./detail-tabs"
 import { articleBody, certaintyInWords, decisionInWords, documentsByMatter, resolvedByName, reviewInWords, rolesInWords } from "./knowledge"
+import { InfoBox, InfoHeading, InfoPending, InfoRow, InfoRows, PageAside, PageIndex, TextLink } from "./page-aside"
 import { ResearchSection } from "./research-section"
 import { Quote, Section, useAction, useOpenDocument, useOpenMatter } from "./shared"
 
+/** How many data, documents and their mentions a list shows before «Ver…». */
+const FIRST_CLAIMS = 6
+const FIRST_DOCUMENTS = 4
+
 /**
- * The one page of a person or organization (D-376, D-389): the article
- * on top (what the documents say of it, with quotes and how sure each
- * thing is, its documents by matter, who else it is linked to), written
- * in the base by the projection from the record and the synthesis it
- * keeps, without asking the model, with its research on internet; and in
- * a tab its data and corrections: how the documents write it, its
- * identifiers, every claim and mention with what a person can do about
+ * The one page of a person or organization (D-376, D-389), as a page of an
+ * encyclopedia (D-493): the article on top (what the documents say of it,
+ * with quotes and how sure each thing is, its documents by matter, who
+ * else it is linked to), written in the base by the projection from the
+ * record and the synthesis it keeps, without asking the model, with its
+ * research on internet, and at its right a fact box with its identifiers
+ * and data, its matters and what waits for a decision, and the index of
+ * the page; in a tab its data and corrections: how the documents write it,
+ * its identifiers, every claim and mention with what a person can do about
  * it, and the decisions, to undo (R-08, R-09). The notes of a person at
  * the foot of both (D-407, D-423). Never an edit of the article.
  */
@@ -41,27 +51,30 @@ export function EntityDetailView({ id, onBack, initialTab = null }: { id: string
   const words = vocabulary()
   const entity = useDocbaseQuery(`entity:${id}`, () => getEntity(id))
   const article = useDocbaseQuery(`article:${id}`, () => getKnowledgeArticle(id))
+  const model = useArticle(article.data ? articleBody(article.data.body) : null)
   const openEntity = useKnowledgeStore((s) => s.openEntity)
   const action = useAction()
   const [joining, setJoining] = useState(false)
   const detail = entity.data
   // Without a page (only named in passing) there is no article to read.
   const [shown, setTab] = useDetailTab(!article.loading && !article.data, initialTab)
-  const pending = detail ? detail.claims.filter((c) => c.state === "conflict").length + detail.doubts.length : 0
+  const pending = detail ? conflictsOf(detail).length + detail.doubts.length : 0
+  const index = indexOf(model, [
+    ...(detail?.state === "active" ? [{ id: "investigacion", label: "Investigación en internet" }] : []),
+    { id: "notas", label: "Notas" },
+  ])
 
   return (
     <DetailTabs
       back={words.knowledge.entities}
       onBack={onBack}
-      title={
-        <>
-          <h1 className="font-serif text-2xl break-words">{detail?.name ?? "…"}</h1>
-          {detail && <p className="text-sm text-muted-foreground">{entityTypeName(detail.kind, false, words)}</p>}
-        </>
-      }
+      current={detail?.name ?? "…"}
+      kicker={detail ? entityTypeName(detail.kind, false, words) : undefined}
+      title={<DetailTitle>{detail?.name ?? "…"}</DetailTitle>}
+      facts={detail ? <OtherNames entity={detail} /> : null}
       actions={
         detail && detail.state === "active" && shown === "data" ? (
-          <Button variant="outline" onClick={() => setJoining(!joining)}>
+          <Button variant="secondary" onClick={() => setJoining(!joining)}>
             <Link2 /> Unir con otra
           </Button>
         ) : null
@@ -79,41 +92,70 @@ export function EntityDetailView({ id, onBack, initialTab = null }: { id: string
           )}
           {!entity.loading && !detail && !entity.error && <EmptyNote>Esta entidad ya no está en el registro.</EmptyNote>}
           {detail && detail.state !== "active" && (
-            <div className="mb-6 rounded-md border border-dashed px-4 py-3 text-sm">
+            <Callout tone="quiet" title={null} className="mb-6">
               {detail.state === "merged" && detail.mergedInto ? (
                 <>
-                  Se unió con otra entidad.{" "}
-                  <button className="text-primary hover:underline" onClick={() => openEntity(detail.mergedInto)}>
-                    Ver la entidad que quedó
-                  </button>
+                  Se unió con otra entidad. <TextLink onClick={() => openEntity(detail.mergedInto)}>Ver la entidad que quedó</TextLink>
                 </>
               ) : (
                 "Ya no la nombra ningún documento que cuente."
               )}
-            </div>
+            </Callout>
           )}
         </>
       }
-      article={detail ? <Article entity={detail} article={article.data} loading={article.loading} onShowData={() => setTab("data")} /> : null}
+      article={
+        detail ? <Article entity={detail} article={article.data} model={model} loading={article.loading} onShowData={() => setTab("data")} /> : null
+      }
+      articleAside={
+        detail ? (
+          <PageAside
+            box={<EntityBox entity={detail} onShowData={() => setTab("data")} />}
+            index={<PageIndex entries={index} jump={{ label: "Datos y correcciones", onClick: () => setTab("data") }} />}
+          />
+        ) : null
+      }
       data={
         detail ? (
           <>
             {joining && <JoinPicker entity={detail} onDone={() => setJoining(false)} run={action.run} />}
-            <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
-              <main className="min-w-0">
-                <Claims entity={detail} run={action.run} busy={action.busy} />
-                <Documents entity={detail} run={action.run} busy={action.busy} />
-                <Incoming entity={detail} />
-                <Decisions entity={detail} run={action.run} busy={action.busy} />
-              </main>
-              <aside>
-                <FactBox entity={detail} />
-              </aside>
-            </div>
+            <Claims entity={detail} run={action.run} busy={action.busy} />
+            <Documents entity={detail} run={action.run} busy={action.busy} />
+            <Incoming entity={detail} />
+            <Decisions entity={detail} run={action.run} busy={action.busy} />
           </>
         ) : null
       }
+      dataAside={detail ? <PageAside box={<FactBox entity={detail} />} /> : null}
     />
+  )
+}
+
+/** Its claims in which the documents differ. */
+function conflictsOf(entity: EntityDetail): ClaimView[] {
+  return entity.claims.filter((claim) => claim.state === "conflict")
+}
+
+function sameName(a: string, b: string): boolean {
+  return a.toLocaleLowerCase("es").replace(/\s+/g, " ").trim() === b.toLocaleLowerCase("es").replace(/\s+/g, " ").trim()
+}
+
+/** «También escrito como A · B · C», under the name: the other ways the documents write it. */
+function OtherNames({ entity }: { entity: EntityDetail }) {
+  const others = entity.aliases.filter((alias) => !sameName(alias.written, entity.name))
+  if (others.length === 0) return null
+  const shown = others.slice(0, 4)
+  return (
+    <>
+      También escrito como{" "}
+      {shown.map((alias, index) => (
+        <Fragment key={alias.written}>
+          {index > 0 && <span className="mx-1.5 text-border-strong">·</span>}
+          <b>{alias.written}</b>
+        </Fragment>
+      ))}
+      {others.length > shown.length && <span className="ml-1.5">y {plural(others.length - shown.length, "forma más", "formas más")}</span>}
+    </>
   )
 }
 
@@ -125,19 +167,21 @@ export function EntityDetailView({ id, onBack, initialTab = null }: { id: string
 function Article({
   entity,
   article,
+  model,
   loading,
   onShowData,
 }: {
   entity: EntityDetail
   article: KnowledgeArticle | null
+  model: ArticleModel | null
   loading: boolean
   onShowData: () => void
 }) {
   if (loading && !article) return null
   return (
     <article>
-      {article ? (
-        <ArticleText body={articleBody(article.body)} writtenAt={article.writtenAt} />
+      {article && model ? (
+        <ArticleBody model={model} withRoles onShowData={onShowData} writtenAt={article.writtenAt} />
       ) : (
         <NoArticle onShowData={onShowData}>
           {entity.pagePath
@@ -146,17 +190,125 @@ function Article({
         </NoArticle>
       )}
       {entity.state === "active" && (
-        <div className="mt-8">
-          <ResearchSection key={entity.id} objectId={entity.id} name={entity.name} />
+        <div className="mt-10">
+          <ResearchSection key={entity.id} id="investigacion" objectId={entity.id} name={entity.name} />
         </div>
       )}
     </article>
   )
 }
 
+/**
+ * The fact box of the article: its identifiers and the data the documents
+ * give of it (one per kind, the first), its matters and documents, and
+ * what waits for a person's decision, with the way to it.
+ */
+function EntityBox({ entity, onShowData }: { entity: EntityDetail; onShowData: () => void }) {
+  const words = vocabulary()
+  const openMatter = useOpenMatter()
+  const setActiveView = useWikiStore((s) => s.setActiveView)
+  const focusDoubt = useKnowledgeStore((s) => s.focusDoubt)
+  const live = entity.claims.filter((claim) => claim.state !== "retired" && claim.objectEntity === null && claim.objectValue)
+  const byPredicate = new Map<string, ClaimView[]>()
+  for (const claim of live) byPredicate.set(claim.predicate, [...(byPredicate.get(claim.predicate) ?? []), claim])
+  const values = [...byPredicate.entries()].slice(0, 6)
+  const matters = [...new Map(entity.matters.map((m) => [m.matterId, m])).values()]
+  const documents = new Set(entity.mentions.map((m) => m.contentId)).size
+  const conflicts = new Set(conflictsOf(entity).map((claim) => claim.predicate)).size
+  return (
+    <InfoBox kind={entityTypeName(entity.kind, false, words)} name={entity.name}>
+      {(entity.identifiers.length > 0 || values.length > 0) && (
+        <InfoRows>
+          {entity.identifiers.map((identifier) => (
+            <InfoRow
+              key={`${identifier.kind}:${identifier.value}`}
+              label={identifierName(identifier.kind, words)}
+              below={`en ${plural(identifier.documents, "documento", "documentos")}`}
+            >
+              <span className="tabular-nums">{identifier.value}</span>
+            </InfoRow>
+          ))}
+          {values.map(([predicate, claims]) => {
+            const first = claims[0]
+            const said = certaintyInWords(first)
+            return (
+              <InfoRow key={predicate} label={predicateName(predicate, false, words)}>
+                {first.objectValue}
+                {claims.some((claim) => claim.state === "conflict") ? (
+                  <TextMark tone="differ">difieren</TextMark>
+                ) : said.tone === "doubt" ? (
+                  <TextMark tone="doubt" title={said.why || undefined}>
+                    {said.label}
+                  </TextMark>
+                ) : null}
+              </InfoRow>
+            )
+          })}
+        </InfoRows>
+      )}
+      <InfoHeading>En el archivo</InfoHeading>
+      <InfoRows>
+        {matters.length > 0 && (
+          <InfoRow label={words.knowledge.matters}>
+            {matters.map((matter) => (
+              <button key={matter.matterId} className="block text-left text-link hover:underline" onClick={() => openMatter(matter.matterId)}>
+                {matter.name}
+                {matter.proposed && <span className="ml-1 text-xs text-muted-foreground">(propuesto)</span>}
+              </button>
+            ))}
+          </InfoRow>
+        )}
+        <InfoRow label="Documentos">
+          <span className="tabular-nums">{documents}</span>
+        </InfoRow>
+      </InfoRows>
+      {(conflicts > 0 || entity.doubts.length > 0) && (
+        <>
+          <InfoHeading>Espera una decisión</InfoHeading>
+          <InfoPending
+            items={[
+              ...(conflicts > 0
+                ? [
+                    {
+                      tone: "warn" as const,
+                      text: `${plural(conflicts, "dato", "datos")} en ${conflicts === 1 ? "el" : "los"} que los documentos difieren.`,
+                      action: <TextLink onClick={onShowData}>Ver</TextLink>,
+                    },
+                  ]
+                : []),
+              ...(entity.doubts.length > 0
+                ? [
+                    {
+                      tone: "decision" as const,
+                      text: `${plural(entity.doubts.length, "posible igual", "posibles iguales")}.`,
+                      action: (
+                        <TextLink
+                          onClick={() => {
+                            focusDoubt(entity.id)
+                            setActiveView("identity-doubts")
+                          }}
+                        >
+                          Resolver
+                        </TextLink>
+                      ),
+                    },
+                  ]
+                : []),
+            ]}
+          />
+        </>
+      )}
+    </InfoBox>
+  )
+}
+
 type Run = (action: () => Promise<unknown>) => Promise<void>
 
-/** What each document says of the entity, the data in which they differ first. */
+/**
+ * What each document says of the entity, the data in which they differ
+ * first: each datum in a fixed row (what it is, its value, how sure, the
+ * actions always in the same place) and its quotes below (D-493).
+ */
 function Claims({ entity, run, busy }: { entity: EntityDetail; run: Run; busy: boolean }) {
   const words = vocabulary()
   const dialog = useAppDialog()
@@ -165,6 +317,7 @@ function Claims({ entity, run, busy }: { entity: EntityDetail; run: Run; busy: b
   const live = entity.claims.filter((claim) => claim.state !== "retired")
   const conflicts = live.filter((claim) => claim.state === "conflict")
   const supported = live.filter((claim) => claim.state !== "conflict")
+  const first = useFirstRows(supported, FIRST_CLAIMS)
 
   async function markWrong(reference: string, what: string) {
     const confirmed = await dialog.confirm({
@@ -189,7 +342,7 @@ function Claims({ entity, run, busy }: { entity: EntityDetail; run: Run; busy: b
   const value = (claim: ClaimView): ReactNode =>
     claim.objectEntity ? (
       <>
-        <button className="text-primary hover:underline" onClick={() => openEntity(claim.objectEntity)}>
+        <button className="text-link underline decoration-[var(--link-line)] underline-offset-[3px] hover:decoration-link" onClick={() => openEntity(claim.objectEntity)}>
           {claim.objectName ?? claim.objectEntity}
         </button>
         {/* An amount between two parties: the other party and the amount. */}
@@ -199,92 +352,100 @@ function Claims({ entity, run, busy }: { entity: EntityDetail; run: Run; busy: b
       <span>{claim.objectValue}</span>
     )
 
-  const item = (claim: ClaimView) => (
-    <li key={claim.id} className="py-2">
-      <div className="flex flex-wrap items-baseline gap-2">
-        <span className="text-xs font-medium text-muted-foreground">{predicateName(claim.predicate, false, words)}</span>
-        <span className="font-medium">{value(claim)}</span>
-        {claim.validFrom && <span className="text-xs text-muted-foreground">desde {claim.validFrom}</span>}
-        <Certainty claim={claim} />
-        {claim.certainty !== "confirmed" && (
-          <button
-            className="ml-auto text-xs text-muted-foreground hover:text-foreground"
-            disabled={busy}
-            onClick={() => void confirm(claim, `«${predicateName(claim.predicate, false, words)}: ${claim.objectName ?? claim.objectValue ?? ""}»`)}
-          >
-            Confirmar
-          </button>
-        )}
-        <button
-          className={`${claim.certainty === "confirmed" ? "ml-auto " : ""}text-xs text-muted-foreground hover:text-destructive`}
-          disabled={busy}
-          onClick={() => void markWrong(`claim:${claim.id}`, `«${predicateName(claim.predicate, false, words)}: ${claim.objectName ?? claim.objectValue ?? ""}»`)}
-        >
-          Marcar como incorrecto
-        </button>
-      </div>
-      <ul className="mt-1 flex flex-col gap-1 pl-3">
-        {claim.evidence.map((evidence) => (
-          <li key={evidence.evidenceId} className="text-sm">
-            <Quote>{evidence.quote}</Quote>{" "}
-            <span className="text-xs text-muted-foreground">
-              —{" "}
-              <button className="hover:underline" onClick={() => openDocument(locationOf(entity, evidence.contentId))}>
+  const item = (claim: ClaimView, warn: boolean) => {
+    const what = `«${predicateName(claim.predicate, false, words)}: ${claim.objectName ?? claim.objectValue ?? ""}»`
+    return (
+      <li key={claim.id} className={`border-t px-3.5 py-3 first:border-t-0 ${warn ? "border-warn-line" : ""}`}>
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-1 md:grid-cols-[8.75rem_minmax(0,1fr)_auto]">
+          <span className="col-span-2 font-ui text-[0.8125rem] font-semibold text-muted-foreground md:col-span-1">
+            {predicateName(claim.predicate, false, words)}
+          </span>
+          <span className="flex min-w-0 flex-wrap items-baseline gap-x-2.5 gap-y-1">
+            <span className="text-[0.90625rem] font-semibold text-strong">{value(claim)}</span>
+            {claim.validFrom && <span className="text-[0.8125rem] text-muted-foreground">desde {claim.validFrom}</span>}
+            {warn && <TextMark tone="differ">los documentos difieren</TextMark>}
+            {/* Doubtful only because the documents differ: the mark above says it already. */}
+            {!(warn && claim.certainty === "doubtful" && claim.reasons.every((reason) => reason === "conflict")) && <Certainty claim={claim} />}
+          </span>
+          <span className="flex gap-0.5 whitespace-nowrap">
+            {claim.certainty !== "confirmed" && (
+              <Button size="xs" variant="ghost" className="text-link" disabled={busy} onClick={() => void confirm(claim, what)}>
+                Confirmar
+              </Button>
+            )}
+            <Button
+              size="xs"
+              variant="ghost"
+              className="text-muted-foreground hover:bg-err-bg hover:text-err"
+              disabled={busy}
+              onClick={() => void markWrong(`claim:${claim.id}`, what)}
+            >
+              Marcar como incorrecto
+            </Button>
+          </span>
+        </div>
+        <ul className="mt-1.5 flex flex-col gap-1 md:ml-[9.5rem]">
+          {claim.evidence.map((evidence) => (
+            <li key={evidence.evidenceId} className="text-[0.84375rem] leading-normal text-muted-foreground">
+              <Quote>{evidence.quote}</Quote> —{" "}
+              <button className="text-link hover:underline" onClick={() => openDocument(locationOf(entity, evidence.contentId))}>
                 {evidence.document}
               </button>
               {evidence.page !== null && `, p. ${evidence.page}`}
               {evidence.factTime && ` · ${evidence.factTime}`}
-            </span>
-            {claim.evidence.length > 1 && (
-              <button
-                className="ml-2 text-xs text-muted-foreground hover:text-destructive"
-                disabled={busy}
-                onClick={() => void markWrong(`evidence:${evidence.evidenceId}`, `Lo que dice «${evidence.document}»`)}
-              >
-                no lo dice
-              </button>
-            )}
-          </li>
-        ))}
-      </ul>
-    </li>
-  )
+              {claim.evidence.length > 1 && (
+                <button
+                  className="ml-1.5 font-ui text-[0.78125rem] font-semibold text-muted-foreground hover:text-err"
+                  disabled={busy}
+                  onClick={() => void markWrong(`evidence:${evidence.evidenceId}`, `Lo que dice «${evidence.document}»`)}
+                >
+                  no lo dice
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      </li>
+    )
+  }
 
+  const hiddenNames = [...new Set(supported.slice(FIRST_CLAIMS).map((claim) => predicateName(claim.predicate, false, words).toLowerCase()))]
   return (
     <>
       {conflicts.length > 0 && (
-        <Section title="Datos en los que los documentos difieren">
-          <p className="mb-2 text-sm text-muted-foreground">
-            Dos documentos dicen cosas distintas de lo mismo. La app no elige: si uno está mal, marcalo.
-          </p>
-          <ul className="divide-y rounded-md border border-amber-500/40 px-3">{conflicts.map(item)}</ul>
+        <Section title="Datos en los que los documentos difieren" intro="Dos documentos dicen cosas distintas de lo mismo. La app no elige: si uno está mal, marcalo.">
+          <ul className="rounded-[10px] border border-warn-line bg-warn-bg">{conflicts.map((claim) => item(claim, true))}</ul>
         </Section>
       )}
       <Section title="Lo que dicen los documentos">
         {supported.length === 0 ? (
           <p className="text-sm text-muted-foreground">Los documentos no dicen de esta entidad nada más que su nombre y su rol.</p>
         ) : (
-          <ul className="divide-y">{supported.map(item)}</ul>
+          <>
+            <ul className="rounded-[10px] border bg-card">{first.shown.map((claim) => item(claim, false))}</ul>
+            {first.hidden > 0 && (
+              <MoreButton className="mt-2.5" onClick={first.showAll}>
+                Ver {plural(first.hidden, "dato más", "datos más")}
+                {hiddenNames.length > 0 && ` (${hiddenNames.slice(0, 4).join(", ")}${hiddenNames.length > 4 ? "…" : ""})`}
+              </MoreButton>
+            )}
+          </>
         )}
       </Section>
     </>
   )
 }
 
-/** How sure the record is of a claim: doubtful in amber, with why; a person's word named. */
+/** How sure the record is of a claim: doubtful in amber, with why; a person's word named; nothing for a plain quote. */
 function Certainty({ claim }: { claim: ClaimView }) {
   const said = certaintyInWords(claim)
-  const tone =
-    said.tone === "doubt"
-      ? "border-amber-500/50 text-amber-700 dark:text-amber-400"
-      : said.tone === "person"
-        ? "border-primary/40 text-primary"
-        : "border-transparent text-muted-foreground"
+  if (said.tone === "plain") return null
+  if (said.tone === "person") return <TextMark tone="person">{said.label}</TextMark>
   return (
-    <span className={`rounded border px-1.5 text-xs ${tone}`} title={said.why || undefined}>
+    <TextMark tone="doubt" title={said.why || undefined}>
       {said.label}
       {said.why && `: ${said.why}`}
-    </span>
+    </TextMark>
   )
 }
 
@@ -295,11 +456,35 @@ function locationOf(entity: EntityDetail, contentId: number): number | null {
 /** Its documents, by matter, with its role and how each one writes it. */
 function Documents({ entity, run, busy }: { entity: EntityDetail; run: Run; busy: boolean }) {
   const words = vocabulary()
+  const groups = documentsByMatter(entity.mentions, entity.matters, words.knowledge.withoutMatter)
+  const documents = new Set(entity.mentions.map((m) => m.contentId)).size
+  return (
+    <Section title="Documentos" count={documents}>
+      <div className="flex flex-col gap-[18px]">
+        {groups.map((group) => (
+          <DocumentGroupList key={group.matterId ?? "none"} entity={entity} group={group} run={run} busy={busy} />
+        ))}
+      </div>
+    </Section>
+  )
+}
+
+function DocumentGroupList({
+  entity,
+  group,
+  run,
+  busy,
+}: {
+  entity: EntityDetail
+  group: ReturnType<typeof documentsByMatter>[number]
+  run: Run
+  busy: boolean
+}) {
+  const words = vocabulary()
   const dialog = useAppDialog()
   const openDocument = useOpenDocument()
   const openMatter = useOpenMatter()
-  const groups = documentsByMatter(entity.mentions, entity.matters, words.knowledge.withoutMatter)
-  const documents = new Set(entity.mentions.map((m) => m.contentId)).size
+  const first = useFirstRows(group.documents, FIRST_DOCUMENTS, 1)
 
   async function separate(mentionId: number, written: string, document: string) {
     const confirmed = await dialog.confirm({
@@ -334,64 +519,68 @@ function Documents({ entity, run, busy }: { entity: EntityDetail; run: Run; busy
   }
 
   return (
-    <Section title={`Documentos (${documents})`}>
-      <div className="flex flex-col gap-4">
-        {groups.map((group) => (
-          <div key={group.matterId ?? "none"}>
-            <h3 className="text-sm font-semibold">
-              {group.matterId ? (
-                <button className="text-left hover:underline" onClick={() => openMatter(group.matterId as string)}>
-                  {group.name}
-                </button>
-              ) : (
-                group.name
-              )}
-            </h3>
-            <ul className="mt-1 flex flex-col divide-y rounded-md border">
-              {group.documents.map((doc) => (
-                <li key={`${group.matterId}-${doc.contentId}`} className="px-3 py-2 text-sm">
-                  <div className="flex flex-wrap items-baseline gap-2">
-                    <button className="text-left text-primary hover:underline" onClick={() => openDocument(doc.locationId)}>
-                      {doc.name || `Documento ${doc.contentId}`}
-                    </button>
-                    <span className="text-xs text-muted-foreground">{rolesInWords(doc.roles, words)}</span>
-                    {doc.proposed && <StatusBadge tone="neutral">propuesto por el modelo</StatusBadge>}
-                  </div>
-                  {!doc.proposed && (
-                    <ul className="mt-1 flex flex-col gap-0.5 pl-3">
-                      {doc.mentions.map((mention) => (
-                        <li key={mention.mentionId} className="flex flex-wrap items-baseline gap-2 text-xs text-muted-foreground">
-                          <span className="text-foreground">«{mention.written}»</span>
-                          <span>{roleName(mention.role, words)}</span>
-                          {mention.page !== null && <span>p. {mention.page}</span>}
-                          {resolvedByName(mention.resolvedBy) && <span>· {resolvedByName(mention.resolvedBy)}</span>}
-                          <span className="ml-auto flex gap-2">
-                            <button
-                              className="hover:text-foreground"
-                              disabled={busy}
-                              onClick={() => void separate(mention.mentionId, mention.written, doc.name)}
-                            >
-                              Separar
-                            </button>
-                            <button
-                              className="hover:text-destructive"
-                              disabled={busy}
-                              onClick={() => void notAnEntity(mention.mentionId, mention.written, doc.name)}
-                            >
-                              No es una entidad
-                            </button>
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
+    <div>
+      <h3 className="mb-2 flex flex-wrap items-baseline gap-x-2 font-ui text-[0.9375rem] font-bold text-strong">
+        {group.matterId ? (
+          <button className="text-left text-link underline decoration-[var(--link-line)] underline-offset-[3px] hover:decoration-link" onClick={() => openMatter(group.matterId as string)}>
+            {group.name}
+          </button>
+        ) : (
+          group.name
+        )}
+        <span className="font-sans text-[0.8125rem] font-normal text-muted-foreground">{plural(group.documents.length, "documento", "documentos")}</span>
+      </h3>
+      <ul className="rounded-[10px] border bg-card">
+        {first.shown.map((doc) => (
+          <li key={`${group.matterId}-${doc.contentId}`} className="border-t px-3.5 py-2.5 first:border-t-0">
+            <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1.5 text-sm">
+              <DocumentIcon />
+              <button className="text-left font-semibold text-link hover:underline" onClick={() => openDocument(doc.locationId)}>
+                {doc.name || `Documento ${doc.contentId}`}
+              </button>
+              <span className="text-[0.8125rem] text-muted-foreground">{rolesInWords(doc.roles, words)}</span>
+              {doc.proposed && <StatusBadge tone="neutral">propuesto por el modelo</StatusBadge>}
+            </div>
+            {!doc.proposed && (
+              <ul className="mt-1.5 ml-6 flex flex-col gap-[3px]">
+                {doc.mentions.map((mention) => (
+                  <li key={mention.mentionId} className="flex flex-wrap items-baseline gap-2 text-[0.8125rem] text-muted-foreground">
+                    <span className="text-foreground">«{mention.written}»</span>
+                    <span>
+                      {roleName(mention.role, words)}
+                      {mention.page !== null && ` · p. ${mention.page}`}
+                      {resolvedByName(mention.resolvedBy) && ` · ${resolvedByName(mention.resolvedBy)}`}
+                    </span>
+                    <span className="ml-auto flex gap-0.5">
+                      <Button size="xs" variant="ghost" className="text-link" disabled={busy} onClick={() => void separate(mention.mentionId, mention.written, doc.name)}>
+                        Separar
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        className="text-muted-foreground hover:bg-err-bg hover:text-err"
+                        disabled={busy}
+                        onClick={() => void notAnEntity(mention.mentionId, mention.written, doc.name)}
+                      >
+                        No es una entidad
+                      </Button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </li>
         ))}
-      </div>
-    </Section>
+        {first.hidden > 0 && (
+          <li className="border-t px-3.5 py-2">
+            <MoreButton onClick={first.showAll}>
+              Ver los otros {plural(first.hidden, "documento", "documentos")}
+              {group.matterId ? ` del ${words.knowledge.matter.toLowerCase()}` : ""}
+            </MoreButton>
+          </li>
+        )}
+      </ul>
+    </div>
   )
 }
 
@@ -402,19 +591,25 @@ function Incoming({ entity }: { entity: EntityDetail }) {
   if (entity.incoming.length === 0) return null
   return (
     <Section title="Vínculos desde otras entidades">
-      <ul className="flex flex-col gap-1 text-sm">
-        {entity.incoming.map((claim) => (
-          <li key={claim.claimId} className="flex flex-wrap items-baseline gap-2">
-            <span className="text-xs font-medium text-muted-foreground">{predicateName(claim.predicate, true, words)}</span>
-            <button className="text-primary hover:underline" onClick={() => openEntity(claim.subjectId)}>
-              {claim.subjectName}
-            </button>
-            <span className="text-xs text-muted-foreground">
-              {entityTypeName(claim.subjectKind, false, words).toLowerCase()} · {plural(claim.documents, "documento", "documentos")}
-            </span>
-          </li>
-        ))}
-      </ul>
+      <Table>
+        <tbody>
+          {entity.incoming.map((claim) => (
+            <tr key={claim.claimId}>
+              <Td muted width="34%">
+                {predicateName(claim.predicate, true, words)}
+              </Td>
+              <Td>
+                <button className="text-left text-link hover:underline" onClick={() => openEntity(claim.subjectId)}>
+                  {claim.subjectName}
+                </button>
+              </Td>
+              <Td muted align="right" nowrap>
+                {entityTypeName(claim.subjectKind, false, words).toLowerCase()} · {plural(claim.documents, "documento", "documentos")}
+              </Td>
+            </tr>
+          ))}
+        </tbody>
+      </Table>
     </Section>
   )
 }
@@ -424,24 +619,20 @@ function Decisions({ entity, run, busy }: { entity: EntityDetail; run: Run; busy
   if (entity.decisions.length === 0) return null
   return (
     <Section title="Decisiones">
-      <ul className="flex flex-col divide-y rounded-md border text-sm">
+      <ul className="rounded-[10px] border bg-card text-sm">
         {entity.decisions.map((decision) => (
-          <li key={decision.id} className="flex items-center gap-3 px-3 py-2">
+          <li key={decision.id} className="flex items-center gap-3 border-t px-3.5 py-2.5 first:border-t-0">
             <span className="min-w-0 flex-1">
-              <span className={decision.state === "undone" ? "text-muted-foreground line-through" : ""}>
-                {decisionInWords(decision, entity)}
-              </span>
-              <span className="block text-xs text-muted-foreground">
+              <span className={decision.state === "undone" ? "text-muted-foreground line-through" : ""}>{decisionInWords(decision, entity)}</span>
+              <span className="block text-[0.78125rem] text-muted-foreground">
                 {formatDate(decision.decidedAt)}
                 {decision.note && ` · ${decision.note}`}
                 {decision.state === "undone" && decision.undoneAt && ` · deshecha el ${formatDate(decision.undoneAt)}`}
               </span>
-              {decision.state === "active" && decision.review && (
-                <span className="block text-xs text-amber-700 dark:text-amber-400">{reviewInWords(decision.review)}</span>
-              )}
+              {decision.state === "active" && decision.review && <span className="block text-xs text-warn">{reviewInWords(decision.review)}</span>}
             </span>
             {decision.state === "active" && (
-              <Button size="sm" variant="ghost" disabled={busy} onClick={() => void run(() => undoIdentityDecision(decision.id))}>
+              <Button size="sm" variant="outline" disabled={busy} onClick={() => void run(() => undoIdentityDecision(decision.id))}>
                 <Undo2 /> Deshacer
               </Button>
             )}
@@ -452,61 +643,57 @@ function Decisions({ entity, run, busy }: { entity: EntityDetail; run: Run; busy
   )
 }
 
+/** The fact box of «Datos y correcciones»: how the documents write it, its identifiers, its doubts. */
 function FactBox({ entity }: { entity: EntityDetail }) {
   const words = vocabulary()
   const setActiveView = useWikiStore((s) => s.setActiveView)
   const focusDoubt = useKnowledgeStore((s) => s.focusDoubt)
   return (
-    <div className="rounded-md border bg-muted/30 text-sm">
-      <div className="border-b bg-muted px-3 py-2 text-center font-semibold break-words">{entity.name}</div>
-      <Heading>Se escribe</Heading>
-      <ul className="flex flex-col gap-0.5 px-3 py-2">
+    <InfoBox kind={entityTypeName(entity.kind, false, words)} name={entity.name}>
+      <InfoHeading>Se escribe</InfoHeading>
+      <ul className="px-4 pt-1 pb-2">
         {entity.aliases.map((alias) => (
-          <li key={alias.written} className="flex justify-between gap-2">
+          <li key={alias.written} className="flex justify-between gap-2 py-1">
             <span className="break-words">{alias.written}</span>
-            <span className="shrink-0 text-xs text-muted-foreground">{alias.mentions}</span>
+            <span className="shrink-0 text-muted-foreground tabular-nums">{alias.mentions}</span>
           </li>
         ))}
       </ul>
       {entity.identifiers.length > 0 && (
         <>
-          <Heading>Identificadores</Heading>
-          <dl className="divide-y">
+          <InfoHeading>Identificadores</InfoHeading>
+          <InfoRows>
             {entity.identifiers.map((identifier) => (
-              <div key={`${identifier.kind}:${identifier.value}`} className="grid grid-cols-[38%_minmax(0,1fr)] gap-2 px-3 py-1.5">
-                <dt className="text-xs font-medium text-muted-foreground">{identifierName(identifier.kind, words)}</dt>
-                <dd className="min-w-0 break-words">
-                  {identifier.value}{" "}
-                  <span className="text-xs text-muted-foreground">({plural(identifier.documents, "documento", "documentos")})</span>
-                </dd>
-              </div>
+              <InfoRow
+                key={`${identifier.kind}:${identifier.value}`}
+                label={identifierName(identifier.kind, words)}
+                below={plural(identifier.documents, "documento", "documentos")}
+              >
+                <span className="tabular-nums">{identifier.value}</span>
+              </InfoRow>
             ))}
-          </dl>
+          </InfoRows>
         </>
       )}
       {entity.doubts.length > 0 && (
         <>
-          <Heading>Dudas</Heading>
-          <div className="px-3 py-2">
-            <p>{plural(entity.doubts.length, "posible igual espera", "posibles iguales esperan")} una decisión.</p>
-            <button
-              className="mt-1 text-primary hover:underline"
+          <InfoHeading>Dudas</InfoHeading>
+          <InfoPending items={[{ tone: "decision", text: `${plural(entity.doubts.length, "posible igual espera", "posibles iguales esperan")} una decisión.` }]} />
+          <div className="px-4 pb-3.5">
+            <Button
+              size="sm"
               onClick={() => {
                 focusDoubt(entity.id)
                 setActiveView("identity-doubts")
               }}
             >
               Resolver
-            </button>
+            </Button>
           </div>
         </>
       )}
-    </div>
+    </InfoBox>
   )
-}
-
-function Heading({ children }: { children: ReactNode }) {
-  return <div className="border-y bg-muted/60 px-3 py-1 text-center text-xs font-semibold text-muted-foreground">{children}</div>
 }
 
 /** Looks for another entity of the same type to join with this one. */
@@ -554,20 +741,18 @@ function JoinPicker({ entity, onDone, run }: { entity: EntityDetail; onDone: () 
   }
 
   return (
-    <div className="mx-auto mb-6 max-w-6xl rounded-md border px-4 py-3">
-      <p className="text-sm">
-        ¿Con quién es la misma entidad? Buscá entre {entityTypeName(entity.kind, true, words).toLowerCase()} por nombre.
-      </p>
-      <Input className="mt-2 h-8 w-72" autoFocus value={typed} onChange={(event) => setTyped(event.target.value)} />
+    <div className="mb-8 rounded-xl border bg-card px-[18px] py-4 shadow-card">
+      <p className="text-sm">¿Con quién es la misma entidad? Buscá entre {entityTypeName(entity.kind, true, words).toLowerCase()} por nombre.</p>
+      <Input className="mt-2 h-9 w-80" autoFocus value={typed} onChange={(event) => setTyped(event.target.value)} />
       {found.length > 0 && (
-        <ul className="mt-2 flex flex-col divide-y rounded-md border text-sm">
+        <ul className="mt-3 rounded-[10px] border text-sm">
           {found.map((other) => (
-            <li key={other.id} className="flex items-center gap-3 px-3 py-1.5">
+            <li key={other.id} className="flex items-center gap-3 border-t px-3 py-2 first:border-t-0">
               <span className="min-w-0 flex-1 break-words">
                 {other.name}
                 <span className="ml-2 text-xs text-muted-foreground">{plural(other.documents, "documento", "documentos")}</span>
               </span>
-              <Button size="sm" variant="outline" onClick={() => void join(other)}>
+              <Button size="sm" variant="secondary" onClick={() => void join(other)}>
                 Unir
               </Button>
             </li>
