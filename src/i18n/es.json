@@ -227,7 +227,7 @@
       "skills": {
         "title": "Habilidades",
         "description": "Las habilidades que el chat puede usar: se buscan en las carpetas de habilidades y elegís cuáles quedan activas.",
-        "paths": "Carpetas donde se buscan: la de habilidades del chat, ~/.claude/skills, ~/.codex/skills y ~/.agents/skills.",
+        "paths": "Carpetas donde se buscan: la de habilidades del chat, ~/.claude/skills, ~/.codex/skills y ~/.agents/skills. El nombre y la descripción de cada habilidad los escribió quien la hizo: si los escribió en inglés, se ven en inglés.",
         "summary": "{{enabled}} activas de {{total}} encontradas",
         "enableAll": "Activar todas",
         "disableAll": "Desactivar todas",
