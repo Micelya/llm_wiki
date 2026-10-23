@@ -97,7 +97,7 @@ Conviene que B tenga un número de versión más alto que A (por ejemplo 0.1.1; 
 
 - Desinstalar marcando «Eliminar los datos de aplicación» borra datos y respaldos (sección 5).
 - Cada respaldo ocupa más o menos lo que la base: con tres, el triple. Si el disco se llena, la app no actualiza y lo dice.
-- La primera apertura después de una actualización tarda lo que tarda la copia, sin mostrar el avance.
+- La primera vez que se abre después de una actualización, la app tarda además lo que tarda la copia, sin mostrar el avance.
 - El respaldo está en el mismo disco: no reemplaza una copia en otro lugar si se rompe el disco.
 - La prueba con el instalador real (sección 3) es a mano; la prueba automática cubre la base, no el instalador.
 - La vuelta con el botón existe desde esta versión; para volver a una más vieja (como `main`), es a mano.
