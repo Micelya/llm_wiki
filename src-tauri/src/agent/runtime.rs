@@ -54,6 +54,49 @@ pub struct AgentRuntime {
     anytxt_config: Option<AnyTxtConfig>,
     /// The document base every reading tool reads (D-413).
     base: Option<Arc<crate::docbase::DocBase>>,
+    /// An engine given instead of the one of the settings (a model
+    /// simulated in the tests).
+    engine: Option<EngineHandle>,
+}
+
+/// An engine of only text, shared.
+#[derive(Clone)]
+pub struct EngineHandle(pub Arc<dyn AgentLlmProvider>);
+
+impl std::fmt::Debug for EngineHandle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "EngineHandle({}:{})", self.0.provider_name(), self.0.model_name())
+    }
+}
+
+/// The engine of the chat on the contract, and how much text a turn of it
+/// takes (5.5).
+struct ChatEngine {
+    engine: Arc<dyn AgentLlmProvider>,
+    context_chars: usize,
+    text_only: bool,
+}
+
+/// How much text one turn of an engine with an API takes when the
+/// settings do not say, and one of Codex (5.5).
+const DEFAULT_CONTEXT_CHARS: usize = 120_000;
+const CODEX_CONTEXT_CHARS: usize = 200_000;
+
+/// The turns of the chat for each mode (4.1): 4 fast, 8 normal, 12 deep.
+pub(super) fn chat_turns(mode: AgentMode) -> usize {
+    agent_loop_iteration_budget(mode, false)
+}
+
+/// The form the model asks the person to fill in, checked as always.
+pub(super) fn user_form(title: Option<String>, description: Option<String>, fields: Option<Value>) -> Result<AgentUserInputRequest, String> {
+    sanitize_user_input_request(&AgentLoopAction {
+        action: "tool".to_string(),
+        tool: Some("user.ask".to_string()),
+        title,
+        description,
+        fields,
+        ..AgentLoopAction::default()
+    })
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -137,7 +180,43 @@ impl AgentRuntime {
             web_search_config,
             anytxt_config,
             base: None,
+            engine: None,
         }
+    }
+
+    /// The engine of the chat instead of the one of the settings (a model
+    /// simulated in the tests).
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub fn with_engine(mut self, engine: Arc<dyn AgentLlmProvider>) -> Self {
+        self.engine = Some(EngineHandle(engine));
+        self
+    }
+
+    /// The engine the chat on the contract runs with, if this turn goes by
+    /// it: every turn of the chat but those with skills a person chose
+    /// (the agent with skills stays as it was), the retrieval before a
+    /// CLI's answer (Claude Code), and an engine that is not of only text.
+    fn chat_engine(&self, request: &AgentChatRequest) -> Option<ChatEngine> {
+        if request.allow_empty_retrieval || !request.tools.wiki {
+            return None;
+        }
+        if request.skill_mode == AgentSkillMode::Explicit && !request.skills.is_empty() {
+            return None;
+        }
+        if let Some(handle) = &self.engine {
+            return Some(ChatEngine { engine: handle.0.clone(), context_chars: DEFAULT_CONTEXT_CHARS, text_only: false });
+        }
+        let config = self.llm_config.as_ref()?;
+        if config.is_usable_for_backend_http() {
+            let client = LlmClient::new(config.clone()).ok()?.structured_task_config(agent_structured_max_tokens(false));
+            let context_chars = config.max_context_size.map(|c| c.clamp(8_000, 400_000)).unwrap_or(DEFAULT_CONTEXT_CHARS);
+            return Some(ChatEngine { engine: Arc::new(client), context_chars, text_only: false });
+        }
+        if config.provider == "codex-cli" {
+            let engine = super::text_engine::CodexTextEngine::from_config(config, &self.project_path);
+            return Some(ChatEngine { engine: Arc::new(engine), context_chars: CODEX_CONTEXT_CHARS, text_only: true });
+        }
+        None
     }
 
     /// The base the tools read and keep saved queries in.
@@ -198,6 +277,30 @@ impl AgentRuntime {
         // The documents of the base the user attached (P-243): read from
         // the base, and cited among the references of the answer.
         let attached = self.attach_documents(&request, &mut references, &mut tool_events, &mut events, &event_sink);
+        // The chat on the contract of operations (D-498): every engine of
+        // only text, Codex included, by the same agent.
+        if let Some(chat) = self.chat_engine(&request) {
+            return super::contract_loop::run(super::contract_loop::Turn {
+                request: &request,
+                message,
+                session_id,
+                project_id: self.project_id.clone(),
+                project_path: self.project_path.clone(),
+                base: self.base.clone(),
+                engine: chat.engine,
+                context_chars: chat.context_chars,
+                text_only: chat.text_only,
+                web: self.web_search_config.clone(),
+                anytxt: self.anytxt_config.clone(),
+                references,
+                tool_events,
+                events,
+                event_sink,
+                cancellation: cancellation.as_ref(),
+                attached,
+            })
+            .await;
+        }
         let permission_policy = PermissionPolicy::api_default();
         let router = route_query(message, request.mode, &request.tools);
         let skills = load_project_skills(&self.project_path, &request.skills);
@@ -1273,6 +1376,8 @@ impl AgentRuntime {
             tool_events,
             events,
             user_input_request: None,
+            operation_proposal: None,
+            budget: None,
             usage: Some(usage),
         })
     }
@@ -1595,6 +1700,8 @@ impl AgentRuntime {
                     tool_events,
                     events,
                     user_input_request: None,
+                    operation_proposal: None,
+                    budget: None,
                     usage: Some(AgentUsage {
                         prompt_chars: last_prompt_chars,
                         completion_chars: answer.len(),
@@ -1654,6 +1761,8 @@ impl AgentRuntime {
                     tool_events,
                     events,
                     user_input_request: None,
+                    operation_proposal: None,
+                    budget: None,
                     usage: Some(usage),
                 });
             }
@@ -1695,6 +1804,8 @@ impl AgentRuntime {
                     tool_events,
                     events,
                     user_input_request: None,
+                    operation_proposal: None,
+                    budget: None,
                     usage: Some(usage),
                 });
             }
@@ -1749,6 +1860,8 @@ impl AgentRuntime {
                     tool_events,
                     events,
                     user_input_request: Some(request_form),
+                    operation_proposal: None,
+                    budget: None,
                     usage: Some(AgentUsage {
                         prompt_chars: last_prompt_chars,
                         completion_chars: answer.len(),
@@ -1824,6 +1937,8 @@ impl AgentRuntime {
                     tool_events,
                     events,
                     user_input_request: None,
+                    operation_proposal: None,
+                    budget: None,
                     usage: Some(AgentUsage {
                         prompt_chars: last_prompt_chars,
                         completion_chars: observation.summary.len(),
@@ -1881,6 +1996,8 @@ impl AgentRuntime {
             tool_events,
             events,
             user_input_request: None,
+            operation_proposal: None,
+            budget: None,
             usage: Some(AgentUsage {
                 prompt_chars: last_prompt_chars,
                 completion_chars: answer.len(),
@@ -4265,6 +4382,9 @@ mod tests {
             max_context_size: Some(8_000),
             custom_headers: Default::default(),
             streaming_enabled: None,
+            codex_reasoning_effort: None,
+            codex_cli_timeout_minutes: None,
+            local_cli_isolation: None,
         };
         let fitted = fit_context_to_model(context, Some(&config));
         assert!(fitted.system.contains("system"));
@@ -4292,6 +4412,9 @@ mod tests {
             max_context_size: Some(8_000),
             custom_headers: Default::default(),
             streaming_enabled: None,
+            codex_reasoning_effort: None,
+            codex_cli_timeout_minutes: None,
+            local_cli_isolation: None,
         };
 
         let fitted = fit_context_to_model(context, Some(&config));

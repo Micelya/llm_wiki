@@ -39,6 +39,16 @@ pub enum AgentEvent {
     UserInputRequired {
         request: AgentUserInputRequest,
     },
+    /// The agent starts its turn `used` of `max` (4.1).
+    Step {
+        used: usize,
+        max: usize,
+    },
+    /// The model proposed a change of the contract: the card waits for a
+    /// person (D-498).
+    OperationProposed {
+        card: Box<crate::operations::Card>,
+    },
     Done {
         session_id: String,
     },

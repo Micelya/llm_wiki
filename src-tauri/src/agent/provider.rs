@@ -58,6 +58,16 @@ pub struct LlmConfig {
     /// Missing keeps the historical streaming behavior for existing configs.
     #[serde(default)]
     pub streaming_enabled: Option<bool>,
+    /// Codex as the chat's engine (`text_engine.rs`): how much it reasons
+    /// (`low`, `medium`, `high`), how many minutes a turn may take, and
+    /// whether it ignores the computer's own Codex settings. The screens
+    /// already keep these with the model.
+    #[serde(default)]
+    pub codex_reasoning_effort: Option<String>,
+    #[serde(default)]
+    pub codex_cli_timeout_minutes: Option<u64>,
+    #[serde(default)]
+    pub local_cli_isolation: Option<bool>,
 }
 
 impl LlmConfig {
@@ -1160,6 +1170,9 @@ mod tests {
             max_context_size: None,
             custom_headers: BTreeMap::new(),
             streaming_enabled: None,
+            codex_reasoning_effort: None,
+            codex_cli_timeout_minutes: None,
+            local_cli_isolation: None,
         }
     }
 

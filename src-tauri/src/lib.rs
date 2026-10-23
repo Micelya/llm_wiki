@@ -425,6 +425,11 @@ pub fn run() {
             app.manage(CloseBehaviorState(Mutex::new("minimize".to_string())));
             app.manage(TrayAvailabilityState(Mutex::new(false)));
             app.manage(portals::view::PortalState::default());
+            // The words of the profession the chat's contract is written
+            // with can be replaced by a file in the data folder.
+            if let Ok(dir) = app.path().app_data_dir() {
+                operations::words::install_from(&dir.join("docbase/operations-words.json"));
+            }
             docbase::commands::start(app.handle());
             // The work folder exists with its folders and is an origin
             // (D-450); the web clipper's server saves the clips there.

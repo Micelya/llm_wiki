@@ -147,6 +147,12 @@ pub struct AgentChatRequest {
     pub allow_empty_retrieval: bool,
     #[serde(default = "default_true")]
     pub persist_session: bool,
+    // «Seguir buscando» (4.1): the turn goes on from where the previous
+    // one reached its cap, with these many more turns.
+    #[serde(default)]
+    pub continuation: Option<String>,
+    #[serde(default)]
+    pub extra_steps: Option<usize>,
 }
 
 impl Default for AgentChatRequest {
@@ -172,6 +178,8 @@ impl Default for AgentChatRequest {
             stream: None,
             allow_empty_retrieval: false,
             persist_session: true,
+            continuation: None,
+            extra_steps: None,
         }
     }
 }
@@ -285,8 +293,27 @@ pub struct AgentChatResponse {
     pub events: Vec<super::events::AgentEvent>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user_input_request: Option<AgentUserInputRequest>,
+    /// A change of the contract the model proposed: the card a person
+    /// confirms (D-498). Nothing was done yet.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation_proposal: Option<crate::operations::Card>,
+    /// The turns the agent used of its cap, and whether it reached it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub budget: Option<AgentBudget>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub usage: Option<AgentUsage>,
+}
+
+/// The turns of the chat's agent (4.1): visible, and extensible with
+/// «Seguir buscando», which goes on from `continuation`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentBudget {
+    pub used: usize,
+    pub max: usize,
+    pub reached: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub continuation: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

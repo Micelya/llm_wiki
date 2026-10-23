@@ -34,7 +34,7 @@ use serde::Serialize;
 use serde_json::{json, Map, Value};
 
 pub use card::Card;
-pub use flow::{propose, Proposal};
+pub use flow::Proposal;
 pub use words::Words;
 
 /// Whether an operation only reads or changes something.
@@ -478,7 +478,9 @@ pub static OPERATIONS: &[Operation] = &[
     },
 ];
 
-/// Every operation of the contract.
+/// Every operation of the contract (what the local API and the MCP of the
+/// next step list).
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn all() -> &'static [Operation] {
     OPERATIONS
 }
@@ -502,10 +504,6 @@ pub const SECOND_CONFIRMATION_OVER: usize = 10;
 pub const MAX_CANDIDATES: usize = 5;
 
 impl Operation {
-    pub fn changes_something(&self) -> bool {
-        self.kind == Kind::Change
-    }
-
     /// The JSON Schema of its data, with the names in Spanish and the
     /// words of the profession: the same for the chat, the API and the MCP.
     pub fn input_schema(&self, words: &Words) -> Value {
