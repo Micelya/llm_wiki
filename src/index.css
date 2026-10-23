@@ -1,9 +1,54 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
 
 @custom-variant dark (&:is(.dark *));
+
+/* ==========================================================================
+   The brand of Micelya (P-057, D-469, D-493): the colours, typefaces and
+   measures of the approved mockup (llm_wiki_mi/turnos-2026-10-22/maqueta),
+   as the only variables of the interface. The manual of the brand gives
+   the magenta, the purples, the pink, two greys and the dark black; the
+   mockup adds what the manual does not define (marked «propuesta»): the
+   lilac grey scales, the colours of the states and the density.
+   ========================================================================== */
+
+/* The two typefaces of the manual, inside the app so it works without the
+   internet (variable fonts from @fontsource-variable 5.3.0; licence SIL
+   OFL 1.1, in OFL-Mulish.txt and OFL-Inter.txt next to them). Mulish for
+   titles and the interface, Inter for reading. */
+@font-face {
+  font-family: "Mulish";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 200 1000;
+  src: url("./assets/fonts/mulish-latin-wght-normal.woff2") format("woff2-variations");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Mulish";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 200 1000;
+  src: url("./assets/fonts/mulish-latin-ext-wght-normal.woff2") format("woff2-variations");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("./assets/fonts/inter-latin-wght-normal.woff2") format("woff2-variations");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("./assets/fonts/inter-latin-ext-wght-normal.woff2") format("woff2-variations");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
 
 /* Chat answers need stronger document hierarchy than compact tool output. Keep
    this scoped so wiki pages and generated artifact previews retain their own
@@ -24,8 +69,12 @@
 .chat-markdown pre { margin: 0.9em 0; }
 
 @theme inline {
-    --font-heading: var(--font-sans);
-    --font-sans: 'Geist Variable', sans-serif;
+    /* Typefaces: Inter to read, Mulish for titles and the interface. */
+    --font-sans: "Inter", "Segoe UI", system-ui, sans-serif;
+    --font-reading: "Inter", "Segoe UI", system-ui, sans-serif;
+    --font-ui: "Mulish", "Segoe UI", system-ui, sans-serif;
+    --font-heading: "Mulish", "Segoe UI", system-ui, sans-serif;
+
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -57,10 +106,42 @@
     --color-card: var(--card);
     --color-foreground: var(--foreground);
     --color-background: var(--background);
+
+    /* The brand, beyond the names of the components library. */
+    --color-strong: var(--text-strong);
+    --color-link: var(--link);
+    --color-hover: var(--hover);
+    --color-panel-sub: var(--panel-sub);
+    --color-border-strong: var(--border-strong);
+    --color-brand: var(--brand);
+    --color-brand-soft: var(--brand-soft);
+    --color-brand-ink: var(--brand-ink);
+    --color-bar: var(--bar);
+    /* The states (propuesta): always with an icon and a word, never only a colour. */
+    --color-ok: var(--ok);
+    --color-ok-bg: var(--ok-bg);
+    --color-ok-line: var(--ok-line);
+    --color-warn: var(--warn);
+    --color-warn-bg: var(--warn-bg);
+    --color-warn-line: var(--warn-line);
+    --color-err: var(--err);
+    --color-err-bg: var(--err-bg);
+    --color-err-line: var(--err-line);
+    --color-info: var(--info);
+    --color-info-bg: var(--info-bg);
+    --color-info-line: var(--info-line);
+
+    --shadow-card: var(--card-shadow);
+    --shadow-pop: var(--pop-shadow);
+    --shadow-primary: var(--primary-shadow);
+
+    /* Measures of the manual: 8 px for controls, 12 px for panels. */
+    --radius-control: 8px;
+    --radius-panel: 12px;
     --radius-sm: calc(var(--radius) * 0.6);
     --radius-md: calc(var(--radius) * 0.8);
     --radius-lg: var(--radius);
-    --radius-xl: calc(var(--radius) * 1.4);
+    --radius-xl: calc(var(--radius) * 1.5);
     --radius-2xl: calc(var(--radius) * 1.8);
     --radius-3xl: calc(var(--radius) * 2.2);
     --radius-4xl: calc(var(--radius) * 2.6);
@@ -68,72 +149,179 @@
 
 :root {
     --window-titlebar-height: 0px;
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
+    --topbar-height: 3.5rem;
+
+    /* The manual of the brand (v1.0, October 2025). */
+    --m-magenta: #8B2778;          /* actions, links */
+    --m-purpura-oscuro: #2F0A38;   /* main text over light */
+    --m-purpura-medio: #9B7693;    /* secondary; over white only large text */
+    --m-rosa: #DD0D6E;             /* accent; never a state */
+    --m-gris-claro: #C2BCC6;
+    --m-gris-muy-claro: #E7E9ED;
+    --m-negro-oscuro: #0E0710;     /* background in dark mode */
+    --grad-principal: linear-gradient(180deg, #8B2778 0%, #8B2778 67.79%, #9B7693 100%);
+    --grad-vibrante: linear-gradient(135deg, #8B2778 0%, #DD0D6E 100%);
+    --grad-boton: linear-gradient(180deg, #8B2778 0%, #9B7693 100%);
+
+    /* Lilac greys (propuesta), from the two greys of the manual; ★ = manual. */
+    --g-0: #FFFFFF;
+    --g-50: #F8F6F9;
+    --g-100: #F1EDF3;
+    --g-150: #E7E9ED;   /* ★ gris muy claro */
+    --g-200: #DAD5DE;
+    --g-300: #C2BCC6;   /* ★ gris claro */
+    --g-400: #A69CAA;
+    --g-500: #857988;
+    --g-600: #6E5670;   /* small secondary text over light (6.5:1) */
+    --g-700: #4D3A52;
+    --g-800: #2F0A38;   /* ★ púrpura oscuro */
+    --g-900: #1B0A20;
+    /* And for dark mode, from the black of the manual. */
+    --d-0: #0E0710;     /* ★ negro modo oscuro */
+    --d-50: #140C17;
+    --d-100: #1A111E;
+    --d-150: #21162A;
+    --d-200: #2E2236;
+    --d-300: #43354B;
+    --d-400: #6A5A70;
+    --d-500: #9B7693;   /* ★ */
+    --d-600: #C2BCC6;   /* ★ */
+    --d-700: #EEE9F1;
+
+    /* Light mode. */
+    color-scheme: light;
+    --text-strong: var(--g-900);
+    --link: var(--m-magenta);
+    --link-line: rgba(139, 39, 120, .35);
+    --hover: var(--g-100);
+    --panel-sub: var(--g-50);
+    --border-strong: var(--g-300);
+    --bar: var(--g-0);
+    --brand: var(--m-magenta);
+    --brand-soft: #F5E6F1;
+    --brand-ink: var(--m-magenta);
+    --btn-primary-image: var(--grad-boton);
+    --btn-secondary-ink: var(--m-magenta);
+    --btn-secondary-line: var(--m-magenta);
+    --nav-count-bg: var(--m-magenta);
+    --nav-count-fg: #FFFFFF;
+    --primary-shadow: 0 4px 12px rgba(139, 39, 120, .30);
+    --card-shadow: 0 1px 2px rgba(47, 10, 56, .06), 0 1px 1px rgba(47, 10, 56, .04);
+    --pop-shadow: 0 12px 32px rgba(47, 10, 56, .18), 0 2px 6px rgba(47, 10, 56, .08);
+    /* The manual has no logo for a dark background: none needed here. */
+    --logo-filter: none;
+
+    --ok: #1E6B43;   --ok-bg: #E7F3EC;   --ok-line: #B5D9C3;
+    --warn: #8A4A00; --warn-bg: #FCF0DA; --warn-line: #EBC78A;
+    --err: #B3261E;  --err-bg: #FCEBE9;  --err-line: #EFB3AD;
+    --info: #2D5B8E; --info-bg: #E7EFF8; --info-line: #B5CAE4;
+
+    /* The names the components library reads. */
+    --background: var(--g-0);
+    --foreground: var(--g-800);
+    --card: var(--g-0);
+    --card-foreground: var(--g-800);
+    --popover: var(--g-0);
+    --popover-foreground: var(--g-800);
+    --primary: var(--m-magenta);
+    --primary-foreground: #FFFFFF;
+    --secondary: var(--g-100);
+    --secondary-foreground: var(--g-800);
+    --muted: var(--g-100);
+    --muted-foreground: var(--g-600);
+    --accent: var(--g-100);
+    --accent-foreground: var(--g-900);
+    --destructive: var(--err);
+    --border: var(--g-150);
+    --input: var(--g-300);
+    --ring: rgba(139, 39, 120, .45);
+    --chart-1: #8B2778;
+    --chart-2: #DD0D6E;
+    --chart-3: #9B7693;
+    --chart-4: #2D5B8E;
+    --chart-5: #4D3A52;
+    --radius: 0.5rem;
+    --sidebar: var(--g-50);
+    --sidebar-foreground: var(--g-800);
+    --sidebar-primary: var(--m-magenta);
+    --sidebar-primary-foreground: #FFFFFF;
+    --sidebar-accent: var(--brand-soft);
+    --sidebar-accent-foreground: var(--m-magenta);
+    --sidebar-border: var(--g-150);
+    --sidebar-ring: rgba(139, 39, 120, .45);
 }
 
 .dark {
-    --background: oklch(0.16 0.005 260);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0.005 260);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0.005 260);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0.005 260);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0.005 260);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0.005 260);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 12%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --sidebar: oklch(0.18 0.005 260);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.24 0.005 260);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
+    color-scheme: dark;
+    --text-strong: var(--d-700);
+    /* propuesta: the magenta of the manual cannot be read over the dark background */
+    --link: #E09AD0;
+    --link-line: rgba(224, 154, 208, .40);
+    --hover: var(--d-150);
+    --panel-sub: #170E1B;
+    --border-strong: var(--d-300);
+    --bar: var(--d-50);
+    --brand: var(--m-rosa);
+    --brand-soft: #2A1530;
+    --brand-ink: #E09AD0;
+    /* manual: the main button in dark mode is #DD0D6E */
+    --btn-primary-image: none;
+    --btn-secondary-ink: var(--d-700);
+    --btn-secondary-line: var(--d-500);
+    --nav-count-bg: var(--d-600);
+    --nav-count-fg: var(--m-purpura-oscuro);
+    --primary-shadow: 0 4px 14px rgba(221, 13, 110, .35);
+    --card-shadow: 0 0 0 1px rgba(0, 0, 0, .2);
+    --pop-shadow: 0 14px 36px rgba(0, 0, 0, .55), 0 0 0 1px var(--d-300);
+    /* Provisional: the manual names a logo for a dark background but the file
+       is missing; the logo is lightened with a filter until it comes. */
+    --logo-filter: brightness(0) invert(.92);
+
+    --ok: #74D3A0;   --ok-bg: rgba(116, 211, 160, .10);  --ok-line: rgba(116, 211, 160, .35);
+    --warn: #F2B55C; --warn-bg: rgba(242, 181, 92, .10); --warn-line: rgba(242, 181, 92, .40);
+    --err: #FF8C7A;  --err-bg: rgba(255, 140, 122, .10); --err-line: rgba(255, 140, 122, .40);
+    --info: #93B8EA; --info-bg: rgba(147, 184, 234, .10); --info-line: rgba(147, 184, 234, .38);
+
+    --background: var(--d-0);
+    --foreground: var(--d-600);
+    --card: var(--d-100);
+    --card-foreground: var(--d-600);
+    --popover: var(--d-100);
+    --popover-foreground: var(--d-600);
+    --primary: var(--m-rosa);
+    --primary-foreground: #FFFFFF;
+    --secondary: var(--d-150);
+    --secondary-foreground: var(--d-700);
+    --muted: var(--d-150);
+    --muted-foreground: var(--d-500);
+    --accent: var(--d-150);
+    --accent-foreground: var(--d-700);
+    --destructive: var(--err);
+    --border: var(--d-200);
+    --input: var(--d-300);
+    --ring: rgba(224, 154, 208, .55);
+    --chart-1: #E09AD0;
+    --chart-2: #DD0D6E;
+    --chart-3: #9B7693;
+    --chart-4: #93B8EA;
+    --chart-5: #C2BCC6;
+    --sidebar: var(--d-50);
+    --sidebar-foreground: var(--d-600);
+    --sidebar-primary: var(--m-rosa);
+    --sidebar-primary-foreground: #FFFFFF;
+    --sidebar-accent: var(--brand-soft);
+    --sidebar-accent-foreground: #E09AD0;
+    --sidebar-border: var(--d-200);
+    --sidebar-ring: rgba(224, 154, 208, .55);
+}
+
+/* The gradients of the brand: the line of the top bar and the active tab,
+   the bar of an advance, the edge of the chosen item of the menu. */
+@utility bg-grad-vibrante {
+  background-image: var(--grad-vibrante);
+}
+@utility bg-grad-principal {
+  background-image: var(--grad-principal);
 }
 
 @layer base {
@@ -147,6 +335,9 @@
     }
   body {
     @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    /* Inter: the single-storey «a» and open digits, as in the mockup. */
+    font-feature-settings: "cv11", "ss01";
     }
   #root {
     box-sizing: border-box;
@@ -155,6 +346,12 @@
     }
   html {
     @apply font-sans;
+    }
+  h1, h2, h3, h4 {
+    font-family: var(--font-ui);
+    }
+  ::selection {
+    background: color-mix(in srgb, var(--brand) 22%, transparent);
     }
 }
 
@@ -173,7 +370,7 @@
 }
 
 .legend-scroll::-webkit-scrollbar-thumb {
-  background: oklch(0.55 0 0);
+  background: var(--border-strong);
   border-radius: 2px;
 }
 
