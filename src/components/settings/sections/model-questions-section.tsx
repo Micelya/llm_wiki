@@ -42,7 +42,7 @@ export function ModelQuestionsSection() {
       </div>
 
       {query.error && (
-        <p className="rounded-md border border-destructive/40 px-3 py-2 text-sm text-destructive">
+        <p className="rounded-md border border-err-line px-3 py-2 text-sm text-destructive">
           No se pudieron leer las preguntas: {query.error}
         </p>
       )}
@@ -70,7 +70,7 @@ export function ModelQuestionsSection() {
   )
 }
 
-const MARK = "rounded bg-amber-100 px-0.5 text-inherit dark:bg-amber-500/25"
+const MARK = "rounded bg-warn-bg px-0.5 text-inherit ring-1 ring-warn-line"
 
 function QuestionDetail({ question, engineName }: { question: ModelQuestion; engineName: string }) {
   return (
@@ -90,7 +90,7 @@ function QuestionDetail({ question, engineName }: { question: ModelQuestion; eng
         <dt className="font-medium">Motor</dt>
         <dd className="text-muted-foreground">
           {engineName} <span>(Servicios de IA, «{question.service === "recognize" ? "Reconocer escaneos" : "Preguntar al modelo"}»)</span>
-          {question.engineNote && <span className="block text-amber-700 dark:text-amber-400">{question.engineNote}</span>}
+          {question.engineNote && <span className="block text-warn">{question.engineNote}</span>}
         </dd>
         <dt className="font-medium">Catálogos</dt>
         <dd className="text-muted-foreground">
@@ -143,7 +143,7 @@ function CatalogLine({ catalog }: { catalog: QuestionCatalog }) {
       {catalog.name} (<span className="font-mono">{catalog.file}</span>):{" "}
       {catalog.fromFolder ? `el de la carpeta de datos (${catalog.folderPath ?? catalog.file})` : "el que viene con la app"}
       {catalog.unusedFile && (
-        <span className="block text-amber-700 dark:text-amber-400">
+        <span className="block text-warn">
           Hay un archivo en la carpeta de datos que no se está usando: no es válido, o se puso después de abrir la app.
         </span>
       )}
@@ -228,7 +228,7 @@ function LastAsked({ id }: { id: string }) {
         Ver la última de la versión vigente (contiene texto de documentos del estudio)
       </summary>
       <div className="mt-2 space-y-2 text-xs">
-        <p className="text-amber-700 dark:text-amber-400">
+        <p className="text-warn">
           Es la pregunta completa tal como salió: trae el texto de documentos del estudio. No la copies fuera de la app.
         </p>
         {open && !found && !problem && <p className="text-muted-foreground">Leyendo…</p>}

@@ -161,7 +161,7 @@ export function AboutSection({ licenseOpen = false }: { licenseOpen?: boolean } 
         )}
 
         {!showAvailable && updateStore.lastResult?.kind === "up-to-date" && (
-          <div className="flex items-center gap-2 rounded border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-400">
+          <div className="flex items-center gap-2 rounded border border-ok-line bg-ok-bg px-3 py-2 text-sm text-ok">
             <CheckCircle2 className="h-4 w-4 shrink-0" />
             {t("settings.sections.about.upToDate", { version: updateStore.lastResult.local })}
           </div>

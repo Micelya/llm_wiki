@@ -445,7 +445,7 @@ export function SettingsView() {
                 <span className="truncate">{c.label ?? t(c.labelKey)}</span>
                 {showUpdateDot && (
                   <span
-                    className="ml-auto h-2 w-2 shrink-0 rounded-full bg-red-500"
+                    className="ml-auto h-2 w-2 shrink-0 rounded-full bg-info"
                     aria-label={t("nav.updateAvailable")}
                     title={t("nav.updateAvailable")}
                   />

@@ -103,7 +103,7 @@ export function AiServicesSection({ onOpen }: { onOpen: (place: ConnectionsPlace
         </p>
       </div>
 
-      {problem && <p className="rounded-md border border-destructive/40 px-3 py-2 text-sm text-destructive">{problem}</p>}
+      {problem && <p className="rounded-md border border-err-line px-3 py-2 text-sm text-destructive">{problem}</p>}
 
       {catalog.services.map((service) => {
         const Icon = ICONS[service.id]
@@ -116,7 +116,7 @@ export function AiServicesSection({ onOpen }: { onOpen: (place: ConnectionsPlace
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <h3 className="text-base font-semibold">{service.name}</h3>
-                  {saved === service.id && <span className="text-xs text-emerald-600">Guardado</span>}
+                  {saved === service.id && <span className="text-xs text-ok">Guardado</span>}
                 </div>
                 <p className="text-sm text-muted-foreground">{service.purpose}</p>
               </div>
@@ -136,7 +136,7 @@ export function AiServicesSection({ onOpen }: { onOpen: (place: ConnectionsPlace
 
             {choice.engine && engine && <EngineFacts catalog={catalog} engine={engine} model={choice.engine.model} />}
             {choice.engine && engine?.connection && !connected(engine.connection) && (
-              <div className="flex flex-wrap items-center gap-2 text-xs text-amber-700 dark:text-amber-400">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-warn">
                 <span>
                   Falta la conexión con {SHARED_CONNECTIONS[engine.connection] ?? engine.connection}: sin ella no se lee
                   nada con este motor.
@@ -147,14 +147,14 @@ export function AiServicesSection({ onOpen }: { onOpen: (place: ConnectionsPlace
               </div>
             )}
             {choice.engine && engine && !engine.inBase && service.id !== "research" && (
-              <p className="text-xs text-amber-700 dark:text-amber-400">
+              <p className="text-xs text-warn">
                 {service.id === "ask"
                   ? "La base todavía no lee con este motor: el chat lo usa, pero la lectura de los documentos queda en pausa hasta elegir Codex."
                   : "La base todavía no reconoce escaneos con este motor."}
               </p>
             )}
             {!choice.engine && (
-              <p className="text-xs text-amber-700 dark:text-amber-400">
+              <p className="text-xs text-warn">
                 {service.id === "ask"
                   ? "Sin motor no se lee ningún documento ni contesta el chat."
                   : service.id === "recognize"

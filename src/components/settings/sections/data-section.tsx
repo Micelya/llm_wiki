@@ -47,7 +47,7 @@ export function DataView({ status, problem, busy, onOpen, onRestore, onClose }: 
       </div>
 
       {status?.restored && (
-        <div className="space-y-2 rounded-md border border-emerald-500/40 bg-emerald-500/5 p-4 text-sm" data-data="restored">
+        <div className="space-y-2 rounded-md border border-ok-line bg-ok-bg p-4 text-sm" data-data="restored">
           <p>
             Se volvió al respaldo «{status.restored}». Para usarlo, cerrá Micelya y volvé a abrirla. La base que estaba en
             uso quedó aparte en la carpeta de respaldos.
@@ -59,7 +59,7 @@ export function DataView({ status, problem, busy, onOpen, onRestore, onClose }: 
       )}
 
       {opening?.problem && !status?.restored && (
-        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm" data-data="problem">
+        <div className="rounded-md border border-err-line bg-destructive/5 p-4 text-sm" data-data="problem">
           <p className="font-medium text-destructive">La base no se pudo abrir</p>
           <p className="mt-1">{opening.problem}</p>
         </div>

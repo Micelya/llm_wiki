@@ -48,7 +48,7 @@ export function ContextSizeSelector({
         onChange={(e) => onChange(CONTEXT_PRESETS[parseInt(e.target.value)].value)}
         className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-primary"
         style={{
-          background: `linear-gradient(to right, #4f46e5 ${pct}%, #e5e7eb ${pct}%)`,
+          background: `linear-gradient(to right, var(--primary) ${pct}%, var(--border) ${pct}%)`,
         }}
       />
       <div className="flex justify-between mt-1">

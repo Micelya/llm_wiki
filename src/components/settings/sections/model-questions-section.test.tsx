@@ -149,7 +149,7 @@ describe("Ajustes → Lo que se le pregunta al modelo", () => {
 
   it("marks what changes in each case where the question puts it, and leaves the rest as it is", () => {
     const { html, words } = shown(answer([reading]))
-    expect(html).toContain('<mark class="rounded bg-amber-100 px-0.5 text-inherit dark:bg-amber-500/25" title="Cambia en cada caso: el nombre del archivo">Ejemplo - carta.pdf</mark>')
+    expect(html).toContain('<mark class="rounded bg-warn-bg px-0.5 text-inherit ring-1 ring-warn-line" title="Cambia en cada caso: el nombre del archivo">Ejemplo - carta.pdf</mark>')
     expect(html).toContain("<span>Leé el documento de abajo.\nArchivo: «</span>")
     expect(words).toContain("Cambia en cada caso: el nombre del archivo; el texto del documento.")
     expect(words).toContain("La forma de la respuesta que pide")

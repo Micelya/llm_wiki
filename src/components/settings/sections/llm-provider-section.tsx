@@ -367,7 +367,7 @@ function PresetRow({
               </span>
             )}
             {savedHere && (
-              <span className="shrink-0 text-[10px] text-emerald-600">{t("settings.sections.llm.savedBadge")}</span>
+              <span className="shrink-0 text-[10px] text-ok">{t("settings.sections.llm.savedBadge")}</span>
             )}
             {usedBy.length > 0 && (
               <span className="shrink-0 truncate text-[10px] text-muted-foreground">En uso: {usedBy.map(serviceWords).join(", ")}</span>
@@ -393,7 +393,7 @@ function PresetRow({
           aria-label={isActive ? t("settings.sections.llm.deactivate") : t("settings.sections.llm.activate")}
         >
           <span
-            className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm ring-1 ring-black/10 transition-transform ${
+            className={`inline-block h-3.5 w-3.5 rounded-full bg-primary-foreground shadow-card ring-1 ring-border-strong transition-transform ${
               isActive ? "translate-x-4" : "translate-x-0.5"
             }`}
           />
@@ -525,7 +525,7 @@ function PresetRow({
                   aria-label={t("settings.sections.llm.localCliIsolation")}
                 >
                   <span
-                    className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm ring-1 ring-black/10 transition-transform ${
+                    className={`inline-block h-3.5 w-3.5 rounded-full bg-primary-foreground shadow-card ring-1 ring-border-strong transition-transform ${
                       localCliIsolation ? "translate-x-4" : "translate-x-0.5"
                     }`}
                   />
@@ -653,7 +653,7 @@ function PresetRow({
                 aria-label={t("settings.sections.llm.streamingOutput")}
               >
                 <span
-                  className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm ring-1 ring-black/10 transition-transform ${
+                  className={`inline-block h-3.5 w-3.5 rounded-full bg-primary-foreground shadow-card ring-1 ring-border-strong transition-transform ${
                     streamingEnabled ? "translate-x-4" : "translate-x-0.5"
                   }`}
                 />
@@ -749,8 +749,8 @@ function PresetRow({
               <div
                 className={`rounded-md border px-3 py-2 text-xs ${
                   testState.result.ok
-                    ? "border-emerald-500/40 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400"
-                    : "border-destructive/40 bg-destructive/5 text-destructive"
+                    ? "border-ok-line bg-ok-bg text-ok"
+                    : "border-err-line bg-err-bg text-err"
                 }`}
               >
                 {testState.result.message}
@@ -899,8 +899,8 @@ function EndpointField({ value, mode, placeholder, onChange }: EndpointFieldProp
         <div
           className={`flex items-start gap-1.5 rounded-md border px-2 py-1.5 text-xs ${
             preview.changed
-              ? "border-amber-500/40 bg-amber-500/5 text-amber-700 dark:text-amber-400"
-              : "border-blue-500/40 bg-blue-500/5 text-blue-700 dark:text-blue-400"
+              ? "border-warn-line bg-warn-bg text-warn"
+              : "border-info-line bg-info-bg text-info"
           }`}
         >
           {preview.changed ? (
@@ -1053,9 +1053,9 @@ function ClaudeCliStatusPill() {
       <div
         className={`flex items-start gap-1.5 rounded-md border px-2 py-1.5 text-xs ${
           state === "ok"
-            ? "border-emerald-500/40 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400"
+            ? "border-ok-line bg-ok-bg text-ok"
             : state === "err"
-              ? "border-rose-500/40 bg-rose-500/5 text-rose-700 dark:text-rose-400"
+              ? "border-err-line bg-err-bg text-err"
               : "border-border bg-background/50 text-muted-foreground"
         }`}
       >
@@ -1148,9 +1148,9 @@ function CodexCliStatusPill() {
       <div
         className={`flex items-start gap-1.5 rounded-md border px-2 py-1.5 text-xs ${
           state === "ok"
-            ? "border-emerald-500/40 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400"
+            ? "border-ok-line bg-ok-bg text-ok"
             : state === "err"
-              ? "border-rose-500/40 bg-rose-500/5 text-rose-700 dark:text-rose-400"
+              ? "border-err-line bg-err-bg text-err"
               : "border-border bg-background/50 text-muted-foreground"
         }`}
       >
