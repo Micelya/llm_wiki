@@ -1029,7 +1029,7 @@ function CitedReferencesPanel({
                   type="button"
                   onClick={() => handleJumpToImageSource(info.firstUrl!, page.path)}
                   className="flex shrink-0 items-center gap-0.5 rounded px-1 py-0.5 text-[10px] text-link hover:bg-hover transition-colors"
-                  title={`Open original document at first image (${info.count} image${info.count === 1 ? "" : "s"} on this page)`}
+                  title={`Abrir el documento en su primera imagen (${info.count} ${info.count === 1 ? "imagen" : "imágenes"} en esta página)`}
                 >
                   <ImageIcon className="h-3 w-3" />
                   {info.count}

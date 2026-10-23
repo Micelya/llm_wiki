@@ -15,6 +15,7 @@ interface Props {
 }
 
 const UI_LANGUAGES = [
+  { value: "es", label: "Español" },
   { value: "en", label: "English" },
   { value: "it", label: "Italiano" },
   { value: "zh", label: "中文" },

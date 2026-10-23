@@ -241,10 +241,10 @@ function UpdateAvailableBanner({
       try {
         await navigator.clipboard.writeText(targetUrl)
         await appDialog.alert({
-          message: `Could not open browser. URL copied to clipboard:\n${targetUrl}`,
+          message: `No se pudo abrir el navegador. La dirección quedó copiada:\n${targetUrl}`,
         })
       } catch {
-        await appDialog.alert({ message: `Could not open browser. Visit:\n${targetUrl}` })
+        await appDialog.alert({ message: `No se pudo abrir el navegador. Entrá a:\n${targetUrl}` })
       }
     }
   }
