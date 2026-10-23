@@ -472,14 +472,26 @@ impl DocBase {
             neighbours.extend(existing);
             (me, neighbours)
         };
+        // A document generated from a template never pairs with the
+        // documents of its template: it is made with it, not similar to
+        // them (D-497).
+        let generated = {
+            let conn = self.conn();
+            super::generate::generated_families(&conn)?
+        };
+        let made_with = |x: i64, y: i64| generated.get(&x).is_some_and(|theirs| theirs.contains(&y));
 
         let mut results: Vec<(i64, i64, Option<(propose::Proposal, Measures, serde_json::Value)>)> = Vec::new();
         for other_id in neighbours {
+            let (lo, hi) = if content_id < other_id { (content_id, other_id) } else { (other_id, content_id) };
+            if made_with(content_id, other_id) || made_with(other_id, content_id) {
+                results.push((lo, hi, None));
+                continue;
+            }
             let other = {
                 let conn = self.conn();
                 load_doc(&conn, other_id, routine)?
             };
-            let (lo, hi) = if content_id < other_id { (content_id, other_id) } else { (other_id, content_id) };
             let outcome = match &other {
                 Some(other) if me.prepared.word_count() >= MIN_WORDS && other.prepared.word_count() >= MIN_WORDS => {
                     let (a, b) = if me.id < other.id { (&me, other) } else { (other, &me) };
@@ -580,9 +592,10 @@ impl DocBase {
     fn regroup_families(&self) -> Result<(), String> {
         let mut conn = self.conn();
         let tx = conn.transaction().map_err(sql_err)?;
-        // A document generated from a template is never the same document
-        // as those it came from, nor the principal of a family (D-488).
-        super::generate::generated_pairs_as_template(&tx)?;
+        // A document generated from a template has no pair with the
+        // documents it came from (D-497), and is never the principal of a
+        // family (D-488).
+        super::generate::generated_pairs_dropped(&tx)?;
         let generated = super::generate::generated_contents(&tx)?;
         let mut adjacent: BTreeMap<i64, BTreeMap<i64, (String, f64)>> = BTreeMap::new();
         {

@@ -1,8 +1,6 @@
 //! The passes over a real base, with invented documents (R-24: nothing
 //! here comes from the test folder).
 
-use rusqlite::OptionalExtension;
-
 use super::store::Decision;
 use crate::docbase::query::DocumentFilter;
 use crate::docbase::testing::TempDir;
@@ -1156,30 +1154,23 @@ fn a_generated_document_is_known_as_such_never_the_principal_nor_possibly_the_sa
         assert!(!field.values.iter().any(|v| v.contains("Ferreyra")), "the template keeps no value of what was generated");
     }
 
-    // With the documents of the template it is the same template, never possibly the same document.
+    // Made with the template, it has no pair with any of its documents
+    // (D-497), not even the copy that says the same: nothing to decide.
     for generated in [same_content, long_content] {
-        let (a, b) = (generated.min(principal), generated.max(principal));
-        let relation: Option<String> = base
-            .conn()
-            .query_row("SELECT relation FROM similar_pair WHERE a = ?1 AND b = ?2", rusqlite::params![a, b], |row| row.get(0))
-            .optional()
-            .unwrap();
-        if let Some(relation) = relation {
-            assert_eq!(relation, "same-template");
+        for source in &documents {
+            let pairs: i64 = base
+                .conn()
+                .query_row(
+                    "SELECT count(*) FROM similar_pair WHERE a = ?1 AND b = ?2",
+                    rusqlite::params![generated.min(*source), generated.max(*source)],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(pairs, 0, "a generated document never pairs with its family");
         }
     }
-    let near: Option<String> = base
-        .conn()
-        .query_row(
-            "SELECT relation FROM similar_pair WHERE a = ?1 AND b = ?2",
-            rusqlite::params![same_content.min(principal), same_content.max(principal)],
-            |row| row.get(0),
-        )
-        .optional()
-        .unwrap();
-    assert_eq!(near.as_deref(), Some("same-template"), "the copy pairs with the principal, as the same template");
     let pending = base.similar_pending(&Visible::All).unwrap();
-    assert_eq!(pending.same_document_pairs, 0);
+    assert_eq!((pending.pairs, pending.same_document_pairs), (0, 0));
 
     // Its screen says it was generated, from which template and for which matter.
     let detail = base.document(&Visible::All, row(&base, "Copia del principal.docx").location_id).unwrap().unwrap();
