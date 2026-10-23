@@ -23,6 +23,7 @@ import { vocabulary } from "@/vocabulary"
 import { portalWindow } from "./portal-window"
 import { downloadingAlone, progressFigures, showsPortal } from "./portal-state"
 import { publishPortalStatus, usePortalStatus } from "./use-portal-status"
+import { usePortalStore } from "@/stores/portal-store"
 
 const STATES: Record<string, { tone: Tone; label: string }> = {
   working: { tone: "busy", label: "Trabajando" },
@@ -38,6 +39,14 @@ export function PortalsView() {
   const status = usePortalStatus()
   const followed = useDocbaseQuery("portals-followed", () => listFollowed(PJN))
   const [problem, setProblem] = useState<string | null>(null)
+
+  // While the page is on screen the end of a walk is seen here; out of
+  // it, it is told in the foot of the window and in Atención.
+  const setOpen = usePortalStore((s) => s.setOpen)
+  useEffect(() => {
+    setOpen(true)
+    return () => setOpen(false)
+  }, [setOpen])
 
   // When a walk ends, what is followed changed.
   const lastState = useRef<string | null>(null)

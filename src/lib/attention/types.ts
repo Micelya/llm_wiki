@@ -47,6 +47,8 @@ export type AttentionTarget =
   | { view: "identity-doubts"; group?: string | null }
   /** The matters, on one matter when `matterId` is given. */
   | { view: "matters"; matterId?: string | null }
+  /** The judicial portals («Portales»). */
+  | { view: "portals" }
 
 /** A button of a line or of one of its cases. */
 export type AttentionAction =

@@ -1,13 +1,16 @@
 import type { PortalStatus } from "@/commands/portals"
 
 /**
- * Whether a walk runs and only the app works on it: the portal needs no
- * person (no challenge, no signing in), it is not processing a query and
- * the person did not take the window.
+ * Whether a walk runs over the pages of a record and only the app works
+ * on it: it already reached the record (before, the person sees the app
+ * fill the portal's form), the portal needs no person (no challenge, no
+ * signing in), it is not processing a query and the person did not take
+ * the window.
  */
 export function downloadingAlone(status: PortalStatus | null): boolean {
   if (!status?.running || status.manual) return false
-  return status.progress.state === "working" && !status.progress.busy
+  const p = status.progress
+  return p.state === "working" && !p.busy && p.page !== null
 }
 
 /**

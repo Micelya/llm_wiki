@@ -9,6 +9,7 @@ import { ErrorBoundary } from "@/components/error-boundary"
 import { AttentionSources } from "@/components/attention/sources-host"
 import { ProgressPoller } from "@/components/progress/use-progress"
 import { ProgressLine } from "@/components/progress/progress-line"
+import { PortalLine } from "@/components/portals/portal-line"
 import { isResearchPanelVisible } from "./research-panel-nav"
 
 export function AppLayout() {
@@ -85,6 +86,8 @@ export function AppLayout() {
           )}
         </div>
       </div>
+      {/* A walk over a judicial portal, from any screen: it goes on while the person works elsewhere. */}
+      <PortalLine />
       {/* What the app is processing, from any screen (D-426). */}
       <ProgressLine />
     </div>

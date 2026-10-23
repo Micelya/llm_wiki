@@ -10,6 +10,11 @@ describe("the portal's window while the app downloads", () => {
     expect(showsPortal(status, true)).toBe(true)
   })
 
+  it("shows while the app fills the portal's form, before it reaches the record", () => {
+    expect(downloadingAlone(statusOf({}, { page: null, message: "Completando el formulario del portal…" }))).toBe(false)
+    expect(showsPortal(statusOf({}, { page: null }), false)).toBe(true)
+  })
+
   it("shows again by itself when the portal needs the person or processes a query", () => {
     expect(showsPortal(statusOf({}, { state: "needs-person", person: "challenge" }), false)).toBe(true)
     expect(showsPortal(statusOf({}, { state: "needs-person", person: "login" }), false)).toBe(true)
