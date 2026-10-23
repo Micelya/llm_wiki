@@ -381,7 +381,7 @@ pub fn scw_record_page(view: &RecordView) -> String {
     let data = [
         datum("Expediente:", view.reference, ""),
         datum("Jurisdicción:", "Cámara Inventada de Prueba", ""),
-        datum("Dependencia:", "JUZGADO INVENTADO 99 - SECRETARIA Nº 98", r#" for="detailDependencia""#),
+        datum("Dependencia:", "JUZGADO INVENTADO 99 - MESA Nº 98", r#" for="detailDependencia""#),
         datum("Sit. Actual:", "EN LETRA", r#" for="detailSituation""#),
         datum("Carátula:", view.title, r#" for="detailCover""#),
     ]

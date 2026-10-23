@@ -122,7 +122,7 @@ fn the_page_of_the_scw_is_read_whole_with_its_dates_without_a_zero() {
     assert_eq!(record.data.shown, Some(key()));
     assert_eq!(record.data.title.as_deref(), Some(TITLE));
     assert_eq!(record.data.jurisdiction.as_deref(), Some("Cámara Inventada de Prueba"));
-    assert_eq!(record.data.office.as_deref(), Some("JUZGADO INVENTADO 99 - SECRETARIA Nº 98"));
+    assert_eq!(record.data.office.as_deref(), Some("JUZGADO INVENTADO 99 - MESA Nº 98"));
     assert_eq!(record.data.situation.as_deref(), Some("EN LETRA"));
     for (row, fake) in record.rows.iter().zip(&list[..15]) {
         // Without the labels only a screen reader says.
