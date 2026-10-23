@@ -23,7 +23,7 @@ import { FieldEditor } from "./template-field-editor"
 import { useDocbaseQuery } from "./use-docbase-query"
 
 const SELECT_CLASS =
-  "h-7 max-w-full rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+  "h-7 max-w-full rounded-lg border border-border-strong bg-card px-2 text-sm outline-none focus-visible:border-link focus-visible:ring-3 focus-visible:ring-ring/30"
 
 /**
  * The template a document was made with, at the head of its «Copias y
@@ -237,7 +237,7 @@ export function TemplatePanel({
           )}
         </div>
         {showText && (
-          <div className="mt-2 max-h-96 overflow-y-auto rounded-md border bg-background px-4 py-3 font-serif text-[15px] leading-relaxed break-words whitespace-pre-wrap">
+          <div className="mt-2 max-h-96 overflow-y-auto rounded-md border bg-card px-4 py-3 text-[15px] leading-relaxed break-words whitespace-pre-wrap">
             {template.segments.map((segment, index) =>
               "text" in segment ? (
                 <span key={index}>{segment.text}</span>
@@ -283,7 +283,7 @@ export function TemplatePanel({
                   {template.documents.map((d, index) => (
                     <th key={d.doc.contentId} className="min-w-40 px-2 py-1.5 text-left align-top text-xs font-medium">
                       <button
-                        className="text-left break-words text-primary hover:underline"
+                        className="text-left break-words text-link hover:underline"
                         title={`${d.doc.originName} › ${d.doc.relPath}`}
                         onClick={() => onOpen(d.doc.locationId)}
                       >

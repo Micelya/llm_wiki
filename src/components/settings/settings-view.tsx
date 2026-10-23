@@ -439,7 +439,7 @@ export function SettingsView() {
               >
                 <Icon
                   className={`h-4 w-4 shrink-0 transition-colors ${
-                    isActive ? "text-primary" : "text-muted-foreground/80 group-hover:text-accent-foreground"
+                    isActive ? "text-link" : "text-muted-foreground/80 group-hover:text-accent-foreground"
                   }`}
                 />
                 <span className="truncate">{c.label ?? t(c.labelKey)}</span>

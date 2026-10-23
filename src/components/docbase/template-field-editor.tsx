@@ -6,7 +6,7 @@ import { vocabulary, type Vocabulary } from "@/vocabulary"
 import { automaticFieldName, choiceOf, decided, distinctValues, whatName } from "./template"
 
 const SELECT_CLASS =
-  "h-8 max-w-full rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+  "h-8 max-w-full rounded-lg border border-border-strong bg-card px-2 text-sm outline-none focus-visible:border-link focus-visible:ring-3 focus-visible:ring-ring/30"
 
 /** The choice of a fixed value that is none of the documents'. */
 const OTHER = "\u0000otro"

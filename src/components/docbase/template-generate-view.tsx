@@ -54,7 +54,7 @@ import { useDocbaseQuery } from "./use-docbase-query"
 const FIELD_CLASS =
   "w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
 const SELECT_CLASS =
-  "h-8 max-w-full rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+  "h-8 max-w-full rounded-lg border border-border-strong bg-card px-2 text-sm outline-none focus-visible:border-link focus-visible:ring-3 focus-visible:ring-ring/30"
 /** The choice of a wording that is none of the documents'. */
 const OTHER = "\u0000otra"
 /** Letters typed before the people and organizations of the base are looked for. */
@@ -215,7 +215,7 @@ export function GenerateForm({
   return (
     <>
       <div className="flex flex-col gap-1">
-        <h2 className="font-serif text-2xl break-words">Generar un documento</h2>
+        <h2 className="font-ui text-[1.75rem] leading-tight font-bold tracking-[-0.01em] break-words text-strong">Generar un documento</h2>
         <p className="text-sm text-muted-foreground">
           Desde la {words.templates.one} «{name}»:{" "}
           {asked.length === 0
@@ -467,7 +467,7 @@ function EntityInput({
         {fromBase ? `De «${words.knowledge.entities}».` : `Elegí de «${words.knowledge.entities}» o escribilo a mano.`}
       </span>
       {options.length > 0 && (
-        <ul className="absolute top-9 z-10 flex w-full flex-col divide-y rounded-md border bg-popover text-sm shadow-md">
+        <ul className="absolute top-9 z-10 flex w-full flex-col divide-y rounded-[10px] border bg-card bg-popover text-sm shadow-md">
           {options.map((option) => (
             <li key={option.id}>
               <button
@@ -596,7 +596,7 @@ function WordingInput({ row, value, onChange }: { row: GenerationRow; value: Fie
 /** The text of the template with the values in place: what is given, highlighted; what is missing, in red. */
 function PreviewText({ pieces }: { pieces: PreviewPiece[] }) {
   return (
-    <div className="max-h-[36rem] overflow-y-auto rounded-md border bg-background px-4 py-3 font-serif text-[15px] leading-relaxed break-words whitespace-pre-wrap">
+    <div className="max-h-[36rem] overflow-y-auto rounded-md border bg-card px-4 py-3 text-[15px] leading-relaxed break-words whitespace-pre-wrap">
       {pieces.map((piece, index) => (piece.kind === "text" ? <span key={index}>{piece.text}</span> : <PreviewValue key={index} piece={piece} />))}
     </div>
   )

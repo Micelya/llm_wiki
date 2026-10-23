@@ -2,6 +2,40 @@ import type { ReactNode } from "react"
 import { cn } from "@/lib/utils"
 import { TONE_CLASSES, type Tone } from "./badge"
 
+/**
+ * A choice among a few, as a row of small chips («Todos», «Personas»,
+ * «Organizaciones»): the chosen one in the brand's soft magenta.
+ */
+export function FilterChip({
+  active,
+  onClick,
+  count,
+  title,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  count?: number
+  title?: string
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      title={title}
+      onClick={onClick}
+      className={cn(
+        "inline-flex h-7 items-center gap-1.5 rounded-lg border px-2.5 font-ui text-[0.8125rem] font-semibold whitespace-nowrap transition-colors",
+        active ? "border-transparent bg-brand-soft font-bold text-brand-ink" : "border-border-strong text-muted-foreground hover:bg-hover hover:text-strong",
+      )}
+    >
+      {children}
+      {count !== undefined && <span className="tabular-nums opacity-80">{count}</span>}
+    </button>
+  )
+}
+
 /** A row of tabs, over a line; its tabs are `Tab`. */
 export function TabList({ label, className, children }: { label?: string; className?: string; children: ReactNode }) {
   return (

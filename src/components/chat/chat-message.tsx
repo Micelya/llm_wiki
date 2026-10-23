@@ -190,7 +190,7 @@ function ChatMessageImpl({
               <button
                 type="button"
                 onClick={() => onContinue(message)}
-                className="rounded border px-2 py-0.5 text-foreground hover:bg-primary/10 hover:text-primary"
+                className="rounded border px-2 py-0.5 text-foreground hover:bg-brand-soft hover:text-link"
                 title="Suma otras tantas vueltas y sigue desde donde quedó. Cada vuelta es una pregunta más al modelo."
               >
                 Seguir buscando
@@ -206,7 +206,7 @@ function ChatMessageImpl({
               <button
                 type="button"
                 onClick={onRegenerate}
-                className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] text-muted-foreground hover:text-link hover:bg-brand-soft transition-colors"
                 title={t("chat.regenerateResponse")}
               >
                 <RefreshCw className="h-3 w-3" /> {t("chat.regenerate")}
@@ -418,7 +418,7 @@ function UserInputFieldControl({
               <span className="flex items-center justify-between gap-2">
                 <span className="font-medium">{option.label}</span>
                 {option.recommended && (
-                  <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
+                  <span className="rounded bg-brand-soft px-1.5 py-0.5 text-[10px] text-brand-ink">
                     {t("chat.userInputRecommended")}
                   </span>
                 )}
@@ -541,7 +541,7 @@ function CopyButton({ content }: { content: string }) {
     <button
       type="button"
       onClick={handleCopy}
-      className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+      className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] text-muted-foreground hover:text-link hover:bg-brand-soft transition-colors"
       title={t("chat.copyToClipboard")}
     >
       {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
@@ -595,7 +595,7 @@ function SaveQueryButton({ message }: { message: DisplayMessage }) {
       type="button"
       onClick={handleSave}
       disabled={saving}
-      className="self-start inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+      className="self-start inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] text-muted-foreground hover:text-link hover:bg-brand-soft transition-colors"
       title={problem ?? "Guardar la pregunta y su respuesta en «Consultas guardadas»"}
     >
       <BookmarkPlus className="h-3 w-3" />
@@ -897,7 +897,7 @@ function CitedReferencesPanel({
           <button
             type="button"
             onClick={() => hasMoreOutputs && setOutputsExpanded(!outputsExpanded)}
-            className="flex w-full items-center gap-1.5 px-2 py-1 text-primary transition-colors hover:text-primary/80"
+            className="flex w-full items-center gap-1.5 px-2 py-1 text-link transition-colors hover:text-link/80"
           >
             <Sparkles className="h-3 w-3 shrink-0" />
             <span className="font-medium">{t("chat.generatedOutputs")} ({generatedOutputs.length})</span>
@@ -921,14 +921,14 @@ function CitedReferencesPanel({
                   className="flex w-full items-start gap-1.5 rounded text-left"
                   title={page.path}
                 >
-                  <span className="mt-1 text-[10px] text-primary/60 w-4 shrink-0 text-right">[{i + 1}]</span>
+                  <span className="mt-1 text-[10px] text-link/60 w-4 shrink-0 text-right">[{i + 1}]</span>
                   <button
                     type="button"
                     onClick={() => openCitedPage(page)}
-                    className="flex min-w-0 flex-1 items-start gap-2 rounded px-1 py-1 text-left hover:bg-primary/10 transition-colors"
+                    className="flex min-w-0 flex-1 items-start gap-2 rounded px-1 py-1 text-left hover:bg-brand-soft transition-colors"
                   >
                     {imageSrc ? (
-                      <span className="h-14 w-20 shrink-0 overflow-hidden rounded border border-primary/20 bg-background/80">
+                      <span className="h-14 w-20 shrink-0 overflow-hidden rounded border border-border bg-card">
                         <img
                           src={imageSrc}
                           alt={page.title}
@@ -948,7 +948,7 @@ function CitedReferencesPanel({
                         {referenceLocator(page)}
                       </span>
                     </span>
-                    <span className="shrink-0 rounded border border-primary/20 bg-background/80 px-1 py-0 text-[10px] text-primary">
+                    <span className="shrink-0 rounded border border-border bg-card px-1 py-0 text-[10px] text-brand-ink">
                       {t("chat.generatedOutput")}
                     </span>
                   </button>
@@ -959,7 +959,7 @@ function CitedReferencesPanel({
               <button
                 type="button"
                 onClick={() => setOutputsExpanded(true)}
-                className="w-full text-center text-[10px] text-primary/70 hover:text-primary pt-0.5"
+                className="w-full text-center text-[10px] text-link/70 hover:text-link pt-0.5"
               >
                 +{generatedOutputs.length - MAX_COLLAPSED} more...
               </button>
@@ -1067,7 +1067,7 @@ function CitedReferencesPanel({
           <button
             type="button"
             onClick={() => setExpanded(true)}
-            className="w-full text-center text-[10px] text-muted-foreground hover:text-primary pt-0.5"
+            className="w-full text-center text-[10px] text-muted-foreground hover:text-link pt-0.5"
           >
             +{citedPages.length - MAX_COLLAPSED} more...
           </button>
@@ -1209,7 +1209,7 @@ function AgentActivity({ events, compact = false }: { events: ChatAgentEvent[]; 
             <span
               className={`flex h-4 w-4 shrink-0 items-center justify-center ${
                 active
-                  ? "text-primary/70"
+                  ? "text-link/70"
                   : "text-muted-foreground/60"
               }`}
             >
@@ -1300,7 +1300,7 @@ function MarkdownContent({ content }: { content: string }) {
                 return <WikiLink pageName={pageName}>{children}</WikiLink>
               }
               return (
-                <span className="text-primary underline cursor-default" title={href}>
+                <span className="text-link underline cursor-default" title={href}>
                   {children}
                 </span>
               )
@@ -1393,7 +1393,7 @@ function StreamingThinkingBlock({ content }: { content: string }) {
   const visibleLines = lines.slice(-5)
 
   return (
-    <div className="rounded-md border border-dashed border-border-strong bg-panel-sub px-2.5 py-2">
+    <div className="rounded-[10px] border border-dashed border-border-strong border-border-strong bg-panel-sub px-2.5 py-2">
       <div className="flex items-center gap-1.5 mb-1.5">
         <span className="text-sm animate-pulse">💭</span>
         <span className="text-xs font-medium text-muted-foreground">{t("chat.thinking")}</span>
@@ -1422,7 +1422,7 @@ function ThinkingBlock({ content }: { content: string }) {
   const lines = content.split("\n").filter((l) => l.trim())
 
   return (
-    <div className="mb-2 rounded-md border border-dashed border-border-strong bg-panel-sub">
+    <div className="mb-2 rounded-[10px] border border-dashed border-border-strong border-border-strong bg-panel-sub">
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
@@ -1525,7 +1525,7 @@ function WikiLink({ pageName, children }: { pageName: string; children: React.Re
     <button
       type="button"
       onClick={handleClick}
-      className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-primary underline decoration-primary/30 hover:bg-primary/10 hover:decoration-primary"
+      className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-link underline decoration-[var(--link-line)] hover:bg-brand-soft hover:decoration-link"
       title={`Abrir: ${pageName}`}
     >
       <FileText className="inline h-3 w-3" />

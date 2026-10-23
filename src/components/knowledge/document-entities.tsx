@@ -54,7 +54,7 @@ export function DocumentEntitiesSection({ locationId }: { locationId: number }) 
           {data.matters.map((matter) => (
             <li key={matter.matterId} className="flex flex-wrap items-baseline gap-2">
               <span className="text-xs font-medium text-muted-foreground">{words.knowledge.matter}</span>
-              <button className="text-left text-primary hover:underline" onClick={() => openMatter(matter.matterId)}>
+              <button className="text-left text-link hover:underline" onClick={() => openMatter(matter.matterId)}>
                 {matter.name}
               </button>
               {matter.proposed && <StatusBadge tone="neutral">propuesto por el modelo</StatusBadge>}
@@ -79,11 +79,11 @@ export function DocumentEntitiesSection({ locationId }: { locationId: number }) 
         <p className="text-sm text-muted-foreground">El documento no nombra a nadie que la lectura haya encontrado.</p>
       )}
       {data.entities.length > 0 && (
-        <ul className="flex flex-col divide-y rounded-md border text-sm">
+        <ul className="flex flex-col divide-y rounded-[10px] border bg-card text-sm">
           {data.entities.map((entity) => (
             <li key={entity.entityId ?? `${entity.kind}:${entity.name}`} className="flex flex-wrap items-baseline gap-2 px-3 py-1.5">
               {entity.entityId ? (
-                <button className="text-left text-primary hover:underline" onClick={() => openEntity(entity.entityId as string)}>
+                <button className="text-left text-link hover:underline" onClick={() => openEntity(entity.entityId as string)}>
                   {entity.name}
                 </button>
               ) : (
@@ -107,7 +107,7 @@ export function DocumentEntitiesSection({ locationId }: { locationId: number }) 
           <h4 className="mb-1 text-xs font-medium text-muted-foreground">
             {words.knowledge.references} ({data.references.length})
           </h4>
-          <ul className="flex flex-col divide-y rounded-md border text-sm">
+          <ul className="flex flex-col divide-y rounded-[10px] border bg-card text-sm">
             {data.references.map((reference) => (
               <li key={reference.normalized} className="flex flex-col gap-0.5 px-3 py-1.5">
                 <span className="flex flex-wrap items-baseline gap-2">

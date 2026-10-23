@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Table, Td, Th } from "@/components/ui/table"
+import { FilterChip } from "@/components/ui/tabs"
 import { listEntities } from "@/commands/docbase"
 import { useKnowledgeStore } from "@/stores/knowledge-store"
 import { useWikiStore } from "@/stores/wiki-store"
 import { entityTypeName, vocabulary } from "@/vocabulary"
-import { DocbasePage, EmptyNote, ErrorNote, StatusBadge } from "@/components/docbase/page"
+import { DocbasePage, EmptyNote, ErrorNote } from "@/components/docbase/page"
 import { formatCount, plural } from "@/components/docbase/format"
 import { useDocbaseQuery } from "@/components/docbase/use-docbase-query"
 import { EntityDetailView } from "./entity-detail"
@@ -50,12 +53,12 @@ function EntityList() {
       title={words.knowledge.entities}
       subtitle={words.knowledge.entitiesDescription}
       actions={
-        <button className="text-sm text-primary hover:underline" onClick={() => setActiveView("identity-doubts")}>
+        <Button variant="outline" onClick={() => setActiveView("identity-doubts")}>
           {words.knowledge.doubts}
-        </button>
+        </Button>
       }
     >
-      <div className="mx-auto flex max-w-5xl flex-col gap-4">
+      <div className="flex max-w-5xl flex-col gap-4">
         <div className="flex flex-wrap items-center gap-2">
           <Input
             className="h-8 w-72"
@@ -63,18 +66,18 @@ function EntityList() {
             value={typed}
             onChange={(event) => setTyped(event.target.value)}
           />
-          <div className="flex flex-wrap gap-1" role="group" aria-label="Tipo">
-            <KindButton active={kind === null} onClick={() => setKind(null)}>
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Tipo">
+            <FilterChip active={kind === null} onClick={() => setKind(null)}>
               Todos
-            </KindButton>
+            </FilterChip>
             {kinds.map((id) => (
-              <KindButton key={id} active={kind === id} onClick={() => setKind(id)}>
+              <FilterChip key={id} active={kind === id} onClick={() => setKind(id)}>
                 {entityTypeName(id, true, words)}
-              </KindButton>
+              </FilterChip>
             ))}
           </div>
           {entities.data && (
-            <span className="ml-auto text-xs text-muted-foreground">{plural(rows.length, "resultado", "resultados")}</span>
+            <span className="ml-auto text-[0.8125rem] text-muted-foreground tabular-nums">{plural(rows.length, "resultado", "resultados")}</span>
           )}
         </div>
         {entities.error && <ErrorNote>{entities.error}</ErrorNote>}
@@ -86,44 +89,41 @@ function EntityList() {
           </EmptyNote>
         )}
         {rows.length > 0 && (
-          <ul className="divide-y rounded-lg border bg-card">
-            {rows.map((entity) => (
-              <li key={entity.id}>
-                <button
-                  className="flex w-full items-start gap-3 px-4 py-2.5 text-left hover:bg-muted/50"
-                  onClick={() => openEntity(entity.id)}
-                >
-                  <span className="min-w-0 flex-1">
-                    <span className="block font-medium break-words">{entity.name}</span>
+          <Table>
+            <thead>
+              <tr>
+                <Th>Nombre</Th>
+                <Th width="11rem">Tipo</Th>
+                <Th align="right" width="8rem">
+                  Documentos
+                </Th>
+                <Th align="right" width="8rem">
+                  Menciones
+                </Th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((entity) => (
+                <tr key={entity.id} className="cursor-pointer" onClick={() => openEntity(entity.id)}>
+                  <Td>
+                    <button className="text-left font-semibold break-words text-link hover:underline" onClick={() => openEntity(entity.id)}>
+                      {entity.name}
+                    </button>
                     {entity.aliases.length > 0 && (
-                      <span className="block text-xs break-words text-muted-foreground">
-                        También: {entity.aliases.join(" · ")}
-                      </span>
+                      <span className="block text-[0.78125rem] break-words text-muted-foreground">También: {entity.aliases.join(" · ")}</span>
                     )}
-                  </span>
-                  <StatusBadge tone="neutral">{entityTypeName(entity.kind, false, words)}</StatusBadge>
-                  <span className="w-28 shrink-0 text-right text-xs text-muted-foreground">
-                    {plural(entity.documents, "documento", "documentos")}
-                    {entity.mentions > entity.documents && ` · ${formatCount(entity.mentions)} menciones`}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
+                  </Td>
+                  <Td muted>{entityTypeName(entity.kind, false, words)}</Td>
+                  <Td align="right">{formatCount(entity.documents)}</Td>
+                  <Td align="right" muted>
+                    {formatCount(entity.mentions)}
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
         )}
       </div>
     </DocbasePage>
-  )
-}
-
-function KindButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: string }) {
-  return (
-    <button
-      className={`rounded-md border px-2.5 py-1 text-xs ${active ? "border-primary bg-primary/10 font-medium" : "hover:bg-muted"}`}
-      aria-pressed={active}
-      onClick={onClick}
-    >
-      {children}
-    </button>
   )
 }

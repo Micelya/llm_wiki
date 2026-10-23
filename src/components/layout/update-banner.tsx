@@ -80,7 +80,7 @@ export function UpdateBanner() {
     <div className="flex shrink-0 items-center gap-3 border-b border-primary/20 bg-gradient-to-r from-primary/8 via-primary/4 to-transparent px-4 py-2 text-sm">
       <div className="flex min-w-0 flex-1 items-center gap-2.5">
         <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15">
-          <Sparkles className="h-3.5 w-3.5 text-primary" />
+          <Sparkles className="h-3.5 w-3.5 text-brand-ink" />
         </div>
         <span className="truncate font-medium text-foreground">
           {t("updateBanner.message", {

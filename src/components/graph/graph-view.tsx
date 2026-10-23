@@ -1802,7 +1802,7 @@ export function GraphView() {
           <div className="w-[480px] rounded-lg border bg-background shadow-xl">
             <div className="flex items-center justify-between border-b px-4 py-3">
               <div className="flex items-center gap-2">
-                <Search className="h-4 w-4 text-primary" />
+                <Search className="h-4 w-4 text-brand-ink" />
                 <span className="font-medium text-sm">{TEXT.deepResearch}</span>
               </div>
               <button

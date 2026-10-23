@@ -134,7 +134,7 @@ function SideCard({ side, detail }: { side: DoubtSide; detail: EntityDetail | nu
     <div className="rounded-md border px-3 py-2 text-sm">
       <div className="flex items-baseline justify-between gap-2">
         {side.entityId ? (
-          <button className="text-left font-medium text-primary hover:underline" onClick={() => openEntity(side.entityId as string)}>
+          <button className="text-left font-medium text-link hover:underline" onClick={() => openEntity(side.entityId as string)}>
             {side.name}
           </button>
         ) : (
@@ -211,7 +211,7 @@ function PairRow({
       reload()
     })
   return (
-    <li className="rounded-md border border-dashed px-3 py-2 text-sm">
+    <li className="rounded-[10px] border border-dashed border-border-strong px-3 py-2 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-medium">
           «{a.name}» y «{b.name}»

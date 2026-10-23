@@ -240,7 +240,7 @@ export function TemplateDetail({
             />
           ) : (
             <>
-              <h2 className="min-w-0 font-serif text-2xl break-words">{templateName(template, principal?.name ?? "", words)}</h2>
+              <h2 className="min-w-0 font-ui text-[1.75rem] leading-tight font-bold tracking-[-0.01em] break-words text-strong">{templateName(template, principal?.name ?? "", words)}</h2>
               {onRename && (
                 <Button size="icon-xs" variant="ghost" title="Cambiar el nombre" onClick={() => setRenaming(true)}>
                   <Pencil />
@@ -301,7 +301,7 @@ function GeneratedList({ template, onOpen, words }: { template: Template; onOpen
       {template.generated.length === 0 ? (
         <p className="mt-2 text-sm text-muted-foreground">Todavía no se generó ninguno.</p>
       ) : (
-        <ul className="mt-2 divide-y rounded-md border text-sm">
+        <ul className="mt-2 divide-y rounded-[10px] border bg-card text-sm">
           {template.generated.map((generated) => (
             <li key={generated.id} className="flex flex-wrap items-center gap-3 px-3 py-1.5">
               <span className="min-w-0 flex-1">

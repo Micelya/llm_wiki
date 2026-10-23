@@ -17,7 +17,7 @@ function ExternalLink({ url, children }: { url: string; children?: ReactNode }) 
   // plugin always lands in the system browser.
   return (
     <a
-      className="cursor-pointer underline underline-offset-2 hover:text-primary"
+      className="cursor-pointer underline underline-offset-2 hover:text-link"
       href={url}
       onClick={(e) => {
         e.preventDefault()
@@ -254,7 +254,7 @@ function UpdateAvailableBanner({
 
   return (
     <div className="rounded border border-primary/40 bg-primary/5 p-3">
-      <div className="flex items-center gap-2 text-sm font-medium text-primary">
+      <div className="flex items-center gap-2 text-sm font-medium text-brand-ink">
         <Sparkles className="h-4 w-4 shrink-0" />
         {t("settings.sections.about.updateAvailable", { version: remote.replace(/^v/, "") })}
       </div>

@@ -235,7 +235,7 @@ function ConversationSidebar({
                 key={conv.id}
                 className={`group relative mx-1 my-0.5 flex cursor-pointer flex-col rounded-md px-2 py-1.5 text-sm transition-colors ${
                   isActive
-                    ? "bg-primary/10 text-primary"
+                    ? "bg-brand-soft text-brand-ink"
                     : "hover:bg-accent text-foreground"
                 }`}
                 onClick={() => {
@@ -1622,7 +1622,7 @@ function GeneratedOutputsPanel({
   return (
     <aside className="flex h-full w-[280px] shrink-0 flex-col border-l bg-background">
       <div className="flex min-h-10 items-center gap-2 border-b px-3 py-2">
-        <FolderOpen className="h-4 w-4 shrink-0 text-primary" />
+        <FolderOpen className="h-4 w-4 shrink-0 text-brand-ink" />
         <div className="min-w-0 flex-1">
           <div className="truncate text-xs font-medium">{t("chat.generatedOutputs")}</div>
           <div className="mt-0.5 text-[10px] text-muted-foreground">
@@ -1665,7 +1665,7 @@ function GeneratedOutputsPanel({
                 title={output.path}
               >
                 {imageSrc ? (
-                  <span className="h-10 w-12 shrink-0 overflow-hidden rounded border border-primary/20 bg-background/80">
+                  <span className="h-10 w-12 shrink-0 overflow-hidden rounded border border-border bg-card">
                     <img
                       src={imageSrc}
                       alt={title}
@@ -1677,13 +1677,13 @@ function GeneratedOutputsPanel({
                     />
                   </span>
                 ) : (
-                  <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-primary" />
+                  <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-link" />
                 )}
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-xs font-medium text-foreground">{title}</span>
                   <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">{output.path}</span>
                 </span>
-                <Maximize2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-primary" />
+                <Maximize2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-link" />
               </button>
             )
           })}
@@ -1713,7 +1713,7 @@ function GeneratedOutputPreviewDialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim p-6">
       <div className="flex h-[86vh] w-[80vw] min-w-0 max-w-[1600px] flex-col overflow-hidden rounded-xl border bg-background shadow-2xl">
         <div className="flex min-h-12 items-center gap-3 border-b px-4 py-2">
-          <Maximize2 className="h-4 w-4 shrink-0 text-primary" />
+          <Maximize2 className="h-4 w-4 shrink-0 text-brand-ink" />
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-medium" title={displayTitle}>{displayTitle}</div>
             <div className="mt-0.5 truncate text-[11px] text-muted-foreground" title={preview.path}>{preview.path}</div>
@@ -1947,7 +1947,7 @@ function ContextDetailsPanel({
         onPointerCancel={stopResize}
       />
       <div className="flex min-h-10 items-center gap-2 border-b px-3 py-2">
-        <ListTree className="h-4 w-4 text-primary" />
+        <ListTree className="h-4 w-4 text-brand-ink" />
         <div className="min-w-0 flex-1">
           <div className="text-xs font-medium">{t("chat.contextDetails")}</div>
           <div className="text-[10px] text-muted-foreground">{t("chat.contextDetailsScope")}</div>

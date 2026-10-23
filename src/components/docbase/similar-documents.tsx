@@ -29,7 +29,7 @@ import {
 import { useDocbaseQuery } from "./use-docbase-query"
 
 const SELECT_CLASS =
-  "h-7 rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+  "h-7 rounded-lg border border-border-strong bg-card px-2 text-sm outline-none focus-visible:border-link focus-visible:ring-3 focus-visible:ring-ring/30"
 
 /**
  * «Copias y versiones» (the vocabulary's `copies`), below the locations of
@@ -132,7 +132,7 @@ export function SimilarList({
   )
   return (
     <section className="mt-8">
-      <h2 className="border-b pb-1 font-serif text-xl">
+      <h2 className="mb-3.5 border-b pb-2 font-ui text-[1.3125rem] font-bold text-strong">
         {words.copies.name} ({copies.length})
       </h2>
       <div className="mt-3">
@@ -251,7 +251,7 @@ export function SimilarCard({
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <button
-            className="text-left font-medium text-primary break-words hover:underline"
+            className="text-left font-medium text-link break-words hover:underline"
             onClick={() => onOpen(item.other.locationId)}
           >
             {item.other.name}
@@ -279,7 +279,7 @@ export function SimilarCard({
         {sentence && <div className="text-muted-foreground">{sentence}</div>}
       </div>
 
-      <p className="mt-1 font-serif italic">{item.description}</p>
+      <p className="mt-1 text-muted-foreground italic">{item.description}</p>
       {item.possiblySame && item.state === "proposed" && (
         <p className="mt-1 text-warn">
           Son de la misma plantilla, pero no cambia ningún dato entre los dos: posiblemente sean el mismo documento.

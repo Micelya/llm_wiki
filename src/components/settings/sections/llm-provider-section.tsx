@@ -362,7 +362,7 @@ function PresetRow({
               </span>
             )}
             {isActive && (
-              <span className="shrink-0 rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+              <span className="shrink-0 rounded-full bg-brand-soft px-1.5 py-0.5 text-[10px] font-semibold text-brand-ink">
                 {t("settings.sections.llm.activeBadge")}
               </span>
             )}
@@ -977,7 +977,7 @@ function ModelPicker({ value, suggestions, placeholder, onChange }: ModelPickerP
             onClick={() => onChange("")}
             className={`rounded-md border px-2 py-0.5 text-xs transition-colors ${
               isCustom
-                ? "border-primary/60 bg-primary/10 text-primary"
+                ? "border-transparent bg-brand-soft text-brand-ink"
                 : "border-dashed border-muted-foreground/40 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
             }`}
             title={t("settings.sections.llm.typeCustomModel")}

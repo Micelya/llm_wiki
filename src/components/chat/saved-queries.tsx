@@ -93,7 +93,7 @@ function SavedQueryDialog({ query, onClose, onDelete }: { query: SavedQuery; onC
       >
         <header className="flex items-start justify-between gap-3 border-b px-5 py-3">
           <div className="min-w-0">
-            <h2 className="font-serif text-lg break-words">{query.title}</h2>
+            <h2 className="font-ui text-lg font-bold break-words text-strong">{query.title}</h2>
             <p className="text-xs text-muted-foreground">Guardada {formatAgo(query.createdAt)}</p>
           </div>
           <div className="flex shrink-0 gap-1">

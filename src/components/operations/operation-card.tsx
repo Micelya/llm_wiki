@@ -186,7 +186,7 @@ export function OperationCardView({ card: initial, onChange }: { card: Card; onC
         </ul>
       )}
       {listed.length > FOLDED_OVER && !unfolded && (
-        <button type="button" className="mt-1 text-xs text-primary hover:underline" onClick={() => setUnfolded(true)}>
+        <button type="button" className="mt-1 text-xs text-link hover:underline" onClick={() => setUnfolded(true)}>
           y {listed.length - FOLDED_OVER} más, ver todos
         </button>
       )}
@@ -273,7 +273,7 @@ function ItemLine({
         {item.reason ? <span className="text-muted-foreground"> · {item.reason.replace("{caso}", matterWord)}</span> : null}
       </span>
       {openable && (
-        <button type="button" className="shrink-0 text-xs text-primary hover:underline" onClick={(event) => { event.preventDefault(); onOpen() }}>
+        <button type="button" className="shrink-0 text-xs text-link hover:underline" onClick={(event) => { event.preventDefault(); onOpen() }}>
           abrir
         </button>
       )}

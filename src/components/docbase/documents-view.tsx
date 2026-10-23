@@ -2,6 +2,7 @@ import { Fragment, useEffect, useRef, useState, type MouseEvent } from "react"
 import { ChevronDown, ChevronLeft, ChevronRight, Copy } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Table, Td, Th } from "@/components/ui/table"
 import {
   documentCopies,
   listDocuments,
@@ -29,7 +30,7 @@ import { useDocbaseQuery } from "./use-docbase-query"
 const PAGE_SIZE = 100
 
 const SELECT_CLASS =
-  "h-8 rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+  "h-8 rounded-lg border border-border-strong bg-card px-2 text-sm outline-none focus-visible:border-link focus-visible:ring-3 focus-visible:ring-ring/30"
 
 export function DocumentsView() {
   const openLocationId = useDocbaseStore((s) => s.openLocationId)
@@ -221,27 +222,25 @@ function DocumentList() {
               : "Ningún documento coincide con lo que buscás."}
           </EmptyNote>
         ) : (
-          <div className="overflow-x-auto rounded-lg border">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2 font-medium">Nombre</th>
-                  <th className="px-3 py-2 font-medium">Dónde está</th>
-                  <th className="px-3 py-2 font-medium">Tipo</th>
-                  <th className="px-3 py-2 font-medium">Etiquetas</th>
-                  <th className="px-3 py-2 font-medium">Estado</th>
-                  <th className="px-3 py-2 font-medium">Copias</th>
-                  <th className="px-3 py-2 font-medium">Modificado</th>
-                  <th className="px-3 py-2 text-right font-medium">Tamaño</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <DocumentTableRow key={row.locationId} row={row} onOpen={openDocument} />
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table>
+            <thead>
+              <tr>
+                <Th>Nombre</Th>
+                <Th>Dónde está</Th>
+                <Th>Tipo</Th>
+                <Th>Etiquetas</Th>
+                <Th>Estado</Th>
+                <Th>Copias</Th>
+                <Th>Modificado</Th>
+                <Th align="right">Tamaño</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <DocumentTableRow key={row.locationId} row={row} onOpen={openDocument} />
+              ))}
+            </tbody>
+          </Table>
         )}
 
         {total > 0 && (
@@ -284,37 +283,35 @@ function DocumentTableRow({ row, onOpen }: { row: DocumentRow; onOpen: (location
 
   return (
     <Fragment>
-      <tr className="cursor-pointer border-t hover:bg-muted/40" onClick={() => onOpen(row.locationId)}>
-        <td className="max-w-xs px-3 py-2">
-          <span className="font-medium text-primary hover:underline" title={row.name}>
+      <tr className="cursor-pointer" onClick={() => onOpen(row.locationId)}>
+        <Td className="max-w-xs">
+          <span className="font-semibold text-link hover:underline" title={row.name}>
             {row.name}
           </span>
-        </td>
-        <td className="max-w-xs px-3 py-2 text-muted-foreground">
+        </Td>
+        <Td muted className="max-w-xs">
           <span className="break-words" title={`${row.originName} › ${row.folder}`}>
             {row.originName}
             {row.folder && ` › ${row.folder.split("/").join(" › ")}`}
           </span>
           {row.originReachable === false && <span className="ml-1 text-xs">(origen sin conexión)</span>}
-        </td>
-        <td className="px-3 py-2 text-xs">
-          {rowTypeLabel(row) ?? <span className="text-muted-foreground">—</span>}
-        </td>
-        <td className="px-3 py-2">
+        </Td>
+        <Td muted>{rowTypeLabel(row) ?? "—"}</Td>
+        <Td>
           <div className="flex flex-wrap gap-1">
             {row.labels.map((label) => (
               <LabelChip key={label.id} label={label} />
             ))}
           </div>
-        </td>
-        <td className="px-3 py-2">
+        </Td>
+        <Td>
           <DocumentStateBadge state={row.state} />
-        </td>
-        <td className="px-3 py-2">
+        </Td>
+        <Td>
           {row.copies > 1 && (
             <button
               type="button"
-              className="inline-flex items-center gap-1 rounded px-1 text-xs hover:bg-muted"
+              className="inline-flex items-center gap-1 rounded px-1 text-xs tabular-nums hover:bg-hover"
               title={open ? "Ocultar las copias" : `Este mismo documento está en ${row.copies} archivos: ver dónde`}
               aria-expanded={open}
               onClick={toggleCopies}
@@ -323,13 +320,17 @@ function DocumentTableRow({ row, onOpen }: { row: DocumentRow; onOpen: (location
               <ChevronDown className={`size-3 transition-transform ${open ? "rotate-180" : ""}`} />
             </button>
           )}
-        </td>
-        <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">{formatDate(row.mtimeMs)}</td>
-        <td className="px-3 py-2 text-right whitespace-nowrap text-muted-foreground">{formatSize(row.size)}</td>
+        </Td>
+        <Td muted nowrap className="tabular-nums">
+          {formatDate(row.mtimeMs)}
+        </Td>
+        <Td muted nowrap align="right">
+          {formatSize(row.size)}
+        </Td>
       </tr>
       {open && (
-        <tr className="bg-muted/20">
-          <td colSpan={8} className="px-6 py-2">
+        <tr>
+          <td colSpan={8} className="border-b bg-panel-sub px-6 py-2">
             {error && <ErrorNote>{error}</ErrorNote>}
             {!error && copies === null && <span className="text-xs text-muted-foreground">Buscando las copias…</span>}
             {copies !== null && (
@@ -342,7 +343,7 @@ function DocumentTableRow({ row, onOpen }: { row: DocumentRow; onOpen: (location
                       title={copy.path}
                       onClick={() => onOpen(copy.locationId)}
                     >
-                      <span className="text-primary">{copy.relPath.split("/").pop()}</span>
+                      <span className="text-link">{copy.relPath.split("/").pop()}</span>
                       <span className="text-muted-foreground">
                         {" "}— {copy.originName} › {copy.relPath.split("/").slice(0, -1).join(" › ") || "(raíz)"} ·{" "}
                         {formatDate(copy.mtimeMs)}

@@ -226,7 +226,7 @@ export function WebSearchSection() {
               </span>
             )}
             {anyTxtConfig.enabled && (
-              <span className="rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+              <span className="rounded-full bg-brand-soft px-1.5 py-0.5 text-[10px] font-semibold text-brand-ink">
                 {t("settings.sections.webSearch.activeBadge")}
               </span>
             )}
@@ -339,7 +339,7 @@ export function WebSearchSection() {
                       </span>
                     )}
                     {isActive && (
-                      <span className="shrink-0 rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                      <span className="shrink-0 rounded-full bg-brand-soft px-1.5 py-0.5 text-[10px] font-semibold text-brand-ink">
                         {t("settings.sections.webSearch.activeBadge")}
                       </span>
                     )}

@@ -32,7 +32,7 @@ export function ChangelogSection() {
             className="rounded-lg border border-border/60 bg-muted/20 p-4"
           >
             <div className="flex items-baseline gap-3">
-              <span className="rounded bg-primary/15 px-2 py-0.5 text-sm font-semibold text-primary">
+              <span className="rounded bg-brand-soft px-2 py-0.5 text-sm font-semibold text-brand-ink">
                 v{entry.version}
               </span>
               <span className="text-xs text-muted-foreground">{entry.date}</span>
