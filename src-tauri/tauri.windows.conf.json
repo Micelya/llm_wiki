@@ -4,6 +4,11 @@
       {
         "label": "main",
         "title": "Micelya Desktop",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 500,
+        "center": true,
         "hiddenTitle": false,
         "titleBarStyle": "Visible"
       }

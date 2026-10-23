@@ -11,6 +11,7 @@ mod secrets;
 mod source_volume;
 mod tray;
 mod types;
+mod window_size;
 mod work_folder;
 
 use serde_json::Value;
@@ -375,6 +376,9 @@ pub fn run() {
         // from Rust, never the webview.
         .plugin(tauri_plugin_http::init())
         .setup(|app| {
+            // On a screen where the window's size does not fit, it opens
+            // maximized (window_size.rs).
+            window_size::fit_main_window(app.handle());
             // Let the PDF extractor find the bundled pdfium dynamic
             // library via Tauri's platform-correct resource path.
             if let Ok(dir) = app.path().resource_dir() {
