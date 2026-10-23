@@ -234,7 +234,7 @@ function StatusPanel({ status, onRun }: { status: PortalStatus; onRun: (action: 
         {counts.length > 0 && <p className="text-xs text-muted-foreground">{counts.join(" · ")}</p>}
         {status.queue.length > 0 && <p className="text-xs text-muted-foreground">Después: {status.queue.join(", ")}</p>}
         {progress.warnings.length > 0 && (
-          <ul className="list-disc space-y-1 pl-4 text-xs text-amber-700 dark:text-amber-400">
+          <ul className="list-disc space-y-1 pl-4 text-xs text-warn">
             {progress.warnings.map((warning) => (
               <li key={warning}>{warning}</li>
             ))}
@@ -462,7 +462,7 @@ function DownloadProgress({
         )}
         {status.queue.length > 0 && <p className="text-xs text-muted-foreground">Después: {status.queue.join(", ")}</p>}
         {progress.warnings.length > 0 && (
-          <ul className="list-disc space-y-1 pl-4 text-xs text-amber-700 dark:text-amber-400">
+          <ul className="list-disc space-y-1 pl-4 text-xs text-warn">
             {progress.warnings.map((warning) => (
               <li key={warning}>{warning}</li>
             ))}
@@ -487,8 +487,8 @@ function DownloadProgress({
 
 const BAR_TONES: Record<"neutral" | "busy" | "warning", string> = {
   neutral: "bg-muted/50 text-muted-foreground",
-  busy: "bg-blue-500/10 text-blue-700 dark:text-blue-400",
-  warning: "bg-amber-500/15 text-amber-800 dark:text-amber-300",
+  busy: "bg-info-bg text-info",
+  warning: "bg-warn-bg text-warn",
 }
 
 function Bar({ tone, text, children }: { tone: keyof typeof BAR_TONES; text: string; children?: ReactNode }) {

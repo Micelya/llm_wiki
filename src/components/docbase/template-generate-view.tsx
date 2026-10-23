@@ -313,7 +313,7 @@ export function GenerateForm({
           </span>
         </label>
         {missing.length > 0 && (
-          <p className="text-amber-800 dark:text-amber-300">
+          <p className="text-warn">
             {missing.length === 1 ? `Falta «${missing[0]}»` : `Faltan ${missing.length} campos: ${missing.map((m) => `«${m}»`).join(", ")}`}.
             Se puede generar igual: el Word {missing.length === 1 ? "lo muestra" : "los muestra"} entre corchetes, resaltado,
             para completar{missing.length === 1 ? "lo" : "los"} ahí.
@@ -342,7 +342,7 @@ export function GenerateForm({
 
 function Notice({ children }: { children: ReactNode }) {
   return (
-    <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
+    <div className="rounded-md border border-warn-line bg-warn-bg px-3 py-2 text-sm text-warn">
       {children}
     </div>
   )
@@ -607,7 +607,7 @@ function PreviewValue({ piece }: { piece: PreviewPiece }) {
     case "text":
       return <>{piece.text}</>
     case "value":
-      return <mark className="rounded bg-amber-500/20 px-0.5 text-inherit">{piece.text}</mark>
+      return <mark className="rounded bg-warn-bg px-0.5 text-inherit ring-1 ring-warn-line">{piece.text}</mark>
     case "missing":
       return <mark className="rounded bg-destructive/10 px-0.5 font-sans text-[13px] text-destructive">{piece.text}</mark>
     case "empty":
@@ -662,7 +662,7 @@ function GeneratedNote({
   words: Vocabulary
 }) {
   return (
-    <div className="flex flex-col gap-3 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm">
+    <div className="flex flex-col gap-3 rounded-md border border-ok-line bg-ok-bg px-4 py-3 text-sm">
       <p className="font-medium">Listo: «{result.fileName}» quedó en «Generados», en la carpeta de trabajo.</p>
       {result.missing.length > 0 && (
         <p>

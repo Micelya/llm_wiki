@@ -145,7 +145,7 @@ function HighlightedText({ text, query }: { text: string; query: string }) {
     <>
       {parts.map((part, i) =>
         regex.test(part) ? (
-          <mark key={i} className="bg-yellow-200 dark:bg-yellow-800 rounded px-0.5">
+          <mark key={i} className="rounded bg-warn-bg px-0.5 text-strong ring-1 ring-warn-line">
             {part}
           </mark>
         ) : (

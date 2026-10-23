@@ -269,10 +269,10 @@ function ResearchTaskCard({
 
   const statusIcon = {
     queued: <div className="h-3 w-3 rounded-full border-2 border-muted-foreground" />,
-    searching: <Loader2 className="h-3 w-3 animate-spin text-blue-500" />,
-    synthesizing: <Loader2 className="h-3 w-3 animate-spin text-purple-500" />,
-    saving: <Loader2 className="h-3 w-3 animate-spin text-orange-500" />,
-    done: <CheckCircle2 className="h-3 w-3 text-emerald-500" />,
+    searching: <Loader2 className="h-3 w-3 animate-spin text-info" />,
+    synthesizing: <Loader2 className="h-3 w-3 animate-spin text-brand" />,
+    saving: <Loader2 className="h-3 w-3 animate-spin text-chart-3" />,
+    done: <CheckCircle2 className="h-3 w-3 text-ok" />,
     error: <AlertCircle className="h-3 w-3 text-destructive" />,
   }[task.status]
 
@@ -336,7 +336,7 @@ function ResearchTaskCard({
                     <div key={i} className="flex items-start gap-1.5 rounded bg-muted/50 px-2 py-1">
                       <span className="shrink-0 font-mono text-muted-foreground">[{i + 1}]</span>
                       <SourceIcon
-                        className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${isAnyTxt ? "text-amber-600" : "text-blue-600"}`}
+                        className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${isAnyTxt ? "text-chart-3" : "text-info"}`}
                         aria-label={isAnyTxt ? t("research.anyTxtSource") : t("research.webSource")}
                       />
                       <div className="min-w-0 flex-1">

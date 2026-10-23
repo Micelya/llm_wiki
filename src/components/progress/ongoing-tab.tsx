@@ -115,7 +115,7 @@ export function AutoQuestionsLine({ round }: { round: AutoQuestions }) {
   const held = round.held !== null
   return (
     <div
-      className={`flex flex-wrap items-start justify-between gap-3 rounded-lg border px-4 py-3 ${held ? "border-amber-500/40 bg-amber-500/5" : "bg-card"}`}
+      className={`flex flex-wrap items-start justify-between gap-3 rounded-lg border px-4 py-3 ${held ? "border-warn-line bg-warn-bg" : "bg-card"}`}
       data-auto-questions={held ? "held" : "going"}
     >
       <div className="min-w-0 flex-1">
@@ -252,10 +252,10 @@ export function StageList({ progress, scope }: { progress: Progress; scope: Prog
 }
 
 const MARKS: Record<ProgressStage["state"], { icon: typeof Clock; className: string }> = {
-  done: { icon: CheckCircle2, className: "text-emerald-600 dark:text-emerald-400" },
-  running: { icon: Loader2, className: "animate-spin text-blue-600 dark:text-blue-400" },
+  done: { icon: CheckCircle2, className: "text-ok" },
+  running: { icon: Loader2, className: "animate-spin text-info" },
   waiting: { icon: Clock, className: "text-muted-foreground" },
-  paused: { icon: PauseCircle, className: "text-amber-600 dark:text-amber-400" },
+  paused: { icon: PauseCircle, className: "text-warn" },
   error: { icon: AlertCircle, className: "text-destructive" },
 }
 
@@ -360,7 +360,7 @@ export function StageLine({
             </p>
           )}
           {stage.state === "paused" && (
-            <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+            <p className="mt-1 text-xs text-warn">
               {scans
                 ? !recognitionEngine.id
                   ? MISSING_ENGINE

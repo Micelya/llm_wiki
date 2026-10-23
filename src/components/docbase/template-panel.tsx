@@ -202,7 +202,7 @@ export function TemplatePanel({
       {same.map(([a, b]) => (
         <div
           key={`${a}|${b}`}
-          className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300"
+          className="rounded-md border border-warn-line bg-warn-bg px-3 py-2 text-sm text-warn"
         >
           En «{a}» y «{b}» no cambia ningún dato (a lo sumo unas palabras): posiblemente sean el mismo documento y no
           la misma plantilla con otros datos. Revisalos en «{words.copies.name}»: si son el mismo, unilos como tales.
@@ -251,7 +251,7 @@ export function TemplatePanel({
                     "mx-0.5 rounded px-1 font-sans text-[13px] font-medium",
                     selected === rowIndexOf(template, segment.field)
                       ? "bg-primary text-primary-foreground"
-                      : "bg-amber-500/20 text-amber-900 hover:bg-amber-500/30 dark:text-amber-200",
+                      : "bg-warn-bg text-warn ring-1 ring-warn-line hover:ring-warn",
                   )}
                 >
                   {placeLabel(template, segment.field, column, words)}

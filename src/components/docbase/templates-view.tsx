@@ -269,7 +269,7 @@ export function TemplateDetail({
         </p>
       </div>
       {template.format === "scan" && (
-        <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
+        <div className="rounded-md border border-warn-line bg-warn-bg px-3 py-2 text-sm text-warn">
           El texto salió de un escaneo: lo leyó el reconocimiento y puede tener errores.
         </div>
       )}

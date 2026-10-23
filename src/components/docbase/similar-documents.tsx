@@ -281,7 +281,7 @@ export function SimilarCard({
 
       <p className="mt-1 font-serif italic">{item.description}</p>
       {item.possiblySame && item.state === "proposed" && (
-        <p className="mt-1 text-amber-800 dark:text-amber-300">
+        <p className="mt-1 text-warn">
           Son de la misma plantilla, pero no cambia ningún dato entre los dos: posiblemente sean el mismo documento.
         </p>
       )}
