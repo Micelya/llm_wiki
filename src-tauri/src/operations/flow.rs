@@ -136,7 +136,7 @@ pub fn confirm(base: &DocBase, id: i64, chosen: Option<&[String]>, second: bool,
         log::set_card(base, id, &card::to_value(&card))?;
         return Ok(Confirmed { outcome: "needs_second".into(), card });
     }
-    let note = log::note_of(&entry.caller, entry.request.as_deref());
+    let note = log::note_of(&entry.caller, entry.request.as_deref(), entry.engine.as_deref());
     match apply::apply(base, &card, &keys, &note) {
         Ok(mut undo) => {
             if let Some(created) = undo.get("created").and_then(Value::as_str) {

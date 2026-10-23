@@ -4,6 +4,7 @@
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
@@ -11,6 +12,9 @@ use std::time::Duration;
 use super::*;
 use crate::docbase::testing::TempDir;
 use crate::docbase::DocBase;
+
+#[path = "api_tests.rs"]
+mod programs;
 
 /// A server of the tests: its port, and how to stop it.
 pub(super) struct Running {
@@ -67,14 +71,32 @@ impl Drop for Running {
     }
 }
 
-/// A context over `base`, with the clips in `clips`; `saved` is told of
-/// each clip.
+/// What a test sees of the app around the server: the clips saved, how
+/// many times a program left a change waiting, and the switch of the
+/// programs.
+#[derive(Clone, Default)]
+pub(super) struct Probe {
+    pub saved: Arc<Mutex<Vec<PathBuf>>>,
+    pub proposed: Arc<AtomicUsize>,
+    pub off: Arc<AtomicBool>,
+}
+
+/// A context over `base`, with the clips in `clips`.
 pub(super) fn context(base: Arc<DocBase>, clips: PathBuf, saved: Arc<Mutex<Vec<PathBuf>>>) -> Context {
+    context_with(base, clips, Probe { saved, ..Default::default() })
+}
+
+pub(super) fn context_with(base: Arc<DocBase>, clips: PathBuf, probe: Probe) -> Context {
+    let Probe { saved, proposed, off } = probe;
     Context {
         port: 0,
         base: Box::new(move || Ok(base.clone())),
         clips: Box::new(move || Ok(clips.clone())),
         clip_saved: Box::new(move |path| saved.lock().unwrap().push(path.to_path_buf())),
+        programs_on: Box::new(move || !off.load(Ordering::Relaxed)),
+        proposed: Box::new(move || {
+            proposed.fetch_add(1, Ordering::Relaxed);
+        }),
     }
 }
 

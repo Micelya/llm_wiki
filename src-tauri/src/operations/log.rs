@@ -155,14 +155,43 @@ pub fn list(base: &DocBase, state: Option<&str>, limit: usize) -> Result<Vec<Log
 }
 
 /// The note of the decisions a change makes about records and matters:
-/// who asked for it (`pedido en el chat: «…»`).
-pub fn note_of(origin_caller: &str, request: Option<&str>) -> String {
+/// who asked for it (`pedido en el chat: «…»`, `pedido por <programa>`;
+/// a program is named by the name it had, kept as its `engine`).
+pub fn note_of(origin_caller: &str, request: Option<&str>, engine: Option<&str>) -> String {
     if origin_caller == "chat" {
         let request: String = request.unwrap_or_default().chars().take(200).collect();
         format!("pedido en el chat: «{}»", request.trim())
     } else if let Some(program) = origin_caller.strip_prefix("program:") {
-        format!("pedido por {program}")
+        format!("pedido por {}", engine.filter(|e| !e.trim().is_empty()).unwrap_or(program))
     } else {
         "desde la pantalla".to_string()
     }
+}
+
+/// How long a change another program asked for waits for a person (4.3).
+pub const PROGRAM_REQUEST_DAYS: i64 = 7;
+
+/// The changes other programs asked for that waited more than
+/// `PROGRAM_REQUEST_DAYS` without a person deciding: they expire, and
+/// nothing is done. Returns how many.
+pub fn expire_program_requests(base: &DocBase, now: i64) -> Result<usize, String> {
+    let before = now - PROGRAM_REQUEST_DAYS * 24 * 60 * 60 * 1000;
+    base.conn()
+        .execute(
+            "UPDATE operation_log SET state = 'expired', decided_at = ?2
+             WHERE caller LIKE 'program:%' AND state IN ('proposed', 'failed') AND proposed_at < ?1",
+            params![before, now],
+        )
+        .map_err(sql_err)
+}
+
+/// The changes other programs asked for that wait for a person, the oldest
+/// first (Atención).
+pub fn program_requests(base: &DocBase) -> Result<Vec<LogEntry>, String> {
+    let conn = base.conn();
+    let mut statement = conn
+        .prepare(&format!("SELECT {COLUMNS} FROM operation_log WHERE caller LIKE 'program:%' AND state IN ('proposed', 'failed') ORDER BY id"))
+        .map_err(sql_err)?;
+    let rows = statement.query_map([], entry).map_err(sql_err)?;
+    rows.collect::<Result<_, _>>().map_err(sql_err)
 }
