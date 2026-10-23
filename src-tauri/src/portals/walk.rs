@@ -101,12 +101,17 @@ pub struct Progress {
     /// and the pages after it too.
     pub known_from: Option<u32>,
     /// Entries seen, with a document, downloaded now, already there,
-    /// failed.
+    /// failed. An entry is seen when its page is read.
     pub seen: usize,
     pub with_document: usize,
     pub downloaded: usize,
     pub already: usize,
     pub failed: usize,
+    /// Documents of the pages read that are still to be looked at: those
+    /// of the page in course.
+    pub pending: usize,
+    /// The document being downloaded now.
+    pub current: Option<String>,
     pub warnings: Vec<String>,
 }
 
@@ -186,6 +191,7 @@ struct Run {
     last_date: Option<String>,
     out_of_order: bool,
     seen: HashSet<EntryKey>,
+    seen_with_document: HashSet<EntryKey>,
     downloaded: HashSet<EntryKey>,
     already: HashSet<EntryKey>,
     failed: HashSet<EntryKey>,
@@ -197,6 +203,22 @@ impl Run {
         self.progress.downloaded = self.downloaded.len();
         self.progress.already = self.already.len();
         self.progress.failed = self.failed.len();
+        let looked = self.seen_with_document.iter().filter(|k| self.downloaded.contains(*k) || self.already.contains(*k) || self.failed.contains(*k)).count();
+        self.progress.pending = self.seen_with_document.len().saturating_sub(looked);
+    }
+
+    /// The entries of a page just read.
+    fn see(&mut self, rows: &[Row]) {
+        for row in rows {
+            let key = EntryKey::of(row);
+            if self.seen.insert(key.clone()) {
+                self.progress.seen += 1;
+            }
+            if row.download.is_some() && self.seen_with_document.insert(key) {
+                self.progress.with_document += 1;
+            }
+        }
+        self.count();
     }
 }
 
@@ -615,6 +637,7 @@ impl Walk<'_> {
                 }
             }
             self.follow_order(run, &shown);
+            run.see(&shown.rows);
             // Every entry of the page was settled before this walk.
             let known = !shown.rows.is_empty()
                 && shown.unread.rows == 0
@@ -704,12 +727,6 @@ impl Walk<'_> {
                 record.entries.len() - 1
             }
         };
-        if run.seen.insert(entry_key.clone()) {
-            run.progress.seen += 1;
-            if row.download.is_some() {
-                run.progress.with_document += 1;
-            }
-        }
         let Some(link) = &row.download else {
             record.entries[index].state = state::NO_DOCUMENT.to_string();
             return Ok(Step::Next);
@@ -753,12 +770,14 @@ impl Walk<'_> {
         // Download it.
         let taken: Vec<String> = record.entries.iter().filter_map(|e| e.file.clone()).collect();
         let name = store::free_name(folder, &store::document_name(key, &record.entries[index]), &taken);
+        run.progress.current = Some(name.clone());
         self.say(browser, run, format!("Bajando {name}"));
         let staging = self.portal_folder.join(STAGING);
         fs::create_dir_all(&staging).map_err(|e| Stop::Failed(format!("No se pudo crear {}: {e}", staging.display())))?;
         let temporary = staging.join(format!("{}.pdf", uuid::Uuid::new_v4()));
         browser.wait(self.pause);
         let fetched = browser.download(&link.mark, &temporary).map_err(Stop::Failed)?;
+        run.progress.current = None;
         *run.attempts.entry(entry_key.clone()).or_insert(0) += u32::from(fetched != Fetched::Missing);
         let checked = match fetched {
             Fetched::Done => pdf_size(&temporary),
@@ -837,7 +856,7 @@ impl Walk<'_> {
             }
         }
         run.count();
-        let missing = run.progress.with_document.saturating_sub(run.progress.downloaded + run.progress.already + run.progress.failed);
+        let missing = run.progress.pending;
         if missing > 0 {
             run.progress.warnings.push(format!("{missing} documentos quedaron sin bajar: se intentan en la próxima actualización"));
         }

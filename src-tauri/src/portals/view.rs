@@ -526,6 +526,8 @@ fn runner(app: AppHandle, shared: Arc<Shared>) {
         {
             let mut control = shared.control();
             let mut progress = control.progress.clone();
+            progress.current = None;
+            progress.busy = false;
             match result {
                 Ok(done) => progress = done,
                 Err(Stop::Cancelled) => {

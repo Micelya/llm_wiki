@@ -22,6 +22,10 @@ export interface PortalProgress {
   downloaded: number
   already: number
   failed: number
+  /** Documents of the pages read still to be looked at: those of the page in course. */
+  pending: number
+  /** The document being downloaded now. */
+  current: string | null
   warnings: string[]
 }
 

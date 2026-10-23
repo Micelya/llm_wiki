@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
-import { FolderOpen, Hand, ListChecks, RefreshCw, Square, Download, Play } from "lucide-react"
+import { Eye, EyeOff, FolderOpen, Hand, ListChecks, RefreshCw, Square, Download, Play } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -17,10 +17,11 @@ import {
   type PortalStatus,
 } from "@/commands/portals"
 import { EmptyNote, ErrorNote, Panel, StatusBadge, type Tone } from "@/components/docbase/page"
-import { formatAgo, plural } from "@/components/docbase/format"
+import { formatAgo, formatCount, plural } from "@/components/docbase/format"
 import { useDocbaseQuery } from "@/components/docbase/use-docbase-query"
 import { vocabulary } from "@/vocabulary"
 import { portalWindow } from "./portal-window"
+import { downloadingAlone, progressFigures, showsPortal } from "./portal-state"
 import { publishPortalStatus, usePortalStatus } from "./use-portal-status"
 
 const STATES: Record<string, { tone: Tone; label: string }> = {
@@ -57,6 +58,15 @@ export function PortalsView() {
     }
   }
 
+  // «Ver el portal» while the app downloads alone; forgotten when the walk
+  // in course changes.
+  const [asked, setAsked] = useState(false)
+  const running = status?.running ?? null
+  useEffect(() => {
+    setAsked(false)
+  }, [running])
+  const shown = showsPortal(status, asked)
+
   const busy = Boolean(status?.running)
   return (
     <div className="flex h-full flex-col">
@@ -73,7 +83,7 @@ export function PortalsView() {
         <aside className="w-[360px] shrink-0 space-y-4 overflow-y-auto border-r p-4">
           {problem && <ErrorNote>{problem}</ErrorNote>}
           <FetchForm portalName={followed.data?.name} busy={busy} onFetch={(j, n, y) => run(() => fetchRecord(PJN, j, n, y))} />
-          {status && status.progress.state && <StatusPanel status={status} onRun={run} />}
+          {status && status.progress.state && shown && <StatusPanel status={status} onRun={run} />}
           <Panel
             title={`${terms.records} seguidos`}
             count={followed.data?.records.length ?? 0}
@@ -113,8 +123,12 @@ export function PortalsView() {
           </Panel>
         </aside>
         <section className="flex min-w-0 flex-1 flex-col">
-          <LockBar status={status} onRun={run} />
-          <PortalArea onProblem={setProblem} />
+          <LockBar status={status} onRun={run} asked={asked} onHidePortal={() => setAsked(false)} />
+          {shown || !status ? (
+            <PortalArea onProblem={setProblem} />
+          ) : (
+            <DownloadProgress status={status} onShowPortal={() => setAsked(true)} onRun={run} />
+          )}
         </section>
       </div>
     </div>
@@ -327,8 +341,32 @@ function FollowedItem({
 }
 
 /** Says who has the portal's window now, and lets the person take it. */
-function LockBar({ status, onRun }: { status: PortalStatus | null; onRun: (action: () => Promise<PortalStatus | void>) => void }) {
+function LockBar({
+  status,
+  onRun,
+  asked,
+  onHidePortal,
+}: {
+  status: PortalStatus | null
+  onRun: (action: () => Promise<PortalStatus | void>) => void
+  asked: boolean
+  onHidePortal: () => void
+}) {
   const progress = status?.progress
+  if (downloadingAlone(status)) {
+    return asked ? (
+      <Bar tone="busy" text="Estás viendo el portal mientras Micelya baja: no hace falta tocar nada.">
+        <Button size="xs" variant="outline" onClick={onHidePortal}>
+          <EyeOff /> Volver al avance
+        </Button>
+      </Bar>
+    ) : (
+      <Bar
+        tone="busy"
+        text="Micelya está bajando los documentos con la ventana del portal oculta. Podés ir a otras pantallas: sigue sola y avisa al terminar."
+      />
+    )
+  }
   if (status?.manual) {
     return (
       <Bar tone="neutral" text="La ventana es tuya: Micelya no la toca hasta que se la devuelvas.">
@@ -368,6 +406,72 @@ function LockBar({ status, onRun }: { status: PortalStatus | null; onRun: (actio
         <Hand /> Usar la ventana yo
       </Button>
     </Bar>
+  )
+}
+
+/**
+ * The walk in course, with room, while the portal's window is hidden: the
+ * page, the entries seen, the documents downloaded and what is left, the
+ * document in course and what did not add up.
+ */
+function DownloadProgress({
+  status,
+  onShowPortal,
+  onRun,
+}: {
+  status: PortalStatus
+  onShowPortal: () => void
+  onRun: (action: () => Promise<PortalStatus | void>) => void
+}) {
+  const { progress } = status
+  const terms = vocabulary().portals
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto bg-muted/30 p-6" data-testid="portal-progress">
+      <div className="mx-auto max-w-2xl space-y-5 rounded-lg border bg-card p-6 shadow-sm">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Bajando el {terms.record.toLowerCase()}</p>
+            <h2 className="text-lg font-semibold">{progress.reference ?? status.running}</h2>
+          </div>
+          <StatusBadge tone="busy">Trabajando</StatusBadge>
+        </div>
+        <p className="text-sm">{progress.message}</p>
+        <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {progressFigures(status).map((figure) => (
+            <div key={figure.label} className="rounded-md border bg-background px-3 py-2">
+              <dt className="text-xs text-muted-foreground">{figure.label}</dt>
+              <dd className="text-xl font-semibold tabular-nums">{formatCount(figure.value)}</dd>
+            </div>
+          ))}
+        </dl>
+        {progress.current && (
+          <div className="text-sm">
+            <p className="text-xs text-muted-foreground">Ahora</p>
+            <p className="break-all font-mono text-xs">{progress.current}</p>
+          </div>
+        )}
+        {status.queue.length > 0 && <p className="text-xs text-muted-foreground">Después: {status.queue.join(", ")}</p>}
+        {progress.warnings.length > 0 && (
+          <ul className="list-disc space-y-1 pl-4 text-xs text-amber-700 dark:text-amber-400">
+            {progress.warnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        )}
+        <p className="text-xs text-muted-foreground">
+          Podés ir a otras pantallas y seguir trabajando: Micelya sigue bajando y avisa al terminar en el pie de la ventana y en
+          Atención. Si el portal pide resolver el desafío, la ventana del portal vuelve sola.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" onClick={onShowPortal}>
+            <Eye /> Ver el portal
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => onRun(() => stopPortal())}>
+            <Square /> Detener
+          </Button>
+        </div>
+      </div>
+    </div>
   )
 }
 

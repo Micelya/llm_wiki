@@ -216,6 +216,26 @@ fn the_walk_over_the_scw_brings_every_entry_and_every_document() {
     assert!(pdfs_in(&folder).iter().all(|n| !n.to_uppercase().contains("TIPO-ACTUACION") && !n.contains("Detalle")), "{:?}", pdfs_in(&folder));
 }
 
+#[test]
+fn the_progress_says_the_page_what_is_left_of_it_and_the_document_in_course() {
+    let dir = TempDir::new();
+    let list = fixtures::scw_entries(20, 700);
+    let mut portal = FakePortal::new(REFERENCE, TITLE, list);
+    portal.scw = true;
+    let outcome = walk_with(dir.path(), &store::NoneKnown).run(&mut portal, &key()).unwrap();
+    let downloading: Vec<_> = portal.reports.iter().filter(|r| r.message.starts_with("Bajando ")).collect();
+    assert_eq!(downloading.len(), outcome.downloaded);
+    // The first document of page 1: its 9 documents are still to look at,
+    // and the one in course is named.
+    let first = downloading[0];
+    assert_eq!((first.page, first.seen, first.with_document, first.pending, first.downloaded), (Some(1), 15, 9, 9, 0));
+    assert_eq!(first.current.as_deref(), first.message.strip_prefix("Bajando "));
+    // The last of page 1, and the first of page 2.
+    assert_eq!((downloading[8].pending, downloading[8].downloaded), (1, 8));
+    assert_eq!((downloading[9].page, downloading[9].seen, downloading[9].pending), (Some(2), 20, 3));
+    assert_eq!((outcome.pending, outcome.current.as_deref()), (0, None));
+}
+
 /// What the reader of before kept of a record of the SCW: only the rows
 /// whose day has two digits, with the labels of the screen reader in
 /// their kind, detail and office, and their documents downloaded with
