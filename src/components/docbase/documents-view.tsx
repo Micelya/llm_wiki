@@ -2,6 +2,7 @@ import { Fragment, useEffect, useRef, useState, type MouseEvent } from "react"
 import { ChevronDown, ChevronLeft, ChevronRight, Copy } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { LongName } from "@/components/ui/long-name"
 import { Table, Td, Th } from "@/components/ui/table"
 import {
   documentCopies,
@@ -29,8 +30,19 @@ import { useDocbaseQuery } from "./use-docbase-query"
 
 const PAGE_SIZE = 100
 
+// Where the table is narrower than 64rem (a window under about 1360 px),
+// where a document is, when it changed, its size and its copies go under
+// its name instead of in columns of their own: eight columns leave a long
+// file name a strip of a few letters, or a horizontal bar. Wider, each one
+// has its column.
+const WIDE_ONLY = "@max-[64rem]:hidden"
+const NARROW_ONLY = "hidden @max-[64rem]:block"
+
+// A filter is never wider than its place nor than 18rem: a long option
+// (the name of an origin or of a family's document) is cut inside it
+// instead of pushing the screen.
 const SELECT_CLASS =
-  "h-8 rounded-lg border border-border-strong bg-card px-2 text-sm outline-none focus-visible:border-link focus-visible:ring-3 focus-visible:ring-ring/30"
+  "h-8 max-w-[min(100%,18rem)] min-w-0 rounded-lg border border-border-strong bg-card px-2 text-sm outline-none focus-visible:border-link focus-visible:ring-3 focus-visible:ring-ring/30"
 
 export function DocumentsView() {
   const openLocationId = useDocbaseStore((s) => s.openLocationId)
@@ -163,7 +175,7 @@ function DocumentList() {
           </label>
           {((similarGroups.data ?? []).length > 0 || filter.similarGroup != null) && (
             <select
-              className={SELECT_CLASS}
+              className={`${SELECT_CLASS} w-64`}
               title="Familias de documentos con el mismo texto de base, por su documento principal"
               value={filter.similarGroup ?? ""}
               onChange={(event) =>
@@ -226,13 +238,15 @@ function DocumentList() {
             <thead>
               <tr>
                 <Th>Nombre</Th>
-                <Th>Dónde está</Th>
+                <Th className={WIDE_ONLY}>Dónde está</Th>
                 <Th>Tipo</Th>
                 <Th>Etiquetas</Th>
                 <Th>Estado</Th>
-                <Th>Copias</Th>
-                <Th>Modificado</Th>
-                <Th align="right">Tamaño</Th>
+                <Th className={WIDE_ONLY}>Copias</Th>
+                <Th className={WIDE_ONLY}>Modificado</Th>
+                <Th align="right" className={WIDE_ONLY}>
+                  Tamaño
+                </Th>
               </tr>
             </thead>
             <tbody>
@@ -281,19 +295,32 @@ function DocumentTableRow({ row, onOpen }: { row: DocumentRow; onOpen: (location
       .catch((err) => setError(String(err)))
   }
 
+  const where = row.originName + (row.folder ? ` › ${row.folder.split("/").join(" › ")}` : "")
+
   return (
     <Fragment>
       <tr className="cursor-pointer" onClick={() => onOpen(row.locationId)}>
-        <Td className="max-w-xs">
-          <span className="font-semibold text-link hover:underline" title={row.name}>
+        <Td>
+          <LongName className="font-semibold text-link hover:underline" title={row.name}>
             {row.name}
-          </span>
+          </LongName>
+          {/* In a narrow window, where it is, when it changed and its copies go under its name. */}
+          <div className={`${NARROW_ONLY} mt-0.5 text-[0.78125rem] text-muted-foreground`}>
+            <LongName title={`${row.originName} › ${row.folder}`}>{where}</LongName>
+            {row.originReachable === false && " (origen sin conexión)"}
+            <span className="tabular-nums">
+              {" · "}
+              {formatDate(row.mtimeMs)} · {formatSize(row.size)}
+            </span>
+          </div>
+          {row.copies > 1 && (
+            <div className={`${NARROW_ONLY} mt-0.5`}>
+              <CopiesButton copies={row.copies} open={open} onClick={toggleCopies} words />
+            </div>
+          )}
         </Td>
-        <Td muted className="max-w-xs">
-          <span className="break-words" title={`${row.originName} › ${row.folder}`}>
-            {row.originName}
-            {row.folder && ` › ${row.folder.split("/").join(" › ")}`}
-          </span>
+        <Td muted className={WIDE_ONLY}>
+          <LongName title={`${row.originName} › ${row.folder}`}>{where}</LongName>
           {row.originReachable === false && <span className="ml-1 text-xs">(origen sin conexión)</span>}
         </Td>
         <Td muted>{rowTypeLabel(row) ?? "—"}</Td>
@@ -307,24 +334,13 @@ function DocumentTableRow({ row, onOpen }: { row: DocumentRow; onOpen: (location
         <Td>
           <DocumentStateBadge state={row.state} />
         </Td>
-        <Td>
-          {row.copies > 1 && (
-            <button
-              type="button"
-              className="inline-flex items-center gap-1 rounded px-1 text-xs tabular-nums hover:bg-hover"
-              title={open ? "Ocultar las copias" : `Este mismo documento está en ${row.copies} archivos: ver dónde`}
-              aria-expanded={open}
-              onClick={toggleCopies}
-            >
-              <Copy className="size-3" /> {row.copies}
-              <ChevronDown className={`size-3 transition-transform ${open ? "rotate-180" : ""}`} />
-            </button>
-          )}
+        <Td className={WIDE_ONLY}>
+          {row.copies > 1 && <CopiesButton copies={row.copies} open={open} onClick={toggleCopies} />}
         </Td>
-        <Td muted nowrap className="tabular-nums">
+        <Td muted nowrap className={`${WIDE_ONLY} tabular-nums`}>
           {formatDate(row.mtimeMs)}
         </Td>
-        <Td muted nowrap align="right">
+        <Td muted nowrap align="right" className={WIDE_ONLY}>
           {formatSize(row.size)}
         </Td>
       </tr>
@@ -359,5 +375,32 @@ function DocumentTableRow({ row, onOpen }: { row: DocumentRow; onOpen: (location
         </tr>
       )}
     </Fragment>
+  )
+}
+
+/** The count of the files with this same document, that shows where they are. */
+function CopiesButton({
+  copies,
+  open,
+  onClick,
+  words = false,
+}: {
+  copies: number
+  open: boolean
+  onClick: (event: MouseEvent) => void
+  /** «en 3 archivos» instead of the bare count, under the name. */
+  words?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      className="inline-flex items-center gap-1 rounded px-1 text-xs tabular-nums hover:bg-hover"
+      title={open ? "Ocultar las copias" : `Este mismo documento está en ${copies} archivos: ver dónde`}
+      aria-expanded={open}
+      onClick={onClick}
+    >
+      <Copy className="size-3" /> {words ? `en ${formatCount(copies)} archivos` : copies}
+      <ChevronDown className={`size-3 transition-transform ${open ? "rotate-180" : ""}`} />
+    </button>
   )
 }

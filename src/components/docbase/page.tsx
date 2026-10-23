@@ -8,7 +8,8 @@ export { Panel } from "@/components/ui/panel"
 /**
  * Frame shared by the document base screens: the name of the screen large
  * in Mulish, what it is in grey below, its actions at the right, and the
- * body that scrolls.
+ * body that scrolls. A word longer than its line (a file name, a path)
+ * breaks inside it instead of running out of the window.
  */
 export function DocbasePage({
   title,
@@ -22,7 +23,7 @@ export function DocbasePage({
   children: ReactNode
 }) {
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col wrap-break-word">
       <header className="flex shrink-0 items-start justify-between gap-4 border-b bg-background px-10 pt-7 pb-5">
         <div className="min-w-0">
           <h1 className="font-ui text-[1.75rem] leading-tight font-bold tracking-[-0.01em] text-strong">{title}</h1>
@@ -65,7 +66,14 @@ export function StatusBadge({
   spin?: boolean
 }) {
   return (
-    <Badge tone={BRAND_TONE[tone]} icon={icon} spin={spin} title={title} className="h-auto rounded px-1.5 py-0.5 font-semibold">
+    <Badge
+      tone={BRAND_TONE[tone]}
+      icon={icon}
+      spin={spin}
+      title={title}
+      // Its words take two lines in a narrow column of a table.
+      className="h-auto rounded px-1.5 py-0.5 leading-tight font-semibold whitespace-normal"
+    >
       {children}
     </Badge>
   )

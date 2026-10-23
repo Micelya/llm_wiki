@@ -6,11 +6,13 @@ import { cn } from "@/lib/utils"
  * The dense table of the style guide (D-493): rows of 36 to 40 px, small
  * headings in capitals, numbers aligned at the right, a soft background
  * under the row the mouse is on. `Table` is the frame; its rows are plain
- * `<tr>` with `Th` and `Td`.
+ * `<tr>` with `Th` and `Td`. The frame is a container: a column can leave
+ * the table where the table is narrow (`@max-[64rem]:hidden`), whatever
+ * the width of the window and of the menu.
  */
 export function Table({ children, className, fixed = false }: { children: ReactNode; className?: string; fixed?: boolean }) {
   return (
-    <div className={cn("overflow-x-auto rounded-[10px] border bg-card", className)}>
+    <div className={cn("@container overflow-x-auto rounded-[10px] border bg-card", className)}>
       <table
         className={cn(
           "w-full border-separate border-spacing-0 text-sm leading-[1.45] [&_tbody_tr:hover>td]:bg-hover [&_tr:last-child>td]:border-b-0",
@@ -38,7 +40,9 @@ export function Th({
     <th
       style={width ? { width } : undefined}
       className={cn(
-        "border-b bg-panel-sub px-3 py-2 font-ui text-xs font-bold tracking-[0.04em] whitespace-nowrap text-muted-foreground uppercase",
+        // A heading of two words takes two lines when its column is narrow
+        // (a window of 800 px), instead of widening the table.
+        "border-b bg-panel-sub px-3 py-2 align-bottom font-ui text-xs font-bold tracking-[0.04em] text-muted-foreground uppercase",
         align === "right" ? "text-right" : "text-left",
         className,
       )}
