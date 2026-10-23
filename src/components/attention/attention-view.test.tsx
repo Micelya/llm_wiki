@@ -466,4 +466,51 @@ describe("Inicio", () => {
     useAttentionStore.setState({ bySource: { prueba: [notice("a", "problem", "Un problema inventado")] } })
     expect(text(renderToStaticMarkup(<HomeView />))).toContain("Además, hay 59 documentos en proceso.")
   })
+
+  it("shows each line with its word, its explanation and its button, the overview in figures, and «Mi semana» with what exists (D-493)", () => {
+    base.answers.home = {
+      health: { origins: 2, unreachableOrigins: 1, locations: 10, documents: 9, byState: { processed: 9 }, copies: 1, words: 500, lastScanAt: null },
+      origins: [],
+      activity: [{ at: Date.now(), kind: "added", originName: "Carpeta inventada", count: 1, relPath: "a/nota de prueba.pdf", fromPath: null }],
+    } satisfies Home
+    base.answers.matters = [
+      { id: "m1", name: "Caso inventado", status: "open", origin: "person", confirmation: "confirmed", documents: 3, proposed: 0, pagePath: null },
+      { id: "m2", name: "Otro caso inventado", status: "closed", origin: "person", confirmation: "confirmed", documents: 1, proposed: 0, pagePath: null },
+    ]
+    base.answers.overview = {
+      path: "wiki/overview.md",
+      writtenAt: Date.now(),
+      body: [
+        "# Resumen del archivo",
+        "",
+        "Algo.",
+        "",
+        "- Documentos leídos: 1284",
+        "- Con página: Persona: 212 · Organización: 1",
+        "",
+        "## Los más nombrados",
+        "",
+        "- [[persona-uno|Persona Uno]] · Persona — 96 documentos",
+        "",
+        "## Casos",
+        "",
+        "- [[caso-inventado|Caso inventado]] — 3 documentos",
+      ].join("\n"),
+    }
+    const problem: AttentionNotice = {
+      ...notice("a", "problem", "Una carpeta inventada no responde"),
+      priority: "high",
+      actions: [{ kind: "go", label: "Volver a barrer", target: { view: "origins" } }],
+    }
+    useAttentionStore.setState({ bySource: { prueba: [problem, notice("b", "decision", "Dos fichas inventadas esperan")] } })
+    const shown = text(renderToStaticMarkup(<HomeView />))
+    expect(shown).toContain("Atención 1 problema 1 decisión Ver todo")
+    expect(shown).toContain("Problema Una carpeta inventada no responde Una explicación inventada. Volver a barrer")
+    expect(shown).toContain("Decisión Dos fichas inventadas esperan Una explicación inventada.")
+    expect(shown).toContain("1.284 documentos leídos 212 personas con página 1 organización con página 1 caso")
+    expect(shown).toContain("Los más nombrados Persona Uno · Persona 96 documentos Casos con más documentos Caso inventado 3 documentos")
+    expect(shown).toContain("Apareció nota de prueba.pdf Carpeta inventada")
+    expect(shown).toContain("Mi semana Casos activos 1 Esperan en Atención 1 problema 1 decisión")
+    expect(shown).toContain("Carpetas 1 de 2 sin conexión")
+  })
 })

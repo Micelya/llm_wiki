@@ -114,17 +114,18 @@ function NoticeList({ lines }: { lines: AttentionNotice[] }) {
 
 export function NoticeMark({ notice }: { notice: Pick<AttentionNotice, "kind" | "priority"> }) {
   if (notice.kind === "ongoing") {
-    return <span className="mt-1.5 size-2.5 shrink-0 rounded-full border-2 border-blue-500" aria-hidden />
+    return <span className="mt-1.5 size-2.5 shrink-0 rounded-full border-2 border-info" aria-hidden />
   }
+  // A problem is round, a decision a diamond; each with a halo of its tone.
   const color =
     notice.priority === "low"
       ? "bg-muted-foreground/50"
       : notice.kind === "problem"
         ? notice.priority === "high"
-          ? "bg-destructive"
-          : "bg-amber-500"
-        : "bg-blue-500"
-  const shape = notice.kind === "decision" ? "rotate-45 rounded-[2px]" : "rounded-full"
+          ? "bg-err shadow-[0_0_0_3px_var(--err-bg)]"
+          : "bg-warn shadow-[0_0_0_3px_var(--warn-bg)]"
+        : "bg-info shadow-[0_0_0_3px_var(--info-bg)]"
+  const shape = notice.kind === "decision" ? "rotate-45 scale-90 rounded-[2px]" : "rounded-full"
   return <span className={`mt-1.5 size-2.5 shrink-0 ${shape} ${color}`} aria-hidden />
 }
 
@@ -249,11 +250,14 @@ export function ActionButton({
   action,
   primary = false,
   small = false,
+  look,
   onProblem,
 }: {
   action: AttentionAction
   primary?: boolean
   small?: boolean
+  /** How it is drawn, when not as the main or a quiet button: Inicio draws them outlined in the brand. */
+  look?: "secondary"
   onProblem: (problem: string | null) => void
 }) {
   const dialog = useAppDialog()
@@ -289,8 +293,8 @@ export function ActionButton({
   return (
     <Button
       size={small ? "xs" : "sm"}
-      variant={danger ? "ghost" : primary ? "default" : "outline"}
-      className={danger ? "text-destructive hover:text-destructive" : undefined}
+      variant={danger ? "ghost" : look ?? (primary ? "default" : "outline")}
+      className={danger ? "text-err hover:text-err" : undefined}
       disabled={busy}
       onClick={() => void run()}
     >
