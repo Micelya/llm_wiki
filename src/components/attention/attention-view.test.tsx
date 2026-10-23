@@ -423,7 +423,7 @@ describe("the scans in «En curso» (P-242)", () => {
   it("says the line at the foot is waiting for the engine", () => {
     const waiting = progress({ recognition: { state: "paused", pending: 3, total: 3, done: 0 } }, { paused: 3, recognitionEngine: null })
     expect(text(renderToStaticMarkup(<ProgressLine progress={waiting} />))).toBe(
-      "Falta elegir el motor que reconoce escaneos: 3 documentos esperan",
+      "Falta elegir el motor que reconoce escaneos: 3 documentos esperan Ver «En curso»",
     )
   })
 })
@@ -431,13 +431,13 @@ describe("the scans in «En curso» (P-242)", () => {
 describe("the line at the foot of the window", () => {
   it("says what is being processed and how far it went", () => {
     const html = renderToStaticMarkup(<ProgressLine progress={halfway} />)
-    expect(text(html)).toBe("Casos: El proveedor del modelo llegó a su límite de uso. Vuelve a intentar a las 14:15.")
+    expect(text(html)).toBe("Casos: El proveedor del modelo llegó a su límite de uso. Vuelve a intentar a las 14:15. Ver «En curso»")
     const busy = progress({ reading: { state: "running", done: 12, total: 68, pending: 56 } })
     expect(text(renderToStaticMarkup(<ProgressLine progress={busy} />))).toBe(
-      "Procesando: Lectura con el modelo: a quiénes nombran, 12 de 68",
+      "Procesando: Lectura con el modelo: a quiénes nombran, 12 de 68 Ver «En curso»",
     )
     expect(renderToStaticMarkup(<ProgressLine progress={busy} />)).toContain('data-tone="busy"')
-    expect(text(renderToStaticMarkup(<ProgressLine progress={progress()} />))).toBe("Todo al día")
+    expect(text(renderToStaticMarkup(<ProgressLine progress={progress()} />))).toBe("Todo al día Ver «En curso»")
   })
 })
 

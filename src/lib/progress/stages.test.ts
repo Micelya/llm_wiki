@@ -3,6 +3,7 @@ import type { ModelError, StageState } from "@/commands/docbase"
 import { vocabularyFor } from "@/vocabulary"
 import {
   activityLine,
+  activityShare,
   modelErrorText,
   ongoingCount,
   pageOf,
@@ -108,6 +109,13 @@ describe("the line at the foot of the window", () => {
   it("says what is being processed and how far it went", () => {
     const line = activityLine(progress({ reading: { state: "running", done: 12, total: 68, pending: 56 }, resolve: { state: "waiting" } }), words)
     expect(line).toEqual({ tone: "busy", text: "Procesando: Lectura con el modelo: a quiénes nombran, 12 de 68" })
+  })
+
+  it("gives its bar how far the stage it tells went, and no bar when it tells no advance", () => {
+    expect(activityShare(progress({ reading: { state: "running", done: 17, total: 68, pending: 51 } }))).toBe(0.25)
+    expect(activityShare(progress({ reading: { state: "error", error: limit } }))).toBeNull()
+    expect(activityShare(progress())).toBeNull()
+    expect(activityShare(null)).toBeNull()
   })
 
   it("says the error of the model before anything else", () => {
