@@ -1857,7 +1857,7 @@
       "estado": "pendiente",
       "prioridad": 1,
       "tema": "portales",
-      "detalle": "Pedidos del dueño después de la primera prueba real completa (22 oct): (1) que no aparezca la confirmación de descargas múltiples de WebView2 (concederla sola, solo para pjn.gov.ar); (2) ocultar la ventana del sitio mientras baja y mostrar el avance con más espacio; (3) que la app no quede bloqueada mientras baja; (4) dejar de leer la lista cuando una página entera ya es conocida (en un expediente solo se agregan documentos), con «Revisar todo el expediente»; (5) investigar el aviso «La página N mostró X actuaciones y no 15»: si es falso o si el lector se saltea filas. Especificación: llm_wiki_mi/desatendido-8/p7-pjn-descargas.md. Para (5) sirve un dato del dueño: cuántas actuaciones muestra la página 1 de ese expediente en Edge.",
+      "detalle": "Pedidos del dueño después de la primera prueba real completa (22 oct): (1) que no aparezca la confirmación de descargas múltiples de WebView2 (concederla sola, solo para pjn.gov.ar); (2) ocultar la ventana del sitio mientras baja y mostrar el avance con más espacio; (3) que la app no quede bloqueada mientras baja; (4) dejar de leer la lista cuando una página entera ya es conocida (en un expediente solo se agregan documentos), con «Revisar todo el expediente»; (5) investigar el aviso «La página N mostró X actuaciones y no 15»: si es falso o si el lector se saltea filas. Especificación: llm_wiki_mi/desatendido-8/p7-pjn-descargas.md. Para (5) sirve un dato del dueño: cuántas actuaciones muestra la página 1 de ese expediente en Edge. 2026-10-22 (noche): el dueño comparó con el portal en Edge: la página 1 tiene 15 filas (9 con documento) y la página 2, 15 filas (5 con documento); la app contó 6 y 14. El aviso no es falso: el lector se saltea filas, y puede que también documentos. Hay varios tipos de fila (movimiento, evento, firma de despacho, escrito agregado) y solo algunas tienen documento. Arreglar el lector y, después, actualizar el expediente para traer lo que faltó sin volver a bajar lo que ya está.",
       "depende_de": [],
       "referencia": "P-248; D-491",
       "creado": "2026-10-22",
@@ -1888,6 +1888,22 @@
       "detalle": "Parte del producto mínimo: el estudio de referencia usa Core para todo, sin Codex (D-468). Paso 4b de servicios-de-ia-propuesta.md: un motor de preguntas que usa executePrompt de Core (solo texto: la pregunta entera en el texto, la respuesta en JSON controlada como hoy), elegible en Servicios de IA. Se construye y se prueba contra un Core simulado; la prueba real espera el permiso inference.execute y los límites pedidos en el mensaje 002. El chat sobre Core va con el contrato de operaciones (P-286).",
       "depende_de": [],
       "referencia": "servicios-de-ia-propuesta.md (2.3, paso 4b); mensaje 002 a Core",
+      "creado": "2026-10-22",
+      "actualizado": "2026-10-22"
+    },
+    {
+      "id": "P-301",
+      "titulo": "PJN: traer también las pestañas Intervinientes, Vinculados y Recursos",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "portales",
+      "detalle": "Pedido del dueño (22 oct): además de las actuaciones, el expediente del PJN tiene las pestañas Intervinientes, Vinculados y Recursos. Sirven, entre otras cosas, para verificar las personas relacionadas con la causa (las partes y sus letrados) contra lo que la base lee de los documentos. Traerlas como datos del expediente y usarlas para confirmar o señalar personas del caso.",
+      "depende_de": [
+        "P-298"
+      ],
+      "referencia": "P-248; src-tauri/src/portals/pjn.rs",
       "creado": "2026-10-22",
       "actualizado": "2026-10-22"
     }
