@@ -43,6 +43,7 @@ const PERSON_DECISIONS: &[&str] = &[
     "template_field_choice",
     "recognition_request",
     "generated_document",
+    "operation_log",
 ];
 
 /// The data an update changes on purpose, for the version that does it to

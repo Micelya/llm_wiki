@@ -10,7 +10,39 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14, V15, V16, V17, V18, V19, V20, V21, V22, V23, V24, V25];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14, V15, V16, V17, V18, V19, V20, V21, V22, V23, V24, V25, V26];
+
+/// The record of operations of the contract (`operations/log.rs`, D-498):
+/// each change the chat (or, later, another program) proposed, with the
+/// request of the person, the card as it was seen, what was left ticked,
+/// who proposed it, when, whether it was confirmed, cancelled or undone,
+/// and what undoing it needs. A decision of a person, kept as such.
+///
+/// - `caller`: `chat`, `screen`, `clipper` or `program:<id>`.
+/// - `request`: the message of the person (chat), or nothing.
+/// - `conversation`: the conversation and the turn of the chat.
+/// - `engine`: the engine and model that proposed it.
+/// - `input`, `card`, `chosen`, `undo`: JSON.
+const V26: &str = "
+CREATE TABLE operation_log (
+    id            INTEGER PRIMARY KEY,
+    operation     TEXT NOT NULL,
+    caller        TEXT NOT NULL,
+    request       TEXT,
+    conversation  TEXT,
+    engine        TEXT,
+    input         TEXT NOT NULL,
+    card          TEXT NOT NULL,
+    chosen        TEXT,
+    state         TEXT NOT NULL CHECK (state IN ('proposed', 'applied', 'cancelled', 'undone', 'failed', 'expired')),
+    undo          TEXT,
+    error         TEXT,
+    proposed_at   INTEGER NOT NULL,
+    decided_at    INTEGER,
+    undone_at     INTEGER
+);
+CREATE INDEX operation_log_by_state ON operation_log (state, proposed_at);
+";
 
 /// The key data each document's pairs were measured with (D-497): a
 /// fingerprint of its parties, matter, identifiers, amounts and dates, as

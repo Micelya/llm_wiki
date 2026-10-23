@@ -3,6 +3,7 @@ mod clip_server;
 mod commands;
 mod docbase;
 mod micelya_core;
+mod operations;
 mod panic_guard;
 mod portals;
 mod proxy;
@@ -603,6 +604,14 @@ pub fn run() {
             work_folder::work_folder_new_clips,
             work_folder::work_folder_clips_seen,
             clip_server_status,
+            operations::commands::operations_contract,
+            operations::commands::operations_card,
+            operations::commands::operations_choose,
+            operations::commands::operations_confirm,
+            operations::commands::operations_cancel,
+            operations::commands::operations_undo,
+            operations::commands::operations_apply,
+            operations::commands::operations_log,
         ]))
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
