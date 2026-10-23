@@ -7,6 +7,7 @@
 //! - `GET /status` and `POST /clip`: the web clipper, as before, without a
 //!   token (a page of a web site cannot pass for an extension).
 //! - `/api/v1/…`: the local API, for programs and scripts (`api.rs`).
+//! - `POST /mcp`: the MCP, for assistants such as Claude Code (`mcp.rs`).
 //!
 //! Both offer the same operations the chat uses, from the one list of the
 //! contract (`operations`): by default a program only reads; with the
@@ -28,6 +29,7 @@ pub mod auth;
 pub mod calls;
 pub mod clip;
 pub mod commands;
+pub mod mcp;
 pub mod programs;
 
 use std::collections::VecDeque;
@@ -272,12 +274,13 @@ pub fn handle(mut request: Request, context: &Context) {
                 Err(error) => answer(request, 400, error_json(&error), origin, &[]),
             }
         }
-        (_, p) if p == "/api" || p.starts_with("/api/") => for_programs(request, context, origin, &path),
+        (_, p) if p == "/api" || p.starts_with("/api/") || p == "/mcp" => for_programs(request, context, origin, &path),
         _ => answer(request, 404, error_json("No existe"), origin, &[]),
     }
 }
 
-/// The local API: only with the token of a program, while the programs are on.
+/// The local API and the MCP: only with the token of a program, while the
+/// programs are on.
 fn for_programs(mut request: Request, context: &Context, origin: Option<&str>, path: &str) {
     if !(context.programs_on)() {
         return answer(request, 503, error_json("Los programas conectados están apagados en Micelya (Ajustes → Programas conectados)"), origin, &[]);
@@ -296,6 +299,10 @@ fn for_programs(mut request: Request, context: &Context, origin: Option<&str>, p
         }
     };
     let method = request.method().as_str().to_ascii_uppercase();
+    if path == "/mcp" && method != "POST" {
+        // No stream of events: everything is answered to its POST.
+        return answer(request, 405, error_json("El MCP de Micelya se usa con POST"), origin, &[("Allow", "POST")]);
+    }
     let mut body = String::new();
     if method == "POST" {
         if !is_json(&request) {
@@ -305,6 +312,10 @@ fn for_programs(mut request: Request, context: &Context, origin: Option<&str>, p
             Ok(body) => body,
             Err((status, error)) => return answer(request, status, error_json(&error), origin, &[]),
         };
+    }
+    if path == "/mcp" {
+        let (status, text) = mcp::route(&body, &base, &program, &*context.proposed);
+        return answer(request, status, text.unwrap_or_default(), origin, &[]);
     }
     let (status, text) = api::route(&method, path, &body, &base, &program, &*context.proposed);
     answer(request, status, text, origin, &[])

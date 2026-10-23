@@ -15,6 +15,8 @@ use crate::docbase::DocBase;
 
 #[path = "api_tests.rs"]
 mod programs;
+#[path = "mcp_tests.rs"]
+mod mcp;
 
 /// A server of the tests: its port, and how to stop it.
 pub(super) struct Running {
