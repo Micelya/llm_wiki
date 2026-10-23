@@ -10,7 +10,20 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14, V15, V16, V17, V18, V19, V20, V21, V22, V23, V24];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14, V15, V16, V17, V18, V19, V20, V21, V22, V23, V24, V25];
+
+/// The key data each document's pairs were measured with (D-497): a
+/// fingerprint of its parties, matter, identifiers, amounts and dates, as
+/// the base knew them then. When what the base knows of a document changes
+/// (the reading names its parties later, two entities are merged), its
+/// pairs are measured again. Computed; nothing of a person.
+const V25: &str = "
+CREATE TABLE similar_key_data (
+    content_id   INTEGER PRIMARY KEY REFERENCES content (id) ON DELETE CASCADE,
+    print        TEXT NOT NULL,
+    computed_at  INTEGER NOT NULL
+);
+";
 
 /// The documents generated from a template (D-488): a Word written in the
 /// folder «Generados» of the work folder, with the template's text and the

@@ -46,6 +46,7 @@ pub(crate) mod check_types;
 pub mod classify;
 pub mod data;
 pub mod generate;
+pub mod key_data;
 pub mod marks;
 pub mod minhash;
 pub mod naming;

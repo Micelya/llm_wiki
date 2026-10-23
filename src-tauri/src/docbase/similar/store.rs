@@ -27,6 +27,7 @@ use crate::source_volume::{LocalFolderProvider, SourceProvider};
 use super::super::{now_ms, sql_err, DocBase, Visible};
 use super::align;
 use super::changes::{self, Changes};
+use super::key_data::{self, KeyData, TextIndex};
 use super::marks::{self, Mark, PdfSignature};
 use super::minhash;
 use super::propose::{self, Measures, Side};
@@ -34,8 +35,12 @@ use super::text::{self, Prepared, SHINGLE_WORDS};
 use super::types::{self, RelationDef};
 
 /// Version of the computation. Changing it, or the catalog, computes
-/// everything again.
-pub const ENGINE: &str = "similar-1";
+/// everything again. `similar-2`: the key data of the two documents decide
+/// whether a version or a similar pair are another document (D-497).
+pub const ENGINE: &str = "similar-2";
+/// Where the base keeps how the key data looked when it last compared
+/// them (`similar_key_data_check`).
+const KEY_DATA_SETTING: &str = "similar-key-data";
 /// Below this many words a text says too little to compare (the same
 /// limit as the text fingerprint).
 pub const MIN_WORDS: usize = 30;
@@ -89,6 +94,10 @@ struct Doc {
     recognized: bool,
     marks: Vec<String>,
     fields: Vec<(String, String)>,
+    /// Its parties, matter, identifiers, amounts and dates, as the base
+    /// knows them, and its text to look them up in (D-497).
+    key: KeyData,
+    index: TextIndex,
 }
 
 /// A document of the base as the screens show it: one of its locations.
@@ -265,6 +274,7 @@ impl DocBase {
         if signed > 0 {
             return Ok(forgotten + signed);
         }
+        self.similar_key_data_check()?;
         let measured = self.similar_measure_dirty(limit)?;
         let dirty_left: i64 = self
             .conn()
@@ -295,6 +305,7 @@ impl DocBase {
                  DELETE FROM similar_dirty; DELETE FROM similar_group;
                  DELETE FROM similar_template_value; DELETE FROM similar_template_field;
                  DELETE FROM similar_template_document; DELETE FROM similar_template;
+                 DELETE FROM similar_key_data; DELETE FROM docbase_setting WHERE key = 'similar-key-data';
                  DELETE FROM similar_pair WHERE state = 'proposed';
                  DELETE FROM document_type; DELETE FROM document_data;",
             )
@@ -485,7 +496,77 @@ impl DocBase {
         for (a, b, outcome) in results {
             save_pair(&tx, a, b, outcome, &engine)?;
         }
+        // The key data its pairs were measured with.
+        tx.execute(
+            "INSERT OR REPLACE INTO similar_key_data (content_id, print, computed_at) VALUES (?1, ?2, ?3)",
+            params![content_id, me.key.print(), now_ms()],
+        )
+        .map_err(sql_err)?;
         tx.commit().map_err(sql_err)
+    }
+
+    /// The key data of the documents change after they were measured: the
+    /// reading names their parties and amounts later, a person merges two
+    /// entities. The documents whose key data are not the ones their pairs
+    /// were measured with are measured again, with their neighbours (R-15).
+    /// It looks only when what the base knows changed since the last time.
+    /// Returns how many it left to measure.
+    fn similar_key_data_check(&self) -> Result<usize, String> {
+        let conn = self.conn();
+        let now: String = conn
+            .query_row(
+                "SELECT (SELECT count(*) || ':' || coalesce(max(id), 0) || ':' || count(entity_id) || ':' || coalesce(max(entity_id), '')
+                         FROM knowledge_mention)
+                     || '|' || (SELECT count(*) FROM knowledge_identifier)
+                     || '|' || (SELECT count(*) || ':' || coalesce(max(id), 0) FROM knowledge_evidence)
+                     || '|' || (SELECT count(*) || ':' || coalesce(max(computed_at), 0) FROM document_data)
+                     || '|' || (SELECT count(*) || ':' || count(merged_into) || ':' || coalesce(max(updated_at), 0) FROM knowledge_entity)
+                     || '|' || (SELECT count(*) FROM similar_key_data)",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(sql_err)?;
+        let then: Option<String> = conn
+            .query_row("SELECT value FROM docbase_setting WHERE key = ?1", [KEY_DATA_SETTING], |row| row.get(0))
+            .optional()
+            .map_err(sql_err)?;
+        if then.as_deref() == Some(now.as_str()) {
+            return Ok(0);
+        }
+        let measured: Vec<(i64, String)> = {
+            let mut statement = conn
+                .prepare(
+                    "SELECT k.content_id, k.print FROM similar_key_data k
+                     WHERE k.content_id NOT IN (SELECT content_id FROM similar_dirty)",
+                )
+                .map_err(sql_err)?;
+            let rows = statement
+                .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+                .map_err(sql_err)?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(sql_err)?;
+            rows
+        };
+        let current = key_data::load_all(&conn, None)?;
+        let empty = KeyData::default().print();
+        let at = now_ms();
+        let mut stale = 0;
+        for (content_id, print) in measured {
+            let print_now = current.get(&content_id).map(KeyData::print).unwrap_or_else(|| empty.clone());
+            if print_now != print {
+                conn.execute("INSERT OR REPLACE INTO similar_dirty (content_id, since) VALUES (?1, ?2)", params![content_id, at])
+                    .map_err(sql_err)?;
+                stale += 1;
+            }
+        }
+        conn.execute("DELETE FROM similar_key_data WHERE content_id NOT IN (SELECT id FROM content)", [])
+            .map_err(sql_err)?;
+        conn.execute(
+            "INSERT OR REPLACE INTO docbase_setting (key, value) VALUES (?1, ?2)",
+            params![KEY_DATA_SETTING, now],
+        )
+        .map_err(sql_err)?;
+        Ok(stale)
     }
 
     /// Pass 3: families against a principal document (R-14), from the
@@ -1156,6 +1237,7 @@ fn load_doc(conn: &Connection, content_id: i64, routine: &HashSet<u64>) -> Resul
     let mut kinds: Vec<String> = marks.iter().map(|m| m.kind.clone()).collect();
     kinds.sort();
     kinds.dedup();
+    let index = TextIndex::new(&prepared);
     Ok(Some(Doc {
         id: content_id,
         recognized: text::is_recognized(&body) || engine != crate::docbase::text::EXTRACTION_ENGINE,
@@ -1165,6 +1247,8 @@ fn load_doc(conn: &Connection, content_id: i64, routine: &HashSet<u64>) -> Resul
         own_words,
         marks: kinds,
         fields,
+        key: key_data::load(conn, content_id)?,
+        index,
     }))
 }
 
@@ -1192,7 +1276,14 @@ fn compare(a: &Doc, b: &Doc, routine: &HashSet<u64>) -> Option<(propose::Proposa
     let side_b = Side { content_id: b.id, own_words: b.own_words, matched: matched_b, recognized: b.recognized, marks: b.marks.clone() };
     let measures = propose::measures(&side_a, &side_b, shingles);
     let proposal = propose::propose(&side_a, &side_b, &measures, &found)?;
-    let evidence = serde_json::json!({
+    // Before it is a version of the other, or only similar: their key data (D-497).
+    let differing = if matches!(proposal.relation.as_str(), "version" | "similar") {
+        key_data::differing((&a.key, &a.index), (&b.key, &b.index))
+    } else {
+        Vec::new()
+    };
+    let proposal = propose::with_key_data(proposal, &differing)?;
+    let mut evidence = serde_json::json!({
         "engine": ENGINE,
         "rule": proposal.rule,
         "measures": measures,
@@ -1202,6 +1293,9 @@ fn compare(a: &Doc, b: &Doc, routine: &HashSet<u64>) -> Option<(propose::Proposa
         "marks": { "a": a.marks, "b": b.marks },
         "changes": found,
     });
+    if !differing.is_empty() {
+        evidence["keyData"] = serde_json::json!({ "differ": differing });
+    }
     Some((proposal, measures, evidence))
 }
 
@@ -1404,5 +1498,79 @@ mod tests {
         let complete = |id: i64| (id == 3, 100);
         let found = families(&graph(&[(1, 2), (1, 3), (2, 3)]), &complete);
         assert_eq!(found, vec![Family { principal: 3, members: vec![1, 2, 3], flags: vec![] }]);
+    }
+
+    /// What waits for a person in a copy of a real base, before and after
+    /// this engine computes it again (D-497). Numbers only: no name, no
+    /// text. The copy is opened in a scratch folder; its files are only
+    /// read (the signatures of its PDFs).
+    ///
+    /// ```text
+    /// MICELYA_DOCBASE_COPY="C:\copia\private.sqlite3" \
+    ///     cargo test --lib pairs_waiting_for_a_person_in_a_copy_of_the_base -- --ignored --nocapture
+    /// ```
+    #[test]
+    #[ignore = "reads a copy of a real base"]
+    fn pairs_waiting_for_a_person_in_a_copy_of_the_base() {
+        if std::env::var("MICELYA_DOCBASE_COPY").is_err() {
+            println!("MICELYA_DOCBASE_COPY is not set: nothing to measure");
+            return;
+        }
+        let Some((_scratch, base)) = crate::docbase::knowledge::check::open_base() else { return };
+        let count = |base: &DocBase| -> BTreeMap<(String, String, bool), i64> {
+            let conn = base.conn();
+            let mut statement = conn.prepare("SELECT relation, state, count(*) FROM similar_pair GROUP BY 1, 2").unwrap();
+            let rows = statement
+                .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, i64>(2)?)))
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap();
+            rows.into_iter().map(|(relation, state, n)| ((relation.clone(), state, asks_person(&relation)), n)).collect()
+        };
+        let before = count(&base);
+        let started = std::time::Instant::now();
+        let mut steps = 0;
+        while base.similar_step(50).unwrap() > 0 {
+            steps += 1;
+            assert!(steps < 100_000, "the engine does not settle");
+        }
+        println!("computed again in {:.1} s ({steps} steps)", started.elapsed().as_secs_f32());
+        let after = count(&base);
+        for (label, counts) in [("before", &before), ("after", &after)] {
+            let total: i64 = counts.values().sum();
+            let asking: i64 = counts.iter().filter(|((_, state, asks), _)| state == "proposed" && *asks).map(|(_, n)| n).sum();
+            println!("{label}: {total} pairs; waiting for a person with the new rule: {asking}");
+            for ((relation, state, asks), n) in counts {
+                println!("   {relation:<24} {state:<10} {:<12} {n}", if *asks { "asks" } else { "information" });
+            }
+        }
+        let conn = base.conn();
+        let rules: Vec<(String, i64)> = {
+            let mut statement = conn
+                .prepare("SELECT coalesce(json_extract(evidence, '$.rule'), '-'), count(*) FROM similar_pair GROUP BY 1")
+                .unwrap();
+            let rows = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?))).unwrap().collect::<Result<Vec<_>, _>>().unwrap();
+            rows
+        };
+        println!("by rule: {rules:?}");
+        let differ: Vec<(String, i64)> = {
+            let mut statement = conn
+                .prepare(
+                    "SELECT j.value, count(*) FROM similar_pair, json_each(json_extract(evidence, '$.keyData.differ')) j GROUP BY 1",
+                )
+                .unwrap();
+            let rows = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?))).unwrap().collect::<Result<Vec<_>, _>>().unwrap();
+            rows
+        };
+        println!("pairs taken down by their key data, by key: {differ:?}");
+        let families: i64 = conn.query_row("SELECT count(*) FROM similar_group", [], |row| row.get(0)).unwrap();
+        let templates: i64 = conn.query_row("SELECT count(*) FROM similar_template", [], |row| row.get(0)).unwrap();
+        println!("families: {families}; templates: {templates}");
+        drop(conn);
+        let pending = base.similar_pending(&Visible::All).unwrap();
+        println!(
+            "Atención: {} pairs wait ({} of one same document), in {} families",
+            pending.pairs, pending.same_document_pairs, pending.groups
+        );
     }
 }

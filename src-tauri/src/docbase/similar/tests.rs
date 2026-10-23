@@ -1200,3 +1200,109 @@ fn a_generated_document_is_known_as_such_never_the_principal_nor_possibly_the_sa
     let summary = base.templates(&Visible::All).unwrap().remove(0);
     assert_eq!((summary.documents, summary.generated), (3, 2));
 }
+
+// ── The key data of two documents (D-497) ──────────────────────────────
+
+/// What the reading said of a document: that it names `who` with `role`,
+/// as the knowledge layer keeps it.
+fn names_in(base: &DocBase, name: &str, who: &str, role: &str) {
+    let id = content(base, name);
+    base.conn()
+        .execute(
+            "INSERT INTO knowledge_mention (content_id, ref, kind, written, normalized, role, quote)
+             VALUES (?1, ?2, 'organizacion', ?2, ?3, ?4, ?2)",
+            rusqlite::params![id, who, super::text::normalized(who), role],
+        )
+        .unwrap();
+}
+
+/// The contract with other parties: `first` instead of the first one.
+fn contract_for(text: &str, first: &str) -> String {
+    text.replace("Ejemplo Uno S.A.", first)
+}
+
+#[test]
+fn two_contracts_of_one_template_with_other_parties_and_amounts_wait_for_no_one() {
+    let price = |amount: &str| {
+        CONTRACT.replace("abonará el precio pactado", &format!("abonará el precio pactado de USD {amount} mensuales"))
+    };
+    let (_dir, base, _) = base_with(&[
+        ("contrato alfa.md", contract_for(&price("2.000.000"), "Alfa Servicios S.A.").into_bytes()),
+        ("contrato beta.md", contract_for(&price("20"), "Beta Insumos S.A.").into_bytes()),
+    ]);
+    names_in(&base, "contrato alfa.md", "Alfa Servicios S.A.", "parte");
+    names_in(&base, "contrato beta.md", "Beta Insumos S.A.", "parte");
+    while base.similar_step(10).unwrap() > 0 {}
+    // Two contracts, not two of the same: made with one template.
+    assert_eq!(relation(&base, "contrato alfa.md", "contrato beta.md").as_deref(), Some("same-template"));
+    let pending = base.similar_pending(&Visible::All).unwrap();
+    assert_eq!((pending.pairs, pending.groups, pending.same_document_pairs), (0, 0, 0));
+    let groups = base.similar_groups(&Visible::All).unwrap();
+    assert_eq!((groups.len(), groups[0].members.len(), groups[0].pending), (1, 2, 0));
+    let template = base.similar_template(&Visible::All, row(&base, "contrato beta.md").location_id).unwrap();
+    assert!(template.is_some_and(|t| t.documents.len() == 2), "both are documents of the template");
+}
+
+#[test]
+fn a_reworded_clause_is_a_version_until_the_parties_say_they_are_two_contracts() {
+    let (_dir, base, _) = base_with(&[
+        ("contrato alfa.md", contract_for(CONTRACT, "Alfa Servicios S.A.").into_bytes()),
+        ("contrato beta.md", contract_for(&contract_final(), "Beta Insumos S.A.").into_bytes()),
+    ]);
+    // Read alone, the texts say a clause was reworded: one contract, a
+    // person decides.
+    assert_eq!(relation(&base, "contrato alfa.md", "contrato beta.md").as_deref(), Some("version"));
+    assert_eq!(base.similar_pending(&Visible::All).unwrap().pairs, 1);
+
+    // The reading names another party in each: two contracts of one
+    // template, measured again by themselves.
+    names_in(&base, "contrato alfa.md", "Alfa Servicios S.A.", "parte");
+    names_in(&base, "contrato beta.md", "Beta Insumos S.A.", "parte");
+    while base.similar_step(10).unwrap() > 0 {}
+    let similar = pair(&base, "contrato alfa.md", "contrato beta.md").unwrap();
+    assert_eq!(similar.relation, "same-template");
+    assert_eq!(similar.description, "Mismo texto de base, pero son documentos distintos: cambian las partes.");
+    assert_eq!(similar.evidence["keyData"]["differ"], serde_json::json!(["parties"]));
+    assert_eq!(base.similar_pending(&Visible::All).unwrap().pairs, 0);
+    let filter = DocumentFilter { similar_pending: true, ..Default::default() };
+    assert!(base.documents(&Visible::All, &filter).unwrap().rows.is_empty(), "nothing waits in Documentos either");
+}
+
+#[test]
+fn a_version_and_a_signed_copy_with_the_same_parties_still_wait_for_a_person() {
+    let signed = format!("## Page 1\n\n{}\n\n## Page 2\n\n{AUDIT_PAGE}\n", contract_final());
+    let (_dir, base, _) = base_with(&[
+        ("borrador.md", CONTRACT.as_bytes().to_vec()),
+        ("final.md", contract_final().into_bytes()),
+        ("final firmado.md", signed.into_bytes()),
+    ]);
+    for name in ["borrador.md", "final.md", "final firmado.md"] {
+        names_in(&base, name, "Ejemplo Uno S.A.", "parte");
+        names_in(&base, name, "Ejemplo Dos S.R.L.", "parte");
+    }
+    // A party only the signed copy names (its signatory) is no other party.
+    names_in(&base, "final firmado.md", "Firmante Inventado", "firmante");
+    while base.similar_step(10).unwrap() > 0 {}
+    assert_eq!(relation(&base, "borrador.md", "final.md").as_deref(), Some("version"));
+    assert_eq!(relation(&base, "final.md", "final firmado.md").as_deref(), Some("signed-copy"));
+    let pending = base.similar_pending(&Visible::All).unwrap();
+    assert_eq!((pending.pairs, pending.same_document_pairs), (3, 3), "the draft, the final and the signed copy");
+}
+
+#[test]
+fn two_documents_that_share_some_text_and_name_other_parties_are_no_pair() {
+    let with = |party: &str, salt: usize| format!("{CONTRACT} Firma en representación de {party}. {}", words(0..45, salt));
+    let (_dir, base, _) = base_with(&[
+        ("nota alfa.md", with("Alfa Servicios S.A.", 1).into_bytes()),
+        ("nota beta.md", with("Beta Insumos S.A.", 2).into_bytes()),
+    ]);
+    assert_eq!(relation(&base, "nota alfa.md", "nota beta.md").as_deref(), Some("similar"));
+    names_in(&base, "nota alfa.md", "Alfa Servicios S.A.", "parte");
+    names_in(&base, "nota beta.md", "Beta Insumos S.A.", "parte");
+    while base.similar_step(10).unwrap() > 0 {}
+    assert_eq!(relation(&base, "nota alfa.md", "nota beta.md"), None, "different documents, not similar ones");
+    // When the reading no longer says so, they are measured again.
+    base.conn().execute("DELETE FROM knowledge_mention", []).unwrap();
+    while base.similar_step(10).unwrap() > 0 {}
+    assert_eq!(relation(&base, "nota alfa.md", "nota beta.md").as_deref(), Some("similar"));
+}
