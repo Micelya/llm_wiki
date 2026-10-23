@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { LongName } from "@/components/ui/long-name"
 import { Table, Td, Th } from "@/components/ui/table"
 import { FilterChip } from "@/components/ui/tabs"
 import { listEntities } from "@/commands/docbase"
@@ -61,7 +62,7 @@ function EntityList() {
       <div className="flex max-w-5xl flex-col gap-4">
         <div className="flex flex-wrap items-center gap-2">
           <Input
-            className="h-8 w-72"
+            className="h-8 w-72 max-w-full"
             placeholder="Buscar por nombre"
             value={typed}
             onChange={(event) => setTyped(event.target.value)}
@@ -97,7 +98,8 @@ function EntityList() {
                 <Th align="right" width="8rem">
                   Documentos
                 </Th>
-                <Th align="right" width="8rem">
+                {/* Where the table is narrow, the mentions leave it: the name keeps the room. */}
+                <Th align="right" width="8rem" className="@max-[48rem]:hidden">
                   Menciones
                 </Th>
               </tr>
@@ -106,16 +108,16 @@ function EntityList() {
               {rows.map((entity) => (
                 <tr key={entity.id} className="cursor-pointer" onClick={() => openEntity(entity.id)}>
                   <Td>
-                    <button className="text-left font-semibold break-words text-link hover:underline" onClick={() => openEntity(entity.id)}>
-                      {entity.name}
+                    <button className="text-left font-semibold text-link hover:underline" onClick={() => openEntity(entity.id)}>
+                      <LongName>{entity.name}</LongName>
                     </button>
                     {entity.aliases.length > 0 && (
-                      <span className="block text-[0.78125rem] break-words text-muted-foreground">También: {entity.aliases.join(" · ")}</span>
+                      <LongName className="block text-[0.78125rem] text-muted-foreground">{`También: ${entity.aliases.join(" · ")}`}</LongName>
                     )}
                   </Td>
                   <Td muted>{entityTypeName(entity.kind, false, words)}</Td>
                   <Td align="right">{formatCount(entity.documents)}</Td>
-                  <Td align="right" muted>
+                  <Td align="right" muted className="@max-[48rem]:hidden">
                     {formatCount(entity.mentions)}
                   </Td>
                 </tr>

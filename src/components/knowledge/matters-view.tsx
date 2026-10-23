@@ -2,6 +2,7 @@ import { useState } from "react"
 import { Archive, Check, Lock, LockOpen, Pencil, Plus, Undo2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Callout } from "@/components/ui/callout"
+import { LongName } from "@/components/ui/long-name"
 import { Table, Td, Th } from "@/components/ui/table"
 import {
   chooseMatterDocument,
@@ -120,7 +121,7 @@ function MatterList() {
                 <tr key={matter.id} className="cursor-pointer" onClick={() => openMatter(matter.id)}>
                   <Td>
                     <button className="text-left font-semibold text-link hover:underline" onClick={() => openMatter(matter.id)}>
-                      {matter.name}
+                      <LongName>{matter.name}</LongName>
                     </button>
                   </Td>
                   <Td>
@@ -469,7 +470,7 @@ function MatterBox({ matter, onShowData }: { matter: MatterDetail; onShowData: (
             {parties.map((party) => (
               <span key={party.entityId} className="block">
                 <button className="text-left text-link hover:underline" onClick={() => openEntity(party.entityId)}>
-                  {party.name}
+                  <LongName>{party.name}</LongName>
                 </button>
                 <span className="block text-xs text-muted-foreground">{rolesInWords(party.roles, words) || entityTypeName(party.kind, false, words)}</span>
               </span>
@@ -675,7 +676,7 @@ function Parties({ matter }: { matter: MatterDetail }) {
             <tr key={party.entityId}>
               <Td width="30%">
                 <button className="text-left text-link hover:underline" onClick={() => openEntity(party.entityId)}>
-                  {party.name}
+                  <LongName>{party.name}</LongName>
                 </button>
               </Td>
               <Td muted>

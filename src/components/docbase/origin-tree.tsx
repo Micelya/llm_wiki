@@ -110,7 +110,7 @@ function FolderRow({
         <button className="flex min-w-0 flex-1 items-center gap-1.5 text-left" onClick={() => setOpen(!open)}>
           {open ? <ChevronDown className="size-4 shrink-0" /> : <ChevronRight className="size-4 shrink-0" />}
           <Folder className="size-4 shrink-0 text-muted-foreground" />
-          <span className={cn("truncate font-medium", node.excluded && "text-muted-foreground line-through")}>
+          <span className={cn("truncate font-medium", node.excluded && "text-muted-foreground line-through")} title={node.name}>
             {node.name}
           </span>
           <span className="shrink-0 text-xs text-muted-foreground">{formatCount(node.files)}</span>
@@ -163,7 +163,10 @@ function FileRow({ file, depth, actions }: { file: DocumentRow; depth: number; a
         }}
       >
         <FileText className="size-4 shrink-0 text-muted-foreground" />
-        <span className={cn("truncate", excluded && "text-muted-foreground line-through")}>{file.name}</span>
+        {/* A long name is cut with «…» in the tree; the whole name shows under the mouse. */}
+        <span className={cn("truncate", excluded && "text-muted-foreground line-through")} title={file.name}>
+          {file.name}
+        </span>
       </button>
       <DocumentStateBadge state={file.state} />
       <RowActions>

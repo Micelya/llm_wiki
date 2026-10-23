@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { ChevronDown, ChevronRight, LayoutTemplate } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { LongName } from "@/components/ui/long-name"
 import {
   listOpenSimilarPairs,
   listSimilarDocuments,
@@ -139,20 +140,20 @@ function FamilyCard({
 
   return (
     <div ref={ref} className="rounded-lg border bg-card" data-family={group.principal.contentId}>
-      <button className="flex w-full items-start gap-3 px-4 py-3 text-left" onClick={() => setOpen(!open)}>
+      {/* Where the name and the marks do not fit side by side, the marks go under the name. */}
+      <button className="flex w-full flex-wrap items-start gap-x-3 gap-y-1.5 px-4 py-3 text-left" onClick={() => setOpen(!open)}>
         {open ? (
           <ChevronDown className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
         ) : (
           <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
         )}
-        <span className="min-w-0 flex-1">
-          <span className="block font-medium break-words">{group.principal.name}</span>
-          <span className="block text-xs break-words text-muted-foreground">
-            Principal de una familia de {formatCount(group.members.length)} documentos · {group.principal.originName} ›{" "}
-            {group.principal.relPath}
-          </span>
+        <span className="min-w-0 flex-1 basis-60">
+          <LongName className="block font-medium">{group.principal.name}</LongName>
+          <LongName className="block text-xs text-muted-foreground">
+            {`Principal de una familia de ${formatCount(group.members.length)} documentos · ${group.principal.originName} › ${group.principal.relPath}`}
+          </LongName>
         </span>
-        <span className="flex shrink-0 flex-wrap justify-end gap-1">
+        <span className="ml-auto flex flex-wrap justify-end gap-1">
           {group.pendingSameDocument > 0 && (
             <StatusBadge tone="busy">
               {plural(group.pendingSameDocument, "podría ser el mismo", "podrían ser el mismo")}

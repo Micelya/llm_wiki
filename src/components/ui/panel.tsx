@@ -32,7 +32,8 @@ export function Panel({
     <section className={cn("rounded-xl border bg-card text-card-foreground shadow-card", className)}>
       {title && (
         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 border-b px-[18px] py-3">
-          <h2 className="flex items-center gap-2 font-ui text-base font-bold text-strong">
+          {/* A title of one long word (a folder's name) breaks inside the card. */}
+          <h2 className="flex min-w-0 items-center gap-2 font-ui text-base font-bold wrap-anywhere text-strong">
             {title}
             {count !== undefined && <CountPill>{count}</CountPill>}
           </h2>
