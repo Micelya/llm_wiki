@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   Bot,
+  Cable,
   DatabaseBackup,
   FolderOpen,
   Globe,
@@ -45,6 +46,7 @@ import { AiServicesSection } from "./sections/ai-services-section"
 import { ModelQuestionsSection } from "./sections/model-questions-section"
 import { ConnectionsSection } from "./sections/connections-section"
 import { DataSection } from "./sections/data-section"
+import { ProgramsSection } from "./sections/programs-section"
 
 type CategoryId =
   | "general"
@@ -52,6 +54,7 @@ type CategoryId =
   | "ai-services"
   | "connections"
   | "model-questions"
+  | "programs"
   | "llm"
   | "web-search"
   | "network"
@@ -83,6 +86,8 @@ const CATEGORIES: Category[] = [
   { id: "connections", labelKey: "", label: "Conexiones", icon: Plug },
   // What the base and the chat ask the model, read only (P-278).
   { id: "model-questions", labelKey: "", label: "Lo que se le pregunta al modelo", icon: MessageSquareText },
+  // Other programs of the machine that use the base through the server (D-495).
+  { id: "programs", labelKey: "", label: "Programas conectados", icon: Cable },
   { id: "llm", labelKey: "settings.categories.llm", label: "Conexiones con modelos", icon: Bot },
   { id: "web-search", labelKey: "settings.categories.webSearch", label: "Búsqueda en internet", icon: Globe },
   { id: "network", labelKey: "settings.categories.network", icon: Network },
@@ -382,6 +387,9 @@ export function SettingsView() {
       case "model-questions":
         // Read only: nothing to save.
         return <ModelQuestionsSection />
+      case "programs":
+        // Applies at once: the programs are in the base, their tokens in the keychain.
+        return <ProgramsSection />
       case "llm":
         // The LLM section manages its own store state (per-provider
         // configs + active preset) and persists directly — it bypasses
@@ -465,7 +473,7 @@ export function SettingsView() {
         {/* Global Save bar hidden for sections that persist inline:
             - "llm" saves per-row on every edit (independent per-preset state)
             - "about" has no draft-bound fields */}
-        {active !== "about" && active !== "data" && active !== "llm" && active !== "work-folder" && active !== "ai-services" && active !== "connections" && active !== "model-questions" && (
+        {active !== "about" && active !== "data" && active !== "llm" && active !== "work-folder" && active !== "ai-services" && active !== "connections" && active !== "model-questions" && active !== "programs" && (
           <div className="shrink-0 border-t bg-bar px-10 py-3">
             <div className="flex max-w-3xl items-center justify-between gap-4">
               <p className={`text-[0.8125rem] ${saveError ? "text-err" : "text-muted-foreground"}`}>

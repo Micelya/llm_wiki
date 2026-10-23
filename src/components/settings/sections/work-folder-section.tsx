@@ -148,7 +148,8 @@ export function WorkFolderSection() {
         <p className="text-sm text-muted-foreground">
           Con la extensión «Micelya Clipper», la página que estás leyendo se guarda como un archivo en «Recortes web», con
           su dirección y la fecha al principio; la base la lee y «Atención» avisa de los recortes nuevos. Micelya tiene que
-          estar abierta.
+          estar abierta. La extensión usa el servidor de Micelya en esta computadora, el mismo de «Programas conectados», sin
+          token.
         </p>
         <p className="text-sm">
           <span className="text-muted-foreground">El recortador: </span>
