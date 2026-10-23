@@ -132,6 +132,12 @@ pub(crate) struct EngineNow {
     /// Questions each stage had left at its last run.
     pub left: BTreeMap<&'static str, usize>,
     pub last_error: Option<ModelError>,
+    /// Questions of «quién es quién» and of the summaries asked by
+    /// themselves since their round began (`auto_questions.rs`, D-484).
+    pub auto_asked: usize,
+    /// The stage whose questions wait for a person: the round passed its
+    /// cap, or a person left them for later (D-484).
+    pub auto_held: Option<&'static str>,
     /// The document whose text is being recognized now (`recognize.rs`).
     /// What a person asked to recognize is kept in the base
     /// (`recognition_request`), so it survives closing the app.
@@ -213,6 +219,24 @@ impl EngineState {
     pub(crate) fn ran(&self, stage: &'static str, left: usize) {
         self.with(|now| {
             now.left.insert(stage, left);
+        });
+    }
+
+    /// Questions of the round of automatic questions just asked (D-484).
+    pub(crate) fn auto_asked(&self, asked: usize) {
+        self.with(|now| now.auto_asked += asked);
+    }
+
+    /// The stage whose questions wait for a person; `None`: none waits.
+    pub(crate) fn auto_held(&self, stage: Option<&'static str>) {
+        self.with(|now| now.auto_held = stage);
+    }
+
+    /// The round of automatic questions ended: nothing left to ask.
+    pub(crate) fn auto_round_over(&self) {
+        self.with(|now| {
+            now.auto_asked = 0;
+            now.auto_held = None;
         });
     }
 
@@ -430,6 +454,9 @@ pub struct Progress {
     /// reads; `None` when none was chosen.
     pub recognition_engine: Option<String>,
     pub last_error: Option<ModelError>,
+    /// The questions of «quién es quién» and of the summaries that go by
+    /// themselves: how many, and whether they wait for a person (D-484).
+    pub auto_questions: super::auto_questions::AutoQuestions,
 }
 
 /// A folder of an origin and how many files it holds, its subfolders included.
@@ -484,6 +511,8 @@ struct Facts<'a> {
     /// The name the engine that recognizes scans saves its text with.
     recognizer: Option<String>,
     now: EngineNow,
+    /// What a person said of the round of automatic questions (D-484).
+    permit: Option<super::auto_questions::Permit>,
 }
 
 impl DocBase {
@@ -579,6 +608,7 @@ impl<'a> Facts<'a> {
             engine_chosen: engine.is_some(),
             recognizer,
             now,
+            permit: super::auto_questions::permit(conn)?,
         })
     }
 }
@@ -975,12 +1005,17 @@ fn summarize(conn: &Connection, facts: &Facts, members: Vec<Members>) -> Result<
         }
         let error = facts.now.last_error.clone().filter(|_| error_stage == Some(id));
         let model = MODEL_STAGES.contains(&id);
+        // Its questions wait for a person (D-484).
+        let held = model && has_work && can_ask && facts.now.auto_held == Some(id);
+        if held {
+            members.extra.insert("held", 1);
+        }
         let state = if id == "recognition" {
             recognition_state(facts, &members, error.is_some())
         } else if model {
             if !has_work {
                 if failed > 0 { "error" } else { "done" }
-            } else if !can_ask {
+            } else if !can_ask || held {
                 "paused"
             } else if error.is_some() {
                 "error"
@@ -1031,6 +1066,7 @@ fn summarize(conn: &Connection, facts: &Facts, members: Vec<Members>) -> Result<
         engine_chosen: facts.engine_chosen,
         recognition_engine: facts.recognizer.clone(),
         last_error: facts.now.last_error.clone(),
+        auto_questions: super::auto_questions::AutoQuestions::of(&facts.now, facts.permit),
     })
 }
 

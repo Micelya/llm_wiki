@@ -225,6 +225,13 @@ export function activityLine(progress: Progress | null, words: Vocabulary = voca
     const page = pageOf(running.current)
     return { tone: "busy", text: `Procesando: ${stageText(running.id, words).title}${figures}${page ? ` (${page})` : ""}` }
   }
+  // The questions that go by themselves passed their cap (D-484).
+  if (progress.autoQuestions?.held && working.some((stage) => (stage.extra.held ?? 0) > 0)) {
+    return {
+      tone: "paused",
+      text: `Esperando tu permiso para ${plural(progress.autoQuestions.pending, "pregunta", "preguntas")} al modelo`,
+    }
+  }
   const paused = working.filter((stage) => stage.state === "paused")
   if (paused.length > 0) {
     const waiting = progress.paused > 0 ? `: ${plural(progress.paused, "documento espera", "documentos esperan")}` : ""

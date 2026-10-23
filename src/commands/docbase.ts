@@ -1841,7 +1841,9 @@ export interface ProgressStage {
    * matters; for the scans, the `pages` that wait, the documents whose
    * pages are not counted yet (`uncounted`) and those asked for (`requested`);
    * `firstLap` (1) while the matters or the pages wait for the engine's
-   * first pass since the app opened (D-452).
+   * first pass since the app opened (D-452); `held` (1) while its questions
+   * wait for a person (D-484); for the reading, the documents read with
+   * another version or model (`outdated`, D-465).
    */
   extra: Record<string, number>
 }
@@ -1857,6 +1859,31 @@ export interface Progress {
   /** The engine that recognizes scans, as it names its text; null when none was chosen. */
   recognitionEngine?: string | null
   lastError: ModelError | null
+  /** The questions of «quién es quién» and of the summaries that go by themselves (D-484). */
+  autoQuestions?: AutoQuestions | null
+}
+
+/**
+ * The round of questions of «quién es quién» and of the summaries of the
+ * pages that follow a change in what was read (D-484): they go by
+ * themselves with the automatic reading on; past `cap`, a person says
+ * whether to go on.
+ */
+export interface AutoQuestions {
+  /** Questions left, as last counted. */
+  pending: number
+  /** Asked since the round began. */
+  asked: number
+  cap: number
+  /** The stage whose questions wait for a person, when one does. */
+  held: "resolve" | "pages" | null
+  /** What a person said of the round. */
+  decision: "allowed" | "later" | null
+}
+
+/** `go`: the questions of the round are asked now; otherwise they are left for later (D-484). */
+export function decideAutoQuestions(go: boolean): Promise<void> {
+  return invoke<void>("docbase_auto_questions_decide", { go })
 }
 
 export interface StageItems {

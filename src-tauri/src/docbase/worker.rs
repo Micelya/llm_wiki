@@ -236,11 +236,22 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
         }
     }
     // Nothing left to read: the identities of what was read, one question
-    // at a time too.
+    // at a time too. With the pages, they are the round of questions that
+    // goes by itself up to its cap; past it, a person says whether to go
+    // on (D-484).
     state.at_stage(Some("resolve"));
+    match base.auto_questions_go("resolve") {
+        Ok(true) => {}
+        Ok(false) => return ASK_IDLE,
+        Err(error) => {
+            eprintln!("[docbase] {error}");
+            return ASK_IDLE;
+        }
+    }
     match base.knowledge_resolve(Some(asker.as_ref()), 1) {
         Ok(report) => {
             state.ran("resolve", report.left);
+            state.auto_asked(report.asked);
             if report.changed > 0 {
                 on_change();
             }
@@ -285,11 +296,20 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
     // wiki wrote its pages of documents, this leaves every page of entity
     // up to date with the whole archive.
     state.at_stage(Some("pages"));
+    match base.auto_questions_go("pages") {
+        Ok(true) => {}
+        Ok(false) => return ASK_IDLE,
+        Err(error) => {
+            eprintln!("[docbase] {error}");
+            return ASK_IDLE;
+        }
+    }
     match base.knowledge_project(Some(asker.as_ref()), 1) {
         Ok(report) => {
             if report.reason.as_deref() != Some("resolving") {
                 state.ran("pages", report.left);
             }
+            state.auto_asked(report.asked);
             if report.wrote() {
                 on_change();
                 on_pages();
@@ -301,8 +321,12 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
             if report.asked > 0 || report.left > 0 {
                 Duration::ZERO
             } else {
-                // Nothing left to ask anywhere.
+                // Nothing left to ask anywhere: the round of automatic
+                // questions is over (D-484).
                 state.at_stage(None);
+                if let Err(error) = base.auto_questions_round_over() {
+                    eprintln!("[docbase] {error}");
+                }
                 ASK_IDLE
             }
         }

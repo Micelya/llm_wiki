@@ -543,6 +543,7 @@ pub fn run() {
             docbase::commands::docbase_knowledge_read_again_failed,
             docbase::commands::docbase_knowledge_reread_plan,
             docbase::commands::docbase_knowledge_reread,
+            docbase::commands::docbase_auto_questions_decide,
             docbase::commands::docbase_knowledge_decide_many,
             docbase::commands::docbase_knowledge_attention,
             docbase::commands::docbase_knowledge_matters,

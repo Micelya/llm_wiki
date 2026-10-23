@@ -1080,6 +1080,17 @@ pub fn docbase_knowledge_reread(app: tauri::AppHandle, state: State<'_, DocBaseS
     Ok(count)
 }
 
+/// What a person says of the round of questions of «quién es quién» and of
+/// the summaries that passed its cap (D-484): `go`, they are asked now;
+/// otherwise they are left for later.
+#[tauri::command(async)]
+pub fn docbase_auto_questions_decide(app: tauri::AppHandle, state: State<'_, DocBaseState>, go: bool) -> Result<(), String> {
+    state.base()?.auto_questions_decide(go)?;
+    state.ask_wake.request();
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(())
+}
+
 /// Keeps and applies several decisions of the user at once, with one
 /// resolution (taking a document out of a matter, confirming a family).
 #[tauri::command(async)]

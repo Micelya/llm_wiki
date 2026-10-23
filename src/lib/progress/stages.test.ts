@@ -138,6 +138,14 @@ describe("the line at the foot of the window", () => {
     expect(activityLine(off, words)?.text).toBe("Lectura automática en pausa: 3 documentos esperan")
   })
 
+  it("says when the questions that go by themselves wait for a person (D-484)", () => {
+    const held = progress(
+      { resolve: { state: "paused", pending: 2, extra: { held: 1 } } },
+      { paused: 2, autoQuestions: { pending: 60, asked: 0, cap: 50, held: "resolve", decision: null } },
+    )
+    expect(activityLine(held, words)).toEqual({ tone: "paused", text: "Esperando tu permiso para 60 preguntas al modelo" })
+  })
+
   it("says everything is up to date when nothing waits", () => {
     expect(activityLine(progress(), words)).toEqual({ tone: "ok", text: "Todo al día" })
   })

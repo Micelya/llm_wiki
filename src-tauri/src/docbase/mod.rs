@@ -16,6 +16,7 @@
 //!
 //! Design: `docs/design/base-documental.md`.
 
+pub mod auto_questions;
 pub mod bridge;
 pub mod chat_files;
 pub mod commands;
