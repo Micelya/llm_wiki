@@ -12,16 +12,18 @@
 //!
 //! - `clip.rs`: saving a web clip.
 //! - `auth.rs`: who may talk to it.
+//! - `programs.rs`: the programs a person lets in, with their tokens.
 //! - `commands.rs`: what Ajustes asks of it.
 
 pub mod auth;
 pub mod clip;
 pub mod commands;
+pub mod programs;
 
 use std::collections::VecDeque;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -48,6 +50,17 @@ const MAX_IN_FLIGHT: usize = 64;
 
 /// 0 starting, 1 listening, 2 the port is taken, 3 stopped.
 static STATE: AtomicU8 = AtomicU8::new(0);
+/// Whether programs may use the server (the switch of Ajustes, read from
+/// the base when the server starts).
+static PROGRAMS_ON: AtomicBool = AtomicBool::new(true);
+
+pub fn programs_on() -> bool {
+    PROGRAMS_ON.load(Ordering::Relaxed)
+}
+
+pub fn set_programs_on(on: bool) {
+    PROGRAMS_ON.store(on, Ordering::Relaxed);
+}
 
 /// How the server is, for Ajustes: `starting`, `running`, `port-in-use`
 /// or `stopped`.
@@ -147,6 +160,12 @@ pub fn start(app: AppHandle) {
             STATE.store(2, Ordering::Relaxed);
             return;
         };
+        if let Some(base) = crate::docbase::bridge::shared_base() {
+            match programs::enabled(&base) {
+                Ok(on) => set_programs_on(on),
+                Err(error) => eprintln!("[local-server] the switch of the programs could not be read: {error}"),
+            }
+        }
         STATE.store(1, Ordering::Relaxed);
         eprintln!("[local-server] listening on http://{address}");
         let folder = app.clone();

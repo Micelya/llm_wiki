@@ -10,7 +10,37 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14, V15, V16, V17, V18, V19, V20, V21, V22, V23, V24, V25, V26];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14, V15, V16, V17, V18, V19, V20, V21, V22, V23, V24, V25, V26, V27];
+
+/// The programs a person let use the base through the server inside the
+/// machine (`local_server/programs.rs`, D-495, P-227): an assistant such as
+/// Claude Code, or a script. Each has its own token, kept in the system
+/// keychain; here only its SHA-256, to know it without the keychain.
+///
+/// - `permission`: `read` (the default: only the readings) or `change`
+///   (it can also ask for changes, which wait for a person in Atención).
+/// - `revoked_at`: when a person removed it; its token no longer works and
+///   the row stays, so the record of operations can still name it.
+/// - `local_program_use`: how many times a day it used each operation,
+///   without what it read.
+const V27: &str = "
+CREATE TABLE local_program (
+    id            TEXT PRIMARY KEY,
+    name          TEXT NOT NULL,
+    permission    TEXT NOT NULL CHECK (permission IN ('read', 'change')),
+    token_hash    TEXT NOT NULL,
+    created_at    INTEGER NOT NULL,
+    last_used_at  INTEGER,
+    revoked_at    INTEGER
+);
+CREATE TABLE local_program_use (
+    program_id  TEXT NOT NULL REFERENCES local_program (id) ON DELETE CASCADE,
+    day         TEXT NOT NULL,
+    operation   TEXT NOT NULL,
+    count       INTEGER NOT NULL,
+    PRIMARY KEY (program_id, day, operation)
+);
+";
 
 /// The record of operations of the contract (`operations/log.rs`, D-498):
 /// each change the chat (or, later, another program) proposed, with the

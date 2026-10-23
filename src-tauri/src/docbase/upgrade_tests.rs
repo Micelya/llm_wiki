@@ -44,6 +44,7 @@ const PERSON_DECISIONS: &[&str] = &[
     "recognition_request",
     "generated_document",
     "operation_log",
+    "local_program",
 ];
 
 /// The data an update changes on purpose, for the version that does it to

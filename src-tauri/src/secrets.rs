@@ -72,8 +72,10 @@ impl SecretStore for Keychain {
 }
 
 /// Whether `name` is the name of one of the app's keys: the ones of the
-/// settings, and the connections with a provider (`connection:<id>`, for
-/// now only Micelya Core: `micelya_core`).
+/// settings, the connections with a provider (`connection:<id>`, for now
+/// only Micelya Core: `micelya_core`) and the tokens of the programs that
+/// use the base through the server inside the machine
+/// (`local-program:<id>`, `local_server::programs`).
 pub fn is_key_name(name: &str) -> bool {
     if name == "llm" || name == "search" {
         return true;
@@ -81,6 +83,7 @@ pub fn is_key_name(name: &str) -> bool {
     name.strip_prefix("provider:")
         .or_else(|| name.strip_prefix("search:"))
         .or_else(|| name.strip_prefix("connection:"))
+        .or_else(|| name.strip_prefix(PROGRAM_TOKEN_PREFIX))
         .is_some_and(|id| {
             !id.is_empty() && id.len() <= 100 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
         })
@@ -93,9 +96,18 @@ pub fn is_connection_name(name: &str) -> bool {
     is_key_name(name) && name.starts_with("connection:")
 }
 
+/// The keychain's name of the token of a program (`local-program:<id>`).
+pub const PROGRAM_TOKEN_PREFIX: &str = "local-program:";
+
+/// Whether `name` is the token of a program. Like a connection, only its
+/// own commands read it.
+pub fn is_program_token_name(name: &str) -> bool {
+    is_key_name(name) && name.starts_with(PROGRAM_TOKEN_PREFIX)
+}
+
 /// The keys the screens can read and write themselves.
 fn is_screen_key(name: &str) -> bool {
-    is_key_name(name) && !is_connection_name(name)
+    is_key_name(name) && !is_connection_name(name) && !is_program_token_name(name)
 }
 
 /// One place of the settings where a key may be: its name in the keychain
@@ -455,5 +467,19 @@ mod tests {
         let entries: BTreeMap<String, String> = [("connection:micelya-core".to_string(), "otra cosa".to_string())].into_iter().collect();
         assert!(write_keys(&keychain, &entries).is_empty());
         assert!(keychain.keys.borrow()["connection:micelya-core"].contains("secreto-inventado"));
+    }
+
+    #[test]
+    fn the_token_of_a_program_is_a_key_of_the_app_but_never_goes_to_the_screens() {
+        assert!(is_key_name("local-program:prg-1a2b3c4d"));
+        assert!(is_program_token_name("local-program:prg-1a2b3c4d"));
+        assert!(!is_key_name("local-program:"));
+        assert!(!is_program_token_name("connection:micelya-core"));
+        let keychain = FakeKeychain::default();
+        keychain.keys.borrow_mut().insert("local-program:prg-1".into(), "mcy_token-inventado".into());
+        assert!(read_keys(&keychain, &["local-program:prg-1".into()]).is_err());
+        let entries: BTreeMap<String, String> = [("local-program:prg-1".to_string(), "otro".to_string())].into_iter().collect();
+        assert!(write_keys(&keychain, &entries).is_empty());
+        assert_eq!(keychain.keys.borrow()["local-program:prg-1"], "mcy_token-inventado");
     }
 }
