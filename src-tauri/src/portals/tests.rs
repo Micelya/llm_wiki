@@ -893,6 +893,28 @@ fn the_record_goes_into_the_base_as_a_confirmed_matter_with_its_documents() {
 }
 
 #[test]
+fn only_the_portal_may_download_several_documents_without_asking_and_nothing_else() {
+    use super::{grants_by_itself, Permission};
+    for origin in ["https://scw.pjn.gov.ar/", "https://scw.pjn.gov.ar/scw/expediente.seam?cid=1", "https://pjn.gov.ar", "https://SCW.PJN.GOV.AR/"] {
+        assert!(grants_by_itself(&Pjn, Permission::MultipleDownloads, origin), "{origin}");
+    }
+    for origin in [
+        "http://scw.pjn.gov.ar/",
+        "https://pjn.gov.ar.example.com/",
+        "https://example.com/",
+        "https://evilpjn.gov.ar/",
+        "about:blank",
+        "file:///C:/",
+        "",
+        "no es una dirección",
+    ] {
+        assert!(!grants_by_itself(&Pjn, Permission::MultipleDownloads, origin), "{origin}");
+    }
+    // No other permission, not even to the portal.
+    assert!(!grants_by_itself(&Pjn, Permission::Other, "https://scw.pjn.gov.ar/"));
+}
+
+#[test]
 fn the_portal_view_has_no_permission_of_the_app() {
     // The capabilities are only for the app's own window, and never for a
     // remote page.

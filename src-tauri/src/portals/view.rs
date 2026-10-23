@@ -13,7 +13,9 @@
 //!   it can only go to the portal's addresses (one of them without
 //!   encryption, as the PJN redirects to, is opened with `https`; nothing
 //!   is loaded without encryption). It opens no window of its own. Nothing
-//!   is downloaded but what the app asks for.
+//!   is downloaded but what the app asks for; WebView2's permission to
+//!   download several files in a row is granted by the app itself, only
+//!   to the portal's pages, so the person is not asked for it.
 //! - The app reads it with its own scripts and `eval_with_callback`
 //!   (`scripts.rs`): the page never sends anything to the app.
 //! - One runner, one record at a time, from a queue. The page follows it
@@ -32,6 +34,8 @@ use tauri::{AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, State, Ur
 use super::page::Snapshot;
 use super::store::{self, Followed, KnownFiles, NoneKnown};
 use super::walk::{Browser, Fetched, Progress, Stop, Walk};
+#[cfg(windows)]
+use super::{grants_by_itself, Permission};
 use super::{connector, expedientes_folder, navigation, scripts, work_folder, CaseKey, Connector, Navigation, Upgrades, APP_WEBVIEW};
 use crate::docbase::commands::{DocBaseState, CHANGED_EVENT};
 use crate::docbase::DocBase;
@@ -310,8 +314,54 @@ fn create_view(app: &AppHandle, shared: &Arc<Shared>, connector: &'static dyn Co
                 let _ = view.eval(scripts::lock(true, IDLE_NOTE));
             }
         });
-    window.add_child(builder, position, size).map_err(|e| format!("No se pudo abrir el portal: {e}"))
+    let view = window.add_child(builder, position, size).map_err(|e| format!("No se pudo abrir el portal: {e}"))?;
+    grant_downloads(&view, connector);
+    Ok(view)
 }
+
+/// Grants by itself, only to the portal's pages, WebView2's permission to
+/// download several files in a row (`grants_by_itself`): without it,
+/// WebView2 asks the person to accept that the site downloads documents
+/// once the app asks for the second one. Neither Tauri nor `wry` 0.55.1 hand
+/// this event, so it is taken from WebView2 itself (`with_webview`, on the
+/// main thread); every other permission keeps WebView2's own answer.
+#[cfg(windows)]
+fn grant_downloads(view: &Webview, connector: &'static dyn Connector) {
+    use webview2_com::Microsoft::Web::WebView2::Win32::{
+        COREWEBVIEW2_PERMISSION_KIND, COREWEBVIEW2_PERMISSION_KIND_MULTIPLE_AUTOMATIC_DOWNLOADS, COREWEBVIEW2_PERMISSION_STATE_ALLOW,
+    };
+    use webview2_com::{take_pwstr, PermissionRequestedEventHandler};
+    let asked = view.with_webview(move |platform| {
+        let handler = PermissionRequestedEventHandler::create(Box::new(move |_, args| {
+            let Some(args) = args else { return Ok(()) };
+            let mut kind = COREWEBVIEW2_PERMISSION_KIND::default();
+            unsafe { args.PermissionKind(&mut kind)? };
+            if kind != COREWEBVIEW2_PERMISSION_KIND_MULTIPLE_AUTOMATIC_DOWNLOADS {
+                return Ok(());
+            }
+            let mut origin = windows_core::PWSTR::null();
+            unsafe { args.Uri(&mut origin)? };
+            let origin = take_pwstr(origin);
+            if grants_by_itself(connector, Permission::MultipleDownloads, &origin) {
+                unsafe { args.SetState(COREWEBVIEW2_PERMISSION_STATE_ALLOW)? };
+            } else {
+                eprintln!("[portals] a page out of the portal asked to download several files: {origin} (left to WebView2)");
+            }
+            Ok(())
+        }));
+        let mut token = 0i64;
+        let registered = unsafe { platform.controller().CoreWebView2().and_then(|core| core.add_PermissionRequested(&handler, &mut token)) };
+        if let Err(error) = registered {
+            eprintln!("[portals] the permission to download several documents could not be granted: {error}");
+        }
+    });
+    if let Err(error) = asked {
+        eprintln!("[portals] the permission to download several documents could not be granted: {error}");
+    }
+}
+
+#[cfg(not(windows))]
+fn grant_downloads(_view: &Webview, _connector: &'static dyn Connector) {}
 
 /// Opens an address in the view once the navigation being decided is
 /// over. The decision runs on the main thread, where Tauri would carry out

@@ -317,6 +317,31 @@ pub fn navigation(connector: &dyn Connector, url: &tauri::Url) -> Navigation {
     Navigation::Refuse
 }
 
+/// A permission a page in the portal's view asks for (WebView2's
+/// `PermissionRequested`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Permission {
+    /// To download several files in a row without a person's click: the
+    /// app asks the portal for each document, one after the other.
+    MultipleDownloads,
+    /// Any other (camera, location, notifications…).
+    Other,
+}
+
+/// Whether the portal's view grants by itself, without asking the person,
+/// a permission a page asks for: only downloading several files in a row,
+/// and only to the portal's own pages (`https`, its own host). Any other
+/// permission, or site, gets WebView2's own answer.
+pub fn grants_by_itself(connector: &dyn Connector, permission: Permission, origin: &str) -> bool {
+    if permission != Permission::MultipleDownloads {
+        return false;
+    }
+    match tauri::Url::parse(origin) {
+        Ok(url) => url.scheme() == "https" && url.host_str().is_some() && connector.allows(&url),
+        Err(_) => false,
+    }
+}
+
 /// The addresses taken to `https` lately, so a portal that keeps sending
 /// the view back to `http` (a loop) is not followed forever.
 #[derive(Debug, Default)]

@@ -83,6 +83,13 @@ dom_query = { version = "0.27", default-features = false }
 # in app-state.json (secrets.rs).
 keyring = { version = "3.6", features = ["windows-native", "apple-native", "linux-native"] }
 
+[target.'cfg(windows)'.dependencies]
+# The portal's view grants by itself the permission of WebView2 to download
+# several files in a row, only to the portal (portals/view.rs). The same
+# versions Tauri and wry already use.
+webview2-com = "0.38"
+windows-core = "0.61"
+
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
 
