@@ -176,7 +176,8 @@ pub struct KnowledgeAttention {
 pub struct MatterSummary {
     pub id: String,
     pub name: String,
-    /// "open" (its life cycle is P-213).
+    /// "open", "closed" or "archived" (D-475): a closed or archived one is
+    /// hidden by the screen of matters unless asked for.
     pub status: String,
     /// "proposed" (by the grouping) or "person".
     pub origin: String,
@@ -557,7 +558,8 @@ impl DocBase {
         {
             let visible_contents = visible_contents(&conn, visible)?;
             let matter_names: HashMap<String, String> = {
-                let mut statement = conn.prepare("SELECT id, name FROM knowledge_matter WHERE state = 'active'").map_err(sql_err)?;
+                // A closed or archived matter leaves Atención (D-475).
+                let mut statement = conn.prepare("SELECT id, name FROM knowledge_matter WHERE state = 'active' AND status = 'open'").map_err(sql_err)?;
                 let rows = statement.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))).map_err(sql_err)?;
                 rows.collect::<Result<_, _>>().map_err(sql_err)?
             };
@@ -578,7 +580,7 @@ impl DocBase {
             let mut statement = conn
                 .prepare(
                     "SELECT m.id, m.name, d.content_id, d.reasons FROM knowledge_matter m JOIN knowledge_matter_document d ON d.matter_id = m.id
-                     WHERE m.state = 'active' AND m.confirmation = 'proposed' AND d.state = 'firm' ORDER BY m.id, d.content_id",
+                     WHERE m.state = 'active' AND m.status = 'open' AND m.confirmation = 'proposed' AND d.state = 'firm' ORDER BY m.id, d.content_id",
                 )
                 .map_err(sql_err)?;
             let rows = statement

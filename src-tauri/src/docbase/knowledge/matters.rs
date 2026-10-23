@@ -1121,7 +1121,7 @@ impl crate::docbase::DocBase {
             let mut statement = conn
                 .prepare(
                     "SELECT m.id, m.name, d.content_id FROM knowledge_matter m JOIN knowledge_matter_document d ON d.matter_id = m.id
-                     WHERE m.state = 'active' AND d.state = 'firm' AND (m.confirmation = 'confirmed' OR m.origin = 'person')",
+                     WHERE m.state = 'active' AND m.status = 'open' AND d.state = 'firm' AND (m.confirmation = 'confirmed' OR m.origin = 'person')",
                 )
                 .map_err(sql_err)?;
             let rows = statement
@@ -1155,6 +1155,7 @@ impl crate::docbase::DocBase {
         };
         // Only for a matter a person confirmed or created: a proposal of
         // the grouping is not asked about until a person keeps it (D-381).
+        // A closed or archived one gets no new proposals (D-475).
         let loose: Vec<i64> = documents(&self.conn())?.into_iter().map(|(c, _)| c).filter(|c| !grouped.contains(c)).collect();
         let mut changed = false;
         let mut stopped = false;

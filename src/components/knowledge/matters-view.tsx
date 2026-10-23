@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Pencil, Plus, Undo2 } from "lucide-react"
+import { Archive, Lock, LockOpen, Pencil, Plus, Undo2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   chooseMatterDocument,
@@ -17,6 +17,7 @@ import {
   type MatterDocument,
   type MatterReason,
 } from "@/commands/docbase"
+import { applyOperation, undoOperation, type OperationCard } from "@/commands/operations"
 import { useAppDialog } from "@/stores/app-dialog-store"
 import { useKnowledgeStore } from "@/stores/knowledge-store"
 import { entityTypeName, relationName, vocabulary, type Vocabulary } from "@/vocabulary"
@@ -51,7 +52,11 @@ function MatterList() {
   const openMatter = useKnowledgeStore((s) => s.openMatter)
   const action = useAction()
   const [creating, setCreating] = useState(false)
-  const rows = matters.data ?? []
+  const [showClosed, setShowClosed] = useState(false)
+  const all = matters.data ?? []
+  // A closed or archived matter leaves the list unless a person asks for it (D-475).
+  const closed = all.filter((matter) => matter.status !== "open").length
+  const rows = showClosed ? all : all.filter((matter) => matter.status === "open")
   const name = words.knowledge.matter.toLowerCase()
   return (
     <DocbasePage title={words.knowledge.matters} subtitle={words.knowledge.mattersDescription}>
@@ -74,12 +79,20 @@ function MatterList() {
               }
             />
           ) : (
-            <Button size="sm" variant="outline" onClick={() => setCreating(true)}>
-              <Plus /> Nuevo {name}
-            </Button>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button size="sm" variant="outline" onClick={() => setCreating(true)}>
+                <Plus /> Nuevo {name}
+              </Button>
+              {closed > 0 && (
+                <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <input type="checkbox" checked={showClosed} onChange={(event) => setShowClosed(event.target.checked)} />
+                  Mostrar cerrados y archivados ({closed})
+                </label>
+              )}
+            </div>
           )}
         </div>
-        {matters.data && rows.length === 0 && (
+        {matters.data && all.length === 0 && (
           <EmptyNote>
             Todavía no hay documentos agrupados: hacen falta dos que compartan algo propio de un mismo {name}. También
             podés crear uno y agregarle documentos.
@@ -156,6 +169,7 @@ export function MatterDetailView({ id, onBack, initialTab = null }: { id: string
   const article = useDocbaseQuery(`article:${id}`, () => getKnowledgeArticle(id))
   const action = useAction()
   const [renaming, setRenaming] = useState(false)
+  const [statusDone, setStatusDone] = useState<OperationCard | null>(null)
   const [tab, setTab] = useDetailTab(!article.loading && !article.data, initialTab)
   const detail = matter.data
   const can = detail ? matterActions(detail) : null
@@ -217,6 +231,13 @@ export function MatterDetailView({ id, onBack, initialTab = null }: { id: string
                 <Undo2 /> Volver a propuesto
               </Button>
             )}
+            <StatusButtons
+              matter={detail}
+              busy={action.busy}
+              onChange={(estado) =>
+                action.run(async () => setStatusDone(await applyOperation("caso_cambiar_estado", { caso: detail.id, estado })))
+              }
+            />
           </>
         ) : null
       }
@@ -230,6 +251,25 @@ export function MatterDetailView({ id, onBack, initialTab = null }: { id: string
             <div className="mb-4">
               <ErrorNote>{matter.error ?? action.problem}</ErrorNote>
             </div>
+          )}
+          {statusDone && statusDone.state === "applied" && (
+            <p className="mb-4 flex flex-wrap items-center gap-2 rounded-md border border-dashed px-3 py-2 text-sm">
+              {statusDone.result}
+              <Button
+                size="xs"
+                variant="ghost"
+                disabled={action.busy}
+                onClick={() => action.run(async () => setStatusDone((await undoOperation(statusDone.id, true)).card))}
+              >
+                <Undo2 /> Deshacer
+              </Button>
+            </p>
+          )}
+          {detail && detail.status !== "open" && detail.state === "active" && (
+            <p className="mb-4 rounded-md border border-dashed px-3 py-2 text-sm">
+              Este {name} está {(words.knowledge.matterStates.status[detail.status] ?? detail.status).toLowerCase()}: no aparece en la lista ni en
+              Atención, sigue en la búsqueda y no recibe propuestas nuevas.
+            </p>
           )}
           {!matter.loading && !detail && !matter.error && (
             <EmptyNote>Este {name} ya no existe: sus documentos se agruparon de otra manera.</EmptyNote>
@@ -262,6 +302,32 @@ export function MatterDetailView({ id, onBack, initialTab = null }: { id: string
 }
 
 type Run = (action: () => Promise<unknown>) => Promise<void>
+
+/**
+ * Closing, archiving or reopening a matter (D-475), by the operation of
+ * the contract (D-498): the person decides, so it is done at once, kept in
+ * the record of operations and undone from the notice.
+ */
+function StatusButtons({ matter, busy, onChange }: { matter: MatterDetail; busy: boolean; onChange: (estado: "abierto" | "cerrado" | "archivado") => void }) {
+  if (matter.state !== "active" || matter.confirmation === "discarded") return null
+  if (matter.status !== "open") {
+    return (
+      <Button variant="outline" disabled={busy} onClick={() => onChange("abierto")}>
+        <LockOpen /> Reabrir
+      </Button>
+    )
+  }
+  return (
+    <>
+      <Button variant="outline" disabled={busy} onClick={() => onChange("cerrado")}>
+        <Lock /> Cerrar
+      </Button>
+      <Button variant="outline" disabled={busy} onClick={() => onChange("archivado")}>
+        <Archive /> Archivar
+      </Button>
+    </>
+  )
+}
 
 /**
  * The article of the matter, as the projection last wrote it in the base

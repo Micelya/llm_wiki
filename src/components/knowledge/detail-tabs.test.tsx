@@ -335,6 +335,20 @@ describe("the screen of a matter", () => {
     expect(shown).toContain("Notas")
     expect(shown).not.toContain("Ficticia SA reclama una deuda inventada.")
     expect(shown).not.toContain("Investigación en internet")
+    // Closing or archiving it (D-475), by the contract of operations.
+    expect(shown).toContain("Cerrar")
+    expect(shown).toContain("Archivar")
+    expect(shown).not.toContain("Reabrir")
+  })
+
+  it("says a closed matter is out of the list and Atención, and offers to reopen it", () => {
+    base.answers.matter = matterDetail({ status: "closed", confirmation: "confirmed" })
+    const shown = text(renderToStaticMarkup(<MatterDetailView id="mat-1" onBack={() => {}} initialTab="data" />))
+    expect(shown).toContain("Reabrir")
+    expect(shown).not.toContain("Archivar")
+    expect(shown).toContain("Este caso está cerrado: no aparece en la lista ni en Atención, sigue en la búsqueda y no recibe propuestas nuevas.")
+    expect(shown).toContain("Cerrado")
+    base.answers.matter = matterDetail()
   })
 
   it("says a matter without article has none, and opens on «Datos y correcciones»", () => {

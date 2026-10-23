@@ -378,3 +378,32 @@ fn a_record_is_separated_in_one_document_and_a_person_and_an_organization_are_ne
         Proposal::Card(card) => panic!("a person and an organization cannot be one: {card:?}"),
     }
 }
+
+#[test]
+fn a_closed_case_leaves_atencion_and_gets_no_proposals() {
+    let (_dir, base) = base_with(FILES);
+    let (a, b) = (content(&base, "Carta documento 03-12.txt"), content(&base, "Carta documento 03-19.txt"));
+    {
+        // A case the grouping proposed, waiting in Atención.
+        let conn = base.conn();
+        conn.execute(
+            "INSERT INTO knowledge_matter (id, name, state, created_at, updated_at, status, origin, confirmation) VALUES ('mat-prueba', 'Prueba propuesta', 'active', 0, 0, 'open', 'proposed', 'proposed')",
+            [],
+        )
+        .unwrap();
+        for c in [a, b] {
+            conn.execute("INSERT INTO knowledge_matter_document (matter_id, content_id, state, reasons) VALUES ('mat-prueba', ?1, 'firm', '[]')", [c]).unwrap();
+        }
+    }
+    let waiting = |base: &DocBase| base.knowledge_attention(&Visible::All).unwrap().matters_to_confirm.iter().any(|m| m.id == "mat-prueba");
+    assert!(waiting(&base));
+    let card = flow::apply_now(&base, "caso_cambiar_estado", &json!({ "caso": "mat-prueba", "estado": "cerrado" })).unwrap();
+    assert!(!waiting(&base));
+    // The readings say it is closed; the list of open ones leaves it out.
+    let read = super::read::read(&base, "listar_casos", &json!({}), &Default::default()).unwrap();
+    assert!(read["casos"].as_array().unwrap().is_empty());
+    let all = super::read::read(&base, "listar_casos", &json!({ "incluir_cerrados": true }), &Default::default()).unwrap();
+    assert_eq!(all["casos"][0]["estado"], "cerrado");
+    flow::undo(&base, card.id, false).unwrap();
+    assert!(waiting(&base));
+}
