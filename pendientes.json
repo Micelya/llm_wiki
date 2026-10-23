@@ -1692,10 +1692,10 @@
       "titulo": "Ejecutar acciones desde el chat de la app",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "a-verificar",
       "prioridad": 1,
       "tema": "chat",
-      "detalle": "Parte del producto mínimo (D-463). Que el chat pueda hacer, además de responder, acciones sobre la base que hoy se hacen desde las pantallas: unir documentos en un caso, sacar uno, crear la ficha de un grupo de sociedades (D-473), unir o separar fichas, entre otras. Cada acción se muestra antes de hacerse y la confirma la persona; queda registrada como cualquier decisión de una persona, firme y reversible (D-174). Antes de construirlo, una propuesta de diseño con la lista de acciones para que la apruebe el dueño. 2026-10-22 (noche): el dueño decidió (D-498) que el chat actúe sobre un contrato de operaciones, que también va a exponer la API local y el MCP (P-227); con Codex usa el mismo agente que los demás motores (después, lo mismo con Core); no propone acciones por su cuenta; doble registro; instrucciones en castellano armadas desde el contrato. Falta la propuesta del contrato (llm_wiki_mi/desatendido-8/p9-contrato-de-operaciones.md) y que el dueño confirme la idea de topes visibles y extensibles en lugar de fijos. 2026-10-23: El dueño decidió (D-500) que en la corrida desatendida no se espera su aprobación: el contrato de operaciones se escribe como documento de diseño con decisiones asumidas y el chat con acciones se construye enseguida; los topes del chat, como le parezca mejor al agente. Lo revisa al día siguiente. 2026-10-23: El documento del contrato está escrito (docs/design/contrato-de-operaciones.md, D-504, commit 1fb962b); el paso del chat con acciones se construye sobre él en la misma corrida.",
+      "detalle": "Parte del producto mínimo (D-463). Que el chat pueda hacer, además de responder, acciones sobre la base que hoy se hacen desde las pantallas: unir documentos en un caso, sacar uno, crear la ficha de un grupo de sociedades (D-473), unir o separar fichas, entre otras. Cada acción se muestra antes de hacerse y la confirma la persona; queda registrada como cualquier decisión de una persona, firme y reversible (D-174). Antes de construirlo, una propuesta de diseño con la lista de acciones para que la apruebe el dueño. 2026-10-22 (noche): el dueño decidió (D-498) que el chat actúe sobre un contrato de operaciones, que también va a exponer la API local y el MCP (P-227); con Codex usa el mismo agente que los demás motores (después, lo mismo con Core); no propone acciones por su cuenta; doble registro; instrucciones en castellano armadas desde el contrato. Falta la propuesta del contrato (llm_wiki_mi/desatendido-8/p9-contrato-de-operaciones.md) y que el dueño confirme la idea de topes visibles y extensibles en lugar de fijos. 2026-10-23: El dueño decidió (D-500) que en la corrida desatendida no se espera su aprobación: el contrato de operaciones se escribe como documento de diseño con decisiones asumidas y el chat con acciones se construye enseguida; los topes del chat, como le parezca mejor al agente. Lo revisa al día siguiente. 2026-10-23: El documento del contrato está escrito (docs/design/contrato-de-operaciones.md, D-504, commit 1fb962b); el paso del chat con acciones se construye sobre él en la misma corrida. 2026-10-23: Construido en la corrida desatendida sobre el contrato (D-506; rama feat/session-18, 11 commits desde 8367087). Probado solo con un modelo simulado. Prueba para el dueño con Codex (gasta cupo): escribir «sumá las dos cartas documento de marzo al caso Prueba» con un caso y documentos que existan; tiene que verse «Vuelta 1 de 8», la búsqueda y la tarjeta con los dos documentos; Confirmar los agrega al caso y Deshacer los saca; después «borrá ese documento» tiene que contestar que no se puede desde el chat. Ver también en un caso los botones «Cerrar», «Archivar» y «Reabrir». Riesgos: cada vuelta con Codex es una corrida con razonamiento alto; al cancelar, un programa lanzado por Codex podría seguir hasta terminar.",
       "depende_de": [],
       "referencia": "src-tauri/src/agent/base_tools.rs; D-413; D-473",
       "creado": "2026-10-22",
@@ -1721,11 +1721,11 @@
       "estado": "pendiente",
       "prioridad": 2,
       "tema": "chat",
-      "detalle": "Encontrado al construir P-278 (22 oct): con Codex, que es el motor en uso, el chat no usa el texto de sistema del agente; la pantalla del chat (src/components/chat/chat-panel.tsx) arma una pregunta más corta, en inglés, que no se muestra en ningún lado, y el agente hace antes otra pregunta en inglés para decidir qué buscar. Las preguntas de «Investigar en internet» (src/lib/deep-research.ts) también se arman en la pantalla. Llevarlas a la pantalla de lo que se le pregunta al modelo, con versión, y revisar si conviene que estén en castellano y que el chat con Codex use el mismo texto que el agente. Relacionado con las acciones desde el chat (P-286).",
+      "detalle": "Encontrado al construir P-278 (22 oct): con Codex, que es el motor en uso, el chat no usa el texto de sistema del agente; la pantalla del chat (src/components/chat/chat-panel.tsx) arma una pregunta más corta, en inglés, que no se muestra en ningún lado, y el agente hace antes otra pregunta en inglés para decidir qué buscar. Las preguntas de «Investigar en internet» (src/lib/deep-research.ts) también se arman en la pantalla. Llevarlas a la pantalla de lo que se le pregunta al modelo, con versión, y revisar si conviene que estén en castellano y que el chat con Codex use el mismo texto que el agente. Relacionado con las acciones desde el chat (P-286). 2026-10-23: El chat con Codex ya no arma una pregunta corta en inglés: pasa por el mismo agente del contrato, en castellano, y sus instrucciones se ven enteras en «Lo que se le pregunta al modelo» (D-506). Falta lo de «Investigar en internet».",
       "depende_de": [],
       "referencia": "src/components/chat/chat-panel.tsx; src/lib/deep-research.ts; src-tauri/src/agent/",
       "creado": "2026-10-22",
-      "actualizado": "2026-10-22"
+      "actualizado": "2026-10-23"
     },
     {
       "id": "P-289",
@@ -1885,11 +1885,11 @@
       "estado": "pendiente",
       "prioridad": 1,
       "tema": "servicios de IA",
-      "detalle": "Parte del producto mínimo: el estudio de referencia usa Core para todo, sin Codex (D-468). Paso 4b de servicios-de-ia-propuesta.md: un motor de preguntas que usa executePrompt de Core (solo texto: la pregunta entera en el texto, la respuesta en JSON controlada como hoy), elegible en Servicios de IA. Se construye y se prueba contra un Core simulado; la prueba real espera el permiso inference.execute y los límites pedidos en el mensaje 002. El chat sobre Core va con el contrato de operaciones (P-286).",
+      "detalle": "Parte del producto mínimo: el estudio de referencia usa Core para todo, sin Codex (D-468). Paso 4b de servicios-de-ia-propuesta.md: un motor de preguntas que usa executePrompt de Core (solo texto: la pregunta entera en el texto, la respuesta en JSON controlada como hoy), elegible en Servicios de IA. Se construye y se prueba contra un Core simulado; la prueba real espera el permiso inference.execute y los límites pedidos en el mensaje 002. El chat sobre Core va con el contrato de operaciones (P-286). 2026-10-23: El chat con acciones (D-506) todavía no usa Core: entra en este pendiente.",
       "depende_de": [],
       "referencia": "servicios-de-ia-propuesta.md (2.3, paso 4b); mensaje 002 a Core",
       "creado": "2026-10-22",
-      "actualizado": "2026-10-22"
+      "actualizado": "2026-10-23"
     },
     {
       "id": "P-301",
@@ -2009,6 +2009,68 @@
       "detalle": "Hoy los respaldos automáticos van dentro de la carpeta de datos de la app (D-505). Si alguien desinstala marcando la casilla que borra los datos, también se borran los respaldos. Alternativa: guardarlos en Documentos u otra carpeta que el desinstalador no toca, o quitar esa casilla del instalador. Se decide al armar el instalador de prueba.",
       "depende_de": [],
       "referencia": "D-505; docs/design/actualizaciones.md",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-309",
+      "titulo": "Crear a mano la ficha de un grupo de sociedades, desde el chat y con su botón",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "identidad y fichas",
+      "detalle": "Quedó afuera del chat con acciones (D-506): el recálculo no sabe crear la ficha de un grupo que no tiene mención propia en los documentos, y hace falta otra versión de la base para la decisión «del mismo grupo» (D-504, D-473). Hoy el chat contesta que todavía no puede.",
+      "depende_de": [
+        "P-286"
+      ],
+      "referencia": "docs/design/contrato-de-operaciones.md; D-473; D-504; D-506",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-310",
+      "titulo": "Generar un documento desde una plantilla pidiéndolo en el chat",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "chat",
+      "detalle": "El contrato dice que el chat abre la pantalla de generar ya completada (D-504); no entró en el paso del chat con acciones (D-506).",
+      "depende_de": [
+        "P-286"
+      ],
+      "referencia": "docs/design/contrato-de-operaciones.md; D-492; D-506",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-311",
+      "titulo": "Que el chat lea muchos documentos por tandas, con resúmenes intermedios",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "chat",
+      "detalle": "El contrato prevé, para preguntas que abarcan muchos documentos, buscar antes de leer, leer fragmentos y trabajar por tandas con resúmenes intermedios (D-504). No entró en el paso del chat con acciones (D-506).",
+      "depende_de": [
+        "P-286"
+      ],
+      "referencia": "docs/design/contrato-de-operaciones.md; D-506",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-312",
+      "titulo": "Marcar los casos cerrados o archivados en la búsqueda general",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "asuntos",
+      "detalle": "Un caso cerrado sale de la lista y de Atención (D-506), pero la búsqueda general todavía no dice que está cerrado o archivado.",
+      "depende_de": [],
+      "referencia": "D-506",
       "creado": "2026-10-23",
       "actualizado": "2026-10-23"
     }
