@@ -1061,14 +1061,14 @@
       "titulo": "Estado y ciclo de vida de un asunto",
       "tipo": "decision",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "hecho",
       "prioridad": 3,
       "tema": "asuntos",
-      "detalle": "Desde el 20 oct cada asunto tiene estado y todos quedan 'abierto' (D-375). Falta decidir cómo se cierra o se archiva, quién lo hace, si vuelve a abrirse y qué cambia en las pantallas y en la búsqueda para un asunto cerrado. 2026-10-22: Decidido (D-475).",
+      "detalle": "Desde el 20 oct cada asunto tiene estado y todos quedan 'abierto' (D-375). Falta decidir cómo se cierra o se archiva, quién lo hace, si vuelve a abrirse y qué cambia en las pantallas y en la búsqueda para un asunto cerrado. 2026-10-22: Decidido (D-475). 2026-10-23: El ciclo de vida del caso se decidió en D-475 y se construyó en el chat con acciones (D-506): cerrar, archivar y reabrir un caso desde su pantalla y desde el chat. Se ve con P-286.",
       "depende_de": [],
       "referencia": "D-375; docs/design/asuntos-propuesta.md",
       "creado": "2026-10-20",
-      "actualizado": "2026-10-22"
+      "actualizado": "2026-10-23"
     },
     {
       "id": "P-214",
