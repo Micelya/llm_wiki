@@ -93,7 +93,8 @@ export function OperationCardView({ card: initial, onChange }: { card: Card; onC
       }
       let result = await confirmOperation(card.id, chosen, card.fingerprint, second)
       if (result.outcome === "needs_second") {
-        const sure = await dialog.confirm({ title: "Confirmar", message: `${result.card.title}. ¿Seguro?`, confirmLabel: "Sí, confirmar" })
+        const cost = result.card.cost ? `: cuesta ${result.card.cost.questions === 1 ? "1 pregunta" : `${result.card.cost.questions} preguntas`} al modelo` : ""
+        const sure = await dialog.confirm({ title: "Confirmar", message: `${result.card.title}${cost}. ¿Seguro?`, confirmLabel: "Sí, confirmar" })
         if (!sure) {
           setCard(result.card)
           return

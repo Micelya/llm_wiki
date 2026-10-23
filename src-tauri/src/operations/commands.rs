@@ -44,6 +44,9 @@ pub fn operations_confirm(
 ) -> Result<Confirmed, String> {
     let confirmed = flow::confirm(&*state.shared()?, id, chosen.as_deref(), second_confirmation.unwrap_or(false), fingerprint.as_deref())?;
     if confirmed.outcome == "applied" {
+        if confirmed.card.operation == "documento_releer" {
+            state.request_asking();
+        }
         let _ = app.emit(CHANGED_EVENT, ());
     }
     Ok(confirmed)
@@ -71,6 +74,9 @@ pub fn operations_undo(app: tauri::AppHandle, state: State<'_, DocBaseState>, id
 #[tauri::command(async)]
 pub fn operations_apply(app: tauri::AppHandle, state: State<'_, DocBaseState>, operation: String, data: Value) -> Result<Card, String> {
     let card = flow::apply_now(&*state.shared()?, &operation, &data)?;
+    if card.operation == "documento_releer" {
+        state.request_asking();
+    }
     let _ = app.emit(CHANGED_EVENT, ());
     Ok(card)
 }

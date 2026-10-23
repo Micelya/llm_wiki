@@ -427,7 +427,7 @@ pub static OPERATIONS: &[Operation] = &[
         confirmation: Confirmation::CardWithCost,
         undo: Undo::Not("Volver a leer no se deshace: las preguntas al modelo ya se hicieron."),
         callers: CHANGERS,
-        ready: false,
+        ready: true,
     },
     Operation {
         name: "plantilla_generar",

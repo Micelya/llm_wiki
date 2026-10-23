@@ -72,6 +72,12 @@ impl DocBaseState {
     pub(crate) fn request_sweep(&self) {
         self.wake.request_sweep();
     }
+
+    /// Ends the wait of the questions to the model: something asked to be
+    /// read again (an operation of the contract confirmed in the chat).
+    pub(crate) fn request_asking(&self) {
+        self.ask_wake.request();
+    }
 }
 
 /// Opens the private space's base in the app's local data folder and

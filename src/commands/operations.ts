@@ -68,6 +68,8 @@ export interface OperationCard {
   items: OperationItem[]
   warnings: string[]
   note: string | null
+  /** What it costs, said before (reading again: questions to the model). */
+  cost?: { documents: number; questions: number } | null
   secondConfirmation: boolean
   proposedBy: { caller: string; engine: string | null }
   state: OperationCardState

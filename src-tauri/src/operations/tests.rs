@@ -407,3 +407,26 @@ fn a_closed_case_leaves_atencion_and_gets_no_proposals() {
     flow::undo(&base, card.id, false).unwrap();
     assert!(waiting(&base));
 }
+
+#[test]
+fn reading_again_says_what_it_costs_asks_twice_and_cannot_be_undone() {
+    let (_dir, base) = records();
+    let receipt = key(&base, "b.txt");
+    let card = card_of(flow::propose(&base, "documento_releer", &json!({ "documentos": [receipt] }), &chat("volvé a leer el recibo"), &[]).unwrap());
+    assert_eq!(card.title, "Volver a leer 1 documento con el modelo");
+    let cost = card.cost.clone().expect("the cost, said before");
+    assert_eq!(cost.documents, 1);
+    assert!(cost.questions >= 1);
+    assert!(card.second_confirmation, "a cost asks a second time");
+    assert!(!card.undoable && card.undo_note.as_deref().unwrap().contains("no se deshace"));
+    assert_eq!(flow::confirm(&base, card.id, None, false, None).unwrap().outcome, "needs_second");
+    // Without an engine to ask, nothing is asked and the card says why.
+    assert!(flow::confirm(&base, card.id, None, true, None).unwrap_err().contains("Falta elegir el motor"));
+    assert_eq!(log::get(&base, card.id).unwrap().unwrap().state, "failed");
+    base.set_ask_engine(None).unwrap();
+    base.set_ask_engine(Some(&crate::source_volume::asking::AskConfig { engine: "codex-cli".into(), model: "m".into(), ..Default::default() })).unwrap();
+    let done = flow::confirm(&base, card.id, None, true, None).unwrap();
+    assert_eq!(done.outcome, "applied");
+    assert!(done.card.result.unwrap().contains("esperan su lectura nueva"));
+    assert!(flow::undo(&base, card.id, false).is_err());
+}

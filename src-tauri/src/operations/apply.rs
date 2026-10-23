@@ -168,6 +168,17 @@ pub fn apply(base: &DocBase, card: &Card, keys: &[String], note: &str) -> Result
             };
             Ok(json!({ "decisions": ids }))
         }
+        "documento_releer" => {
+            if crate::docbase::similar::classify::ask_engine(&base.conn())?.is_none() {
+                return Err("Falta elegir el motor de «Preguntar al modelo» en Ajustes → Servicios de IA: sin él no se puede volver a leer.".to_string());
+            }
+            let mut requested = 0;
+            for item in card.items.iter().filter(|i| i.key.as_ref().is_some_and(|k| keys.contains(k))) {
+                let Some(location_id) = item.location_id else { continue };
+                requested += base.knowledge_request_reread(&crate::docbase::knowledge::extract::RereadTarget { location_id: Some(location_id), ..Default::default() })?;
+            }
+            Ok(json!({ "requested": requested }))
+        }
         "consulta_guardar" => {
             let saved = base.save_query(&text("titulo"), card.request.as_deref().unwrap_or_default(), &text("respuesta"), &[])?;
             Ok(json!({ "query": saved.id }))
@@ -260,6 +271,7 @@ pub fn done_text(card: &Card, keys: &[String]) -> String {
         "fichas_unir" => format!("Hecho: las dos {} son ahora una.", words.fichas),
         "fichas_separar" => "Hecho: quedaron separadas.".to_string(),
         "consulta_guardar" => "Hecho: la consulta quedó guardada.".to_string(),
+        "documento_releer" => format!("Hecho: {documentos} esperan su lectura nueva; la app los lee en segundo plano."),
         _ => "Hecho.".to_string(),
     }
 }

@@ -102,6 +102,15 @@ pub struct ProposedBy {
     pub engine: Option<String>,
 }
 
+/// What a card costs before it is confirmed (`documento_releer`): how many
+/// documents and how many questions to the model.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Cost {
+    pub documents: usize,
+    pub questions: usize,
+}
+
 /// What «Abrir» opens after it is done.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -129,7 +138,10 @@ pub struct Card {
     /// Shown with what will be done (the new name, the answer to keep).
     #[serde(default)]
     pub note: Option<String>,
-    /// With more than ten things ticked, «Confirmar» asks again.
+    /// What it costs, said before (questions to the model).
+    #[serde(default)]
+    pub cost: Option<Cost>,
+    /// With more than ten things ticked, or a cost, «Confirmar» asks again.
     pub second_confirmation: bool,
     pub proposed_by: ProposedBy,
     /// `proposed`, `applied`, `cancelled`, `undone`, `failed`.
@@ -357,6 +369,15 @@ pub fn build(base: &DocBase, operation: &Operation, input: &Value, request: Opti
                 }
             }
         }
+        "documento_releer" => {
+            for named in list(input, "documentos") {
+                for item in document_item(base, &named, attached)? {
+                    if !items.iter().any(|i: &CardItem| i.key.is_some() && i.key == item.key) {
+                        items.push(item);
+                    }
+                }
+            }
+        }
         "consulta_guardar" => {}
         other => return Err(format!("«{other}» todavía no se puede proponer desde el chat")),
     }
@@ -375,6 +396,7 @@ pub fn build(base: &DocBase, operation: &Operation, input: &Value, request: Opti
         items,
         warnings: Vec::new(),
         note: None,
+        cost: None,
         second_confirmation: false,
         proposed_by,
         state: "proposed".into(),
@@ -511,7 +533,7 @@ pub fn refresh(base: &DocBase, card: &mut Card, first: bool) -> Result<(), Strin
                 }
             }
             ("caso_agregar_documentos" | "caso_sacar_documentos", None) => ("blocked", Some(format!("falta el {}", words.caso))),
-            ("caso_crear", _) | ("fichas_separar", _) if item.key.as_deref().is_some_and(|k| k.starts_with("doc-")) => {
+            ("caso_crear", _) | ("fichas_separar", _) | ("documento_releer", _) if item.key.as_deref().is_some_and(|k| k.starts_with("doc-")) => {
                 let content = content_of(item).unwrap_or_default();
                 let exists = resolve::document_line(&base.conn(), content)?;
                 print.push(format!("{content}|{}", exists.is_some()));
@@ -703,6 +725,22 @@ pub fn refresh(base: &DocBase, card: &mut Card, first: bool) -> Result<(), Strin
                 card.open = Some(Open { kind: "ficha".into(), id: first });
             }
         }
+        "documento_releer" => {
+            card.title = format!("Volver a leer {} con el modelo", documentos(ticked));
+            let mut cost = Cost { documents: 0, questions: 0 };
+            for item in card.items.iter().filter(|i| i.status == "ok" && i.checked) {
+                let Some(location_id) = item.location_id else { continue };
+                let plan = base.knowledge_reread_plan(&crate::docbase::knowledge::extract::RereadTarget { location_id: Some(location_id), ..Default::default() })?;
+                cost.documents += plan.documents;
+                cost.questions += plan.questions;
+            }
+            print.push(format!("cost|{}|{}", cost.documents, cost.questions));
+            card.warnings.push(format!(
+                "Cuesta {} al modelo y no se deshace: sus lecturas se rehacen.",
+                plural(cost.questions, "pregunta", "preguntas")
+            ));
+            card.cost = Some(cost);
+        }
         "consulta_guardar" => {
             let title = text(&card.input, "titulo");
             card.title = format!("Guardar la consulta «{title}»");
@@ -715,14 +753,14 @@ pub fn refresh(base: &DocBase, card: &mut Card, first: bool) -> Result<(), Strin
 
     // Nothing to do: everything already as asked, or not found.
     let has_items = !card.items.is_empty();
-    let needs_items = matches!(card.operation.as_str(), "caso_agregar_documentos" | "caso_sacar_documentos");
+    let needs_items = matches!(card.operation.as_str(), "caso_agregar_documentos" | "caso_sacar_documentos" | "documento_releer");
     if card.blocked.is_none() && needs_items && has_items && !card.items.iter().any(|i| i.status == "ok" || i.status == "choose") {
         card.blocked = Some("No hay nada que hacer: todo ya está como se pide o no está en la base.".to_string());
     }
     if card.blocked.is_none() && needs_items && !has_items {
         card.blocked = Some("Faltan los documentos.".to_string());
     }
-    card.second_confirmation = ticked > SECOND_CONFIRMATION_OVER;
+    card.second_confirmation = ticked > SECOND_CONFIRMATION_OVER || card.cost.is_some();
     print.sort();
     card.fingerprint = digest(&format!("{}|{}", card.operation, print.join("\n")));
     Ok(())
