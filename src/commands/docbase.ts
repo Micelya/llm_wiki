@@ -2049,3 +2049,74 @@ export function renameMatter(matterId: string, name: string): Promise<void> {
 export function chooseMatterDocument(matterId: string, document: string, choice: "in" | "out"): Promise<void> {
   return invoke<void>("docbase_knowledge_choose_matter_document", { matterId, document, choice })
 }
+
+/** What `respaldo.json` says of a backup (Ajustes → Datos y respaldos). */
+export interface BackupSummary {
+  /** Its folder, inside the folder of the backups. */
+  name: string
+  /** The version of the base it keeps. */
+  baseVersion: number
+  /** The version the app was taking it to. */
+  forVersion: number
+  /** The version of the app that last wrote that base, when it said. */
+  writtenByApp: string | null
+  /** When it was made, local time (dd/mm/aaaa hh:mm). */
+  madeAt: string
+  madeAtMs: number
+  bytes: number
+  /** Every file is there with its size. */
+  complete: boolean
+}
+
+/** What the app found and did when it opened its base. */
+export interface DataOpening {
+  /** The version of the base it found (0: there was none). */
+  foundVersion: number | null
+  /** The backup made before changing its shape, if it was changed. */
+  backup: string | null
+  /** The older backups deleted after it. */
+  pruned: string[]
+  /** Why the base could not be opened, in words. */
+  problem: string | null
+  /** The base was written by a newer version of the app. */
+  newer: boolean
+}
+
+/** Where the data are, the version of the base and its backups (D-496). */
+export interface DataStatus {
+  dataFolder: string | null
+  backupsFolder: string | null
+  baseVersion: number | null
+  /** The version of the base this app writes. */
+  appBaseVersion: number
+  appVersion: string
+  opening: DataOpening
+  /** Newest first. */
+  backups: BackupSummary[]
+  /** How many backups are kept. */
+  keep: number
+  /** The backup a person went back to: the app has to be opened again. */
+  restored: string | null
+}
+
+export function getDataStatus(): Promise<DataStatus> {
+  return invoke<DataStatus>("docbase_data_status")
+}
+
+/** Opens the data folder, or the folder of the backups. */
+export function openDataFolder(which: "data" | "backups" = "data"): Promise<void> {
+  return invoke<void>("docbase_open_data_folder", { which })
+}
+
+/**
+ * Goes back to a backup, only while this version of the app cannot open
+ * the base; returns the folder where the base in use was set apart.
+ */
+export function restoreBackup(name: string): Promise<string> {
+  return invoke<string>("docbase_restore_backup", { name })
+}
+
+/** Closes the app, to open it again with the backup. */
+export function closeApp(): Promise<void> {
+  return invoke<void>("docbase_close_app")
+}

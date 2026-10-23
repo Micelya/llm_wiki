@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   Bot,
+  DatabaseBackup,
   FolderOpen,
   Globe,
   Languages,
@@ -43,6 +44,7 @@ import { WorkFolderSection } from "./sections/work-folder-section"
 import { AiServicesSection } from "./sections/ai-services-section"
 import { ModelQuestionsSection } from "./sections/model-questions-section"
 import { ConnectionsSection } from "./sections/connections-section"
+import { DataSection } from "./sections/data-section"
 
 type CategoryId =
   | "general"
@@ -55,6 +57,7 @@ type CategoryId =
   | "network"
   | "output"
   | "interface"
+  | "data"
   | "changelog"
   | "about"
 
@@ -85,6 +88,8 @@ const CATEGORIES: Category[] = [
   { id: "network", labelKey: "settings.categories.network", icon: Network },
   { id: "output", labelKey: "settings.categories.output", icon: Languages },
   { id: "interface", labelKey: "settings.categories.interface", icon: Palette },
+  // Where the data are, the version of the base and its backups (D-496).
+  { id: "data", labelKey: "", label: "Datos y respaldos", icon: DatabaseBackup },
   { id: "changelog", labelKey: "settings.categories.changelog", icon: History },
   { id: "about", labelKey: "settings.categories.about", label: "Acerca de", icon: Info },
 ]
@@ -390,6 +395,9 @@ export function SettingsView() {
         return <OutputSection draft={draft} setDraft={setDraft} />
       case "interface":
         return <InterfaceSection draft={draft} setDraft={setDraft} onThemeChange={applyTheme} />
+      case "data":
+        // Read only, besides going back to a backup: nothing to save.
+        return <DataSection />
       case "changelog":
         return <ChangelogSection />
       case "about":
@@ -457,7 +465,7 @@ export function SettingsView() {
         {/* Global Save bar hidden for sections that persist inline:
             - "llm" saves per-row on every edit (independent per-preset state)
             - "about" has no draft-bound fields */}
-        {active !== "about" && active !== "llm" && active !== "work-folder" && active !== "ai-services" && active !== "connections" && active !== "model-questions" && (
+        {active !== "about" && active !== "data" && active !== "llm" && active !== "work-folder" && active !== "ai-services" && active !== "connections" && active !== "model-questions" && (
           <div className="shrink-0 border-t bg-background/80 backdrop-blur px-8 py-3">
             <div className="mx-auto flex max-w-2xl items-center justify-between gap-4">
               <p className={`text-xs ${saveError ? "text-destructive" : "text-muted-foreground"}`}>
