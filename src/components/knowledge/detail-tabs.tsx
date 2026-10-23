@@ -17,6 +17,30 @@ export function useDetailTab(withoutArticle: boolean, initial: DetailTab | null 
   return [tab ?? (withoutArticle ? "data" : "article"), setTab]
 }
 
+/** Where you are: «Casos › nombre», the first part the way back. */
+export function Crumbs({ back, onBack, current }: { back: string; onBack: () => void; current: string }) {
+  return (
+    <nav aria-label="Dónde estás" className="flex min-w-0 items-center gap-1.5 font-ui text-[0.8125rem] font-semibold text-muted-foreground">
+      <button className="shrink-0 hover:text-link" onClick={onBack}>
+        {back}
+      </button>
+      <ChevronRight className="size-3.5 shrink-0" aria-hidden />
+      <span className="truncate" aria-current="page">
+        {current}
+      </span>
+    </nav>
+  )
+}
+
+/** What a page is, small and in capitals over its name: «Persona», «Caso». */
+export function Kicker({ children }: { children: ReactNode }) {
+  return (
+    <p className="mb-1 font-ui text-xs font-bold tracking-[0.08em] text-[var(--m-purpura-medio)] uppercase dark:text-muted-foreground">
+      {children}
+    </p>
+  )
+}
+
 /** The name of the page, large, in Mulish (D-493). */
 export function DetailTitle({ children }: { children: ReactNode }) {
   return <h1 className="min-w-0 font-ui text-[1.875rem] leading-[1.15] font-bold tracking-[-0.01em] break-words text-strong">{children}</h1>
@@ -83,22 +107,10 @@ export function DetailTabs({
   return (
     <div className="flex h-full flex-col">
       <header className="shrink-0 border-b bg-background px-10 pt-[18px]">
-        <nav aria-label="Dónde estás" className="flex min-w-0 items-center gap-1.5 font-ui text-[0.8125rem] font-semibold text-muted-foreground">
-          <button className="shrink-0 hover:text-link" onClick={onBack}>
-            {back}
-          </button>
-          <ChevronRight className="size-3.5 shrink-0" aria-hidden />
-          <span className="truncate" aria-current="page">
-            {current}
-          </span>
-        </nav>
+        <Crumbs back={back} onBack={onBack} current={current} />
         <div className="mt-2.5 flex items-end justify-between gap-6">
           <div className="min-w-0 flex-1">
-            {kicker && (
-              <p className="mb-1 font-ui text-xs font-bold tracking-[0.08em] text-[var(--m-purpura-medio)] uppercase dark:text-muted-foreground">
-                {kicker}
-              </p>
-            )}
+            {kicker && <Kicker>{kicker}</Kicker>}
             <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">{title}</div>
             {facts && <div className="mt-1.5 text-sm text-muted-foreground [&_b]:font-semibold [&_b]:text-foreground">{facts}</div>}
           </div>
