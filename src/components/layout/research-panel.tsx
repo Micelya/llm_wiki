@@ -74,7 +74,7 @@ export function ResearchPanel() {
       <div className="flex shrink-0 items-center justify-between border-b px-3 py-2">
         <div className="flex items-center gap-2">
           <Search className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-semibold">{t("research.title")}</span>
+          <span className="font-ui text-sm font-bold text-strong">{t("research.title")}</span>
           {(running.length > 0 || queued.length > 0) && (
             <span className="rounded-full bg-brand-soft px-1.5 py-0.5 text-[10px] font-semibold text-brand-ink">
               {t("research.activeBadge", { running: running.length, queued: queued.length })}
@@ -99,7 +99,7 @@ export function ResearchPanel() {
             if (isImeComposing(e)) return
             if (e.key === "Enter") handleStartResearch()
           }}
-          className="flex-1 rounded border bg-background px-2 py-1 text-xs outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
+          className="h-8 flex-1 rounded-lg border border-border-strong bg-card px-2.5 text-xs outline-none placeholder:text-muted-foreground focus:border-link focus:ring-3 focus:ring-ring/30"
           placeholder={t("research.inputPlaceholder")}
         />
         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleStartResearch} disabled={!inputValue.trim()}>
@@ -178,10 +178,10 @@ function SynthesisBlock({ synthesis, isStreaming }: { synthesis: string; isStrea
 
   return (
     <div className="mb-2 flex flex-col min-h-0">
-      <div className="mb-1 font-medium text-muted-foreground">{t("research.synthesis")}</div>
+      <div className="mb-1 font-ui font-bold text-muted-foreground">{t("research.synthesis")}</div>
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto rounded bg-muted/30 p-2 prose prose-xs prose-invert max-w-none"
+        className="chat-markdown flex-1 overflow-y-auto rounded-lg border bg-panel-sub p-2.5"
         dir={direction}
         lang={htmlLang}
         style={{ maxHeight: "calc(100vh - 400px)", minHeight: "120px", textAlign: "start" }}
@@ -214,18 +214,18 @@ function SynthesisBlock({ synthesis, isStreaming }: { synthesis: string; isStrea
             rehypePlugins={[rehypeKatex]}
             components={{
               table: ({ children, ...props }) => (
-                <div className="my-2 overflow-x-auto rounded border border-border">
+                <div className="my-2 overflow-x-auto rounded-lg border">
                   <table className="w-full border-collapse text-xs" {...props}>{children}</table>
                 </div>
               ),
               thead: ({ children, ...props }) => (
-                <thead className="bg-muted" {...props}>{children}</thead>
+                <thead className="bg-panel-sub" {...props}>{children}</thead>
               ),
               th: ({ children, ...props }) => (
-                <th className="border border-border/80 px-3 py-1.5 text-start font-semibold bg-muted" {...props}>{children}</th>
+                <th className="border px-3 py-1.5 text-start font-ui font-bold text-muted-foreground uppercase" {...props}>{children}</th>
               ),
               td: ({ children, ...props }) => (
-                <td className="border border-border/60 px-3 py-1.5" {...props}>{children}</td>
+                <td className="border px-3 py-1.5" {...props}>{children}</td>
               ),
               pre: ({ children, ...props }) => {
                 const mermaid = unwrapMermaidPre(children)
@@ -273,7 +273,7 @@ function ResearchTaskCard({
     synthesizing: <Loader2 className="h-3 w-3 animate-spin text-brand" />,
     saving: <Loader2 className="h-3 w-3 animate-spin text-chart-3" />,
     done: <CheckCircle2 className="h-3 w-3 text-ok" />,
-    error: <AlertCircle className="h-3 w-3 text-destructive" />,
+    error: <AlertCircle className="h-3 w-3 text-err" />,
   }[task.status]
 
   const statusText = {
@@ -297,7 +297,7 @@ function ResearchTaskCard({
   }
 
   return (
-    <div className="rounded-lg border text-xs">
+    <div className="rounded-[10px] border bg-card text-xs shadow-card">
       {/* Header */}
       <button
         onClick={() => setExpanded(!expanded)}

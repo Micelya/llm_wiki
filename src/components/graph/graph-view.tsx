@@ -1096,8 +1096,8 @@ export function GraphView() {
       <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2 shrink-0">
         <div className="flex min-w-0 flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
-            <Network className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium">{TEXT.knowledgeGraph}</span>
+            <Network className="h-4 w-4 text-brand-ink" />
+            <span className="font-ui text-base font-bold text-strong">{TEXT.knowledgeGraph}</span>
           </div>
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span className="rounded bg-muted px-1.5 py-0.5">{searchedGraph.nodes.length}/{nodes.length} {TEXT.pages}</span>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
-import { Eye, EyeOff, FolderOpen, Hand, ListChecks, RefreshCw, Square, Download, Play } from "lucide-react"
+import { Eye, EyeOff, FolderOpen, Hand, ListChecks, Loader2, RefreshCw, Square, Download, Play } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -79,17 +79,17 @@ export function PortalsView() {
   const busy = Boolean(status?.running)
   return (
     <div className="flex h-full flex-col">
-      <header className="flex shrink-0 items-start justify-between gap-4 border-b px-8 py-5">
+      <header className="flex shrink-0 items-start justify-between gap-4 border-b bg-background px-10 pt-7 pb-5">
         <div className="min-w-0">
-          <h1 className="text-xl font-semibold">{terms.name}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{terms.description}</p>
+          <h1 className="font-ui text-[1.75rem] leading-tight font-bold tracking-[-0.01em] text-strong">{terms.name}</h1>
+          <p className="mt-1 font-ui text-sm font-medium text-muted-foreground">{terms.description}</p>
         </div>
         <Button variant="outline" onClick={() => run(() => openPortalFolder(PJN))}>
           <FolderOpen /> Abrir la carpeta
         </Button>
       </header>
       <div className="flex min-h-0 flex-1">
-        <aside className="w-[360px] shrink-0 space-y-4 overflow-y-auto border-r p-4">
+        <aside className="w-[360px] shrink-0 space-y-4 overflow-y-auto border-r bg-panel-sub p-4">
           {problem && <ErrorNote>{problem}</ErrorNote>}
           <FetchForm portalName={followed.data?.name} busy={busy} onFetch={(j, n, y) => run(() => fetchRecord(PJN, j, n, y))} />
           {status && status.progress.state && shown && <StatusPanel status={status} onRun={run} />}
@@ -180,9 +180,9 @@ function FetchForm({
       >
         {portalName && <p className="text-xs text-muted-foreground">{portalName}</p>}
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">Jurisdicción</span>
+          <span className="mb-1 block font-ui font-semibold">Jurisdicción</span>
           <select
-            className="h-8 w-full rounded-lg border bg-transparent px-2 text-sm"
+            className="h-8 w-full rounded-lg border bg-card px-2 text-sm"
             value={jurisdiction}
             onChange={(event) => setJurisdiction(event.target.value)}
           >
@@ -196,11 +196,11 @@ function FetchForm({
         </label>
         <div className="flex gap-2">
           <label className="block flex-1 text-sm">
-            <span className="mb-1 block font-medium">Número</span>
+            <span className="mb-1 block font-ui font-semibold">Número</span>
             <Input inputMode="numeric" value={number} onChange={(event) => setNumber(event.target.value)} />
           </label>
           <label className="block w-24 text-sm">
-            <span className="mb-1 block font-medium">Año</span>
+            <span className="mb-1 block font-ui font-semibold">Año</span>
             <Input inputMode="numeric" maxLength={4} value={year} onChange={(event) => setYear(event.target.value)} />
           </label>
         </div>
@@ -278,7 +278,7 @@ function FollowedItem({
     <li className="space-y-1.5 py-3 text-sm">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="font-medium">{record.reference}</p>
+          <p className="font-ui font-bold text-strong">{record.reference}</p>
           {record.title && <p className="text-xs text-muted-foreground">{record.title}</p>}
         </div>
         {record.matterId && (
@@ -435,22 +435,25 @@ function DownloadProgress({
   const { progress } = status
   const terms = vocabulary().portals
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto bg-muted/30 p-6" data-testid="portal-progress">
-      <div className="mx-auto max-w-2xl space-y-5 rounded-lg border bg-card p-6 shadow-sm">
+    <div className="min-h-0 flex-1 overflow-y-auto bg-panel-sub p-6" data-testid="portal-progress">
+      <div className="relative mx-auto max-w-2xl space-y-5 overflow-hidden rounded-xl border bg-card p-6 shadow-card">
+        <span aria-hidden className="absolute inset-x-0 top-0 h-[3px] bg-grad-vibrante" />
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Bajando el {terms.record.toLowerCase()}</p>
-            <h2 className="text-lg font-semibold">{progress.reference ?? status.running}</h2>
+            <p className="font-ui text-xs font-bold tracking-[0.08em] text-muted-foreground uppercase">Bajando el {terms.record.toLowerCase()}</p>
+            <h2 className="font-ui text-xl font-bold text-strong">{progress.reference ?? status.running}</h2>
           </div>
-          <StatusBadge tone="busy">Trabajando</StatusBadge>
+          <StatusBadge tone="busy" icon={Loader2} spin>
+            Trabajando
+          </StatusBadge>
         </div>
         {/* «Bajando …» is said below, with room for the name. */}
         {!(progress.current && progress.message === `Bajando ${progress.current}`) && <p className="text-sm">{progress.message}</p>}
         <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {progressFigures(status).map((figure) => (
-            <div key={figure.label} className="rounded-md border bg-background px-3 py-2">
-              <dt className="text-xs text-muted-foreground">{figure.label}</dt>
-              <dd className="text-xl font-semibold tabular-nums">{formatCount(figure.value)}</dd>
+            <div key={figure.label} className="rounded-[10px] border bg-panel-sub px-3.5 py-3">
+              <dt className="text-[0.8125rem] text-muted-foreground">{figure.label}</dt>
+              <dd className="font-ui text-[1.625rem] leading-[1.1] font-bold text-strong tabular-nums">{formatCount(figure.value)}</dd>
             </div>
           ))}
         </dl>
@@ -486,7 +489,7 @@ function DownloadProgress({
 }
 
 const BAR_TONES: Record<"neutral" | "busy" | "warning", string> = {
-  neutral: "bg-muted/50 text-muted-foreground",
+  neutral: "bg-panel-sub text-muted-foreground",
   busy: "bg-info-bg text-info",
   warning: "bg-warn-bg text-warn",
 }
