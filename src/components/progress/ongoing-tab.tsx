@@ -53,7 +53,31 @@ export function OngoingTab({ progress, error, extra }: { progress: Progress | nu
       </div>
       {error && <ErrorNote>{error}</ErrorNote>}
       {progress ? <StageList progress={progress} scope={scope} /> : !error && <EmptyNote>Buscando…</EmptyNote>}
+      <ReadAllAgain />
       {extra}
+    </div>
+  )
+}
+
+/**
+ * Always there (D-465): reading again with the model every document of the
+ * archive already read, whatever the tab is narrowed to. Nothing is read
+ * again by itself; the button says first how many questions it takes and
+ * asks to confirm.
+ */
+export function ReadAllAgain() {
+  const refresh = useProgressStore((s) => s.refresh)
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border bg-card px-4 py-3" data-reread="all">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium">Volver a leer todo el archivo</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Nada se vuelve a leer solo, ni al cambiar la pregunta de lectura ni al cambiar de modelo. Si querés, la app le
+          vuelve a preguntar al modelo por cada documento ya leído, sin usar las respuestas de antes; antes te dice cuántas
+          preguntas son.
+        </p>
+      </div>
+      <ReadAgainWithModel target={{}} label="Volver a leer todo el archivo" onDone={refresh} />
     </div>
   )
 }
@@ -273,11 +297,12 @@ export function StageLine({
           {stage.error && <ModelErrorNote stage={stage} />}
         </div>
         {stage.id === "reading" && stage.failed > 0 && <ReadAgainButton onProblem={setProblem} />}
-        {/* Reading again with the model what was read, over the scope chosen above (D-432). */}
-        {stage.id === "reading" && stage.done > 0 && (
+        {/* Reading again with the model what was read in the origin or folder
+            chosen above (D-432); the whole archive is below the stages (D-465). */}
+        {stage.id === "reading" && stage.done > 0 && scope.originId && (
           <ReadAgainWithModel
-            target={scope.originId ? { originId: scope.originId, folder: scope.folder ?? null } : {}}
-            label={scope.originId ? (scope.folder ? "Volver a leer esta carpeta" : "Volver a leer este origen") : "Volver a leer todo"}
+            target={{ originId: scope.originId, folder: scope.folder ?? null }}
+            label={scope.folder ? "Volver a leer esta carpeta" : "Volver a leer este origen"}
             onDone={refresh}
           />
         )}

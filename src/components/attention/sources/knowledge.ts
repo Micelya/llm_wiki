@@ -2,18 +2,23 @@ import {
   decideMatter,
   undoIdentityDecision,
   getKnowledgeAttention,
+  getRereadPlan,
   joinMatter,
   knowledgeReadAgainFailed,
   leaveMatter,
   listIdentityDoubts,
+  OUTDATED_READINGS,
+  requestReread,
   type DoubtView,
   type KnowledgeAttention,
+  type RereadPlan,
 } from "@/commands/docbase"
 import type { AttentionCase, AttentionNotice } from "@/lib/attention/types"
 import { entityTypeName, predicateName, vocabulary, type Vocabulary } from "@/vocabulary"
 import { formatCount, plural } from "@/components/docbase/format"
 import { useDocbaseQuery } from "@/components/docbase/use-docbase-query"
 import { decisionInWords, doubtReason, groupDoubts, reviewInWords } from "@/components/knowledge/knowledge"
+import { rereadConfirmMessage } from "@/components/knowledge/read-again"
 
 /**
  * What the knowledge layer raises: readings that failed or lost many
@@ -31,6 +36,8 @@ export const KNOWLEDGE_CASES = 30
 export interface KnowledgeFacts {
   attention: KnowledgeAttention
   doubts: DoubtView[] | null
+  /** What reading again what was read with another version or model takes (D-465). */
+  outdated?: RereadPlan | null
 }
 
 export function knowledgeNotices(facts: KnowledgeFacts, words: Vocabulary = vocabulary()): AttentionNotice[] {
@@ -125,6 +132,8 @@ export function knowledgeNotices(facts: KnowledgeFacts, words: Vocabulary = voca
   }
 
   // ── Decisions ───────────────────────────────────────────────────────
+  const outdated = outdatedNotice(facts.outdated)
+  if (outdated) out.push(outdated)
   const groups = groupDoubts(facts.doubts ?? [])
   if (groups.length > 0) {
     const { list, more } = cut(groups)
@@ -371,6 +380,51 @@ export function knowledgeNotices(facts: KnowledgeFacts, words: Vocabulary = voca
   return out
 }
 
+/**
+ * The documents read with another version of the question or with another
+ * model (D-465): nothing reads them again by itself (D-432); the line says
+ * how many and what reading them again costs, and asks it when a person
+ * confirms.
+ */
+export function outdatedNotice(plan: RereadPlan | null | undefined): AttentionNotice | null {
+  if (!plan || plan.documents === 0) return null
+  const both = plan.olderVersion > 0 && plan.otherModel > 0
+  const how = both
+    ? "con otra versión de la pregunta o con otro modelo"
+    : plan.otherModel > 0
+      ? "con otro modelo"
+      : "con otra versión de la pregunta"
+  const detail = both
+    ? `${formatCount(plan.olderVersion)} con otra versión de la pregunta y ${formatCount(plan.otherModel)} con otro modelo. `
+    : ""
+  return {
+    source: KNOWLEDGE_SOURCE,
+    id: `${KNOWLEDGE_SOURCE}:reading-outdated`,
+    kind: "decision",
+    topic: "reading-outdated",
+    priority: "low",
+    count: plan.documents,
+    title: plural(plan.documents, `documento quedó leído ${how}`, `documentos quedaron leídos ${how}`),
+    explanation:
+      `${detail}Su lectura sigue valiendo y no se vuelve a leer sola. Leerlos de nuevo con la pregunta y el modelo de ahora ` +
+      `son ${plural(plan.questions, "pregunta al modelo", "preguntas al modelo")}, que usan la cuota de tu proveedor.`,
+    todo: plan.engine
+      ? "Si querés que se lean como se leería hoy, volvé a leerlos; si no, quedan como están."
+      : "Para volver a leerlos falta elegir el motor de «Preguntar al modelo» en Ajustes → Servicios de IA.",
+    resolvedWhen: "Desaparece cuando se vuelven a leer.",
+    actions: plan.engine
+      ? [
+          {
+            kind: "run",
+            label: "Volver a leer con el modelo",
+            confirm: rereadConfirmMessage(plan),
+            run: () => requestReread(OUTDATED_READINGS),
+          },
+        ]
+      : [{ kind: "go", label: "Elegir el motor", target: { view: "settings" } }],
+  }
+}
+
 /** The kinds of identifier the vertical names, but "other": "DNI, CUIT o CUIL…". */
 function strongIdentifiers(words: Vocabulary): string {
   return Object.entries(words.knowledge.identifiers)
@@ -383,9 +437,10 @@ function strongIdentifiers(words: Vocabulary): string {
 export function useKnowledgeNotices(): AttentionNotice[] | null {
   const attention = useDocbaseQuery("attention:knowledge", getKnowledgeAttention)
   const doubts = useDocbaseQuery("attention:knowledge-doubts", listIdentityDoubts)
+  const outdated = useDocbaseQuery("attention:outdated-readings", () => getRereadPlan(OUTDATED_READINGS))
   if (attention.error) throw new Error(attention.error)
   if (!attention.data) return null
-  return knowledgeNotices({ attention: attention.data, doubts: doubts.data })
+  return knowledgeNotices({ attention: attention.data, doubts: doubts.data, outdated: outdated.data })
 }
 
 /** Why the documents of a proposed matter are together, in a few words. */

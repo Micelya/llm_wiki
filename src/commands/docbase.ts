@@ -1925,7 +1925,12 @@ export interface RereadTarget {
   locationId?: number | null
   originId?: string | null
   folder?: string | null
+  /** Of those, only the ones read with another version of the question or with another model (D-465). */
+  outdated?: boolean
 }
+
+/** The documents of the archive read with another version of the question or with another model (D-465). */
+export const OUTDATED_READINGS: RereadTarget = { outdated: true }
 
 /** What reading them again takes: documents already read and questions to the model. */
 export interface RereadPlan {
@@ -1933,6 +1938,9 @@ export interface RereadPlan {
   questions: number
   /** Of those, the ones already asked to read again. */
   requested: number
+  /** Of those, the ones read with another version of the question, and with another model than the one in use; a document can be both. */
+  olderVersion: number
+  otherModel: number
   engine: AskConfig | null
 }
 

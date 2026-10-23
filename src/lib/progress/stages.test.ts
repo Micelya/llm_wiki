@@ -65,8 +65,10 @@ describe("the stages of «En curso» in words", () => {
     // Its pass made, nothing of that is said.
     expect(waitsFirstLap(stage("matters"))).toBe(false)
     expect(stageDetails(stage("matters", { extra: { grouped: 4, loose: 8 } }), words)).toEqual(["4 en un caso", "8 sueltos"])
-    // The reading still says what was read with an earlier version.
-    expect(stageDetails(stage("reading", { extra: { older: 134 } }), words)).toEqual(["134 leídos con una versión anterior"])
+    // The reading still says what was read with another version or model (D-465).
+    expect(stageDetails(stage("reading", { extra: { outdated: 134 } }), words)).toEqual([
+      "134 leídos con otra versión de la pregunta o con otro modelo",
+    ])
   })
 
   it("tells what is left, what failed and what is out", () => {

@@ -262,6 +262,22 @@ describe("«En curso»", () => {
     expect(html).toMatch(/<option value="o1" selected="">Carpeta de prueba<\/option>/)
     expect(html).toMatch(/<option value="nueva" selected="">nueva \(68\)<\/option>/)
     expect(text(html)).toContain("anexos (5)")
+    // That folder can be read again from its reading; the whole archive, always (D-465).
+    expect(text(html)).toContain("Volver a leer esta carpeta")
+    expect(html).toContain('data-reread="all"')
+  })
+
+  it("always has the option to read the whole archive again, with what it costs said first (D-465)", () => {
+    // Whatever the figures: even before they come.
+    for (const shown of [halfway, null]) {
+      useProgressStore.setState({ progress: shown })
+      const html = renderToStaticMarkup(<AttentionView />)
+      const all = text(html.slice(html.indexOf('data-reread="all"')))
+      expect(all).toContain("Volver a leer todo el archivo Nada se vuelve a leer solo")
+      expect(all).toContain("antes te dice cuántas preguntas son.")
+      // The reading of the whole archive does not repeat it.
+      expect(text(html).match(/Volver a leer todo/g)?.length).toBe(2)
+    }
   })
 
   it("opens a stage into its documents, each with a button to open it", () => {

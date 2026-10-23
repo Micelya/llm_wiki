@@ -137,9 +137,13 @@ export function stageDetails(stage: ProgressStage, words: Vocabulary = vocabular
   }
   if (stage.id === "reading") {
     const requested = stage.extra.requested ?? 0
-    const older = stage.extra.older ?? 0
+    const outdated = stage.extra.outdated ?? 0
     if (requested > 0) out.push(plural(requested, "pedido para volver a leer", "pedidos para volver a leer"))
-    if (older > 0) out.push(plural(older, "leído con una versión anterior", "leídos con una versión anterior"))
+    if (outdated > 0) {
+      out.push(
+        plural(outdated, "leído con otra versión de la pregunta o con otro modelo", "leídos con otra versión de la pregunta o con otro modelo"),
+      )
+    }
   }
   const questions = stage.extra.questions ?? 0
   if (questions > 0 && stage.state !== "done") {

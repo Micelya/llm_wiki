@@ -3,12 +3,12 @@ import { rereadConfirmMessage, rereadNotice } from "./read-again"
 
 describe("reading again with the model", () => {
   it("says first how many documents and questions it takes", () => {
-    const message = rereadConfirmMessage({ documents: 3, questions: 5, requested: 0, engine: null })
+    const message = rereadConfirmMessage({ documents: 3, questions: 5, requested: 0 })
     expect(message).toContain("3 documentos")
     expect(message).toContain("5 preguntas al modelo")
     expect(message).toContain("sin usar las respuestas de antes")
     expect(message).not.toContain("ya estaba")
-    expect(rereadConfirmMessage({ documents: 1, questions: 1, requested: 1, engine: null })).toContain("1 ya estaba pedido")
+    expect(rereadConfirmMessage({ documents: 1, questions: 1, requested: 1 })).toContain("1 ya estaba pedido")
   })
 
   it("says what was asked", () => {

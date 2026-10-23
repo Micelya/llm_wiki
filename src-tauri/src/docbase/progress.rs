@@ -803,22 +803,22 @@ fn templates_members(conn: &Connection, facts: &Facts) -> Result<Members, String
 /// Each document read by the model to know whom it names.
 fn reading_members(facts: &Facts, standings: &[super::knowledge::extract::Standing]) -> Result<Members, String> {
     let mut members = Members::new("documents");
-    let (mut older, mut requested) = (0, 0);
+    let (mut outdated, mut requested) = (0, 0);
     for standing in standings.iter().filter(|s| facts.active.contains(&s.content_id)) {
         let status = match &standing.reading {
             Some(reading) if reading.current && reading.state == "done" => DONE,
             Some(reading) if reading.current => FAILED,
             _ => PENDING,
         };
-        // Read with earlier instructions, kept as they are; and asked by a
-        // person to read again (D-432).
+        // Read with another version of the question or another model, kept
+        // as they are (D-465); and asked by a person to read again (D-432).
         if let Some(reading) = &standing.reading {
-            older += usize::from(reading.current && reading.older);
+            outdated += usize::from(reading.outdated(facts.answering.as_deref()));
             requested += usize::from(reading.reread);
         }
         members.push(Key::Content(standing.content_id), status);
     }
-    members.extra.insert("older", older);
+    members.extra.insert("outdated", outdated);
     members.extra.insert("requested", requested);
     Ok(members)
 }
@@ -1342,7 +1342,7 @@ del inmueble del domicilio inventado el día del vencimiento, sin observaciones 
         // what the matters and the pages have left, so they are not done.
         let progress = base.progress(&Scope::default()).unwrap();
         assert_eq!(stage(&progress, "reading").state, "done");
-        assert_eq!(stage(&progress, "reading").extra["older"], 2);
+        assert_eq!(stage(&progress, "reading").extra["outdated"], 2);
         for id in ["matters", "pages"] {
             assert_eq!(stage(&progress, id).state, "paused", "{id}");
             assert_eq!(stage(&progress, id).extra.get("firstLap"), Some(&1), "{id}");
@@ -1365,7 +1365,7 @@ del inmueble del domicilio inventado el día del vencimiento, sin observaciones 
         let progress = base.progress(&Scope::default()).unwrap();
         assert!(progress.stages.iter().all(|s| s.state == "done"), "{:?}", states(&progress));
         assert!(progress.stages.iter().all(|s| !s.extra.contains_key("firstLap")));
-        assert_eq!(stage(&progress, "reading").extra["older"], 2);
+        assert_eq!(stage(&progress, "reading").extra["outdated"], 2);
     }
 
     #[test]
