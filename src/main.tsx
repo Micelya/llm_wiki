@@ -27,7 +27,7 @@ async function initApp() {
       </React.StrictMode>
     );
   } catch (err) {
-    console.error("[startup] failed to initialize LLM Wiki:", err);
+    console.error("[startup] failed to initialize Micelya Desktop:", err);
     const root = document.getElementById("root");
     if (root) {
       const message = err instanceof Error ? (err.stack ?? err.message) : String(err);

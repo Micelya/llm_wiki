@@ -214,15 +214,15 @@
         "title": "Generale",
         "description": "Comportamento all'avvio e gestione della finestra dell'app desktop.",
         "autostart": "Avvia all'accensione del sistema",
-        "autostartHint": "Avvia LLM Wiki automaticamente dopo l'accesso a questo computer.",
+        "autostartHint": "Avvia Micelya Desktop automaticamente dopo l'accesso a questo computer.",
         "closeBehavior": "Alla chiusura della finestra",
         "closeBehaviorHint": "Questa impostazione vale quando clicchi il pulsante di chiusura nella barra del titolo. Dal menu nell'area di notifica puoi comunque uscire dall'app.",
         "closeAsk": "Chiedi ogni volta",
         "closeAskHint": "Mostra una conferma. Annulla nasconde la finestra e mantiene attive le funzioni in background.",
         "closeMinimize": "Nascondi la finestra",
-        "closeMinimizeHint": "Mantieni LLM Wiki in esecuzione in background quando chiudi la finestra. Su macOS corrisponde al normale comportamento del pulsante rosso di chiusura. Se su Linux l'area di notifica non è disponibile, la finestra viene ridotta a icona invece che nascosta.",
+        "closeMinimizeHint": "Mantieni Micelya Desktop in esecuzione in background quando chiudi la finestra. Su macOS corrisponde al normale comportamento del pulsante rosso di chiusura. Se su Linux l'area di notifica non è disponibile, la finestra viene ridotta a icona invece che nascosta.",
         "closeExit": "Esci dall'app",
-        "closeExitHint": "Chiudi subito LLM Wiki quando chiudi la finestra."
+        "closeExitHint": "Chiudi subito Micelya Desktop quando chiudi la finestra."
       },
       "skills": {
         "title": "Skill",
@@ -279,7 +279,7 @@
         "providerTests": "Test del provider",
         "providerTestsHint": "Il test di connessione verifica che l'endpoint risponda. Il test funzionale chiede al modello di seguire una piccola istruzione.",
         "localCliIsolation": "Isola la configurazione della CLI locale",
-        "localCliIsolationHint": "Opzionale per Claude Code e Codex CLI. Se attivo, LLM Wiki chiede alla CLI di ignorare regole, configurazioni, MCP e strumenti a livello utente dove è supportato. È un isolamento della configurazione, non una sandbox di processo: la CLI continua a usare le tue credenziali di login locali e l'accesso alla rete. Lascialo disattivo se ti affidi intenzionalmente alla tua configurazione CLI locale.",
+        "localCliIsolationHint": "Opzionale per Claude Code e Codex CLI. Se attivo, Micelya Desktop chiede alla CLI di ignorare regole, configurazioni, MCP e strumenti a livello utente dove è supportato. È un isolamento della configurazione, non una sandbox di processo: la CLI continua a usare le tue credenziali di login locali e l'accesso alla rete. Lascialo disattivo se ti affidi intenzionalmente alla tua configurazione CLI locale.",
         "localCliIsolationOn": "Isolamento attivo: regole CLI utente, MCP/strumenti e sessioni salvate sono disattivati dove la CLI lo supporta. Credenziali locali e accesso alla rete restano gestiti dalla CLI stessa.",
         "localCliIsolationOff": "Isolamento disattivo: questo provider può usare la tua normale configurazione CLI locale.",
         "codexCliTimeout": "Timeout della CLI Codex",
@@ -340,7 +340,7 @@
       },
       "webSearch": {
         "title": "Fonti di informazione esterne",
-        "description": "Configura le fonti di informazione esterne utilizzabili da LLM Wiki.",
+        "description": "Configura le fonti di informazione esterne utilizzabili da Micelya Desktop.",
         "deepResearchSources": "Modalità fonti per la Deep Research",
         "deepResearchSourcesHint": "La ricerca web usa il provider online selezionato. AnyTXT cerca nei file locali indicizzati tramite ATGUI.exe su questa macchina.",
         "sourceWeb": "Ricerca web",
@@ -436,8 +436,7 @@
         "updateAvailable": "Aggiornamento disponibile: v{{version}}",
         "openDownload": "Apri la pagina di download",
         "later": "Più tardi",
-        "autoCheck": "Controlla automaticamente gli aggiornamenti all'avvio (al massimo una volta ogni 6 ore)",
-        "appDescription": "Una knowledge base personale guidata dagli LLM. Codice sorgente:"
+        "autoCheck": "Controlla automaticamente gli aggiornamenti all'avvio (al massimo una volta ogni 6 ore)"
       }
     }
   },

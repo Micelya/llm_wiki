@@ -214,15 +214,15 @@
         "title": "通用",
         "description": "桌面应用的启动和窗口关闭行为。",
         "autostart": "登录系统后自动启动",
-        "autostartHint": "登录这台电脑后自动启动 LLM Wiki。",
+        "autostartHint": "登录这台电脑后自动启动 Micelya Desktop。",
         "closeBehavior": "关闭窗口时",
         "closeBehaviorHint": "点击标题栏关闭按钮时使用这个设置。托盘菜单仍可直接退出应用。",
         "closeAsk": "每次询问",
         "closeAskHint": "显示确认框。取消会隐藏窗口，并保持后台功能继续运行。",
         "closeMinimize": "隐藏窗口",
-        "closeMinimizeHint": "关闭窗口时让 LLM Wiki 留在后台运行。在 macOS 上这符合红色关闭按钮的常规行为；如果 Linux 托盘不可用，会最小化窗口而不是隐藏。",
+        "closeMinimizeHint": "关闭窗口时让 Micelya Desktop 留在后台运行。在 macOS 上这符合红色关闭按钮的常规行为；如果 Linux 托盘不可用，会最小化窗口而不是隐藏。",
         "closeExit": "退出应用",
-        "closeExitHint": "关闭窗口时立即退出 LLM Wiki。"
+        "closeExitHint": "关闭窗口时立即退出 Micelya Desktop。"
       },
       "skills": {
         "title": "Skills",
@@ -279,7 +279,7 @@
         "providerTests": "Provider 测试",
         "providerTestsHint": "连接测试用于确认 endpoint 能正常响应；功能测试会让模型执行一个极小指令。",
         "localCliIsolation": "隔离本地 CLI 配置",
-        "localCliIsolationHint": "仅用于 Claude Code 和 Codex CLI。开启后，LLM Wiki 会让 CLI 尽量忽略用户级 rules / config / MCP / tools。这是配置隔离，不是进程沙箱：CLI 仍会使用你的本机登录凭据和网络能力。若你有意依赖本机 CLI 配置，请保持关闭。",
+        "localCliIsolationHint": "仅用于 Claude Code 和 Codex CLI。开启后，Micelya Desktop 会让 CLI 尽量忽略用户级 rules / config / MCP / tools。这是配置隔离，不是进程沙箱：CLI 仍会使用你的本机登录凭据和网络能力。若你有意依赖本机 CLI 配置，请保持关闭。",
         "localCliIsolationOn": "隔离已开启：在 CLI 支持的范围内禁用用户规则、MCP/tools 和持久会话。本机凭据和网络访问仍由 CLI 自身控制。",
         "localCliIsolationOff": "隔离已关闭：该 Provider 可以使用你平时的本地 CLI 配置。",
         "codexCliTimeout": "Codex CLI 超时时间",
@@ -340,7 +340,7 @@
       },
       "webSearch": {
         "title": "外部信息源",
-        "description": "配置 LLM Wiki 可以使用的外部信息来源。",
+        "description": "配置 Micelya Desktop 可以使用的外部信息来源。",
         "deepResearchSources": "深度研究来源模式",
         "deepResearchSourcesHint": "网页搜索使用当前选中的在线搜索 Provider。AnyTXT 会通过本机 ATGUI.exe 的本地索引搜索文件内容。",
         "sourceWeb": "网页搜索",
@@ -436,8 +436,7 @@
         "updateAvailable": "有可用更新：v{{version}}",
         "openDownload": "打开下载页",
         "later": "稍后",
-        "autoCheck": "应用启动时自动检查更新（每 6 小时最多一次）",
-        "appDescription": "一个由 LLM 驱动的个人知识库。源代码："
+        "autoCheck": "应用启动时自动检查更新（每 6 小时最多一次）"
       }
     }
   },

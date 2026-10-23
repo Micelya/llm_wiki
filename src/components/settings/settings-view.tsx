@@ -86,7 +86,7 @@ const CATEGORIES: Category[] = [
   { id: "output", labelKey: "settings.categories.output", icon: Languages },
   { id: "interface", labelKey: "settings.categories.interface", icon: Palette },
   { id: "changelog", labelKey: "settings.categories.changelog", icon: History },
-  { id: "about", labelKey: "settings.categories.about", icon: Info },
+  { id: "about", labelKey: "settings.categories.about", label: "Acerca de", icon: Info },
 ]
 
 function initialDraft(
