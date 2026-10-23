@@ -87,7 +87,7 @@ function ChatMessageImpl({
           isSystem
             ? "bg-accent text-accent-foreground"
             : isUser
-              ? "bg-primary text-primary-foreground"
+              ? "bg-brand-soft text-brand-ink"
               : "bg-muted text-muted-foreground"
         }`}
       >
@@ -150,10 +150,10 @@ function ChatMessageImpl({
         )}
         {(!isUser || message.content) && (
           <div
-            className={`rounded-lg px-3 py-2 text-sm ${
+            className={`rounded-xl px-3.5 py-2.5 text-sm ${
               isUser
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-foreground"
+                ? "bg-brand-soft text-strong"
+                : "border bg-card text-foreground shadow-card"
             }`}
           >
             {isUser ? (

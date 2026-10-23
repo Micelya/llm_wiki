@@ -56,15 +56,18 @@
 .chat-markdown { font-size: 0.925rem; line-height: 1.7; }
 .chat-markdown > :first-child { margin-top: 0; }
 .chat-markdown > :last-child { margin-bottom: 0; }
-.chat-markdown h1 { margin: 1.4em 0 0.55em; font-size: 1.45rem; line-height: 1.25; font-weight: 700; }
-.chat-markdown h2 { margin: 1.3em 0 0.5em; padding-bottom: 0.3em; border-bottom: 1px solid var(--border); font-size: 1.2rem; line-height: 1.3; font-weight: 650; }
-.chat-markdown h3 { margin: 1.15em 0 0.4em; font-size: 1.05rem; line-height: 1.35; font-weight: 650; }
+.chat-markdown h1 { margin: 1.4em 0 0.55em; font-size: 1.45rem; line-height: 1.25; font-weight: 700; color: var(--text-strong); }
+.chat-markdown h2 { margin: 1.3em 0 0.5em; padding-bottom: 0.3em; border-bottom: 1px solid var(--border); font-size: 1.2rem; line-height: 1.3; font-weight: 700; color: var(--text-strong); }
+.chat-markdown h3 { margin: 1.15em 0 0.4em; font-size: 1.05rem; line-height: 1.35; font-weight: 700; color: var(--text-strong); }
 .chat-markdown p { margin: 0.65em 0; }
 .chat-markdown ul, .chat-markdown ol { margin: 0.65em 0; padding-inline-start: 1.5rem; }
+.chat-markdown ul { list-style: disc; }
+.chat-markdown ol { list-style: decimal; }
 .chat-markdown li { margin: 0.3em 0; }
-.chat-markdown blockquote { margin: 0.9em 0; border-inline-start: 3px solid var(--primary); background: var(--muted); padding: 0.65rem 0.9rem; color: var(--muted-foreground); }
+.chat-markdown li::marker { color: var(--border-strong); }
+.chat-markdown blockquote { margin: 0.9em 0; border-inline-start: 3px solid var(--border-strong); background: var(--panel-sub); padding: 0.65rem 0.9rem; color: var(--muted-foreground); }
 .chat-markdown table { display: block; max-width: 100%; overflow-x: auto; margin: 1em 0; border-collapse: collapse; }
-.chat-markdown th { background: var(--muted); font-weight: 600; }
+.chat-markdown th { background: var(--panel-sub); font-family: var(--font-ui); font-size: 0.75rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted-foreground); }
 .chat-markdown th, .chat-markdown td { border: 1px solid var(--border); padding: 0.5rem 0.7rem; text-align: start; }
 .chat-markdown pre { margin: 0.9em 0; }
 

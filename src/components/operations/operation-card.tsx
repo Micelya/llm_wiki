@@ -154,8 +154,10 @@ export function OperationCardView({ card: initial, onChange }: { card: Card; onC
   const target = card.target
 
   return (
-    <div className="mt-2 rounded-lg border bg-card p-3 text-sm text-card-foreground" data-testid="operation-card">
-      <div className="font-semibold">{card.title}</div>
+    <div className="relative mt-2 overflow-hidden rounded-xl border bg-card px-4 pt-3.5 pb-3 text-sm text-card-foreground shadow-card" data-testid="operation-card">
+      {/* The brand's line on top, as the fact box of a page (D-493): a card that waits for a person. */}
+      <span aria-hidden className="absolute inset-x-0 top-0 h-[3px] bg-grad-principal" />
+      <div className="font-ui text-[0.9375rem] font-bold text-strong">{card.title}</div>
       {card.request && <div className="mt-0.5 text-xs text-muted-foreground">Lo pediste: «{card.request}»</div>}
 
       {target?.status === "choose" && waiting && (
@@ -191,7 +193,7 @@ export function OperationCardView({ card: initial, onChange }: { card: Card; onC
         </button>
       )}
 
-      {card.note && <div className="mt-2 whitespace-pre-wrap rounded bg-muted/60 px-2 py-1 text-xs">{card.note}</div>}
+      {card.note && <div className="mt-2 whitespace-pre-wrap rounded-lg border bg-panel-sub px-2.5 py-1.5 text-xs">{card.note}</div>}
 
       {waiting && card.warnings.length > 0 && (
         <ul className="mt-2 list-disc pl-5 text-xs text-muted-foreground">
@@ -202,9 +204,9 @@ export function OperationCardView({ card: initial, onChange }: { card: Card; onC
       )}
       {waiting && card.blocked && <div className="mt-2 text-xs text-warn">{card.blocked}</div>}
       {notice && <div className="mt-2 text-xs text-warn">{notice}</div>}
-      {problem && <div className="mt-2 text-xs text-destructive">{problem}</div>}
-      {card.result && !waiting && <div className="mt-2 text-xs font-medium">{card.result}</div>}
-      {card.state === "failed" && card.result && <div className="mt-2 text-xs text-destructive">{card.result}</div>}
+      {problem && <div className="mt-2 text-xs text-err">{problem}</div>}
+      {card.result && !waiting && <div className="mt-2 text-xs font-semibold text-strong">{card.result}</div>}
+      {card.state === "failed" && card.result && <div className="mt-2 text-xs text-err">{card.result}</div>}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {waiting && (
@@ -289,7 +291,7 @@ function CandidateList({ candidates, busy, onChoose }: { candidates: OperationCa
           <button
             type="button"
             disabled={busy}
-            className="w-full rounded border px-2 py-1 text-left text-xs hover:bg-muted disabled:opacity-50"
+            className="w-full rounded-lg border px-2.5 py-1 text-left text-xs hover:bg-hover disabled:opacity-50"
             onClick={() => onChoose(candidate)}
           >
             {candidate.name}
@@ -306,7 +308,7 @@ function CandidateList({ candidates, busy, onChoose }: { candidates: OperationCa
 function SideDetail({ item }: { item: OperationItem }) {
   const side = item.detail!
   return (
-    <div className="ml-6 rounded bg-muted/50 px-2 py-1 text-xs">
+    <div className="ml-6 rounded-lg bg-panel-sub px-2.5 py-1.5 text-xs">
       {side.aliases.length > 0 && <div>Se escribe también: {side.aliases.join(", ")}</div>}
       {side.identifiers.length > 0 && <div>{side.identifiers.join(", ")}</div>}
       <div className="text-muted-foreground">
