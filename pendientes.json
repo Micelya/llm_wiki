@@ -1854,14 +1854,14 @@
       "titulo": "PJN: descargas sin confirmar, avance con más espacio, la app libre mientras baja, y las actuaciones que podrían faltar",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "a-verificar",
       "prioridad": 1,
       "tema": "portales",
-      "detalle": "Pedidos del dueño después de la primera prueba real completa (22 oct): (1) que no aparezca la confirmación de descargas múltiples de WebView2 (concederla sola, solo para pjn.gov.ar); (2) ocultar la ventana del sitio mientras baja y mostrar el avance con más espacio; (3) que la app no quede bloqueada mientras baja; (4) dejar de leer la lista cuando una página entera ya es conocida (en un expediente solo se agregan documentos), con «Revisar todo el expediente»; (5) investigar el aviso «La página N mostró X actuaciones y no 15»: si es falso o si el lector se saltea filas. Especificación: llm_wiki_mi/desatendido-8/p7-pjn-descargas.md. Para (5) sirve un dato del dueño: cuántas actuaciones muestra la página 1 de ese expediente en Edge. 2026-10-22 (noche): el dueño comparó con el portal en Edge: la página 1 tiene 15 filas (9 con documento) y la página 2, 15 filas (5 con documento); la app contó 6 y 14. El aviso no es falso: el lector se saltea filas, y puede que también documentos. Hay varios tipos de fila (movimiento, evento, firma de despacho, escrito agregado) y solo algunas tienen documento. Arreglar el lector y, después, actualizar el expediente para traer lo que faltó sin volver a bajar lo que ya está.",
+      "detalle": "Pedidos del dueño después de la primera prueba real completa (22 oct): (1) que no aparezca la confirmación de descargas múltiples de WebView2 (concederla sola, solo para pjn.gov.ar); (2) ocultar la ventana del sitio mientras baja y mostrar el avance con más espacio; (3) que la app no quede bloqueada mientras baja; (4) dejar de leer la lista cuando una página entera ya es conocida (en un expediente solo se agregan documentos), con «Revisar todo el expediente»; (5) investigar el aviso «La página N mostró X actuaciones y no 15»: si es falso o si el lector se saltea filas. Especificación: llm_wiki_mi/desatendido-8/p7-pjn-descargas.md. Para (5) sirve un dato del dueño: cuántas actuaciones muestra la página 1 de ese expediente en Edge. 2026-10-22 (noche): el dueño comparó con el portal en Edge: la página 1 tiene 15 filas (9 con documento) y la página 2, 15 filas (5 con documento); la app contó 6 y 14. El aviso no es falso: el lector se saltea filas, y puede que también documentos. Hay varios tipos de fila (movimiento, evento, firma de despacho, escrito agregado) y solo algunas tienen documento. Arreglar el lector y, después, actualizar el expediente para traer lo que faltó sin volver a bajar lo que ya está. 2026-10-23: Construido en la corrida desatendida (D-503; rama feat/session-18, commits c5372a4 a e1b2c70). Causa de las filas salteadas: el lector no aceptaba fechas con día de una cifra. Para ver en la app, en «Portales», tocando «Actualizar» en el expediente ya traído: que no aparezca la confirmación de descargas; que cada página diga 15 actuaciones; que baje solo lo que faltaba sin repetir los 52; que la ventana se oculte y se vea el avance; ir a otra pantalla y ver el aviso al pie y en Atención; una segunda «Actualizar» corta temprano y «Revisar todo el expediente» lo recorre entero. Que el dueño confirme si se renombran los 52 archivos ya bajados (hoy conservan «TIPO-ACTUACION» en el nombre). Riesgos no comprobados sin el portal real: que WebView2 siga bajando con la ventana oculta y que el pedido de permiso llegue por el evento que se intercepta; dos movimientos iguales el mismo día cuentan como uno.",
       "depende_de": [],
       "referencia": "P-248; D-491",
       "creado": "2026-10-22",
-      "actualizado": "2026-10-22"
+      "actualizado": "2026-10-23"
     },
     {
       "id": "P-299",
@@ -1899,13 +1899,13 @@
       "estado": "pendiente",
       "prioridad": 3,
       "tema": "portales",
-      "detalle": "Pedido del dueño (22 oct): además de las actuaciones, el expediente del PJN tiene las pestañas Intervinientes, Vinculados y Recursos. Sirven, entre otras cosas, para verificar las personas relacionadas con la causa (las partes y sus letrados) contra lo que la base lee de los documentos. Traerlas como datos del expediente y usarlas para confirmar o señalar personas del caso.",
+      "detalle": "Pedido del dueño (22 oct): además de las actuaciones, el expediente del PJN tiene las pestañas Intervinientes, Vinculados y Recursos. Sirven, entre otras cosas, para verificar las personas relacionadas con la causa (las partes y sus letrados) contra lo que la base lee de los documentos. Traerlas como datos del expediente y usarlas para confirmar o señalar personas del caso. 2026-10-23: El paso del PJN encontró que la pestaña «Vinculados» y «Ver históricas» se cargan aparte y el lector no las ve: los vinculados nunca se leen del portal real. Sumar «Ver históricas» a este pendiente.",
       "depende_de": [
         "P-298"
       ],
       "referencia": "P-248; src-tauri/src/portals/pjn.rs",
       "creado": "2026-10-22",
-      "actualizado": "2026-10-22"
+      "actualizado": "2026-10-23"
     },
     {
       "id": "P-302",
