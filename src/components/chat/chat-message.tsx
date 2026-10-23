@@ -101,7 +101,7 @@ function ChatMessageImpl({
                 key={document.locationId}
                 type="button"
                 onClick={() => openChatDocument(document.locationId)}
-                className="inline-flex h-7 max-w-[18rem] items-center gap-1.5 rounded-md border border-blue-500/25 bg-blue-500/10 px-2 text-xs font-medium text-blue-700 hover:bg-blue-500/15 dark:text-blue-300"
+                className="inline-flex h-7 max-w-[18rem] items-center gap-1.5 rounded-md border border-transparent bg-brand-soft px-2 text-xs font-medium text-brand-ink hover:bg-hover"
                 title={`Abrir «${document.name}» · ${document.place}`}
               >
                 <FileText className="h-3 w-3 shrink-0" />
@@ -115,7 +115,7 @@ function ChatMessageImpl({
             {message.contextFiles.map((path) => (
               <span
                 key={path}
-                className="inline-flex h-7 max-w-[18rem] items-center gap-1.5 rounded-md border border-blue-500/25 bg-blue-500/10 px-2 text-xs font-medium text-blue-700 dark:text-blue-300"
+                className="inline-flex h-7 max-w-[18rem] items-center gap-1.5 rounded-md border border-transparent bg-brand-soft px-2 text-xs font-medium text-brand-ink"
                 title={path}
               >
                 <FileText className="h-3 w-3 shrink-0" />
@@ -290,7 +290,7 @@ function SavedAgentActivity({
         <button
           type="button"
           onClick={() => onApproveShellCommand?.(shellCommand)}
-          className="flex w-full max-w-full items-start gap-1.5 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-left text-[11px] text-amber-700 transition-colors hover:bg-amber-500/20 dark:text-amber-300"
+          className="flex w-full max-w-full items-start gap-1.5 rounded border border-warn-line bg-warn-bg px-2 py-1 text-left text-[11px] text-warn transition-colors hover:border-warn"
           title={shellCommand}
         >
           <Terminal className="h-3 w-3 shrink-0" />
@@ -607,19 +607,19 @@ function SaveQueryButton({ message }: { message: DisplayMessage }) {
 type CitedPage = MessageReference
 
 const REF_TYPE_CONFIG: Record<string, { icon: typeof FileText; color: string }> = {
-  entity: { icon: Users, color: "text-blue-500" },
-  concept: { icon: Lightbulb, color: "text-purple-500" },
-  source: { icon: BookOpen, color: "text-orange-500" },
-  query: { icon: HelpCircle, color: "text-green-500" },
-  synthesis: { icon: GitMerge, color: "text-red-500" },
-  comparison: { icon: BarChart3, color: "text-teal-500" },
-  finding: { icon: TrendingUp, color: "text-purple-500" },
-  thesis: { icon: Target, color: "text-rose-500" },
-  methodology: { icon: BookOpen, color: "text-teal-500" },
-  overview: { icon: Layout, color: "text-yellow-500" },
-  external: { icon: Globe, color: "text-sky-500" },
-  anytxt: { icon: FileSearch, color: "text-emerald-500" },
-  workspace: { icon: FileText, color: "text-cyan-500" },
+  entity: { icon: Users, color: "text-brand" },
+  concept: { icon: Lightbulb, color: "text-chart-3" },
+  source: { icon: BookOpen, color: "text-chart-1" },
+  query: { icon: HelpCircle, color: "text-ok" },
+  synthesis: { icon: GitMerge, color: "text-chart-2" },
+  comparison: { icon: BarChart3, color: "text-info" },
+  finding: { icon: TrendingUp, color: "text-chart-3" },
+  thesis: { icon: Target, color: "text-chart-2" },
+  methodology: { icon: BookOpen, color: "text-info" },
+  overview: { icon: Layout, color: "text-chart-5" },
+  external: { icon: Globe, color: "text-info" },
+  anytxt: { icon: FileSearch, color: "text-ok" },
+  workspace: { icon: FileText, color: "text-chart-5" },
 }
 
 function getRefType(path: string, page?: CitedPage): string {
@@ -1028,7 +1028,7 @@ function CitedReferencesPanel({
                 <button
                   type="button"
                   onClick={() => handleJumpToImageSource(info.firstUrl!, page.path)}
-                  className="flex shrink-0 items-center gap-0.5 rounded px-1 py-0.5 text-[10px] text-blue-600 hover:bg-blue-100/40 dark:text-blue-400 dark:hover:bg-blue-900/30 transition-colors"
+                  className="flex shrink-0 items-center gap-0.5 rounded px-1 py-0.5 text-[10px] text-link hover:bg-hover transition-colors"
                   title={`Open original document at first image (${info.count} image${info.count === 1 ? "" : "s"} on this page)`}
                 >
                   <ImageIcon className="h-3 w-3" />
@@ -1393,13 +1393,13 @@ function StreamingThinkingBlock({ content }: { content: string }) {
   const visibleLines = lines.slice(-5)
 
   return (
-    <div className="rounded-md border border-dashed border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/20 px-2.5 py-2">
+    <div className="rounded-md border border-dashed border-border-strong bg-panel-sub px-2.5 py-2">
       <div className="flex items-center gap-1.5 mb-1.5">
         <span className="text-sm animate-pulse">💭</span>
-        <span className="text-xs font-medium text-amber-700 dark:text-amber-400">{t("chat.thinking")}</span>
-        <span className="text-[10px] text-amber-600/50 dark:text-amber-500/40">{t("chat.lineCount", { count: lines.length })}</span>
+        <span className="text-xs font-medium text-muted-foreground">{t("chat.thinking")}</span>
+        <span className="text-[10px] text-muted-foreground/70">{t("chat.lineCount", { count: lines.length })}</span>
       </div>
-      <div className="h-[5lh] overflow-hidden text-xs text-amber-800/70 dark:text-amber-300/60 font-mono leading-relaxed">
+      <div className="h-[5lh] overflow-hidden text-xs text-muted-foreground font-mono leading-relaxed">
         {visibleLines.map((line, i) => (
           <div
             key={lines.length - 5 + i}
@@ -1409,7 +1409,7 @@ function StreamingThinkingBlock({ content }: { content: string }) {
             {line}
           </div>
         ))}
-        <span className="animate-pulse text-amber-500">▊</span>
+        <span className="animate-pulse text-brand">▊</span>
       </div>
     </div>
   )
@@ -1422,20 +1422,20 @@ function ThinkingBlock({ content }: { content: string }) {
   const lines = content.split("\n").filter((l) => l.trim())
 
   return (
-    <div className="mb-2 rounded-md border border-dashed border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/20">
+    <div className="mb-2 rounded-md border border-dashed border-border-strong bg-panel-sub">
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-xs text-amber-700 dark:text-amber-400 hover:bg-amber-100/50 dark:hover:bg-amber-900/20 transition-colors"
+        className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-hover transition-colors"
       >
         <span className="text-sm">💭</span>
         <span className="font-medium">{t("chat.thoughtLineCount", { count: lines.length })}</span>
-        <span className="text-amber-600/60 dark:text-amber-500/60">
+        <span className="text-muted-foreground/70">
           {expanded ? "▼" : "▶"}
         </span>
       </button>
       {expanded && (
-        <div className="border-t border-amber-500/20 px-2.5 py-2 text-xs text-amber-800/80 dark:text-amber-300/70 whitespace-pre-wrap max-h-64 overflow-y-auto font-mono leading-relaxed">
+        <div className="border-t border-border px-2.5 py-2 text-xs text-muted-foreground whitespace-pre-wrap max-h-64 overflow-y-auto font-mono leading-relaxed">
           {content}
         </div>
       )}

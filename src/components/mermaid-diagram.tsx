@@ -174,7 +174,7 @@ export function MermaidDiagram({ code }: MermaidDiagramProps) {
       {/* Fullscreen overlay */}
       {expanded && svg && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-scrim backdrop-blur-sm"
           onClick={() => { setExpanded(false); setScale(1) }}
         >
           <div

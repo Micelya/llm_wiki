@@ -200,8 +200,8 @@ export function OperationCardView({ card: initial, onChange }: { card: Card; onC
           ))}
         </ul>
       )}
-      {waiting && card.blocked && <div className="mt-2 text-xs text-amber-700 dark:text-amber-400">{card.blocked}</div>}
-      {notice && <div className="mt-2 text-xs text-amber-700 dark:text-amber-400">{notice}</div>}
+      {waiting && card.blocked && <div className="mt-2 text-xs text-warn">{card.blocked}</div>}
+      {notice && <div className="mt-2 text-xs text-warn">{notice}</div>}
       {problem && <div className="mt-2 text-xs text-destructive">{problem}</div>}
       {card.result && !waiting && <div className="mt-2 text-xs font-medium">{card.result}</div>}
       {card.state === "failed" && card.result && <div className="mt-2 text-xs text-destructive">{card.result}</div>}

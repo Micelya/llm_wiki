@@ -88,8 +88,8 @@ export function AgentFileActivity({
                 <span className="shrink-0 text-[10px] text-muted-foreground">
                   {t("chat.agentChanges.editCount", { count: group.edits.length })}
                 </span>
-                <span className="shrink-0 font-mono text-[10px] text-emerald-600 dark:text-emerald-400">+{group.additions}</span>
-                <span className="shrink-0 font-mono text-[10px] text-red-600 dark:text-red-400">-{group.deletions}</span>
+                <span className="shrink-0 font-mono text-[10px] text-ok">+{group.additions}</span>
+                <span className="shrink-0 font-mono text-[10px] text-err">-{group.deletions}</span>
               </div>
               {fileExpanded && group.edits.map((change, editIndex) => {
                 const editExpanded = Boolean(expandedEdits[change.id])
@@ -110,8 +110,8 @@ export function AgentFileActivity({
                       <span className="min-w-0 flex-1 truncate text-muted-foreground">
                         {change.tool} · {t("chat.agentChanges.editNumber", { number: editIndex + 1 })}
                       </span>
-                      <span className="shrink-0 font-mono text-[10px] text-emerald-600 dark:text-emerald-400">+{change.additions}</span>
-                      <span className="shrink-0 font-mono text-[10px] text-red-600 dark:text-red-400">-{change.deletions}</span>
+                      <span className="shrink-0 font-mono text-[10px] text-ok">+{change.additions}</span>
+                      <span className="shrink-0 font-mono text-[10px] text-err">-{change.deletions}</span>
                       <span className="shrink-0 text-[10px] text-muted-foreground">{new Date(change.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
                       <button
                         type="button"

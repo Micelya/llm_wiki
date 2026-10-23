@@ -1710,7 +1710,7 @@ function GeneratedOutputPreviewDialog({
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [onClose])
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim p-6">
       <div className="flex h-[86vh] w-[80vw] min-w-0 max-w-[1600px] flex-col overflow-hidden rounded-xl border bg-background shadow-2xl">
         <div className="flex min-h-12 items-center gap-3 border-b px-4 py-2">
           <Maximize2 className="h-4 w-4 shrink-0 text-primary" />

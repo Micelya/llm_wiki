@@ -561,7 +561,7 @@ export function ChatInput({
 
   return (
     <div className="border-t bg-background/95 p-3">
-      <div ref={inputFrameRef} className="relative rounded-lg border border-border/80 bg-card/80 p-2 shadow-sm ring-1 ring-black/5 focus-within:border-ring/60 focus-within:ring-ring/20 dark:ring-white/5">
+      <div ref={inputFrameRef} className="relative rounded-lg border border-border-strong bg-card p-2 shadow-card focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/20">
         {images.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-2 px-1">
             {images.map((img, i) => (
@@ -602,7 +602,7 @@ export function ChatInput({
           {selectedContextFiles.map((path) => (
             <span
               key={path}
-              className="group mt-1 inline-flex h-7 max-w-[18rem] items-center gap-1.5 rounded-md border border-blue-500/25 bg-blue-500/10 px-2 text-xs font-medium text-blue-700 dark:text-blue-300"
+              className="group mt-1 inline-flex h-7 max-w-[18rem] items-center gap-1.5 rounded-md border border-transparent bg-brand-soft px-2 text-xs font-medium text-brand-ink"
               title={path}
             >
               <FileText className="h-3 w-3 shrink-0" />
@@ -610,7 +610,7 @@ export function ChatInput({
               <button
                 type="button"
                 onClick={() => onSelectedContextFilesChange(selectedContextFiles.filter((item) => item !== path))}
-                className="rounded p-0.5 opacity-70 hover:bg-blue-500/15 group-hover:opacity-100"
+                className="rounded p-0.5 opacity-70 hover:bg-hover group-hover:opacity-100"
                 title={t("chat.removeContextFile", { name: path })}
               >
                 <X className="h-3 w-3" />
@@ -620,15 +620,15 @@ export function ChatInput({
           {selectedSkillOptions.map((skill) => (
             <span
               key={skill.id}
-              className="group mt-1 inline-flex h-7 max-w-[16rem] items-center gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 text-xs font-medium text-emerald-700 shadow-sm dark:text-emerald-300"
+              className="group mt-1 inline-flex h-7 max-w-[16rem] items-center gap-1.5 rounded-md border border-border bg-panel-sub px-2 text-xs font-medium text-strong shadow-card"
               title={`${skill.name} · ${skillSourceLabel(skill.source)}`}
             >
-              <Sparkles className="h-3 w-3 shrink-0 text-emerald-500" />
+              <Sparkles className="h-3 w-3 shrink-0 text-brand" />
               <span className="truncate">/{skill.name}</span>
               <button
                 type="button"
                 onClick={() => removeSelectedSkill(skill.id)}
-                className="rounded p-0.5 text-emerald-700/60 opacity-70 transition hover:bg-emerald-500/15 hover:text-emerald-700 group-hover:opacity-100 dark:text-emerald-300/70 dark:hover:text-emerald-300"
+                className="rounded p-0.5 text-muted-foreground opacity-70 transition hover:bg-hover hover:text-strong group-hover:opacity-100"
                 title={t("chat.removeSkill", { name: skill.name })}
               >
                 <X className="h-3 w-3" />
@@ -671,7 +671,7 @@ export function ChatInput({
                       active ? "bg-accent text-foreground" : "hover:bg-accent/60"
                     }`}
                   >
-                    <Sparkles className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${selected ? "text-emerald-500" : "text-muted-foreground"}`} />
+                    <Sparkles className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${selected ? "text-brand" : "text-muted-foreground"}`} />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium">{skill.name}</span>
                       <span className="block truncate text-muted-foreground">
@@ -756,7 +756,7 @@ export function ChatInput({
               {t("chat.useWebSearch")}
               <span
                 className={`ml-0.5 h-1.5 w-1.5 rounded-full ${
-                  useWebSearch ? "bg-emerald-500" : "bg-muted-foreground/30"
+                  useWebSearch ? "bg-brand" : "bg-muted-foreground/30"
                 }`}
               />
             </button>
@@ -778,7 +778,7 @@ export function ChatInput({
                     {t("chat.useAnyTxtSearch")}
                     <span
                       className={`ml-0.5 h-1.5 w-1.5 rounded-full ${
-                        useAnyTxtSearch ? "bg-emerald-500" : "bg-muted-foreground/30"
+                        useAnyTxtSearch ? "bg-brand" : "bg-muted-foreground/30"
                       }`}
                     />
                   </button>
@@ -802,7 +802,7 @@ export function ChatInput({
                 <Sparkles className="h-3.5 w-3.5" />
                 {t("chat.skills")}
                 {selectedSkills.length > 0 && (
-                  <span className="ml-0.5 rounded bg-emerald-500/15 px-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                  <span className="ml-0.5 rounded bg-brand-soft px-1 text-[10px] font-semibold text-brand-ink">
                     {selectedSkills.length}
                   </span>
                 )}
@@ -831,7 +831,7 @@ export function ChatInput({
                         >
                           <span
                             className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${
-                              active ? "bg-emerald-500" : "bg-muted-foreground/30"
+                              active ? "bg-brand" : "bg-muted-foreground/30"
                             }`}
                           />
                           <span className="min-w-0 flex-1">

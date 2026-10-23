@@ -86,7 +86,7 @@ export function SavedQueriesList() {
 
 function SavedQueryDialog({ query, onClose, onDelete }: { query: SavedQuery; onClose: () => void; onDelete: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim p-6" onClick={onClose}>
       <div
         className="flex max-h-full w-full max-w-3xl flex-col rounded-lg border bg-background shadow-xl"
         onClick={(event) => event.stopPropagation()}

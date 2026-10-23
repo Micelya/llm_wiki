@@ -117,6 +117,8 @@
     --color-brand-soft: var(--brand-soft);
     --color-brand-ink: var(--brand-ink);
     --color-bar: var(--bar);
+    /* What darkens the screen behind a dialog. */
+    --color-scrim: var(--scrim);
     /* The states (propuesta): always with an icon and a word, never only a colour. */
     --color-ok: var(--ok);
     --color-ok-bg: var(--ok-bg);
@@ -210,6 +212,7 @@
     --pop-shadow: 0 12px 32px rgba(47, 10, 56, .18), 0 2px 6px rgba(47, 10, 56, .08);
     /* The manual has no logo for a dark background: none needed here. */
     --logo-filter: none;
+    --scrim: rgba(27, 10, 32, .45);
 
     --ok: #1E6B43;   --ok-bg: #E7F3EC;   --ok-line: #B5D9C3;
     --warn: #8A4A00; --warn-bg: #FCF0DA; --warn-line: #EBC78A;
@@ -276,6 +279,7 @@
     /* Provisional: the manual names a logo for a dark background but the file
        is missing; the logo is lightened with a filter until it comes. */
     --logo-filter: brightness(0) invert(.92);
+    --scrim: rgba(0, 0, 0, .6);
 
     --ok: #74D3A0;   --ok-bg: rgba(116, 211, 160, .10);  --ok-line: rgba(116, 211, 160, .35);
     --warn: #F2B55C; --warn-bg: rgba(242, 181, 92, .10); --warn-line: rgba(242, 181, 92, .40);
