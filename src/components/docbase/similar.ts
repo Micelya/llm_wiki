@@ -1,6 +1,5 @@
 import type {
   OpenPair,
-  PairDecision,
   RelationDef,
   RelationId,
   SimilarDocument,
@@ -106,6 +105,40 @@ export function makesOneDocument(relation: RelationId, definitions: RelationDef[
 }
 
 /**
+ * Whether a proposal of this relation waits for a person (catalog:
+ * `asksPerson`): the two may be one same document (D-497).
+ */
+export function asksPerson(relation: RelationId, definitions: RelationDef[]): boolean {
+  const definition = definitions.find((d) => d.id === relation)
+  return (definition?.asksPerson ?? false) && !definition?.automatic
+}
+
+/**
+ * Whether a pair belongs in «Copias y versiones»: it may be one same
+ * document (its relation asks a person, or two of one template change no
+ * datum), or a person already decided it, which can be undone.
+ */
+export function isCopyOrVersion(item: SimilarDocument, definitions: RelationDef[]): boolean {
+  return item.state !== "proposed" || item.possiblySame || asksPerson(item.relation, definitions)
+}
+
+/**
+ * The similar documents of one document, as its section shows them
+ * (D-497): `copies`, the pairs that may be one same document or that a
+ * person decided; `others`, those that only share some text, with nothing
+ * to decide. Those made with the same template are not pairs to show: the
+ * document says which template it was made with.
+ */
+export function splitSimilar(
+  items: readonly SimilarDocument[],
+  definitions: RelationDef[],
+): { copies: SimilarDocument[]; others: SimilarDocument[] } {
+  const copies = items.filter((item) => isCopyOrVersion(item, definitions))
+  const others = items.filter((item) => !isCopyOrVersion(item, definitions) && item.relation !== TEMPLATE_RELATION)
+  return { copies, others }
+}
+
+/**
  * Which of the two the app suggests as the wiki's source: the engine's
  * suggestion when it made one (the signed copy, the text not read from
  * an image, the longer one); otherwise the one with a party's signature,
@@ -168,8 +201,10 @@ export function orderFamilies(groups: readonly SimilarGroup[]): SimilarGroup[] {
 
 /**
  * The pairs of a family seen from its principal (`items` are the
- * principal's similar documents): only its members, those that could be
- * the same document first, then the rest waiting, then the decided ones.
+ * principal's similar documents) that are copies or versions: only its
+ * members, those that could be the same document first, then the rest
+ * waiting, then the decided ones. Its members made with the same template
+ * are not pairs to decide (D-497): the family shows its template.
  */
 export function familyPairs(
   items: readonly SimilarDocument[],
@@ -180,30 +215,26 @@ export function familyPairs(
   const rank = (item: SimilarDocument) =>
     item.state !== "proposed" ? 2 : makesOneDocument(item.relation, definitions) ? 0 : 1
   return items
-    .filter((item) => members.has(item.other.contentId))
+    .filter((item) => members.has(item.other.contentId) && isCopyOrVersion(item, definitions))
     .map((item, index) => ({ item, index }))
     .sort((a, b) => rank(a.item) - rank(b.item) || a.index - b.index)
     .map(({ item }) => item)
 }
 
 /**
- * What confirming a family as "same template" decides: every pair of its
- * principal with a member still proposed as "same template" is joined as
- * such, with the evidence the person saw. Pairs proposed as anything else
- * are left for one by one.
+ * Whether a family belongs in «Copias y versiones»: something in it waits
+ * for a person, or a member is a copy or a version of its principal (a
+ * relation that asks a person, decided or not). A family only of
+ * documents made with one template is in «Plantillas», not here.
  */
-export function templateConfirmations(items: readonly SimilarDocument[], group: SimilarGroup): PairDecision[] {
-  return familyPairs(items, group, [])
-    .filter((item) => item.state === "proposed" && item.relation === TEMPLATE_RELATION)
-    .map((item) => ({
-      contentId: item.contentId,
-      otherContentId: item.other.contentId,
-      decision: { kind: "join", relation: TEMPLATE_RELATION, wikiSource: null },
-      evidenceHash: item.evidenceHash,
-    }))
+export function hasCopies(group: SimilarGroup, definitions: RelationDef[]): boolean {
+  if (group.pending > 0 || group.possiblySame > 0) return true
+  return group.members.some(
+    (member, index) => index > 0 && member.relation !== null && asksPerson(member.relation, definitions),
+  )
 }
 
-/** The relation a family is confirmed with in one click. */
+/** Two documents made with one template: different documents (D-497). */
 export const TEMPLATE_RELATION = "same-template"
 
 /** The pairs outside the families' principals, those that could be the same document first. */

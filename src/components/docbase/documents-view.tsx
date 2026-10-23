@@ -149,13 +149,16 @@ function DocumentList() {
             />
             Solo con copias
           </label>
-          <label className="flex items-center gap-1.5 text-sm" title="Documentos con un parecido que espera que alguien lo una o lo descarte">
+          <label
+            className="flex items-center gap-1.5 text-sm"
+            title="Documentos que pueden ser el mismo que otro (un ejemplar firmado, una versión, uno dentro de otro…) y esperan que alguien los una o los descarte"
+          >
             <input
               type="checkbox"
               checked={filter.similarPending ?? false}
               onChange={(event) => setFilter({ ...filter, similarPending: event.target.checked })}
             />
-            Con parecidos pendientes
+            Con una copia o versión por decidir
           </label>
           {((similarGroups.data ?? []).length > 0 || filter.similarGroup != null) && (
             <select

@@ -25,12 +25,17 @@ export const legal: Vertical = {
       templates: {
         name: "Plantillas",
         description:
-          "Los modelos que comparten los documentos del archivo: el texto que dicen igual y los campos que cambian de uno a otro. La app los arma sola comparando los textos; cada uno es una propuesta hasta que confirmás su familia.",
+          "Los modelos que comparten los documentos del archivo: el texto que dicen igual y los campos que cambian de uno a otro. La app los arma sola comparando los textos; los documentos hechos con una plantilla son documentos distintos y no piden ninguna decisión.",
         one: "plantilla",
         many: "plantillas",
         proposed: "Propuesta",
         confirmed: "Confirmada",
         noneYet: "Ninguna plantilla todavía",
+      },
+      copies: {
+        name: "Copias y versiones",
+        description:
+          "Los documentos que pueden ser el mismo: un ejemplar firmado, otra versión, uno dentro de otro, un acuse de recibo o una constancia de firma. Son lo único que espera que decidas; los hechos con la misma plantilla son documentos distintos.",
       },
       suggestedGroups: ["Cliente", "Caso"],
       wikiLanguage: "Spanish",
@@ -192,12 +197,17 @@ export const legal: Vertical = {
       templates: {
         name: "Templates",
         description:
-          "The models the documents of the archive share: the text they say alike and the fields that change from one to another. The app builds them by comparing the texts; each one is a proposal until you confirm its family.",
+          "The models the documents of the archive share: the text they say alike and the fields that change from one to another. The app builds them by comparing the texts; the documents made with a template are different documents and ask for no decision.",
         one: "template",
         many: "templates",
         proposed: "Proposed",
         confirmed: "Confirmed",
         noneYet: "No templates yet",
+      },
+      copies: {
+        name: "Copies and versions",
+        description:
+          "The documents that may be the same one: a signed copy, another version, one inside another, a delivery receipt or a signing certificate. They are the only thing waiting for you to decide; those made with the same template are different documents.",
       },
       suggestedGroups: ["Client", "Matter"],
       wikiLanguage: "English",

@@ -1,17 +1,19 @@
 import { describe, expect, it } from "vitest"
 import { vocabularyFor } from "@/vocabulary"
 import {
+  asksPerson,
   currentRelation,
   familyPairs,
+  hasCopies,
   orderFamilies,
   orderOpenPairs,
-  templateConfirmations,
   makesOneDocument,
   measuresInWords,
   passedOverNotice,
   percent,
   relationChoices,
   relationSentence,
+  splitSimilar,
   suggestedWikiSource,
 } from "./similar"
 import { docRef, RELATIONS, similarDocument, similarGroup } from "./similar.fixtures"
@@ -89,7 +91,7 @@ describe("relations a person can choose", () => {
 
   it("offers a relation the catalog adds later, by its id until the vocabulary names it", () => {
     const choices = relationChoices(
-      [...RELATIONS, { id: "annex-of", sameDocument: false, directed: true, measured: false, automatic: false }],
+      [...RELATIONS, { id: "annex-of", sameDocument: false, directed: true, measured: false, automatic: false, asksPerson: false }],
       words,
     )
     expect(choices.inferred.map((choice) => choice.name)).toContain("annex-of")
@@ -144,7 +146,7 @@ describe("the similar documents screen", () => {
   const principal = docRef(10, "Modelo.docx")
 
   it("puts first the families where two could be the same document, then what else waits, then the decided ones", () => {
-    const template = similarGroup(docRef(20, "Facturas.pdf"), [docRef(21, "x.pdf")], 1)
+    const template = similarGroup(docRef(20, "Facturas.pdf"), [docRef(21, "x.pdf")], 1, [], "contained-in")
     const decided = similarGroup(docRef(30, "Recibos.pdf"), [docRef(31, "y.pdf")], 0)
     const signed = similarGroup(principal, [docRef(11, "a.docx"), docRef(12, "b.docx")], 2, [], "signed-copy")
     const versions = similarGroup(docRef(40, "Escrito.docx"), [docRef(41, "z.docx")], 1, [], "version")
@@ -156,31 +158,25 @@ describe("the similar documents screen", () => {
     ])
   })
 
-  it("shows a family's pairs from its principal: only its members, what makes one document first", () => {
-    const group = similarGroup(principal, [docRef(11, "a.docx"), docRef(12, "b.docx")], 2)
+  it("shows a family's copies and versions from its principal: only its members, what makes one document first", () => {
+    const group = similarGroup(principal, [docRef(11, "a.docx"), docRef(12, "b.docx"), docRef(13, "c.docx")], 3)
     const items = [
-      similarDocument({ contentId: 10, other: docRef(11, "a.docx"), relation: "same-template" }),
-      similarDocument({ contentId: 10, other: docRef(99, "fuera.docx"), relation: "contained-in" }),
+      similarDocument({ contentId: 10, other: docRef(11, "a.docx"), relation: "contained-in" }),
+      similarDocument({ contentId: 10, other: docRef(99, "fuera.docx"), relation: "version" }),
       similarDocument({ contentId: 10, other: docRef(12, "b.docx"), relation: "near-identical" }),
+      // Made with the same template: another document, nothing to decide.
+      similarDocument({ contentId: 10, other: docRef(13, "c.docx"), relation: "same-template" }),
     ]
     expect(familyPairs(items, group, RELATIONS).map((item) => item.other.name)).toEqual(["b.docx", "a.docx"])
   })
 
-  it("confirms a family as same template with the evidence seen, leaving the other relations for one by one", () => {
-    const group = similarGroup(principal, [docRef(11, "a.docx"), docRef(12, "b.docx"), docRef(13, "c.docx")], 3)
-    const items = [
-      similarDocument({ contentId: 10, other: docRef(11, "a.docx"), relation: "same-template", evidenceHash: "h11" }),
-      similarDocument({ contentId: 10, other: docRef(12, "b.docx"), relation: "version" }),
-      similarDocument({ contentId: 10, other: docRef(13, "c.docx"), relation: "same-template", state: "discarded" }),
-    ]
-    expect(templateConfirmations(items, group)).toEqual([
-      {
-        contentId: 10,
-        otherContentId: 11,
-        decision: { kind: "join", relation: "same-template", wikiSource: null },
-        evidenceHash: "h11",
-      },
-    ])
+  it("leaves out of «Copias y versiones» the families only made with one template", () => {
+    const template = similarGroup(principal, [docRef(11, "a.docx"), docRef(12, "b.docx")], 2)
+    expect(template.pending).toBe(0)
+    expect(hasCopies(template, RELATIONS)).toBe(false)
+    expect(hasCopies({ ...template, possiblySame: 1 }, RELATIONS)).toBe(true)
+    const signed = similarGroup(principal, [docRef(11, "a.docx")], 0, [], "signed-copy")
+    expect(hasCopies(signed, RELATIONS)).toBe(true)
   })
 
   it("puts first the loose pairs that could be the same document", () => {
@@ -189,5 +185,32 @@ describe("the similar documents screen", () => {
       similar: similarDocument({ relation, other: docRef(other, `${other}.pdf`) }),
     })
     expect(orderOpenPairs([pair("contained-in", 2), pair("signed-copy", 3)], RELATIONS).map((p) => p.similar.other.contentId)).toEqual([3, 2])
+  })
+})
+
+describe("what waits for a person (D-497)", () => {
+  it("asks a person only when the two may be one same document", () => {
+    for (const relation of ["near-identical", "signed-copy", "preview", "version", "contained-in"]) {
+      expect(asksPerson(relation, RELATIONS)).toBe(true)
+    }
+    for (const relation of ["same-document", "same-template", "similar", "reply-to", "unknown"]) {
+      expect(asksPerson(relation, RELATIONS)).toBe(false)
+    }
+  })
+
+  it("splits a document's similar documents into its copies and versions and those that only share some text", () => {
+    const items = [
+      similarDocument({ other: docRef(2, "Contrato firmado.pdf"), relation: "signed-copy" }),
+      similarDocument({ other: docRef(3, "Contrato con otro cliente.docx"), relation: "same-template" }),
+      similarDocument({ other: docRef(4, "Nota con parte del texto.docx"), relation: "similar" }),
+      // Two of one template where no datum changes: possibly the same document.
+      similarDocument({ other: docRef(5, "Contrato sin cambios.docx"), relation: "same-template", possiblySame: true }),
+      // What a person decided can be undone, whatever its relation.
+      similarDocument({ other: docRef(6, "Contrato confirmado.docx"), relation: "same-template", state: "joined" }),
+      similarDocument({ other: docRef(7, "Borrador.docx"), relation: "version", state: "discarded" }),
+    ]
+    const { copies, others } = splitSimilar(items, RELATIONS)
+    expect(copies.map((item) => item.other.contentId)).toEqual([2, 5, 6, 7])
+    expect(others.map((item) => item.other.contentId)).toEqual([4])
   })
 })

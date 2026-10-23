@@ -141,7 +141,7 @@ export function docbaseNotices(facts: DocbaseFacts, words: Vocabulary = vocabula
   if (coreLeft) out.push(coreLeft)
 
   // ── Decisions ───────────────────────────────────────────────────────
-  const similar = similarNotice(facts.similarPending, facts.groups)
+  const similar = similarNotice(facts.similarPending, facts.groups, words)
   if (similar) out.push(similar)
 
   const proposed = facts.proposedTypes ?? []
@@ -220,26 +220,29 @@ async function loadDocumentCases(state: DocumentState, withReasons: boolean): Pr
 }
 
 /**
- * Similar documents that could be the same document: one decision per
- * family (it is decided from its principal) and one per pair outside
- * families. "Same template", "contained in" and plain "similar" are not
- * escalated: they are two different documents, except two of the same
- * template where no field changes (P-218), which are possibly the same.
+ * The documents that could be one same document (D-497): a signed copy, a
+ * version, one inside the other, a delivery receipt, a signing
+ * certificate, and two of one template where no datum changes (P-218).
+ * One decision per family (it is decided from its principal) and one per
+ * pair outside families. Two documents made with one template, or that
+ * only share some text, are different documents and are not escalated.
  */
-export function similarNotice(pending: SimilarPending | null, groups: SimilarGroup[] | null): AttentionNotice | null {
+export function similarNotice(
+  pending: SimilarPending | null,
+  groups: SimilarGroup[] | null,
+  words: Vocabulary = vocabulary(),
+): AttentionNotice | null {
   const possiblySame = (groups ?? []).reduce((sum, group) => sum + group.possiblySame, 0)
-  if (!pending || pending.sameDocumentPairs + possiblySame === 0) return null
-  const families = (groups ?? []).filter((group) => group.pendingSameDocument > 0 || group.possiblySame > 0)
-  const inFamilies = families.reduce((sum, group) => sum + group.pendingSameDocument, 0)
-  const loose = Math.max(0, pending.sameDocumentPairs - inFamilies)
+  if (!pending || pending.pairs + possiblySame === 0) return null
+  const families = (groups ?? []).filter((group) => group.pending > 0 || group.possiblySame > 0)
+  const inFamilies = families.reduce((sum, group) => sum + group.pending, 0)
+  const loose = Math.max(0, pending.pairs - inFamilies)
   const decisions = families.length + loose
   const cases: AttentionCase[] = families.map((group) => ({
     id: `family:${group.principal.contentId}`,
     title: `«${group.principal.name}»`,
     detail: [
-      group.pendingSameDocument > 0
-        ? plural(group.pendingSameDocument, "documento podría ser el mismo", "documentos podrían ser el mismo")
-        : null,
+      group.pending > 0 ? plural(group.pending, "par por decidir", "pares por decidir") : null,
       group.possiblySame > 0
         ? plural(group.possiblySame, "par de la misma plantilla no cambia en ningún dato", "pares de la misma plantilla no cambian en ningún dato")
         : null,
@@ -264,15 +267,21 @@ export function similarNotice(pending: SimilarPending | null, groups: SimilarGro
     priority: "normal",
     count: decisions,
     title: plural(
-      pending.sameDocumentPairs + possiblySame,
+      pending.pairs + possiblySame,
       "par de documentos podría ser el mismo documento",
       "pares de documentos podrían ser el mismo documento",
     ),
     explanation:
-      "Prácticamente el mismo, un ejemplar firmado, una versión o dos de la misma plantilla en los que no cambia ningún dato: si se unen, cuenta uno solo, el que elijas, y no se repite lo que dicen.",
+      "Un ejemplar firmado, otra versión, uno dentro de otro, un acuse de recibo, una constancia de firma o dos de la misma plantilla en los que no cambia ningún dato. Si son el mismo documento y se unen, cuenta uno solo, el que elijas, y no se repite lo que dicen. Los hechos con la misma plantilla y otros datos son documentos distintos y no piden nada.",
     todo: "Unilos con la relación que corresponda, elegí otra o descartalos.",
     resolvedWhen: "Desaparece cuando cada par se une o se descarta.",
-    actions: [{ kind: "go", label: "Resolver parecidos", target: { view: "similar", principal: families[0]?.principal.contentId ?? null } }],
+    actions: [
+      {
+        kind: "go",
+        label: `Resolver en «${words.copies.name}»`,
+        target: { view: "similar", principal: families[0]?.principal.contentId ?? null },
+      },
+    ],
     cases,
   }
 }

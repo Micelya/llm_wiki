@@ -380,6 +380,13 @@ export interface RelationDef {
   measured: boolean
   /** Applied without a person (only the exact same text). */
   automatic: boolean
+  /**
+   * A person decides it: the two may be one same document (a copy, a
+   * version, one inside the other, a delivery receipt, a signing
+   * certificate). The same template and the only similar are different
+   * documents and wait for no one (D-497).
+   */
+  asksPerson: boolean
 }
 
 /** A document of the base, by one of its locations. */
@@ -453,6 +460,12 @@ export interface SimilarDocument {
   /** The document left as the wiki's source when joined as one document. */
   wikiSource: number | null
   decidedAt: number | null
+  /**
+   * Two of one template where no datum changes: possibly the same
+   * document, so the pair waits for a person although made with one
+   * template (D-440, D-497).
+   */
+  possiblySame: boolean
 }
 
 export type SimilarDecision =
@@ -461,14 +474,18 @@ export type SimilarDecision =
   | { kind: "undo" }
 
 export interface SimilarPending {
-  /** Pairs with a proposed relation and no decision. */
+  /**
+   * Pairs with no decision whose proposed relation asks a person
+   * (`RelationDef.asksPerson`): a copy, a version, one inside the other, a
+   * delivery receipt or a signing certificate (D-497).
+   */
   pairs: number
   /** Families with at least one such pair. */
   groups: number
   /**
    * Of `pairs`, those whose proposed relation makes both one document
    * (practically the same, signed copy, version): deciding them changes
-   * which one feeds the wiki. The rest are information.
+   * which one feeds the wiki.
    */
   sameDocumentPairs: number
 }
@@ -486,6 +503,7 @@ export interface SimilarGroup {
   members: SimilarGroupMember[]
   /** "large" (grew too much) or "dispersed" (a chain the principal does not hold). */
   flags: string[]
+  /** Members whose pair with the principal waits for a person (its relation asks one). */
   pending: number
   /** Of `pending`, those whose proposed relation makes both one document. */
   pendingSameDocument: number

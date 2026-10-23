@@ -115,39 +115,45 @@ describe("what the document base raises", () => {
 describe("similar documents in the attention view", () => {
   const principal = docRef(10, "Acuerdo modelo.docx")
 
-  it("does not escalate what does not change the wiki: same template, contained in, plain similar", () => {
+  it("does not escalate documents made with one template nor those that only share some text: they are different documents", () => {
+    // The base counts neither as waiting (D-497).
     const groups = [similarGroup(principal, [docRef(11, "a.docx"), docRef(12, "b.docx")], 2)]
-    expect(similarNotice({ pairs: 5, groups: 1, sameDocumentPairs: 0 }, groups)).toBeNull()
+    expect(groups[0].pending).toBe(0)
+    expect(similarNotice({ pairs: 0, groups: 0, sameDocumentPairs: 0 }, groups, words)).toBeNull()
   })
 
   it("escalates two of the same template where no field changes: possibly the same document", () => {
     const group = { ...similarGroup(principal, [docRef(11, "a.docx"), docRef(12, "b.docx")], 2), possiblySame: 1 }
-    const line = similarNotice({ pairs: 2, groups: 1, sameDocumentPairs: 0 }, [group])!
+    const line = similarNotice({ pairs: 0, groups: 0, sameDocumentPairs: 0 }, [group], words)!
     expect(line.title).toBe("1 par de documentos podría ser el mismo documento")
     expect(line.count).toBe(1)
     expect(line.cases?.[0].detail).toContain("1 par de la misma plantilla no cambia en ningún dato")
     expect(line.cases?.[0].actions?.[0]).toMatchObject({ target: { view: "similar", principal: 10 } })
   })
 
-  it("counts one decision per family and one per pair outside families", () => {
+  it("counts one decision per family and one per pair outside families, a copy, a version or one inside another", () => {
     const groups = [
       similarGroup(docRef(20, "Facturas.pdf"), [docRef(21, "x.pdf")], 1),
       similarGroup(principal, [docRef(11, "a.docx"), docRef(12, "b.docx"), docRef(13, "c.docx")], 2, [], "signed-copy"),
     ]
-    const line = similarNotice({ pairs: 6, groups: 2, sameDocumentPairs: 4 }, groups)!
-    expect(line.title).toBe("4 pares de documentos podrían ser el mismo documento")
-    // One family with two pairs, and two pairs outside families.
-    expect(line.count).toBe(3)
-    expect(line.cases?.map((c) => c.title)).toEqual(["«Acuerdo modelo.docx»", "2 pares fuera de las familias"])
+    // Two signed copies in the family; outside it, two versions and one inside another.
+    const line = similarNotice({ pairs: 5, groups: 1, sameDocumentPairs: 4 }, groups, words)!
+    expect(line.title).toBe("5 pares de documentos podrían ser el mismo documento")
+    expect(line.count).toBe(4)
+    expect(line.cases?.map((c) => c.title)).toEqual(["«Acuerdo modelo.docx»", "3 pares fuera de las familias"])
+    expect(line.cases?.[0].detail).toContain("2 pares por decidir")
     expect(line.explanation).toContain("cuenta uno solo")
+    expect(line.explanation).toContain("Los hechos con la misma plantilla y otros datos son documentos distintos")
+    expect(line.actions[0].label).toBe("Resolver en «Copias y versiones»")
     // Each leads to the similar documents screen, on its family.
     expect(line.actions[0]).toMatchObject({ kind: "go", target: { view: "similar", principal: 10 } })
     expect(line.cases?.[0].actions?.[0]).toMatchObject({ target: { view: "similar", principal: 10 } })
   })
 
-  it("goes away once nothing that makes one document waits", () => {
-    const before = docbaseNotices(facts({}, { similarPending: { pairs: 1, groups: 0, sameDocumentPairs: 1 } }), words)
-    const after = docbaseNotices(facts({}, { similarPending: { pairs: 1, groups: 0, sameDocumentPairs: 0 } }), words)
+  it("goes away once nothing waits for a person", () => {
+    // One inside another waits, although it does not make them one document.
+    const before = docbaseNotices(facts({}, { similarPending: { pairs: 1, groups: 0, sameDocumentPairs: 0 } }), words)
+    const after = docbaseNotices(facts({}, { similarPending: { pairs: 0, groups: 0, sameDocumentPairs: 0 } }), words)
     expect(before.map((n) => n.id)).toEqual(["docbase:similar"])
     expect(after).toEqual([])
   })
