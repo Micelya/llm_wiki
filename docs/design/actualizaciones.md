@@ -1,11 +1,11 @@
 # Actualizar Micelya sin perder los datos
 
-**Estado:** construido en la corrida desatendida del 23 oct (D-500), a revisar por el dueño. **Sobre:** el requisito de que una actualización respete los datos de una versión anterior (D-496, P-297).
+**Estado:** construido en la corrida desatendida del 23 oct (D-500), a revisar por el dueño · corregido el 23 oct de 2026: la base de la rama ya está en la versión 27, no en la 25. **Sobre:** el requisito de que una actualización respete los datos de una versión anterior (D-496, P-297).
 
 ## En pocas palabras
 
 - **Los datos no viven con el programa.** Están en la carpeta del usuario de Windows, `%APPDATA%\com.micelya.desktop`. Instalar una versión nueva encima reemplaza el programa y deja esa carpeta como estaba.
-- **La base cambia de forma sola**, al abrirla con una versión nueva de la app, y siempre hacia adelante (de la versión 24 a la 25, nunca al revés). Hoy está en la versión 25.
+- **La base cambia de forma sola**, al abrirla con una versión nueva de la app, y siempre hacia adelante (de la versión 24 a la 25, nunca al revés). Hoy está en la versión 27.
 - **Antes de cambiarla, la app guarda sola un respaldo**, con la huella de cada archivo. Si no puede guardarlo, no cambia nada y lo dice con palabras: qué pasó, que los datos están intactos y qué hacer.
 - **Se conservan los 3 últimos respaldos.** Uno viejo se borra recién cuando hay uno nuevo y la actualización salió bien; el único que haya no se borra nunca.
 - **Para volver a la versión anterior:** desinstalar sin marcar «Eliminar los datos de aplicación» (el instalador de hoy lo dice en inglés: «Delete the application data»), instalar la anterior y volver al respaldo de antes del cambio. Se pierde lo que se hizo en la app después de la fecha del respaldo; los documentos de las carpetas no se tocan nunca.
@@ -33,13 +33,13 @@ Cuando la app se abre:
 
 1. Lee la versión de la base.
 2. **Si es la que conoce:** sigue, sin respaldo.
-3. **Si es más vieja:** antes de tocarla, guarda un respaldo en `respaldos\antes-de-v25-2026-10-24-0930\` (la versión a la que va y la fecha y hora). La copia la hace la base misma, no una copia del archivo abierto: así sale completa aunque la app la esté usando. Antes de seguir, comprueba la copia: que abra, que esté en la versión de la base, que esté sana y que cada tabla tenga las mismas filas. En la carpeta del respaldo quedan:
+3. **Si es más vieja:** antes de tocarla, guarda un respaldo en `respaldos\antes-de-v27-2026-10-24-0930\` (la versión a la que va y la fecha y hora). La copia la hace la base misma, no una copia del archivo abierto: así sale completa aunque la app la esté usando. Antes de seguir, comprueba la copia: que abra, que esté en la versión de la base, que esté sana y que cada tabla tenga las mismas filas. En la carpeta del respaldo quedan:
    - `docbase\private.sqlite3`, `app-state.json`, `chat\…`: los datos tal como estaban, en el mismo lugar que tienen en la carpeta de datos;
    - `huellas.sha256`: la huella SHA-256 de cada archivo;
    - `respaldo.json`: qué versión de la base tiene, a cuál iba, qué versión de la app la había escrito, cuándo se hizo;
    - `LEEME.txt`: qué es y cómo volver a él a mano, en castellano.
    Mientras se está haciendo, la carpeta se llama `sin-terminar-…`: si la app se cierra a mitad, eso no cuenta como respaldo y se borra la próxima vez.
-4. **Si el respaldo no se puede hacer** (por ejemplo, el disco está lleno): no toca la base. En Inicio y en Ajustes se lee: «Antes de actualizar la base de la versión 24 a la 25, Micelya tiene que guardar un respaldo y esta vez no pudo (…). No se cambió nada: tus datos están intactos, como los dejó la versión anterior de la app. Qué hacer: fijate que haya lugar libre en el disco, cerrá Micelya del todo y volvé a abrirla. Si vuelve a pasar, avisá a soporte con este mensaje.»
+4. **Si el respaldo no se puede hacer** (por ejemplo, el disco está lleno): no toca la base. En Inicio y en Ajustes se lee: «Antes de actualizar la base de la versión 24 a la 27, Micelya tiene que guardar un respaldo y esta vez no pudo (…). No se cambió nada: tus datos están intactos, como los dejó la versión anterior de la app. Qué hacer: fijate que haya lugar libre en el disco, cerrá Micelya del todo y volvé a abrirla. Si vuelve a pasar, avisá a soporte con este mensaje.»
 5. **Con el respaldo hecho, actualiza la base.** Si la actualización falla, lo dice nombrando el respaldo («Tus datos están en el respaldo «…», hecho justo antes») y no borra ningún respaldo viejo.
 6. **Si salió bien:** deja los 3 respaldos más nuevos y borra los anteriores. Solo borra carpetas que hizo la app (con su `respaldo.json`); una copia hecha a mano dentro de `respaldos` no se toca.
 7. **Si la base es de una versión más nueva** (alguien volvió a instalar una versión anterior): no la toca y dice: «Esta base la escribió una versión más nueva de Micelya (…). No se tocó nada. Para seguir con esta versión, volvé al respaldo de antes de la actualización en Ajustes → Datos y respaldos, o instalá de nuevo la versión más nueva.»
@@ -51,7 +51,7 @@ La copia tarda poco con una base como la de hoy (unos segundos); con una base mu
 
 ## 3. Cómo probar mañana con el instalador
 
-La rama `main` tiene la base en la versión 24 y no hace respaldos; la rama de esta sesión (`feat/session-18`) la tiene en la 25 y los hace. Eso sirve para la prueba:
+La rama `main` tiene la base en la versión 24 y no hace respaldos; la rama de esta sesión (`feat/session-18`) la tiene en la 27 y los hace. Eso sirve para la prueba:
 
 - **Instalador A, «la versión anterior»:** hecho desde `main`.
 - **Instalador B, «la nueva»:** hecho desde `feat/session-18` (con todo lo de esta noche).
@@ -64,10 +64,10 @@ Conviene que B tenga un número de versión más alto que A (por ejemplo 0.1.1; 
 2. Instalar B encima, sin desinstalar A. Abrirla.
 3. Comprobar:
    - Inicio dice los mismos documentos; las decisiones, el caso, la nota y el nombre de la plantilla están.
-   - Ajustes → Datos y respaldos dice «Al abrir, la app actualizó la base de la versión 24 a la 25. Antes guardó el respaldo «antes-de-v25-…»» y lo muestra en la lista.
+   - Ajustes → Datos y respaldos dice «Al abrir, la app actualizó la base de la versión 24 a la 27. Antes guardó el respaldo «antes-de-v27-…»» y lo muestra en la lista.
    - «Abrir la carpeta de respaldos» muestra esa carpeta, con `docbase\private.sqlite3`, `huellas.sha256`, `respaldo.json` y `LEEME.txt`.
    - Optativo, la huella: en PowerShell, dentro de la carpeta del respaldo, `Get-FileHash -Algorithm SHA256 docbase\private.sqlite3` tiene que dar lo mismo que la línea de `docbase/private.sqlite3` en `huellas.sha256` (en minúsculas).
-4. Cerrar y volver a abrir B: no hace otro respaldo (la base ya está en la 25).
+4. Cerrar y volver a abrir B: no hace otro respaldo (la base ya está en la 27).
 5. Si se quiere probar también la vuelta atrás, seguir la sección 4 con A.
 
 ## 4. Cómo volver a la versión anterior
@@ -89,7 +89,7 @@ Conviene que B tenga un número de versión más alto que A (por ejemplo 0.1.1; 
 - **El respaldo lleva la base, los ajustes, el chat, las lecturas de Core y los catálogos**, no el texto reconocido de los escaneos ni lo del agente ni el navegador interno (no cambian de forma y ninguna actualización los toca).
 - **«Volver a este respaldo» solo aparece cuando esta versión no puede abrir la base** porque la escribió una más nueva. Con la base abierta y en uso no se ofrece: volver ahí no tendría sentido (la misma versión la actualizaría de nuevo al abrir) y cambiar la base debajo de la app es riesgoso. Alternativa: un botón siempre disponible que cierre la app y cambie la base al abrirla.
 - **Después de volver, la app pide cerrarla y abrirla a mano** (con un botón para cerrarla), en lugar de reiniciarse sola: el reinicio automático choca con el mecanismo que evita abrir dos copias de la app y podría dejarla cerrada.
-- **Nombres en castellano** para las carpetas y archivos del respaldo (`respaldos`, `antes-de-v25-…`, `huellas.sha256`, `respaldo.json`, `LEEME.txt`, `apartada-…`).
+- **Nombres en castellano** para las carpetas y archivos del respaldo (`respaldos`, `antes-de-v27-…`, `huellas.sha256`, `respaldo.json`, `LEEME.txt`, `apartada-…`).
 - **La base anota la versión de la app que la abrió**, como un ajuste más de la base (no es un cambio de forma), para que el respaldo diga qué versión instalar para volver.
 - **La prueba automática cubre todas las versiones anteriores**, de la 1 a la 24, no solo tres.
 
