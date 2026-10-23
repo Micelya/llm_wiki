@@ -54,6 +54,13 @@ pub struct RelationDef {
     /// Applied without a person (only the exact same text).
     #[serde(default)]
     pub automatic: bool,
+    /// A person decides it: the two may be one same document (a copy, a
+    /// version, one inside the other, its delivery receipt or its signing
+    /// certificate). The rest (the same template with other data, only
+    /// similar) are different documents: they are shown and wait for no
+    /// one (D-497).
+    #[serde(default)]
+    pub asks_person: bool,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]

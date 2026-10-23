@@ -345,11 +345,12 @@ impl DocBase {
             bound.push(Value::Integer(label_id));
         }
         if filter.similar_pending {
-            conditions.push(
-                "content_id IN (SELECT a FROM similar_pair WHERE state = 'proposed' AND relation != 'similar'
-                                UNION SELECT b FROM similar_pair WHERE state = 'proposed' AND relation != 'similar')"
-                    .to_string(),
-            );
+            // Only what waits for a person: a copy, a version… (D-497).
+            let asks = super::similar::store::asks_person_sql("relation");
+            conditions.push(format!(
+                "content_id IN (SELECT a FROM similar_pair WHERE state = 'proposed' AND {asks}
+                                UNION SELECT b FROM similar_pair WHERE state = 'proposed' AND {asks})"
+            ));
         }
         match filter.doc_type.as_deref().filter(|t| !t.is_empty()) {
             Some("none") => conditions.push("doc_type IS NULL".to_string()),

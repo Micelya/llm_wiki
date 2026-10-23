@@ -23,7 +23,7 @@
 //! text, another engine (`fingerprint`). Also for the families nobody
 //! confirmed: they are shown as a proposal.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::ops::Range;
 
 use rusqlite::{params, params_from_iter, Connection, OptionalExtension};
@@ -1093,6 +1093,21 @@ pub(super) fn undecided(conn: &Connection, pairs: &[(i64, i64)]) -> Result<Vec<(
         if state.is_none_or(|state| state == "proposed") {
             out.push((a, b));
         }
+    }
+    Ok(out)
+}
+
+/// The pairs of documents of every template where no datum changes:
+/// possibly the same document (D-440). Made with one template, they would
+/// wait for no one; as possibly the same document, they wait for a person
+/// like any copy or version (D-497). Decided or not.
+pub(super) fn possibly_same_pairs(conn: &Connection) -> Result<HashSet<(i64, i64)>, String> {
+    let mut statement = conn.prepare("SELECT same_documents FROM similar_template").map_err(sql_err)?;
+    let rows = statement.query_map([], |row| row.get::<_, String>(0)).map_err(sql_err)?;
+    let mut out = HashSet::new();
+    for row in rows {
+        let pairs: Vec<(i64, i64)> = serde_json::from_str(&row.map_err(sql_err)?).unwrap_or_default();
+        out.extend(pairs.into_iter().map(|(a, b)| (a.min(b), a.max(b))));
     }
     Ok(out)
 }

@@ -132,20 +132,26 @@ pub struct SimilarDocument {
     /// one document.
     pub wiki_source: Option<i64>,
     pub decided_at: Option<i64>,
+    /// Two documents of one template where no datum changes (D-440): made
+    /// with the template they would wait for no one, but they may be one
+    /// same document, so they wait for a person (D-497).
+    pub possibly_same: bool,
 }
 
 /// What waits for a person, for Inicio.
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SimilarPending {
-    /// Pairs with a proposed relation and no decision.
+    /// Pairs with no decision whose proposed relation waits for a person
+    /// (`asks_person`): a copy, a version, one inside the other, a delivery
+    /// receipt or a signing certificate. The same template and the only
+    /// similar wait for no one (D-497).
     pub pairs: i64,
     /// Families with at least one such pair.
     pub groups: i64,
     /// Of `pairs`, those whose proposed relation makes both one document
     /// (practically the same, the signed copy, a version): deciding them
-    /// changes which one feeds the wiki. Only these need a person soon;
-    /// the rest (same template, contained in) are information.
+    /// changes which one feeds the wiki.
     pub same_document_pairs: i64,
 }
 
@@ -168,7 +174,8 @@ pub struct SimilarGroup {
     /// "large" (grew too much) or "dispersed" (part of what is similar to
     /// its members is not similar to the principal).
     pub flags: Vec<String>,
-    /// Members whose pair with the principal waits for a decision.
+    /// Members whose pair with the principal waits for a decision: one
+    /// whose relation asks a person (`asks_person`).
     pub pending: i64,
     /// Of `pending`, those whose proposed relation makes both one document.
     pub pending_same_document: i64,
@@ -232,6 +239,7 @@ fn pair_from_row(row: &rusqlite::Row<'_>, seen_from: i64) -> rusqlite::Result<(i
             chosen_relation: row.get(15)?,
             wiki_source: row.get(16)?,
             decided_at: row.get(17)?,
+            possibly_same: false,
         },
     ))
 }
@@ -583,11 +591,13 @@ impl DocBase {
             .collect::<Result<Vec<_>, _>>()
             .map_err(sql_err)?;
         drop(statement);
+        let possibly_same = super::template::possibly_same_pairs(&conn)?;
         let mut out = Vec::new();
         for (other, mut similar) in rows {
             // A relation is seen only if both documents are (design, shared space).
             if let Some(doc) = doc_ref(&conn, visible, other)? {
                 similar.other = doc;
+                similar.possibly_same = possibly_same.contains(&(content_id.min(other), content_id.max(other)));
                 out.push(similar);
             }
         }
@@ -637,9 +647,13 @@ impl DocBase {
     /// principal and one of its members (those are resolved from the
     /// family): pairs outside families, and pairs between two members.
     /// Each is seen from its smaller content (`similar.content_id`), whose
-    /// document is `doc`. Plain "similar" (no relation found) is left out.
+    /// document is `doc`. Only those that wait for a person: the same
+    /// template and plain "similar" are different documents (D-497),
+    /// unless no datum changes between two of one template (possibly the
+    /// same document, D-440).
     pub fn similar_open_pairs(&self, visible: &Visible) -> Result<Vec<OpenPair>, String> {
         let conn = self.conn();
+        let possibly_same = super::template::possibly_same_pairs(&conn)?;
         let mut statement = conn
             .prepare(&format!(
                 "SELECT {PAIR_COLUMNS} FROM similar_pair p
@@ -661,6 +675,10 @@ impl DocBase {
         drop(statement);
         let mut out = Vec::new();
         for (a, b, mut similar) in rows {
+            similar.possibly_same = possibly_same.contains(&(a, b));
+            if !asks_person(&similar.relation) && !similar.possibly_same {
+                continue;
+            }
             let (Some(doc), Some(other)) = (doc_ref(&conn, visible, a)?, doc_ref(&conn, visible, b)?) else {
                 continue;
             };
@@ -737,9 +755,11 @@ impl DocBase {
         Ok(())
     }
 
-    /// What waits for a decision.
+    /// What waits for a decision: only the pairs that may be one same
+    /// document (D-497).
     pub fn similar_pending(&self, visible: &Visible) -> Result<SimilarPending, String> {
         let conn = self.conn();
+        let asks = asks_person_sql("p.relation");
         let (seen_a, mut bound) = visible_content(visible, "p.a");
         let (seen_b, bound_b) = visible_content(visible, "p.b");
         bound.extend(bound_b);
@@ -747,7 +767,7 @@ impl DocBase {
             .query_row(
                 &format!(
                     "SELECT count(*) FROM similar_pair p
-                     WHERE p.state = 'proposed' AND p.relation != 'similar' AND {seen_a} AND {seen_b}"
+                     WHERE p.state = 'proposed' AND {asks} AND {seen_a} AND {seen_b}"
                 ),
                 params_from_iter(bound.iter()),
                 |row| row.get(0),
@@ -760,7 +780,7 @@ impl DocBase {
                     "SELECT count(*) FROM similar_group g WHERE {seen_principal} AND EXISTS (
                         SELECT 1 FROM similar_group_member m JOIN similar_pair p
                           ON p.a = min(m.principal, m.content_id) AND p.b = max(m.principal, m.content_id)
-                        WHERE m.principal = g.principal AND p.state = 'proposed')"
+                        WHERE m.principal = g.principal AND p.state = 'proposed' AND {asks})"
                 ),
                 params_from_iter(bound.iter()),
                 |row| row.get(0),
@@ -818,7 +838,7 @@ impl DocBase {
             let mut pending = 0;
             let mut pending_same_document = 0;
             for (content_id, relation, cover, state) in members {
-                if state.as_deref() == Some("proposed") {
+                if state.as_deref() == Some("proposed") && relation.as_deref().is_some_and(asks_person) {
                     pending += 1;
                     if relation.as_deref().is_some_and(makes_one_document) {
                         pending_same_document += 1;
@@ -895,10 +915,27 @@ pub fn makes_one_document(relation: &str) -> bool {
 
 /// SQL condition: the relation in `column` makes both one document.
 fn same_document_sql(column: &str) -> String {
+    relation_sql(column, |r| r.same_document && !r.automatic)
+}
+
+/// Whether a proposal of this relation waits for a person (catalog:
+/// `asksPerson`): the two may be one same document. The same template
+/// with other data and the only similar are different documents and wait
+/// for no one (D-497).
+pub fn asks_person(relation: &str) -> bool {
+    types::catalog().relation(relation).is_some_and(|r| r.asks_person && !r.automatic)
+}
+
+/// SQL condition: the relation in `column` waits for a person.
+pub(crate) fn asks_person_sql(column: &str) -> String {
+    relation_sql(column, |r| r.asks_person && !r.automatic)
+}
+
+fn relation_sql(column: &str, keep: impl Fn(&RelationDef) -> bool) -> String {
     let ids: Vec<String> = types::catalog()
         .relations
         .iter()
-        .filter(|r| r.same_document && !r.automatic)
+        .filter(|r| keep(r))
         .map(|r| format!("'{}'", r.id.replace('\'', "''")))
         .collect();
     if ids.is_empty() {

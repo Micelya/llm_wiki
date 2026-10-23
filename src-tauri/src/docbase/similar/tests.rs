@@ -147,12 +147,12 @@ fn the_same_form_for_two_people_is_the_same_template() {
     assert!(similar.description.contains("cambia un nombre"), "{}", similar.description);
     let marks: Vec<String> = serde_json::from_value(similar.evidence["marks"]["a"].clone()).unwrap();
     assert!(marks.contains(&"form".to_string()));
-    // Two different documents: it waits for a person, but it is not
-    // escalated as something that changes the wiki.
+    // Two different documents made with one template: it waits for no one
+    // (D-497); the family and its template stay.
     let pending = base.similar_pending(&Visible::All).unwrap();
-    assert_eq!((pending.pairs, pending.same_document_pairs), (1, 0));
+    assert_eq!((pending.pairs, pending.groups, pending.same_document_pairs), (0, 0, 0));
     let groups = base.similar_groups(&Visible::All).unwrap();
-    assert_eq!((groups[0].pending, groups[0].pending_same_document), (1, 0));
+    assert_eq!((groups[0].members.len(), groups[0].pending, groups[0].pending_same_document), (2, 0, 0));
 }
 
 #[test]
@@ -404,7 +404,7 @@ fn the_documents_screen_filters_by_pending_similar_and_by_family() {
 }
 
 #[test]
-fn a_family_of_the_same_template_is_confirmed_at_once_and_the_rest_stays_open() {
+fn a_family_of_the_same_template_waits_for_no_one_and_can_still_be_confirmed_at_once() {
     let may = invoice("0003-00001377", "15/05/2026", "01/04/2026", "30/04/2026", "98.000,00", "20.580,00", "118.580,00", "25/05/2026");
     let (_dir, base, _) = base_with(&[
         ("marzo.md", march().into_bytes()),
@@ -414,16 +414,12 @@ fn a_family_of_the_same_template_is_confirmed_at_once_and_the_rest_stays_open() 
     let groups = base.similar_groups(&Visible::All).unwrap();
     assert_eq!(groups.len(), 1, "the three invoices are one family");
     let group = &groups[0];
-    assert_eq!((group.members.len(), group.pending, group.pending_same_document), (3, 2, 0));
+    // Three invoices of one template are three invoices: nothing to decide (D-497).
+    assert_eq!((group.members.len(), group.pending, group.pending_same_document), (3, 0, 0));
+    assert!(base.similar_open_pairs(&Visible::All).unwrap().is_empty(), "the pair between the two members waits for no one");
+    assert_eq!(base.similar_pending(&Visible::All).unwrap().pairs, 0);
 
-    // The pair between the two members is not the principal's: it stays open.
-    let open = base.similar_open_pairs(&Visible::All).unwrap();
-    assert_eq!(open.len(), 1);
-    assert_eq!(open[0].similar.relation, "same-template");
-    assert_ne!(open[0].doc.content_id, group.principal.content_id);
-    assert_ne!(open[0].similar.other.content_id, group.principal.content_id);
-
-    // Confirming the family joins every member with its principal, in one go.
+    // A person may still confirm it: every member with its principal, in one go.
     let principal = group.principal.content_id;
     let decisions: Vec<super::PairDecision> = base
         .similar_of(&Visible::All, group.principal.location_id)
@@ -440,8 +436,10 @@ fn a_family_of_the_same_template_is_confirmed_at_once_and_the_rest_stays_open() 
     assert_eq!(decisions.len(), 2);
     assert_eq!(base.decide_similar_many(&decisions).unwrap(), 2);
     let after = base.similar_groups(&Visible::All).unwrap();
-    assert_eq!(after[0].pending, 0);
-    assert_eq!(base.similar_open_pairs(&Visible::All).unwrap().len(), 1);
+    assert_eq!((after[0].members.len(), after[0].pending), (3, 0));
+    let joined = base.similar_of(&Visible::All, group.principal.location_id).unwrap();
+    assert!(joined.iter().filter(|s| s.relation == "same-template").all(|s| s.state == "joined"), "what the person decided stays");
+    assert!(base.similar_open_pairs(&Visible::All).unwrap().is_empty());
 
     // A batch that fails part way keeps what it saved and says so.
     let bad = vec![super::PairDecision {
@@ -816,6 +814,14 @@ fn two_copies_of_the_same_form_are_possibly_the_same_document() {
     let (uno, tres) = (content(&base, "ficha uno.pdf"), content(&base, "ficha tres.pdf"));
     assert_eq!(template.possibly_same, vec![[uno.min(tres), uno.max(tres)]]);
     assert_eq!(groups[0].possibly_same, 1);
+    // Made with one template they would wait for no one; possibly the same
+    // document, they wait for a person (D-497).
+    let flagged = pair(&base, "ficha uno.pdf", "ficha tres.pdf").expect("the two forms are a pair");
+    assert!(flagged.possibly_same);
+    assert!(!pair(&base, "ficha dos.pdf", "ficha uno.pdf").unwrap().possibly_same);
+    let open = base.similar_open_pairs(&Visible::All).unwrap();
+    assert_eq!(open.len(), 1, "between two members, out of the principal's pairs");
+    assert!(open[0].similar.possibly_same);
     // Once a person decides about the two, it is no longer shown.
     base.decide_similar(uno, tres, &Decision::Discard, None).unwrap();
     let template = base.similar_template(&Visible::All, groups[0].principal.location_id).unwrap().unwrap();
