@@ -12,6 +12,7 @@ import {
   questionsText,
   runConfirmMessage,
   runReportText,
+  sealText,
   typeLabel,
   typeSourceText,
 } from "./document-types"
