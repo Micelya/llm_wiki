@@ -1230,6 +1230,8 @@ export interface EntityIdentifier {
   kind: string
   value: string
   documents: number
+  /** A second number of an identifier that names one only, which another entity has too: perhaps the other's. */
+  doubtful?: boolean
 }
 
 export interface EntityMention {
@@ -1286,6 +1288,8 @@ export interface DoubtView {
   reason: string
   detail: string | null
   evidenceHash: string
+  /** The documents of the two sides: where to see why. */
+  documents?: string[]
 }
 
 export interface IdentityDecisionView {
@@ -1356,6 +1360,8 @@ export type IdentityDecision =
   | { kind: "confirm"; a: string }
   | { kind: "sameMatter"; a: string; b: string }
   | { kind: "otherMatter"; a: string; b: string }
+  /** `a` (an entity) is named `name`: it stands until it is undone. */
+  | { kind: "name"; a: string; name: string }
 
 export interface KnowledgeDocumentRef {
   contentId: number
@@ -1440,6 +1446,34 @@ export interface KnowledgeAttention {
   leftWithDocuments: KnowledgeLeftWithDocuments[]
   /** Decisions of a person that no longer find what they named. */
   decisionsToReview: KnowledgeDecisionReview[]
+  /** Whether a matter that looks like the one of a record of a court is the same. */
+  mattersToJoin: KnowledgeMatterQuestion[]
+}
+
+/** A record of a court a matter has: data of the matter, not the matter. */
+export interface MatterRecord {
+  portal: string
+  jurisdiction: string
+  number: number
+  year: number
+  /** "ABC 123/2020". */
+  reference: string
+  /** Its official title, as the portal gives it. */
+  title: string | null
+}
+
+/** A question for a person: whether a matter that looks like the one of a record is the same. */
+export interface KnowledgeMatterQuestion {
+  recordMatterId: string
+  recordMatterName: string
+  records: MatterRecord[]
+  otherMatterId: string
+  otherMatterName: string
+  otherOrigin: MatterOrigin
+  /** Documents of the record that are in the other matter too. */
+  shared: number
+  /** Documents of the other matter that cite the record's number. */
+  citing: number
 }
 
 export interface KnowledgeDecisionReview {
@@ -1501,6 +1535,8 @@ export interface MatterDetail {
   documents: MatterDocument[]
   parties: MatterParty[]
   decisions: IdentityDecisionView[]
+  /** Its records of a court, with their official titles. */
+  records: MatterRecord[]
 }
 
 export interface DocumentEntity {
@@ -2025,6 +2061,14 @@ export function leaveMatter(document: string, matterId: string, note: string | n
  */
 export function decideMatter(matterId: string, decision: "confirm" | "discard" | "reopen"): Promise<void> {
   return invoke<void>("docbase_knowledge_decide_matter", { matterId, decision })
+}
+
+/**
+ * A person's answer to whether a matter that looks like the one of a record
+ * is the same: yes joins the record's matter into the other, no is not asked again.
+ */
+export function answerMatterQuestion(recordMatterId: string, otherMatterId: string, same: boolean): Promise<void> {
+  return invoke<void>("docbase_knowledge_answer_matter_question", { recordMatterId, otherMatterId, same })
 }
 
 /** Puts a document in a matter, or confirms the model's proposal. */

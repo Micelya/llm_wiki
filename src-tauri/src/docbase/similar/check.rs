@@ -516,7 +516,7 @@ const PUBLIC_BODY_WORDS: &[&str] = &[
     "argentina", "automotor", "seccional", "secc", "departamento", "dpto", "policia", "division", "delegaciones", "administracion",
     "gubernamental", "ingresos", "direccion", "rentas", "escribanos", "actos", "ultima", "voluntad", "banco", "bancociudad", "consejo",
     "profesional", "ciencias", "economicas", "sistema", "integrado", "previsional", "inspeccion", "justicia", "corte", "suprema",
-    "cpacf", "cpce", "agip", "gcba", "igj", "sipa", "informe", "testamento", "nac", "nro",
+    "cpacf", "cpce", "agip", "gcba", "igj", "sipa", "informe", "testamento", "nac", "nro", "secretaria", "secretario",
 ];
 
 /// Words in a text, normalized as everywhere else.

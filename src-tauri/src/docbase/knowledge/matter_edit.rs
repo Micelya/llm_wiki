@@ -343,7 +343,7 @@ fn origin_of(conn: &rusqlite::Connection, matter_id: &str) -> Result<String, Str
 }
 
 /// Puts a document in a matter, as a person's choice.
-fn put(conn: &rusqlite::Connection, matter_id: &str, content: i64, now: i64) -> Result<(), String> {
+pub(super) fn put(conn: &rusqlite::Connection, matter_id: &str, content: i64, now: i64) -> Result<(), String> {
     conn.execute(
         "INSERT INTO knowledge_matter_choice (matter_id, content_id, choice, decided_at) VALUES (?1, ?2, 'in', ?3)
          ON CONFLICT (matter_id, content_id) DO UPDATE SET choice = 'in', decided_at = excluded.decided_at",

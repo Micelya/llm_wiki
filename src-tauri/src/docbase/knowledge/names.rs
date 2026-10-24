@@ -124,7 +124,8 @@ pub fn key(vocabulary: &Vocabulary, kind: &str, written: &str) -> NameKey {
     let rest = without_parentheses(&rest);
     let mut words: Vec<String> = quote::words(&rest);
     let stop: BTreeSet<&str> = identity.stopwords.iter().map(String::as_str).collect();
-    let titles: BTreeSet<&str> = identity.titles.iter().map(String::as_str).collect();
+    // An office before a person's name counts as a title ("la jueza Ana").
+    let titles: BTreeSet<&str> = identity.titles.iter().chain(&identity.offices).map(String::as_str).collect();
     // An acronym written letter by letter ("A.E.B."): every letter counts,
     // even one that alone would be a word to leave out ("e", "y"), D-458.
     let letters = words.len() >= 2 && words.iter().all(|w| w.chars().count() == 1);
@@ -609,6 +610,48 @@ pub fn most_specific_with<'a>(
         .filter(|k| k.1.complete_set().is_superset(&anchor_set))
         .max_by(|a, b| a.1.complete_set().len().cmp(&b.1.complete_set().len()).then_with(|| by_use(a, b)))
         .map(|k| k.0)
+}
+
+/// The words of a person's ways of writing that few of its documents write
+/// (`identity.personName`, D-516): none for an organization, or for a person
+/// in fewer documents than the rule asks. `written_in`: each way of writing
+/// with the document that writes it.
+pub fn rare_words(vocabulary: &Vocabulary, kind: &str, written_in: &[(&str, i64)]) -> BTreeSet<String> {
+    let rule = &vocabulary.identity.person_name;
+    let documents: BTreeSet<i64> = written_in.iter().map(|(_, content)| *content).collect();
+    if kind != PERSON || documents.len() < rule.from_documents.max(1) {
+        return BTreeSet::new();
+    }
+    let mut by_word: std::collections::BTreeMap<String, BTreeSet<i64>> = std::collections::BTreeMap::new();
+    for (written, content) in written_in {
+        for word in key(vocabulary, kind, written).complete_set() {
+            by_word.entry(word).or_default().insert(*content);
+        }
+    }
+    let needed = (rule.min_share * documents.len() as f64).ceil().max(rule.min_documents as f64) as usize;
+    by_word.into_iter().filter(|(_, seen)| seen.len() < needed).map(|(word, _)| word).collect()
+}
+
+/// The name an entity is named by (`most_specific_with`), a person's by what
+/// most of its documents write (D-516): among its names without a word few
+/// of its documents write (`rare_words`), when one of them is a name; the
+/// most complete of them, then. An organization keeps D-259 as it is.
+pub fn chosen_name<'a>(
+    vocabulary: &Vocabulary,
+    kind: &str,
+    candidates: &[(&'a str, &'a str, usize)],
+    forms: &[(&str, usize)],
+    written_in: &[(&str, i64)],
+) -> Option<&'a str> {
+    let rare = rare_words(vocabulary, kind, written_in);
+    if !rare.is_empty() {
+        let usual: Vec<(&'a str, &'a str, usize)> =
+            candidates.iter().copied().filter(|&(_, written, _)| key(vocabulary, kind, written).complete_set().is_disjoint(&rare)).collect();
+        if usual.iter().any(|&(_, written, _)| key(vocabulary, kind, written).has_name() && vocabulary.is_a_name(kind, written)) {
+            return most_specific_with(vocabulary, kind, &usual, forms);
+        }
+    }
+    most_specific_with(vocabulary, kind, candidates, forms)
 }
 
 /// A person's name with words in capitals and no other way of writing them

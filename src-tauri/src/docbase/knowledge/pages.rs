@@ -67,7 +67,7 @@ pub const SYNTHESIS_PROMPT: &str = "sintesis-3";
 /// Raised when a change in the program changes what a projection writes
 /// (which names have a page, what a block lists): every page is written
 /// again from the record, without asking more.
-const PROJECTION_VERSION: &str = "proyeccion-12";
+const PROJECTION_VERSION: &str = "proyeccion-13";
 /// The task its answers are kept under in `model_answer`.
 pub const TASK: &str = "synthesis";
 /// The words of the vocabulary (`pages.words`) a page is written with.
@@ -109,6 +109,8 @@ pub const WORDS: &[&str] = &[
     "matterParties",
     "matterWhy",
     "matterFacts",
+    "matterThis",
+    "writtenAs",
     "matterNamed",
     "matterSameDocument",
     "matterSameMatter",
@@ -251,6 +253,9 @@ struct Claim {
     /// "doubtful" or "corrected", and why.
     certainty: String,
     reasons: Vec<String>,
+    /// Its object is a reference of its documents (D-377): each way they
+    /// write it, as (normalized, written).
+    references: Vec<(String, String)>,
 }
 
 impl Claim {
@@ -363,6 +368,21 @@ struct Matter {
     id: String,
     name: String,
     documents: BTreeMap<i64, Vec<super::matters::Reason>>,
+    /// Its records (number, year), and the words of what names it itself:
+    /// the title of a record, a reference most of its documents write.
+    records: Vec<(u64, u32)>,
+    own_forms: Vec<Vec<String>>,
+}
+
+impl Matter {
+    /// Whether a reference (as normalized and as written) names this very
+    /// matter (D-516): it cites one of its records by number and year, or
+    /// it has, in a row, the words of what names it (two words at least).
+    fn is_named_by(&self, normalized: &str, written: &str) -> bool {
+        let words = quote::words(normalized);
+        self.records.iter().any(|&(number, year)| super::references::cites(normalized, number, year) || super::references::cites(written, number, year))
+            || self.own_forms.iter().any(|form| form.len() >= 2 && quote::contains(&words, form))
+    }
 }
 
 /// A sentence of the synthesis, as the model answers it.
@@ -865,6 +885,23 @@ fn load(conn: &Connection, identities: &HashMap<i64, String>) -> Result<Record, 
             let (claim, content, quote, page) = row.map_err(sql_err)?;
             evidence.entry(claim).or_default().push((content, quote, page));
         }
+        // How the documents write the reference a claim has as its object.
+        let mut references: HashMap<i64, BTreeSet<(String, String)>> = HashMap::new();
+        {
+            let mut statement = conn
+                .prepare(
+                    "SELECT e.claim_id, o.normalized, o.written FROM knowledge_evidence e JOIN knowledge_mention o ON o.id = e.object_mention
+                     WHERE e.claim_id IS NOT NULL AND o.kind = ?1",
+                )
+                .map_err(sql_err)?;
+            let rows = statement
+                .query_map([&vocabulary().matters.kind], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)))
+                .map_err(sql_err)?;
+            for row in rows {
+                let (claim, normalized, written) = row.map_err(sql_err)?;
+                references.entry(claim).or_default().insert((normalized, written));
+            }
+        }
         let mut statement = conn
             .prepare(
                 "SELECT id, subject, predicate, object_entity, object_value, state, valid_from, context_entity, qualifier, amount, detail,
@@ -892,6 +929,7 @@ fn load(conn: &Connection, identities: &HashMap<i64, String>) -> Result<Record, 
                         mirrored: false,
                         certainty: String::new(),
                         reasons: Vec::new(),
+                        references: Vec::new(),
                     },
                 ))
             })
@@ -909,6 +947,7 @@ fn load(conn: &Connection, identities: &HashMap<i64, String>) -> Result<Record, 
             let (subject, mut claim) = row.map_err(sql_err)?;
             (claim.certainty, claim.reasons) = certainty_of(certainties.get(&claim.id).cloned().flatten().as_deref());
             claim.evidence = evidence.remove(&claim.id).unwrap_or_default();
+            claim.references = references.remove(&claim.id).map(|r| r.into_iter().collect()).unwrap_or_default();
             if claim.evidence.is_empty() {
                 continue;
             }
@@ -986,6 +1025,33 @@ fn load(conn: &Connection, identities: &HashMap<i64, String>) -> Result<Record, 
             }
             matter.documents.entry(content).or_default().extend(reasons);
             matter_of.entry(content).or_default().insert(id);
+        }
+    }
+    // What names each matter itself (D-516): the number and the title of
+    // each of its records, and a reference more than half of its documents
+    // write (two at least).
+    {
+        let mut forms_of: BTreeMap<i64, BTreeSet<String>> = BTreeMap::new();
+        for reference in super::references::document_references(conn, vocabulary(), None)? {
+            forms_of.entry(fold(reference.content_id)).or_default().insert(reference.normalized);
+        }
+        for matter in matters.values_mut() {
+            for record in super::matter_records::records_of(conn, &matter.id)? {
+                matter.records.push((record.number.max(0) as u64, record.year.max(0) as u32));
+                matter.own_forms.extend(record.title.as_deref().map(quote::words).filter(|w| !w.is_empty()));
+            }
+            let mut counts: BTreeMap<&String, usize> = BTreeMap::new();
+            for content in matter.documents.keys() {
+                for form in forms_of.get(content).into_iter().flatten() {
+                    *counts.entry(form).or_default() += 1;
+                }
+            }
+            let documents = matter.documents.len();
+            for (form, n) in counts {
+                if n >= 2 && n * 2 > documents {
+                    matter.own_forms.push(quote::words(form));
+                }
+            }
         }
     }
     let mut documents: BTreeMap<i64, Document> = BTreeMap::new();
@@ -1288,6 +1354,7 @@ pub(crate) fn example_question(language: Option<&str>, part: crate::docbase::que
         mirrored: false,
         certainty: super::claims::QUOTED.to_string(),
         reasons: Vec::new(),
+        references: Vec::new(),
     };
     let company = Entity {
         id: "ejemplo-organizacion".to_string(),
@@ -2093,6 +2160,26 @@ fn write_page(
 /// The page of a matter (a group of documents, D-213): its parties and the
 /// people around it, what its documents say of them, its documents and
 /// why each one is in it. Written by the app, without the model.
+/// Several claims said as one: confirmed when every one is, doubtful when
+/// one is (with the reasons of each), corrected when one is.
+fn together(claims: &[&Claim]) -> Claim {
+    let mut out = claims[0].clone();
+    let level = |l: &str| claims.iter().any(|c| c.certainty == l);
+    let (certainty, reasons) = if claims.iter().all(|c| c.certainty == super::claims::CONFIRMED) {
+        (super::claims::CONFIRMED, Vec::new())
+    } else if level(super::claims::DOUBTFUL) {
+        let reasons: BTreeSet<String> = claims.iter().filter(|c| c.doubtful()).flat_map(|c| c.reasons.iter().cloned()).collect();
+        (super::claims::DOUBTFUL, reasons.into_iter().collect())
+    } else if level(super::claims::CORRECTED) {
+        (super::claims::CORRECTED, Vec::new())
+    } else {
+        (super::claims::QUOTED, Vec::new())
+    };
+    out.certainty = certainty.to_string();
+    out.reasons = reasons;
+    out
+}
+
 fn render_matter(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, String>, matter: &Matter) -> Rendered {
     let words = &vocabulary.pages;
     let contents: BTreeSet<i64> = matter.documents.keys().copied().collect();
@@ -2173,22 +2260,39 @@ fn render_matter(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<Stri
     // the quotes and their documents (D-441).
     let mut notes = Notes::default();
     let mut said: Vec<String> = Vec::new();
+    let quotes_of = |claim: &Claim| -> Vec<String> {
+        claim
+            .evidence
+            .iter()
+            .filter(|(c, ..)| contents.contains(&record.documents.get(c).and_then(|d| d.chosen).unwrap_or(*c)))
+            .take(QUOTES_PER_CLAIM)
+            .map(|(content, quote, page)| {
+                let at = page.map(|p| format!(", {} {p}", words.word("page"))).unwrap_or_default();
+                format!("«{}» ({}{at})", one_line(quote), document_link(record, *content))
+            })
+            .collect()
+    };
+    // What points to this very matter (its decedent, written as each
+    // document writes the matter) is said once, the ways of writing it in
+    // its note (D-516).
+    let here = |claim: &Claim| {
+        claim.object_entity.is_none()
+            && claim.state != "conflict"
+            && !claim.references.is_empty()
+            && claim.references.iter().all(|(normalized, written)| matter.is_named_by(normalized, written))
+    };
     for (entity, _, _) in &people {
+        let subject = paths.get(&entity.id).map(|p| link(p, &entity.name)).unwrap_or_else(|| entity.name.clone());
+        let mut of_here: BTreeMap<&str, Vec<&Claim>> = BTreeMap::new();
         for claim in entity.claims.iter().filter(|c| !c.mirrored) {
-            let quotes: Vec<String> = claim
-                .evidence
-                .iter()
-                .filter(|(c, ..)| contents.contains(&record.documents.get(c).and_then(|d| d.chosen).unwrap_or(*c)))
-                .take(QUOTES_PER_CLAIM)
-                .map(|(content, quote, page)| {
-                    let at = page.map(|p| format!(", {} {p}", words.word("page"))).unwrap_or_default();
-                    format!("«{}» ({}{at})", one_line(quote), document_link(record, *content))
-                })
-                .collect();
+            let quotes = quotes_of(claim);
             if quotes.is_empty() {
                 continue;
             }
-            let subject = paths.get(&entity.id).map(|p| link(p, &entity.name)).unwrap_or_else(|| entity.name.clone());
+            if here(claim) {
+                of_here.entry(claim.predicate.as_str()).or_default().push(claim);
+                continue;
+            }
             let object = match claim.object_entity.as_deref() {
                 Some(_) if claim.amount.is_some() => object_text(record, claim),
                 Some(id) => paths.get(id).map(|p| link(p, &object_text(record, claim))).unwrap_or_else(|| object_text(record, claim)),
@@ -2198,6 +2302,19 @@ fn render_matter(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<Stri
             let mark = certainty_mark(vocabulary, claim);
             let note = notes.mark(&quotes.join("; "));
             said.push(format!("- {subject} — {}: {object}{conflict}{mark}{note}\n", claim_label(vocabulary, record, claim)));
+        }
+        for claims in of_here.values() {
+            let quotes: Vec<String> = claims.iter().flat_map(|c| quotes_of(c)).collect();
+            let mut seen = BTreeSet::new();
+            let written: Vec<String> = claims
+                .iter()
+                .flat_map(|c| c.references.iter())
+                .filter(|(normalized, _)| seen.insert(normalized.clone()))
+                .map(|(_, written)| format!("«{}»", one_line(written)))
+                .collect();
+            let note = notes.mark(&format!("{}. {}: {}", quotes.join("; "), words.word("writtenAs"), written.join(" · ")));
+            let mark = certainty_mark(vocabulary, &together(claims));
+            said.push(format!("- {subject} — {}: {}{mark}{note}\n", claim_label(vocabulary, record, claims[0]), words.word("matterThis")));
         }
     }
     if !said.is_empty() {
@@ -2856,6 +2973,7 @@ mod page_rule_tests {
             mirrored: false,
             certainty: "quoted".into(),
             reasons: Vec::new(),
+            references: Vec::new(),
         });
         // Its address alone is not: the offices of a list of
         // jurisdictions on a form (D-288).

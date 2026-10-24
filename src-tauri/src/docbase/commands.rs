@@ -1264,6 +1264,21 @@ pub fn docbase_knowledge_decide_matter(app: tauri::AppHandle, state: State<'_, D
     Ok(())
 }
 
+/// A person's answer to whether a matter that looks like the one of a
+/// record is the same: yes joins them, no is not asked again.
+#[tauri::command(async)]
+pub fn docbase_knowledge_answer_matter_question(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    record_matter_id: String,
+    other_matter_id: String,
+    same: bool,
+) -> Result<(), String> {
+    state.base()?.knowledge_answer_matter_question(&record_matter_id, &other_matter_id, same)?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(())
+}
+
 /// Creates a matter by hand (empty or with documents); returns its id.
 #[tauri::command(async)]
 pub fn docbase_knowledge_create_matter(app: tauri::AppHandle, state: State<'_, DocBaseState>, name: String, documents: Vec<String>) -> Result<String, String> {

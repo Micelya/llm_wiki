@@ -22,6 +22,8 @@ pub mod view;
 pub mod walk;
 
 #[cfg(test)]
+mod check_records;
+#[cfg(test)]
 mod fixtures;
 #[cfg(test)]
 mod tests;

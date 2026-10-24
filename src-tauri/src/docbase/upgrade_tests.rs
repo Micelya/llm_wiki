@@ -36,6 +36,8 @@ const PERSON_DECISIONS: &[&str] = &[
     "knowledge_decision",
     "knowledge_matter",
     "knowledge_matter_choice",
+    "knowledge_matter_record",
+    "knowledge_matter_question",
     "knowledge_note",
     "knowledge_query",
     "knowledge_research",

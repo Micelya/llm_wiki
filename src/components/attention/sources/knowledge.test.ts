@@ -53,6 +53,7 @@ function attention(patch: Partial<KnowledgeAttention> = {}): KnowledgeAttention 
     keptPages: [],
     leftWithDocuments: [],
     decisionsToReview: [],
+    mattersToJoin: [],
     ...patch,
   }
 }
@@ -128,6 +129,43 @@ describe("knowledgeNotices", () => {
       detail: "3 documentos · comparten la misma referencia (3), el mismo número (2)",
     })
     expect(toConfirm?.cases?.[0].actions?.map((a) => a.label)).toEqual(["Confirmar", "Descartar", "Ver"])
+  })
+
+  it("asks whether a matter that looks like the one of a record is the same, with the evidence, and answers it", async () => {
+    const notices = knowledgeNotices(
+      {
+        attention: attention({
+          mattersToJoin: [
+            {
+              recordMatterId: "mat-p-1",
+              recordMatterName: "QUIMERA C/ ONDARRETA S/ INVENTADO",
+              records: [{ portal: "PJN", jurisdiction: "ZZZ", number: 4321, year: 2011, reference: "ZZZ 4321/2011", title: "QUIMERA C/ ONDARRETA S/ INVENTADO" }],
+              otherMatterId: "mat-2",
+              otherMatterName: "Reclamo inventado",
+              otherOrigin: "person",
+              shared: 40,
+              citing: 12,
+            },
+          ],
+        }),
+        doubts: [],
+      },
+      words,
+    )
+    const toJoin = notices.find((n) => n.topic === "matters-to-join")
+    expect(toJoin?.kind).toBe("decision")
+    expect(toJoin?.title).toContain("expediente")
+    expect(toJoin?.cases?.[0]).toMatchObject({
+      title: "«QUIMERA C/ ONDARRETA S/ INVENTADO» y «Reclamo inventado»",
+      detail: "Expediente ZZZ 4321/2011 (QUIMERA C/ ONDARRETA S/ INVENTADO) · comparten 40 documentos · 12 documentos citan su número",
+    })
+    const actions = toJoin?.cases?.[0].actions ?? []
+    expect(actions.map((a) => a.label)).toEqual(["Es el mismo caso", "No es el mismo", "Ver"])
+    const no = actions[1]
+    if (no.kind !== "run") throw new Error("a run")
+    await no.run()
+    expect(invoke).toHaveBeenCalledWith("docbase_knowledge_answer_matter_question", { recordMatterId: "mat-p-1", otherMatterId: "mat-2", same: false })
+    expect(attentionCounts(notices).decisions).toBe(1)
   })
 
   it("counts conflicts and proposals, and leaves joins by identifier and kept pages out of the counter", () => {

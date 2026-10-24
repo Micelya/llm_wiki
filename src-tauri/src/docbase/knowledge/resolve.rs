@@ -64,7 +64,7 @@ const RESOLUTION_SETTING: &str = "knowledge-resolution";
 /// Why a group of mentions has no entity: it is a reference (D-377).
 pub(crate) const REFERENCE: &str = "referencia";
 /// Raised when a change in the program changes what a resolution gives.
-const RESOLUTION_VERSION: &str = "resolucion-14";
+const RESOLUTION_VERSION: &str = "resolucion-15";
 
 fn resolution_basis() -> String {
     format!("{RESOLUTION_VERSION}|{IDENTITY_PROMPT}|{}", vocabulary().digest)
@@ -480,8 +480,55 @@ pub(crate) fn clusters(
         }
         cluster.strong.retain(|_, v| !v.is_empty());
     }
+    another_persons_number(&mut out);
     out.sort_by(|a, b| a.canon.cmp(&b.canon).then_with(|| a.key.cmp(&b.key)));
     out
+}
+
+/// No one has two numbers of a strong identifier. A group of a document
+/// with two of one kind, where another document gives one of them to a
+/// name the same document writes for someone else (a form read without
+/// its structure gives a person the other's DNI too), has that one
+/// wrongly: it is taken off this group, which keeps its own, and opens no
+/// doubt of identity. Nothing is taken when it is not clear whose it is.
+fn another_persons_number(out: &mut [Cluster]) {
+    let mut holders: HashMap<(String, String, String), Vec<usize>> = HashMap::new();
+    for (i, cluster) in out.iter().enumerate() {
+        for (kind, values) in &cluster.strong {
+            for value in values {
+                holders.entry((cluster.kind.clone(), kind.clone(), value.clone())).or_default().push(i);
+            }
+        }
+    }
+    let same = |kind: &str, a: &NameKey, b: &NameKey| a.has_name() && b.has_name() && matches!(names::compare(kind, a, b), Likeness::Exact);
+    let mut taken: Vec<(usize, String, String)> = Vec::new();
+    for (i, cluster) in out.iter().enumerate() {
+        if !cluster.strong.values().any(|v| v.len() >= 2) {
+            continue;
+        }
+        let others: Vec<&Cluster> =
+            out.iter().enumerate().filter(|(j, c)| *j != i && c.content_id == cluster.content_id && c.kind == cluster.kind).map(|(_, c)| c).collect();
+        for (kind, values) in cluster.strong.iter().filter(|(_, v)| v.len() >= 2) {
+            let mut wrong: Vec<&String> = Vec::new();
+            for value in values {
+                let elsewhere = holders[&(cluster.kind.clone(), kind.clone(), value.clone())].iter().map(|&j| &out[j]).filter(|c| c.content_id != cluster.content_id);
+                let of_another = elsewhere.into_iter().any(|holder| {
+                    !same(&cluster.kind, &cluster.name, &holder.name) && others.iter().any(|o| same(&cluster.kind, &o.name, &holder.name))
+                });
+                if of_another {
+                    wrong.push(value);
+                }
+            }
+            if !wrong.is_empty() && wrong.len() < values.len() {
+                taken.extend(wrong.into_iter().map(|v| (i, kind.clone(), v.clone())));
+            }
+        }
+    }
+    for (i, kind, value) in taken {
+        if let Some(values) = out[i].strong.get_mut(&kind) {
+            values.remove(&value);
+        }
+    }
 }
 
 /// Joins, within each document, a group of an organization named without
@@ -598,10 +645,16 @@ pub(crate) struct Decided {
     pub wrong: BTreeSet<String>,
     /// Keys of claims a person confirmed.
     pub confirmed: BTreeSet<String>,
+    /// The names a person chose (D-516): the key of a group of mentions of
+    /// the entity and the name, in the order they were chosen.
+    pub names: Vec<(String, String)>,
     /// Every active decision, placed on what the documents say now
     /// (`anchors.rs`): the keys above are the ones placed.
     pub anchored: Vec<super::anchors::Anchored>,
 }
+
+/// How a decision of a name keeps the name chosen (`b`).
+pub(crate) const NAME_PREFIX: &str = "name:";
 
 pub(crate) fn load_decided(conn: &Connection) -> Result<Decided, String> {
     let anchored = super::anchors::place_all(conn, vocabulary())?;
@@ -617,6 +670,11 @@ pub(crate) fn load_decided(conn: &Connection) -> Result<Decided, String> {
             }
             ("confirm", a, _) => {
                 out.confirmed.insert(a);
+            }
+            ("name", a, Some(b)) => {
+                if let Some(name) = b.strip_prefix(NAME_PREFIX).map(str::trim).filter(|n| !n.is_empty()) {
+                    out.names.push((a, name.to_string()));
+                }
             }
             _ => {}
         }
@@ -847,13 +905,15 @@ impl<'a> Resolver<'a> {
                 }
             }
         }
-        for ((kind, _, _), list) in &index {
+        for ((kind, id_kind, value), list) in &index {
             let principal = list[0];
             for &other in &list[1..] {
                 let (a, b) = (&self.clusters[principal].name, &self.clusters[other].name);
+                // The identifier both have: what a person sees to decide.
+                let shared = Some(format!("{id_kind}: {value}"));
                 match names::compare(kind, a, b) {
-                    Likeness::Unlike if a.has_name() && b.has_name() => self.doubt(principal, other, "identificador-otro-nombre", None),
-                    Likeness::OtherForm => self.doubt(principal, other, "identificador-otra-forma", None),
+                    Likeness::Unlike if a.has_name() && b.has_name() => self.doubt(principal, other, "identificador-otro-nombre", shared),
+                    Likeness::OtherForm => self.doubt(principal, other, "identificador-otra-forma", shared),
                     _ => {
                         if let Err(why) = self.join(principal, other, "identificador") {
                             self.doubt(principal, other, why, None);
@@ -2248,6 +2308,18 @@ pub(crate) fn write(base: &DocBase, outcome: &Outcome, report: &mut ResolveRepor
     let tx = conn.transaction().map_err(sql_err)?;
     let mut changed: BTreeSet<String> = BTreeSet::new();
     let mut entity_of_row: HashMap<i64, (String, &'static str)> = HashMap::new();
+    // The name a person chose for an entity, by the group of mentions it was
+    // chosen on: the latest one of the groups of an entity wins (D-516).
+    let chosen_by_person: HashMap<usize, (usize, &str)> = {
+        let index = names_index(clusters);
+        let mut out = HashMap::new();
+        for (order, (key, name)) in decided.names.iter().enumerate() {
+            if let Some(c) = parse_cluster_key(key).and_then(|k| index.get(&k).copied()) {
+                out.insert(c, (order, name.as_str()));
+            }
+        }
+        out
+    };
     for (id, list) in &assigned {
         let kind = &clusters[list[0]].kind;
         // Aliases: each normalized name with its most used way of writing.
@@ -2278,12 +2350,18 @@ pub(crate) fn write(base: &DocBase, outcome: &Outcome, report: &mut ResolveRepor
         let shown: Vec<(String, String, usize)> = proper.iter().map(|n| (n.to_string(), written_of(n), count(n))).collect();
         let candidates: Vec<(&str, &str, usize)> = shown.iter().map(|(n, w, c)| (n.as_str(), w.as_str(), *c)).collect();
         let forms: Vec<(&str, usize)> = aliases.values().flat_map(|forms| forms.iter().map(|(w, c)| (*w, *c))).collect();
-        let chosen = names::most_specific_with(vocabulary, kind, &candidates, &forms).unwrap_or_default().to_string();
+        // A person, by what most of its documents write (D-516).
+        let written_in: Vec<(&str, i64)> =
+            list.iter().flat_map(|&c| clusters[c].rows.iter().map(|&r| (rows[r].written.as_str(), rows[r].content_id))).collect();
+        let chosen = names::chosen_name(vocabulary, kind, &candidates, &forms, &written_in).unwrap_or_default().to_string();
         let chosen = chosen.as_str();
         // On one line, and in the form of a proper name when the documents
         // write it some other way than in capitals (D-239).
         let name = super::names::shown_name(&group_name.unwrap_or_else(|| written_of(chosen)), aliases.values().flat_map(|forms| forms.keys().copied()));
         let name = if kind == names::PERSON { names::person_case(&name) } else { name };
+        // What a person chose stands, as written (D-516).
+        let by_person = list.iter().filter_map(|c| chosen_by_person.get(c)).max_by_key(|(order, _)| *order).map(|(_, name)| name);
+        let name = by_person.map(|n| n.split_whitespace().collect::<Vec<_>>().join(" ")).unwrap_or(name);
         let now_members = mention_ids(list);
         match existing.get(id) {
             Some(old) => {

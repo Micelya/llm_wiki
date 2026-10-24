@@ -21,6 +21,7 @@ export const legal: Vertical = {
           "Traé los expedientes de los portales judiciales a tu base: la app recorre el portal sola y te pide ayuda solo cuando el portal pide resolver un desafío o iniciar sesión.",
         record: "Expediente",
         records: "Expedientes",
+        recordTitle: "Carátula",
       },
       templates: {
         name: "Plantillas",
@@ -194,6 +195,7 @@ export const legal: Vertical = {
           "Bring the case files of the court portals into your base: the app walks the portal by itself and asks for your help only when the portal asks to solve a challenge or to sign in.",
         record: "Case file",
         records: "Case files",
+        recordTitle: "Case caption",
       },
       templates: {
         name: "Templates",

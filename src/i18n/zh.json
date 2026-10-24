@@ -27,7 +27,12 @@
     "settings": "设置",
     "settingsShortcut": " (Cmd/Ctrl+,)",
     "updateAvailable": "有可用更新",
-    "updateAvailableSuffix": " · 有更新"
+    "updateAvailableSuffix": " · 有更新",
+    "history": "浏览路径",
+    "back": "后退",
+    "backHint": "返回之前打开的内容 (Alt+←)",
+    "forward": "前进",
+    "forwardHint": "再次前往后退时离开的内容 (Alt+→)"
   },
   "updateBanner": {
     "message": "新版本 {{version}} 已发布",

@@ -9,8 +9,56 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use rusqlite::{params_from_iter, types::Value, Connection, OptionalExtension};
 use serde::Serialize;
 
+use super::vocabulary::{vocabulary, Vocabulary};
 use super::{quote, visible_content};
 use crate::docbase::{sql_err, DocBase, Visible};
+
+/// How a mention was joined to the contact of an organization, not to a
+/// name of it (D-262): an area ("Legales X") or a mailbox (legal@x).
+const CONTACTS: [&str; 2] = ["area", "casilla"];
+
+/// Whether a way of writing is shown as a name of an entity: what the
+/// pages show as one (`is_a_name`: not a mail address, a generic word, a
+/// misread), and not the way of writing of a contact the entity was joined
+/// by, which is its contact, not another name.
+fn shown_as_name(vocabulary: &Vocabulary, kind: &str, written: &str, contacts: &BTreeSet<String>) -> bool {
+    vocabulary.is_a_name(kind, written) && !contacts.contains(written)
+}
+
+/// The name an entity is shown by, as its page names it: its own when it
+/// is a name, or else the most used way of writing that is one; none when
+/// nothing names it (it is not listed).
+fn shown_name(vocabulary: &Vocabulary, kind: &str, name: &str, by_use: &[String], contacts: &BTreeSet<String>) -> Option<String> {
+    if vocabulary.is_a_name(kind, name) {
+        return Some(name.to_string());
+    }
+    by_use.iter().find(|w| shown_as_name(vocabulary, kind, w, contacts)).cloned()
+}
+
+/// The other ways of writing an entity shown with its name: names only,
+/// each once, the most used first.
+fn shown_aliases(vocabulary: &Vocabulary, kind: &str, name: &str, by_use: &[String], contacts: &BTreeSet<String>) -> Vec<String> {
+    let mut seen = BTreeSet::from([quote::words(name).join(" ")]);
+    by_use.iter().filter(|w| shown_as_name(vocabulary, kind, w, contacts) && seen.insert(quote::words(w).join(" "))).cloned().collect()
+}
+
+/// By entity, the ways of writing of the mentions joined to it as a
+/// contact (an area, a mailbox), of one entity or all.
+fn contacts(conn: &Connection, entity: Option<&str>) -> Result<HashMap<String, BTreeSet<String>>, String> {
+    let marks = CONTACTS.iter().map(|c| format!("'{c}'")).collect::<Vec<_>>().join(", ");
+    let mut statement = conn
+        .prepare(&format!(
+            "SELECT entity_id, written FROM knowledge_mention WHERE entity_id IS NOT NULL AND resolved_by IN ({marks}) AND (?1 IS NULL OR entity_id = ?1)"
+        ))
+        .map_err(sql_err)?;
+    let rows = statement.query_map([entity], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))).map_err(sql_err)?;
+    let mut out: HashMap<String, BTreeSet<String>> = HashMap::new();
+    for row in rows {
+        let (entity, written) = row.map_err(sql_err)?;
+        out.entry(entity).or_default().insert(written);
+    }
+    Ok(out)
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -37,6 +85,9 @@ pub struct EntityIdentifier {
     pub kind: String,
     pub value: String,
     pub documents: usize,
+    /// A second number of an identifier that names one entity only, which
+    /// another entity has too: perhaps the other's, read into this one.
+    pub doubtful: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -102,6 +153,9 @@ pub struct DoubtView {
     pub reason: String,
     pub detail: Option<String>,
     pub evidence_hash: String,
+    /// The documents of the two sides (each side is a group of mentions of
+    /// one document): where to see why.
+    pub documents: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -189,10 +243,23 @@ fn doubts(conn: &Connection, visible: &Visible, entity: Option<&str>) -> Result<
                 reason: row.get(7)?,
                 detail: row.get(8)?,
                 evidence_hash: row.get(9)?,
+                documents: Vec::new(),
             })
         })
         .map_err(sql_err)?;
-    rows.collect::<Result<_, _>>().map_err(sql_err)
+    let mut out: Vec<DoubtView> = rows.collect::<Result<_, _>>().map_err(sql_err)?;
+    drop(statement);
+    let mut cache = HashMap::new();
+    for doubt in &mut out {
+        for key in [doubt.a.clone(), doubt.b.clone()] {
+            let Some((content, _, _)) = super::resolve::parse_cluster_key(&key) else { continue };
+            let (_, name) = document(conn, visible, content, &mut cache)?;
+            if !name.is_empty() && !doubt.documents.contains(&name) {
+                doubt.documents.push(name);
+            }
+        }
+    }
+    Ok(out)
 }
 
 impl DocBase {
@@ -231,10 +298,20 @@ impl DocBase {
                 aliases.entry(entity).or_default().push((normalized, written, mentions));
             }
         }
+        let contacts = contacts(&conn, None)?;
+        let paths = super::screens::page_paths(&conn)?;
+        let words = vocabulary();
+        let none = BTreeSet::new();
         let wanted: Vec<String> = query.map(quote::words).unwrap_or_default();
         let mut out = Vec::new();
         for (id, kind, name, mentions, documents) in rows {
             let list = aliases.remove(&id).unwrap_or_default();
+            // What the pages do not name is not listed (a misread, a mail
+            // address, a generic word), and it is shown by the name its page
+            // has.
+            let by_use: Vec<String> = list.iter().map(|(_, written, _)| written.clone()).collect();
+            let joined = contacts.get(&id).unwrap_or(&none);
+            let Some(name) = shown_name(words, &kind, &name, &by_use, joined) else { continue };
             if !wanted.is_empty() {
                 let found = list.iter().any(|(normalized, _, _)| {
                     let words: BTreeSet<&str> = normalized.split(' ').collect();
@@ -244,9 +321,11 @@ impl DocBase {
                     continue;
                 }
             }
-            let others: Vec<String> = list.into_iter().map(|(_, written, _)| written).filter(|w| w != &name).take(5).collect();
+            let others: Vec<String> = shown_aliases(words, &kind, &name, &by_use, joined).into_iter().take(5).collect();
             out.push(EntitySummary { id, kind, name, mentions: mentions as usize, documents: documents as usize, aliases: others });
         }
+        // What has a page first (the order stays within each part).
+        out.sort_by_key(|e| !paths.contains_key(&e.id));
         Ok(out)
     }
 
@@ -289,6 +368,18 @@ impl DocBase {
         }
         let mut aliases: Vec<AliasView> = written.into_iter().map(|(written, mentions)| AliasView { written, mentions }).collect();
         aliases.sort_by(|a, b| b.mentions.cmp(&a.mentions).then_with(|| a.written.cmp(&b.written)));
+        // Its ways of writing that are names (a mail address, a generic
+        // word or a contact is not another name of it), each once.
+        let words = vocabulary();
+        let joined = contacts(&conn, Some(id))?.remove(id).unwrap_or_default();
+        let by_use: Vec<String> = aliases.iter().map(|a| a.written.clone()).collect();
+        let name = shown_name(words, &kind, &name, &by_use, &joined).unwrap_or(name);
+        let mut seen = BTreeSet::new();
+        let own = quote::words(&name).join(" ");
+        aliases.retain(|a| {
+            let form = quote::words(&a.written).join(" ");
+            (form == own || shown_as_name(words, &kind, &a.written, &joined)) && seen.insert(form)
+        });
         // Identifiers, by kind and value, with how many documents give them.
         let mut identifiers: BTreeMap<(String, String), BTreeSet<i64>> = BTreeMap::new();
         {
@@ -309,10 +400,35 @@ impl DocBase {
                 shown.entry((kind.clone(), normalized.clone())).or_insert(value);
                 identifiers.entry((kind, normalized)).or_default().insert(content);
             }
+            // A second number of a strong identifier that another entity
+            // has too is doubtful: perhaps the other's.
+            let mut per_kind: HashMap<String, usize> = HashMap::new();
+            for (kind, _) in identifiers.keys() {
+                *per_kind.entry(kind.clone()).or_default() += 1;
+            }
+            let mut doubtful: BTreeSet<(String, String)> = BTreeSet::new();
+            for (kind, normalized) in identifiers.keys() {
+                if per_kind[kind] < 2 || !words.is_strong(kind) {
+                    continue;
+                }
+                let others: i64 = conn
+                    .query_row(
+                        "SELECT count(*) FROM knowledge_identifier i JOIN knowledge_mention m ON m.id = i.mention_id
+                         JOIN knowledge_entity e ON e.id = m.entity_id
+                         WHERE i.kind = ?1 AND i.normalized = ?2 AND m.entity_id != ?3 AND e.state = 'active'",
+                        rusqlite::params![kind, normalized, id],
+                        |row| row.get(0),
+                    )
+                    .map_err(sql_err)?;
+                if others > 0 {
+                    doubtful.insert((kind.clone(), normalized.clone()));
+                }
+            }
             let identifiers: Vec<EntityIdentifier> = identifiers
                 .into_iter()
                 .map(|((kind, normalized), docs)| EntityIdentifier {
-                    value: shown.remove(&(kind.clone(), normalized)).unwrap_or_default(),
+                    value: shown.remove(&(kind.clone(), normalized.clone())).unwrap_or_default(),
+                    doubtful: doubtful.contains(&(kind.clone(), normalized)),
                     kind,
                     documents: docs.len(),
                 })

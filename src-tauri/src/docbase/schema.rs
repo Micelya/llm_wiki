@@ -10,7 +10,71 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14, V15, V16, V17, V18, V19, V20, V21, V22, V23, V24, V25, V26, V27];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14, V15, V16, V17, V18, V19, V20, V21, V22, V23, V24, V25, V26, V27, V28, V29];
+
+/// A person can choose how an entity is named (D-516): `knowledge_decision`
+/// admits `name`, `a` being a group of mentions of the entity and `b` the
+/// name chosen (`name:<the name>`). Every decision is kept as it was.
+const V29: &str = "
+CREATE TABLE knowledge_decision_v29 (
+    id                   INTEGER PRIMARY KEY,
+    kind                 TEXT NOT NULL CHECK (kind IN ('join', 'separate', 'wrong', 'confirm', 'name')),
+    a                    TEXT NOT NULL,
+    b                    TEXT,
+    note                 TEXT,
+    shown_evidence       TEXT NOT NULL,
+    shown_evidence_hash  TEXT NOT NULL,
+    state                TEXT NOT NULL DEFAULT 'active' CHECK (state IN ('active', 'undone')),
+    decided_at           INTEGER NOT NULL,
+    undone_at            INTEGER,
+    review               TEXT,
+    applied_as           TEXT
+);
+INSERT INTO knowledge_decision_v29 (id, kind, a, b, note, shown_evidence, shown_evidence_hash, state, decided_at, undone_at, review, applied_as)
+    SELECT id, kind, a, b, note, shown_evidence, shown_evidence_hash, state, decided_at, undone_at, review, applied_as FROM knowledge_decision;
+DROP TABLE knowledge_decision;
+ALTER TABLE knowledge_decision_v29 RENAME TO knowledge_decision;
+CREATE INDEX knowledge_decision_by_a ON knowledge_decision (a);
+CREATE INDEX knowledge_decision_by_b ON knowledge_decision (b);
+";
+
+/// The records of a court a matter has (`knowledge/matter_records.rs`): a
+/// record is data of a matter, not the matter. A matter can have none, one
+/// or several; the integration of a record brought from a portal looks for
+/// the matter that has it before making one.
+///
+/// - `knowledge_matter_record`: the portal, the jurisdiction, the number and
+///   the year of the record; `title`, its official title as the portal
+///   gives it; `source`, where it came from (`integration`: a record brought
+///   from a portal).
+/// - `knowledge_matter_question`: whether a matter that looks like the one
+///   of a record is the same (shared documents, `shared`; documents that cite
+///   its number, `citing`): one question for a person per pair. `answer` is
+///   `same` (they were joined) or `different` (not asked again).
+const V28: &str = "
+CREATE TABLE knowledge_matter_record (
+    matter_id     TEXT NOT NULL REFERENCES knowledge_matter (id) ON DELETE CASCADE,
+    portal        TEXT NOT NULL,
+    jurisdiction  TEXT NOT NULL,
+    number        INTEGER NOT NULL,
+    year          INTEGER NOT NULL,
+    title         TEXT,
+    source        TEXT NOT NULL,
+    added_at      INTEGER NOT NULL,
+    PRIMARY KEY (matter_id, portal, jurisdiction, number, year)
+);
+CREATE INDEX knowledge_matter_record_by_key ON knowledge_matter_record (portal, jurisdiction, number, year);
+CREATE TABLE knowledge_matter_question (
+    record_matter  TEXT NOT NULL,
+    other_matter   TEXT NOT NULL,
+    shared         INTEGER NOT NULL DEFAULT 0,
+    citing         INTEGER NOT NULL DEFAULT 0,
+    answer         TEXT CHECK (answer IN ('same', 'different')),
+    asked_at       INTEGER NOT NULL,
+    answered_at    INTEGER,
+    PRIMARY KEY (record_matter, other_matter)
+);
+";
 
 /// The programs a person let use the base through the server inside the
 /// machine (`local_server/programs.rs`, D-495, P-227): an assistant such as
@@ -1544,5 +1608,75 @@ mod tests {
         }
         let kept: String = conn.query_row("SELECT name FROM type_decision", [], |row| row.get(0)).unwrap();
         assert_eq!(kept, "Receta");
+    }
+
+    /// The records of a matter come after the programs of the machine: the
+    /// matters there are stay as they were, with no record yet.
+    #[test]
+    fn a_base_before_the_records_of_a_matter_gets_them_and_keeps_its_matters() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+        for (index, migration) in MIGRATIONS.iter().enumerate().take(27) {
+            conn.execute_batch(migration).unwrap();
+            conn.pragma_update(None, "user_version", index as i64 + 1).unwrap();
+        }
+        conn.execute(
+            "INSERT INTO knowledge_matter (id, name, state, created_at, updated_at, origin, confirmation, name_by_person)
+             VALUES ('mat-p-1', 'XYZ 1/2001', 'active', 1, 1, 'person', 'confirmed', 1)",
+            [],
+        )
+        .unwrap();
+        migrate(&mut conn).unwrap();
+        assert_eq!(version(&conn).unwrap(), CURRENT_VERSION);
+        let kept: (String, i64) = conn.query_row("SELECT name, name_by_person FROM knowledge_matter", [], |row| Ok((row.get(0)?, row.get(1)?))).unwrap();
+        assert_eq!(kept, ("XYZ 1/2001".to_string(), 1), "the update does not repair: the integration does, with the record in hand");
+        for table in ["knowledge_matter_record", "knowledge_matter_question"] {
+            let rows: i64 = conn.query_row(&format!("SELECT count(*) FROM {table}"), [], |row| row.get(0)).unwrap();
+            assert_eq!(rows, 0, "{table}");
+        }
+        conn.execute(
+            "INSERT INTO knowledge_matter_record (matter_id, portal, jurisdiction, number, year, title, source, added_at)
+             VALUES ('mat-p-1', 'pjn', 'XYZ', 1, 2001, NULL, 'integration', 1)",
+            [],
+        )
+        .unwrap();
+        conn.execute("DELETE FROM knowledge_matter WHERE id = 'mat-p-1'", []).unwrap();
+        let left: i64 = conn.query_row("SELECT count(*) FROM knowledge_matter_record", [], |row| row.get(0)).unwrap();
+        assert_eq!(left, 0, "a record goes with its matter");
+    }
+
+    /// A person can choose a name (V29): every decision there was stays, as
+    /// it was, and a decision of a name is admitted.
+    #[test]
+    fn a_base_before_the_names_chosen_keeps_its_decisions_and_admits_one() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+        for (index, migration) in MIGRATIONS.iter().enumerate().take(28) {
+            conn.execute_batch(migration).unwrap();
+            conn.pragma_update(None, "user_version", index as i64 + 1).unwrap();
+        }
+        conn.execute(
+            "INSERT INTO knowledge_decision (kind, a, b, shown_evidence, shown_evidence_hash, state, decided_at, review, applied_as)
+             VALUES ('separate', 'cluster:1:persona:a', 'cluster:2:persona:b', '[]', 'h', 'undone', 5, 'varias', '{}')",
+            [],
+        )
+        .unwrap();
+        assert!(conn
+            .execute("INSERT INTO knowledge_decision (kind, a, b, shown_evidence, shown_evidence_hash, decided_at) VALUES ('name', 'x', 'name:y', '[]', 'h', 1)", [])
+            .is_err());
+        migrate(&mut conn).unwrap();
+        assert_eq!(version(&conn).unwrap(), CURRENT_VERSION);
+        let kept: (String, String, String, i64, String, String) = conn
+            .query_row("SELECT kind, a, state, decided_at, review, applied_as FROM knowledge_decision", [], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?))
+            })
+            .unwrap();
+        assert_eq!(kept, ("separate".into(), "cluster:1:persona:a".into(), "undone".into(), 5, "varias".into(), "{}".into()));
+        conn.execute("INSERT INTO knowledge_decision (kind, a, b, shown_evidence, shown_evidence_hash, decided_at) VALUES ('name', 'x', 'name:y', '[]', 'h', 1)", [])
+            .unwrap();
+        let indexes: i64 = conn
+            .query_row("SELECT count(*) FROM sqlite_master WHERE type = 'index' AND tbl_name = 'knowledge_decision'", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(indexes, 2);
     }
 }

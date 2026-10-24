@@ -27,7 +27,12 @@
     "settings": "Ajustes",
     "settingsShortcut": " (Ctrl+,)",
     "updateAvailable": "Hay una versión nueva",
-    "updateAvailableSuffix": " · versión nueva"
+    "updateAvailableSuffix": " · versión nueva",
+    "history": "Recorrido",
+    "back": "Atrás",
+    "backHint": "Volver a lo que tenías abierto antes (Alt+←)",
+    "forward": "Adelante",
+    "forwardHint": "Ir de nuevo a lo que dejaste al volver (Alt+→)"
   },
   "updateBanner": {
     "message": "Está disponible la versión {{version}}",

@@ -227,6 +227,9 @@ function PairRow({
         </span>
       </div>
       <p className="mt-1 text-xs text-muted-foreground">{doubtReason(doubt.reason, doubt.detail)}</p>
+      {doubt.documents && doubt.documents.length > 0 && (
+        <p className="mt-1 text-xs text-muted-foreground break-words">En {doubt.documents.join(" · ")}</p>
+      )}
       {action.problem && (
         <div className="mt-2">
           <ErrorNote>{action.problem}</ErrorNote>

@@ -133,6 +133,7 @@ function matterDetail(overrides: Partial<MatterDetail> = {}): MatterDetail {
     ],
     parties: [{ entityId: "ent-1", kind: "organizacion", name: "Ficticia SA", roles: ["parte"], documents: 2 }],
     decisions: [],
+    records: [],
     ...overrides,
   }
 }
@@ -303,6 +304,18 @@ describe("the screen of a matter", () => {
     const html = renderToStaticMarkup(<MatterDetailView id="mat-1" onBack={() => {}} />)
     expect(html.match(/role="tab"/g)).toHaveLength(2)
     expect(selectedTab(html)).toBe("Artículo")
+  })
+
+  it("shows under its name each of its records of a court, with its number and its official title", () => {
+    base.answers.matter = matterDetail({
+      records: [
+        { portal: "PJN", jurisdiction: "ZZZ", number: 4321, year: 2011, reference: "ZZZ 4321/2011", title: "QUIMERA C/ ONDARRETA S/ INVENTADO" },
+        { portal: "PJN", jurisdiction: "ZZZ", number: 4322, year: 2011, reference: "ZZZ 4322/2011", title: null },
+      ],
+    })
+    const shown = text(renderToStaticMarkup(<MatterDetailView id="mat-1" onBack={() => {}} />))
+    expect(shown).toContain("Expediente ZZZ 4321/2011 · Carátula: QUIMERA C/ ONDARRETA S/ INVENTADO")
+    expect(shown).toContain("Expediente ZZZ 4322/2011")
   })
 
   it("shows in «Artículo» the article the base writes, the research on internet and the notes", () => {

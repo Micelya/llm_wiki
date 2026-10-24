@@ -47,6 +47,8 @@ export interface Vocabulary {
     record: string
     /** Several: "Expedientes". */
     records: string
+    /** The official title of one, as the court gives it: "Carátula". */
+    recordTitle: string
   }
   /**
    * The section of the templates the base finds in its documents (D-466):
