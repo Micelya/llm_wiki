@@ -83,8 +83,8 @@ fn a_marital_status_is_one_of_its_list_and_a_value_without_class_joins_the_one_w
 }
 
 const A1: &str = "DOC-A1. Autos: EJEMPLO, PERSONA UNO s/ sucesion. Se informa el fallecimiento de Persona Uno Ejemplo, DNI 11.111.111.";
-const A2: &str = "DOC-A2. Autos: EJEMPLO, PERSONA UNO s/ sucesion. Expediente 1234/2020 EJEMPLO, PERSONA UNO s/ sucesion ab intestato, de Persona Uno Ejemplo, DNI 11.111.111.";
-const A3: &str = "DOC-A3. Autos: EJEMPLO, PERSONA UNO s/ sucesion. En el expte. 1234/20 consta la defuncion de Persona Uno Ejemplo, DNI 11.111.111.";
+const A2: &str = "DOC-A2. Autos: EJEMPLO, PERSONA UNO s/ sucesion. Expediente 1234/2020 EJEMPLO, PERSONA UNO s/ sucesion y otros, de Persona Uno Ejemplo, DNI 11.111.111.";
+const A3: &str = "DOC-A3. Autos: EJEMPLO, PERSONA UNO s/ sucesion. En el expte. 1234/20 consta la muerte de Persona Uno Ejemplo, DNI 11.111.111.";
 const F1: &str = "DOC-F1. Nota de Persona Diez Otro sobre la entrega de llaves.";
 const F2: &str = "DOC-F2. Nota de Persona Once Otro sobre la entrega de planos.";
 const F3: &str = "DOC-F3. Nota de Persona Doce Otro sobre la entrega de fotos.";
@@ -102,10 +102,10 @@ fn matter_model() -> FakeModel {
                 vec![claim("p", "causante", Some("x"), None, "el fallecimiento de Persona Uno Ejemplo", None)],
             )
         } else if prompt.contains("DOC-A2.") {
-            let other = "Expediente 1234/2020 EJEMPLO, PERSONA UNO s/ sucesion ab intestato";
+            let other = "Expediente 1234/2020 EJEMPLO, PERSONA UNO s/ sucesion y otros";
             answer(
                 vec![autos, mention("y", "asunto", other, "referido", other, serde_json::json!([])), person("Persona Uno Ejemplo, DNI 11.111.111")],
-                vec![claim("p", "causante", Some("y"), None, "sucesion ab intestato, de Persona Uno Ejemplo", None)],
+                vec![claim("p", "causante", Some("y"), None, "sucesion y otros, de Persona Uno Ejemplo", None)],
             )
         } else if prompt.contains("DOC-A3.") {
             answer(
@@ -114,7 +114,7 @@ fn matter_model() -> FakeModel {
                     mention("z", "asunto", "expte. 1234/20", "referido", "En el expte. 1234/20", serde_json::json!([])),
                     person("Persona Uno Ejemplo, DNI 11.111.111"),
                 ],
-                vec![claim("p", "causante", Some("z"), None, "consta la defuncion de Persona Uno Ejemplo", None)],
+                vec![claim("p", "causante", Some("z"), None, "consta la muerte de Persona Uno Ejemplo", None)],
             )
         } else if let Some(name) = ["Persona Diez Otro", "Persona Once Otro", "Persona Doce Otro"].iter().find(|n| prompt.contains(**n)) {
             answer(vec![mention("o", "persona", name, "emisor", &format!("Nota de {name}"), serde_json::json!([]))], vec![])
@@ -163,7 +163,7 @@ fn what_points_to_its_own_matter_is_said_once_on_its_page() {
     let (text, lines) = facts_of_the_matter(&base);
     assert_eq!(lines.len(), 1, "{text}");
     let note = super::tests_pages::note_after(&text, "Causante de: este asunto");
-    for written in ["«EJEMPLO, PERSONA UNO s/ sucesion»", "«Expediente 1234/2020 EJEMPLO, PERSONA UNO s/ sucesion ab intestato»", "«expte. 1234/20»"] {
+    for written in ["«EJEMPLO, PERSONA UNO s/ sucesion»", "«Expediente 1234/2020 EJEMPLO, PERSONA UNO s/ sucesion y otros»", "«expte. 1234/20»"] {
         assert!(note.contains(written), "{note}");
     }
     assert!(note.contains("Escrito como"), "{note}");
