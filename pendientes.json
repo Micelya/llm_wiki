@@ -2403,6 +2403,34 @@
       "referencia": "D-518; P-321",
       "creado": "2026-10-24",
       "actualizado": "2026-10-24"
+    },
+    {
+      "id": "P-336",
+      "titulo": "Ver en la app: la firma digital de un PDF y la constancia de DocuSign unida a su documento",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "copias",
+      "detalle": "Construido el 24 oct (D-519, commits a04512b, a22d0ae, 5554abb, dce7e25). Qué mirar: abrir un PDF firmado con Adobe Acrobat Sign o DocuSign, pestaña «Datos y correcciones», caja de la derecha, renglón «Firma digital»; en «Copias y versiones», la constancia de DocuSign ya no dice «propuesta con menos certeza». Al arrancar, la app recalcula los parecidos de toda la base. Medido sobre una copia: de 130 PDF, 88 tienen firma; 18 sellados por Adobe Acrobat Sign, 10 por DocuSign, 59 íntegros con firmantes fuera del catálogo y 1 que cambió después de firmarse (conviene mirarlo). La hoja de respuestas de «Copias y versiones» no cambió (52 de 57, sin propuestas equivocadas).",
+      "depende_de": [],
+      "referencia": "D-519; src-tauri/src/docbase/similar/seal.rs",
+      "creado": "2026-10-24",
+      "actualizado": "2026-10-24"
+    },
+    {
+      "id": "P-337",
+      "titulo": "Firmas digitales: revocación, sello de tiempo, RSA-PSS y las firmas que no están donde dicen",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "copias",
+      "detalle": "D-519 deja afuera: la revocación (Adobe no trae OCSP ni CRL; el DSS de DocuSign permitiría comprobarla sin conexión); la vigencia de los certificados se mide contra la fecha que declara la firma, no contra un sello de tiempo; RSA-PSS y curvas distintas de P-256 quedan como «no se puede comprobar todavía». Además, 30 de 123 firmas de la base no verifican porque su sobre no está donde dice su firma: probablemente son PDF armados juntando documentos firmados (la firma habla del archivo original); confirmarlo. Un servicio o una raíz nuevos no se reconocen hasta agregar su huella al catálogo.",
+      "depende_de": [],
+      "referencia": "D-519",
+      "creado": "2026-10-24",
+      "actualizado": "2026-10-24"
     }
   ]
 }
