@@ -712,13 +712,18 @@ pub fn docbase_set_ai_services(state: State<'_, DocBaseState>, services: AiServi
 pub struct DocumentTypeView {
     pub doc_type: Option<DocumentType>,
     pub data: Vec<Datum>,
+    /// What the digital signatures of its file say.
+    pub seal: Option<similar::seal::SealVerdict>,
 }
 
-/// What the document at this location is, in what stage, and its data.
+/// What the document at this location is, in what stage, its data, and
+/// what the digital signatures of its file say.
 #[tauri::command(async)]
 pub fn docbase_document_type(state: State<'_, DocBaseState>, location_id: i64) -> Result<DocumentTypeView, String> {
-    let (doc_type, data) = state.base()?.document_type_of(location_id)?;
-    Ok(DocumentTypeView { doc_type, data })
+    let base = state.base()?;
+    let (doc_type, data) = base.document_type_of(location_id)?;
+    let seal = base.document_seal(location_id)?;
+    Ok(DocumentTypeView { doc_type, data, seal })
 }
 
 /// The closed list of document types, for the screens: the catalog's,

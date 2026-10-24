@@ -147,6 +147,7 @@ export function DocumentTypeFacts({
   const words = vocabulary()
   const found = view.data?.docType ?? null
   const data = dataRows(view.data?.data ?? [], words)
+  const seal = sealText(view.data?.seal, words)
   if (!view.data) return null
   return (
     <>
@@ -181,6 +182,7 @@ export function DocumentTypeFacts({
         ) : (
           row("Tipo", <span className="text-xs text-muted-foreground">Todavía sin reconocer</span>)
         )}
+        {seal && row(words.seal.label, <span className="text-xs">{seal}</span>)}
       </dl>
     </>
   )

@@ -113,6 +113,16 @@ export interface Vocabulary {
    */
   templateFields: Record<string, string>
   /**
+   * What the digital signatures of a PDF say, checked without a
+   * connection. `states` by the state the base gives them (`sealed`,
+   * `valid-unknown`, `modified`, `invalid`, `unsupported`), with
+   * `{service}` (who sealed it) and `{date}` (when); a state with
+   * `-undated` is used when the signature does not say when.
+   * `validation`: long-term validation data was added later. `failing`:
+   * `{count}` other signatures that do not verify.
+   */
+  seal: { label: string; states: Record<string, string>; validation: string; failing: string }
+  /**
    * The words of the knowledge layer's screens: who and what the
    * documents name. The ids are those of the layer's vocabulary
    * (`src-tauri/resources/catalog/knowledge.json`); an id nobody named

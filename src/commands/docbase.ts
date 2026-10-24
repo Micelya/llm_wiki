@@ -788,6 +788,23 @@ export interface Datum {
 export interface DocumentTypeView {
   docType: DocumentType | null
   data: Datum[]
+  /** What the digital signatures of its file say; null without them. */
+  seal: SealVerdict | null
+}
+
+/** What the digital signatures of a PDF say, checked without a connection. */
+export interface SealVerdict {
+  /** "sealed", "valid-unknown", "modified", "invalid" or "unsupported". */
+  state: string
+  /** The catalog's signing service, and its name. */
+  service?: string
+  serviceName?: string
+  /** When it was signed (RFC 3339). */
+  signedAt?: string
+  /** Long-term validation data was added after the signature. */
+  laterValidation: boolean
+  /** Other signatures it carries that do not verify. */
+  failing: number
 }
 
 export interface ProposedType {
