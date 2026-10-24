@@ -124,7 +124,8 @@ pub fn key(vocabulary: &Vocabulary, kind: &str, written: &str) -> NameKey {
     let rest = without_parentheses(&rest);
     let mut words: Vec<String> = quote::words(&rest);
     let stop: BTreeSet<&str> = identity.stopwords.iter().map(String::as_str).collect();
-    let titles: BTreeSet<&str> = identity.titles.iter().map(String::as_str).collect();
+    // An office before a person's name counts as a title ("la jueza Ana").
+    let titles: BTreeSet<&str> = identity.titles.iter().chain(&identity.offices).map(String::as_str).collect();
     // An acronym written letter by letter ("A.E.B."): every letter counts,
     // even one that alone would be a word to leave out ("e", "y"), D-458.
     let letters = words.len() >= 2 && words.iter().all(|w| w.chars().count() == 1);

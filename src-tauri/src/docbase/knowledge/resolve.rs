@@ -64,7 +64,7 @@ const RESOLUTION_SETTING: &str = "knowledge-resolution";
 /// Why a group of mentions has no entity: it is a reference (D-377).
 pub(crate) const REFERENCE: &str = "referencia";
 /// Raised when a change in the program changes what a resolution gives.
-const RESOLUTION_VERSION: &str = "resolucion-14";
+const RESOLUTION_VERSION: &str = "resolucion-15";
 
 fn resolution_basis() -> String {
     format!("{RESOLUTION_VERSION}|{IDENTITY_PROMPT}|{}", vocabulary().digest)
@@ -480,8 +480,55 @@ pub(crate) fn clusters(
         }
         cluster.strong.retain(|_, v| !v.is_empty());
     }
+    another_persons_number(&mut out);
     out.sort_by(|a, b| a.canon.cmp(&b.canon).then_with(|| a.key.cmp(&b.key)));
     out
+}
+
+/// No one has two numbers of a strong identifier. A group of a document
+/// with two of one kind, where another document gives one of them to a
+/// name the same document writes for someone else (a form read without
+/// its structure gives a person the other's DNI too), has that one
+/// wrongly: it is taken off this group, which keeps its own, and opens no
+/// doubt of identity. Nothing is taken when it is not clear whose it is.
+fn another_persons_number(out: &mut [Cluster]) {
+    let mut holders: HashMap<(String, String, String), Vec<usize>> = HashMap::new();
+    for (i, cluster) in out.iter().enumerate() {
+        for (kind, values) in &cluster.strong {
+            for value in values {
+                holders.entry((cluster.kind.clone(), kind.clone(), value.clone())).or_default().push(i);
+            }
+        }
+    }
+    let same = |kind: &str, a: &NameKey, b: &NameKey| a.has_name() && b.has_name() && matches!(names::compare(kind, a, b), Likeness::Exact);
+    let mut taken: Vec<(usize, String, String)> = Vec::new();
+    for (i, cluster) in out.iter().enumerate() {
+        if !cluster.strong.values().any(|v| v.len() >= 2) {
+            continue;
+        }
+        let others: Vec<&Cluster> =
+            out.iter().enumerate().filter(|(j, c)| *j != i && c.content_id == cluster.content_id && c.kind == cluster.kind).map(|(_, c)| c).collect();
+        for (kind, values) in cluster.strong.iter().filter(|(_, v)| v.len() >= 2) {
+            let mut wrong: Vec<&String> = Vec::new();
+            for value in values {
+                let elsewhere = holders[&(cluster.kind.clone(), kind.clone(), value.clone())].iter().map(|&j| &out[j]).filter(|c| c.content_id != cluster.content_id);
+                let of_another = elsewhere.into_iter().any(|holder| {
+                    !same(&cluster.kind, &cluster.name, &holder.name) && others.iter().any(|o| same(&cluster.kind, &o.name, &holder.name))
+                });
+                if of_another {
+                    wrong.push(value);
+                }
+            }
+            if !wrong.is_empty() && wrong.len() < values.len() {
+                taken.extend(wrong.into_iter().map(|v| (i, kind.clone(), v.clone())));
+            }
+        }
+    }
+    for (i, kind, value) in taken {
+        if let Some(values) = out[i].strong.get_mut(&kind) {
+            values.remove(&value);
+        }
+    }
 }
 
 /// Joins, within each document, a group of an organization named without
@@ -847,13 +894,15 @@ impl<'a> Resolver<'a> {
                 }
             }
         }
-        for ((kind, _, _), list) in &index {
+        for ((kind, id_kind, value), list) in &index {
             let principal = list[0];
             for &other in &list[1..] {
                 let (a, b) = (&self.clusters[principal].name, &self.clusters[other].name);
+                // The identifier both have: what a person sees to decide.
+                let shared = Some(format!("{id_kind}: {value}"));
                 match names::compare(kind, a, b) {
-                    Likeness::Unlike if a.has_name() && b.has_name() => self.doubt(principal, other, "identificador-otro-nombre", None),
-                    Likeness::OtherForm => self.doubt(principal, other, "identificador-otra-forma", None),
+                    Likeness::Unlike if a.has_name() && b.has_name() => self.doubt(principal, other, "identificador-otro-nombre", shared),
+                    Likeness::OtherForm => self.doubt(principal, other, "identificador-otra-forma", shared),
                     _ => {
                         if let Err(why) = self.join(principal, other, "identificador") {
                             self.doubt(principal, other, why, None);
