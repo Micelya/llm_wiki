@@ -9,7 +9,7 @@ import type {
   MatterDetail,
   MatterSummary,
 } from "@/commands/docbase"
-import { entityTypeName, roleName, type Vocabulary, vocabulary } from "@/vocabulary"
+import { entityTypeName, identifierName, roleName, type Vocabulary, vocabulary } from "@/vocabulary"
 import { plural } from "@/components/docbase/format"
 import { parseFrontmatter } from "@/lib/frontmatter"
 
@@ -97,8 +97,21 @@ export function groupDoubts(doubts: DoubtView[]): DoubtGroup[] {
 }
 
 /** Why the app could not tell whether two are the same, in words. */
+/** The identifier a doubt is about, from its detail ("dni: 30123456"), in words: "DNI 30123456". */
+function sharedIdentifier(detail: string | null): string | null {
+  const [kind, value] = (detail ?? "").split(": ")
+  return kind && value ? `${identifierName(kind)} ${value}` : null
+}
+
 export function doubtReason(reason: string, detail: string | null = null): string {
   const said = detail ? ` (${detail})` : ""
+  const shared = sharedIdentifier(detail)
+  if (shared && reason === "identificador-otro-nombre") {
+    return `El ${shared} aparece con dos nombres que no se parecen: puede estar atribuido a quien no es.`
+  }
+  if (shared && reason === "identificador-otra-forma") {
+    return `El ${shared} aparece con el mismo nombre y distinta forma societaria: suelen ser organizaciones distintas.`
+  }
   switch (reason) {
     case "identificador-parecido":
       return `Los nombres coinciden y los identificadores difieren por poco${said}: puede ser un dígito mal leído en un escaneo.`

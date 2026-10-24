@@ -30,6 +30,9 @@ import { InfoBox, InfoHeading, InfoPending, InfoRow, InfoRows, PageAside, PageIn
 import { ResearchSection } from "./research-section"
 import { Quote, Section, useAction, useOpenDocument, useOpenMatter } from "./shared"
 
+/** After an identifier that another entity has too, as a second number of one that names one only. */
+const DOUBTFUL_IDENTIFIER = " · dudoso: otro también lo tiene"
+
 /** How many data, documents and their mentions a list shows before «Ver…». */
 const FIRST_CLAIMS = 6
 const FIRST_DOCUMENTS = 4
@@ -223,7 +226,7 @@ function EntityBox({ entity, onShowData }: { entity: EntityDetail; onShowData: (
             <InfoRow
               key={`${identifier.kind}:${identifier.value}`}
               label={identifierName(identifier.kind, words)}
-              below={`en ${plural(identifier.documents, "documento", "documentos")}`}
+              below={`en ${plural(identifier.documents, "documento", "documentos")}${identifier.doubtful ? DOUBTFUL_IDENTIFIER : ""}`}
             >
               <span className="tabular-nums">{identifier.value}</span>
             </InfoRow>
@@ -667,7 +670,7 @@ function FactBox({ entity }: { entity: EntityDetail }) {
               <InfoRow
                 key={`${identifier.kind}:${identifier.value}`}
                 label={identifierName(identifier.kind, words)}
-                below={plural(identifier.documents, "documento", "documentos")}
+                below={`${plural(identifier.documents, "documento", "documentos")}${identifier.doubtful ? DOUBTFUL_IDENTIFIER : ""}`}
               >
                 <span className="tabular-nums">{identifier.value}</span>
               </InfoRow>

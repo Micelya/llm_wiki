@@ -1230,6 +1230,8 @@ export interface EntityIdentifier {
   kind: string
   value: string
   documents: number
+  /** A second number of an identifier that names one only, which another entity has too: perhaps the other's. */
+  doubtful?: boolean
 }
 
 export interface EntityMention {
@@ -1286,6 +1288,8 @@ export interface DoubtView {
   reason: string
   detail: string | null
   evidenceHash: string
+  /** The documents of the two sides: where to see why. */
+  documents?: string[]
 }
 
 export interface IdentityDecisionView {
