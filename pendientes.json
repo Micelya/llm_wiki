@@ -346,7 +346,7 @@
       "tipo": "decision",
       "responsable": "usuario",
       "estado": "a-verificar",
-      "detalle": "Micelya Core es el módulo de la plataforma que dará los servicios de IA y relacionados; se desarrolla en paralelo, primero sobre servicios de Amazon y diseñado para no depender de ellos. En algún momento la app va a usarlo como infraestructura de IA. Por ahora es solo información de contexto: los proveedores de IA siguen siendo configurables por instancia. 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/. 2026-10-22: El estudio de referencia va a usar Micelya Core (D-468): la conexión es parte del producto mínimo (D-463). Primero reflejar la respuesta de Core (P-244); después la conexión en Ajustes y el motor de reconocimiento de Core (pasos 4 y 5 de servicios-de-ia-propuesta.md) y ver si las preguntas al modelo también van por Core. Probado el 22 oct con el usuario técnico de desarrollo (en el llavero de Windows, «connection:micelya-core»): un escrito de 23 páginas leído de punta a punta en 27 s y borrado después. 2026-10-22: respuesta al 001 llevada al diseño (sección 2.3 y pasos 4, 4b y 5 de servicios-de-ia-propuesta.md) y mensaje 002 enviado (pedido de integración #65). Lectura por páginas o piezas (D-483); el dueño asume procesar en Estados Unidos (D-482). Preguntar al modelo por Core (paso 4b) espera el permiso y los límites que se piden en el 002. 2026-10-22 (tarde): construidos la conexión (commit 3df768b; Ajustes → Conexiones → Micelya Core, con «Probar la conexión»; el secreto nunca vuelve a las pantallas) y el motor de lectura de Core (commit e58123d, D-489): cada página como JPEG en gris de hasta 2000 px con nombre genérico, borrada en Core al guardarla; página sin renglones «[ilegible]»; palabras con confianza menor a 0,90 guardadas como dudosas; motor core:textract-1.0. Prueba real con un documento inventado de 3 páginas: 58 s, las 3 lecturas borradas. Falta verlo en la app; preguntar al modelo por Core (paso 4b) espera el permiso pedido en el 002. 2026-10-23: La autenticación en Core va por persona con Keycloak, no con una cuenta del sistema (D-501, P-302). 2026-10-23: Respuestas de Core 002 y 003 (23 oct): preguntar a modelos, dado; organización del piloto creada en desarrollo con un usuario técnico, contra D-501 (se corrige en un 004); las piezas de un escaneo, aceptadas sin fecha (Core prefiere recibir el documento entero cuando las haya, contra D-483); mientras tanto recomienda mandar cada página como PDF de una página y no como imagen (hoy, imagen en gris, D-489); propone sumar tres tipos a la lista (acta o partida, poder o escritura, resolución judicial) y pide respuesta antes de fijarla (pedir un código fijo por tipo, por el vocabulario de cada profesión); faltan las copias de respaldo y la política de no entrenar de AWS antes de usar documentos reales (Core P-190, Core P-167). Falta el mensaje 004.",
+      "detalle": "Micelya Core es el módulo de la plataforma que dará los servicios de IA y relacionados; se desarrolla en paralelo, primero sobre servicios de Amazon y diseñado para no depender de ellos. En algún momento la app va a usarlo como infraestructura de IA. Por ahora es solo información de contexto: los proveedores de IA siguen siendo configurables por instancia. 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/. 2026-10-22: El estudio de referencia va a usar Micelya Core (D-468): la conexión es parte del producto mínimo (D-463). Primero reflejar la respuesta de Core (P-244); después la conexión en Ajustes y el motor de reconocimiento de Core (pasos 4 y 5 de servicios-de-ia-propuesta.md) y ver si las preguntas al modelo también van por Core. Probado el 22 oct con el usuario técnico de desarrollo (en el llavero de Windows, «connection:micelya-core»): un escrito de 23 páginas leído de punta a punta en 27 s y borrado después. 2026-10-22: respuesta al 001 llevada al diseño (sección 2.3 y pasos 4, 4b y 5 de servicios-de-ia-propuesta.md) y mensaje 002 enviado (pedido de integración #65). Lectura por páginas o piezas (D-483); el dueño asume procesar en Estados Unidos (D-482). Preguntar al modelo por Core (paso 4b) espera el permiso y los límites que se piden en el 002. 2026-10-22 (tarde): construidos la conexión (commit 3df768b; Ajustes → Conexiones → Micelya Core, con «Probar la conexión»; el secreto nunca vuelve a las pantallas) y el motor de lectura de Core (commit e58123d, D-489): cada página como JPEG en gris de hasta 2000 px con nombre genérico, borrada en Core al guardarla; página sin renglones «[ilegible]»; palabras con confianza menor a 0,90 guardadas como dudosas; motor core:textract-1.0. Prueba real con un documento inventado de 3 páginas: 58 s, las 3 lecturas borradas. Falta verlo en la app; preguntar al modelo por Core (paso 4b) espera el permiso pedido en el 002. 2026-10-23: La autenticación en Core va por persona con Keycloak, no con una cuenta del sistema (D-501, P-302). 2026-10-23: Respuestas de Core 002 y 003 (23 oct): preguntar a modelos, dado; organización del piloto creada en desarrollo con un usuario técnico, contra D-501 (se corrige en un 004); las piezas de un escaneo, aceptadas sin fecha (Core prefiere recibir el documento entero cuando las haya, contra D-483); mientras tanto recomienda mandar cada página como PDF de una página y no como imagen (hoy, imagen en gris, D-489); propone sumar tres tipos a la lista (acta o partida, poder o escritura, resolución judicial) y pide respuesta antes de fijarla (pedir un código fijo por tipo, por el vocabulario de cada profesión); faltan las copias de respaldo y la política de no entrenar de AWS antes de usar documentos reales (Core P-190, Core P-167). Falta el mensaje 004. 2026-10-23: El mensaje 004 a Core (la corrección del usuario técnico del piloto, el trabajo sin conexión, los límites y los ocho pedidos sobre las piezas) queda en espera. El dueño evalúa hacer en el dispositivo todo el preprocesamiento (P-321), y entonces varios pedidos dejarían de tener sentido.",
       "depende_de": [],
       "referencia": "Repo extrimian/mi-platform, rama dev; docs/design/servicios-de-ia-propuesta.md",
       "creado": "2026-10-11",
@@ -2157,6 +2157,80 @@
       "detalle": "Con el panel de Investigación abierto y la ventana a unos 800 px, el contenido de la pantalla queda muy angosto (D-510).",
       "depende_de": [],
       "referencia": "D-510",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-319",
+      "titulo": "Decidir con el dueño cómo atacar las observaciones de su recorrida del 23 oct",
+      "tipo": "decision",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "pruebas y calidad",
+      "detalle": "El 23 oct el dueño recorrió la app y pasó nueve observaciones. Están verificadas, con causa, propuesta y un orden propuesto, en C:\\Users\\Usuario\\LocalRepo\\llm_wiki_mi\\observaciones-del-dueno.md. Ese archivo está fuera del repositorio porque tiene datos reales. Temas: el nombre de una persona por una forma vista una vez; páginas escaneadas que nunca se leen; documentos compuestos; el 14 % de las fichas mal armadas; volver atrás; un caso triplicado; plantillas con datos de las personas; afirmaciones repetidas en un caso; identidades dudosas sin la respuesta «es la marca o el grupo». Cada arreglo se escribe como regla general, se mide sobre toda la base y contra la hoja de respuestas, y se prueba con datos inventados (R-24 a R-26). Traspaso: docs/sessions/2026-10-23-sesion-18b.md.",
+      "depende_de": [],
+      "referencia": "docs/sessions/2026-10-23-sesion-18b.md; R-24; R-25; R-26",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-320",
+      "titulo": "Ficha de forma por página: reemplazar la prueba de los 80 caracteres por señales de la página",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "reconocimiento",
+      "detalle": "Hoy una página de PDF «tiene texto» si tiene 80 caracteres (textless_pages, MIN_PAGE_TEXT_CHARS). Falla con el pie que el PJN estampa en cada página y con capas de texto viejas y ruidosas, así que hay páginas escaneadas que nunca se leen. Propuesta de la investigación del 23 oct: decidir página por página con señales de pdfium. Las señales: texto propio sin contar lo repetido en todas las páginas, imagen que cubre la página, calidad del texto (letras sueltas, palabras pegadas), grupos de objetos agregados encima (formularios aplanados), productor. Las señales van al catálogo. Después, volver a leer lo que aparezca, con cupo y avisando antes. Es lo recomendado primero, pero espera la decisión del dueño (P-319, P-321).",
+      "depende_de": [
+        "P-319"
+      ],
+      "referencia": "src-tauri/src/source_volume/recognition.rs; llm_wiki_mi/investigacion-formas-de-documento-resultado.md",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-321",
+      "titulo": "Evaluar procesar en el dispositivo todo el preprocesamiento de archivos",
+      "tipo": "decision",
+      "responsable": "usuario",
+      "estado": "en-espera",
+      "tema": "servicios de IA",
+      "detalle": "El dueño evalúa en serio (23 oct, no decidido) hacer en Desktop, o en un paquete o SDK de Micelya, todo lo que no necesite un modelo de lenguaje grande ni un servicio que no esté en el dispositivo. Incluye reconocer qué es cada archivo y cada página, leer formularios y tablas, reconocer escaneos impresos y documentos de identidad, partir documentos compuestos con reglas, leer correos y quizás transcribir audio. Lo que hizo Core para partir documentos no es definitivo. Insumos: llm_wiki_mi/investigacion-formas-de-documento-resultado.md (librerías y licencias: pdfium, Magika, RapidOCR, Docling; MinerU tiene modelos AGPL-3.0; los modelos de Surya se pagan por encima de US$ 5 millones) y la prueba de Docling en una sesión remota (P-322).",
+      "depende_de": [
+        "P-322"
+      ],
+      "referencia": "llm_wiki_mi/investigacion-formas-de-documento-resultado.md",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-322",
+      "titulo": "Revisar la prueba remota de Docling (rama investigacion/docling) antes de integrarla",
+      "tipo": "verificacion",
+      "responsable": "claude",
+      "estado": "en-espera",
+      "tema": "reconocimiento",
+      "detalle": "El 23 oct el dueño lanzó en una sesión remota de Claude Code una prueba de Docling, RapidOCR, Tesseract, granite-docling y pdfium sobre seis PDF reales. El prompt está en llm_wiki_mi/prueba-docling/prompt.md. El resultado va a una rama investigacion/docling, en docs/investigacion/docling/, sin pedido de integración. El dueño le indicó privilegiar la calidad del análisis por sobre las reglas de privacidad del prompt, porque la información es pública. Al revisarla: leer el informe, cruzarlo con la investigación y las observaciones, y correr la prueba de que ningún caso real está en el programa. Como el repositorio es público, decidir con el dueño qué entra a main antes de abrir el pedido de integración.",
+      "depende_de": [],
+      "referencia": "llm_wiki_mi/prueba-docling/prompt.md",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-323",
+      "titulo": "Usar los datos del portal de cada actuación y unir cada escrito con su documentación adjunta",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "portales",
+      "detalle": "Al bajar cada actuación, el portal deja al lado del PDF su tipo, fojas, fecha, oficina y detalle (<nombre>.micelya.json, portals/store.rs), pero la base no lo usa (scan.rs lo deja fuera). Por eso el tipo y la fecha los adivina el modelo. Propuesta: traducir esos datos a conceptos canónicos (D-512), por ejemplo el tipo de actuación, la fecha, las fojas y si es documentación adjunta. Además, unir cada escrito con la documentación adjunta vecina: misma fecha, fojas seguidas, detalle «DOCUMENTACIÓN ADJUNTA». Sin cupo. Espera la decisión del dueño (P-319).",
+      "depende_de": [
+        "P-319"
+      ],
+      "referencia": "src-tauri/src/portals/store.rs; src-tauri/src/docbase/scan.rs; D-512",
       "creado": "2026-10-23",
       "actualizado": "2026-10-23"
     }
