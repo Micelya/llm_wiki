@@ -258,6 +258,21 @@ export function MatterDetailView({ id, onBack, initialTab = null }: { id: string
               </span>
             )}
             {detail?.origin === "person" && <span className="text-xs text-muted-foreground">creado a mano</span>}
+            {detail && detail.records.length > 0 && (
+              <ul className="basis-full space-y-0.5 text-sm text-muted-foreground">
+                {detail.records.map((record) => (
+                  <li key={`${record.portal}:${record.reference}`}>
+                    {words.portals.record} {record.reference}
+                    {record.title && (
+                      <>
+                        {" · "}
+                        {words.portals.recordTitle}: {record.title}
+                      </>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
           </>
         )
       }

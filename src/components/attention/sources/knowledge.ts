@@ -1,4 +1,5 @@
 import {
+  answerMatterQuestion,
   decideMatter,
   undoIdentityDecision,
   getKnowledgeAttention,
@@ -11,6 +12,8 @@ import {
   requestReread,
   type DoubtView,
   type KnowledgeAttention,
+  type KnowledgeMatterQuestion,
+  type MatterRecord,
   type RereadPlan,
 } from "@/commands/docbase"
 import type { AttentionCase, AttentionNotice } from "@/lib/attention/types"
@@ -183,6 +186,46 @@ export function knowledgeNotices(facts: KnowledgeFacts, words: Vocabulary = voca
           detail: item.values.map((value) => `«${value}»`).join(" / "),
           actions: [{ kind: "go", label: "Ver", target: { view: "entities", entityId: item.entityId } }],
         })),
+        moreCases: more,
+      }),
+    )
+  }
+  if (attention.mattersToJoin.length > 0) {
+    const { list, more } = cut(attention.mattersToJoin)
+    const one = terms.matter.toLowerCase()
+    const record = words.portals.record.toLowerCase()
+    out.push(
+      notice({
+        kind: "decision",
+        topic: "matters-to-join",
+        priority: "normal",
+        count: attention.mattersToJoin.length,
+        title: plural(
+          attention.mattersToJoin.length,
+          `${one} que puede ser el mismo que el de un ${record}`,
+          `${terms.matters.toLowerCase()} que pueden ser el mismo que el de un ${record}`,
+        ),
+        explanation: `La app trajo un ${record} de un portal y encontró otro ${one} que se le parece: comparte documentos con lo que se bajó, o sus documentos citan el número del ${record}. Citar no es ser: un documento puede citar otro ${record} relacionado. La app no los une sola.`,
+        todo: `Si es el mismo ${one}, unilos: queda el que ya existía, con el nombre que le puso una persona, y el ${record} pasa a ser un dato suyo. Si no, respondé que no y no se vuelve a preguntar.`,
+        resolvedWhen: "Desaparece cuando se responde.",
+        actions: [{ kind: "go", label: `Ver ${terms.matters.toLowerCase()}`, target: { view: "matters", matterId: list[0].otherMatterId } }],
+        cases: list.map(
+          (item): AttentionCase => ({
+            id: `matter-to-join:${item.recordMatterId}:${item.otherMatterId}`,
+            title: `«${item.recordMatterName}» y «${item.otherMatterName}»`,
+            detail: [recordsInWords(item.records, words), joinEvidence(item)].filter((part) => part !== "").join(" · "),
+            actions: [
+              {
+                kind: "run",
+                label: `Es el mismo ${one}`,
+                confirm: `Se unen en «${item.otherMatterName}»: recibe los documentos y el ${record} de «${item.recordMatterName}», que deja de existir.`,
+                run: () => answerMatterQuestion(item.recordMatterId, item.otherMatterId, true),
+              },
+              { kind: "run", label: "No es el mismo", run: () => answerMatterQuestion(item.recordMatterId, item.otherMatterId, false) },
+              { kind: "go", label: "Ver", target: { view: "matters", matterId: item.otherMatterId } },
+            ],
+          }),
+        ),
         moreCases: more,
       }),
     )
@@ -441,6 +484,23 @@ export function useKnowledgeNotices(): AttentionNotice[] | null {
   if (attention.error) throw new Error(attention.error)
   if (!attention.data) return null
   return knowledgeNotices({ attention: attention.data, doubts: doubts.data, outdated: outdated.data })
+}
+
+/** The records of a court of a matter: "Expediente ABC 123/2020 (carátula)". */
+export function recordsInWords(records: MatterRecord[], words: Vocabulary = vocabulary()): string {
+  return records
+    .map((record) => `${words.portals.record} ${record.reference}${record.title ? ` (${record.title})` : ""}`)
+    .join(", ")
+}
+
+/** Why a matter looks like the one of a record: the documents they share, those that cite its number. */
+export function joinEvidence(question: Pick<KnowledgeMatterQuestion, "shared" | "citing">): string {
+  const parts: string[] = []
+  if (question.shared > 0) parts.push(`comparten ${plural(question.shared, "documento", "documentos")}`)
+  if (question.citing > 0) {
+    parts.push(question.citing === 1 ? "1 documento cita su número" : `${formatCount(question.citing)} documentos citan su número`)
+  }
+  return parts.join(" · ")
 }
 
 /** Why the documents of a proposed matter are together, in a few words. */
