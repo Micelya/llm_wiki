@@ -2226,13 +2226,13 @@
       "estado": "pendiente",
       "prioridad": 2,
       "tema": "portales",
-      "detalle": "Al bajar cada actuación, el portal deja al lado del PDF su tipo, fojas, fecha, oficina y detalle (<nombre>.micelya.json, portals/store.rs), pero la base no lo usa (scan.rs lo deja fuera). Por eso el tipo y la fecha los adivina el modelo. Propuesta: traducir esos datos a conceptos canónicos (D-512), por ejemplo el tipo de actuación, la fecha, las fojas y si es documentación adjunta. Además, unir cada escrito con la documentación adjunta vecina: misma fecha, fojas seguidas, detalle «DOCUMENTACIÓN ADJUNTA». Sin cupo. Espera la decisión del dueño (P-319).",
+      "detalle": "Al bajar cada actuación, el portal deja al lado del PDF su tipo, fojas, fecha, oficina y detalle (<nombre>.micelya.json, portals/store.rs), pero la base no lo usa (scan.rs lo deja fuera). Por eso el tipo y la fecha los adivina el modelo. Propuesta: traducir esos datos a conceptos canónicos (D-512), por ejemplo el tipo de actuación, la fecha, las fojas y si es documentación adjunta. Además, unir cada escrito con la documentación adjunta vecina: misma fecha, fojas seguidas, detalle «DOCUMENTACIÓN ADJUNTA». Sin cupo. Espera la decisión del dueño (P-319). 2026-10-24: Además (24 oct): que el catálogo defina la fecha, las fojas y el número de cada actuación en los tipos judiciales, para que la regla de datos clave (D-497) actúe en «Copias y versiones»: hoy esos tipos no tienen datos y dos documentos judiciales distintos solo se comparan por el texto.",
       "depende_de": [
         "P-319"
       ],
       "referencia": "src-tauri/src/portals/store.rs; src-tauri/src/docbase/scan.rs; D-512",
       "creado": "2026-10-23",
-      "actualizado": "2026-10-23"
+      "actualizado": "2026-10-24"
     },
     {
       "id": "P-324",
@@ -2429,6 +2429,34 @@
       "detalle": "D-519 deja afuera: la revocación (Adobe no trae OCSP ni CRL; el DSS de DocuSign permitiría comprobarla sin conexión); la vigencia de los certificados se mide contra la fecha que declara la firma, no contra un sello de tiempo; RSA-PSS y curvas distintas de P-256 quedan como «no se puede comprobar todavía». Además, 30 de 123 firmas de la base no verifican porque su sobre no está donde dice su firma: probablemente son PDF armados juntando documentos firmados (la firma habla del archivo original); confirmarlo. Un servicio o una raíz nuevos no se reconocen hasta agregar su huella al catálogo.",
       "depende_de": [],
       "referencia": "D-519",
+      "creado": "2026-10-24",
+      "actualizado": "2026-10-24"
+    },
+    {
+      "id": "P-338",
+      "titulo": "Ver en la app: «Copias y versiones» con familias solo de un mismo documento",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "copias",
+      "detalle": "Construido el 24 oct (D-520, commits e9f3b03 y 53b8e26). Al abrir la app los pares se calculan de nuevo (en una copia tardó 71 s). Qué mirar: los recibos de las cuotas ya no forman una familia; cada recibo firmado está en su familia con el sin firmar; en «Pares fuera de las familias» no queda ningún ejemplar firmado; el documento de fs. 96 ya no se propone como versión; en «Plantillas» los recibos siguen juntos. En la tarjeta de una familia, «Ver la plantilla» casi ya no aparece.",
+      "depende_de": [],
+      "referencia": "D-520",
+      "creado": "2026-10-24",
+      "actualizado": "2026-10-24"
+    },
+    {
+      "id": "P-339",
+      "titulo": "Comparar sin el ruido del formato: normalización por formato antes de comparar",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "copias",
+      "detalle": "No entró en el tope de la tanda del 24 oct. En .docx: quitar las marcas de Markdown que agrega la app y escribir la numeración automática de Word (o que esas cifras no cuenten como datos cambiados). En PDF: borrar los retornos de carro, unir las palabras partidas por el carácter 0x02 de pdfium, quitar el encabezado del servicio de firma y los renglones de número de página. El par .docx/PDF del acuerdo de borrador sigue justo en el límite de «misma plantilla» (los datos son el 50 % de lo reemplazado). Especificación lista: llm_wiki_mi/desatendido-9/v2-comparar-y-familias.md, punto 2.",
+      "depende_de": [],
+      "referencia": "D-520; llm_wiki_mi/desatendido-9/r1-resultado.md",
       "creado": "2026-10-24",
       "actualizado": "2026-10-24"
     }
