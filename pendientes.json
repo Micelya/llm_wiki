@@ -2233,6 +2233,48 @@
       "referencia": "src-tauri/src/portals/store.rs; src-tauri/src/docbase/scan.rs; D-512",
       "creado": "2026-10-23",
       "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-324",
+      "titulo": "Ver en la app: casos y expedientes (la pregunta en Atención y el expediente en la página del caso)",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "casos",
+      "detalle": "Construido en la corrida del 24 oct (D-514, commits 8bc6b19, 6478e44, 48b0cf2). Qué mirar: 1) abrir «Portales» (ahí corre la reparación: el caso duplicado de 14 documentos se retira); 2) en «Atención», «1 caso que puede ser el mismo que el de un expediente», con «comparten 40 documentos · 12 documentos citan su número»: responder; 3) abrir el caso que quedó y ver debajo del nombre el expediente con su número y su carátula. Medido sobre una copia: 7 casos activos antes y 6 después, ningún caso queda como nombrado por una persona sin que lo haya nombrado, una pregunta nueva.",
+      "depende_de": [],
+      "referencia": "D-514; src-tauri/src/docbase/knowledge/matter_records.rs",
+      "creado": "2026-10-24",
+      "actualizado": "2026-10-24"
+    },
+    {
+      "id": "P-325",
+      "titulo": "Seguir un expediente en el portal desde la página de un caso",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "portales",
+      "detalle": "Hoy se empieza a seguir un expediente solo desde «Portales». Desde la página del caso, la persona ya diría a qué caso va, y la app no tendría que preguntar si es el mismo (D-514).",
+      "depende_de": [],
+      "referencia": "D-514",
+      "creado": "2026-10-24",
+      "actualizado": "2026-10-24"
+    },
+    {
+      "id": "P-326",
+      "titulo": "Deshacer la unión de dos casos",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "casos",
+      "detalle": "Responder «Es el mismo caso» en Atención une los casos y no se puede deshacer: la unión no queda en el registro de operaciones (por eso el botón pide confirmación). Además, las preguntas solo se buscan al integrar un expediente: si la app propone después un caso parecido, no se pregunta hasta la próxima integración, y la señal débil (citar número y año, sin la jurisdicción) puede preguntar por expedientes vinculados que se citan entre sí.",
+      "depende_de": [],
+      "referencia": "D-514",
+      "creado": "2026-10-24",
+      "actualizado": "2026-10-24"
     }
   ]
 }
