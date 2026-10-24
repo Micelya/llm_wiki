@@ -162,7 +162,7 @@ pub struct PersonNameRule {
 
 impl Default for PersonNameRule {
     fn default() -> Self {
-        Self { about: String::new(), from_documents: 3, min_documents: 2, min_share: 0.1 }
+        Self { about: String::new(), from_documents: 3, min_documents: 2, min_share: 0.2 }
     }
 }
 
