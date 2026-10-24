@@ -2275,6 +2275,34 @@
       "referencia": "D-514",
       "creado": "2026-10-24",
       "actualizado": "2026-10-24"
+    },
+    {
+      "id": "P-327",
+      "titulo": "Ver en la app: personas y organizaciones sin fichas que no nombran a nadie, y la duda del DNI de más",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "conocimiento",
+      "detalle": "Construido en la corrida del 24 oct (D-515, commits fdcdc3e y 81c0ebc). Cuando la app termine de recontrolar y resolver: en «Personas y organizaciones» no aparecen nombres ilegibles, letras sueltas, cargos sin nombre ni «Ley …», y primero van las fichas con página; en una ficha, «También escrito como» sin formas genéricas ni correos; en «Dudas de identidad» ya no está la del DNI de más, y la que queda dice qué número aparece con dos nombres y en qué documentos; la ficha de esa persona muestra el número de la otra como «dudoso». Medido sobre una copia: se descartan 21 fichas que no nombraban a nadie y se ocultan 3 correos, sin perder ninguna correcta (revisadas a mano); «También escrito como» pasa de 300 a 159 formas; las dudas por identificador, de 2 a 1; la hoja de respuestas no empeora en nada.",
+      "depende_de": [],
+      "referencia": "D-515",
+      "creado": "2026-10-24",
+      "actualizado": "2026-10-24"
+    },
+    {
+      "id": "P-328",
+      "titulo": "Siglas de normas, estándares y productos tomadas como organización",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "conocimiento",
+      "detalle": "Quedan unas 17 fichas que son siglas de normas o estándares, o productos y sistemas, tomadas como organización. No se detectan con reglas sin cambiar la descripción de «organización» que recibe el modelo, y cambiarla marca todas las lecturas como de una versión anterior. Propuesta: cambiarla para las lecturas nuevas, o cuando se relea por otro motivo (la tercera tanda). Riesgo conocido de D-515: una persona cuyo apellido es un cargo pierde esa palabra al compararse por nombre.",
+      "depende_de": [],
+      "referencia": "D-515",
+      "creado": "2026-10-24",
+      "actualizado": "2026-10-24"
     }
   ]
 }
