@@ -12,7 +12,8 @@
 //! | They share almost everything (`NEAR_SAME`), in short changes, none of them data | `near-identical` |
 //! | A is almost whole inside B (`CONTAINED`) and B has much more text (`CONTAINER_LONGER`) | `contained-in` |
 //! | They share much (`SHARE_MUCH`) and an identifier or an amount is replaced by another, or a form field, or there is a repeated substitution, or what is replaced in the shared text is mostly data (a clause may be added) | `same-template` |
-//! | They share much and what changes is mostly wording | `version` |
+//! | They share much, what changes is mostly wording, and B also shares much of itself with A (`VERSION_BOTH_WAYS`) | `version` |
+//! | The same, but B shares little of itself with A: `contained-in` if A is almost whole inside B (`CONTAINED`), otherwise `similar` | `contained-in` or `similar` |
 //! | They share between `SHOW_MIN` and `SHARE_MUCH` | `similar`, with no relation suggested |
 //! | Less than `SHOW_MIN` | nothing |
 //!
@@ -36,6 +37,9 @@ use super::key_data::Key;
 
 pub const SHOW_MIN: f64 = 0.5;
 pub const SHARE_MUCH: f64 = 0.8;
+/// A version shares much in both directions: the longer one also has at
+/// least this share of its own words in the shorter one.
+pub const VERSION_BOTH_WAYS: f64 = 0.8;
 pub const NEAR_SAME: f64 = 0.97;
 /// Longest change, in words, that still counts as "loose words".
 pub const NEAR_SAME_LONGEST: usize = 3;
@@ -195,11 +199,20 @@ pub fn propose(a: &Side, b: &Side, m: &Measures, changes: &Changes) -> Option<Pr
             || changes.count(Kind::Field) > 0
             || (replaced && changes.replaced_data_share() > TEMPLATE_DATA_SHARE)
             || !changes.repeated.is_empty();
-        return Some(if data {
-            make("same-template", None, None, "shared-text-other-data", certainty)
-        } else {
-            make("version", None, None, "shared-text-other-wording", certainty)
-        });
+        if data {
+            return Some(make("same-template", None, None, "shared-text-other-data", certainty));
+        }
+        // A version shares much both ways: a short text mostly inside a
+        // long one that shares little of itself back is not the same
+        // document reworded. It is one inside the other when the short
+        // one is almost whole in it, and otherwise only similar.
+        if long.cover() >= VERSION_BOTH_WAYS - slack {
+            return Some(make("version", None, None, "shared-text-other-wording", certainty));
+        }
+        if cover >= CONTAINED - slack {
+            return Some(make("contained-in", Some(short.content_id), None, "contained-one-way", certainty));
+        }
+        return Some(make("similar", None, None, "shared-one-way", "low"));
     }
     Some(make("similar", None, None, "some-shared-text", "low"))
 }
@@ -427,6 +440,28 @@ mod tests {
         let contract = side(2, 400, 95, &[]);
         let c = changes(&[(Kind::Wording, 1)], 0, 300);
         let proposal = propose(&annex, &contract, &measures(&annex, &contract, (1, 1, 1)), &c).unwrap();
+        assert_eq!(proposal.relation, "contained-in");
+        assert_eq!(proposal.subject, Some(1));
+    }
+
+    #[test]
+    fn a_version_shares_much_in_both_directions() {
+        let reworded = changes(&[(Kind::Wording, 3)], 0, 9);
+        // Two real versions: each has most of its text in the other.
+        let (a, b) = (side(1, 200, 180, &[]), side(2, 220, 185, &[]));
+        assert_eq!(relation(&a, &b, &reworded).as_deref(), Some("version"));
+        // A short text mostly inside a long one that shares little back:
+        // only similar, not a version.
+        let (short, long) = (side(1, 35, 29, &[]), side(2, 341, 29, &[]));
+        let proposal = propose(&short, &long, &measures(&short, &long, (0, 1, 1)), &reworded).unwrap();
+        assert_eq!(proposal.relation, "similar");
+        assert_eq!(proposal.certainty, "low");
+        // The same, read from an image: the lower threshold does not make it a version.
+        let read = Side { recognized: true, ..side(1, 35, 27, &[]) };
+        assert_eq!(relation(&read, &long, &reworded).as_deref(), Some("similar"));
+        // Almost whole inside, though not much shorter: one inside the other.
+        let (inner, outer) = (side(1, 100, 92, &[]), side(2, 130, 92, &[]));
+        let proposal = propose(&inner, &outer, &measures(&inner, &outer, (0, 1, 1)), &reworded).unwrap();
         assert_eq!(proposal.relation, "contained-in");
         assert_eq!(proposal.subject, Some(1));
     }

@@ -256,7 +256,7 @@ fn unrelated_documents_are_not_shown() {
 #[test]
 fn a_chain_does_not_make_one_family() {
     // b changes 15 % of a; c changes another 15 % of b: c is not like a.
-    let a = words(0..110, 0);
+    let a = words(0..103, 0);
     let b = [words(0..20, 0), words(20..35, 1), words(35..100, 0)].join(" ");
     let c = [words(0..20, 0), words(20..35, 1), words(35..60, 0), words(60..75, 2), words(75..100, 0)].join(" ");
     let (_dir, base, _) = base_with(&[("a.md", a.into_bytes()), ("b.md", b.into_bytes()), ("c.md", c.into_bytes())]);

@@ -37,7 +37,8 @@ use super::types::{self, RelationDef};
 /// Version of the computation. Changing it, or the catalog, computes
 /// everything again. `similar-2`: the key data of the two documents decide
 /// whether a version or a similar pair are another document (D-497).
-pub const ENGINE: &str = "similar-2";
+/// `similar-3`: a version shares much in both directions.
+pub const ENGINE: &str = "similar-3";
 /// Where the base keeps how the key data looked when it last compared
 /// them (`similar_key_data_check`).
 const KEY_DATA_SETTING: &str = "similar-key-data";
