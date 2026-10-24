@@ -141,6 +141,29 @@ pub struct IdentityWords {
     /// one of them and a number is where someone is, not who.
     #[serde(default)]
     pub address_words: Vec<String>,
+    /// How a person is named by what most of its documents write (D-516).
+    #[serde(default)]
+    pub person_name: PersonNameRule,
+}
+
+/// A person is named by what most of its documents write (D-516): with
+/// `from_documents` documents or more, a word of its ways of writing that
+/// fewer than `min_documents` of them write, or fewer than `min_share` of
+/// them, is not added to its name (a second surname, a married name, a
+/// misread word seen once). It stays among the ways it is written.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct PersonNameRule {
+    pub about: String,
+    pub from_documents: usize,
+    pub min_documents: usize,
+    pub min_share: f64,
+}
+
+impl Default for PersonNameRule {
+    fn default() -> Self {
+        Self { about: String::new(), from_documents: 3, min_documents: 2, min_share: 0.1 }
+    }
 }
 
 /// How documents are grouped into matters (D-213).

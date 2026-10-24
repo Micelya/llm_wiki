@@ -168,3 +168,79 @@ fn what_points_to_its_own_matter_is_said_once_on_its_page() {
     }
     assert!(note.contains("Escrito como"), "{note}");
 }
+
+#[test]
+fn a_person_is_named_as_most_of_its_documents_write_it_and_an_organization_as_before() {
+    use super::names::{chosen_name, ORGANIZATION, PERSON};
+    let v = super::vocabulary::Vocabulary::builtin();
+    // Written in four documents, one of them with a word more.
+    let written_in = [("Ejemplo Uno", 1), ("Ejemplo Uno", 2), ("Ejemplo Uno", 3), ("Ejemplo Uno Diez", 4)];
+    let forms = [("Ejemplo Uno", 3), ("Ejemplo Uno Diez", 1)];
+    let candidates = [("ejemplo uno", "Ejemplo Uno", 3), ("ejemplo uno diez", "Ejemplo Uno Diez", 1)];
+    assert_eq!(chosen_name(&v, PERSON, &candidates, &forms, &written_in), Some("ejemplo uno"));
+    // An organization keeps its most complete name (D-259).
+    assert_eq!(chosen_name(&v, ORGANIZATION, &candidates, &forms, &written_in), Some("ejemplo uno diez"));
+    // In two documents, one each: nothing is few yet.
+    assert_eq!(chosen_name(&v, PERSON, &candidates, &forms, &[("Ejemplo Uno", 1), ("Ejemplo Uno Diez", 2)]), Some("ejemplo uno diez"));
+}
+
+const N1: &str = "DOC-N1. Comparece Persona Uno Dos Tres, DNI 55.555.555, por derecho propio.";
+const N2: &str = "DOC-N2. Recibo firmado por Persona Uno Dos Tres, DNI 55.555.555.";
+const N3: &str = "DOC-N3. Nota de Persona Uno Tres, DNI 55.555.555, sobre el pago.";
+const N4: &str = "DOC-N4. Acta: PERSONA UNO DOS TRES Y CUATRO, DNI 55.555.555, presente.";
+
+fn names_model() -> FakeModel {
+    FakeModel::new("falso:1", |prompt| {
+        if !is_knowledge(prompt) {
+            return type_answer("contrato");
+        }
+        let said = [
+            ("DOC-N1.", "Persona Uno Dos Tres", "Comparece Persona Uno Dos Tres, DNI 55.555.555"),
+            ("DOC-N2.", "Persona Uno Dos Tres", "firmado por Persona Uno Dos Tres, DNI 55.555.555"),
+            ("DOC-N3.", "Persona Uno Tres", "Nota de Persona Uno Tres, DNI 55.555.555"),
+            ("DOC-N4.", "PERSONA UNO DOS TRES Y CUATRO", "Acta: PERSONA UNO DOS TRES Y CUATRO, DNI 55.555.555"),
+        ];
+        match said.iter().find(|(mark, ..)| prompt.contains(*mark)) {
+            Some((_, written, quote)) => answer(vec![mention("p", "persona", written, "parte", quote, dni("55.555.555"))], vec![]),
+            None => answer(vec![], vec![]),
+        }
+    })
+}
+
+fn people(base: &DocBase) -> Vec<(String, String)> {
+    let conn = base.conn();
+    let mut statement = conn.prepare("SELECT id, name FROM knowledge_entity WHERE kind = 'persona' AND state = 'active' ORDER BY id").unwrap();
+    let rows = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?))).unwrap();
+    rows.collect::<Result<_, _>>().unwrap()
+}
+
+#[test]
+fn a_person_s_name_is_what_most_documents_write_and_a_person_can_choose_it_and_undo_it() {
+    use super::decide::IdentityDecision;
+    let (_dir, base) = base_with(&[("n1.txt", N1), ("n2.txt", N2), ("n3.txt", N3), ("n4.txt", N4)]);
+    let model = names_model();
+    base.types_run(&model, 50).unwrap();
+    base.knowledge_run(&model, 50).unwrap();
+    base.knowledge_resolve(None, 0).unwrap();
+    let found = people(&base);
+    assert_eq!(found.len(), 1, "{found:?}");
+    let (id, name) = found[0].clone();
+    // The surname of one document is not added; the whole form stays among
+    // the ways it is written.
+    assert_eq!(name, "Persona Uno Dos Tres");
+    let aliases: Vec<String> = base.knowledge_entity(&crate::docbase::Visible::All, &id).unwrap().unwrap().aliases.into_iter().map(|a| a.written).collect();
+    assert!(aliases.iter().any(|a| a == "PERSONA UNO DOS TRES Y CUATRO"), "{aliases:?}");
+    // A person chooses another one, written by hand: it stands, also when
+    // the archive is resolved again.
+    let decision = base.knowledge_decide(&IdentityDecision::Name { a: format!("entity:{id}"), name: " Persona  Uno Tres ".into() }, None, None).unwrap();
+    assert_eq!(people(&base), [(id.clone(), "Persona Uno Tres".to_string())]);
+    super::mark_dirty(&base.conn(), "resolve", "test").unwrap();
+    base.knowledge_resolve(None, 0).unwrap();
+    assert_eq!(people(&base), [(id.clone(), "Persona Uno Tres".to_string())]);
+    let decisions = base.knowledge_entity(&crate::docbase::Visible::All, &id).unwrap().unwrap().decisions;
+    assert!(decisions.iter().any(|d| d.kind == "name" && d.b.as_deref() == Some("name:Persona Uno Tres")), "{decisions:?}");
+    // Undone, the documents name it again.
+    base.knowledge_undo(decision).unwrap();
+    assert_eq!(people(&base), [(id, "Persona Uno Dos Tres".to_string())]);
+    assert!(base.knowledge_decide(&IdentityDecision::Name { a: "entity:nadie".into(), name: "  ".into() }, None, None).is_err());
+}

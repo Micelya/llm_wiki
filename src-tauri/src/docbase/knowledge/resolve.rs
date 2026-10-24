@@ -645,10 +645,16 @@ pub(crate) struct Decided {
     pub wrong: BTreeSet<String>,
     /// Keys of claims a person confirmed.
     pub confirmed: BTreeSet<String>,
+    /// The names a person chose (D-516): the key of a group of mentions of
+    /// the entity and the name, in the order they were chosen.
+    pub names: Vec<(String, String)>,
     /// Every active decision, placed on what the documents say now
     /// (`anchors.rs`): the keys above are the ones placed.
     pub anchored: Vec<super::anchors::Anchored>,
 }
+
+/// How a decision of a name keeps the name chosen (`b`).
+pub(crate) const NAME_PREFIX: &str = "name:";
 
 pub(crate) fn load_decided(conn: &Connection) -> Result<Decided, String> {
     let anchored = super::anchors::place_all(conn, vocabulary())?;
@@ -664,6 +670,11 @@ pub(crate) fn load_decided(conn: &Connection) -> Result<Decided, String> {
             }
             ("confirm", a, _) => {
                 out.confirmed.insert(a);
+            }
+            ("name", a, Some(b)) => {
+                if let Some(name) = b.strip_prefix(NAME_PREFIX).map(str::trim).filter(|n| !n.is_empty()) {
+                    out.names.push((a, name.to_string()));
+                }
             }
             _ => {}
         }
@@ -2297,6 +2308,18 @@ pub(crate) fn write(base: &DocBase, outcome: &Outcome, report: &mut ResolveRepor
     let tx = conn.transaction().map_err(sql_err)?;
     let mut changed: BTreeSet<String> = BTreeSet::new();
     let mut entity_of_row: HashMap<i64, (String, &'static str)> = HashMap::new();
+    // The name a person chose for an entity, by the group of mentions it was
+    // chosen on: the latest one of the groups of an entity wins (D-516).
+    let chosen_by_person: HashMap<usize, (usize, &str)> = {
+        let index = names_index(clusters);
+        let mut out = HashMap::new();
+        for (order, (key, name)) in decided.names.iter().enumerate() {
+            if let Some(c) = parse_cluster_key(key).and_then(|k| index.get(&k).copied()) {
+                out.insert(c, (order, name.as_str()));
+            }
+        }
+        out
+    };
     for (id, list) in &assigned {
         let kind = &clusters[list[0]].kind;
         // Aliases: each normalized name with its most used way of writing.
@@ -2327,12 +2350,18 @@ pub(crate) fn write(base: &DocBase, outcome: &Outcome, report: &mut ResolveRepor
         let shown: Vec<(String, String, usize)> = proper.iter().map(|n| (n.to_string(), written_of(n), count(n))).collect();
         let candidates: Vec<(&str, &str, usize)> = shown.iter().map(|(n, w, c)| (n.as_str(), w.as_str(), *c)).collect();
         let forms: Vec<(&str, usize)> = aliases.values().flat_map(|forms| forms.iter().map(|(w, c)| (*w, *c))).collect();
-        let chosen = names::most_specific_with(vocabulary, kind, &candidates, &forms).unwrap_or_default().to_string();
+        // A person, by what most of its documents write (D-516).
+        let written_in: Vec<(&str, i64)> =
+            list.iter().flat_map(|&c| clusters[c].rows.iter().map(|&r| (rows[r].written.as_str(), rows[r].content_id))).collect();
+        let chosen = names::chosen_name(vocabulary, kind, &candidates, &forms, &written_in).unwrap_or_default().to_string();
         let chosen = chosen.as_str();
         // On one line, and in the form of a proper name when the documents
         // write it some other way than in capitals (D-239).
         let name = super::names::shown_name(&group_name.unwrap_or_else(|| written_of(chosen)), aliases.values().flat_map(|forms| forms.keys().copied()));
         let name = if kind == names::PERSON { names::person_case(&name) } else { name };
+        // What a person chose stands, as written (D-516).
+        let by_person = list.iter().filter_map(|c| chosen_by_person.get(c)).max_by_key(|(order, _)| *order).map(|(_, name)| name);
+        let name = by_person.map(|n| n.split_whitespace().collect::<Vec<_>>().join(" ")).unwrap_or(name);
         let now_members = mention_ids(list);
         match existing.get(id) {
             Some(old) => {
