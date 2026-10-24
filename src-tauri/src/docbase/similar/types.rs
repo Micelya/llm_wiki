@@ -157,6 +157,11 @@ pub struct RelationRule {
     #[serde(default)]
     pub other_type: Option<String>,
     pub relation: String,
+    /// How sure the relation is when the rule holds: `low` when not said
+    /// (a datum two documents may share by chance), `high` for a datum
+    /// that names one thing only (the identifier of a signing process).
+    #[serde(default)]
+    pub certainty: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

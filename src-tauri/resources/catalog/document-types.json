@@ -11,7 +11,7 @@
     "Un tipo 'carrier' dice cómo se emitió o se hizo un documento (un servicio de firma, un formulario), no qué es: sus marcas nunca dan el tipo, y sus datos y reglas valen para el documento que las lleve.",
     "'data' son los datos que interesan en un documento del tipo y con qué patrón general se encuentran: el valor de una clase ('identifier', 'amount', 'date', 'number' o 'text', el resto de la línea) pocas palabras después de una frase ('after'), un identificador con una forma ('shapes') o el valor de una marca ('fromMark'). 'required': si las reglas no lo encuentran, se le pregunta al modelo.",
     "'asksPerson': la relación pide que una persona decida, porque los dos pueden ser el mismo documento (una copia, una versión, uno dentro del otro, su acuse de recibo o su constancia de firma). Las demás (la misma plantilla con otros datos, solo parecidos) son documentos distintos: se muestran y no piden nada (D-497).",
-    "'rules' dicen cómo se relacionan dos documentos del tipo: 'different-data' (si cambia uno de esos datos son documentos distintos), 'stage-pair' (una etapa y otra del mismo documento, con los mismos datos) y 'shared-data' (un documento de este tipo y uno de 'otherType' con el mismo dato).",
+    "'rules' dicen cómo se relacionan dos documentos del tipo: 'different-data' (si cambia uno de esos datos son documentos distintos), 'stage-pair' (una etapa y otra del mismo documento, con los mismos datos) y 'shared-data' (un documento de este tipo y uno de 'otherType' con el mismo dato). 'certainty': 'high' cuando el dato compartido nombra una sola cosa (el identificador de un proceso de firma); sin decirlo, la relación se propone con certeza baja.",
     "La firma digital de un PDF se verifica sin conexión. Es el sello de un servicio de firma cuando su cadena de certificados verifica hasta uno de los 'rootFingerprints' del servicio (la huella SHA-256 del certificado de su raíz) y el certificado del firmante lleva una de sus 'certificateNames'. El nombre solo no prueba nada. 'pdfSignature': 'service' es ese sello, cuando además cubre el archivo entero; 'party', una firma que verifica y no es de un servicio."
   ],
   "relations": [
@@ -613,7 +613,8 @@
           "data": [
             "identificador-del-sobre"
           ],
-          "relation": "signing-certificate-of"
+          "relation": "signing-certificate-of",
+          "certainty": "high"
         },
         {
           "id": "otro-sobre-otra-constancia",

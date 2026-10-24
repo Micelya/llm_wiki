@@ -315,6 +315,32 @@ fn a_delivery_receipt_is_joined_to_its_letter_by_the_shipment_number() {
     assert_eq!(found.state, "proposed");
 }
 
+#[test]
+fn a_signing_certificate_is_joined_to_its_document_by_the_envelope_id_with_high_certainty() {
+    let envelope = "0A1B2C3D4E5F40718293A4B5C6D7E8F9";
+    let document = format!("Docusign Envelope ID: {envelope}
+{LETTER}");
+    let certificate = format!(
+        "Certificate Of Completion
+Envelope Id: {envelope}
+Signer Events
+Record Tracking
+Envelope Summary Events"
+    );
+    let (_dir, base) = base_with(&[("documento.md", document), ("constancia.md", certificate)]);
+    let model = FakeModel::new(|prompt| {
+        if prompt.contains("Certificate Of Completion") {
+            type_answer("constancia-de-firma", None, &[])
+        } else {
+            type_answer("carta-documento", Some("enviada"), &[])
+        }
+    });
+    base.types_run(&model, 10).unwrap();
+    let found = relation(&base, "documento.md", "constancia.md").expect("proposed by the type");
+    assert_eq!(found.relation, "signing-certificate-of");
+    assert_eq!(found.certainty, "high");
+}
+
 fn proposing(name: &'static str) -> FakeModel {
     FakeModel::new(move |prompt| {
         // A model that proposes the same new type until it is told not to.
