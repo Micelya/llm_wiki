@@ -2331,6 +2331,20 @@
       "referencia": "D-516; P-313",
       "creado": "2026-10-24",
       "actualizado": "2026-10-24"
+    },
+    {
+      "id": "P-331",
+      "titulo": "Ver en la app: volver atrás y adelante",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "pantallas",
+      "detalle": "Construido en la corrida del 24 oct (D-517, commit 798fe85). Qué mirar: ir de Inicio a una persona, a un caso y a un documento; volver con ←, con Alt+← y con el botón lateral del ratón, pasando por el caso, la persona e Inicio; → rehace el camino. Elegir «Datos y correcciones» en la persona, ir a otro lado y volver: abre en esa pestaña. Lo más dudoso: si la ventana de Windows deja llegar el botón lateral del ratón y Alt+← a la página. Conocido: al volver a una lista (por ejemplo Documentos) se ve el filtro de ahora, no el de aquel momento.",
+      "depende_de": [],
+      "referencia": "D-517; src/stores/navigation-history-store.ts",
+      "creado": "2026-10-24",
+      "actualizado": "2026-10-24"
     }
   ]
 }
