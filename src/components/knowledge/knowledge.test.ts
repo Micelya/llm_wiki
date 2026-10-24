@@ -141,6 +141,7 @@ describe("words", () => {
     expect(decisionInWords(decision("separate", "cluster:7:persona:uno", "cluster:8:persona:otra"), entity)).toContain("(en acta.pdf)")
     expect(decisionInWords(decision("wrong", "claim:ent-1:cargo:value:x", null), entity)).toBe("Un dato marcado como incorrecto")
     expect(decisionInWords(decision("wrong", "cluster:7:persona:mi", null), entity)).toBe("Una mención que no es una entidad (en acta.pdf)")
+    expect(decisionInWords(decision("name", "cluster:7:persona:uno", "name:Uno Bis"), entity)).toBe("Se llama «Uno Bis»")
   })
 })
 

@@ -1360,6 +1360,8 @@ export type IdentityDecision =
   | { kind: "confirm"; a: string }
   | { kind: "sameMatter"; a: string; b: string }
   | { kind: "otherMatter"; a: string; b: string }
+  /** `a` (an entity) is named `name`: it stands until it is undone. */
+  | { kind: "name"; a: string; name: string }
 
 export interface KnowledgeDocumentRef {
   contentId: number

@@ -252,6 +252,10 @@ export function decisionInWords(decision: IdentityDecisionView, entity: Pick<Ent
     }
     case "confirm":
       return "Un dato confirmado"
+    case "name": {
+      const name = decision.b?.replace(/^name:/, "")
+      return name ? `Se llama «${name}»` : "Un nombre elegido"
+    }
     case "wrong": {
       const where = documentOf(decision.a)
       if (decision.a.startsWith("claim:")) return "Un dato marcado como incorrecto"
