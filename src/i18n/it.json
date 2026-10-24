@@ -27,7 +27,12 @@
     "settings": "Impostazioni",
     "settingsShortcut": " (Cmd/Ctrl+,)",
     "updateAvailable": "Aggiornamento disponibile",
-    "updateAvailableSuffix": " · aggiorna"
+    "updateAvailableSuffix": " · aggiorna",
+    "history": "Percorso",
+    "back": "Indietro",
+    "backHint": "Torna a ciò che avevi aperto prima (Alt+←)",
+    "forward": "Avanti",
+    "forwardHint": "Torna a ciò che hai lasciato tornando indietro (Alt+→)"
   },
   "updateBanner": {
     "message": "La versione {{version}} è disponibile",

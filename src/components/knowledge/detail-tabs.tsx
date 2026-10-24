@@ -1,8 +1,9 @@
-import { useState, type ReactNode } from "react"
+import { useCallback, useState, type ReactNode } from "react"
 import { ChevronRight } from "lucide-react"
 import { EmptyNote } from "@/components/docbase/page"
 import { Tab, TabList } from "@/components/ui/tabs"
 import { NotesEditor } from "./notes-editor"
+import { restoredTabFor, useNavigationHistoryStore, type PlaceRef } from "@/stores/navigation-history-store"
 
 /** The two tabs of a detail screen: what is read, and the data one by one with what a person can do. */
 export type DetailTab = "article" | "data"
@@ -10,11 +11,26 @@ export type DetailTab = "article" | "data"
 /**
  * Which tab a detail screen shows: the one the person chose; until she
  * chooses, the article, or the data when it is known there is no article
- * to read.
+ * to read. Given the step it is in the history of the way, the history
+ * remembers the tab she chooses, and opens the screen on it when she goes
+ * back or forward to it.
  */
-export function useDetailTab(withoutArticle: boolean, initial: DetailTab | null = null): [DetailTab, (tab: DetailTab) => void] {
-  const [tab, setTab] = useState<DetailTab | null>(initial)
-  return [tab ?? (withoutArticle ? "data" : "article"), setTab]
+export function useDetailTab(
+  withoutArticle: boolean,
+  initial: DetailTab | null = null,
+  place?: PlaceRef,
+): [DetailTab, (tab: DetailTab) => void] {
+  const [tab, setTab] = useState<DetailTab | null>(() => initial ?? (place ? restoredTabFor(place) : null))
+  const view = place?.view
+  const subject = place?.subject
+  const choose = useCallback(
+    (next: DetailTab) => {
+      setTab(next)
+      if (view !== undefined && subject !== undefined) useNavigationHistoryStore.getState().noteTab({ view, subject }, next)
+    },
+    [view, subject],
+  )
+  return [tab ?? (withoutArticle ? "data" : "article"), choose]
 }
 
 /** Where you are: «Casos › nombre», the first part the way back. */

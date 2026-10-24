@@ -61,7 +61,7 @@ export function EntityDetailView({ id, onBack, initialTab = null }: { id: string
   const [naming, setNaming] = useState(false)
   const detail = entity.data
   // Without a page (only named in passing) there is no article to read.
-  const [shown, setTab] = useDetailTab(!article.loading && !article.data, initialTab)
+  const [shown, setTab] = useDetailTab(!article.loading && !article.data, initialTab, { view: "entities", subject: id })
   const pending = detail ? conflictsOf(detail).length + detail.doubts.length : 0
   const index = indexOf(model, [
     ...(detail?.state === "active" ? [{ id: "investigacion", label: "Investigación en internet" }] : []),

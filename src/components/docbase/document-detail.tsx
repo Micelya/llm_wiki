@@ -55,15 +55,17 @@ export function DocumentDetailView({
   const contentId = detail.data?.contentId ?? null
   // Its article is asked once the document says which it is: a new
   // document (its text changed) starts the screen over.
-  return <DocumentScreen key={contentId ?? "none"} detail={detail} contentId={contentId} onBack={onBack} initialTab={initialTab} />
+  return <DocumentScreen key={contentId ?? "none"} locationId={locationId} detail={detail} contentId={contentId} onBack={onBack} initialTab={initialTab} />
 }
 
 function DocumentScreen({
+  locationId,
   detail,
   contentId,
   onBack,
   initialTab,
 }: {
+  locationId: number
   detail: DocbaseQuery<DocumentDetail | null>
   contentId: number | null
   onBack: () => void
@@ -78,7 +80,7 @@ function DocumentScreen({
   const page = contentId === null ? null : article.data
   // A file not read yet, or a document whose page is not written: nothing to read.
   const withoutArticle = document !== null && (contentId === null || (!article.loading && !page))
-  const [tab, setTab] = useDetailTab(withoutArticle, initialTab)
+  const [tab, setTab] = useDetailTab(withoutArticle, initialTab, { view: "documents", subject: locationId })
   const openTemplate = useOpenTemplate()
   const pageWord = usePageWords()
   // Its article without what «Datos y correcciones» shows in its own sections (where it is, whom it names).
