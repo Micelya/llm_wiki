@@ -215,7 +215,12 @@ not compared (no text yet, or too little): {}", rows.len());
                 );
             }
             for signature in signatures {
-                println!("      embedded signature: {}", signature.names.join(" | "));
+                let check = signature
+                    .check
+                    .as_ref()
+                    .map(|c| format!(" [{} {}{}]", c.state, c.covers, c.problem.as_deref().map(|p| format!(" {p}")).unwrap_or_default()))
+                    .unwrap_or_default();
+                println!("      embedded signature: {}{check}", signature.names.join(" | "));
             }
             if skip != "[]" {
                 println!("      pages left out of the comparison (from 0): {skip}");

@@ -11,7 +11,8 @@
     "Un tipo 'carrier' dice cómo se emitió o se hizo un documento (un servicio de firma, un formulario), no qué es: sus marcas nunca dan el tipo, y sus datos y reglas valen para el documento que las lleve.",
     "'data' son los datos que interesan en un documento del tipo y con qué patrón general se encuentran: el valor de una clase ('identifier', 'amount', 'date', 'number' o 'text', el resto de la línea) pocas palabras después de una frase ('after'), un identificador con una forma ('shapes') o el valor de una marca ('fromMark'). 'required': si las reglas no lo encuentran, se le pregunta al modelo.",
     "'asksPerson': la relación pide que una persona decida, porque los dos pueden ser el mismo documento (una copia, una versión, uno dentro del otro, su acuse de recibo o su constancia de firma). Las demás (la misma plantilla con otros datos, solo parecidos) son documentos distintos: se muestran y no piden nada (D-497).",
-    "'rules' dicen cómo se relacionan dos documentos del tipo: 'different-data' (si cambia uno de esos datos son documentos distintos), 'stage-pair' (una etapa y otra del mismo documento, con los mismos datos) y 'shared-data' (un documento de este tipo y uno de 'otherType' con el mismo dato)."
+    "'rules' dicen cómo se relacionan dos documentos del tipo: 'different-data' (si cambia uno de esos datos son documentos distintos), 'stage-pair' (una etapa y otra del mismo documento, con los mismos datos) y 'shared-data' (un documento de este tipo y uno de 'otherType' con el mismo dato).",
+    "La firma digital de un PDF se verifica sin conexión. Es el sello de un servicio de firma cuando su cadena de certificados verifica hasta uno de los 'rootFingerprints' del servicio (la huella SHA-256 del certificado de su raíz) y el certificado del firmante lleva una de sus 'certificateNames'. El nombre solo no prueba nada. 'pdfSignature': 'service' es ese sello, cuando además cubre el archivo entero; 'party', una firma que verifica y no es de un servicio."
   ],
   "relations": [
     {
@@ -638,6 +639,10 @@
           "issuer": "Docusign",
           "certificateNames": [
             "DocuSign"
+          ],
+          "rootFingerprints": [
+            "552f7bdcf1a7af9e6ce672017f4f12abf77240c78e761ac203d1d9d20ac89988",
+            "6dc47172e01cbcb0bf62580d895fe2b8ac9ad4f873801e0c10b9c837d21eb177"
           ]
         },
         {
@@ -647,6 +652,9 @@
             "Adobe",
             "Acrobat Sign",
             "Echosign"
+          ],
+          "rootFingerprints": [
+            "458e0e219698b18d2d4093d6336a12547953a54c05dd967c3a5a268b772d1b22"
           ]
         }
       ],
@@ -676,6 +684,9 @@
           "mark": "party-signature",
           "phrases": [
             "DocuSigned by"
+          ],
+          "requires": [
+            "sello-del-servicio"
           ]
         },
         {
@@ -707,7 +718,8 @@
           ],
           "minPhrases": 1,
           "requires": [
-            "historial-de-firma"
+            "historial-de-firma",
+            "sello-del-servicio"
           ]
         }
       ],

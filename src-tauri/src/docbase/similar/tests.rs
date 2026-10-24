@@ -1,7 +1,10 @@
 //! The passes over a real base, with invented documents (R-24: nothing
 //! here comes from the test folder).
 
+use super::marks::PdfSignature;
+use super::seal::SealCheck;
 use super::store::Decision;
+use super::types::Catalog;
 use crate::docbase::query::DocumentFilter;
 use crate::docbase::testing::TempDir;
 use crate::docbase::{DocBase, Visible};
@@ -167,6 +170,37 @@ fn a_draft_and_its_final_wording_are_versions() {
     assert_eq!(base.similar_groups(&Visible::All).unwrap()[0].pending_same_document, 1);
 }
 
+/// The copy carries the valid seal of a signing service, covering the
+/// whole file: what a signed PDF brings (seal.rs).
+fn seal(base: &DocBase, name: &str) {
+    let catalog = Catalog::builtin();
+    let service = catalog.signing_services().find(|v| v.id == "adobe-acrobat-sign").unwrap();
+    let check = SealCheck {
+        state: "valid".into(),
+        chain: vec![service.root_fingerprints[0].clone()],
+        signer: vec![service.certificate_names[0].clone()],
+        covers: "file".into(),
+        ..Default::default()
+    };
+    base.similar_sign_with(content(base, name), vec![PdfSignature { check: Some(check), ..Default::default() }]).unwrap();
+    while base.similar_step(10).unwrap() > 0 {}
+}
+
+#[test]
+fn a_document_says_what_the_signatures_of_its_own_file_say() {
+    let (_dir, base, _) = base_with(&[("final.md", contract_final().into_bytes())]);
+    let location = row(&base, "final.md").location_id;
+    assert_eq!(base.document_seal(location).unwrap(), None);
+    seal(&base, "final.md");
+    let verdict = base.document_seal(location).unwrap().unwrap();
+    assert_eq!((verdict.state.as_str(), verdict.service.as_deref()), ("sealed", Some("adobe-acrobat-sign")));
+    // Signatures read from another file of the same content are not its own.
+    let check = SealCheck { state: "invalid".into(), covers: "file".into(), ..Default::default() };
+    let other = PdfSignature { file: Some("otro".into()), check: Some(check), ..Default::default() };
+    base.similar_sign_with(content(&base, "final.md"), vec![other]).unwrap();
+    assert_eq!(base.document_seal(location).unwrap(), None);
+}
+
 #[test]
 fn a_copy_with_a_signature_history_is_the_signed_copy() {
     let signed = format!("## Page 1\n\n{}\n\n## Page 2\n\n{AUDIT_PAGE}\n", contract_final());
@@ -175,6 +209,9 @@ fn a_copy_with_a_signature_history_is_the_signed_copy() {
         ("final.md", contract_final().into_bytes()),
         ("final firmado.md", signed.into_bytes()),
     ]);
+    // The history page alone proves nothing: anyone can write it.
+    assert_eq!(pair(&base, "final.md", "final firmado.md").unwrap().relation, "near-identical");
+    seal(&base, "final firmado.md");
     let similar = pair(&base, "final.md", "final firmado.md").unwrap();
     assert_eq!(similar.relation, "signed-copy");
     let signed_id = content(&base, "final firmado.md");
@@ -1273,7 +1310,7 @@ fn a_version_and_a_signed_copy_with_the_same_parties_still_wait_for_a_person() {
     }
     // A party only the signed copy names (its signatory) is no other party.
     names_in(&base, "final firmado.md", "Firmante Inventado", "firmante");
-    while base.similar_step(10).unwrap() > 0 {}
+    seal(&base, "final firmado.md");
     assert_eq!(relation(&base, "borrador.md", "final.md").as_deref(), Some("version"));
     assert_eq!(relation(&base, "final.md", "final firmado.md").as_deref(), Some("signed-copy"));
     let pending = base.similar_pending(&Visible::All).unwrap();
