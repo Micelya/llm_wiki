@@ -216,6 +216,8 @@ interface WikiState {
     | "templates"
     // The judicial portals (P-248).
     | "portals"
+    // The changes other programs asked for, reached from Atención (D-495).
+    | "program-requests"
   llmConfig: LlmConfig
   /** The folder the chat's agent works in (`<app data>/agent`), once known. */
   agentWorkspace: string | null

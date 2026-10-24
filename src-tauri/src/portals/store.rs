@@ -148,6 +148,13 @@ pub struct RecordFile {
     pub updated_at: Option<String>,
     #[serde(rename = "ultimo_resultado", default, skip_serializing_if = "Option::is_none")]
     pub last_result: Option<String>,
+    /// The last walk went through the table up to its last page, or up to
+    /// a page it already knew whole: the file holds every entry of the
+    /// record. Only then may the next update stop at the first page it
+    /// already knows (the portal only adds entries, newest first). A walk
+    /// cut or stopped leaves it off, and the next one goes through it all.
+    #[serde(rename = "recorrido_completo", default)]
+    pub complete: bool,
 }
 
 impl Default for CaseKey {
@@ -179,6 +186,23 @@ impl RecordFile {
 
     pub fn count(&self, state: &str) -> usize {
         self.entries.iter().filter(|e| e.state == state).count()
+    }
+}
+
+impl Entry {
+    /// Nothing is left to do with it: it has no document, or its document
+    /// is in the folder or in the base.
+    pub fn settled(&self) -> bool {
+        match self.state.as_str() {
+            state::NO_DOCUMENT => !self.has_document,
+            state::DOWNLOADED | state::ALREADY => self.file.is_some(),
+            _ => false,
+        }
+    }
+
+    /// Its document is still to be brought (waiting, or it failed).
+    pub fn unfinished(&self) -> bool {
+        self.has_document && matches!(self.state.as_str(), state::PENDING | state::FAILED)
     }
 }
 

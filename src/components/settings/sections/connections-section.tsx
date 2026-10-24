@@ -114,7 +114,7 @@ export function ConnectionsSection() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold">Conexiones</h2>
+        <h2 className="font-ui text-[1.75rem] leading-tight font-bold tracking-[-0.01em] text-strong">Conexiones</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Los datos para hablar con un proveedor se cargan una vez y los usan todos los servicios que lo eligen en «Servicios
           de IA». Los secretos se guardan en el llavero del sistema, no en un archivo, y no se vuelven a mostrar.
@@ -126,11 +126,11 @@ export function ConnectionsSection() {
           <Cloud className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-base font-semibold">Micelya Core</h3>
-              <span className={`text-xs ${connection ? "text-emerald-600" : "text-muted-foreground"}`}>
+              <h3 className="font-ui text-base font-bold text-strong">Micelya Core</h3>
+              <span className={`text-xs ${connection ? "text-ok" : "text-muted-foreground"}`}>
                 {!loaded ? "Leyendo…" : connection ? "Cargada" : "Sin cargar"}
               </span>
-              {saved && <span className="text-xs text-emerald-600">Guardado</span>}
+              {saved && <span className="text-xs text-ok">Guardado</span>}
             </div>
             <p className="text-sm text-muted-foreground">
               La plataforma de servicios de IA de Micelya. Hoy lee el texto de escaneos y fotos (Ajustes → Servicios de IA →
@@ -203,7 +203,7 @@ export function ConnectionsSection() {
         </div>
 
         {problems.length > 0 && changed && (
-          <ul className="space-y-0.5 text-xs text-amber-700 dark:text-amber-400">
+          <ul className="space-y-0.5 text-xs text-warn">
             {problems.map((text) => (
               <li key={text}>{text}</li>
             ))}
@@ -229,9 +229,9 @@ export function ConnectionsSection() {
         {test && (
           <div
             data-core-test={test.result.ok ? "ok" : "failed"}
-            className={`rounded-md border px-3 py-2 text-sm ${test.result.ok ? "border-emerald-600/40" : "border-destructive/40"}`}
+            className={`rounded-md border px-3 py-2 text-sm ${test.result.ok ? "border-ok-line" : "border-err-line"}`}
           >
-            <p className={test.result.ok ? "text-emerald-700 dark:text-emerald-400" : "text-destructive"}>
+            <p className={test.result.ok ? "text-ok" : "text-destructive"}>
               {coreTestText(test.result, test.fields)}
             </p>
             {!test.result.ok && test.result.step !== "fields" && test.result.detail && (
@@ -240,7 +240,7 @@ export function ConnectionsSection() {
             {test.result.ok && changed && <p className="mt-1 text-xs text-muted-foreground">Falta guardar estos datos.</p>}
           </div>
         )}
-        {problem && <p className="rounded-md border border-destructive/40 px-3 py-2 text-sm text-destructive">{problem}</p>}
+        {problem && <p className="rounded-md border border-err-line px-3 py-2 text-sm text-destructive">{problem}</p>}
       </section>
     </div>
   )

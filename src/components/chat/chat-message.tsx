@@ -36,6 +36,7 @@ import type { ChatAgentEvent, ChatAgentEventStage, ChatAgentStep, ChatUserInputF
 import { getFileCategory, getFileExtension, isTextReadable } from "@/lib/file-types"
 import { AgentFileActivity } from "@/components/chat/agent-file-activity"
 import { ReferenceKnowledgeGraph } from "@/components/chat/reference-knowledge-graph"
+import { OperationCardView } from "@/components/operations/operation-card"
 
 
 interface ChatMessageProps {
@@ -46,6 +47,8 @@ interface ChatMessageProps {
   onOpenContextDetails?: (references: MessageReference[]) => void
   onApproveShellCommand?: (command: string, assistantMessageId: string) => void
   onSubmitUserInput?: (request: ChatUserInputRequest, answers: Record<string, unknown>) => boolean
+  /** «Seguir buscando»: the agent goes on from where it reached its cap of turns. */
+  onContinue?: (message: DisplayMessage) => void
 }
 
 export interface ChatReferencePreview {
@@ -65,6 +68,7 @@ function ChatMessageImpl({
   onOpenContextDetails,
   onApproveShellCommand,
   onSubmitUserInput,
+  onContinue,
 }: ChatMessageProps) {
   const { t } = useTranslation()
   const isUser = message.role === "user"
@@ -83,7 +87,7 @@ function ChatMessageImpl({
           isSystem
             ? "bg-accent text-accent-foreground"
             : isUser
-              ? "bg-primary text-primary-foreground"
+              ? "bg-brand-soft text-brand-ink"
               : "bg-muted text-muted-foreground"
         }`}
       >
@@ -97,7 +101,7 @@ function ChatMessageImpl({
                 key={document.locationId}
                 type="button"
                 onClick={() => openChatDocument(document.locationId)}
-                className="inline-flex h-7 max-w-[18rem] items-center gap-1.5 rounded-md border border-blue-500/25 bg-blue-500/10 px-2 text-xs font-medium text-blue-700 hover:bg-blue-500/15 dark:text-blue-300"
+                className="inline-flex h-7 max-w-[18rem] items-center gap-1.5 rounded-md border border-transparent bg-brand-soft px-2 text-xs font-medium text-brand-ink hover:bg-hover"
                 title={`Abrir «${document.name}» · ${document.place}`}
               >
                 <FileText className="h-3 w-3 shrink-0" />
@@ -111,7 +115,7 @@ function ChatMessageImpl({
             {message.contextFiles.map((path) => (
               <span
                 key={path}
-                className="inline-flex h-7 max-w-[18rem] items-center gap-1.5 rounded-md border border-blue-500/25 bg-blue-500/10 px-2 text-xs font-medium text-blue-700 dark:text-blue-300"
+                className="inline-flex h-7 max-w-[18rem] items-center gap-1.5 rounded-md border border-transparent bg-brand-soft px-2 text-xs font-medium text-brand-ink"
                 title={path}
               >
                 <FileText className="h-3 w-3 shrink-0" />
@@ -146,10 +150,10 @@ function ChatMessageImpl({
         )}
         {(!isUser || message.content) && (
           <div
-            className={`rounded-lg px-3 py-2 text-sm ${
+            className={`rounded-xl px-3.5 py-2.5 text-sm ${
               isUser
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-foreground"
+                ? "bg-brand-soft text-strong"
+                : "border bg-card text-foreground shadow-card"
             }`}
           >
             {isUser ? (
@@ -173,6 +177,27 @@ function ChatMessageImpl({
             onSubmit={onSubmitUserInput}
           />
         )}
+        {isAssistant && message.operationCard && (
+          <OperationCardView
+            card={message.operationCard}
+            onChange={(card) => useChatStore.getState().setMessageOperationCard(message.id, card)}
+          />
+        )}
+        {isAssistant && message.budget?.reached && (
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground" data-testid="turn-cap">
+            <span>Llegué al tope de {message.budget.max} vueltas.</span>
+            {onContinue && message.budget.continuation && (
+              <button
+                type="button"
+                onClick={() => onContinue(message)}
+                className="rounded border px-2 py-0.5 text-foreground hover:bg-brand-soft hover:text-link"
+                title="Suma otras tantas vueltas y sigue desde donde quedó. Cada vuelta es una pregunta más al modelo."
+              >
+                Seguir buscando
+              </button>
+            )}
+          </div>
+        )}
         {isAssistant && hovered && (
           <div className="flex items-center gap-1">
             <CopyButton content={message.content} />
@@ -181,7 +206,7 @@ function ChatMessageImpl({
               <button
                 type="button"
                 onClick={onRegenerate}
-                className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] text-muted-foreground hover:text-link hover:bg-brand-soft transition-colors"
                 title={t("chat.regenerateResponse")}
               >
                 <RefreshCw className="h-3 w-3" /> {t("chat.regenerate")}
@@ -265,7 +290,7 @@ function SavedAgentActivity({
         <button
           type="button"
           onClick={() => onApproveShellCommand?.(shellCommand)}
-          className="flex w-full max-w-full items-start gap-1.5 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-left text-[11px] text-amber-700 transition-colors hover:bg-amber-500/20 dark:text-amber-300"
+          className="flex w-full max-w-full items-start gap-1.5 rounded border border-warn-line bg-warn-bg px-2 py-1 text-left text-[11px] text-warn transition-colors hover:border-warn"
           title={shellCommand}
         >
           <Terminal className="h-3 w-3 shrink-0" />
@@ -298,6 +323,7 @@ export const ChatMessage = memo(ChatMessageImpl, (prev, next) =>
   && prev.onOpenReferencePreview === next.onOpenReferencePreview
   && prev.onApproveShellCommand === next.onApproveShellCommand
   && prev.onSubmitUserInput === next.onSubmitUserInput
+  && prev.onContinue === next.onContinue
 )
 
 function UserInputRequestPanel({
@@ -392,7 +418,7 @@ function UserInputFieldControl({
               <span className="flex items-center justify-between gap-2">
                 <span className="font-medium">{option.label}</span>
                 {option.recommended && (
-                  <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
+                  <span className="rounded bg-brand-soft px-1.5 py-0.5 text-[10px] text-brand-ink">
                     {t("chat.userInputRecommended")}
                   </span>
                 )}
@@ -515,7 +541,7 @@ function CopyButton({ content }: { content: string }) {
     <button
       type="button"
       onClick={handleCopy}
-      className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+      className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] text-muted-foreground hover:text-link hover:bg-brand-soft transition-colors"
       title={t("chat.copyToClipboard")}
     >
       {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
@@ -569,7 +595,7 @@ function SaveQueryButton({ message }: { message: DisplayMessage }) {
       type="button"
       onClick={handleSave}
       disabled={saving}
-      className="self-start inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+      className="self-start inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] text-muted-foreground hover:text-link hover:bg-brand-soft transition-colors"
       title={problem ?? "Guardar la pregunta y su respuesta en «Consultas guardadas»"}
     >
       <BookmarkPlus className="h-3 w-3" />
@@ -581,19 +607,19 @@ function SaveQueryButton({ message }: { message: DisplayMessage }) {
 type CitedPage = MessageReference
 
 const REF_TYPE_CONFIG: Record<string, { icon: typeof FileText; color: string }> = {
-  entity: { icon: Users, color: "text-blue-500" },
-  concept: { icon: Lightbulb, color: "text-purple-500" },
-  source: { icon: BookOpen, color: "text-orange-500" },
-  query: { icon: HelpCircle, color: "text-green-500" },
-  synthesis: { icon: GitMerge, color: "text-red-500" },
-  comparison: { icon: BarChart3, color: "text-teal-500" },
-  finding: { icon: TrendingUp, color: "text-purple-500" },
-  thesis: { icon: Target, color: "text-rose-500" },
-  methodology: { icon: BookOpen, color: "text-teal-500" },
-  overview: { icon: Layout, color: "text-yellow-500" },
-  external: { icon: Globe, color: "text-sky-500" },
-  anytxt: { icon: FileSearch, color: "text-emerald-500" },
-  workspace: { icon: FileText, color: "text-cyan-500" },
+  entity: { icon: Users, color: "text-brand" },
+  concept: { icon: Lightbulb, color: "text-chart-3" },
+  source: { icon: BookOpen, color: "text-chart-1" },
+  query: { icon: HelpCircle, color: "text-ok" },
+  synthesis: { icon: GitMerge, color: "text-chart-2" },
+  comparison: { icon: BarChart3, color: "text-info" },
+  finding: { icon: TrendingUp, color: "text-chart-3" },
+  thesis: { icon: Target, color: "text-chart-2" },
+  methodology: { icon: BookOpen, color: "text-info" },
+  overview: { icon: Layout, color: "text-chart-5" },
+  external: { icon: Globe, color: "text-info" },
+  anytxt: { icon: FileSearch, color: "text-ok" },
+  workspace: { icon: FileText, color: "text-chart-5" },
 }
 
 function getRefType(path: string, page?: CitedPage): string {
@@ -871,7 +897,7 @@ function CitedReferencesPanel({
           <button
             type="button"
             onClick={() => hasMoreOutputs && setOutputsExpanded(!outputsExpanded)}
-            className="flex w-full items-center gap-1.5 px-2 py-1 text-primary transition-colors hover:text-primary/80"
+            className="flex w-full items-center gap-1.5 px-2 py-1 text-link transition-colors hover:text-link/80"
           >
             <Sparkles className="h-3 w-3 shrink-0" />
             <span className="font-medium">{t("chat.generatedOutputs")} ({generatedOutputs.length})</span>
@@ -895,14 +921,14 @@ function CitedReferencesPanel({
                   className="flex w-full items-start gap-1.5 rounded text-left"
                   title={page.path}
                 >
-                  <span className="mt-1 text-[10px] text-primary/60 w-4 shrink-0 text-right">[{i + 1}]</span>
+                  <span className="mt-1 text-[10px] text-link/60 w-4 shrink-0 text-right">[{i + 1}]</span>
                   <button
                     type="button"
                     onClick={() => openCitedPage(page)}
-                    className="flex min-w-0 flex-1 items-start gap-2 rounded px-1 py-1 text-left hover:bg-primary/10 transition-colors"
+                    className="flex min-w-0 flex-1 items-start gap-2 rounded px-1 py-1 text-left hover:bg-brand-soft transition-colors"
                   >
                     {imageSrc ? (
-                      <span className="h-14 w-20 shrink-0 overflow-hidden rounded border border-primary/20 bg-background/80">
+                      <span className="h-14 w-20 shrink-0 overflow-hidden rounded border border-border bg-card">
                         <img
                           src={imageSrc}
                           alt={page.title}
@@ -922,7 +948,7 @@ function CitedReferencesPanel({
                         {referenceLocator(page)}
                       </span>
                     </span>
-                    <span className="shrink-0 rounded border border-primary/20 bg-background/80 px-1 py-0 text-[10px] text-primary">
+                    <span className="shrink-0 rounded border border-border bg-card px-1 py-0 text-[10px] text-brand-ink">
                       {t("chat.generatedOutput")}
                     </span>
                   </button>
@@ -933,7 +959,7 @@ function CitedReferencesPanel({
               <button
                 type="button"
                 onClick={() => setOutputsExpanded(true)}
-                className="w-full text-center text-[10px] text-primary/70 hover:text-primary pt-0.5"
+                className="w-full text-center text-[10px] text-link/70 hover:text-link pt-0.5"
               >
                 +{generatedOutputs.length - MAX_COLLAPSED} more...
               </button>
@@ -1002,8 +1028,8 @@ function CitedReferencesPanel({
                 <button
                   type="button"
                   onClick={() => handleJumpToImageSource(info.firstUrl!, page.path)}
-                  className="flex shrink-0 items-center gap-0.5 rounded px-1 py-0.5 text-[10px] text-blue-600 hover:bg-blue-100/40 dark:text-blue-400 dark:hover:bg-blue-900/30 transition-colors"
-                  title={`Open original document at first image (${info.count} image${info.count === 1 ? "" : "s"} on this page)`}
+                  className="flex shrink-0 items-center gap-0.5 rounded px-1 py-0.5 text-[10px] text-link hover:bg-hover transition-colors"
+                  title={`Abrir el documento en su primera imagen (${info.count} ${info.count === 1 ? "imagen" : "imágenes"} en esta página)`}
                 >
                   <ImageIcon className="h-3 w-3" />
                   {info.count}
@@ -1041,7 +1067,7 @@ function CitedReferencesPanel({
           <button
             type="button"
             onClick={() => setExpanded(true)}
-            className="w-full text-center text-[10px] text-muted-foreground hover:text-primary pt-0.5"
+            className="w-full text-center text-[10px] text-muted-foreground hover:text-link pt-0.5"
           >
             +{citedPages.length - MAX_COLLAPSED} more...
           </button>
@@ -1183,7 +1209,7 @@ function AgentActivity({ events, compact = false }: { events: ChatAgentEvent[]; 
             <span
               className={`flex h-4 w-4 shrink-0 items-center justify-center ${
                 active
-                  ? "text-primary/70"
+                  ? "text-link/70"
                   : "text-muted-foreground/60"
               }`}
             >
@@ -1274,7 +1300,7 @@ function MarkdownContent({ content }: { content: string }) {
                 return <WikiLink pageName={pageName}>{children}</WikiLink>
               }
               return (
-                <span className="text-primary underline cursor-default" title={href}>
+                <span className="text-link underline cursor-default" title={href}>
                   {children}
                 </span>
               )
@@ -1367,13 +1393,13 @@ function StreamingThinkingBlock({ content }: { content: string }) {
   const visibleLines = lines.slice(-5)
 
   return (
-    <div className="rounded-md border border-dashed border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/20 px-2.5 py-2">
+    <div className="rounded-[10px] border border-dashed border-border-strong border-border-strong bg-panel-sub px-2.5 py-2">
       <div className="flex items-center gap-1.5 mb-1.5">
         <span className="text-sm animate-pulse">💭</span>
-        <span className="text-xs font-medium text-amber-700 dark:text-amber-400">{t("chat.thinking")}</span>
-        <span className="text-[10px] text-amber-600/50 dark:text-amber-500/40">{t("chat.lineCount", { count: lines.length })}</span>
+        <span className="text-xs font-medium text-muted-foreground">{t("chat.thinking")}</span>
+        <span className="text-[10px] text-muted-foreground/70">{t("chat.lineCount", { count: lines.length })}</span>
       </div>
-      <div className="h-[5lh] overflow-hidden text-xs text-amber-800/70 dark:text-amber-300/60 font-mono leading-relaxed">
+      <div className="h-[5lh] overflow-hidden text-xs text-muted-foreground font-mono leading-relaxed">
         {visibleLines.map((line, i) => (
           <div
             key={lines.length - 5 + i}
@@ -1383,7 +1409,7 @@ function StreamingThinkingBlock({ content }: { content: string }) {
             {line}
           </div>
         ))}
-        <span className="animate-pulse text-amber-500">▊</span>
+        <span className="animate-pulse text-brand">▊</span>
       </div>
     </div>
   )
@@ -1396,20 +1422,20 @@ function ThinkingBlock({ content }: { content: string }) {
   const lines = content.split("\n").filter((l) => l.trim())
 
   return (
-    <div className="mb-2 rounded-md border border-dashed border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/20">
+    <div className="mb-2 rounded-[10px] border border-dashed border-border-strong border-border-strong bg-panel-sub">
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-xs text-amber-700 dark:text-amber-400 hover:bg-amber-100/50 dark:hover:bg-amber-900/20 transition-colors"
+        className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-hover transition-colors"
       >
         <span className="text-sm">💭</span>
         <span className="font-medium">{t("chat.thoughtLineCount", { count: lines.length })}</span>
-        <span className="text-amber-600/60 dark:text-amber-500/60">
+        <span className="text-muted-foreground/70">
           {expanded ? "▼" : "▶"}
         </span>
       </button>
       {expanded && (
-        <div className="border-t border-amber-500/20 px-2.5 py-2 text-xs text-amber-800/80 dark:text-amber-300/70 whitespace-pre-wrap max-h-64 overflow-y-auto font-mono leading-relaxed">
+        <div className="border-t border-border px-2.5 py-2 text-xs text-muted-foreground whitespace-pre-wrap max-h-64 overflow-y-auto font-mono leading-relaxed">
           {content}
         </div>
       )}
@@ -1499,7 +1525,7 @@ function WikiLink({ pageName, children }: { pageName: string; children: React.Re
     <button
       type="button"
       onClick={handleClick}
-      className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-primary underline decoration-primary/30 hover:bg-primary/10 hover:decoration-primary"
+      className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-link underline decoration-[var(--link-line)] hover:bg-brand-soft hover:decoration-link"
       title={`Abrir: ${pageName}`}
     >
       <FileText className="inline h-3 w-3" />

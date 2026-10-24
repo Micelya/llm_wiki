@@ -35,7 +35,8 @@ use super::query::{Activity, DocumentDetail, DocumentFilter, DocumentPage, Healt
 use super::questions::{AskedQuestion, ModelQuestion};
 use super::tree::FolderListing;
 use super::worker::{self, Wake};
-use super::{DocBase, Visible, PRIVATE_DB_FILE};
+use super::upgrade;
+use super::{DocBase, Visible};
 
 /// Event the screens listen to in order to refresh.
 pub const CHANGED_EVENT: &str = "docbase://changed";
@@ -46,6 +47,12 @@ pub struct DocBaseState {
     wake: Arc<Wake>,
     /// Ends the wait of the questions to the model (a scan to recognize).
     ask_wake: Arc<Wake>,
+    /// The app's data folder, where the base and its backups are.
+    data_dir: Option<PathBuf>,
+    /// What the app found and did when it opened the base (backups, D-496).
+    opening: upgrade::Opening,
+    /// The backup a person went back to, until the app is opened again.
+    restored: std::sync::Mutex<Option<String>>,
 }
 
 impl DocBaseState {
@@ -65,6 +72,12 @@ impl DocBaseState {
     pub(crate) fn request_sweep(&self) {
         self.wake.request_sweep();
     }
+
+    /// Ends the wait of the questions to the model: something asked to be
+    /// read again (an operation of the contract confirmed in the chat).
+    pub(crate) fn request_asking(&self) {
+        self.ask_wake.request();
+    }
 }
 
 /// Opens the private space's base in the app's local data folder and
@@ -79,12 +92,22 @@ pub fn start(app: &tauri::AppHandle) {
         // And so can the vocabulary of the knowledge layer.
         super::knowledge::vocabulary::install_from(&dir.join("docbase/knowledge.json"));
     }
-    let base = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("no se encontró la carpeta de datos de la app: {e}"))
-        .and_then(|dir| DocBase::open(&dir.join(PRIVATE_DB_FILE)))
-        .map(Arc::new);
+    // Before the first change of the base's shape the app keeps a backup of
+    // the data, and without one it changes nothing (upgrade.rs, D-496).
+    let data_dir = app.path().app_data_dir().ok();
+    let (base, opening) = match &data_dir {
+        Some(dir) => {
+            let (base, opening) = DocBase::open_in_data_folder(dir);
+            (base.map(Arc::new), opening)
+        }
+        None => {
+            let problem = "no se encontró la carpeta de datos de la app".to_string();
+            (Err(problem.clone()), upgrade::Opening { problem: Some(problem), ..Default::default() })
+        }
+    };
+    if let Some(name) = &opening.backup {
+        eprintln!("[docbase] the base changed shape after its backup {name}; old backups deleted: {:?}", opening.pruned);
+    }
     match &base {
         Ok(base) => {
             // Once, before anything projects: what a person wrote in the
@@ -115,7 +138,91 @@ pub fn start(app: &tauri::AppHandle) {
         }
         Err(error) => eprintln!("[docbase] {error}"),
     }
-    app.manage(DocBaseState { base, wake, ask_wake });
+    app.manage(DocBaseState { base, wake, ask_wake, data_dir, opening, restored: Default::default() });
+}
+
+/// Where the data are, the version of the base, what the app did when it
+/// opened it, and the backups (Ajustes → Datos y respaldos).
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DataStatus {
+    pub data_folder: Option<String>,
+    pub backups_folder: Option<String>,
+    /// The version of the base: the open one's, or the one found on disk.
+    pub base_version: Option<i64>,
+    /// The version of the base this app writes.
+    pub app_base_version: i64,
+    /// The version of the app.
+    pub app_version: String,
+    pub opening: upgrade::Opening,
+    /// Newest first.
+    pub backups: Vec<upgrade::BackupSummary>,
+    /// How many backups are kept.
+    pub keep: usize,
+    /// The backup a person went back to: the app has to be opened again.
+    pub restored: Option<String>,
+}
+
+#[tauri::command(async)]
+pub fn docbase_data_status(state: State<'_, DocBaseState>) -> Result<DataStatus, String> {
+    let shown = |path: PathBuf| path.to_string_lossy().to_string();
+    let base_version = match &state.base {
+        Ok(base) => Some(base.schema_version()?),
+        Err(_) => state.opening.found_version,
+    };
+    Ok(DataStatus {
+        data_folder: state.data_dir.clone().map(shown),
+        backups_folder: state.data_dir.as_ref().map(|dir| shown(dir.join(upgrade::BACKUPS_DIR))),
+        base_version,
+        app_base_version: super::SCHEMA_VERSION,
+        app_version: env!("CARGO_PKG_VERSION").to_string(),
+        opening: state.opening.clone(),
+        backups: state.data_dir.as_deref().map(upgrade::list).unwrap_or_default(),
+        keep: upgrade::KEEP,
+        restored: state.restored.lock().map(|r| r.clone()).unwrap_or(None),
+    })
+}
+
+/// Opens the data folder, or the folder of the backups (`which: "backups"`).
+#[tauri::command(async)]
+pub fn docbase_open_data_folder(app: tauri::AppHandle, state: State<'_, DocBaseState>, which: Option<String>) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let dir = state.data_dir.clone().ok_or_else(|| "no se encontró la carpeta de datos de la app".to_string())?;
+    let folder = match which.as_deref() {
+        Some("backups") => dir.join(upgrade::BACKUPS_DIR),
+        _ => dir,
+    };
+    std::fs::create_dir_all(&folder).map_err(|e| format!("no se pudo crear «{}»: {e}", folder.display()))?;
+    let path = folder.to_string_lossy().to_string();
+    app.opener().open_path(path.clone(), None::<&str>).map_err(|e| format!("No se pudo abrir «{path}»: {e}"))
+}
+
+/// Goes back to a backup (the person went back to the version of the app
+/// before an update): only while the base is not open. The base in use is
+/// set apart in the folder of the backups, never deleted; the app uses the
+/// backup's from the next time it is opened. Returns where the base in use
+/// was left.
+#[tauri::command(async)]
+pub fn docbase_restore_backup(state: State<'_, DocBaseState>, name: String) -> Result<String, String> {
+    if state.base.is_ok() {
+        return Err("La base está abierta y en uso: solo se vuelve a un respaldo cuando esta versión de la app no la puede abrir.".to_string());
+    }
+    let dir = state.data_dir.as_deref().ok_or_else(|| "no se encontró la carpeta de datos de la app".to_string())?;
+    let mut restored = state.restored.lock().map_err(|_| "no se pudo volver al respaldo".to_string())?;
+    if restored.is_some() {
+        return Err("Ya se volvió a un respaldo: cerrá Micelya y volvé a abrirla para usarlo.".to_string());
+    }
+    let aside = upgrade::restore(dir, &name, super::SCHEMA_VERSION)
+        .map_err(|e| format!("No se pudo volver al respaldo: {e}. No se cambió nada."))?;
+    eprintln!("[docbase] went back to the backup {name}; the base in use was set apart in {aside}");
+    *restored = Some(name);
+    Ok(aside)
+}
+
+/// Closes the app (after going back to a backup, to open it again).
+#[tauri::command]
+pub fn docbase_close_app(app: tauri::AppHandle) {
+    app.exit(0);
 }
 
 #[derive(Debug, Serialize)]

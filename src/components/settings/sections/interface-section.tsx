@@ -15,6 +15,7 @@ interface Props {
 }
 
 const UI_LANGUAGES = [
+  { value: "es", label: "Español" },
   { value: "en", label: "English" },
   { value: "it", label: "Italiano" },
   { value: "zh", label: "中文" },
@@ -54,7 +55,7 @@ export function InterfaceSection({ draft, setDraft, onThemeChange }: Props) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold">{t("settings.sections.interface.title")}</h2>
+        <h2 className="font-ui text-[1.75rem] leading-tight font-bold tracking-[-0.01em] text-strong">{t("settings.sections.interface.title")}</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           {t("settings.sections.interface.description")}
         </p>

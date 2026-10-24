@@ -380,6 +380,13 @@ export interface RelationDef {
   measured: boolean
   /** Applied without a person (only the exact same text). */
   automatic: boolean
+  /**
+   * A person decides it: the two may be one same document (a copy, a
+   * version, one inside the other, a delivery receipt, a signing
+   * certificate). The same template and the only similar are different
+   * documents and wait for no one (D-497).
+   */
+  asksPerson: boolean
 }
 
 /** A document of the base, by one of its locations. */
@@ -453,6 +460,12 @@ export interface SimilarDocument {
   /** The document left as the wiki's source when joined as one document. */
   wikiSource: number | null
   decidedAt: number | null
+  /**
+   * Two of one template where no datum changes: possibly the same
+   * document, so the pair waits for a person although made with one
+   * template (D-440, D-497).
+   */
+  possiblySame: boolean
 }
 
 export type SimilarDecision =
@@ -461,14 +474,18 @@ export type SimilarDecision =
   | { kind: "undo" }
 
 export interface SimilarPending {
-  /** Pairs with a proposed relation and no decision. */
+  /**
+   * Pairs with no decision whose proposed relation asks a person
+   * (`RelationDef.asksPerson`): a copy, a version, one inside the other, a
+   * delivery receipt or a signing certificate (D-497).
+   */
   pairs: number
   /** Families with at least one such pair. */
   groups: number
   /**
    * Of `pairs`, those whose proposed relation makes both one document
    * (practically the same, signed copy, version): deciding them changes
-   * which one feeds the wiki. The rest are information.
+   * which one feeds the wiki.
    */
   sameDocumentPairs: number
 }
@@ -486,6 +503,7 @@ export interface SimilarGroup {
   members: SimilarGroupMember[]
   /** "large" (grew too much) or "dispersed" (a chain the principal does not hold). */
   flags: string[]
+  /** Members whose pair with the principal waits for a person (its relation asks one). */
   pending: number
   /** Of `pending`, those whose proposed relation makes both one document. */
   pendingSameDocument: number
@@ -1431,8 +1449,8 @@ export interface KnowledgeDecisionReview {
   reason: string
 }
 
-/** "open" for now (its life cycle is P-213). */
-export type MatterStatus = "open"
+/** Open, closed or archived (D-475): a closed or archived one leaves the list and Atención. */
+export type MatterStatus = "open" | "closed" | "archived"
 /** Who made it: the grouping ("proposed") or a person. */
 export type MatterOrigin = "proposed" | "person"
 /** What a person decided about it. */
@@ -2030,4 +2048,75 @@ export function renameMatter(matterId: string, name: string): Promise<void> {
  */
 export function chooseMatterDocument(matterId: string, document: string, choice: "in" | "out"): Promise<void> {
   return invoke<void>("docbase_knowledge_choose_matter_document", { matterId, document, choice })
+}
+
+/** What `respaldo.json` says of a backup (Ajustes → Datos y respaldos). */
+export interface BackupSummary {
+  /** Its folder, inside the folder of the backups. */
+  name: string
+  /** The version of the base it keeps. */
+  baseVersion: number
+  /** The version the app was taking it to. */
+  forVersion: number
+  /** The version of the app that last wrote that base, when it said. */
+  writtenByApp: string | null
+  /** When it was made, local time (dd/mm/aaaa hh:mm). */
+  madeAt: string
+  madeAtMs: number
+  bytes: number
+  /** Every file is there with its size. */
+  complete: boolean
+}
+
+/** What the app found and did when it opened its base. */
+export interface DataOpening {
+  /** The version of the base it found (0: there was none). */
+  foundVersion: number | null
+  /** The backup made before changing its shape, if it was changed. */
+  backup: string | null
+  /** The older backups deleted after it. */
+  pruned: string[]
+  /** Why the base could not be opened, in words. */
+  problem: string | null
+  /** The base was written by a newer version of the app. */
+  newer: boolean
+}
+
+/** Where the data are, the version of the base and its backups (D-496). */
+export interface DataStatus {
+  dataFolder: string | null
+  backupsFolder: string | null
+  baseVersion: number | null
+  /** The version of the base this app writes. */
+  appBaseVersion: number
+  appVersion: string
+  opening: DataOpening
+  /** Newest first. */
+  backups: BackupSummary[]
+  /** How many backups are kept. */
+  keep: number
+  /** The backup a person went back to: the app has to be opened again. */
+  restored: string | null
+}
+
+export function getDataStatus(): Promise<DataStatus> {
+  return invoke<DataStatus>("docbase_data_status")
+}
+
+/** Opens the data folder, or the folder of the backups. */
+export function openDataFolder(which: "data" | "backups" = "data"): Promise<void> {
+  return invoke<void>("docbase_open_data_folder", { which })
+}
+
+/**
+ * Goes back to a backup, only while this version of the app cannot open
+ * the base; returns the folder where the base in use was set apart.
+ */
+export function restoreBackup(name: string): Promise<string> {
+  return invoke<string>("docbase_restore_backup", { name })
+}
+
+/** Closes the app, to open it again with the backup. */
+export function closeApp(): Promise<void> {
+  return invoke<void>("docbase_close_app")
 }

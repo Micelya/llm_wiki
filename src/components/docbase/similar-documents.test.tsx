@@ -37,8 +37,8 @@ describe("the similar documents section", () => {
     const html = renderToStaticMarkup(
       <SimilarList items={[]} relations={RELATIONS} name="x" words={words} onOpen={() => {}} onDecide={() => {}} />,
     )
-    expect(text(html)).toContain("Documentos parecidos (0)")
-    expect(text(html)).toContain("Ningún otro documento de la base comparte buena parte de su texto con este.")
+    expect(text(html)).toContain("Copias y versiones (0)")
+    expect(text(html)).toContain("Ningún otro documento de la base parece ser una copia o una versión de este.")
   })
 
   it("shows each similar document with its relation, description, measures and buttons", () => {
@@ -127,8 +127,36 @@ describe("the similar documents section", () => {
     const html = renderToStaticMarkup(
       <SimilarList items={items} relations={RELATIONS} name="x" words={words} onOpen={() => {}} onDecide={() => {}} />,
     )
-    expect(text(html)).toContain("Documentos parecidos (2)")
+    expect(text(html)).toContain("Copias y versiones (2)")
     expect(text(html)).toContain("Nada se une solo")
     expect(text(html)).toContain("Unir como «Versión»")
+  })
+
+  it("does not list those made with the same template, and folds those that only share some text (D-497)", () => {
+    const items = [
+      similarDocument(),
+      similarDocument({ other: docRef(3, "Contrato con otro cliente.docx"), relation: "same-template", subjectContentId: null }),
+      similarDocument({ other: docRef(4, "Nota parecida.docx"), relation: "similar", subjectContentId: null }),
+    ]
+    const shown = text(
+      renderToStaticMarkup(
+        <SimilarList items={items} relations={RELATIONS} name="x" words={words} onOpen={() => {}} onDecide={() => {}} />,
+      ),
+    )
+    expect(shown).toContain("Copias y versiones (1)")
+    expect(shown).not.toContain("Contrato con otro cliente.docx")
+    expect(shown).toContain("Comparten parte del texto (1)")
+    // Folded until asked.
+    expect(shown).not.toContain("Nota parecida.docx")
+  })
+
+  it("asks for a decision about two of one template where no datum changes, and about nothing that only shares text", () => {
+    const same = text(
+      card({ item: similarDocument({ relation: "same-template", subjectContentId: null, possiblySame: true }) }),
+    )
+    expect(same).toContain("no cambia ningún dato entre los dos: posiblemente sean el mismo documento")
+    expect(same).toContain("Espera una decisión")
+    const only = text(card({ item: similarDocument({ relation: "similar", subjectContentId: null }) }))
+    expect(only).not.toContain("Espera una decisión")
   })
 })

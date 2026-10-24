@@ -13,8 +13,11 @@
     "windows": [
       {
         "title": "Micelya Desktop",
-        "width": 1200,
+        "width": 1280,
         "height": 800,
+        "minWidth": 800,
+        "minHeight": 500,
+        "center": true,
         "resizable": true,
         "fullscreen": false,
         "hiddenTitle": true,

@@ -40,6 +40,7 @@ pub mod similar;
 pub(crate) mod testing;
 pub mod text;
 pub mod tree;
+pub mod upgrade;
 pub mod work_origin;
 mod worker;
 
@@ -61,6 +62,9 @@ pub(crate) use excluded_sql;
 
 /// File name of the private space's database inside the app data folder.
 pub const PRIVATE_DB_FILE: &str = "docbase/private.sqlite3";
+
+/// The version of the base's shape this app writes (`schema.rs`).
+pub const SCHEMA_VERSION: i64 = schema::CURRENT_VERSION;
 
 /// What the caller is allowed to see. Every query takes one, so the
 /// shared space can narrow it later without touching the queries; in the
@@ -103,8 +107,59 @@ impl std::fmt::Debug for DocBase {
 
 impl DocBase {
     /// Opens (creating it if needed) the database at `path` and brings
-    /// its schema up to date.
+    /// its schema up to date, without backups: for the tests and the checks
+    /// over copies of a base. The app opens its own with
+    /// `open_in_data_folder`.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn open(path: &Path) -> Result<Self, String> {
+        let conn = Self::connect(path)?;
+        Self::prepare(conn, Self::recognized_beside(path))
+    }
+
+    /// The base of the app, in its data folder (`PRIVATE_DB_FILE`). Before
+    /// the first change of its shape it keeps a backup of the data, and
+    /// without one it changes nothing (`upgrade.rs`, D-496). Says what it
+    /// found and did, also when the base could not be opened.
+    pub fn open_in_data_folder(data_dir: &Path) -> (Result<Self, String>, upgrade::Opening) {
+        let mut opening = upgrade::Opening::default();
+        let base = Self::open_keeping_backups(data_dir, &mut opening);
+        if let Err(problem) = &base {
+            opening.problem = Some(problem.clone());
+        }
+        (base, opening)
+    }
+
+    fn open_keeping_backups(data_dir: &Path, opening: &mut upgrade::Opening) -> Result<Self, String> {
+        let path = data_dir.join(PRIVATE_DB_FILE);
+        let conn = Self::connect(&path)?;
+        let found = schema::version(&conn)?;
+        let current = schema::CURRENT_VERSION;
+        opening.found_version = Some(found);
+        if found > current {
+            opening.newer = true;
+            return Err(upgrade::newer_message(found, current));
+        }
+        if found > 0 && found < current {
+            let name = upgrade::take(&conn, data_dir, found, current)
+                .map_err(|cause| upgrade::no_backup_message(found, current, &cause))?;
+            eprintln!("[docbase] backup before taking the base from version {found} to {current}: {name}");
+            opening.backup = Some(name);
+        }
+        let base = Self::prepare(conn, Self::recognized_beside(&path)).map_err(|cause| match &opening.backup {
+            Some(name) => upgrade::update_failed_message(found, current, name, &cause),
+            None => cause,
+        })?;
+        if let Err(error) = upgrade::note_app_version(&base.conn()) {
+            eprintln!("[docbase] the version of the app could not be noted in the base: {error}");
+        }
+        if opening.backup.is_some() {
+            // Only after an update that went well.
+            opening.pruned = upgrade::prune(data_dir, upgrade::KEEP);
+        }
+        Ok(base)
+    }
+
+    fn connect(path: &Path) -> Result<Connection, String> {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)
                 .map_err(|e| format!("Failed to create '{}': {e}", parent.display()))?;
@@ -114,8 +169,16 @@ impl DocBase {
         // WAL lets the screens read while the background worker writes.
         conn.pragma_update(None, "journal_mode", "WAL")
             .map_err(|e| format!("Failed to set the journal mode: {e}"))?;
-        let recognized = path.parent().unwrap_or(Path::new(".")).join(recognize::RECOGNIZED_DIR);
-        Self::prepare(conn, recognized)
+        Ok(conn)
+    }
+
+    fn recognized_beside(path: &Path) -> PathBuf {
+        path.parent().unwrap_or(Path::new(".")).join(recognize::RECOGNIZED_DIR)
+    }
+
+    /// The version of the base's shape.
+    pub fn schema_version(&self) -> Result<i64, String> {
+        schema::version(&self.conn())
     }
 
     /// A database that lives only in memory, for tests.

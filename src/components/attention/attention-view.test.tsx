@@ -423,7 +423,7 @@ describe("the scans in «En curso» (P-242)", () => {
   it("says the line at the foot is waiting for the engine", () => {
     const waiting = progress({ recognition: { state: "paused", pending: 3, total: 3, done: 0 } }, { paused: 3, recognitionEngine: null })
     expect(text(renderToStaticMarkup(<ProgressLine progress={waiting} />))).toBe(
-      "Falta elegir el motor que reconoce escaneos: 3 documentos esperan",
+      "Falta elegir el motor que reconoce escaneos: 3 documentos esperan Ver «En curso»",
     )
   })
 })
@@ -431,13 +431,13 @@ describe("the scans in «En curso» (P-242)", () => {
 describe("the line at the foot of the window", () => {
   it("says what is being processed and how far it went", () => {
     const html = renderToStaticMarkup(<ProgressLine progress={halfway} />)
-    expect(text(html)).toBe("Casos: El proveedor del modelo llegó a su límite de uso. Vuelve a intentar a las 14:15.")
+    expect(text(html)).toBe("Casos: El proveedor del modelo llegó a su límite de uso. Vuelve a intentar a las 14:15. Ver «En curso»")
     const busy = progress({ reading: { state: "running", done: 12, total: 68, pending: 56 } })
     expect(text(renderToStaticMarkup(<ProgressLine progress={busy} />))).toBe(
-      "Procesando: Lectura con el modelo: a quiénes nombran, 12 de 68",
+      "Procesando: Lectura con el modelo: a quiénes nombran, 12 de 68 Ver «En curso»",
     )
     expect(renderToStaticMarkup(<ProgressLine progress={busy} />)).toContain('data-tone="busy"')
-    expect(text(renderToStaticMarkup(<ProgressLine progress={progress()} />))).toBe("Todo al día")
+    expect(text(renderToStaticMarkup(<ProgressLine progress={progress()} />))).toBe("Todo al día Ver «En curso»")
   })
 })
 
@@ -465,5 +465,52 @@ describe("Inicio", () => {
     expect(shown).toContain("Nada requiere tu atención. La app está trabajando")
     useAttentionStore.setState({ bySource: { prueba: [notice("a", "problem", "Un problema inventado")] } })
     expect(text(renderToStaticMarkup(<HomeView />))).toContain("Además, hay 59 documentos en proceso.")
+  })
+
+  it("shows each line with its word, its explanation and its button, the overview in figures, and «Mi semana» with what exists (D-493)", () => {
+    base.answers.home = {
+      health: { origins: 2, unreachableOrigins: 1, locations: 10, documents: 9, byState: { processed: 9 }, copies: 1, words: 500, lastScanAt: null },
+      origins: [],
+      activity: [{ at: Date.now(), kind: "added", originName: "Carpeta inventada", count: 1, relPath: "a/nota de prueba.pdf", fromPath: null }],
+    } satisfies Home
+    base.answers.matters = [
+      { id: "m1", name: "Caso inventado", status: "open", origin: "person", confirmation: "confirmed", documents: 3, proposed: 0, pagePath: null },
+      { id: "m2", name: "Otro caso inventado", status: "closed", origin: "person", confirmation: "confirmed", documents: 1, proposed: 0, pagePath: null },
+    ]
+    base.answers.overview = {
+      path: "wiki/overview.md",
+      writtenAt: Date.now(),
+      body: [
+        "# Resumen del archivo",
+        "",
+        "Algo.",
+        "",
+        "- Documentos leídos: 1284",
+        "- Con página: Persona: 212 · Organización: 1",
+        "",
+        "## Los más nombrados",
+        "",
+        "- [[persona-uno|Persona Uno]] · Persona — 96 documentos",
+        "",
+        "## Casos",
+        "",
+        "- [[caso-inventado|Caso inventado]] — 3 documentos",
+      ].join("\n"),
+    }
+    const problem: AttentionNotice = {
+      ...notice("a", "problem", "Una carpeta inventada no responde"),
+      priority: "high",
+      actions: [{ kind: "go", label: "Volver a barrer", target: { view: "origins" } }],
+    }
+    useAttentionStore.setState({ bySource: { prueba: [problem, notice("b", "decision", "Dos fichas inventadas esperan")] } })
+    const shown = text(renderToStaticMarkup(<HomeView />))
+    expect(shown).toContain("Atención 1 problema 1 decisión Ver todo")
+    expect(shown).toContain("Problema Una carpeta inventada no responde Una explicación inventada. Volver a barrer")
+    expect(shown).toContain("Decisión Dos fichas inventadas esperan Una explicación inventada.")
+    expect(shown).toContain("1.284 documentos leídos 212 personas con página 1 organización con página 1 caso")
+    expect(shown).toContain("Los más nombrados Persona Uno · Persona 96 documentos Casos con más documentos Caso inventado 3 documentos")
+    expect(shown).toContain("Apareció nota de prueba.pdf Carpeta inventada")
+    expect(shown).toContain("Mi semana Casos activos 1 Esperan en Atención 1 problema 1 decisión")
+    expect(shown).toContain("Carpetas 1 de 2 sin conexión")
   })
 })

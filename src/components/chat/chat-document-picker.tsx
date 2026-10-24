@@ -133,7 +133,7 @@ export function DocumentPicker({
 export function DocumentChip({ document, onRemove }: { document: ChatDocument; onRemove?: () => void }) {
   return (
     <span
-      className="group mt-1 inline-flex h-7 max-w-[18rem] items-center gap-1.5 rounded-md border border-blue-500/25 bg-blue-500/10 px-2 text-xs font-medium text-blue-700 dark:text-blue-300"
+      className="group mt-1 inline-flex h-7 max-w-[18rem] items-center gap-1.5 rounded-md border border-transparent bg-brand-soft px-2 text-xs font-medium text-brand-ink"
       title={`${document.name} · ${document.place}`}
     >
       <FileText className="h-3 w-3 shrink-0" />
@@ -142,7 +142,7 @@ export function DocumentChip({ document, onRemove }: { document: ChatDocument; o
         <button
           type="button"
           onClick={onRemove}
-          className="rounded p-0.5 opacity-70 hover:bg-blue-500/15 group-hover:opacity-100"
+          className="rounded p-0.5 opacity-70 hover:bg-hover group-hover:opacity-100"
           title={`Quitar «${document.name}» del mensaje`}
         >
           <X className="h-3 w-3" />

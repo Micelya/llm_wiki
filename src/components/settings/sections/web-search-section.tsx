@@ -176,7 +176,7 @@ export function WebSearchSection() {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-semibold">{t("settings.sections.webSearch.title")}</h2>
+        <h2 className="font-ui text-[1.75rem] leading-tight font-bold tracking-[-0.01em] text-strong">{t("settings.sections.webSearch.title")}</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           {t("settings.sections.webSearch.description")}
         </p>
@@ -221,12 +221,12 @@ export function WebSearchSection() {
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {savedId === "anytxt" && (
-              <span className="text-[10px] text-emerald-600">
+              <span className="text-[10px] text-ok">
                 {t("settings.sections.webSearch.savedBadge")}
               </span>
             )}
             {anyTxtConfig.enabled && (
-              <span className="rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+              <span className="rounded-full bg-brand-soft px-1.5 py-0.5 text-[10px] font-semibold text-brand-ink">
                 {t("settings.sections.webSearch.activeBadge")}
               </span>
             )}
@@ -241,7 +241,7 @@ export function WebSearchSection() {
               aria-label={anyTxtConfig.enabled ? t("settings.sections.webSearch.deactivate") : t("settings.sections.webSearch.activate")}
             >
               <span
-                className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm ring-1 ring-black/10 transition-transform ${
+                className={`inline-block h-3.5 w-3.5 rounded-full bg-primary-foreground shadow-card ring-1 ring-border-strong transition-transform ${
                   anyTxtConfig.enabled ? "translate-x-4" : "translate-x-0.5"
                 }`}
               />
@@ -339,12 +339,12 @@ export function WebSearchSection() {
                       </span>
                     )}
                     {isActive && (
-                      <span className="shrink-0 rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                      <span className="shrink-0 rounded-full bg-brand-soft px-1.5 py-0.5 text-[10px] font-semibold text-brand-ink">
                         {t("settings.sections.webSearch.activeBadge")}
                       </span>
                     )}
                     {savedId === provider.id && (
-                      <span className="shrink-0 text-[10px] text-emerald-600">
+                      <span className="shrink-0 text-[10px] text-ok">
                         {t("settings.sections.webSearch.savedBadge")}
                       </span>
                     )}
@@ -365,7 +365,7 @@ export function WebSearchSection() {
                   aria-label={isActive ? t("settings.sections.webSearch.deactivate") : t("settings.sections.webSearch.activate")}
                 >
                   <span
-                    className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm ring-1 ring-black/10 transition-transform ${
+                    className={`inline-block h-3.5 w-3.5 rounded-full bg-primary-foreground shadow-card ring-1 ring-border-strong transition-transform ${
                       isActive ? "translate-x-4" : "translate-x-0.5"
                     }`}
                   />
@@ -462,9 +462,9 @@ export function WebSearchSection() {
                       <p
                         className={`text-xs ${
                           testStatus[provider.id].state === "ok"
-                            ? "text-emerald-600"
+                            ? "text-ok"
                             : testStatus[provider.id].state === "warning"
-                              ? "text-amber-600"
+                              ? "text-warn"
                             : testStatus[provider.id].state === "error"
                               ? "text-destructive"
                               : "text-muted-foreground"

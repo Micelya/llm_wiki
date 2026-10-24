@@ -25,12 +25,17 @@ export const legal: Vertical = {
       templates: {
         name: "Plantillas",
         description:
-          "Los modelos que comparten los documentos del archivo: el texto que dicen igual y los campos que cambian de uno a otro. La app los arma sola comparando los textos; cada uno es una propuesta hasta que confirmás su familia.",
+          "Los modelos que comparten los documentos del archivo: el texto que dicen igual y los campos que cambian de uno a otro. La app los arma sola comparando los textos; los documentos hechos con una plantilla son documentos distintos y no piden ninguna decisión.",
         one: "plantilla",
         many: "plantillas",
         proposed: "Propuesta",
         confirmed: "Confirmada",
         noneYet: "Ninguna plantilla todavía",
+      },
+      copies: {
+        name: "Copias y versiones",
+        description:
+          "Los documentos que pueden ser el mismo: un ejemplar firmado, otra versión, uno dentro de otro, un acuse de recibo o una constancia de firma. Son lo único que espera que decidas; los hechos con la misma plantilla son documentos distintos.",
       },
       suggestedGroups: ["Cliente", "Caso"],
       wikiLanguage: "Spanish",
@@ -48,8 +53,8 @@ export const legal: Vertical = {
         "reply-to": { name: "Respuesta", of: "responde a" },
         "signing-certificate-of": { name: "Constancia de firma", of: "es la constancia de firma de" },
         "delivery-receipt-of": { name: "Acuse de recibo", of: "es el acuse de recibo de" },
-        "same-matter": { name: "Mismo asunto" },
-        "same-person-other-matter": { name: "Misma persona, otro asunto" },
+        "same-matter": { name: "Mismo caso" },
+        "same-person-other-matter": { name: "Misma persona, otro caso" },
       },
       documentTypes: {
         "carta-documento": "Carta documento",
@@ -105,14 +110,15 @@ export const legal: Vertical = {
           "Los documentos que tratan de un mismo caso, agrupados por lo que comparten: un número, un importe, una referencia, una relación que confirmó una persona. Lo que agrupa la app es una propuesta hasta que lo confirmás.",
         matter: "Caso",
         withoutMatter: "Sin caso identificado",
-        matterStates: { proposed: "Propuesto", confirmed: "Confirmado", status: { open: "Abierto" } },
+        matterStates: { proposed: "Propuesto", confirmed: "Confirmado", status: { open: "Abierto", closed: "Cerrado", archived: "Archivado" } },
         doubts: "Identidades dudosas",
         references: "Referencias",
         referenceTypes: ["asunto"],
         entityTypes: {
           persona: { one: "Persona", many: "Personas" },
           organizacion: { one: "Organización", many: "Organizaciones" },
-          asunto: { one: "Asunto", many: "Asuntos" },
+          // The screens say the matter as the menu does (P-057); the text of the pages keeps its own word (P-313).
+          asunto: { one: "Caso", many: "Casos" },
         },
         groups: { one: "Grupo de sociedades", many: "Grupos de sociedades" },
         roles: {
@@ -192,12 +198,17 @@ export const legal: Vertical = {
       templates: {
         name: "Templates",
         description:
-          "The models the documents of the archive share: the text they say alike and the fields that change from one to another. The app builds them by comparing the texts; each one is a proposal until you confirm its family.",
+          "The models the documents of the archive share: the text they say alike and the fields that change from one to another. The app builds them by comparing the texts; the documents made with a template are different documents and ask for no decision.",
         one: "template",
         many: "templates",
         proposed: "Proposed",
         confirmed: "Confirmed",
         noneYet: "No templates yet",
+      },
+      copies: {
+        name: "Copies and versions",
+        description:
+          "The documents that may be the same one: a signed copy, another version, one inside another, a delivery receipt or a signing certificate. They are the only thing waiting for you to decide; those made with the same template are different documents.",
       },
       suggestedGroups: ["Client", "Matter"],
       wikiLanguage: "English",
@@ -272,7 +283,7 @@ export const legal: Vertical = {
           "The documents about one matter, grouped by what they share: a number, an amount, a relation a person confirmed.",
         matter: "Matter",
         withoutMatter: "No identified matter",
-        matterStates: { proposed: "Proposed", confirmed: "Confirmed", status: { open: "Open" } },
+        matterStates: { proposed: "Proposed", confirmed: "Confirmed", status: { open: "Open", closed: "Closed", archived: "Archived" } },
         doubts: "Doubtful identities",
         references: "References",
         referenceTypes: ["asunto"],

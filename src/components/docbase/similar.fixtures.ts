@@ -58,28 +58,30 @@ export function similarDocument(patch: Partial<SimilarDocument> = {}): SimilarDo
     chosenRelation: null,
     wikiSource: null,
     decidedAt: null,
+    possiblySame: false,
     ...patch,
   }
 }
 
 /** The relations as the catalog lists them (shape only; names come from the vocabulary). */
 export const RELATIONS: RelationDef[] = [
-  { id: "same-document", sameDocument: true, directed: false, measured: true, automatic: true },
-  { id: "near-identical", sameDocument: true, directed: false, measured: true, automatic: false },
-  { id: "signed-copy", sameDocument: true, directed: true, measured: true, automatic: false },
-  { id: "preview", sameDocument: false, directed: true, measured: true, automatic: false },
-  { id: "version", sameDocument: true, directed: false, measured: true, automatic: false },
-  { id: "contained-in", sameDocument: false, directed: true, measured: true, automatic: false },
-  { id: "same-template", sameDocument: false, directed: false, measured: true, automatic: false },
-  { id: "similar", sameDocument: false, directed: false, measured: true, automatic: false },
-  { id: "same-meaning", sameDocument: false, directed: false, measured: false, automatic: false },
-  { id: "reply-to", sameDocument: false, directed: true, measured: false, automatic: false },
+  { id: "same-document", sameDocument: true, directed: false, measured: true, automatic: true, asksPerson: false },
+  { id: "near-identical", sameDocument: true, directed: false, measured: true, automatic: false, asksPerson: true },
+  { id: "signed-copy", sameDocument: true, directed: true, measured: true, automatic: false, asksPerson: true },
+  { id: "preview", sameDocument: false, directed: true, measured: true, automatic: false, asksPerson: true },
+  { id: "version", sameDocument: true, directed: false, measured: true, automatic: false, asksPerson: true },
+  { id: "contained-in", sameDocument: false, directed: true, measured: true, automatic: false, asksPerson: true },
+  { id: "same-template", sameDocument: false, directed: false, measured: true, automatic: false, asksPerson: false },
+  { id: "similar", sameDocument: false, directed: false, measured: true, automatic: false, asksPerson: false },
+  { id: "same-meaning", sameDocument: false, directed: false, measured: false, automatic: false, asksPerson: false },
+  { id: "reply-to", sameDocument: false, directed: true, measured: false, automatic: false, asksPerson: false },
 ]
 
 /**
- * A family whose first `pending` members wait for a decision. Their
- * relation is `relation` ("same-template" by default); the pending ones
- * that make one document are counted in `pendingSameDocument`.
+ * A family whose first `pending` members are still undecided (the rest
+ * were joined). Their relation is `relation` ("same-template" by
+ * default); like the base, it counts as pending only what asks a person
+ * (D-497), and in `pendingSameDocument` what of that makes one document.
  */
 export function similarGroup(
   principal: DocRef,
@@ -88,7 +90,9 @@ export function similarGroup(
   flags: string[] = [],
   relation: string = "same-template",
 ): SimilarGroup {
-  const oneDocument = RELATIONS.find((r) => r.id === relation)?.sameDocument ?? false
+  const definition = RELATIONS.find((r) => r.id === relation)
+  const asks = definition?.asksPerson ?? false
+  const oneDocument = definition?.sameDocument ?? false
   return {
     principal,
     members: [principal, ...others].map((doc, index) => ({
@@ -98,8 +102,8 @@ export function similarGroup(
       state: index === 0 ? null : index <= pending ? "proposed" : "joined",
     })),
     flags,
-    pending,
-    pendingSameDocument: oneDocument ? pending : 0,
+    pending: asks ? pending : 0,
+    pendingSameDocument: asks && oneDocument ? pending : 0,
     templateFields: relation === "same-template" ? 3 : null,
     possiblySame: 0,
   }

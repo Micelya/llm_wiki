@@ -64,7 +64,7 @@ mod tests_changes;
 #[cfg(test)]
 mod tests_filiations;
 #[cfg(test)]
-mod tests_identity;
+pub(crate) mod tests_identity;
 #[cfg(test)]
 mod tests_groups;
 #[cfg(test)]

@@ -198,7 +198,7 @@ pub struct RecordData {
 /// One entry of the record's table.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Row {
-    /// As the portal writes it ("05/03/2024").
+    /// "dd/mm/yyyy" ("05/03/2024"; the portal may write "5/3/2024").
     pub date: String,
     pub kind: String,
     pub detail: String,
@@ -227,11 +227,21 @@ pub struct Linked {
     pub detail: Option<String>,
 }
 
+/// The rows of a page of the table of entries that could not be read as
+/// an entry (no date found in them): told, never left out in silence.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct Unread {
+    pub rows: usize,
+    /// Of them, those with a document.
+    pub with_document: usize,
+}
+
 /// What the app reads of one page of a record.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RecordPage {
     pub data: RecordData,
     pub rows: Vec<Row>,
+    pub unread: Unread,
     /// The mark of its "next page" link, when there is one to press.
     pub next: Option<String>,
     /// The number of the page it shows, as the pager says it.
@@ -267,6 +277,11 @@ pub trait Connector: Send + Sync {
     fn busy(&self, page: &Page) -> bool;
     /// How many entries a full page of the record has, when it is fixed.
     fn rows_per_page(&self) -> Option<usize>;
+    /// A text of an entry kept by an earlier version of the connector, as
+    /// this one reads it now, so the same entry keeps its key.
+    fn tidy(&self, text: &str) -> String {
+        text.to_string()
+    }
     /// Its jurisdictions, by code and name, for the form of the app.
     fn jurisdictions(&self) -> Vec<(&'static str, &'static str)>;
 }
@@ -300,6 +315,31 @@ pub fn navigation(connector: &dyn Connector, url: &tauri::Url) -> Navigation {
         }
     }
     Navigation::Refuse
+}
+
+/// A permission a page in the portal's view asks for (WebView2's
+/// `PermissionRequested`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Permission {
+    /// To download several files in a row without a person's click: the
+    /// app asks the portal for each document, one after the other.
+    MultipleDownloads,
+    /// Any other (camera, location, notifications…).
+    Other,
+}
+
+/// Whether the portal's view grants by itself, without asking the person,
+/// a permission a page asks for: only downloading several files in a row,
+/// and only to the portal's own pages (`https`, its own host). Any other
+/// permission, or site, gets WebView2's own answer.
+pub fn grants_by_itself(connector: &dyn Connector, permission: Permission, origin: &str) -> bool {
+    if permission != Permission::MultipleDownloads {
+        return false;
+    }
+    match tauri::Url::parse(origin) {
+        Ok(url) => url.scheme() == "https" && url.host_str().is_some() && connector.allows(&url),
+        Err(_) => false,
+    }
 }
 
 /// The addresses taken to `https` lately, so a portal that keeps sending

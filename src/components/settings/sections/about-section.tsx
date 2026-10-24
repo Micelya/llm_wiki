@@ -17,7 +17,7 @@ function ExternalLink({ url, children }: { url: string; children?: ReactNode }) 
   // plugin always lands in the system browser.
   return (
     <a
-      className="cursor-pointer underline underline-offset-2 hover:text-primary"
+      className="cursor-pointer underline underline-offset-2 hover:text-link"
       href={url}
       onClick={(e) => {
         e.preventDefault()
@@ -102,7 +102,7 @@ export function AboutSection({ licenseOpen = false }: { licenseOpen?: boolean } 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold">Acerca de</h2>
+        <h2 className="font-ui text-[1.75rem] leading-tight font-bold tracking-[-0.01em] text-strong">Acerca de</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           La versión de la app, dónde está su código y sus avisos legales.
         </p>
@@ -161,7 +161,7 @@ export function AboutSection({ licenseOpen = false }: { licenseOpen?: boolean } 
         )}
 
         {!showAvailable && updateStore.lastResult?.kind === "up-to-date" && (
-          <div className="flex items-center gap-2 rounded border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-400">
+          <div className="flex items-center gap-2 rounded border border-ok-line bg-ok-bg px-3 py-2 text-sm text-ok">
             <CheckCircle2 className="h-4 w-4 shrink-0" />
             {t("settings.sections.about.upToDate", { version: updateStore.lastResult.local })}
           </div>
@@ -186,7 +186,7 @@ export function AboutSection({ licenseOpen = false }: { licenseOpen?: boolean } 
 
       {/* The only place that names the project the code derives from (D-485). */}
       <section className="space-y-2 rounded-md border p-4 text-sm" data-about="legal">
-        <h3 className="font-medium">Avisos legales</h3>
+        <h3 className="font-ui text-[0.9375rem] font-bold text-strong">Avisos legales</h3>
         <p className="text-xs leading-relaxed text-muted-foreground">{LEGAL_NOTICE}</p>
         <Button variant="outline" size="sm" aria-expanded={showLicense} onClick={() => setShowLicense(!showLicense)}>
           {showLicense ? "Ocultar la licencia" : "Ver el texto completo de la licencia"}
@@ -241,10 +241,10 @@ function UpdateAvailableBanner({
       try {
         await navigator.clipboard.writeText(targetUrl)
         await appDialog.alert({
-          message: `Could not open browser. URL copied to clipboard:\n${targetUrl}`,
+          message: `No se pudo abrir el navegador. La dirección quedó copiada:\n${targetUrl}`,
         })
       } catch {
-        await appDialog.alert({ message: `Could not open browser. Visit:\n${targetUrl}` })
+        await appDialog.alert({ message: `No se pudo abrir el navegador. Entrá a:\n${targetUrl}` })
       }
     }
   }
@@ -254,7 +254,7 @@ function UpdateAvailableBanner({
 
   return (
     <div className="rounded border border-primary/40 bg-primary/5 p-3">
-      <div className="flex items-center gap-2 text-sm font-medium text-primary">
+      <div className="flex items-center gap-2 text-sm font-medium text-brand-ink">
         <Sparkles className="h-4 w-4 shrink-0" />
         {t("settings.sections.about.updateAvailable", { version: remote.replace(/^v/, "") })}
       </div>

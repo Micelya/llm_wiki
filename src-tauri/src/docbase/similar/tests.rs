@@ -1,8 +1,6 @@
 //! The passes over a real base, with invented documents (R-24: nothing
 //! here comes from the test folder).
 
-use rusqlite::OptionalExtension;
-
 use super::store::Decision;
 use crate::docbase::query::DocumentFilter;
 use crate::docbase::testing::TempDir;
@@ -147,12 +145,12 @@ fn the_same_form_for_two_people_is_the_same_template() {
     assert!(similar.description.contains("cambia un nombre"), "{}", similar.description);
     let marks: Vec<String> = serde_json::from_value(similar.evidence["marks"]["a"].clone()).unwrap();
     assert!(marks.contains(&"form".to_string()));
-    // Two different documents: it waits for a person, but it is not
-    // escalated as something that changes the wiki.
+    // Two different documents made with one template: it waits for no one
+    // (D-497); the family and its template stay.
     let pending = base.similar_pending(&Visible::All).unwrap();
-    assert_eq!((pending.pairs, pending.same_document_pairs), (1, 0));
+    assert_eq!((pending.pairs, pending.groups, pending.same_document_pairs), (0, 0, 0));
     let groups = base.similar_groups(&Visible::All).unwrap();
-    assert_eq!((groups[0].pending, groups[0].pending_same_document), (1, 0));
+    assert_eq!((groups[0].members.len(), groups[0].pending, groups[0].pending_same_document), (2, 0, 0));
 }
 
 #[test]
@@ -404,7 +402,7 @@ fn the_documents_screen_filters_by_pending_similar_and_by_family() {
 }
 
 #[test]
-fn a_family_of_the_same_template_is_confirmed_at_once_and_the_rest_stays_open() {
+fn a_family_of_the_same_template_waits_for_no_one_and_can_still_be_confirmed_at_once() {
     let may = invoice("0003-00001377", "15/05/2026", "01/04/2026", "30/04/2026", "98.000,00", "20.580,00", "118.580,00", "25/05/2026");
     let (_dir, base, _) = base_with(&[
         ("marzo.md", march().into_bytes()),
@@ -414,16 +412,12 @@ fn a_family_of_the_same_template_is_confirmed_at_once_and_the_rest_stays_open() 
     let groups = base.similar_groups(&Visible::All).unwrap();
     assert_eq!(groups.len(), 1, "the three invoices are one family");
     let group = &groups[0];
-    assert_eq!((group.members.len(), group.pending, group.pending_same_document), (3, 2, 0));
+    // Three invoices of one template are three invoices: nothing to decide (D-497).
+    assert_eq!((group.members.len(), group.pending, group.pending_same_document), (3, 0, 0));
+    assert!(base.similar_open_pairs(&Visible::All).unwrap().is_empty(), "the pair between the two members waits for no one");
+    assert_eq!(base.similar_pending(&Visible::All).unwrap().pairs, 0);
 
-    // The pair between the two members is not the principal's: it stays open.
-    let open = base.similar_open_pairs(&Visible::All).unwrap();
-    assert_eq!(open.len(), 1);
-    assert_eq!(open[0].similar.relation, "same-template");
-    assert_ne!(open[0].doc.content_id, group.principal.content_id);
-    assert_ne!(open[0].similar.other.content_id, group.principal.content_id);
-
-    // Confirming the family joins every member with its principal, in one go.
+    // A person may still confirm it: every member with its principal, in one go.
     let principal = group.principal.content_id;
     let decisions: Vec<super::PairDecision> = base
         .similar_of(&Visible::All, group.principal.location_id)
@@ -440,8 +434,10 @@ fn a_family_of_the_same_template_is_confirmed_at_once_and_the_rest_stays_open() 
     assert_eq!(decisions.len(), 2);
     assert_eq!(base.decide_similar_many(&decisions).unwrap(), 2);
     let after = base.similar_groups(&Visible::All).unwrap();
-    assert_eq!(after[0].pending, 0);
-    assert_eq!(base.similar_open_pairs(&Visible::All).unwrap().len(), 1);
+    assert_eq!((after[0].members.len(), after[0].pending), (3, 0));
+    let joined = base.similar_of(&Visible::All, group.principal.location_id).unwrap();
+    assert!(joined.iter().filter(|s| s.relation == "same-template").all(|s| s.state == "joined"), "what the person decided stays");
+    assert!(base.similar_open_pairs(&Visible::All).unwrap().is_empty());
 
     // A batch that fails part way keeps what it saved and says so.
     let bad = vec![super::PairDecision {
@@ -816,6 +812,14 @@ fn two_copies_of_the_same_form_are_possibly_the_same_document() {
     let (uno, tres) = (content(&base, "ficha uno.pdf"), content(&base, "ficha tres.pdf"));
     assert_eq!(template.possibly_same, vec![[uno.min(tres), uno.max(tres)]]);
     assert_eq!(groups[0].possibly_same, 1);
+    // Made with one template they would wait for no one; possibly the same
+    // document, they wait for a person (D-497).
+    let flagged = pair(&base, "ficha uno.pdf", "ficha tres.pdf").expect("the two forms are a pair");
+    assert!(flagged.possibly_same);
+    assert!(!pair(&base, "ficha dos.pdf", "ficha uno.pdf").unwrap().possibly_same);
+    let open = base.similar_open_pairs(&Visible::All).unwrap();
+    assert_eq!(open.len(), 1, "between two members, out of the principal's pairs");
+    assert!(open[0].similar.possibly_same);
     // Once a person decides about the two, it is no longer shown.
     base.decide_similar(uno, tres, &Decision::Discard, None).unwrap();
     let template = base.similar_template(&Visible::All, groups[0].principal.location_id).unwrap().unwrap();
@@ -1150,30 +1154,23 @@ fn a_generated_document_is_known_as_such_never_the_principal_nor_possibly_the_sa
         assert!(!field.values.iter().any(|v| v.contains("Ferreyra")), "the template keeps no value of what was generated");
     }
 
-    // With the documents of the template it is the same template, never possibly the same document.
+    // Made with the template, it has no pair with any of its documents
+    // (D-497), not even the copy that says the same: nothing to decide.
     for generated in [same_content, long_content] {
-        let (a, b) = (generated.min(principal), generated.max(principal));
-        let relation: Option<String> = base
-            .conn()
-            .query_row("SELECT relation FROM similar_pair WHERE a = ?1 AND b = ?2", rusqlite::params![a, b], |row| row.get(0))
-            .optional()
-            .unwrap();
-        if let Some(relation) = relation {
-            assert_eq!(relation, "same-template");
+        for source in &documents {
+            let pairs: i64 = base
+                .conn()
+                .query_row(
+                    "SELECT count(*) FROM similar_pair WHERE a = ?1 AND b = ?2",
+                    rusqlite::params![generated.min(*source), generated.max(*source)],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(pairs, 0, "a generated document never pairs with its family");
         }
     }
-    let near: Option<String> = base
-        .conn()
-        .query_row(
-            "SELECT relation FROM similar_pair WHERE a = ?1 AND b = ?2",
-            rusqlite::params![same_content.min(principal), same_content.max(principal)],
-            |row| row.get(0),
-        )
-        .optional()
-        .unwrap();
-    assert_eq!(near.as_deref(), Some("same-template"), "the copy pairs with the principal, as the same template");
     let pending = base.similar_pending(&Visible::All).unwrap();
-    assert_eq!(pending.same_document_pairs, 0);
+    assert_eq!((pending.pairs, pending.same_document_pairs), (0, 0));
 
     // Its screen says it was generated, from which template and for which matter.
     let detail = base.document(&Visible::All, row(&base, "Copia del principal.docx").location_id).unwrap().unwrap();
@@ -1193,4 +1190,110 @@ fn a_generated_document_is_known_as_such_never_the_principal_nor_possibly_the_sa
     assert!(after.generated.iter().all(|g| g.location_id.is_some()));
     let summary = base.templates(&Visible::All).unwrap().remove(0);
     assert_eq!((summary.documents, summary.generated), (3, 2));
+}
+
+// ── The key data of two documents (D-497) ──────────────────────────────
+
+/// What the reading said of a document: that it names `who` with `role`,
+/// as the knowledge layer keeps it.
+fn names_in(base: &DocBase, name: &str, who: &str, role: &str) {
+    let id = content(base, name);
+    base.conn()
+        .execute(
+            "INSERT INTO knowledge_mention (content_id, ref, kind, written, normalized, role, quote)
+             VALUES (?1, ?2, 'organizacion', ?2, ?3, ?4, ?2)",
+            rusqlite::params![id, who, super::text::normalized(who), role],
+        )
+        .unwrap();
+}
+
+/// The contract with other parties: `first` instead of the first one.
+fn contract_for(text: &str, first: &str) -> String {
+    text.replace("Ejemplo Uno S.A.", first)
+}
+
+#[test]
+fn two_contracts_of_one_template_with_other_parties_and_amounts_wait_for_no_one() {
+    let price = |amount: &str| {
+        CONTRACT.replace("abonará el precio pactado", &format!("abonará el precio pactado de USD {amount} mensuales"))
+    };
+    let (_dir, base, _) = base_with(&[
+        ("contrato alfa.md", contract_for(&price("2.000.000"), "Alfa Servicios S.A.").into_bytes()),
+        ("contrato beta.md", contract_for(&price("20"), "Beta Insumos S.A.").into_bytes()),
+    ]);
+    names_in(&base, "contrato alfa.md", "Alfa Servicios S.A.", "parte");
+    names_in(&base, "contrato beta.md", "Beta Insumos S.A.", "parte");
+    while base.similar_step(10).unwrap() > 0 {}
+    // Two contracts, not two of the same: made with one template.
+    assert_eq!(relation(&base, "contrato alfa.md", "contrato beta.md").as_deref(), Some("same-template"));
+    let pending = base.similar_pending(&Visible::All).unwrap();
+    assert_eq!((pending.pairs, pending.groups, pending.same_document_pairs), (0, 0, 0));
+    let groups = base.similar_groups(&Visible::All).unwrap();
+    assert_eq!((groups.len(), groups[0].members.len(), groups[0].pending), (1, 2, 0));
+    let template = base.similar_template(&Visible::All, row(&base, "contrato beta.md").location_id).unwrap();
+    assert!(template.is_some_and(|t| t.documents.len() == 2), "both are documents of the template");
+}
+
+#[test]
+fn a_reworded_clause_is_a_version_until_the_parties_say_they_are_two_contracts() {
+    let (_dir, base, _) = base_with(&[
+        ("contrato alfa.md", contract_for(CONTRACT, "Alfa Servicios S.A.").into_bytes()),
+        ("contrato beta.md", contract_for(&contract_final(), "Beta Insumos S.A.").into_bytes()),
+    ]);
+    // Read alone, the texts say a clause was reworded: one contract, a
+    // person decides.
+    assert_eq!(relation(&base, "contrato alfa.md", "contrato beta.md").as_deref(), Some("version"));
+    assert_eq!(base.similar_pending(&Visible::All).unwrap().pairs, 1);
+
+    // The reading names another party in each: two contracts of one
+    // template, measured again by themselves.
+    names_in(&base, "contrato alfa.md", "Alfa Servicios S.A.", "parte");
+    names_in(&base, "contrato beta.md", "Beta Insumos S.A.", "parte");
+    while base.similar_step(10).unwrap() > 0 {}
+    let similar = pair(&base, "contrato alfa.md", "contrato beta.md").unwrap();
+    assert_eq!(similar.relation, "same-template");
+    assert_eq!(similar.description, "Mismo texto de base, pero son documentos distintos: cambian las partes.");
+    assert_eq!(similar.evidence["keyData"]["differ"], serde_json::json!(["parties"]));
+    assert_eq!(base.similar_pending(&Visible::All).unwrap().pairs, 0);
+    let filter = DocumentFilter { similar_pending: true, ..Default::default() };
+    assert!(base.documents(&Visible::All, &filter).unwrap().rows.is_empty(), "nothing waits in Documentos either");
+}
+
+#[test]
+fn a_version_and_a_signed_copy_with_the_same_parties_still_wait_for_a_person() {
+    let signed = format!("## Page 1\n\n{}\n\n## Page 2\n\n{AUDIT_PAGE}\n", contract_final());
+    let (_dir, base, _) = base_with(&[
+        ("borrador.md", CONTRACT.as_bytes().to_vec()),
+        ("final.md", contract_final().into_bytes()),
+        ("final firmado.md", signed.into_bytes()),
+    ]);
+    for name in ["borrador.md", "final.md", "final firmado.md"] {
+        names_in(&base, name, "Ejemplo Uno S.A.", "parte");
+        names_in(&base, name, "Ejemplo Dos S.R.L.", "parte");
+    }
+    // A party only the signed copy names (its signatory) is no other party.
+    names_in(&base, "final firmado.md", "Firmante Inventado", "firmante");
+    while base.similar_step(10).unwrap() > 0 {}
+    assert_eq!(relation(&base, "borrador.md", "final.md").as_deref(), Some("version"));
+    assert_eq!(relation(&base, "final.md", "final firmado.md").as_deref(), Some("signed-copy"));
+    let pending = base.similar_pending(&Visible::All).unwrap();
+    assert_eq!((pending.pairs, pending.same_document_pairs), (3, 3), "the draft, the final and the signed copy");
+}
+
+#[test]
+fn two_documents_that_share_some_text_and_name_other_parties_are_no_pair() {
+    let with = |party: &str, salt: usize| format!("{CONTRACT} Firma en representación de {party}. {}", words(0..45, salt));
+    let (_dir, base, _) = base_with(&[
+        ("nota alfa.md", with("Alfa Servicios S.A.", 1).into_bytes()),
+        ("nota beta.md", with("Beta Insumos S.A.", 2).into_bytes()),
+    ]);
+    assert_eq!(relation(&base, "nota alfa.md", "nota beta.md").as_deref(), Some("similar"));
+    names_in(&base, "nota alfa.md", "Alfa Servicios S.A.", "parte");
+    names_in(&base, "nota beta.md", "Beta Insumos S.A.", "parte");
+    while base.similar_step(10).unwrap() > 0 {}
+    assert_eq!(relation(&base, "nota alfa.md", "nota beta.md"), None, "different documents, not similar ones");
+    // When the reading no longer says so, they are measured again.
+    base.conn().execute("DELETE FROM knowledge_mention", []).unwrap();
+    while base.similar_step(10).unwrap() > 0 {}
+    assert_eq!(relation(&base, "nota alfa.md", "nota beta.md").as_deref(), Some("similar"));
 }

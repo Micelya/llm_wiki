@@ -71,6 +71,18 @@ export interface Vocabulary {
     /** None of them yet, agreeing with the term: "Ninguna plantilla todavía". */
     noneYet: string
   }
+  /**
+   * The documents that may be one same document (D-497): a signed copy,
+   * a version, one inside another, a delivery receipt or a signing
+   * certificate. They are the only similar documents that wait for a
+   * person; those made with one template are different documents.
+   */
+  copies: {
+    /** The section of a document and the screen: "Copias y versiones". */
+    name: string
+    /** One sentence under its title. */
+    description: string
+  }
   /** Label groups offered to start with, most general first. */
   suggestedGroups: string[]
   /** The language the base writes its articles in when the user chose none, as an output-language value. */

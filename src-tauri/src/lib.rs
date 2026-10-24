@@ -1,8 +1,9 @@
 mod agent;
-mod clip_server;
 mod commands;
 mod docbase;
+mod local_server;
 mod micelya_core;
+mod operations;
 mod panic_guard;
 mod portals;
 mod proxy;
@@ -10,6 +11,7 @@ mod secrets;
 mod source_volume;
 mod tray;
 mod types;
+mod window_size;
 mod work_folder;
 
 use serde_json::Value;
@@ -333,13 +335,6 @@ fn tray_available<R: tauri::Runtime>(window: &tauri::Window<R>) -> bool {
         .unwrap_or(false)
 }
 
-/// How the web clipper's local server is: `starting`, `running`,
-/// `port-in-use` or `stopped`.
-#[tauri::command]
-fn clip_server_status() -> String {
-    clip_server::state().to_string()
-}
-
 /// Every command of the app answers only to the app's own webview: the
 /// view of a judicial portal, a remote page inside the same window, never
 /// reaches them (D-447). Tauri already refuses them to a remote page that
@@ -381,6 +376,9 @@ pub fn run() {
         // from Rust, never the webview.
         .plugin(tauri_plugin_http::init())
         .setup(|app| {
+            // On a screen where the window's size does not fit, it opens
+            // maximized (window_size.rs).
+            window_size::fit_main_window(app.handle());
             // Let the PDF extractor find the bundled pdfium dynamic
             // library via Tauri's platform-correct resource path.
             if let Ok(dir) = app.path().resource_dir() {
@@ -424,11 +422,17 @@ pub fn run() {
             app.manage(CloseBehaviorState(Mutex::new("minimize".to_string())));
             app.manage(TrayAvailabilityState(Mutex::new(false)));
             app.manage(portals::view::PortalState::default());
+            // The words of the profession the chat's contract is written
+            // with can be replaced by a file in the data folder.
+            if let Ok(dir) = app.path().app_data_dir() {
+                operations::words::install_from(&dir.join("docbase/operations-words.json"));
+            }
             docbase::commands::start(app.handle());
             // The work folder exists with its folders and is an origin
-            // (D-450); the web clipper's server saves the clips there.
+            // (D-450); the web clipper saves the clips there, through the
+            // app's one server inside the machine (D-495).
             work_folder::start(app.handle());
-            clip_server::start(app.handle().clone());
+            local_server::start(app.handle().clone());
             let tray_available = match tray::create_tray(app.handle()) {
                 Ok(()) => true,
                 Err(err) => {
@@ -528,6 +532,10 @@ pub fn run() {
             docbase::commands::docbase_research_loose,
             docbase::commands::docbase_research_delete,
             docbase::commands::docbase_chat_folder,
+            docbase::commands::docbase_data_status,
+            docbase::commands::docbase_open_data_folder,
+            docbase::commands::docbase_restore_backup,
+            docbase::commands::docbase_close_app,
             docbase::commands::docbase_save_query,
             docbase::commands::docbase_delete_saved_query,
             docbase::commands::docbase_background_reading,
@@ -598,7 +606,24 @@ pub fn run() {
             work_folder::work_folder_open,
             work_folder::work_folder_new_clips,
             work_folder::work_folder_clips_seen,
-            clip_server_status,
+            local_server::commands::local_server_status,
+            local_server::commands::local_server_set_enabled,
+            local_server::commands::local_programs,
+            local_server::commands::local_program_add,
+            local_server::commands::local_program_token,
+            local_server::commands::local_program_renew,
+            local_server::commands::local_program_set_permission,
+            local_server::commands::local_program_rename,
+            local_server::commands::local_program_remove,
+            operations::commands::operations_contract,
+            operations::commands::operations_card,
+            operations::commands::operations_choose,
+            operations::commands::operations_confirm,
+            operations::commands::operations_cancel,
+            operations::commands::operations_undo,
+            operations::commands::operations_apply,
+            operations::commands::operations_log,
+            operations::commands::operations_program_requests,
         ]))
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {

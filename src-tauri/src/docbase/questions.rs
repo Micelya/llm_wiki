@@ -326,11 +326,12 @@ Queda como propuesta para una persona.",
         service: Service::Ask,
         catalogs: &[],
         name: "Contestar en el chat",
-        purpose: "Contesta lo que una persona escribe en el chat, con lo que la base encuentra.",
-        when: "En cada mensaje del chat.",
-        note: Some("Es la pregunta del chat con un proveedor por internet (una clave de API); antes puede hacer otra corta, en \
-inglés, para decidir qué buscar. Con Codex o Claude Code, que corren en esta computadora, la pantalla del chat arma una \
-pregunta más corta, que no se muestra acá. No tiene versión, y no se guarda."),
+        purpose: "Contesta lo que una persona escribe en el chat, con lo que la base encuentra, y propone los cambios que la \
+persona pide con las operaciones del contrato: la persona los confirma en una tarjeta.",
+        when: "En cada vuelta de cada mensaje del chat: una pregunta por vuelta, hasta el tope del modo (4, 8 o 12).",
+        note: Some("Las instrucciones, en castellano, salen de la lista de operaciones del contrato: si se agrega una operación, \
+aparece sola. Es la misma pregunta con cualquier motor salvo Claude Code; con Codex va todo en un solo texto, con las \
+instrucciones primero. Cada vuelta manda las instrucciones y el mensaje con lo observado hasta ahí. No se guarda."),
     },
 ];
 
@@ -461,45 +462,42 @@ fn built(id: &str, conn: Option<&Connection>, part: Part) -> Result<Built, Strin
         }
         "recognition" => Some((vec![("Pregunta".to_string(), crate::source_volume::RECOGNITION_PROMPT.to_string())], None)),
         "chat" => {
-            let built = chat_example(part);
-            Some((vec![("Texto de sistema".to_string(), built.system), ("Mensaje".to_string(), built.user)], None))
+            let (system, user) = chat_example(part);
+            Some((vec![("Instrucciones".to_string(), system), ("Mensaje de la segunda vuelta".to_string(), user)], None))
         }
         other => return Err(format!("Unknown question '{other}'")),
     })
 }
 
-/// What the chat sends with a provider of the internet, over the invented
-/// archive: `build_agent_context`, as the agent calls it.
-fn chat_example(part: Part) -> crate::agent::context::BuiltAgentContext {
-    use crate::agent::context::{build_agent_context, AgentContextInput, ProjectContext};
-    use crate::agent::types::{AgentMode, AgentReference, AgentSkillMode, AgentToolOptions};
-    let project = ProjectContext {
-        overview: Some(part(OVERVIEW, example::OVERVIEW)),
-        schema: None,
-        agent_workspace: part(WORKSPACE, &crate::agent::workspace::agent_workspace_display(example::PROJECT)),
-    };
-    let router = crate::agent::router::route_query(example::REQUEST, AgentMode::Standard, &AgentToolOptions::default());
-    // What base.search finds of the invented letter (`base_tools.rs`).
-    let found = AgentReference {
-        title: part(FOUND, example::FILE),
-        path: part(FOUND, example::FOUND_PATH),
-        kind: "source".to_string(),
-        snippet: Some(part(FOUND, example::DEBT_QUOTE)),
-        score: Some(1.0),
-        knowledge_context: None,
-    };
-    build_agent_context(AgentContextInput {
-        query: &part(REQUEST, example::REQUEST),
-        project: &project,
-        router: &router,
-        history: &[],
-        skills: &[],
-        skill_mode: AgentSkillMode::Auto,
-        references: &[found],
-        retrieval_summary: &part(FOUND, example::FOUND),
-        explicit_files: &[],
-        documents: &[],
+/// What the chat sends in its second turn over the invented archive (3.2):
+/// the instructions written from the contract, and the request with the
+/// search of the first turn observed (`agent/contract_loop.rs`).
+fn chat_example(part: Part) -> (String, String) {
+    use crate::operations::prompt::{chat_instructions, ChatTools};
+    let system = chat_instructions(crate::operations::words::words(), &ChatTools::default());
+    let found = serde_json::json!({
+        "consulta": "reclamo Ejemplo Uno Persona Dos",
+        "resultados": [{
+            "id": "doc-1", "tipo": "documento", "titulo": example::FILE, "nombre": example::FILE,
+            "lugar": "Ejemplo", "pasaje": example::DEBT_QUOTE, "ruta": example::FOUND_PATH,
+        }],
     })
+    .to_string();
+    let user = crate::agent::contract_loop::example_user_text(
+        &part(REQUEST, example::REQUEST),
+        "buscar {\"consulta\":\"reclamo Ejemplo Uno Persona Dos\"}",
+        &part(FOUND, &found),
+        2,
+        8,
+    );
+    (system, user)
+}
+
+/// The version of the chat's instructions: how they are written and the
+/// fingerprint of their text.
+fn chat_version() -> String {
+    use crate::operations::prompt::{chat_instructions, instructions_version, ChatTools};
+    instructions_version(&chat_instructions(crate::operations::words::words(), &ChatTools::default()))
 }
 
 /// A text built with `marked`, cut into what is the same in every case and
@@ -613,7 +611,7 @@ pub fn model_questions(base: Option<&DocBase>, folder: Option<&Path>) -> Result<
             purpose: definition.purpose.to_string(),
             when: definition.when.to_string(),
             note: definition.note.map(str::to_string),
-            version: definition.version.map(str::to_string),
+            version: if definition.id == "chat" { Some(chat_version()) } else { definition.version.map(str::to_string) },
             catalogs: definition.catalogs.iter().map(|c| catalog_use(*c, folder)).collect(),
             service: definition.service.id().to_string(),
             engine_note: registry.as_ref().and_then(|_| engine_note(definition, engine.as_ref())),
@@ -726,7 +724,8 @@ mod tests {
         assert_eq!(version("synthesis").as_deref(), Some(pages::SYNTHESIS_PROMPT));
         assert_eq!(version("matter").as_deref(), Some(matters::MATTER_PROMPT));
         assert_eq!(version("recognition"), None);
-        assert_eq!(version("chat"), None);
+        // The chat's instructions carry the version of how they are written.
+        assert!(version("chat").unwrap().starts_with("chat-1-"));
         for question in &questions {
             assert!(!question.example.is_empty(), "{}", question.id);
             let words: String = question.example.iter().flat_map(|s| s.segments.iter()).map(|s| s.text.as_str()).collect();
@@ -736,7 +735,8 @@ mod tests {
             if ["knowledge", "type", "data"].contains(&question.id.as_str()) {
                 assert!(words.contains(example::COMPANY) && words.contains(example::FILE), "{}", question.id);
             }
-            assert_eq!(question.kept, question.version.is_some(), "{}", question.id);
+            // The chat has a version, and keeps nothing.
+            assert_eq!(question.kept, question.version.is_some() && question.id != "chat", "{}", question.id);
         }
         // Of the reading: how many of each version, the current one first.
         let reading = questions.iter().find(|q| q.id == "knowledge").unwrap();

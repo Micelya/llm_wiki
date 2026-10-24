@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react"
-import { Check, Columns2, Undo2, X } from "lucide-react"
+import { Check, ChevronDown, ChevronRight, Columns2, Undo2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   decideSimilar,
@@ -17,23 +17,29 @@ import { DiffPanel } from "./diff-panel"
 import { StatusBadge } from "./page"
 import { DocumentTemplate } from "./template-panel"
 import {
+  asksPerson,
   currentRelation,
   makesOneDocument,
   measuresInWords,
   relationChoices,
   relationSentence,
+  splitSimilar,
   suggestedWikiSource,
 } from "./similar"
 import { useDocbaseQuery } from "./use-docbase-query"
 
 const SELECT_CLASS =
-  "h-7 rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+  "h-7 rounded-lg border border-border-strong bg-card px-2 text-sm outline-none focus-visible:border-link focus-visible:ring-3 focus-visible:ring-ring/30"
 
 /**
- * "Documentos parecidos", below the locations of a document: each
- * similar document with the relation proposed, what they have in common
- * and the buttons to join, choose another relation, discard or undo.
- * Nothing is joined without a person (design, section 3).
+ * «Copias y versiones» (the vocabulary's `copies`), below the locations of
+ * a document: first the template it was made with, then each document
+ * that may be the same one (a signed copy, a version, one inside the
+ * other…) with the relation proposed, what they have in common and the
+ * buttons to join, choose another relation, discard or undo. Nothing is
+ * joined without a person (design, section 3). Those made with the same
+ * template are different documents and are not listed (D-497); those that
+ * only share some text are, folded, with nothing to decide.
  */
 export function SimilarDocuments({
   locationId,
@@ -53,7 +59,7 @@ export function SimilarDocuments({
     await decideAndFollow(item, decision, onProblem, similar.reload)
   }
 
-  if (!similar.data) return null
+  if (!similar.data || !relations.data) return null
   return (
     <SimilarList
       items={similar.data}
@@ -109,41 +115,62 @@ export function SimilarList({
   /** Shown first: the template the document shares with its family. */
   before?: ReactNode
 }) {
-  const waiting = items.filter((item) => item.state === "proposed").length
+  const [showOthers, setShowOthers] = useState(false)
+  const { copies, others } = splitSimilar(items, relations)
+  const waiting = copies.filter((item) => item.state === "proposed").length
+  const card = (item: SimilarDocument) => (
+    <SimilarCard
+      key={item.other.contentId}
+      item={item}
+      relations={relations}
+      name={name}
+      selfLocationId={locationId}
+      words={words}
+      onOpen={onOpen}
+      onDecide={onDecide}
+    />
+  )
   return (
     <section className="mt-8">
-      <h2 className="border-b pb-1 font-serif text-xl">
-        Documentos parecidos ({items.length})
+      <h2 className="mb-3.5 border-b pb-2 font-ui text-[1.3125rem] font-bold text-strong">
+        {words.copies.name} ({copies.length})
       </h2>
       <div className="mt-3">
         {before}
-        {items.length === 0 ? (
+        {copies.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Ningún otro documento de la base comparte buena parte de su texto con este.
+            Ningún otro documento de la base parece ser una copia o una versión de este.
           </p>
         ) : (
           <>
             {waiting > 0 && (
               <p className="mb-3 text-sm text-muted-foreground">
-                Nada se une solo: cada parecido espera que alguien lo una con la relación que corresponda o lo
-                descarte.
+                Nada se une solo: cada uno espera que alguien lo una con la relación que corresponda o lo descarte.
               </p>
             )}
-            <ul className="flex flex-col gap-3">
-              {items.map((item) => (
-                <SimilarCard
-                  key={item.other.contentId}
-                  item={item}
-                  relations={relations}
-                  name={name}
-                  selfLocationId={locationId}
-                  words={words}
-                  onOpen={onOpen}
-                  onDecide={onDecide}
-                />
-              ))}
-            </ul>
+            <ul className="flex flex-col gap-3">{copies.map(card)}</ul>
           </>
+        )}
+        {others.length > 0 && (
+          <div className="mt-4">
+            <button
+              className="flex items-center gap-1 text-left text-xs font-semibold tracking-wide text-muted-foreground uppercase"
+              aria-expanded={showOthers}
+              onClick={() => setShowOthers(!showOthers)}
+            >
+              {showOthers ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+              Comparten parte del texto ({others.length})
+            </button>
+            {showOthers && (
+              <>
+                <p className="my-2 text-xs text-muted-foreground">
+                  Documentos distintos que dicen parte de lo mismo. No esperan nada; si alguno es el mismo documento,
+                  elegí la relación.
+                </p>
+                <ul className="flex flex-col gap-3">{others.map(card)}</ul>
+              </>
+            )}
+          </div>
         )}
       </div>
     </section>
@@ -183,6 +210,7 @@ export function SimilarCard({
   const [busy, setBusy] = useState(false)
   const [comparing, setComparing] = useState(false)
   const relation = currentRelation(item)
+  const waits = item.state === "proposed" && (item.possiblySame || asksPerson(item.relation, relations))
   const proposedNothing = item.relation === "similar"
   const sentence = relationSentence(item, relation, words)
   const suggested = suggestedWikiSource(item)
@@ -223,7 +251,7 @@ export function SimilarCard({
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <button
-            className="text-left font-medium text-primary break-words hover:underline"
+            className="text-left font-medium text-link break-words hover:underline"
             onClick={() => onOpen(item.other.locationId)}
           >
             {item.other.name}
@@ -233,7 +261,7 @@ export function SimilarCard({
             {item.other.copies > 1 && ` · ${item.other.copies} ubicaciones`}
           </div>
         </div>
-        <StateBadge item={item} />
+        <StateBadge item={item} waits={waits} />
       </div>
 
       <div className="mt-2">
@@ -251,7 +279,12 @@ export function SimilarCard({
         {sentence && <div className="text-muted-foreground">{sentence}</div>}
       </div>
 
-      <p className="mt-1 font-serif italic">{item.description}</p>
+      <p className="mt-1 text-muted-foreground italic">{item.description}</p>
+      {item.possiblySame && item.state === "proposed" && (
+        <p className="mt-1 text-warn">
+          Son de la misma plantilla, pero no cambia ningún dato entre los dos: posiblemente sean el mismo documento.
+        </p>
+      )}
 
       <ul className="mt-1 flex flex-col text-xs text-muted-foreground">
         {measuresInWords(item).map((line) => (
@@ -329,7 +362,7 @@ export function SimilarCard({
   )
 }
 
-function StateBadge({ item }: { item: SimilarDocument }) {
+function StateBadge({ item, waits }: { item: SimilarDocument; waits: boolean }) {
   if (item.state === "joined") {
     return (
       <StatusBadge tone="ok" title={item.decidedAt ? `Unidos el ${formatDate(item.decidedAt)}` : undefined}>
@@ -344,7 +377,7 @@ function StateBadge({ item }: { item: SimilarDocument }) {
       </StatusBadge>
     )
   }
-  return <StatusBadge tone="busy">Espera una decisión</StatusBadge>
+  return waits ? <StatusBadge tone="busy">Espera una decisión</StatusBadge> : null
 }
 
 function JoinPanel({

@@ -383,16 +383,47 @@ fn yaml_string_field(frontmatter: &str, key: &str) -> Option<String> {
             continue;
         }
         let value = trimmed[prefix.len()..].trim();
-        let value = value
-            .strip_prefix('"')
-            .and_then(|v| v.strip_suffix('"'))
-            .or_else(|| value.strip_prefix('\'').and_then(|v| v.strip_suffix('\'')))
-            .unwrap_or(value);
+        // A quoted value writes its quotes as YAML does: `\"` inside double
+        // quotes, `''` inside single ones. Shown as written, the screen of
+        // the skills read «\"your own browser\"».
+        let value = if let Some(inner) = value.strip_prefix('"').and_then(|v| v.strip_suffix('"')) {
+            unescape_double_quoted(inner)
+        } else if let Some(inner) = value.strip_prefix('\'').and_then(|v| v.strip_suffix('\'')) {
+            inner.replace("''", "'")
+        } else {
+            value.to_string()
+        };
         if !value.is_empty() {
-            return Some(value.to_string());
+            return Some(value);
         }
     }
     None
+}
+
+/// The text of a YAML value in double quotes: its escaped quote,
+/// backslash, slash, tab and new line; any other escape as written.
+fn unescape_double_quoted(inner: &str) -> String {
+    let mut out = String::with_capacity(inner.len());
+    let mut chars = inner.chars();
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            out.push(c);
+            continue;
+        }
+        match chars.next() {
+            Some('"') => out.push('"'),
+            Some('\\') => out.push('\\'),
+            Some('/') => out.push('/'),
+            Some('t') => out.push('\t'),
+            Some('n') => out.push('\n'),
+            Some(other) => {
+                out.push('\\');
+                out.push(other);
+            }
+            None => out.push('\\'),
+        }
+    }
+    out
 }
 
 #[cfg(test)]
@@ -600,6 +631,20 @@ mod tests {
             .ends_with("/writing/article-illustrator/SKILL.md"));
         assert!(loaded[0].instructions.contains("Use draw.sh"));
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn a_quoted_value_shows_its_quotes_as_written() {
+        let frontmatter = concat!(
+            "name: 'el ''buscador'' inventado'\n",
+            r#"description: "Lee \"tu propio navegador\" en C:\\carpeta, \q""#,
+        );
+        assert_eq!(yaml_string_field(frontmatter, "name").as_deref(), Some("el 'buscador' inventado"));
+        assert_eq!(
+            yaml_string_field(frontmatter, "description").as_deref(),
+            Some(r#"Lee "tu propio navegador" en C:\carpeta, \q"#)
+        );
+        assert_eq!(yaml_string_field("description: sin comillas", "description").as_deref(), Some("sin comillas"));
     }
 
     #[test]

@@ -227,7 +227,7 @@
       "skills": {
         "title": "Skills",
         "description": "Scan project and user skill folders, then choose which skills can be used from Chat.",
-        "paths": "Scanned folders: the agent's skills folder, ~/.claude/skills, ~/.codex/skills, ~/.agents/skills.",
+        "paths": "Scanned folders: the agent's skills folder, ~/.claude/skills, ~/.codex/skills, ~/.agents/skills. Each skill's name and description are written by whoever made it, in their own language.",
         "summary": "{{enabled}} enabled / {{total}} discovered",
         "enableAll": "Enable all",
         "disableAll": "Disable all",

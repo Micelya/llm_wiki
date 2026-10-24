@@ -13,7 +13,9 @@
 //!   it can only go to the portal's addresses (one of them without
 //!   encryption, as the PJN redirects to, is opened with `https`; nothing
 //!   is loaded without encryption). It opens no window of its own. Nothing
-//!   is downloaded but what the app asks for.
+//!   is downloaded but what the app asks for; WebView2's permission to
+//!   download several files in a row is granted by the app itself, only
+//!   to the portal's pages, so the person is not asked for it.
 //! - The app reads it with its own scripts and `eval_with_callback`
 //!   (`scripts.rs`): the page never sends anything to the app.
 //! - One runner, one record at a time, from a queue. The page follows it
@@ -32,6 +34,8 @@ use tauri::{AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, State, Ur
 use super::page::Snapshot;
 use super::store::{self, Followed, KnownFiles, NoneKnown};
 use super::walk::{Browser, Fetched, Progress, Stop, Walk};
+#[cfg(windows)]
+use super::{grants_by_itself, Permission};
 use super::{connector, expedientes_folder, navigation, scripts, work_folder, CaseKey, Connector, Navigation, Upgrades, APP_WEBVIEW};
 use crate::docbase::commands::{DocBaseState, CHANGED_EVENT};
 use crate::docbase::DocBase;
@@ -89,6 +93,14 @@ struct Control {
 struct Job {
     portal: &'static str,
     key: CaseKey,
+    /// Go through every page of the record («Revisar todo el expediente»).
+    full: bool,
+}
+
+impl Job {
+    fn same_record(&self, other: &Job) -> bool {
+        self.portal == other.portal && self.key == other.key
+    }
 }
 
 /// The download the app asked for: where it goes, and how it went.
@@ -302,8 +314,54 @@ fn create_view(app: &AppHandle, shared: &Arc<Shared>, connector: &'static dyn Co
                 let _ = view.eval(scripts::lock(true, IDLE_NOTE));
             }
         });
-    window.add_child(builder, position, size).map_err(|e| format!("No se pudo abrir el portal: {e}"))
+    let view = window.add_child(builder, position, size).map_err(|e| format!("No se pudo abrir el portal: {e}"))?;
+    grant_downloads(&view, connector);
+    Ok(view)
 }
+
+/// Grants by itself, only to the portal's pages, WebView2's permission to
+/// download several files in a row (`grants_by_itself`): without it,
+/// WebView2 asks the person to accept that the site downloads documents
+/// once the app asks for the second one. Neither Tauri nor `wry` 0.55.1 hand
+/// this event, so it is taken from WebView2 itself (`with_webview`, on the
+/// main thread); every other permission keeps WebView2's own answer.
+#[cfg(windows)]
+fn grant_downloads(view: &Webview, connector: &'static dyn Connector) {
+    use webview2_com::Microsoft::Web::WebView2::Win32::{
+        COREWEBVIEW2_PERMISSION_KIND, COREWEBVIEW2_PERMISSION_KIND_MULTIPLE_AUTOMATIC_DOWNLOADS, COREWEBVIEW2_PERMISSION_STATE_ALLOW,
+    };
+    use webview2_com::{take_pwstr, PermissionRequestedEventHandler};
+    let asked = view.with_webview(move |platform| {
+        let handler = PermissionRequestedEventHandler::create(Box::new(move |_, args| {
+            let Some(args) = args else { return Ok(()) };
+            let mut kind = COREWEBVIEW2_PERMISSION_KIND::default();
+            unsafe { args.PermissionKind(&mut kind)? };
+            if kind != COREWEBVIEW2_PERMISSION_KIND_MULTIPLE_AUTOMATIC_DOWNLOADS {
+                return Ok(());
+            }
+            let mut origin = windows_core::PWSTR::null();
+            unsafe { args.Uri(&mut origin)? };
+            let origin = take_pwstr(origin);
+            if grants_by_itself(connector, Permission::MultipleDownloads, &origin) {
+                unsafe { args.SetState(COREWEBVIEW2_PERMISSION_STATE_ALLOW)? };
+            } else {
+                eprintln!("[portals] a page out of the portal asked to download several files: {origin} (left to WebView2)");
+            }
+            Ok(())
+        }));
+        let mut token = 0i64;
+        let registered = unsafe { platform.controller().CoreWebView2().and_then(|core| core.add_PermissionRequested(&handler, &mut token)) };
+        if let Err(error) = registered {
+            eprintln!("[portals] the permission to download several documents could not be granted: {error}");
+        }
+    });
+    if let Err(error) = asked {
+        eprintln!("[portals] the permission to download several documents could not be granted: {error}");
+    }
+}
+
+#[cfg(not(windows))]
+fn grant_downloads(_view: &Webview, _connector: &'static dyn Connector) {}
 
 /// Opens an address in the view once the navigation being decided is
 /// over. The decision runs on the main thread, where Tauri would carry out
@@ -468,6 +526,8 @@ fn runner(app: AppHandle, shared: Arc<Shared>) {
         {
             let mut control = shared.control();
             let mut progress = control.progress.clone();
+            progress.current = None;
+            progress.busy = false;
             match result {
                 Ok(done) => progress = done,
                 Err(Stop::Cancelled) => {
@@ -506,7 +566,8 @@ fn run_job(app: &AppHandle, shared: &Arc<Shared>, job: &Job) -> Result<Progress,
         Some(base) => base.as_ref(),
         None => &NoneKnown,
     };
-    let walk = Walk::new(connector, expedientes.join(connector.folder()), known);
+    let mut walk = Walk::new(connector, expedientes.join(connector.folder()), known);
+    walk.full = job.full;
     let mut browser = ViewBrowser { app: app.clone(), shared: shared.clone(), view };
     let progress = walk.run(&mut browser, &job.key);
     // Whatever happened, what was brought goes to the base.
@@ -536,13 +597,25 @@ fn integrate(base: &DocBase, work: &Path, expedientes: &Path, connector: &dyn Co
     store::save(&folder, &record)
 }
 
+/// Puts a record in the queue once: one already waiting is asked to go
+/// through it all if this one asks; one running now is queued again only
+/// when this one goes through more of it.
+fn queue_job(control: &mut Control, job: Job) {
+    if let Some(waiting) = control.queue.iter_mut().find(|waiting| waiting.same_record(&job)) {
+        waiting.full |= job.full;
+        return;
+    }
+    let running = control.running.as_ref().is_some_and(|running| running.same_record(&job) && (running.full || !job.full));
+    if !running {
+        control.queue.push_back(job);
+    }
+}
+
 fn enqueue(app: &AppHandle, state: &PortalState, jobs: Vec<Job>) -> PortalStatus {
     {
         let mut control = state.shared.control();
         for job in jobs {
-            if control.running.as_ref() != Some(&job) && !control.queue.contains(&job) {
-                control.queue.push_back(job);
-            }
+            queue_job(&mut control, job);
         }
     }
     start_runner(app, &state.shared);
@@ -572,12 +645,21 @@ pub fn portal_hide(app: AppHandle, state: State<'_, PortalState>, portal: String
     hide_view(&views, &state.shared.views, &view_label(connector))
 }
 
-/// Brings a record (or what is new of one already followed).
+/// Brings a record (or what is new of one already followed); `full`: goes
+/// through every page of it, also those the app already has whole.
 #[tauri::command(async)]
-pub fn portal_fetch(app: AppHandle, state: State<'_, PortalState>, portal: String, jurisdiction: String, number: String, year: String) -> Result<PortalStatus, String> {
+pub fn portal_fetch(
+    app: AppHandle,
+    state: State<'_, PortalState>,
+    portal: String,
+    jurisdiction: String,
+    number: String,
+    year: String,
+    full: Option<bool>,
+) -> Result<PortalStatus, String> {
     let connector = connector(&portal)?;
     let key = CaseKey::new(&jurisdiction, &number, &year)?;
-    Ok(enqueue(&app, &state, vec![Job { portal: connector.id(), key }]))
+    Ok(enqueue(&app, &state, vec![Job { portal: connector.id(), key, full: full.unwrap_or(false) }]))
 }
 
 /// What is new of every record followed in a portal, one after the other.
@@ -585,7 +667,7 @@ pub fn portal_fetch(app: AppHandle, state: State<'_, PortalState>, portal: Strin
 pub fn portal_update_all(app: AppHandle, state: State<'_, PortalState>, portal: String) -> Result<PortalStatus, String> {
     let connector = connector(&portal)?;
     let folder = expedientes_folder(&app)?.join(connector.folder());
-    let jobs = store::followed(&folder).into_iter().map(|(_, record)| Job { portal: connector.id(), key: record.key }).collect();
+    let jobs = store::followed(&folder).into_iter().map(|(_, record)| Job { portal: connector.id(), key: record.key, full: false }).collect();
     Ok(enqueue(&app, &state, jobs))
 }
 
@@ -790,6 +872,32 @@ mod tests {
             views.get_mut(view).ok_or("no view")?.visible = false;
             Ok(())
         }
+    }
+
+    #[test]
+    fn a_record_is_queued_once_and_a_whole_review_is_not_lost() {
+        use super::{queue_job, Control, Job};
+        let key = crate::portals::CaseKey::new("ZZZ", "4321", "2011").unwrap();
+        let other = crate::portals::CaseKey::new("ZZZ", "1", "2012").unwrap();
+        let job = |key: &crate::portals::CaseKey, full: bool| Job { portal: "pjn", key: key.clone(), full };
+        let mut control = Control::default();
+        queue_job(&mut control, job(&key, false));
+        queue_job(&mut control, job(&key, false));
+        queue_job(&mut control, job(&other, false));
+        assert_eq!(control.queue.len(), 2);
+        // Asked to go through it all while it waits: the one waiting does.
+        queue_job(&mut control, job(&key, true));
+        assert_eq!(control.queue.len(), 2);
+        assert!(control.queue[0].full);
+        // While it runs: again only if this one goes through more of it.
+        let mut control = Control { running: Some(job(&key, false)), ..Control::default() };
+        queue_job(&mut control, job(&key, false));
+        assert!(control.queue.is_empty());
+        queue_job(&mut control, job(&key, true));
+        assert_eq!(control.queue.len(), 1);
+        let mut control = Control { running: Some(job(&key, true)), ..Control::default() };
+        queue_job(&mut control, job(&key, false));
+        assert!(control.queue.is_empty());
     }
 
     #[test]

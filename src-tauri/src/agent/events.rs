@@ -39,6 +39,21 @@ pub enum AgentEvent {
     UserInputRequired {
         request: AgentUserInputRequest,
     },
+    /// The agent starts its turn `used` of `max` (4.1).
+    Step {
+        used: usize,
+        max: usize,
+    },
+    /// The model proposed a change of the contract: the card waits for a
+    /// person (D-498).
+    OperationProposed {
+        card: Box<crate::operations::Card>,
+    },
+    /// The turns the answer used, at its end: whether it reached the cap
+    /// and where «Seguir buscando» goes on from.
+    Budget {
+        budget: super::types::AgentBudget,
+    },
     Done {
         session_id: String,
     },

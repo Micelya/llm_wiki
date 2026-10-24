@@ -14,6 +14,9 @@ import { openWikiPath } from "@/lib/open-wiki-path"
 import { useWikiStore } from "@/stores/wiki-store"
 import { MermaidDiagram, unwrapMermaidPre } from "@/components/mermaid-diagram"
 import { noteLabel } from "@/lib/article-notes"
+import { TextMark } from "@/components/ui/badge"
+import { certaintyMark, type CertaintyWords } from "@/components/knowledge/article-parts"
+import { MarksContext, plainText } from "./marks"
 import { NoteMark } from "./note-mark"
 import { PageLink } from "./page-link"
 
@@ -37,7 +40,19 @@ interface WikiReaderProps {
    * touched, hovered or reached with the keyboard (P-246).
    */
   notes?: Record<string, string>
+  /**
+   * The words of how sure a page is of a datum: with them, an emphasis
+   * like `*(sin confirmar)*` shows as the amber mark «sin confirmar», with
+   * why in its title, and a person's word as a mark of the brand.
+   */
+  marks?: CertaintyWords
+  /** Inside a line (a cell of a table, a notice): without paragraphs. */
+  inline?: boolean
+  /** Smaller letter, for a panel or a card: 14 px instead of the 16 px of reading. */
+  compact?: boolean
 }
+
+const LINK_CLASS = "cursor-pointer text-link underline decoration-[var(--link-line)] underline-offset-[3px] hover:decoration-link"
 
 /**
  * Read-only render of a wiki page body. Distinct from WikiEditor
@@ -51,7 +66,7 @@ interface WikiReaderProps {
  * of what the link names (`openWikiPath`), giving the user
  * single-click navigation between pages.
  */
-export function WikiReader({ body, sourceBody, sourceOffset = 0, filePath, notes }: WikiReaderProps) {
+export function WikiReader({ body, sourceBody, sourceOffset = 0, filePath, notes, marks, inline = false, compact = false }: WikiReaderProps) {
   // Local images load only from the agent's folder, where the chat's outputs are.
   const imageRoot = useWikiStore((s) => s.agentWorkspace)
   // Image embeds (`![[…]]`) must be rewritten BEFORE the generic
@@ -108,18 +123,23 @@ export function WikiReader({ body, sourceBody, sourceOffset = 0, filePath, notes
     void openWikiPath(slug)
   }
 
-  return (
-    <div
-      className="prose prose-invert min-w-0 max-w-none"
-      dir={direction}
-      lang={htmlLang}
-      style={{ textAlign: "start" }}
-    >
+  const markdown = (
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMathPlugin, remarkFoldable]}
         rehypePlugins={[rehypeKatex]}
         components={{
-          p: ({ node, children, ...props }) => <p {...sourceAttrs(node)} {...props}>{children}</p>,
+          p: ({ node, children, ...props }) =>
+            inline ? <>{children}</> : <p {...sourceAttrs(node)} {...props}>{children}</p>,
+          em: ({ children }) => {
+            const said = marks ? plainText(children) : null
+            const mark = said !== null && marks ? certaintyMark(said, marks) : null
+            if (!mark) return <em>{children}</em>
+            return (
+              <TextMark tone={mark.tone} title={mark.why ?? undefined}>
+                {mark.label}
+              </TextMark>
+            )
+          },
           li: ({ node, children, ...props }) => <li {...sourceAttrs(node)} {...props}>{children}</li>,
           blockquote: ({ node, children, ...props }) => <blockquote {...sourceAttrs(node)} {...props}>{children}</blockquote>,
           a: ({ href, children, ...props }) => {
@@ -134,11 +154,7 @@ export function WikiReader({ body, sourceBody, sourceOffset = 0, filePath, notes
               <a
                 href={h || undefined}
                 onClick={(e) => isWikilink && handleAnchorClick(e, h)}
-                className={
-                  isWikilink
-                    ? "cursor-pointer text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
-                    : "text-primary underline underline-offset-2"
-                }
+                className={isWikilink ? LINK_CLASS : "text-link underline underline-offset-[3px]"}
                 {...props}
               >
                 {children}
@@ -148,7 +164,7 @@ export function WikiReader({ body, sourceBody, sourceOffset = 0, filePath, notes
           h1: ({ node, children, ...props }) => (
             <h1
               {...sourceAttrs(node)}
-              className="mb-4 mt-0 border-b border-border/60 pb-3 text-3xl font-semibold leading-tight tracking-normal text-foreground"
+              className="mt-0 mb-4 border-b pb-3 font-ui text-[1.75rem] leading-tight font-bold tracking-[-0.01em] text-strong"
               {...props}
             >
               {children}
@@ -157,7 +173,7 @@ export function WikiReader({ body, sourceBody, sourceOffset = 0, filePath, notes
           h2: ({ node, children, ...props }) => (
             <h2
               {...sourceAttrs(node)}
-              className="mb-3 mt-8 border-b border-border/40 pb-2 text-2xl font-semibold leading-tight tracking-normal text-foreground"
+              className={`mt-10 mb-3.5 border-b pb-2 font-ui leading-tight font-bold text-strong first:mt-0 ${compact ? "text-base" : "text-[1.3125rem]"}`}
               {...props}
             >
               {children}
@@ -166,7 +182,7 @@ export function WikiReader({ body, sourceBody, sourceOffset = 0, filePath, notes
           h3: ({ node, children, ...props }) => (
             <h3
               {...sourceAttrs(node)}
-              className="mb-2 mt-6 text-xl font-semibold leading-snug tracking-normal text-foreground"
+              className={`mt-6 mb-2 font-ui leading-snug font-bold text-strong ${compact ? "text-sm" : "text-base"}`}
               {...props}
             >
               {children}
@@ -181,34 +197,34 @@ export function WikiReader({ body, sourceBody, sourceOffset = 0, filePath, notes
               }
               data-mdsrc={typeof src === "string" ? src : undefined}
               alt={alt ?? ""}
-              className="max-w-full rounded border border-border/40"
+              className="max-w-full rounded-lg border"
               loading="lazy"
               {...props}
             />
           ),
           table: ({ children, ...props }) => (
-            <div className="my-2 overflow-x-auto rounded border border-border">
-              <table className="w-full border-collapse text-xs" {...props}>
+            <div className="my-3 overflow-x-auto rounded-[10px] border">
+              <table className="w-full border-separate border-spacing-0 text-sm leading-[1.45] [&_tr:last-child>td]:border-b-0" {...props}>
                 {children}
               </table>
             </div>
           ),
           thead: ({ children, ...props }) => (
-            <thead className="bg-muted" {...props}>
+            <thead className="bg-panel-sub" {...props}>
               {children}
             </thead>
           ),
           th: ({ node, children, ...props }) => (
             <th
               {...sourceAttrs(node)}
-              className="border border-border/80 bg-muted px-3 py-1.5 text-start font-semibold"
+              className="border-b px-3 py-2 text-start font-ui text-xs font-bold tracking-[0.04em] whitespace-nowrap text-muted-foreground uppercase"
               {...props}
             >
               {children}
             </th>
           ),
           td: ({ node, children, ...props }) => (
-            <td {...sourceAttrs(node)} className="border border-border/60 px-3 py-1.5" {...props}>
+            <td {...sourceAttrs(node)} className="border-b px-3 py-2 align-top" {...props}>
               {children}
             </td>
           ),
@@ -227,6 +243,21 @@ export function WikiReader({ body, sourceBody, sourceOffset = 0, filePath, notes
       >
         {transformed}
       </ReactMarkdown>
-    </div>
+  )
+  if (inline) {
+    return (
+      <MarksContext.Provider value={marks}>
+        <span className="min-w-0" dir={direction} lang={htmlLang}>
+          {markdown}
+        </span>
+      </MarksContext.Provider>
+    )
+  }
+  return (
+    <MarksContext.Provider value={marks}>
+      <div className={`reading min-w-0 ${compact ? "reading-compact" : ""}`} dir={direction} lang={htmlLang} style={{ textAlign: "start" }}>
+        {markdown}
+      </div>
+    </MarksContext.Provider>
   )
 }

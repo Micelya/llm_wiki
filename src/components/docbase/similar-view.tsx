@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react"
-import { CheckCheck, ChevronDown, ChevronRight, LayoutTemplate } from "lucide-react"
+import { ChevronDown, ChevronRight, LayoutTemplate } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { LongName } from "@/components/ui/long-name"
 import {
-  decideSimilarMany,
   listOpenSimilarPairs,
   listSimilarDocuments,
   listSimilarGroups,
@@ -12,26 +12,26 @@ import {
   type SimilarDocument,
   type SimilarGroup,
 } from "@/commands/docbase"
-import { useAppDialog } from "@/stores/app-dialog-store"
 import { useAttentionViewStore } from "@/stores/attention-view-store"
 import { useDocbaseStore } from "@/stores/docbase-store"
 import { useWikiStore } from "@/stores/wiki-store"
-import { relationName, vocabulary } from "@/vocabulary"
+import { vocabulary } from "@/vocabulary"
 import { DocbasePage, EmptyNote, ErrorNote, Panel, StatusBadge } from "./page"
 import { formatCount, plural } from "./format"
 import { decideAndFollow, SimilarCard } from "./similar-documents"
 import { FamilyTemplate } from "./template-panel"
-import { familyPairs, orderFamilies, orderOpenPairs, templateConfirmations, TEMPLATE_RELATION } from "./similar"
+import { familyPairs, hasCopies, orderFamilies, orderOpenPairs } from "./similar"
 import { useDocbaseQuery } from "./use-docbase-query"
 
 /**
- * The similar documents, by family: the principal and its members, the
- * relation proposed for each, what changes, and the buttons to join,
- * choose another relation or discard. What changes what goes to the wiki
- * (two that could be the same document) comes first. A family of the
- * same template is confirmed in one click, so the passes that come after
- * have a base a person confirmed (R-03). The detail of each document
- * keeps showing its similar documents.
+ * «Copias y versiones» (the vocabulary's `copies`): the documents that may
+ * be one same document, by family: the principal and its copies and
+ * versions, the relation proposed for each, what changes, and the buttons
+ * to join, choose another relation or discard. What changes what goes to
+ * the wiki (two that could be the same document) comes first. Documents
+ * made with one template are different documents and wait for no one
+ * (D-497): a family of only those is in «Plantillas», not here. The
+ * detail of each document keeps showing its copies and versions.
  */
 export function SimilarView() {
   const groups = useDocbaseQuery("similar-view:groups", listSimilarGroups)
@@ -40,16 +40,17 @@ export function SimilarView() {
   const focused = useAttentionViewStore((s) => s.family)
   const [showDecided, setShowDecided] = useState(false)
   const definitions = relations.data ?? []
+  const words = vocabulary()
 
-  const ordered = orderFamilies(groups.data ?? [])
-  const waiting = ordered.filter((group) => group.pending > 0)
-  const decided = ordered.filter((group) => group.pending === 0)
+  const ordered = orderFamilies((groups.data ?? []).filter((group) => hasCopies(group, definitions)))
+  const waiting = ordered.filter((group) => group.pending > 0 || group.possiblySame > 0)
+  const decided = ordered.filter((group) => group.pending === 0 && group.possiblySame === 0)
   const openPairs = orderOpenPairs(open.data ?? [], definitions)
   const sameDocument = waiting.filter((group) => group.pendingSameDocument > 0).length
 
   return (
     <DocbasePage
-      title="Documentos parecidos"
+      title={words.copies.name}
       subtitle={
         groups.data
           ? `${plural(waiting.length, "familia espera", "familias esperan")} una decisión` +
@@ -61,14 +62,13 @@ export function SimilarView() {
       <div className="mx-auto flex max-w-5xl flex-col gap-6">
         {groups.error && <ErrorNote>{groups.error}</ErrorNote>}
         <p className="text-sm text-muted-foreground">
-          Nada se une solo. Si dos son el mismo documento (prácticamente el mismo, un ejemplar firmado, una versión),
-          al unirlos cuenta uno solo, el que elijas. Si comparten la plantilla con otros datos, son documentos
-          distintos: confirmarlo no cambia lo que cuenta, pero da una base confirmada a las pasadas que vienen.
+          {words.copies.description} Nada se une solo: si dos son el mismo documento, al unirlos cuenta uno solo, el que
+          elijas.
         </p>
 
         {groups.data && waiting.length === 0 && openPairs.length === 0 && (
           <Panel>
-            <EmptyNote>No queda ningún parecido por decidir.</EmptyNote>
+            <EmptyNote>No queda ninguna copia ni versión por decidir.</EmptyNote>
           </Panel>
         )}
 
@@ -92,8 +92,8 @@ export function SimilarView() {
               Pares fuera de las familias
             </h2>
             <p className="text-xs text-muted-foreground">
-              Parecidos que no son entre el documento principal de una familia y uno de sus miembros: dos miembros de
-              la misma familia, o un documento que está casi entero dentro de otro.
+              Los que no son entre el documento principal de una familia y uno de sus miembros: dos miembros de la misma
+              familia, o un documento que está casi entero dentro de otro.
             </p>
             <ul className="flex flex-col gap-3">
               {openPairs.map((pair) => (
@@ -137,26 +137,23 @@ function FamilyCard({
   useEffect(() => {
     if (initiallyOpen) ref.current?.scrollIntoView({ block: "start" })
   }, [initiallyOpen])
-  const sameTemplatePending = group.members.filter(
-    (member) => member.state === "proposed" && member.relation === TEMPLATE_RELATION,
-  ).length
 
   return (
     <div ref={ref} className="rounded-lg border bg-card" data-family={group.principal.contentId}>
-      <button className="flex w-full items-start gap-3 px-4 py-3 text-left" onClick={() => setOpen(!open)}>
+      {/* Where the name and the marks do not fit side by side, the marks go under the name. */}
+      <button className="flex w-full flex-wrap items-start gap-x-3 gap-y-1.5 px-4 py-3 text-left" onClick={() => setOpen(!open)}>
         {open ? (
           <ChevronDown className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
         ) : (
           <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
         )}
-        <span className="min-w-0 flex-1">
-          <span className="block font-medium break-words">{group.principal.name}</span>
-          <span className="block text-xs break-words text-muted-foreground">
-            Principal de una familia de {formatCount(group.members.length)} documentos · {group.principal.originName} ›{" "}
-            {group.principal.relPath}
-          </span>
+        <span className="min-w-0 flex-1 basis-60">
+          <LongName className="block font-medium">{group.principal.name}</LongName>
+          <LongName className="block text-xs text-muted-foreground">
+            {`Principal de una familia de ${formatCount(group.members.length)} documentos · ${group.principal.originName} › ${group.principal.relPath}`}
+          </LongName>
         </span>
-        <span className="flex shrink-0 flex-wrap justify-end gap-1">
+        <span className="ml-auto flex flex-wrap justify-end gap-1">
           {group.pendingSameDocument > 0 && (
             <StatusBadge tone="busy">
               {plural(group.pendingSameDocument, "podría ser el mismo", "podrían ser el mismo")}
@@ -167,9 +164,6 @@ function FamilyCard({
               {plural(group.possiblySame, "par sin datos que cambien", "pares sin datos que cambien")}
             </StatusBadge>
           )}
-          {sameTemplatePending > 0 && (
-            <StatusBadge tone="neutral">{formatCount(sameTemplatePending)} de la misma plantilla, sin confirmar</StatusBadge>
-          )}
           {group.templateFields !== null && (
             <StatusBadge tone="neutral">
               plantilla: {plural(group.templateFields, "campo", "campos")}
@@ -179,27 +173,17 @@ function FamilyCard({
           {group.flags.includes("dispersed") && <StatusBadge tone="warning">dispersa</StatusBadge>}
         </span>
       </button>
-      {open && <FamilyPairs group={group} relations={relations} sameTemplatePending={sameTemplatePending} />}
+      {open && <FamilyPairs group={group} relations={relations} />}
     </div>
   )
 }
 
-function FamilyPairs({
-  group,
-  relations,
-  sameTemplatePending,
-}: {
-  group: SimilarGroup
-  relations: RelationDef[]
-  sameTemplatePending: number
-}) {
+function FamilyPairs({ group, relations }: { group: SimilarGroup; relations: RelationDef[] }) {
   const principal = group.principal
   const similar = useDocbaseQuery(`similar:${principal.locationId}`, () => listSimilarDocuments(principal.locationId))
   const openDocument = useDocbaseStore((s) => s.openDocument)
   const setActiveView = useWikiStore((s) => s.setActiveView)
-  const dialog = useAppDialog()
   const [problem, setProblem] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
   const [showTemplate, setShowTemplate] = useState(group.possiblySame > 0)
   const words = vocabulary()
   const items = similar.data ? familyPairs(similar.data, group, relations) : null
@@ -211,33 +195,6 @@ function FamilyPairs({
 
   async function decide(item: SimilarDocument, decision: SimilarDecision) {
     await decideAndFollow(item, decision, setProblem, similar.reload)
-  }
-
-  async function confirmTemplate() {
-    if (!similar.data) return
-    const decisions = templateConfirmations(similar.data, group)
-    if (decisions.length === 0) return
-    const confirmed = await dialog.confirm({
-      title: "Confirmar la familia",
-      message:
-        `Se unen ${plural(decisions.length, "documento", "documentos")} con «${principal.name}» como ` +
-        `«${relationName(TEMPLATE_RELATION, words)}»: la misma plantilla con otros datos. Son documentos distintos, ` +
-        "así que todos siguen contando. Las pasadas que vienen se apoyan en lo que confirmes. Se puede deshacer " +
-        "de a uno, desde cada par.",
-      confirmLabel: "Confirmar",
-      cancelLabel: "Cancelar",
-    })
-    if (!confirmed) return
-    setBusy(true)
-    setProblem(null)
-    try {
-      await decideSimilarMany(decisions)
-    } catch (cause) {
-      setProblem(String(cause))
-    } finally {
-      setBusy(false)
-      similar.reload()
-    }
   }
 
   return (
@@ -253,12 +210,6 @@ function FamilyPairs({
             <LayoutTemplate /> {showTemplate ? "Ocultar la plantilla" : "Ver la plantilla"}
           </Button>
         )}
-        {sameTemplatePending > 0 && (
-          <Button size="sm" disabled={busy || !similar.data} onClick={() => void confirmTemplate()}>
-            <CheckCheck /> Confirmar la familia como «{relationName(TEMPLATE_RELATION, words)}» (
-            {formatCount(sameTemplatePending)})
-          </Button>
-        )}
       </div>
       {showTemplate && group.templateFields !== null && (
         <div className="rounded-md border px-4 py-3">
@@ -268,7 +219,7 @@ function FamilyPairs({
       {items === null ? (
         <p className="text-xs text-muted-foreground">Buscando los pares…</p>
       ) : items.length === 0 ? (
-        <EmptyNote>Esta familia ya no tiene pares.</EmptyNote>
+        <EmptyNote>Esta familia no tiene copias ni versiones de su documento principal.</EmptyNote>
       ) : (
         <ul className="flex flex-col gap-3">
           {items.map((item) => (

@@ -113,9 +113,9 @@ function Missing() {
 function Mark({ tone, children }: { tone: "data" | "removed" | "added"; children: React.ReactNode }) {
   const color =
     tone === "data"
-      ? "bg-amber-500/20 text-amber-900 dark:text-amber-200"
+      ? "bg-warn-bg text-strong ring-1 ring-warn-line"
       : tone === "removed"
-        ? "bg-red-500/15 text-red-900 dark:text-red-200"
-        : "bg-emerald-500/15 text-emerald-900 dark:text-emerald-200"
+        ? "bg-err-bg text-strong ring-1 ring-err-line"
+        : "bg-ok-bg text-strong ring-1 ring-ok-line"
   return <span className={`rounded px-0.5 ${color}`}>{children}</span>
 }

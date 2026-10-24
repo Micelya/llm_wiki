@@ -11,6 +11,16 @@
 //! paged table, «Notas», with who looked at the record; the related
 //! records; the challenge present or absent; the sign «Consulta en
 //! proceso», with its own «Cancelar», while the portal processes a query.
+//!
+//! `scw_record_page` copies, with every datum changed, the page of a record
+//! as the SCW draws it today (a page the owner saved from the real portal,
+//! seen only for its structure): the main data with each label in a box of
+//! its own; the table with the buttons «Descargar» and «Ver» in its first
+//! cell, a label only for screen readers at the start of every cell, the
+//! days of the dates without a zero ("7/09/2025"), and MOVIMIENTO and EVENTO rows
+//! without document nor folios; the pager as a list with the arrows named
+//! by the `title` of a `span`; «Ver históricas»; «Notas» without a table;
+//! and the two hidden signs of «Consulta en proceso».
 
 use std::collections::HashSet;
 use std::fs;
@@ -54,6 +64,39 @@ pub fn entries(count: usize, first_document: u32) -> Vec<FakeEntry> {
                 folios: format!("{} / {}", 2 * n, 2 * n + 1),
                 office: "OFICINA INVENTADA 9".to_string(),
                 document: if movement { None } else { Some(first_document + n) },
+            }
+        })
+        .collect()
+}
+
+/// `count` invented entries as the SCW lists them, newest first: of every
+/// fifteen, six without document (five MOVIMIENTO and an EVENTO, without
+/// folios) and nine with one (FIRMA DESPACHO and ESCRITO AGREGADO, with
+/// folios), two a day, with the dates as the portal writes them: the day
+/// without a zero, the month with it ("7/09/2025").
+pub fn scw_entries(count: usize, first_document: u32) -> Vec<FakeEntry> {
+    let newest = chrono::NaiveDate::from_ymd_opt(2026, 11, 8).expect("a date");
+    (0..count)
+        .map(|i| {
+            let n = (count - i) as u32;
+            let date = newest - chrono::Duration::days((i / 2) as i64 * 3);
+            let written = date.format("%-d/%m/%Y").to_string();
+            let presented = date.format("%d/%m/%Y").to_string();
+            let position = i % 15;
+            let (kind, detail, document) = match position {
+                12 => ("EVENTO", format!("AGREGAR ETIQUETAS INVENTADAS {n}"), None),
+                0 | 4 | 8 | 11 => ("MOVIMIENTO", "EN LETRA".to_string(), None),
+                10 => ("MOVIMIENTO", "EN DESPACHO".to_string(), None),
+                p if p % 2 == 1 => ("FIRMA DESPACHO", format!("PROVEIDO INVENTADO NÚMERO {n}.-"), Some(first_document + n)),
+                _ => ("ESCRITO AGREGADO", format!("ESCRITO INVENTADO {n} [Presentado {presented} 10:{:02}]", n % 60), Some(first_document + n)),
+            };
+            FakeEntry {
+                date: written,
+                kind: kind.to_string(),
+                detail,
+                folios: if document.is_some() { format!("{} / {}", 3 * n, 3 * n + 1) } else { String::new() },
+                office: "099".to_string(),
+                document,
             }
         })
         .collect()
@@ -231,12 +274,190 @@ pub fn record_page(view: &RecordView) -> String {
     ))
 }
 
+/// One row of the table of entries as the SCW draws it.
+fn scw_row(index: usize, e: &FakeEntry) -> String {
+    let buttons = match e.document {
+        Some(id) => format!(
+            r#"<div id="expediente:action-table:{index}:j_idt161" class="btn-group"><a href="https://scw.pjn.gov.ar/scw/viewer.seam?id=doc-{id}-inventado%3D&amp;tipoDoc=despacho&amp;download=true" id="expediente:action-table:{index}:j_idt162" target="_blank" type="submit" class="btn btn-default">
+							 	<i class="fa fa-download" aria-hidden="true" title="Descargar"></i>
+							 	<span class="sr-only">Descargar</span></a>
+						<div style="margin-left:0.5em"></div><a href="https://scw.pjn.gov.ar/scw/viewer.seam?id=doc-{id}-inventado%3D&amp;tipoDoc=despacho" id="expediente:action-table:{index}:j_idt168" target="_blank" type="submit" class="btn btn-default">
+							 	<i class="fa fa-eye" aria-hidden="true" title="Ver"></i>
+							 	<span class="sr-only">Ver</span></a></div>"#
+        ),
+        None => String::new(),
+    };
+    let folios = if e.folios.is_empty() { String::new() } else { format!(r#"<span class="font-color-black">{}</span>"#, e.folios) };
+    format!(
+        r#"<tr>
+<td>
+				<div style="width: 200px;">{buttons}<span id="expediente:action-table:{index}:j_idt182"></span>
+				</div></td>
+<td>
+				<div style="width: 50px;" class="text-center">
+					<span class="sr-only">Oficina: </span><span id="expediente:action-table:{index}:officeColumn" class="font-color-black">{office}</span>
+				</div></td>
+<td>
+				<span class="sr-only">Fecha: </span><span class="font-color-black">{date}</span></td>
+<td>
+				<span class="sr-only">Tipo actuacion: </span><span class="font-color-black">{kind}</span></td>
+<td>
+				<span class="sr-only">Detalle: </span><span class="font-color-black">{detail}</span></td>
+<td>
+				<div style="width: 60px;" class="text-center">{folios}
+				</div></td>
+</tr>
+"#,
+        office = e.office,
+        date = e.date,
+        kind = e.kind,
+        detail = e.detail,
+    )
+}
+
+/// The pager of the SCW: a list, the current page as a `span`, the others
+/// and the arrows as links that call the portal's AJAX; each arrow is named
+/// by the `title` of a `span` inside its link.
+fn scw_pager(current: usize, total: usize) -> String {
+    let link = |id: &str, inner: &str, class: &str| {
+        format!(
+            r##"<li><a href="https://scw.pjn.gov.ar/scw/expediente.seam?cid=4242#" id="expediente:j_idt217:{id}" name="expediente:j_idt217:{id}" onclick="RichFaces.ajax(&quot;expediente:j_idt217:{id}&quot;,event,{{&quot;incId&quot;:&quot;1&quot;}} );return false;" class="padding-pagination margin-pagination{class}">
+							{inner}</a>
+					</li>"##
+        )
+    };
+    let mut out = String::from(
+        r#"<div id="expediente:j_idt217:divPagesAct" class="text-center background-gradient-blue" style="width: 100%;">
+				<ul class="pagination no-margin no-padding">"#,
+    );
+    if current > 1 {
+        out.push_str(&link("j_idt220", r#"<span title="Primera página"><i aria-hidden="true" class="fa fa-angle-double-left fa-4"></i></span>"#, " no-pagination-background"));
+        out.push_str(&link("j_idt223", r#"<span title="Anterior"><i aria-hidden="true" class="fa fa-arrow-circle-o-left fa-4"></i></span>"#, " no-pagination-background"));
+    } else {
+        out.push_str("<li>\n</li><li>\n</li>");
+    }
+    let end = (current.saturating_sub(4).max(1) + 9).min(total);
+    let start = end.saturating_sub(9).max(1);
+    for n in start..=end {
+        if n == current {
+            out.push_str(&format!(
+                r#"<li class="active"><span id="expediente:j_idt217:j_idt227:{i}:j_idt229" class="padding-pagination margin-pagination">
+								<span>{n}</span></span>
+						</li>"#,
+                i = n - 1
+            ));
+        } else {
+            out.push_str(&link(&format!("j_idt227:{}:j_idt229", n - 1), &format!("<span>{n}</span>"), ""));
+        }
+    }
+    if current < total {
+        out.push_str(&link("j_idt234", r#"<span title="Siguiente"><i aria-hidden="true" class="fa fa-arrow-circle-o-right fa-4"></i></span>"#, " no-pagination-background"));
+        out.push_str(&link("j_idt237", r#"<span title="Última página"><i aria-hidden="true" class="fa fa-angle-double-right fa-4"></i> </span>"#, " no-pagination-background last-page"));
+    }
+    out.push_str("</ul></div>");
+    out
+}
+
+/// The page of a record as the SCW draws it (see the head of this file).
+pub fn scw_record_page(view: &RecordView) -> String {
+    let total = view.entries.len().div_ceil(PER_PAGE).max(1);
+    let rows: String =
+        view.entries.iter().skip((view.page - 1) * PER_PAGE).take(PER_PAGE).enumerate().map(|(i, e)| scw_row(i, e)).collect();
+    let datum = |label: &str, value: &str, attrs: &str| {
+        format!(
+            r#"<div class="row no-margin no-padding">
+				<div class="col-xs-12 col-sm-12 col-md-12 col-lg-12">
+	<div class="form-group">
+		<div class="col-xs-12 col-sm-12 col-md-2 col-lg-2 control-label">
+			<label{attrs}>{label}</label>
+		</div>
+		<div class="col-xs-10 col-sm-10 col-md-10 col-lg-10"><span class="form_control" style="text-transform: uppercase; color:#000000;">{value}</span>
+		</div>
+	</div>
+				</div>
+			</div>"#
+        )
+    };
+    let data = [
+        datum("Expediente:", view.reference, ""),
+        datum("Jurisdicción:", "Cámara Inventada de Prueba", ""),
+        datum("Dependencia:", "JUZGADO INVENTADO 99 - MESA Nº 98", r#" for="detailDependencia""#),
+        datum("Sit. Actual:", "EN LETRA", r#" for="detailSituation""#),
+        datum("Carátula:", view.title, r#" for="detailCover""#),
+    ]
+    .join("\n");
+    let challenge = challenge_box(view.challenge);
+    let pager = scw_pager(view.page, total);
+    format!(
+        r#"<!DOCTYPE html><html lang="es"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><title>Sistema de Consultas Web</title></head>
+<body><span id="accesoNVDA" class="sr-only">Presione las teclas Control+Alt+A para acceder a la versión accesible de la aplicación</span>
+<div id="content"><div class="blueGradient"><a href="https://scw.pjn.gov.ar/scw" style="text-decoration: none"><table><tbody><tr><td><h2>&nbsp;Sistema de Consulta Web <small>Poder Judicial de la Nación</small></h2></td></tr></tbody></table></a></div>
+<ul class="nav navbar-nav"><li><a href="https://scw.pjn.gov.ar/scw/expediente.seam?actionOutcome=%2Fhome.xhtml" class="menu-btn-border-right">Nueva Consulta Pública</a></li>
+<li><a href="https://portalpjn.pjn.gov.ar/" class="menu-btn-border-right"><i aria-hidden="true" class="fa fa-lock"></i> Iniciar sesión</a></li></ul>
+<div class="container"><form id="expediente" name="expediente" method="post" action="https://scw.pjn.gov.ar/scw/expediente.seam">
+<div class="row"><a class="btn btn-default bg-info" href="https://scw.pjn.gov.ar/scw/expediente.seam?cid=4242#" onclick="history.go(-1); return false;"><i aria-hidden="true" class="fa fa-arrow-circle-left"></i>Volver</a></div>
+<fieldset id="expediente:j_idt99:j_idt100" class="ui-fieldset"><legend class="ui-fieldset-legend">Datos Generales</legend><div class="ui-fieldset-content">
+{data}
+</div></fieldset>
+{challenge}
+<div id="expediente:expedienteTab" class="rf-tbp tabs-header"><table class="rf-tab-hdr-tabs" cellspacing="0"><tbody><tr>
+<td class="rf-tab-hdr rf-tab-hdr-act"><span class="rf-tab-lbl">Actuaciones</span></td>
+<td class="rf-tab-hdr rf-tab-hdr-inact"><span class="rf-tab-lbl">Intervinientes</span></td>
+<td class="rf-tab-hdr rf-tab-hdr-inact"><span class="rf-tab-lbl">Vinculados</span></td>
+<td class="rf-tab-hdr rf-tab-hdr-dis" style="display : none"><span class="rf-tab-lbl">Vinculados</span></td>
+<td class="rf-tab-hdr rf-tab-hdr-inact"><span class="rf-tab-lbl">Recursos</span></td></tr></tbody></table>
+<div id="expediente:actuaciones" class="rf-tab"><div class="rf-tab-cnt" id="expediente:actuaciones:content">
+<div id="expediente:actuacionTab"><table id="expediente:panelGridFiltro"><tbody><tr>
+<td><input id="expediente:checkBoxDespachosYEscritosId" type="checkbox"></td><td>Despachos/Escritos</td>
+<td><input id="expediente:checkBoxnotaelEctronicasYPapelId" type="checkbox"></td><td>Notificaciones</td>
+<td><input id="expediente:checkBoxOtrasActuacionesId" type="checkbox" checked="checked"></td><td>Ver Todos</td>
+<td><input id="expediente:filtrarActuacionesBtn" type="submit" value="Aplicar" class="btn btn-primary"></td></tr></tbody></table>
+<table id="expediente:action-table" class="table-striped border-dark-grey-sm width-all">
+<thead>
+<tr>
+<th class="background-gradient-blue" scope="col"></th>
+<th class="background-gradient-blue" scope="col">OFICINA</th>
+<th class="background-gradient-blue" scope="col">FECHA</th>
+<th class="background-gradient-blue" scope="col">TIPO</th>
+<th class="background-gradient-blue" scope="col">DESCRIPCION / DETALLE</th>
+<th class="background-gradient-blue" scope="col">A FS.</th>
+</tr>
+</thead>
+<tbody>
+{rows}</tbody>
+</table>
+{pager}<div id="expediente:btnActuacionesHistoricas"><a href="https://scw.pjn.gov.ar/scw/expediente.seam?cid=4242#" onclick="return false" class="btn pull-right">
+				<span><i class="fa fa-history fa-4" aria-hidden="true"></i> Ver históricas</span></a></div></div>
+<div id="expediente:j_idt243"><h2 class="no-margin-bottom"><i aria-hidden="true" class="fa fa-book"></i> Notas</h2><div id="expediente:tableNotas">
+<div class="alert white-panel"><span><strong><i aria-hidden="true" class="fa fa-bell"></i> El expediente no posee notas</strong></span></div>
+<div class="well text-center"><strong>Se ha(n) encontrado un total de 0 nota(s)</strong></div></div></div></div></div>
+<div id="expediente:j_idt270" style="display:none;"></div><div id="expediente:j_idt348" style="display:none;"></div></div>
+</form>
+<div id="j_idt465:dialog" class="ui-dialog ui-widget ui-overlay-hidden" style="overflow: hidden; width: 300px; visibility: hidden; z-index: 1002; display: block;" role="dialog" aria-hidden="true"><div class="ui-dialog-content">
+			    <p><strong>Consulta en proceso</strong></p>
+				<div class="text-center"><a id="j_idt465:cancelar" name="j_idt465:cancelar" href="https://scw.pjn.gov.ar/" class="btn btn-default">
+						Cancelar
+					</a>
+				</div></div></div><div id="j_idt469:dialogLong" class="ui-dialog ui-widget ui-overlay-hidden" style="overflow: hidden; width: 550px;" role="dialog" aria-hidden="true"><div class="ui-dialog-content">
+			    <p><strong>Consulta en proceso</strong></p>
+				<div class="alert alert-info"><strong> Esta consulta es compleja y puede demorar algunos minutos.</strong><div class="text-center"><strong>Por favor espere</strong></div></div></div></div>
+		</div>
+	</div></body></html>"#
+    )
+}
+
 /// Marks the page as the snapshot script does: the elements the app may
-/// act on, and the ones a person cannot see.
+/// act on, and the ones a person cannot see (hidden by their style, or by
+/// the class of the portal's overlays that its style sheet hides).
 pub fn mark(html: &str, generation: u32, act: bool) -> String {
     let document = Document::from(html);
-    for node in document.select("[style]").nodes() {
-        if node.attr("style").is_some_and(|s| s.replace(' ', "").contains("display:none")) {
+    let hidden_by = |node: &dom_query::NodeRef| {
+        let style = node.attr("style").map(|s| s.replace(' ', "")).unwrap_or_default();
+        let class = node.attr("class").map(|c| c.to_string()).unwrap_or_default();
+        style.contains("display:none") || style.contains("visibility:hidden") || class.split_whitespace().any(|c| c == "ui-overlay-hidden")
+    };
+    for node in document.select("[style], [class]").nodes() {
+        if hidden_by(node) {
             node.set_attr(HIDDEN, "1");
             for inner in node.descendants() {
                 if inner.is_element() {
@@ -281,6 +502,8 @@ pub struct FakePortal {
     pub record_challenge: bool,
     pub login_first: bool,
     pub title_on_icon: bool,
+    /// The record is drawn as the SCW draws it today (`scw_record_page`).
+    pub scw: bool,
     /// The person solves what is asked after this many looks.
     pub person_after: usize,
     looks: usize,
@@ -337,6 +560,7 @@ impl FakePortal {
             record_challenge: false,
             login_first: false,
             title_on_icon: false,
+            scw: false,
             person_after: 2,
             looks: 0,
             query_busy: 0,
@@ -372,9 +596,8 @@ impl FakePortal {
             FakeScreen::Blank => ("about:blank".to_string(), "<html><head></head><body></body></html>".to_string()),
             FakeScreen::Form => (START_URL.to_string(), form_page(self.form_challenge && !self.unseen_challenge, None)),
             FakeScreen::Login => ("https://sso.pjn.gov.ar/auth".to_string(), login_page()),
-            FakeScreen::Record => (
-                RECORD_URL.to_string(),
-                record_page(&RecordView {
+            FakeScreen::Record => {
+                let view = RecordView {
                     reference: &self.reference,
                     title: &self.title,
                     entries: &self.entries,
@@ -383,8 +606,9 @@ impl FakePortal {
                     challenge: self.record_challenge,
                     title_on_icon: self.title_on_icon,
                     linked: &self.linked,
-                }),
-            ),
+                };
+                (RECORD_URL.to_string(), if self.scw { scw_record_page(&view) } else { record_page(&view) })
+            }
         }
     }
 
@@ -456,6 +680,16 @@ impl FakePortal {
         let index = page.els.iter().position(|e| e.mark() == Some(mark))?;
         Some((index, page))
     }
+}
+
+/// The id of the document of a «Descargar» link of the invented pages:
+/// `actuacion.seam?doc=<id>`, or the SCW's `viewer.seam?id=doc-<id>-…`.
+fn document_id(href: &str) -> Option<u32> {
+    if let Some(rest) = href.split("?doc=").nth(1) {
+        return rest.split('&').next()?.parse().ok();
+    }
+    let rest = href.split("?id=doc-").nth(1)?;
+    rest.split('-').next()?.parse().ok()
 }
 
 impl Browser for FakePortal {
@@ -542,7 +776,7 @@ impl Browser for FakePortal {
     fn download(&mut self, mark: &str, destination: &Path) -> Result<Fetched, String> {
         let Some((index, page)) = self.element(mark) else { return Ok(Fetched::Missing) };
         let href = page.el(index).attr("href").unwrap_or("").to_string();
-        let id: u32 = href.split("doc=").nth(1).and_then(|r| r.split('&').next()).and_then(|n| n.parse().ok()).ok_or("not a download link")?;
+        let id = document_id(&href).ok_or("not a download link")?;
         self.downloads.push(id);
         let body = if self.not_pdf.contains(&id) {
             b"<html><body>Sesion vencida</body></html>".to_vec()

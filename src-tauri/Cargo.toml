@@ -38,7 +38,8 @@ tauri-plugin-store = "2.4.2"
 tauri-plugin-http = { version = "2", features = ["unsafe-headers"] }
 # `blocking`: Micelya Core is asked from the worker threads (micelya_core).
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream", "blocking"] }
-# The web clipper's local server (clip_server.rs).
+# The app's one server inside the machine: the web clipper, the local API
+# and the MCP (local_server).
 tiny_http = "0.12"
 zip = "2"
 calamine = "0.34.0"
@@ -82,6 +83,13 @@ dom_query = { version = "0.27", default-features = false }
 # API keys live in the system keychain (Credential Manager on Windows), not
 # in app-state.json (secrets.rs).
 keyring = { version = "3.6", features = ["windows-native", "apple-native", "linux-native"] }
+
+[target.'cfg(windows)'.dependencies]
+# The portal's view grants by itself the permission of WebView2 to download
+# several files in a row, only to the portal (portals/view.rs). The same
+# versions Tauri and wry already use.
+webview2-com = "0.38"
+windows-core = "0.61"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }

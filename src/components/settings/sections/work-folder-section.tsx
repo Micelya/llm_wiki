@@ -78,7 +78,7 @@ export function WorkFolderSection() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold">Carpeta de trabajo</h2>
+        <h2 className="font-ui text-[1.75rem] leading-tight font-bold tracking-[-0.01em] text-strong">Carpeta de trabajo</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           La carpeta donde Micelya guarda lo que trae por su cuenta: los recortes de páginas web, los expedientes de los
           portales y los documentos que genera desde una {words.templates.one}. Es un origen de la base: lo que se guarda
@@ -144,11 +144,12 @@ export function WorkFolderSection() {
       </div>
 
       <div className="space-y-2">
-        <h3 className="text-sm font-semibold">Recortes web desde el navegador</h3>
+        <h3 className="font-ui text-[0.9375rem] font-bold text-strong">Recortes web desde el navegador</h3>
         <p className="text-sm text-muted-foreground">
           Con la extensión «Micelya Clipper», la página que estás leyendo se guarda como un archivo en «Recortes web», con
           su dirección y la fecha al principio; la base la lee y «Atención» avisa de los recortes nuevos. Micelya tiene que
-          estar abierta.
+          estar abierta. La extensión usa el servidor de Micelya en esta computadora, el mismo de «Programas conectados», sin
+          token.
         </p>
         <p className="text-sm">
           <span className="text-muted-foreground">El recortador: </span>

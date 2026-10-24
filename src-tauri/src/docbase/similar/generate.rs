@@ -31,7 +31,7 @@
 //! matter (`generated_line`); the template lists what was generated with it
 //! (`generated_with`).
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::{Cursor, Write};
 use std::path::{Path, PathBuf};
@@ -586,29 +586,50 @@ pub(crate) fn generated_count(conn: &Connection, naming: Option<i64>) -> Result<
     }
 }
 
-/// The relations that make two documents one, which a generated document
-/// never has with the documents of the template it came from: with them it
-/// is the same template with other data, never «possibly the same
-/// document». Their proposals become `same-template`, before the families
-/// are made.
-pub(crate) fn generated_pairs_as_template(conn: &Connection) -> Result<usize, String> {
-    let same: Vec<String> = super::types::catalog().relations.iter().filter(|r| r.same_document && r.measured).map(|r| r.id.clone()).collect();
-    if same.is_empty() {
-        return Ok(0);
+/// Each generated document and its family: the documents of the template
+/// it came from, and the others generated with that same template.
+const GENERATED_FAMILIES_SQL: &str = "
+    SELECT g.content_id AS generated, d.content_id AS source FROM generated g
+      JOIN similar_template t ON t.naming = g.naming
+      JOIN similar_template_document d ON d.principal = t.principal
+    UNION SELECT g.content_id, h.content_id FROM generated g
+      JOIN generated h ON h.naming = g.naming AND h.content_id != g.content_id";
+
+/// The family of each generated document (the documents of the template
+/// it came from and the others generated with it), by the generated one.
+pub(crate) fn generated_families(conn: &Connection) -> Result<HashMap<i64, HashSet<i64>>, String> {
+    let mut statement = conn
+        .prepare(&format!("WITH generated AS ({GENERATED_CONTENTS_SQL}) {GENERATED_FAMILIES_SQL}"))
+        .map_err(sql_err)?;
+    let rows = statement
+        .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)))
+        .map_err(sql_err)?;
+    let mut out: HashMap<i64, HashSet<i64>> = HashMap::new();
+    for row in rows {
+        let (generated, source) = row.map_err(sql_err)?;
+        if generated != source {
+            out.entry(generated).or_default().insert(source);
+        }
     }
-    let marks = vec!["?"; same.len()].join(", ");
+    Ok(out)
+}
+
+/// A generated document is made with its template, not similar to the
+/// documents the template came from: it never forms a pair with them
+/// (D-497), so it is never «possibly the same document» as one of them
+/// nor waits for a decision. It shows as made with the template, in the
+/// template and in its own screen (`generated_line`). The pairs left from
+/// before (measured before its family had its template) go, unless a
+/// person decided them.
+pub(crate) fn generated_pairs_dropped(conn: &Connection) -> Result<usize, String> {
     let sql = format!(
-        "WITH generated AS ({GENERATED_CONTENTS_SQL}),
-              theirs AS (SELECT g.content_id AS generated, d.content_id AS source FROM generated g
-                         JOIN similar_template t ON t.naming = g.naming
-                         JOIN similar_template_document d ON d.principal = t.principal)
-         UPDATE similar_pair SET relation = 'same-template', subject = NULL, suggested_source = NULL,
-                description = 'Generado con la plantilla de este documento: el mismo texto de base con los datos que se completaron.'
-         WHERE state = 'proposed' AND relation IN ({marks})
+        "WITH generated AS ({GENERATED_CONTENTS_SQL}), theirs AS ({GENERATED_FAMILIES_SQL})
+         DELETE FROM similar_pair
+         WHERE state = 'proposed'
            AND EXISTS (SELECT 1 FROM theirs WHERE (theirs.generated = similar_pair.a AND theirs.source = similar_pair.b)
                                                 OR (theirs.generated = similar_pair.b AND theirs.source = similar_pair.a))"
     );
-    conn.execute(&sql, rusqlite::params_from_iter(same.iter())).map_err(sql_err)
+    conn.execute(&sql, []).map_err(sql_err)
 }
 
 impl DocBase {

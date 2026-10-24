@@ -25,15 +25,17 @@ import { HUB_LINK_SHARE, focusLabel, hubLabelThreshold, resolveFocus, shortenLab
 import { vocabulary } from "@/vocabulary"
 
 /** A color for each kind of node of the base; a proposed matter is a lighter one (D-410). */
+// The brand's hues (P-057), in tones that read over the light and the dark
+// background alike: the canvas of the graph cannot read the CSS variables.
 const NODE_TYPE_COLORS: Record<string, string> = {
-  persona: "#60a5fa",      // blue-400
-  organizacion: "#a78bfa", // violet-400
-  grupo: "#e879f9",        // fuchsia-400
-  documento: "#fb923c",    // orange-400
-  asunto: "#059669",       // emerald-600: a matter a person confirmed
-  other: "#94a3b8",        // slate-400
+  persona: "#B0478F",      // the magenta of the brand, lighter
+  organizacion: "#5B83B8", // the blue of «información», lighter
+  grupo: "#DD0D6E",        // the pink of the brand
+  documento: "#9B7693",    // the medium purple of the manual
+  asunto: "#2E8A57",       // the green of «bien»: a matter a person confirmed
+  other: "#A69CAA",        // lilac grey
 }
-const PROPOSED_MATTER_COLOR = "#6ee7b7" // emerald-300
+const PROPOSED_MATTER_COLOR = "#8CCBA8" // the same green, lighter
 
 /** The interface's words of the graph. */
 const TEXT = {
@@ -94,29 +96,30 @@ const TEXT = {
 }
 
 const CUSTOM_NODE_COLORS = [
-  "#38bdf8",
-  "#34d399",
-  "#fbbf24",
-  "#fb7185",
-  "#a78bfa",
-  "#22d3ee",
-  "#f97316",
-  "#84cc16",
+  "#5B83B8",
+  "#2E8A57",
+  "#C98A2E",
+  "#DD0D6E",
+  "#9B7693",
+  "#3C9DA0",
+  "#B0478F",
+  "#7A9A3A",
 ]
 
+/** The communities, in the brand's hues and the states' ones, apart from each other. */
 const COMMUNITY_COLORS = [
-  "#60a5fa",  // blue-400
-  "#4ade80",  // green-400
-  "#fb923c",  // orange-400
-  "#c084fc",  // purple-400
-  "#f87171",  // red-400
-  "#2dd4bf",  // teal-400
-  "#facc15",  // yellow-400
-  "#f472b6",  // pink-400
-  "#a78bfa",  // violet-400
-  "#38bdf8",  // sky-400
-  "#34d399",  // emerald-400
-  "#fbbf24",  // amber-400
+  "#B0478F",
+  "#5B83B8",
+  "#C98A2E",
+  "#2E8A57",
+  "#9B7693",
+  "#DD0D6E",
+  "#3C9DA0",
+  "#E09AD0",
+  "#93B8EA",
+  "#8A4A00",
+  "#74D3A0",
+  "#6E5670",
 ]
 
 type GraphThemePalette = {
@@ -152,28 +155,30 @@ type EdgeDetail = {
 function graphThemePalette(isDark: boolean): GraphThemePalette {
   return isDark
     ? {
-        defaultEdge: "rgba(100,116,139,0.18)",
-        label: "#f8fafc",
-        hoverLabelText: "#f8fafc",
-        hoverLabelBackground: "rgba(15,23,42,0.94)",
-        hoverLabelBorder: "rgba(148,163,184,0.38)",
-        hoverLabelShadow: "rgba(2,6,23,0.55)",
-        mutedNodeMixTarget: "#334155",
-        dimmedEdge: "rgba(71,85,105,0.12)",
-        activeEdge: "#38bdf8",
-        edgeLabel: "#cbd5e1",
+        // The dark greys of the brand (index.css, --d-*).
+        defaultEdge: "rgba(155,118,147,0.22)",
+        label: "#EEE9F1",
+        hoverLabelText: "#EEE9F1",
+        hoverLabelBackground: "rgba(26,17,30,0.96)",
+        hoverLabelBorder: "rgba(194,188,198,0.30)",
+        hoverLabelShadow: "rgba(0,0,0,0.55)",
+        mutedNodeMixTarget: "#2E2236",
+        dimmedEdge: "rgba(67,53,75,0.30)",
+        activeEdge: "#E09AD0",
+        edgeLabel: "#C2BCC6",
       }
     : {
-        defaultEdge: "#cbd5e1",
-        label: "#1e293b",
-        hoverLabelText: "#0f172a",
+        // The lilac greys of the brand (index.css, --g-*).
+        defaultEdge: "#DAD5DE",
+        label: "#2F0A38",
+        hoverLabelText: "#1B0A20",
         hoverLabelBackground: "rgba(255,255,255,0.97)",
-        hoverLabelBorder: "rgba(15,23,42,0.14)",
-        hoverLabelShadow: "rgba(15,23,42,0.18)",
-        mutedNodeMixTarget: "#e2e8f0",
-        dimmedEdge: "rgba(148,163,184,0.22)",
-        activeEdge: "#1e293b",
-        edgeLabel: "#475569",
+        hoverLabelBorder: "rgba(47,10,56,0.14)",
+        hoverLabelShadow: "rgba(47,10,56,0.18)",
+        mutedNodeMixTarget: "#F1EDF3",
+        dimmedEdge: "rgba(194,188,198,0.30)",
+        activeEdge: "#8B2778",
+        edgeLabel: "#6E5670",
       }
 }
 
@@ -422,7 +427,7 @@ function GraphLoader({
           const size = 0.5 + normalizedWeight * 3.5 // 0.5..4
           // Stronger relationships → darker color
           const alpha = Math.round(40 + normalizedWeight * 180) // 40..220
-          const color = `rgba(100,116,139,${alpha / 255})` // slate-500 with variable opacity
+          const color = `rgba(133,121,136,${alpha / 255})` // lilac grey with variable opacity
           graph.addEdgeWithKey(edgeKey, edge.source, edge.target, {
             color,
             size,
@@ -579,7 +584,7 @@ function GraphRenderSettings({
           if (focused.forceLabel) result.forceLabel = true
         }
         if ((hasHover && !isHoverNode && !isHoverNeighbor) || (hasHighlight && !isHighlighted)) {
-          result.color = mixColor(attrs.color ?? "#94a3b8", palette.mutedNodeMixTarget, 0.75)
+          result.color = mixColor(attrs.color ?? "#A69CAA", palette.mutedNodeMixTarget, 0.75)
           result.label = ""
           result.size = (attrs.size ?? BASE_NODE_SIZE) * 0.6
         }
@@ -1091,14 +1096,14 @@ export function GraphView() {
       <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2 shrink-0">
         <div className="flex min-w-0 flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
-            <Network className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium">{TEXT.knowledgeGraph}</span>
+            <Network className="h-4 w-4 text-brand-ink" />
+            <span className="font-ui text-base font-bold text-strong">{TEXT.knowledgeGraph}</span>
           </div>
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span className="rounded bg-muted px-1.5 py-0.5">{searchedGraph.nodes.length}/{nodes.length} {TEXT.pages}</span>
             <span className="rounded bg-muted px-1.5 py-0.5">{searchedGraph.edges.length}/{edges.length} {TEXT.links}</span>
             {hiddenCount > 0 && (
-              <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-amber-700 dark:text-amber-300">
+              <span className="rounded bg-warn-bg px-1.5 py-0.5 text-warn">
                 {hiddenCount} {TEXT.hidden}
               </span>
             )}
@@ -1240,7 +1245,7 @@ export function GraphView() {
                     hideEdgesOnMove: true,
                     hideLabelsOnMove: true,
                     defaultEdgeColor: graphPalette.defaultEdge,
-                    defaultNodeColor: "#94a3b8",
+                    defaultNodeColor: "#A69CAA",
                     labelSize: 13,
                     labelWeight: "bold",
                     labelColor: { color: graphPalette.label },
@@ -1275,7 +1280,7 @@ export function GraphView() {
               </ErrorBoundary>
 
               {searchedGraph.nodes.length === 0 && (
-                <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-slate-50/85 text-muted-foreground backdrop-blur-[1px] dark:bg-slate-950/85">
+                <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-background/85 text-muted-foreground backdrop-blur-[1px]">
                   <Search className="h-8 w-8 opacity-40" />
                   <p className="text-sm">{searchActive ? TEXT.noSearchResults : TEXT.noVisibleNodes}</p>
                   {searchActive && (
@@ -1590,7 +1595,7 @@ export function GraphView() {
                       })
                       .map(({ key, type, confirmation, label, count }) => {
                         const isHidden = filters.hiddenTypes.has(type) || (confirmation !== null && filters.hiddenConfirmations.has(confirmation))
-                        const swatch = isHidden ? "#94a3b8" : nodeColor(type, confirmation)
+                        const swatch = isHidden ? "#A69CAA" : nodeColor(type, confirmation)
                         return (
                           <div
                             key={key}
@@ -1652,7 +1657,7 @@ export function GraphView() {
                       <span className="text-muted-foreground/60 ml-auto shrink-0">{c.nodeCount}</span>
                       {c.meanIntraDegree < 2 && c.nodeCount >= 3 && (
                         <span
-                          className="text-amber-500 shrink-0"
+                          className="text-warn shrink-0"
                           title={`Poco relacionada por dentro: ${c.meanIntraDegree.toFixed(1)} relaciones por nodo`}
                         >
                           !
@@ -1673,7 +1678,7 @@ export function GraphView() {
             <div className="px-4 py-3 border-b">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Lightbulb className="h-4 w-4 text-amber-500" />
+                  <Lightbulb className="h-4 w-4 text-brand" />
                   <span className="text-sm font-medium">{TEXT.insights}</span>
                 </div>
                 <button
@@ -1693,7 +1698,7 @@ export function GraphView() {
               {surprisingConns.filter((c) => !dismissedInsights.has(c.key)).length > 0 && (
                 <div>
                   <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-foreground">
-                    <Link2 className="h-3.5 w-3.5 text-blue-500" />
+                    <Link2 className="h-3.5 w-3.5 text-info" />
                     {TEXT.surprisingConnections}
                   </div>
                   <div className="flex flex-col gap-2">
@@ -1706,7 +1711,7 @@ export function GraphView() {
                         return (
                           <div
                             key={i}
-                            className={`rounded-lg border p-3 text-sm cursor-pointer transition-colors ${isActive ? "bg-blue-500/10 border-blue-500/40" : "hover:bg-muted/50"}`}
+                            className={`rounded-lg border p-3 text-sm cursor-pointer transition-colors ${isActive ? "bg-info-bg border-info-line" : "hover:bg-hover"}`}
                             onClick={() => setHighlightedNodes(isActive ? new Set() : ids)}
                           >
                             <div className="flex items-start justify-between gap-2 mb-1">
@@ -1737,7 +1742,7 @@ export function GraphView() {
               {visibleKnowledgeGaps.length > 0 && (
                 <div>
                   <div className="flex items-center gap-1.5 mb-2 text-xs font-semibold text-foreground">
-                    <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                    <AlertTriangle className="h-3.5 w-3.5 text-warn" />
                     {TEXT.knowledgeGaps}
                   </div>
                   <div className="flex flex-col gap-2">
@@ -1750,7 +1755,7 @@ export function GraphView() {
                       return (
                         <div
                           key={i}
-                          className={`rounded-lg border p-3 text-sm cursor-pointer transition-colors ${isActive ? "bg-amber-500/10 border-amber-500/40" : "hover:bg-muted/50"}`}
+                          className={`rounded-lg border p-3 text-sm cursor-pointer transition-colors ${isActive ? "bg-warn-bg border-warn-line" : "hover:bg-hover"}`}
                           onClick={() => setHighlightedNodes(isActive ? new Set() : ids)}
                         >
                           <div className="flex items-start justify-between gap-2 mb-1">
@@ -1793,11 +1798,11 @@ export function GraphView() {
 
       {/* Research Topic Confirmation Dialog */}
       {researchDialog && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40">
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-scrim">
           <div className="w-[480px] rounded-lg border bg-background shadow-xl">
             <div className="flex items-center justify-between border-b px-4 py-3">
               <div className="flex items-center gap-2">
-                <Search className="h-4 w-4 text-primary" />
+                <Search className="h-4 w-4 text-brand-ink" />
                 <span className="font-medium text-sm">{TEXT.deepResearch}</span>
               </div>
               <button

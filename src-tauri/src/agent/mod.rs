@@ -8,6 +8,9 @@
 pub mod base_tools;
 pub mod cancel;
 pub mod context;
+pub(crate) mod contract_loop;
+#[cfg(test)]
+mod contract_loop_tests;
 pub mod events;
 pub mod permissions;
 pub mod provider;
@@ -15,6 +18,7 @@ pub mod router;
 pub mod runtime;
 pub mod session;
 pub mod skills;
+pub mod text_engine;
 pub mod tools;
 pub mod types;
 pub mod workspace;

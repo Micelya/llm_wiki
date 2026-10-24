@@ -35,22 +35,47 @@ export function useOpenMatter(): (id: string) => void {
 }
 
 
-/** A section of a detail screen, laid out like the document's. */
-export function Section({ title, children, action }: { title: ReactNode; children: ReactNode; action?: ReactNode }) {
+/**
+ * A section of a detail screen, as in the mockup (D-493): its title in
+ * Mulish with a line under it, how many things it has in grey after it,
+ * and its action at the right. `id` is its anchor for «En esta página».
+ */
+export function Section({
+  title,
+  count,
+  children,
+  action,
+  id,
+  intro,
+}: {
+  title: ReactNode
+  count?: number | null
+  children: ReactNode
+  action?: ReactNode
+  id?: string
+  /** One line of what the section is, in grey under its title. */
+  intro?: ReactNode
+}) {
   return (
-    <section className="mt-8 first:mt-0">
-      <div className="flex items-end justify-between gap-3 border-b pb-1">
-        <h2 className="font-serif text-xl">{title}</h2>
-        {action}
+    <section id={id} className="mt-10 scroll-mt-6 first:mt-0">
+      <div className="mb-3.5 flex items-center gap-2.5 border-b pb-2">
+        <h2 className="font-ui text-[1.3125rem] leading-tight font-bold text-strong">
+          {title}
+          {count !== undefined && count !== null && (
+            <span className="ml-2.5 font-ui text-[0.9375rem] font-semibold text-muted-foreground tabular-nums">{count}</span>
+          )}
+        </h2>
+        {action && <div className="ml-auto flex items-center gap-2">{action}</div>}
       </div>
-      <div className="mt-3">{children}</div>
+      {intro && <p className="-mt-1 mb-3 text-sm text-muted-foreground">{intro}</p>}
+      {children}
     </section>
   )
 }
 
-/** A quote of a document, as the record keeps it. */
+/** A quote of a document, as the record keeps it: «…», in the text's colour. */
 export function Quote({ children }: { children: ReactNode }) {
-  return <q className="text-sm text-muted-foreground italic before:content-['«'] after:content-['»']">{children}</q>
+  return <q className="text-foreground before:content-['«'] after:content-['»']">{children}</q>
 }
 
 /**

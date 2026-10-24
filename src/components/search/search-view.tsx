@@ -1,19 +1,23 @@
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { Search, FileText } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { searchBase, type BaseSearchResult } from "@/commands/docbase"
 import { tokenizeQuery } from "@/lib/search"
 import { openWikiPath } from "@/lib/open-wiki-path"
 import { isImeComposing } from "@/lib/keyboard-utils"
+import { useSearchStore } from "@/stores/search-store"
 
 /**
  * The search of the base (D-408): the texts, numbers and summaries of
  * its documents, and the person, organization or matter the question
- * names. Each result opens the screen of what it is, never a file.
+ * names. Each result opens the screen of what it is, never a file. It is
+ * asked from the top bar (Ctrl K), and refined here.
  */
 export function SearchView() {
   const { t } = useTranslation()
-  const [query, setQuery] = useState("")
+  const asked = useSearchStore((s) => s.asked)
+  const askedQuery = useSearchStore((s) => s.query)
+  const [query, setQuery] = useState(askedQuery)
   const [results, setResults] = useState<BaseSearchResult[]>([])
   const [searching, setSearching] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
@@ -39,6 +43,13 @@ export function SearchView() {
     }
   }, [])
 
+  // What the top bar asked, every time it asks.
+  useEffect(() => {
+    if (asked === 0) return
+    setQuery(askedQuery)
+    void doSearch(askedQuery)
+  }, [asked])
+
   async function handleOpen(result: BaseSearchResult) {
     setProblem(null)
     const opened = await openWikiPath(result.path)
@@ -47,7 +58,8 @@ export function SearchView() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="shrink-0 border-b px-4 py-3">
+      <div className="shrink-0 border-b bg-background px-10 pt-6 pb-4">
+        <h1 className="mb-3 font-ui text-[1.75rem] leading-tight font-bold tracking-[-0.01em] text-strong">Buscar</h1>
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
@@ -59,10 +71,10 @@ export function SearchView() {
               if (e.key === "Enter") void doSearch(query)
             }}
             placeholder={t("search.placeholderWithShortcut")}
-            className="w-full rounded-md border bg-background py-2 pl-9 pr-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            className="h-10 w-full max-w-3xl rounded-lg border border-border-strong bg-card py-2 pr-3 pl-9 text-sm placeholder:text-muted-foreground focus:border-link focus:ring-3 focus:ring-ring/30 focus:outline-none"
           />
         </div>
-        {problem && <p className="mt-2 text-xs text-destructive">{problem}</p>}
+        {problem && <p className="mt-2 text-xs text-err">{problem}</p>}
       </div>
 
       {searching ? (
@@ -78,11 +90,11 @@ export function SearchView() {
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
-          <div className="shrink-0 px-3 pt-3 pb-1 text-xs text-muted-foreground">
+          <div className="shrink-0 px-10 pt-4 pb-1 text-[0.8125rem] text-muted-foreground">
             {t("search.pageCount", { count: results.length })}
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-2 pb-3">
-            <div className="flex flex-col gap-1">
+          <div className="min-h-0 flex-1 overflow-y-auto px-10 pt-2 pb-6">
+            <div className="flex max-w-3xl flex-col gap-2">
               {results.map((result) => (
                 <SearchResultCard key={result.path} result={result} query={query} onClick={() => void handleOpen(result)} />
               ))}
@@ -100,12 +112,12 @@ function SearchResultCard({ result, query, onClick }: { result: BaseSearchResult
     <button
       type="button"
       onClick={onClick}
-      className="w-full rounded-lg border p-3 text-left text-sm hover:bg-accent transition-colors"
+      className="w-full rounded-[10px] border bg-card p-3.5 text-left text-sm shadow-card transition-colors hover:border-border-strong hover:bg-hover"
     >
       <div className="mb-1.5 flex items-start gap-2">
         <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
         <div className="min-w-0 flex-1">
-          <div className="truncate font-medium">
+          <div className="truncate font-ui font-bold text-link">
             <HighlightedText text={result.title} query={query} />
           </div>
           {named.length > 0 && <div className="truncate text-[11px] text-muted-foreground">Nombra a {named.join(", ")}</div>}
@@ -134,7 +146,7 @@ function HighlightedText({ text, query }: { text: string; query: string }) {
     <>
       {parts.map((part, i) =>
         regex.test(part) ? (
-          <mark key={i} className="bg-yellow-200 dark:bg-yellow-800 rounded px-0.5">
+          <mark key={i} className="rounded bg-warn-bg px-0.5 text-strong ring-1 ring-warn-line">
             {part}
           </mark>
         ) : (

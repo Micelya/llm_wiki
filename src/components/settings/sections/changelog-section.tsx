@@ -15,7 +15,7 @@ export function ChangelogSection() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold">
+        <h2 className="font-ui text-[1.75rem] leading-tight font-bold tracking-[-0.01em] text-strong">
           {t("settings.sections.changelog.title", { defaultValue: "Changelog" })}
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -32,7 +32,7 @@ export function ChangelogSection() {
             className="rounded-lg border border-border/60 bg-muted/20 p-4"
           >
             <div className="flex items-baseline gap-3">
-              <span className="rounded bg-primary/15 px-2 py-0.5 text-sm font-semibold text-primary">
+              <span className="rounded bg-brand-soft px-2 py-0.5 text-sm font-semibold text-brand-ink">
                 v{entry.version}
               </span>
               <span className="text-xs text-muted-foreground">{entry.date}</span>

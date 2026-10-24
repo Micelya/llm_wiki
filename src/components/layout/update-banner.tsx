@@ -1,6 +1,7 @@
 import { useCallback } from "react"
 import { Sparkles, X, Download } from "lucide-react"
 import { useTranslation } from "react-i18next"
+import { Button } from "@/components/ui/button"
 import { openUrl } from "@tauri-apps/plugin-opener"
 import { useUpdateStore, shouldShowUpdateBanner } from "@/stores/update-store"
 import { saveUpdateCheckState } from "@/lib/project-store"
@@ -9,7 +10,7 @@ import { toLatestReleaseUrl } from "@/lib/update-check"
 /**
  * App-wide update-available banner.
  *
- * Sits above the main flex row (IconSidebar + content). Renders ONLY
+ * Sits under the top bar, above the main flex row (menu + content). Renders ONLY
  * when `shouldShowUpdateBanner(state)` returns true — that helper
  * already gates on:
  *   - we have a successful "available" check result
@@ -65,46 +66,32 @@ export function UpdateBanner() {
   if (!visible || !result || result.kind !== "available") return null
 
   return (
-    // Visual style notes:
-    //   - subtle gradient (left primary tint → right transparent) so
-    //     the eye lands on the icon + text first
-    //   - thin 1px bottom border separates it from the chrome
-    //     without screaming at the user
-    //   - py-2 / px-4 gives a comfortable single-row height (~36px)
-    //     without dominating the viewport
-    //   - text-sm at medium weight reads cleanly without feeling
-    //     promotional
-    //   - the action button uses bg-primary fill so it's the
-    //     unambiguous CTA; close button stays ghost so it doesn't
-    //     compete
-    <div className="flex shrink-0 items-center gap-3 border-b border-primary/20 bg-gradient-to-r from-primary/8 via-primary/4 to-transparent px-4 py-2 text-sm">
+    // A notice of information of the style guide (D-493): its icon and
+    // its words, the way to the download as the main button of the line,
+    // and the close quiet.
+    <div className="flex shrink-0 items-center gap-3 border-b border-info-line bg-info-bg px-4 py-2 text-sm">
       <div className="flex min-w-0 flex-1 items-center gap-2.5">
-        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15">
-          <Sparkles className="h-3.5 w-3.5 text-primary" />
-        </div>
-        <span className="truncate font-medium text-foreground">
+        <Sparkles className="size-4 shrink-0 text-info" aria-hidden />
+        <span className="truncate font-ui font-semibold text-strong">
           {t("updateBanner.message", {
             version: result.remote.replace(/^v/, ""),
-            defaultValue: `Version ${result.remote.replace(/^v/, "")} is available`,
+            defaultValue: `Está disponible la versión ${result.remote.replace(/^v/, "")}`,
           })}
         </span>
       </div>
-      <button
-        type="button"
-        onClick={handleOpen}
-        className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
-      >
-        <Download className="h-3.5 w-3.5" />
-        {t("updateBanner.openDownload", { defaultValue: "Open download page" })}
-      </button>
-      <button
-        type="button"
+      <Button size="sm" onClick={handleOpen}>
+        <Download />
+        {t("updateBanner.openDownload", { defaultValue: "Abrir la página de descarga" })}
+      </Button>
+      <Button
+        size="icon-sm"
+        variant="ghost"
         onClick={handleDismiss}
-        aria-label={t("updateBanner.dismiss", { defaultValue: "Dismiss" })}
-        className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        aria-label={t("updateBanner.dismiss", { defaultValue: "Ahora no" })}
+        title={t("updateBanner.dismiss", { defaultValue: "Ahora no" })}
       >
-        <X className="h-4 w-4" />
-      </button>
+        <X />
+      </Button>
     </div>
   )
 }

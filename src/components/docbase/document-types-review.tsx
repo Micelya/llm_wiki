@@ -134,14 +134,14 @@ function ProposedTypeCard({
       count={plural(type.documents, "documento", "documentos")}
     >
       <div className="flex flex-col gap-3 text-sm">
-        {type.description && <p className="font-serif italic">{type.description}</p>}
+        {type.description && <p className="text-muted-foreground italic">{type.description}</p>}
         <div>
           <p className="text-xs font-medium text-muted-foreground">Algunos de sus documentos</p>
           <ul className="mt-1 flex flex-col gap-0.5">
             {(examples.data?.rows ?? []).map((row) => (
               <li key={row.locationId}>
                 <button
-                  className="text-left text-primary hover:underline"
+                  className="text-left text-link hover:underline"
                   onClick={() => {
                     setActiveView("documents")
                     openDocument(row.locationId)
@@ -155,7 +155,7 @@ function ProposedTypeCard({
           </ul>
           {type.documents > TYPE_EXAMPLES && (
             <button
-              className="mt-1 text-xs text-primary hover:underline"
+              className="mt-1 text-xs text-link hover:underline"
               onClick={() => {
                 setFilter({ ...DEFAULT_DOCUMENT_FILTER, docType: type.id })
                 setActiveView("documents")

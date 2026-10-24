@@ -110,7 +110,7 @@ export function DocumentPicker({
       {problem && <ErrorNote>{problem}</ErrorNote>}
       {found && rows.length === 0 && <p className="text-sm text-muted-foreground">No hay otros documentos con esas palabras.</p>}
       {rows.length > 0 && (
-        <ul className="flex flex-col divide-y rounded-md border text-sm">
+        <ul className="flex flex-col divide-y rounded-[10px] border bg-card text-sm">
           {rows.map((row) => (
             <li key={row.contentId} className="flex items-center gap-3 px-3 py-1.5">
               <span className="min-w-0 flex-1">
@@ -192,7 +192,7 @@ export function AddToMatter({ locationId, current }: { locationId: number; curre
           </div>
           {matters && options.length === 0 && <p className="text-muted-foreground">No hay otro {name} con ese nombre.</p>}
           {options.length > 0 && (
-            <ul className="flex flex-col divide-y rounded-md border">
+            <ul className="flex flex-col divide-y rounded-[10px] border bg-card">
               {options.map((matter) => (
                 <li key={matter.id} className="flex items-center gap-3 px-3 py-1.5">
                   <span className="min-w-0 flex-1 break-words">{matter.name}</span>

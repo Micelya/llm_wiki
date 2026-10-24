@@ -128,7 +128,7 @@ export function SkillsSection() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold">
+        <h2 className="font-ui text-[1.75rem] leading-tight font-bold tracking-[-0.01em] text-strong">
           {t("settings.sections.skills.title", { defaultValue: "Skills" })}
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -185,14 +185,14 @@ export function SkillsSection() {
       {status && <p className="text-xs text-muted-foreground">{status}</p>}
 
       {skills.length === 0 ? (
-        <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+        <div className="rounded-[10px] border border-dashed border-border-strong p-6 text-center text-sm text-muted-foreground">
           <Sparkles className="mx-auto mb-2 h-5 w-5 opacity-50" />
           {t("settings.sections.skills.empty", {
             defaultValue: "No skills found. Add SKILL.md files to a scanned folder, then rescan.",
           })}
         </div>
       ) : filteredSkills.length === 0 ? (
-        <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+        <div className="rounded-[10px] border border-dashed border-border-strong p-6 text-center text-sm text-muted-foreground">
           <Search className="mx-auto mb-2 h-5 w-5 opacity-50" />
           {t("settings.sections.skills.noSearchResults", {
             defaultValue: "No skills match this search.",

@@ -20,12 +20,19 @@
 //! text) found, in order, in B. Text read from an image brings reading
 //! errors: those pairs get `RECOGNIZED_TOLERANCE` more slack and low
 //! certainty, except for `near-identical`, which never gets slack.
+//!
+//! Then the key data of the two (`with_key_data`, D-497): a `version` or a
+//! `similar` whose parties, matter, identifiers, amounts or dates differ
+//! for real (`key_data`) is not the same document. A `version` becomes
+//! `same-template` (they share a template's worth of text), and `similar`
+//! is no pair at all.
 
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
 use super::changes::{Changes, Kind};
+use super::key_data::Key;
 
 pub const SHOW_MIN: f64 = 0.5;
 pub const SHARE_MUCH: f64 = 0.8;
@@ -197,6 +204,38 @@ pub fn propose(a: &Side, b: &Side, m: &Measures, changes: &Changes) -> Option<Pr
     Some(make("similar", None, None, "some-shared-text", "low"))
 }
 
+/// What a proposal becomes with the key data of the two documents:
+/// `differing` are the keys in which they differ for real
+/// (`key_data::differing`). Two documents that share almost all their text
+/// but name other parties, another matter, other identifiers, amounts or
+/// dates are two documents (D-497): a `version` is taken down to
+/// `same-template`, since they share as much text as a template's
+/// documents do, and a `similar` is no pair (`None`): they share less
+/// than a template and are not the same document either. Everything else
+/// is left as it is: a signed copy, a preview, the practically same text
+/// or one inside the other already need the text of one whole in the
+/// other, and the same template already says they are two documents.
+pub fn with_key_data(proposal: Proposal, differing: &[Key]) -> Option<Proposal> {
+    if differing.is_empty() {
+        return Some(proposal);
+    }
+    match proposal.relation.as_str() {
+        "version" => {
+            let words: Vec<String> = differing.iter().map(|key| key.words().to_string()).collect();
+            Some(Proposal {
+                relation: "same-template".to_string(),
+                subject: None,
+                suggested_source: None,
+                description: format!("Mismo texto de base, pero son documentos distintos: cambian {}.", listed(&words)),
+                rule: "different-key-data".to_string(),
+                ..proposal
+            })
+        }
+        "similar" => None,
+        _ => Some(proposal),
+    }
+}
+
 /// Words that `side` has and the other does not.
 fn changes_on(side: &Side, a: &Side, changes: &Changes) -> usize {
     if side.content_id == a.content_id {
@@ -354,6 +393,32 @@ mod tests {
         assert_eq!(proposal.suggested_source, Some(2));
         // A service's seal alone proves nothing.
         assert_ne!(relation(&plain, &sealed, &c).as_deref(), Some("signed-copy"));
+    }
+
+    #[test]
+    fn other_key_data_take_a_version_down_to_the_same_template_and_leave_no_similar_pair() {
+        let a = side(1, 100, 90, &[]);
+        let b = side(2, 100, 90, &[]);
+        // A clause reworded: a version, until the key data say otherwise.
+        let reworded = changes(&[(Kind::Wording, 3)], 1, 9);
+        let version = propose(&a, &b, &measures(&a, &b, (0, 1, 1)), &reworded).unwrap();
+        assert_eq!(version.relation, "version");
+        assert_eq!(with_key_data(version.clone(), &[]), Some(version.clone()), "the same key data: still a version");
+        let other = with_key_data(version, &[Key::Parties, Key::Amounts]).unwrap();
+        assert_eq!(other.relation, "same-template");
+        assert_eq!(other.rule, "different-key-data");
+        assert_eq!(other.description, "Mismo texto de base, pero son documentos distintos: cambian las partes y los importes.");
+        // Less in common and other parties: no pair at all.
+        let little = changes(&[(Kind::Wording, 9)], 0, 40);
+        let (c, d) = (side(1, 100, 60, &[]), side(2, 100, 60, &[]));
+        let similar = propose(&c, &d, &measures(&c, &d, (0, 1, 1)), &little).unwrap();
+        assert_eq!(similar.relation, "similar");
+        assert_eq!(with_key_data(similar, &[Key::Parties]), None);
+        // A signed copy is left alone.
+        let plain = side(1, 100, 100, &[]);
+        let signed = side(2, 100, 100, &["party-signature"]);
+        let copy = propose(&plain, &signed, &measures(&plain, &signed, (1, 1, 1)), &changes(&[], 0, 0)).unwrap();
+        assert_eq!(with_key_data(copy, &[Key::Dates]).unwrap().relation, "signed-copy");
     }
 
     #[test]

@@ -1,6 +1,6 @@
 # Reglas del procesamiento
 
-**Estado:** punto de partida · 14 de octubre de 2026
+**Estado:** punto de partida · 14 de octubre de 2026 · R-18 reemplazada el 16 de octubre (D-150) · R-28 y R-29 agregadas el 23 de octubre de 2026 (D-497, D-502), en revisión
 **Para quién:** para las personas que revisan cómo trabaja la app, y para los agentes que la programan. Toda pasada, cálculo o uso del modelo que analice documentos tiene que respetarlas.
 
 Estas reglas dicen **cómo** la app saca conclusiones sobre los documentos: qué puede afirmar, sobre qué base, y qué nunca hace sola. Son un punto de partida: se revisan a medida que las pruebas muestren cuáles funcionan. Una regla que cambia no se borra; se marca como reemplazada y se anota por qué, igual que en el [registro de decisiones](../decisiones.md).
@@ -9,7 +9,7 @@ Nacieron del diseño de los documentos parecidos ([propuesta](parecidos-propuest
 
 ## 1. Sobre las fuentes y las inferencias
 
-**R-01 · Las fuentes son la verdad.** Una fuente es el documento original. Todo lo demás (el texto extraído, una relación, un tipo de documento, una página del wiki) es una conclusión sacada de las fuentes, y tiene que poder rastrearse hasta ellas.
+**R-01 · Las fuentes son la verdad.** Una fuente es el documento original. Todo lo demás (el texto extraído, una relación, un tipo de documento, una página) es una conclusión sacada de las fuentes, y tiene que poder rastrearse hasta ellas.
 
 **R-02 · No se infiere sobre lo inferido.** Una conclusión se saca de las fuentes, no de otra conclusión. Encadenar inferencias acumula el error de cada una. Si alguna vez hace falta apoyarse en una conclusión anterior, debe ser excepcional, y lo que resulte se verifica contra las fuentes antes de darlo por bueno.
 
@@ -28,6 +28,10 @@ Nacieron del diseño de los documentos parecidos ([propuesta](parecidos-propuest
 **R-08 · Lo que decide una persona es firme.** Un "sí" se puede usar como base. Un "no tienen relación" bloquea esa relación en todas las pasadas, salvo que aparezca evidencia nueva y distinta. Cada decisión se guarda con la evidencia que se le mostró a la persona.
 
 **R-09 · Nada se pierde.** Lo que decidió una persona se puede deshacer. Lo que calculó la app se puede rehacer entero desde las fuentes.
+
+**R-28 · Solo se le pregunta a una persona lo que puede ser el mismo documento.** Entre dos documentos que se parecen, piden una decisión solo las relaciones en que pueden ser uno: copia firmada, versión, contenido en, acuse de recibo, constancia de firma, prácticamente el mismo y vista previa, y dos documentos de una plantilla en los que no cambia ningún dato. Dos documentos hechos con la misma plantilla son documentos distintos: se muestran como tales y no piden nada. *(Agregada el 23 de octubre de 2026, D-497 y D-502, en revisión.)*
+
+**R-29 · Datos clave distintos hacen documentos distintos.** Antes de proponer que dos documentos son versiones o parecidos, se comparan los datos clave que la base ya sabe de cada uno: partes, asunto y número de expediente, identificadores, importes y fechas. Si cada uno tiene un valor que el otro no tiene, ni en sus datos ni en su texto, son documentos distintos; un valor que solo tiene uno (un firmante agregado) no es una diferencia. Ante la duda, documentos distintos (R-07). *(Agregada el 23 de octubre de 2026, D-502, en revisión; el criterio está en `src-tauri/src/docbase/similar/key_data.rs`.)*
 
 ## 3. Sobre las pasadas
 

@@ -1,16 +1,14 @@
-import { useEffect, useState } from "react"
+import { useEffect } from "react"
 import { getPortalStatus, onPortalStatus, type PortalStatus } from "@/commands/portals"
+import { usePortalStore } from "@/stores/portal-store"
 
-// One listener for the whole app: the page and the navigation follow the
-// same status.
-let current: PortalStatus | null = null
+// One listener for the whole app: the page, the navigation, the foot of
+// the window and Atención follow the same status (`portal-store`).
 let started = false
-const subscribers = new Set<(status: PortalStatus) => void>()
 
 /** Tells every screen the status a command answered with. */
 export function publishPortalStatus(status: PortalStatus): void {
-  current = status
-  for (const subscriber of subscribers) subscriber(status)
+  usePortalStore.getState().publish(status)
 }
 
 function start(): void {
@@ -26,14 +24,8 @@ function start(): void {
 
 /** How the walk over the portal goes, as the runner tells it. */
 export function usePortalStatus(): PortalStatus | null {
-  const [status, setStatus] = useState<PortalStatus | null>(current)
   useEffect(() => {
     start()
-    subscribers.add(setStatus)
-    if (current) setStatus(current)
-    return () => {
-      subscribers.delete(setStatus)
-    }
   }, [])
-  return status
+  return usePortalStore((s) => s.status)
 }

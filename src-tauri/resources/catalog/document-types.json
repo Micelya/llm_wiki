@@ -10,6 +10,7 @@
     "Un archivo con este mismo formato en la carpeta de datos de la app (docbase/document-types.json) reemplaza a este al iniciar.",
     "Un tipo 'carrier' dice cómo se emitió o se hizo un documento (un servicio de firma, un formulario), no qué es: sus marcas nunca dan el tipo, y sus datos y reglas valen para el documento que las lleve.",
     "'data' son los datos que interesan en un documento del tipo y con qué patrón general se encuentran: el valor de una clase ('identifier', 'amount', 'date', 'number' o 'text', el resto de la línea) pocas palabras después de una frase ('after'), un identificador con una forma ('shapes') o el valor de una marca ('fromMark'). 'required': si las reglas no lo encuentran, se le pregunta al modelo.",
+    "'asksPerson': la relación pide que una persona decida, porque los dos pueden ser el mismo documento (una copia, una versión, uno dentro del otro, su acuse de recibo o su constancia de firma). Las demás (la misma plantilla con otros datos, solo parecidos) son documentos distintos: se muestran y no piden nada (D-497).",
     "'rules' dicen cómo se relacionan dos documentos del tipo: 'different-data' (si cambia uno de esos datos son documentos distintos), 'stage-pair' (una etapa y otra del mismo documento, con los mismos datos) y 'shared-data' (un documento de este tipo y uno de 'otherType' con el mismo dato)."
   ],
   "relations": [
@@ -24,31 +25,36 @@
       "id": "near-identical",
       "sameDocument": true,
       "directed": false,
-      "measured": true
+      "measured": true,
+      "asksPerson": true
     },
     {
       "id": "signed-copy",
       "sameDocument": true,
       "directed": true,
-      "measured": true
+      "measured": true,
+      "asksPerson": true
     },
     {
       "id": "preview",
       "sameDocument": false,
       "directed": true,
-      "measured": true
+      "measured": true,
+      "asksPerson": true
     },
     {
       "id": "version",
       "sameDocument": true,
       "directed": false,
-      "measured": true
+      "measured": true,
+      "asksPerson": true
     },
     {
       "id": "contained-in",
       "sameDocument": false,
       "directed": true,
-      "measured": true
+      "measured": true,
+      "asksPerson": true
     },
     {
       "id": "same-template",
@@ -72,7 +78,8 @@
       "id": "translation-of",
       "sameDocument": false,
       "directed": true,
-      "measured": false
+      "measured": false,
+      "asksPerson": true
     },
     {
       "id": "reply-to",
@@ -84,13 +91,15 @@
       "id": "signing-certificate-of",
       "sameDocument": false,
       "directed": true,
-      "measured": false
+      "measured": false,
+      "asksPerson": true
     },
     {
       "id": "delivery-receipt-of",
       "sameDocument": false,
       "directed": true,
-      "measured": false
+      "measured": false,
+      "asksPerson": true
     },
     {
       "id": "same-matter",

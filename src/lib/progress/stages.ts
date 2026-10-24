@@ -204,6 +204,17 @@ export function ongoingCount(progress: Progress | null): number {
 export type ActivityTone = "busy" | "error" | "paused" | "ok"
 
 /**
+ * How far the stage the line at the foot tells went, 0 to 1, for its bar;
+ * `null` when the line tells no advance (an error, a pause, all done).
+ */
+export function activityShare(progress: Progress | null): number | null {
+  if (!progress) return null
+  if (progress.stages.some((stage) => stage.state === "error" && stage.error)) return null
+  const running = progress.stages.find((stage) => stage.state === "running") ?? progress.stages.find((stage) => stage.state === "waiting")
+  return running ? stageShare(running) : null
+}
+
+/**
  * The one line at the foot of the window: what is being processed now and
  * how far it went, or why it stopped, or that everything is up to date.
  * `null` while there is nothing to tell (no folder incorporated yet).

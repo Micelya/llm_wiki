@@ -54,7 +54,7 @@ import { useDocbaseQuery } from "./use-docbase-query"
 const FIELD_CLASS =
   "w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
 const SELECT_CLASS =
-  "h-8 max-w-full rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+  "h-8 max-w-full rounded-lg border border-border-strong bg-card px-2 text-sm outline-none focus-visible:border-link focus-visible:ring-3 focus-visible:ring-ring/30"
 /** The choice of a wording that is none of the documents'. */
 const OTHER = "\u0000otra"
 /** Letters typed before the people and organizations of the base are looked for. */
@@ -215,7 +215,7 @@ export function GenerateForm({
   return (
     <>
       <div className="flex flex-col gap-1">
-        <h2 className="font-serif text-2xl break-words">Generar un documento</h2>
+        <h2 className="font-ui text-[1.75rem] leading-tight font-bold tracking-[-0.01em] break-words text-strong">Generar un documento</h2>
         <p className="text-sm text-muted-foreground">
           Desde la {words.templates.one} «{name}»:{" "}
           {asked.length === 0
@@ -225,12 +225,6 @@ export function GenerateForm({
           original (negritas, sangrías, tablas).
         </p>
       </div>
-      {template.state === "proposed" && (
-        <Notice>
-          Esta {words.templates.one} es una propuesta: nadie confirmó todavía que sus documentos son de la misma familia. Se
-          puede generar igual; revisá el texto antes de usarlo.
-        </Notice>
-      )}
       {template.format === "scan" && (
         <Notice>El texto salió de un escaneo: lo leyó el reconocimiento y puede tener errores. Revisalo en el Word.</Notice>
       )}
@@ -319,7 +313,7 @@ export function GenerateForm({
           </span>
         </label>
         {missing.length > 0 && (
-          <p className="text-amber-800 dark:text-amber-300">
+          <p className="text-warn">
             {missing.length === 1 ? `Falta «${missing[0]}»` : `Faltan ${missing.length} campos: ${missing.map((m) => `«${m}»`).join(", ")}`}.
             Se puede generar igual: el Word {missing.length === 1 ? "lo muestra" : "los muestra"} entre corchetes, resaltado,
             para completar{missing.length === 1 ? "lo" : "los"} ahí.
@@ -348,7 +342,7 @@ export function GenerateForm({
 
 function Notice({ children }: { children: ReactNode }) {
   return (
-    <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
+    <div className="rounded-md border border-warn-line bg-warn-bg px-3 py-2 text-sm text-warn">
       {children}
     </div>
   )
@@ -473,7 +467,7 @@ function EntityInput({
         {fromBase ? `De «${words.knowledge.entities}».` : `Elegí de «${words.knowledge.entities}» o escribilo a mano.`}
       </span>
       {options.length > 0 && (
-        <ul className="absolute top-9 z-10 flex w-full flex-col divide-y rounded-md border bg-popover text-sm shadow-md">
+        <ul className="absolute top-9 z-10 flex w-full flex-col divide-y rounded-[10px] border bg-card bg-popover text-sm shadow-md">
           {options.map((option) => (
             <li key={option.id}>
               <button
@@ -602,7 +596,7 @@ function WordingInput({ row, value, onChange }: { row: GenerationRow; value: Fie
 /** The text of the template with the values in place: what is given, highlighted; what is missing, in red. */
 function PreviewText({ pieces }: { pieces: PreviewPiece[] }) {
   return (
-    <div className="max-h-[36rem] overflow-y-auto rounded-md border bg-background px-4 py-3 font-serif text-[15px] leading-relaxed break-words whitespace-pre-wrap">
+    <div className="max-h-[36rem] overflow-y-auto rounded-md border bg-card px-4 py-3 text-[15px] leading-relaxed break-words whitespace-pre-wrap">
       {pieces.map((piece, index) => (piece.kind === "text" ? <span key={index}>{piece.text}</span> : <PreviewValue key={index} piece={piece} />))}
     </div>
   )
@@ -613,7 +607,7 @@ function PreviewValue({ piece }: { piece: PreviewPiece }) {
     case "text":
       return <>{piece.text}</>
     case "value":
-      return <mark className="rounded bg-amber-500/20 px-0.5 text-inherit">{piece.text}</mark>
+      return <mark className="rounded bg-warn-bg px-0.5 text-inherit ring-1 ring-warn-line">{piece.text}</mark>
     case "missing":
       return <mark className="rounded bg-destructive/10 px-0.5 font-sans text-[13px] text-destructive">{piece.text}</mark>
     case "empty":
@@ -668,7 +662,7 @@ function GeneratedNote({
   words: Vocabulary
 }) {
   return (
-    <div className="flex flex-col gap-3 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm">
+    <div className="flex flex-col gap-3 rounded-md border border-ok-line bg-ok-bg px-4 py-3 text-sm">
       <p className="font-medium">Listo: «{result.fileName}» quedó en «Generados», en la carpeta de trabajo.</p>
       {result.missing.length > 0 && (
         <p>

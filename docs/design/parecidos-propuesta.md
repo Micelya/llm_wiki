@@ -1,9 +1,14 @@
 # Documentos parecidos — propuesta
 
-**Estado:** propuesta en revisión · 14 de octubre de 2026 · quinta versión · las pasadas 0 a 6 y las pantallas están construidas desde el 14 de octubre (PR #42, #43, #46 y #47); las decisiones que tomó el agente al construirlas (D-116 a D-148) esperan la revisión del dueño (P-066)
+**Estado:** propuesta en revisión · 14 de octubre de 2026 · quinta versión · las pasadas 0 a 6 y las pantallas están construidas desde el 14 de octubre (PR #42, #43, #46 y #47); las decisiones que tomó el agente al construirlas (D-116 a D-148) quedaron aprobadas en bloque el 22 de octubre (D-464) · «Copias y versiones», el 23 de octubre de 2026 (sección 15)
 **Alcance:** cómo reconocer documentos que se parecen sin ser idénticos, y qué hacer con ellos. Es la etapa 2 del [documento de diseño](base-documental.md) (pendiente P-015). No describe código.
 
 Cuando esta propuesta esté acordada, lo que quede firme pasa al documento de diseño.
+
+**Remisión (23 oct 2026):**
+
+- **Lo de la misma plantilla ya no pide decisión** (D-497, D-502): son documentos distintos; solo piden decisión las copias y versiones que pueden ser el mismo documento, y antes de proponer una versión o un parecido se comparan los datos clave. La pantalla se llama «Copias y versiones». Ver la sección 15; donde las secciones 4, 6 y 9 dicen otra cosa, vale la 15.
+- **El wiki se retiró** el 21 de octubre (D-395 a D-400): lo que esta propuesta dice del wiki (qué documento queda como su fuente, unir sus páginas) quedó sin objeto. Las páginas las escribe la base.
 
 **Qué cambió en esta versión:** las definiciones del dueño del producto (sección 3), una segunda medición sobre contratos (sección 2), el papel de la inteligencia artificial (sección 7), el análisis en pasadas sobre todo el archivo (sección 8) y cuatro cuidados que faltaban: los correos, las familias que crecen de más, el conjunto de prueba anotado y los identificadores oficiales.
 
@@ -214,9 +219,9 @@ Los números son puntos de partida: se ajustan con el conjunto de prueba de la s
 | Uno contiene al otro entero y le suma un solo bloque (la constancia de una firma), y la firma de una parte se puede verificar | Ejemplar firmado |
 | Uno contiene casi todo el texto del otro y tiene las marcas de una vista previa | Vista previa |
 | El corto está casi entero en el largo (90 % o más) y el largo tiene bastante más texto | Contenido en |
-| Comparten mucho (80 % o más) y lo que cambia son sobre todo datos, en tramos cortos o como sustitución repetida | Misma plantilla, otros datos |
+| Comparten mucho (80 % o más) y lo que cambia son sobre todo datos, en tramos cortos o como sustitución repetida | Misma plantilla, otros datos (desde el 23 oct no pide decisión: sección 15) |
 | Comparten mucho (80 % o más) y lo que cambia es sobre todo redacción | Versión |
-| Comparten entre 50 y 80 %, o las señales se contradicen | Se muestra como "parecido", sin relación sugerida |
+| Comparten entre 50 y 80 %, o las señales se contradicen | Se muestra como "parecido", sin relación sugerida (desde el 23 oct, plegado y sin decisión, y deja de ser par si los datos clave difieren: sección 15) |
 | Menos de 50 % | No se muestra |
 
 Tres cuidados:
@@ -305,6 +310,8 @@ Las pasadas 0 a 7 son esta etapa, con un catálogo inicial chico. Las demás se 
 
 ## 9. Qué ve el usuario
 
+*Así se propuso el 14 de octubre. Desde el 23, la sección se llama «Copias y versiones» y lo de la misma plantilla no pide nada: ver la sección 15.*
+
 - **En el detalle de un documento,** debajo de sus copias: "Documentos parecidos". Por cada uno, la relación propuesta, la descripción del parecido y los botones para unir con esa relación, elegir otra o descartar. Se pueden ver las diferencias lado a lado, con los datos que cambian resaltados.
 - **En Inicio, "requiere atención":** las familias propuestas que esperan una decisión. Una línea por familia.
 - **En Documentos:** filtrar por familia y por relación.
@@ -346,3 +353,22 @@ En pasos chicos, cada uno comprobable antes del siguiente:
 3. **Alinear, clasificar y proponer.** Aparece "Documentos parecidos" en el detalle, con la descripción y los botones para unir.
 4. **Familias.** Aparecen en Inicio y en Documentos.
 5. **Después:** correos, significado, mismo asunto, series y faltantes, consistencia; las relaciones en el grafo (P-016), y la plantilla de cada familia con sus campos, que es la base de la etapa 5 del diseño.
+
+## 15. Copias y versiones (22 y 23 oct de 2026)
+
+**Decidido por el dueño el 22 de octubre** (D-497) y **construido el 23** en la corrida desatendida, con decisiones de detalle asumidas (D-502, en revisión). Falta que el dueño lo vea en la app (P-296). Cambia lo que dicen las secciones 4, 6 y 9 sobre "misma plantilla" y "parecidos".
+
+**El problema.** «Documentos parecidos» mostraba juntos, y pidiendo una decisión por cada par, los documentos distintos hechos con la misma plantilla y las copias o versiones de un mismo documento. En documentos legales casi todo el texto coincide y cambian pocos datos, y son otros documentos: el mismo contrato por un monto con un cliente y por otro monto con otro cliente no son "parecidos". En la base real, 136 de 341 pares eran de la misma plantilla.
+
+**Lo que quedó:**
+
+- **Solo piden decisión las relaciones en que puede tratarse del mismo documento:** copia firmada, versión, contenido en, acuse de recibo, constancia de firma, prácticamente el mismo y vista previa. También dos documentos de una plantilla en los que no cambia ningún dato ("posiblemente el mismo documento", D-440). Cada relación dice en el catálogo si le pide algo a una persona.
+- **Dos documentos de la misma plantilla son documentos distintos.** Siguen calculándose como par, porque de ahí salen las familias y las plantillas, pero no cuentan como pendientes: ni en Atención, ni en la familia, ni en el filtro de Documentos. El documento dice «Hecho con la plantilla «X», como N documentos más», y las plantillas dejan de mostrarse como «Propuesta». Lo que una persona ya había decidido se respeta.
+- **Los datos clave deciden antes que el texto.** Antes de proponer que dos documentos son versiones o parecidos, se comparan los datos clave que la base ya sabe de cada uno, sin modelo ni lectura nueva: partes, asunto y número de expediente, identificadores (DNI, CUIT, número de factura o de envío), importes y fechas. Difieren de verdad cuando cada uno tiene un valor que el otro no tiene, ni en sus datos ni en su texto; un valor que solo tiene uno (un firmante agregado) no cuenta. Si difieren, una versión pasa a "misma plantilla, otros datos" y un parecido deja de ser par. Ante la duda, documentos distintos. Son las reglas R-28 y R-29 de las [reglas del procesamiento](reglas-de-procesamiento.md).
+- **Un documento generado desde una plantilla** nunca forma par con su familia ni con los otros generados (D-492).
+- **La base se limpia sola** con la regla nueva al abrirse (motor «similar-2»), sin editarla a mano; si la lectura cambia los datos clave de un documento, sus pares se vuelven a medir (versión 25 del esquema).
+- **La pantalla se llama «Copias y versiones»** (sale del vocabulario). Lo que solo comparte texto queda plegado, en «Comparten parte del texto», sin decisión. Sale «Confirmar la familia».
+
+**Medido sobre una copia de la base real:** de 341 pares pidiendo decisión a 46 (24 versiones, 13 contenido en, 5 copias firmadas, 2 acuses de recibo y 2 constancias de firma); 21 parecidos dejaron de ser par. La hoja de respuestas de parecidos no cambió: 52 de 57 aciertos, ningún error.
+
+**Decisiones asumidas, a confirmar por el dueño:** el nombre «Copias y versiones» y la lista plegada «Comparten parte del texto».

@@ -272,30 +272,30 @@
       "titulo": "Marco visual de toda la app y elementos de marca",
       "tipo": "decision",
       "responsable": "ambos",
-      "estado": "pendiente",
+      "estado": "a-verificar",
       "prioridad": 1,
       "tema": "pantallas",
-      "detalle": "El usuario quiere llevar la interfaz hacia el mockup del 2026-05-20: barra superior con marca, buscador global y usuario; franja que indica estudio, caso y si es privado; navegación a la izquierda con texto y contadores; páginas con forma de artículo de enciclopedia (pestañas, índice, ficha de datos, enlaces, referencias). Se aplica a toda la app, incorporando los elementos de marca del sitio de Micelya. Acordado el 2026-10-11: hacerlo en un turno dedicado solo a esto, con una pasada de diseño antes de aplicar cambios; falta definir con qué herramienta se hace esa pasada. Relevado el 2026-10-11: la marca está definida en el Manual de Marca (PDF, con una versión legible en markdown) y el sitio la aplica. Paleta magenta y púrpura (primario #8B2778, texto #2F0A38, acento #DD0D6E), tipografías Mulish para títulos e interfaz e Inter para lectura; el manual define modo claro y modo oscuro. El mockup usa celeste sobre azul oscuro, que no es la paleta de la marca: hay que rehacerlo con la paleta real. Falta para una app: logo en formato vectorial y versión para fondo oscuro, colores de estado (éxito, aviso, error), escala de grises y estilos para pantallas densas (tablas, árboles, pestañas); las tipografías hay que incluirlas en la app, no cargarlas de internet. Sumar (2026-10-12): hoy nada en pantalla dice qué proyecto está abierto ni distingue las pantallas de la base (Inicio, Documentos, Orígenes) de las del proyecto abierto (wiki, revisión, grafo); el usuario se confundió y creyó que el wiki había corrido. También entran acá las mejoras de interfaz que el usuario va a pasar juntas, y poder elegir el color de una etiqueta. Sumar (2026-10-13), del uso real: (a) la caja de etiquetas no dice para qué sirve ni cómo se indica el grupo, dos etiquetas con el mismo nombre solo se distinguen por el color, y quitar una etiqueta recién creada la deja huérfana sin aviso; (b) orígenes, proyectos y wiki están repartidos en pantallas distintas y son temas relacionados: el usuario pide agruparlos; (c) la cola de incorporación solo se ve y se controla desde una barra de la vista del wiki, en inglés, y no desde las pantallas de la base. 2026-10-22: Parte del producto mínimo (D-463, D-469): primero una maqueta navegable de tres pantallas (Inicio, una persona y un caso) con la marca, para que el dueño la apruebe; después se aplica a toda la app, junto con la revisión de la experiencia de uso. 2026-10-22 (noche): el dueño aprobó la maqueta (llm_wiki_mi/turnos-2026-10-22/maqueta/, D-493) y pidió reservar en Inicio el lugar de las actividades y la agenda, como el bloque «Mi semana» de las maquetas de mayo (casos activos, pendientes, aprobaciones, plazos de la semana, reuniones): desde ya con lo que existe (casos activos y lo que espera en Atención) y el resto cuando existan P-059 y P-062. Falta aplicarla a toda la app.",
+      "detalle": "El usuario quiere llevar la interfaz hacia el mockup del 2026-05-20: barra superior con marca, buscador global y usuario; franja que indica estudio, caso y si es privado; navegación a la izquierda con texto y contadores; páginas con forma de artículo de enciclopedia (pestañas, índice, ficha de datos, enlaces, referencias). Se aplica a toda la app, incorporando los elementos de marca del sitio de Micelya. Acordado el 2026-10-11: hacerlo en un turno dedicado solo a esto, con una pasada de diseño antes de aplicar cambios; falta definir con qué herramienta se hace esa pasada. Relevado el 2026-10-11: la marca está definida en el Manual de Marca (PDF, con una versión legible en markdown) y el sitio la aplica. Paleta magenta y púrpura (primario #8B2778, texto #2F0A38, acento #DD0D6E), tipografías Mulish para títulos e interfaz e Inter para lectura; el manual define modo claro y modo oscuro. El mockup usa celeste sobre azul oscuro, que no es la paleta de la marca: hay que rehacerlo con la paleta real. Falta para una app: logo en formato vectorial y versión para fondo oscuro, colores de estado (éxito, aviso, error), escala de grises y estilos para pantallas densas (tablas, árboles, pestañas); las tipografías hay que incluirlas en la app, no cargarlas de internet. Sumar (2026-10-12): hoy nada en pantalla dice qué proyecto está abierto ni distingue las pantallas de la base (Inicio, Documentos, Orígenes) de las del proyecto abierto (wiki, revisión, grafo); el usuario se confundió y creyó que el wiki había corrido. También entran acá las mejoras de interfaz que el usuario va a pasar juntas, y poder elegir el color de una etiqueta. Sumar (2026-10-13), del uso real: (a) la caja de etiquetas no dice para qué sirve ni cómo se indica el grupo, dos etiquetas con el mismo nombre solo se distinguen por el color, y quitar una etiqueta recién creada la deja huérfana sin aviso; (b) orígenes, proyectos y wiki están repartidos en pantallas distintas y son temas relacionados: el usuario pide agruparlos; (c) la cola de incorporación solo se ve y se controla desde una barra de la vista del wiki, en inglés, y no desde las pantallas de la base. 2026-10-22: Parte del producto mínimo (D-463, D-469): primero una maqueta navegable de tres pantallas (Inicio, una persona y un caso) con la marca, para que el dueño la apruebe; después se aplica a toda la app, junto con la revisión de la experiencia de uso. 2026-10-22 (noche): el dueño aprobó la maqueta (llm_wiki_mi/turnos-2026-10-22/maqueta/, D-493) y pidió reservar en Inicio el lugar de las actividades y la agenda, como el bloque «Mi semana» de las maquetas de mayo (casos activos, pendientes, aprobaciones, plazos de la semana, reuniones): desde ya con lo que existe (casos activos y lo que espera en Atención) y el resto cuando existan P-059 y P-062. Falta aplicarla a toda la app. 2026-10-23: Parte 1 construida en la corrida desatendida (D-507; rama feat/session-18, commits 5c5061f a 68f4cd8): variables de la marca, tipografías dentro de la app, barra superior, menú en castellano, línea al pie, Inicio con «Mi semana», componentes reutilizables e ícono de la app. La parte 2 aplica la marca pantalla por pantalla. Para ver en la app: Inicio en claro y en oscuro contra la maqueta, el botón de cada aviso, Ctrl K desde cualquier pantalla, el menú en ventana angosta y el ícono en la barra de tareas. Falta pedir a diseño el logo en SVG y su versión para fondo oscuro (hoy, PNG y un filtro provisorio). 2026-10-23: Parte 2 construida en la corrida desatendida (D-508; commits d8144de a 68d8152): páginas de persona, caso y documento como enciclopedia, «Datos y correcciones» con una fila fija por dato, pantallas densas con la marca, el chat y su tarjeta, y la app en castellano por defecto. Para ver en la app: la página de una persona y la de un caso en claro y en oscuro (la ficha, el índice al bajar, «sin confirmar»), «Datos y correcciones», Documentos, Atención, el chat con una propuesta y Ajustes → «Datos y respaldos». Copias y versiones, Tipos de documento, Identidades dudosas y Orígenes recibieron solo colores, marcos y títulos. Sigue faltando el logo en SVG y su versión para fondo oscuro. 2026-10-23: Retoques del recorrido (D-510; commits 109f7bb, fcdbfd7, de96f27, 590a4af): la ventana abre en 1280 × 800 o maximizada, y las pantallas densas cortan los nombres largos. Para ver en la app: al abrir, la ventana grande y el menú con sus nombres; en Documentos, achicar a unos 800 px y comprobar que los filtros no se salen ni aparece barra horizontal.",
       "depende_de": [],
       "referencia": "Manual de Marca (unidad compartida de Micelya, Marketing/Branding/Micelya); sitio: repo Micelya/micelya-website; mockup: carpeta 2026-05-20-mockups del estudio de referencia",
       "creado": "2026-10-11",
-      "actualizado": "2026-10-22"
+      "actualizado": "2026-10-23"
     },
     {
       "id": "P-058",
       "titulo": "Traducción de la interfaz: español en toda la app y las pantallas nuevas en los otros idiomas",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "a-verificar",
       "prioridad": 2,
       "tema": "pantallas",
-      "detalle": "La app trae inglés, italiano, ruso y chino; no tiene español. Las pantallas de la base documental (P-049) se escriben en español. Trabajo aparte: traducir al español toda la app existente y, en el mismo trabajo, llevar las pantallas que nacieron solo en español a los otros idiomas. Hay una prueba que exige que todos los idiomas tengan las mismas claves. Incluir los mensajes de error que vienen del motor en inglés y aparecen dentro de las pantallas en español (por ejemplo, por qué una carpeta no se pudo usar como fuente del wiki). El vocabulario por vertical (src/vocabulary/) ya existe por idioma; hoy las pantallas de la base usan siempre el español. Al traducir, hacer que tome el idioma de la app.",
+      "detalle": "La app trae inglés, italiano, ruso y chino; no tiene español. Las pantallas de la base documental (P-049) se escriben en español. Trabajo aparte: traducir al español toda la app existente y, en el mismo trabajo, llevar las pantallas que nacieron solo en español a los otros idiomas. Hay una prueba que exige que todos los idiomas tengan las mismas claves. Incluir los mensajes de error que vienen del motor en inglés y aparecen dentro de las pantallas en español (por ejemplo, por qué una carpeta no se pudo usar como fuente del wiki). El vocabulario por vertical (src/vocabulary/) ya existe por idioma; hoy las pantallas de la base usan siempre el español. Al traducir, hacer que tome el idioma de la app. 2026-10-23: La app arranca en castellano: un archivo de traducción con los 398 textos que traía en inglés, y el castellano primero en la lista (D-508). Quedan en inglés los mensajes de error que vienen del motor (D-067). Falta llevar a los otros idiomas las pantallas que nacieron solo en castellano.",
       "depende_de": [
         "P-284"
       ],
       "referencia": "src/i18n/, src/i18n/i18n-parity.test.ts",
       "creado": "2026-10-11",
-      "actualizado": "2026-10-22"
+      "actualizado": "2026-10-23"
     },
     {
       "id": "P-059",
@@ -346,11 +346,11 @@
       "tipo": "decision",
       "responsable": "usuario",
       "estado": "a-verificar",
-      "detalle": "Micelya Core es el módulo de la plataforma que dará los servicios de IA y relacionados; se desarrolla en paralelo, primero sobre servicios de Amazon y diseñado para no depender de ellos. En algún momento la app va a usarlo como infraestructura de IA. Por ahora es solo información de contexto: los proveedores de IA siguen siendo configurables por instancia. 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/. 2026-10-22: El estudio de referencia va a usar Micelya Core (D-468): la conexión es parte del producto mínimo (D-463). Primero reflejar la respuesta de Core (P-244); después la conexión en Ajustes y el motor de reconocimiento de Core (pasos 4 y 5 de servicios-de-ia-propuesta.md) y ver si las preguntas al modelo también van por Core. Probado el 22 oct con el usuario técnico de desarrollo (en el llavero de Windows, «connection:micelya-core»): un escrito de 23 páginas leído de punta a punta en 27 s y borrado después. 2026-10-22: respuesta al 001 llevada al diseño (sección 2.3 y pasos 4, 4b y 5 de servicios-de-ia-propuesta.md) y mensaje 002 enviado (pedido de integración #65). Lectura por páginas o piezas (D-483); el dueño asume procesar en Estados Unidos (D-482). Preguntar al modelo por Core (paso 4b) espera el permiso y los límites que se piden en el 002. 2026-10-22 (tarde): construidos la conexión (commit 3df768b; Ajustes → Conexiones → Micelya Core, con «Probar la conexión»; el secreto nunca vuelve a las pantallas) y el motor de lectura de Core (commit e58123d, D-489): cada página como JPEG en gris de hasta 2000 px con nombre genérico, borrada en Core al guardarla; página sin renglones «[ilegible]»; palabras con confianza menor a 0,90 guardadas como dudosas; motor core:textract-1.0. Prueba real con un documento inventado de 3 páginas: 58 s, las 3 lecturas borradas. Falta verlo en la app; preguntar al modelo por Core (paso 4b) espera el permiso pedido en el 002.",
+      "detalle": "Micelya Core es el módulo de la plataforma que dará los servicios de IA y relacionados; se desarrolla en paralelo, primero sobre servicios de Amazon y diseñado para no depender de ellos. En algún momento la app va a usarlo como infraestructura de IA. Por ahora es solo información de contexto: los proveedores de IA siguen siendo configurables por instancia. 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/. 2026-10-22: El estudio de referencia va a usar Micelya Core (D-468): la conexión es parte del producto mínimo (D-463). Primero reflejar la respuesta de Core (P-244); después la conexión en Ajustes y el motor de reconocimiento de Core (pasos 4 y 5 de servicios-de-ia-propuesta.md) y ver si las preguntas al modelo también van por Core. Probado el 22 oct con el usuario técnico de desarrollo (en el llavero de Windows, «connection:micelya-core»): un escrito de 23 páginas leído de punta a punta en 27 s y borrado después. 2026-10-22: respuesta al 001 llevada al diseño (sección 2.3 y pasos 4, 4b y 5 de servicios-de-ia-propuesta.md) y mensaje 002 enviado (pedido de integración #65). Lectura por páginas o piezas (D-483); el dueño asume procesar en Estados Unidos (D-482). Preguntar al modelo por Core (paso 4b) espera el permiso y los límites que se piden en el 002. 2026-10-22 (tarde): construidos la conexión (commit 3df768b; Ajustes → Conexiones → Micelya Core, con «Probar la conexión»; el secreto nunca vuelve a las pantallas) y el motor de lectura de Core (commit e58123d, D-489): cada página como JPEG en gris de hasta 2000 px con nombre genérico, borrada en Core al guardarla; página sin renglones «[ilegible]»; palabras con confianza menor a 0,90 guardadas como dudosas; motor core:textract-1.0. Prueba real con un documento inventado de 3 páginas: 58 s, las 3 lecturas borradas. Falta verlo en la app; preguntar al modelo por Core (paso 4b) espera el permiso pedido en el 002. 2026-10-23: La autenticación en Core va por persona con Keycloak, no con una cuenta del sistema (D-501, P-302). 2026-10-23: Respuestas de Core 002 y 003 (23 oct): preguntar a modelos, dado; organización del piloto creada en desarrollo con un usuario técnico, contra D-501 (se corrige en un 004); las piezas de un escaneo, aceptadas sin fecha (Core prefiere recibir el documento entero cuando las haya, contra D-483); mientras tanto recomienda mandar cada página como PDF de una página y no como imagen (hoy, imagen en gris, D-489); propone sumar tres tipos a la lista (acta o partida, poder o escritura, resolución judicial) y pide respuesta antes de fijarla (pedir un código fijo por tipo, por el vocabulario de cada profesión); faltan las copias de respaldo y la política de no entrenar de AWS antes de usar documentos reales (Core P-190, Core P-167). Falta el mensaje 004. 2026-10-23: El mensaje 004 a Core (la corrección del usuario técnico del piloto, el trabajo sin conexión, los límites y los ocho pedidos sobre las piezas) queda en espera. El dueño evalúa hacer en el dispositivo todo el preprocesamiento (P-321), y entonces varios pedidos dejarían de tener sentido.",
       "depende_de": [],
       "referencia": "Repo extrimian/mi-platform, rama dev; docs/design/servicios-de-ia-propuesta.md",
       "creado": "2026-10-11",
-      "actualizado": "2026-10-22"
+      "actualizado": "2026-10-23"
     },
     {
       "id": "P-064",
@@ -1061,14 +1061,14 @@
       "titulo": "Estado y ciclo de vida de un asunto",
       "tipo": "decision",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "hecho",
       "prioridad": 3,
       "tema": "asuntos",
-      "detalle": "Desde el 20 oct cada asunto tiene estado y todos quedan 'abierto' (D-375). Falta decidir cómo se cierra o se archiva, quién lo hace, si vuelve a abrirse y qué cambia en las pantallas y en la búsqueda para un asunto cerrado. 2026-10-22: Decidido (D-475).",
+      "detalle": "Desde el 20 oct cada asunto tiene estado y todos quedan 'abierto' (D-375). Falta decidir cómo se cierra o se archiva, quién lo hace, si vuelve a abrirse y qué cambia en las pantallas y en la búsqueda para un asunto cerrado. 2026-10-22: Decidido (D-475). 2026-10-23: El ciclo de vida del caso se decidió en D-475 y se construyó en el chat con acciones (D-506): cerrar, archivar y reabrir un caso desde su pantalla y desde el chat. Se ve con P-286.",
       "depende_de": [],
       "referencia": "D-375; docs/design/asuntos-propuesta.md",
       "creado": "2026-10-20",
-      "actualizado": "2026-10-22"
+      "actualizado": "2026-10-23"
     },
     {
       "id": "P-214",
@@ -1171,12 +1171,12 @@
       "titulo": "API local y recortador web (Clip) sobre la base",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "en-curso",
-      "detalle": "Salen con el retiro del wiki (D-400) porque trabajaban sobre los proyectos y los archivos del wiki. Rehacerlos sobre la base: qué expone la API y con qué permisos, y dónde guarda el recortador lo que se trae de la web (separado de lo que dicen los documentos, como la investigación, D-397). 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/. 22 oct: el recortador está hecho (D-450, D-451): la extensión «Micelya Clipper» y su servidor local guardan cada página como archivo markdown en «Recortes web» de la carpeta de trabajo, que es un origen de la base; Atención avisa de los recortes nuevos. Falta la prueba del dueño con el navegador. Queda pendiente la API local y el servidor MCP. 2026-10-22 (tarde): el dueño pidió restablecer un solo servidor dentro de la máquina para que otros programas (el recortador web, otros asistentes por MCP) usen toda la estructura actual de la base (D-487). El servidor propio del recortador (clip_server.rs, de la corrida del 21 oct, decidido sin consulta) se reemplaza por ese servidor único. Antes de construirlo, una propuesta de diseño: qué puede leer y qué puede hacer cada programa (decisión abierta 4 de servicios-de-ia-propuesta.md). 2026-10-22 (noche): el dueño decidió que entra en el producto mínimo si se puede (D-495). Primero la propuesta de diseño. 2026-10-22 (noche): se diseña junto con el chat, sobre el mismo contrato de operaciones (D-498).",
+      "estado": "a-verificar",
+      "detalle": "Salen con el retiro del wiki (D-400) porque trabajaban sobre los proyectos y los archivos del wiki. Rehacerlos sobre la base: qué expone la API y con qué permisos, y dónde guarda el recortador lo que se trae de la web (separado de lo que dicen los documentos, como la investigación, D-397). 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/. 22 oct: el recortador está hecho (D-450, D-451): la extensión «Micelya Clipper» y su servidor local guardan cada página como archivo markdown en «Recortes web» de la carpeta de trabajo, que es un origen de la base; Atención avisa de los recortes nuevos. Falta la prueba del dueño con el navegador. Queda pendiente la API local y el servidor MCP. 2026-10-22 (tarde): el dueño pidió restablecer un solo servidor dentro de la máquina para que otros programas (el recortador web, otros asistentes por MCP) usen toda la estructura actual de la base (D-487). El servidor propio del recortador (clip_server.rs, de la corrida del 21 oct, decidido sin consulta) se reemplaza por ese servidor único. Antes de construirlo, una propuesta de diseño: qué puede leer y qué puede hacer cada programa (decisión abierta 4 de servicios-de-ia-propuesta.md). 2026-10-22 (noche): el dueño decidió que entra en el producto mínimo si se puede (D-495). Primero la propuesta de diseño. 2026-10-22 (noche): se diseña junto con el chat, sobre el mismo contrato de operaciones (D-498). 2026-10-23: Como P-286 (D-500): el servidor único se construye sobre el documento del contrato de operaciones sin esperar la aprobación; el dueño lo revisa al día siguiente. 2026-10-23: El documento del contrato está escrito (D-504): el servidor único usa 127.0.0.1:19827, la dirección del recortador, y se construye en la misma corrida después del chat con acciones. 2026-10-23: Construido en la corrida desatendida (D-509; rama feat/session-18, commits 348bd3d a e887551), probado con datos inventados y con el cliente oficial de MCP contra un servidor de prueba. Para ver en la app: (1) con la extensión instalada, recortar una página (Alt+Mayús+L) y verla en «Recortes web» y en Atención; (2) en Ajustes → «Programas conectados», agregar «Claude Code de prueba» con «Leer y pedir cambios» y copiar el comando que muestra; (3) en una terminal, abrir claude y pedirle «buscá en Micelya las cartas de marzo» (usa cupo de Claude, no de Codex); (4) pedirle «agregá ese documento al caso X», ver el pedido en Atención, revisarlo, confirmar, mirar el caso y deshacer; (5) quitar el programa y comprobar que ya no se conecta. Riesgos: el token queda en texto en la configuración del otro programa; un programa lee toda la base, sin límite por origen.",
       "depende_de": [],
       "referencia": "D-400; D-450; D-451; docs/design/retiro-del-wiki.md; docs/design/servicios-de-ia-propuesta.md; src-tauri/src/clip_server.rs; extension/",
       "creado": "2026-10-21",
-      "actualizado": "2026-10-22",
+      "actualizado": "2026-10-23",
       "prioridad": 1,
       "tema": "API local"
     },
@@ -1632,11 +1632,11 @@
       "estado": "hecho",
       "prioridad": 1,
       "tema": "pruebas y calidad",
-      "detalle": "22 oct: el pedido de integración #63 quedó con la comprobación exigida «en cola» sin máquina mientras GitHub daba la ejecución por terminada; coincidió con un incidente de GitHub Actions (14:35 UTC). Causa de fondo: el conjunto de reglas proteger-main exige la comprobación «check (windows-latest)», cuyo nombre sale de la matriz de .github/workflows/ci.yml; depende de máquinas Windows (más lentas en arrancar y más afectadas por incidentes) y se rompe si cambia la matriz; además no corre las pruebas (P-046). Propuesta: (1) un trabajo «puerta» con nombre fijo (por ejemplo «verificacion») que siempre informa (needs de los demás, if: always()) y es el único exigido; (2) las pruebas rápidas (tsc con tsconfig.app.json, vitest de mocks, cargo test --lib) en ubuntu-latest con timeout-minutes; (3) la compilación en Windows como trabajo aparte, informado por la puerta; (4) concurrency por rama con cancel-in-progress; (5) actualizar el conjunto de reglas (lo hace el dueño o con su permiso) para exigir la puerta. Probar en una rama antes de cambiar la regla. 2026-10-22: absorbe P-046 («Decidir si la comprobación automática de GitHub ejecuta las pruebas»). 2026-10-22: El dueño aprobó el cambio (D-479). Pedido de integración propio, #64 (rama ci/verificacion): falta ver «verificacion» en verde y que el dueño apruebe cambiar la regla proteger-main. 2026-10-22 (noche): hecho. Pedido de integración #64 integrado; la regla proteger-main exige «verificacion» (GitHub Actions) y tiene la salida de emergencia para el administrador en pedidos de integración (D-479). Los pedidos #65 y #66 ya pasaron con la comprobación nueva.",
+      "detalle": "22 oct: el pedido de integración #63 quedó con la comprobación exigida «en cola» sin máquina mientras GitHub daba la ejecución por terminada; coincidió con un incidente de GitHub Actions (14:35 UTC). Causa de fondo: el conjunto de reglas proteger-main exige la comprobación «check (windows-latest)», cuyo nombre sale de la matriz de .github/workflows/ci.yml; depende de máquinas Windows (más lentas en arrancar y más afectadas por incidentes) y se rompe si cambia la matriz; además no corre las pruebas (P-046). Propuesta: (1) un trabajo «puerta» con nombre fijo (por ejemplo «verificacion») que siempre informa (needs de los demás, if: always()) y es el único exigido; (2) las pruebas rápidas (tsc con tsconfig.app.json, vitest de mocks, cargo test --lib) en ubuntu-latest con timeout-minutes; (3) la compilación en Windows como trabajo aparte, informado por la puerta; (4) concurrency por rama con cancel-in-progress; (5) actualizar el conjunto de reglas (lo hace el dueño o con su permiso) para exigir la puerta. Probar en una rama antes de cambiar la regla. 2026-10-22: absorbe P-046 («Decidir si la comprobación automática de GitHub ejecuta las pruebas»). 2026-10-22: El dueño aprobó el cambio (D-479). Pedido de integración propio, #64 (rama ci/verificacion): falta ver «verificacion» en verde y que el dueño apruebe cambiar la regla proteger-main. 2026-10-22 (noche): hecho. Pedido de integración #64 integrado; la regla proteger-main exige «verificacion» (GitHub Actions) y tiene la salida de emergencia para el administrador en pedidos de integración (D-479). Los pedidos #65 y #66 ya pasaron con la comprobación nueva. 2026-10-23: La comprobación se trabó 20 minutos el 22 oct en el paso que instala paquetes de Ubuntu: ahora ese paso tiene su propio tope de 10 minutos y reintenta cada descarga hasta tres veces (rama feat/session-18). Falta verlo en verde en el pedido de integración de la sesión.",
       "depende_de": [],
       "referencia": ".github/workflows/ci.yml; conjunto de reglas proteger-main (id 24614800); P-046",
       "creado": "2026-10-22",
-      "actualizado": "2026-10-22"
+      "actualizado": "2026-10-23"
     },
     {
       "id": "P-283",
@@ -1658,7 +1658,7 @@
       "tipo": "codigo",
       "responsable": "ambos",
       "estado": "en-curso",
-      "detalle": "Reemplaza a P-049 (D-463). El producto mínimo termina cuando están, funcionando y vistos por el dueño: (1) la revisión de la experiencia de uso con el marco visual de la marca (P-057); (2) la conexión con Micelya Core, que va a usar el estudio de referencia (P-063, D-468); (3) generar un documento a partir de una plantilla (P-285), con la sección «Plantillas» (P-287); (4) ejecutar acciones desde el chat, por ejemplo unir documentos en un caso (P-286); (5) un instalador de Windows para que algunos abogados del estudio de referencia lo prueben (P-006, cuando el dueño lo pida). Al entregarlo: validar el vocabulario con ese estudio (P-069) y revisar con ellos los términos del portal, probando también el inicio de sesión del abogado (P-265). El dueño escribió «la conexión a Micelya Desktop»; se entendió Micelya Core, a confirmar. 2026-10-22: el dueño confirmó que es la conexión con Micelya Core: el estudio de referencia usa Core para todo (lectura de escaneos, preguntas al modelo y chat), sin cuentas de Codex. Y que el producto mínimo se construye hoy (corrida desatendida de la noche). 2026-10-22 (tarde): construida la conexión con Core y la lectura por páginas (P-063, a verificar). Se suma quitar LLM-Wiki como identidad de la app (P-290). 2026-10-22 (noche): se suman el servidor único para el recortador y los demás programas (P-227, D-495) y que el instalador respete los datos de una versión anterior (P-297, D-496).",
+      "detalle": "Reemplaza a P-049 (D-463). El producto mínimo termina cuando están, funcionando y vistos por el dueño: (1) la revisión de la experiencia de uso con el marco visual de la marca (P-057); (2) la conexión con Micelya Core, que va a usar el estudio de referencia (P-063, D-468); (3) generar un documento a partir de una plantilla (P-285), con la sección «Plantillas» (P-287); (4) ejecutar acciones desde el chat, por ejemplo unir documentos en un caso (P-286); (5) un instalador de Windows para que algunos abogados del estudio de referencia lo prueben (P-006, cuando el dueño lo pida). Al entregarlo: validar el vocabulario con ese estudio (P-069) y revisar con ellos los términos del portal, probando también el inicio de sesión del abogado (P-265). El dueño escribió «la conexión a Micelya Desktop»; se entendió Micelya Core, a confirmar. 2026-10-22: el dueño confirmó que es la conexión con Micelya Core: el estudio de referencia usa Core para todo (lectura de escaneos, preguntas al modelo y chat), sin cuentas de Codex. Y que el producto mínimo se construye hoy (corrida desatendida de la noche). 2026-10-22 (tarde): construida la conexión con Core y la lectura por páginas (P-063, a verificar). Se suma quitar LLM-Wiki como identidad de la app (P-290). 2026-10-22 (noche): se suman el servidor único para el recortador y los demás programas (P-227, D-495) y que el instalador respete los datos de una versión anterior (P-297, D-496). 2026-10-23: Corrida desatendida de la noche del 22 al 23 oct (D-500), en la rama feat/session-18: «Documentos parecidos», PJN, contrato de operaciones, actualizar sin perder datos, chat con acciones, la marca en toda la app y el servidor único. Quedan para el 23 con el dueño: la revisión, el instalador de prueba y la integración real con Core.",
       "depende_de": [
         "P-057",
         "P-063",
@@ -1673,7 +1673,7 @@
       ],
       "referencia": "D-463; docs/design/base-documental.md",
       "creado": "2026-10-22",
-      "actualizado": "2026-10-22"
+      "actualizado": "2026-10-23"
     },
     {
       "id": "P-285",
@@ -1692,14 +1692,14 @@
       "titulo": "Ejecutar acciones desde el chat de la app",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "a-verificar",
       "prioridad": 1,
       "tema": "chat",
-      "detalle": "Parte del producto mínimo (D-463). Que el chat pueda hacer, además de responder, acciones sobre la base que hoy se hacen desde las pantallas: unir documentos en un caso, sacar uno, crear la ficha de un grupo de sociedades (D-473), unir o separar fichas, entre otras. Cada acción se muestra antes de hacerse y la confirma la persona; queda registrada como cualquier decisión de una persona, firme y reversible (D-174). Antes de construirlo, una propuesta de diseño con la lista de acciones para que la apruebe el dueño. 2026-10-22 (noche): el dueño decidió (D-498) que el chat actúe sobre un contrato de operaciones, que también va a exponer la API local y el MCP (P-227); con Codex usa el mismo agente que los demás motores (después, lo mismo con Core); no propone acciones por su cuenta; doble registro; instrucciones en castellano armadas desde el contrato. Falta la propuesta del contrato (llm_wiki_mi/desatendido-8/p9-contrato-de-operaciones.md) y que el dueño confirme la idea de topes visibles y extensibles en lugar de fijos.",
+      "detalle": "Parte del producto mínimo (D-463). Que el chat pueda hacer, además de responder, acciones sobre la base que hoy se hacen desde las pantallas: unir documentos en un caso, sacar uno, crear la ficha de un grupo de sociedades (D-473), unir o separar fichas, entre otras. Cada acción se muestra antes de hacerse y la confirma la persona; queda registrada como cualquier decisión de una persona, firme y reversible (D-174). Antes de construirlo, una propuesta de diseño con la lista de acciones para que la apruebe el dueño. 2026-10-22 (noche): el dueño decidió (D-498) que el chat actúe sobre un contrato de operaciones, que también va a exponer la API local y el MCP (P-227); con Codex usa el mismo agente que los demás motores (después, lo mismo con Core); no propone acciones por su cuenta; doble registro; instrucciones en castellano armadas desde el contrato. Falta la propuesta del contrato (llm_wiki_mi/desatendido-8/p9-contrato-de-operaciones.md) y que el dueño confirme la idea de topes visibles y extensibles en lugar de fijos. 2026-10-23: El dueño decidió (D-500) que en la corrida desatendida no se espera su aprobación: el contrato de operaciones se escribe como documento de diseño con decisiones asumidas y el chat con acciones se construye enseguida; los topes del chat, como le parezca mejor al agente. Lo revisa al día siguiente. 2026-10-23: El documento del contrato está escrito (docs/design/contrato-de-operaciones.md, D-504, commit 1fb962b); el paso del chat con acciones se construye sobre él en la misma corrida. 2026-10-23: Construido en la corrida desatendida sobre el contrato (D-506; rama feat/session-18, 11 commits desde 8367087). Probado solo con un modelo simulado. Prueba para el dueño con Codex (gasta cupo): escribir «sumá las dos cartas documento de marzo al caso Prueba» con un caso y documentos que existan; tiene que verse «Vuelta 1 de 8», la búsqueda y la tarjeta con los dos documentos; Confirmar los agrega al caso y Deshacer los saca; después «borrá ese documento» tiene que contestar que no se puede desde el chat. Ver también en un caso los botones «Cerrar», «Archivar» y «Reabrir». Riesgos: cada vuelta con Codex es una corrida con razonamiento alto; al cancelar, un programa lanzado por Codex podría seguir hasta terminar.",
       "depende_de": [],
       "referencia": "src-tauri/src/agent/base_tools.rs; D-413; D-473",
       "creado": "2026-10-22",
-      "actualizado": "2026-10-22"
+      "actualizado": "2026-10-23"
     },
     {
       "id": "P-287",
@@ -1721,11 +1721,11 @@
       "estado": "pendiente",
       "prioridad": 2,
       "tema": "chat",
-      "detalle": "Encontrado al construir P-278 (22 oct): con Codex, que es el motor en uso, el chat no usa el texto de sistema del agente; la pantalla del chat (src/components/chat/chat-panel.tsx) arma una pregunta más corta, en inglés, que no se muestra en ningún lado, y el agente hace antes otra pregunta en inglés para decidir qué buscar. Las preguntas de «Investigar en internet» (src/lib/deep-research.ts) también se arman en la pantalla. Llevarlas a la pantalla de lo que se le pregunta al modelo, con versión, y revisar si conviene que estén en castellano y que el chat con Codex use el mismo texto que el agente. Relacionado con las acciones desde el chat (P-286).",
+      "detalle": "Encontrado al construir P-278 (22 oct): con Codex, que es el motor en uso, el chat no usa el texto de sistema del agente; la pantalla del chat (src/components/chat/chat-panel.tsx) arma una pregunta más corta, en inglés, que no se muestra en ningún lado, y el agente hace antes otra pregunta en inglés para decidir qué buscar. Las preguntas de «Investigar en internet» (src/lib/deep-research.ts) también se arman en la pantalla. Llevarlas a la pantalla de lo que se le pregunta al modelo, con versión, y revisar si conviene que estén en castellano y que el chat con Codex use el mismo texto que el agente. Relacionado con las acciones desde el chat (P-286). 2026-10-23: El chat con Codex ya no arma una pregunta corta en inglés: pasa por el mismo agente del contrato, en castellano, y sus instrucciones se ven enteras en «Lo que se le pregunta al modelo» (D-506). Falta lo de «Investigar en internet».",
       "depende_de": [],
       "referencia": "src/components/chat/chat-panel.tsx; src/lib/deep-research.ts; src-tauri/src/agent/",
       "creado": "2026-10-22",
-      "actualizado": "2026-10-22"
+      "actualizado": "2026-10-23"
     },
     {
       "id": "P-289",
@@ -1773,11 +1773,11 @@
       "tipo": "codigo",
       "responsable": "usuario",
       "estado": "a-verificar",
-      "detalle": "Con el motor de Core por páginas (D-489), cada página tarda 15 a 19 s y van de a una: un escaneo de 23 páginas tardaría 6 a 7 minutos, contra 27 s mandado entero. Mandar varias páginas a la vez, con un tope (Core no publica límites por minuto: 001-Q6), sin perder el borrado de cada lectura ni el pagar una sola vez. 2026-10-22 (noche): construido (commit 7fc32a3, D-494): hasta 4 páginas a la vez (constante PAGES_AT_ONCE en recognition_core.rs), cada una con su recorrido completo y su borrado. Prueba real con un escaneo inventado de 8 páginas: de 102 s a 34 s. Falta verlo en la app.",
+      "detalle": "Con el motor de Core por páginas (D-489), cada página tarda 15 a 19 s y van de a una: un escaneo de 23 páginas tardaría 6 a 7 minutos, contra 27 s mandado entero. Mandar varias páginas a la vez, con un tope (Core no publica límites por minuto: 001-Q6), sin perder el borrado de cada lectura ni el pagar una sola vez. 2026-10-22 (noche): construido (commit 7fc32a3, D-494): hasta 4 páginas a la vez (constante PAGES_AT_ONCE en recognition_core.rs), cada una con su recorrido completo y su borrado. Prueba real con un escaneo inventado de 8 páginas: de 102 s a 34 s. Falta verlo en la app. 2026-10-23: Core no dio cupos de lectura (respuesta 002): las 4 páginas a la vez siguen. El cupo de 10 por minuto es de las preguntas al modelo. Revisar si cada página pasa a PDF de una página, como recomienda Core.",
       "depende_de": [],
       "referencia": "D-489; P-063",
       "creado": "2026-10-22",
-      "actualizado": "2026-10-22"
+      "actualizado": "2026-10-23"
     },
     {
       "id": "P-293",
@@ -1826,12 +1826,12 @@
       "titulo": "«Documentos parecidos»: lo de la misma plantilla no es «parecido» ni pide decisión",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
-      "detalle": "Cada documento generado desde una plantilla aparece como par pendiente («Misma plantilla, otros datos») con los documentos de la familia. Decidir si esos pares se confirman solos o se ocultan, porque ya se sabe de qué plantilla salió (D-492). 2026-10-22 (noche): decidido por el dueño (D-497), para el producto mínimo: lo de la misma plantilla no es «parecido» ni pide decisión (se muestra como «hecho con la plantilla …»), solo piden decisión las copias y versiones, la regla de «parecido» compara partes, montos, fechas e identificadores, y la base se limpia sola con la regla nueva (sin editarla a mano). Especificación: llm_wiki_mi/desatendido-8/p6-parecidos.md.",
+      "estado": "a-verificar",
+      "detalle": "Cada documento generado desde una plantilla aparece como par pendiente («Misma plantilla, otros datos») con los documentos de la familia. Decidir si esos pares se confirman solos o se ocultan, porque ya se sabe de qué plantilla salió (D-492). 2026-10-22 (noche): decidido por el dueño (D-497), para el producto mínimo: lo de la misma plantilla no es «parecido» ni pide decisión (se muestra como «hecho con la plantilla …»), solo piden decisión las copias y versiones, la regla de «parecido» compara partes, montos, fechas e identificadores, y la base se limpia sola con la regla nueva (sin editarla a mano). Especificación: llm_wiki_mi/desatendido-8/p6-parecidos.md. 2026-10-23: Construido en la corrida desatendida (D-502; rama feat/session-18, commits 55a5abc a 46010a1). La sección pasa a llamarse «Copias y versiones»; la base sube a la versión 25 y se recalcula sola al abrir. Medido sobre una copia de la base real: de 341 pares pidiendo decisión a 46. Para ver en la app: Atención con 46 avisos en 9 familias; en un documento, la línea «Hecho con la plantilla…»; en Plantillas, que no diga «Propuesta» ni ofrezca «Confirmar la familia». Que el dueño confirme o cambie dos cosas asumidas: el nombre «Copias y versiones» y la lista plegada «Comparten parte del texto» (138 pares sin decisión). Riesgo: con la versión 25, una app vieja ya no abre la base.",
       "depende_de": [],
       "referencia": "D-492; P-285",
       "creado": "2026-10-22",
-      "actualizado": "2026-10-22",
+      "actualizado": "2026-10-23",
       "prioridad": 1,
       "tema": "parecidos y plantillas"
     },
@@ -1840,42 +1840,42 @@
       "titulo": "Actualizar la app sin perder los datos de una versión anterior",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "a-verificar",
       "prioridad": 1,
       "tema": "pruebas y calidad",
-      "detalle": "Requisito del dueño para el instalador del producto mínimo (D-496): una actualización tiene que respetar los datos generados con una versión anterior. Los datos viven en la carpeta propia del usuario (%APPDATA%\\com.micelya.desktop), separados del programa, y la base cambia de forma sola al abrir y nunca para atrás. Falta: (1) que la app haga sola un respaldo de la base antes de cada cambio de forma; (2) antes de entregar, probar instalar la versión anterior, cargar datos, actualizar y comprobar que nada se pierda; (3) qué hacer si el dueño necesita volver a la versión anterior.",
+      "detalle": "Requisito del dueño para el instalador del producto mínimo (D-496): una actualización tiene que respetar los datos generados con una versión anterior. Los datos viven en la carpeta propia del usuario (%APPDATA%\\com.micelya.desktop), separados del programa, y la base cambia de forma sola al abrir y nunca para atrás. Falta: (1) que la app haga sola un respaldo de la base antes de cada cambio de forma; (2) antes de entregar, probar instalar la versión anterior, cargar datos, actualizar y comprobar que nada se pierda; (3) qué hacer si el dueño necesita volver a la versión anterior. 2026-10-23: Construido en la corrida desatendida (D-505; rama feat/session-18, commits 564557e a bc85b97): respaldo comprobado antes de cada cambio de forma, prueba de actualización de todas las versiones, Ajustes → «Datos y respaldos» y docs/design/actualizaciones.md. Falta la prueba con el instalador real, que se hace con el dueño: instalador A desde main (base 24) y B desde esta rama con versión 0.1.1, en otra cuenta de Windows, nunca con los datos reales; instalar A, cargar documentos y decisiones, instalar B encima y comprobar en Inicio, en las decisiones y en «Datos y respaldos». Para ver en la app: Ajustes → «Datos y respaldos» (con la base real en la versión 25 dice «Todavía no hay respaldos» hasta el próximo cambio de forma).",
       "depende_de": [],
       "referencia": "D-496; src-tauri/src/docbase/schema.rs",
       "creado": "2026-10-22",
-      "actualizado": "2026-10-22"
+      "actualizado": "2026-10-23"
     },
     {
       "id": "P-298",
       "titulo": "PJN: descargas sin confirmar, avance con más espacio, la app libre mientras baja, y las actuaciones que podrían faltar",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "a-verificar",
       "prioridad": 1,
       "tema": "portales",
-      "detalle": "Pedidos del dueño después de la primera prueba real completa (22 oct): (1) que no aparezca la confirmación de descargas múltiples de WebView2 (concederla sola, solo para pjn.gov.ar); (2) ocultar la ventana del sitio mientras baja y mostrar el avance con más espacio; (3) que la app no quede bloqueada mientras baja; (4) dejar de leer la lista cuando una página entera ya es conocida (en un expediente solo se agregan documentos), con «Revisar todo el expediente»; (5) investigar el aviso «La página N mostró X actuaciones y no 15»: si es falso o si el lector se saltea filas. Especificación: llm_wiki_mi/desatendido-8/p7-pjn-descargas.md. Para (5) sirve un dato del dueño: cuántas actuaciones muestra la página 1 de ese expediente en Edge. 2026-10-22 (noche): el dueño comparó con el portal en Edge: la página 1 tiene 15 filas (9 con documento) y la página 2, 15 filas (5 con documento); la app contó 6 y 14. El aviso no es falso: el lector se saltea filas, y puede que también documentos. Hay varios tipos de fila (movimiento, evento, firma de despacho, escrito agregado) y solo algunas tienen documento. Arreglar el lector y, después, actualizar el expediente para traer lo que faltó sin volver a bajar lo que ya está.",
+      "detalle": "Pedidos del dueño después de la primera prueba real completa (22 oct): (1) que no aparezca la confirmación de descargas múltiples de WebView2 (concederla sola, solo para pjn.gov.ar); (2) ocultar la ventana del sitio mientras baja y mostrar el avance con más espacio; (3) que la app no quede bloqueada mientras baja; (4) dejar de leer la lista cuando una página entera ya es conocida (en un expediente solo se agregan documentos), con «Revisar todo el expediente»; (5) investigar el aviso «La página N mostró X actuaciones y no 15»: si es falso o si el lector se saltea filas. Especificación: llm_wiki_mi/desatendido-8/p7-pjn-descargas.md. Para (5) sirve un dato del dueño: cuántas actuaciones muestra la página 1 de ese expediente en Edge. 2026-10-22 (noche): el dueño comparó con el portal en Edge: la página 1 tiene 15 filas (9 con documento) y la página 2, 15 filas (5 con documento); la app contó 6 y 14. El aviso no es falso: el lector se saltea filas, y puede que también documentos. Hay varios tipos de fila (movimiento, evento, firma de despacho, escrito agregado) y solo algunas tienen documento. Arreglar el lector y, después, actualizar el expediente para traer lo que faltó sin volver a bajar lo que ya está. 2026-10-23: Construido en la corrida desatendida (D-503; rama feat/session-18, commits c5372a4 a e1b2c70). Causa de las filas salteadas: el lector no aceptaba fechas con día de una cifra. Para ver en la app, en «Portales», tocando «Actualizar» en el expediente ya traído: que no aparezca la confirmación de descargas; que cada página diga 15 actuaciones; que baje solo lo que faltaba sin repetir los 52; que la ventana se oculte y se vea el avance; ir a otra pantalla y ver el aviso al pie y en Atención; una segunda «Actualizar» corta temprano y «Revisar todo el expediente» lo recorre entero. Que el dueño confirme si se renombran los 52 archivos ya bajados (hoy conservan «TIPO-ACTUACION» en el nombre). Riesgos no comprobados sin el portal real: que WebView2 siga bajando con la ventana oculta y que el pedido de permiso llegue por el evento que se intercepta; dos movimientos iguales el mismo día cuentan como uno.",
       "depende_de": [],
       "referencia": "P-248; D-491",
       "creado": "2026-10-22",
-      "actualizado": "2026-10-22"
+      "actualizado": "2026-10-23"
     },
     {
       "id": "P-299",
       "titulo": "Elegir el modelo de Core para preguntas que abarcan muchos documentos",
       "tipo": "verificacion",
       "responsable": "ambos",
-      "estado": "en-espera",
-      "detalle": "Cuando Core habilite sus modelos (mensaje 002): unas 10 preguntas difíciles sobre un caso real, con 2 o 3 modelos, comparando respuestas, tiempo y costo, y la forma de trabajar con muchos documentos (buscar antes de leer, fragmentos, tandas con resúmenes). Pedido del dueño (22 oct).",
+      "estado": "pendiente",
+      "detalle": "Cuando Core habilite sus modelos (mensaje 002): unas 10 preguntas difíciles sobre un caso real, con 2 o 3 modelos, comparando respuestas, tiempo y costo, y la forma de trabajar con muchos documentos (buscar antes de leer, fragmentos, tandas con resúmenes). Pedido del dueño (22 oct). 2026-10-23: Ya se puede hacer (respuesta 002 de Core): comparar Sonnet 4.6, Haiku 4.5 y Opus 4.5 con identificadores «us.» (Opus 4.6 solo tiene «global.»). Con 20.000 caracteres por pregunta y 10 pedidos por minuto (5 con Opus), las preguntas sobre muchos documentos tienen que buscar antes de leer y trabajar por tandas (P-311).",
       "depende_de": [
         "P-063"
       ],
       "referencia": "D-498; mensaje 002 a Core",
       "creado": "2026-10-22",
-      "actualizado": "2026-10-22"
+      "actualizado": "2026-10-23"
     },
     {
       "id": "P-300",
@@ -1885,11 +1885,11 @@
       "estado": "pendiente",
       "prioridad": 1,
       "tema": "servicios de IA",
-      "detalle": "Parte del producto mínimo: el estudio de referencia usa Core para todo, sin Codex (D-468). Paso 4b de servicios-de-ia-propuesta.md: un motor de preguntas que usa executePrompt de Core (solo texto: la pregunta entera en el texto, la respuesta en JSON controlada como hoy), elegible en Servicios de IA. Se construye y se prueba contra un Core simulado; la prueba real espera el permiso inference.execute y los límites pedidos en el mensaje 002. El chat sobre Core va con el contrato de operaciones (P-286).",
+      "detalle": "Parte del producto mínimo: el estudio de referencia usa Core para todo, sin Codex (D-468). Paso 4b de servicios-de-ia-propuesta.md: un motor de preguntas que usa executePrompt de Core (solo texto: la pregunta entera en el texto, la respuesta en JSON controlada como hoy), elegible en Servicios de IA. Se construye y se prueba contra un Core simulado; la prueba real espera el permiso inference.execute y los límites pedidos en el mensaje 002. El chat sobre Core va con el contrato de operaciones (P-286). 2026-10-23: El chat con acciones (D-506) todavía no usa Core: entra en este pendiente. 2026-10-23: Core respondió el 002 (docs/dropbox/desktop/2026-10-23-002 de Core): el permiso para preguntar a modelos está dado y probado con el usuario técnico de desarrollo; 11 modelos; Core recomienda Sonnet 4.6 para leer con respuesta en JSON y Haiku 4.5 para lo simple, con los identificadores «us.» (Estados Unidos), sin medirlos. Límites de hoy: 20.000 caracteres por pregunta, 2.048 fichas por respuesta (si se pasa llega cortada), 60 s de espera (pasado ese tiempo el resultado es desconocido y puede cobrarse), unos 10 pedidos por minuto para toda la cuenta (5 con Opus). Choca con lo construido: las preguntas de lectura rondan los 30.000 caracteres y el chat pide hasta 8.192 fichas. La prueba real ya se puede hacer: partir las preguntas largas, detectar las respuestas cortadas y espaciar los pedidos. Instrucciones de sistema, varios turnos, esquema de respuesta y herramientas: aceptados, sin fecha (002-R3).",
       "depende_de": [],
       "referencia": "servicios-de-ia-propuesta.md (2.3, paso 4b); mensaje 002 a Core",
       "creado": "2026-10-22",
-      "actualizado": "2026-10-22"
+      "actualizado": "2026-10-23"
     },
     {
       "id": "P-301",
@@ -1899,13 +1899,340 @@
       "estado": "pendiente",
       "prioridad": 3,
       "tema": "portales",
-      "detalle": "Pedido del dueño (22 oct): además de las actuaciones, el expediente del PJN tiene las pestañas Intervinientes, Vinculados y Recursos. Sirven, entre otras cosas, para verificar las personas relacionadas con la causa (las partes y sus letrados) contra lo que la base lee de los documentos. Traerlas como datos del expediente y usarlas para confirmar o señalar personas del caso.",
+      "detalle": "Pedido del dueño (22 oct): además de las actuaciones, el expediente del PJN tiene las pestañas Intervinientes, Vinculados y Recursos. Sirven, entre otras cosas, para verificar las personas relacionadas con la causa (las partes y sus letrados) contra lo que la base lee de los documentos. Traerlas como datos del expediente y usarlas para confirmar o señalar personas del caso. 2026-10-23: El paso del PJN encontró que la pestaña «Vinculados» y «Ver históricas» se cargan aparte y el lector no las ve: los vinculados nunca se leen del portal real. Sumar «Ver históricas» a este pendiente.",
       "depende_de": [
         "P-298"
       ],
       "referencia": "P-248; src-tauri/src/portals/pjn.rs",
       "creado": "2026-10-22",
-      "actualizado": "2026-10-22"
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-302",
+      "titulo": "Inicio de sesión en Micelya Core por persona, con Keycloak",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "en-espera",
+      "prioridad": 2,
+      "tema": "servicios de IA",
+      "detalle": "Decisión del dueño (23 oct, D-501): la app se autentica en Core con Keycloak y por cada persona, no con una cuenta del sistema (el usuario técnico de hoy, client_credentials, queda solo para desarrollo). Cada persona inicia sesión en el navegador del sistema y vuelve a la app (código de autorización con PKCE, sin secreto dentro del programa), la renovación queda en el llavero, se puede cerrar la sesión, y las lecturas y preguntas a Core quedan a nombre de quien las pidió. No entra en la corrida del 22-23 oct. Cuando llegue el momento se definen con el dueño y con Core los detalles, entre ellos cómo se crean los usuarios del estudio de referencia en su organización de Keycloak. Espera que Core especifique el cliente de escritorio (Core P-177 y Core P-178; pedido 001-R2). El mensaje 002 (002-R2) pidió para el piloto un usuario técnico: hay que corregirlo con Core. 2026-10-23: Aclaración del dueño, para definir cuando se aborde el tema (probablemente el 23 oct): hay que resolver cómo se autentica y cómo trabaja la persona sin conexión. Sin conexión no puede consultar a Core, pero puede usar todo lo que funciona sin conexión. Keycloak va a emitir tokens que duran 90 días: quizás se puedan reusar sin conexión para saber quién es la persona. A definir: qué se exige al abrir la app sin conexión, qué pasa cuando vence o se revoca el token, y cómo se marca lo que se hizo sin conexión. 2026-10-23: Core respondió (002-Q3): el inicio por persona se va a construir, sin fecha (Core P-177), por el navegador del sistema y sin clave dentro del programa; la sesión dura 30 días sin uso y 90 como máximo, y cada renovación trae una clave nueva que Desktop guarda antes de usarla. Sin conexión, Keycloak no ofrece nada: la regla la pone Desktop (Core sugiere un tope de días sin conexión y desbloquear con Windows Hello o un PIN). Core cree que para el piloto alcanza el usuario técnico, y armó la organización del piloto así: choca con D-501 y hay que corregirlo en un mensaje 004 (decide el dueño: esperar el inicio por persona o aceptar un usuario técnico por un tiempo).",
+      "depende_de": [],
+      "referencia": "D-501; docs/design/servicios-de-ia-propuesta.md (Autenticación); docs/dropbox/core/2026-10-21-001 (001-R2) y 2026-10-22-002 (002-R2); src-tauri/src/micelya_core/",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-303",
+      "titulo": "Puente MCP por línea de comandos para asistentes que no aceptan MCP por HTTP",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "API local",
+      "detalle": "El servidor único expone el MCP por HTTP con token (D-504). Claude Code lo acepta; Codex y Claude Desktop hay que probarlos. Si alguno solo acepta MCP por línea de comandos, un puente chico que reenvíe al servidor único.",
+      "depende_de": [
+        "P-227"
+      ],
+      "referencia": "docs/design/contrato-de-operaciones.md; D-504",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-304",
+      "titulo": "Acciones del chat también con el motor de Claude Code",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "chat",
+      "detalle": "El contrato de operaciones deja a Claude Code sin acciones por ahora (D-504): hoy el chat con acciones funciona con Codex y con los proveedores con API. Sumar Claude Code sobre la misma lista.",
+      "depende_de": [
+        "P-286"
+      ],
+      "referencia": "docs/design/contrato-de-operaciones.md; D-504",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-305",
+      "titulo": "Que el recortador web deje elegir el caso del recorte",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "Micelya Clipper",
+      "detalle": "Hoy el recorte se guarda en «Recortes web» de la carpeta de trabajo sin caso. Con el servidor único (D-504), la extensión podría ofrecer elegir el caso al guardar.",
+      "depende_de": [
+        "P-227"
+      ],
+      "referencia": "extension/; D-504",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-306",
+      "titulo": "Pasar los botones de las pantallas por la lista de operaciones",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "chat",
+      "detalle": "D-498 pide que en lo posible los botones de las pantallas usen el mismo contrato de operaciones que el chat, la API local y el MCP. El producto mínimo solo lo hace para las operaciones nuevas; quedan los botones existentes.",
+      "depende_de": [
+        "P-286"
+      ],
+      "referencia": "docs/design/contrato-de-operaciones.md; D-498; D-504",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-307",
+      "titulo": "Subir la versión de la app para el instalador de la actualización",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "pruebas y calidad",
+      "detalle": "La prueba de actualizar sin perder datos (P-297, D-505) necesita dos instaladores con versiones distintas: el de main (0.1.0, base 24) y el de la rama nueva con 0.1.1. Subir la versión en los tres lugares donde vive (tauri.conf.json, Cargo.toml, package.json) antes de armar el instalador B.",
+      "depende_de": [],
+      "referencia": "docs/design/actualizaciones.md; P-297",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-308",
+      "titulo": "Decidir si los respaldos de la base van fuera de la carpeta de datos",
+      "tipo": "decision",
+      "responsable": "usuario",
+      "estado": "en-espera",
+      "tema": "pruebas y calidad",
+      "detalle": "Hoy los respaldos automáticos van dentro de la carpeta de datos de la app (D-505). Si alguien desinstala marcando la casilla que borra los datos, también se borran los respaldos. Alternativa: guardarlos en Documentos u otra carpeta que el desinstalador no toca, o quitar esa casilla del instalador. Se decide al armar el instalador de prueba.",
+      "depende_de": [],
+      "referencia": "D-505; docs/design/actualizaciones.md",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-309",
+      "titulo": "Crear a mano la ficha de un grupo de sociedades, desde el chat y con su botón",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "identidad y fichas",
+      "detalle": "Quedó afuera del chat con acciones (D-506): el recálculo no sabe crear la ficha de un grupo que no tiene mención propia en los documentos, y hace falta otra versión de la base para la decisión «del mismo grupo» (D-504, D-473). Hoy el chat contesta que todavía no puede.",
+      "depende_de": [
+        "P-286"
+      ],
+      "referencia": "docs/design/contrato-de-operaciones.md; D-473; D-504; D-506",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-310",
+      "titulo": "Generar un documento desde una plantilla pidiéndolo en el chat",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "chat",
+      "detalle": "El contrato dice que el chat abre la pantalla de generar ya completada (D-504); no entró en el paso del chat con acciones (D-506).",
+      "depende_de": [
+        "P-286"
+      ],
+      "referencia": "docs/design/contrato-de-operaciones.md; D-492; D-506",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-311",
+      "titulo": "Que el chat lea muchos documentos por tandas, con resúmenes intermedios",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "chat",
+      "detalle": "El contrato prevé, para preguntas que abarcan muchos documentos, buscar antes de leer, leer fragmentos y trabajar por tandas con resúmenes intermedios (D-504). No entró en el paso del chat con acciones (D-506).",
+      "depende_de": [
+        "P-286"
+      ],
+      "referencia": "docs/design/contrato-de-operaciones.md; D-506",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-312",
+      "titulo": "Marcar los casos cerrados o archivados en la búsqueda general",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "asuntos",
+      "detalle": "Un caso cerrado sale de la lista y de Atención (D-506), pero la búsqueda general todavía no dice que está cerrado o archivado.",
+      "depende_de": [],
+      "referencia": "D-506",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-313",
+      "titulo": "Decir «caso» y no «asunto» también en el texto de las páginas y en el tipo «Asunto»",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "pantallas",
+      "detalle": "La maqueta aprobada pide un solo nombre, «Casos» (D-493). La interfaz ya lo dice (D-507), pero el texto que escribe la app en las páginas de los casos y el tipo «Asunto» siguen diciendo «asunto». Cambiarlo reescribe páginas y puede pedir resúmenes al modelo: hacerlo con el dueño presente y avisando el cupo. 2026-10-23: Textos que siguen diciendo «asunto» porque los escribe la app en las páginas: «Sin asunto identificado», «nombran el mismo asunto», el tipo «Asunto» de la primera línea y «Asunto: 2» en el resumen de Inicio (D-508).",
+      "depende_de": [],
+      "referencia": "D-493; D-507",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-314",
+      "titulo": "La fecha de cada documento en las tablas de documentos",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "pantallas",
+      "detalle": "La maqueta aprobada tiene una columna Fecha en las tablas de documentos de una persona y de un caso; no se puso porque el dato no llega a la pantalla (D-508). Sumarlo a la consulta y mostrarlo.",
+      "depende_de": [],
+      "referencia": "D-493; D-508",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-315",
+      "titulo": "Probar la configuración del MCP para Codex y para Claude Desktop",
+      "tipo": "verificacion",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "API local",
+      "detalle": "Ajustes → «Programas conectados» muestra cómo conectar Claude Code, Codex y otros asistentes al MCP del servidor único (D-509). Solo se probó el cliente oficial de MCP; la configuración para Codex no está probada y Claude Desktop puede necesitar el puente por línea de comandos (P-303). Probarlas con el dueño y avisando el cupo.",
+      "depende_de": [
+        "P-227"
+      ],
+      "referencia": "D-509; P-303",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-316",
+      "titulo": "Que la app recuerde el tamaño y la posición de su ventana",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "pantallas",
+      "detalle": "Hoy la ventana abre siempre en 1280 × 800 o maximizada (D-510). Recordar el tamaño que dejó la persona requiere sumar el complemento de estado de ventana de Tauri.",
+      "depende_de": [],
+      "referencia": "D-510; src-tauri/src/window_size.rs",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-317",
+      "titulo": "El diálogo de cerrar y el menú de la bandeja, en castellano",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "pantallas",
+      "detalle": "Siguen en inglés «Quit Micelya Desktop?» y «Show Micelya Desktop», que arma el programa fuera de las pantallas (D-510).",
+      "depende_de": [],
+      "referencia": "D-508; D-510",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-318",
+      "titulo": "El panel de Investigación con la ventana angosta",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "pantallas",
+      "detalle": "Con el panel de Investigación abierto y la ventana a unos 800 px, el contenido de la pantalla queda muy angosto (D-510).",
+      "depende_de": [],
+      "referencia": "D-510",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-319",
+      "titulo": "Decidir con el dueño cómo atacar las observaciones de su recorrida del 23 oct",
+      "tipo": "decision",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "pruebas y calidad",
+      "detalle": "El 23 oct el dueño recorrió la app y pasó nueve observaciones. Están verificadas, con causa, propuesta y un orden propuesto, en C:\\Users\\Usuario\\LocalRepo\\llm_wiki_mi\\observaciones-del-dueno.md. Ese archivo está fuera del repositorio porque tiene datos reales. Temas: el nombre de una persona por una forma vista una vez; páginas escaneadas que nunca se leen; documentos compuestos; el 14 % de las fichas mal armadas; volver atrás; un caso triplicado; plantillas con datos de las personas; afirmaciones repetidas en un caso; identidades dudosas sin la respuesta «es la marca o el grupo». Cada arreglo se escribe como regla general, se mide sobre toda la base y contra la hoja de respuestas, y se prueba con datos inventados (R-24 a R-26). Traspaso: docs/sessions/2026-10-23-sesion-18b.md.",
+      "depende_de": [],
+      "referencia": "docs/sessions/2026-10-23-sesion-18b.md; R-24; R-25; R-26",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-320",
+      "titulo": "Ficha de forma por página: reemplazar la prueba de los 80 caracteres por señales de la página",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "reconocimiento",
+      "detalle": "Hoy una página de PDF «tiene texto» si tiene 80 caracteres (textless_pages, MIN_PAGE_TEXT_CHARS). Falla con el pie que el PJN estampa en cada página y con capas de texto viejas y ruidosas, así que hay páginas escaneadas que nunca se leen. Propuesta de la investigación del 23 oct: decidir página por página con señales de pdfium. Las señales: texto propio sin contar lo repetido en todas las páginas, imagen que cubre la página, calidad del texto (letras sueltas, palabras pegadas), grupos de objetos agregados encima (formularios aplanados), productor. Las señales van al catálogo. Después, volver a leer lo que aparezca, con cupo y avisando antes. Es lo recomendado primero, pero espera la decisión del dueño (P-319, P-321).",
+      "depende_de": [
+        "P-319"
+      ],
+      "referencia": "src-tauri/src/source_volume/recognition.rs; llm_wiki_mi/investigacion-formas-de-documento-resultado.md",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-321",
+      "titulo": "Evaluar procesar en el dispositivo todo el preprocesamiento de archivos",
+      "tipo": "decision",
+      "responsable": "usuario",
+      "estado": "en-espera",
+      "tema": "servicios de IA",
+      "detalle": "El dueño evalúa en serio (23 oct, no decidido) hacer en Desktop, o en un paquete o SDK de Micelya, todo lo que no necesite un modelo de lenguaje grande ni un servicio que no esté en el dispositivo. Incluye reconocer qué es cada archivo y cada página, leer formularios y tablas, reconocer escaneos impresos y documentos de identidad, partir documentos compuestos con reglas, leer correos y quizás transcribir audio. Lo que hizo Core para partir documentos no es definitivo. Insumos: llm_wiki_mi/investigacion-formas-de-documento-resultado.md (librerías y licencias: pdfium, Magika, RapidOCR, Docling; MinerU tiene modelos AGPL-3.0; los modelos de Surya se pagan por encima de US$ 5 millones) y la prueba de Docling en una sesión remota (P-322).",
+      "depende_de": [
+        "P-322"
+      ],
+      "referencia": "llm_wiki_mi/investigacion-formas-de-documento-resultado.md",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-322",
+      "titulo": "Revisar la prueba remota de Docling (rama investigacion/docling) antes de integrarla",
+      "tipo": "verificacion",
+      "responsable": "claude",
+      "estado": "en-espera",
+      "tema": "reconocimiento",
+      "detalle": "El 23 oct el dueño lanzó en una sesión remota de Claude Code una prueba de Docling, RapidOCR, Tesseract, granite-docling y pdfium sobre seis PDF reales. El prompt está en llm_wiki_mi/prueba-docling/prompt.md. El resultado va a una rama investigacion/docling, en docs/investigacion/docling/, sin pedido de integración. El dueño le indicó privilegiar la calidad del análisis por sobre las reglas de privacidad del prompt, porque la información es pública. Al revisarla: leer el informe, cruzarlo con la investigación y las observaciones, y correr la prueba de que ningún caso real está en el programa. Como el repositorio es público, decidir con el dueño qué entra a main antes de abrir el pedido de integración.",
+      "depende_de": [],
+      "referencia": "llm_wiki_mi/prueba-docling/prompt.md",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
+    },
+    {
+      "id": "P-323",
+      "titulo": "Usar los datos del portal de cada actuación y unir cada escrito con su documentación adjunta",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "portales",
+      "detalle": "Al bajar cada actuación, el portal deja al lado del PDF su tipo, fojas, fecha, oficina y detalle (<nombre>.micelya.json, portals/store.rs), pero la base no lo usa (scan.rs lo deja fuera). Por eso el tipo y la fecha los adivina el modelo. Propuesta: traducir esos datos a conceptos canónicos (D-512), por ejemplo el tipo de actuación, la fecha, las fojas y si es documentación adjunta. Además, unir cada escrito con la documentación adjunta vecina: misma fecha, fojas seguidas, detalle «DOCUMENTACIÓN ADJUNTA». Sin cupo. Espera la decisión del dueño (P-319).",
+      "depende_de": [
+        "P-319"
+      ],
+      "referencia": "src-tauri/src/portals/store.rs; src-tauri/src/docbase/scan.rs; D-512",
+      "creado": "2026-10-23",
+      "actualizado": "2026-10-23"
     }
   ]
 }

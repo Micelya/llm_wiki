@@ -12,6 +12,7 @@ import {
   fieldRows,
   fieldsLine,
   formatName,
+  madeWithLine,
   nameSourceText,
   placeLabel,
   possiblySameNames,
@@ -160,16 +161,24 @@ describe("what the template screen says", () => {
     expect(templateName({ ...receipts(), docType: null }, "a.pdf", vocabularyFor("legal", "en"))).toBe("Template «a.pdf»")
   })
 
+  it("says which template a document was made with, and with how many others (D-497)", () => {
+    expect(madeWithLine(receipts(), "Recibo enero.pdf", 2, words)).toBe("Hecho con la plantilla «Recibo», como 2 documentos más.")
+    expect(madeWithLine({ ...receipts(), name: "Recibo de honorarios" }, "Recibo enero.pdf", 1, words)).toBe(
+      "Hecho con la plantilla «Recibo de honorarios», como 1 documento más.",
+    )
+    expect(madeWithLine({ ...receipts(), docType: null }, "Recibo enero.pdf", 0, words)).toBe(
+      "Hecho con la plantilla de «Recibo enero.pdf».",
+    )
+  })
+
   it("says where the format comes from and sums the list up", () => {
     expect(formatName("word")).toBe("Word")
     expect(formatName("scan")).toBe("Escaneo")
     expect(formatName("pdf-form")).toBe("Formulario PDF")
     const one = summary({ documents: 5 })
-    expect(templatesSummary([one, summary({ documents: 2 })], words)).toBe(
-      "2 plantillas con 7 documentos. Todavía no se confirmó ninguna familia.",
-    )
-    expect(templatesSummary([one, summary({ state: "confirmed" })], words)).toBe("2 plantillas con 8 documentos. 1 de 2 con la familia confirmada.")
-    expect(templatesSummary([summary({ state: "confirmed" })], words)).toBe("1 plantilla con 3 documentos. Las familias de todas están confirmadas.")
+    // Nothing to confirm: the documents of a template are different documents (D-497).
+    expect(templatesSummary([one, summary({ documents: 2 })], words)).toBe("2 plantillas con 7 documentos.")
+    expect(templatesSummary([summary({ state: "confirmed" })], words)).toBe("1 plantilla con 3 documentos.")
     expect(fieldsLine({ fields: 8, wordingFields: 2 })).toBe("8 campos · 2 textos que cambian")
     expect(fieldsLine({ fields: 1, wordingFields: 0 })).toBe("1 campo")
     expect(fieldsLine({ fields: 0, wordingFields: 0 })).toBe("ningún campo cambia")
@@ -288,13 +297,16 @@ function summary(patch: Partial<TemplateSummary> = {}): TemplateSummary {
 describe("the template panel", () => {
   it("shows the shared text with the fields in their place and a table of values", () => {
     const html = text(renderToStaticMarkup(<TemplatePanel template={receipts()} initialColumn={null} onOpen={() => {}} words={words} />))
-    expect(html).toContain("Propuesta")
-    expect(html).toContain("es una propuesta hasta que se confirme la familia como «Misma plantilla, otros datos»")
+    // Made with one template: different documents, nothing to decide (D-497).
+    expect(html).not.toContain("Propuesta")
+    expect(html).not.toContain("es una propuesta")
+    expect(html).toContain("Los documentos hechos con ella son documentos distintos: no hay nada que decidir.")
     expect(html).toContain("Recibí de Nombre 1 la suma de $ Importe 1 el día Fecha 1 . Son $ Importe 1 .")
     expect(html).toContain("Los campos, documento por documento (3)")
     expect(html).toContain("2 lugares del texto")
     expect(html).toContain("Bruno Vega")
-    expect(html).toContain("sin confirmar")
+    expect(html).not.toContain("sin confirmar")
+    expect(html).toContain("hecho con ella")
     expect(html).toContain("confirmado")
   })
 
@@ -341,8 +353,8 @@ describe("the section «Plantillas»", () => {
       summary({ principal: docRef(4, "Ficha.pdf"), docType: null, format: "scan", possiblySame: 1, fields: 1 }),
     ]
     const html = text(renderToStaticMarkup(<TemplateTable templates={list} onOpen={() => {}} words={words} />))
-    expect(html).toContain("2 plantillas con 8 documentos. Todavía no se confirmó ninguna familia.")
-    expect(html).toContain("Recibo Propuesta")
+    expect(html).toContain("2 plantillas con 8 documentos.")
+    expect(html).not.toContain("Propuesta")
     expect(html).toContain("5 documentos · 8 campos · 2 textos que cambian · PDF con texto")
     expect(html).toContain("Plantilla «Ficha.pdf»")
     expect(html).toContain("posiblemente el mismo documento")
@@ -366,12 +378,12 @@ describe("the section «Plantillas»", () => {
     expect(panel).toContain("el modelo solo les pone nombre a los campos que el texto no nombra")
   })
 
-  it("shows the detail of a proposal with its notice, the way to confirm its family and the panel of today", () => {
+  it("shows the detail of a template with the panel of today, with no family to confirm", () => {
     const html = text(renderToStaticMarkup(<TemplateDetail template={receipts()} onOpen={() => {}} words={words} />))
-    expect(html).toContain("Recibo Propuesta")
+    expect(html).not.toContain("Propuesta")
     expect(html).toContain("3 documentos · 3 campos · formato del principal: PDF con texto")
-    expect(html).toContain("Es una propuesta: nadie confirmó todavía que estos documentos son de la misma familia. Se puede ver y usar igual.")
-    expect(html).toContain("Confirmar la familia")
+    expect(html).not.toContain("Es una propuesta")
+    expect(html).not.toContain("Confirmar la familia")
     expect(html).toContain("Recibí de Nombre 1 la suma de $ Importe 1")
     expect(html).not.toContain("salió de un escaneo")
     const scan = text(

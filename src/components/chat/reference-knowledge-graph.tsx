@@ -52,7 +52,7 @@ function ReferenceGraphLoader({ data }: { data: ReferenceGraphData }) {
         x: Math.cos(angle),
         y: Math.sin(angle),
         size: node.graphResult ? 11 : 8,
-        color: node.graphResult ? "#2dd4bf" : "#60a5fa",
+        color: node.graphResult ? "#2E8A57" : "#B0478F",
         label: node.label,
         forceLabel: true,
       })
@@ -60,7 +60,7 @@ function ReferenceGraphLoader({ data }: { data: ReferenceGraphData }) {
     data.edges.forEach((edge, index) => {
       if (!graph.hasNode(edge.source) || !graph.hasNode(edge.target)) return
       graph.addEdgeWithKey(`reference-edge-${index}`, edge.source, edge.target, {
-        color: "rgba(100,116,139,0.55)",
+        color: "rgba(133,121,136,0.55)",
         size: 1.5,
       })
     })
@@ -125,7 +125,7 @@ export function ReferenceKnowledgeGraph({ references, onOpenReference }: Referen
           // dragging and zooming; the large-graph performance optimization used
           // by GraphView makes this compact graph appear to flicker.
           hideLabelsOnMove: false,
-          labelColor: { color: dark ? "#f8fafc" : "#1e293b" },
+          labelColor: { color: dark ? "#EEE9F1" : "#2F0A38" },
           labelSize: 11,
           labelWeight: "600",
           stagePadding: 24,

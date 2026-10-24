@@ -6,7 +6,7 @@ import { Plus, Trash2, MessageSquare, X, Maximize2, FolderOpen, FileText, ListTr
 import { Button } from "@/components/ui/button"
 import { ChatMessage, StreamingMessage, type ChatReferencePreview } from "./chat-message"
 import { ChatInput, type ChatSendOptions } from "./chat-input"
-import { useChatStore, chatMessagesToLLM, type MessageImage, type MessageReference } from "@/stores/chat-store"
+import { useChatStore, chatMessagesToLLM, type DisplayMessage, type MessageImage, type MessageReference } from "@/stores/chat-store"
 import { useWikiStore } from "@/stores/wiki-store"
 import { resolveTaskLlmConfig } from "@/lib/llm-task-routing"
 import { isReasoningOnlyResponseError, streamChat } from "@/lib/llm-client"
@@ -28,10 +28,13 @@ import { parseFrontmatter } from "@/lib/frontmatter"
 import { getFileCategory, getFileExtension, isTextReadable } from "@/lib/file-types"
 import { summarizeAgentFileChange } from "@/lib/agent-file-activity"
 import { ReferenceKnowledgeGraph } from "@/components/chat/reference-knowledge-graph"
+import { operationHistoryLine, type AgentBudget, type OperationCard } from "@/commands/operations"
 
 type InternalChatSendOptions = ChatSendOptions & {
   suppressUserMessage?: boolean
   historyOverride?: { role: "user" | "assistant"; content: string }[]
+  /** «Seguir buscando»: where the agent goes on from (4.1). */
+  continuation?: string
 }
 
 interface BackendAgentReference {
@@ -70,6 +73,13 @@ interface BackendAgentEventPayload {
     path?: string
     existedBefore?: boolean
     previousContent?: string
+    /** `step`: the turn the agent starts, of its cap. */
+    used?: number
+    max?: number
+    /** `operationProposed`: the card of a change the model proposed. */
+    card?: OperationCard
+    /** `budget`: the turns the answer used. */
+    budget?: AgentBudget
   }
 }
 
@@ -80,6 +90,8 @@ interface BackendAgentResponse {
   references?: BackendAgentReference[]
   toolEvents?: BackendAgentToolEvent[]
   userInputRequest?: ChatUserInputRequest
+  operationProposal?: OperationCard
+  budget?: AgentBudget
 }
 
 interface AvailableAgentSkill {
@@ -223,7 +235,7 @@ function ConversationSidebar({
                 key={conv.id}
                 className={`group relative mx-1 my-0.5 flex cursor-pointer flex-col rounded-md px-2 py-1.5 text-sm transition-colors ${
                   isActive
-                    ? "bg-primary/10 text-primary"
+                    ? "bg-brand-soft text-brand-ink"
                     : "hover:bg-accent text-foreground"
                 }`}
                 onClick={() => {
@@ -351,6 +363,10 @@ function backendToolToAgentStep(event: BackendAgentToolEvent, index: number) {
 }
 
 function normalizeBackendToolName(tool: string) {
+  // The readings of the contract of operations (D-498).
+  if (["buscar", "buscar_pasajes", "listar_casos", "listar_plantillas"].includes(tool)) return "wiki_search" as const
+  if (["leer", "leer_texto", "ver_documento", "ver_ficha", "ver_caso"].includes(tool)) return "project_file_read" as const
+  if (tool === "relaciones") return "graph_search" as const
   const normalized = tool.split(".").join("_")
   if (normalized === "wiki_search") return "wiki_search" as const
   if (normalized === "wiki_read_page") return "project_file_read" as const
@@ -448,6 +464,12 @@ function compactChatHistoryForResume(
 
 function conversationMessages(conversationId: string) {
   return useChatStore.getState().messages.filter((message) => message.conversationId === conversationId)
+}
+
+/** What a message says in the history of the next one: an answer with a card says what became of it (11.6). */
+function historyContent(message: { content: string; operationCard?: OperationCard }): string {
+  const line = message.operationCard ? operationHistoryLine(message.operationCard) : null
+  return line ? `${message.content}\n\n${line}` : message.content
 }
 
 export function ChatPanel() {
@@ -760,9 +782,9 @@ export function ChatPanel() {
         activeRunIdRef.current = backendRunId
         const isCurrentRun = () => runIdRef.current === runId && !controller.signal.aborted
 
-        const useBackendAgent =
-          llmConfig.provider !== "claude-code" &&
-          llmConfig.provider !== "codex-cli"
+        // Every engine but Claude Code goes through the agent of the app,
+        // on the contract of operations; Codex too (D-498, P-288).
+        const useBackendAgent = llmConfig.provider !== "claude-code"
 
         if (useBackendAgent) {
           setAgentEvents([
@@ -777,7 +799,7 @@ export function ChatPanel() {
           const activeConvMessages = sendOptions.historyOverride
             ?? (sendOptions.suppressUserMessage ? visibleHistory : visibleHistory.slice(0, -1))
               .slice(-maxHistoryMessages)
-              .map((m) => ({ role: m.role, content: m.content }))
+              .map((m) => ({ role: m.role, content: historyContent(m) }))
           let accumulated = ""
           const references: MessageReference[] = []
           const backendEvents: BackendAgentToolEvent[] = []
@@ -790,6 +812,8 @@ export function ChatPanel() {
           const fileActivityChains = new Map<string, Promise<void>>()
           const seenRefs = new Set<string>()
           let pendingUserInputRequest: ChatUserInputRequest | undefined
+          let pendingOperationCard: OperationCard | undefined
+          let finalBudget: AgentBudget | undefined
           let streamFinished = false
           let streamUnlisten: (() => void) | null = null
           let resolveStream: (() => void) | null = null
@@ -799,7 +823,10 @@ export function ChatPanel() {
             rejectStream = reject
           })
           void streamDone.catch(() => {})
-          const streamIdleTimeoutMs = agentStreamIdleTimeoutMs(sendOptions, requestSkills.length)
+          // A turn of Codex may take its own cap of minutes (text_engine.rs).
+          const streamIdleTimeoutMs = llmConfig.provider === "codex-cli"
+            ? Math.max(agentStreamIdleTimeoutMs(sendOptions, requestSkills.length), ((llmConfig.codexCliTimeoutMinutes ?? 10) + 2) * 60_000)
+            : agentStreamIdleTimeoutMs(sendOptions, requestSkills.length)
           let timeout: number | undefined
           const clearStreamTimeout = () => {
             if (timeout !== undefined) {
@@ -925,6 +952,24 @@ export function ChatPanel() {
               fileActivityTasks.push(task)
               return
             }
+            if (agentEvent.type === "step" && typeof agentEvent.used === "number" && typeof agentEvent.max === "number") {
+              const turn: ChatAgentEvent = {
+                stage: "understanding",
+                message: `Vuelta ${agentEvent.used} de ${agentEvent.max}`,
+                status: "running",
+                timestamp: Date.now(),
+              }
+              setAgentEvents((prev) => [...prev, turn].slice(-6))
+              return
+            }
+            if (agentEvent.type === "operationProposed" && agentEvent.card) {
+              pendingOperationCard = agentEvent.card
+              return
+            }
+            if (agentEvent.type === "budget" && agentEvent.budget) {
+              finalBudget = agentEvent.budget
+              return
+            }
             if (agentEvent.type === "userInputRequired" && agentEvent.request) {
               pendingUserInputRequest = agentEvent.request
               if (!accumulated.trim()) {
@@ -1004,6 +1049,7 @@ export function ChatPanel() {
                 skillMode: requestedSkillMode,
                 approvedShellCommands: sendOptions.approvedShellCommands ?? [],
                 shellCommand: sendOptions.shellCommand,
+                continuation: sendOptions.continuation,
                 images: images.map((image) => ({
                   mediaType: image.mediaType,
                   dataBase64: image.dataBase64,
@@ -1032,6 +1078,7 @@ export function ChatPanel() {
             steps,
             pendingUserInputRequest,
             fileEditChanges,
+            { operationCard: pendingOperationCard, budget: finalBudget },
           )
           if (!pendingUserInputRequest) {
             autoOpenSingleGeneratedOutput(convId, references)
@@ -1387,6 +1434,33 @@ export function ChatPanel() {
     }
   }, [approvingShellMessageId, handleSend, setStreaming])
 
+  const handleContinue = useCallback((assistant: DisplayMessage) => {
+    if (activeStreaming || !assistant.budget?.continuation) return
+    const active = useChatStore.getState().getActiveMessages()
+    const index = active.findIndex((message) => message.id === assistant.id)
+    const asked = [...active.slice(0, Math.max(index, 0))].reverse().find((message) => message.role === "user")
+    if (!asked) return
+    const askedIndex = active.indexOf(asked)
+    const history = active
+      .slice(0, askedIndex)
+      .filter((message) => message.role === "user" || message.role === "assistant")
+      .slice(-maxHistoryMessages)
+      .map((message) => ({ role: message.role as "user" | "assistant", content: historyContent(message) }))
+    void handleSend(asked.content, [], {
+      useWebSearch: useChatStore.getState().useWebSearch,
+      useAnyTxtSearch: useChatStore.getState().useAnyTxtSearch,
+      agentMode: useChatStore.getState().agentMode,
+      retrievalMode: useChatStore.getState().retrievalMode,
+      skills: useChatStore.getState().selectedSkills,
+      contextFiles: useChatStore.getState().selectedContextFiles,
+      contextDocuments: asked.contextDocuments ?? useChatStore.getState().selectedContextDocuments,
+      skillMode: useChatStore.getState().selectedSkills.length > 0 ? "explicit" : "auto",
+      suppressUserMessage: true,
+      historyOverride: history,
+      continuation: assistant.budget.continuation,
+    })
+  }, [activeStreaming, handleSend, maxHistoryMessages])
+
   const handleSubmitUserInput = useCallback((request: ChatUserInputRequest, answers: Record<string, unknown>) => {
     if (activeStreaming) return false
     const answerLines = request.fields.map((field) => {
@@ -1455,6 +1529,7 @@ export function ChatPanel() {
                             : undefined
                         }
                         onSubmitUserInput={isLastAssistant ? handleSubmitUserInput : undefined}
+                        onContinue={isLastAssistant && !activeStreaming ? handleContinue : undefined}
                       />
                     )
                   })}
@@ -1466,6 +1541,11 @@ export function ChatPanel() {
           </>
         )}
 
+        {llmConfig.provider === "claude-code" && (
+          <div className="border-t px-3 py-1 text-[11px] text-muted-foreground">
+            Con Claude Code el chat no hace acciones: solo responde.
+          </div>
+        )}
         <ChatInput
           onSend={handleSend}
           onStop={handleStop}
@@ -1542,7 +1622,7 @@ function GeneratedOutputsPanel({
   return (
     <aside className="flex h-full w-[280px] shrink-0 flex-col border-l bg-background">
       <div className="flex min-h-10 items-center gap-2 border-b px-3 py-2">
-        <FolderOpen className="h-4 w-4 shrink-0 text-primary" />
+        <FolderOpen className="h-4 w-4 shrink-0 text-brand-ink" />
         <div className="min-w-0 flex-1">
           <div className="truncate text-xs font-medium">{t("chat.generatedOutputs")}</div>
           <div className="mt-0.5 text-[10px] text-muted-foreground">
@@ -1585,7 +1665,7 @@ function GeneratedOutputsPanel({
                 title={output.path}
               >
                 {imageSrc ? (
-                  <span className="h-10 w-12 shrink-0 overflow-hidden rounded border border-primary/20 bg-background/80">
+                  <span className="h-10 w-12 shrink-0 overflow-hidden rounded border border-border bg-card">
                     <img
                       src={imageSrc}
                       alt={title}
@@ -1597,13 +1677,13 @@ function GeneratedOutputsPanel({
                     />
                   </span>
                 ) : (
-                  <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-primary" />
+                  <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-link" />
                 )}
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-xs font-medium text-foreground">{title}</span>
                   <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">{output.path}</span>
                 </span>
-                <Maximize2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-primary" />
+                <Maximize2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-link" />
               </button>
             )
           })}
@@ -1630,10 +1710,10 @@ function GeneratedOutputPreviewDialog({
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [onClose])
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim p-6">
       <div className="flex h-[86vh] w-[80vw] min-w-0 max-w-[1600px] flex-col overflow-hidden rounded-xl border bg-background shadow-2xl">
         <div className="flex min-h-12 items-center gap-3 border-b px-4 py-2">
-          <Maximize2 className="h-4 w-4 shrink-0 text-primary" />
+          <Maximize2 className="h-4 w-4 shrink-0 text-brand-ink" />
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-medium" title={displayTitle}>{displayTitle}</div>
             <div className="mt-0.5 truncate text-[11px] text-muted-foreground" title={preview.path}>{preview.path}</div>
@@ -1867,7 +1947,7 @@ function ContextDetailsPanel({
         onPointerCancel={stopResize}
       />
       <div className="flex min-h-10 items-center gap-2 border-b px-3 py-2">
-        <ListTree className="h-4 w-4 text-primary" />
+        <ListTree className="h-4 w-4 text-brand-ink" />
         <div className="min-w-0 flex-1">
           <div className="text-xs font-medium">{t("chat.contextDetails")}</div>
           <div className="text-[10px] text-muted-foreground">{t("chat.contextDetailsScope")}</div>

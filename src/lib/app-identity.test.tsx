@@ -47,7 +47,11 @@ describe("the app's own identity (D-485)", () => {
   })
 
   it("names this app in the translated texts", () => {
+    // The screens are in Spanish (P-058); the other languages name it too.
     expect(i18n.t("settings.sections.general.autostartHint")).toBe(
+      "Micelya Desktop se abre sola cuando entrás en esta computadora.",
+    )
+    expect(i18n.t("settings.sections.general.autostartHint", { lng: "en" })).toBe(
       "Starts Micelya Desktop automatically after you sign in to this computer.",
     )
     expect(i18n.t("settings.sections.general.closeExitHint")).toContain(PRODUCT_NAME)

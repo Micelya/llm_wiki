@@ -78,7 +78,7 @@ export function AiServicesSection({ onOpen }: { onOpen: (place: ConnectionsPlace
   if (!loaded || !catalog) {
     return (
       <div className="space-y-2">
-        <h2 className="text-xl font-semibold">Servicios de IA</h2>
+        <h2 className="font-ui text-[1.75rem] leading-tight font-bold tracking-[-0.01em] text-strong">Servicios de IA</h2>
         <p className="text-sm text-muted-foreground">
           No se pudo leer qué motor usa cada servicio: la base documental no está disponible.
         </p>
@@ -94,7 +94,7 @@ export function AiServicesSection({ onOpen }: { onOpen: (place: ConnectionsPlace
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold">Servicios de IA</h2>
+        <h2 className="font-ui text-[1.75rem] leading-tight font-bold tracking-[-0.01em] text-strong">Servicios de IA</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Qué motor usa cada servicio, con qué modelo, y uno alternativo si hace falta. La base lee esta elección en cada
           pedido: un cambio se usa en el próximo. Los datos para conectarse con cada proveedor están en «Conexiones»
@@ -103,7 +103,7 @@ export function AiServicesSection({ onOpen }: { onOpen: (place: ConnectionsPlace
         </p>
       </div>
 
-      {problem && <p className="rounded-md border border-destructive/40 px-3 py-2 text-sm text-destructive">{problem}</p>}
+      {problem && <p className="rounded-md border border-err-line px-3 py-2 text-sm text-destructive">{problem}</p>}
 
       {catalog.services.map((service) => {
         const Icon = ICONS[service.id]
@@ -115,8 +115,8 @@ export function AiServicesSection({ onOpen }: { onOpen: (place: ConnectionsPlace
               <Icon className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <h3 className="text-base font-semibold">{service.name}</h3>
-                  {saved === service.id && <span className="text-xs text-emerald-600">Guardado</span>}
+                  <h3 className="font-ui text-base font-bold text-strong">{service.name}</h3>
+                  {saved === service.id && <span className="text-xs text-ok">Guardado</span>}
                 </div>
                 <p className="text-sm text-muted-foreground">{service.purpose}</p>
               </div>
@@ -136,7 +136,7 @@ export function AiServicesSection({ onOpen }: { onOpen: (place: ConnectionsPlace
 
             {choice.engine && engine && <EngineFacts catalog={catalog} engine={engine} model={choice.engine.model} />}
             {choice.engine && engine?.connection && !connected(engine.connection) && (
-              <div className="flex flex-wrap items-center gap-2 text-xs text-amber-700 dark:text-amber-400">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-warn">
                 <span>
                   Falta la conexión con {SHARED_CONNECTIONS[engine.connection] ?? engine.connection}: sin ella no se lee
                   nada con este motor.
@@ -147,14 +147,14 @@ export function AiServicesSection({ onOpen }: { onOpen: (place: ConnectionsPlace
               </div>
             )}
             {choice.engine && engine && !engine.inBase && service.id !== "research" && (
-              <p className="text-xs text-amber-700 dark:text-amber-400">
+              <p className="text-xs text-warn">
                 {service.id === "ask"
                   ? "La base todavía no lee con este motor: el chat lo usa, pero la lectura de los documentos queda en pausa hasta elegir Codex."
                   : "La base todavía no reconoce escaneos con este motor."}
               </p>
             )}
             {!choice.engine && (
-              <p className="text-xs text-amber-700 dark:text-amber-400">
+              <p className="text-xs text-warn">
                 {service.id === "ask"
                   ? "Sin motor no se lee ningún documento ni contesta el chat."
                   : service.id === "recognize"
@@ -203,7 +203,7 @@ export function AiServicesSection({ onOpen }: { onOpen: (place: ConnectionsPlace
       })}
 
       <section className="space-y-3 rounded-md border p-4">
-        <h3 className="text-base font-semibold">Conexiones en uso</h3>
+        <h3 className="font-ui text-base font-bold text-strong">Conexiones en uso</h3>
         <p className="text-sm text-muted-foreground">
           Los datos de un proveedor (su clave, su dirección) se cargan una vez y los usan todos los servicios que lo eligen.
         </p>
