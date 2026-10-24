@@ -2303,6 +2303,34 @@
       "referencia": "D-515",
       "creado": "2026-10-24",
       "actualizado": "2026-10-24"
+    },
+    {
+      "id": "P-329",
+      "titulo": "Ver en la app: nombres de personas por la mayoría, elegir el nombre, y lo que dicen los documentos del caso sin repetir",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "conocimiento",
+      "detalle": "Construido en la corrida del 24 oct (D-516, commits 370c02f, a9a21c4, 7f6ced5, 3efa674, 5e9861e, f33221a). Qué mirar: 1) en la página del caso de la sucesión, «Lo que dicen los documentos del asunto»: «Causante de: este asunto» una sola vez, con las formas escritas en la nota; 2) las dos personas de la observación 1 con la forma de la mayoría; 3) en «Datos y correcciones» de una persona, «Elegir el nombre», usar una forma y deshacerla en «Decisiones». Medido sobre una copia: cambian 6 de 288 nombres de personas (los dos ejemplos quedan bien); en los 7 casos, de 394 a 367 renglones; estado civil de 12 a 10 afirmaciones; domicilios de 67 a 56 y sus conflictos de 2 a 0; la hoja de respuestas no empeora. Al reescribir las páginas, la app pide unos 24 resúmenes al modelo, dentro del tope de 50.",
+      "depende_de": [],
+      "referencia": "D-516",
+      "creado": "2026-10-24",
+      "actualizado": "2026-10-24"
+    },
+    {
+      "id": "P-330",
+      "titulo": "Decir una sola vez el mismo expediente también en la página de la persona, y las referencias al caso sin número",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "conocimiento",
+      "detalle": "D-516 unificó en la página del caso lo que apunta a ese mismo caso. La página de la persona sigue listando cada forma escrita del expediente aparte, y las formas sin número ni título del caso («juicio sucesorio del Sr. …») quedan aparte. Además, la página dice «este asunto»: cambiarlo a «caso» es parte de P-313.",
+      "depende_de": [],
+      "referencia": "D-516; P-313",
+      "creado": "2026-10-24",
+      "actualizado": "2026-10-24"
     }
   ]
 }
