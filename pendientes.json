@@ -2182,13 +2182,13 @@
       "estado": "pendiente",
       "prioridad": 1,
       "tema": "reconocimiento",
-      "detalle": "Hoy una página de PDF «tiene texto» si tiene 80 caracteres (textless_pages, MIN_PAGE_TEXT_CHARS). Falla con el pie que el PJN estampa en cada página y con capas de texto viejas y ruidosas, así que hay páginas escaneadas que nunca se leen. Propuesta de la investigación del 23 oct: decidir página por página con señales de pdfium. Las señales: texto propio sin contar lo repetido en todas las páginas, imagen que cubre la página, calidad del texto (letras sueltas, palabras pegadas), grupos de objetos agregados encima (formularios aplanados), productor. Las señales van al catálogo. Después, volver a leer lo que aparezca, con cupo y avisando antes. Es lo recomendado primero, pero espera la decisión del dueño (P-319, P-321).",
+      "detalle": "Hoy una página de PDF «tiene texto» si tiene 80 caracteres (textless_pages, MIN_PAGE_TEXT_CHARS). Falla con el pie que el PJN estampa en cada página y con capas de texto viejas y ruidosas, así que hay páginas escaneadas que nunca se leen. Propuesta de la investigación del 23 oct: decidir página por página con señales de pdfium. Las señales: texto propio sin contar lo repetido en todas las páginas, imagen que cubre la página, calidad del texto (letras sueltas, palabras pegadas), grupos de objetos agregados encima (formularios aplanados), productor. Las señales van al catálogo. Después, volver a leer lo que aparezca, con cupo y avisando antes. Es lo recomendado primero, pero espera la decisión del dueño (P-319, P-321). 2026-10-24: La prueba de Docling agrega una señal: la capa de texto vieja se detecta por la proporción de letras sueltas, no por el texto invisible (esa capa está escrita como texto visible tapado por la imagen).",
       "depende_de": [
         "P-319"
       ],
       "referencia": "src-tauri/src/source_volume/recognition.rs; llm_wiki_mi/investigacion-formas-de-documento-resultado.md",
       "creado": "2026-10-23",
-      "actualizado": "2026-10-23"
+      "actualizado": "2026-10-24"
     },
     {
       "id": "P-321",
@@ -2197,26 +2197,26 @@
       "responsable": "usuario",
       "estado": "en-espera",
       "tema": "servicios de IA",
-      "detalle": "El dueño evalúa en serio (23 oct, no decidido) hacer en Desktop, o en un paquete o SDK de Micelya, todo lo que no necesite un modelo de lenguaje grande ni un servicio que no esté en el dispositivo. Incluye reconocer qué es cada archivo y cada página, leer formularios y tablas, reconocer escaneos impresos y documentos de identidad, partir documentos compuestos con reglas, leer correos y quizás transcribir audio. Lo que hizo Core para partir documentos no es definitivo. Insumos: llm_wiki_mi/investigacion-formas-de-documento-resultado.md (librerías y licencias: pdfium, Magika, RapidOCR, Docling; MinerU tiene modelos AGPL-3.0; los modelos de Surya se pagan por encima de US$ 5 millones) y la prueba de Docling en una sesión remota (P-322).",
+      "detalle": "El dueño evalúa en serio (23 oct, no decidido) hacer en Desktop, o en un paquete o SDK de Micelya, todo lo que no necesite un modelo de lenguaje grande ni un servicio que no esté en el dispositivo. Incluye reconocer qué es cada archivo y cada página, leer formularios y tablas, reconocer escaneos impresos y documentos de identidad, partir documentos compuestos con reglas, leer correos y quizás transcribir audio. Lo que hizo Core para partir documentos no es definitivo. Insumos: llm_wiki_mi/investigacion-formas-de-documento-resultado.md (librerías y licencias: pdfium, Magika, RapidOCR, Docling; MinerU tiene modelos AGPL-3.0; los modelos de Surya se pagan por encima de US$ 5 millones) y la prueba de Docling en una sesión remota (P-322). 2026-10-24: Con la prueba de Docling: recomendado construir sobre pdfium (ficha de forma por página y lectura por posición) más RapidOCR en el dispositivo, sin Docling como programa; si hace falta ubicar regiones, su modelo de forma de página en ONNX (171 MB, Apache) desde Rust. El dueño decidió que lo manuscrito no se transcribe automáticamente (D-518). Próxima ronda: medir cómo se parten los documentos contra una hoja de respuestas (P-335).",
       "depende_de": [
         "P-322"
       ],
       "referencia": "llm_wiki_mi/investigacion-formas-de-documento-resultado.md",
       "creado": "2026-10-23",
-      "actualizado": "2026-10-23"
+      "actualizado": "2026-10-24"
     },
     {
       "id": "P-322",
       "titulo": "Revisar la prueba remota de Docling (rama investigacion/docling) antes de integrarla",
       "tipo": "verificacion",
       "responsable": "claude",
-      "estado": "en-espera",
+      "estado": "hecho",
       "tema": "reconocimiento",
-      "detalle": "El 23 oct el dueño lanzó en una sesión remota de Claude Code una prueba de Docling, RapidOCR, Tesseract, granite-docling y pdfium sobre seis PDF reales. El prompt está en llm_wiki_mi/prueba-docling/prompt.md. El resultado va a una rama investigacion/docling, en docs/investigacion/docling/, sin pedido de integración. El dueño le indicó privilegiar la calidad del análisis por sobre las reglas de privacidad del prompt, porque la información es pública. Al revisarla: leer el informe, cruzarlo con la investigación y las observaciones, y correr la prueba de que ningún caso real está en el programa. Como el repositorio es público, decidir con el dueño qué entra a main antes de abrir el pedido de integración.",
+      "detalle": "El 23 oct el dueño lanzó en una sesión remota de Claude Code una prueba de Docling, RapidOCR, Tesseract, granite-docling y pdfium sobre seis PDF reales. El prompt está en llm_wiki_mi/prueba-docling/prompt.md. El resultado va a una rama investigacion/docling, en docs/investigacion/docling/, sin pedido de integración. El dueño le indicó privilegiar la calidad del análisis por sobre las reglas de privacidad del prompt, porque la información es pública. Al revisarla: leer el informe, cruzarlo con la investigación y las observaciones, y correr la prueba de que ningún caso real está en el programa. Como el repositorio es público, decidir con el dueño qué entra a main antes de abrir el pedido de integración. 2026-10-24: Prueba de Docling revisada (sin datos reales) e integrada por pedido del dueño (pedido de integración #70). Resultado: RapidOCR es el mejor lector local (0,2 % de error en lo impreso, las dos zonas de lectura de los DNI, unos 2 segundos por página, 31 MB, Apache); Docling sirve solo leyendo la página entera, pesa 1,25 GB con PyTorch o 590 MB sin él (con tres remiendos y sin tablas) y esconde en su JSON el texto de las zonas que toma por imagen; granite-docling no sirve; ningún lector local lee lo manuscrito; Docling no parte documentos. Informe en docs/investigacion/docling/informe.md.",
       "depende_de": [],
       "referencia": "llm_wiki_mi/prueba-docling/prompt.md",
       "creado": "2026-10-23",
-      "actualizado": "2026-10-23"
+      "actualizado": "2026-10-24"
     },
     {
       "id": "P-323",
@@ -2371,6 +2371,36 @@
       "detalle": "Visto en el recorrido del 24 oct: el caso del expediente del PJN ya no figura como nombrado por una persona (D-514), pero la página sigue diciendo «creado a mano», porque su origen quedó como de una persona. Debería decir que lo creó la app al traer el expediente. Además, el archivo de ese expediente no tiene carátula (el portal no la leyó), así que el nombre sigue siendo el número: revisar por qué no se leyó la carátula (pjn.rs, rótulo «caratula») y volver a leerla al seguir el expediente.",
       "depende_de": [],
       "referencia": "D-514; src-tauri/src/portals/pjn.rs",
+      "creado": "2026-10-24",
+      "actualizado": "2026-10-24"
+    },
+    {
+      "id": "P-334",
+      "titulo": "Pedir la lectura de lo manuscrito de un documento, uno por uno",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "lectura",
+      "detalle": "D-518: lo manuscrito no se transcribe automáticamente. Cada documento con manuscrito detectado ofrece una opción para que una persona pida su lectura (un modelo con imagen, por Codex o por Core), solo para ese documento. Lo leído queda marcado como lectura de manuscrito, «sin confirmar», y se compara con las personas del caso antes de crear fichas nuevas.",
+      "depende_de": [
+        "P-320"
+      ],
+      "referencia": "D-518",
+      "creado": "2026-10-24",
+      "actualizado": "2026-10-24"
+    },
+    {
+      "id": "P-335",
+      "titulo": "Hoja de respuestas para medir cómo se parten los documentos (los seis PDF de prueba)",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 2,
+      "tema": "lectura",
+      "detalle": "Pedido del dueño (24 oct): una propuesta de hoja de respuestas, página por página y documento por documento (dónde empieza cada documento incluido, su tipo, la forma de la página, si hay manuscrito, firma, sello, foto, tabla o formulario), para medir herramientas de separación y clasificación (R-25). La arma un sub-agente mirando las páginas; el dueño la corrige. Fuera del repositorio: llm_wiki_mi/conjunto-prueba/partes.json y partes.md.",
+      "depende_de": [],
+      "referencia": "D-518; P-321",
       "creado": "2026-10-24",
       "actualizado": "2026-10-24"
     }

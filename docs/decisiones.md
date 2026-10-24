@@ -460,6 +460,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-515 | 24 oct | Personas y organizaciones | Controles deterministas de lo que el modelo arma como persona u organización, las pantallas con el mismo filtro que las páginas, y un identificador único por persona | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-516 | 24 oct | Personas y casos | Una persona se llama como la escriben la mayoría de sus documentos y se puede elegir su nombre; en la página de un caso, lo que apunta a ese caso se dice una vez; el estado civil, de una lista cerrada | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-517 | 24 oct | Pantallas | Volver atrás y adelante por el camino que hizo la persona | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-518 | 24 oct | Lectura de documentos | Lo manuscrito no se transcribe automáticamente: se detecta, y una persona puede pedir su lectura documento por documento | vigente |
 
 ---
 
@@ -5476,3 +5477,10 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **El problema:** La app no guardaba el recorrido: al ir de una persona a un caso y del caso a un documento, no había forma de volver al caso y después a la persona; solo la miga «Casos › nombre», que lleva a la lista (observación 5).
 - **Qué se decidió y por qué:** Un historial guarda en cada paso la pantalla, la persona, el caso o el documento abiertos y la pestaña elegida. Botones ← y → en la barra de arriba, Alt+← y Alt+→ (salvo mientras se escribe en un campo) y los botones laterales del ratón. Lo que se unió con otra ficha lleva a la que quedó; lo retirado se saltea. Asumido además: cambiar de pestaña no es un paso nuevo (se recuerda dentro del paso, como en un navegador); tope de 100 pasos; las pestañas de «Atención» no entran en el historial.
 - **Quién decidió:** El agente, en la corrida desatendida del 24 oct (D-500).
+
+### D-518 · Lo manuscrito no se transcribe automáticamente: se detecta, y una persona puede pedir su lectura documento por documento
+
+- **Fecha:** 24 oct 2026 · **Tema:** Lectura de documentos · **Estado:** vigente
+- **El problema:** Leer lo manuscrito es lo que más errores trae (las personas y organizaciones que salen de páginas manuscritas fallan en el 30 % de los casos, contra el 8 % del texto limpio, y crearon personas falsas) y lo más caro de partir un escaneo en Core (en su prueba, 0,56 de 1,38 dólares). Ningún lector local lo lee bien (prueba de Docling, P-322).
+- **Qué se decidió y por qué:** Lo que el sistema necesita es separar los documentos de un expediente, clasificarlos, detectar dónde hay manuscrito y firmas, leer lo impreso y la estructura de los formularios, y conservar el original como fuente de verdad. Ninguna página se descarta: lo que no se puede clasificar queda «sin clasificar». Lo manuscrito, incluidos los valores manuscritos de un formulario (como los de una partida), no se transcribe automáticamente: se detecta y se marca. Cada documento puede ofrecer la opción de pedir su lectura, uno por uno, a pedido de una persona. Lo que solo existe escrito a mano no entra a la base salvo esa lectura pedida; el original queda para mirarlo. Una página puede contener más de un documento (por ejemplo, dos fotos de DNI), así que los documentos incluidos se marcan por páginas y, si hace falta, por regiones de una página.
+- **Quién decidió:** El dueño del producto (24 oct), a partir de su análisis de la prueba de Docling.
