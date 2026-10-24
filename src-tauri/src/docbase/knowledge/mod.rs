@@ -47,6 +47,7 @@ pub mod entities;
 pub mod extract;
 pub mod links;
 pub mod matter_edit;
+pub mod matter_records;
 pub mod matters;
 pub mod names;
 pub mod pages;

@@ -520,13 +520,17 @@ pub(crate) fn group(conn: &Connection, vocabulary: &Vocabulary, joins: &[(String
             )
             .map_err(sql_err)?;
         }
-        // A name a person gave stays.
+        // A name a person gave stays; a matter with a record of a court is
+        // named by it (`matter_records`).
         let by_person: Option<String> = conn
             .query_row("SELECT name FROM knowledge_matter WHERE id = ?1 AND name_by_person = 1", [id], |row| row.get(0))
             .ok();
         let name = match by_person {
             Some(name) => name,
-            None => matter_name(conn, vocabulary, &contents)?,
+            None => match super::matter_records::name_from_records(conn, id)? {
+                Some(name) => name,
+                None => matter_name(conn, vocabulary, &contents)?,
+            },
         };
         let before = existing.get(id);
         let same_docs = before.is_some_and(|(state, b)| state == "active" && *b == contents.iter().copied().collect());

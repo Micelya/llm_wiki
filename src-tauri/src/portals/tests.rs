@@ -868,7 +868,8 @@ fn the_record_goes_into_the_base_as_a_confirmed_matter_with_its_documents() {
         .conn()
         .query_row("SELECT name, origin, confirmation FROM knowledge_matter WHERE id = ?1", [&matter], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
         .unwrap();
-    assert_eq!(name, format!("{TITLE} (ZZZ 4321/2011)"));
+    // Named by the record's official title, not by a person.
+    assert_eq!(name, TITLE);
     assert_eq!((origin_kind.as_str(), confirmation.as_str()), ("person", "confirmed"));
     // Again: the same matter, nothing new to put in.
     assert_eq!(store::ensure_matter(&base, &mut record, &origin, &rel).unwrap(), 0);
@@ -966,3 +967,6 @@ fn the_portal_view_has_no_permission_of_the_app() {
         assert!(!allows(refused), "{refused}");
     }
 }
+
+#[path = "tests_matters.rs"]
+mod matters;

@@ -25,6 +25,7 @@ use serde::Serialize;
 
 use super::decide::{DecisionView, IdentityDecision};
 use super::entities::document;
+use super::matter_records::{MatterQuestion, MatterRecord};
 use super::matters::{content_key, Reason};
 use super::resolve::cluster_key;
 use super::vocabulary::vocabulary;
@@ -168,6 +169,8 @@ pub struct KnowledgeAttention {
     /// Decisions of a person to review: what they named is not in the
     /// documents as they read now.
     pub decisions_to_review: Vec<DecisionReview>,
+    /// Whether a matter that looks like the one of a record is the same.
+    pub matters_to_join: Vec<MatterQuestion>,
 }
 
 /// A matter in the list of matters.
@@ -240,6 +243,8 @@ pub struct MatterDetail {
     pub parties: Vec<MatterParty>,
     /// The decisions of a person about its documents, active or undone.
     pub decisions: Vec<DecisionView>,
+    /// Its records of a court, with their official titles.
+    pub records: Vec<MatterRecord>,
 }
 
 /// The matter of one document, firm or proposed.
@@ -660,6 +665,8 @@ impl DocBase {
             }
         }
 
+        let matters_to_join = super::matter_records::open_questions(&conn, &visible_contents(&conn, visible)?)?;
+
         Ok(KnowledgeAttention {
             status,
             failed,
@@ -673,6 +680,7 @@ impl DocBase {
             kept_pages,
             left_with_documents,
             decisions_to_review,
+            matters_to_join,
         })
     }
 
@@ -841,7 +849,8 @@ impl DocBase {
             .map(|(d, _, _)| d)
             .collect();
         let page_path = page_paths(&conn)?.remove(id);
-        Ok(Some(MatterDetail { id: id.to_string(), name, state, status, origin, confirmation, page_path, documents, parties, decisions }))
+        let records = super::matter_records::records_of(&conn, id)?;
+        Ok(Some(MatterDetail { id: id.to_string(), name, state, status, origin, confirmation, page_path, documents, parties, decisions, records }))
     }
 
     /// The entities a document names, with their roles, and its matter.
