@@ -700,3 +700,31 @@ fn no_case_of_the_answer_sheet_is_in_the_program() {
     }
     assert!(found.is_empty(), "{} mentions of a case of the answer sheet (R-24)", found.len());
 }
+
+/// Computes the similar documents again over a copy of an app's base
+/// (`MICELYA_DOCBASE_COPY`, one file, as `sqlite3.backup()` leaves it),
+/// copied first to `MICELYA_SIMILAR_OUT`, where it stays to be compared
+/// with the copy; prints the families and the pairs that wait.
+#[test]
+#[ignore = "reads the copy of a base named in MICELYA_DOCBASE_COPY"]
+fn similar_documents_over_a_copy_of_a_base() {
+    let (Ok(copy), Ok(out)) = (std::env::var("MICELYA_DOCBASE_COPY"), std::env::var("MICELYA_SIMILAR_OUT")) else {
+        println!("MICELYA_DOCBASE_COPY or MICELYA_SIMILAR_OUT is not set: nothing to compute");
+        return;
+    };
+    std::fs::copy(&copy, &out).unwrap();
+    let base = DocBase::open(Path::new(&out)).unwrap();
+    let started = Instant::now();
+    while base.similar_step(16).unwrap() > 0 {}
+    println!("similar documents: {:.1}s", started.elapsed().as_secs_f32());
+    let groups = base.similar_groups(&Visible::All).unwrap();
+    let inside: i64 = groups.iter().map(|g| g.pending).sum();
+    let deciding = groups.iter().filter(|g| g.pending > 0).count();
+    let open = base.similar_open_pairs(&Visible::All).unwrap();
+    let signed_out = open.iter().filter(|p| p.similar.relation == "signed-copy").count();
+    println!(
+        "families: {} (with something to decide: {deciding}); waiting inside: {inside}, outside: {}; signed copies outside: {signed_out}",
+        groups.len(),
+        open.len()
+    );
+}

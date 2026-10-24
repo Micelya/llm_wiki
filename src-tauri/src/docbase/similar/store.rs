@@ -58,8 +58,15 @@ pub const CANDIDATE_MIN: f64 = 0.15;
 pub const MAX_NEIGHBOURS: usize = 100;
 /// Exact shingle containment below which a pair is not aligned.
 pub const MEASURE_MIN: f64 = 0.25;
-/// Relations that put two documents in the same family.
-pub const GROUP_RELATIONS: &[&str] = &["near-identical", "signed-copy", "preview", "version", "same-template"];
+/// Relations that put two documents in the same family: those that make
+/// them one document. The same template is a relation between different
+/// documents (D-497), so it never joins a family.
+pub const GROUP_RELATIONS: &[&str] = &["near-identical", "signed-copy", "preview", "version"];
+/// Relations that put two documents in the same unit when typing them and
+/// when building a template: the families' and the same template.
+pub const UNIT_RELATIONS: &[&str] = &["near-identical", "signed-copy", "preview", "version", "same-template"];
+/// The links of each document: the other document, the relation and the cover.
+pub(crate) type Links = BTreeMap<i64, BTreeMap<i64, (String, f64)>>;
 /// A family bigger than this is marked for review.
 pub const GROUP_LARGE: usize = 30;
 
@@ -618,53 +625,7 @@ impl DocBase {
         // documents it came from (D-497), and is never the principal of a
         // family (D-488).
         super::generate::generated_pairs_dropped(&tx)?;
-        let generated = super::generate::generated_contents(&tx)?;
-        let mut adjacent: BTreeMap<i64, BTreeMap<i64, (String, f64)>> = BTreeMap::new();
-        {
-            let mut statement = tx
-                .prepare(
-                    "SELECT a, b, CASE WHEN state = 'joined' THEN chosen_relation ELSE relation END, cover
-                     FROM similar_pair WHERE state != 'discarded'",
-                )
-                .map_err(sql_err)?;
-            let rows = statement
-                .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, String>(2)?, row.get::<_, f64>(3)?)))
-                .map_err(sql_err)?;
-            for row in rows {
-                let (a, b, relation, cover) = row.map_err(sql_err)?;
-                if !GROUP_RELATIONS.contains(&relation.as_str()) {
-                    continue;
-                }
-                adjacent.entry(a).or_default().insert(b, (relation.clone(), cover));
-                adjacent.entry(b).or_default().insert(a, (relation, cover));
-            }
-        }
-        // How complete each document is: a party's signature first, then
-        // the amount of text, then the oldest content.
-        let mut completeness: HashMap<i64, (bool, i64)> = HashMap::new();
-        {
-            let mut statement = tx
-                .prepare(
-                    "SELECT s.content_id, s.words, coalesce(m.marks, '[]') FROM similar_signature s
-                     LEFT JOIN document_marks m ON m.content_id = s.content_id",
-                )
-                .map_err(sql_err)?;
-            let rows = statement
-                .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, String>(2)?)))
-                .map_err(sql_err)?;
-            for row in rows {
-                let (id, words, marks) = row.map_err(sql_err)?;
-                let marks: Vec<Mark> = serde_json::from_str(&marks).unwrap_or_default();
-                completeness.insert(id, (marks.iter().any(|m| m.kind == "party-signature"), words));
-            }
-        }
-        let groups = families(&adjacent, &|id| {
-            if generated.contains(&id) {
-                (false, -1)
-            } else {
-                completeness.get(&id).copied().unwrap_or((false, 0))
-            }
-        });
+        let (groups, adjacent) = grouped(&tx, GROUP_RELATIONS)?;
 
         tx.execute("DELETE FROM similar_group", []).map_err(sql_err)?;
         let now = now_ms();
@@ -1383,6 +1344,61 @@ fn save_pair(
     )
     .map_err(sql_err)?;
     Ok(())
+}
+
+/// Documents linked by `relations`, as families against a principal
+/// (`families`), with the links between them: the families shown
+/// (`GROUP_RELATIONS`) or the units for types and templates
+/// (`UNIT_RELATIONS`).
+pub(crate) fn grouped(conn: &Connection, relations: &[&str]) -> Result<(Vec<Family>, Links), String> {
+    let generated = super::generate::generated_contents(conn)?;
+    let mut adjacent: Links = BTreeMap::new();
+    {
+        let mut statement = conn
+            .prepare(
+                "SELECT a, b, CASE WHEN state = 'joined' THEN chosen_relation ELSE relation END, cover
+                 FROM similar_pair WHERE state != 'discarded'",
+            )
+            .map_err(sql_err)?;
+        let rows = statement
+            .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, String>(2)?, row.get::<_, f64>(3)?)))
+            .map_err(sql_err)?;
+        for row in rows {
+            let (a, b, relation, cover) = row.map_err(sql_err)?;
+            if !relations.contains(&relation.as_str()) {
+                continue;
+            }
+            adjacent.entry(a).or_default().insert(b, (relation.clone(), cover));
+            adjacent.entry(b).or_default().insert(a, (relation, cover));
+        }
+    }
+    // How complete each document is: a party's signature first, then
+    // the amount of text, then the oldest content.
+    let mut completeness: HashMap<i64, (bool, i64)> = HashMap::new();
+    {
+        let mut statement = conn
+            .prepare(
+                "SELECT s.content_id, s.words, coalesce(m.marks, '[]') FROM similar_signature s
+                 LEFT JOIN document_marks m ON m.content_id = s.content_id",
+            )
+            .map_err(sql_err)?;
+        let rows = statement
+            .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, String>(2)?)))
+            .map_err(sql_err)?;
+        for row in rows {
+            let (id, words, marks) = row.map_err(sql_err)?;
+            let marks: Vec<Mark> = serde_json::from_str(&marks).unwrap_or_default();
+            completeness.insert(id, (marks.iter().any(|m| m.kind == "party-signature"), words));
+        }
+    }
+    let groups = families(&adjacent, &|id| {
+        if generated.contains(&id) {
+            (false, -1)
+        } else {
+            completeness.get(&id).copied().unwrap_or((false, 0))
+        }
+    });
+    Ok((groups, adjacent))
 }
 
 /// A provisional family.

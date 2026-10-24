@@ -293,27 +293,25 @@ fn principal_type_parts_family(conn: &Connection, catalog: &Catalog, principal: 
     Ok(doc_type.and_then(|t| catalog.doc_type(&t)).is_some_and(|t| {
         t.rules
             .iter()
-            .any(|r| r.kind == "different-data" && !super::store::GROUP_RELATIONS.contains(&r.relation.as_str()))
+            .any(|r| r.kind == "different-data" && !super::store::UNIT_RELATIONS.contains(&r.relation.as_str()))
     }))
 }
 
 /// Families against their principal, then every document left alone.
 fn load_units(conn: &Connection, catalog: &Catalog, docs: &BTreeMap<i64, DocInfo>) -> Result<Vec<Unit>, String> {
+    // Typed together: a family and the documents of the same template,
+    // which are different documents of the same type.
     let mut families: BTreeMap<i64, Vec<(i64, Option<String>)>> = BTreeMap::new();
-    {
-        let mut statement = conn
-            .prepare("SELECT principal, content_id, relation FROM similar_group_member ORDER BY principal, content_id")
-            .map_err(sql_err)?;
-        let rows = statement
-            .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, Option<String>>(2)?)))
-            .map_err(sql_err)?;
-        for row in rows {
-            let (principal, member, relation) = row.map_err(sql_err)?;
-            let entry = families.entry(principal).or_default();
-            if member != principal {
-                entry.push((member, relation));
-            }
+    let (units, links) = super::store::grouped(conn, super::store::UNIT_RELATIONS)?;
+    for unit in units {
+        let entry = families.entry(unit.principal).or_default();
+        for member in unit.members.into_iter().filter(|m| *m != unit.principal) {
+            let relation = links.get(&unit.principal).and_then(|l| l.get(&member)).map(|(r, _)| r.clone());
+            entry.push((member, relation));
         }
+    }
+    for members in families.values_mut() {
+        members.sort();
     }
     let mut placed: BTreeSet<i64> = BTreeSet::new();
     let mut units = Vec::new();

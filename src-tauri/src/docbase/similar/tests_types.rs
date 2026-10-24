@@ -128,7 +128,7 @@ fn three_invoices() -> Vec<(&'static str, String)> {
 #[test]
 fn one_question_per_family_and_it_is_never_asked_twice() {
     let (_dir, base) = base_with(&three_invoices());
-    assert_eq!(base.similar_groups(&Visible::All).unwrap().len(), 1, "the three invoices are one family");
+    assert!(base.similar_groups(&Visible::All).unwrap().is_empty(), "the same template makes no family");
     assert_eq!(base.types_plan().unwrap().type_questions, 1);
 
     let model = FakeModel::new(|_| type_answer("factura", None, &[]));
