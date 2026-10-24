@@ -124,7 +124,14 @@
     { "id": "fin_de_vinculo", "label": "Fin de un vínculo", "description": "La fecha en que termina un vínculo suyo, tal como está escrita. No la fecha en que se firma o se emite el documento, salvo que el texto diga que el vínculo termina ese día.", "subject": ["persona", "organizacion"], "cues": ["fin", "termin", "rescin", "rescis", "extin", "baja", "hasta", "venc", "cese", "ces", "partir", "efect", "renunci", "desvincul", "end", "terminat", "until", "expir", "effective"], "object": "value" },
     { "id": "profesion", "label": "Profesión", "shape": "text", "description": "Su profesión u ocupación.", "subject": ["persona"], "object": "value" },
     { "id": "nacionalidad", "label": "Nacionalidad", "single": true, "shape": "text", "description": "Su nacionalidad.", "subject": ["persona"], "object": "value" },
-    { "id": "estado_civil", "label": "Estado civil", "single": true, "shape": "text", "description": "Su estado civil.", "subject": ["persona"], "object": "value" },
+    { "id": "estado_civil", "label": "Estado civil", "single": true, "shape": "text", "description": "Su estado civil.", "subject": ["persona"], "object": "value",
+      "closedValues": [
+        { "id": "single", "words": ["soltero", "soltera", "single", "unmarried", "never married"] },
+        { "id": "married", "words": ["casado", "casada", "married"] },
+        { "id": "divorced", "words": ["divorciado", "divorciada", "divorced"] },
+        { "id": "widowed", "words": ["viudo", "viuda", "widowed", "widow", "widower"] },
+        { "id": "separated", "words": ["separado", "separada", "separated"] }
+      ] },
     { "id": "contacto", "label": "Contacto", "shape": "contact", "description": "Un correo electrónico o un teléfono suyo, no el de otra persona u organización del mismo documento. Un DNI o un CUIT es un identificador, no un contacto.", "subject": ["persona", "organizacion"], "object": "value" }
   ],
   "money": {

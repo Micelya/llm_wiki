@@ -20,7 +20,12 @@
 //!   position in two companies is two claims, and values within different
 //!   entities are never in conflict (D-210). The same goes for a value of
 //!   another kind, told by the words of its quote (`qualifiers`: a
-//!   domicile constituted for a proceeding is not the real one).
+//!   domicile constituted for a proceeding is not the real one). A value
+//!   without a class that is the same as one with a class of the same
+//!   holder is that one (D-516).
+//! - A predicate with a closed list of values (`closedValues`: a marital
+//!   status) takes only them, the feminine and the masculine alike: a value
+//!   with none of their words is not a claim of it (D-516).
 //!
 //! Computed again from the evidence on every resolution; only what
 //! changed is written.
@@ -459,6 +464,8 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, decided: &
     let mut unsaid: HashSet<i64> = HashSet::new();
     let mut contexts: HashMap<i64, (Option<String>, Option<String>)> = HashMap::new();
     let mut by_value: BTreeMap<(String, String, Option<String>, Option<String>), Vec<usize>> = BTreeMap::new();
+    // The value of a closed list each piece says, and the word it says it with.
+    let mut closed_of: HashMap<i64, (String, String)> = HashMap::new();
     for (index, piece) in pieces.iter().enumerate() {
         let Some(subject) = &piece.subject_entity else { continue };
         if !says(vocabulary, piece, &identifiers) {
@@ -490,16 +497,63 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, decided: &
                 unfit += 1;
                 continue;
             }
+            // A value of a closed list (a marital status) is one of its
+            // values, or it is not a claim of it (D-516).
+            if let Some(definition) = definition.filter(|p| !piece.reference && !p.closed_values.is_empty()) {
+                match definition.closed_value(piece.value.as_deref().unwrap_or_default()) {
+                    Some((closed, word)) => {
+                        closed_of.insert(piece.id, (closed.id.clone(), word));
+                    }
+                    None => {
+                        unfit += 1;
+                        continue;
+                    }
+                }
+            }
             by_value.entry((subject.clone(), piece.predicate.clone(), context, qualifier)).or_default().push(index);
         }
     }
+    // A value without a class that is the same as a value of the same
+    // holder with a class (a domicile said once with its class, once
+    // without) is that one, when only one class has it (D-516).
+    let same_value = |shape: &str, i: usize, j: usize| {
+        let (a, b) = (&pieces[i], &pieces[j]);
+        a.normalized == b.normalized || values::same(vocabulary, shape, a.value.as_deref().unwrap_or_default(), b.value.as_deref().unwrap_or_default())
+    };
+    let mut classed: Vec<((String, String, Option<String>, Option<String>), usize, String)> = Vec::new();
+    for ((subject, predicate, context, qualifier), list) in &by_value {
+        let Some(definition) = vocabulary.predicate(predicate).filter(|p| qualifier.is_none() && !p.qualifiers.is_empty()) else { continue };
+        for &i in list {
+            let classes: BTreeSet<&String> = by_value
+                .iter()
+                .filter(|((s, p, c, q), _)| s == subject && p == predicate && c == context && q.is_some())
+                .filter(|(_, other)| other.iter().any(|&j| same_value(&definition.shape, i, j)))
+                .filter_map(|((_, _, _, q), _)| q.as_ref())
+                .collect();
+            if let [class] = classes.into_iter().collect::<Vec<_>>()[..] {
+                classed.push(((subject.clone(), predicate.clone(), context.clone(), None), i, class.clone()));
+            }
+        }
+    }
+    for ((subject, predicate, context, none), i, class) in classed {
+        if let Some(list) = by_value.get_mut(&(subject.clone(), predicate.clone(), context.clone(), none)) {
+            list.retain(|&j| j != i);
+        }
+        by_value.entry((subject, predicate, context, Some(class.clone()))).or_default().push(i);
+        if let Some(entry) = contexts.get_mut(&pieces[i].id) {
+            entry.1 = Some(class);
+        }
+    }
+    by_value.retain(|_, list| !list.is_empty());
     // (value shown, normalized) each piece with a value counts with.
     let mut written_as: HashMap<i64, (String, String)> = HashMap::new();
     for ((_, predicate, _, _), list) in &by_value {
         let shape = vocabulary.predicate(predicate).map(|p| p.shape.as_str()).unwrap_or_default();
         let value = |i: usize| pieces[list[i]].value.as_deref().unwrap_or_default();
+        let closed = |i: usize| closed_of.get(&pieces[list[i]].id);
         // Pieces written the same are one value; then the ways of writing
-        // the same value, against the first of each group.
+        // the same value, against the first of each group. Values of a
+        // closed list are the same when they say the same value of it.
         let mut group: Vec<usize> = (0..list.len()).collect();
         for i in 0..list.len() {
             for j in 0..i {
@@ -507,7 +561,11 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, decided: &
                     continue;
                 }
                 let same_words = pieces[list[i]].normalized == pieces[list[j]].normalized;
-                if same_words || values::same(vocabulary, shape, value(i), value(j)) {
+                let same = match (closed(i), closed(j)) {
+                    (Some(a), Some(b)) => a.0 == b.0,
+                    _ => same_words || values::same(vocabulary, shape, value(i), value(j)),
+                };
+                if same {
                     group[i] = j;
                     break;
                 }
@@ -518,8 +576,23 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, decided: &
             members.entry(*g).or_default().push(i);
         }
         for list_of in members.values() {
-            let shown = values::fullest(list_of.iter().map(|&i| value(i))).unwrap_or_default().trim().to_string();
-            let normalized = quote::words(&shown).join(" ");
+            // A value of a closed list: the word of it its pieces write
+            // most, keyed by the value of the list.
+            let (shown, normalized) = match closed(list_of[0]) {
+                Some((id, _)) => {
+                    let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
+                    for &i in list_of {
+                        *counts.entry(closed(i).map_or("", |c| c.1.as_str())).or_default() += 1;
+                    }
+                    let word = counts.into_iter().max_by(|a, b| a.1.cmp(&b.1).then_with(|| b.0.cmp(a.0))).map(|(w, _)| w.to_string());
+                    (word.unwrap_or_default(), id.clone())
+                }
+                None => {
+                    let shown = values::fullest(list_of.iter().map(|&i| value(i))).unwrap_or_default().trim().to_string();
+                    let normalized = quote::words(&shown).join(" ");
+                    (shown, normalized)
+                }
+            };
             for &i in list_of {
                 written_as.insert(pieces[list[i]].id, (shown.clone(), normalized.clone()));
             }

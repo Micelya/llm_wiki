@@ -715,6 +715,12 @@ pub struct Predicate {
     /// proceeding): values of different kinds are not in conflict.
     #[serde(default)]
     pub qualifiers: Vec<Qualifier>,
+    /// The only values it takes (a marital status), each with the words
+    /// that say it (the feminine and the masculine alike): a value with
+    /// none of them is not a claim of it, and two values with words of the
+    /// same one are one claim (D-516).
+    #[serde(default)]
+    pub closed_values: Vec<ClosedValue>,
     /// A relation whose object must be named in the quote, not only the
     /// subject: what has legal consequences (represents, is a party, is
     /// the beneficial owner of) is kept only when the quote says of whom.
@@ -824,7 +830,32 @@ pub struct Qualifier {
     pub words: Vec<String>,
 }
 
+/// One of the values of a closed list (`closedValues`): its canonical id
+/// and the words that say it (normalized; one or several in a row).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClosedValue {
+    pub id: String,
+    #[serde(default)]
+    pub words: Vec<String>,
+}
+
 impl Predicate {
+    /// The value of the closed list a value says, with the word of it the
+    /// value writes (the first of the list when it writes several of one):
+    /// the first value whose words the value has; none when it has the words
+    /// of none, or of two different values ("soltero y casado").
+    pub fn closed_value(&self, value: &str) -> Option<(&ClosedValue, String)> {
+        let words = super::quote::words(value);
+        let mut found: Vec<(&ClosedValue, String)> = Vec::new();
+        for closed in &self.closed_values {
+            if let Some(word) = closed.words.iter().find(|w| name_has(&words, std::slice::from_ref(*w))) {
+                found.push((closed, word.clone()));
+            }
+        }
+        (found.len() == 1).then(|| found.remove(0))
+    }
+
     pub fn takes_entity(&self) -> bool {
         self.object == "entity"
     }

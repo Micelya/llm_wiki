@@ -86,6 +86,8 @@ mod tests_survive;
 mod tests_reading;
 #[cfg(test)]
 mod tests_quality;
+#[cfg(test)]
+mod tests_repeated;
 pub mod vocabulary;
 
 use std::collections::BTreeMap;
