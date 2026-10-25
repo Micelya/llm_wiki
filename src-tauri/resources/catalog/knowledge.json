@@ -10,7 +10,7 @@
       "description": "Una persona jurídica u organización: una sociedad, una empresa, un estudio jurídico, un organismo público, un banco, un juzgado. Cada forma societaria es una organización distinta salvo que el documento diga que es la misma: una sociedad anónima y una sociedad extranjera con el mismo nombre comercial son dos organizaciones."
     },
     {
-      "id": "asunto", "label": "Asunto",
+      "id": "asunto", "label": "Caso",
       "description": "Un asunto jurídico con identidad propia: un expediente judicial o administrativo, un reclamo, un contrato marco o un acuerdo al que otros documentos se refieren. No es un asunto un tema general ni una cláusula."
     }
   ],
@@ -215,7 +215,7 @@
       "saysMoreOne": "Hay un dato más de los documentos, con su cita, en «Datos y correcciones».",
       "conflicts": "Datos en los que los documentos difieren",
       "documents": "Documentos",
-      "withoutMatter": "Sin asunto identificado",
+      "withoutMatter": "Sin caso identificado",
       "related": "Relacionados",
       "inCommon": "documentos en común",
       "inCommonOne": "documento en común",
@@ -229,7 +229,7 @@
       "documentsWord": "documentos",
       "kept": "Esta página ya no se arma desde los documentos: la entidad dejó el registro. Se conserva por las notas que tiene.",
       "keptMerged": "Esta página ya no se arma desde los documentos: la entidad se unió con",
-      "sourceBlock": "Personas, organizaciones y asuntos",
+      "sourceBlock": "Personas, organizaciones y casos",
       "sourceBlockMark": "la app rehace este bloque",
       "overviewTitle": "Resumen del archivo",
       "overviewIntro": "Lo que el registro sabe del archivo, armado por la app desde los documentos.",
@@ -240,21 +240,21 @@
       "overviewMatters": "Casos",
       "within": "en",
       "or": "o",
-      "matterBetween": "Asunto entre",
-      "matterUnnamed": "Asunto sin nombre",
+      "matterBetween": "Caso entre",
+      "matterUnnamed": "Caso sin nombre",
       "matterParties": "Partes y personas",
       "matterWhy": "Por qué estos documentos van juntos",
-      "matterFacts": "Lo que dicen los documentos del asunto",
-      "matterThis": "este asunto",
+      "matterFacts": "Lo que dicen los documentos del caso",
+      "matterThis": "este caso",
       "writtenAs": "Escrito como",
       "matterNamed": "Se lo nombra como",
       "matterSameDocument": "unido por una persona como",
-      "matterSameMatter": "nombran el mismo asunto",
+      "matterSameMatter": "nombran el mismo caso",
       "matterSameNumber": "comparten el número",
       "matterSameAmount": "comparten el importe",
-      "matterByPerson": "una persona decidió que son del mismo asunto",
-      "matterOf": "Asunto",
-      "matterProposed": "Posiblemente de este asunto",
+      "matterByPerson": "una persona decidió que son del mismo caso",
+      "matterOf": "Caso",
+      "matterProposed": "Posiblemente de este caso",
       "matterProposedNote": "sin confirmar: una persona los confirma o los descarta en «Datos y correcciones»",
       "proposed": "propuesto",
       "relations": "Vínculos",
@@ -311,8 +311,8 @@
       "rel-reply-to": "responde a",
       "rel-signing-certificate-of": "es la constancia de firma de",
       "rel-delivery-receipt-of": "es el acuse de recibo de",
-      "rel-same-matter": "mismo asunto",
-      "rel-same-person-other-matter": "misma persona, otro asunto"
+      "rel-same-matter": "mismo caso",
+      "rel-same-person-other-matter": "misma persona, otro caso"
     }
   },
   "matters": {

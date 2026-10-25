@@ -44,7 +44,7 @@ fn tokens(body: &str) -> Vec<Token> {
             for piece in line.split_whitespace() {
                 let text = piece.trim_matches(|c: char| !(c.is_alphanumeric() || c == '$' || c == '%')).to_string();
                 let words: Vec<String> = normalized(piece).split(' ').filter(|w| !w.is_empty()).map(str::to_string).collect();
-                out.push(Token { raw: Raw { text, sentence_start: first }, line: line_index, words });
+                out.push(Token { raw: Raw { text, sentence_start: first, numbering: false }, line: line_index, words });
                 first = false;
             }
         }

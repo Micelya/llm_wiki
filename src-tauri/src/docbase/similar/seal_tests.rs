@@ -280,6 +280,81 @@ fn byte_ranges_and_pdf_dates_are_read() {
     assert_eq!(pdf_date("ayer"), None);
 }
 
+#[test]
+fn the_signatures_of_the_documents_a_file_was_put_together_from_are_told_apart() {
+    // A file put together from signed documents and then signed whole:
+    // the envelopes of the documents are not where their signatures say.
+    let whole = SealCheck { state: "valid".into(), covers: "file".into(), ..Default::default() };
+    let signatures: Vec<PdfSignature> = [whole, SealCheck::failed("modified", "byte-range"), SealCheck::failed("modified", "byte-range"), SealCheck::failed("invalid", "signature")]
+        .into_iter()
+        .map(|check| PdfSignature { check: Some(check), ..Default::default() })
+        .collect();
+    let found = verdict(&catalog_pinning("00"), &signatures).unwrap();
+    assert_eq!((found.state.as_str(), found.joined, found.failing), ("valid-unknown", 2, 1));
+    // Without a signature of the whole file, it changed after signing.
+    let found = verdict(&catalog_pinning("00"), &signatures[1..]).unwrap();
+    assert_eq!((found.state.as_str(), found.joined, found.failing), ("modified", 0, 3));
+}
+
+/// A stand-in random source for the RSA test key and its salt.
+struct Counter(u64);
+
+impl rsa::rand_core::RngCore for Counter {
+    fn next_u32(&mut self) -> u32 {
+        self.next_u64() as u32
+    }
+    fn next_u64(&mut self) -> u64 {
+        self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.0 ^ (self.0 >> 33)
+    }
+    fn fill_bytes(&mut self, dest: &mut [u8]) {
+        for chunk in dest.chunks_mut(8) {
+            let value = self.next_u64().to_le_bytes();
+            chunk.copy_from_slice(&value[..chunk.len()]);
+        }
+    }
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rsa::rand_core::Error> {
+        self.fill_bytes(dest);
+        Ok(())
+    }
+}
+
+impl rsa::rand_core::CryptoRng for Counter {}
+
+#[test]
+fn an_rsa_pss_signature_verifies_with_its_hash_and_salt() {
+    use rsa::pkcs8::EncodePublicKey;
+    let mut rng = Counter(7);
+    let private = rsa::RsaPrivateKey::new(&mut rng, 1024).unwrap();
+    let spki = private.to_public_key().to_public_key_der().unwrap();
+    let key = SubjectPublicKeyInfoOwned::from_der(spki.as_bytes()).unwrap();
+    let message: &[u8] = b"lo que se firma";
+    let digest = Sha256::digest(message);
+    let signature = private.sign_with_rng(&mut rng, rsa::Pss::new_with_salt::<Sha256>(32), &digest).unwrap();
+    // SHA-256 for the message and the mask, a salt of 32 bytes.
+    let sha256 = [0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01, 0x05, 0x00];
+    let sha1 = [0x30, 0x09, 0x06, 0x05, 0x2b, 0x0e, 0x03, 0x02, 0x1a, 0x05, 0x00];
+    let mgf1 = [0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x08];
+    let parameters = |mask: &[u8]| {
+        let mut mask_part = vec![0x30, (mgf1.len() + mask.len()) as u8];
+        mask_part.extend_from_slice(&mgf1);
+        mask_part.extend_from_slice(mask);
+        let mut body = vec![0xa0, sha256.len() as u8];
+        body.extend_from_slice(&sha256);
+        body.extend_from_slice(&[0xa1, mask_part.len() as u8]);
+        body.extend_from_slice(&mask_part);
+        body.extend_from_slice(&[0xa2, 0x03, 0x02, 0x01, 0x20]);
+        let mut out = vec![0x30, body.len() as u8];
+        out.extend_from_slice(&body);
+        AlgorithmIdentifierOwned { oid: OID_PSS, parameters: Some(der::Any::from_der(&out).unwrap()) }
+    };
+    let pss = parameters(&sha256);
+    assert_eq!(verify(&pss, None, &key, &[message], &signature), Verified::Yes);
+    assert_eq!(verify(&pss, None, &key, &[b"otra cosa"], &signature), Verified::No);
+    // A mask with another hash is not read.
+    assert_eq!(verify(&parameters(&sha1), None, &key, &[message], &signature), Verified::Unknown);
+}
+
 /// The PDFs of a base (a copy, `MICELYA_DOCBASE_COPY`) or of folders
 /// (`MICELYA_DOCBASE_CHECK`, separated by `;`): how many are signed, how
 /// many verify and whose seal they are. Only numbers, and the
@@ -352,6 +427,20 @@ fn signatures_of_real_pdfs() {
             Some(v) => count(format!("pdf verdict: {} {}{}", v.state, v.service.unwrap_or_default(), if v.later_validation { " +validation" } else { "" })),
             None => count("pdf verdict: none".into()),
         }
+        // A file whose envelopes are not where their signatures say (P-337):
+        // where its ranges end against its length, and what made it.
+        if signatures.iter().any(|s| s.check.as_ref().is_some_and(|c| c.problem.as_deref() == Some("byte-range"))) {
+            let bytes = std::fs::read(path).unwrap_or_default();
+            let ends: Vec<usize> = byte_ranges(&bytes).iter().map(|r| r[2] + r[3]).collect();
+            let valid = signatures.iter().filter(|s| s.check.as_ref().is_some_and(|c| c.is_valid())).count();
+            count(format!("byte-range file: {} ranges readable for {} signatures, {valid} valid", ends.len(), signatures.len()));
+            count(format!(
+                "byte-range file: a range ends at its end {}, beyond it {}",
+                ends.iter().any(|&e| e == bytes.len()),
+                ends.iter().any(|&e| e > bytes.len())
+            ));
+            count(format!("byte-range file: made by {}", producer_of(path)));
+        }
         for signature in &signatures {
             let Some(found) = &signature.check else { continue };
             count(format!("signature: {} {} covers={}", found.state, found.problem.clone().unwrap_or_default(), found.covers));
@@ -374,6 +463,16 @@ fn signatures_of_real_pdfs() {
     for (fingerprint, (what, n)) in &tops {
         println!("   {fingerprint} {what}: {n}");
     }
+}
+
+/// What made a PDF, as its producer and creator say.
+fn producer_of(path: &std::path::Path) -> String {
+    use pdfium_render::prelude::PdfDocumentMetadataTagType as Tag;
+    let _guard = crate::commands::fs::lock_pdfium();
+    let Ok(pdfium) = crate::commands::fs::pdfium() else { return String::new() };
+    let Ok(doc) = pdfium.load_pdf_from_file(path, None) else { return String::new() };
+    let tag = |t: Tag| doc.metadata().get(t).map(|m| m.value().to_string()).unwrap_or_default();
+    format!("{} | {}", tag(Tag::Producer), tag(Tag::Creator)).to_lowercase()
 }
 
 /// The names of the certificate with this fingerprint, in the envelopes

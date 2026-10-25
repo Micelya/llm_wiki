@@ -39,6 +39,11 @@ interface NavigationHistoryState {
   restoredTab: { view: View; subject: string | number; tab: DetailTab } | null
   /** Records where the person is now as a new step, unless she is already there. */
   record: (place: PlaceRef) => void
+  /**
+   * Puts where the person is now in place of the step she is on: what a
+   * screen changes by itself after her click belongs to that click's step.
+   */
+  replace: (place: PlaceRef) => void
   /** Remembers the tab chosen on the step the person is on. */
   noteTab: (place: PlaceRef, tab: DetailTab) => void
   back: () => Promise<void>
@@ -82,6 +87,19 @@ export function setPlaceResolver(next: PlaceResolver | null) {
 let generation = 0
 let moving = false
 
+/** Whether the person did something (a click, a key) since the last step. */
+let personActed = false
+
+/**
+ * Tells the history the person did something: the next change of place
+ * is hers, a new step. A change that comes without one (a screen that
+ * opens or closes something by itself after the click, an answer that
+ * arrives later) updates the step she is on instead of adding another.
+ */
+export function notePersonAction() {
+  personActed = true
+}
+
 export const useNavigationHistoryStore = create<NavigationHistoryState>((set, get) => {
   async function go(direction: -1 | 1) {
     if (moving) return
@@ -109,6 +127,9 @@ export const useNavigationHistoryStore = create<NavigationHistoryState>((set, ge
           restoredTab: step.subject !== null && step.tab !== null ? { view: step.view, subject: step.subject, tab: step.tab } : null,
         })
         applyPlace(step)
+        // The click or key that moved the history is spent: what the screen
+        // changes by itself now belongs to the step it returned to.
+        personActed = false
         return
       }
       generation++
@@ -130,6 +151,18 @@ export const useNavigationHistoryStore = create<NavigationHistoryState>((set, ge
       const trimmed = kept.length > HISTORY_LIMIT ? kept.slice(kept.length - HISTORY_LIMIT) : kept
       generation++
       set({ entries: trimmed, index: trimmed.length - 1, restoredTab: null })
+    },
+    replace: (place) => {
+      const { entries, index } = get()
+      if (index < 0) return get().record(place)
+      if (samePlace(place, entries[index])) return
+      // The steps ahead stay: it is still the step she is on, only changed.
+      const step: Place = { view: place.view, subject: place.subject, tab: null }
+      const merged = samePlace(step, entries[index - 1])
+      // It became the step before: one step, not two equal ones in a row.
+      const kept = merged ? entries.filter((_, at) => at !== index) : entries.map((entry, at) => (at === index ? step : entry))
+      generation++
+      set({ entries: kept, index: merged ? index - 1 : index, restoredTab: null })
     },
     noteTab: (place, tab) => {
       const { entries, index } = get()
@@ -156,15 +189,26 @@ export function restoredTabFor(place: PlaceRef): DetailTab | null {
  * Starts recording the way: every change of screen or of what is open in
  * it becomes a step. The changes one click makes (open a person, then
  * show her screen) are one step: the place is read once they are all done.
+ * With `stepsByAction` (the app), only a change the person caused is a new
+ * step: one a screen makes by itself later, without a click or a key in
+ * between, updates the step she is on, so one «Atrás» undoes one click
+ * whatever the screen does after it.
  */
-export function startNavigationHistory(): () => void {
+export function startNavigationHistory({ stepsByAction = false }: { stepsByAction?: boolean } = {}): () => void {
   let pending = false
+  personActed = false
   const schedule = () => {
     if (pending) return
     pending = true
     queueMicrotask(() => {
       pending = false
-      useNavigationHistoryStore.getState().record(currentPlace())
+      const history = useNavigationHistoryStore.getState()
+      const place = currentPlace()
+      if (samePlace(place, history.entries[history.index])) return
+      if (!stepsByAction || personActed) {
+        personActed = false
+        history.record(place)
+      } else history.replace(place)
     })
   }
   const stops = [useWikiStore.subscribe(schedule), useKnowledgeStore.subscribe(schedule), useDocbaseStore.subscribe(schedule)]

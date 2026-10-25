@@ -117,6 +117,28 @@ pub struct Raw {
     /// It opens a sentence or a paragraph: a capital letter there says
     /// nothing about a name.
     pub sentence_start: bool,
+    /// The number of a paragraph or a clause at the start of a line
+    /// ("4.2.", "12)"): structure of the text, not a datum. A Word file
+    /// may not write its automatic numbering and its PDF does (D-521).
+    pub numbering: bool,
+}
+
+/// A paragraph's or a clause's number as written ("4.2.", "2.4.1.",
+/// "12)", "(3)", "1.-", "1º)"): numbers of up to three digits joined by
+/// dots, the ones after the first of up to two (so "1.234." is an
+/// amount), closed by a dot or a parenthesis.
+pub fn is_numbering(token: &str) -> bool {
+    let token = token.strip_prefix('(').unwrap_or(token);
+    let core_end = token.find(|c: char| !(c.is_ascii_digit() || c == '.')).unwrap_or(token.len());
+    let (core, suffix) = token.split_at(core_end);
+    let groups = core.strip_suffix('.').unwrap_or(core);
+    let closed = groups.len() < core.len() || suffix.starts_with(')') || suffix.starts_with('º') || suffix.starts_with('°');
+    let mut parts = groups.split('.');
+    let first_ok = parts.next().is_some_and(|g| (1..=3).contains(&g.len()) && g.chars().all(|c| c.is_ascii_digit()));
+    first_ok
+        && parts.all(|g| (1..=2).contains(&g.len()) && g.chars().all(|c| c.is_ascii_digit()))
+        && closed
+        && suffix.chars().all(|c| matches!(c, ')' | '.' | '-' | 'º' | '°'))
 }
 
 /// The text of a document as compared.
@@ -181,6 +203,7 @@ impl Prepared {
             prepared.raws.push(Raw {
                 text: trim_token(raw).to_string(),
                 sentence_start: gap == Gap::Paragraph || sentence_ended,
+                numbering: gap != Gap::Space && is_numbering(raw),
             });
             each_word(raw, |word, _| {
                 prepared.words.push(Word {
@@ -278,6 +301,19 @@ mod tests {
         let prepared = Prepared::new(&pages(text), &[1], &[padded("Envelope Id")]);
         let keys: Vec<&str> = prepared.words.iter().map(|w| w.key.as_str()).collect();
         assert_eq!(keys, ["texto", "del", "contrato"]);
+    }
+
+    #[test]
+    fn a_number_that_opens_a_line_is_numbering() {
+        for yes in ["4.2.", "2.4.1.", "12)", "(3)", "1.-", "1º)", "10.12."] {
+            assert!(is_numbering(yes), "{yes}");
+        }
+        for no in ["4.2", "1.234.", "15", "12.345.678,", "$", "a)", "2026.", "1.234,56", "3,"] {
+            assert!(!is_numbering(no), "{no}");
+        }
+        let prepared = Prepared::new(&pages("4.2. El plazo es de\n10.12. días y vence el 4.2."), &[], &[]);
+        let numbering: Vec<bool> = prepared.raws.iter().map(|r| r.numbering).collect();
+        assert_eq!(numbering, [true, false, false, false, false, true, false, false, false, false, false]);
     }
 
     #[test]

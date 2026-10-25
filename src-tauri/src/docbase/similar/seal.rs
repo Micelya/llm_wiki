@@ -10,7 +10,7 @@
 //! - hashes those bytes and compares with the digest the envelope signed
 //!   (a byte changed after signing shows here);
 //! - verifies the signature with the signer's certificate (RSA PKCS #1
-//!   v1.5 or ECDSA P-256, SHA-1/256/384/512);
+//!   v1.5 or PSS, or ECDSA P-256, SHA-1/256/384/512);
 //! - walks the certificates of the envelope up from the signer, each
 //!   verified by the next, and keeps their SHA-256 fingerprints.
 //!
@@ -26,7 +26,7 @@ use der::{Decode, Encode};
 use rsa::pkcs1::DecodeRsaPublicKey;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256, Sha384, Sha512};
-use x509_cert::spki::SubjectPublicKeyInfoOwned;
+use x509_cert::spki::{AlgorithmIdentifierOwned, SubjectPublicKeyInfoOwned};
 use x509_cert::Certificate;
 
 use super::super::{sql_err, DocBase};
@@ -100,10 +100,14 @@ pub struct SealVerdict {
     /// Long-term validation data was added after the signature.
     #[serde(default)]
     pub later_validation: bool,
-    /// Other signatures it brings that do not verify (made on another
-    /// file, before this one was put together).
+    /// Other signatures it brings that do not verify.
     #[serde(default)]
     pub failing: usize,
+    /// Of an intact file, the signatures whose envelope is not where they
+    /// say: the ones of the signed documents it was put together from,
+    /// which speak of each original file (P-337). Not counted in `failing`.
+    #[serde(default)]
+    pub joined: usize,
 }
 
 /// The signing service of the catalog whose seal this is: its chain
@@ -138,6 +142,7 @@ pub fn verdict(catalog: &Catalog, signatures: &[PdfSignature]) -> Option<SealVer
         return None;
     }
     let failing = checks.iter().filter(|c| c.state == "modified" || c.state == "invalid").count();
+    let joined = checks.iter().filter(|c| c.state == "modified" && c.problem.as_deref() == Some("byte-range")).count();
     let plain = |state: &str| SealVerdict {
         state: state.to_string(),
         service: None,
@@ -145,6 +150,7 @@ pub fn verdict(catalog: &Catalog, signatures: &[PdfSignature]) -> Option<SealVer
         signed_at: None,
         later_validation: false,
         failing,
+        joined: 0,
     };
     let covering: Vec<&&SealCheck> = checks.iter().filter(|c| c.is_valid() && c.covers_file()).collect();
     // The seal of a known service first.
@@ -171,7 +177,8 @@ pub fn verdict(catalog: &Catalog, signatures: &[PdfSignature]) -> Option<SealVer
         service_name: service.map(|v| v.issuer.clone()).filter(|name| !name.is_empty()),
         signed_at: chosen.signed_at.clone(),
         later_validation: chosen.covers == "file-and-validation",
-        failing,
+        failing: failing - joined,
+        joined,
     })
 }
 
@@ -302,7 +309,7 @@ pub fn check_envelope(cms: &[u8], signed: &[&[u8]]) -> SealCheck {
     };
     let signer_cert = &certificates[signer_index].0;
     match verify(
-        &signer.signature_algorithm.oid,
+        &signer.signature_algorithm,
         Some(hash),
         &signer_cert.tbs_certificate.subject_public_key_info,
         &message,
@@ -369,6 +376,8 @@ const OID_MESSAGE_DIGEST: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.8
 const OID_SIGNING_TIME: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.113549.1.9.5");
 const OID_SUBJECT_KEY_ID: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.5.29.14");
 const OID_RSA: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.113549.1.1.1");
+const OID_PSS: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.113549.1.1.10");
+const OID_MGF1: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.113549.1.1.8");
 const OID_EC_KEY: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.10045.2.1");
 const OID_P256: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.10045.3.1.7");
 const OID_CN: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.5.4.3");
@@ -409,6 +418,15 @@ impl Hash {
         }
     }
 
+    fn pss(self, salt: usize) -> rsa::Pss {
+        match self {
+            Self::Sha1 => rsa::Pss::new_with_salt::<sha1::Sha1>(salt),
+            Self::Sha256 => rsa::Pss::new_with_salt::<Sha256>(salt),
+            Self::Sha384 => rsa::Pss::new_with_salt::<Sha384>(salt),
+            Self::Sha512 => rsa::Pss::new_with_salt::<Sha512>(salt),
+        }
+    }
+
     fn pkcs1v15(self) -> rsa::Pkcs1v15Sign {
         match self {
             Self::Sha1 => rsa::Pkcs1v15Sign::new::<sha1::Sha1>(),
@@ -429,8 +447,18 @@ enum Verified {
 
 /// Verifies a signature over `message` (its parts, in order). `hash` is
 /// the digest when the algorithm does not name it (`rsaEncryption`).
-fn verify(algorithm: &ObjectIdentifier, hash: Option<Hash>, key: &SubjectPublicKeyInfoOwned, message: &[&[u8]], signature: &[u8]) -> Verified {
-    let (named_hash, family) = match algorithm.to_string().as_str() {
+fn verify(algorithm: &AlgorithmIdentifierOwned, hash: Option<Hash>, key: &SubjectPublicKeyInfoOwned, message: &[&[u8]], signature: &[u8]) -> Verified {
+    let mut salt = None;
+    let (named_hash, family) = match algorithm.oid.to_string().as_str() {
+        // RSA-PSS (RFC 4055): the hash and the salt length are its
+        // parameters; the mask uses the same hash, or it is not read.
+        "1.2.840.113549.1.1.10" => match pss_parameters(algorithm.parameters.as_ref()) {
+            Some((pss_hash, length)) => {
+                salt = Some(length);
+                (Some(pss_hash), "rsa")
+            }
+            None => return Verified::Unknown,
+        },
         "1.2.840.113549.1.1.1" => (None, "rsa"),
         "1.2.840.113549.1.1.5" => (Some(Hash::Sha1), "rsa"),
         "1.2.840.113549.1.1.11" => (Some(Hash::Sha256), "rsa"),
@@ -452,11 +480,15 @@ fn verify(algorithm: &ObjectIdentifier, hash: Option<Hash>, key: &SubjectPublicK
         return Verified::No;
     };
     match family {
-        "rsa" if key.algorithm.oid == OID_RSA => {
+        "rsa" if key.algorithm.oid == OID_RSA || key.algorithm.oid == OID_PSS => {
             let Ok(public) = rsa::RsaPublicKey::from_pkcs1_der(key_bytes) else {
                 return Verified::No;
             };
-            if public.verify(hash.pkcs1v15(), prehashed, signature).is_ok() {
+            let verified = match salt {
+                Some(length) => public.verify(hash.pss(length), prehashed, signature),
+                None => public.verify(hash.pkcs1v15(), prehashed, signature),
+            };
+            if verified.is_ok() {
                 Verified::Yes
             } else {
                 Verified::No
@@ -498,7 +530,42 @@ fn certificate_signed_by(child: &(Certificate, &[u8]), issuer: &Certificate) -> 
     let Some(signature) = child.0.signature.as_bytes() else {
         return Verified::No;
     };
-    verify(&child.0.signature_algorithm.oid, None, &issuer.tbs_certificate.subject_public_key_info, &[tbs.whole], signature)
+    verify(&child.0.signature_algorithm, None, &issuer.tbs_certificate.subject_public_key_info, &[tbs.whole], signature)
+}
+
+/// The hash and the salt length of an RSA-PSS signature (RFC 4055), SHA-1
+/// and 20 bytes when not said. None when its mask uses another hash or
+/// another function, or its trailer is not the usual one.
+fn pss_parameters(parameters: Option<&der::Any>) -> Option<(Hash, usize)> {
+    let algorithm = |field: &Tlv<'_>| -> Option<ObjectIdentifier> {
+        let first = children(field.value)?.into_iter().next()?;
+        ObjectIdentifier::from_der(first.whole).ok()
+    };
+    let integer = |field: &Tlv<'_>| -> Option<usize> {
+        (field.tag == 0x02 && field.value.len() <= 4).then(|| field.value.iter().fold(0usize, |n, b| (n << 8) | *b as usize))
+    };
+    let (mut hash, mut mask, mut salt) = (Hash::Sha1, Hash::Sha1, 20);
+    if let Some(any) = parameters {
+        let bytes = any.to_der().ok()?;
+        let (outer, _) = tlv(&bytes)?;
+        for field in children(outer.value)? {
+            let (inner, _) = tlv(field.value)?;
+            match field.tag {
+                0xA0 => hash = Hash::of(&algorithm(&inner)?)?,
+                0xA1 => {
+                    let parts = children(inner.value)?;
+                    if ObjectIdentifier::from_der(parts.first()?.whole).ok()? != OID_MGF1 {
+                        return None;
+                    }
+                    mask = Hash::of(&algorithm(parts.get(1)?)?)?;
+                }
+                0xA2 => salt = integer(&inner)?,
+                0xA3 if integer(&inner)? == 1 => {}
+                _ => return None,
+            }
+        }
+    }
+    (hash == mask).then_some((hash, salt))
 }
 
 fn is_signer(cert: &Certificate, sid: &cms::signed_data::SignerIdentifier) -> bool {

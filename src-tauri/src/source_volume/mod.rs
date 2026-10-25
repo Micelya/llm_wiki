@@ -9,6 +9,8 @@
 pub mod asking;
 pub mod catalog;
 pub mod file_hash;
+// The shape of each page of a PDF, which decides what is recognized (P-320).
+pub mod page_shape;
 mod provider;
 // The engine that recognizes the text of scans and images, which the base
 // runs by itself (`docbase::recognize`, P-242); parts of it are kept for

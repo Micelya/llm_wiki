@@ -1,6 +1,6 @@
 import { useEffect } from "react"
 import { resolvePlace } from "@/lib/navigation-places"
-import { setPlaceResolver, startNavigationHistory, useNavigationHistoryStore } from "@/stores/navigation-history-store"
+import { notePersonAction, setPlaceResolver, startNavigationHistory, useNavigationHistoryStore } from "@/stores/navigation-history-store"
 
 /** Whether the person is writing: there Alt+← and Alt+→ are left to the field. */
 function isWriting(target: EventTarget | null): boolean {
@@ -25,7 +25,10 @@ const MOUSE_FORWARD = 4
 export function useNavigationHistory() {
   useEffect(() => {
     setPlaceResolver(resolvePlace)
-    const stop = startNavigationHistory()
+    const stop = startNavigationHistory({ stepsByAction: true })
+    // A click or a key of the person: what it changes is a new step; what a
+    // screen changes by itself afterwards stays in that step (P-332).
+    const onAction = () => notePersonAction()
     const history = () => useNavigationHistoryStore.getState()
 
     const onKey = (event: KeyboardEvent) => {
@@ -45,10 +48,14 @@ export function useNavigationHistory() {
       void (event.button === MOUSE_BACK ? history().back() : history().forward())
     }
 
+    window.addEventListener("pointerdown", onAction, true)
+    window.addEventListener("keydown", onAction, true)
     window.addEventListener("keydown", onKey)
     window.addEventListener("mousedown", onMouseDown)
     window.addEventListener("mouseup", onMouseUp)
     return () => {
+      window.removeEventListener("pointerdown", onAction, true)
+      window.removeEventListener("keydown", onAction, true)
       window.removeEventListener("keydown", onKey)
       window.removeEventListener("mousedown", onMouseDown)
       window.removeEventListener("mouseup", onMouseUp)

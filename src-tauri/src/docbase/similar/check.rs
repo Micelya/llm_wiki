@@ -499,6 +499,9 @@ const GENERIC: &[&str] = &[
     // A word of any written text (22 oct: "the documentation of Tauri" in a
     // design note).
     "documentacion",
+    // Words of civil records and of any court filing (25 oct: the design of
+    // composite documents speaks of birth and death records in general).
+    "partida", "partidas", "nacimiento", "defuncion", "certificacion", "apertura", "cumple", "digitalizacion",
 ];
 
 /// Words the program uses for its own reasons that a case happens to share:

@@ -2079,14 +2079,14 @@
       "titulo": "Decir «caso» y no «asunto» también en el texto de las páginas y en el tipo «Asunto»",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "hecho",
       "prioridad": 2,
       "tema": "pantallas",
-      "detalle": "La maqueta aprobada pide un solo nombre, «Casos» (D-493). La interfaz ya lo dice (D-507), pero el texto que escribe la app en las páginas de los casos y el tipo «Asunto» siguen diciendo «asunto». Cambiarlo reescribe páginas y puede pedir resúmenes al modelo: hacerlo con el dueño presente y avisando el cupo. 2026-10-23: Textos que siguen diciendo «asunto» porque los escribe la app en las páginas: «Sin asunto identificado», «nombran el mismo asunto», el tipo «Asunto» de la primera línea y «Asunto: 2» en el resumen de Inicio (D-508).",
+      "detalle": "La maqueta aprobada pide un solo nombre, «Casos» (D-493). La interfaz ya lo dice (D-507), pero el texto que escribe la app en las páginas de los casos y el tipo «Asunto» siguen diciendo «asunto». Cambiarlo reescribe páginas y puede pedir resúmenes al modelo: hacerlo con el dueño presente y avisando el cupo. 2026-10-23: Textos que siguen diciendo «asunto» porque los escribe la app en las páginas: «Sin asunto identificado», «nombran el mismo asunto», el tipo «Asunto» de la primera línea y «Asunto: 2» en el resumen de Inicio (D-508). 2026-10-25: Hecho en la corrida desatendida (D-526): las palabras de las páginas y el nombre del tipo dicen «caso» desde el vocabulario (knowledge.json): «Sin caso identificado», «este caso», «nombran el mismo caso», «Caso entre», «Caso sin nombre», «Lo que dicen los documentos del caso», «Posiblemente de este caso», «mismo caso», y el tipo «Caso» en la primera línea de la página y en el resumen de Inicio. Quedan como estaban, a propósito (D-377): el papel de la referencia dentro de un documento («asunto del documento») y las descripciones que usa la lectura, para no releer los documentos. Las páginas se reescriben solas sin el modelo; las síntesis de personas y organizaciones no cambian por esto.",
       "depende_de": [],
       "referencia": "D-493; D-507",
       "creado": "2026-10-23",
-      "actualizado": "2026-10-23"
+      "actualizado": "2026-10-25"
     },
     {
       "id": "P-314",
@@ -2179,16 +2179,16 @@
       "titulo": "Ficha de forma por página: reemplazar la prueba de los 80 caracteres por señales de la página",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "hecho",
       "prioridad": 1,
       "tema": "reconocimiento",
-      "detalle": "Hoy una página de PDF «tiene texto» si tiene 80 caracteres (textless_pages, MIN_PAGE_TEXT_CHARS). Falla con el pie que el PJN estampa en cada página y con capas de texto viejas y ruidosas, así que hay páginas escaneadas que nunca se leen. Propuesta de la investigación del 23 oct: decidir página por página con señales de pdfium. Las señales: texto propio sin contar lo repetido en todas las páginas, imagen que cubre la página, calidad del texto (letras sueltas, palabras pegadas), grupos de objetos agregados encima (formularios aplanados), productor. Las señales van al catálogo. Después, volver a leer lo que aparezca, con cupo y avisando antes. Es lo recomendado primero, pero espera la decisión del dueño (P-319, P-321). 2026-10-24: La prueba de Docling agrega una señal: la capa de texto vieja se detecta por la proporción de letras sueltas, no por el texto invisible (esa capa está escrita como texto visible tapado por la imagen).",
+      "detalle": "Hoy una página de PDF «tiene texto» si tiene 80 caracteres (textless_pages, MIN_PAGE_TEXT_CHARS). Falla con el pie que el PJN estampa en cada página y con capas de texto viejas y ruidosas, así que hay páginas escaneadas que nunca se leen. Propuesta de la investigación del 23 oct: decidir página por página con señales de pdfium. Las señales: texto propio sin contar lo repetido en todas las páginas, imagen que cubre la página, calidad del texto (letras sueltas, palabras pegadas), grupos de objetos agregados encima (formularios aplanados), productor. Las señales van al catálogo. Después, volver a leer lo que aparezca, con cupo y avisando antes. Es lo recomendado primero, pero espera la decisión del dueño (P-319, P-321). 2026-10-24: La prueba de Docling agrega una señal: la capa de texto vieja se detecta por la proporción de letras sueltas, no por el texto invisible (esa capa está escrita como texto visible tapado por la imagen). 2026-10-25: Hecho en la corrida desatendida (n2, commits 0007d56 y 0021105, D-522 y D-523). Cada página de PDF tiene una ficha de forma hecha con pdfium y sin modelo (src-tauri/src/source_volume/page_shape.rs), con los umbrales en el catálogo (src-tauri/resources/catalog/page-shapes.json). La ficha reemplaza la prueba de los 80 caracteres en las lecturas nuevas: se leen los escaneos sin texto propio y los de capa vieja ruidosa, y lo leído reemplaza la capa vieja. Lo ya leído no se relee solo: Atención dice cuántas páginas escaneadas quedaron sin leer y ofrece «Leerlas». Contra la hoja de partes (134 páginas): forma 130, texto digital del archivo 131, en blanco o solo el pie 134. Sobre la base: 38 páginas sin leer en 2 documentos, como esperaba la medición del 24.",
       "depende_de": [
         "P-319"
       ],
       "referencia": "src-tauri/src/source_volume/recognition.rs; llm_wiki_mi/investigacion-formas-de-documento-resultado.md",
       "creado": "2026-10-23",
-      "actualizado": "2026-10-24"
+      "actualizado": "2026-10-25"
     },
     {
       "id": "P-321",
@@ -2197,13 +2197,13 @@
       "responsable": "usuario",
       "estado": "en-espera",
       "tema": "servicios de IA",
-      "detalle": "El dueño evalúa en serio (23 oct, no decidido) hacer en Desktop, o en un paquete o SDK de Micelya, todo lo que no necesite un modelo de lenguaje grande ni un servicio que no esté en el dispositivo. Incluye reconocer qué es cada archivo y cada página, leer formularios y tablas, reconocer escaneos impresos y documentos de identidad, partir documentos compuestos con reglas, leer correos y quizás transcribir audio. Lo que hizo Core para partir documentos no es definitivo. Insumos: llm_wiki_mi/investigacion-formas-de-documento-resultado.md (librerías y licencias: pdfium, Magika, RapidOCR, Docling; MinerU tiene modelos AGPL-3.0; los modelos de Surya se pagan por encima de US$ 5 millones) y la prueba de Docling en una sesión remota (P-322). 2026-10-24: Con la prueba de Docling: recomendado construir sobre pdfium (ficha de forma por página y lectura por posición) más RapidOCR en el dispositivo, sin Docling como programa; si hace falta ubicar regiones, su modelo de forma de página en ONNX (171 MB, Apache) desde Rust. El dueño decidió que lo manuscrito no se transcribe automáticamente (D-518). Próxima ronda: medir cómo se parten los documentos contra una hoja de respuestas (P-335).",
+      "detalle": "El dueño evalúa en serio (23 oct, no decidido) hacer en Desktop, o en un paquete o SDK de Micelya, todo lo que no necesite un modelo de lenguaje grande ni un servicio que no esté en el dispositivo. Incluye reconocer qué es cada archivo y cada página, leer formularios y tablas, reconocer escaneos impresos y documentos de identidad, partir documentos compuestos con reglas, leer correos y quizás transcribir audio. Lo que hizo Core para partir documentos no es definitivo. Insumos: llm_wiki_mi/investigacion-formas-de-documento-resultado.md (librerías y licencias: pdfium, Magika, RapidOCR, Docling; MinerU tiene modelos AGPL-3.0; los modelos de Surya se pagan por encima de US$ 5 millones) y la prueba de Docling en una sesión remota (P-322). 2026-10-24: Con la prueba de Docling: recomendado construir sobre pdfium (ficha de forma por página y lectura por posición) más RapidOCR en el dispositivo, sin Docling como programa; si hace falta ubicar regiones, su modelo de forma de página en ONNX (171 MB, Apache) desde Rust. El dueño decidió que lo manuscrito no se transcribe automáticamente (D-518). Próxima ronda: medir cómo se parten los documentos contra una hoja de respuestas (P-335). 2026-10-25: Medido el cortador de PDF compuestos (investigación c1, docs/investigacion/corte/informe.md): sobre 6 PDF (134 páginas, 80 cortes, 88 documentos), solo reglas sin modelo encuentran 78 % de los cortes con 84 % de precisión y dejan dudosos 47 de 128 pasos, en menos de 1 segundo; reglas más Codex solo en los dudosos encuentran 99 % (79 de 80) con 85 % de precisión y 72 de 88 documentos exactos, con 47 consultas (unos 4 minutos); Codex en todos los pasos da 96 % de precisión y 91 % de alcance con 128 consultas. Las reglas corren en el dispositivo; lo que falta es mirar el contenido en los pasos dudosos. 2026-10-25: Dato para el preprocesamiento en el dispositivo (e2): las relaciones entre documentos (pasada simple por tipo) y el control contra lo que anuncia un escrito no usan modelo; solo los cortes dudosos consultan a Codex (47 consultas en los seis PDF). Guion: docs/investigacion/corte/guiones/controles.py.",
       "depende_de": [
         "P-322"
       ],
       "referencia": "llm_wiki_mi/investigacion-formas-de-documento-resultado.md",
       "creado": "2026-10-23",
-      "actualizado": "2026-10-24"
+      "actualizado": "2026-10-25"
     },
     {
       "id": "P-322",
@@ -2323,14 +2323,14 @@
       "titulo": "Decir una sola vez el mismo expediente también en la página de la persona, y las referencias al caso sin número",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "hecho",
       "prioridad": 3,
       "tema": "conocimiento",
-      "detalle": "D-516 unificó en la página del caso lo que apunta a ese mismo caso. La página de la persona sigue listando cada forma escrita del expediente aparte, y las formas sin número ni título del caso («juicio sucesorio del Sr. …») quedan aparte. Además, la página dice «este asunto»: cambiarlo a «caso» es parte de P-313. 2026-10-24: Visto en el recorrido: en la página del caso, «Causante de: este asunto» aparece una sola vez, pero el expediente de otra sucesión que citan los documentos aparece tres veces, una por cada forma escrita. Extender la consolidación a la misma referencia de otro expediente (por número y año).",
+      "detalle": "D-516 unificó en la página del caso lo que apunta a ese mismo caso. La página de la persona sigue listando cada forma escrita del expediente aparte, y las formas sin número ni título del caso («juicio sucesorio del Sr. …») quedan aparte. Además, la página dice «este asunto»: cambiarlo a «caso» es parte de P-313. 2026-10-24: Visto en el recorrido: en la página del caso, «Causante de: este asunto» aparece una sola vez, pero el expediente de otra sucesión que citan los documentos aparece tres veces, una por cada forma escrita. Extender la consolidación a la misma referencia de otro expediente (por número y año). 2026-10-25: Hecho en la corrida desatendida (D-526): una referencia que cita el mismo expediente por número y año (el año de dos cifras vale por sus dos últimas), escrita de cualquier forma, es una sola afirmación de la persona, con la forma más completa y todas sus citas: se dice una vez en la página de la persona, en su síntesis, en «Datos y correcciones» y, si es otro expediente, en la página del caso. En la página del caso, las formas de un mismo expediente son de ese caso si una de ellas lo es. Una fecha, un incidente (1234/2020/1) o una referencia que cita dos expedientes quedan aparte. Medido en una copia de la base: 42 afirmaciones sobre referencias, 8 citan un expediente por número y año, 1 grupo de 4 formas pasa a 1 (una persona). Lo que falta (la forma sin número del mismo caso en la página de la persona) quedó en P-351.",
       "depende_de": [],
       "referencia": "D-516; P-313",
       "creado": "2026-10-24",
-      "actualizado": "2026-10-24"
+      "actualizado": "2026-10-25"
     },
     {
       "id": "P-331",
@@ -2351,14 +2351,14 @@
       "titulo": "Volver atrás: entrar a «Personas y organizaciones» deja dos pasos en el historial",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "hecho",
       "prioridad": 2,
       "tema": "pantallas",
-      "detalle": "Visto en el recorrido del 24 oct con la app real (D-517): desde la página de un caso, ir a «Personas y organizaciones» y tocar «Atrás» no vuelve al caso; hacen falta dos toques. Desde «Documentos» vuelve con uno. Algo de esa pantalla cambia el lugar abierto después del clic, fuera de la agrupación por microtarea de startNavigationHistory (src/stores/navigation-history-store.ts). No se encontró la causa sin la app abierta: buscarla con la app y una prueba que la reproduzca. El resto anduvo: Atrás, Adelante y Alt+→ entre el caso, la lista de casos y Documentos.",
+      "detalle": "Visto en el recorrido del 24 oct con la app real (D-517): desde la página de un caso, ir a «Personas y organizaciones» y tocar «Atrás» no vuelve al caso; hacen falta dos toques. Desde «Documentos» vuelve con uno. Algo de esa pantalla cambia el lugar abierto después del clic, fuera de la agrupación por microtarea de startNavigationHistory (src/stores/navigation-history-store.ts). No se encontró la causa sin la app abierta: buscarla con la app y una prueba que la reproduzca. El resto anduvo: Atrás, Adelante y Alt+→ entre el caso, la lista de casos y Documentos. 2026-10-25: Hecho en la corrida desatendida (n3, commit b71976b, D-524). El historial ya no depende de que cada pantalla cambie el lugar dentro de la misma microtarea del clic: solo un clic o una tecla de la persona hace un paso nuevo; lo que una pantalla cambia sola después actualiza el paso en el que está, sin borrar los de adelante (src/stores/navigation-history-store.ts, notePersonAction y replace; src/hooks/use-navigation-history.ts escucha los clics y las teclas). La causa puntual no apareció en el código de «Personas y organizaciones» ni de lo que monta: el arreglo es general. Prueba que reproduce los dos pasos y su arreglo en src/stores/navigation-history-store.test.ts (12 pruebas en verde).",
       "depende_de": [],
       "referencia": "D-517",
       "creado": "2026-10-24",
-      "actualizado": "2026-10-24"
+      "actualizado": "2026-10-25"
     },
     {
       "id": "P-333",
@@ -2368,11 +2368,11 @@
       "estado": "pendiente",
       "prioridad": 2,
       "tema": "casos",
-      "detalle": "Visto en el recorrido del 24 oct: el caso del expediente del PJN ya no figura como nombrado por una persona (D-514), pero la página sigue diciendo «creado a mano», porque su origen quedó como de una persona. Debería decir que lo creó la app al traer el expediente. Además, el archivo de ese expediente no tiene carátula (el portal no la leyó), así que el nombre sigue siendo el número: revisar por qué no se leyó la carátula (pjn.rs, rótulo «caratula») y volver a leerla al seguir el expediente.",
+      "detalle": "Visto en el recorrido del 24 oct: el caso del expediente del PJN ya no figura como nombrado por una persona (D-514), pero la página sigue diciendo «creado a mano», porque su origen quedó como de una persona. Debería decir que lo creó la app al traer el expediente. Además, el archivo de ese expediente no tiene carátula (el portal no la leyó), así que el nombre sigue siendo el número: revisar por qué no se leyó la carátula (pjn.rs, rótulo «caratula») y volver a leerla al seguir el expediente. 2026-10-25: No se hizo en la corrida desatendida (n3): el tope del paso alcanzó solo para P-332. Lo mirado: pjn.rs lee la carátula con labeled(page, [\"caratula\"], table), que busca el rótulo solo antes de la tabla de movimientos (0..table) y toma el texto del hermano siguiente, hasta tres niveles arriba; con las páginas de prueba (fixtures.rs, «Carátula:» con for=detailCover dentro del bloque de datos) se lee. Hipótesis a probar con una página real guardada: que en el portal real la carátula esté después de la tabla, en un campo (input o textarea, cuyo valor no es texto del nodo) o en un elemento oculto para Page::visible. Lo de «creado a mano» (origen person del caso que crea ensure_matter en portals/store.rs) no se tocó.",
       "depende_de": [],
       "referencia": "D-514; src-tauri/src/portals/pjn.rs",
       "creado": "2026-10-24",
-      "actualizado": "2026-10-24"
+      "actualizado": "2026-10-25"
     },
     {
       "id": "P-334",
@@ -2398,11 +2398,11 @@
       "estado": "a-verificar",
       "prioridad": 2,
       "tema": "lectura",
-      "detalle": "Pedido del dueño (24 oct): una propuesta de hoja de respuestas, página por página y documento por documento (dónde empieza cada documento incluido, su tipo, la forma de la página, si hay manuscrito, firma, sello, foto, tabla o formulario), para medir herramientas de separación y clasificación (R-25). La arma un sub-agente mirando las páginas; el dueño la corrige. Fuera del repositorio: llm_wiki_mi/conjunto-prueba/partes.json y partes.md.",
+      "detalle": "Pedido del dueño (24 oct): una propuesta de hoja de respuestas, página por página y documento por documento (dónde empieza cada documento incluido, su tipo, la forma de la página, si hay manuscrito, firma, sello, foto, tabla o formulario), para medir herramientas de separación y clasificación (R-25). La arma un sub-agente mirando las páginas; el dueño la corrige. Fuera del repositorio: llm_wiki_mi/conjunto-prueba/partes.json y partes.md. 2026-10-25: Hoja del 04 controlada por dos revisiones (desempate a ciegas, 25 oct). Dos personas la marcaron por separado: coincidieron en 64 de 66 cortes y difirieron en 40 cosas. Decidí cada diferencia mirando la página, sin saber de quién era cada opción: la revisión independiente ganó 32, la hoja 8, ninguna «otra». Cambié la hoja en 24 páginas (18 marcas, 12 tipos de documento, 2 partes), cada una con la nota «Desempate entre dos revisiones», y quedan 0 dudas nuevas (las 4 preguntas abiertas siguen, una reescrita: los diez decretos de mero trámite del 04 ahora son «providencia simple»). Después del cambio, las dos revisiones difieren solo en las 8 cosas donde la hoja ganó. Para mirar: tres criterios que asumí y no estaban escritos (la cantidad de fojas escrita a mano en una certificación es manuscrito; una capa de OCR de 1 a 5 letras es «capa vieja» y no «ninguna»; el sello aclaratorio con el nombre del juez es un sello). Detalle en desatendido-10/h4-informe.md; respaldo en desatendido-10/h4-respaldo. 2026-10-25: Hoja de partes al día con D-527 (paso e1 de la corrida desatendida): lo que tiene emisor y fecha propios es un documento aparte, con su relación hacia el que certifica, firma o acompaña (certifica a, hoja de firmas de, constancia de firma de, comprobante de pago de, respuesta a, notas de inscripción de). Quedan 104 documentos en vez de 88: 01 = 1, 02 = 18 (antes 13), 03 = 6, 04 = 76 (antes 66), 05 = 1, 06 = 2 (antes 1); 16 relaciones de este tipo y ninguna «parte». Los criterios «una certificación es parte», «el timbre es parte» y «la respuesta al dorso es el mismo documento» se reemplazaron por uno solo; las respuestas «a», «b» y «c» del dueño quedan tachadas como reemplazadas por D-527 (la «c», el acta de cinco páginas, es decisión asumida). Respaldo de la hoja anterior en desatendido-11/e1-respaldo. Para revisar: partes.md, las tablas del 02 y del 04.",
       "depende_de": [],
       "referencia": "D-518; P-321",
       "creado": "2026-10-24",
-      "actualizado": "2026-10-24"
+      "actualizado": "2026-10-25"
     },
     {
       "id": "P-336",
@@ -2426,11 +2426,11 @@
       "estado": "pendiente",
       "prioridad": 3,
       "tema": "copias",
-      "detalle": "D-519 deja afuera: la revocación (Adobe no trae OCSP ni CRL; el DSS de DocuSign permitiría comprobarla sin conexión); la vigencia de los certificados se mide contra la fecha que declara la firma, no contra un sello de tiempo; RSA-PSS y curvas distintas de P-256 quedan como «no se puede comprobar todavía». Además, 30 de 123 firmas de la base no verifican porque su sobre no está donde dice su firma: probablemente son PDF armados juntando documentos firmados (la firma habla del archivo original); confirmarlo. Un servicio o una raíz nuevos no se reconocen hasta agregar su huella al catálogo.",
+      "detalle": "D-519 deja afuera: la revocación (Adobe no trae OCSP ni CRL; el DSS de DocuSign permitiría comprobarla sin conexión); la vigencia de los certificados se mide contra la fecha que declara la firma, no contra un sello de tiempo; RSA-PSS y curvas distintas de P-256 quedan como «no se puede comprobar todavía». Además, 30 de 123 firmas de la base no verifican porque su sobre no está donde dice su firma: probablemente son PDF armados juntando documentos firmados (la firma habla del archivo original); confirmarlo. Un servicio o una raíz nuevos no se reconocen hasta agregar su huella al catálogo. 2026-10-25: Avance en la corrida desatendida (D-526): 1) confirmado con números en una copia de la base: 29 de las 30 firmas que no están donde dicen son de 3 PDF que una herramienta de unir PDF armó juntando documentos firmados y después firmó entero (en cada uno, un solo rango de bytes legible, válido y que llega al final del archivo); la pantalla ahora dice «Se armó juntando documentos que ya estaban firmados: trae sus N firmas…» en lugar de contarlas como firmas que no verifican. La firma restante es de un archivo de una sola firma que cambió después de firmarse (sigue «La firma digital no verifica»). 2) RSA-PSS hecho, con su función de resumen y su sal (en la base no hay ninguna; probado con una firma inventada). Falta: la revocación con los datos de validación del propio archivo (DSS), el sello de tiempo y las curvas distintas de P-256.",
       "depende_de": [],
       "referencia": "D-519",
       "creado": "2026-10-24",
-      "actualizado": "2026-10-24"
+      "actualizado": "2026-10-25"
     },
     {
       "id": "P-338",
@@ -2451,14 +2451,262 @@
       "titulo": "Comparar sin el ruido del formato: normalización por formato antes de comparar",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "hecho",
       "prioridad": 2,
       "tema": "copias",
-      "detalle": "No entró en el tope de la tanda del 24 oct. En .docx: quitar las marcas de Markdown que agrega la app y escribir la numeración automática de Word (o que esas cifras no cuenten como datos cambiados). En PDF: borrar los retornos de carro, unir las palabras partidas por el carácter 0x02 de pdfium, quitar el encabezado del servicio de firma y los renglones de número de página. El par .docx/PDF del acuerdo de borrador sigue justo en el límite de «misma plantilla» (los datos son el 50 % de lo reemplazado). Especificación lista: llm_wiki_mi/desatendido-9/v2-comparar-y-familias.md, punto 2.",
+      "detalle": "No entró en el tope de la tanda del 24 oct. En .docx: quitar las marcas de Markdown que agrega la app y escribir la numeración automática de Word (o que esas cifras no cuenten como datos cambiados). En PDF: borrar los retornos de carro, unir las palabras partidas por el carácter 0x02 de pdfium, quitar el encabezado del servicio de firma y los renglones de número de página. El par .docx/PDF del acuerdo de borrador sigue justo en el límite de «misma plantilla» (los datos son el 50 % de lo reemplazado). Especificación lista: llm_wiki_mi/desatendido-9/v2-comparar-y-familias.md, punto 2. 2026-10-25: Hecho en la corrida desatendida (D-521, commit 25da6c7). Antes de comparar, cada texto pasa por una regla por formato (src-tauri/src/docbase/similar/format.rs): sin marcas de Markdown, sin retornos de carro, el 0x02 unido o como guion según la palabra aparezca en el mismo texto, sin renglones de número de página del PDF ni párrafos de número de página en un Word sin páginas; el número de un párrafo al comienzo del renglón cuenta como redacción. Medido sobre una copia: ningún par cambia de relación, la hoja de respuestas queda en 51 aciertos, y el par Word/PDF del acuerdo sigue «versión» con los datos en 2 de 12 fichas reemplazadas (17 %, antes 50 %). La numeración automática de Word no se escribe: queda en P-342.",
       "depende_de": [],
       "referencia": "D-520; llm_wiki_mi/desatendido-9/r1-resultado.md",
       "creado": "2026-10-24",
-      "actualizado": "2026-10-24"
+      "actualizado": "2026-10-25"
+    },
+    {
+      "id": "P-341",
+      "titulo": "Ver en la app: el par Word/PDF del acuerdo se compara sin el ruido del formato",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "copias",
+      "detalle": "Construido el 25 oct (D-521, commit 25da6c7). Al abrir la app los pares se calculan de nuevo (en una copia tardó entre 50 y 60 s). Qué mirar en «Copias y versiones»: el par del acuerdo en Word (borrador) y en PDF (firmado) sigue como «versión», y lo que dice que cambia ya no nombra números sueltos ni cifras de cláusulas como datos; medido: los cambios bajan de 54 a 24 y los datos reemplazados de 9 de 18 a 2 de 12. El resto de los pares no cambia de relación y las familias siguen siendo 9.",
+      "depende_de": [],
+      "referencia": "D-521; P-339",
+      "creado": "2026-10-25",
+      "actualizado": "2026-10-25"
+    },
+    {
+      "id": "P-342",
+      "titulo": "La lectura de Word escribe mal la numeración automática de las listas",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "copias",
+      "detalle": "Visto el 25 oct (D-521): en el borrador Word del acuerdo, de los 25 párrafos con numeración automática, los cinco de una lista con letras salen todos como «A.» (en el PDF van de la A a la E). La extracción la hace la biblioteca anydoc 0.1.6 (src-tauri/src/commands/fs.rs, extract_office_text). Para comparar ya no pesa (D-521: el número de un párrafo cuenta como redacción), pero el texto que leen la wiki y las plantillas queda con la numeración equivocada. Revisar si una versión nueva de anydoc o un ajuste propio la escribe bien, y volver a leer los Word.",
+      "depende_de": [],
+      "referencia": "D-521",
+      "creado": "2026-10-25",
+      "actualizado": "2026-10-25"
+    },
+    {
+      "id": "P-343",
+      "titulo": "Ver en la app: las páginas escaneadas que quedaron sin leer, en Atención",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "reconocimiento",
+      "detalle": "Después de abrir la app con esta rama, la base calcula en segundo plano la ficha de forma de cada página de los PDF (solo pdfium, sin consultas). En Atención tiene que aparecer «38 páginas escaneadas quedaron sin leer en 2 documentos» (medido sobre una copia de la base: el oficio con el pie del sistema, 3 páginas, y la digitalización de 93 páginas, 35 páginas de capa vieja ruidosa). Mirar que nada se reconozca solo al abrir. Con «Leerlas» se piden esos 2 documentos al motor que reconoce escaneos (38 consultas, y quizá algunas más si el documento de 93 páginas tiene páginas reconocidas por un camino viejo, sin archivo por página). Después, mirar en el documento que las páginas leídas dicen lo que se ve en el escaneo y que la capa vieja ya no aparece en esas páginas.",
+      "depende_de": [],
+      "referencia": "D-522, D-523; src/components/attention/sources/docbase.ts (unreadScansNotice)",
+      "creado": "2026-10-25",
+      "actualizado": "2026-10-25"
+    },
+    {
+      "id": "P-344",
+      "titulo": "Medir los formularios digitales y aplanados de la ficha de forma con una hoja más grande",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "reconocimiento",
+      "detalle": "La ficha de forma (D-522) separa la prosa de los formularios por la proporción de renglones cortos, y el formulario aplanado por los textos dentro de grupos de objetos o el productor de un servicio de firma. En la hoja de partes acierta, pero tiene solo 3 páginas de formulario digital y 2 de aplanado. Sobre la base marca 94 páginas de formulario digital y 19 de aplanado, cuando la medición del 24 encontró un solo documento de servicio de firma: puede estar marcando de más. No cambia qué se reconoce; importa para leer los formularios por posición (paso 2 de la investigación). Falta una hoja con más formularios para medirlo.",
+      "depende_de": [],
+      "referencia": "src-tauri/resources/catalog/page-shapes.json (form); D-522",
+      "creado": "2026-10-25",
+      "actualizado": "2026-10-25"
+    },
+    {
+      "id": "P-345",
+      "titulo": "Al leer a pedido las páginas escaneadas sin leer, no volver a leer las que ya se leyeron por un camino viejo",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "reconocimiento",
+      "detalle": "Cuando una persona pide leer las páginas escaneadas sin leer de un documento ya reconocido (D-523), el reconocimiento arma el texto de nuevo desde el PDF: las páginas que ya tienen su lectura guardada (recognized/<hash>/page-N.json) no se vuelven a leer, pero las que se leyeron por un camino anterior, sin archivo por página (20 páginas en la base, según la medición del 24), sí se vuelven a leer, y eso gasta consultas. Mejor: tomar esas páginas del texto ya guardado del documento. No se midió cuántas de esas 20 caen en los 2 documentos con páginas sin leer.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/source_volume/recognition.rs (complete_pdf_pages); src-tauri/src/docbase/page_shapes.rs",
+      "creado": "2026-10-25",
+      "actualizado": "2026-10-25"
+    },
+    {
+      "id": "P-346",
+      "titulo": "Ver en la app: un solo «Atrás» desde «Personas y organizaciones» vuelve al caso",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "pantallas",
+      "detalle": "Con esta rama: abrir la página de un caso, tocar «Personas y organizaciones» en el menú de la izquierda y tocar una vez la flecha ← de la barra de arriba (o Alt+←): tiene que volver al caso. Después, → tiene que volver a la lista. Repetir desde «Documentos», desde la página de una persona y con los botones laterales del ratón. Mirar también que crear un caso nuevo y abrirlo siga dejando un paso (← vuelve a la lista de casos). Si todavía hacen falta dos toques, la causa es otra (no un cambio que la pantalla hace sola): anotar desde qué pantalla y con qué se llegó al caso. Medido solo con pruebas, sin la app (D-524).",
+      "depende_de": [],
+      "referencia": "D-524, P-332; src/stores/navigation-history-store.ts",
+      "creado": "2026-10-25",
+      "actualizado": "2026-10-25"
+    },
+    {
+      "id": "P-348",
+      "titulo": "Cortador de PDF compuestos: lo que quedó de la investigación",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "reconocimiento",
+      "detalle": "Lo que dejó la investigación del cortador (docs/investigacion/corte/informe.md), para cuando se diseñe cómo se guarda: 1) medir la mejora candidata de la regla de otro papel: solo con escaneos de 100 puntos por pulgada o más (una foto no tiene tamaño de papel); 2) las reglas de forma (otra resolución, otro papel) aciertan 43 y fallan 10, casi siempre en adjuntos (certificación, timbre, hoja de firmas): mostrarlas como posible corte o confirmarlas con Codex solo si el documento siguiente sería de una o dos páginas; 3) dos documentos en la misma página (arriba y abajo) no los ve un cortador por páginas; 4) el tipo de los documentos que corta una regla: usar el paso de tipo que la app ya tiene; 5) al llamar a Codex con imágenes, comprobar que existen: con una ruta que no existe, codex exec contesta igual sin verlas. 2026-10-25: Prueba en seco sobre 12 PDF de la base (desatendido-11/c2-propuestas.md, fuera del repositorio): la regla de una página escaneada y otra digital, que en la investigación no había fallado, parte en 24 pedazos un PDF de partidas escaneadas cada una seguida de su hoja de firmas digital (lo probable son unos 13 documentos). Para el diseño: una hoja de firmas o de digitalización no empieza un documento, y la regla de escaneo contra digital necesita la misma cautela que las de forma (otra captura, otro papel), que también parten escrituras viejas en muchos pedazos.",
+      "depende_de": [
+        "P-321"
+      ],
+      "referencia": "P-321; docs/investigacion/corte/informe.md",
+      "creado": "2026-10-25",
+      "actualizado": "2026-10-25"
+    },
+    {
+      "id": "P-349",
+      "titulo": "Ver la prueba en seco del corte: llm_wiki_mi/desatendido-11/c2-propuestas.md",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "reconocimiento",
+      "detalle": "El cortador de la investigación (reglas primero y Codex solo en los pasos dudosos) corrió sobre los 12 PDF de la base que parecen juntar varios documentos (124 páginas), sin cambiar nada en la base ni en los archivos. Propone 79 documentos incluidos, 40 con algo para mirar; 130 consultas a Codex (51 para cortar, 79 para el tipo y una descripción corta de cada documento). Qué mirar: abrir el archivo, leer «Lo más llamativo» y revisar sobre todo los PDF 11 (24 pedazos, probablemente unos 13 documentos) y 12 (escrituras viejas en 8 pedazos), comparando con el PDF abierto al lado. Decir si los cortes y los tipos sirven como propuesta para la pantalla. 2026-10-25: Regla corregida en la investigación (c5, commit c4b1f08): el paso de una página escaneada a una digital ya no corta cuando la digital tiene poco texto propio (hasta 600 caracteres) y una expresión de firma, certificación o digitalización del vocabulario (vocabulario.json, sección attestation); el mismo código y la numeración que sigue ya continuaban por reglas anteriores. Variante B sobre la hoja de partes: igual que antes (79 de 80 cortes, 14 de más, 1 perdido, 72 de 88 documentos exactos; la regla no se aplica en esos seis PDF). Prueba en seco sobre 12 PDF: de 79 a 69 documentos incluidos, de 40 a 30 para mirar; el PDF de las partidas pasa de 24 a 14 pedazos (lo probable, unos 13). Ninguna consulta nueva a Codex para cortar; 10 nuevas para describir. Para el diseño: la regla vale solo de escaneo a digital; una hoja de firmas después de otra página digital todavía puede cortarse por una fórmula de cierre, y si la capa de texto perdió las tildes (signo de reemplazo) una expresión con tilde no se encuentra. Propuestas nuevas en desatendido-11/c2-propuestas.md (la anterior, c2-propuestas-v1.md). 2026-10-25: Medido de nuevo con D-527, sin consultas nuevas a Codex (e2). En la prueba en seco de 12 PDF: 79 documentos, 17 relaciones propuestas y 8 «para mirar» (antes 40; 30 con la regla que se sacó). Para revisar: desatendido-11/c2-propuestas-v3.md. La variante B contra la hoja nueva: 89 de 96 cortes, 4 de más, 7 perdidos, 83 de 104 documentos exactos.",
+      "depende_de": [
+        "P-348"
+      ],
+      "referencia": "llm_wiki_mi/desatendido-11/c2-propuestas.md; llm_wiki_mi/desatendido-11/c2-informe.md; docs/investigacion/corte/informe.md",
+      "creado": "2026-10-25",
+      "actualizado": "2026-10-25"
+    },
+    {
+      "id": "P-350",
+      "titulo": "Revisar la propuesta de documentos compuestos",
+      "tipo": "decision",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "reconocimiento",
+      "detalle": "Propuesta de diseño, sin construir, en docs/design/documentos-compuestos-propuesta.md (D-525). Propone: el archivo no se toca y cada documento incluido es un documento más de la base (su página, tipo, fecha, personas, casos y copias), con un registro que dice de qué compuesto es y qué páginas o qué región ocupa; cortes por reglas primero, el modelo solo en los pasos dudosos y una persona confirma lo dudoso (las reglas seguras se confirman solas); lo ya leído se reparte por página sin consultas; el caso apunta al compuesto y sus incluidos van con él; Core como proveedor elegible con el mismo formato. Qué hacer: leer «En pocas palabras» y contestar las 8 preguntas de la sección 10 (cada una con una recomendación); las más importantes son la 1 (documento propio o sección), la 3 (qué espera a que se confirme el corte) y la 7 (empezar con Desktop o esperar a Core). Con las respuestas se escribe la especificación de la etapa 1. 2026-10-25: Propuesta de documentos compuestos al día con D-527 (paso e1, commits 0b4ce57 y 62db81c): el criterio de documento aparte con la tabla de relaciones; la sección nueva 6, «El documento compuesto como un conjunto» (relaciones entre personas, bienes, organizaciones y documentos; control del corte contra lo que anuncia el escrito; que una persona los juntó como evidencia; cuándo revisa una persona). Quedan 10 preguntas: se sacó la de qué cortes se confirman solos (la responde D-527) y se agregaron qué cuenta como «si está mal, cambia algo», las relaciones entre personas del conjunto y qué hacer si el corte no coincide con el escrito; las preguntas 3 y 4 se ajustaron. La regla de la hoja de firmas que no corta se sacó de la investigación (commit 78f47ba).",
+      "depende_de": [
+        "P-349"
+      ],
+      "referencia": "docs/design/documentos-compuestos-propuesta.md; D-525; docs/investigacion/corte/informe.md; llm_wiki_mi/observaciones-del-dueno.md (observación 3)",
+      "creado": "2026-10-25",
+      "actualizado": "2026-10-25"
+    },
+    {
+      "id": "P-351",
+      "titulo": "En la página de la persona, la forma sin número del mismo caso todavía va aparte",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "conocimiento",
+      "detalle": "P-330 juntó las formas de un expediente que citan el mismo número y año. En la página de la persona, una forma sin número que nombra el caso por sus palabras («juicio sucesorio del Sr. …») sigue siendo una afirmación aparte de la forma con número, porque el caso se conoce recién al armar las páginas, después de las afirmaciones. Hacerlo como en la página del caso (D-516): agrupar las afirmaciones que nombran el mismo caso antes de la síntesis y decirlo una vez con el enlace al caso. Cambia la pregunta de la síntesis de esas personas (vuelve a consultar al modelo).",
+      "depende_de": [],
+      "referencia": "D-516; D-526; P-330",
+      "creado": "2026-10-25",
+      "actualizado": "2026-10-25"
+    },
+    {
+      "id": "P-352",
+      "titulo": "Ver en la app: «caso» en las páginas y el mismo expediente una sola vez",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "pantallas",
+      "detalle": "Después de abrir la app, esperar que se rehagan las páginas (sin el modelo). 1) Abrir un caso: la primera línea dice «Caso», las secciones dicen «Lo que dicen los documentos del caso» y «Posiblemente de este caso», y lo que apunta al propio caso dice «este caso». 2) En el caso de la sucesión donde el expediente de otra sucesión aparecía tres veces: ahora una línea, con la forma más completa y las demás citas en su nota (medido: 1 grupo de 4 formas pasa a 1). 3) Abrir la persona de ese expediente: el expediente aparece una vez. 4) Inicio, «Resumen del archivo»: dice «Caso» y no «Asunto». Si algo no corresponde, decirlo.",
+      "depende_de": [],
+      "referencia": "D-526; P-313; P-330",
+      "creado": "2026-10-25",
+      "actualizado": "2026-10-25"
+    },
+    {
+      "id": "P-353",
+      "titulo": "Ver en la app: los PDF armados juntando documentos firmados",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "copias",
+      "detalle": "Hace falta que la app vuelva a leer las marcas de los PDF (las firmas de la base todavía no tienen la comprobación de D-519). En la ficha del documento, «Firma digital» de los 3 PDF armados juntando documentos firmados (uno con 23 firmas, otro con 5 y otro con 4): tiene que decir que es íntegro y «Se armó juntando documentos que ya estaban firmados: trae sus N firmas, que corresponden a cada documento original…», sin hablar de firmas que no verifican. El único PDF de una sola firma que cambió después de firmarse sigue diciendo «La firma digital no verifica: el archivo cambió después de firmarse». Decir si las palabras se entienden.",
+      "depende_de": [],
+      "referencia": "D-519; D-526; P-337",
+      "creado": "2026-10-25",
+      "actualizado": "2026-10-25"
+    },
+    {
+      "id": "P-355",
+      "titulo": "Cortador: mejorar el control contra el escrito y el criterio «para mirar»",
+      "tipo": "tarea",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "reconocimiento",
+      "detalle": "Lo que quedó de e2 (desatendido-11/e2-informe.md). 1) El contador de lo que anuncia un escrito acierta la cuenta en 1 de los 6 escritos de la hoja que tienen adjuntos: mejorarlo y medirlo de nuevo. 2) Una relación (por ejemplo, de comprobante) tapa un corte de más de Codex: no ocultar un corte de Codex cuando el documento es de una página y sigue a otro del mismo tipo. 3) Decidir si los «continúa» de Codex también se marcan para mirar (serían 27 más en los seis PDF, con los 7 cortes perdidos, y 41 en la prueba en seco). 4) Relaciones de respuesta, copia y versión, que la pasada simple no propone (faltan 14 de 19).",
+      "depende_de": [
+        "P-349"
+      ],
+      "referencia": "docs/investigacion/corte/informe.md (sección «Medido de nuevo con D-527»); docs/investigacion/corte/guiones/controles.py",
+      "creado": "2026-10-25",
+      "actualizado": "2026-10-25"
+    },
+    {
+      "id": "P-356",
+      "titulo": "Replantear el proceso: primero la base (qué es cada documento, su texto según su forma, duplicados, tipos, personas), después las relaciones; contenedores y nivel de certeza",
+      "tipo": "decision",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "lectura",
+      "detalle": "Dirección del dueño del 25 oct, no definición: docs/design/replanteo-del-proceso-notas.md. La unidad de trabajo pasa del archivo al documento (con huella por página); los documentos compuestos, los expedientes de un portal y las carpetas son contenedores, cada uno con su nivel de certeza; un documento puede estar en varios; el resumen de un contenedor habla de las relaciones que crea y de por qué existe; no hay páginas duplicadas para un documento suelto y dentro de un compuesto. Próximo paso: la prueba en la nube de huellas de página y embeddings (P-359) y, con su resultado, el documento de diseño del proceso, que reemplaza o absorbe la propuesta de documentos compuestos (P-350).",
+      "depende_de": [
+        "P-359"
+      ],
+      "referencia": "docs/design/replanteo-del-proceso-notas.md; D-518; D-527",
+      "creado": "2026-10-25",
+      "actualizado": "2026-10-25"
+    },
+    {
+      "id": "P-357",
+      "titulo": "PJN: casos con varios expedientes, cada uno con sus despachos",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "portales",
+      "detalle": "El dueño vio en el portal del PJN (25 oct) que en casos más complejos hay un nivel más arriba de las actuaciones: el expediente; un caso puede tener varios y cada uno tiene sus despachos. Uno de los casos que quiere bajar tiene esa estructura. El modelo de datos ya admite varios expedientes por caso (D-514); falta que el conector (portals/pjn.rs) los recorra y los traiga como tales, con sus actuaciones. Relacionado con P-301 (Intervinientes, Vinculados, Recursos) y P-323 (los datos de cada actuación).",
+      "depende_de": [],
+      "referencia": "docs/design/replanteo-del-proceso-notas.md, sección 3; D-514",
+      "creado": "2026-10-25",
+      "actualizado": "2026-10-25"
+    },
+    {
+      "id": "P-358",
+      "titulo": "Mover a Google Drive la base y los archivos de prueba, para los agentes en la nube",
+      "tipo": "codigo",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "entornos",
+      "detalle": "Pedido del dueño (25 oct) para la próxima sesión: trabajamos en dos entornos, las pruebas con un agente en la nube y la continuidad con un agente local. El agente en la nube solo ve la carpeta de Drive «Mi unidad\\@Temporal - Se puede borrar\\Desarrollo Micelya\\POC-Micelya» (copia de C:\\Documentos temporales para borrar\\POC-Micelya). Hoy ya está ahí la subcarpeta pruebas\\ (hojas de respuestas, los seis PDF de prueba, el expediente bajado del PJN, lo que sabe la app exportado a CSV, investigaciones previas; ver su LEEME.md). Falta: la base (copia consistente, nunca la viva), los archivos de llm-wiki-workspace y cómo se mantiene al día; y decidir qué pasa con la privacidad (los datos son reales).",
+      "depende_de": [],
+      "referencia": "G:\\Mi unidad\\@Temporal - Se puede borrar\\Desarrollo Micelya\\POC-Micelya\\pruebas\\LEEME.md",
+      "creado": "2026-10-25",
+      "actualizado": "2026-10-25"
+    },
+    {
+      "id": "P-359",
+      "titulo": "Prueba en la nube: huellas de página y embeddings para duplicados, contenedores y relaciones",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "lectura",
+      "detalle": "La lanza el dueño en una sesión de Claude Code en la nube con el prompt docs/investigacion/huellas-y-embeddings/prompt.md. Los datos están en la carpeta de Drive POC-Micelya\\pruebas. El resultado va a la rama investigacion/huellas-y-embeddings, sin pedido de integración; lo revisa el agente local (datos reales, prueba de casos reales) y pregunta al dueño antes de integrar. Tope: 400 mil fichas de Claude.",
+      "depende_de": [],
+      "referencia": "docs/investigacion/huellas-y-embeddings/prompt.md",
+      "creado": "2026-10-25",
+      "actualizado": "2026-10-25"
     }
   ]
 }

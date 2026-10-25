@@ -127,6 +127,12 @@ describe("what the digital signatures of a file say", () => {
     expect(text).toContain(": 3.")
   })
 
+  it("says in words that a file was put together from signed documents, not as signatures that fail", () => {
+    const text = sealText(seal({ state: "valid-unknown", joined: 22, failing: 0 }), words) ?? ""
+    expect(text).toContain("Se armó juntando documentos que ya estaban firmados: trae sus 22 firmas")
+    expect(text).not.toContain("no verifican")
+  })
+
   it("is nothing without signatures", () => {
     expect(sealText(null, words)).toBeNull()
     expect(sealText(seal({ state: "otro" }), words)).toBeNull()

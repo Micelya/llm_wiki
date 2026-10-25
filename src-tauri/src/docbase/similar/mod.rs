@@ -8,8 +8,9 @@
 //! - **0 · What is common** (`store`): in how many documents each
 //!   sequence of five words appears; the most common is routine text and
 //!   does not count.
-//! - **1 · Safe pairs** (`minhash`, `align`, `changes`, `propose`):
-//!   candidates by signature, exact measures without the routine text,
+//! - **1 · Safe pairs** (`format`, `minhash`, `align`, `changes`,
+//!   `propose`): the text without what its format adds, candidates by
+//!   signature, exact measures without the routine text,
 //!   the two texts side by side, what changes and what kind of thing it
 //!   is, and the proposed relation with a sentence that describes it.
 //! - **2 · Marks** (`marks`, `types`): what is verified without a model,
@@ -45,6 +46,7 @@ pub(crate) mod check;
 pub(crate) mod check_types;
 pub mod classify;
 pub mod data;
+pub mod format;
 pub mod generate;
 pub mod key_data;
 pub mod marks;

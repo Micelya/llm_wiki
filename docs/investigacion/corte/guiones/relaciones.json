@@ -1,0 +1,13 @@
+{
+ "about": "Vocabulario general para la pasada de relaciones y el control contra lo que anuncia un escrito (D-527). Se escribió antes de medir y no se ajustó mirando la hoja de partes (R-25). Identificadores neutros; las palabras de la vertical, solo en las frases.",
+ "follows_previous": {
+  "copy_certification": "certifies",
+  "signature_sheet": "signature-sheet-of",
+  "constancia-de-firma": "signing-certificate-of",
+  "fee_stamp": "receipt-of",
+  "recibo": "receipt-of",
+  "boleta": "receipt-of"
+ },
+ "court_pieces": ["court_filing", "simple_court_order", "court_order", "court_official_letter", "clerk_report", "prosecutor_opinion"],
+ "announce": ["adjunto", "adjunta", "adjuntan", "acompano", "acompana", "acompanan", "se agrega", "agrego", "anexo", "documental"]
+}

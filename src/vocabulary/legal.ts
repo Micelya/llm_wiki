@@ -52,6 +52,8 @@ export const legal: Vertical = {
         },
         validation: "Después se le agregaron datos para validar la firma más adelante, que no cambian el documento.",
         failing: "Trae además otras firmas digitales que no verifican en este archivo: {count}.",
+        joined:
+          "Se armó juntando documentos que ya estaban firmados: trae sus {count} firmas, que corresponden a cada documento original y no se pueden comprobar dentro de este archivo.",
       },
       suggestedGroups: ["Cliente", "Caso"],
       wikiLanguage: "Spanish",
@@ -240,6 +242,8 @@ export const legal: Vertical = {
         },
         validation: "Data to validate the signature later on was added afterwards; it does not change the document.",
         failing: "It also carries other digital signatures that do not verify in this file: {count}.",
+        joined:
+          "It was put together from documents that were already signed: it carries their {count} signatures, which belong to each original document and cannot be checked inside this file.",
       },
       suggestedGroups: ["Client", "Matter"],
       wikiLanguage: "English",

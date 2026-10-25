@@ -59,7 +59,8 @@ const CURRENCIES: &[&str] = &["usd", "ars", "u$s", "us$", "eur", "pesos", "dolar
 /// The kind of thing a token of the original text is.
 pub fn classify(raw: &Raw) -> Kind {
     let token = raw.text.as_str();
-    if token.is_empty() {
+    // A paragraph's number is structure, not a datum (D-521).
+    if token.is_empty() || raw.numbering {
         return Kind::Wording;
     }
     let lower = token.to_lowercase();
@@ -406,7 +407,7 @@ pub fn add_fields(changes: &mut Changes, a: &[(String, String)], b: &[(String, S
             let sample = x.or(y).cloned().unwrap_or_default();
             let kind = sample
                 .split_whitespace()
-                .map(|token| classify(&Raw { text: token.to_string(), sentence_start: false }))
+                .map(|token| classify(&Raw { text: token.to_string(), sentence_start: false, numbering: false }))
                 .find(|kind| kind.is_data())
                 .unwrap_or(Kind::Field);
             changes.hunks += 1;
@@ -434,7 +435,7 @@ mod tests {
     use crate::docbase::similar::text::pages;
 
     fn raw(text: &str) -> Raw {
-        Raw { text: text.to_string(), sentence_start: false }
+        Raw { text: text.to_string(), sentence_start: false, numbering: false }
     }
 
     #[test]
@@ -454,7 +455,7 @@ mod tests {
         assert_eq!(classify(&raw("30")), Kind::Number);
         assert_eq!(classify(&raw("Gómez")), Kind::Name);
         assert_eq!(classify(&raw("GÓMEZ")), Kind::Name);
-        assert_eq!(classify(&Raw { text: "Por".into(), sentence_start: true }), Kind::Wording);
+        assert_eq!(classify(&Raw { text: "Por".into(), sentence_start: true, numbering: false }), Kind::Wording);
         assert_eq!(classify(&raw("plazo")), Kind::Wording);
     }
 
@@ -499,5 +500,16 @@ mod tests {
         );
         assert_eq!(changes.hunks, 1);
         assert_eq!(changes.count(Kind::Name), 1);
+    }
+
+    #[test]
+    fn a_clause_renumbered_is_wording_and_not_an_amount() {
+        let changes = compare(
+            "4.12. El plazo es de treinta días corridos desde la firma.\n\n4.13. Las partes fijan domicilio en la ciudad.",
+            "4.13. El plazo es de treinta días corridos desde la firma.\n\n4.14. Las partes fijan domicilio en la ciudad.",
+        );
+        assert_eq!(changes.swapped(Kind::Amount), 0);
+        assert_eq!(changes.data_items(), 0);
+        assert!(changes.count(Kind::Wording) > 0);
     }
 }

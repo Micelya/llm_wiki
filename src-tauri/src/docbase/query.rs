@@ -155,6 +155,10 @@ pub struct Health {
     pub copies: i64,
     pub words: i64,
     pub last_scan_at: Option<i64>,
+    /// Scanned pages of documents already read that their ficha of shape
+    /// says need reading and were not read (P-320), and those documents.
+    pub unread_scan_pages: i64,
+    pub unread_scan_documents: Vec<i64>,
 }
 
 /// Something that happened to the files of an origin. Changes found by
@@ -263,12 +267,15 @@ impl DocBase {
                     "SELECT count(*), coalesce(sum(word_count), 0) FROM content
                      WHERE id IN (SELECT content_id FROM ({sql}) WHERE content_id IS NOT NULL)"
                 ),
-                params_from_iter(bound),
+                params_from_iter(bound.clone()),
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .map_err(sql_err)?;
         health.documents = documents;
         health.words = words;
+        let unread = super::page_shapes::unread_scans(&conn, &self.recognized, &sql, &bound)?;
+        health.unread_scan_pages = unread.pages;
+        health.unread_scan_documents = unread.documents;
 
         for origin in origins::list(&conn, visible)? {
             health.origins += 1;
