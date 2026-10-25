@@ -7,7 +7,7 @@
 
 - Un PDF puede juntar varios documentos. Hoy la app lo trata como uno solo: un tipo, un título y todas sus personas mezcladas.
 - **El archivo no se toca.** Cada documento incluido pasa a ser un documento más de la base, con su página, su tipo, su fecha, sus personas, sus casos y sus copias, y dice de qué compuesto es y qué páginas, o qué parte de una página, ocupa.
-- **Lo que tiene emisor y fecha propios es un documento aparte (D-527):** una certificación, una hoja de firmas, un comprobante de timbre o una respuesta al dorso es un documento, relacionado con lo que certifica, firma o acompaña. Lo que no los tiene (un dorso en blanco, un anexo sin firma) sigue siendo parte (sección 3).
+- **Lo que tiene emisor y fecha propios es un documento aparte (D-527):** una certificación, una hoja de firmas, un comprobante de timbre o una respuesta al dorso es un documento, relacionado con lo que certifica o firma, o con el documento con el que va. Lo que no los tiene (un dorso en blanco, un anexo sin firma) sigue siendo parte (sección 3).
 - **El compuesto se analiza también como un conjunto,** después de leer cada documento incluido: las relaciones entre personas, bienes, organizaciones y documentos, y un control del corte contra lo que anuncia el escrito. Una persona revisa solo lo que, si está mal, cambia algo (sección 6).
 - **Los cortes los propone la app:** primero reglas, sobre la ficha de forma de cada página y sin modelo; el modelo, solo en los pasos dudosos; y lo dudoso lo confirma una persona, en una pantalla con las páginas en miniatura.
 - **Lo ya leído no se vuelve a leer:** el texto, las personas y el resumen del compuesto se reparten por página entre sus incluidos, sin consultas. Las consultas son solo para los cortes dudosos (51 en la prueba en seco, para 12 PDF).
@@ -59,7 +59,7 @@ Lo que hace hoy la app con ese PDF:
 
 ### Qué es un documento aparte (D-527)
 
-**Lo que tiene emisor y fecha propios es un documento aparte,** relacionado con lo que certifica, firma o acompaña. Lo que no los tiene sigue siendo parte del documento.
+**Lo que tiene emisor y fecha propios es un documento aparte,** relacionado con lo que certifica o firma, o con el documento con el que va. Lo que no los tiene sigue siendo parte del documento.
 
 | Pieza | Es | Relación (identificador neutro, D-512) | En pantalla |
 |---|---|---|---|
@@ -99,7 +99,7 @@ Lo que hace hoy la app con ese PDF:
 Como todo lo que propone la app, lo dudoso lo confirma una persona (R-03):
 
 - **Confirmado por una regla segura:** las reglas que no fallaron ni en la investigación ni en la prueba en seco (la página siguiente está en blanco o tiene solo el pie; el mismo código de documento en las dos páginas; hojas notariales correlativas; las dos caras de una tarjeta). No piden nada.
-- **Propuesto:** todo lo demás (las reglas de forma, el cambio de escaneo a digital, «página x de y», las fórmulas de apertura y de cierre, la respuesta del modelo). Se ve con su motivo y espera a una persona. Se marcan «para mirar» solo los que, si están mal, cambian algo (sección 6.4); no un documento corto que certifica, firma o acompaña al anterior.
+- **Propuesto:** todo lo demás (las reglas de forma, el cambio de escaneo a digital, «página x de y», las fórmulas de apertura y de cierre, la respuesta del modelo). Se ve con su motivo y espera a una persona. Se marcan «para mirar» solo los que, si están mal, cambian algo (sección 6.4); no un documento corto que certifica o firma, o con el documento con el que va al anterior.
 - **Confirmado por una persona:** lo que una persona confirmó, unió, partió o marcó. Se guarda con lo que se le mostró, como las otras decisiones, y una lectura nueva no lo cambia.
 - Qué hacer con lo que se apoya en un corte propuesto (por ejemplo, decir que ese documento de identidad es el mismo que otro) es la pregunta 3.
 
@@ -240,17 +240,17 @@ Después de leer cada documento incluido, se hace una pasada más sobre el compu
 
 - **Entre personas:** el parentesco de un grupo de partidas. La partida de nacimiento de Ana Pereyra dice que sus padres son Juan Pereyra y Marta Ruiz; la de Luis Pereyra, lo mismo; el acta de matrimonio une a Juan y a Marta. Entonces Ana y Luis son hermanos, hijos de ese matrimonio.
 - **Entre personas y bienes:** un bien y su titular. La escritura dice que Juan Pereyra compró un departamento, y el informe del registro, que está inscripto a su nombre.
-- **Entre personas y organizaciones:** el apoderado y el escribano. Marta Ruiz otorga un poder al abogado Carlos Díaz ante la escribana Laura Sosa, y el escrito lo firma Carlos Díaz como apoderado.
-- **Entre documentos:** las de la sección 3 («certifica a», «hoja de firmas de», «comprobante de pago de», «respuesta a»), y «adjunto a» el escrito que los acompaña.
+- **Entre personas y organizaciones:** el apoderado y el escribano. Marta Ruiz otorga un poder al abogado Carlos Ferraro ante la escribana Laura Sosa, y el escrito lo firma Carlos Ferraro como apoderado.
+- **Entre documentos:** las de la sección 3 («certifica a», «hoja de firmas de», «comprobante de pago de», «respuesta a»), y «adjunto a» el escrito con el que se presentaron.
 - **Cómo:** primero con los datos que ya trae cada tipo (los padres en una partida, el titular en una escritura, el apoderado en un poder), sin modelo. Para las relaciones entre documentos ayudan el orden en el PDF, el tipo y un código o número compartido. El modelo, a lo sumo una consulta por compuesto y solo para lo que quede sin resolver, si mide mejor (D-513).
 - Todo lo que encuentra es una **propuesta** (R-03): se ve con su motivo y con los documentos de donde sale.
 
 ### 6.2 El control del corte contra lo que anuncia el escrito
 
-- Muchos escritos enumeran lo que acompañan: «adjunto: a) partida de nacimiento, b) acta de matrimonio, c) poder». Se lee esa lista, con el vocabulario del catálogo y sin modelo, y se compara con los documentos que dejó el corte.
+- Muchos escritos enumeran lo que traen: «adjunto: a) partida de nacimiento, b) acta de matrimonio, c) poder». Se lee esa lista, con el vocabulario del catálogo y sin modelo, y se compara con los documentos que dejó el corte.
 - **Si coincide,** el corte queda respaldado y se confirma solo.
 - **Si no coincide** (el escrito anuncia tres y el corte encontró dos, o encontró uno que no se anuncia), es «para mirar»: probablemente dos documentos quedaron pegados o uno se partió.
-- Las certificaciones, los comprobantes y las hojas de firmas no cuentan como anexos aparte: van con el que certifican, firman o acompañan.
+- Las certificaciones, los comprobantes y las hojas de firmas no cuentan como anexos aparte: van con el documento que certifican, firman o pagan.
 
 ### 6.3 Que una persona los juntó es un dato
 
