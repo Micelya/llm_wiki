@@ -2451,14 +2451,42 @@
       "titulo": "Comparar sin el ruido del formato: normalización por formato antes de comparar",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "hecho",
       "prioridad": 2,
       "tema": "copias",
-      "detalle": "No entró en el tope de la tanda del 24 oct. En .docx: quitar las marcas de Markdown que agrega la app y escribir la numeración automática de Word (o que esas cifras no cuenten como datos cambiados). En PDF: borrar los retornos de carro, unir las palabras partidas por el carácter 0x02 de pdfium, quitar el encabezado del servicio de firma y los renglones de número de página. El par .docx/PDF del acuerdo de borrador sigue justo en el límite de «misma plantilla» (los datos son el 50 % de lo reemplazado). Especificación lista: llm_wiki_mi/desatendido-9/v2-comparar-y-familias.md, punto 2.",
+      "detalle": "No entró en el tope de la tanda del 24 oct. En .docx: quitar las marcas de Markdown que agrega la app y escribir la numeración automática de Word (o que esas cifras no cuenten como datos cambiados). En PDF: borrar los retornos de carro, unir las palabras partidas por el carácter 0x02 de pdfium, quitar el encabezado del servicio de firma y los renglones de número de página. El par .docx/PDF del acuerdo de borrador sigue justo en el límite de «misma plantilla» (los datos son el 50 % de lo reemplazado). Especificación lista: llm_wiki_mi/desatendido-9/v2-comparar-y-familias.md, punto 2. 2026-10-25: Hecho en la corrida desatendida (D-521, commit 25da6c7). Antes de comparar, cada texto pasa por una regla por formato (src-tauri/src/docbase/similar/format.rs): sin marcas de Markdown, sin retornos de carro, el 0x02 unido o como guion según la palabra aparezca en el mismo texto, sin renglones de número de página del PDF ni párrafos de número de página en un Word sin páginas; el número de un párrafo al comienzo del renglón cuenta como redacción. Medido sobre una copia: ningún par cambia de relación, la hoja de respuestas queda en 51 aciertos, y el par Word/PDF del acuerdo sigue «versión» con los datos en 2 de 12 fichas reemplazadas (17 %, antes 50 %). La numeración automática de Word no se escribe: queda en P-342.",
       "depende_de": [],
       "referencia": "D-520; llm_wiki_mi/desatendido-9/r1-resultado.md",
       "creado": "2026-10-24",
-      "actualizado": "2026-10-24"
+      "actualizado": "2026-10-25"
+    },
+    {
+      "id": "P-341",
+      "titulo": "Ver en la app: el par Word/PDF del acuerdo se compara sin el ruido del formato",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "copias",
+      "detalle": "Construido el 25 oct (D-521, commit 25da6c7). Al abrir la app los pares se calculan de nuevo (en una copia tardó entre 50 y 60 s). Qué mirar en «Copias y versiones»: el par del acuerdo en Word (borrador) y en PDF (firmado) sigue como «versión», y lo que dice que cambia ya no nombra números sueltos ni cifras de cláusulas como datos; medido: los cambios bajan de 54 a 24 y los datos reemplazados de 9 de 18 a 2 de 12. El resto de los pares no cambia de relación y las familias siguen siendo 9.",
+      "depende_de": [],
+      "referencia": "D-521; P-339",
+      "creado": "2026-10-25",
+      "actualizado": "2026-10-25"
+    },
+    {
+      "id": "P-342",
+      "titulo": "La lectura de Word escribe mal la numeración automática de las listas",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "copias",
+      "detalle": "Visto el 25 oct (D-521): en el borrador Word del acuerdo, de los 25 párrafos con numeración automática, los cinco de una lista con letras salen todos como «A.» (en el PDF van de la A a la E). La extracción la hace la biblioteca anydoc 0.1.6 (src-tauri/src/commands/fs.rs, extract_office_text). Para comparar ya no pesa (D-521: el número de un párrafo cuenta como redacción), pero el texto que leen la wiki y las plantillas queda con la numeración equivocada. Revisar si una versión nueva de anydoc o un ajuste propio la escribe bien, y volver a leer los Word.",
+      "depende_de": [],
+      "referencia": "D-521",
+      "creado": "2026-10-25",
+      "actualizado": "2026-10-25"
     }
   ]
 }
