@@ -224,8 +224,8 @@ export function familyPairs(
 /**
  * Whether a family belongs in «Copias y versiones»: something in it waits
  * for a person, or a member is a copy or a version of its principal (a
- * relation that asks a person, decided or not). A family only of
- * documents made with one template is in «Plantillas», not here.
+ * relation that asks a person, decided or not). Documents made with one
+ * template make no family (D-497): they are in «Plantillas».
  */
 export function hasCopies(group: SimilarGroup, definitions: RelationDef[]): boolean {
   if (group.pending > 0 || group.possiblySame > 0) return true

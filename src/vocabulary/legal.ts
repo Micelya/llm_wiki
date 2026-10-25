@@ -21,6 +21,7 @@ export const legal: Vertical = {
           "Traé los expedientes de los portales judiciales a tu base: la app recorre el portal sola y te pide ayuda solo cuando el portal pide resolver un desafío o iniciar sesión.",
         record: "Expediente",
         records: "Expedientes",
+        recordTitle: "Carátula",
       },
       templates: {
         name: "Plantillas",
@@ -36,6 +37,21 @@ export const legal: Vertical = {
         name: "Copias y versiones",
         description:
           "Los documentos que pueden ser el mismo: un ejemplar firmado, otra versión, uno dentro de otro, un acuse de recibo o una constancia de firma. Son lo único que espera que decidas; los hechos con la misma plantilla son documentos distintos.",
+      },
+      seal: {
+        label: "Firma digital",
+        states: {
+          sealed: "Íntegro: sellado por {service} el {date}; no cambió desde entonces.",
+          "sealed-undated": "Íntegro: sellado por {service}; no cambió desde entonces.",
+          "valid-unknown": "Íntegro: firmado digitalmente el {date} por alguien que no está entre los servicios de firma conocidos; no cambió desde entonces.",
+          "valid-unknown-undated":
+            "Íntegro: firmado digitalmente por alguien que no está entre los servicios de firma conocidos; no cambió desde entonces.",
+          modified: "La firma digital no verifica: el archivo cambió después de firmarse.",
+          invalid: "La firma digital no verifica.",
+          unsupported: "Tiene una firma digital que la app todavía no sabe comprobar.",
+        },
+        validation: "Después se le agregaron datos para validar la firma más adelante, que no cambian el documento.",
+        failing: "Trae además otras firmas digitales que no verifican en este archivo: {count}.",
       },
       suggestedGroups: ["Cliente", "Caso"],
       wikiLanguage: "Spanish",
@@ -194,6 +210,7 @@ export const legal: Vertical = {
           "Bring the case files of the court portals into your base: the app walks the portal by itself and asks for your help only when the portal asks to solve a challenge or to sign in.",
         record: "Case file",
         records: "Case files",
+        recordTitle: "Case caption",
       },
       templates: {
         name: "Templates",
@@ -209,6 +226,20 @@ export const legal: Vertical = {
         name: "Copies and versions",
         description:
           "The documents that may be the same one: a signed copy, another version, one inside another, a delivery receipt or a signing certificate. They are the only thing waiting for you to decide; those made with the same template are different documents.",
+      },
+      seal: {
+        label: "Digital signature",
+        states: {
+          sealed: "Intact: sealed by {service} on {date}; unchanged since then.",
+          "sealed-undated": "Intact: sealed by {service}; unchanged since then.",
+          "valid-unknown": "Intact: digitally signed on {date} by someone who is not among the known signing services; unchanged since then.",
+          "valid-unknown-undated": "Intact: digitally signed by someone who is not among the known signing services; unchanged since then.",
+          modified: "The digital signature does not verify: the file changed after it was signed.",
+          invalid: "The digital signature does not verify.",
+          unsupported: "It has a digital signature the app cannot check yet.",
+        },
+        validation: "Data to validate the signature later on was added afterwards; it does not change the document.",
+        failing: "It also carries other digital signatures that do not verify in this file: {count}.",
       },
       suggestedGroups: ["Client", "Matter"],
       wikiLanguage: "English",

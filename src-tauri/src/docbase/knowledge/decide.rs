@@ -1,7 +1,8 @@
 //! What a person decides about identities (D-189): "these two are the
 //! same", "these two are not", "this datum is wrong", "this datum is right"
 //! (a claim, D-320), and undoing any of
-//! them, the automatic joins included (a separation undoes them).
+//! them, the automatic joins included (a separation undoes them). A person
+//! can also choose how an entity is named (D-516).
 //!
 //! A decision is kept with the evidence that was shown and its digest, as
 //! the decisions about similar documents (`similar/store.rs`), and refers
@@ -45,6 +46,10 @@ pub enum IdentityDecision {
     SameMatter { a: String, b: String },
     /// Two documents are not of the same matter: never grouped together.
     OtherMatter { a: String, b: String },
+    /// `a`, an entity, is named `name` (D-516): one of the ways its
+    /// documents write it, or one a person writes. It stands over what the
+    /// documents say until it is undone.
+    Name { a: String, name: String },
 }
 
 /// The key of a document a person decides matters by.
@@ -220,6 +225,13 @@ fn record(conn: &Connection, decision: &IdentityDecision, note: Option<&str>, sh
                 return Err("Solo se puede confirmar una afirmación".to_string());
             }
             ("confirm", key, None)
+        }
+        IdentityDecision::Name { a, name } => {
+            let name = name.split_whitespace().collect::<Vec<_>>().join(" ");
+            if name.is_empty() || name.chars().count() > 200 {
+                return Err("El nombre no puede estar vacío ni pasar de 200 letras".to_string());
+            }
+            ("name", group_key(conn, a, None)?, Some(format!("{}{name}", super::resolve::NAME_PREFIX)))
         }
         IdentityDecision::SameMatter { a, b } | IdentityDecision::OtherMatter { a, b } => {
             let (first, second) = (document_key(conn, a)?, document_key(conn, b)?);

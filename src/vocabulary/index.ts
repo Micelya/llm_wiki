@@ -47,6 +47,8 @@ export interface Vocabulary {
     record: string
     /** Several: "Expedientes". */
     records: string
+    /** The official title of one, as the court gives it: "Carátula". */
+    recordTitle: string
   }
   /**
    * The section of the templates the base finds in its documents (D-466):
@@ -110,6 +112,16 @@ export interface Vocabulary {
    * `amount`, `name`…), to be followed by their order: "Fecha 2".
    */
   templateFields: Record<string, string>
+  /**
+   * What the digital signatures of a PDF say, checked without a
+   * connection. `states` by the state the base gives them (`sealed`,
+   * `valid-unknown`, `modified`, `invalid`, `unsupported`), with
+   * `{service}` (who sealed it) and `{date}` (when); a state with
+   * `-undated` is used when the signature does not say when.
+   * `validation`: long-term validation data was added later. `failing`:
+   * `{count}` other signatures that do not verify.
+   */
+  seal: { label: string; states: Record<string, string>; validation: string; failing: string }
   /**
    * The words of the knowledge layer's screens: who and what the
    * documents name. The ids are those of the layer's vocabulary

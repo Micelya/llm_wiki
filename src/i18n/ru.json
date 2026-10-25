@@ -27,7 +27,12 @@
     "settings": "Настройки",
     "settingsShortcut": " (Cmd/Ctrl+,)",
     "updateAvailable": "Доступно обновление",
-    "updateAvailableSuffix": " · обновление"
+    "updateAvailableSuffix": " · обновление",
+    "history": "Путь",
+    "back": "Назад",
+    "backHint": "Вернуться к тому, что было открыто раньше (Alt+←)",
+    "forward": "Вперёд",
+    "forwardHint": "Снова перейти к тому, что вы оставили, вернувшись назад (Alt+→)"
   },
   "updateBanner": {
     "message": "Доступна версия {{version}}",

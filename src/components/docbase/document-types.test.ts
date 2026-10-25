@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import type { DocumentType, TypesPlan, TypesRunReport } from "@/commands/docbase"
+import type { DocumentType, SealVerdict, TypesPlan, TypesRunReport } from "@/commands/docbase"
 import { vocabularyFor } from "@/vocabulary"
 import {
   confidenceText,
@@ -7,6 +7,7 @@ import {
   questionsText,
   runConfirmMessage,
   runReportText,
+  sealText,
   typeLabel,
   typeSourceText,
 } from "./document-types"
@@ -101,5 +102,33 @@ describe("the notice before asking the model", () => {
     expect(runReportText({ ...report, asked: 0, dataAsked: 0, typed: 0, corrected: 0 })).toBe(
       "No hizo falta preguntarle nada al modelo.",
     )
+  })
+})
+
+describe("what the digital signatures of a file say", () => {
+  const words = vocabularyFor("legal", "es")
+  const seal = (fields: Partial<SealVerdict>): SealVerdict => ({ state: "sealed", laterValidation: false, failing: 0, ...fields })
+
+  it("says who sealed it and when, in the vocabulary's words", () => {
+    const text = sealText(seal({ serviceName: "Servicio de prueba", signedAt: "2026-09-07T15:00:00Z" }), words)
+    expect(text).toBe("Íntegro: sellado por Servicio de prueba el 07/09/2026; no cambió desde entonces.")
+    expect(sealText(seal({ serviceName: "Servicio de prueba" }), words)).toBe("Íntegro: sellado por Servicio de prueba; no cambió desde entonces.")
+  })
+
+  it("says that it does not verify, without technical words", () => {
+    expect(sealText(seal({ state: "modified" }), words)).toBe("La firma digital no verifica: el archivo cambió después de firmarse.")
+    expect(sealText(seal({ state: "invalid" }), words)).toBe("La firma digital no verifica.")
+  })
+
+  it("adds the validation added later and the other signatures that do not verify", () => {
+    const text = sealText(seal({ state: "valid-unknown", laterValidation: true, failing: 3 }), words) ?? ""
+    expect(text.startsWith("Íntegro: firmado digitalmente por alguien")).toBe(true)
+    expect(text).toContain("validar la firma")
+    expect(text).toContain(": 3.")
+  })
+
+  it("is nothing without signatures", () => {
+    expect(sealText(null, words)).toBeNull()
+    expect(sealText(seal({ state: "otro" }), words)).toBeNull()
   })
 })

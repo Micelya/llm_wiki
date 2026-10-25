@@ -237,7 +237,7 @@ fn verdict(catalog: &Catalog, a: (i64, &Known), b: (i64, &Known), measured: Opti
                         relation: rule.relation.clone(),
                         subject: Some(subject.0),
                         rule: rule.id.clone(),
-                        certainty: Some("low"),
+                        certainty: Some(if rule.certainty.as_deref() == Some("high") { "high" } else { "low" }),
                         description: format!(
                             "Según su tipo, comparten {}: {}.",
                             rule.data.iter().map(|d| words(d)).collect::<Vec<_>>().join(", "),

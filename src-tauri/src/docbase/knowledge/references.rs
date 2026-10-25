@@ -6,7 +6,7 @@
 //! They come from the reading that already exists: the mentions of the
 //! type `matters.kind` of the vocabulary. No rule of its own finds them.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use rusqlite::Connection;
 use serde::Serialize;
@@ -79,6 +79,63 @@ pub(crate) fn document_references(conn: &Connection, vocabulary: &Vocabulary, co
         }
     }
     Ok(out)
+}
+
+/// The documents whose references cite a record by its number and its
+/// year, by their normalized form (the same filters as
+/// `document_references`): the number, as one group of digits or as several
+/// ("12.345"), followed by the year in four digits or two. Citing a record
+/// is not being of it: another, related record is cited too.
+pub(crate) fn documents_citing(conn: &Connection, vocabulary: &Vocabulary, number: u64, year: u32) -> Result<BTreeSet<i64>, String> {
+    let short = format!("%{:02}%", year % 100);
+    let mut statement = conn
+        .prepare(
+            "SELECT content_id, written, normalized FROM knowledge_mention
+             WHERE kind = ?1 AND defined = 0 AND (normalized LIKE ?2 OR written LIKE ?2)",
+        )
+        .map_err(sql_err)?;
+    let rows = statement
+        .query_map(rusqlite::params![vocabulary.matters.kind, short], |row| {
+            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
+        })
+        .map_err(sql_err)?;
+    let mut out = BTreeSet::new();
+    for row in rows {
+        let (content, written, normalized) = row.map_err(sql_err)?;
+        if normalized.trim().is_empty() || !vocabulary.is_a_name(&vocabulary.matters.kind, &written) {
+            continue;
+        }
+        if cites(&normalized, number, year) || cites(&written, number, year) {
+            out.insert(content);
+        }
+    }
+    Ok(out)
+}
+
+/// Whether a text writes a record's number followed by its year.
+pub(crate) fn cites(text: &str, number: u64, year: u32) -> bool {
+    let tokens: Vec<&str> = text.split(|c: char| !c.is_alphanumeric()).filter(|t| !t.is_empty()).collect();
+    let is_year = |t: &str| match t.len() {
+        4 => t.parse::<u32>().ok() == Some(year),
+        2 => t.parse::<u32>().ok() == Some(year % 100),
+        _ => false,
+    };
+    for start in 0..tokens.len() {
+        let mut digits = String::new();
+        for (end, token) in tokens.iter().enumerate().skip(start) {
+            if !token.chars().all(|c| c.is_ascii_digit()) {
+                break;
+            }
+            if end > start && digits.parse::<u64>().ok() == Some(number) && is_year(token) {
+                return true;
+            }
+            digits.push_str(token);
+            if digits.len() > 18 {
+                break;
+            }
+        }
+    }
+    false
 }
 
 /// The references of one document, one per normalized form, with the

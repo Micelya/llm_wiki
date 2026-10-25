@@ -157,6 +157,11 @@ pub struct RelationRule {
     #[serde(default)]
     pub other_type: Option<String>,
     pub relation: String,
+    /// How sure the relation is when the rule holds: `low` when not said
+    /// (a datum two documents may share by chance), `high` for a datum
+    /// that names one thing only (the identifier of a signing process).
+    #[serde(default)]
+    pub certainty: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -167,10 +172,16 @@ pub struct Variant {
     /// the catalog may hold (R-24).
     #[serde(default)]
     pub issuer: String,
-    /// Words in the certificate of an embedded signature that make it the
-    /// seal of this service rather than the signature of a party.
+    /// Words in the signer's certificate of an embedded signature that
+    /// make it the seal of this service rather than the signature of a
+    /// party. They count only when its chain verifies up to one of
+    /// `root_fingerprints` (seal.rs): a name alone proves nothing.
     #[serde(default)]
     pub certificate_names: Vec<String>,
+    /// SHA-256 fingerprints (hex) of the certificates the service's seal
+    /// chains up to: its root, or the authority it trusts below the root.
+    #[serde(default)]
+    pub root_fingerprints: Vec<String>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
@@ -251,13 +262,13 @@ impl Catalog {
         self.types.iter().filter(|doc_type| !doc_type.carrier)
     }
 
-    /// Every signing service named by a variant, with the certificate
-    /// words that identify its seal.
+    /// Every signing service named by a variant, with the certificates
+    /// its seal chains up to.
     pub fn signing_services(&self) -> impl Iterator<Item = &Variant> {
         self.types
             .iter()
             .flat_map(|t| t.variants.iter())
-            .filter(|variant| !variant.certificate_names.is_empty())
+            .filter(|variant| !variant.root_fingerprints.is_empty())
     }
 
     /// Who issues each form or service named in the catalog.

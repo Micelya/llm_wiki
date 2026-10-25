@@ -482,12 +482,38 @@ pub fn amount_about_else(not_cues: &[String], quote_words: &[String], amount: &[
     })
 }
 
+/// Whether a name is, everywhere its quote writes it, part of an address:
+/// right after a word of an address ("calle X"), or inside a domicile the
+/// reading gives that is more than the name ("X 1234, Piso 2"). A person
+/// named like a street keeps her name where the quote writes it apart.
+pub fn named_only_as_address(quote_words: &[String], name: &[String], address_words: &[String], domiciles: &[Vec<String>]) -> bool {
+    let places = positions(quote_words, name);
+    let in_domicile = |at: usize| {
+        domiciles.iter().filter(|d| d.len() > name.len()).any(|d| {
+            positions(quote_words, d).into_iter().any(|start| start <= at && at + name.len() <= start + d.len())
+        })
+    };
+    !places.is_empty() && places.into_iter().all(|at| (at > 0 && address_words.contains(&quote_words[at - 1])) || in_domicile(at))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn w(text: &str) -> Vec<String> {
         quote::words(text)
+    }
+
+    #[test]
+    fn a_name_only_inside_an_address_is_the_address() {
+        let address = vec!["calle".to_string(), "av".to_string()];
+        let domicile = vec![w("Juan Perez 100, Piso 2")];
+        assert!(named_only_as_address(&w("con domicilio en calle Juan Perez 100"), &w("Juan Perez"), &address, &[]));
+        assert!(named_only_as_address(&w("domiciliado en Juan Perez 100, Piso 2"), &w("Juan Perez"), &address, &domicile));
+        // A person named like the street keeps her name.
+        assert!(!named_only_as_address(&w("Juan Perez, con domicilio en calle Juan Perez 100"), &w("Juan Perez"), &address, &[]));
+        assert!(!named_only_as_address(&w("Juan Perez, domiciliado en Juan Perez 100, Piso 2"), &w("Juan Perez"), &address, &domicile));
+        assert!(!named_only_as_address(&w("firma Ana Gomez"), &w("Juan Perez"), &address, &domicile));
     }
 
     #[test]

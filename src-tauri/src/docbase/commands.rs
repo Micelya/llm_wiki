@@ -712,13 +712,18 @@ pub fn docbase_set_ai_services(state: State<'_, DocBaseState>, services: AiServi
 pub struct DocumentTypeView {
     pub doc_type: Option<DocumentType>,
     pub data: Vec<Datum>,
+    /// What the digital signatures of its file say.
+    pub seal: Option<similar::seal::SealVerdict>,
 }
 
-/// What the document at this location is, in what stage, and its data.
+/// What the document at this location is, in what stage, its data, and
+/// what the digital signatures of its file say.
 #[tauri::command(async)]
 pub fn docbase_document_type(state: State<'_, DocBaseState>, location_id: i64) -> Result<DocumentTypeView, String> {
-    let (doc_type, data) = state.base()?.document_type_of(location_id)?;
-    Ok(DocumentTypeView { doc_type, data })
+    let base = state.base()?;
+    let (doc_type, data) = base.document_type_of(location_id)?;
+    let seal = base.document_seal(location_id)?;
+    Ok(DocumentTypeView { doc_type, data, seal })
 }
 
 /// The closed list of document types, for the screens: the catalog's,
@@ -1260,6 +1265,21 @@ pub fn docbase_knowledge_leave_matter(
 #[tauri::command(async)]
 pub fn docbase_knowledge_decide_matter(app: tauri::AppHandle, state: State<'_, DocBaseState>, matter_id: String, decision: String) -> Result<(), String> {
     state.base()?.knowledge_decide_matter(&matter_id, &decision)?;
+    let _ = app.emit(CHANGED_EVENT, ());
+    Ok(())
+}
+
+/// A person's answer to whether a matter that looks like the one of a
+/// record is the same: yes joins them, no is not asked again.
+#[tauri::command(async)]
+pub fn docbase_knowledge_answer_matter_question(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    record_matter_id: String,
+    other_matter_id: String,
+    same: bool,
+) -> Result<(), String> {
+    state.base()?.knowledge_answer_matter_question(&record_matter_id, &other_matter_id, same)?;
     let _ = app.emit(CHANGED_EVENT, ());
     Ok(())
 }

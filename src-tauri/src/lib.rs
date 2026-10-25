@@ -562,6 +562,7 @@ pub fn run() {
             docbase::commands::docbase_knowledge_decide_matter,
             docbase::commands::docbase_knowledge_create_matter,
             docbase::commands::docbase_knowledge_rename_matter,
+            docbase::commands::docbase_knowledge_answer_matter_question,
             docbase::commands::docbase_knowledge_choose_matter_document,
             commands::fs::delete_file,
             commands::fs::create_directory,

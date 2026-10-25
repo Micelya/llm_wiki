@@ -1,7 +1,10 @@
 //! The passes over a real base, with invented documents (R-24: nothing
 //! here comes from the test folder).
 
+use super::marks::PdfSignature;
+use super::seal::SealCheck;
 use super::store::Decision;
+use super::types::Catalog;
 use crate::docbase::query::DocumentFilter;
 use crate::docbase::testing::TempDir;
 use crate::docbase::{DocBase, Visible};
@@ -146,11 +149,11 @@ fn the_same_form_for_two_people_is_the_same_template() {
     let marks: Vec<String> = serde_json::from_value(similar.evidence["marks"]["a"].clone()).unwrap();
     assert!(marks.contains(&"form".to_string()));
     // Two different documents made with one template: it waits for no one
-    // (D-497); the family and its template stay.
+    // (D-497); they make no family, and their template stays.
     let pending = base.similar_pending(&Visible::All).unwrap();
     assert_eq!((pending.pairs, pending.groups, pending.same_document_pairs), (0, 0, 0));
-    let groups = base.similar_groups(&Visible::All).unwrap();
-    assert_eq!((groups[0].members.len(), groups[0].pending, groups[0].pending_same_document), (2, 0, 0));
+    assert!(base.similar_groups(&Visible::All).unwrap().is_empty(), "the same template makes no family");
+    assert!(base.similar_template(&Visible::All, row(&base, "ficha uno.pdf").location_id).unwrap().is_some());
 }
 
 #[test]
@@ -167,6 +170,37 @@ fn a_draft_and_its_final_wording_are_versions() {
     assert_eq!(base.similar_groups(&Visible::All).unwrap()[0].pending_same_document, 1);
 }
 
+/// The copy carries the valid seal of a signing service, covering the
+/// whole file: what a signed PDF brings (seal.rs).
+fn seal(base: &DocBase, name: &str) {
+    let catalog = Catalog::builtin();
+    let service = catalog.signing_services().find(|v| v.id == "adobe-acrobat-sign").unwrap();
+    let check = SealCheck {
+        state: "valid".into(),
+        chain: vec![service.root_fingerprints[0].clone()],
+        signer: vec![service.certificate_names[0].clone()],
+        covers: "file".into(),
+        ..Default::default()
+    };
+    base.similar_sign_with(content(base, name), vec![PdfSignature { check: Some(check), ..Default::default() }]).unwrap();
+    while base.similar_step(10).unwrap() > 0 {}
+}
+
+#[test]
+fn a_document_says_what_the_signatures_of_its_own_file_say() {
+    let (_dir, base, _) = base_with(&[("final.md", contract_final().into_bytes())]);
+    let location = row(&base, "final.md").location_id;
+    assert_eq!(base.document_seal(location).unwrap(), None);
+    seal(&base, "final.md");
+    let verdict = base.document_seal(location).unwrap().unwrap();
+    assert_eq!((verdict.state.as_str(), verdict.service.as_deref()), ("sealed", Some("adobe-acrobat-sign")));
+    // Signatures read from another file of the same content are not its own.
+    let check = SealCheck { state: "invalid".into(), covers: "file".into(), ..Default::default() };
+    let other = PdfSignature { file: Some("otro".into()), check: Some(check), ..Default::default() };
+    base.similar_sign_with(content(&base, "final.md"), vec![other]).unwrap();
+    assert_eq!(base.document_seal(location).unwrap(), None);
+}
+
 #[test]
 fn a_copy_with_a_signature_history_is_the_signed_copy() {
     let signed = format!("## Page 1\n\n{}\n\n## Page 2\n\n{AUDIT_PAGE}\n", contract_final());
@@ -175,6 +209,9 @@ fn a_copy_with_a_signature_history_is_the_signed_copy() {
         ("final.md", contract_final().into_bytes()),
         ("final firmado.md", signed.into_bytes()),
     ]);
+    // The history page alone proves nothing: anyone can write it.
+    assert_eq!(pair(&base, "final.md", "final firmado.md").unwrap().relation, "near-identical");
+    seal(&base, "final firmado.md");
     let similar = pair(&base, "final.md", "final firmado.md").unwrap();
     assert_eq!(similar.relation, "signed-copy");
     let signed_id = content(&base, "final firmado.md");
@@ -219,7 +256,7 @@ fn unrelated_documents_are_not_shown() {
 #[test]
 fn a_chain_does_not_make_one_family() {
     // b changes 15 % of a; c changes another 15 % of b: c is not like a.
-    let a = words(0..110, 0);
+    let a = words(0..103, 0);
     let b = [words(0..20, 0), words(20..35, 1), words(35..100, 0)].join(" ");
     let c = [words(0..20, 0), words(20..35, 1), words(35..60, 0), words(60..75, 2), words(75..100, 0)].join(" ");
     let (_dir, base, _) = base_with(&[("a.md", a.into_bytes()), ("b.md", b.into_bytes()), ("c.md", c.into_bytes())]);
@@ -409,18 +446,15 @@ fn a_family_of_the_same_template_waits_for_no_one_and_can_still_be_confirmed_at_
         ("abril.md", april().into_bytes()),
         ("mayo.md", may.into_bytes()),
     ]);
-    let groups = base.similar_groups(&Visible::All).unwrap();
-    assert_eq!(groups.len(), 1, "the three invoices are one family");
-    let group = &groups[0];
-    // Three invoices of one template are three invoices: nothing to decide (D-497).
-    assert_eq!((group.members.len(), group.pending, group.pending_same_document), (3, 0, 0));
+    // Three invoices of one template are three invoices: no family and nothing to decide (D-497).
+    assert!(base.similar_groups(&Visible::All).unwrap().is_empty(), "the same template makes no family");
     assert!(base.similar_open_pairs(&Visible::All).unwrap().is_empty(), "the pair between the two members waits for no one");
     assert_eq!(base.similar_pending(&Visible::All).unwrap().pairs, 0);
 
     // A person may still confirm it: every member with its principal, in one go.
-    let principal = group.principal.content_id;
+    let (principal, at) = (content(&base, "marzo.md"), row(&base, "marzo.md").location_id);
     let decisions: Vec<super::PairDecision> = base
-        .similar_of(&Visible::All, group.principal.location_id)
+        .similar_of(&Visible::All, at)
         .unwrap()
         .into_iter()
         .filter(|similar| similar.state == "proposed" && similar.relation == "same-template")
@@ -433,9 +467,8 @@ fn a_family_of_the_same_template_waits_for_no_one_and_can_still_be_confirmed_at_
         .collect();
     assert_eq!(decisions.len(), 2);
     assert_eq!(base.decide_similar_many(&decisions).unwrap(), 2);
-    let after = base.similar_groups(&Visible::All).unwrap();
-    assert_eq!((after[0].members.len(), after[0].pending), (3, 0));
-    let joined = base.similar_of(&Visible::All, group.principal.location_id).unwrap();
+    assert!(base.similar_groups(&Visible::All).unwrap().is_empty(), "confirmed, the same template is still no family");
+    let joined = base.similar_of(&Visible::All, at).unwrap();
     assert!(joined.iter().filter(|s| s.relation == "same-template").all(|s| s.state == "joined"), "what the person decided stays");
     assert!(base.similar_open_pairs(&Visible::All).unwrap().is_empty());
 
@@ -458,17 +491,14 @@ fn a_family_of_the_same_template_has_its_template_and_follows_its_family() {
         ("abril.md", april().into_bytes()),
         ("mayo.md", may.into_bytes()),
     ]);
-    let group = base.similar_groups(&Visible::All).unwrap().remove(0);
     let template = base
         .similar_template(&Visible::All, row(&base, "abril.md").location_id)
         .unwrap()
         .expect("a member reaches the template of its family");
-    assert_eq!(template.principal, group.principal.content_id);
     assert_eq!(template.asked, content(&base, "abril.md"));
     assert_eq!(template.state, "proposed", "nobody confirmed the family");
     assert_eq!(template.documents.len(), 3);
     assert_eq!(template.documents[0].doc.content_id, template.principal);
-    assert_eq!(group.template_fields, Some(template.fields.len() as i64));
     // The number, four dates and three amounts change; the rest is the template.
     let kinds: Vec<String> = template
         .fields
@@ -798,10 +828,8 @@ fn two_copies_of_the_same_form_are_possibly_the_same_document() {
         ("ficha dos.pdf", filled_form(&format!("{} Muchas gracias por su tiempo.", page("05/06/2026")), "Bruno Vega")),
         ("ficha tres.pdf", filled_form(&page("01/02/2026").replace("al pie", "al final"), "Ana Torres")),
     ]);
-    let groups = base.similar_groups(&Visible::All).unwrap();
-    assert_eq!(groups.len(), 1);
-    assert_eq!(groups[0].principal.name, "ficha dos.pdf");
-    let template = base.similar_template(&Visible::All, groups[0].principal.location_id).unwrap().unwrap();
+    let template = base.similar_template(&Visible::All, row(&base, "ficha dos.pdf").location_id).unwrap().unwrap();
+    assert_eq!(template.principal, content(&base, "ficha dos.pdf"));
     assert_eq!(template.documents.len(), 3);
     // The name of the form is a field, beside those of the text.
     let form: Vec<_> = template.fields.iter().filter(|f| f.form_name.is_some()).collect();
@@ -811,18 +839,18 @@ fn two_copies_of_the_same_form_are_possibly_the_same_document() {
     // The two forms of the same person change nothing but a word: possibly the same document.
     let (uno, tres) = (content(&base, "ficha uno.pdf"), content(&base, "ficha tres.pdf"));
     assert_eq!(template.possibly_same, vec![[uno.min(tres), uno.max(tres)]]);
-    assert_eq!(groups[0].possibly_same, 1);
     // Made with one template they would wait for no one; possibly the same
     // document, they wait for a person (D-497).
     let flagged = pair(&base, "ficha uno.pdf", "ficha tres.pdf").expect("the two forms are a pair");
     assert!(flagged.possibly_same);
     assert!(!pair(&base, "ficha dos.pdf", "ficha uno.pdf").unwrap().possibly_same);
     let open = base.similar_open_pairs(&Visible::All).unwrap();
-    assert_eq!(open.len(), 1, "between two members, out of the principal's pairs");
-    assert!(open[0].similar.possibly_same);
+    assert!(open.is_empty(), "practically the same, the two make a family of their own");
+    let groups = base.similar_groups(&Visible::All).unwrap();
+    assert_eq!(groups.iter().map(|g| (g.members.len(), g.pending)).collect::<Vec<_>>(), [(2, 1)], "and the pair waits in it");
     // Once a person decides about the two, it is no longer shown.
     base.decide_similar(uno, tres, &Decision::Discard, None).unwrap();
-    let template = base.similar_template(&Visible::All, groups[0].principal.location_id).unwrap().unwrap();
+    let template = base.similar_template(&Visible::All, row(&base, "ficha dos.pdf").location_id).unwrap().unwrap();
     assert!(template.possibly_same.is_empty());
 }
 
@@ -1228,8 +1256,7 @@ fn two_contracts_of_one_template_with_other_parties_and_amounts_wait_for_no_one(
     assert_eq!(relation(&base, "contrato alfa.md", "contrato beta.md").as_deref(), Some("same-template"));
     let pending = base.similar_pending(&Visible::All).unwrap();
     assert_eq!((pending.pairs, pending.groups, pending.same_document_pairs), (0, 0, 0));
-    let groups = base.similar_groups(&Visible::All).unwrap();
-    assert_eq!((groups.len(), groups[0].members.len(), groups[0].pending), (1, 2, 0));
+    assert!(base.similar_groups(&Visible::All).unwrap().is_empty(), "two contracts of one template are no family");
     let template = base.similar_template(&Visible::All, row(&base, "contrato beta.md").location_id).unwrap();
     assert!(template.is_some_and(|t| t.documents.len() == 2), "both are documents of the template");
 }
@@ -1273,7 +1300,7 @@ fn a_version_and_a_signed_copy_with_the_same_parties_still_wait_for_a_person() {
     }
     // A party only the signed copy names (its signatory) is no other party.
     names_in(&base, "final firmado.md", "Firmante Inventado", "firmante");
-    while base.similar_step(10).unwrap() > 0 {}
+    seal(&base, "final firmado.md");
     assert_eq!(relation(&base, "borrador.md", "final.md").as_deref(), Some("version"));
     assert_eq!(relation(&base, "final.md", "final firmado.md").as_deref(), Some("signed-copy"));
     let pending = base.similar_pending(&Visible::All).unwrap();

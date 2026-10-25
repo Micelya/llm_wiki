@@ -1308,6 +1308,15 @@ pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &
     // The model's ref in each part, to the kept mention's ref.
     let mut refs: HashMap<(usize, String), String> = HashMap::new();
     let mut by_key: HashMap<(String, String, String), usize> = HashMap::new();
+    // The domiciles the reading gives: a person named only inside one is
+    // the address.
+    let domiciles: Vec<Vec<String>> = answers
+        .iter()
+        .flat_map(|a| &a.afirmaciones)
+        .filter(|c| vocabulary.predicate(&c.predicado).is_some_and(|p| p.shape == "address"))
+        .filter_map(|c| c.objeto_valor.as_deref())
+        .map(quote::words)
+        .collect();
     for (part, answer) in answers.iter().enumerate() {
         if reading.doc_date.is_none() {
             reading.doc_date = answer
@@ -1423,6 +1432,23 @@ pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &
                         page: id_page,
                     });
                 }
+            }
+            // A name that names no one (a misread, an office alone, a rule
+            // taken for an organization, a domicile taken for a person),
+            // whatever the model read. A mail address stays: it still says
+            // whose contact it is; a misread name with a strong identifier
+            // too: the identifier says who it is.
+            let identified = identifiers.iter().any(|i| vocabulary.is_strong(&i.kind));
+            let not_named = vocabulary.not_named(&kind, &written).filter(|reason| match *reason {
+                "correo-o-web" => false,
+                "nombre-ilegible" | "letras-sueltas" => !identified,
+                _ => true,
+            });
+            let address = kind == PERSON_KIND
+                && read_checks::named_only_as_address(&quote::words(&said.cita), &name, &vocabulary.identity.address_words, &domiciles);
+            if let Some(reason) = not_named.or(address.then_some("domicilio-como-persona")) {
+                discard(&mut reading, "mention", reason, &written, &said.cita);
+                continue;
             }
             let key = (kind.clone(), name.join(" "), role.clone());
             if let Some(&kept) = by_key.get(&key) {
@@ -1763,6 +1789,10 @@ fn define_terms(vocabulary: &Vocabulary, body: &str, answers: &[Answer], text: &
     let mut targets: HashMap<String, String> = HashMap::new();
     let names: HashMap<String, (String, Vec<String>)> =
         reading.mentions.iter().map(|m| (m.reference.clone(), (m.kind.clone(), quote::words(&m.written)))).collect();
+    // Definitions whose quote names what they define only by another term
+    // of the document ("“Grupo” significa el Cliente y sus subsidiarias"):
+    // decided once the other terms are known. (term, quote, target, said).
+    let mut by_another_term: Vec<(String, Vec<String>, String, &AnswerDefinition)> = Vec::new();
     for (part, answer) in answers.iter().enumerate() {
         for said in &answer.definiciones {
             let term = read_checks::without_article(&normalized(&said.termino));
@@ -1777,15 +1807,15 @@ fn define_terms(vocabulary: &Vocabulary, body: &str, answers: &[Answer], text: &
                 discard(reading, "definition", "cita-no-encontrada", &said.termino, &said.cita);
                 continue;
             }
-            if !named {
-                // A term of something that is not a mention ("los Servicios").
-                discard(reading, "definition", "definicion-sin-nombre", &said.termino, &said.cita);
-                continue;
-            }
             // A "term" with a legal form ("Otra Empresa S.A.") is the name of
             // a company, not a term the document defines: a name next to
             // another in parentheses is not a definition of it.
-            if names::key(vocabulary, ORGANIZATION_KIND, &said.termino).form.is_some() {
+            let form = names::key(vocabulary, ORGANIZATION_KIND, &said.termino).form.is_some();
+            if !named && !form {
+                by_another_term.push((term, quote_words, target, said));
+                continue;
+            }
+            if form {
                 discard(reading, "definition", "termino-con-forma-juridica", &said.termino, &said.cita);
                 continue;
             }
@@ -1814,6 +1844,37 @@ fn define_terms(vocabulary: &Vocabulary, body: &str, answers: &[Answer], text: &
                 *t = None;
             }
         }).or_insert(nearest);
+    }
+    // A definition that names what it defines by another term of the
+    // document follows that term, one step at a time, to the name it
+    // defines: it holds when that is what the model said it defines (the
+    // same mention, or one written the same). Otherwise it is a term of
+    // something that is not a mention ("los Servicios").
+    let same = |a: &String, b: &String| a == b || names.get(a).zip(names.get(b)).is_some_and(|(x, y)| x == y);
+    loop {
+        let known: Vec<(Vec<String>, String)> = targets
+            .iter()
+            .map(|(t, to)| (t.clone(), Some(to.clone())))
+            .chain(shaped.iter().map(|(t, to)| (t.clone(), to.clone())))
+            .filter_map(|(t, to)| Some((t.split_whitespace().map(str::to_string).collect::<Vec<_>>(), to?)))
+            .collect();
+        let before = by_another_term.len();
+        let mut left = Vec::new();
+        for (term, quote_words, target, said) in by_another_term {
+            let follows = known.iter().any(|(other, to)| other.join(" ") != term && quote::contains(&quote_words, other) && same(to, &target));
+            if follows {
+                targets.entry(term).or_insert(target);
+            } else {
+                left.push((term, quote_words, target, said));
+            }
+        }
+        by_another_term = left;
+        if by_another_term.len() == before {
+            break;
+        }
+    }
+    for (_, _, _, said) in by_another_term {
+        discard(reading, "definition", "definicion-sin-nombre", &said.termino, &said.cita);
     }
     let kinds: HashMap<String, String> = reading.mentions.iter().map(|m| (m.reference.clone(), m.kind.clone())).collect();
     for mention in &mut reading.mentions {

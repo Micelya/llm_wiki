@@ -1322,18 +1322,21 @@ impl DocBase {
         let wanted: BTreeMap<i64, Vec<i64>> = {
             let conn = self.conn();
             let generated = super::generate::generated_contents(&conn)?;
-            let mut statement = conn
-                .prepare(
-                    "SELECT principal, content_id FROM similar_group_member
-                     WHERE relation = ?1 AND content_id != principal ORDER BY principal, content_id",
-                )
-                .map_err(sql_err)?;
-            let rows = statement
-                .query_map([TEMPLATE_RELATION], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)))
-                .map_err(sql_err)?;
+            // The same template is not a family (D-497): the units are
+            // grouped here with it.
+            let (units, links) = super::store::grouped(&conn, super::store::UNIT_RELATIONS)?;
+            let mut rows: Vec<(i64, i64)> = Vec::new();
+            for unit in units {
+                for member in unit.members.into_iter().filter(|m| *m != unit.principal) {
+                    let relation = links.get(&unit.principal).and_then(|l| l.get(&member)).map(|(r, _)| r.as_str());
+                    if relation == Some(TEMPLATE_RELATION) {
+                        rows.push((unit.principal, member));
+                    }
+                }
+            }
+            rows.sort();
             let mut wanted: BTreeMap<i64, Vec<i64>> = BTreeMap::new();
-            for row in rows {
-                let (principal, member) = row.map_err(sql_err)?;
+            for (principal, member) in rows {
                 if generated.contains(&principal) || generated.contains(&member) {
                     continue;
                 }

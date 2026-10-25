@@ -24,6 +24,7 @@ use rusqlite::params;
 use serde::{Deserialize, Serialize};
 
 use super::{CaseKey, Linked, RecordData, Row};
+use crate::docbase::knowledge::matter_records::RecordInput;
 use crate::docbase::origins::path_inside;
 use crate::docbase::{sql_err, DocBase, Visible};
 
@@ -578,43 +579,40 @@ pub fn ensure_origin(base: &DocBase, work: &Path, folder: &Path) -> Result<(Stri
     })
 }
 
-/// The matter of the record: made confirmed, by a person's request, with
-/// its reference in its name; and every document of its folder the base
-/// already inventoried, in it. Returns how many documents went in now.
-pub fn ensure_matter(base: &DocBase, record: &mut RecordFile, origin_id: &str, rel_folder: &str) -> Result<usize, String> {
-    let exists = match &record.matter_id {
-        Some(id) => base
-            .conn()
-            .query_row("SELECT state FROM knowledge_matter WHERE id = ?1", [id], |row| row.get::<_, String>(0))
-            .map(|state| state == "active")
-            .unwrap_or(false),
-        None => false,
-    };
-    if !exists {
-        let name = match record.data.title.as_deref().map(str::trim).filter(|t| !t.is_empty()) {
-            Some(title) => format!("{title} ({})", record.reference),
-            None => record.reference.clone(),
-        };
-        record.matter_id = Some(base.knowledge_create_matter(&name, &[])?);
+/// The record as data of a matter of the base.
+pub fn record_input(record: &RecordFile) -> RecordInput {
+    RecordInput {
+        portal: record.portal.clone(),
+        jurisdiction: record.key.jurisdiction.clone(),
+        number: record.key.number,
+        year: record.key.year,
+        written: Some(record.reference.clone()).filter(|r| !r.trim().is_empty()),
+        title: record.data.title.clone(),
     }
-    let matter = record.matter_id.clone().unwrap_or_default();
+}
+
+/// The matter of the record, looked for before it is made: the one that
+/// has the record, or else a new one named by the record; with every
+/// document of its folder the base already inventoried in it, and a
+/// question for a person for each matter that looks like it
+/// (`knowledge/matter_records.rs`). Returns how many documents went in now.
+pub fn ensure_matter(base: &DocBase, record: &mut RecordFile, origin_id: &str, rel_folder: &str) -> Result<usize, String> {
     let contents: Vec<i64> = {
         let conn = base.conn();
         let prefix = if rel_folder.is_empty() { String::new() } else { format!("{rel_folder}/") };
         let mut statement = conn
             .prepare(
                 "SELECT DISTINCT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash
-                 WHERE l.origin_id = ?1 AND substr(l.rel_path, 1, length(?2)) = ?2 AND l.ext = 'pdf'
-                   AND f.content_id NOT IN (SELECT content_id FROM knowledge_matter_choice WHERE matter_id = ?3)",
+                 WHERE l.origin_id = ?1 AND substr(l.rel_path, 1, length(?2)) = ?2 AND l.ext = 'pdf' AND f.content_id IS NOT NULL
+                 ORDER BY f.content_id",
             )
             .map_err(sql_err)?;
-        let rows = statement.query_map(params![origin_id, prefix, matter], |row| row.get(0)).map_err(sql_err)?;
+        let rows = statement.query_map(params![origin_id, prefix], |row| row.get(0)).map_err(sql_err)?;
         rows.collect::<Result<_, _>>().map_err(sql_err)?
     };
-    for content in &contents {
-        base.knowledge_choose_matter_document(&matter, &format!("content:{content}"), "in")?;
-    }
-    Ok(contents.len())
+    let outcome = base.knowledge_integrate_record(&record_input(record), record.matter_id.as_deref(), &contents)?;
+    record.matter_id = Some(outcome.matter_id);
+    Ok(outcome.added)
 }
 
 /// The path of a record's folder inside its origin, with `/`.

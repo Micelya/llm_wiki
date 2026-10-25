@@ -83,6 +83,17 @@ dom_query = { version = "0.27", default-features = false }
 # API keys live in the system keychain (Credential Manager on Windows), not
 # in app-state.json (secrets.rs).
 keyring = { version = "3.6", features = ["windows-native", "apple-native", "linux-native"] }
+# The digital signatures of a PDF are verified without a connection
+# (docbase/similar/seal.rs): the CMS envelope, its certificates and the
+# RSA or ECDSA signature (SHA-1 too: older signatures use it). RustCrypto,
+# MIT or Apache, no native code.
+cms = "0.2"
+x509-cert = "0.2"
+der = "0.7"
+spki = "0.7"
+rsa = { version = "0.9", features = ["sha2", "sha1"] }
+sha1 = "0.10"
+p256 = { version = "0.13", features = ["ecdsa"] }
 
 [target.'cfg(windows)'.dependencies]
 # The portal's view grants by itself the permission of WebView2 to download
@@ -93,6 +104,8 @@ windows-core = "0.61"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
+# Invented keys and certificates for the tests of the signature check.
+x509-cert = { version = "0.2", features = ["builder"] }
 
 [profile.release]
 codegen-units = 1

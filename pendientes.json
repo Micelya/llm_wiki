@@ -346,11 +346,11 @@
       "tipo": "decision",
       "responsable": "usuario",
       "estado": "a-verificar",
-      "detalle": "Micelya Core es el módulo de la plataforma que dará los servicios de IA y relacionados; se desarrolla en paralelo, primero sobre servicios de Amazon y diseñado para no depender de ellos. En algún momento la app va a usarlo como infraestructura de IA. Por ahora es solo información de contexto: los proveedores de IA siguen siendo configurables por instancia. 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/. 2026-10-22: El estudio de referencia va a usar Micelya Core (D-468): la conexión es parte del producto mínimo (D-463). Primero reflejar la respuesta de Core (P-244); después la conexión en Ajustes y el motor de reconocimiento de Core (pasos 4 y 5 de servicios-de-ia-propuesta.md) y ver si las preguntas al modelo también van por Core. Probado el 22 oct con el usuario técnico de desarrollo (en el llavero de Windows, «connection:micelya-core»): un escrito de 23 páginas leído de punta a punta en 27 s y borrado después. 2026-10-22: respuesta al 001 llevada al diseño (sección 2.3 y pasos 4, 4b y 5 de servicios-de-ia-propuesta.md) y mensaje 002 enviado (pedido de integración #65). Lectura por páginas o piezas (D-483); el dueño asume procesar en Estados Unidos (D-482). Preguntar al modelo por Core (paso 4b) espera el permiso y los límites que se piden en el 002. 2026-10-22 (tarde): construidos la conexión (commit 3df768b; Ajustes → Conexiones → Micelya Core, con «Probar la conexión»; el secreto nunca vuelve a las pantallas) y el motor de lectura de Core (commit e58123d, D-489): cada página como JPEG en gris de hasta 2000 px con nombre genérico, borrada en Core al guardarla; página sin renglones «[ilegible]»; palabras con confianza menor a 0,90 guardadas como dudosas; motor core:textract-1.0. Prueba real con un documento inventado de 3 páginas: 58 s, las 3 lecturas borradas. Falta verlo en la app; preguntar al modelo por Core (paso 4b) espera el permiso pedido en el 002. 2026-10-23: La autenticación en Core va por persona con Keycloak, no con una cuenta del sistema (D-501, P-302). 2026-10-23: Respuestas de Core 002 y 003 (23 oct): preguntar a modelos, dado; organización del piloto creada en desarrollo con un usuario técnico, contra D-501 (se corrige en un 004); las piezas de un escaneo, aceptadas sin fecha (Core prefiere recibir el documento entero cuando las haya, contra D-483); mientras tanto recomienda mandar cada página como PDF de una página y no como imagen (hoy, imagen en gris, D-489); propone sumar tres tipos a la lista (acta o partida, poder o escritura, resolución judicial) y pide respuesta antes de fijarla (pedir un código fijo por tipo, por el vocabulario de cada profesión); faltan las copias de respaldo y la política de no entrenar de AWS antes de usar documentos reales (Core P-190, Core P-167). Falta el mensaje 004. 2026-10-23: El mensaje 004 a Core (la corrección del usuario técnico del piloto, el trabajo sin conexión, los límites y los ocho pedidos sobre las piezas) queda en espera. El dueño evalúa hacer en el dispositivo todo el preprocesamiento (P-321), y entonces varios pedidos dejarían de tener sentido.",
+      "detalle": "Micelya Core es el módulo de la plataforma que dará los servicios de IA y relacionados; se desarrolla en paralelo, primero sobre servicios de Amazon y diseñado para no depender de ellos. En algún momento la app va a usarlo como infraestructura de IA. Por ahora es solo información de contexto: los proveedores de IA siguen siendo configurables por instancia. 21 oct: especificación y plan en docs/design/servicios-de-ia-propuesta.md (D-422); lo que depende de Core, en el mensaje 001 de docs/dropbox/core/. 2026-10-22: El estudio de referencia va a usar Micelya Core (D-468): la conexión es parte del producto mínimo (D-463). Primero reflejar la respuesta de Core (P-244); después la conexión en Ajustes y el motor de reconocimiento de Core (pasos 4 y 5 de servicios-de-ia-propuesta.md) y ver si las preguntas al modelo también van por Core. Probado el 22 oct con el usuario técnico de desarrollo (en el llavero de Windows, «connection:micelya-core»): un escrito de 23 páginas leído de punta a punta en 27 s y borrado después. 2026-10-22: respuesta al 001 llevada al diseño (sección 2.3 y pasos 4, 4b y 5 de servicios-de-ia-propuesta.md) y mensaje 002 enviado (pedido de integración #65). Lectura por páginas o piezas (D-483); el dueño asume procesar en Estados Unidos (D-482). Preguntar al modelo por Core (paso 4b) espera el permiso y los límites que se piden en el 002. 2026-10-22 (tarde): construidos la conexión (commit 3df768b; Ajustes → Conexiones → Micelya Core, con «Probar la conexión»; el secreto nunca vuelve a las pantallas) y el motor de lectura de Core (commit e58123d, D-489): cada página como JPEG en gris de hasta 2000 px con nombre genérico, borrada en Core al guardarla; página sin renglones «[ilegible]»; palabras con confianza menor a 0,90 guardadas como dudosas; motor core:textract-1.0. Prueba real con un documento inventado de 3 páginas: 58 s, las 3 lecturas borradas. Falta verlo en la app; preguntar al modelo por Core (paso 4b) espera el permiso pedido en el 002. 2026-10-23: La autenticación en Core va por persona con Keycloak, no con una cuenta del sistema (D-501, P-302). 2026-10-23: Respuestas de Core 002 y 003 (23 oct): preguntar a modelos, dado; organización del piloto creada en desarrollo con un usuario técnico, contra D-501 (se corrige en un 004); las piezas de un escaneo, aceptadas sin fecha (Core prefiere recibir el documento entero cuando las haya, contra D-483); mientras tanto recomienda mandar cada página como PDF de una página y no como imagen (hoy, imagen en gris, D-489); propone sumar tres tipos a la lista (acta o partida, poder o escritura, resolución judicial) y pide respuesta antes de fijarla (pedir un código fijo por tipo, por el vocabulario de cada profesión); faltan las copias de respaldo y la política de no entrenar de AWS antes de usar documentos reales (Core P-190, Core P-167). Falta el mensaje 004. 2026-10-23: El mensaje 004 a Core (la corrección del usuario técnico del piloto, el trabajo sin conexión, los límites y los ocho pedidos sobre las piezas) queda en espera. El dueño evalúa hacer en el dispositivo todo el preprocesamiento (P-321), y entonces varios pedidos dejarían de tener sentido. 2026-10-24: Mensaje C001 de Core (23 oct, sin verificar todavía contra su contrato): las preguntas a modelos aceptan instrucciones de sistema, varios turnos, imágenes (hasta 20), PDF (hasta 5), herramientas (hasta 20) y respuesta con esquema; topes de 200.000 caracteres, respuestas de hasta 8.192 fichas y 240 segundos; nuevo error 503 INFERENCE_BUSY (esperar y reintentar). El tope de unos 10 pedidos por minuto es de toda la cuenta de AWS, compartido por todas las organizaciones y los trabajos de Core: es el riesgo del piloto. La lectura suma páginas no leídas, código de falla, proveedor, borrar al entregar y una lectura inmediata de una imagen de hasta 5 MB, sin trabajo ni guardado. Facturas argentinas sin Textract cuando el PDF tiene texto y QR de ARCA. Las piezas de un escaneo están desplegadas, con el defecto del cupo (Core P-197). Consulta de uso y costo para administradores. La política de que AWS no entrene con los datos ya rige (Core P-167 cerrado); las copias diarias de las bases funcionan y faltan las de los discos y la alerta (Core P-190). El mensaje 004 se replantea: uno corto ahora (piloto con personas, cómo se crean sus cuentas, el cupo compartido) y los pedidos sobre las piezas después de decidir lo del dispositivo (P-321).",
       "depende_de": [],
       "referencia": "Repo extrimian/mi-platform, rama dev; docs/design/servicios-de-ia-propuesta.md",
       "creado": "2026-10-11",
-      "actualizado": "2026-10-23"
+      "actualizado": "2026-10-24"
     },
     {
       "id": "P-064",
@@ -1869,13 +1869,13 @@
       "tipo": "verificacion",
       "responsable": "ambos",
       "estado": "pendiente",
-      "detalle": "Cuando Core habilite sus modelos (mensaje 002): unas 10 preguntas difíciles sobre un caso real, con 2 o 3 modelos, comparando respuestas, tiempo y costo, y la forma de trabajar con muchos documentos (buscar antes de leer, fragmentos, tandas con resúmenes). Pedido del dueño (22 oct). 2026-10-23: Ya se puede hacer (respuesta 002 de Core): comparar Sonnet 4.6, Haiku 4.5 y Opus 4.5 con identificadores «us.» (Opus 4.6 solo tiene «global.»). Con 20.000 caracteres por pregunta y 10 pedidos por minuto (5 con Opus), las preguntas sobre muchos documentos tienen que buscar antes de leer y trabajar por tandas (P-311).",
+      "detalle": "Cuando Core habilite sus modelos (mensaje 002): unas 10 preguntas difíciles sobre un caso real, con 2 o 3 modelos, comparando respuestas, tiempo y costo, y la forma de trabajar con muchos documentos (buscar antes de leer, fragmentos, tandas con resúmenes). Pedido del dueño (22 oct). 2026-10-23: Ya se puede hacer (respuesta 002 de Core): comparar Sonnet 4.6, Haiku 4.5 y Opus 4.5 con identificadores «us.» (Opus 4.6 solo tiene «global.»). Con 20.000 caracteres por pregunta y 10 pedidos por minuto (5 con Opus), las preguntas sobre muchos documentos tienen que buscar antes de leer y trabajar por tandas (P-311). 2026-10-24: Los límites cambiaron (mensaje C001 de Core): 200.000 caracteres por pregunta y respuestas de hasta 8.192 fichas. Sigue el tope de unos 10 pedidos por minuto para toda la cuenta.",
       "depende_de": [
         "P-063"
       ],
       "referencia": "D-498; mensaje 002 a Core",
       "creado": "2026-10-22",
-      "actualizado": "2026-10-23"
+      "actualizado": "2026-10-24"
     },
     {
       "id": "P-300",
@@ -1885,11 +1885,11 @@
       "estado": "pendiente",
       "prioridad": 1,
       "tema": "servicios de IA",
-      "detalle": "Parte del producto mínimo: el estudio de referencia usa Core para todo, sin Codex (D-468). Paso 4b de servicios-de-ia-propuesta.md: un motor de preguntas que usa executePrompt de Core (solo texto: la pregunta entera en el texto, la respuesta en JSON controlada como hoy), elegible en Servicios de IA. Se construye y se prueba contra un Core simulado; la prueba real espera el permiso inference.execute y los límites pedidos en el mensaje 002. El chat sobre Core va con el contrato de operaciones (P-286). 2026-10-23: El chat con acciones (D-506) todavía no usa Core: entra en este pendiente. 2026-10-23: Core respondió el 002 (docs/dropbox/desktop/2026-10-23-002 de Core): el permiso para preguntar a modelos está dado y probado con el usuario técnico de desarrollo; 11 modelos; Core recomienda Sonnet 4.6 para leer con respuesta en JSON y Haiku 4.5 para lo simple, con los identificadores «us.» (Estados Unidos), sin medirlos. Límites de hoy: 20.000 caracteres por pregunta, 2.048 fichas por respuesta (si se pasa llega cortada), 60 s de espera (pasado ese tiempo el resultado es desconocido y puede cobrarse), unos 10 pedidos por minuto para toda la cuenta (5 con Opus). Choca con lo construido: las preguntas de lectura rondan los 30.000 caracteres y el chat pide hasta 8.192 fichas. La prueba real ya se puede hacer: partir las preguntas largas, detectar las respuestas cortadas y espaciar los pedidos. Instrucciones de sistema, varios turnos, esquema de respuesta y herramientas: aceptados, sin fecha (002-R3).",
+      "detalle": "Parte del producto mínimo: el estudio de referencia usa Core para todo, sin Codex (D-468). Paso 4b de servicios-de-ia-propuesta.md: un motor de preguntas que usa executePrompt de Core (solo texto: la pregunta entera en el texto, la respuesta en JSON controlada como hoy), elegible en Servicios de IA. Se construye y se prueba contra un Core simulado; la prueba real espera el permiso inference.execute y los límites pedidos en el mensaje 002. El chat sobre Core va con el contrato de operaciones (P-286). 2026-10-23: El chat con acciones (D-506) todavía no usa Core: entra en este pendiente. 2026-10-23: Core respondió el 002 (docs/dropbox/desktop/2026-10-23-002 de Core): el permiso para preguntar a modelos está dado y probado con el usuario técnico de desarrollo; 11 modelos; Core recomienda Sonnet 4.6 para leer con respuesta en JSON y Haiku 4.5 para lo simple, con los identificadores «us.» (Estados Unidos), sin medirlos. Límites de hoy: 20.000 caracteres por pregunta, 2.048 fichas por respuesta (si se pasa llega cortada), 60 s de espera (pasado ese tiempo el resultado es desconocido y puede cobrarse), unos 10 pedidos por minuto para toda la cuenta (5 con Opus). Choca con lo construido: las preguntas de lectura rondan los 30.000 caracteres y el chat pide hasta 8.192 fichas. La prueba real ya se puede hacer: partir las preguntas largas, detectar las respuestas cortadas y espaciar los pedidos. Instrucciones de sistema, varios turnos, esquema de respuesta y herramientas: aceptados, sin fecha (002-R3). 2026-10-24: Con los límites nuevos de Core (mensaje C001: 200.000 caracteres, 8.192 fichas, herramientas y respuesta con esquema), las preguntas de lectura de Desktop (unos 30.000 caracteres) y el chat (hasta 8.192 fichas) entran en Core.",
       "depende_de": [],
       "referencia": "servicios-de-ia-propuesta.md (2.3, paso 4b); mensaje 002 a Core",
       "creado": "2026-10-22",
-      "actualizado": "2026-10-23"
+      "actualizado": "2026-10-24"
     },
     {
       "id": "P-301",
@@ -1912,14 +1912,14 @@
       "titulo": "Inicio de sesión en Micelya Core por persona, con Keycloak",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "en-espera",
+      "estado": "pendiente",
       "prioridad": 2,
       "tema": "servicios de IA",
-      "detalle": "Decisión del dueño (23 oct, D-501): la app se autentica en Core con Keycloak y por cada persona, no con una cuenta del sistema (el usuario técnico de hoy, client_credentials, queda solo para desarrollo). Cada persona inicia sesión en el navegador del sistema y vuelve a la app (código de autorización con PKCE, sin secreto dentro del programa), la renovación queda en el llavero, se puede cerrar la sesión, y las lecturas y preguntas a Core quedan a nombre de quien las pidió. No entra en la corrida del 22-23 oct. Cuando llegue el momento se definen con el dueño y con Core los detalles, entre ellos cómo se crean los usuarios del estudio de referencia en su organización de Keycloak. Espera que Core especifique el cliente de escritorio (Core P-177 y Core P-178; pedido 001-R2). El mensaje 002 (002-R2) pidió para el piloto un usuario técnico: hay que corregirlo con Core. 2026-10-23: Aclaración del dueño, para definir cuando se aborde el tema (probablemente el 23 oct): hay que resolver cómo se autentica y cómo trabaja la persona sin conexión. Sin conexión no puede consultar a Core, pero puede usar todo lo que funciona sin conexión. Keycloak va a emitir tokens que duran 90 días: quizás se puedan reusar sin conexión para saber quién es la persona. A definir: qué se exige al abrir la app sin conexión, qué pasa cuando vence o se revoca el token, y cómo se marca lo que se hizo sin conexión. 2026-10-23: Core respondió (002-Q3): el inicio por persona se va a construir, sin fecha (Core P-177), por el navegador del sistema y sin clave dentro del programa; la sesión dura 30 días sin uso y 90 como máximo, y cada renovación trae una clave nueva que Desktop guarda antes de usarla. Sin conexión, Keycloak no ofrece nada: la regla la pone Desktop (Core sugiere un tope de días sin conexión y desbloquear con Windows Hello o un PIN). Core cree que para el piloto alcanza el usuario técnico, y armó la organización del piloto así: choca con D-501 y hay que corregirlo en un mensaje 004 (decide el dueño: esperar el inicio por persona o aceptar un usuario técnico por un tiempo).",
+      "detalle": "Decisión del dueño (23 oct, D-501): la app se autentica en Core con Keycloak y por cada persona, no con una cuenta del sistema (el usuario técnico de hoy, client_credentials, queda solo para desarrollo). Cada persona inicia sesión en el navegador del sistema y vuelve a la app (código de autorización con PKCE, sin secreto dentro del programa), la renovación queda en el llavero, se puede cerrar la sesión, y las lecturas y preguntas a Core quedan a nombre de quien las pidió. No entra en la corrida del 22-23 oct. Cuando llegue el momento se definen con el dueño y con Core los detalles, entre ellos cómo se crean los usuarios del estudio de referencia en su organización de Keycloak. Espera que Core especifique el cliente de escritorio (Core P-177 y Core P-178; pedido 001-R2). El mensaje 002 (002-R2) pidió para el piloto un usuario técnico: hay que corregirlo con Core. 2026-10-23: Aclaración del dueño, para definir cuando se aborde el tema (probablemente el 23 oct): hay que resolver cómo se autentica y cómo trabaja la persona sin conexión. Sin conexión no puede consultar a Core, pero puede usar todo lo que funciona sin conexión. Keycloak va a emitir tokens que duran 90 días: quizás se puedan reusar sin conexión para saber quién es la persona. A definir: qué se exige al abrir la app sin conexión, qué pasa cuando vence o se revoca el token, y cómo se marca lo que se hizo sin conexión. 2026-10-23: Core respondió (002-Q3): el inicio por persona se va a construir, sin fecha (Core P-177), por el navegador del sistema y sin clave dentro del programa; la sesión dura 30 días sin uso y 90 como máximo, y cada renovación trae una clave nueva que Desktop guarda antes de usarla. Sin conexión, Keycloak no ofrece nada: la regla la pone Desktop (Core sugiere un tope de días sin conexión y desbloquear con Windows Hello o un PIN). Core cree que para el piloto alcanza el usuario técnico, y armó la organización del piloto así: choca con D-501 y hay que corregirlo en un mensaje 004 (decide el dueño: esperar el inicio por persona o aceptar un usuario técnico por un tiempo). 2026-10-24: Core escribió el mensaje C001 (23 oct): el inicio de sesión por persona ya está en su ambiente de desarrollo. Keycloak tiene un cliente público «desktop» (código de autorización con PKCE S256, vuelta a 127.0.0.1 o [::1] en cualquier puerto, sin secreto); alcances «openid profile email organization:* offline_access» (sesión de 30 días sin uso y 90 como máximo); el token de una organización se pide al renovar con «organization:<id>» y X-Tenant-Id; cada renovación trae una clave nueva que se guarda antes de usarla, de a una; el token de acceso dura 5 minutos; cierre con logout. Core lo probó con un guion, no desde la app. Ya no espera a Core: espera que lo construya Desktop y una cuenta de prueba de una persona, que el dueño de Core pasa por un canal privado. Falta la decisión del dueño sobre el trabajo sin conexión (recomendado: la app abre sin pedir nada y solo lo de Core dice «sin conexión»).",
       "depende_de": [],
       "referencia": "D-501; docs/design/servicios-de-ia-propuesta.md (Autenticación); docs/dropbox/core/2026-10-21-001 (001-R2) y 2026-10-22-002 (002-R2); src-tauri/src/micelya_core/",
       "creado": "2026-10-23",
-      "actualizado": "2026-10-23"
+      "actualizado": "2026-10-24"
     },
     {
       "id": "P-303",
@@ -2165,14 +2165,14 @@
       "titulo": "Decidir con el dueño cómo atacar las observaciones de su recorrida del 23 oct",
       "tipo": "decision",
       "responsable": "ambos",
-      "estado": "pendiente",
+      "estado": "en-curso",
       "prioridad": 1,
       "tema": "pruebas y calidad",
-      "detalle": "El 23 oct el dueño recorrió la app y pasó nueve observaciones. Están verificadas, con causa, propuesta y un orden propuesto, en C:\\Users\\Usuario\\LocalRepo\\llm_wiki_mi\\observaciones-del-dueno.md. Ese archivo está fuera del repositorio porque tiene datos reales. Temas: el nombre de una persona por una forma vista una vez; páginas escaneadas que nunca se leen; documentos compuestos; el 14 % de las fichas mal armadas; volver atrás; un caso triplicado; plantillas con datos de las personas; afirmaciones repetidas en un caso; identidades dudosas sin la respuesta «es la marca o el grupo». Cada arreglo se escribe como regla general, se mide sobre toda la base y contra la hoja de respuestas, y se prueba con datos inventados (R-24 a R-26). Traspaso: docs/sessions/2026-10-23-sesion-18b.md.",
+      "detalle": "El 23 oct el dueño recorrió la app y pasó nueve observaciones. Están verificadas, con causa, propuesta y un orden propuesto, en C:\\Users\\Usuario\\LocalRepo\\llm_wiki_mi\\observaciones-del-dueno.md. Ese archivo está fuera del repositorio porque tiene datos reales. Temas: el nombre de una persona por una forma vista una vez; páginas escaneadas que nunca se leen; documentos compuestos; el 14 % de las fichas mal armadas; volver atrás; un caso triplicado; plantillas con datos de las personas; afirmaciones repetidas en un caso; identidades dudosas sin la respuesta «es la marca o el grupo». Cada arreglo se escribe como regla general, se mide sobre toda la base y contra la hoja de respuestas, y se prueba con datos inventados (R-24 a R-26). Traspaso: docs/sessions/2026-10-23-sesion-18b.md. 2026-10-24: La primera tanda (sin cupo) va en la corrida desatendida del 24 oct (llm_wiki_mi/desatendido-9/plan.md): casos y expedientes con la regla corregida de la observación 6 (el expediente es un dato del caso; al integrar se busca primero su caso; el nombre de una persona no se toca), calidad de personas y organizaciones, afirmaciones repetidas y nombres de personas, y volver atrás. Lo que espera a Docling (formularios y tablas por posición, lector local, releer escaneos, partir compuestos) queda para después. 2026-10-24: Primera tanda hecha en la corrida del 24 oct (D-514 a D-517; pendientes P-324 a P-333). Recorrido con la app real: el caso duplicado se retiró y quedó la pregunta en Atención (40 documentos compartidos, 12 que citan el número); la lista de personas y organizaciones pasó de 429 a 406, sin los nombres ilegibles, las letras sueltas, los cargos ni el domicilio; las dos personas de la observación 1 tienen la forma de la mayoría, con «Elegir el nombre»; un término definido que remitía a otro quedó unido a su organización. Quedan para el dueño: verlas y decidir la segunda tanda (ficha de forma por página, datos del portal, plantillas sin datos de las personas, «es la marca o el grupo»).",
       "depende_de": [],
       "referencia": "docs/sessions/2026-10-23-sesion-18b.md; R-24; R-25; R-26",
       "creado": "2026-10-23",
-      "actualizado": "2026-10-23"
+      "actualizado": "2026-10-24"
     },
     {
       "id": "P-320",
@@ -2182,13 +2182,13 @@
       "estado": "pendiente",
       "prioridad": 1,
       "tema": "reconocimiento",
-      "detalle": "Hoy una página de PDF «tiene texto» si tiene 80 caracteres (textless_pages, MIN_PAGE_TEXT_CHARS). Falla con el pie que el PJN estampa en cada página y con capas de texto viejas y ruidosas, así que hay páginas escaneadas que nunca se leen. Propuesta de la investigación del 23 oct: decidir página por página con señales de pdfium. Las señales: texto propio sin contar lo repetido en todas las páginas, imagen que cubre la página, calidad del texto (letras sueltas, palabras pegadas), grupos de objetos agregados encima (formularios aplanados), productor. Las señales van al catálogo. Después, volver a leer lo que aparezca, con cupo y avisando antes. Es lo recomendado primero, pero espera la decisión del dueño (P-319, P-321).",
+      "detalle": "Hoy una página de PDF «tiene texto» si tiene 80 caracteres (textless_pages, MIN_PAGE_TEXT_CHARS). Falla con el pie que el PJN estampa en cada página y con capas de texto viejas y ruidosas, así que hay páginas escaneadas que nunca se leen. Propuesta de la investigación del 23 oct: decidir página por página con señales de pdfium. Las señales: texto propio sin contar lo repetido en todas las páginas, imagen que cubre la página, calidad del texto (letras sueltas, palabras pegadas), grupos de objetos agregados encima (formularios aplanados), productor. Las señales van al catálogo. Después, volver a leer lo que aparezca, con cupo y avisando antes. Es lo recomendado primero, pero espera la decisión del dueño (P-319, P-321). 2026-10-24: La prueba de Docling agrega una señal: la capa de texto vieja se detecta por la proporción de letras sueltas, no por el texto invisible (esa capa está escrita como texto visible tapado por la imagen).",
       "depende_de": [
         "P-319"
       ],
       "referencia": "src-tauri/src/source_volume/recognition.rs; llm_wiki_mi/investigacion-formas-de-documento-resultado.md",
       "creado": "2026-10-23",
-      "actualizado": "2026-10-23"
+      "actualizado": "2026-10-24"
     },
     {
       "id": "P-321",
@@ -2197,26 +2197,26 @@
       "responsable": "usuario",
       "estado": "en-espera",
       "tema": "servicios de IA",
-      "detalle": "El dueño evalúa en serio (23 oct, no decidido) hacer en Desktop, o en un paquete o SDK de Micelya, todo lo que no necesite un modelo de lenguaje grande ni un servicio que no esté en el dispositivo. Incluye reconocer qué es cada archivo y cada página, leer formularios y tablas, reconocer escaneos impresos y documentos de identidad, partir documentos compuestos con reglas, leer correos y quizás transcribir audio. Lo que hizo Core para partir documentos no es definitivo. Insumos: llm_wiki_mi/investigacion-formas-de-documento-resultado.md (librerías y licencias: pdfium, Magika, RapidOCR, Docling; MinerU tiene modelos AGPL-3.0; los modelos de Surya se pagan por encima de US$ 5 millones) y la prueba de Docling en una sesión remota (P-322).",
+      "detalle": "El dueño evalúa en serio (23 oct, no decidido) hacer en Desktop, o en un paquete o SDK de Micelya, todo lo que no necesite un modelo de lenguaje grande ni un servicio que no esté en el dispositivo. Incluye reconocer qué es cada archivo y cada página, leer formularios y tablas, reconocer escaneos impresos y documentos de identidad, partir documentos compuestos con reglas, leer correos y quizás transcribir audio. Lo que hizo Core para partir documentos no es definitivo. Insumos: llm_wiki_mi/investigacion-formas-de-documento-resultado.md (librerías y licencias: pdfium, Magika, RapidOCR, Docling; MinerU tiene modelos AGPL-3.0; los modelos de Surya se pagan por encima de US$ 5 millones) y la prueba de Docling en una sesión remota (P-322). 2026-10-24: Con la prueba de Docling: recomendado construir sobre pdfium (ficha de forma por página y lectura por posición) más RapidOCR en el dispositivo, sin Docling como programa; si hace falta ubicar regiones, su modelo de forma de página en ONNX (171 MB, Apache) desde Rust. El dueño decidió que lo manuscrito no se transcribe automáticamente (D-518). Próxima ronda: medir cómo se parten los documentos contra una hoja de respuestas (P-335).",
       "depende_de": [
         "P-322"
       ],
       "referencia": "llm_wiki_mi/investigacion-formas-de-documento-resultado.md",
       "creado": "2026-10-23",
-      "actualizado": "2026-10-23"
+      "actualizado": "2026-10-24"
     },
     {
       "id": "P-322",
       "titulo": "Revisar la prueba remota de Docling (rama investigacion/docling) antes de integrarla",
       "tipo": "verificacion",
       "responsable": "claude",
-      "estado": "en-espera",
+      "estado": "hecho",
       "tema": "reconocimiento",
-      "detalle": "El 23 oct el dueño lanzó en una sesión remota de Claude Code una prueba de Docling, RapidOCR, Tesseract, granite-docling y pdfium sobre seis PDF reales. El prompt está en llm_wiki_mi/prueba-docling/prompt.md. El resultado va a una rama investigacion/docling, en docs/investigacion/docling/, sin pedido de integración. El dueño le indicó privilegiar la calidad del análisis por sobre las reglas de privacidad del prompt, porque la información es pública. Al revisarla: leer el informe, cruzarlo con la investigación y las observaciones, y correr la prueba de que ningún caso real está en el programa. Como el repositorio es público, decidir con el dueño qué entra a main antes de abrir el pedido de integración.",
+      "detalle": "El 23 oct el dueño lanzó en una sesión remota de Claude Code una prueba de Docling, RapidOCR, Tesseract, granite-docling y pdfium sobre seis PDF reales. El prompt está en llm_wiki_mi/prueba-docling/prompt.md. El resultado va a una rama investigacion/docling, en docs/investigacion/docling/, sin pedido de integración. El dueño le indicó privilegiar la calidad del análisis por sobre las reglas de privacidad del prompt, porque la información es pública. Al revisarla: leer el informe, cruzarlo con la investigación y las observaciones, y correr la prueba de que ningún caso real está en el programa. Como el repositorio es público, decidir con el dueño qué entra a main antes de abrir el pedido de integración. 2026-10-24: Prueba de Docling revisada (sin datos reales) e integrada por pedido del dueño (pedido de integración #70). Resultado: RapidOCR es el mejor lector local (0,2 % de error en lo impreso, las dos zonas de lectura de los DNI, unos 2 segundos por página, 31 MB, Apache); Docling sirve solo leyendo la página entera, pesa 1,25 GB con PyTorch o 590 MB sin él (con tres remiendos y sin tablas) y esconde en su JSON el texto de las zonas que toma por imagen; granite-docling no sirve; ningún lector local lee lo manuscrito; Docling no parte documentos. Informe en docs/investigacion/docling/informe.md.",
       "depende_de": [],
       "referencia": "llm_wiki_mi/prueba-docling/prompt.md",
       "creado": "2026-10-23",
-      "actualizado": "2026-10-23"
+      "actualizado": "2026-10-24"
     },
     {
       "id": "P-323",
@@ -2226,13 +2226,239 @@
       "estado": "pendiente",
       "prioridad": 2,
       "tema": "portales",
-      "detalle": "Al bajar cada actuación, el portal deja al lado del PDF su tipo, fojas, fecha, oficina y detalle (<nombre>.micelya.json, portals/store.rs), pero la base no lo usa (scan.rs lo deja fuera). Por eso el tipo y la fecha los adivina el modelo. Propuesta: traducir esos datos a conceptos canónicos (D-512), por ejemplo el tipo de actuación, la fecha, las fojas y si es documentación adjunta. Además, unir cada escrito con la documentación adjunta vecina: misma fecha, fojas seguidas, detalle «DOCUMENTACIÓN ADJUNTA». Sin cupo. Espera la decisión del dueño (P-319).",
+      "detalle": "Al bajar cada actuación, el portal deja al lado del PDF su tipo, fojas, fecha, oficina y detalle (<nombre>.micelya.json, portals/store.rs), pero la base no lo usa (scan.rs lo deja fuera). Por eso el tipo y la fecha los adivina el modelo. Propuesta: traducir esos datos a conceptos canónicos (D-512), por ejemplo el tipo de actuación, la fecha, las fojas y si es documentación adjunta. Además, unir cada escrito con la documentación adjunta vecina: misma fecha, fojas seguidas, detalle «DOCUMENTACIÓN ADJUNTA». Sin cupo. Espera la decisión del dueño (P-319). 2026-10-24: Además (24 oct): que el catálogo defina la fecha, las fojas y el número de cada actuación en los tipos judiciales, para que la regla de datos clave (D-497) actúe en «Copias y versiones»: hoy esos tipos no tienen datos y dos documentos judiciales distintos solo se comparan por el texto.",
       "depende_de": [
         "P-319"
       ],
       "referencia": "src-tauri/src/portals/store.rs; src-tauri/src/docbase/scan.rs; D-512",
       "creado": "2026-10-23",
-      "actualizado": "2026-10-23"
+      "actualizado": "2026-10-24"
+    },
+    {
+      "id": "P-324",
+      "titulo": "Ver en la app: casos y expedientes (la pregunta en Atención y el expediente en la página del caso)",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "casos",
+      "detalle": "Construido en la corrida del 24 oct (D-514, commits 8bc6b19, 6478e44, 48b0cf2). Qué mirar: 1) abrir «Portales» (ahí corre la reparación: el caso duplicado de 14 documentos se retira); 2) en «Atención», «1 caso que puede ser el mismo que el de un expediente», con «comparten 40 documentos · 12 documentos citan su número»: responder; 3) abrir el caso que quedó y ver debajo del nombre el expediente con su número y su carátula. Medido sobre una copia: 7 casos activos antes y 6 después, ningún caso queda como nombrado por una persona sin que lo haya nombrado, una pregunta nueva.",
+      "depende_de": [],
+      "referencia": "D-514; src-tauri/src/docbase/knowledge/matter_records.rs",
+      "creado": "2026-10-24",
+      "actualizado": "2026-10-24"
+    },
+    {
+      "id": "P-325",
+      "titulo": "Seguir un expediente en el portal desde la página de un caso",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "portales",
+      "detalle": "Hoy se empieza a seguir un expediente solo desde «Portales». Desde la página del caso, la persona ya diría a qué caso va, y la app no tendría que preguntar si es el mismo (D-514).",
+      "depende_de": [],
+      "referencia": "D-514",
+      "creado": "2026-10-24",
+      "actualizado": "2026-10-24"
+    },
+    {
+      "id": "P-326",
+      "titulo": "Deshacer la unión de dos casos",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "casos",
+      "detalle": "Responder «Es el mismo caso» en Atención une los casos y no se puede deshacer: la unión no queda en el registro de operaciones (por eso el botón pide confirmación). Además, las preguntas solo se buscan al integrar un expediente: si la app propone después un caso parecido, no se pregunta hasta la próxima integración, y la señal débil (citar número y año, sin la jurisdicción) puede preguntar por expedientes vinculados que se citan entre sí.",
+      "depende_de": [],
+      "referencia": "D-514",
+      "creado": "2026-10-24",
+      "actualizado": "2026-10-24"
+    },
+    {
+      "id": "P-327",
+      "titulo": "Ver en la app: personas y organizaciones sin fichas que no nombran a nadie, y la duda del DNI de más",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "conocimiento",
+      "detalle": "Construido en la corrida del 24 oct (D-515, commits fdcdc3e y 81c0ebc). Cuando la app termine de recontrolar y resolver: en «Personas y organizaciones» no aparecen nombres ilegibles, letras sueltas, cargos sin nombre ni «Ley …», y primero van las fichas con página; en una ficha, «También escrito como» sin formas genéricas ni correos; en «Dudas de identidad» ya no está la del DNI de más, y la que queda dice qué número aparece con dos nombres y en qué documentos; la ficha de esa persona muestra el número de la otra como «dudoso». Medido sobre una copia: se descartan 21 fichas que no nombraban a nadie y se ocultan 3 correos, sin perder ninguna correcta (revisadas a mano); «También escrito como» pasa de 300 a 159 formas; las dudas por identificador, de 2 a 1; la hoja de respuestas no empeora en nada.",
+      "depende_de": [],
+      "referencia": "D-515",
+      "creado": "2026-10-24",
+      "actualizado": "2026-10-24"
+    },
+    {
+      "id": "P-328",
+      "titulo": "Siglas de normas, estándares y productos tomadas como organización",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "conocimiento",
+      "detalle": "Quedan unas 17 fichas que son siglas de normas o estándares, o productos y sistemas, tomadas como organización. No se detectan con reglas sin cambiar la descripción de «organización» que recibe el modelo, y cambiarla marca todas las lecturas como de una versión anterior. Propuesta: cambiarla para las lecturas nuevas, o cuando se relea por otro motivo (la tercera tanda). Riesgo conocido de D-515: una persona cuyo apellido es un cargo pierde esa palabra al compararse por nombre.",
+      "depende_de": [],
+      "referencia": "D-515",
+      "creado": "2026-10-24",
+      "actualizado": "2026-10-24"
+    },
+    {
+      "id": "P-329",
+      "titulo": "Ver en la app: nombres de personas por la mayoría, elegir el nombre, y lo que dicen los documentos del caso sin repetir",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "conocimiento",
+      "detalle": "Construido en la corrida del 24 oct (D-516, commits 370c02f, a9a21c4, 7f6ced5, 3efa674, 5e9861e, f33221a). Qué mirar: 1) en la página del caso de la sucesión, «Lo que dicen los documentos del asunto»: «Causante de: este asunto» una sola vez, con las formas escritas en la nota; 2) las dos personas de la observación 1 con la forma de la mayoría; 3) en «Datos y correcciones» de una persona, «Elegir el nombre», usar una forma y deshacerla en «Decisiones». Medido sobre una copia: cambian 6 de 288 nombres de personas (los dos ejemplos quedan bien); en los 7 casos, de 394 a 367 renglones; estado civil de 12 a 10 afirmaciones; domicilios de 67 a 56 y sus conflictos de 2 a 0; la hoja de respuestas no empeora. Al reescribir las páginas, la app pide unos 24 resúmenes al modelo, dentro del tope de 50.",
+      "depende_de": [],
+      "referencia": "D-516",
+      "creado": "2026-10-24",
+      "actualizado": "2026-10-24"
+    },
+    {
+      "id": "P-330",
+      "titulo": "Decir una sola vez el mismo expediente también en la página de la persona, y las referencias al caso sin número",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "conocimiento",
+      "detalle": "D-516 unificó en la página del caso lo que apunta a ese mismo caso. La página de la persona sigue listando cada forma escrita del expediente aparte, y las formas sin número ni título del caso («juicio sucesorio del Sr. …») quedan aparte. Además, la página dice «este asunto»: cambiarlo a «caso» es parte de P-313. 2026-10-24: Visto en el recorrido: en la página del caso, «Causante de: este asunto» aparece una sola vez, pero el expediente de otra sucesión que citan los documentos aparece tres veces, una por cada forma escrita. Extender la consolidación a la misma referencia de otro expediente (por número y año).",
+      "depende_de": [],
+      "referencia": "D-516; P-313",
+      "creado": "2026-10-24",
+      "actualizado": "2026-10-24"
+    },
+    {
+      "id": "P-331",
+      "titulo": "Ver en la app: volver atrás y adelante",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "pantallas",
+      "detalle": "Construido en la corrida del 24 oct (D-517, commit 798fe85). Qué mirar: ir de Inicio a una persona, a un caso y a un documento; volver con ←, con Alt+← y con el botón lateral del ratón, pasando por el caso, la persona e Inicio; → rehace el camino. Elegir «Datos y correcciones» en la persona, ir a otro lado y volver: abre en esa pestaña. Lo más dudoso: si la ventana de Windows deja llegar el botón lateral del ratón y Alt+← a la página. Conocido: al volver a una lista (por ejemplo Documentos) se ve el filtro de ahora, no el de aquel momento.",
+      "depende_de": [],
+      "referencia": "D-517; src/stores/navigation-history-store.ts",
+      "creado": "2026-10-24",
+      "actualizado": "2026-10-24"
+    },
+    {
+      "id": "P-332",
+      "titulo": "Volver atrás: entrar a «Personas y organizaciones» deja dos pasos en el historial",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "pantallas",
+      "detalle": "Visto en el recorrido del 24 oct con la app real (D-517): desde la página de un caso, ir a «Personas y organizaciones» y tocar «Atrás» no vuelve al caso; hacen falta dos toques. Desde «Documentos» vuelve con uno. Algo de esa pantalla cambia el lugar abierto después del clic, fuera de la agrupación por microtarea de startNavigationHistory (src/stores/navigation-history-store.ts). No se encontró la causa sin la app abierta: buscarla con la app y una prueba que la reproduzca. El resto anduvo: Atrás, Adelante y Alt+→ entre el caso, la lista de casos y Documentos.",
+      "depende_de": [],
+      "referencia": "D-517",
+      "creado": "2026-10-24",
+      "actualizado": "2026-10-24"
+    },
+    {
+      "id": "P-333",
+      "titulo": "El caso que crea la integración de un portal dice «creado a mano», y el expediente bajado no trae la carátula",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "casos",
+      "detalle": "Visto en el recorrido del 24 oct: el caso del expediente del PJN ya no figura como nombrado por una persona (D-514), pero la página sigue diciendo «creado a mano», porque su origen quedó como de una persona. Debería decir que lo creó la app al traer el expediente. Además, el archivo de ese expediente no tiene carátula (el portal no la leyó), así que el nombre sigue siendo el número: revisar por qué no se leyó la carátula (pjn.rs, rótulo «caratula») y volver a leerla al seguir el expediente.",
+      "depende_de": [],
+      "referencia": "D-514; src-tauri/src/portals/pjn.rs",
+      "creado": "2026-10-24",
+      "actualizado": "2026-10-24"
+    },
+    {
+      "id": "P-334",
+      "titulo": "Pedir la lectura de lo manuscrito de un documento, uno por uno",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "lectura",
+      "detalle": "D-518: lo manuscrito no se transcribe automáticamente. Cada documento con manuscrito detectado ofrece una opción para que una persona pida su lectura (un modelo con imagen, por Codex o por Core), solo para ese documento. Lo leído queda marcado como lectura de manuscrito, «sin confirmar», y se compara con las personas del caso antes de crear fichas nuevas.",
+      "depende_de": [
+        "P-320"
+      ],
+      "referencia": "D-518",
+      "creado": "2026-10-24",
+      "actualizado": "2026-10-24"
+    },
+    {
+      "id": "P-335",
+      "titulo": "Hoja de respuestas para medir cómo se parten los documentos (los seis PDF de prueba)",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 2,
+      "tema": "lectura",
+      "detalle": "Pedido del dueño (24 oct): una propuesta de hoja de respuestas, página por página y documento por documento (dónde empieza cada documento incluido, su tipo, la forma de la página, si hay manuscrito, firma, sello, foto, tabla o formulario), para medir herramientas de separación y clasificación (R-25). La arma un sub-agente mirando las páginas; el dueño la corrige. Fuera del repositorio: llm_wiki_mi/conjunto-prueba/partes.json y partes.md.",
+      "depende_de": [],
+      "referencia": "D-518; P-321",
+      "creado": "2026-10-24",
+      "actualizado": "2026-10-24"
+    },
+    {
+      "id": "P-336",
+      "titulo": "Ver en la app: la firma digital de un PDF y la constancia de DocuSign unida a su documento",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "copias",
+      "detalle": "Construido el 24 oct (D-519, commits a04512b, a22d0ae, 5554abb, dce7e25). Qué mirar: abrir un PDF firmado con Adobe Acrobat Sign o DocuSign, pestaña «Datos y correcciones», caja de la derecha, renglón «Firma digital»; en «Copias y versiones», la constancia de DocuSign ya no dice «propuesta con menos certeza». Al arrancar, la app recalcula los parecidos de toda la base. Medido sobre una copia: de 130 PDF, 88 tienen firma; 18 sellados por Adobe Acrobat Sign, 10 por DocuSign, 59 íntegros con firmantes fuera del catálogo y 1 que cambió después de firmarse (conviene mirarlo). La hoja de respuestas de «Copias y versiones» no cambió (52 de 57, sin propuestas equivocadas).",
+      "depende_de": [],
+      "referencia": "D-519; src-tauri/src/docbase/similar/seal.rs",
+      "creado": "2026-10-24",
+      "actualizado": "2026-10-24"
+    },
+    {
+      "id": "P-337",
+      "titulo": "Firmas digitales: revocación, sello de tiempo, RSA-PSS y las firmas que no están donde dicen",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "copias",
+      "detalle": "D-519 deja afuera: la revocación (Adobe no trae OCSP ni CRL; el DSS de DocuSign permitiría comprobarla sin conexión); la vigencia de los certificados se mide contra la fecha que declara la firma, no contra un sello de tiempo; RSA-PSS y curvas distintas de P-256 quedan como «no se puede comprobar todavía». Además, 30 de 123 firmas de la base no verifican porque su sobre no está donde dice su firma: probablemente son PDF armados juntando documentos firmados (la firma habla del archivo original); confirmarlo. Un servicio o una raíz nuevos no se reconocen hasta agregar su huella al catálogo.",
+      "depende_de": [],
+      "referencia": "D-519",
+      "creado": "2026-10-24",
+      "actualizado": "2026-10-24"
+    },
+    {
+      "id": "P-338",
+      "titulo": "Ver en la app: «Copias y versiones» con familias solo de un mismo documento",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "copias",
+      "detalle": "Construido el 24 oct (D-520, commits e9f3b03 y 53b8e26). Al abrir la app los pares se calculan de nuevo (en una copia tardó 71 s). Qué mirar: los recibos de las cuotas ya no forman una familia; cada recibo firmado está en su familia con el sin firmar; en «Pares fuera de las familias» no queda ningún ejemplar firmado; el documento de fs. 96 ya no se propone como versión; en «Plantillas» los recibos siguen juntos. En la tarjeta de una familia, «Ver la plantilla» casi ya no aparece.",
+      "depende_de": [],
+      "referencia": "D-520",
+      "creado": "2026-10-24",
+      "actualizado": "2026-10-24"
+    },
+    {
+      "id": "P-339",
+      "titulo": "Comparar sin el ruido del formato: normalización por formato antes de comparar",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "copias",
+      "detalle": "No entró en el tope de la tanda del 24 oct. En .docx: quitar las marcas de Markdown que agrega la app y escribir la numeración automática de Word (o que esas cifras no cuenten como datos cambiados). En PDF: borrar los retornos de carro, unir las palabras partidas por el carácter 0x02 de pdfium, quitar el encabezado del servicio de firma y los renglones de número de página. El par .docx/PDF del acuerdo de borrador sigue justo en el límite de «misma plantilla» (los datos son el 50 % de lo reemplazado). Especificación lista: llm_wiki_mi/desatendido-9/v2-comparar-y-familias.md, punto 2.",
+      "depende_de": [],
+      "referencia": "D-520; llm_wiki_mi/desatendido-9/r1-resultado.md",
+      "creado": "2026-10-24",
+      "actualizado": "2026-10-24"
     }
   ]
 }

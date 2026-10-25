@@ -47,6 +47,7 @@ pub mod entities;
 pub mod extract;
 pub mod links;
 pub mod matter_edit;
+pub mod matter_records;
 pub mod matters;
 pub mod names;
 pub mod pages;
@@ -83,6 +84,10 @@ mod tests_says;
 mod tests_survive;
 #[cfg(test)]
 mod tests_reading;
+#[cfg(test)]
+mod tests_quality;
+#[cfg(test)]
+mod tests_repeated;
 pub mod vocabulary;
 
 use std::collections::BTreeMap;

@@ -29,8 +29,8 @@ import { useDocbaseQuery } from "./use-docbase-query"
  * versions, the relation proposed for each, what changes, and the buttons
  * to join, choose another relation or discard. What changes what goes to
  * the wiki (two that could be the same document) comes first. Documents
- * made with one template are different documents and wait for no one
- * (D-497): a family of only those is in «Plantillas», not here. The
+ * made with one template are different documents: they make no family
+ * and wait for no one (D-497); they are in «Plantillas», not here. The
  * detail of each document keeps showing its copies and versions.
  */
 export function SimilarView() {
@@ -93,7 +93,7 @@ export function SimilarView() {
             </h2>
             <p className="text-xs text-muted-foreground">
               Los que no son entre el documento principal de una familia y uno de sus miembros: dos miembros de la misma
-              familia, o un documento que está casi entero dentro de otro.
+              familia, dos documentos que no forman una familia, o un documento que está casi entero dentro de otro.
             </p>
             <ul className="flex flex-col gap-3">
               {openPairs.map((pair) => (

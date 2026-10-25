@@ -51,6 +51,7 @@ pub mod marks;
 pub mod minhash;
 pub mod naming;
 pub mod propose;
+pub mod seal;
 pub mod store;
 pub mod template;
 #[cfg(test)]

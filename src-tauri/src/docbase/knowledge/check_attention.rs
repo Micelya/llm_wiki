@@ -25,12 +25,14 @@ fn what_the_layer_brings_to_attention() {
     let doubts = base.knowledge_doubts(&Visible::All).unwrap();
     println!("== status ==\n{}", serde_json::to_string_pretty(&attention.status).unwrap());
     println!(
-        "== counts ==\nfailed readings: {}\nnoisy readings: {}\nconflicts: {}\njoins by identifier: {}\nproposed matters: {}\nsynthesis pending: {}\ndiscarded sentences: {}\nkept pages: {}\nleft with documents: {}\ndoubts: {}",
+        "== counts ==\nfailed readings: {}\nnoisy readings: {}\nconflicts: {}\njoins by identifier: {}\nproposed matters: {}\nmatters to confirm: {}\nmatters to join: {}\nsynthesis pending: {}\ndiscarded sentences: {}\nkept pages: {}\nleft with documents: {}\ndoubts: {}",
         attention.failed.len(),
         attention.noisy.len(),
         attention.conflicts.len(),
         attention.identifier_joins.len(),
         attention.proposed_matters.len(),
+        attention.matters_to_confirm.len(),
+        attention.matters_to_join.len(),
         attention.synthesis_pending,
         attention.discarded_sentences,
         attention.kept_pages.len(),

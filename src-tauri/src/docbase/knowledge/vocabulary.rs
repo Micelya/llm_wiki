@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 /// The version of the program's check of a reading (`extract::verify`).
-const READING_CHECK: &str = "lectura-14";
+const READING_CHECK: &str = "lectura-15";
 
 const BUILTIN: &str = include_str!("../../../resources/catalog/knowledge.json");
 
@@ -74,6 +74,17 @@ pub struct Vocabulary {
     pub asking_digest: String,
 }
 
+/// Whether a way of writing, in lowercase, is a web address
+/// ("www.ejemplo.com.ar"): where to find someone, not who.
+fn is_web(lower: &str) -> bool {
+    lower.starts_with("www.")
+        || lower.starts_with("http")
+        || (!lower.contains(char::is_whitespace)
+            && lower.split('.').count() >= 2
+            && lower.rsplit('.').next().is_some_and(|tld| (2..=4).contains(&tld.len()) && tld.chars().all(|c| c.is_ascii_lowercase()))
+            && lower.split('.').next().is_some_and(|first| first.chars().count() >= 3))
+}
+
 /// The words the resolution of identities works with (D-186).
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -86,6 +97,11 @@ pub struct IdentityWords {
     /// Titles and forms of address before a person's name ("dr", "sr"…).
     #[serde(default)]
     pub titles: Vec<String>,
+    /// Offices someone holds ("juez", "secretaria", "actuario"): before a
+    /// name they are like a title ("la secretaria Ana"); written alone
+    /// they name an office, not a person.
+    #[serde(default)]
+    pub offices: Vec<String>,
     /// Articles, possessives and demonstratives: a way of writing that
     /// starts with one in lowercase and goes on with a common word ("la
     /// provincia", "su carta documento", "los tribunales ordinarios") is a
@@ -125,6 +141,29 @@ pub struct IdentityWords {
     /// one of them and a number is where someone is, not who.
     #[serde(default)]
     pub address_words: Vec<String>,
+    /// How a person is named by what most of its documents write (D-516).
+    #[serde(default)]
+    pub person_name: PersonNameRule,
+}
+
+/// A person is named by what most of its documents write (D-516): with
+/// `from_documents` documents or more, a word of its ways of writing that
+/// fewer than `min_documents` of them write, or fewer than `min_share` of
+/// them, is not added to its name (a second surname, a married name, a
+/// misread word seen once). It stays among the ways it is written.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct PersonNameRule {
+    pub about: String,
+    pub from_documents: usize,
+    pub min_documents: usize,
+    pub min_share: f64,
+}
+
+impl Default for PersonNameRule {
+    fn default() -> Self {
+        Self { about: String::new(), from_documents: 3, min_documents: 2, min_share: 0.2 }
+    }
 }
 
 /// How documents are grouped into matters (D-213).
@@ -381,6 +420,14 @@ pub struct ReadingRules {
     /// de B"), D-457.
     #[serde(default)]
     pub filiation: Filiation,
+    /// Marks of a reading that could not read a name ("[ilegible]", "?"):
+    /// a name with one of them names no one.
+    #[serde(default)]
+    pub illegible_marks: Vec<String>,
+    /// First words of a rule or a standard ("ley", "decreto", "norma"): a
+    /// name of an organization that starts with one is a rule, not who.
+    #[serde(default)]
+    pub rule_words: Vec<String>,
 }
 
 /// Words with which a document names someone by the role they have in it
@@ -691,6 +738,12 @@ pub struct Predicate {
     /// proceeding): values of different kinds are not in conflict.
     #[serde(default)]
     pub qualifiers: Vec<Qualifier>,
+    /// The only values it takes (a marital status), each with the words
+    /// that say it (the feminine and the masculine alike): a value with
+    /// none of them is not a claim of it, and two values with words of the
+    /// same one are one claim (D-516).
+    #[serde(default)]
+    pub closed_values: Vec<ClosedValue>,
     /// A relation whose object must be named in the quote, not only the
     /// subject: what has legal consequences (represents, is a party, is
     /// the beneficial owner of) is kept only when the quote says of whom.
@@ -800,7 +853,32 @@ pub struct Qualifier {
     pub words: Vec<String>,
 }
 
+/// One of the values of a closed list (`closedValues`): its canonical id
+/// and the words that say it (normalized; one or several in a row).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClosedValue {
+    pub id: String,
+    #[serde(default)]
+    pub words: Vec<String>,
+}
+
 impl Predicate {
+    /// The value of the closed list a value says, with the word of it the
+    /// value writes (the first of the list when it writes several of one):
+    /// the first value whose words the value has; none when it has the words
+    /// of none, or of two different values ("soltero y casado").
+    pub fn closed_value(&self, value: &str) -> Option<(&ClosedValue, String)> {
+        let words = super::quote::words(value);
+        let mut found: Vec<(&ClosedValue, String)> = Vec::new();
+        for closed in &self.closed_values {
+            if let Some(word) = closed.words.iter().find(|w| name_has(&words, std::slice::from_ref(*w))) {
+                found.push((closed, word.clone()));
+            }
+        }
+        (found.len() == 1).then(|| found.remove(0))
+    }
+
     pub fn takes_entity(&self) -> bool {
         self.object == "entity"
     }
@@ -870,6 +948,8 @@ impl Vocabulary {
             "reading": &vocabulary.reading,
             // The check of a reading drops what is part of an address.
             "addressWords": &vocabulary.identity.address_words,
+            // It drops a person named only by an office.
+            "offices": &vocabulary.identity.offices,
             // The check of a reading moves a number with another type's prefix.
             "identifierPrefixes": vocabulary.identifiers.iter().map(|t| (&t.id, &t.prefixes)).collect::<Vec<_>>(),
             // Raised when the program's check of a reading changes: every
@@ -911,8 +991,78 @@ impl Vocabulary {
         let words = &self.identity;
         normalized
             .split_whitespace()
-            .filter(|w| !words.stopwords.iter().any(|s| s == w) && !words.titles.iter().any(|t| t == w))
+            .filter(|w| !words.stopwords.iter().any(|s| s == w) && !words.titles.iter().any(|t| t == w) && !words.offices.iter().any(|o| o == w))
             .all(|w| words.generic.iter().any(|g| g == w))
+    }
+
+    /// Why a way of writing of a person or an organization names no one,
+    /// whatever the model read: a mark of what a reading could not
+    /// read ("Ana [ilegible]", "J?"); three letters or more apart, as a
+    /// scan spaces them ("J u a n"); a mail or a web address; only an
+    /// office or a title ("la actuaria", "Sr."), for a person; a rule or a
+    /// standard ("Ley 123", "Norma ABC"), for an organization. The check of
+    /// a reading drops such a mention (but a mail address, which still
+    /// says whose contact it is); the screens and the pages show none.
+    pub fn not_named(&self, kind: &str, text: &str) -> Option<&'static str> {
+        if self.is_reference(kind) {
+            return None;
+        }
+        let lower = text.trim().to_lowercase();
+        if self.reading.illegible_marks.iter().any(|m| !m.trim().is_empty() && lower.contains(m.trim())) {
+            return Some("nombre-ilegible");
+        }
+        if self.spaced_letters(text) {
+            return Some("letras-sueltas");
+        }
+        if lower.contains('@') || is_web(&lower) {
+            return Some("correo-o-web");
+        }
+        let words = super::quote::words(text);
+        let identity = &self.identity;
+        let named: Vec<&String> =
+            words.iter().filter(|w| !identity.stopwords.contains(w) && !identity.determiners.contains(w)).collect();
+        let office = |w: &String| identity.offices.contains(w) || identity.titles.contains(w);
+        if kind == super::names::PERSON && !named.is_empty() && named.iter().all(|w| office(w)) {
+            return Some("cargo-sin-nombre");
+        }
+        // A rule has no legal form: "Código Abierto S.A." is a company.
+        if kind == super::names::ORGANIZATION
+            && named.first().is_some_and(|w| self.reading.rule_words.contains(w))
+            && super::names::key(self, kind, text).form.is_none()
+        {
+            return Some("norma-no-organizacion");
+        }
+        None
+    }
+
+    /// Whether a way of writing has three letters or more in a row, each a
+    /// word apart, as a scan spaces the letters of a word ("C a r l o s"):
+    /// with one in lowercase, or four or more. Initials ("J. R. R.") have a
+    /// point; capitals of a legal form ("S A U") or of initials ("J R R")
+    /// are three at most and none in lowercase.
+    fn spaced_letters(&self, text: &str) -> bool {
+        let tokens: Vec<&str> = text.split_whitespace().collect();
+        let single = |t: &str| t.chars().count() == 1 && t.chars().all(char::is_alphabetic);
+        let forms: Vec<String> = self.identity.legal_forms.iter().flat_map(|f| f.variants.iter().cloned()).collect();
+        let mut start = 0;
+        while start < tokens.len() {
+            if !single(tokens[start]) {
+                start += 1;
+                continue;
+            }
+            let mut end = start;
+            while end < tokens.len() && single(tokens[end]) {
+                end += 1;
+            }
+            let run = &tokens[start..end];
+            let lowercase = run.iter().any(|t| t.chars().all(char::is_lowercase));
+            let form = forms.iter().any(|f| *f == run.join(" ").to_lowercase());
+            if run.len() >= 3 && (lowercase || run.len() >= 4) && !form {
+                return true;
+            }
+            start = end;
+        }
+        false
     }
 
     /// Whether a way of writing can name a person or an organization (a
@@ -927,15 +1077,8 @@ impl Vocabulary {
         if text.contains('@') {
             return false;
         }
-        // A web address ("www.ejemplo.com.ar"): where to find someone.
         let lower = text.trim().to_lowercase();
-        let web = lower.starts_with("www.")
-            || lower.starts_with("http")
-            || (!lower.contains(char::is_whitespace)
-                && lower.split('.').count() >= 2
-                && lower.rsplit('.').next().is_some_and(|tld| (2..=4).contains(&tld.len()) && tld.chars().all(|c| c.is_ascii_lowercase()))
-                && lower.split('.').next().is_some_and(|first| first.chars().count() >= 3));
-        if web {
+        if is_web(&lower) {
             return false;
         }
         if kind == "asunto" {
@@ -947,7 +1090,7 @@ impl Vocabulary {
             let words = super::quote::words(text);
             return !file && !(words.iter().any(|w| w.chars().any(char::is_alphabetic)) && self.is_generic(&words.join(" ")));
         }
-        if letters == 0 || letters < digits || text.contains(['[', ']']) {
+        if letters == 0 || letters < digits || text.contains(['[', ']']) || self.not_named(kind, text).is_some() {
             return false;
         }
         let words = super::quote::words(text);

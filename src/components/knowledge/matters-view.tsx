@@ -217,7 +217,7 @@ export function MatterDetailView({ id, onBack, initialTab = null }: { id: string
   const action = useAction()
   const [renaming, setRenaming] = useState(false)
   const [statusDone, setStatusDone] = useState<OperationCard | null>(null)
-  const [tab, setTab] = useDetailTab(!article.loading && !article.data, initialTab)
+  const [tab, setTab] = useDetailTab(!article.loading && !article.data, initialTab, { view: "matters", subject: id })
   const detail = matter.data
   const can = detail ? matterActions(detail) : null
   const name = words.knowledge.matter.toLowerCase()
@@ -258,6 +258,21 @@ export function MatterDetailView({ id, onBack, initialTab = null }: { id: string
               </span>
             )}
             {detail?.origin === "person" && <span className="text-xs text-muted-foreground">creado a mano</span>}
+            {detail && detail.records.length > 0 && (
+              <ul className="basis-full space-y-0.5 text-sm text-muted-foreground">
+                {detail.records.map((record) => (
+                  <li key={`${record.portal}:${record.reference}`}>
+                    {words.portals.record} {record.reference}
+                    {record.title && (
+                      <>
+                        {" · "}
+                        {words.portals.recordTitle}: {record.title}
+                      </>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
           </>
         )
       }

@@ -1,6 +1,6 @@
-import type { Datum, DocumentRow, DocumentType, TypesPlan, TypesRunReport } from "@/commands/docbase"
+import type { Datum, DocumentRow, DocumentType, SealVerdict, TypesPlan, TypesRunReport } from "@/commands/docbase"
 import { dataFieldName, documentTypeName, stageName, vocabulary, type Vocabulary } from "@/vocabulary"
-import { plural } from "./format"
+import { formatDate, plural } from "./format"
 
 /**
  * What the screens say about the type, stage and data of documents,
@@ -58,6 +58,20 @@ export function dataRows(data: Datum[], words: Vocabulary = vocabulary()): { fie
     row.byModel ||= datum.source === "model"
   }
   return out
+}
+
+/** What the digital signatures of a file say, in the vocabulary's words; null without them. */
+export function sealText(seal: SealVerdict | null | undefined, words: Vocabulary = vocabulary()): string | null {
+  if (!seal) return null
+  const time = seal.signedAt ? new Date(seal.signedAt).getTime() : NaN
+  const date = Number.isNaN(time) ? null : formatDate(time)
+  const template = (date ? words.seal.states[seal.state] : words.seal.states[`${seal.state}-undated`]) ?? words.seal.states[seal.state]
+  if (!template) return null
+  const parts = [template.replace("{service}", seal.serviceName ?? seal.service ?? "").replace("{date}", date ?? "")]
+  const intact = seal.state === "sealed" || seal.state === "valid-unknown"
+  if (intact && seal.laterValidation) parts.push(words.seal.validation)
+  if (intact && seal.failing > 0) parts.push(words.seal.failing.replace("{count}", String(seal.failing)))
+  return parts.join(" ")
 }
 
 /** How many questions a run would ask, in a sentence; null when none. */

@@ -4,16 +4,19 @@
 //! document: phrases of its text, the shape of its identifiers, whether
 //! it is a form, and the digital signatures embedded in the PDF.
 //!
-//! An embedded signature is read with pdfium and its certificate names
-//! are taken from the signature's own bytes (PKCS #7). A signing service
-//! seals every copy it issues, so a signature whose certificate names a
-//! service of the catalog is that service's seal, not the signature of a
-//! party (catalog: "PDF emitido por un servicio de firma electrónica").
+//! An embedded signature is read with pdfium and checked without a
+//! connection (seal.rs). A signing service seals every copy it issues, so
+//! a signature that verifies up to a certificate the catalog pins for a
+//! service is that service's seal, not the signature of a party (catalog:
+//! "PDF emitido por un servicio de firma electrónica"); it counts only
+//! when it covers the whole file. A signature that does not verify counts
+//! as neither.
 
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
+use super::seal::{self, SealCheck};
 use super::text::{padded, Prepared};
 use super::types::{has_shape, Catalog, Signal};
 
@@ -49,6 +52,12 @@ pub struct PdfSignature {
     pub reason: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub date: Option<String>,
+    /// The file it was read from (its hash): a content can have several.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file: Option<String>,
+    /// What the check without a connection found.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub check: Option<SealCheck>,
 }
 
 /// What is known of a document before reading the catalog.
@@ -75,19 +84,14 @@ pub fn read(catalog: &Catalog, facts: &Facts<'_>) -> Reading {
     let page_texts: Vec<String> = facts.pages.iter().map(|page| padded(&page.join("\n"))).collect();
     let whole = page_texts.join(" ");
     let tokens = Prepared::new(facts.pages, &[], &[]).raws;
-    let service_names: Vec<(String, String)> = catalog
-        .signing_services()
-        .flat_map(|variant| variant.certificate_names.iter().map(move |name| (variant.id.clone(), name.to_lowercase())))
-        .collect();
+    // A seal counts when it verifies up to the service and covers the
+    // file; a party's signature, when it verifies.
     let service_of = |signature: &PdfSignature| -> Option<String> {
-        signature.names.iter().find_map(|name| {
-            let name = name.to_lowercase();
-            service_names
-                .iter()
-                .find(|(_, word)| name.contains(word.as_str()))
-                .map(|(variant, _)| variant.clone())
-        })
+        let check = signature.check.as_ref()?;
+        seal::service_of(catalog, check).map(|variant| variant.id.clone())
     };
+    let verifies = |signature: &PdfSignature| signature.check.as_ref().is_some_and(|check| check.is_valid());
+    let covers = |signature: &PdfSignature| signature.check.as_ref().is_some_and(|check| check.covers_file());
 
     for doc_type in &catalog.types {
         let mut fired: Vec<&str> = Vec::new();
@@ -111,9 +115,10 @@ pub fn read(catalog: &Catalog, facts: &Facts<'_>) -> Reading {
                 let matching: Vec<(&PdfSignature, Option<String>)> = facts
                     .signatures
                     .iter()
+                    .filter(|signature| verifies(signature))
                     .map(|signature| (signature, service_of(signature)))
-                    .filter(|(_, service)| match kind.as_str() {
-                        "service" => service.is_some(),
+                    .filter(|(signature, service)| match kind.as_str() {
+                        "service" => service.is_some() && covers(signature),
                         "party" => service.is_none(),
                         _ => false,
                     })
@@ -198,8 +203,9 @@ pub fn read(catalog: &Catalog, facts: &Facts<'_>) -> Reading {
     reading
 }
 
-/// The digital signatures embedded in a PDF; none for other files.
-pub fn pdf_signatures(path: &Path) -> Result<Vec<PdfSignature>, String> {
+/// The digital signatures embedded in a PDF, each checked against the
+/// file's bytes; none for other files. `file` is the file's hash.
+pub fn pdf_signatures(path: &Path, file: Option<&str>) -> Result<Vec<PdfSignature>, String> {
     let is_pdf = path
         .extension()
         .and_then(|ext| ext.to_str())
@@ -213,11 +219,35 @@ pub fn pdf_signatures(path: &Path) -> Result<Vec<PdfSignature>, String> {
         .load_pdf_from_file(path, None)
         .map_err(|e| format!("Failed to open PDF '{}': {e}", path.display()))?;
     let mut out = Vec::new();
+    if doc.signatures().is_empty() {
+        return Ok(out);
+    }
+    // The bytes are read only for a signed file.
+    let bytes = std::fs::read(path).map_err(|e| format!("Failed to read '{}': {e}", path.display()))?;
+    use pdfium_render::prelude::PdfPageObjectsCommon;
+    // What was signed (the first `end` bytes) shows the same pages as the
+    // whole file: as many, and on each the same text, objects and notes.
+    let same_pages = |end: usize| -> bool {
+        let Ok(signed) = pdfium.load_pdf_from_byte_slice(&bytes[..end], None) else {
+            return false;
+        };
+        let (before, now) = (signed.pages(), doc.pages());
+        before.len() == now.len()
+            && before.iter().zip(now.iter()).all(|(a, b)| {
+                a.objects().len() == b.objects().len()
+                    && a.annotations().len() == b.annotations().len()
+                    && a.text().map(|text| text.all()).ok() == b.text().map(|text| text.all()).ok()
+            })
+    };
     for signature in doc.signatures().iter() {
+        let contents = signature.bytes();
+        let date = signature.signing_date().filter(|d| !d.trim().is_empty());
         out.push(PdfSignature {
-            names: certificate_names(&signature.bytes()),
+            names: certificate_names(&contents),
             reason: signature.reason().filter(|r| !r.trim().is_empty()),
-            date: signature.signing_date().filter(|d| !d.trim().is_empty()),
+            check: Some(seal::check(&bytes, &contents, date.as_deref(), same_pages)),
+            date,
+            file: file.map(str::to_string),
         });
     }
     Ok(out)
@@ -316,14 +346,61 @@ mod tests {
         assert_eq!(reading.drop_phrases, vec![" envelope id ".to_string()]);
     }
 
+    /// A signature as the check left it: valid or not, its chain, whom it
+    /// names and what it covers.
+    fn checked(state: &str, chain: &str, signer: &str, covers: &str) -> PdfSignature {
+        PdfSignature {
+            names: vec![signer.to_string()],
+            check: Some(SealCheck {
+                state: state.into(),
+                chain: vec!["00".repeat(32), chain.to_string()],
+                signer: vec![signer.to_string()],
+                covers: covers.into(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }
+    }
+
     #[test]
     fn embedded_signatures_tell_the_service_seal_from_a_party() {
-        let seal = PdfSignature { names: vec!["DocuSign, Inc.".into(), "Some CA".into()], ..Default::default() };
-        let party = PdfSignature { names: vec!["Una Persona".into(), "Some CA".into()], ..Default::default() };
+        let catalog = Catalog::builtin();
+        let service = catalog.signing_services().next().unwrap();
+        let (root, name) = (service.root_fingerprints[0].as_str(), service.certificate_names[0].as_str());
+        let seal = checked("valid", root, name, "file");
+        let party = checked("valid", &"ab".repeat(32), "Una Persona", "file");
         assert_eq!(kinds(&read_text("texto", false, &[seal.clone()])), ["service-seal"]);
         let both = read_text("texto", false, &[seal, party]);
         assert!(kinds(&both).contains(&"service-seal"));
         assert!(kinds(&both).contains(&"party-signature"));
+
+        // The service's name on a certificate that does not chain up to it
+        // is a party's signature, not the seal.
+        assert_eq!(kinds(&read_text("texto", false, &[checked("valid", &"ab".repeat(32), name, "file")])), ["party-signature"]);
+        // A seal that does not verify, or does not cover the file, is no seal.
+        assert!(read_text("texto", false, &[checked("modified", root, name, "file")]).marks.is_empty());
+        assert!(read_text("texto", false, &[checked("invalid", root, name, "file")]).marks.is_empty());
+        assert!(read_text("texto", false, &[checked("valid", root, name, "part")]).marks.is_empty());
+    }
+
+    #[test]
+    fn a_signing_history_counts_as_a_partys_signature_only_with_a_valid_seal() {
+        let catalog = Catalog::builtin();
+        let service = catalog
+            .signing_services()
+            .find(|variant| variant.id == "adobe-acrobat-sign")
+            .expect("the catalog has the service whose history page is read");
+        let (root, name) = (service.root_fingerprints[0].as_str(), service.certificate_names[0].as_str());
+        let text = "## Page 1\n\nContrato entre las partes.\n\n## Page 2\n\nFinal audit report\nTransaction ID abc\nFirmado electrónicamente por una parte";
+        let signed = |signatures: &[PdfSignature]| {
+            read_text(text, false, signatures).marks.iter().any(|m| m.signal == "historial-firmado-por-una-parte")
+        };
+        assert!(signed(&[checked("valid", root, name, "file")]));
+        assert!(signed(&[checked("valid", root, name, "file-and-validation")]));
+        assert!(!signed(&[]));
+        assert!(!signed(&[checked("modified", root, name, "file")]));
+        assert!(!signed(&[checked("valid", root, name, "part")]));
+        assert!(!signed(&[checked("valid", &"ab".repeat(32), name, "file")]));
     }
 
     #[test]

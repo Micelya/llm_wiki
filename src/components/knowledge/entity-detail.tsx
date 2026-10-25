@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState, type ReactNode } from "react"
-import { Link2, Undo2 } from "lucide-react"
+import { Link2, PenLine, Undo2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { TextMark } from "@/components/ui/badge"
 import { Callout } from "@/components/ui/callout"
@@ -30,6 +30,9 @@ import { InfoBox, InfoHeading, InfoPending, InfoRow, InfoRows, PageAside, PageIn
 import { ResearchSection } from "./research-section"
 import { Quote, Section, useAction, useOpenDocument, useOpenMatter } from "./shared"
 
+/** After an identifier that another entity has too, as a second number of one that names one only. */
+const DOUBTFUL_IDENTIFIER = " · dudoso: otro también lo tiene"
+
 /** How many data, documents and their mentions a list shows before «Ver…». */
 const FIRST_CLAIMS = 6
 const FIRST_DOCUMENTS = 4
@@ -55,9 +58,10 @@ export function EntityDetailView({ id, onBack, initialTab = null }: { id: string
   const openEntity = useKnowledgeStore((s) => s.openEntity)
   const action = useAction()
   const [joining, setJoining] = useState(false)
+  const [naming, setNaming] = useState(false)
   const detail = entity.data
   // Without a page (only named in passing) there is no article to read.
-  const [shown, setTab] = useDetailTab(!article.loading && !article.data, initialTab)
+  const [shown, setTab] = useDetailTab(!article.loading && !article.data, initialTab, { view: "entities", subject: id })
   const pending = detail ? conflictsOf(detail).length + detail.doubts.length : 0
   const index = indexOf(model, [
     ...(detail?.state === "active" ? [{ id: "investigacion", label: "Investigación en internet" }] : []),
@@ -74,9 +78,14 @@ export function EntityDetailView({ id, onBack, initialTab = null }: { id: string
       facts={detail ? <OtherNames entity={detail} /> : null}
       actions={
         detail && detail.state === "active" && shown === "data" ? (
-          <Button variant="secondary" onClick={() => setJoining(!joining)}>
-            <Link2 /> Unir con otra
-          </Button>
+          <>
+            <Button variant="secondary" onClick={() => setNaming(!naming)}>
+              <PenLine /> Elegir el nombre
+            </Button>
+            <Button variant="secondary" onClick={() => setJoining(!joining)}>
+              <Link2 /> Unir con otra
+            </Button>
+          </>
         ) : null
       }
       tab={shown}
@@ -118,6 +127,7 @@ export function EntityDetailView({ id, onBack, initialTab = null }: { id: string
       data={
         detail ? (
           <>
+            {naming && <NamePicker entity={detail} onDone={() => setNaming(false)} run={action.run} />}
             {joining && <JoinPicker entity={detail} onDone={() => setJoining(false)} run={action.run} />}
             <Claims entity={detail} run={action.run} busy={action.busy} />
             <Documents entity={detail} run={action.run} busy={action.busy} />
@@ -223,7 +233,7 @@ function EntityBox({ entity, onShowData }: { entity: EntityDetail; onShowData: (
             <InfoRow
               key={`${identifier.kind}:${identifier.value}`}
               label={identifierName(identifier.kind, words)}
-              below={`en ${plural(identifier.documents, "documento", "documentos")}`}
+              below={`en ${plural(identifier.documents, "documento", "documentos")}${identifier.doubtful ? DOUBTFUL_IDENTIFIER : ""}`}
             >
               <span className="tabular-nums">{identifier.value}</span>
             </InfoRow>
@@ -667,7 +677,7 @@ function FactBox({ entity }: { entity: EntityDetail }) {
               <InfoRow
                 key={`${identifier.kind}:${identifier.value}`}
                 label={identifierName(identifier.kind, words)}
-                below={plural(identifier.documents, "documento", "documentos")}
+                below={`${plural(identifier.documents, "documento", "documentos")}${identifier.doubtful ? DOUBTFUL_IDENTIFIER : ""}`}
               >
                 <span className="tabular-nums">{identifier.value}</span>
               </InfoRow>
@@ -693,6 +703,58 @@ function FactBox({ entity }: { entity: EntityDetail }) {
         </>
       )}
     </InfoBox>
+  )
+}
+
+/**
+ * Chooses how it is named (D-516): one of the ways its documents write it,
+ * or one written here. It stands over what the documents say, the app does
+ * not change it, and it is undone from «Decisiones».
+ */
+function NamePicker({ entity, onDone, run }: { entity: EntityDetail; onDone: () => void; run: Run }) {
+  const [typed, setTyped] = useState("")
+  const others = entity.aliases.filter((alias) => !sameName(alias.written, entity.name))
+
+  async function choose(name: string) {
+    const chosen = name.trim()
+    if (!chosen) return
+    await run(() => decideIdentity({ kind: "name", a: `entity:${entity.id}`, name: chosen }, null, JSON.stringify({ name: entity.name, chosen })))
+    onDone()
+  }
+
+  return (
+    <div className="mb-8 rounded-xl border bg-card px-[18px] py-4 shadow-card">
+      <p className="text-sm">
+        Hoy se llama «{entity.name}». Elegí cómo se llama: queda así aunque los documentos digan otra cosa, hasta que lo deshagas en «Decisiones».
+      </p>
+      {others.length > 0 && (
+        <ul className="mt-3 rounded-[10px] border text-sm">
+          {others.map((alias) => (
+            <li key={alias.written} className="flex items-center gap-3 border-t px-3 py-2 first:border-t-0">
+              <span className="min-w-0 flex-1 break-words">
+                {alias.written}
+                <span className="ml-2 text-xs text-muted-foreground">{plural(alias.mentions, "mención", "menciones")}</span>
+              </span>
+              <Button size="sm" variant="secondary" onClick={() => void choose(alias.written)}>
+                Usar
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form
+        className="mt-3 flex items-center gap-2"
+        onSubmit={(event) => {
+          event.preventDefault()
+          void choose(typed)
+        }}
+      >
+        <Input className="h-9 w-80" placeholder="Otro nombre" value={typed} onChange={(event) => setTyped(event.target.value)} />
+        <Button size="sm" type="submit" disabled={!typed.trim()}>
+          Usar este nombre
+        </Button>
+      </form>
+    </div>
   )
 }
 

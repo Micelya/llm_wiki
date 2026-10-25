@@ -37,7 +37,8 @@ use super::types::{self, RelationDef};
 /// Version of the computation. Changing it, or the catalog, computes
 /// everything again. `similar-2`: the key data of the two documents decide
 /// whether a version or a similar pair are another document (D-497).
-pub const ENGINE: &str = "similar-2";
+/// `similar-3`: a version shares much in both directions.
+pub const ENGINE: &str = "similar-3";
 /// Where the base keeps how the key data looked when it last compared
 /// them (`similar_key_data_check`).
 const KEY_DATA_SETTING: &str = "similar-key-data";
@@ -57,8 +58,15 @@ pub const CANDIDATE_MIN: f64 = 0.15;
 pub const MAX_NEIGHBOURS: usize = 100;
 /// Exact shingle containment below which a pair is not aligned.
 pub const MEASURE_MIN: f64 = 0.25;
-/// Relations that put two documents in the same family.
-pub const GROUP_RELATIONS: &[&str] = &["near-identical", "signed-copy", "preview", "version", "same-template"];
+/// Relations that put two documents in the same family: those that make
+/// them one document. The same template is a relation between different
+/// documents (D-497), so it never joins a family.
+pub const GROUP_RELATIONS: &[&str] = &["near-identical", "signed-copy", "preview", "version"];
+/// Relations that put two documents in the same unit when typing them and
+/// when building a template: the families' and the same template.
+pub const UNIT_RELATIONS: &[&str] = &["near-identical", "signed-copy", "preview", "version", "same-template"];
+/// The links of each document: the other document, the relation and the cover.
+pub(crate) type Links = BTreeMap<i64, BTreeMap<i64, (String, f64)>>;
 /// A family bigger than this is marked for review.
 pub const GROUP_LARGE: usize = 30;
 
@@ -338,10 +346,31 @@ impl DocBase {
         Ok(gone.len())
     }
 
+    /// Signs one content again as if its PDFs carried these signatures:
+    /// the tests have no signed PDF to read.
+    #[cfg(test)]
+    pub(crate) fn similar_sign_with(&self, content_id: i64, signatures: Vec<PdfSignature>) -> Result<(), String> {
+        let (body, text_at, fields): (String, i64, Option<String>) = self
+            .conn()
+            .query_row(
+                "SELECT d.body, d.created_at, fd.body FROM derivative d
+                 LEFT JOIN derivative fd ON fd.content_id = d.content_id AND fd.kind = 'fields'
+                 WHERE d.content_id = ?1 AND d.kind = 'text'",
+                [content_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .map_err(sql_err)?;
+        let signed = sign(content_id, &body, text_at, fields.is_some(), signatures);
+        let mut conn = self.conn();
+        let tx = conn.transaction().map_err(sql_err)?;
+        save_signature(&tx, &signed, &engine_id())?;
+        tx.commit().map_err(sql_err)
+    }
+
     /// Signs up to `limit` contents whose signature is missing or stale.
     fn similar_sign_pending(&self, limit: usize) -> Result<usize, String> {
         let engine = engine_id();
-        let jobs: Vec<(i64, String, i64, Option<String>, Vec<PathBuf>)> = {
+        let jobs: Vec<(i64, String, i64, Option<String>, Vec<(String, PathBuf)>)> = {
             let conn = self.conn();
             let mut statement = conn
                 .prepare(
@@ -372,8 +401,8 @@ impl DocBase {
         };
         for (content_id, body, text_at, fields, paths) in &jobs {
             let mut signatures = Vec::new();
-            for path in paths {
-                match run_guarded("docbase_pdf_signatures", || marks::pdf_signatures(path)) {
+            for (file, path) in paths {
+                match run_guarded("docbase_pdf_signatures", || marks::pdf_signatures(path, Some(file))) {
                     Ok(found) => {
                         for signature in found {
                             if !signatures.contains(&signature) {
@@ -596,53 +625,7 @@ impl DocBase {
         // documents it came from (D-497), and is never the principal of a
         // family (D-488).
         super::generate::generated_pairs_dropped(&tx)?;
-        let generated = super::generate::generated_contents(&tx)?;
-        let mut adjacent: BTreeMap<i64, BTreeMap<i64, (String, f64)>> = BTreeMap::new();
-        {
-            let mut statement = tx
-                .prepare(
-                    "SELECT a, b, CASE WHEN state = 'joined' THEN chosen_relation ELSE relation END, cover
-                     FROM similar_pair WHERE state != 'discarded'",
-                )
-                .map_err(sql_err)?;
-            let rows = statement
-                .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, String>(2)?, row.get::<_, f64>(3)?)))
-                .map_err(sql_err)?;
-            for row in rows {
-                let (a, b, relation, cover) = row.map_err(sql_err)?;
-                if !GROUP_RELATIONS.contains(&relation.as_str()) {
-                    continue;
-                }
-                adjacent.entry(a).or_default().insert(b, (relation.clone(), cover));
-                adjacent.entry(b).or_default().insert(a, (relation, cover));
-            }
-        }
-        // How complete each document is: a party's signature first, then
-        // the amount of text, then the oldest content.
-        let mut completeness: HashMap<i64, (bool, i64)> = HashMap::new();
-        {
-            let mut statement = tx
-                .prepare(
-                    "SELECT s.content_id, s.words, coalesce(m.marks, '[]') FROM similar_signature s
-                     LEFT JOIN document_marks m ON m.content_id = s.content_id",
-                )
-                .map_err(sql_err)?;
-            let rows = statement
-                .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, String>(2)?)))
-                .map_err(sql_err)?;
-            for row in rows {
-                let (id, words, marks) = row.map_err(sql_err)?;
-                let marks: Vec<Mark> = serde_json::from_str(&marks).unwrap_or_default();
-                completeness.insert(id, (marks.iter().any(|m| m.kind == "party-signature"), words));
-            }
-        }
-        let groups = families(&adjacent, &|id| {
-            if generated.contains(&id) {
-                (false, -1)
-            } else {
-                completeness.get(&id).copied().unwrap_or((false, 0))
-            }
-        });
+        let (groups, adjacent) = grouped(&tx, GROUP_RELATIONS)?;
 
         tx.execute("DELETE FROM similar_group", []).map_err(sql_err)?;
         let now = now_ms();
@@ -1183,10 +1166,10 @@ fn estimated_containment(a: &Option<(usize, usize, Vec<u64>)>, b: &(usize, usize
 }
 
 /// The PDF files of a content, where they can be read now.
-fn pdf_paths(conn: &Connection, content_id: i64) -> Result<Vec<PathBuf>, String> {
+fn pdf_paths(conn: &Connection, content_id: i64) -> Result<Vec<(String, PathBuf)>, String> {
     let mut statement = conn
         .prepare(
-            "SELECT o.location, min(l.rel_path) FROM file f
+            "SELECT f.hash, o.location, min(l.rel_path) FROM file f
              JOIN location l ON l.file_hash = f.hash AND l.hash_state = 'done' AND l.ext = 'pdf'
              JOIN origin o ON o.id = l.origin_id AND o.reachable = 1
              WHERE f.content_id = ?1
@@ -1194,13 +1177,13 @@ fn pdf_paths(conn: &Connection, content_id: i64) -> Result<Vec<PathBuf>, String>
         )
         .map_err(sql_err)?;
     let rows = statement
-        .query_map([content_id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))
+        .query_map([content_id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)))
         .map_err(sql_err)?
         .collect::<Result<Vec<_>, _>>()
         .map_err(sql_err)?;
     Ok(rows
         .into_iter()
-        .filter_map(|(root, rel_path)| LocalFolderProvider::new(root).local_path(&rel_path))
+        .filter_map(|(hash, root, rel_path)| LocalFolderProvider::new(root).local_path(&rel_path).map(|path| (hash, path)))
         .collect())
 }
 
@@ -1361,6 +1344,61 @@ fn save_pair(
     )
     .map_err(sql_err)?;
     Ok(())
+}
+
+/// Documents linked by `relations`, as families against a principal
+/// (`families`), with the links between them: the families shown
+/// (`GROUP_RELATIONS`) or the units for types and templates
+/// (`UNIT_RELATIONS`).
+pub(crate) fn grouped(conn: &Connection, relations: &[&str]) -> Result<(Vec<Family>, Links), String> {
+    let generated = super::generate::generated_contents(conn)?;
+    let mut adjacent: Links = BTreeMap::new();
+    {
+        let mut statement = conn
+            .prepare(
+                "SELECT a, b, CASE WHEN state = 'joined' THEN chosen_relation ELSE relation END, cover
+                 FROM similar_pair WHERE state != 'discarded'",
+            )
+            .map_err(sql_err)?;
+        let rows = statement
+            .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, String>(2)?, row.get::<_, f64>(3)?)))
+            .map_err(sql_err)?;
+        for row in rows {
+            let (a, b, relation, cover) = row.map_err(sql_err)?;
+            if !relations.contains(&relation.as_str()) {
+                continue;
+            }
+            adjacent.entry(a).or_default().insert(b, (relation.clone(), cover));
+            adjacent.entry(b).or_default().insert(a, (relation, cover));
+        }
+    }
+    // How complete each document is: a party's signature first, then
+    // the amount of text, then the oldest content.
+    let mut completeness: HashMap<i64, (bool, i64)> = HashMap::new();
+    {
+        let mut statement = conn
+            .prepare(
+                "SELECT s.content_id, s.words, coalesce(m.marks, '[]') FROM similar_signature s
+                 LEFT JOIN document_marks m ON m.content_id = s.content_id",
+            )
+            .map_err(sql_err)?;
+        let rows = statement
+            .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, String>(2)?)))
+            .map_err(sql_err)?;
+        for row in rows {
+            let (id, words, marks) = row.map_err(sql_err)?;
+            let marks: Vec<Mark> = serde_json::from_str(&marks).unwrap_or_default();
+            completeness.insert(id, (marks.iter().any(|m| m.kind == "party-signature"), words));
+        }
+    }
+    let groups = families(&adjacent, &|id| {
+        if generated.contains(&id) {
+            (false, -1)
+        } else {
+            completeness.get(&id).copied().unwrap_or((false, 0))
+        }
+    });
+    Ok((groups, adjacent))
 }
 
 /// A provisional family.
