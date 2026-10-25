@@ -9,7 +9,7 @@
 - **Solo reglas (variante A):** encuentran 78 % de los cortes, con 84 % de precisión. Dejan dudosos 47 de los 128 pasos. No cuestan nada (menos de 1 segundo).
 - **Reglas más Codex solo en los dudosos (variante B):** encuentran 79 de los 80 cortes (99 %), con 85 % de precisión, y dejan 72 de los 88 documentos exactos. Son 47 consultas, unos 4 minutos. **Es la que conviene para la app.**
 - **Codex en todos los pasos (variante C):** más precisa (96 %), pero pierde más cortes (91 %), y cuesta 128 consultas (12 minutos).
-- Los cortes de más de B son casi todos **adjuntos de un documento en otro papel** (una certificación, un timbre, la hoja de firmas): se arreglan juntando, que es más fácil que encontrar un documento perdido dentro de otro.
+- Los cortes de más de B son casi todos **adjuntos de un documento en otro papel** (una certificación, un timbre, la hoja de firmas): se arreglan juntando, que es más fácil que encontrar un documento perdido dentro de otro. Con la decisión D-527, la mayoría de esos cortes son correctos: ver la nota del final.
 
 ## Las reglas (variante A, `guiones/cortar.py`)
 
@@ -22,16 +22,15 @@ Se aplican en este orden; la primera que vale decide.
 | 3 | El mismo código de documento en las dos páginas sigue; códigos distintos, otro | las dos | 0 | 0 |
 | 4 | Hojas notariales con números correlativos | continúa | 0 | 0 |
 | 5 | Dos fotos (menos de 100 puntos por pulgada) del mismo tamaño en píxeles y en página: las dos caras de una tarjeta | continúa | 2 | 0 |
-| 6 | Una página escaneada seguida de una digital con poco texto propio (hasta 600 caracteres) y una expresión de firma, certificación o digitalización (`vocabulario.json`, `attestation`): la hoja que firma o certifica la anterior | continúa | 0 | 0 |
-| 7 | Una página escaneada y la otra digital | empieza otro | 3 | 0 |
-| 8 | Dos escaneos con otra resolución (más de 10 %) u otro espacio de color: otra captura | empieza otro | 8 | 2 |
-| 9 | Dos escaneos de la misma resolución con otra orientación, o más de 4 % de diferencia de ancho o alto: otro papel | empieza otro | 35 | 8 |
-| 10 | La página anterior termina con una fórmula de cierre, o la siguiente empieza con una de apertura (`vocabulario.json`) | empieza otro | 13 | 1 |
-| 11 | Ninguna de las anteriores | dudoso | — | — |
+| 6 | Una página escaneada y la otra digital | empieza otro | 3 | 0 |
+| 7 | Dos escaneos con otra resolución (más de 10 %) u otro espacio de color: otra captura | empieza otro | 8 | 2 |
+| 8 | Dos escaneos de la misma resolución con otra orientación, o más de 4 % de diferencia de ancho o alto: otro papel | empieza otro | 35 | 8 |
+| 9 | La página anterior termina con una fórmula de cierre, o la siguiente empieza con una de apertura (`vocabulario.json`) | empieza otro | 13 | 1 |
+| 10 | Ninguna de las anteriores | dudoso | — | — |
 
 - Las señales de la página son las de la ficha de forma de la app (`page_shape.rs`, umbrales de `page-shapes.json`), más las de corte de la investigación anterior (los números de página, los códigos, las hojas notariales, los pares de fotos de un documento de identidad, el cambio de escaneo a digital) y la imagen principal de cada página (píxeles, resolución, color).
 - El tipo, en la variante A, sale del vocabulario (`vocabulario.json`) buscado en el texto de la primera página. Una página escaneada sin texto no tiene tipo.
-- **Las reglas 8 y 9 son las que más fallan:** el adjunto de un documento (la certificación al dorso, el comprobante de timbre) muchas veces está en otro papel o se escaneó aparte. La investigación anterior ya decía que un tamaño distinto no prueba un corte.
+- **Las reglas 7 y 8 son las que más fallan:** el adjunto de un documento (la certificación al dorso, el comprobante de timbre) muchas veces está en otro papel o se escaneó aparte. La investigación anterior ya decía que un tamaño distinto no prueba un corte.
 
 ## Resultados por variante
 
@@ -61,7 +60,7 @@ Columnas: cortes reales; aciertos; de más; perdidos; precisión; alcance; docum
 | 06 | 0 | 0 | 1 | 0 | 0 % | — | 0 de 1 | 0 |
 | **Total** | **80** | **79** | **14** | **1** | **85 %** | **99 %** | **72 de 88** | **44** |
 
-**Variante B2, como B pero las reglas 8 y 9 también van a Codex.** 100 consultas, 545 segundos. Total: 73 aciertos, 5 de más, 7 perdidos; precisión 94 %, alcance 91 %; 69 de 88 bien cortados; 62 con el tipo bien.
+**Variante B2, como B pero las reglas 7 y 8 también van a Codex.** 100 consultas, 545 segundos. Total: 73 aciertos, 5 de más, 7 perdidos; precisión 94 %, alcance 91 %; 69 de 88 bien cortados; 62 con el tipo bien.
 
 **Variante C, Codex en los 128 pasos (referencia).** 128 consultas, 691 segundos.
 
@@ -80,17 +79,16 @@ Columnas: cortes reales; aciertos; de más; perdidos; precisión; alcance; docum
 - **Los errores de Codex son de dos clases.** Junta un documento con el siguiente, sobre todo actas seguidas que terminan en su certificación (pierde el corte). Separa una página que es parte del documento (la constancia de firma de un servicio de firma, la segunda hoja de una boleta).
 - **El tipo:** las reglas solo lo saben cuando la página tiene texto. Codex acierta el tipo en 67 de los 70 documentos bien cortados de C. En B, si se le pide el tipo de cada documento que empezó por una regla (57 consultas más, estimado con las respuestas de C), acierta 69 de 72.
 
-## Corrección: la hoja que firma o certifica no empieza otro documento
+## Nota (25 oct, más tarde): se sacó la regla de la hoja que firma o certifica
 
-- **El problema.** En la prueba en seco sobre la base, la regla «una página escaneada y la otra digital» cortaba entre un documento escaneado y la hoja digital que lo firma o deja constancia de su digitalización (por ejemplo, la «hoja adicional de firmas» de un registro). Un PDF que junta varios documentos así quedaba en un pedazo por página.
-- **La regla nueva (6).** Si la página digital tiene poco texto propio y una expresión de firma, certificación o digitalización del vocabulario, el paso continúa. Las otras dos señales de esa hoja, el mismo código de documento y una numeración que sigue, ya continúan por las reglas 2 y 3, que van antes. El paso de la hoja digital a la página escaneada siguiente sigue cortando.
-- **Medido con la variante B.** Sobre la hoja de partes, igual que antes: 79 de 80 cortes, 14 de más, 1 perdido, 72 de 88 documentos exactos; la regla nueva no se aplica en esos seis PDF y no hizo falta ninguna consulta nueva a Codex. En la prueba en seco sobre 12 PDF de la base: de 79 a 69 documentos incluidos; el PDF de la hoja de firmas pasa de 24 a 14 pedazos (lo probable eran unos 13). Ninguna consulta nueva a Codex para cortar.
-- **Lo que no cubre.** Solo mira el paso de una página escaneada a una digital. Una hoja de firmas después de otra página digital todavía puede cortarse por una fórmula de cierre. Las expresiones se buscan sin tildes: si la capa de texto perdió las letras con tilde (aparece un signo de reemplazo), una expresión que las lleva no se encuentra.
+- **Qué se probó.** Una regla especial: después de una página escaneada, una página digital con poco texto propio (hasta 600 caracteres) y una expresión de firma, certificación o digitalización no empezaba otro documento. En la prueba en seco sobre la base mejoraba el resultado (en 12 PDF, de 79 a 69 documentos incluidos; el PDF de la hoja de firmas, de 24 a 14 pedazos), pero con reglas frágiles: un tope de caracteres, una lista de expresiones y un solo tipo de paso.
+- **Por qué se sacó (D-527).** Lo que tiene emisor y fecha propios (una certificación, una hoja de firmas, un comprobante de timbre, una respuesta al dorso) es un documento aparte, relacionado con lo que certifica o acompaña. Cortar ahí es correcto, y la relación se establece después, mirando el contenido. El paso de escaneo a digital vuelve a cortar.
+- **La hoja de partes, al día con D-527:** 104 documentos en vez de 88, y 96 cortes en vez de 80. La variante A, sin cambios, contra la hoja nueva: 71 aciertos, 3 de más, 25 perdidos; precisión 96 % (antes 84 %), alcance 74 % (antes 78 %); 57 de 104 documentos exactos (antes 47 de 88). Las variantes B y C de arriba están medidas contra la hoja anterior; no se volvieron a medir porque usan Codex.
 
 ## Qué conviene para la app
 
 1. **Reglas primero y Codex solo en los dudosos (variante B).** Encuentra casi todos los cortes con la tercera parte de las consultas de C. Lo que falla son cortes de más en adjuntos, que la persona arregla juntando dos documentos en la pantalla.
-2. **Las reglas de forma (8 y 9) conviene mostrarlas como «posible corte», no como corte seguro**, o pedir a Codex que confirme solo cuando el documento siguiente sería de una o dos páginas. Mejora candidata, sin medir: la regla 9 solo con escaneos de 100 puntos por pulgada o más (una foto no tiene tamaño de papel), como ya hace la regla 5.
+2. **Las reglas de forma (7 y 8) conviene mostrarlas como «posible corte», no como corte seguro**, o pedir a Codex que confirme solo cuando el documento siguiente sería de una o dos páginas. Mejora candidata, sin medir: la regla 8 solo con escaneos de 100 puntos por pulgada o más (una foto no tiene tamaño de papel), como ya hace la regla 5.
 3. **El tipo:** el que dice Codex al cortar, y para los documentos cortados por una regla, el paso de tipo que la app ya tiene para cada documento.
 4. **Cuidado al llamar a Codex con imágenes:** si la ruta de una imagen no existe, `codex exec` no falla; contesta igual, sin verla (todas «continúa», tipo «other», confianza baja). Hay que comprobar que las imágenes existen y desconfiar de esa respuesta.
 

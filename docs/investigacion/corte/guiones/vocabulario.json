@@ -19,16 +19,6 @@
       "saludo a ud. atentamente", "saluda atentamente", "notifiquese", "registrese", "hagase saber", "conste"
     ]
   },
-  "attestation": {
-    "about": "Expresiones de una hoja que firma, certifica o deja constancia de la digitalización de la página anterior (hoja de firmas, certificación de firma o de copia, legalización, constancia de digitalización). Una página digital con poco texto propio (hasta maxOwnChars caracteres) y una de estas expresiones, después de una página escaneada, es parte del documento escaneado: no empieza otro. Se escribió como vocabulario general, no mirando la hoja de partes (R-25).",
-    "maxOwnChars": 600,
-    "phrases": [
-      "hoja adicional de firmas", "hoja de firmas", "firmado digitalmente", "firmado electronicamente", "firma digital",
-      "firma electronica", "firma olografa", "certifico que", "certifico la", "certificacion de firma",
-      "certificacion de copia", "copia fiel", "concuerda con su original", "concuerda con el original",
-      "acta de digitalizacion", "constancia de digitalizacion", "documento digitalizado", "legalizacion", "apostille"
-    ]
-  },
   "types": {
     "about": "Expresiones que dicen el tipo de un documento, buscadas en su primera página. Gana la primera que aparece en el orden de la lista.",
     "rules": [
