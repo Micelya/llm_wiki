@@ -2351,14 +2351,14 @@
       "titulo": "Volver atrás: entrar a «Personas y organizaciones» deja dos pasos en el historial",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "hecho",
       "prioridad": 2,
       "tema": "pantallas",
-      "detalle": "Visto en el recorrido del 24 oct con la app real (D-517): desde la página de un caso, ir a «Personas y organizaciones» y tocar «Atrás» no vuelve al caso; hacen falta dos toques. Desde «Documentos» vuelve con uno. Algo de esa pantalla cambia el lugar abierto después del clic, fuera de la agrupación por microtarea de startNavigationHistory (src/stores/navigation-history-store.ts). No se encontró la causa sin la app abierta: buscarla con la app y una prueba que la reproduzca. El resto anduvo: Atrás, Adelante y Alt+→ entre el caso, la lista de casos y Documentos.",
+      "detalle": "Visto en el recorrido del 24 oct con la app real (D-517): desde la página de un caso, ir a «Personas y organizaciones» y tocar «Atrás» no vuelve al caso; hacen falta dos toques. Desde «Documentos» vuelve con uno. Algo de esa pantalla cambia el lugar abierto después del clic, fuera de la agrupación por microtarea de startNavigationHistory (src/stores/navigation-history-store.ts). No se encontró la causa sin la app abierta: buscarla con la app y una prueba que la reproduzca. El resto anduvo: Atrás, Adelante y Alt+→ entre el caso, la lista de casos y Documentos. 2026-10-25: Hecho en la corrida desatendida (n3, commit b71976b, D-524). El historial ya no depende de que cada pantalla cambie el lugar dentro de la misma microtarea del clic: solo un clic o una tecla de la persona hace un paso nuevo; lo que una pantalla cambia sola después actualiza el paso en el que está, sin borrar los de adelante (src/stores/navigation-history-store.ts, notePersonAction y replace; src/hooks/use-navigation-history.ts escucha los clics y las teclas). La causa puntual no apareció en el código de «Personas y organizaciones» ni de lo que monta: el arreglo es general. Prueba que reproduce los dos pasos y su arreglo en src/stores/navigation-history-store.test.ts (12 pruebas en verde).",
       "depende_de": [],
       "referencia": "D-517",
       "creado": "2026-10-24",
-      "actualizado": "2026-10-24"
+      "actualizado": "2026-10-25"
     },
     {
       "id": "P-333",
@@ -2368,11 +2368,11 @@
       "estado": "pendiente",
       "prioridad": 2,
       "tema": "casos",
-      "detalle": "Visto en el recorrido del 24 oct: el caso del expediente del PJN ya no figura como nombrado por una persona (D-514), pero la página sigue diciendo «creado a mano», porque su origen quedó como de una persona. Debería decir que lo creó la app al traer el expediente. Además, el archivo de ese expediente no tiene carátula (el portal no la leyó), así que el nombre sigue siendo el número: revisar por qué no se leyó la carátula (pjn.rs, rótulo «caratula») y volver a leerla al seguir el expediente.",
+      "detalle": "Visto en el recorrido del 24 oct: el caso del expediente del PJN ya no figura como nombrado por una persona (D-514), pero la página sigue diciendo «creado a mano», porque su origen quedó como de una persona. Debería decir que lo creó la app al traer el expediente. Además, el archivo de ese expediente no tiene carátula (el portal no la leyó), así que el nombre sigue siendo el número: revisar por qué no se leyó la carátula (pjn.rs, rótulo «caratula») y volver a leerla al seguir el expediente. 2026-10-25: No se hizo en la corrida desatendida (n3): el tope del paso alcanzó solo para P-332. Lo mirado: pjn.rs lee la carátula con labeled(page, [\"caratula\"], table), que busca el rótulo solo antes de la tabla de movimientos (0..table) y toma el texto del hermano siguiente, hasta tres niveles arriba; con las páginas de prueba (fixtures.rs, «Carátula:» con for=detailCover dentro del bloque de datos) se lee. Hipótesis a probar con una página real guardada: que en el portal real la carátula esté después de la tabla, en un campo (input o textarea, cuyo valor no es texto del nodo) o en un elemento oculto para Page::visible. Lo de «creado a mano» (origen person del caso que crea ensure_matter en portals/store.rs) no se tocó.",
       "depende_de": [],
       "referencia": "D-514; src-tauri/src/portals/pjn.rs",
       "creado": "2026-10-24",
-      "actualizado": "2026-10-24"
+      "actualizado": "2026-10-25"
     },
     {
       "id": "P-334",
@@ -2527,6 +2527,20 @@
       "detalle": "Cuando una persona pide leer las páginas escaneadas sin leer de un documento ya reconocido (D-523), el reconocimiento arma el texto de nuevo desde el PDF: las páginas que ya tienen su lectura guardada (recognized/<hash>/page-N.json) no se vuelven a leer, pero las que se leyeron por un camino anterior, sin archivo por página (20 páginas en la base, según la medición del 24), sí se vuelven a leer, y eso gasta consultas. Mejor: tomar esas páginas del texto ya guardado del documento. No se midió cuántas de esas 20 caen en los 2 documentos con páginas sin leer.",
       "depende_de": [],
       "referencia": "src-tauri/src/source_volume/recognition.rs (complete_pdf_pages); src-tauri/src/docbase/page_shapes.rs",
+      "creado": "2026-10-25",
+      "actualizado": "2026-10-25"
+    },
+    {
+      "id": "P-346",
+      "titulo": "Ver en la app: un solo «Atrás» desde «Personas y organizaciones» vuelve al caso",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "pantallas",
+      "detalle": "Con esta rama: abrir la página de un caso, tocar «Personas y organizaciones» en el menú de la izquierda y tocar una vez la flecha ← de la barra de arriba (o Alt+←): tiene que volver al caso. Después, → tiene que volver a la lista. Repetir desde «Documentos», desde la página de una persona y con los botones laterales del ratón. Mirar también que crear un caso nuevo y abrirlo siga dejando un paso (← vuelve a la lista de casos). Si todavía hacen falta dos toques, la causa es otra (no un cambio que la pantalla hace sola): anotar desde qué pantalla y con qué se llegó al caso. Medido solo con pruebas, sin la app (D-524).",
+      "depende_de": [],
+      "referencia": "D-524, P-332; src/stores/navigation-history-store.ts",
       "creado": "2026-10-25",
       "actualizado": "2026-10-25"
     }

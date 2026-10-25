@@ -466,6 +466,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-521 | 25 oct | Copias y versiones | Se compara el texto sin lo que agrega su formato | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-522 | 2026-10-25 | reconocimiento | Qué páginas de un PDF se reconocen lo decide la ficha de forma de cada página, con umbrales en un catálogo propio | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-523 | 2026-10-25 | reconocimiento | Lo ya leído no se vuelve a reconocer solo: Atención cuenta las páginas escaneadas que quedaron sin leer y se leen a pedido | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-524 | 2026-10-25 | pantallas | En el historial de Atrás y Adelante, solo un clic o una tecla de la persona hace un paso nuevo | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -5524,3 +5525,10 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **El problema:** La ficha de forma (D-522) encuentra páginas escaneadas que la prueba de antes dio por leídas. Releerlas todas al abrir la app gastaría consultas sin que nadie lo pida.
 - **Qué se decidió y por qué:** La ficha decide solo en las lecturas nuevas; no hay versión nueva de la base ni de la extracción que dispare un reconocimiento. Para lo ya leído, la base calcula la ficha en segundo plano (solo pdfium) y la guarda junto al texto del documento (derivado «page-shapes», sin cambiar el esquema). Una página cuenta como leída si la base guarda su reconocimiento, o si su documento se reconoció y la prueba de antes la mandaba a reconocer. Atención dice cuántas páginas escaneadas quedaron sin leer y en cuántos documentos, con el botón «Leerlas», que usa el pedido de reconocimiento de siempre. Alternativas: volver los documentos a «esperando reconocimiento» (desaparecerían de la búsqueda mientras esperan, y la lectura automática los leería sola); o leerlos solos con la lectura automática encendida.
 - **Quién decidió:** Claude, en la corrida desatendida (n2)
+
+### D-524 · En el historial de Atrás y Adelante, solo un clic o una tecla de la persona hace un paso nuevo
+
+- **Fecha:** 25 oct 2026 · **Tema:** pantallas · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Desde la página de un caso, ir a «Personas y organizaciones» dejaba dos pasos en el historial y hacían falta dos toques de «Atrás» para volver (P-332). El historial juntaba en un paso solo los cambios de una misma microtarea; un cambio del lugar abierto que llega después del clic (un efecto de la pantalla, una respuesta que tarda) se anotaba como un paso más. En el código de esa pantalla y de lo que monta no se encontró ningún cambio así, por lo que el arreglo no depende de qué pantalla lo hace.
+- **Qué se decidió y por qué:** El historial anota que la persona hizo algo (un clic o una tecla, escuchados en toda la ventana). Un cambio de lugar que sigue a una acción suya es un paso nuevo; uno que llega sin acción en el medio actualiza el paso en el que está, sin borrar los pasos de adelante, y si vuelve a quedar igual al paso anterior se juntan en uno. Ir atrás o adelante gasta la acción, para que lo que la pantalla cambie sola al volver no corte el camino hacia adelante. Una acción que no cambia el lugar en el momento (crear un caso, que abre al recibir la respuesta) sigue contando cuando el lugar cambia. Alternativas: buscar con la app abierta la pantalla puntual y arreglar solo esa (no cubre la próxima que haga lo mismo), o juntar los cambios por tiempo, por ejemplo medio segundo (falla con una respuesta lenta y junta dos clics rápidos).
+- **Quién decidió:** Claude, en la corrida desatendida (n3)
