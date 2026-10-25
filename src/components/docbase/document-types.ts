@@ -70,6 +70,7 @@ export function sealText(seal: SealVerdict | null | undefined, words: Vocabulary
   const parts = [template.replace("{service}", seal.serviceName ?? seal.service ?? "").replace("{date}", date ?? "")]
   const intact = seal.state === "sealed" || seal.state === "valid-unknown"
   if (intact && seal.laterValidation) parts.push(words.seal.validation)
+  if (intact && (seal.joined ?? 0) > 0) parts.push(words.seal.joined.replace("{count}", String(seal.joined)))
   if (intact && seal.failing > 0) parts.push(words.seal.failing.replace("{count}", String(seal.failing)))
   return parts.join(" ")
 }

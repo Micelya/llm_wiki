@@ -100,10 +100,14 @@ pub struct SealVerdict {
     /// Long-term validation data was added after the signature.
     #[serde(default)]
     pub later_validation: bool,
-    /// Other signatures it brings that do not verify (made on another
-    /// file, before this one was put together).
+    /// Other signatures it brings that do not verify.
     #[serde(default)]
     pub failing: usize,
+    /// Of an intact file, the signatures whose envelope is not where they
+    /// say: the ones of the signed documents it was put together from,
+    /// which speak of each original file (P-337). Not counted in `failing`.
+    #[serde(default)]
+    pub joined: usize,
 }
 
 /// The signing service of the catalog whose seal this is: its chain
@@ -138,6 +142,7 @@ pub fn verdict(catalog: &Catalog, signatures: &[PdfSignature]) -> Option<SealVer
         return None;
     }
     let failing = checks.iter().filter(|c| c.state == "modified" || c.state == "invalid").count();
+    let joined = checks.iter().filter(|c| c.state == "modified" && c.problem.as_deref() == Some("byte-range")).count();
     let plain = |state: &str| SealVerdict {
         state: state.to_string(),
         service: None,
@@ -145,6 +150,7 @@ pub fn verdict(catalog: &Catalog, signatures: &[PdfSignature]) -> Option<SealVer
         signed_at: None,
         later_validation: false,
         failing,
+        joined: 0,
     };
     let covering: Vec<&&SealCheck> = checks.iter().filter(|c| c.is_valid() && c.covers_file()).collect();
     // The seal of a known service first.
@@ -171,7 +177,8 @@ pub fn verdict(catalog: &Catalog, signatures: &[PdfSignature]) -> Option<SealVer
         service_name: service.map(|v| v.issuer.clone()).filter(|name| !name.is_empty()),
         signed_at: chosen.signed_at.clone(),
         later_validation: chosen.covers == "file-and-validation",
-        failing,
+        failing: failing - joined,
+        joined,
     })
 }
 

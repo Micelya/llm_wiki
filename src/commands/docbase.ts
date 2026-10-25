@@ -811,6 +811,8 @@ export interface SealVerdict {
   laterValidation: boolean
   /** Other signatures it carries that do not verify. */
   failing: number
+  /** Of an intact file, the signatures of the signed documents it was put together from (not in `failing`). */
+  joined?: number
 }
 
 export interface ProposedType {

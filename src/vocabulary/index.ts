@@ -119,9 +119,11 @@ export interface Vocabulary {
    * `{service}` (who sealed it) and `{date}` (when); a state with
    * `-undated` is used when the signature does not say when.
    * `validation`: long-term validation data was added later. `failing`:
-   * `{count}` other signatures that do not verify.
+   * `{count}` other signatures that do not verify. `joined`: the file was
+   * put together from `{count}` signed documents, whose signatures speak
+   * of each original file.
    */
-  seal: { label: string; states: Record<string, string>; validation: string; failing: string }
+  seal: { label: string; states: Record<string, string>; validation: string; failing: string; joined: string }
   /**
    * The words of the knowledge layer's screens: who and what the
    * documents name. The ids are those of the layer's vocabulary
