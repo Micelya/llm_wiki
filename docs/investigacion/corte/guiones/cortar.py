@@ -14,15 +14,21 @@ that applies decides):
   4. serial: correlative notarial sheet serials (same letters, number + 1) -> continue.
   5. photo_pair: two photographed pages (less than 100 dpi) with the same page
      size and the same image pixels: the two sides of a card -> continue.
-  6. making: one page is a scan and the other is digital -> new.
-  7. capture: two scans with a different resolution (more than 10 %) or a
+  6. attestation: a scan followed by a digital page with little own text
+     (attestation.maxOwnChars) and a signing or certifying phrase
+     (vocabulario.json, attestation): the sheet that signs, certifies or
+     records the digitization of the page before -> continue. The other two
+     signals of such a sheet, the same document code and a page number that
+     follows, already continue by rules 2 and 3, which run first.
+  7. making: one page is a scan and the other is digital -> new.
+  8. capture: two scans with a different resolution (more than 10 %) or a
      different color space -> new (another capture, another document).
-  8. paper: two scans of the same resolution whose page differs in
+  9. paper: two scans of the same resolution whose page differs in
      orientation or by more than 4 % in width or height -> new (at the same
      resolution the page is the paper, and another paper is another document).
-  9. closer / opener: the page before ends with a closing formula, or the
+ 10. closer / opener: the page before ends with a closing formula, or the
      next one starts with an opening formula (vocabulario.json) -> new.
- 10. otherwise -> doubtful (counted as continue in variant A).
+ 11. otherwise -> doubtful (counted as continue in variant A).
 """
 import json
 import os
@@ -58,6 +64,12 @@ def type_of(p):
     return None
 
 
+def is_attestation(p):
+    """A page that only signs, certifies or records the digitization of another."""
+    att = VOCAB["attestation"]
+    return p["own_chars"] <= att["maxOwnChars"] and has_any(fold(p.get("text", "")), att["phrases"]) is not None
+
+
 def serial_next(a, b):
     def parse(s):
         letters = s.rstrip("0123456789")
@@ -91,6 +103,8 @@ def step(prev, nxt):
     if both_scans and a["dpi"] < 100 and b["dpi"] < 100 and a["px"] == b["px"] \
             and (prev["w"], prev["h"]) == (nxt["w"], nxt["h"]):
         return "continue", "photo_pair"
+    if prev["shape"] in SCANS and nxt["shape"] in DIGITAL and is_attestation(nxt):
+        return "continue", "attestation"
     if (prev["shape"] in SCANS and nxt["shape"] in DIGITAL) or (prev["shape"] in DIGITAL and nxt["shape"] in SCANS):
         return "new", "making"
     if both_scans:
