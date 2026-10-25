@@ -553,7 +553,11 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, decided: &
         let closed = |i: usize| closed_of.get(&pieces[list[i]].id);
         // Pieces written the same are one value; then the ways of writing
         // the same value, against the first of each group. Values of a
-        // closed list are the same when they say the same value of it.
+        // closed list are the same when they say the same value of it. Two
+        // references that cite the same record by number and year are the
+        // same, however they write it (P-330).
+        let record = |i: usize| if pieces[list[i]].reference { super::references::record_cited(value(i)) } else { None };
+        let records: Vec<Option<(u64, u32)>> = (0..list.len()).map(record).collect();
         let mut group: Vec<usize> = (0..list.len()).collect();
         for i in 0..list.len() {
             for j in 0..i {
@@ -561,9 +565,10 @@ pub(crate) fn consolidate(conn: &Connection, vocabulary: &Vocabulary, decided: &
                     continue;
                 }
                 let same_words = pieces[list[i]].normalized == pieces[list[j]].normalized;
+                let same_record = matches!((records[i], records[j]), (Some(a), Some(b)) if super::references::same_record(a, b));
                 let same = match (closed(i), closed(j)) {
                     (Some(a), Some(b)) => a.0 == b.0,
-                    _ => same_words || values::same(vocabulary, shape, value(i), value(j)),
+                    _ => same_words || same_record || values::same(vocabulary, shape, value(i), value(j)),
                 };
                 if same {
                     group[i] = j;
@@ -1014,6 +1019,13 @@ fn place_claim_decisions<'a>(
                     || values::same(vocabulary, shape, a, b)
                     || draft.object_value.as_deref().is_some_and(|v| values::same(vocabulary, shape, v, a))
                     || super::anchors::same_digits(a, b)
+                    // A reference now said with the other ways of writing
+                    // its record (P-330).
+                    || draft
+                        .object_value
+                        .as_deref()
+                        .and_then(super::references::record_cited)
+                        .is_some_and(|(number, year)| super::references::cites(a, number, year))
             }
             _ => false,
         };

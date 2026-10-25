@@ -138,6 +138,63 @@ pub(crate) fn cites(text: &str, number: u64, year: u32) -> bool {
     false
 }
 
+/// The record a reference cites by number and year (P-330): a number,
+/// with or without thousands dots, then a slash or a dash and a year of
+/// four digits or two ("1.234/2020", "1234-20"). None when it cites none
+/// or more than one, or when the number goes on (a date, an incident:
+/// "12/05/2020", "1234/2020/1"): the same record written several ways is
+/// then said once.
+pub(crate) fn record_cited(text: &str) -> Option<(u64, u32)> {
+    let text = text.replace(" / ", "/").replace("/ ", "/").replace(" /", "/");
+    let chars: Vec<char> = text.chars().collect();
+    let mut found: Option<(u64, u32)> = None;
+    let mut at = 0;
+    while at < chars.len() {
+        if !chars[at].is_ascii_digit() || (at > 0 && chars[at - 1].is_ascii_alphanumeric()) {
+            at += 1;
+            continue;
+        }
+        // A run of digits and the separators between them.
+        let mut end = at;
+        while end < chars.len()
+            && (chars[end].is_ascii_digit() || (matches!(chars[end], '.' | '/' | '-') && chars.get(end + 1).is_some_and(|c| c.is_ascii_digit())))
+        {
+            end += 1;
+        }
+        let run: String = chars[at..end].iter().collect();
+        at = end;
+        if chars.get(end).is_some_and(|c| c.is_ascii_alphanumeric()) {
+            continue;
+        }
+        let parts: Vec<&str> = run.split(['/', '-']).collect();
+        let [number, year] = parts[..] else { continue };
+        let groups: Vec<&str> = number.split('.').collect();
+        let grouped = groups.len() == 1 || ((1..=3).contains(&groups[0].len()) && groups[1..].iter().all(|g| g.len() == 3));
+        let digits: String = groups.concat();
+        let year_fits = match year.len() {
+            4 => year.parse::<u32>().is_ok_and(|y| (1900..=2099).contains(&y)),
+            2 => true,
+            _ => false,
+        };
+        if !grouped || !year_fits || digits.is_empty() || digits.len() > 18 {
+            continue;
+        }
+        let (Ok(number), Ok(year)) = (digits.parse::<u64>(), year.parse::<u32>()) else { continue };
+        match found {
+            Some(seen) if !same_record(seen, (number, year)) => return None,
+            Some(_) => {}
+            None => found = Some((number, year)),
+        }
+    }
+    found
+}
+
+/// Whether two records cited are the same: the same number and year, a
+/// year of two digits being its last two.
+pub(crate) fn same_record(a: (u64, u32), b: (u64, u32)) -> bool {
+    a.0 == b.0 && (a.1 == b.1 || (a.1.min(b.1) < 100 && a.1 % 100 == b.1 % 100))
+}
+
 /// The references of one document, one per normalized form, with the
 /// identifiers read in them.
 pub(crate) fn shown_references(

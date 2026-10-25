@@ -142,12 +142,14 @@ fn what_points_to_its_own_matter_is_said_once_on_its_page() {
     super::tests_pages::read(&base, &model);
     base.knowledge_project(None, 0).unwrap();
     // Two ways of writing the matter itself (as most of its documents
-    // write it, and with more words): one line; the number alone is not
-    // known to be of it yet.
+    // write it, and with more words), and its number written another way:
+    // one line. The number is of it because a document writes it with the
+    // words of the matter (P-330): the two ways of writing the number are
+    // one claim of the person.
     let (text, lines) = facts_of_the_matter(&base);
-    assert_eq!(lines.len(), 2, "{text}");
+    assert_eq!(lines.len(), 1, "{text}");
     assert!(lines.iter().any(|l| l.contains("Causante de: este caso")), "{text}");
-    assert!(lines.iter().any(|l| l.contains("Causante de: expte. 1234/20")), "{text}");
+    assert_eq!(claims(&base, "causante").len(), 2, "{text}");
     // With its record, the number is of it too: said once, every way of
     // writing it in the note.
     let matter: String = base.conn().query_row("SELECT id FROM knowledge_matter WHERE state = 'active'", [], |r| r.get(0)).unwrap();
@@ -243,4 +245,68 @@ fn a_person_s_name_is_what_most_documents_write_and_a_person_can_choose_it_and_u
     base.knowledge_undo(decision).unwrap();
     assert_eq!(people(&base), [(id, "Persona Uno Dos Tres".to_string())]);
     assert!(base.knowledge_decide(&IdentityDecision::Name { a: "entity:nadie".into(), name: "  ".into() }, None, None).is_err());
+}
+
+const B1: &str = "DOC-B1. Autos: MODELO, PERSONA DOS s/ sucesion. Se cita el Expte. 5678/2019 MODELO, PERSONA TRES s/ sucesion, de Persona Tres Modelo, DNI 22.222.222.";
+const B2: &str = "DOC-B2. Autos: MODELO, PERSONA DOS s/ sucesion. En el expediente N° 5.678/19 consta la muerte de Persona Tres Modelo, DNI 22.222.222.";
+const B3: &str = "DOC-B3. Autos: MODELO, PERSONA DOS s/ sucesion. Se agrega la partida del 12/05/2019 de Persona Tres Modelo, DNI 22.222.222.";
+
+fn other_record_model() -> FakeModel {
+    FakeModel::new("falso:1", |prompt| {
+        if !is_knowledge(prompt) {
+            return type_answer("contrato");
+        }
+        let autos = mention("x", "asunto", "MODELO, PERSONA DOS s/ sucesion", "referido", "Autos: MODELO, PERSONA DOS s/ sucesion", serde_json::json!([]));
+        let person = |quote: &str| mention("p", "persona", "Persona Tres Modelo", "otro", quote, dni("22.222.222"));
+        let cited = |written: &str, quote: &str, claim_quote: &str| {
+            answer(
+                vec![autos.clone(), mention("y", "asunto", written, "otro", quote, serde_json::json!([])), person("Persona Tres Modelo, DNI 22.222.222")],
+                vec![claim("p", "causante", Some("y"), None, claim_quote, None)],
+            )
+        };
+        if prompt.contains("DOC-B1.") {
+            cited("Expte. 5678/2019 MODELO, PERSONA TRES s/ sucesion", "el Expte. 5678/2019 MODELO, PERSONA TRES s/ sucesion", "sucesion, de Persona Tres Modelo")
+        } else if prompt.contains("DOC-B2.") {
+            cited("expediente N° 5.678/19", "En el expediente N° 5.678/19", "consta la muerte de Persona Tres Modelo")
+        } else if prompt.contains("DOC-B3.") {
+            cited("partida del 12/05/2019", "la partida del 12/05/2019", "partida del 12/05/2019 de Persona Tres Modelo")
+        } else if let Some(name) = ["Persona Diez Otro", "Persona Once Otro", "Persona Doce Otro"].iter().find(|n| prompt.contains(**n)) {
+            answer(vec![mention("o", "persona", name, "emisor", &format!("Nota de {name}"), serde_json::json!([]))], vec![])
+        } else {
+            answer(vec![], vec![])
+        }
+    })
+}
+
+#[test]
+fn another_record_written_several_ways_is_said_once_by_number_and_year() {
+    let (dir, base) = base_with(&[("b1.txt", B1), ("b2.txt", B2), ("b3.txt", B3), ("f1.txt", F1), ("f2.txt", F2), ("f3.txt", F3)]);
+    dir.folder("General/wiki/sources");
+    crate::docbase::testing::point_general_project_at(&base, &dir.path().join("General"));
+    let model = other_record_model();
+    super::tests_pages::read(&base, &model);
+    base.knowledge_project(None, 0).unwrap();
+    // The record of another succession, written two ways: one claim, shown
+    // with its fullest writing and every quote; a date is not a record.
+    let values: Vec<String> = claims(&base, "causante").into_iter().map(|(value, ..)| value).collect();
+    assert_eq!(values, ["Expte. 5678/2019 MODELO, PERSONA TRES s/ sucesion", "partida del 12/05/2019"]);
+    let (text, lines) = facts_of_the_matter(&base);
+    assert_eq!(lines.len(), 2, "{text}");
+    let note = super::tests_pages::note_after(&text, "Causante de: Expte. 5678/2019");
+    assert!(note.contains("b1.txt") && note.contains("b2.txt"), "{note}");
+}
+
+#[test]
+fn a_record_is_cited_by_number_and_year_however_it_is_written() {
+    use super::references::{record_cited, same_record};
+    assert_eq!(record_cited("Expte. N° 1.234/2020 EJEMPLO s/ sucesion"), Some((1234, 2020)));
+    assert_eq!(record_cited("expediente 1234-20"), Some((1234, 20)));
+    assert_eq!(record_cited("causa 001234 / 2020"), Some((1234, 2020)));
+    // A date, an incident, two records or none: no record.
+    assert_eq!(record_cited("partida del 12/05/2020"), None);
+    assert_eq!(record_cited("expte. 1234/2020/1"), None);
+    assert_eq!(record_cited("expte. 1234/2020 y 5678/2019"), None);
+    assert_eq!(record_cited("EJEMPLO s/ sucesion"), None);
+    assert_eq!(record_cited("Ley 1.23/2020"), None);
+    assert!(same_record((1234, 2020), (1234, 20)) && !same_record((1234, 2020), (1234, 2021)) && !same_record((1234, 2020), (1235, 2020)));
 }

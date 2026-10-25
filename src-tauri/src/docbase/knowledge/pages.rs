@@ -2274,12 +2274,16 @@ fn render_matter(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<Stri
     };
     // What points to this very matter (its decedent, written as each
     // document writes the matter) is said once, the ways of writing it in
-    // its note (D-516).
+    // its note (D-516). The ways of writing one record (P-330) are of it
+    // when one of them is.
     let here = |claim: &Claim| {
+        let named = |(normalized, written): &(String, String)| matter.is_named_by(normalized, written);
+        let records: Vec<Option<(u64, u32)>> = claim.references.iter().map(|(_, written)| super::references::record_cited(written)).collect();
+        let one_record = records.iter().all(|r| r.zip(records[0]).is_some_and(|(a, b)| super::references::same_record(a, b)));
         claim.object_entity.is_none()
             && claim.state != "conflict"
             && !claim.references.is_empty()
-            && claim.references.iter().all(|(normalized, written)| matter.is_named_by(normalized, written))
+            && (claim.references.iter().all(named) || (one_record && claim.references.iter().any(named)))
     };
     for (entity, _, _) in &people {
         let subject = paths.get(&entity.id).map(|p| link(p, &entity.name)).unwrap_or_else(|| entity.name.clone());
