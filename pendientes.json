@@ -2575,6 +2575,22 @@
       "referencia": "llm_wiki_mi/desatendido-11/c2-propuestas.md; llm_wiki_mi/desatendido-11/c2-informe.md; docs/investigacion/corte/informe.md",
       "creado": "2026-10-25",
       "actualizado": "2026-10-25"
+    },
+    {
+      "id": "P-350",
+      "titulo": "Revisar la propuesta de documentos compuestos",
+      "tipo": "decision",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "reconocimiento",
+      "detalle": "Propuesta de diseño, sin construir, en docs/design/documentos-compuestos-propuesta.md (D-525). Propone: el archivo no se toca y cada documento incluido es un documento más de la base (su página, tipo, fecha, personas, casos y copias), con un registro que dice de qué compuesto es y qué páginas o qué región ocupa; cortes por reglas primero, el modelo solo en los pasos dudosos y una persona confirma lo dudoso (las reglas seguras se confirman solas); lo ya leído se reparte por página sin consultas; el caso apunta al compuesto y sus incluidos van con él; Core como proveedor elegible con el mismo formato. Qué hacer: leer «En pocas palabras» y contestar las 8 preguntas de la sección 10 (cada una con una recomendación); las más importantes son la 1 (documento propio o sección), la 3 (qué espera a que se confirme el corte) y la 7 (empezar con Desktop o esperar a Core). Con las respuestas se escribe la especificación de la etapa 1.",
+      "depende_de": [
+        "P-349"
+      ],
+      "referencia": "docs/design/documentos-compuestos-propuesta.md; D-525; docs/investigacion/corte/informe.md; llm_wiki_mi/observaciones-del-dueno.md (observación 3)",
+      "creado": "2026-10-25",
+      "actualizado": "2026-10-25"
     }
   ]
 }
