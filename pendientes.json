@@ -2179,16 +2179,16 @@
       "titulo": "Ficha de forma por página: reemplazar la prueba de los 80 caracteres por señales de la página",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "hecho",
       "prioridad": 1,
       "tema": "reconocimiento",
-      "detalle": "Hoy una página de PDF «tiene texto» si tiene 80 caracteres (textless_pages, MIN_PAGE_TEXT_CHARS). Falla con el pie que el PJN estampa en cada página y con capas de texto viejas y ruidosas, así que hay páginas escaneadas que nunca se leen. Propuesta de la investigación del 23 oct: decidir página por página con señales de pdfium. Las señales: texto propio sin contar lo repetido en todas las páginas, imagen que cubre la página, calidad del texto (letras sueltas, palabras pegadas), grupos de objetos agregados encima (formularios aplanados), productor. Las señales van al catálogo. Después, volver a leer lo que aparezca, con cupo y avisando antes. Es lo recomendado primero, pero espera la decisión del dueño (P-319, P-321). 2026-10-24: La prueba de Docling agrega una señal: la capa de texto vieja se detecta por la proporción de letras sueltas, no por el texto invisible (esa capa está escrita como texto visible tapado por la imagen).",
+      "detalle": "Hoy una página de PDF «tiene texto» si tiene 80 caracteres (textless_pages, MIN_PAGE_TEXT_CHARS). Falla con el pie que el PJN estampa en cada página y con capas de texto viejas y ruidosas, así que hay páginas escaneadas que nunca se leen. Propuesta de la investigación del 23 oct: decidir página por página con señales de pdfium. Las señales: texto propio sin contar lo repetido en todas las páginas, imagen que cubre la página, calidad del texto (letras sueltas, palabras pegadas), grupos de objetos agregados encima (formularios aplanados), productor. Las señales van al catálogo. Después, volver a leer lo que aparezca, con cupo y avisando antes. Es lo recomendado primero, pero espera la decisión del dueño (P-319, P-321). 2026-10-24: La prueba de Docling agrega una señal: la capa de texto vieja se detecta por la proporción de letras sueltas, no por el texto invisible (esa capa está escrita como texto visible tapado por la imagen). 2026-10-25: Hecho en la corrida desatendida (n2, commits 0007d56 y 0021105, D-522 y D-523). Cada página de PDF tiene una ficha de forma hecha con pdfium y sin modelo (src-tauri/src/source_volume/page_shape.rs), con los umbrales en el catálogo (src-tauri/resources/catalog/page-shapes.json). La ficha reemplaza la prueba de los 80 caracteres en las lecturas nuevas: se leen los escaneos sin texto propio y los de capa vieja ruidosa, y lo leído reemplaza la capa vieja. Lo ya leído no se relee solo: Atención dice cuántas páginas escaneadas quedaron sin leer y ofrece «Leerlas». Contra la hoja de partes (134 páginas): forma 130, texto digital del archivo 131, en blanco o solo el pie 134. Sobre la base: 38 páginas sin leer en 2 documentos, como esperaba la medición del 24.",
       "depende_de": [
         "P-319"
       ],
       "referencia": "src-tauri/src/source_volume/recognition.rs; llm_wiki_mi/investigacion-formas-de-documento-resultado.md",
       "creado": "2026-10-23",
-      "actualizado": "2026-10-24"
+      "actualizado": "2026-10-25"
     },
     {
       "id": "P-321",
@@ -2485,6 +2485,48 @@
       "detalle": "Visto el 25 oct (D-521): en el borrador Word del acuerdo, de los 25 párrafos con numeración automática, los cinco de una lista con letras salen todos como «A.» (en el PDF van de la A a la E). La extracción la hace la biblioteca anydoc 0.1.6 (src-tauri/src/commands/fs.rs, extract_office_text). Para comparar ya no pesa (D-521: el número de un párrafo cuenta como redacción), pero el texto que leen la wiki y las plantillas queda con la numeración equivocada. Revisar si una versión nueva de anydoc o un ajuste propio la escribe bien, y volver a leer los Word.",
       "depende_de": [],
       "referencia": "D-521",
+      "creado": "2026-10-25",
+      "actualizado": "2026-10-25"
+    },
+    {
+      "id": "P-343",
+      "titulo": "Ver en la app: las páginas escaneadas que quedaron sin leer, en Atención",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "reconocimiento",
+      "detalle": "Después de abrir la app con esta rama, la base calcula en segundo plano la ficha de forma de cada página de los PDF (solo pdfium, sin consultas). En Atención tiene que aparecer «38 páginas escaneadas quedaron sin leer en 2 documentos» (medido sobre una copia de la base: el oficio con el pie del sistema, 3 páginas, y la digitalización de 93 páginas, 35 páginas de capa vieja ruidosa). Mirar que nada se reconozca solo al abrir. Con «Leerlas» se piden esos 2 documentos al motor que reconoce escaneos (38 consultas, y quizá algunas más si el documento de 93 páginas tiene páginas reconocidas por un camino viejo, sin archivo por página). Después, mirar en el documento que las páginas leídas dicen lo que se ve en el escaneo y que la capa vieja ya no aparece en esas páginas.",
+      "depende_de": [],
+      "referencia": "D-522, D-523; src/components/attention/sources/docbase.ts (unreadScansNotice)",
+      "creado": "2026-10-25",
+      "actualizado": "2026-10-25"
+    },
+    {
+      "id": "P-344",
+      "titulo": "Medir los formularios digitales y aplanados de la ficha de forma con una hoja más grande",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "reconocimiento",
+      "detalle": "La ficha de forma (D-522) separa la prosa de los formularios por la proporción de renglones cortos, y el formulario aplanado por los textos dentro de grupos de objetos o el productor de un servicio de firma. En la hoja de partes acierta, pero tiene solo 3 páginas de formulario digital y 2 de aplanado. Sobre la base marca 94 páginas de formulario digital y 19 de aplanado, cuando la medición del 24 encontró un solo documento de servicio de firma: puede estar marcando de más. No cambia qué se reconoce; importa para leer los formularios por posición (paso 2 de la investigación). Falta una hoja con más formularios para medirlo.",
+      "depende_de": [],
+      "referencia": "src-tauri/resources/catalog/page-shapes.json (form); D-522",
+      "creado": "2026-10-25",
+      "actualizado": "2026-10-25"
+    },
+    {
+      "id": "P-345",
+      "titulo": "Al leer a pedido las páginas escaneadas sin leer, no volver a leer las que ya se leyeron por un camino viejo",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "reconocimiento",
+      "detalle": "Cuando una persona pide leer las páginas escaneadas sin leer de un documento ya reconocido (D-523), el reconocimiento arma el texto de nuevo desde el PDF: las páginas que ya tienen su lectura guardada (recognized/<hash>/page-N.json) no se vuelven a leer, pero las que se leyeron por un camino anterior, sin archivo por página (20 páginas en la base, según la medición del 24), sí se vuelven a leer, y eso gasta consultas. Mejor: tomar esas páginas del texto ya guardado del documento. No se midió cuántas de esas 20 caen en los 2 documentos con páginas sin leer.",
+      "depende_de": [],
+      "referencia": "src-tauri/src/source_volume/recognition.rs (complete_pdf_pages); src-tauri/src/docbase/page_shapes.rs",
       "creado": "2026-10-25",
       "actualizado": "2026-10-25"
     }
