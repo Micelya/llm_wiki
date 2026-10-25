@@ -3,6 +3,7 @@ import { useDocbaseStore } from "./docbase-store"
 import { useKnowledgeStore } from "./knowledge-store"
 import {
   HISTORY_LIMIT,
+  notePersonAction,
   restoredTabFor,
   setPlaceResolver,
   startNavigationHistory,
@@ -169,5 +170,90 @@ describe("navigation history", () => {
     // Going somewhere new forgets it: the next visit opens as always.
     await openMatter("matter-1")
     expect(restoredTabFor({ view: "entities", subject: "person-1" })).toBeNull()
+  })
+})
+
+/**
+ * A click on the menu, and then the screen it showed changing what is
+ * open by itself, after the click (an effect, an answer that arrives
+ * later): two changes outside one microtask (P-332).
+ */
+async function clickMenuThenScreenChangesItself() {
+  notePersonAction()
+  useWikiStore.getState().setActiveView("entities")
+  await settle()
+  useKnowledgeStore.getState().openEntity("person-open-by-itself")
+  await settle()
+  useKnowledgeStore.getState().openEntity(null)
+  await settle()
+}
+
+describe("navigation history, steps by what the person does", () => {
+  beforeEach(() => {
+    stop()
+    history().reset()
+    stop = startNavigationHistory({ stepsByAction: true })
+  })
+
+  async function clickMatter(id: string) {
+    notePersonAction()
+    await openMatter(id)
+  }
+
+  it("records every change as a step without it: the two «Atrás» of P-332", async () => {
+    stop()
+    history().reset()
+    stop = startNavigationHistory()
+    await openMatter("matter-1")
+    await clickMenuThenScreenChangesItself()
+    await history().back()
+    expect(where().view).toBe("entities")
+  })
+
+  it("one «Atrás» undoes one click, whatever the screen changes after it", async () => {
+    await clickMatter("matter-1")
+    await clickMenuThenScreenChangesItself()
+    expect(history().entries.map((entry) => [entry.view, entry.subject])).toEqual([
+      ["home", null],
+      ["matters", "matter-1"],
+      ["entities", null],
+    ])
+
+    await history().back()
+    expect(where()).toMatchObject({ view: "matters", matter: "matter-1" })
+    await history().forward()
+    expect(where()).toMatchObject({ view: "entities", entity: null })
+  })
+
+  it("after going back, what the screen changes by itself keeps the steps ahead", async () => {
+    await clickMatter("matter-1")
+    notePersonAction()
+    await openDocument(7)
+    notePersonAction()
+    await history().back()
+    // The matter's screen opens something by itself once it is back.
+    useKnowledgeStore.getState().openMatter("matter-2")
+    await settle()
+    expect(history().entries.map((entry) => entry.subject)).toEqual([null, "matter-2", 7])
+    await history().forward()
+    expect(where()).toMatchObject({ view: "documents", document: 7 })
+  })
+
+  it("a change that comes back to the step before merges into it", async () => {
+    await clickMatter("matter-1")
+    notePersonAction()
+    useWikiStore.getState().setActiveView("entities")
+    await settle()
+    useWikiStore.getState().setActiveView("matters")
+    await settle()
+    expect(history().entries.map((entry) => entry.view)).toEqual(["home", "matters"])
+  })
+
+  it("a change the person causes later, after an answer arrives, is still a step", async () => {
+    notePersonAction()
+    // The click changes nothing yet; the place changes when the answer comes.
+    await settle()
+    await openMatter("matter-new")
+    expect(history().entries.map((entry) => entry.subject)).toEqual([null, "matter-new"])
   })
 })
