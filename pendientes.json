@@ -2552,11 +2552,27 @@
       "estado": "pendiente",
       "prioridad": 2,
       "tema": "reconocimiento",
-      "detalle": "Lo que dejó la investigación del cortador (docs/investigacion/corte/informe.md), para cuando se diseñe cómo se guarda: 1) medir la mejora candidata de la regla de otro papel: solo con escaneos de 100 puntos por pulgada o más (una foto no tiene tamaño de papel); 2) las reglas de forma (otra resolución, otro papel) aciertan 43 y fallan 10, casi siempre en adjuntos (certificación, timbre, hoja de firmas): mostrarlas como posible corte o confirmarlas con Codex solo si el documento siguiente sería de una o dos páginas; 3) dos documentos en la misma página (arriba y abajo) no los ve un cortador por páginas; 4) el tipo de los documentos que corta una regla: usar el paso de tipo que la app ya tiene; 5) al llamar a Codex con imágenes, comprobar que existen: con una ruta que no existe, codex exec contesta igual sin verlas.",
+      "detalle": "Lo que dejó la investigación del cortador (docs/investigacion/corte/informe.md), para cuando se diseñe cómo se guarda: 1) medir la mejora candidata de la regla de otro papel: solo con escaneos de 100 puntos por pulgada o más (una foto no tiene tamaño de papel); 2) las reglas de forma (otra resolución, otro papel) aciertan 43 y fallan 10, casi siempre en adjuntos (certificación, timbre, hoja de firmas): mostrarlas como posible corte o confirmarlas con Codex solo si el documento siguiente sería de una o dos páginas; 3) dos documentos en la misma página (arriba y abajo) no los ve un cortador por páginas; 4) el tipo de los documentos que corta una regla: usar el paso de tipo que la app ya tiene; 5) al llamar a Codex con imágenes, comprobar que existen: con una ruta que no existe, codex exec contesta igual sin verlas. 2026-10-25: Prueba en seco sobre 12 PDF de la base (desatendido-11/c2-propuestas.md, fuera del repositorio): la regla de una página escaneada y otra digital, que en la investigación no había fallado, parte en 24 pedazos un PDF de partidas escaneadas cada una seguida de su hoja de firmas digital (lo probable son unos 13 documentos). Para el diseño: una hoja de firmas o de digitalización no empieza un documento, y la regla de escaneo contra digital necesita la misma cautela que las de forma (otra captura, otro papel), que también parten escrituras viejas en muchos pedazos.",
       "depende_de": [
         "P-321"
       ],
       "referencia": "P-321; docs/investigacion/corte/informe.md",
+      "creado": "2026-10-25",
+      "actualizado": "2026-10-25"
+    },
+    {
+      "id": "P-349",
+      "titulo": "Ver la prueba en seco del corte: llm_wiki_mi/desatendido-11/c2-propuestas.md",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "reconocimiento",
+      "detalle": "El cortador de la investigación (reglas primero y Codex solo en los pasos dudosos) corrió sobre los 12 PDF de la base que parecen juntar varios documentos (124 páginas), sin cambiar nada en la base ni en los archivos. Propone 79 documentos incluidos, 40 con algo para mirar; 130 consultas a Codex (51 para cortar, 79 para el tipo y una descripción corta de cada documento). Qué mirar: abrir el archivo, leer «Lo más llamativo» y revisar sobre todo los PDF 11 (24 pedazos, probablemente unos 13 documentos) y 12 (escrituras viejas en 8 pedazos), comparando con el PDF abierto al lado. Decir si los cortes y los tipos sirven como propuesta para la pantalla.",
+      "depende_de": [
+        "P-348"
+      ],
+      "referencia": "llm_wiki_mi/desatendido-11/c2-propuestas.md; llm_wiki_mi/desatendido-11/c2-informe.md; docs/investigacion/corte/informe.md",
       "creado": "2026-10-25",
       "actualizado": "2026-10-25"
     }
