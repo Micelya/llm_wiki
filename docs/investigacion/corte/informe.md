@@ -85,6 +85,52 @@ Columnas: cortes reales; aciertos; de más; perdidos; precisión; alcance; docum
 - **Por qué se sacó (D-527).** Lo que tiene emisor y fecha propios (una certificación, una hoja de firmas, un comprobante de timbre, una respuesta al dorso) es un documento aparte, relacionado con lo que certifica o acompaña. Cortar ahí es correcto, y la relación se establece después, mirando el contenido. El paso de escaneo a digital vuelve a cortar.
 - **La hoja de partes, al día con D-527:** 104 documentos en vez de 88, y 96 cortes en vez de 80. La variante A, sin cambios, contra la hoja nueva: 71 aciertos, 3 de más, 25 perdidos; precisión 96 % (antes 84 %), alcance 74 % (antes 78 %); 57 de 104 documentos exactos (antes 47 de 88). Las variantes B y C de arriba están medidas contra la hoja anterior; no se volvieron a medir porque usan Codex.
 
+## Medido de nuevo con D-527 (25 oct, noche)
+
+Sin consultas nuevas a Codex: se reutilizan las respuestas de la variante B y de la prueba en seco. Guion nuevo: `guiones/controles.py`, con su vocabulario en `guiones/relaciones.json` (escrito antes de medir, R-25).
+
+**1. Los cortes, variante B, contra la hoja nueva (104 documentos, 96 cortes).**
+
+| Archivo | Cortes reales | Aciertos | De más | Perdidos | Bien cortados | Tipo bien |
+|---|---|---|---|---|---|---|
+| 01 | 0 | 0 | 0 | 0 | 1 de 1 | 1 |
+| 02 | 17 | 16 | 2 | 1 | 15 de 18 | 2 |
+| 03 | 5 | 5 | 0 | 0 | 6 de 6 | 3 |
+| 04 | 73 | 67 | 1 | 6 | 59 de 76 | 36 |
+| 05 | 0 | 0 | 1 | 0 | 0 de 1 | 0 |
+| 06 | 1 | 1 | 0 | 0 | 2 de 2 | 2 |
+| **Total** | **96** | **89** | **4** | **7** | **83 de 104** | **44** |
+
+Antes, contra la hoja vieja: 79 de 80, 14 de más, 1 perdido, 72 de 88. Precisión 96 % (antes 85 %), alcance 93 % (antes 99 %). Los 7 perdidos son pasos en que Codex dijo «continúa»; 2 cortes más son dentro de una página. Con el tipo de Codex para los documentos que empezó una regla, 80 de los 83 bien cortados tienen el tipo bien.
+
+**2. Relaciones, pasada simple** (un documento de tipo certificación, hoja de firmas, constancia de firma o comprobante propone la relación con el anterior). En los seis: 12 propuestas; 5 están en la hoja, 7 sobran; de las 19 de la hoja faltan 14 (las de respuesta, inscripción, copia recibida, copia idéntica y versión no se proponen con esta pasada, y varias caen en documentos mal cortados).
+
+**3. Control contra lo que anuncia el escrito** (lista a), b)... o «Anexo X» después de «adjunto», «acompaño»...; el grupo son los documentos vecinos hasta una pieza judicial).
+
+| | Seis PDF | Prueba en seco (12) |
+|---|---|---|
+| Documentos donde se puede aplicar | 7 de 99 | 12 de 79 |
+| Coincide la cuenta | 3 | 0 |
+| Cortes que confirma (bien según la hoja) | 8 (8) | 0 |
+| Cortes que pone en duda (mal según la hoja) | 4 (0) | 1 |
+
+En los 6 escritos de la hoja que tienen adjuntos, el contador encuentra una lista en 4 y la cuenta exacta en 1: el prototipo todavía cuenta mal.
+
+**4. «Para mirar»** (lo cortó Codex, sin relación entre los dos lados, y el control no lo confirma).
+
+| | Seis PDF | Prueba en seco (12) |
+|---|---|---|
+| Cortes de Codex | 19 | 10 |
+| Para mirar | 13 | 8 |
+| De esos, errores según la hoja | 0 | (sin hoja) |
+| «Continúa» de Codex sin confirmar (no se marcan) | 27, con 7 errores | 41 |
+
+El único corte de más de Codex (05, la segunda hoja de un comprobante) no queda marcado: Codex la llamó comprobante y la relación la tapa. Los 7 cortes perdidos son «continúa» de Codex y tampoco se marcan: el criterio solo mira cortes.
+
+**5. Prueba en seco de nuevo (12 PDF):** 79 documentos incluidos, 17 relaciones propuestas, 8 «para mirar» (antes 40 con todos los pasos de Codex; 30 con la regla que se sacó).
+
+`controles.py <senales.json> <decisiones.json> [--desc <desc.json>] [--sheet <partes.json>] [--out <salida.json>]`: relaciones, control contra el escrito y marca «para mirar»; con `--sheet`, los números contra la hoja.
+
 ## Qué conviene para la app
 
 1. **Reglas primero y Codex solo en los dudosos (variante B).** Encuentra casi todos los cortes con la tercera parte de las consultas de C. Lo que falla son cortes de más en adjuntos, que la persona arregla juntando dos documentos en la pantalla.
