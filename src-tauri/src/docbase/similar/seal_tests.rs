@@ -296,6 +296,65 @@ fn the_signatures_of_the_documents_a_file_was_put_together_from_are_told_apart()
     assert_eq!((found.state.as_str(), found.joined, found.failing), ("modified", 0, 3));
 }
 
+/// A stand-in random source for the RSA test key and its salt.
+struct Counter(u64);
+
+impl rsa::rand_core::RngCore for Counter {
+    fn next_u32(&mut self) -> u32 {
+        self.next_u64() as u32
+    }
+    fn next_u64(&mut self) -> u64 {
+        self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.0 ^ (self.0 >> 33)
+    }
+    fn fill_bytes(&mut self, dest: &mut [u8]) {
+        for chunk in dest.chunks_mut(8) {
+            let value = self.next_u64().to_le_bytes();
+            chunk.copy_from_slice(&value[..chunk.len()]);
+        }
+    }
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rsa::rand_core::Error> {
+        self.fill_bytes(dest);
+        Ok(())
+    }
+}
+
+impl rsa::rand_core::CryptoRng for Counter {}
+
+#[test]
+fn an_rsa_pss_signature_verifies_with_its_hash_and_salt() {
+    use rsa::pkcs8::EncodePublicKey;
+    let mut rng = Counter(7);
+    let private = rsa::RsaPrivateKey::new(&mut rng, 1024).unwrap();
+    let spki = private.to_public_key().to_public_key_der().unwrap();
+    let key = SubjectPublicKeyInfoOwned::from_der(spki.as_bytes()).unwrap();
+    let message: &[u8] = b"lo que se firma";
+    let digest = Sha256::digest(message);
+    let signature = private.sign_with_rng(&mut rng, rsa::Pss::new_with_salt::<Sha256>(32), &digest).unwrap();
+    // SHA-256 for the message and the mask, a salt of 32 bytes.
+    let sha256 = [0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01, 0x05, 0x00];
+    let sha1 = [0x30, 0x09, 0x06, 0x05, 0x2b, 0x0e, 0x03, 0x02, 0x1a, 0x05, 0x00];
+    let mgf1 = [0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x08];
+    let parameters = |mask: &[u8]| {
+        let mut mask_part = vec![0x30, (mgf1.len() + mask.len()) as u8];
+        mask_part.extend_from_slice(&mgf1);
+        mask_part.extend_from_slice(mask);
+        let mut body = vec![0xa0, sha256.len() as u8];
+        body.extend_from_slice(&sha256);
+        body.extend_from_slice(&[0xa1, mask_part.len() as u8]);
+        body.extend_from_slice(&mask_part);
+        body.extend_from_slice(&[0xa2, 0x03, 0x02, 0x01, 0x20]);
+        let mut out = vec![0x30, body.len() as u8];
+        out.extend_from_slice(&body);
+        AlgorithmIdentifierOwned { oid: OID_PSS, parameters: Some(der::Any::from_der(&out).unwrap()) }
+    };
+    let pss = parameters(&sha256);
+    assert_eq!(verify(&pss, None, &key, &[message], &signature), Verified::Yes);
+    assert_eq!(verify(&pss, None, &key, &[b"otra cosa"], &signature), Verified::No);
+    // A mask with another hash is not read.
+    assert_eq!(verify(&parameters(&sha1), None, &key, &[message], &signature), Verified::Unknown);
+}
+
 /// The PDFs of a base (a copy, `MICELYA_DOCBASE_COPY`) or of folders
 /// (`MICELYA_DOCBASE_CHECK`, separated by `;`): how many are signed, how
 /// many verify and whose seal they are. Only numbers, and the
