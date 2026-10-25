@@ -170,6 +170,36 @@ fn a_draft_and_its_final_wording_are_versions() {
     assert_eq!(base.similar_groups(&Visible::All).unwrap()[0].pending_same_document, 1);
 }
 
+#[test]
+fn the_same_text_read_from_a_word_file_and_from_its_pdf_is_practically_the_same() {
+    // As the app keeps a Word file: Markdown, and its page numbers as
+    // paragraphs of their own (a Word file made from a PDF).
+    let word = "# CONTRATO DE LOCACIÓN DE SERVICIOS\n\nEntre la sociedad **Ejemplo Uno S.A.**, en adelante *la contratante*, y la \
+                sociedad **Ejemplo Dos S.R.L.**, en adelante *la prestadora*, se celebra el presente contrato.\n\n\
+                - **Primera:** la prestadora se obliga a brindar servicios de mantenimiento preventivo y correctivo de los equipos.\n\n\
+                2\n\n\
+                - **Segunda:** el plazo del contrato será de doce meses contados desde la firma, según \
+                [https://ejemplo.org/condiciones](https://ejemplo.org/condiciones).\n\n\
+                3\n\n\
+                - **Tercera:** la contratante abonará el precio pactado a la prestadora dentro de los diez días de recibida la factura.\n\n\
+                4\n\n\
+                - **Cuarta:** las partes se someten a la jurisdicción de los tribunales ordinarios.\n";
+    // As the PDF reader writes the PDF: pages, carriage returns, the page
+    // number at the top of each page and a hyphen at the end of a line.
+    let pdf = "## Page 1\r\n\r\nCONTRATO DE LOCACIÓN DE SERVICIOS\r\nEntre la sociedad Ejemplo Uno S.A., en adelante la contratante, y la\r\n\
+               sociedad Ejemplo Dos S.R.L., en adelante la presta\u{2}dora, se celebra el presente contrato.\r\n\
+               Primera: la prestadora se obliga a brindar servicios de mantenimiento preventivo y correctivo de los equipos.\r\n\
+               \r\n## Page 2\r\n\r\n2\r\nSegunda: el plazo del contrato será de doce meses contados desde la firma, según\r\n\
+               https://ejemplo.org/condiciones.\r\n\
+               \r\n## Page 3\r\n\r\n3\r\nTercera: la contratante abonará el precio pactado a la prestadora dentro de los diez días de\r\n\
+               recibida la factura.\r\n\
+               \r\n## Page 4\r\n\r\n4\r\nCuarta: las partes se someten a la jurisdicción de los tribunales ordinarios.\r\n";
+    let (_dir, base, _) = base_with(&[("acuerdo.md", word.as_bytes().to_vec()), ("acuerdo firmado.md", pdf.as_bytes().to_vec())]);
+    let similar = pair(&base, "acuerdo.md", "acuerdo firmado.md").expect("the two readings are related");
+    assert_eq!(similar.relation, "near-identical", "{}", similar.evidence);
+    assert_eq!(similar.evidence["changes"]["dataTokens"], 0, "{}", similar.evidence);
+}
+
 /// The copy carries the valid seal of a signing service, covering the
 /// whole file: what a signed PDF brings (seal.rs).
 fn seal(base: &DocBase, name: &str) {

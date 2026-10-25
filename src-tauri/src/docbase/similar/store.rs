@@ -29,6 +29,7 @@ use super::align;
 use super::changes::{self, Changes};
 use super::key_data::{self, KeyData, TextIndex};
 use super::marks::{self, Mark, PdfSignature};
+use super::format;
 use super::minhash;
 use super::propose::{self, Measures, Side};
 use super::text::{self, Prepared, SHINGLE_WORDS};
@@ -37,8 +38,9 @@ use super::types::{self, RelationDef};
 /// Version of the computation. Changing it, or the catalog, computes
 /// everything again. `similar-2`: the key data of the two documents decide
 /// whether a version or a similar pair are another document (D-497).
-/// `similar-3`: a version shares much in both directions.
-pub const ENGINE: &str = "similar-3";
+/// `similar-3`: a version shares much in both directions. `similar-4`:
+/// the text is compared without what its format adds (D-521).
+pub const ENGINE: &str = "similar-4";
 /// Where the base keeps how the key data looked when it last compared
 /// them (`similar_key_data_check`).
 const KEY_DATA_SETTING: &str = "similar-key-data";
@@ -1029,7 +1031,8 @@ pub fn relations() -> Vec<RelationDef> {
 
 /// Computes what is stored for one content.
 fn sign(content_id: i64, body: &str, text_at: i64, has_fields: bool, signatures: Vec<PdfSignature>) -> Signed {
-    let pages = text::pages(body);
+    let body = format::comparable(body);
+    let pages = text::pages(&body);
     let reading = marks::read(types::catalog(), &marks::Facts { pages: &pages, has_fields, signatures: &signatures });
     let prepared = Prepared::new(&pages, &reading.skip_pages, &reading.drop_phrases);
     let shingles = if prepared.word_count() >= MIN_WORDS { prepared.shingles() } else { Vec::new() };
@@ -1208,6 +1211,7 @@ fn load_doc(conn: &Connection, content_id: i64, routine: &HashSet<u64>) -> Resul
     let skip: Vec<usize> = serde_json::from_str(&skip_pages).unwrap_or_default();
     let drop: Vec<String> = serde_json::from_str(&drop_phrases).unwrap_or_default();
     let marks: Vec<Mark> = serde_json::from_str(&marks).unwrap_or_default();
+    let body = format::comparable(&body);
     let prepared = Prepared::new(&text::pages(&body), &skip, &drop);
     let mut routine_words = vec![false; prepared.words.len()];
     if !routine.is_empty() && prepared.words.len() >= SHINGLE_WORDS {

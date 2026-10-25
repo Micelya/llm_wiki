@@ -548,7 +548,7 @@ fn clear_name(label: &str) -> Option<String> {
         return None;
     }
     let data = words.iter().any(|word| {
-        let raw = Raw { text: word.to_string(), sentence_start: false };
+        let raw = Raw { text: word.to_string(), sentence_start: false, numbering: false };
         matches!(classify(&raw), Kind::Identifier | Kind::Amount | Kind::Date)
     });
     if data {
@@ -723,7 +723,7 @@ fn form_fields(sides: &[Side]) -> Vec<Field> {
         for value in &values {
             let kind = value
                 .split_whitespace()
-                .map(|token| classify(&Raw { text: token.to_string(), sentence_start: false }))
+                .map(|token| classify(&Raw { text: token.to_string(), sentence_start: false, numbering: false }))
                 .find(|kind| kind.is_data())
                 .unwrap_or(Kind::Field);
             if !value.is_empty() {
@@ -763,7 +763,7 @@ fn possibly_same(documents: &[i64], fields: &[Field]) -> Vec<(i64, i64)> {
                 data |= field.kind.is_data()
                     || [&field.values[x], &field.values[y]].iter().any(|value| {
                         value.split_whitespace().any(|token| {
-                            let raw = Raw { text: token.trim_matches(|c: char| !c.is_alphanumeric()).to_string(), sentence_start: false };
+                            let raw = Raw { text: token.trim_matches(|c: char| !c.is_alphanumeric()).to_string(), sentence_start: false, numbering: false };
                             classify(&raw).is_data()
                         })
                     });
@@ -1070,6 +1070,7 @@ fn load_text(conn: &Connection, content_id: i64) -> Result<Option<Text>, String>
             )
         })
         .collect();
+    let body = super::format::comparable(&body);
     Ok(Some(Text::new(content_id, &text::pages(&body), &skip, &drop, form)))
 }
 
