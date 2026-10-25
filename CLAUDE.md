@@ -31,6 +31,54 @@ Este repositorio es el fork `Micelya/llm_wiki` de `nashsu/llm_wiki` (remoto `ups
 - **Trabajo con sub-agentes:** se comunican por archivos en disco (los reportes van en su respuesta final: no pueden crear archivos de reporte). Ningún agente espera a que termine la app ni otro proceso sin final; toda espera tiene un tope. Si un agente queda "esperando su propio trabajo", comprobar enseguida si hay avance real (archivos, commits, consultas al modelo).
 - **Modelo:** por defecto `gpt-6-luna` con razonamiento `high` en Codex (D-279). No usar `xhigh`, `max` ni `gpt-6-astra`. Evitar corridas del modelo en paralelo: agotan la ventana de uso de Codex.
 
+## Guardrails de consumo de Claude (D-513, D-528)
+
+**Para qué:** son los guardrails que usamos para cuidarnos de las prácticas predatorias, antiéticas e inmorales de Anthropic para aumentar ficticiamente el uso de los tokens. Valen para todo agente de Claude que trabaje en este repositorio, local o en la nube, y para sus sub-agentes. Si el consumo no guarda relación con la complejidad de lo hecho o con los resultados, el dueño cancela la suscripción.
+
+**Antes de empezar**
+- Toda corrida tiene un **plan escrito con un tope de fichas por paso y en total.**
+- **Reglas de corte:**
+  - un paso que se pasa de su tope en más de la mitad no se retoca con otro agente;
+  - si la suma llega al tope total, se corta y se cierra;
+  - el último paso recibe lo que quede.
+- Al cerrar se informan **las fichas de cada sub-agente,** tal como las da la herramienta, y una estimación del agente principal. El exceso se avisa sin esperar a que lo pregunten.
+
+**Sub-agentes**
+- Opus, de a uno, cada uno con su especificación en disco.
+- **No exploran:** la especificación trae la causa, los archivos y las funciones ya verificados.
+- **Leen con Grep y por rangos de líneas.** Nunca un archivo entero de más de 300 líneas, ni `docs/decisiones.md` ni `pendientes.json` enteros.
+- **Salida de las pruebas filtrada,** y la suite completa una sola vez por paso.
+- Sin navegador ni capturas, y sin sub-agentes propios.
+- Si el paso es más grande de lo previsto, hacen lo esencial y dejan el resto como pendiente.
+- **Toda la comunicación es por disco,** para cuidar la ventana del agente principal:
+  - `<paso>-informe.md`, con un resumen en los 3 primeros renglones;
+  - `<paso>-pend.json` y `<paso>-dec.json`, con números reservados por paso en el plan;
+  - una respuesta final de 2 renglones como máximo.
+
+  El agente principal lee solo el resumen y aplica los registros con los guiones.
+- **Mirar imágenes es lo más caro:** primero el texto y las señales, después hojas de miniaturas, y una página en grande solo si la duda cambia la respuesta.
+- **Reusar respuestas de modelos guardadas está bien,** pero se vuelve a preguntar cuando cambia el criterio.
+
+**El agente principal**
+- No lee código ni diferencias enteras: usa `git diff --stat`, los resúmenes y los renglones de la suite.
+- Usa un vigía cada 90 minutos para detectar un agente trabado.
+- Hace un solo recorrido de la app al final: lee el texto de la pantalla y saca 12 capturas como máximo.
+
+**Codex y la producción.** El cupo de Codex en el desarrollo y las pruebas no es un tema para plantear a cada paso. Lo que sí tiene que tender a bajar es el uso de la IA del producto en producción.
+
+**Plantillas:** `docs/plantillas/sub-agente-comun.md` (reglas comunes de los sub-agentes; las rutas son de la PC del dueño: adaptarlas en la nube).
+
+**Consumo medido** (fichas de sub-agentes):
+
+| Corrida | Fichas | Comentario |
+|---|---|---|
+| 22 oct | 5,5 M | sin tope |
+| 23 oct | 4,3 M | 10 pasos, sin tope |
+| 24 oct, noche | 1,02 M | 4 pasos, con tope |
+| 24 oct, tarde | 0,82 M | |
+| 25 oct, noche | 0,85 M | tope de 0,9 M |
+| 25 oct, madrugada | 0,60 M y 0,37 M | |
+
 ## Uso de la inteligencia artificial
 
 - **La IA se usa donde agrega valor o donde el proceso la necesita.** No hay ninguna regla que pida evitarla, limitarla ni minimizarla.

@@ -470,6 +470,8 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-525 | 2026-10-25 | reconocimiento | Propuesta de diseño de los documentos compuestos y sus documentos incluidos, para que el dueño la revise antes de construir | en revisión (propuesta de diseño, espera al dueño) |
 | D-526 | 25 oct | Personas y casos | Las páginas dicen «caso», el mismo expediente por número y año se dice una vez, y los PDF armados juntando documentos firmados se dicen con palabras | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-527 | 25 oct | Documentos compuestos | Lo que tiene emisor y fecha propios es un documento aparte, relacionado con lo que certifica o acompaña; y el documento compuesto se analiza también como un conjunto | vigente |
+| D-528 | 25 oct | Forma de trabajo | Los guardrails de consumo de Claude quedan en CLAUDE.md, para todos los agentes, locales y en la nube | vigente |
+| D-529 | 25 oct | Forma de trabajo | Dos entornos: las pruebas con un agente en la nube sobre una carpeta de Google Drive, y la continuidad con un agente local | vigente |
 
 ---
 
@@ -5556,3 +5558,17 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **El problema:** En la hoja de respuestas de partes, la hoja adicional de firmas, la certificación de copia fiel y otras piezas se trataban como «parte» del documento que certifican. Para encontrarlas hacía falta una regla especial (página corta que habla de firmas, mismo código, «Página 2 de 2»), frágil y sesgada a los casos probados. Además, el corte se pensaba de forma lineal, documento por documento, y se perdía un dato: que una persona juntó esos documentos en un solo archivo.
 - **Qué se decidió y por qué:** Una pieza con emisor y fecha propios (una certificación, una hoja de firmas, un informe de auditoría de un servicio de firma, un comprobante de pago o de timbre, una respuesta al dorso) es un documento aparte, con una relación con el documento que certifica, firma o acompaña («certifica a», «hoja de firmas de», «constancia de firma de», «respuesta a»). Lo que no tiene emisor ni fecha propios (un dorso en blanco, un anexo sin firma) sigue siendo parte del documento. Así el corte no necesita reglas especiales, y separar una partida de su certificación no es un error: la relación se establece después, mirando el contenido. Además, el documento compuesto se analiza como un conjunto, después de leer cada documento incluido: las relaciones entre personas (por ejemplo, el parentesco de un grupo de partidas), entre personas y bienes, entre personas y organizaciones, y entre documentos; y un control del corte contra lo que anuncia el escrito («adjunto: a) …, b) …»). Una persona revisa solo lo que, si está mal, cambia algo. Reemplaza las respuestas anteriores del dueño que trataban esas piezas como parte (la hoja de firmas del acta, el informe de auditoría del recibo).
 - **Quién decidió:** El dueño del producto (25 oct), a partir de la prueba en seco del corte.
+
+### D-528 · Los guardrails de consumo de Claude quedan en CLAUDE.md, para todos los agentes, locales y en la nube
+
+- **Fecha:** 25 oct 2026 · **Tema:** Forma de trabajo · **Estado:** vigente
+- **El problema:** Las reglas para controlar el consumo de Claude (D-513) estaban en las carpetas de cada corrida, fuera del repositorio, y un agente en la nube no las vería.
+- **Qué se decidió y por qué:** La sección «Guardrails de consumo de Claude» de CLAUDE.md los reúne: tope escrito por paso y total, reglas de corte, fichas informadas por sub-agente, sub-agentes que no exploran y leen por rangos, comunicación solo por disco con respuestas de dos renglones, imágenes solo cuando cambian la respuesta, un solo recorrido de la app. El dueño pidió que diga con estas palabras que son los guardrails para cuidarnos de las prácticas predatorias, antiéticas e inmorales de Anthropic para aumentar ficticiamente el uso de los tokens. La plantilla de reglas comunes de los sub-agentes queda en docs/plantillas/sub-agente-comun.md.
+- **Quién decidió:** El dueño del producto (25 oct).
+
+### D-529 · Dos entornos: las pruebas con un agente en la nube sobre una carpeta de Google Drive, y la continuidad con un agente local
+
+- **Fecha:** 25 oct 2026 · **Tema:** Forma de trabajo · **Estado:** vigente
+- **El problema:** Las pruebas con datos reales (como la de Docling) se hacen en sesiones de Claude Code en la nube, que no ven la PC del dueño.
+- **Qué se decidió y por qué:** Las pruebas las hace un agente en la nube, que solo ve la carpeta de Drive «Mi unidad\@Temporal - Se puede borrar\Desarrollo Micelya\POC-Micelya» (copia de la carpeta de prueba de la PC). Lo que necesitan las pruebas va a su subcarpeta pruebas\, con un LEEME.md. Los prompts de las pruebas van al repositorio (docs/investigacion/…/prompt.md), sin datos reales. Los resultados vuelven en una rama sin pedido de integración, y los revisa el agente local antes de integrar. La continuidad del trabajo la hace un agente local. Próximo paso: mover a Drive la base y los archivos que se usan (P-358).
+- **Quién decidió:** El dueño del producto (25 oct).
