@@ -11,7 +11,7 @@
 //! text cannot (a `0` for an `O` in a code, a digit in an amount), so
 //! every recognized block is preceded by a marker naming the engine.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -22,10 +22,6 @@ use super::recognition_codex::CodexRecognizer;
 use super::recognition_core::CoreRecognizer;
 use super::recognized_store::{Part, RecognizedStore};
 
-/// A PDF page with fewer non-whitespace characters than this is treated
-/// as having no text of its own. Same threshold the image extractor uses
-/// to tell a text page from a scan with only a page number or watermark.
-const MIN_PAGE_TEXT_CHARS: usize = 80;
 /// Long side, in pixels, of a page rendered for recognition.
 pub(crate) const RENDER_LONG_SIDE_PX: i32 = 2000;
 /// What a page an engine could not read at all says, as Codex marks what
@@ -215,7 +211,22 @@ pub fn complete_pdf_text_reporting(
     recognizer: &dyn TextRecognizer,
     on_page: &(dyn Fn(usize, usize) + Sync),
 ) -> Result<String, String> {
-    let pages = textless_pages(pdf)?;
+    let shapes = super::page_shape::profile_pdf(pdf)?;
+    complete_pdf_pages(pdf, &shapes.to_read(), &shapes.old_layers(), extracted, store, recognizer, on_page)
+}
+
+/// Same as `complete_pdf_text_reporting`, for these pages; the text of
+/// the ones in `replaced` (an old recognition layer) gives way to what is
+/// read now.
+pub fn complete_pdf_pages(
+    pdf: &Path,
+    pages: &[u32],
+    replaced: &BTreeSet<u32>,
+    extracted: &str,
+    store: &RecognizedStore,
+    recognizer: &dyn TextRecognizer,
+    on_page: &(dyn Fn(usize, usize) + Sync),
+) -> Result<String, String> {
     if pages.is_empty() {
         return Ok(extracted.to_string());
     }
@@ -234,7 +245,7 @@ pub fn complete_pdf_text_reporting(
         }
     }
     if to_read.is_empty() {
-        return Ok(splice_recognized_pages(extracted, &recognized));
+        return Ok(splice_replacing(extracted, &recognized, replaced));
     }
     let dir = std::env::temp_dir().join(format!("micelya-recognition-{}", uuid::Uuid::new_v4()));
     fs::create_dir_all(&dir).map_err(|e| format!("Failed to create '{}': {e}", dir.display()))?;
@@ -267,7 +278,7 @@ pub fn complete_pdf_text_reporting(
     if let Some((page, err)) = failure {
         return Err(format!("Text recognition failed on page {page}: {err}"));
     }
-    Ok(splice_recognized_pages(extracted, &recognized))
+    Ok(splice_replacing(extracted, &recognized, replaced))
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -291,7 +302,25 @@ impl RecognizedPage {
 /// A page whose section cannot be found is appended as a new section, so
 /// recognized text is never dropped.
 pub fn splice_recognized_pages(extracted: &str, pages: &BTreeMap<u32, RecognizedPage>) -> String {
+    splice_replacing(extracted, pages, &BTreeSet::new())
+}
+
+/// Same as `splice_recognized_pages`; the body of the sections of the
+/// pages in `replaced` goes away first (an old recognition layer, read
+/// again).
+pub fn splice_replacing(extracted: &str, pages: &BTreeMap<u32, RecognizedPage>, replaced: &BTreeSet<u32>) -> String {
     let mut out = extracted.to_string();
+    for page in replaced.iter().rev().filter(|page| pages.contains_key(page)) {
+        if let Some(end) = section_end(&out, *page) {
+            let heading = format!("## Page {page}
+");
+            let start = if out.starts_with(&heading) { 0 } else { out.find(&format!("
+{heading}")).map_or(end, |at| at + 1) };
+            let body = (start + heading.len()).min(end);
+            out.replace_range(body..end, "
+");
+        }
+    }
     let mut orphans = Vec::new();
     // Highest page first, so earlier insert positions stay valid.
     for (page, entry) in pages.iter().rev() {
@@ -328,26 +357,11 @@ fn section_end(text: &str, page: u32) -> Option<usize> {
     }
 }
 
-/// 1-based numbers of the pages that have no usable text of their own.
-/// Decided by how much text the page has, not by whether it holds one
-/// page-sized image: scans split into strips have many small images.
+/// 1-based numbers of the pages that need recognition, as their ficha of
+/// shape says (`page_shape`, P-320): scans without text of their own, and
+/// scans whose old recognition layer is noisy.
 pub fn textless_pages(pdf: &Path) -> Result<Vec<u32>, String> {
-    let _guard = crate::commands::fs::lock_pdfium();
-    let pdfium = crate::commands::fs::pdfium()?;
-    let doc = pdfium
-        .load_pdf_from_file(pdf, None)
-        .map_err(|e| format!("Failed to open PDF '{}': {e}", pdf.display()))?;
-    let mut pages = Vec::new();
-    for (index, page) in doc.pages().iter().enumerate() {
-        let chars = page
-            .text()
-            .map(|text| text.all().chars().filter(|c| !c.is_whitespace()).count())
-            .unwrap_or(0);
-        if chars < MIN_PAGE_TEXT_CHARS {
-            pages.push(index as u32 + 1);
-        }
-    }
-    Ok(pages)
+    Ok(super::page_shape::profile_pdf(pdf)?.to_read())
 }
 
 /// Render one page to a PNG in `dest_dir` and return its path.
@@ -645,6 +659,43 @@ mod tests {
             true
         });
         assert_eq!((order, most.load(Ordering::SeqCst)), (vec![5, 6, 7], 1));
+    }
+
+    #[test]
+    fn a_noisy_old_layer_read_again_gives_way_to_the_new_reading() {
+        use crate::source_volume::page_shape::test_pdf::{build, page};
+        let noisy = [
+            "C O N T R A T O de l o c a c i o n e n t r e l a s p a r t e s q u e s u s c r i b e n",
+            "e l p r e s e n t e e n l a C i u d a d I n v e n t a d a a l o s d i a s d e l m e s",
+        ];
+        let good = "Segunda pagina con su texto propio, escrita en renglones largos como un escrito comun del estudio.";
+        let dir = scratch();
+        let pdf = dir.join("capa-vieja.pdf");
+        std::fs::write(&pdf, build(&[page(&noisy, 1.0), page(&[good], 0.0)])).unwrap();
+        let recognizer = FakeRecognizer::new(vec![Ok("CONTRATO de locacion entre las partes")]);
+        let extracted = format!("## Page 1
+
+{}
+{}
+
+## Page 2
+
+{good}
+", noisy[0], noisy[1]);
+
+        let text = complete_pdf_text(&pdf, &extracted, &RecognizedStore::at(dir.join("leidas")), &recognizer).unwrap();
+
+        assert_eq!(text, format!("## Page 1
+
+{M}
+CONTRATO de locacion entre las partes
+
+
+## Page 2
+
+{good}
+"));
+        assert_eq!(recognizer.calls(), 1);
     }
 
     #[test]

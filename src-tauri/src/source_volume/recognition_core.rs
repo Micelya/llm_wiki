@@ -828,7 +828,11 @@ mod tests {
         std::fs::write(&pdf, invented_pdf(&pages)).unwrap();
         let extracted = (1..=6).map(|n| format!("## Page {n}\n\n\n")).collect::<Vec<_>>().join("\n");
         let store = super::super::recognized_store::RecognizedStore::at(dir.join("leidas"));
-        let text = super::super::recognition::complete_pdf_text(&pdf, &extracted, &store, &recognizer(&core)).unwrap();
+        // Its pages are read as scans whatever their ficha says: what is
+        // measured is reading several at once.
+        let all: Vec<u32> = (1..=6).collect();
+        let text = super::super::recognition::complete_pdf_pages(&pdf, &all, &Default::default(), &extracted, &store, &recognizer(&core), &|_, _| {})
+            .unwrap();
         for page in 1..=6 {
             let own = section(&text, page);
             assert!(own.contains(&format!("Lectura de pagina-{page}.jpg")), "page {page}: {own}");
@@ -907,7 +911,7 @@ mod tests {
         println!("probar la conexión: {test:?} ({:.1} s)", clock.elapsed().as_secs_f64());
         assert!(test.ok);
 
-        // Few words per page, so the base takes each one as a scan.
+        // Few words per page, as a scan reads.
         let pages: [&[&str]; 8] = [
             &["CARTA DE PRUEBA", "Ciudad Inventada, 3 de marzo", "Persona Inventada"],
             &["RECIBO DE PRUEBA 0001", "Importe 12.345,67", "CUIT 30-11111111-1"],
@@ -922,7 +926,8 @@ mod tests {
         let dir = scratch();
         let pdf = dir.join("escaneo-inventado.pdf");
         std::fs::write(&pdf, invented_pdf(&pages)).unwrap();
-        assert_eq!(super::super::recognition::textless_pages(&pdf).unwrap(), (1..=8).collect::<Vec<u32>>());
+        // Read as scans whatever their ficha says (they have no image).
+        let all: Vec<u32> = (1..=8).collect();
         let extracted = (1..=8).map(|n| format!("## Page {n}\n\n\n")).collect::<Vec<_>>().join("\n");
 
         let mut times = Vec::new();
@@ -930,7 +935,8 @@ mod tests {
             let recognizer = CoreRecognizer::with_connection(DEFAULT_MODEL, connection.clone(), Timing::default()).reading_at_once(at_once);
             let store = super::super::recognized_store::RecognizedStore::at(dir.join(format!("leidas-{at_once}")));
             let started = Instant::now();
-            let text = super::super::recognition::complete_pdf_text(&pdf, &extracted, &store, &recognizer).unwrap();
+            let text = super::super::recognition::complete_pdf_pages(&pdf, &all, &Default::default(), &extracted, &store, &recognizer, &|_, _| {})
+                .unwrap();
             let seconds = started.elapsed().as_secs_f64();
             println!("{at_once} a la vez: {seconds:.1} s para 8 páginas, {} lecturas", recognizer.asked().len());
             for (index, word) in first_words.iter().enumerate() {

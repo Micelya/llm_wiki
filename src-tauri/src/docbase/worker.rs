@@ -19,6 +19,8 @@ const SIMILAR_BATCH: usize = 2;
 const RECHECK_BATCH: usize = 4;
 /// Documents waiting for recognition whose pages are counted per step.
 const SCAN_PAGES_BATCH: usize = 2;
+/// PDFs whose ficha of shape is computed at a time.
+const PROFILE_BATCH: usize = 4;
 const NOTIFY_EVERY: Duration = Duration::from_millis(800);
 
 /// How the rest of the app asks the worker to sweep now.
@@ -488,6 +490,10 @@ fn step(base: &DocBase) -> Result<bool, String> {
     // Readings checked with an earlier version of the program's check are
     // checked again from the answers kept, without the model (D-432).
     if base.knowledge_recheck(RECHECK_BATCH)? > 0 {
+        return Ok(true);
+    }
+    // The ficha of shape of each PDF page (P-320): pdfium only, no model.
+    if base.profile_pending(PROFILE_BATCH)? > 0 {
         return Ok(true);
     }
     // Similar documents: only once every text is read, a little at a

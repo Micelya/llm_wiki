@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "about": "La ficha de forma de cada página de un PDF (P-320): cómo está hecha la página, con señales baratas de pdfium y sin modelo. Decide qué páginas se reconocen. El texto propio de una página es el suyo sin los renglones que se repiten en casi todas las páginas del archivo (el pie o el sello que un sistema estampa en cada hoja; los dígitos no cuentan, así la fecha o el número de página no los distingue). Lo manuscrito no se detecta acá (D-518).",
+  "repeated": {
+    "about": "Un renglón es del sistema, y no de la página, cuando aparece en al menos esta parte de las páginas (share) de un archivo de minPages páginas o más, y tiene al menos minLineChars letras.",
+    "share": 0.6,
+    "minPages": 3,
+    "minLineChars": 8
+  },
+  "scan": {
+    "about": "Una página es un escaneo cuando sus imágenes cubren al menos imageCover de su superficie. Si su texto propio no llega a layerMinChars, no tiene texto propio (solo el pie o nada) y se reconoce. Si llega, es la capa de un reconocimiento anterior debajo de la imagen, y se vuelve a reconocer cuando es ruidosa: al menos noisySingleLetters de sus palabras son letras sueltas (los espacios metidos entre letras de un reconocimiento viejo).",
+    "imageCover": 0.85,
+    "layerMinChars": 80,
+    "noisySingleLetters": 0.3
+  },
+  "picture": {
+    "about": "Una página con poco texto propio (menos de maxOwnChars) y una imagen grande (que cubre al menos imageCover) tiene su contenido en los píxeles, como una foto pegada de un documento: se reconoce como un escaneo.",
+    "imageCover": 0.25,
+    "maxOwnChars": 80
+  },
+  "drawn": {
+    "about": "Una página sin texto propio pero con al menos minObjects trazos puede tener las letras dibujadas como trazos: se reconoce como un escaneo.",
+    "minObjects": 200
+  },
+  "blank": {
+    "about": "Una página sin imagen grande cuyo texto propio no llega a maxOwnChars está en blanco o tiene solo el pie del sistema: no se reconoce.",
+    "maxOwnChars": 20
+  },
+  "form": {
+    "about": "Una página digital es un formulario cuando su texto es sobre todo rótulos y valores: al menos shortLineShare de sus renglones propios (con minLines renglones o más) tienen hasta shortLineChars letras; o cuando tiene al menos minFields campos rellenables. Es un formulario aplanado cuando, además, lleva valores agregados encima en grupos de objetos (al menos flattenedMinValues textos dentro de grupos), o cuando el productor del archivo es un servicio de firma.",
+    "shortLineChars": 40,
+    "shortLineShare": 0.6,
+    "minLines": 5,
+    "minFields": 3,
+    "flattenedMinValues": 3,
+    "signingServices": ["docusign", "adobe sign", "acrobat sign", "echosign"]
+  },
+  "earlier": {
+    "about": "La prueba de antes (hasta el 25 oct de 2026): una página con menos de minChars letras se reconocía. Sirve para saber qué páginas de lo ya leído pasaron por el reconocimiento.",
+    "minChars": 80
+  }
+}

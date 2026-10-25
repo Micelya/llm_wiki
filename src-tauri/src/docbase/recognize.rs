@@ -132,7 +132,8 @@ impl DocBase {
                             .optional()
                             .map_err(sql_err)?;
                         if let Some((state, engine)) = found {
-                            if needs_engine(&state, engine.as_deref(), &current) && !ids.contains(id) {
+                            let wanted = needs_engine(&state, engine.as_deref(), &current) || has_unread_scans(&conn, &self.recognized, &state, *id)?;
+                            if wanted && !ids.contains(id) {
                                 ids.push(*id);
                             }
                         }
@@ -273,6 +274,7 @@ impl DocBase {
                 .map_err(sql_err)?;
             match found {
                 Some((state, text_engine)) if needs_engine(&state, text_engine.as_deref(), &engine) => {}
+                Some((state, _)) if has_unread_scans(&conn, &self.recognized, &state, content_id)? => {}
                 _ => return Ok(false),
             }
             conn.query_row(
@@ -368,6 +370,12 @@ impl DocBase {
     }
 }
 
+/// Whether a document already read has scanned pages its ficha of shape
+/// says need reading and were not read (P-320): read only when asked.
+fn has_unread_scans(conn: &Connection, recognized: &std::path::Path, state: &str, content: i64) -> Result<bool, String> {
+    Ok(state == "processed" && !super::page_shapes::unread_of(conn, recognized, content)?.is_empty())
+}
+
 /// Whether a document in `state`, whose text `text_engine` produced, has
 /// something for `engine` to read: its text is only pixels, or another
 /// engine recognized it.
@@ -403,42 +411,17 @@ del edificio inventado hasta que alguna de las partes la retire, con aviso de un
         std::fs::read(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/source_volume/fixtures").join(name)).unwrap()
     }
 
-    /// A PDF of two pages: the first with its own text, the second blank,
-    /// as a scanned page with no text layer reads.
+    /// A PDF of two pages: the first with its own text, the second a scan
+    /// without a text layer (an image covers it).
     fn mixed_pdf() -> Vec<u8> {
+        use crate::source_volume::page_shape::test_pdf::{build, page};
         let lines = [
             "Primera pagina con texto propio del documento de prueba,",
             "escrita para que la extraccion la lea entera y no la tome",
             "por un escaneo: tiene bastante mas de ochenta letras y",
             "treinta palabras distintas entre si, en cuatro renglones.",
         ];
-        let content = lines
-            .iter()
-            .enumerate()
-            .map(|(index, line)| format!("BT /F1 10 Tf 40 {} Td ({line}) Tj ET", 760 - 14 * index))
-            .collect::<Vec<_>>()
-            .join("\n");
-        let objects = [
-            "<< /Type /Catalog /Pages 2 0 R >>".to_string(),
-            "<< /Type /Pages /Kids [3 0 R 6 0 R] /Count 2 >>".to_string(),
-            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>".to_string(),
-            format!("<< /Length {} >>\nstream\n{content}\nendstream", content.len()),
-            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".to_string(),
-            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>".to_string(),
-        ];
-        let mut pdf = String::from("%PDF-1.4\n");
-        let mut offsets = Vec::new();
-        for (index, object) in objects.iter().enumerate() {
-            offsets.push(pdf.len());
-            pdf.push_str(&format!("{} 0 obj\n{object}\nendobj\n", index + 1));
-        }
-        let xref = pdf.len();
-        pdf.push_str(&format!("xref\n0 {}\n0000000000 65535 f \n", objects.len() + 1));
-        for offset in offsets {
-            pdf.push_str(&format!("{offset:010} 00000 n \n"));
-        }
-        pdf.push_str(&format!("trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n", objects.len() + 1));
-        pdf.into_bytes()
+        build(&[page(&lines, 0.0), page(&[], 1.0)])
     }
 
     fn settle(base: &DocBase, origin: &str) {
