@@ -2079,14 +2079,14 @@
       "titulo": "Decir «caso» y no «asunto» también en el texto de las páginas y en el tipo «Asunto»",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "hecho",
       "prioridad": 2,
       "tema": "pantallas",
-      "detalle": "La maqueta aprobada pide un solo nombre, «Casos» (D-493). La interfaz ya lo dice (D-507), pero el texto que escribe la app en las páginas de los casos y el tipo «Asunto» siguen diciendo «asunto». Cambiarlo reescribe páginas y puede pedir resúmenes al modelo: hacerlo con el dueño presente y avisando el cupo. 2026-10-23: Textos que siguen diciendo «asunto» porque los escribe la app en las páginas: «Sin asunto identificado», «nombran el mismo asunto», el tipo «Asunto» de la primera línea y «Asunto: 2» en el resumen de Inicio (D-508).",
+      "detalle": "La maqueta aprobada pide un solo nombre, «Casos» (D-493). La interfaz ya lo dice (D-507), pero el texto que escribe la app en las páginas de los casos y el tipo «Asunto» siguen diciendo «asunto». Cambiarlo reescribe páginas y puede pedir resúmenes al modelo: hacerlo con el dueño presente y avisando el cupo. 2026-10-23: Textos que siguen diciendo «asunto» porque los escribe la app en las páginas: «Sin asunto identificado», «nombran el mismo asunto», el tipo «Asunto» de la primera línea y «Asunto: 2» en el resumen de Inicio (D-508). 2026-10-25: Hecho en la corrida desatendida (D-526): las palabras de las páginas y el nombre del tipo dicen «caso» desde el vocabulario (knowledge.json): «Sin caso identificado», «este caso», «nombran el mismo caso», «Caso entre», «Caso sin nombre», «Lo que dicen los documentos del caso», «Posiblemente de este caso», «mismo caso», y el tipo «Caso» en la primera línea de la página y en el resumen de Inicio. Quedan como estaban, a propósito (D-377): el papel de la referencia dentro de un documento («asunto del documento») y las descripciones que usa la lectura, para no releer los documentos. Las páginas se reescriben solas sin el modelo; las síntesis de personas y organizaciones no cambian por esto.",
       "depende_de": [],
       "referencia": "D-493; D-507",
       "creado": "2026-10-23",
-      "actualizado": "2026-10-23"
+      "actualizado": "2026-10-25"
     },
     {
       "id": "P-314",
@@ -2323,14 +2323,14 @@
       "titulo": "Decir una sola vez el mismo expediente también en la página de la persona, y las referencias al caso sin número",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "hecho",
       "prioridad": 3,
       "tema": "conocimiento",
-      "detalle": "D-516 unificó en la página del caso lo que apunta a ese mismo caso. La página de la persona sigue listando cada forma escrita del expediente aparte, y las formas sin número ni título del caso («juicio sucesorio del Sr. …») quedan aparte. Además, la página dice «este asunto»: cambiarlo a «caso» es parte de P-313. 2026-10-24: Visto en el recorrido: en la página del caso, «Causante de: este asunto» aparece una sola vez, pero el expediente de otra sucesión que citan los documentos aparece tres veces, una por cada forma escrita. Extender la consolidación a la misma referencia de otro expediente (por número y año).",
+      "detalle": "D-516 unificó en la página del caso lo que apunta a ese mismo caso. La página de la persona sigue listando cada forma escrita del expediente aparte, y las formas sin número ni título del caso («juicio sucesorio del Sr. …») quedan aparte. Además, la página dice «este asunto»: cambiarlo a «caso» es parte de P-313. 2026-10-24: Visto en el recorrido: en la página del caso, «Causante de: este asunto» aparece una sola vez, pero el expediente de otra sucesión que citan los documentos aparece tres veces, una por cada forma escrita. Extender la consolidación a la misma referencia de otro expediente (por número y año). 2026-10-25: Hecho en la corrida desatendida (D-526): una referencia que cita el mismo expediente por número y año (el año de dos cifras vale por sus dos últimas), escrita de cualquier forma, es una sola afirmación de la persona, con la forma más completa y todas sus citas: se dice una vez en la página de la persona, en su síntesis, en «Datos y correcciones» y, si es otro expediente, en la página del caso. En la página del caso, las formas de un mismo expediente son de ese caso si una de ellas lo es. Una fecha, un incidente (1234/2020/1) o una referencia que cita dos expedientes quedan aparte. Medido en una copia de la base: 42 afirmaciones sobre referencias, 8 citan un expediente por número y año, 1 grupo de 4 formas pasa a 1 (una persona). Lo que falta (la forma sin número del mismo caso en la página de la persona) quedó en P-351.",
       "depende_de": [],
       "referencia": "D-516; P-313",
       "creado": "2026-10-24",
-      "actualizado": "2026-10-24"
+      "actualizado": "2026-10-25"
     },
     {
       "id": "P-331",
@@ -2426,11 +2426,11 @@
       "estado": "pendiente",
       "prioridad": 3,
       "tema": "copias",
-      "detalle": "D-519 deja afuera: la revocación (Adobe no trae OCSP ni CRL; el DSS de DocuSign permitiría comprobarla sin conexión); la vigencia de los certificados se mide contra la fecha que declara la firma, no contra un sello de tiempo; RSA-PSS y curvas distintas de P-256 quedan como «no se puede comprobar todavía». Además, 30 de 123 firmas de la base no verifican porque su sobre no está donde dice su firma: probablemente son PDF armados juntando documentos firmados (la firma habla del archivo original); confirmarlo. Un servicio o una raíz nuevos no se reconocen hasta agregar su huella al catálogo.",
+      "detalle": "D-519 deja afuera: la revocación (Adobe no trae OCSP ni CRL; el DSS de DocuSign permitiría comprobarla sin conexión); la vigencia de los certificados se mide contra la fecha que declara la firma, no contra un sello de tiempo; RSA-PSS y curvas distintas de P-256 quedan como «no se puede comprobar todavía». Además, 30 de 123 firmas de la base no verifican porque su sobre no está donde dice su firma: probablemente son PDF armados juntando documentos firmados (la firma habla del archivo original); confirmarlo. Un servicio o una raíz nuevos no se reconocen hasta agregar su huella al catálogo. 2026-10-25: Avance en la corrida desatendida (D-526): 1) confirmado con números en una copia de la base: 29 de las 30 firmas que no están donde dicen son de 3 PDF que una herramienta de unir PDF armó juntando documentos firmados y después firmó entero (en cada uno, un solo rango de bytes legible, válido y que llega al final del archivo); la pantalla ahora dice «Se armó juntando documentos que ya estaban firmados: trae sus N firmas…» en lugar de contarlas como firmas que no verifican. La firma restante es de un archivo de una sola firma que cambió después de firmarse (sigue «La firma digital no verifica»). 2) RSA-PSS hecho, con su función de resumen y su sal (en la base no hay ninguna; probado con una firma inventada). Falta: la revocación con los datos de validación del propio archivo (DSS), el sello de tiempo y las curvas distintas de P-256.",
       "depende_de": [],
       "referencia": "D-519",
       "creado": "2026-10-24",
-      "actualizado": "2026-10-24"
+      "actualizado": "2026-10-25"
     },
     {
       "id": "P-338",
@@ -2589,6 +2589,48 @@
         "P-349"
       ],
       "referencia": "docs/design/documentos-compuestos-propuesta.md; D-525; docs/investigacion/corte/informe.md; llm_wiki_mi/observaciones-del-dueno.md (observación 3)",
+      "creado": "2026-10-25",
+      "actualizado": "2026-10-25"
+    },
+    {
+      "id": "P-351",
+      "titulo": "En la página de la persona, la forma sin número del mismo caso todavía va aparte",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "conocimiento",
+      "detalle": "P-330 juntó las formas de un expediente que citan el mismo número y año. En la página de la persona, una forma sin número que nombra el caso por sus palabras («juicio sucesorio del Sr. …») sigue siendo una afirmación aparte de la forma con número, porque el caso se conoce recién al armar las páginas, después de las afirmaciones. Hacerlo como en la página del caso (D-516): agrupar las afirmaciones que nombran el mismo caso antes de la síntesis y decirlo una vez con el enlace al caso. Cambia la pregunta de la síntesis de esas personas (vuelve a consultar al modelo).",
+      "depende_de": [],
+      "referencia": "D-516; D-526; P-330",
+      "creado": "2026-10-25",
+      "actualizado": "2026-10-25"
+    },
+    {
+      "id": "P-352",
+      "titulo": "Ver en la app: «caso» en las páginas y el mismo expediente una sola vez",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "pantallas",
+      "detalle": "Después de abrir la app, esperar que se rehagan las páginas (sin el modelo). 1) Abrir un caso: la primera línea dice «Caso», las secciones dicen «Lo que dicen los documentos del caso» y «Posiblemente de este caso», y lo que apunta al propio caso dice «este caso». 2) En el caso de la sucesión donde el expediente de otra sucesión aparecía tres veces: ahora una línea, con la forma más completa y las demás citas en su nota (medido: 1 grupo de 4 formas pasa a 1). 3) Abrir la persona de ese expediente: el expediente aparece una vez. 4) Inicio, «Resumen del archivo»: dice «Caso» y no «Asunto». Si algo no corresponde, decirlo.",
+      "depende_de": [],
+      "referencia": "D-526; P-313; P-330",
+      "creado": "2026-10-25",
+      "actualizado": "2026-10-25"
+    },
+    {
+      "id": "P-353",
+      "titulo": "Ver en la app: los PDF armados juntando documentos firmados",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "copias",
+      "detalle": "Hace falta que la app vuelva a leer las marcas de los PDF (las firmas de la base todavía no tienen la comprobación de D-519). En la ficha del documento, «Firma digital» de los 3 PDF armados juntando documentos firmados (uno con 23 firmas, otro con 5 y otro con 4): tiene que decir que es íntegro y «Se armó juntando documentos que ya estaban firmados: trae sus N firmas, que corresponden a cada documento original…», sin hablar de firmas que no verifican. El único PDF de una sola firma que cambió después de firmarse sigue diciendo «La firma digital no verifica: el archivo cambió después de firmarse». Decir si las palabras se entienden.",
+      "depende_de": [],
+      "referencia": "D-519; D-526; P-337",
       "creado": "2026-10-25",
       "actualizado": "2026-10-25"
     }
