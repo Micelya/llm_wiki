@@ -1,0 +1,49 @@
+{
+  "about": "Vocabulario general de los escritos judiciales, registrales y notariales argentinos, para el cortador de investigación. Se escribió antes de medir y no se ajustó mirando la hoja de partes (R-25). Las expresiones se buscan sin tildes y en minúsculas.",
+  "openers": {
+    "about": "Expresiones con que empieza un documento: si aparecen en los primeros renglones propios de una página, ahí empieza otro.",
+    "phrases": [
+      "senor juez", "sr. juez", "sr juez", "senora jueza", "sra. jueza", "excma. camara", "excelentisima camara",
+      "autos y vistos", "y vistos", "vistos:",
+      "tengo el agrado", "me dirijo a", "cedula de notificacion", "oficio",
+      "acta de nacimiento", "acta de defuncion", "acta de matrimonio", "partida de",
+      "testimonio", "primera copia", "escritura numero", "escritura n",
+      "declaratoria de herederos", "certificado de", "solicitud de informe",
+      "asunto:", "subject:", "de: ", "from:"
+    ]
+  },
+  "closers": {
+    "about": "Expresiones con que termina un documento: si aparecen en los últimos renglones propios de una página, la siguiente empieza otro.",
+    "phrases": [
+      "sera justicia", "proveer de conformidad", "provea de conformidad", "saludo a usted atentamente",
+      "saludo a ud. atentamente", "saluda atentamente", "notifiquese", "registrese", "hagase saber", "conste"
+    ]
+  },
+  "types": {
+    "about": "Expresiones que dicen el tipo de un documento, buscadas en su primera página. Gana la primera que aparece en el orden de la lista.",
+    "rules": [
+      ["medical_death_certificate", ["certificado medico de defuncion", "certificado de defuncion"]],
+      ["heirs_declaration", ["declaratoria de herederos", "declarase", "declarar herederos", "declarar que por fallecimiento"]],
+      ["death_record", ["acta de defuncion", "partida de defuncion", "defuncion"]],
+      ["birth_record", ["acta de nacimiento", "partida de nacimiento", "nacimiento"]],
+      ["marriage_record", ["acta de matrimonio", "partida de matrimonio", "matrimonio"]],
+      ["family_booklet", ["libreta de familia"]],
+      ["identity_document", ["documento nacional de identidad", "registro nacional de las personas"]],
+      ["power_of_attorney", ["poder general", "poder especial", "confiere poder", "otorga poder"]],
+      ["notarial_deed", ["escritura numero", "escritura n", "ante mi, escribano", "escribano autorizante"]],
+      ["vehicle_title", ["titulo del automotor", "titulo de propiedad del automotor"]],
+      ["registry_report", ["informe de dominio", "informa:", "certificado de dominio"]],
+      ["registry_request_form", ["solicitud de informe", "solicitud de certificado", "minuta"]],
+      ["tax_certificate", ["libre deuda", "certificado fiscal", "deuda fiscal"]],
+      ["prosecutor_opinion", ["dictamen", "fiscalia"]],
+      ["court_official_letter", ["oficio", "cedula de notificacion", "tengo el agrado", "me dirijo a"]],
+      ["court_order", ["autos y vistos", "y vistos", "considerando", "resuelvo"]],
+      ["clerk_report", ["informe actuarial", "senor juez: informo", "informo a v.s."]],
+      ["court_filing", ["senor juez", "sr. juez", "sr juez", "senora jueza", "sera justicia", "proveer de conformidad"]],
+      ["simple_court_order", ["agreguese", "tengase presente", "proveyendo", "atento a lo solicitado"]],
+      ["email", ["asunto:", "subject:", "from:", "enviado:"]],
+      ["boleta", ["boleta", "tasa de justicia"]],
+      ["recibo", ["recibo"]]
+    ]
+  }
+}
