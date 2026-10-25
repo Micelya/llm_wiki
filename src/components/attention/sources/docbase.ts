@@ -5,6 +5,7 @@ import {
   listDocuments,
   listProposedTypes,
   listSimilarGroups,
+  recognizeText,
   rescanOrigins,
   type DocumentState,
   type Home,
@@ -139,6 +140,9 @@ export function docbaseNotices(facts: DocbaseFacts, words: Vocabulary = vocabula
   }
   const coreLeft = coreLeftNotice(facts.coreLeft)
   if (coreLeft) out.push(coreLeft)
+
+  const unread = unreadScansNotice(home)
+  if (unread) out.push(unread)
 
   // ── Decisions ───────────────────────────────────────────────────────
   const similar = similarNotice(facts.similarPending, facts.groups, words)
@@ -369,4 +373,31 @@ export function useDocbaseNotices(): AttentionNotice[] | null {
     newClips: clips.data,
     coreLeft: coreLeft.data,
   })
+}
+
+/**
+ * The scanned pages of documents already read that were left unread: the
+ * test used before the ficha of shape of each page (P-320) took them for
+ * pages with text (a footer a system stamps on every page, an old noisy
+ * recognition layer). They are read only when a person asks: each page is
+ * a question to the engine that recognizes scans.
+ */
+export function unreadScansNotice(home: Home): AttentionNotice | null {
+  const pages = home.health.unreadScanPages ?? 0
+  const documents = home.health.unreadScanDocuments ?? []
+  if (pages === 0 || documents.length === 0) return null
+  return {
+    source: DOCBASE_SOURCE,
+    id: `${DOCBASE_SOURCE}:unread-scans`,
+    kind: "decision",
+    topic: "unread-scans",
+    priority: "normal",
+    count: pages,
+    title: `${plural(pages, "página escaneada quedó sin leer", "páginas escaneadas quedaron sin leer")} en ${plural(documents.length, "documento", "documentos")}`,
+    explanation:
+      "Se leyeron antes de que la base mirara la forma de cada página: un pie que el sistema estampa en cada hoja, o una capa de texto vieja y ruidosa, las hizo pasar por páginas con texto. Lo que dicen no está en la búsqueda ni en la lectura.",
+    todo: "Leelas con el motor que reconoce escaneos. Cada página es una consulta a ese motor.",
+    resolvedWhen: "Desaparece cuando esas páginas se leen.",
+    actions: [{ kind: "run", label: "Leerlas", run: () => recognizeText(documents) }],
+  }
 }

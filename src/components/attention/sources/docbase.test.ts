@@ -6,7 +6,7 @@ vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(() => Promise.resolve(()
 import type { Health, Home, OriginSummary } from "@/commands/docbase"
 import { vocabularyFor } from "@/vocabulary"
 import { docRef, similarGroup } from "@/components/docbase/similar.fixtures"
-import { clipsNotice, coreLeftNotice, docbaseNotices, similarNotice, type DocbaseFacts } from "./docbase"
+import { clipsNotice, coreLeftNotice, docbaseNotices, similarNotice, unreadScansNotice, type DocbaseFacts } from "./docbase"
 
 const words = vocabularyFor("legal", "es")
 
@@ -53,6 +53,16 @@ function facts(home: Partial<Home>, patch: Partial<DocbaseFacts> = {}): DocbaseF
 describe("what the document base raises", () => {
   it("raises nothing when everything is in order", () => {
     expect(docbaseNotices(facts({}), words)).toEqual([])
+  })
+
+  it("counts the scanned pages left unread and offers to read them", () => {
+    const home = { health: { ...health({ processed: 10 }), unreadScanPages: 38, unreadScanDocuments: [4, 9] }, origins: [origin()], activity: [] }
+    const line = unreadScansNotice(home)
+    expect(line).toMatchObject({ id: "docbase:unread-scans", kind: "decision", count: 38 })
+    expect(line?.title).toBe("38 páginas escaneadas quedaron sin leer en 2 documentos")
+    expect(line?.actions?.[0]).toMatchObject({ kind: "run", label: "Leerlas" })
+    expect(docbaseNotices(facts(home), words).map((notice) => notice.id)).toContain("docbase:unread-scans")
+    expect(unreadScansNotice({ ...home, health: health({ processed: 10 }) })).toBeNull()
   })
 
   it("says what happens, why it matters and what to do, with the action in the row", () => {

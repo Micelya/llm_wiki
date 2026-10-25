@@ -278,6 +278,12 @@ export interface Health {
   copies: number
   words: number
   lastScanAt: number | null
+  /**
+   * Scanned pages of documents already read that their ficha of shape says
+   * need reading and were not read (P-320), and those documents.
+   */
+  unreadScanPages?: number
+  unreadScanDocuments?: number[]
 }
 
 /** Something that happened to the files; one sweep's changes come together. */
