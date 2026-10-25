@@ -2398,11 +2398,11 @@
       "estado": "a-verificar",
       "prioridad": 2,
       "tema": "lectura",
-      "detalle": "Pedido del dueño (24 oct): una propuesta de hoja de respuestas, página por página y documento por documento (dónde empieza cada documento incluido, su tipo, la forma de la página, si hay manuscrito, firma, sello, foto, tabla o formulario), para medir herramientas de separación y clasificación (R-25). La arma un sub-agente mirando las páginas; el dueño la corrige. Fuera del repositorio: llm_wiki_mi/conjunto-prueba/partes.json y partes.md.",
+      "detalle": "Pedido del dueño (24 oct): una propuesta de hoja de respuestas, página por página y documento por documento (dónde empieza cada documento incluido, su tipo, la forma de la página, si hay manuscrito, firma, sello, foto, tabla o formulario), para medir herramientas de separación y clasificación (R-25). La arma un sub-agente mirando las páginas; el dueño la corrige. Fuera del repositorio: llm_wiki_mi/conjunto-prueba/partes.json y partes.md. 2026-10-25: Hoja del 04 controlada por dos revisiones (desempate a ciegas, 25 oct). Dos personas la marcaron por separado: coincidieron en 64 de 66 cortes y difirieron en 40 cosas. Decidí cada diferencia mirando la página, sin saber de quién era cada opción: la revisión independiente ganó 32, la hoja 8, ninguna «otra». Cambié la hoja en 24 páginas (18 marcas, 12 tipos de documento, 2 partes), cada una con la nota «Desempate entre dos revisiones», y quedan 0 dudas nuevas (las 4 preguntas abiertas siguen, una reescrita: los diez decretos de mero trámite del 04 ahora son «providencia simple»). Después del cambio, las dos revisiones difieren solo en las 8 cosas donde la hoja ganó. Para mirar: tres criterios que asumí y no estaban escritos (la cantidad de fojas escrita a mano en una certificación es manuscrito; una capa de OCR de 1 a 5 letras es «capa vieja» y no «ninguna»; el sello aclaratorio con el nombre del juez es un sello). Detalle en desatendido-10/h4-informe.md; respaldo en desatendido-10/h4-respaldo.",
       "depende_de": [],
       "referencia": "D-518; P-321",
       "creado": "2026-10-24",
-      "actualizado": "2026-10-24"
+      "actualizado": "2026-10-25"
     },
     {
       "id": "P-336",
