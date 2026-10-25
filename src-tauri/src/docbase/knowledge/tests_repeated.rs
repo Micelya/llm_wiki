@@ -128,7 +128,7 @@ fn matter_model() -> FakeModel {
 fn facts_of_the_matter(base: &DocBase) -> (String, Vec<String>) {
     let pages = super::tests_pages::entity_pages(base);
     let (_, text) = pages.iter().find(|(_, text)| text.contains("entity_kind: asunto")).expect("the page of the matter");
-    let section = text.split("## Lo que dicen los documentos del asunto\n\n").nth(1).unwrap_or_default();
+    let section = text.split("## Lo que dicen los documentos del caso\n\n").nth(1).unwrap_or_default();
     let lines = section.lines().take_while(|l| l.starts_with("- ")).map(str::to_string).collect();
     (text.clone(), lines)
 }
@@ -146,7 +146,7 @@ fn what_points_to_its_own_matter_is_said_once_on_its_page() {
     // known to be of it yet.
     let (text, lines) = facts_of_the_matter(&base);
     assert_eq!(lines.len(), 2, "{text}");
-    assert!(lines.iter().any(|l| l.contains("Causante de: este asunto")), "{text}");
+    assert!(lines.iter().any(|l| l.contains("Causante de: este caso")), "{text}");
     assert!(lines.iter().any(|l| l.contains("Causante de: expte. 1234/20")), "{text}");
     // With its record, the number is of it too: said once, every way of
     // writing it in the note.
@@ -162,7 +162,7 @@ fn what_points_to_its_own_matter_is_said_once_on_its_page() {
     base.knowledge_project(None, 0).unwrap();
     let (text, lines) = facts_of_the_matter(&base);
     assert_eq!(lines.len(), 1, "{text}");
-    let note = super::tests_pages::note_after(&text, "Causante de: este asunto");
+    let note = super::tests_pages::note_after(&text, "Causante de: este caso");
     for written in ["«EJEMPLO, PERSONA UNO s/ sucesion»", "«Expediente 1234/2020 EJEMPLO, PERSONA UNO s/ sucesion y otros»", "«expte. 1234/20»"] {
         assert!(note.contains(written), "{note}");
     }

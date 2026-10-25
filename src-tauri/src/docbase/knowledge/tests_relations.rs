@@ -177,7 +177,7 @@ fn documents_of_one_matter_go_together_by_what_is_specific_to_it() {
     // Named by its parties, never by the invoice (D-267); its documents
     // are all of one kind here, which names it (D-288).
     assert!(person.contains("### [[contrato-entre-ejemplo-uno-s-a-y-persona-dos-"), "{person}");
-    assert!(person.contains("### Sin asunto identificado") && person.contains("o.txt"), "{person}");
+    assert!(person.contains("### Sin caso identificado") && person.contains("o.txt"), "{person}");
     // No page for a matter named in one document only.
     assert!(!pages.iter().any(|(_, t)| t.contains("entity_kind: asunto") && t.contains("entity_id: ent-")));
 }
@@ -235,7 +235,7 @@ fn the_model_proposes_the_matter_of_a_loose_document_and_it_stays_a_proposal() {
     assert_eq!(asked(&asker), 2);
     let pages = entity_pages(&base);
     let matter = pages.iter().find(|(_, t)| t.contains("entity_id: mat-")).map(|(_, t)| t.as_str()).unwrap();
-    assert!(matter.contains("### Posiblemente de este asunto") && matter.contains("|p.txt]] — certeza media: por los hechos"), "{matter}");
+    assert!(matter.contains("### Posiblemente de este caso") && matter.contains("|p.txt]] — certeza media: por los hechos"), "{matter}");
     assert!(matter.contains("## Documentos (3)"), "{matter}");
     // Proposed, without a word about the program (P-208).
     assert!(matter.contains("*sin confirmar: una persona los confirma o los descarta en «Datos y correcciones»*") && !matter.contains("el modelo"), "{matter}");

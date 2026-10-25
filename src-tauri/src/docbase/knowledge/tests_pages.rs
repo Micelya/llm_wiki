@@ -215,7 +215,7 @@ fn every_entity_with_a_page_has_all_its_documents_and_only_verified_sentences() 
     assert!(person.contains("|a.txt]] — parte") && person.contains("|b.txt]] — firmante"), "{person}");
     // Grouped by matter: the lease under its file number, the receipt apart.
     assert!(person.contains("### [[expediente-1234-2020-"), "{person}");
-    assert!(person.contains("### Sin asunto identificado"), "{person}");
+    assert!(person.contains("### Sin caso identificado"), "{person}");
     // What the documents say: one sentence per claim, with its note; the
     // invented amount and the reference to nothing are thrown away.
     assert!(person.contains("Calle Uno 100.[^"), "{person}");
