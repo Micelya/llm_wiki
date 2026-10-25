@@ -2197,13 +2197,13 @@
       "responsable": "usuario",
       "estado": "en-espera",
       "tema": "servicios de IA",
-      "detalle": "El dueño evalúa en serio (23 oct, no decidido) hacer en Desktop, o en un paquete o SDK de Micelya, todo lo que no necesite un modelo de lenguaje grande ni un servicio que no esté en el dispositivo. Incluye reconocer qué es cada archivo y cada página, leer formularios y tablas, reconocer escaneos impresos y documentos de identidad, partir documentos compuestos con reglas, leer correos y quizás transcribir audio. Lo que hizo Core para partir documentos no es definitivo. Insumos: llm_wiki_mi/investigacion-formas-de-documento-resultado.md (librerías y licencias: pdfium, Magika, RapidOCR, Docling; MinerU tiene modelos AGPL-3.0; los modelos de Surya se pagan por encima de US$ 5 millones) y la prueba de Docling en una sesión remota (P-322). 2026-10-24: Con la prueba de Docling: recomendado construir sobre pdfium (ficha de forma por página y lectura por posición) más RapidOCR en el dispositivo, sin Docling como programa; si hace falta ubicar regiones, su modelo de forma de página en ONNX (171 MB, Apache) desde Rust. El dueño decidió que lo manuscrito no se transcribe automáticamente (D-518). Próxima ronda: medir cómo se parten los documentos contra una hoja de respuestas (P-335).",
+      "detalle": "El dueño evalúa en serio (23 oct, no decidido) hacer en Desktop, o en un paquete o SDK de Micelya, todo lo que no necesite un modelo de lenguaje grande ni un servicio que no esté en el dispositivo. Incluye reconocer qué es cada archivo y cada página, leer formularios y tablas, reconocer escaneos impresos y documentos de identidad, partir documentos compuestos con reglas, leer correos y quizás transcribir audio. Lo que hizo Core para partir documentos no es definitivo. Insumos: llm_wiki_mi/investigacion-formas-de-documento-resultado.md (librerías y licencias: pdfium, Magika, RapidOCR, Docling; MinerU tiene modelos AGPL-3.0; los modelos de Surya se pagan por encima de US$ 5 millones) y la prueba de Docling en una sesión remota (P-322). 2026-10-24: Con la prueba de Docling: recomendado construir sobre pdfium (ficha de forma por página y lectura por posición) más RapidOCR en el dispositivo, sin Docling como programa; si hace falta ubicar regiones, su modelo de forma de página en ONNX (171 MB, Apache) desde Rust. El dueño decidió que lo manuscrito no se transcribe automáticamente (D-518). Próxima ronda: medir cómo se parten los documentos contra una hoja de respuestas (P-335). 2026-10-25: Medido el cortador de PDF compuestos (investigación c1, docs/investigacion/corte/informe.md): sobre 6 PDF (134 páginas, 80 cortes, 88 documentos), solo reglas sin modelo encuentran 78 % de los cortes con 84 % de precisión y dejan dudosos 47 de 128 pasos, en menos de 1 segundo; reglas más Codex solo en los dudosos encuentran 99 % (79 de 80) con 85 % de precisión y 72 de 88 documentos exactos, con 47 consultas (unos 4 minutos); Codex en todos los pasos da 96 % de precisión y 91 % de alcance con 128 consultas. Las reglas corren en el dispositivo; lo que falta es mirar el contenido en los pasos dudosos.",
       "depende_de": [
         "P-322"
       ],
       "referencia": "llm_wiki_mi/investigacion-formas-de-documento-resultado.md",
       "creado": "2026-10-23",
-      "actualizado": "2026-10-24"
+      "actualizado": "2026-10-25"
     },
     {
       "id": "P-322",
@@ -2541,6 +2541,22 @@
       "detalle": "Con esta rama: abrir la página de un caso, tocar «Personas y organizaciones» en el menú de la izquierda y tocar una vez la flecha ← de la barra de arriba (o Alt+←): tiene que volver al caso. Después, → tiene que volver a la lista. Repetir desde «Documentos», desde la página de una persona y con los botones laterales del ratón. Mirar también que crear un caso nuevo y abrirlo siga dejando un paso (← vuelve a la lista de casos). Si todavía hacen falta dos toques, la causa es otra (no un cambio que la pantalla hace sola): anotar desde qué pantalla y con qué se llegó al caso. Medido solo con pruebas, sin la app (D-524).",
       "depende_de": [],
       "referencia": "D-524, P-332; src/stores/navigation-history-store.ts",
+      "creado": "2026-10-25",
+      "actualizado": "2026-10-25"
+    },
+    {
+      "id": "P-348",
+      "titulo": "Cortador de PDF compuestos: lo que quedó de la investigación",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "reconocimiento",
+      "detalle": "Lo que dejó la investigación del cortador (docs/investigacion/corte/informe.md), para cuando se diseñe cómo se guarda: 1) medir la mejora candidata de la regla de otro papel: solo con escaneos de 100 puntos por pulgada o más (una foto no tiene tamaño de papel); 2) las reglas de forma (otra resolución, otro papel) aciertan 43 y fallan 10, casi siempre en adjuntos (certificación, timbre, hoja de firmas): mostrarlas como posible corte o confirmarlas con Codex solo si el documento siguiente sería de una o dos páginas; 3) dos documentos en la misma página (arriba y abajo) no los ve un cortador por páginas; 4) el tipo de los documentos que corta una regla: usar el paso de tipo que la app ya tiene; 5) al llamar a Codex con imágenes, comprobar que existen: con una ruta que no existe, codex exec contesta igual sin verlas.",
+      "depende_de": [
+        "P-321"
+      ],
+      "referencia": "P-321; docs/investigacion/corte/informe.md",
       "creado": "2026-10-25",
       "actualizado": "2026-10-25"
     }
