@@ -1,0 +1,22 @@
+{
+ "equipo": {"procesador": "Xeon 2,8 GHz, 4 nucleos", "memoria_GB": 15, "placa_de_video": false},
+ "imagen": {"ppp": 200, "lado_mayor_max_px": 2200, "lado_mayor_max_px_modelos_de_vision": 1600},
+ "manuscrito": {
+  "rapidocr_3_10": {"02-p09": {"valores": 14, "exactos": 1, "casi_85": 4}, "02-p15": {"valores": 23, "exactos": 2, "casi_85": 6}, "total": {"valores": 37, "exactos": 3, "casi_85": 10}},
+  "qwen3_vl_2b": {"02-p09": {"valores": 14, "exactos": 6, "casi_85": 7}, "02-p15": {"valores": 23, "exactos": 15, "casi_85": 18}, "total": {"valores": 37, "exactos": 21, "casi_85": 25}},
+  "mejor_anterior_docling_rapidocr": {"valores": 37, "exactos": 6, "casi_85": 12}
+ },
+ "impreso_cer_pct": {
+  "rapidocr_3_10": {"02-p01": 1.5, "04-p14": 9.0},
+  "qwen3_vl_2b": {"02-p01": 3.3, "04-p14": 0.9},
+  "mejor_anterior": {"02-p01": 0.2, "04-p14": 2.4, "04-p14_capa_vieja": 3.8}
+ },
+ "tildes_04-p14": {"en_pasaje": 10, "rapidocr": 8, "qwen3_vl_2b": 10},
+ "formulario_01_pares": {"total": 27, "rapidocr_3_10": 25, "qwen3_vl_2b": 27, "mejor_anterior_docling_rapidocr": 26},
+ "costo": {
+  "rapidocr_3_10": {"segundos_por_pagina": [4.9, 6.4, 6.0, 4.6, 5.6], "carga_s": 0.7, "memoria_MB_max": 656},
+  "qwen3_vl_2b": {"segundos_por_pagina": [245.2, 387.4, 338.2, 223.1, 333.8], "promedio_s": 305.5, "carga_s": 25.2, "memoria_MB_max": 12767, "tamano_modelo_GB": 4.3, "precision": "float32"},
+  "paddleocr_vl": {"resultado": "no se pudo correr", "intentos": 6}
+ },
+ "licencias": {"rapidocr": "Apache-2.0", "qwen3_vl_2b": "Apache-2.0", "paddleocr_vl": "Apache-2.0", "transformers": "Apache-2.0", "pytorch": "BSD-3"}
+}
