@@ -31,6 +31,17 @@ Este repositorio es el fork `Micelya/llm_wiki` de `nashsu/llm_wiki` (remoto `ups
 - **Trabajo con sub-agentes:** se comunican por archivos en disco (los reportes van en su respuesta final: no pueden crear archivos de reporte). Ningún agente espera a que termine la app ni otro proceso sin final; toda espera tiene un tope. Si un agente queda "esperando su propio trabajo", comprobar enseguida si hay avance real (archivos, commits, consultas al modelo).
 - **Modelo:** por defecto `gpt-6-luna` con razonamiento `high` en Codex (D-279). No usar `xhigh`, `max` ni `gpt-6-astra`. Evitar corridas del modelo en paralelo: agotan la ventana de uso de Codex.
 
+## Pruebas en la nube: traer y entregar archivos (D-546)
+
+- **Traer de Drive, sin pasar por el contexto:** con el enlace compartido de la carpeta, nunca con el conector.
+  - Listar con `https://drive.google.com/embeddedfolderview?id=<carpeta>` y bajar con `curl -L -o <archivo> "https://drive.usercontent.google.com/download?id=<archivo>&export=download&confirm=t"`, directo a disco y fuera del repositorio.
+  - El conector de Drive devuelve el contenido dentro del contexto: un PDF de 33 KB costó unas 44 mil fichas.
+  - Los dominios `drive.google.com` y `drive.usercontent.google.com` tienen que estar permitidos en la red del entorno.
+- **Entregar archivos al dueño** (por ejemplo, un .zip con resultados que tienen datos reales):
+  1. Dejarlos dentro de la carpeta del proyecto, en una carpeta que git ignore solo en ese entorno (agregarla a `.git/info/exclude`). Nunca en un commit.
+  2. Mandarlos con la herramienta de envío de archivos de la sesión (`SendUserFile`), sin forzar el modo de presentación. Al dueño le aparece una tarjeta con el nombre del archivo: haciendo clic, se descarga.
+  - **No sirve:** dejarlos en el scratchpad, que no aparece en el árbol de archivos de la app; ni darle la ruta en el texto, que solo abre el archivo en el árbol, sin descarga.
+
 ## Guardrails de consumo de Claude (D-513, D-528)
 
 **Para qué:** son los guardrails que usamos para cuidarnos de las prácticas predatorias, antiéticas e inmorales de Anthropic para aumentar ficticiamente el uso de los tokens. Valen para todo agente de Claude que trabaje en este repositorio, local o en la nube, y para sus sub-agentes. Si el consumo no guarda relación con la complejidad de lo hecho o con los resultados, el dueño cancela la suscripción.

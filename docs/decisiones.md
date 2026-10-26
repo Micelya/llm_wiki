@@ -488,6 +488,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-543 | 26 oct | Replanteo | Lo que aprende una instancia es de su usuario y pasa al catálogo general solo con su consentimiento y anonimizado; lo que enseñamos ahora va al general, anonimizado | vigente |
 | D-544 | 26 oct | Replanteo | Antes de poner ejemplos en el catálogo se mide si agregan valor; si lo agregan, van anonimizados y separados de lo que se usa para medir | en revisión (espera la prueba) |
 | D-545 | 26 oct | Replanteo | El entrenamiento se hace en un modo de la misma aplicación, con el mismo motor y una base propia | vigente |
+| D-546 | 26 oct | Forma de trabajo | En las pruebas en la nube, los archivos de Drive se bajan con el enlace compartido, directo a disco; los resultados con datos reales se entregan al dueño con la herramienta de envío de archivos de la sesión | vigente |
 
 ---
 
@@ -5700,3 +5701,10 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **El problema:** Hace falta un lugar para entrenar la plataforma con expedientes del portal y documentos elegidos, sin mezclarlo con el uso real.
 - **Qué se decidió y por qué:** Un modo entrenamiento en la misma aplicación y con el mismo motor: un indicador lo activa y redirige todo a una base propia de entrenamiento (un espacio más). El dueño aprueba lo que se descubre, y salen entradas del catálogo general, ejemplos anonimizados y entradas de la hoja de respuestas. Se descartó una herramienta aparte con su propio código, porque lo entrenado podría comportarse distinto en la aplicación.
 - **Quién decidió:** El dueño del producto, sobre la recomendación del agente (26 oct).
+
+### D-546 · Cómo traer archivos de Drive y entregar archivos al dueño en las pruebas en la nube
+
+- **Fecha:** 26 oct 2026 · **Tema:** Forma de trabajo · **Estado:** vigente
+- **El problema:** En las pruebas en la nube (D-529), bajar los documentos de Drive con el conector hace pasar su contenido por el contexto del agente: un PDF de 33 KB costó unas 44 mil fichas. Y los resultados con datos reales, que no pueden ir al repositorio, no le llegaban al dueño: un archivo dejado en el scratchpad no aparece en el árbol de la app, y una ruta escrita en la conversación solo abre el archivo en el árbol, sin opción de descarga.
+- **Qué se decidió y por qué:** Los documentos se bajan con el enlace compartido de la carpeta, directo a disco con curl, sin pasar por el contexto. Los resultados se dejan en una carpeta del proyecto que git ignora solo en ese entorno (`.git/info/exclude`) y se entregan con la herramienta de envío de archivos de la sesión, sin forzar el modo de presentación: al dueño le aparece una tarjeta y, al hacer clic, el archivo se descarga. Así se probó y funcionó el 26 oct. El detalle está en CLAUDE.md.
+- **Quién decidió:** El dueño del producto (26 oct), sobre lo que probó el agente.
