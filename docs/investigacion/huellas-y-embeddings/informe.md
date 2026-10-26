@@ -4,7 +4,7 @@
 
 ## En resumen
 
-1. **La huella de la imagen de la página (pHash) es la que mejor funciona.** Encontró los 3 documentos repetidos que no son idénticos byte por byte y los 4 ejemplares firmados dentro de su original. Se equivocó en 3 de 30 pares que la hoja dice que no son el mismo documento. La huella exacta y la del texto casi no encuentran nada que no encuentre ya la huella del archivo entero.
+1. **La huella de la imagen de la página (pHash) es la que mejor funciona.** Encontró los 3 documentos repetidos que no son idénticos byte por byte y, en los 4 ejemplares firmados, reconoció el original dentro del firmado (que tiene una o dos páginas más). Se equivocó en 3 de 37 pares que la hoja dice que no son el mismo documento. La huella exacta y la del texto casi no encuentran nada que no encuentre ya la huella del archivo entero.
 2. **El modelo de embeddings grande (Qwen3-Embedding-0.6B) busca mucho mejor que la búsqueda por palabras:** en 30 preguntas trae el 83 % de los documentos esperados entre los 5 primeros, contra el 50 % de BM25. El modelo chico (MiniLM) busca igual que BM25.
 3. **La trampa jurídica es real:** los documentos hechos con la misma plantilla quedan tan cerca como las copias. Se separan exigiendo además que coincidan los datos clave (fechas, montos y números) o la huella de imagen: así queda 1 falso de 25.
 4. **La mejor combinación:** el embedding propone 5 candidatos por documento y la huella de imagen confirma. Encuentra lo mismo que comparar todo contra todo, con 17 veces menos comparaciones.
