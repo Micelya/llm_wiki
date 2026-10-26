@@ -1,0 +1,774 @@
+{
+ "equipo": {
+  "procesador": "Xeon 2,1 GHz, 4 nucleos",
+  "memoria_GB": 15,
+  "placa_de_video": false
+ },
+ "datos": {
+  "archivos": 271,
+  "pdfs": 187,
+  "contenidos_pdf_distintos": 130,
+  "paginas_distintas": 601,
+  "paginas_sin_texto": 90
+ },
+ "parte_a": {
+  "tolerancia_hamming": 6,
+  "pagina_comun_desde_contenidos": 5,
+  "pdfs": 187,
+  "contenidos": 130,
+  "paginas": 601,
+  "paginas_sin_texto": 90,
+  "paginas_comunes": {
+   "exacta": 18,
+   "dhash": 85,
+   "phash": 51,
+   "texto": 18
+  },
+  "dentro_de_otro": {
+   "exacta": {
+    "pares_dentro": 4,
+    "por_grupo_del_suelto": {
+     "caso": 4
+    },
+    "por_grupos": {
+     "caso -> caso": 4
+    },
+    "pares_mismo": 2,
+    "pares_parcial": 4
+   },
+   "dhash": {
+    "pares_dentro": 10,
+    "por_grupo_del_suelto": {
+     "empresa": 8,
+     "caso": 2
+    },
+    "por_grupos": {
+     "empresa -> empresa": 6,
+     "empresa -> caso": 2,
+     "caso -> caso": 2
+    },
+    "pares_mismo": 11,
+    "pares_parcial": 38
+   },
+   "phash": {
+    "pares_dentro": 14,
+    "por_grupo_del_suelto": {
+     "empresa": 9,
+     "caso": 5
+    },
+    "por_grupos": {
+     "empresa -> empresa": 9,
+     "caso -> caso": 5
+    },
+    "pares_mismo": 22,
+    "pares_parcial": 27
+   },
+   "texto": {
+    "pares_dentro": 3,
+    "por_grupo_del_suelto": {
+     "caso": 3
+    },
+    "por_grupos": {
+     "caso -> caso": 3
+    },
+    "pares_mismo": 3,
+    "pares_parcial": 12
+   }
+  },
+  "caso_ps_vs_pjn": {
+   "exacta": {},
+   "dhash": {},
+   "phash": {},
+   "texto": {},
+   "identicos_byte_a_byte": 52,
+   "contenidos_caso_ps": 69,
+   "contenidos_pjn": 52
+  },
+  "partes": {
+   "exacta": {
+    "incluidos": 104,
+    "con_aparicion_suelta": 0,
+    "corte_exacto": 0
+   },
+   "dhash": {
+    "incluidos": 104,
+    "con_aparicion_suelta": 2,
+    "corte_exacto": 1
+   },
+   "phash": {
+    "incluidos": 104,
+    "con_aparicion_suelta": 5,
+    "corte_exacto": 1
+   },
+   "texto": {
+    "incluidos": 104,
+    "con_aparicion_suelta": 0,
+    "corte_exacto": 0
+   }
+  },
+  "respuestas": {
+   "exacta": {
+    "por_relacion": {
+     "mismo-documento": {
+      "sin_pdf": 4,
+      "identicos": 5,
+      "nada": 3
+     },
+     "version": {
+      "sin_pdf": 2
+     },
+     "vista-previa": {
+      "sin_pdf": 1
+     },
+     "misma-plantilla": {
+      "sin_pdf": 2,
+      "nada": 25
+     },
+     "mismo-asunto": {
+      "sin_pdf": 14,
+      "nada": 1
+     },
+     "sin-relacion": {
+      "sin_pdf": 7,
+      "nada": 5
+     },
+     "respuesta-a": {
+      "nada": 1,
+      "sin_pdf": 2
+     },
+     "acuse-de-recibo": {
+      "nada": 1
+     },
+     "ejemplar-firmado": {
+      "nada": 4
+     },
+     "constancia-de-firma": {
+      "nada": 2
+     },
+     "misma-persona-otro-asunto": {
+      "nada": 2
+     },
+     "practicamente-el-mismo": {},
+     "contenido-en": {}
+    },
+    "positivos_encontrados": 0,
+    "positivos_medibles": 3,
+    "falsos_en_la_hoja": 0
+   },
+   "dhash": {
+    "por_relacion": {
+     "mismo-documento": {
+      "sin_pdf": 4,
+      "identicos": 5,
+      "parcial": 2,
+      "mismo": 1
+     },
+     "version": {
+      "sin_pdf": 2
+     },
+     "vista-previa": {
+      "sin_pdf": 1
+     },
+     "misma-plantilla": {
+      "sin_pdf": 2,
+      "nada": 19,
+      "dentro": 1,
+      "parcial": 4,
+      "mismo": 1
+     },
+     "mismo-asunto": {
+      "sin_pdf": 14,
+      "nada": 1
+     },
+     "sin-relacion": {
+      "sin_pdf": 7,
+      "nada": 4,
+      "mismo": 1
+     },
+     "respuesta-a": {
+      "nada": 1,
+      "sin_pdf": 2
+     },
+     "acuse-de-recibo": {
+      "nada": 1
+     },
+     "ejemplar-firmado": {
+      "dentro": 3,
+      "parcial": 1
+     },
+     "constancia-de-firma": {
+      "nada": 2
+     },
+     "misma-persona-otro-asunto": {
+      "parcial": 1,
+      "nada": 1
+     },
+     "practicamente-el-mismo": {},
+     "contenido-en": {}
+    },
+    "positivos_encontrados": 1,
+    "positivos_medibles": 3,
+    "falsos_en_la_hoja": 3
+   },
+   "phash": {
+    "por_relacion": {
+     "mismo-documento": {
+      "sin_pdf": 4,
+      "identicos": 5,
+      "mismo": 3
+     },
+     "version": {
+      "sin_pdf": 2
+     },
+     "vista-previa": {
+      "sin_pdf": 1
+     },
+     "misma-plantilla": {
+      "sin_pdf": 2,
+      "nada": 19,
+      "dentro": 1,
+      "parcial": 4,
+      "mismo": 1
+     },
+     "mismo-asunto": {
+      "sin_pdf": 14,
+      "nada": 1
+     },
+     "sin-relacion": {
+      "sin_pdf": 7,
+      "nada": 4,
+      "mismo": 1
+     },
+     "respuesta-a": {
+      "nada": 1,
+      "sin_pdf": 2
+     },
+     "acuse-de-recibo": {
+      "nada": 1
+     },
+     "ejemplar-firmado": {
+      "dentro": 4
+     },
+     "constancia-de-firma": {
+      "nada": 2
+     },
+     "misma-persona-otro-asunto": {
+      "parcial": 1,
+      "nada": 1
+     },
+     "practicamente-el-mismo": {},
+     "contenido-en": {}
+    },
+    "positivos_encontrados": 3,
+    "positivos_medibles": 3,
+    "falsos_en_la_hoja": 3
+   },
+   "texto": {
+    "por_relacion": {
+     "mismo-documento": {
+      "sin_pdf": 4,
+      "identicos": 5,
+      "parcial": 2,
+      "mismo": 1
+     },
+     "version": {
+      "sin_pdf": 2
+     },
+     "vista-previa": {
+      "sin_pdf": 1
+     },
+     "misma-plantilla": {
+      "sin_pdf": 2,
+      "nada": 25
+     },
+     "mismo-asunto": {
+      "sin_pdf": 14,
+      "nada": 1
+     },
+     "sin-relacion": {
+      "sin_pdf": 7,
+      "nada": 5
+     },
+     "respuesta-a": {
+      "nada": 1,
+      "sin_pdf": 2
+     },
+     "acuse-de-recibo": {
+      "nada": 1
+     },
+     "ejemplar-firmado": {
+      "parcial": 3,
+      "nada": 1
+     },
+     "constancia-de-firma": {
+      "nada": 2
+     },
+     "misma-persona-otro-asunto": {
+      "nada": 2
+     },
+     "practicamente-el-mismo": {},
+     "contenido-en": {}
+    },
+    "positivos_encontrados": 1,
+    "positivos_medibles": 3,
+    "falsos_en_la_hoja": 0
+   }
+  }
+ },
+ "parte_a_sensibilidad_tolerancia": {
+  "3": {
+   "dhash": {
+    "dentro": 12,
+    "mismo": 13,
+    "positivos": 3,
+    "falsos": 4,
+    "partes_con_suelto": 4
+   },
+   "phash": {
+    "dentro": 5,
+    "mismo": 13,
+    "positivos": 2,
+    "falsos": 2,
+    "partes_con_suelto": 0
+   }
+  },
+  "10": {
+   "dhash": {
+    "dentro": 5,
+    "mismo": 10,
+    "positivos": 0,
+    "falsos": 3,
+    "partes_con_suelto": 2
+   },
+   "phash": {
+    "dentro": 22,
+    "mismo": 14,
+    "positivos": 3,
+    "falsos": 3,
+    "partes_con_suelto": 6
+   }
+  }
+ },
+ "parte_b": {
+  "minilm": {
+   "copias_por_relacion": {
+    "misma-plantilla": {
+     "pares": 25,
+     "en_top5": 15,
+     "cos_mediana": 0.977,
+     "cos_min": 0.686,
+     "cos_max": 0.988
+    },
+    "respuesta-a": {
+     "pares": 1,
+     "en_top5": 0,
+     "cos_mediana": 0.726,
+     "cos_min": 0.726,
+     "cos_max": 0.726
+    },
+    "sin-relacion": {
+     "pares": 5,
+     "en_top5": 4,
+     "cos_mediana": 0.943,
+     "cos_min": 0.785,
+     "cos_max": 0.977
+    },
+    "acuse-de-recibo": {
+     "pares": 1,
+     "en_top5": 1,
+     "cos_mediana": 0.955,
+     "cos_min": 0.955,
+     "cos_max": 0.955
+    },
+    "ejemplar-firmado": {
+     "pares": 4,
+     "en_top5": 4,
+     "cos_mediana": 0.934,
+     "cos_min": 0.845,
+     "cos_max": 0.986
+    },
+    "mismo-documento": {
+     "pares": 3,
+     "en_top5": 3,
+     "cos_mediana": 1.0,
+     "cos_min": 1.0,
+     "cos_max": 1.0
+    },
+    "mismo-asunto": {
+     "pares": 1,
+     "en_top5": 1,
+     "cos_mediana": 0.539,
+     "cos_min": 0.539,
+     "cos_max": 0.539
+    },
+    "constancia-de-firma": {
+     "pares": 2,
+     "en_top5": 1,
+     "cos_mediana": 0.646,
+     "cos_min": 0.599,
+     "cos_max": 0.693
+    },
+    "misma-persona-otro-asunto": {
+     "pares": 2,
+     "en_top5": 1,
+     "cos_mediana": 0.693,
+     "cos_min": 0.663,
+     "cos_max": 0.723
+    }
+   },
+   "vecinos_top5_de_docs_de_la_hoja": {
+    "fuera-de-la-hoja": 37,
+    "sin-etiqueta-misma-hoja": 146,
+    "otra-relacion:misma-plantilla": 25,
+    "positivo": 12,
+    "otra-relacion:constancia-de-firma": 1,
+    "otra-relacion:sin-relacion": 7,
+    "otra-relacion:acuse-de-recibo": 2
+   },
+   "docs_de_la_hoja_con_pdf": 46,
+   "trampa": {
+    "umbral_cos_min_mismo_documento": 1.0,
+    "misma-plantilla": {
+     "pares": 25,
+     "cos_ge_umbral": 0,
+     "mismos_datos_clave": 0,
+     "cos_ge_umbral_y_mismos_datos": 0
+    },
+    "mismo-documento": {
+     "pares": 3,
+     "cos_ge_umbral": 3,
+     "mismos_datos_clave": 3,
+     "cos_ge_umbral_y_mismos_datos": 3
+    },
+    "ejemplar-firmado": {
+     "pares": 4,
+     "cos_ge_umbral": 0,
+     "mismos_datos_clave": 0,
+     "cos_ge_umbral_y_mismos_datos": 0
+    },
+    "sin-relacion": {
+     "pares": 5,
+     "cos_ge_umbral": 0,
+     "mismos_datos_clave": 0,
+     "cos_ge_umbral_y_mismos_datos": 0
+    }
+   },
+   "casos": {
+    "docs_con_caso": 99,
+    "casos_distintos": 7,
+    "precision_top5": 0.566,
+    "azar": 0.248
+   },
+   "tipos": {
+    "docs": 130,
+    "tipos_distintos": 32,
+    "acierto_1_vecino": 0.715,
+    "acierto_5_vecinos": 0.7,
+    "acierto_tipo_mas_comun": 0.162
+   },
+   "busqueda": {
+    "embedding": {
+     "recall5": 0.477,
+     "recall10": 0.581,
+     "rr": 0.451
+    },
+    "bm25": {
+     "recall5": 0.498,
+     "recall10": 0.617,
+     "rr": 0.586
+    },
+    "mezcla": {
+     "recall5": 0.422,
+     "recall10": 0.499,
+     "rr": 0.494
+    },
+    "preguntas_medidas": 30,
+    "esperados_sin_pdf": 17
+   },
+   "combinacion": {
+    "positivos_medibles": 7,
+    "solo_phash": {
+     "pares": 36,
+     "positivos_de_la_hoja": 7,
+     "falsos_de_la_hoja": 3,
+     "entre_clientes": 0
+    },
+    "embedding_top5_y_phash": {
+     "pares": 30,
+     "positivos_de_la_hoja": 7,
+     "falsos_de_la_hoja": 3,
+     "entre_clientes": 0
+    },
+    "comparaciones_phash": {
+     "todas": 8385,
+     "con_candidatos": 494
+    }
+   },
+   "partes_vecino_suelto": {
+    "incluidos": 104,
+    "cos_ge_0_95": 3,
+    "cos_ge_umbral_mismo_documento": 1,
+    "cos_mediana": 0.806
+   }
+  },
+  "qwen3": {
+   "copias_por_relacion": {
+    "misma-plantilla": {
+     "pares": 25,
+     "en_top5": 17,
+     "cos_mediana": 0.934,
+     "cos_min": 0.776,
+     "cos_max": 0.997
+    },
+    "respuesta-a": {
+     "pares": 1,
+     "en_top5": 1,
+     "cos_mediana": 0.689,
+     "cos_min": 0.689,
+     "cos_max": 0.689
+    },
+    "sin-relacion": {
+     "pares": 5,
+     "en_top5": 4,
+     "cos_mediana": 0.82,
+     "cos_min": 0.601,
+     "cos_max": 0.935
+    },
+    "acuse-de-recibo": {
+     "pares": 1,
+     "en_top5": 1,
+     "cos_mediana": 0.859,
+     "cos_min": 0.859,
+     "cos_max": 0.859
+    },
+    "ejemplar-firmado": {
+     "pares": 4,
+     "en_top5": 4,
+     "cos_mediana": 0.953,
+     "cos_min": 0.92,
+     "cos_max": 0.987
+    },
+    "mismo-documento": {
+     "pares": 3,
+     "en_top5": 3,
+     "cos_mediana": 1.0,
+     "cos_min": 1.0,
+     "cos_max": 1.0
+    },
+    "mismo-asunto": {
+     "pares": 1,
+     "en_top5": 1,
+     "cos_mediana": 0.616,
+     "cos_min": 0.616,
+     "cos_max": 0.616
+    },
+    "constancia-de-firma": {
+     "pares": 2,
+     "en_top5": 2,
+     "cos_mediana": 0.693,
+     "cos_min": 0.62,
+     "cos_max": 0.766
+    },
+    "misma-persona-otro-asunto": {
+     "pares": 2,
+     "en_top5": 1,
+     "cos_mediana": 0.602,
+     "cos_min": 0.532,
+     "cos_max": 0.672
+    }
+   },
+   "vecinos_top5_de_docs_de_la_hoja": {
+    "otra-relacion:constancia-de-firma": 3,
+    "fuera-de-la-hoja": 21,
+    "sin-etiqueta-misma-hoja": 153,
+    "otra-relacion:misma-plantilla": 30,
+    "positivo": 12,
+    "otra-relacion:respuesta-a": 2,
+    "otra-relacion:acuse-de-recibo": 2,
+    "otra-relacion:sin-relacion": 7
+   },
+   "docs_de_la_hoja_con_pdf": 46,
+   "trampa": {
+    "umbral_cos_min_mismo_documento": 1.0,
+    "misma-plantilla": {
+     "pares": 25,
+     "cos_ge_umbral": 0,
+     "mismos_datos_clave": 0,
+     "cos_ge_umbral_y_mismos_datos": 0
+    },
+    "mismo-documento": {
+     "pares": 3,
+     "cos_ge_umbral": 3,
+     "mismos_datos_clave": 3,
+     "cos_ge_umbral_y_mismos_datos": 3
+    },
+    "ejemplar-firmado": {
+     "pares": 4,
+     "cos_ge_umbral": 0,
+     "mismos_datos_clave": 0,
+     "cos_ge_umbral_y_mismos_datos": 0
+    },
+    "sin-relacion": {
+     "pares": 5,
+     "cos_ge_umbral": 0,
+     "mismos_datos_clave": 0,
+     "cos_ge_umbral_y_mismos_datos": 0
+    }
+   },
+   "casos": {
+    "docs_con_caso": 99,
+    "casos_distintos": 7,
+    "precision_top5": 0.632,
+    "azar": 0.248
+   },
+   "tipos": {
+    "docs": 130,
+    "tipos_distintos": 32,
+    "acierto_1_vecino": 0.708,
+    "acierto_5_vecinos": 0.692,
+    "acierto_tipo_mas_comun": 0.162
+   },
+   "busqueda": {
+    "embedding": {
+     "recall5": 0.83,
+     "recall10": 0.901,
+     "rr": 0.703
+    },
+    "bm25": {
+     "recall5": 0.498,
+     "recall10": 0.617,
+     "rr": 0.586
+    },
+    "mezcla": {
+     "recall5": 0.594,
+     "recall10": 0.748,
+     "rr": 0.595
+    },
+    "preguntas_medidas": 30,
+    "esperados_sin_pdf": 17
+   },
+   "combinacion": {
+    "positivos_medibles": 7,
+    "solo_phash": {
+     "pares": 36,
+     "positivos_de_la_hoja": 7,
+     "falsos_de_la_hoja": 3,
+     "entre_clientes": 0
+    },
+    "embedding_top5_y_phash": {
+     "pares": 29,
+     "positivos_de_la_hoja": 7,
+     "falsos_de_la_hoja": 3,
+     "entre_clientes": 0
+    },
+    "comparaciones_phash": {
+     "todas": 8385,
+     "con_candidatos": 467
+    }
+   },
+   "partes_vecino_suelto": {
+    "incluidos": 104,
+    "cos_ge_0_95": 3,
+    "cos_ge_umbral_mismo_documento": 0,
+    "cos_mediana": 0.73
+   }
+  }
+ },
+ "trampa_umbral_0_95": {
+  "minilm": {
+   "misma-plantilla": {
+    "pares": 25,
+    "cos_ge_0_95": 16,
+    "jaccard_clave_mediana": 0.46,
+    "regla_cos95_y_clave": 0,
+    "regla_cos95_y_(clave_o_phash)": 1
+   },
+   "ejemplar-firmado": {
+    "pares": 4,
+    "cos_ge_0_95": 1,
+    "jaccard_clave_mediana": 0.71,
+    "regla_cos95_y_clave": 0,
+    "regla_cos95_y_(clave_o_phash)": 1
+   },
+   "mismo-documento": {
+    "pares": 3,
+    "cos_ge_0_95": 3,
+    "jaccard_clave_mediana": 1.0,
+    "regla_cos95_y_clave": 3,
+    "regla_cos95_y_(clave_o_phash)": 3
+   },
+   "sin-relacion": {
+    "pares": 5,
+    "cos_ge_0_95": 1,
+    "jaccard_clave_mediana": 0.29,
+    "regla_cos95_y_clave": 0,
+    "regla_cos95_y_(clave_o_phash)": 0
+   }
+  },
+  "qwen3": {
+   "misma-plantilla": {
+    "pares": 25,
+    "cos_ge_0_95": 6,
+    "jaccard_clave_mediana": 0.46,
+    "regla_cos95_y_clave": 0,
+    "regla_cos95_y_(clave_o_phash)": 1
+   },
+   "ejemplar-firmado": {
+    "pares": 4,
+    "cos_ge_0_95": 3,
+    "jaccard_clave_mediana": 0.71,
+    "regla_cos95_y_clave": 0,
+    "regla_cos95_y_(clave_o_phash)": 3
+   },
+   "mismo-documento": {
+    "pares": 3,
+    "cos_ge_0_95": 3,
+    "jaccard_clave_mediana": 1.0,
+    "regla_cos95_y_clave": 3,
+    "regla_cos95_y_(clave_o_phash)": 3
+   },
+   "sin-relacion": {
+    "pares": 5,
+    "cos_ge_0_95": 0,
+    "jaccard_clave_mediana": 0.29,
+    "regla_cos95_y_clave": 0,
+    "regla_cos95_y_(clave_o_phash)": 0
+   }
+  }
+ },
+ "costo": {
+  "huellas": {
+   "paginas": 769,
+   "segundos": 5,
+   "procesos": 4,
+   "memoria_MB_por_proceso_max": 181
+  },
+  "ocr_rapidocr": {
+   "paginas": 90,
+   "segundos": 292,
+   "segundos_por_pagina": 3.24,
+   "memoria_MB_max": 11570
+  },
+  "minilm": {
+   "paginas": 601,
+   "segundos": 11,
+   "segundos_por_pagina": 0.019,
+   "memoria_MB_max": 703,
+   "tamano_modelo_MB": 241,
+   "dimension": 384
+  },
+  "qwen3": {
+   "paginas": 601,
+   "segundos": 1156,
+   "segundos_por_pagina": 1.923,
+   "memoria_MB_max": 4707,
+   "tamano_modelo_MB": 1100,
+   "dimension": 1024
+  },
+  "paquetes_python_MB": 597
+ },
+ "fichas_claude": {
+  "subagentes": 133000,
+  "nota": "el subagente solo conto la carpeta, antes de la prueba; el resto lo hizo el agente principal"
+ }
+}
