@@ -2655,16 +2655,16 @@
       "titulo": "Replantear el proceso: primero la base (qué es cada documento, su texto según su forma, duplicados, tipos, personas), después las relaciones; contenedores y nivel de certeza",
       "tipo": "decision",
       "responsable": "ambos",
-      "estado": "pendiente",
+      "estado": "en-curso",
       "prioridad": 1,
       "tema": "lectura",
-      "detalle": "Dirección del dueño del 25 oct, no definición: docs/design/replanteo-del-proceso-notas.md. La unidad de trabajo pasa del archivo al documento (con huella por página); los documentos compuestos, los expedientes de un portal y las carpetas son contenedores, cada uno con su nivel de certeza; un documento puede estar en varios; el resumen de un contenedor habla de las relaciones que crea y de por qué existe; no hay páginas duplicadas para un documento suelto y dentro de un compuesto. Próximo paso: la prueba en la nube de huellas de página y embeddings (P-359) y, con su resultado, el documento de diseño del proceso, que reemplaza o absorbe la propuesta de documentos compuestos (P-350).",
+      "detalle": "Dirección del dueño del 25 oct, no definición: docs/design/replanteo-del-proceso-notas.md. La unidad de trabajo pasa del archivo al documento (con huella por página); los documentos compuestos, los expedientes de un portal y las carpetas son contenedores, cada uno con su nivel de certeza; un documento puede estar en varios; el resumen de un contenedor habla de las relaciones que crea y de por qué existe; no hay páginas duplicadas para un documento suelto y dentro de un compuesto. Próximo paso: la prueba en la nube de huellas de página y embeddings (P-359) y, con su resultado, el documento de diseño del proceso, que reemplaza o absorbe la propuesta de documentos compuestos (P-350). 26 oct: borrador del modelo en docs/design/modelo-de-conocimiento-propuesta.md e inventario de la base en docs/design/base-de-datos-inventario.md (D-530 a D-545); espera la revisión del dueño (P-360).",
       "depende_de": [
         "P-359"
       ],
       "referencia": "docs/design/replanteo-del-proceso-notas.md; D-518; D-527",
       "creado": "2026-10-25",
-      "actualizado": "2026-10-25"
+      "actualizado": "2026-10-26"
     },
     {
       "id": "P-357",
@@ -2699,14 +2699,121 @@
       "titulo": "Prueba en la nube: huellas de página y embeddings para duplicados, contenedores y relaciones",
       "tipo": "verificacion",
       "responsable": "usuario",
-      "estado": "pendiente",
+      "estado": "a-verificar",
       "prioridad": 1,
       "tema": "lectura",
-      "detalle": "La lanza el dueño en una sesión de Claude Code en la nube con el prompt docs/investigacion/huellas-y-embeddings/prompt.md. Los datos están en la carpeta de Drive POC-Micelya\\pruebas. El resultado va a la rama investigacion/huellas-y-embeddings, sin pedido de integración; lo revisa el agente local (datos reales, prueba de casos reales) y pregunta al dueño antes de integrar. Tope: 400 mil fichas de Claude.",
+      "detalle": "La lanza el dueño en una sesión de Claude Code en la nube con el prompt docs/investigacion/huellas-y-embeddings/prompt.md. Los datos están en la carpeta de Drive POC-Micelya\\pruebas. El resultado va a la rama investigacion/huellas-y-embeddings, sin pedido de integración; lo revisa el agente local (datos reales, prueba de casos reales) y pregunta al dueño antes de integrar. Tope: 400 mil fichas de Claude. 26 oct: los resultados están en la rama investigacion/huellas-y-embeddings (informe.md); el resumen se usó en el modelo del replanteo.",
       "depende_de": [],
       "referencia": "docs/investigacion/huellas-y-embeddings/prompt.md",
       "creado": "2026-10-25",
-      "actualizado": "2026-10-25"
+      "actualizado": "2026-10-26"
+    },
+    {
+      "id": "P-360",
+      "titulo": "Revisar el borrador del modelo de documentos y conocimiento y el inventario de la base",
+      "tipo": "decision",
+      "responsable": "usuario",
+      "estado": "pendiente",
+      "tema": "replanteo",
+      "detalle": "Borradores del 26 oct: docs/design/modelo-de-conocimiento-propuesta.md y docs/design/base-de-datos-inventario.md. Con el visto bueno se pasa al diseño vigente y se diseña la base de destino.",
+      "depende_de": [],
+      "referencia": "docs/design/modelo-de-conocimiento-propuesta.md; D-530 a D-545",
+      "creado": "2026-10-26",
+      "actualizado": "2026-10-26"
+    },
+    {
+      "id": "P-361",
+      "titulo": "Medir si los ejemplos en el catálogo agregan valor",
+      "tipo": "verificacion",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "replanteo",
+      "detalle": "Correr la lectura con y sin ejemplos contra la hoja de respuestas, con los documentos que dan ejemplos separados de los que miden. Si no agregan valor, se evita anonimizar y distribuir ejemplos. Usa cupo de Codex: avisar al dueño antes.",
+      "depende_de": [
+        "P-360"
+      ],
+      "referencia": "D-544",
+      "creado": "2026-10-26",
+      "actualizado": "2026-10-26"
+    },
+    {
+      "id": "P-362",
+      "titulo": "Proponer el cambio a la regla de que el catálogo no tenga casos reales, si los ejemplos agregan valor",
+      "tipo": "decision",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "replanteo",
+      "detalle": "Si la prueba de P-361 muestra que los ejemplos agregan valor, proponer al dueño cambiar R-24 para permitirlos anonimizados y separados de lo que mide.",
+      "depende_de": [
+        "P-361"
+      ],
+      "referencia": "D-544; docs/design/reglas-de-procesamiento.md (R-24)",
+      "creado": "2026-10-26",
+      "actualizado": "2026-10-26"
+    },
+    {
+      "id": "P-363",
+      "titulo": "Diseñar la base de destino y su migración, sin parches",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "replanteo",
+      "detalle": "A partir del modelo aprobado y del inventario: registro común de piezas, documento con versiones y apariciones, tabla única de relaciones, un solo lugar para decisiones y para veredictos, nombres canónicos. Revisar el código que usa cada tabla que cambia y migrar con respaldo (D-496).",
+      "depende_de": [
+        "P-360"
+      ],
+      "referencia": "D-535; docs/design/base-de-datos-inventario.md",
+      "creado": "2026-10-26",
+      "actualizado": "2026-10-26"
+    },
+    {
+      "id": "P-364",
+      "titulo": "Revisar la propuesta de documentos compuestos contra el modelo del replanteo",
+      "tipo": "decision",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "replanteo",
+      "detalle": "Decir qué partes de D-525 siguen en pie con documento, versión, aparición, ubicación, contención y procedencia (D-534, D-538) y cuáles hay que reformular antes de construir.",
+      "depende_de": [],
+      "referencia": "docs/design/documentos-compuestos-propuesta.md; D-525",
+      "creado": "2026-10-26",
+      "actualizado": "2026-10-26"
+    },
+    {
+      "id": "P-365",
+      "titulo": "Diseñar el modo entrenamiento",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "replanteo",
+      "detalle": "Mismo motor y misma interfaz, un indicador que redirige a una base propia de entrenamiento; salidas: entradas del catálogo general, ejemplos anonimizados y entradas de la hoja de respuestas.",
+      "depende_de": [
+        "P-360"
+      ],
+      "referencia": "D-545",
+      "creado": "2026-10-26",
+      "actualizado": "2026-10-26"
+    },
+    {
+      "id": "P-366",
+      "titulo": "Ordenar los ids del catálogo: canónicos, y lo jurídico en la capa de la vertical",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "replanteo",
+      "detalle": "Hoy los tipos de entidad (persona, organizacion, asunto) y relaciones solo jurídicas (causante, heredero_de) están mezclados con lo general. Va con el rediseño de la base.",
+      "depende_de": [
+        "P-363"
+      ],
+      "referencia": "D-535; D-542",
+      "creado": "2026-10-26",
+      "actualizado": "2026-10-26"
     }
   ]
 }

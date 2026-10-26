@@ -203,7 +203,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-180 | 16 oct | Conocimiento | Cambiar de modelo no vuelve a leer lo ya extraído; se relee si cambia el texto, la pregunta o el vocabulario | vigente; reemplazada en parte por D-193 |
 | D-181 | 16 oct | Conocimiento | En segundo plano se pregunta sin pausa mientras hay trabajo: primero tipos, después la lectura de la capa | vigente |
 | D-182 | 16 oct | Conocimiento | Los documentos largos se leen en partes de páginas enteras de hasta 4.000 palabras, y se guardan cuando todas tienen respuesta | vigente |
-| D-183 | 16 oct | Conocimiento | Vocabulario inicial de la capa, y lo que se guarda en la etapa 1: evidencias entre menciones del documento | vigente |
+| D-183 | 16 oct | Conocimiento | Vocabulario inicial de la capa, y lo que se guarda en la etapa 1: evidencias entre menciones del documento | reemplazada en parte por D-533 (los asuntos ya no se extraen como entidades) |
 | D-184 | 16 oct | Conocimiento | La evaluación de la extracción corre sobre una copia de la base de la app y compara por tipo y nombre normalizado | vigente |
 | D-185 | 16 oct | Conocimiento | La unidad que se resuelve es el grupo de menciones de un documento, con una clave que no depende del orden de lectura | vigente |
 | D-186 | 16 oct | Conocimiento | Cómo se comparan los nombres: sin artículos, títulos ni forma societaria; los candidatos salen de índices, no de comparar todos contra todos | vigente |
@@ -472,6 +472,22 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-527 | 25 oct | Documentos compuestos | Lo que tiene emisor y fecha propios es un documento aparte, relacionado con lo que certifica o acompaña; y el documento compuesto se analiza también como un conjunto | vigente |
 | D-528 | 25 oct | Forma de trabajo | Los guardrails de consumo de Claude quedan en CLAUDE.md, para todos los agentes, locales y en la nube | vigente |
 | D-529 | 25 oct | Forma de trabajo | Dos entornos: las pruebas con un agente en la nube sobre una carpeta de Google Drive, y la continuidad con un agente local | vigente |
+| D-530 | 26 oct | Replanteo | El propósito del replanteo: incorporar materiales de distintos orígenes, reconocer y representar fielmente sus documentos y construir sobre esa base conocimiento relacionado, verificable y actualizable | vigente |
+| D-531 | 26 oct | Replanteo | Las piezas con identidad son el documento, la entidad (persona u organización), el asunto y la cosa; pueden aparecer clases nuevas, y ninguna pieza es una etiqueta | vigente |
+| D-532 | 26 oct | Replanteo | Un registro común de piezas: cada pieza tiene un identificador opaco y único en el mundo, y un URI para lo que cruza de un espacio a otro | vigente |
+| D-533 | 26 oct | Replanteo | El asunto se guarda una sola vez: las menciones de un asunto en los documentos se resuelven hacia el asunto, y sale el tipo de entidad «asunto» | vigente |
+| D-534 | 26 oct | Replanteo | Documento, versión, aparición y ubicación son conceptos distintos, y la ubicación depende de la clase de fuente: la página no es la forma universal | vigente |
+| D-535 | 26 oct | Replanteo | El modelo de la base se reencauza sin parches, alineado con el modelo conceptual, con nombres canónicos de tablas y campos | vigente |
+| D-536 | 26 oct | Replanteo | Las copias en sistemas de archivos se ofrecen para eliminar y decide el humano; lo que está dentro de un compuesto o de un expediente no se borra; lo generado es único por documento | vigente |
+| D-537 | 26 oct | Replanteo | El original y el ejemplar firmado son dos versiones del mismo documento, y una versión prevalece según reglas del catálogo | vigente |
+| D-538 | 26 oct | Replanteo | Contención y procedencia son dos hechos distintos y los dos aportan contexto; el asunto no es un contenedor; la certeza se evalúa en cada relación | vigente |
+| D-539 | 26 oct | Replanteo | Todas las relaciones tienen una misma forma, pueden conectar cualquier clase de pieza, y el desde y el hasta son una sola relación | vigente |
+| D-540 | 26 oct | Replanteo | La aplicación une sola con certeza alta, deja dudoso lo de certeza media y no propone sin elementos; el humano siempre puede romper una unión; resuelve sola solo las contradicciones triviales | vigente |
+| D-541 | 26 oct | Replanteo | La plataforma aprende con un catálogo que crece, no entrenando modelos propios; cada regla dice si se aplica con código determinista, con IA o con ambos | vigente |
+| D-542 | 26 oct | Replanteo | El catálogo tiene tres capas: la general por vertical, que viaja con el instalador y puede bajarse actualizada; la compartida; y la personal, cada una aprobada por quien corresponde | vigente |
+| D-543 | 26 oct | Replanteo | Lo que aprende una instancia es de su usuario y pasa al catálogo general solo con su consentimiento y anonimizado; lo que enseñamos ahora va al general, anonimizado | vigente |
+| D-544 | 26 oct | Replanteo | Antes de poner ejemplos en el catálogo se mide si agregan valor; si lo agregan, van anonimizados y separados de lo que se usa para medir | en revisión (espera la prueba) |
+| D-545 | 26 oct | Replanteo | El entrenamiento se hace en un modo de la misma aplicación, con el mismo motor y una base propia | vigente |
 
 ---
 
@@ -2770,7 +2786,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 - **Fecha:** 16 oct 2026
 - **Tema:** Conocimiento
-- **Estado:** vigente (aprobada en bloque por el dueño el 22 oct, D-464)
+- **Estado:** reemplazada en parte por D-533: los asuntos ya no se extraen como entidades; el resto sigue vigente (aprobada en bloque por el dueño el 22 oct, D-464)
 - **El problema:** algunos documentos (contratos largos) tienen decenas de miles de caracteres. Pasarlos enteros en una sola pregunta hace que el modelo pierda detalle; cortarlos en cualquier lugar parte una cláusula.
 - **Qué se decidió:** un documento se lee en partes de páginas enteras de hasta 4.000 palabras; una página más larga que eso se corta por líneas. La lectura de un documento se guarda recién cuando todas sus partes tienen respuesta. La misma mención (mismo tipo, nombre y rol) en dos partes queda una sola, con los identificadores de las dos. "Es la misma que" solo vale dentro de una parte; unir menciones de partes distintas queda para la resolución de identidad.
 - **Por qué:** páginas enteras respetan la ubicación de las citas; guardar todo junto evita una lectura a medias.
@@ -5572,3 +5588,115 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **El problema:** Las pruebas con datos reales (como la de Docling) se hacen en sesiones de Claude Code en la nube, que no ven la PC del dueño.
 - **Qué se decidió y por qué:** Las pruebas las hace un agente en la nube, que solo ve la carpeta de Drive «Mi unidad\@Temporal - Se puede borrar\Desarrollo Micelya\POC-Micelya» (copia de la carpeta de prueba de la PC). Lo que necesitan las pruebas va a su subcarpeta pruebas\, con un LEEME.md. Los prompts de las pruebas van al repositorio (docs/investigacion/…/prompt.md), sin datos reales. Los resultados vuelven en una rama sin pedido de integración, y los revisa el agente local antes de integrar. La continuidad del trabajo la hace un agente local. Próximo paso: mover a Drive la base y los archivos que se usan (P-358).
 - **Quién decidió:** El dueño del producto (25 oct).
+
+### D-530 · El propósito del replanteo: incorporar materiales de distintos orígenes, reconocer y representar fielmente sus documentos y construir sobre esa base conocimiento relacionado, verificable y actualizable
+
+- **Fecha:** 26 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **El problema:** Las notas del 25 oct fijaron una dirección, pero faltaba decir para qué es todo el proceso, de modo que cada decisión siguiente se pueda medir contra eso.
+- **Qué se decidió y por qué:** El propósito tiene dos resultados, uno sobre el otro: conocer bien el material (qué documentos hay, dónde aparece cada uno, su contenido, copias, versiones, parecidos y plantillas) y construir conocimiento con él (personas, organizaciones, asuntos, cosas y sus relaciones). Todo lo que el sistema sostiene se rastrea hasta el contenido o el contexto que lo respalda, para poder revisar, corregir o volver a procesar sin perder de dónde salió. Y la plataforma tiene que poder aprender (D-541). Propuesta completa: docs/design/modelo-de-conocimiento-propuesta.md.
+- **Quién decidió:** El dueño del producto (26 oct).
+
+### D-531 · Las piezas con identidad son el documento, la entidad (persona u organización), el asunto y la cosa; pueden aparecer clases nuevas, y ninguna pieza es una etiqueta
+
+- **Fecha:** 26 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **El problema:** La base solo daba identidad a personas y organizaciones (y a los asuntos por otro lado); los inmuebles, vehículos y otras cosas quedaban como texto, y las etiquetas «Cliente» o «Caso» se confundían con identidades.
+- **Qué se decidió y por qué:** Cuatro clases iniciales: documento, entidad, asunto y cosa (algo con existencia material o digital e identidad propia: un inmueble, un vehículo, un dominio de Internet). El diseño admite clases nuevas. El dueño de una instancia es una entidad (en el primer escenario, el estudio A&G) y ser cliente es una relación con ella. Las etiquetas siguen para clasificar y filtrar, pero ninguna pieza es una etiqueta. El documento también es una pieza de conocimiento.
+- **Quién decidió:** El dueño del producto (26 oct).
+
+### D-532 · Un registro común de piezas: cada pieza tiene un identificador opaco y único en el mundo, y un URI para lo que cruza de un espacio a otro
+
+- **Fecha:** 26 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **El problema:** Para relacionar cualquier clase de pieza con cualquier otra, cada extremo de una relación tiene que poder apuntar a cualquier clase; y las piezas cruzan espacios (personal, compartido, catálogo general).
+- **Qué se decidió y por qué:** Cada pieza recibe un identificador opaco (UUID versión 7) en un registro común que dice de qué clase es; sus datos propios van en la tabla de su clase y las relaciones apuntan a ese identificador. Para lo que cruza de un espacio a otro se usa un URI derivado, micelya:<espacio>/<clase>/<id>, que nunca lleva nombres. Se descartaron una columna por clase en cada relación (cada clase nueva obliga a rehacer las relaciones) y guardar «clase + número» como texto (la base no garantiza que la pieza exista).
+- **Quién decidió:** El agente propuso el registro común y el dueño lo aceptó; el URI lo sugirió el dueño y el agente lo evaluó (26 oct).
+
+### D-533 · El asunto se guarda una sola vez: las menciones de un asunto en los documentos se resuelven hacia el asunto, y sale el tipo de entidad «asunto»
+
+- **Fecha:** 26 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **El problema:** El asunto («caso» en la vertical jurídica) está guardado dos veces: como asunto propiamente dicho y como entidad de tipo «asunto» junto a las personas y organizaciones (D-183).
+- **Qué se decidió y por qué:** «Asunto» es la palabra canónica y «caso» la de la vertical jurídica. Hay una sola representación: la pieza de clase asunto. Una mención de un asunto en un documento se resuelve hacia ella y no crea una entidad paralela. Reemplaza en parte D-183: la parte de que los asuntos se extraen como entidades.
+- **Quién decidió:** El dueño del producto, sobre el hallazgo del agente (26 oct).
+
+### D-534 · Documento, versión, aparición y ubicación son conceptos distintos, y la ubicación depende de la clase de fuente: la página no es la forma universal
+
+- **Fecha:** 26 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **El problema:** La identidad de un documento dependía del archivo entero, y la propuesta del 25 oct ponía la página como base para reconocerlo; pero un ZIP, un correo o un portal no se ubican por página.
+- **Qué se decidió y por qué:** Documento: la unidad reconocida. Versión: una forma distinta del mismo documento. Aparición: una presencia concreta en una fuente. Ubicación: cómo se llega a ella, según la clase de fuente (archivo entero, páginas o regiones de un PDF, entrada de un ZIP, adjunto de un correo, identificador del portal). La huella de página se usa donde hay páginas (la prueba en la nube del 26 oct mostró que reconoce el mismo documento aunque no sea idéntico byte por byte).
+- **Quién decidió:** El agente propuso y el dueño lo aceptó (26 oct).
+
+### D-535 · El modelo de la base se reencauza sin parches, alineado con el modelo conceptual, con nombres canónicos de tablas y campos
+
+- **Fecha:** 26 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **El problema:** El modelo de la base se fue degradando con parches: el mismo concepto en varias tablas, decisiones humanas en seis lugares, columnas agregadas y restos del wiki.
+- **Qué se decidió y por qué:** Se rediseña la base a partir del modelo conceptual, con nombres de tablas y campos en la forma canónica, sin vocabulario de una vertical. No es un parche más: lo que haya que cambiar se cambia. El inventario de partida está en docs/design/base-de-datos-inventario.md; la migración usa el mecanismo con respaldo previo (D-496).
+- **Quién decidió:** El dueño del producto (26 oct).
+
+### D-536 · Las copias en sistemas de archivos se ofrecen para eliminar y decide el humano; lo que está dentro de un compuesto o de un expediente no se borra; lo generado es único por documento
+
+- **Fecha:** 26 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **El problema:** Un documento puede aparecer en varios lugares, y eso repetía resúmenes y lecturas, además de dejar copias innecesarias en las carpetas.
+- **Qué se decidió y por qué:** En fuentes de tipo sistema de archivos (disco, OneDrive, Google Drive) la aplicación ofrece eliminar las copias; decide el humano y la aplicación nunca borra sola; si se borra, queda registrado que esa aparición existió y de dónde vino. Una aparición dentro de un documento compuesto o de un expediente del portal no se borra: es parte de otra cosa. Todo lo que genera la aplicación es único por documento: un resumen, una lectura de personas, una ficha.
+- **Quién decidió:** El dueño del producto; lo del compuesto y el expediente lo propuso el agente y el dueño lo confirmó (26 oct).
+
+### D-537 · El original y el ejemplar firmado son dos versiones del mismo documento, y una versión prevalece según reglas del catálogo
+
+- **Fecha:** 26 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **El problema:** Dos apariciones que difieren (el original y el firmado, un borrador y el definitivo) no son copias ni documentos distintos, y había que decidir de qué se genera el resumen.
+- **Qué se decidió y por qué:** Son versiones del mismo documento; lo generado sigue siendo único por documento y se basa en la versión que prevalece. Reglas propuestas, en orden: la firmada sobre la no firmada; la presentada o registrada sobre el borrador; la completa sobre la incompleta; la de fecha posterior. Si no alcanzan, queda dudosa y decide el humano, que siempre puede cambiarla. La evidencia puede citar cualquier versión, y la diferencia entre versiones se guarda en la relación entre ellas.
+- **Quién decidió:** El dueño del producto; el orden de las reglas lo propuso el agente y quedó aceptado (26 oct).
+
+### D-538 · Contención y procedencia son dos hechos distintos y los dos aportan contexto; el asunto no es un contenedor; la certeza se evalúa en cada relación
+
+- **Fecha:** 26 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **El problema:** Las notas del 25 oct mezclaban bajo «contenedor» dónde está algo, de dónde vino y qué significa, y asignaban un nivel de certeza fijo a cada clase de contenedor.
+- **Qué se decidió y por qué:** Se guardan por separado la contención (un compuesto, una carpeta, un ZIP, un correo) y la procedencia (un portal, un correo recibido, una carga del usuario); los dos aportan contexto valioso para procesar y relacionar. El asunto es una pieza que relaciona documentos, entidades y cosas; puede tener varios expedientes y lo crean un portal, la aplicación o el usuario. La certeza se evalúa en cada relación según su evidencia, no fija por clase de contenedor: reemplaza la tabla de la sección 2.3 de docs/design/replanteo-del-proceso-notas.md. Las carpetas no significan nada por sí solas: el operador puede asociar un nodo a un asunto o una entidad, con herencia y excepciones, y la maquinaria de reglas por carpeta de las etiquetas se reutiliza para crear relaciones.
+- **Quién decidió:** El dueño del producto, sobre la propuesta del agente (26 oct).
+
+### D-539 · Todas las relaciones tienen una misma forma, pueden conectar cualquier clase de pieza, y el desde y el hasta son una sola relación
+
+- **Fecha:** 26 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **El problema:** Las relaciones estaban repartidas en varias tablas con formas distintas, el sujeto solo podía ser una persona u organización, y el inicio y el fin de un vínculo se guardaban de dos maneras (vigencia de la afirmación y relaciones separadas de inicio y fin).
+- **Qué se decidió y por qué:** Una relación tiene sujeto, tipo, objeto (pieza o valor), evidencia, vigencia, origen, certeza y estado. Cada tipo del catálogo dice qué clases conecta, y se suman tipos a medida que se descubren. La vigencia es una sola relación con desde y hasta, cada extremo con su evidencia y su precisión; el documento que trae el fin completa la relación existente; «hasta desconocido» no es «sigue vigente». El dueño señaló que el desde-hasta es necesario sin preferir una forma; la de una sola relación la recomendó el agente.
+- **Quién decidió:** El dueño del producto, sobre la recomendación del agente (26 oct).
+
+### D-540 · La aplicación une sola con certeza alta, deja dudoso lo de certeza media y no propone sin elementos; el humano siempre puede romper una unión; resuelve sola solo las contradicciones triviales
+
+- **Fecha:** 26 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **El problema:** Hacía falta un criterio para que la aplicación no deje todo al humano ni una cosas sin elementos suficientes.
+- **Qué se decidió y por qué:** Certeza alta: une o afirma sola, con el porqué registrado y pudiendo deshacerse. Media: queda dudosa con la evidencia a favor y en contra. Baja: no propone. Romper una unión es siempre potestad del humano, y la ruptura se recuerda para no volver a unir lo mismo. Los umbrales son por clase de decisión y se miden contra una hoja de respuestas. Contradicciones: las triviales se resuelven con reglas explícitas (el mismo dato escrito distinto; datos de períodos distintos, que son un cambio); el resto queda abierto para el humano.
+- **Quién decidió:** El dueño del producto (26 oct).
+
+### D-541 · La plataforma aprende con un catálogo que crece, no entrenando modelos propios; cada regla dice si se aplica con código determinista, con IA o con ambos
+
+- **Fecha:** 26 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **El problema:** El dueño quiere una plataforma que se pueda entrenar y aprenda de los documentos: clases, relaciones e identificadores nuevos.
+- **Qué se decidió y por qué:** Se aprende el vocabulario, las reglas de reconocimiento y los criterios de unión y de versión que prevalece. El ciclo: descubrir (la IA propone lo que el catálogo no tiene, con evidencia), validar (el humano), consolidar (entra al catálogo), medir (contra la hoja de respuestas) y reprocesar solo lo afectado, sin pisar lo que decidió un humano y guardando con qué versión del catálogo salió cada cosa. Cada regla dice cómo se aplica; se elige lo que logra la misma eficacia o una mejor. El catálogo ya sirve a las dos: descripciones para el modelo y listas de palabras y valores para el código. No se entrenan modelos propios.
+- **Quién decidió:** El dueño del producto, sobre la recomendación del agente (26 oct).
+
+### D-542 · El catálogo tiene tres capas: la general por vertical, que viaja con el instalador y puede bajarse actualizada; la compartida; y la personal, cada una aprobada por quien corresponde
+
+- **Fecha:** 26 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **El problema:** Había que decidir dónde vive lo aprendido y quién lo aprueba.
+- **Qué se decidió y por qué:** General, por vertical: viaja con el instalador y opcionalmente se baja de un servicio de Micelya (la aplicación funciona sin él); la aprueba Micelya y, en el entrenamiento actual, el dueño. Compartida: en la base del espacio compartido, la aprueba su operador. Personal: en la base de la persona, la aprueba ella. Siguiendo D-044, la personal ve la general, la compartida y la suya; la compartida no ve la personal. Si una regla personal choca con una compartida, la personal vale solo para esa persona.
+- **Quién decidió:** El dueño del producto; lo del choque entre capas lo recomendó el agente y quedó aceptado (26 oct).
+
+### D-543 · Lo que aprende una instancia es de su usuario y pasa al catálogo general solo con su consentimiento y anonimizado; lo que enseñamos ahora va al general, anonimizado
+
+- **Fecha:** 26 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **El problema:** Lo aprendido puede contener datos de clientes y documentos privados.
+- **Qué se decidió y por qué:** Lo que la aplicación aprende con un usuario (por ejemplo A&G) es de ese usuario; solo se usa para el catálogo general con su consentimiento explícito y anonimizado, siguiendo la regla de los espacios (D-044). Cada cosa aprendida lleva de qué capa salió y si tiene consentimiento. Lo que enseñamos en el entrenamiento actual va al catálogo general anonimizado; incluye todo lo de la carpeta de prueba, también el caso que se usa de ejemplo aunque sea público en el portal.
+- **Quién decidió:** El dueño del producto (26 oct).
+
+### D-544 · Antes de poner ejemplos en el catálogo se mide si agregan valor; si lo agregan, van anonimizados y separados de lo que se usa para medir
+
+- **Fecha:** 26 oct 2026 · **Tema:** Replanteo · **Estado:** en revisión (espera la prueba)
+- **El problema:** Si el catálogo general aprende con ejemplos pero no puede llevarlos, algo no cierra; y llevarlos obliga a anonimizar y distribuir, y choca con la regla de que el catálogo no tenga casos reales (R-24).
+- **Qué se decidió y por qué:** Primero se mide, con y sin ejemplos, contra la hoja de respuestas. Si no agregan valor, se evita todo el problema. Si lo agregan, van anonimizados de forma coherente y los documentos que dan ejemplos nunca son los que miden; eso pide proponer un cambio a R-24.
+- **Quién decidió:** El dueño del producto (26 oct).
+
+### D-545 · El entrenamiento se hace en un modo de la misma aplicación, con el mismo motor y una base propia
+
+- **Fecha:** 26 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **El problema:** Hace falta un lugar para entrenar la plataforma con expedientes del portal y documentos elegidos, sin mezclarlo con el uso real.
+- **Qué se decidió y por qué:** Un modo entrenamiento en la misma aplicación y con el mismo motor: un indicador lo activa y redirige todo a una base propia de entrenamiento (un espacio más). El dueño aprueba lo que se descubre, y salen entradas del catálogo general, ejemplos anonimizados y entradas de la hoja de respuestas. Se descartó una herramienta aparte con su propio código, porque lo entrenado podría comportarse distinto en la aplicación.
+- **Quién decidió:** El dueño del producto, sobre la recomendación del agente (26 oct).
