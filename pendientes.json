@@ -2818,7 +2818,7 @@
     {
       "id": "P-367",
       "titulo": "Extraer el aprendizaje de la base real antes de descartarla",
-      "tipo": "tarea",
+      "tipo": "codigo",
       "responsable": "ambos",
       "estado": "pendiente",
       "prioridad": 1,
