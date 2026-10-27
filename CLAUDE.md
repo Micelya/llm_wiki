@@ -31,12 +31,15 @@ Este repositorio es el fork `Micelya/llm_wiki` de `nashsu/llm_wiki` (remoto `ups
 - **Trabajo con sub-agentes:** se comunican por archivos en disco (los reportes van en su respuesta final: no pueden crear archivos de reporte). Ningún agente espera a que termine la app ni otro proceso sin final; toda espera tiene un tope. Si un agente queda "esperando su propio trabajo", comprobar enseguida si hay avance real (archivos, commits, consultas al modelo).
 - **Modelo:** por defecto `gpt-6-luna` con razonamiento `high` en Codex (D-279). No usar `xhigh`, `max` ni `gpt-6-astra`. Evitar corridas del modelo en paralelo: agotan la ventana de uso de Codex.
 
-## Pruebas en la nube: traer y entregar archivos (D-546)
+## Pruebas en la nube: traer y entregar archivos (D-546, D-547)
 
 - **Traer de Drive, sin pasar por el contexto:** con el enlace compartido de la carpeta, nunca con el conector.
-  - Listar con `https://drive.google.com/embeddedfolderview?id=<carpeta>` y bajar con `curl -L -o <archivo> "https://drive.usercontent.google.com/download?id=<archivo>&export=download&confirm=t"`, directo a disco y fuera del repositorio.
-  - El conector de Drive devuelve el contenido dentro del contexto: un PDF de 33 KB costó unas 44 mil fichas.
+  - El dueño pasa el enlace en el prompt de la sesión. **El enlace nunca va al repositorio** ni a un mensaje a Core: da acceso a datos reales sin iniciar sesión.
+  - Bajar con `python docs/plantillas/bajar-de-drive.py <id_carpeta> <destino> [subcarpeta ...]`, directo a disco y fuera del repositorio. **Bajar solo las subcarpetas que usa la prueba** (por ejemplo `pruebas/base pruebas/hojas-de-respuestas caso-ps`).
+  - Por dentro, lista con `https://drive.google.com/embeddedfolderview?id=<carpeta>` y baja con `curl -L -o <archivo> "https://drive.usercontent.google.com/download?id=<archivo>&export=download&confirm=t"`.
+  - El conector de Drive, solo para comprobaciones mínimas, como la fecha de un archivo: devuelve el contenido dentro del contexto. Un PDF de 33 KB costó unas 44 mil fichas, y contar la carpeta, 133 mil.
   - Los dominios `drive.google.com` y `drive.usercontent.google.com` tienen que estar permitidos en la red del entorno.
+- **La base de la app** está en `pruebas/base/`: `micelya-base.zip` y su `ficha.json`. El guion de descarga comprueba la huella: si no coincide, no usarla. Qué es cada cosa de la carpeta está en `pruebas/LEEME.md`. La copia la actualiza a pedido el agente local, con un guion de su PC.
 - **Entregar archivos al dueño** (por ejemplo, un .zip con resultados que tienen datos reales):
   1. Dejarlos dentro de la carpeta del proyecto, en una carpeta que git ignore solo en ese entorno (agregarla a `.git/info/exclude`). Nunca en un commit.
   2. Mandarlos con la herramienta de envío de archivos de la sesión (`SendUserFile`), sin forzar el modo de presentación. Al dueño le aparece una tarjeta con el nombre del archivo: haciendo clic, se descarga.

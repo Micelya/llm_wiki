@@ -489,6 +489,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-544 | 26 oct | Replanteo | Antes de poner ejemplos en el catálogo se mide si agregan valor; si lo agregan, van anonimizados y separados de lo que se usa para medir | en revisión (espera la prueba) |
 | D-545 | 26 oct | Replanteo | El entrenamiento se hace en un modo de la misma aplicación, con el mismo motor y una base propia | vigente |
 | D-546 | 26 oct | Forma de trabajo | En las pruebas en la nube, los archivos de Drive se bajan con el enlace compartido, directo a disco; los resultados con datos reales se entregan al dueño con la herramienta de envío de archivos de la sesión | vigente |
+| D-547 | 26 oct | Forma de trabajo | La base completa de la app va a Drive para las pruebas en la nube: una sola copia con nombre fijo y su ficha, actualizada a pedido; el agente local puede escribir en toda la copia de POC-Micelya en Drive, nunca fuera de ella | vigente |
 
 ---
 
@@ -5708,3 +5709,10 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **El problema:** En las pruebas en la nube (D-529), bajar los documentos de Drive con el conector hace pasar su contenido por el contexto del agente: un PDF de 33 KB costó unas 44 mil fichas. Y los resultados con datos reales, que no pueden ir al repositorio, no le llegaban al dueño: un archivo dejado en el scratchpad no aparece en el árbol de la app, y una ruta escrita en la conversación solo abre el archivo en el árbol, sin opción de descarga.
 - **Qué se decidió y por qué:** Los documentos se bajan con el enlace compartido de la carpeta, directo a disco con curl, sin pasar por el contexto. Los resultados se dejan en una carpeta del proyecto que git ignora solo en ese entorno (`.git/info/exclude`) y se entregan con la herramienta de envío de archivos de la sesión, sin forzar el modo de presentación: al dueño le aparece una tarjeta y, al hacer clic, el archivo se descarga. Así se probó y funcionó el 26 oct. El detalle está en CLAUDE.md.
 - **Quién decidió:** El dueño del producto (26 oct), sobre lo que probó el agente.
+
+### D-547 · La base completa de la app va a Drive para las pruebas en la nube, a pedido, en una sola copia con su ficha
+
+- **Fecha:** 26 oct 2026 · **Tema:** Forma de trabajo · **Estado:** vigente
+- **El problema:** Las pruebas en la nube (D-529) veían los documentos, las hojas de respuestas y dos planillas, pero no lo que la app ya sabe: faltaba la base y una forma de mantenerla al día (P-358).
+- **Qué se decidió y por qué:** El agente local puede escribir en toda la copia de POC-Micelya en Drive, nunca fuera de ella. La copia se actualiza a pedido del dueño. La base va completa, también las preguntas al modelo con sus respuestas, que llevan el texto de los documentos. Va una sola copia, siempre con el mismo nombre (`pruebas/base/micelya-base.zip`), con una ficha (`ficha.json`: fecha, versión de la base, commit de la app, huella, filas por tabla y dónde está en Drive cada origen de la base): así cada prueba no baja varias copias, y la historia queda en la PC del dueño. La hace un guion de la PC (`herramientas\a-drive.py`): usa la copia propia de SQLite, que no frena la app y entrega un único archivo completo; la controla antes de copiarla, copia también los documentos nuevos o cambiados y rehace las planillas, y primero se corre en seco. En la nube se baja con `docs/plantillas/bajar-de-drive.py`, que comprueba la huella.
+- **Quién decidió:** El dueño del producto (26 oct); la copia única con nombre fijo y la ficha, sobre la propuesta del agente.

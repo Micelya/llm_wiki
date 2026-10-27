@@ -2685,14 +2685,14 @@
       "titulo": "Mover a Google Drive la base y los archivos de prueba, para los agentes en la nube",
       "tipo": "codigo",
       "responsable": "ambos",
-      "estado": "pendiente",
+      "estado": "a-verificar",
       "prioridad": 1,
       "tema": "entornos",
-      "detalle": "Pedido del dueño (25 oct) para la próxima sesión: trabajamos en dos entornos, las pruebas con un agente en la nube y la continuidad con un agente local. El agente en la nube solo ve la carpeta de Drive «Mi unidad\\@Temporal - Se puede borrar\\Desarrollo Micelya\\POC-Micelya» (copia de C:\\Documentos temporales para borrar\\POC-Micelya). Hoy ya está ahí la subcarpeta pruebas\\ (hojas de respuestas, los seis PDF de prueba, el expediente bajado del PJN, lo que sabe la app exportado a CSV, investigaciones previas; ver su LEEME.md). Falta: la base (copia consistente, nunca la viva), los archivos de llm-wiki-workspace y cómo se mantiene al día; y decidir qué pasa con la privacidad (los datos son reales).",
+      "detalle": "Pedido del dueño (25 oct) para la próxima sesión: trabajamos en dos entornos, las pruebas con un agente en la nube y la continuidad con un agente local. El agente en la nube solo ve la carpeta de Drive «Mi unidad\\@Temporal - Se puede borrar\\Desarrollo Micelya\\POC-Micelya» (copia de C:\\Documentos temporales para borrar\\POC-Micelya). Hoy ya está ahí la subcarpeta pruebas\\ (hojas de respuestas, los seis PDF de prueba, el expediente bajado del PJN, lo que sabe la app exportado a CSV, investigaciones previas; ver su LEEME.md). Falta: la base (copia consistente, nunca la viva), los archivos de llm-wiki-workspace y cómo se mantiene al día; y decidir qué pasa con la privacidad (los datos son reales). 2026-10-26: Construido (D-547). herramientas\\a-drive.py, en la PC, deja en pruebas\\base\\ de Drive la base completa (copia propia de SQLite, controlada y comprimida: 42 MB en 12 MB) con su ficha, rehace las planillas de estado-de-la-app y copia los documentos nuevos o cambiados de POC-Micelya y de la carpeta de trabajo (Expedientes, en pruebas\\expedientes-pjn); a pedido, primero en seco, nunca escribe fuera de POC-Micelya de Drive ni borra ahí; la historia queda en llm_wiki_mi\\copias-de-la-base\\. En la nube se baja con docs/plantillas/bajar-de-drive.py, solo las subcarpetas pedidas, y comprueba la huella. Primera copia: 26 oct 22:10, versión 29. Probado en la PC por el enlace público, sin iniciar sesión: bajó la base, la huella coincidió y la base abre. Falta verlo en una sesión en la nube.",
       "depende_de": [],
       "referencia": "G:\\Mi unidad\\@Temporal - Se puede borrar\\Desarrollo Micelya\\POC-Micelya\\pruebas\\LEEME.md",
       "creado": "2026-10-25",
-      "actualizado": "2026-10-25"
+      "actualizado": "2026-10-26"
     },
     {
       "id": "P-359",
@@ -2702,7 +2702,7 @@
       "estado": "a-verificar",
       "prioridad": 1,
       "tema": "lectura",
-      "detalle": "La lanza el dueño en una sesión de Claude Code en la nube con el prompt docs/investigacion/huellas-y-embeddings/prompt.md. Los datos están en la carpeta de Drive POC-Micelya\\pruebas. El resultado va a la rama investigacion/huellas-y-embeddings, sin pedido de integración; lo revisa el agente local (datos reales, prueba de casos reales) y pregunta al dueño antes de integrar. Tope: 400 mil fichas de Claude. 26 oct: los resultados están en la rama investigacion/huellas-y-embeddings (informe.md); el resumen se usó en el modelo del replanteo.",
+      "detalle": "La lanza el dueño en una sesión de Claude Code en la nube con el prompt docs/investigacion/huellas-y-embeddings/prompt.md. Los datos están en la carpeta de Drive POC-Micelya\\pruebas. El resultado va a la rama investigacion/huellas-y-embeddings, sin pedido de integración; lo revisa el agente local (datos reales, prueba de casos reales) y pregunta al dueño antes de integrar. Tope: 400 mil fichas de Claude. 26 oct: los resultados están en la rama investigacion/huellas-y-embeddings (informe.md); el resumen se usó en el modelo del replanteo. 2026-10-26: Pedido de integración #73; lo integra el dueño. Las otras dos pruebas del 26 oct: el mismo documento en dos lugares (#74) y manuscritos (#75).",
       "depende_de": [],
       "referencia": "docs/investigacion/huellas-y-embeddings/prompt.md",
       "creado": "2026-10-25",
