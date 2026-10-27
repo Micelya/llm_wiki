@@ -135,6 +135,11 @@ pub fn start(app: &tauri::AppHandle) {
                     let _ = pages.emit(CHANGED_EVENT, ());
                 },
             );
+            // The new scans, read on this computer (D-558).
+            let handle = app.clone();
+            worker::spawn_local_recognition(base.clone(), move || {
+                let _ = handle.emit(CHANGED_EVENT, ());
+            });
         }
         Err(error) => eprintln!("[docbase] {error}"),
     }

@@ -5,6 +5,10 @@
 //! the extraction (`text.rs`). Here an engine behind the `TextRecognizer`
 //! contract reads it, one document at a time:
 //!
+//! - by itself, in the background, with the engine of this computer
+//!   (D-558, `recognition_local`), the automatic reading on or off: it
+//!   asks no model in the cloud. Only while its models are there; without
+//!   them, as before:
 //! - by itself, in the background, while the automatic reading is on (the
 //!   same switch as the questions to the model: each page is a question);
 //! - when a person asks for it, even with the automatic reading off. What
@@ -186,18 +190,31 @@ impl DocBase {
 
     /// The document to recognize next: the first one a person asked for,
     /// or, while the automatic reading is on, the next one waiting that did
-    /// not fail and can be read now.
+    /// not fail and can be read now. While the engine of this computer can
+    /// read, the ones waiting are its own (`next_local_recognition`).
     pub fn next_recognition(&self) -> Result<Option<i64>, String> {
         if let Some(id) = requested_recognitions(&self.conn())?.first().copied() {
             return Ok(Some(id));
         }
-        if !self.background_reading()? {
+        if super::services::local_recognition_engine().is_some() || !self.background_reading()? {
             return Ok(None);
         }
+        self.next_waiting()
+    }
+
+    /// The document the engine of this computer reads next (D-558): the
+    /// next one waiting that did not fail, can be read now and nobody asked
+    /// for, the automatic reading on or off. It asks no model in the cloud.
+    pub fn next_local_recognition(&self) -> Result<Option<i64>, String> {
+        self.next_waiting()
+    }
+
+    fn next_waiting(&self) -> Result<Option<i64>, String> {
         self.conn()
             .query_row(
                 &format!(
                     "SELECT c.id FROM content c WHERE c.state = 'needs-recognition' AND c.error IS NULL AND {}
+                     AND NOT EXISTS (SELECT 1 FROM recognition_request r WHERE r.content_id = c.id)
                      ORDER BY c.id LIMIT 1",
                     reachable_sql()
                 ),
@@ -213,9 +230,22 @@ impl DocBase {
     /// the provider fails, the document keeps waiting and the stage shows
     /// the error with when it tries again (`retry_in`).
     pub fn recognition_step(&self, recognizer: &dyn TextRecognizer, retry_in: Duration) -> Result<RecognitionStep, String> {
-        let Some(content) = self.next_recognition()? else {
-            return Ok(RecognitionStep::Idle);
-        };
+        match self.next_recognition()? {
+            Some(content) => self.recognition_step_of(content, recognizer, retry_in),
+            None => Ok(RecognitionStep::Idle),
+        }
+    }
+
+    /// The same, for the next document of the engine of this computer
+    /// (`next_local_recognition`).
+    pub fn local_recognition_step(&self, recognizer: &dyn TextRecognizer, retry_in: Duration) -> Result<RecognitionStep, String> {
+        match self.next_local_recognition()? {
+            Some(content) => self.recognition_step_of(content, recognizer, retry_in),
+            None => Ok(RecognitionStep::Idle),
+        }
+    }
+
+    fn recognition_step_of(&self, content: i64, recognizer: &dyn TextRecognizer, retry_in: Duration) -> Result<RecognitionStep, String> {
         let state = self.engine_state();
         state.recognizing(Some(content));
         let result = self.recognize_content(content, recognizer);
@@ -593,6 +623,31 @@ del edificio inventado hasta que alguna de las partes la retire, con aviso de un
         let rest = fake("m", vec![Ok(PAGE_ONE), Ok(PAGE_TWO)]);
         assert_eq!(run(&base, &rest).len(), 1);
         assert_eq!(state_of(&base, "dos.pdf"), "processed");
+    }
+
+    #[test]
+    fn the_engine_of_this_computer_reads_the_new_scans_with_the_reading_off_and_leaves_the_asked_ones() {
+        let (_dir, base, _) = base_of(&[("uno.png", fixture("pagina-prueba.png")), ("dos.pdf", fixture("escaneo-2-paginas.pdf"))]);
+        assert!(!base.background_reading().unwrap());
+        // A person asks for one, with the engine chosen in Ajustes: that one
+        // is not the local engine's.
+        base.set_recognition_engine(Some(&engine("m"))).unwrap();
+        let two = content_of(&base, "dos.pdf");
+        assert_eq!(base.request_recognition(&RecognitionRequest::These(vec![two])).unwrap(), 1);
+
+        let local = FakeRecognizer::of("rapidocr-onnx:ppocrv6-small", vec![Ok(NOTE)]);
+        let one = content_of(&base, "uno.png");
+        assert_eq!(base.local_recognition_step(&local, SLOW).unwrap(), RecognitionStep::Recognized(one));
+        assert_eq!(base.local_recognition_step(&local, SLOW).unwrap(), RecognitionStep::Idle);
+        assert_eq!(local.calls(), 1);
+        assert_eq!(text_of(&base, "uno.png").1, "rapidocr-onnx:ppocrv6-small");
+        assert_eq!(state_of(&base, "dos.pdf"), "needs-recognition");
+        assert_eq!(base.next_recognition().unwrap(), Some(two));
+
+        // A document read by the local engine is not read again by itself.
+        let chosen = fake("m", vec![Ok(PAGE_ONE), Ok(PAGE_TWO)]);
+        assert_eq!(run(&base, &chosen), vec![RecognitionStep::Recognized(two)]);
+        assert_eq!(text_of(&base, "uno.png").1, "rapidocr-onnx:ppocrv6-small");
     }
 
     #[test]

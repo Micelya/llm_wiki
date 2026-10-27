@@ -33,6 +33,7 @@ use serde::{Deserialize, Serialize};
 use super::{sql_err, DocBase};
 use crate::source_volume::asking::{reasoning_level, AskConfig};
 use crate::source_volume::recognition::RecognitionConfig;
+use crate::source_volume::recognition_local;
 
 /// Where the registry is kept (`docbase_setting`).
 const AI_SERVICES_SETTING: &str = "ai-services";
@@ -216,11 +217,37 @@ pub(crate) fn ask_engine(conn: &Connection) -> Result<Option<AskConfig>, String>
 /// the base can run it.
 pub(crate) fn recognition_engine(conn: &Connection) -> Result<Option<RecognitionConfig>, String> {
     let (services, _) = ai_services(conn)?;
-    Ok(services
-        .recognize
-        .engine
-        .filter(|choice| runs_in_base(Service::Recognize, &choice.engine))
-        .map(|choice| RecognitionConfig { engine: choice.engine, model: choice.model }))
+    let chosen = services.recognize.engine.filter(|choice| runs_in_base(Service::Recognize, &choice.engine));
+    Ok(match chosen {
+        // The engine of this computer, only while its models are there.
+        Some(choice) if choice.engine == recognition_local::ENGINE => local_recognition_engine(),
+        Some(choice) => Some(RecognitionConfig { engine: choice.engine, model: choice.model }),
+        // None chosen: the one of this computer, by default (D-558).
+        None => local_recognition_engine(),
+    })
+}
+
+/// The engine of this computer (D-558), when its models are there. It
+/// reads the new scans in the background, the automatic reading on or off
+/// (`recognize.rs`): no model in the cloud is asked.
+pub(crate) fn local_recognition_engine() -> Option<RecognitionConfig> {
+    recognition_local::unavailable()
+        .is_none()
+        .then(|| RecognitionConfig { engine: recognition_local::ENGINE.to_string(), model: recognition_local::catalog().model_set.clone() })
+}
+
+/// The catalog for the screens: the engine of this computer says why it is
+/// not available when its models are missing (`unavailable`).
+fn catalog_for_screens() -> serde_json::Value {
+    let mut value = catalog_value().clone();
+    if let Some(why) = recognition_local::unavailable() {
+        if let Some(engines) = value.get_mut("engines").and_then(|engines| engines.as_array_mut()) {
+            for entry in engines.iter_mut().filter(|entry| entry["id"] == recognition_local::ENGINE) {
+                entry["unavailable"] = serde_json::Value::String(why.clone());
+            }
+        }
+    }
+    value
 }
 
 /// Why a choice cannot be saved, or `None`.
@@ -268,7 +295,7 @@ impl DocBase {
     /// The registry for the screens, with the catalog.
     pub fn ai_services(&self) -> Result<AiServicesView, String> {
         let (services, saved) = ai_services(&self.conn())?;
-        Ok(AiServicesView { services, saved, catalog: catalog_value().clone() })
+        Ok(AiServicesView { services, saved, catalog: catalog_for_screens() })
     }
 
     /// Saves the whole registry; the next request uses it. Every engine
