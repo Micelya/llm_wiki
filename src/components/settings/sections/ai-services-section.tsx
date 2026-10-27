@@ -146,6 +146,12 @@ export function AiServicesSection({ onOpen }: { onOpen: (place: ConnectionsPlace
                 </Button>
               </div>
             )}
+            {engine?.unavailable && (
+              <p className="text-xs text-warn">
+                No está disponible en esta computadora: faltan sus modelos, que se instalan con la app. Mientras falten,
+                los escaneos los lee el motor elegido, con la lectura automática prendida o a pedido.
+              </p>
+            )}
             {choice.engine && engine && !engine.inBase && service.id !== "research" && (
               <p className="text-xs text-warn">
                 {service.id === "ask"
@@ -313,12 +319,20 @@ function ChoiceEditor({ label, service, catalog, presets, providerConfigs, searc
           <option value="">Ninguno</option>
           {options.map((option) => {
             // An engine whose shared connection is not loaded cannot be chosen.
-            const missing = !connected(catalogEngine(catalog, service, option.engine)?.connection)
+            const entry = catalogEngine(catalog, service, option.engine)
+            const missing = !connected(entry?.connection)
+            // The engine of this computer without its models.
+            const unavailable = !!entry?.unavailable
             return (
-              <option key={option.value} value={option.value} disabled={missing && option.value !== (choice ? optionValue(service, choice) : "")}>
+              <option
+                key={option.value}
+                value={option.value}
+                disabled={(missing || unavailable) && option.value !== (choice ? optionValue(service, choice) : "")}
+              >
                 {option.label}
                 {service === "research" && !searchConfigured(option.connection) ? " (faltan sus datos)" : ""}
                 {missing ? " (falta la conexión)" : ""}
+                {unavailable ? " (no disponible)" : ""}
               </option>
             )
           })}

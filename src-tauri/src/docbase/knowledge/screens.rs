@@ -395,7 +395,7 @@ impl DocBase {
             }
             let row: Option<(Option<String>, i64, i64)> = conn
                 .query_row(
-                    "SELECT error, mentions, evidence FROM knowledge_extraction WHERE content_id = ?1",
+                    "SELECT error, mentions, evidence FROM knowledge_extraction WHERE version_id = ?1",
                     [standing.content_id],
                     |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
                 )
@@ -445,7 +445,7 @@ impl DocBase {
         // Claims in conflict, by entity and what they are about.
         let mut conflicts: BTreeMap<(String, String, Option<String>, Option<String>), ConflictGroup> = BTreeMap::new();
         {
-            let (condition, params) = visible_content("e.content_id", visible);
+            let (condition, params) = visible_content("e.version_id", visible);
             let mut statement = conn
                 .prepare(&format!(
                     "SELECT DISTINCT c.id, c.subject, s.name, s.kind, c.predicate, c.context_entity, w.name, c.qualifier,
@@ -496,11 +496,11 @@ impl DocBase {
         let mut identifier_joins = Vec::new();
         {
             let since = now_ms() - rules.recent_join_days * 24 * 60 * 60 * 1000;
-            let (condition, params) = visible_content("m.content_id", visible);
+            let (condition, params) = visible_content("m.version_id", visible);
             let mut statement = conn
                 .prepare(&format!(
                     "SELECT e.id, e.name, e.kind, max(k.extracted_at) FROM knowledge_mention m
-                     JOIN knowledge_entity e ON e.id = m.entity_id JOIN knowledge_extraction k ON k.content_id = m.content_id
+                     JOIN knowledge_entity e ON e.id = m.entity_id JOIN knowledge_extraction k ON k.version_id = m.version_id
                      WHERE m.resolved_by = 'identificador' AND e.state = 'active' AND {condition}
                      GROUP BY e.id HAVING max(k.extracted_at) >= ? ORDER BY max(k.extracted_at) DESC, e.name"
                 ))
@@ -513,11 +513,11 @@ impl DocBase {
                 .collect::<Result<_, _>>()
                 .map_err(sql_err)?;
             drop(statement);
-            let (condition, params) = visible_content("m.content_id", visible);
+            let (condition, params) = visible_content("m.version_id", visible);
             for (id, name, kind, read_at) in rows {
                 let mut statement = conn
                     .prepare(&format!(
-                        "SELECT m.written, m.normalized, m.content_id FROM knowledge_mention m WHERE m.entity_id = ? AND {condition}
+                        "SELECT m.written, m.normalized, m.version_id FROM knowledge_mention m WHERE m.entity_id = ? AND {condition}
                          ORDER BY m.id"
                     ))
                     .map_err(sql_err)?;
@@ -584,8 +584,8 @@ impl DocBase {
             let visible_contents = visible_contents(&conn, visible)?;
             let mut statement = conn
                 .prepare(
-                    "SELECT m.id, m.name, d.content_id, d.reasons FROM knowledge_matter m JOIN knowledge_matter_document d ON d.matter_id = m.id
-                     WHERE m.state = 'active' AND m.status = 'open' AND m.confirmation = 'proposed' AND d.state = 'firm' ORDER BY m.id, d.content_id",
+                    "SELECT m.id, m.name, d.version_id, d.reasons FROM knowledge_matter m JOIN knowledge_matter_document d ON d.matter_id = m.id
+                     WHERE m.state = 'active' AND m.status = 'open' AND m.confirmation = 'proposed' AND d.state = 'firm' ORDER BY m.id, d.version_id",
                 )
                 .map_err(sql_err)?;
             let rows = statement
@@ -643,8 +643,8 @@ impl DocBase {
                 let list = left.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(",");
                 let mut statement = conn
                     .prepare(&format!(
-                        "SELECT e.id, e.name, e.kind, g.content_id FROM knowledge_gone_mention g JOIN knowledge_entity e ON e.id = g.entity_id
-                         WHERE e.state = 'retired' AND g.content_id IN ({list}) ORDER BY e.name, g.content_id"
+                        "SELECT e.id, e.name, e.kind, g.version_id FROM knowledge_gone_mention g JOIN knowledge_entity e ON e.id = g.entity_id
+                         WHERE e.state = 'retired' AND g.version_id IN ({list}) ORDER BY e.name, g.version_id"
                     ))
                     .map_err(sql_err)?;
                 let rows: Vec<(String, String, String, i64)> = statement
@@ -688,13 +688,13 @@ impl DocBase {
     /// first.
     pub fn knowledge_matters(&self, visible: &Visible) -> Result<Vec<MatterSummary>, String> {
         let conn = self.conn();
-        let (condition, params) = visible_content("d.content_id", visible);
+        let (condition, params) = visible_content("d.version_id", visible);
         let mut statement = conn
             .prepare(&format!(
-                "SELECT m.id, m.name, count(d.content_id), m.status, m.origin, m.confirmation FROM knowledge_matter m
+                "SELECT m.id, m.name, count(d.version_id), m.status, m.origin, m.confirmation FROM knowledge_matter m
                  LEFT JOIN knowledge_matter_document d ON d.matter_id = m.id
-                 WHERE m.state = 'active' AND ((d.content_id IS NULL AND m.origin = 'person') OR {condition})
-                 GROUP BY m.id ORDER BY count(d.content_id) DESC, m.name"
+                 WHERE m.state = 'active' AND ((d.version_id IS NULL AND m.origin = 'person') OR {condition})
+                 GROUP BY m.id ORDER BY count(d.version_id) DESC, m.name"
             ))
             .map_err(sql_err)?;
         let rows: Vec<(String, String, i64, String, String, String)> = statement
@@ -740,11 +740,11 @@ impl DocBase {
             .map_err(sql_err)?;
         let Some((name, state, status, origin, confirmation)) = found else { return Ok(None) };
         let mut names: Names = HashMap::new();
-        let (condition, params) = visible_content("d.content_id", visible);
+        let (condition, params) = visible_content("d.version_id", visible);
         let mut statement = conn
             .prepare(&format!(
-                "SELECT d.content_id, d.state, d.reasons FROM knowledge_matter_document d WHERE d.matter_id = ? AND {condition}
-                 ORDER BY d.content_id"
+                "SELECT d.version_id, d.state, d.reasons FROM knowledge_matter_document d WHERE d.matter_id = ? AND {condition}
+                 ORDER BY d.version_id"
             ))
             .map_err(sql_err)?;
         let rows: Vec<(i64, String, String)> = statement
@@ -811,8 +811,8 @@ impl DocBase {
             let list = firm.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(",");
             let mut statement = conn
                 .prepare(&format!(
-                    "SELECT m.content_id, m.role, e.id, e.kind, e.name FROM knowledge_mention m JOIN knowledge_entity e ON e.id = m.entity_id
-                     WHERE m.content_id IN ({list}) AND e.state = 'active' AND e.kind != ?1 ORDER BY e.name, m.id"
+                    "SELECT m.version_id, m.role, e.id, e.kind, e.name FROM knowledge_mention m JOIN knowledge_entity e ON e.id = m.entity_id
+                     WHERE m.version_id IN ({list}) AND e.state = 'active' AND e.kind != ?1 ORDER BY e.name, m.id"
                 ))
                 .map_err(sql_err)?;
             let rows = statement
@@ -933,7 +933,7 @@ impl DocBase {
         let others: Vec<i64> = {
             let conn = self.conn();
             let mut statement = conn
-                .prepare("SELECT content_id FROM knowledge_matter_document WHERE matter_id = ?1 AND content_id != ?2 ORDER BY content_id")
+                .prepare("SELECT version_id FROM knowledge_matter_document WHERE matter_id = ?1 AND version_id != ?2 ORDER BY version_id")
                 .map_err(sql_err)?;
             let rows = statement.query_map(rusqlite::params![matter_id, content], |row| row.get(0)).map_err(sql_err)?;
             rows.collect::<Result<_, _>>().map_err(sql_err)?
@@ -975,7 +975,7 @@ impl DocBase {
             "discard" => {
                 let documents: Vec<i64> = {
                     let mut statement =
-                        conn.prepare("SELECT content_id FROM knowledge_matter_document WHERE matter_id = ?1 ORDER BY content_id").map_err(sql_err)?;
+                        conn.prepare("SELECT version_id FROM knowledge_matter_document WHERE matter_id = ?1 ORDER BY version_id").map_err(sql_err)?;
                     let rows = statement.query_map([matter_id], |row| row.get(0)).map_err(sql_err)?;
                     rows.collect::<Result<_, _>>().map_err(sql_err)?
                 };
@@ -1010,7 +1010,7 @@ impl DocBase {
         let first: Option<i64> = self
             .conn()
             .query_row(
-                "SELECT content_id FROM knowledge_matter_document WHERE matter_id = ?1 AND content_id != ?2 ORDER BY content_id LIMIT 1",
+                "SELECT version_id FROM knowledge_matter_document WHERE matter_id = ?1 AND version_id != ?2 ORDER BY version_id LIMIT 1",
                 rusqlite::params![matter_id, content],
                 |row| row.get(0),
             )
@@ -1028,7 +1028,7 @@ impl DocBase {
         if let Some(id) = reference.strip_prefix("location:").and_then(|s| s.parse::<i64>().ok()) {
             let content: Option<i64> = self
                 .conn()
-                .query_row("SELECT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.id = ?1", [id], |row| row.get(0))
+                .query_row("SELECT f.version_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.id = ?1", [id], |row| row.get(0))
                 .optional()
                 .map_err(sql_err)?;
             return content.ok_or_else(|| "Ese documento ya no existe".to_string());
@@ -1040,7 +1040,7 @@ impl DocBase {
 /// The contents `visible` lets see.
 fn visible_contents(conn: &Connection, visible: &Visible) -> Result<BTreeSet<i64>, String> {
     let (condition, params) = visible_content("c.id", visible);
-    let mut statement = conn.prepare(&format!("SELECT c.id FROM content c WHERE {condition}")).map_err(sql_err)?;
+    let mut statement = conn.prepare(&format!("SELECT c.id FROM version c WHERE {condition}")).map_err(sql_err)?;
     let rows = statement.query_map(params_from_iter(params.iter()), |row| row.get(0)).map_err(sql_err)?;
     rows.collect::<Result<_, _>>().map_err(sql_err)
 }
@@ -1054,8 +1054,8 @@ pub(crate) fn document_matters(conn: &Connection, contents: &[i64], paths: &Hash
     let list = contents.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(",");
     let mut statement = conn
         .prepare(&format!(
-            "SELECT d.content_id, m.id, m.name FROM knowledge_matter_document d JOIN knowledge_matter m ON m.id = d.matter_id
-             WHERE m.state = 'active' AND d.content_id IN ({list}) ORDER BY d.content_id, m.name"
+            "SELECT d.version_id, m.id, m.name FROM knowledge_matter_document d JOIN knowledge_matter m ON m.id = d.matter_id
+             WHERE m.state = 'active' AND d.version_id IN ({list}) ORDER BY d.version_id, m.name"
         ))
         .map_err(sql_err)?;
     let rows = statement
@@ -1087,7 +1087,7 @@ pub(crate) fn document_matters(conn: &Connection, contents: &[i64], paths: &Hash
 /// The decisions of a person about an entity: those on its groups of
 /// mentions, its claims and its evidence, the latest first.
 pub(crate) fn entity_decisions(conn: &Connection, entity: &str) -> Result<Vec<DecisionView>, String> {
-    let mut statement = conn.prepare("SELECT content_id, kind, normalized FROM knowledge_mention WHERE entity_id = ?1").map_err(sql_err)?;
+    let mut statement = conn.prepare("SELECT version_id, kind, normalized FROM knowledge_mention WHERE entity_id = ?1").map_err(sql_err)?;
     let rows: Vec<(i64, String, String)> = statement
         .query_map([entity], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
         .map_err(sql_err)?
@@ -1106,10 +1106,10 @@ pub(crate) fn entity_decisions(conn: &Connection, entity: &str) -> Result<Vec<De
 
 /// The claims of other entities whose object is this one.
 pub(crate) fn incoming_claims(conn: &Connection, visible: &Visible, entity: &str) -> Result<Vec<IncomingClaim>, String> {
-    let (condition, params) = visible_content("e.content_id", visible);
+    let (condition, params) = visible_content("e.version_id", visible);
     let mut statement = conn
         .prepare(&format!(
-            "SELECT c.id, s.id, s.name, s.kind, c.predicate, c.state, count(DISTINCT e.content_id) FROM knowledge_claim c
+            "SELECT c.id, s.id, s.name, s.kind, c.predicate, c.state, count(DISTINCT e.version_id) FROM knowledge_claim c
              JOIN knowledge_entity s ON s.id = c.subject JOIN knowledge_evidence e ON e.claim_id = c.id
              WHERE c.object_entity = ? AND c.state != 'retired' AND s.state = 'active' AND {condition}
              GROUP BY c.id ORDER BY c.predicate, s.name"

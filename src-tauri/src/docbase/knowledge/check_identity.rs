@@ -94,7 +94,7 @@ fn identity_against_the_entity_sheet() {
     let read: Vec<Read> = {
         let conn = base.conn();
         let mut statement = conn
-            .prepare("SELECT id, content_id, kind, normalized, written, entity_id, resolved_by FROM knowledge_mention ORDER BY id")
+            .prepare("SELECT id, version_id, kind, normalized, written, entity_id, resolved_by FROM knowledge_mention ORDER BY id")
             .unwrap();
         let rows = statement
             .query_map([], |row| {

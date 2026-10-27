@@ -81,8 +81,8 @@ impl DocBase {
         let (condition, bound) = visible.condition("l.origin_id");
         let visible_contents: BTreeSet<i64> = {
             let sql = format!(
-                "SELECT DISTINCT f.content_id FROM file f JOIN location l ON l.file_hash = f.hash
-                 WHERE l.kind = 'file' AND f.content_id IS NOT NULL AND {condition}"
+                "SELECT DISTINCT f.version_id FROM file f JOIN location l ON l.file_hash = f.hash
+                 WHERE l.kind = 'file' AND f.version_id IS NOT NULL AND {condition}"
             );
             let mut statement = conn.prepare(&sql).map_err(sql_err)?;
             let rows = statement
@@ -135,7 +135,7 @@ impl DocBase {
             for member in &seen {
                 let sql = format!(
                     "SELECT l.id FROM location l JOIN file f ON f.hash = l.file_hash
-                     WHERE f.content_id = ?1 AND l.kind = 'file' AND {condition} ORDER BY l.id LIMIT 1"
+                     WHERE f.version_id = ?1 AND l.kind = 'file' AND {condition} ORDER BY l.id LIMIT 1"
                 );
                 let mut values = vec![Value::Integer(*member)];
                 values.extend(bound.iter().cloned().map(Value::Text));
@@ -220,8 +220,8 @@ impl DocBase {
         {
             let mut statement = conn
                 .prepare(
-                    "SELECT content_id, entity_id, role, min(quote) FROM knowledge_mention
-                     WHERE entity_id IS NOT NULL GROUP BY content_id, entity_id, role",
+                    "SELECT version_id, entity_id, role, min(quote) FROM knowledge_mention
+                     WHERE entity_id IS NOT NULL GROUP BY version_id, entity_id, role",
                 )
                 .map_err(sql_err)?;
             let rows = statement
@@ -248,7 +248,7 @@ impl DocBase {
                 .prepare(
                     "SELECT c.subject, c.object_entity, c.predicate, c.state, c.certainty,
                             (SELECT e.quote FROM knowledge_evidence e WHERE e.claim_id = c.id ORDER BY e.id LIMIT 1),
-                            (SELECT group_concat(DISTINCT e.content_id) FROM knowledge_evidence e WHERE e.claim_id = c.id)
+                            (SELECT group_concat(DISTINCT e.version_id) FROM knowledge_evidence e WHERE e.claim_id = c.id)
                      FROM knowledge_claim c WHERE c.object_entity IS NOT NULL AND c.state != 'retired'",
                 )
                 .map_err(sql_err)?;
@@ -311,7 +311,7 @@ impl DocBase {
         // A matter and its documents.
         {
             let mut statement = conn
-                .prepare("SELECT matter_id, content_id, state FROM knowledge_matter_document")
+                .prepare("SELECT matter_id, version_id, state FROM knowledge_matter_document")
                 .map_err(sql_err)?;
             let rows = statement
                 .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?, row.get::<_, String>(2)?)))

@@ -384,7 +384,7 @@ fn the_page_of_a_document_has_a_readable_title_and_its_dates_in_the_words_of_the
     let content = content_of(&base, "scan-001.txt");
     base.conn()
         .execute(
-            "INSERT OR REPLACE INTO document_data (content_id, doc_type, data, missing, question, basis, computed_at)
+            "INSERT OR REPLACE INTO document_data (version_id, doc_type, data, missing, question, basis, computed_at)
              VALUES (?1, 'factura', ?2, '[]', NULL, 'prueba', 0)",
             rusqlite::params![
                 content,
@@ -722,7 +722,7 @@ fn versions_model() -> FakeModel {
 
 fn content_of(base: &DocBase, name: &str) -> i64 {
     base.conn()
-        .query_row("SELECT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.name = ?1", [name], |row| row.get(0))
+        .query_row("SELECT f.version_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.name = ?1", [name], |row| row.get(0))
         .unwrap()
 }
 
@@ -756,11 +756,11 @@ fn the_versions_of_a_document_share_a_page_and_say_which_version_says_what() {
     {
         let conn = base.conn();
         conn.execute("DELETE FROM similar_pair", []).unwrap();
-        conn.execute("UPDATE document_type SET stage = 'borrador' WHERE content_id = ?1", [v1]).unwrap();
-        conn.execute("UPDATE document_type SET stage = 'firmado' WHERE content_id = ?1", [v2]).unwrap();
+        conn.execute("UPDATE document_type SET stage = 'borrador' WHERE version_id = ?1", [v1]).unwrap();
+        conn.execute("UPDATE document_type SET stage = 'firmado' WHERE version_id = ?1", [v2]).unwrap();
         for (content, price) in [(v1, "$ 1.000"), (v2, "$ 1.200")] {
             conn.execute(
-                "INSERT OR REPLACE INTO document_data (content_id, doc_type, data, missing, question, basis, computed_at)
+                "INSERT OR REPLACE INTO document_data (version_id, doc_type, data, missing, question, basis, computed_at)
                  VALUES (?1, 'contrato', ?2, '[]', NULL, 'prueba', 0)",
                 rusqlite::params![content, serde_json::json!([{ "field": "precio", "value": price }, { "field": "plazo", "value": "doce meses" }]).to_string()],
             )

@@ -195,11 +195,11 @@ fn hash(parts: &[&str]) -> String {
 pub(crate) fn load_rows(conn: &Connection) -> Result<Vec<Row>, String> {
     let mut statement = conn
         .prepare(&format!(
-            "SELECT m.id, m.content_id, m.ref, m.same_as, m.kind, m.written, m.normalized, m.role, m.quote, m.entity_id, m.defined
-             FROM knowledge_mention m JOIN knowledge_extraction k ON k.content_id = m.content_id AND k.state = 'done'
+            "SELECT m.id, m.version_id, m.ref, m.same_as, m.kind, m.written, m.normalized, m.role, m.quote, m.entity_id, m.defined
+             FROM knowledge_mention m JOIN knowledge_extraction k ON k.version_id = m.version_id AND k.state = 'done'
              WHERE {}
-             ORDER BY m.content_id, m.id",
-            changes::active_content("m.content_id")
+             ORDER BY m.version_id, m.id",
+            changes::active_content("m.version_id")
         ))
         .map_err(sql_err)?;
     let hints = changes::entity_hints(conn)?;
@@ -242,7 +242,7 @@ fn load_identifiers(conn: &Connection) -> Result<HashMap<i64, Vec<(String, Strin
 }
 
 fn load_hashes(conn: &Connection) -> Result<HashMap<i64, String>, String> {
-    let mut statement = conn.prepare("SELECT content_id, text_hash FROM knowledge_extraction").map_err(sql_err)?;
+    let mut statement = conn.prepare("SELECT version_id, text_hash FROM knowledge_extraction").map_err(sql_err)?;
     let rows = statement.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))).map_err(sql_err)?;
     rows.collect::<Result<HashMap<_, _>, _>>().map_err(sql_err)
 }

@@ -108,7 +108,7 @@ fn model() -> FakeModel {
 fn entity(base: &DocBase, document: &str, written: &str) -> Option<String> {
     base.conn()
         .query_row(
-            "SELECT m.entity_id FROM knowledge_mention m JOIN file f ON f.content_id = m.content_id
+            "SELECT m.entity_id FROM knowledge_mention m JOIN file f ON f.version_id = m.version_id
              JOIN location l ON l.file_hash = f.hash WHERE l.name = ?1 AND m.written = ?2",
             [document, written],
             |row| row.get(0),
@@ -179,8 +179,8 @@ fn companies_of_one_name_areas_and_their_group() {
         .conn()
         .query_row(
             "SELECT count(*) FROM knowledge_matter_document a JOIN knowledge_matter_document b ON a.matter_id = b.matter_id
-             WHERE a.content_id = (SELECT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.name = 'g6.txt')
-               AND b.content_id = (SELECT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.name = 'g7.txt')",
+             WHERE a.version_id = (SELECT f.version_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.name = 'g6.txt')
+               AND b.version_id = (SELECT f.version_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.name = 'g7.txt')",
             [],
             |row| row.get(0),
         )
@@ -241,7 +241,7 @@ fn a_matter_is_named_by_the_claim_between_its_parties_and_a_number_in_the_text_j
     let conn = base.conn();
     let (name, documents): (String, i64) = conn
         .query_row(
-            "SELECT m.name, count(d.content_id) FROM knowledge_matter m JOIN knowledge_matter_document d ON d.matter_id = m.id
+            "SELECT m.name, count(d.version_id) FROM knowledge_matter m JOIN knowledge_matter_document d ON d.matter_id = m.id
              WHERE m.state = 'active' AND m.name LIKE '%Muestra Dos%' GROUP BY m.id",
             [],
             |row| Ok((row.get(0)?, row.get(1)?)),
@@ -349,7 +349,7 @@ fn matter_asker() -> FakeModel {
 
 fn content_of(base: &DocBase, file: &str) -> i64 {
     base.conn()
-        .query_row("SELECT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.name = ?1", [file], |row| row.get(0))
+        .query_row("SELECT f.version_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.name = ?1", [file], |row| row.get(0))
         .unwrap()
 }
 
@@ -358,7 +358,7 @@ fn active_matters(base: &DocBase) -> Vec<(String, i64, String)> {
     let conn = base.conn();
     let mut statement = conn
         .prepare(
-            "SELECT m.id, count(d.content_id), m.confirmation FROM knowledge_matter m JOIN knowledge_matter_document d ON d.matter_id = m.id
+            "SELECT m.id, count(d.version_id), m.confirmation FROM knowledge_matter m JOIN knowledge_matter_document d ON d.matter_id = m.id
              WHERE m.state = 'active' GROUP BY m.id ORDER BY m.id",
         )
         .unwrap();
@@ -442,7 +442,7 @@ fn a_confirmed_or_discarded_matter_stays_so_when_grouped_again() {
 
 fn documents_of(base: &DocBase, id: &str) -> Vec<i64> {
     let conn = base.conn();
-    let mut statement = conn.prepare("SELECT content_id FROM knowledge_matter_document WHERE matter_id = ?1 ORDER BY content_id").unwrap();
+    let mut statement = conn.prepare("SELECT version_id FROM knowledge_matter_document WHERE matter_id = ?1 ORDER BY version_id").unwrap();
     let rows = statement.query_map([id], |row| row.get(0)).unwrap();
     rows.collect::<Result<_, _>>().unwrap()
 }

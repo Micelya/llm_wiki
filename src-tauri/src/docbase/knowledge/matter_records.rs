@@ -140,7 +140,7 @@ impl DocBase {
             None => (create(&tx, record, now)?, true),
         };
         attach(&tx, &matter, record, now)?;
-        let chosen: BTreeSet<i64> = ids(&tx, "SELECT content_id FROM knowledge_matter_choice WHERE matter_id = ?1", &matter)?;
+        let chosen: BTreeSet<i64> = ids(&tx, "SELECT version_id FROM knowledge_matter_choice WHERE matter_id = ?1", &matter)?;
         let mut added = 0;
         for content in contents.iter().filter(|c| !chosen.contains(c)) {
             put(&tx, &matter, *content, now)?;
@@ -308,8 +308,8 @@ fn ids(conn: &Connection, sql: &str, matter: &str) -> Result<BTreeSet<i64>, Stri
 fn documents_of(conn: &Connection, matter: &str) -> Result<BTreeSet<i64>, String> {
     ids(
         conn,
-        "SELECT content_id FROM knowledge_matter_document WHERE matter_id = ?1
-         UNION SELECT content_id FROM knowledge_matter_choice WHERE matter_id = ?1 AND choice = 'in'",
+        "SELECT version_id FROM knowledge_matter_document WHERE matter_id = ?1
+         UNION SELECT version_id FROM knowledge_matter_choice WHERE matter_id = ?1 AND choice = 'in'",
         matter,
     )
 }
@@ -399,7 +399,7 @@ fn untouched(conn: &Connection, matter: &str, contents: &BTreeSet<i64>) -> Resul
     let out: i64 = conn
         .query_row("SELECT count(*) FROM knowledge_matter_choice WHERE matter_id = ?1 AND choice = 'out'", [matter], |row| row.get(0))
         .map_err(sql_err)?;
-    let put_in = ids(conn, "SELECT content_id FROM knowledge_matter_choice WHERE matter_id = ?1 AND choice = 'in'", matter)?;
+    let put_in = ids(conn, "SELECT version_id FROM knowledge_matter_choice WHERE matter_id = ?1 AND choice = 'in'", matter)?;
     let answered: i64 = conn
         .query_row(
             "SELECT count(*) FROM knowledge_matter_question WHERE answer IS NOT NULL AND (record_matter = ?1 OR other_matter = ?1)",
@@ -508,8 +508,8 @@ fn ask(conn: &Connection, record: &RecordInput, own: &str, contents: &BTreeSet<i
     {
         let mut statement = conn
             .prepare_cached(
-                "SELECT matter_id FROM knowledge_matter_document WHERE content_id = ?1
-                 UNION SELECT matter_id FROM knowledge_matter_choice WHERE content_id = ?1 AND choice = 'in'",
+                "SELECT matter_id FROM knowledge_matter_document WHERE version_id = ?1
+                 UNION SELECT matter_id FROM knowledge_matter_choice WHERE version_id = ?1 AND choice = 'in'",
             )
             .map_err(sql_err)?;
         for content in contents {
@@ -519,7 +519,7 @@ fn ask(conn: &Connection, record: &RecordInput, own: &str, contents: &BTreeSet<i
             }
         }
         let cite = super::references::documents_citing(conn, vocabulary(), record.number, record.year)?;
-        let mut statement = conn.prepare_cached("SELECT matter_id FROM knowledge_matter_document WHERE content_id = ?1").map_err(sql_err)?;
+        let mut statement = conn.prepare_cached("SELECT matter_id FROM knowledge_matter_document WHERE version_id = ?1").map_err(sql_err)?;
         for content in &cite {
             let rows = statement.query_map([content], |row| row.get::<_, String>(0)).map_err(sql_err)?;
             for row in rows {
@@ -576,7 +576,7 @@ fn ask(conn: &Connection, record: &RecordInput, own: &str, contents: &BTreeSet<i
 /// confirmed, and it is retired. The other keeps a name a person gave; else
 /// it is named by its records.
 fn join(conn: &Connection, from: &str, into: &str, now: i64) -> Result<(), String> {
-    let taken_out = ids(conn, "SELECT content_id FROM knowledge_matter_choice WHERE matter_id = ?1 AND choice = 'out'", into)?;
+    let taken_out = ids(conn, "SELECT version_id FROM knowledge_matter_choice WHERE matter_id = ?1 AND choice = 'out'", into)?;
     for content in documents_of(conn, from)? {
         if !taken_out.contains(&content) {
             put(conn, into, content, now)?;

@@ -42,7 +42,7 @@ const LEFT_OUT_SETTING: &str = "knowledge-left-out";
 pub(crate) fn active_content(column: &str) -> String {
     format!(
         "EXISTS (SELECT 1 FROM file af JOIN location l ON l.file_hash = af.hash
-                 WHERE af.content_id = {column} AND NOT {})",
+                 WHERE af.version_id = {column} AND NOT {})",
         excluded_sql!()
     )
 }
@@ -52,10 +52,10 @@ pub(crate) fn active_content(column: &str) -> String {
 pub(crate) fn left_out(conn: &Connection) -> Result<BTreeSet<i64>, String> {
     let mut statement = conn
         .prepare(&format!(
-            "SELECT k.content_id FROM knowledge_extraction k
-             WHERE EXISTS (SELECT 1 FROM file f JOIN location l ON l.file_hash = f.hash WHERE f.content_id = k.content_id)
+            "SELECT k.version_id FROM knowledge_extraction k
+             WHERE EXISTS (SELECT 1 FROM file f JOIN location l ON l.file_hash = f.hash WHERE f.version_id = k.version_id)
                AND NOT {}",
-            active_content("k.content_id")
+            active_content("k.version_id")
         ))
         .map_err(sql_err)?;
     let rows = statement.query_map([], |row| row.get::<_, i64>(0)).map_err(sql_err)?;
@@ -99,7 +99,7 @@ pub(crate) fn notice_left_out(conn: &Connection) -> Result<bool, String> {
 pub(crate) fn successors(conn: &Connection) -> Result<HashMap<i64, i64>, String> {
     let gone: Vec<(i64, Option<String>)> = {
         let mut statement = conn
-            .prepare("SELECT g.content_id, g.text_hash FROM knowledge_gone g WHERE NOT EXISTS (SELECT 1 FROM content c WHERE c.id = g.content_id)")
+            .prepare("SELECT g.version_id, g.text_hash FROM knowledge_gone g WHERE NOT EXISTS (SELECT 1 FROM version c WHERE c.id = g.version_id)")
             .map_err(sql_err)?;
         let rows = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?))).map_err(sql_err)?;
         rows.collect::<Result<_, _>>().map_err(sql_err)?
@@ -108,15 +108,15 @@ pub(crate) fn successors(conn: &Connection) -> Result<HashMap<i64, i64>, String>
     for (content, text_hash) in gone {
         let same_text: Option<i64> = match &text_hash {
             Some(hash) => conn
-                .query_row("SELECT id FROM content WHERE text_hash = ?1 AND id != ?2", params![hash, content], |row| row.get(0))
+                .query_row("SELECT id FROM version WHERE text_hash = ?1 AND id != ?2", params![hash, content], |row| row.get(0))
                 .ok(),
             None => None,
         };
         // The same bytes back (a text too short for a fingerprint).
         let same_file = || -> Option<i64> {
             conn.query_row(
-                "SELECT f.content_id FROM knowledge_gone_file g JOIN file f ON f.hash = g.hash
-                 WHERE g.content_id = ?1 AND f.content_id != ?1 ORDER BY f.content_id DESC LIMIT 1",
+                "SELECT f.version_id FROM knowledge_gone_file g JOIN file f ON f.hash = g.hash
+                 WHERE g.version_id = ?1 AND f.version_id != ?1 ORDER BY f.version_id DESC LIMIT 1",
                 [content],
                 |row| row.get(0),
             )
@@ -126,11 +126,11 @@ pub(crate) fn successors(conn: &Connection) -> Result<HashMap<i64, i64>, String>
             Some(next) => Some(next),
             None => conn
                 .query_row(
-                    "SELECT f.content_id FROM knowledge_gone_file g
+                    "SELECT f.version_id FROM knowledge_gone_file g
                      JOIN change ch ON ch.file_hash = g.hash AND ch.kind = 'modified'
                      JOIN location l ON l.origin_id = ch.origin_id AND l.rel_path = ch.rel_path
                      JOIN file f ON f.hash = l.file_hash
-                     WHERE g.content_id = ?1 AND f.content_id != ?1
+                     WHERE g.version_id = ?1 AND f.version_id != ?1
                      ORDER BY ch.id DESC LIMIT 1",
                     [content],
                     |row| row.get(0),
@@ -204,7 +204,7 @@ fn predecessors(successors: &HashMap<i64, i64>) -> BTreeMap<i64, Vec<i64>> {
 pub(crate) fn entity_hints(conn: &Connection) -> Result<HashMap<(i64, String, String), String>, String> {
     let mut kept: HashMap<i64, Vec<(String, String, String)>> = HashMap::new();
     {
-        let mut statement = conn.prepare("SELECT content_id, kind, normalized, entity_id FROM knowledge_gone_mention").map_err(sql_err)?;
+        let mut statement = conn.prepare("SELECT version_id, kind, normalized, entity_id FROM knowledge_gone_mention").map_err(sql_err)?;
         let rows = statement
             .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, String>(3)?)))
             .map_err(sql_err)?;
@@ -220,7 +220,7 @@ pub(crate) fn entity_hints(conn: &Connection) -> Result<HashMap<(i64, String, St
     let before = predecessors(&successors);
     let mut out = HashMap::new();
     let existing: BTreeSet<i64> = {
-        let mut statement = conn.prepare("SELECT id FROM content").map_err(sql_err)?;
+        let mut statement = conn.prepare("SELECT id FROM version").map_err(sql_err)?;
         let rows = statement.query_map([], |row| row.get::<_, i64>(0)).map_err(sql_err)?;
         rows.collect::<Result<_, _>>().map_err(sql_err)?
     };
@@ -242,9 +242,9 @@ pub(crate) fn entity_hints(conn: &Connection) -> Result<HashMap<(i64, String, St
 pub(crate) fn forget_used_hints(conn: &Connection) -> Result<(), String> {
     conn.execute(
         &format!(
-            "DELETE FROM knowledge_gone_mention WHERE content_id IN (
-                 SELECT k.content_id FROM knowledge_extraction k WHERE k.state = 'done' AND {})",
-            active_content("k.content_id")
+            "DELETE FROM knowledge_gone_mention WHERE version_id IN (
+                 SELECT k.version_id FROM knowledge_extraction k WHERE k.state = 'done' AND {})",
+            active_content("k.version_id")
         ),
         [],
     )
@@ -260,7 +260,7 @@ pub(crate) fn leave_out(conn: &Connection, contents: &BTreeSet<i64>) -> Result<B
     let now = now_ms();
     for content in contents {
         let mut statement = conn
-            .prepare("SELECT kind, normalized, entity_id FROM knowledge_mention WHERE content_id = ?1 AND entity_id IS NOT NULL")
+            .prepare("SELECT kind, normalized, entity_id FROM knowledge_mention WHERE version_id = ?1 AND entity_id IS NOT NULL")
             .map_err(sql_err)?;
         let rows: Vec<(String, String, String)> = statement
             .query_map([content], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
@@ -269,7 +269,7 @@ pub(crate) fn leave_out(conn: &Connection, contents: &BTreeSet<i64>) -> Result<B
             .map_err(sql_err)?;
         for (kind, normalized, entity) in rows {
             conn.execute(
-                "INSERT OR REPLACE INTO knowledge_gone_mention (content_id, kind, normalized, entity_id, gone_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                "INSERT OR REPLACE INTO knowledge_gone_mention (version_id, kind, normalized, entity_id, gone_at) VALUES (?1, ?2, ?3, ?4, ?5)",
                 params![content, kind, normalized, entity, now],
             )
             .map_err(sql_err)?;
@@ -277,7 +277,7 @@ pub(crate) fn leave_out(conn: &Connection, contents: &BTreeSet<i64>) -> Result<B
         }
         conn.execute(
             "UPDATE knowledge_mention SET entity_id = NULL, resolved_by = 'excluido'
-             WHERE content_id = ?1 AND (entity_id IS NOT NULL OR resolved_by IS NOT 'excluido')",
+             WHERE version_id = ?1 AND (entity_id IS NOT NULL OR resolved_by IS NOT 'excluido')",
             [content],
         )
         .map_err(sql_err)?;

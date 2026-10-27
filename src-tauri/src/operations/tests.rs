@@ -33,14 +33,14 @@ fn chat(request: &str) -> Origin {
 
 fn matter_documents(base: &DocBase, matter: &str) -> Vec<i64> {
     let conn = base.conn();
-    let mut statement = conn.prepare("SELECT content_id FROM knowledge_matter_document WHERE matter_id = ?1 ORDER BY content_id").unwrap();
+    let mut statement = conn.prepare("SELECT version_id FROM knowledge_matter_document WHERE matter_id = ?1 ORDER BY version_id").unwrap();
     let rows = statement.query_map([matter], |row| row.get(0)).unwrap();
     rows.map(Result::unwrap).collect()
 }
 
 fn choices(base: &DocBase, matter: &str) -> Vec<(i64, String)> {
     let conn = base.conn();
-    let mut statement = conn.prepare("SELECT content_id, choice FROM knowledge_matter_choice WHERE matter_id = ?1 ORDER BY content_id").unwrap();
+    let mut statement = conn.prepare("SELECT version_id, choice FROM knowledge_matter_choice WHERE matter_id = ?1 ORDER BY version_id").unwrap();
     let rows = statement.query_map([matter], |row| Ok((row.get(0)?, row.get(1)?))).unwrap();
     rows.map(Result::unwrap).collect()
 }
@@ -325,7 +325,7 @@ fn records() -> (crate::docbase::testing::TempDir, DocBase) {
 fn person_with(base: &DocBase, document: &str, name: &str) -> String {
     let conn = base.conn();
     conn.query_row(
-        "SELECT m.entity_id FROM knowledge_mention m JOIN file f ON f.content_id = m.content_id JOIN location l ON l.file_hash = f.hash
+        "SELECT m.entity_id FROM knowledge_mention m JOIN file f ON f.version_id = m.version_id JOIN location l ON l.file_hash = f.hash
          JOIN knowledge_entity e ON e.id = m.entity_id WHERE l.name = ?1 AND m.written = ?2 AND e.state = 'active'",
         [document, name],
         |row| row.get(0),
@@ -392,7 +392,7 @@ fn a_closed_case_leaves_atencion_and_gets_no_proposals() {
         )
         .unwrap();
         for c in [a, b] {
-            conn.execute("INSERT INTO knowledge_matter_document (matter_id, content_id, state, reasons) VALUES ('mat-prueba', ?1, 'firm', '[]')", [c]).unwrap();
+            conn.execute("INSERT INTO knowledge_matter_document (matter_id, version_id, state, reasons) VALUES ('mat-prueba', ?1, 'firm', '[]')", [c]).unwrap();
         }
     }
     let waiting = |base: &DocBase| base.knowledge_attention(&Visible::All).unwrap().matters_to_confirm.iter().any(|m| m.id == "mat-prueba");

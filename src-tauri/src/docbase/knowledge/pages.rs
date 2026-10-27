@@ -816,11 +816,11 @@ fn load(conn: &Connection, identities: &HashMap<i64, String>) -> Result<Record, 
     let chosen = passed_over(conn)?;
     let fold = |content: i64| chosen.get(&content).copied().unwrap_or(content);
     // Only documents that still have a file somewhere count.
-    let (visible, params) = super::visible_content("m.content_id", &Visible::All);
+    let (visible, params) = super::visible_content("m.version_id", &Visible::All);
     {
         let mut statement = conn
             .prepare(&format!(
-                "SELECT m.entity_id, m.content_id, m.role, m.written, m.defined FROM knowledge_mention m
+                "SELECT m.entity_id, m.version_id, m.role, m.written, m.defined FROM knowledge_mention m
                  WHERE m.entity_id IS NOT NULL AND {visible}"
             ))
             .map_err(sql_err)?;
@@ -844,7 +844,7 @@ fn load(conn: &Connection, identities: &HashMap<i64, String>) -> Result<Record, 
     {
         let mut statement = conn
             .prepare(&format!(
-                "SELECT m.entity_id, i.kind, i.value, i.normalized, m.content_id FROM knowledge_identifier i
+                "SELECT m.entity_id, i.kind, i.value, i.normalized, m.version_id FROM knowledge_identifier i
                  JOIN knowledge_mention m ON m.id = i.mention_id WHERE m.entity_id IS NOT NULL AND {visible}"
             ))
             .map_err(sql_err)?;
@@ -869,11 +869,11 @@ fn load(conn: &Connection, identities: &HashMap<i64, String>) -> Result<Record, 
     }
     {
         let mut evidence: HashMap<i64, Vec<(i64, String, Option<i64>)>> = HashMap::new();
-        let (visible_e, params_e) = super::visible_content("e.content_id", &Visible::All);
+        let (visible_e, params_e) = super::visible_content("e.version_id", &Visible::All);
         let mut statement = conn
             .prepare(&format!(
-                "SELECT e.claim_id, e.content_id, e.quote, e.page FROM knowledge_evidence e
-                 WHERE e.claim_id IS NOT NULL AND {visible_e} ORDER BY e.content_id, e.id"
+                "SELECT e.claim_id, e.version_id, e.quote, e.page FROM knowledge_evidence e
+                 WHERE e.claim_id IS NOT NULL AND {visible_e} ORDER BY e.version_id, e.id"
             ))
             .map_err(sql_err)?;
         let rows = statement
@@ -1004,8 +1004,8 @@ fn load(conn: &Connection, identities: &HashMap<i64, String>) -> Result<Record, 
     {
         let mut statement = conn
             .prepare(
-                "SELECT m.id, m.name, d.content_id, d.reasons FROM knowledge_matter m JOIN knowledge_matter_document d ON d.matter_id = m.id
-                 WHERE m.state = 'active' AND d.state = 'firm' ORDER BY m.id, d.content_id",
+                "SELECT m.id, m.name, d.version_id, d.reasons FROM knowledge_matter m JOIN knowledge_matter_document d ON d.matter_id = m.id
+                 WHERE m.state = 'active' AND d.state = 'firm' ORDER BY m.id, d.version_id",
             )
             .map_err(sql_err)?;
         let rows = statement
@@ -1070,7 +1070,7 @@ fn load(conn: &Connection, identities: &HashMap<i64, String>) -> Result<Record, 
         );
     }
     {
-        let mut statement = conn.prepare("SELECT content_id, doc_type FROM document_type").map_err(sql_err)?;
+        let mut statement = conn.prepare("SELECT version_id, doc_type FROM document_type").map_err(sql_err)?;
         let rows = statement.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))).map_err(sql_err)?;
         for row in rows {
             let (content, doc_type) = row.map_err(sql_err)?;
@@ -2003,7 +2003,7 @@ fn link_forms(
     let conn = base.conn();
     let mut statement = conn
         .prepare(&format!(
-            "SELECT entity_id, kind, written FROM knowledge_mention WHERE content_id IN ({list}) AND entity_id IS NOT NULL ORDER BY id"
+            "SELECT entity_id, kind, written FROM knowledge_mention WHERE version_id IN ({list}) AND entity_id IS NOT NULL ORDER BY id"
         ))
         .map_err(sql_err)?;
     let rows: Vec<(String, String, String)> = statement
@@ -2564,9 +2564,9 @@ fn basis_of(base: &DocBase, vocabulary: &Vocabulary, language: Option<&str>, doc
     // their summaries, types and data (D-340).
     let written_from: String = conn
         .query_row(
-            "SELECT coalesce((SELECT group_concat(content_id || ':' || coalesce(topic, '') || ':' || length(points), '|') FROM knowledge_summary), '')
-                 || '#' || coalesce((SELECT group_concat(content_id || ':' || doc_type || ':' || coalesce(stage, ''), '|') FROM document_type), '')
-                 || '#' || coalesce((SELECT group_concat(content_id || ':' || basis || ':' || length(data), '|') FROM document_data), '')",
+            "SELECT coalesce((SELECT group_concat(version_id || ':' || coalesce(topic, '') || ':' || length(points), '|') FROM knowledge_summary), '')
+                 || '#' || coalesce((SELECT group_concat(version_id || ':' || doc_type || ':' || coalesce(stage, ''), '|') FROM document_type), '')
+                 || '#' || coalesce((SELECT group_concat(version_id || ':' || basis || ':' || length(data), '|') FROM document_data), '')",
             [],
             |row| row.get(0),
         )

@@ -329,6 +329,11 @@ pub fn set_resource_dir_hint(dir: std::path::PathBuf) {
     let _ = RESOURCE_DIR_HINT.set(dir);
 }
 
+/// The resource directory Tauri resolved, once setup() ran.
+pub fn resource_dir_hint() -> Option<&'static std::path::Path> {
+    RESOURCE_DIR_HINT.get().map(|dir| dir.as_path())
+}
+
 /// Enumerate plausible locations for the PDFium dynamic library on the
 /// current platform. Order from most specific to least:
 ///   1. `$PDFIUM_DYNAMIC_LIB_PATH` env var (local dev convenience)

@@ -169,7 +169,7 @@ pub(crate) fn index_content(conn: &Connection, content_id: i64) -> Result<(), St
         .optional()
         .map_err(sql_err)?;
     let summary: Option<(Option<String>, String)> = conn
-        .query_row("SELECT topic, points FROM knowledge_summary WHERE content_id = ?1", [content_id], |row| {
+        .query_row("SELECT topic, points FROM knowledge_summary WHERE version_id = ?1", [content_id], |row| {
             Ok((row.get(0)?, row.get(1)?))
         })
         .optional()
@@ -189,7 +189,7 @@ pub(crate) fn index_content(conn: &Connection, content_id: i64) -> Result<(), St
 
 /// Forgets what the search index keeps of documents that are gone.
 pub(crate) fn forget_gone(conn: &Connection) -> Result<(), String> {
-    conn.execute("DELETE FROM content_search WHERE rowid NOT IN (SELECT id FROM content)", [])
+    conn.execute("DELETE FROM content_search WHERE rowid NOT IN (SELECT id FROM version)", [])
         .map_err(sql_err)?;
     Ok(())
 }
@@ -201,7 +201,7 @@ pub(crate) fn fill_missing(conn: &Connection) -> Result<usize, String> {
         let mut statement = conn
             .prepare(
                 "SELECT rowid FROM content_fts WHERE rowid NOT IN (SELECT rowid FROM content_search)
-                 UNION SELECT content_id FROM knowledge_summary WHERE content_id NOT IN (SELECT rowid FROM content_search)",
+                 UNION SELECT version_id FROM knowledge_summary WHERE version_id NOT IN (SELECT rowid FROM content_search)",
             )
             .map_err(sql_err)?;
         let rows = statement.query_map([], |row| row.get(0)).map_err(sql_err)?;
@@ -252,7 +252,7 @@ fn query_terms(query: &str) -> (Vec<String>, Vec<String>) {
 fn visible_condition(visible: &Visible, within: Option<&[i64]>, column: &str) -> (String, Vec<Value>) {
     let (condition, bound) = visible.condition("l.origin_id");
     let mut sql = format!(
-        "{column} IN (SELECT f.content_id FROM file f JOIN location l ON l.file_hash = f.hash WHERE {condition})"
+        "{column} IN (SELECT f.version_id FROM file f JOIN location l ON l.file_hash = f.hash WHERE {condition})"
     );
     let mut values: Vec<Value> = bound.into_iter().map(Value::Text).collect();
     if let Some(within) = within {
@@ -294,7 +294,7 @@ fn named_entities(
     keep: &(String, Vec<Value>),
 ) -> Result<BTreeMap<String, BTreeSet<i64>>, String> {
     let words = quote::words(query);
-    let total: i64 = conn.query_row("SELECT count(*) FROM content", [], |row| row.get(0)).map_err(sql_err)?;
+    let total: i64 = conn.query_row("SELECT count(*) FROM version", [], |row| row.get(0)).map_err(sql_err)?;
     let max_documents = ((total as f64) * ENTITY_MAX_SHARE).max(3.0) as usize;
     let merged: HashMap<String, String> = {
         let mut statement = conn
@@ -380,7 +380,7 @@ fn documents_of(
 ) -> Result<BTreeSet<i64>, String> {
     if let Some(normalized) = id.strip_prefix(REFERENCE_PREFIX) {
         let sql = format!(
-            "SELECT DISTINCT content_id FROM knowledge_mention WHERE kind = ? AND defined = 0 AND normalized = ? AND {keep}",
+            "SELECT DISTINCT version_id FROM knowledge_mention WHERE kind = ? AND defined = 0 AND normalized = ? AND {keep}",
             keep = keep.0
         );
         let mut values: Vec<Value> = vec![Value::Text(vocabulary().matters.kind.clone()), Value::Text(normalized.to_string())];
@@ -403,8 +403,8 @@ fn documents_of(
     }
     let marks = vec!["?"; ids.len()].join(", ");
     let sql = format!(
-        "SELECT content_id FROM knowledge_mention WHERE entity_id IN ({marks}) AND {keep}
-         UNION SELECT content_id FROM knowledge_matter_document WHERE matter_id = ? AND {keep}",
+        "SELECT version_id FROM knowledge_mention WHERE entity_id IN ({marks}) AND {keep}
+         UNION SELECT version_id FROM knowledge_matter_document WHERE matter_id = ? AND {keep}",
         keep = keep.0
     );
     let mut values: Vec<Value> = ids.iter().cloned().map(Value::Text).collect();
@@ -430,7 +430,7 @@ impl DocBase {
         let conn = self.conn();
         let (words, numbers) = query_terms(query);
         let keep_rowid = visible_condition(visible, within, "rowid");
-        let keep_content = visible_condition(visible, within, "content_id");
+        let keep_content = visible_condition(visible, within, "version_id");
         let text = ranked(&conn, "content_fts", &words.join(" OR "), &keep_rowid)?;
         let by_number = if numbers.is_empty() {
             Vec::new()
@@ -484,7 +484,7 @@ impl DocBase {
         first.truncate(WIDEN_FROM);
         let visible_set: HashSet<i64> = {
             let keep_id = visible_condition(visible, within, "id");
-            let mut statement = conn.prepare(&format!("SELECT id FROM content WHERE {}", keep_id.0)).map_err(sql_err)?;
+            let mut statement = conn.prepare(&format!("SELECT id FROM version WHERE {}", keep_id.0)).map_err(sql_err)?;
             let rows = statement.query_map(params_from_iter(keep_id.1), |row| row.get(0)).map_err(sql_err)?;
             rows.collect::<Result<_, _>>().map_err(sql_err)?
         };
@@ -601,7 +601,7 @@ impl DocBase {
             }
         }
         let contents: Vec<i64> = {
-            let mut statement = conn.prepare("SELECT id FROM content").map_err(sql_err)?;
+            let mut statement = conn.prepare("SELECT id FROM version").map_err(sql_err)?;
             let rows = statement.query_map([], |row| row.get(0)).map_err(sql_err)?;
             rows.collect::<Result<_, _>>().map_err(sql_err)?
         };
@@ -657,7 +657,7 @@ fn snippet_of(conn: &Connection, content: i64, words: &[String]) -> Result<Strin
         }
     }
     let topic: Option<Option<String>> = conn
-        .query_row("SELECT topic FROM knowledge_summary WHERE content_id = ?1", [content], |row| row.get(0))
+        .query_row("SELECT topic FROM knowledge_summary WHERE version_id = ?1", [content], |row| row.get(0))
         .optional()
         .map_err(sql_err)?;
     Ok(topic.flatten().unwrap_or_default())

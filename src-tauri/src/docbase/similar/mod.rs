@@ -44,6 +44,10 @@ pub mod changes;
 pub(crate) mod check;
 #[cfg(test)]
 pub(crate) mod check_types;
+#[cfg(test)]
+pub(crate) mod check_pages;
+#[cfg(test)]
+mod check_local_reading;
 pub mod classify;
 pub mod data;
 pub mod format;

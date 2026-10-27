@@ -54,6 +54,22 @@ const PERSON_DECISIONS: &[&str] = &[
 /// so far: every update only adds.
 const CHANGED_ON_PURPOSE: &[(i64, &str, &str)] = &[];
 
+/// The tables and columns an update renamed, (version, before, after): their
+/// rows are looked for under the new name.
+const RENAMED_TABLES: &[(i64, &str, &str)] = &[(3, "content", "version")];
+const RENAMED_COLUMNS: &[(i64, &str, &str)] = &[(3, "content_id", "version_id")];
+
+/// The name a table and its columns of a base at `version` have now.
+fn named_now(version: i64, table: &str, names: &[String]) -> (String, Vec<String>) {
+    let now = |renames: &[(i64, &str, &str)], name: &str| {
+        renames
+            .iter()
+            .filter(|(v, _, _)| *v > version)
+            .fold(name.to_string(), |name, (_, before, after)| if name == *before { after.to_string() } else { name })
+    };
+    (now(RENAMED_TABLES, table), names.iter().map(|n| now(RENAMED_COLUMNS, n)).collect())
+}
+
 struct Column {
     name: String,
     decl: String,
@@ -404,7 +420,8 @@ fn bring_up(version: i64) {
             if CHANGED_ON_PURPOSE.iter().any(|(v, t, _)| *v > version && *t == table.as_str()) {
                 continue;
             }
-            let kept = rows_of(&conn, table, names);
+            let (now_table, now_names) = named_now(version, table, names);
+            let kept = rows_of(&conn, &now_table, &now_names);
             let lost = missing(rows, &kept);
             assert!(lost.is_empty(), "version {version}: the table {table} lost or changed {lost:?}");
             if PERSON_DECISIONS.contains(&table.as_str()) {
@@ -520,18 +537,19 @@ fn the_last_backups_are_kept_and_only_the_apps_own_are_deleted() {
 fn a_failed_update_keeps_its_backup_and_names_it() {
     let dir = TempDir::new();
     let data = dir.path();
-    old_base(data, 22);
+    let before = CURRENT_VERSION - 1;
+    old_base(data, before);
     {
-        // The column version 23 adds is already there: its change fails.
+        // A table the next version adds is already there: its change fails.
         let conn = Connection::open(data.join(PRIVATE_DB_FILE)).unwrap();
-        conn.execute_batch("ALTER TABLE similar_template ADD COLUMN naming INTEGER").unwrap();
+        conn.execute_batch("CREATE TABLE appearance (x)").unwrap();
     }
     let (base, opening) = DocBase::open_in_data_folder(data);
     let problem = base.unwrap_err();
     let backup = opening.backup.clone().unwrap();
     assert!(problem.contains(&backup) && problem.contains("no borres nada"), "{problem}");
-    assert_eq!(version_on_disk(data), 22);
-    assert_eq!(check(&data.join(BACKUPS_DIR).join(&backup)).unwrap().base_version, 22);
+    assert_eq!(version_on_disk(data), before);
+    assert_eq!(check(&data.join(BACKUPS_DIR).join(&backup)).unwrap().base_version, before);
 }
 
 /// The person went back to the version before: the base, written by a newer
@@ -589,7 +607,8 @@ fn a_base_of_a_newer_version_is_left_alone_and_the_backup_takes_its_place() {
     assert!(opening.backup.is_some());
     let conn = base.conn();
     for (table, (names, rows)) in &before {
-        assert!(missing(rows, &rows_of(&conn, table, names)).is_empty(), "{table}");
+        let (now_table, now_names) = named_now(version, table, names);
+        assert!(missing(rows, &rows_of(&conn, &now_table, &now_names)).is_empty(), "{table}");
     }
     assert_eq!(list(data).len(), 2);
 }
@@ -600,4 +619,45 @@ fn the_values_a_check_admits_are_read_from_the_table() {
     assert_eq!(admitted(sql, "kind"), Some(vec!["private".to_string(), "shared".to_string()]));
     assert_eq!(admitted(sql, "state"), Some(vec!["a".to_string()]));
     assert_eq!(admitted(sql, "hash_state"), None);
+}
+
+/// The backups of the base of the earlier numbering (another file, D-548)
+/// are left on disk as they are: not listed, never deleted, and going
+/// back to one is refused before anything is touched.
+#[test]
+fn a_backup_of_the_earlier_base_is_left_alone() {
+    let dir = TempDir::new();
+    let data = dir.path();
+    let old = "respaldos/antes-de-v29-2026-01-01-0000";
+    let body = b"una base de la numeracion anterior";
+    dir.write(&format!("{old}/docbase/private.sqlite3"), body);
+    let print = sha256_of(&data.join(old).join("docbase/private.sqlite3")).unwrap();
+    dir.write(&format!("{old}/huellas.sha256"), format!("{print}  docbase/private.sqlite3\n").as_bytes());
+    let manifest = Manifest {
+        kind: KIND.to_string(),
+        format: 1,
+        base_version: 28,
+        for_version: 29,
+        written_by_app: None,
+        made_by_app: "0.0.1".to_string(),
+        made_at_ms: 1,
+        made_at: "01/01/2026 00:00".to_string(),
+        files: vec![KeptFile { path: "docbase/private.sqlite3".to_string(), bytes: body.len() as u64, sha256: print }],
+    };
+    dir.write(&format!("{old}/respaldo.json"), &serde_json::to_vec(&manifest).unwrap());
+    old_base(data, CURRENT_VERSION - 1);
+    let live = sha256_of(&data.join(PRIVATE_DB_FILE)).unwrap();
+    assert!(list(data).is_empty());
+    assert!(prune(data, 1).is_empty());
+    let name = old.trim_start_matches("respaldos/");
+    let refused = restore(data, name, CURRENT_VERSION).unwrap_err();
+    assert!(refused.contains("base anterior"), "{refused}");
+    assert_eq!(sha256_of(&data.join(PRIVATE_DB_FILE)).unwrap(), live);
+    assert_eq!(folders_in(&data.join(BACKUPS_DIR)), vec![name.to_string()]);
+    // Opening the base takes its own backup, and only that one is listed.
+    let (base, opening) = DocBase::open_in_data_folder(data);
+    base.unwrap();
+    let listed: Vec<String> = list(data).into_iter().map(|b| b.name).collect();
+    assert_eq!(listed, vec![opening.backup.unwrap()]);
+    assert!(data.join(old).join("docbase/private.sqlite3").is_file());
 }

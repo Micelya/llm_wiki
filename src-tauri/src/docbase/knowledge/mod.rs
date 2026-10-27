@@ -105,7 +105,7 @@ fn visible_content(column: &str, visible: &Visible) -> (String, Vec<String>) {
     (
         format!(
             "EXISTS (SELECT 1 FROM file vf JOIN location vl ON vl.file_hash = vf.hash
-                     WHERE vf.content_id = {column} AND {condition})"
+                     WHERE vf.version_id = {column} AND {condition})"
         ),
         params,
     )
@@ -258,7 +258,7 @@ impl DocBase {
         }
         status.pending = status.documents - read + status.stale;
         let count = |sql: &str| -> Result<usize, String> {
-            let (condition, params) = visible_content("m.content_id", visible);
+            let (condition, params) = visible_content("m.version_id", visible);
             conn.query_row(&format!("{sql} WHERE {condition}"), rusqlite::params_from_iter(params.iter()), |row| {
                 row.get::<_, i64>(0)
             })
@@ -277,7 +277,7 @@ impl DocBase {
             )
             .map_err(sql_err)? as usize;
         {
-            let (condition, params) = visible_content("m.content_id", visible);
+            let (condition, params) = visible_content("m.version_id", visible);
             let mut statement = conn
                 .prepare(&format!(
                     "SELECT e.kind, count(DISTINCT e.id) FROM knowledge_entity e JOIN knowledge_mention m ON m.entity_id = e.id
@@ -296,7 +296,7 @@ impl DocBase {
         drop(conn);
         status.doubts = self.knowledge_doubts(visible)?.len();
         let conn = self.conn();
-        let (condition, params) = visible_content("e.content_id", visible);
+        let (condition, params) = visible_content("e.version_id", visible);
         let claims: Vec<(String, i64)> = {
             let mut statement = conn
                 .prepare(&format!(
@@ -339,7 +339,7 @@ impl DocBase {
         let content: Option<i64> = conn
             .query_row(
                 &format!(
-                    "SELECT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.id = ? AND {condition}"
+                    "SELECT f.version_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.id = ? AND {condition}"
                 ),
                 rusqlite::params_from_iter(values.iter()),
                 |row| row.get(0),
@@ -358,7 +358,7 @@ pub(crate) fn knowledge_of_content(conn: &Connection, content_id: i64) -> Result
     let mut out = DocumentKnowledge { content_id: Some(content_id), state: "pending".into(), ..Default::default() };
     let row: Option<(String, Option<String>, i64, String, Option<String>)> = conn
         .query_row(
-            "SELECT state, engine, extracted_at, discarded, error FROM knowledge_extraction WHERE content_id = ?1",
+            "SELECT state, engine, extracted_at, discarded, error FROM knowledge_extraction WHERE version_id = ?1",
             [content_id],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
         )
@@ -380,7 +380,7 @@ pub(crate) fn knowledge_of_content(conn: &Connection, content_id: i64) -> Result
         let mut statement = conn
             .prepare(
                 "SELECT i.mention_id, i.kind, i.value, i.quote, i.page, i.by_shape FROM knowledge_identifier i
-                 JOIN knowledge_mention m ON m.id = i.mention_id WHERE m.content_id = ?1 ORDER BY i.mention_id, i.kind, i.value",
+                 JOIN knowledge_mention m ON m.id = i.mention_id WHERE m.version_id = ?1 ORDER BY i.mention_id, i.kind, i.value",
             )
             .map_err(sql_err)?;
         let rows = statement
@@ -406,8 +406,8 @@ pub(crate) fn knowledge_of_content(conn: &Connection, content_id: i64) -> Result
         let mut statement = conn
             .prepare(
                 "SELECT m.id, m.kind, m.written, m.role, m.quote, m.page, s.id, m.entity_id FROM knowledge_mention m
-                 LEFT JOIN knowledge_mention s ON s.content_id = m.content_id AND s.ref = m.same_as
-                 WHERE m.content_id = ?1 ORDER BY m.id",
+                 LEFT JOIN knowledge_mention s ON s.version_id = m.version_id AND s.ref = m.same_as
+                 WHERE m.version_id = ?1 ORDER BY m.id",
             )
             .map_err(sql_err)?;
         let rows = statement
@@ -434,7 +434,7 @@ pub(crate) fn knowledge_of_content(conn: &Connection, content_id: i64) -> Result
     let mut statement = conn
         .prepare(
             "SELECT id, subject_mention, predicate, object_mention, object_value, quote, page, fact_time
-             FROM knowledge_evidence WHERE content_id = ?1 ORDER BY id",
+             FROM knowledge_evidence WHERE version_id = ?1 ORDER BY id",
         )
         .map_err(sql_err)?;
     let rows = statement

@@ -391,10 +391,60 @@ fn requested_reading_step(base: &DocBase, on_change: &dyn Fn()) -> Option<Durati
     }
 }
 
+/// How long the reading on this computer waits when there is no scan to
+/// read, or its models are missing (they may be put there later).
+const LOCAL_IDLE: Duration = Duration::from_secs(20);
+const LOCAL_UNAVAILABLE: Duration = Duration::from_secs(5 * 60);
+
+/// Starts the thread that reads the new scans on this computer (D-558),
+/// one document at a time, the automatic reading on or off: no model in
+/// the cloud is asked, so it costs no quota. Only while its models are
+/// there (`recognition_local`); the scans a person asks for go on through
+/// the questions' thread, with the engine chosen in Ajustes.
+pub fn spawn_local_recognition(base: Arc<DocBase>, on_change: impl Fn() + Send + 'static) {
+    let spawned = std::thread::Builder::new().name("docbase-local-recognition".to_string()).spawn(move || loop {
+        std::thread::sleep(local_recognition_step(&base, &on_change));
+    });
+    if let Err(error) = spawned {
+        eprintln!("[docbase] could not start the reading of scans on this computer: {error}");
+    }
+}
+
+/// One scan read on this computer. Returns how long to wait before the next.
+fn local_recognition_step(base: &DocBase, on_change: &dyn Fn()) -> Duration {
+    use super::recognize::RecognitionStep;
+    let Some(config) = super::services::local_recognition_engine() else {
+        return LOCAL_UNAVAILABLE;
+    };
+    let recognizer = match crate::source_volume::recognition::recognizer_for(&config) {
+        Ok(recognizer) => recognizer,
+        Err(error) => {
+            eprintln!("[docbase] {error}");
+            return LOCAL_UNAVAILABLE;
+        }
+    };
+    match base.local_recognition_step(recognizer.as_ref(), LOCAL_UNAVAILABLE) {
+        Ok(RecognitionStep::Idle) => LOCAL_IDLE,
+        Ok(RecognitionStep::Stopped(error)) => {
+            eprintln!("[docbase] text recognition on this computer: {error}");
+            on_change();
+            LOCAL_UNAVAILABLE
+        }
+        Ok(_) => {
+            on_change();
+            Duration::ZERO
+        }
+        Err(error) => {
+            eprintln!("[docbase] {error}");
+            LOCAL_IDLE
+        }
+    }
+}
+
 /// The text of one scan, before any other question (`recognize.rs`): the
 /// first one a person asked for, or, while the automatic reading is on,
-/// the next one waiting. `None` when there is none, or no engine to read
-/// it: the questions go on.
+/// the next one waiting (unless the engine of this computer reads those).
+/// `None` when there is none, or no engine to read it: the questions go on.
 fn recognition_step(base: &DocBase, on_change: &dyn Fn()) -> Option<Duration> {
     use super::recognize::RecognitionStep;
     let config = match base.recognition_engine() {

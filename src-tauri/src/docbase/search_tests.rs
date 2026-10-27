@@ -20,9 +20,9 @@ fn base() -> DocBase {
 /// A document with its text, in an origin, with an optional summary.
 fn document(base: &DocBase, id: i64, origin: &str, text: &str, summary: Option<&str>) {
     let conn = base.conn();
-    conn.execute("INSERT INTO content (id, state, first_seen_at) VALUES (?1, 'done', 0)", [id]).unwrap();
+    conn.execute("INSERT INTO version (id, state, first_seen_at) VALUES (?1, 'done', 0)", [id]).unwrap();
     let hash = format!("h{id}");
-    conn.execute("INSERT INTO file (hash, content_id, size) VALUES (?1, ?2, 1)", params![hash, id]).unwrap();
+    conn.execute("INSERT INTO file (hash, version_id, size) VALUES (?1, ?2, 1)", params![hash, id]).unwrap();
     conn.execute(
         "INSERT INTO location (origin_id, rel_path, folder, name, ext, size, mtime_ms, file_hash, first_seen_at, last_seen_at)
          VALUES (?1, ?2, '', ?2, 'pdf', 1, 0, ?3, 0, 0)",
@@ -32,7 +32,7 @@ fn document(base: &DocBase, id: i64, origin: &str, text: &str, summary: Option<&
     conn.execute("INSERT INTO content_fts (rowid, body) VALUES (?1, ?2)", params![id, text]).unwrap();
     if let Some(topic) = summary {
         conn.execute(
-            "INSERT INTO knowledge_summary (content_id, topic, points) VALUES (?1, ?2, '[]')",
+            "INSERT INTO knowledge_summary (version_id, topic, points) VALUES (?1, ?2, '[]')",
             params![id, topic],
         )
         .unwrap();
@@ -55,7 +55,7 @@ fn entity(base: &DocBase, id: &str, name: &str, normalized: &str, documents: &[i
     .unwrap();
     for (n, content) in documents.iter().enumerate() {
         conn.execute(
-            "INSERT INTO knowledge_mention (content_id, ref, kind, written, normalized, role, quote, entity_id)
+            "INSERT INTO knowledge_mention (version_id, ref, kind, written, normalized, role, quote, entity_id)
              VALUES (?1, ?2, 'persona', ?3, ?4, 'parte', ?3, ?5)",
             params![content, format!("{id}-{n}"), name, normalized, id],
         )
@@ -204,7 +204,7 @@ fn a_reference_of_the_documents_raises_them_without_being_an_entity() {
     }
     base.conn()
         .execute(
-            "INSERT INTO knowledge_mention (content_id, ref, kind, written, normalized, role, quote)
+            "INSERT INTO knowledge_mention (version_id, ref, kind, written, normalized, role, quote)
              VALUES (1, 'r1', 'asunto', 'Convenio Marco Ejemplo', 'convenio marco ejemplo', 'referido', 'lo convenido')",
             [],
         )

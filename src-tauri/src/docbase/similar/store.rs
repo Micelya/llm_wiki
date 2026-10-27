@@ -328,7 +328,7 @@ impl DocBase {
         let tx = conn.transaction().map_err(sql_err)?;
         let gone: Vec<(i64, Vec<u8>)> = {
             let mut statement = tx
-                .prepare("SELECT content_id, shingles FROM similar_signature WHERE content_id NOT IN (SELECT id FROM content)")
+                .prepare("SELECT version_id, shingles FROM similar_signature WHERE version_id NOT IN (SELECT id FROM version)")
                 .map_err(sql_err)?;
             let rows = statement
                 .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
@@ -339,9 +339,9 @@ impl DocBase {
         };
         for (content_id, shingles) in &gone {
             uncount(&tx, &minhash::from_blob(shingles))?;
-            tx.execute("DELETE FROM similar_signature WHERE content_id = ?1", [content_id])
+            tx.execute("DELETE FROM similar_signature WHERE version_id = ?1", [content_id])
                 .map_err(sql_err)?;
-            tx.execute("DELETE FROM similar_dirty WHERE content_id = ?1", [content_id])
+            tx.execute("DELETE FROM similar_dirty WHERE version_id = ?1", [content_id])
                 .map_err(sql_err)?;
         }
         tx.commit().map_err(sql_err)?;
@@ -356,8 +356,8 @@ impl DocBase {
             .conn()
             .query_row(
                 "SELECT d.body, d.created_at, fd.body FROM derivative d
-                 LEFT JOIN derivative fd ON fd.content_id = d.content_id AND fd.kind = 'fields'
-                 WHERE d.content_id = ?1 AND d.kind = 'text'",
+                 LEFT JOIN derivative fd ON fd.version_id = d.version_id AND fd.kind = 'fields'
+                 WHERE d.version_id = ?1 AND d.kind = 'text'",
                 [content_id],
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
@@ -377,12 +377,12 @@ impl DocBase {
             let mut statement = conn
                 .prepare(
                     "SELECT c.id, d.body, d.created_at, fd.body
-                     FROM content c
-                     JOIN derivative d ON d.content_id = c.id AND d.kind = 'text'
-                     LEFT JOIN derivative fd ON fd.content_id = c.id AND fd.kind = 'fields'
-                     LEFT JOIN similar_signature s ON s.content_id = c.id
+                     FROM version c
+                     JOIN derivative d ON d.version_id = c.id AND d.kind = 'text'
+                     LEFT JOIN derivative fd ON fd.version_id = c.id AND fd.kind = 'fields'
+                     LEFT JOIN similar_signature s ON s.version_id = c.id
                      WHERE c.state = 'processed'
-                       AND (s.content_id IS NULL OR s.text_at != d.created_at OR s.engine != ?1)
+                       AND (s.version_id IS NULL OR s.text_at != d.created_at OR s.engine != ?1)
                      ORDER BY c.id
                      LIMIT ?2",
                 )
@@ -429,7 +429,7 @@ impl DocBase {
         let dirty: Vec<(i64, i64)> = {
             let conn = self.conn();
             let mut statement = conn
-                .prepare("SELECT content_id, since FROM similar_dirty ORDER BY since, content_id LIMIT ?1")
+                .prepare("SELECT version_id, since FROM similar_dirty ORDER BY since, version_id LIMIT ?1")
                 .map_err(sql_err)?;
             let rows = statement
                 .query_map([limit as i64], |row| Ok((row.get(0)?, row.get(1)?)))
@@ -448,7 +448,7 @@ impl DocBase {
         for (content_id, since) in &dirty {
             self.measure_one(*content_id, &routine)?;
             self.conn()
-                .execute("DELETE FROM similar_dirty WHERE content_id = ?1 AND since = ?2", params![content_id, since])
+                .execute("DELETE FROM similar_dirty WHERE version_id = ?1 AND since = ?2", params![content_id, since])
                 .map_err(sql_err)?;
         }
         Ok(dirty.len())
@@ -466,9 +466,9 @@ impl DocBase {
             {
                 let mut statement = conn
                     .prepare(
-                        "SELECT DISTINCT o.content_id FROM similar_band m
-                         JOIN similar_band o ON o.band = m.band AND o.bucket = m.bucket AND o.content_id != m.content_id
-                         WHERE m.content_id = ?1",
+                        "SELECT DISTINCT o.version_id FROM similar_band m
+                         JOIN similar_band o ON o.band = m.band AND o.bucket = m.bucket AND o.version_id != m.version_id
+                         WHERE m.version_id = ?1",
                     )
                     .map_err(sql_err)?;
                 let rows = statement
@@ -541,7 +541,7 @@ impl DocBase {
         }
         // The key data its pairs were measured with.
         tx.execute(
-            "INSERT OR REPLACE INTO similar_key_data (content_id, print, computed_at) VALUES (?1, ?2, ?3)",
+            "INSERT OR REPLACE INTO similar_key_data (version_id, print, computed_at) VALUES (?1, ?2, ?3)",
             params![content_id, me.key.print(), now_ms()],
         )
         .map_err(sql_err)?;
@@ -579,8 +579,8 @@ impl DocBase {
         let measured: Vec<(i64, String)> = {
             let mut statement = conn
                 .prepare(
-                    "SELECT k.content_id, k.print FROM similar_key_data k
-                     WHERE k.content_id NOT IN (SELECT content_id FROM similar_dirty)",
+                    "SELECT k.version_id, k.print FROM similar_key_data k
+                     WHERE k.version_id NOT IN (SELECT version_id FROM similar_dirty)",
                 )
                 .map_err(sql_err)?;
             let rows = statement
@@ -597,12 +597,12 @@ impl DocBase {
         for (content_id, print) in measured {
             let print_now = current.get(&content_id).map(KeyData::print).unwrap_or_else(|| empty.clone());
             if print_now != print {
-                conn.execute("INSERT OR REPLACE INTO similar_dirty (content_id, since) VALUES (?1, ?2)", params![content_id, at])
+                conn.execute("INSERT OR REPLACE INTO similar_dirty (version_id, since) VALUES (?1, ?2)", params![content_id, at])
                     .map_err(sql_err)?;
                 stale += 1;
             }
         }
-        conn.execute("DELETE FROM similar_key_data WHERE content_id NOT IN (SELECT id FROM content)", [])
+        conn.execute("DELETE FROM similar_key_data WHERE version_id NOT IN (SELECT id FROM version)", [])
             .map_err(sql_err)?;
         conn.execute(
             "INSERT OR REPLACE INTO docbase_setting (key, value) VALUES (?1, ?2)",
@@ -640,7 +640,7 @@ impl DocBase {
             for member in &group.members {
                 let link = adjacent.get(&group.principal).and_then(|links| links.get(member));
                 tx.execute(
-                    "INSERT INTO similar_group_member (principal, content_id, relation, cover) VALUES (?1, ?2, ?3, ?4)",
+                    "INSERT INTO similar_group_member (principal, version_id, relation, cover) VALUES (?1, ?2, ?3, ?4)",
                     params![group.principal, member, link.map(|(r, _)| r.clone()), link.map(|(_, c)| *c)],
                 )
                 .map_err(sql_err)?;
@@ -738,8 +738,8 @@ impl DocBase {
                 "SELECT {PAIR_COLUMNS} FROM similar_pair p
                  WHERE p.state = 'proposed' AND p.relation != 'similar' AND NOT EXISTS (
                     SELECT 1 FROM similar_group_member m
-                    WHERE m.principal != m.content_id
-                      AND ((m.principal = p.a AND m.content_id = p.b) OR (m.principal = p.b AND m.content_id = p.a)))
+                    WHERE m.principal != m.version_id
+                      AND ((m.principal = p.a AND m.version_id = p.b) OR (m.principal = p.b AND m.version_id = p.a)))
                  ORDER BY p.cover DESC, p.a, p.b"
             ))
             .map_err(sql_err)?;
@@ -858,7 +858,7 @@ impl DocBase {
                 &format!(
                     "SELECT count(*) FROM similar_group g WHERE {seen_principal} AND EXISTS (
                         SELECT 1 FROM similar_group_member m JOIN similar_pair p
-                          ON p.a = min(m.principal, m.content_id) AND p.b = max(m.principal, m.content_id)
+                          ON p.a = min(m.principal, m.version_id) AND p.b = max(m.principal, m.version_id)
                         WHERE m.principal = g.principal AND p.state = 'proposed' AND {asks})"
                 ),
                 params_from_iter(bound.iter()),
@@ -901,9 +901,9 @@ impl DocBase {
             let members: Vec<(i64, Option<String>, Option<f64>, Option<String>)> = {
                 let mut statement = conn
                     .prepare(
-                        "SELECT m.content_id, m.relation, m.cover, p.state FROM similar_group_member m
-                         LEFT JOIN similar_pair p ON p.a = min(m.principal, m.content_id) AND p.b = max(m.principal, m.content_id)
-                         WHERE m.principal = ?1 ORDER BY m.content_id = m.principal DESC, m.cover DESC, m.content_id",
+                        "SELECT m.version_id, m.relation, m.cover, p.state FROM similar_group_member m
+                         LEFT JOIN similar_pair p ON p.a = min(m.principal, m.version_id) AND p.b = max(m.principal, m.version_id)
+                         WHERE m.principal = ?1 ORDER BY m.version_id = m.principal DESC, m.cover DESC, m.version_id",
                     )
                     .map_err(sql_err)?;
                 let rows = statement
@@ -1052,17 +1052,17 @@ fn sign(content_id: i64, body: &str, text_at: i64, has_fields: bool, signatures:
 
 fn save_signature(tx: &Transaction<'_>, signed: &Signed, engine: &str) -> Result<(), String> {
     let old: Option<Vec<u8>> = tx
-        .query_row("SELECT shingles FROM similar_signature WHERE content_id = ?1", [signed.content_id], |row| row.get(0))
+        .query_row("SELECT shingles FROM similar_signature WHERE version_id = ?1", [signed.content_id], |row| row.get(0))
         .optional()
         .map_err(sql_err)?;
     if let Some(old) = old {
         uncount(tx, &minhash::from_blob(&old))?;
-        tx.execute("DELETE FROM similar_signature WHERE content_id = ?1", [signed.content_id])
+        tx.execute("DELETE FROM similar_signature WHERE version_id = ?1", [signed.content_id])
             .map_err(sql_err)?;
     }
     let now = now_ms();
     tx.execute(
-        "INSERT INTO similar_signature (content_id, engine, text_at, words, shingles, minhash, computed_at)
+        "INSERT INTO similar_signature (version_id, engine, text_at, words, shingles, minhash, computed_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         params![
             signed.content_id,
@@ -1086,14 +1086,14 @@ fn save_signature(tx: &Transaction<'_>, signed: &Signed, engine: &str) -> Result
             statement.execute([*shingle as i64]).map_err(sql_err)?;
         }
         let mut statement = tx
-            .prepare_cached("INSERT OR IGNORE INTO similar_band (band, bucket, content_id) VALUES (?1, ?2, ?3)")
+            .prepare_cached("INSERT OR IGNORE INTO similar_band (band, bucket, version_id) VALUES (?1, ?2, ?3)")
             .map_err(sql_err)?;
         for (band, bucket) in minhash::buckets(&signed.minhash).into_iter().enumerate() {
             statement.execute(params![band as i64, bucket, signed.content_id]).map_err(sql_err)?;
         }
     }
     tx.execute(
-        "INSERT OR REPLACE INTO document_marks (content_id, engine, marks, signatures, skip_pages, drop_phrases, computed_at)
+        "INSERT OR REPLACE INTO document_marks (version_id, engine, marks, signatures, skip_pages, drop_phrases, computed_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         params![
             signed.content_id,
@@ -1107,7 +1107,7 @@ fn save_signature(tx: &Transaction<'_>, signed: &Signed, engine: &str) -> Result
     )
     .map_err(sql_err)?;
     tx.execute(
-        "INSERT OR REPLACE INTO similar_dirty (content_id, since) VALUES (?1, ?2)",
+        "INSERT OR REPLACE INTO similar_dirty (version_id, since) VALUES (?1, ?2)",
         params![signed.content_id, now],
     )
     .map_err(sql_err)?;
@@ -1147,7 +1147,7 @@ fn routine_shingles(conn: &Connection) -> Result<HashSet<u64>, String> {
 /// Words, shingle count and MinHash of a content.
 fn signature_of(conn: &Connection, content_id: i64) -> Result<Option<(usize, usize, Vec<u64>)>, String> {
     conn.query_row(
-        "SELECT words, length(shingles) / 8, minhash FROM similar_signature WHERE content_id = ?1",
+        "SELECT words, length(shingles) / 8, minhash FROM similar_signature WHERE version_id = ?1",
         [content_id],
         |row| Ok((row.get::<_, i64>(0)? as usize, row.get::<_, i64>(1)? as usize, minhash::from_blob(&row.get::<_, Vec<u8>>(2)?))),
     )
@@ -1175,7 +1175,7 @@ fn pdf_paths(conn: &Connection, content_id: i64) -> Result<Vec<(String, PathBuf)
             "SELECT f.hash, o.location, min(l.rel_path) FROM file f
              JOIN location l ON l.file_hash = f.hash AND l.hash_state = 'done' AND l.ext = 'pdf'
              JOIN origin o ON o.id = l.origin_id AND o.reachable = 1
-             WHERE f.content_id = ?1
+             WHERE f.version_id = ?1
              GROUP BY f.hash",
         )
         .map_err(sql_err)?;
@@ -1196,10 +1196,10 @@ fn load_doc(conn: &Connection, content_id: i64, routine: &HashSet<u64>) -> Resul
         .query_row(
             "SELECT d.body, d.engine, fd.body, m.marks, m.skip_pages, m.drop_phrases, s.shingles
              FROM similar_signature s
-             JOIN derivative d ON d.content_id = s.content_id AND d.kind = 'text'
-             JOIN document_marks m ON m.content_id = s.content_id
-             LEFT JOIN derivative fd ON fd.content_id = s.content_id AND fd.kind = 'fields'
-             WHERE s.content_id = ?1",
+             JOIN derivative d ON d.version_id = s.version_id AND d.kind = 'text'
+             JOIN document_marks m ON m.version_id = s.version_id
+             LEFT JOIN derivative fd ON fd.version_id = s.version_id AND fd.kind = 'fields'
+             WHERE s.version_id = ?1",
             [content_id],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?)),
         )
@@ -1382,8 +1382,8 @@ pub(crate) fn grouped(conn: &Connection, relations: &[&str]) -> Result<(Vec<Fami
     {
         let mut statement = conn
             .prepare(
-                "SELECT s.content_id, s.words, coalesce(m.marks, '[]') FROM similar_signature s
-                 LEFT JOIN document_marks m ON m.content_id = s.content_id",
+                "SELECT s.version_id, s.words, coalesce(m.marks, '[]') FROM similar_signature s
+                 LEFT JOIN document_marks m ON m.version_id = s.version_id",
             )
             .map_err(sql_err)?;
         let rows = statement
@@ -1472,7 +1472,7 @@ pub fn families(
 
 pub(super) fn content_of_location(conn: &Connection, location_id: i64) -> Result<Option<i64>, String> {
     conn.query_row(
-        "SELECT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.id = ?1",
+        "SELECT f.version_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.id = ?1",
         [location_id],
         |row| row.get(0),
     )
@@ -1486,7 +1486,7 @@ fn visible_content(visible: &Visible, column: &str) -> (String, Vec<Value>) {
     (
         format!(
             "EXISTS (SELECT 1 FROM file f JOIN location l ON l.file_hash = f.hash
-                     WHERE f.content_id = {column} AND {condition} AND NOT {})",
+                     WHERE f.version_id = {column} AND {condition} AND NOT {})",
             super::super::excluded_sql!()
         ),
         bound.into_iter().map(Value::Text).collect(),
@@ -1502,11 +1502,11 @@ pub(super) fn doc_ref(conn: &Connection, visible: &Visible, content_id: i64) -> 
     conn.query_row(
         &format!(
             "SELECT l.id, o.name, l.rel_path, l.name,
-                    (SELECT count(*) FROM location l2 JOIN file f2 ON f2.hash = l2.file_hash WHERE f2.content_id = f.content_id)
+                    (SELECT count(*) FROM location l2 JOIN file f2 ON f2.hash = l2.file_hash WHERE f2.version_id = f.version_id)
              FROM location l
              JOIN origin o ON o.id = l.origin_id
              JOIN file f ON f.hash = l.file_hash
-             WHERE f.content_id = ? AND {condition} AND NOT {}
+             WHERE f.version_id = ? AND {condition} AND NOT {}
              ORDER BY o.name COLLATE NOCASE, l.rel_path COLLATE NOCASE
              LIMIT 1",
             super::super::excluded_sql!()

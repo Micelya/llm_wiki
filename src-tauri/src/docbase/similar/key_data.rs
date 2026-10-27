@@ -228,8 +228,8 @@ fn load_with(conn: &Connection, words: &Vocabulary, only: Option<i64>) -> Result
     {
         let mut statement = conn
             .prepare(
-                "SELECT content_id, kind, role, entity_id, written, normalized FROM knowledge_mention
-                 WHERE ?1 IS NULL OR content_id = ?1",
+                "SELECT version_id, kind, role, entity_id, written, normalized FROM knowledge_mention
+                 WHERE ?1 IS NULL OR version_id = ?1",
             )
             .map_err(sql_err)?;
         let rows = statement
@@ -267,8 +267,8 @@ fn load_with(conn: &Connection, words: &Vocabulary, only: Option<i64>) -> Result
     {
         let mut statement = conn
             .prepare(
-                "SELECT m.content_id, m.kind, i.value FROM knowledge_identifier i JOIN knowledge_mention m ON m.id = i.mention_id
-                 WHERE ?1 IS NULL OR m.content_id = ?1",
+                "SELECT m.version_id, m.kind, i.value FROM knowledge_identifier i JOIN knowledge_mention m ON m.id = i.mention_id
+                 WHERE ?1 IS NULL OR m.version_id = ?1",
             )
             .map_err(sql_err)?;
         let rows = statement
@@ -284,8 +284,8 @@ fn load_with(conn: &Connection, words: &Vocabulary, only: Option<i64>) -> Result
     {
         let mut statement = conn
             .prepare(
-                "SELECT content_id, predicate, coalesce(amount, object_value) FROM knowledge_evidence
-                 WHERE coalesce(amount, object_value) IS NOT NULL AND (?1 IS NULL OR content_id = ?1)",
+                "SELECT version_id, predicate, coalesce(amount, object_value) FROM knowledge_evidence
+                 WHERE coalesce(amount, object_value) IS NOT NULL AND (?1 IS NULL OR version_id = ?1)",
             )
             .map_err(sql_err)?;
         let rows = statement
@@ -302,7 +302,7 @@ fn load_with(conn: &Connection, words: &Vocabulary, only: Option<i64>) -> Result
     {
         let catalog = types::catalog();
         let mut statement = conn
-            .prepare("SELECT content_id, doc_type, data FROM document_data WHERE ?1 IS NULL OR content_id = ?1")
+            .prepare("SELECT version_id, doc_type, data FROM document_data WHERE ?1 IS NULL OR version_id = ?1")
             .map_err(sql_err)?;
         let rows = statement
             .query_map([&one], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)))

@@ -116,21 +116,21 @@ fn load(conn: &Connection) -> Result<Now, String> {
         kind_of: HashMap::new(),
     };
     {
-        let mut statement = conn.prepare("SELECT id FROM content").map_err(sql_err)?;
+        let mut statement = conn.prepare("SELECT id FROM version").map_err(sql_err)?;
         let rows = statement.query_map([], |row| row.get::<_, i64>(0)).map_err(sql_err)?;
         for row in rows {
             now.contents.insert(row.map_err(sql_err)?);
         }
     }
     {
-        let mut statement = conn.prepare("SELECT content_id FROM knowledge_extraction WHERE state = 'done'").map_err(sql_err)?;
+        let mut statement = conn.prepare("SELECT version_id FROM knowledge_extraction WHERE state = 'done'").map_err(sql_err)?;
         let rows = statement.query_map([], |row| row.get::<_, i64>(0)).map_err(sql_err)?;
         for row in rows {
             now.read.insert(row.map_err(sql_err)?);
         }
     }
     {
-        let mut statement = conn.prepare("SELECT content_id, kind, normalized FROM knowledge_mention").map_err(sql_err)?;
+        let mut statement = conn.prepare("SELECT version_id, kind, normalized FROM knowledge_mention").map_err(sql_err)?;
         let rows = statement
             .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)))
             .map_err(sql_err)?;
@@ -143,7 +143,7 @@ fn load(conn: &Connection) -> Result<Now, String> {
     {
         let mut statement = conn
             .prepare(
-                "SELECT e.content_id, s.normalized, e.predicate, o.normalized, e.object_normalized FROM knowledge_evidence e
+                "SELECT e.version_id, s.normalized, e.predicate, o.normalized, e.object_normalized FROM knowledge_evidence e
                  JOIN knowledge_mention s ON s.id = e.subject_mention LEFT JOIN knowledge_mention o ON o.id = e.object_mention",
             )
             .map_err(sql_err)?;

@@ -496,6 +496,33 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-551 | 27 oct | Replanteo | Se distinguen recurso, representación y versión; hay una ficha principal por documento, pero las lecturas y la evidencia se guardan por versión, y una ubicación queda atada a su recurso | vigente |
 | D-552 | 27 oct | Replanteo | En la primera etapa se reprocesa por documento y por etapa; lo aprendido se guarda con su revisión, su procedencia y su aprobación; el vocabulario crece sin cambiar la base, una clase nueva se programa | vigente |
 | D-553 | 27 oct | Forma de trabajo | El reproceso y la extracción del aprendizaje se hacen en la PC del dueño con el agente local, y el resultado del reproceso se compara con lo que había | vigente |
+| D-554 | 27 oct | Replanteo | La base nueva se construye por capas: primero lo de abajo (recursos, páginas, documento, versión y aparición, el corte de los compuestos, copias y versiones); después las piezas, las relaciones y el catálogo | vigente |
+| D-555 | 27 oct | Replanteo | Las respuestas guardadas del modelo y el texto reconocido por página pasan a la base nueva como caché, solo para preguntas idénticas | vigente |
+| D-556 | 27 oct | Documentos compuestos | El corte de los compuestos: reglas primero y el modelo solo en lo dudoso; lo que se apoya en un corte propuesto se lee, pero no genera propuestas nuevas hasta que se confirme | vigente |
+| D-557 | 27 oct | Servicios de IA | Los vectores para la búsqueda por significado se difieren y se piden a Core, en AWS; Desktop no los calcula en la PC | vigente |
+| D-558 | 27 oct | Lectura de documentos | Lo impreso de las páginas escaneadas se lee en la PC con RapidOCR, sin Python; la estructura liviana con pdfium; Docling no entra a Desktop; las tablas con líneas y lo manuscrito, a Core cuando lo tenga | vigente |
+| D-559 | 27 oct | Replanteo | El expediente y la plantilla son clases de pieza propias; la plantilla nace propuesta, con su certeza | vigente |
+| D-560 | 27 oct | Replanteo | Ocho correcciones al diseño del replanteo, para que coincida con las notas del dueño y con las pruebas del 26 oct | vigente |
+| D-561 | 27 oct | Replanteo | Tres precisiones del revisor externo: cuándo dos evidencias son el mismo hecho, a qué se ancla cada decisión y cómo se propaga lo que cambia | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-562 | 27 oct | Replanteo | Los respaldos de la base de la numeración anterior quedan en disco sin listarse, sin borrarse y sin poder volver a ellos | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-563 | 27 oct | Replanteo | Cada página guarda su texto tal como va en el texto del documento, con sus campos de formulario | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-564 | 27 oct | Replanteo | Todos los PDF de un documento llevan las huellas de sus páginas; la ficha de forma se rehace cuando el documento suma un archivo | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-565 | 27 oct | Replanteo | Las huellas de cada página se calculan como en la prueba en la nube, sin bibliotecas de imágenes nuevas | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-566 | 27 oct | Replanteo | La versión 1 de la base nueva es un archivo SQL generado de la base vieja en su versión 29 | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-567 | 27 oct | Replanteo | El motor local de las páginas escaneadas es rapidocr-core sobre ONNX Runtime, que la app abre al leer y no lleva adentro | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-568 | 27 oct | Replanteo | Los modelos y ONNX Runtime los baja un guion a una carpeta que git ignora; todavía no entran al instalador | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-569 | 27 oct | Replanteo | El motor local lee los escaneos nuevos en segundo plano aunque la lectura automática esté apagada, sea cual sea el motor elegido en Ajustes | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-570 | 27 oct | Replanteo | Un renglón entra al texto solo si el motor local está seguro en un 90 % o más | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-571 | 27 oct | Replanteo | Una página del motor local sin ningún renglón seguro queda como ilegible, y el nombre del motor no incluye el umbral | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-572 | 27 oct | base | El documento nace con el número de su primera versión y un identificador UUID v7 hecho por la propia base | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-573 | 27 oct | base | Documento y aparición se mantienen solos con disparadores de la base, no con código en cada lugar que crea o junta versiones | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-574 | 27 oct | base | El selector de una aparición es un texto de forma fija: file o pages:desde-hasta | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-575 | 27 oct | base | El guion de importación copia solo los ajustes que elige una persona; los que describen el trabajo de la base vieja no pasan | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-576 | 27 oct | base | Las etiquetas de cada archivo se copian solo para los archivos que la base nueva ya encontró; el guion se puede volver a correr | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-577 | 27 oct | base | Las imágenes reconocidas que solo tienen el texto junto también reciben su image.json | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-578 | 27 oct | base | La respuesta importada lleva el número de la versión nueva con la misma huella de archivo cuando ya existe; si no, queda sin número | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-579 | 27 oct | base | Una página guardada como reconocida entra al texto de su PDF con el motor que la leyó, sea cual sea el motor elegido hoy | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-580 | 27 oct | base | El texto de un PDF con páginas guardadas que nada manda a leer sigue siendo de la extracción; cada página guarda su motor | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -505,7 +532,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 - **Fecha:** 5 al 8 oct 2026
 - **Tema:** Producto
-- **Estado:** reemplazada en parte por D-548 (la migración de los datos)
+- **Estado:** vigente
 - **El problema:** se partió de una aplicación de escritorio de código abierto que lee documentos y arma con IA un wiki (un conjunto de páginas enlazadas que resumen lo leído). Había que decidir si se la usaba tal cual o se la convertía en algo propio.
 - **Qué se decidió:** la copia propia (el fork `Micelya/llm_wiki`) se convierte en **Micelya Desktop**, un producto aparte orientado a estudios de abogados.
 - **Por qué:** la base sirve, pero el uso jurídico pide capacidades que la app original no tiene (manejo de fuentes, duplicados, documentos parecidos).
@@ -518,7 +545,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 - **Fecha:** 5 al 8 oct 2026
 - **Tema:** Base documental
-- **Estado:** reemplazada en parte por D-549 (la capa compartida queda para su etapa) (hoy es el principio 2 del diseño: "los originales no se tocan")
+- **Estado:** vigente (hoy es el principio 2 del diseño: "los originales no se tocan")
 - **El problema:** la app original copia cada documento dentro de la carpeta del proyecto. En un estudio eso duplica miles de archivos y deja dos versiones que pueden divergir.
 - **Qué se decidió:** las fuentes quedan donde están. La app las lee desde su ubicación original y solo guarda lo que obtiene al procesarlas (texto, resúmenes). Los originales nunca se escriben, mueven ni borran.
 - **Por qué:** evitar copias y no arriesgar los documentos del cliente.
@@ -531,7 +558,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 - **Fecha:** 5 al 8 oct 2026
 - **Tema:** Base documental
-- **Estado:** reemplazada en parte por D-551 (la lectura de personas se guarda por versión)
+- **Estado:** vigente
 - **El problema:** en un estudio el mismo documento aparece muchas veces: en varias carpetas, en Word y en PDF, enviado por mail y guardado con otro nombre. Procesar cada copia con IA gasta cupo y llena el wiki de repeticiones.
 - **Qué se decidió:** detectar las copias y procesar el documento una sola vez, conservando todas sus ubicaciones.
 - **Por qué:** costo y orden; además, saber dónde están todas las copias tiene valor propio.
@@ -5634,14 +5661,14 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 ### D-535 · El modelo de la base se reencauza sin parches, alineado con el modelo conceptual, con nombres canónicos de tablas y campos
 
-- **Fecha:** 26 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **Fecha:** 26 oct 2026 · **Tema:** Replanteo · **Estado:** reemplazada en parte por D-548 (la migración de los datos)
 - **El problema:** El modelo de la base se fue degradando con parches: el mismo concepto en varias tablas, decisiones humanas en seis lugares, columnas agregadas y restos del wiki.
 - **Qué se decidió y por qué:** Se rediseña la base a partir del modelo conceptual, con nombres de tablas y campos en la forma canónica, sin vocabulario de una vertical. No es un parche más: lo que haya que cambiar se cambia. El inventario de partida está en docs/design/base-de-datos-inventario.md; la migración usa el mecanismo con respaldo previo (D-496).
 - **Quién decidió:** El dueño del producto (26 oct).
 
 ### D-536 · Las copias en sistemas de archivos se ofrecen para eliminar y decide el humano; lo que está dentro de un compuesto o de un expediente no se borra; lo generado es único por documento
 
-- **Fecha:** 26 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **Fecha:** 26 oct 2026 · **Tema:** Replanteo · **Estado:** reemplazada en parte por D-551 (la lectura de personas se guarda por versión)
 - **El problema:** Un documento puede aparecer en varios lugares, y eso repetía resúmenes y lecturas, además de dejar copias innecesarias en las carpetas.
 - **Qué se decidió y por qué:** En fuentes de tipo sistema de archivos (disco, OneDrive, Google Drive) la aplicación ofrece eliminar las copias; decide el humano y la aplicación nunca borra sola; si se borra, queda registrado que esa aparición existió y de dónde vino. Una aparición dentro de un documento compuesto o de un expediente del portal no se borra: es parte de otra cosa. Todo lo que genera la aplicación es único por documento: un resumen, una lectura de personas, una ficha.
 - **Quién decidió:** El dueño del producto; lo del compuesto y el expediente lo propuso el agente y el dueño lo confirmó (26 oct).
@@ -5683,7 +5710,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 ### D-542 · El catálogo tiene tres capas: la general por vertical, que viaja con el instalador y puede bajarse actualizada; la compartida; y la personal, cada una aprobada por quien corresponde
 
-- **Fecha:** 26 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **Fecha:** 26 oct 2026 · **Tema:** Replanteo · **Estado:** reemplazada en parte por D-549 (la capa compartida queda para su etapa)
 - **El problema:** Había que decidir dónde vive lo aprendido y quién lo aprueba.
 - **Qué se decidió y por qué:** General, por vertical: viaja con el instalador y opcionalmente se baja de un servicio de Micelya (la aplicación funciona sin él); la aprueba Micelya y, en el entrenamiento actual, el dueño. Compartida: en la base del espacio compartido, la aprueba su operador. Personal: en la base de la persona, la aprueba ella. Siguiendo D-044, la personal ve la general, la compartida y la suya; la compartida no ve la personal. Si una regla personal choca con una compartida, la personal vale solo para esa persona.
 - **Quién decidió:** El dueño del producto; lo del choque entre capas lo recomendó el agente y quedó aceptado (26 oct).
@@ -5764,3 +5791,192 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **El problema:** La base nueva se arma desde cero y se vuelve a procesar (D-548). Había que decidir dónde se procesa y qué se hace con el resultado; la base real ya está en Drive y el agente en la nube podría usarla.
 - **Qué se decidió y por qué:** Todo el procesamiento (extraer el aprendizaje de la base real, reprocesar con la base nueva) lo hace el agente local en la PC del dueño, que además aporta una perspectiva distinta y un contexto fresco sobre el diseño. El reproceso se compara con lo que tenía la base original, que queda guardada solo para leer. El cupo de Codex que use no es un motivo para evitarlo: interesa ver cómo termina.
 - **Quién decidió:** El dueño del producto (27 oct).
+
+### D-554 · La base nueva se construye por capas: primero lo de abajo (recursos, páginas, documento, versión y aparición, el corte de los compuestos, copias y versiones); después las piezas, las relaciones y el catálogo
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **El problema:** La base de destino reemplaza casi todas las tablas. El módulo de la base tiene unas 60.500 líneas de Rust en 97 archivos, 75 tablas, 107 comandos y 447 pruebas, y el número del contenido es la clave de casi todo (38 archivos de la interfaz lo usan). Cambiarlo todo de una vez deja la app sin andar hasta el final y no se puede medir capa por capa.
+- **Qué se decidió y por qué:** Se construye en dos tiempos. Primero lo de abajo: el archivo de base nuevo con su numeración, recursos, ubicaciones, texto y huellas por página, la lectura de lo impreso en la PC, documento, versión y aparición, el corte de los compuestos y copias y versiones por documento incluido; mientras tanto, la lectura, las personas y los casos de hoy cuelgan de la versión (el contenido de hoy, que junta los archivos con el mismo texto, es casi la versión). Después, lo de arriba: el registro común de piezas, relación, evidencia y decisión, y el catálogo de la instancia. Cada capa se mide contra su hoja y la app sigue andando en cada paso. Alternativa descartada: todo junto, que no entra en ningún tope razonable de consumo.
+- **Quién decidió:** El dueño del producto (27 oct), sobre la recomendación del agente.
+
+### D-555 · Las respuestas guardadas del modelo y el texto reconocido por página pasan a la base nueva como caché, solo para preguntas idénticas
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **El problema:** La base nueva se arma desde cero (D-548). La base vieja tiene 1.718 respuestas de Codex y el texto reconocido de las páginas escaneadas. Sin caché, el reproceso hace unas 1.300 preguntas y la comparación con la base original mezcla lo que cambia la estructura con lo que varía el modelo.
+- **Qué se decidió y por qué:** Un guion aparte, fuera de la app, copia las respuestas del modelo por la huella de la pregunta; el texto reconocido por página sigue en la carpeta recognized, al lado de la base, atado a la huella de los bytes. La app nueva no lee la base vieja. La caché solo responde preguntas idénticas: las que se hicieron sobre compuestos enteros no se usan, porque el texto de cada incluido es otro (en los 16 PDF de 8 páginas o más: 34 de 153 lecturas, 21 de 124 tipos, 10 de 36 de casos y 127 de 269 de identidad). El texto reconocido sí sirve para los incluidos, porque es por página; lo que quedó guardado como texto del archivo entero, sin separación por página, se vuelve a leer. No es para ahorrar cupo: es para medir limpio.
+- **Quién decidió:** El dueño del producto (27 oct), sobre la recomendación del agente.
+
+### D-556 · El corte de los compuestos: reglas primero y el modelo solo en lo dudoso; lo que se apoya en un corte propuesto se lee, pero no genera propuestas nuevas hasta que se confirme
+
+- **Fecha:** 27 oct 2026 · **Tema:** Documentos compuestos · **Estado:** vigente
+- **El problema:** La propuesta de documentos compuestos (D-525) dejaba preguntas abiertas que el replanteo tenía que cerrar antes de construir el corte: qué espera a que se confirme un corte, quién revisa, a qué apunta el caso y si se corta por regiones.
+- **Qué se decidió y por qué:** Se corta como midió la investigación del corte: reglas sin modelo con la ficha de forma de cada página (las de cambio de papel o de escaneo, como posible corte) y el modelo solo en los pasos dudosos, mirando la imagen de las dos páginas; lo que tiene emisor y fecha propios es un documento aparte (D-527). Cada corte dice quién lo hizo y si está propuesto o confirmado. La lectura de un incluido no espera a que se confirme el corte; las propuestas nuevas que salen de él (copias y versiones, casos, plantillas) sí (opción a). Asumido por el agente sin objeción del dueño: una persona revisa solo lo que cambia algo (dos documentos de personas o tipos distintos pegados, uno partido al medio, un corte que contradice lo que anuncia el escrito) y lo demás se confirma solo; el caso apunta al compuesto y sus incluidos van con él, y un incluido puede entrar solo a otro caso; por ahora se corta por páginas y las regiones quedan para después. Se mide contra la hoja de partes.
+- **Quién decidió:** El dueño del producto eligió qué espera (27 oct); lo demás lo recomendó el agente y el dueño no lo objetó.
+
+### D-557 · Los vectores para la búsqueda por significado se difieren y se piden a Core, en AWS; Desktop no los calcula en la PC
+
+- **Fecha:** 27 oct 2026 · **Tema:** Servicios de IA · **Estado:** vigente
+- **El problema:** La prueba del 26 oct mostró que el modelo de vectores grande busca mucho mejor que las palabras (83 % contra 50 % entre los 5 primeros), pero en la PC cuesta 1,9 segundos por página y 4,7 GB de memoria.
+- **Qué se decidió y por qué:** Los vectores no se calculan en la PC. Se piden a Core, que los correría en AWS cuando Infraestructura despliegue lo necesario; el pedido está en el mensaje 004. Desktop guarda los vectores en su base y busca ahí; Core no guarda textos ni vectores. Sin un proveedor configurado, la búsqueda sigue por palabras (D-291). El diseño les reserva el lugar: un vector por versión, con el modelo y su versión.
+- **Quién decidió:** El dueño del producto (27 oct).
+
+### D-558 · Lo impreso de las páginas escaneadas se lee en la PC con RapidOCR, sin Python; la estructura liviana con pdfium; Docling no entra a Desktop; las tablas con líneas y lo manuscrito, a Core cuando lo tenga
+
+- **Fecha:** 27 oct 2026 · **Tema:** Lectura de documentos · **Estado:** vigente
+- **El problema:** El dueño quería pasar a AWS la lectura de lo impreso y el reconocimiento de estructura (Docling), salvo que fueran livianos. Hoy la app lee cada página escaneada con una pregunta al modelo.
+- **Qué se decidió y por qué:** RapidOCR es liviano (31 MB de modelos, de 2 a 5 segundos por página, alrededor de 1 GB de memoria limitando el tamaño de la imagen) y lee bien lo impreso (0,2 % de caracteres errados en escaneos) y la zona de lectura del DNI: se usa en la PC, como motor de la app y sin Python, para las páginas que la ficha de forma marca como escaneo o con capa de texto vieja. Baja el uso de la IA en producción: una pregunta menos por página escaneada. La estructura liviana (forma de la página, formularios aplanados y tablas sin líneas leídos por posición, páginas en blanco, capa vieja) se lee con pdfium. Docling no entra a Desktop: pesa unos 760 MB y 3 GB de memoria, necesita Python y tres arreglos, y lo único propio que agrega son las tablas con líneas. Las tablas con líneas y lo manuscrito se piden a Core cuando lo tenga. Se suma a la primera corrida de la construcción por capas.
+- **Quién decidió:** El dueño del producto (27 oct), sobre la recomendación del agente.
+
+### D-559 · El expediente y la plantilla son clases de pieza propias; la plantilla nace propuesta, con su certeza
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **El problema:** El modelo del replanteo dejaba abiertas dos clases: el expediente (el registro de un asunto ante un organismo) y la plantilla (la estructura que comparten documentos distintos).
+- **Qué se decidió y por qué:** Las dos son piezas propias. El expediente tiene identidad ante un organismo (organismo, número y año), un asunto puede tener varios, y es procedencia y contenedor de sus actuaciones. La plantilla relaciona documentos que comparten estructura sin confundirlos con versiones del mismo documento; como una plantilla detectada con pocos documentos puede ser falsa, nace propuesta, con su certeza, y queda firme cuando una persona la confirma o la certeza es alta (D-540). Se construyen con la capa de arriba.
+- **Quién decidió:** El dueño del producto (27 oct), sobre la recomendación del agente y del revisor externo.
+
+### D-560 · Ocho correcciones al diseño del replanteo, para que coincida con las notas del dueño y con las pruebas del 26 oct
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **El problema:** Al revisar el diseño contra las notas del 25 oct, las decisiones y las tres pruebas en la nube, el agente local encontró huecos y choques.
+- **Qué se decidió y por qué:** 1) El documento compuesto es un documento propio, con la lista ordenada de lo que incluye: tiene su resumen, entra entero a un asunto y se analiza como conjunto. 2) El mismo documento se reconoce primero por el texto, con el método de la app (53 de 57 en la hoja); la huella de imagen de página solo desempata entre mismo documento y versión y propone candidatos entre escaneos sin texto, nunca como prueba sola. 3) Se compara el texto de cada versión, es decir de cada documento incluido, no el del recurso entero; para eso el texto se guarda por página. 4) Los vectores tienen su lugar reservado (D-557). 5) El corte tiene estado (propuesto o confirmado), dice quién lo hizo y se corrige con decisiones de partir y unir páginas. 6) Las anclas de las decisiones van a la huella de los bytes, las páginas y el nombre o la cita normalizados: hoy llevan el número de fila del contenido, que cambia al rehacer la base. 7) Se marcan lo manuscrito y las firmas por página o región, una lectura pedida queda sin confirmar, y los pares rótulo-valor de un formulario leído por posición tienen su lugar. 8) La base nueva no trae código para migrar la vieja, pero desde su primera versión cada actualización respeta los datos con su migración y un respaldo previo (D-496). Están escritas en los tres documentos del replanteo.
+- **Quién decidió:** El agente local las propuso y el dueño las aprobó (27 oct).
+
+### D-561 · Tres precisiones del revisor externo: cuándo dos evidencias son el mismo hecho, a qué se ancla cada decisión y cómo se propaga lo que cambia
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Un revisor externo (otro agente que el dueño usó al armar el diseño) señaló tres puntos que podían fallar al implementar: juntar evidencia que habla de hechos distintos, aplicar una decisión a un destino equivocado y no actualizar lo que depende de un resultado que cambió.
+- **Qué se decidió y por qué:** 1) Cada tipo de relación declara en el catálogo qué datos identifican el mismo hecho (por ejemplo, el rol en una participación) y si admite uno o varios valores: con uno, un valor distinto es una contradicción; con varios, es otro hecho. 2) Cada decisión se ancla según su alcance: una pieza creada por una persona, por su identificador; lo que encontró la aplicación, por sus menciones; una interpretación de un documento, además por su versión y su evidencia (lo marcado como erróneo en el borrador no pasa al firmado); si al reprocesar hay varios destinos posibles, la decisión pasa a revisión y no se aplica, como hace hoy el programa. 3) Las etapas tienen un orden fijo y, cuando una cambia un resultado, se recalculan las que dependen de él con alcance conservador; la cola acepta documentos y piezas; con la caché, eso solo le vuelve a preguntar al modelo cuando la pregunta cambió. Precisa D-550 y D-552.
+- **Quién decidió:** Lo propuso el revisor externo; el agente lo evaluó, agregó los matices y lo incorporó en la corrida desatendida.
+
+### D-562 · Los respaldos de la base de la numeración anterior quedan en disco sin listarse, sin borrarse y sin poder volver a ellos
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La base nueva vive en otro archivo (docbase/base.sqlite3, D-548). Los respaldos hechos antes guardan docbase/private.sqlite3: listados, aparecerían incompletos, y volver a uno fallaría a medias.
+- **Qué se decidió y por qué:** Un respaldo es de esta base solo si guarda el archivo de esta base. Los de la anterior no aparecen en Ajustes, la poda no los cuenta ni los borra, y volver a uno se rechaza antes de tocar nada, con el mensaje «es un respaldo de la base anterior, que esta versión de la app ya no usa». Alternativa: listarlos como «de otra base», sin el botón de volver.
+- **Quién decidió:** Claude (corrida desatendida)
+
+### D-563 · Cada página guarda su texto tal como va en el texto del documento, con sus campos de formulario
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** El texto por página (resource_text, D-560) tiene que servir para armar el texto de cada documento incluido, y el texto junto no puede cambiar ni un byte (la caché de respuestas del modelo depende de él, D-555).
+- **Qué se decidió y por qué:** La fila de cada página es su bloque del texto junto sin el título «## Page N»: el texto de la página, un salto, y los campos del formulario de esa página si los tiene. Juntar las páginas en orden da el texto del documento byte por byte. Se guardan todas las páginas de un PDF, también las sin capa de texto; un archivo sin páginas tiene una fila, la 1, con todo su texto; lo reconocido guarda cada página con su motor. Alternativa: el texto crudo de pdfium por página y los campos aparte.
+- **Quién decidió:** Claude (corrida desatendida)
+
+### D-564 · Todos los PDF de un documento llevan las huellas de sus páginas; la ficha de forma se rehace cuando el documento suma un archivo
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La ficha de forma es por documento y se calculaba con un solo archivo; las huellas son por archivo (resource_page). Dos archivos con el mismo texto y distintos bytes son un documento, y para compararlos por imagen hacen falta las huellas de los dos.
+- **Qué se decidió y por qué:** La ficha de forma abre cada PDF del documento una sola vez y guarda las huellas de cada uno; la ficha es la del primero (como antes). Cuando un archivo se suma a un documento que ya tenía ficha, la ficha se borra y se vuelve a calcular con todos. Alternativa: huellas solo del primer archivo, o una cola aparte por archivo con una marca de intentado.
+- **Quién decidió:** Claude (corrida desatendida)
+
+### D-565 · Las huellas de cada página se calculan como en la prueba en la nube, sin bibliotecas de imágenes nuevas
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** El pHash tiene que poder compararse con el que midió la prueba en la nube (imagehash sobre pypdfium2), y no había biblioteca de pHash en el programa.
+- **Qué se decidió y por qué:** La página se dibuja en grises, sin los datos del formulario, del tamaño que la dibuja pypdfium2 (cada lado por la escala de 256 px de alto, redondeado hacia arriba). La reducción a 32 × 32 copia el Lanczos de Pillow en punto fijo y la DCT se escribe a mano, con el ruido de redondeo en cero. La huella exacta es SHA-256 de los píxeles; la del texto, de su normalización (minúsculas, sin acentos, letras y dígitos), desde 40 caracteres, con el crate chico unicode-normalization (MIT o Apache, compatible con GPL v3). Resultado: cada página queda a 0–6 bits de la de Python (367 de 601 iguales). Alternativa: la reducción del crate image, más simple pero más lejos de Python.
+- **Quién decidió:** Claude (corrida desatendida)
+
+### D-566 · La versión 1 de la base nueva es un archivo SQL generado de la base vieja en su versión 29
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La V1 tiene que tener exactamente la forma de la base vieja en su versión 29 (D-548) y no puede escribirse a mano.
+- **Qué se decidió y por qué:** Se generó una vez desde la base vieja armada en memoria con sus 29 migraciones: tablas, índices y disparadores de sqlite_master, cada grupo en su orden de creación, sin las tablas internas de la búsqueda. Queda en src-tauri/src/docbase/schema_v1.sql y la migración lo incluye tal cual. No siembra filas: la única siembra vieja era el ajuste de lectura automática, que no va (la lectura arranca apagada). Comparada con la 29 vieja: el mismo SQL normalizado y los mismos PRAGMA. Alternativa: dejar el SQL dentro de schema.rs como texto.
+- **Quién decidió:** Claude (corrida desatendida)
+
+### D-567 · El motor local de las páginas escaneadas es rapidocr-core sobre ONNX Runtime, que la app abre al leer y no lleva adentro
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** D-558 pide leer lo impreso de las páginas escaneadas en la PC con RapidOCR y sin Python. Hacía falta elegir con qué se corren sus modelos en Rust y qué se distribuye con el instalador.
+- **Qué se decidió y por qué:** Se usa el paquete de Rust rapidocr-core 0.2.2 (licencia Apache 2.0, compatible con la GPL v3), que ya hace lo de RapidOCR: encontrar los renglones, enderezarlos, leerlos y decodificarlos, con los mismos modelos PP-OCRv6 «small» que trae el paquete rapidocr 3.10.0 de la prueba de Docling (comprobado: el mismo sha256). Debajo corre ONNX Runtime 1.24.4 por medio de ort 2.0.0-rc.12, fijado porque la versión siguiente cambió su interfaz. La biblioteca de ONNX Runtime (onnxruntime.dll, 14 MB) no va dentro del programa: la app la abre cuando lee la primera página, como pdfium.dll. Así, si falta, el motor dice «no disponible» y la app sigue. Alternativas: enlazar ONNX Runtime adentro del programa con los binarios de ort (el programa no arrancaría sin DirectML.dll), tract-onnx (todo en Rust, sin biblioteca aparte, pero sin probar con estos modelos y más lento) o paddle-ocr-rs (también sigue a RapidOCR y es más chico, pero no trae registrados los modelos de la prueba ni los comprueba con su sha256).
+- **Quién decidió:** Claude (corrida desatendida)
+
+### D-568 · Los modelos y ONNX Runtime los baja un guion a una carpeta que git ignora; todavía no entran al instalador
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Los modelos (31,8 MB) y la biblioteca de ONNX Runtime (14,2 MB) no van al repositorio. La app tiene que encontrarlos y, si faltan, decirlo sin fallar.
+- **Qué se decidió y por qué:** scripts/fetch-ocr-models.mjs (solo Node, sin paquetes) baja los cuatro archivos de los modelos y la biblioteca, cada uno comprobado con su sha256 fijo, a src-tauri/ocr/, que git ignora. La app los busca en la carpeta ocr/ de los recursos del instalador, al lado del programa, en la variable MICELYA_OCR_DIR y, en la versión de desarrollo, en src-tauri/ocr. Todavía no se suman a la lista de recursos del instalador, porque la compilación falla si la carpeta no está y la integración continua no la baja: queda pendiente. La biblioteca se baja solo para Windows de 64 bits; para Linux y macOS, solo los modelos. Alternativa: sumarlos ya al instalador y bajarlos en la integración continua antes de compilar.
+- **Quién decidió:** Claude (corrida desatendida)
+
+### D-569 · El motor local lee los escaneos nuevos en segundo plano aunque la lectura automática esté apagada, sea cual sea el motor elegido en Ajustes
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** D-558 lo hace el motor por defecto de las páginas escaneadas nuevas. La lectura automática existe para no gastar el cupo de un proveedor; el motor local no pregunta a ningún modelo en la nube.
+- **Qué se decidió y por qué:** Mientras sus modelos están, un hilo propio lee uno por uno los escaneos que esperan, que no fallaron y que nadie pidió, con la lectura automática prendida o apagada y sea cual sea el motor elegido en Ajustes → Servicios de IA → Reconocer escaneos. Lo que una persona pide sigue yendo al motor elegido (Codex, Core o el local), y el local es el elegido cuando no hay ninguno. Lo ya leído por otro motor no se vuelve a leer solo. Sin los modelos, todo queda como antes. Alternativas: esperar a que se prenda la lectura automática, o que el local solo lea cuando no se eligió ningún motor (en la base del dueño, con Codex elegido, cada página seguiría siendo una pregunta al modelo).
+- **Quién decidió:** Claude (corrida desatendida)
+
+### D-570 · Un renglón entra al texto solo si el motor local está seguro en un 90 % o más
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** RapidOCR da una confianza por renglón. Lo manuscrito mal leído no debe entrar como texto (D-518), sin perder lo impreso.
+- **Qué se decidió y por qué:** El umbral está en el catálogo (resources/catalog/local-recognition.json, minLineConfidence 0,9), no en el código. Medido con las hojas: de los 37 valores manuscritos, con 0,9 entran 5 bien y 5 más con errores leves (sin umbral, 9 bien y 9 más con errores); el error de caracteres de los dos pasajes impresos queda en 1,5 % y 2,4 % (sin umbral, 1,5 % y 3,2 %) y del formulario siguen apareciendo 26 de 27 valores. Sobre las 119 páginas escaneadas de la carpeta de prueba entra el 68 % de los renglones y 1 página queda sin ninguno. Alternativas: 0,95, entran 2 valores manuscritos bien y 2 más con errores, lo impreso de las hojas queda igual, pero entra el 57 % de los renglones de la carpeta y 3 páginas quedan sin ninguno (no se sabe cuánto de eso es impreso); o 0,5, el valor por defecto de RapidOCR (entra casi todo).
+- **Quién decidió:** Claude (corrida desatendida)
+
+### D-571 · Una página del motor local sin ningún renglón seguro queda como ilegible, y el nombre del motor no incluye el umbral
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Con el umbral, una página puede quedar sin texto. Y lo que lee un motor se guarda con su nombre: si el nombre cambia, todo se vuelve a leer.
+- **Qué se decidió y por qué:** Una página con renglones pero ninguno por encima del umbral se guarda como «[ilegible]», como hace Codex, así las pantallas la ofrecen a otro motor; una sin ningún renglón queda en blanco. Lo leído se guarda como rapidocr-onnx:ppocrv6-small, sin el umbral: cambiar el umbral no vuelve a leer lo ya leído. Alternativa: incluir el umbral en el nombre, para que un umbral nuevo vuelva a leer todo.
+- **Quién decidió:** Claude (corrida desatendida)
+
+### D-572 · El documento nace con el número de su primera versión y un identificador UUID v7 hecho por la propia base
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La V3 crea un documento por versión (D-554). Hacía falta decidir su número, cómo se hace su identificador estable (uid, UUID versión 7) y qué dice «por qué prevalece» su versión.
+- **Qué se decidió y por qué:** El documento toma el número de la versión con la que nace (los números de versión nunca se reusan, así que tampoco los de documento). El uid es un UUID versión 7 armado por SQLite con el momento en que la versión se vio por primera vez y bytes al azar, de modo que el orden de los uid sigue la historia. prevailing_reason admite only (la única versión), rule, model y person; hoy todos son only. Un disparador impide que prevalezca una versión que no es del documento. Alternativa: numeración propia del documento y uid hecho en Rust con la crate uuid (habría que activar su variante v7).
+- **Quién decidió:** Claude (corrida desatendida 12, paso 3)
+
+### D-573 · Documento y aparición se mantienen solos con disparadores de la base, no con código en cada lugar que crea o junta versiones
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La especificación pide que al crear la versión se creen su documento y la aparición del archivo entero, que al juntar dos gemelos por el texto el archivo pase a ser otra aparición de la misma versión y que al borrar un archivo se vayan sus apariciones.
+- **Qué se decidió y por qué:** Cinco disparadores en la V3: la versión nueva crea su documento; el archivo nuevo crea su aparición de archivo entero (confirmada, sin cortador); el archivo que cambia de versión lleva su aparición a esa versión (es lo que hace store al juntar gemelos); la versión que se va se lleva su documento si no le quedan versiones; el archivo que se va se lleva sus apariciones (clave foránea en cascada). apply_hash y store no cambiaron. Alternativa: escribirlo en Rust en apply_hash, store y la limpieza de huérfanos; más visible en el código pero fácil de olvidar en un lugar nuevo.
+- **Quién decidió:** Claude (corrida desatendida 12, paso 3)
+
+### D-574 · El selector de una aparición es un texto de forma fija: file o pages:desde-hasta
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La aparición necesita decir qué parte del recurso ocupa (D-551, D-556).
+- **Qué se decidió y por qué:** selector vale file (el archivo entero) o pages:N-M (páginas desde y hasta, números positivos). El archivo entero lleva cut_by nulo y siempre está confirmed; un corte de páginas tiene que decir quién lo hizo (rule, model, person). position es el orden dentro del recurso (1 para el archivo entero). Única por (archivo, selector). No se controla todavía que desde sea menor o igual que hasta ni que el recurso tenga páginas (pendiente). Alternativa: un selector en JSON, más flexible para regiones, más difícil de hacer único.
+- **Quién decidió:** Claude (corrida desatendida 12, paso 3)
+
+### D-575 · El guion de importación copia solo los ajustes que elige una persona; los que describen el trabajo de la base vieja no pasan
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La especificación pide copiar los ajustes de docbase_setting con la lectura automática siempre apagada. Ocho de los catorce ajustes de la base real no son elecciones de una persona sino marcas de lo que la base vieja ya hizo con sus propios datos (versión de extracción de los textos, cálculo del registro y de las páginas, archivos de la wiki y del chat ya traídos, versión de la app, datos clave comparados).
+- **Qué se decidió y por qué:** Se copian el idioma de la wiki, el registro de servicios de inteligencia artificial, el motor para preguntar, el de reconocer escaneos y el origen de la carpeta de trabajo (con el origen traducido), sin pisar los que la base nueva ya tenga; la lectura automática se escribe siempre en 0. Las otras ocho marcas no se copian: copiarlas haría creer a la base nueva que ya hizo un trabajo que no hizo (por ejemplo, no volvería a extraer los textos). Alternativa: copiar todo salvo la lectura automática.
+- **Quién decidió:** Claude (corrida desatendida 12, paso 3)
+
+### D-576 · Las etiquetas de cada archivo se copian solo para los archivos que la base nueva ya encontró; el guion se puede volver a correr
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** label_manual y location_label cuelgan de una ubicación, que la base nueva crea recién al leer el origen. Recién creada, la base nueva no tiene ninguna.
+- **Qué se decidió y por qué:** El guion busca cada ubicación por origen y ruta relativa; si la base nueva ya la tiene, copia la etiqueta, y si no, la cuenta como «espera su archivo». No pisa nada, así que correrlo de nuevo después de la primera lectura copia las que faltaban. Los orígenes se copian con su carpeta y sin fecha de lectura (la base nueva los lee como nuevos); un origen de la base nueva con la misma carpeta es el mismo. Alternativa: que el guion cree las ubicaciones; no puede, porque cada una necesita la huella de su archivo.
+- **Quién decidió:** Claude (corrida desatendida 12, paso 3)
+
+### D-577 · Las imágenes reconocidas que solo tienen el texto junto también reciben su image.json
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** De los 15 archivos reconocidos sin páginas guardadas, 12 son PDF y 3 son imágenes sueltas, que no tienen encabezados de página.
+- **Qué se decidió y por qué:** Para las imágenes, el guion guarda image.json con el texto que sigue a la marca del motor, la misma regla que para las páginas. Se comprobó la regla de corte contra las 68 páginas que sí estaban guardadas: las 68 salen idénticas, con su motor. Alternativa: solo las páginas de los PDF, y las tres imágenes quedarían para volver a leer.
+- **Quién decidió:** Claude (corrida desatendida 12, paso 3)
+
+### D-578 · La respuesta importada lleva el número de la versión nueva con la misma huella de archivo cuando ya existe; si no, queda sin número
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** model_answer guarda a qué contenido respondió, pero la búsqueda es por la pregunta y el motor; los números de la base vieja no significan nada en la nueva.
+- **Qué se decidió y por qué:** Si la base nueva ya leyó un archivo de esa versión vieja (y todos sus archivos dan una sola versión nueva), la respuesta lleva ese número; si no, nulo. El número es informativo: la pregunta idéntica encuentra la respuesta con o sin él. Alternativa: dejarlo siempre nulo.
+- **Quién decidió:** Claude (corrida desatendida 12, paso 3)
+
+### D-579 · Una página guardada como reconocida entra al texto de su PDF con el motor que la leyó, sea cual sea el motor elegido hoy
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La base nueva solo usaba las páginas guardadas que la ficha de forma de hoy manda a leer, y entre esas, solo las del motor elegido hoy. Las páginas que una regla anterior de la ficha había mandado a leer quedaban afuera aunque estuvieran guardadas: 11 PDF salían con otro texto que en la base real (P-387).
+- **Qué se decidió y por qué:** Al armar el texto de un PDF entra toda página guardada de su huella, con el motor que la leyó y sin preguntar a ningún motor, aunque la ficha de hoy no la mande a leer y aunque la haya leído otro motor que el elegido hoy (D-523: lo ya leído se conserva). Si la página tenía una capa vieja de reconocimiento, la lectura guardada toma su lugar, como al reconocer. Lo que la ficha manda a leer sigue como antes: si lo guardado es de otro motor, el motor de hoy lo lee de nuevo (P-242). Alternativa: contar solo las páginas del motor de hoy; con eso, cambiar de motor cambiaría el texto de documentos que nadie manda a leer.
+- **Quién decidió:** Claude (corrida desatendida 12, paso 3b)
+
+### D-580 · El texto de un PDF con páginas guardadas que nada manda a leer sigue siendo de la extracción; cada página guarda su motor
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Un PDF cuya ficha no manda a leer ninguna página se termina en la extracción, sin pasar por el reconocimiento. Con D-579 su texto puede llevar páginas reconocidas: había que decir qué motor queda como autor del texto.
+- **Qué se decidió y por qué:** El texto queda con el motor de la extracción y cada página entra con el suyo a las páginas del archivo (`resource_text`), como al reconocer. Así, elegir otro motor no manda a leer de nuevo un documento que la ficha no manda a leer. Las páginas guardadas entran también al texto parcial de un PDF que espera reconocimiento. Alternativa: poner como autor del texto el motor de sus páginas; con eso, cambiar de motor lo mandaría a una lectura que no lee nada.
+- **Quién decidió:** Claude (corrida desatendida 12, paso 3b)

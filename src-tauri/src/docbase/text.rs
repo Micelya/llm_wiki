@@ -15,13 +15,16 @@
 //! form filled for two people is two documents, and its fields are the
 //! data that tell them apart.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use rusqlite::{params, OptionalExtension, Transaction};
 
+use crate::commands::extract_images::{join_pdf_pages, pdf_pages_text, PdfPageContent};
 use crate::panic_guard::run_guarded;
 use crate::source_volume::catalog::fingerprint;
-use crate::source_volume::recognition::{is_recognizable_image, textless_pages};
+use crate::source_volume::recognition::{is_recognizable_image, textless_pages, with_kept_pages, RecognizedPage};
+use crate::source_volume::recognized_store::RecognizedStore;
 use crate::source_volume::{LocalFolderProvider, SourceProvider};
 
 use super::{now_ms, sql_err, DocBase};
@@ -51,17 +54,29 @@ enum Outcome {
     Unsupported,
 }
 
+/// What plain extraction read of a file, with its pages: each as it is in
+/// the text, page 1 first; one for a file without pages, none when nothing
+/// was read.
+struct Read {
+    outcome: Outcome,
+    pages: Vec<String>,
+    /// The pages kept as recognized that entered the text, by number, each
+    /// with the engine that read it.
+    recognized: BTreeMap<u32, RecognizedPage>,
+}
+
 impl DocBase {
     /// Obtains the text of up to `limit` documents that do not have it
     /// yet. Returns how many were attended.
     pub fn extract_pending(&self, limit: usize) -> Result<usize, String> {
         let jobs = self.next_text_jobs(limit)?;
-        for (content_id, path) in &jobs {
+        for (content_id, path, file_hash) in &jobs {
             self.engine_state().reading_file(Some(super::progress::Key::Content(*content_id)));
-            let outcome = run_guarded("docbase_extract_text", || extract(path));
+            let store = RecognizedStore::at(self.recognized.join(file_hash));
+            let read = run_guarded("docbase_extract_text", || extract(path, &store));
             let fields = run_guarded("docbase_form_fields", || form_fields(path)).unwrap_or_default();
             self.engine_state().reading_file(None);
-            self.apply_text(*content_id, outcome, &fields)?;
+            self.apply_text(*content_id, file_hash, read, &fields)?;
         }
         Ok(jobs.len())
     }
@@ -93,10 +108,10 @@ impl DocBase {
             let mut statement = conn
                 .prepare(&format!(
                     "SELECT c.id, o.location, min(l.rel_path), fd.body
-                     FROM content c
-                     JOIN derivative d ON d.content_id = c.id AND d.kind = 'text' AND d.engine = ?3
-                     LEFT JOIN derivative fd ON fd.content_id = c.id AND fd.kind = ?4
-                     JOIN file f ON f.content_id = c.id
+                     FROM version c
+                     JOIN derivative d ON d.version_id = c.id AND d.kind = 'text' AND d.engine = ?3
+                     LEFT JOIN derivative fd ON fd.version_id = c.id AND fd.kind = ?4
+                     JOIN file f ON f.version_id = c.id
                      JOIN location l ON l.file_hash = f.hash AND l.hash_state = 'done'
                      JOIN origin o ON o.id = l.origin_id AND o.reachable = 1
                      WHERE c.state = 'processed' AND c.id > ?1 AND NOT {}
@@ -136,7 +151,7 @@ impl DocBase {
         }
         let conn = self.conn();
         for content_id in &marked {
-            conn.execute("UPDATE content SET state = 'pending' WHERE id = ?1 AND state = 'processed'", [content_id])
+            conn.execute("UPDATE version SET state = 'pending' WHERE id = ?1 AND state = 'processed'", [content_id])
                 .map_err(sql_err)?;
         }
         let last = jobs.last().map(|(id, ..)| *id);
@@ -160,13 +175,15 @@ impl DocBase {
         Ok(jobs.len())
     }
 
-    fn next_text_jobs(&self, limit: usize) -> Result<Vec<(i64, PathBuf)>, String> {
+    /// The contents to read, with the file read for each (its first path).
+    fn next_text_jobs(&self, limit: usize) -> Result<Vec<(i64, PathBuf, String)>, String> {
         let conn = self.conn();
         let mut statement = conn
             .prepare(&format!(
-                "SELECT c.id, o.location, min(l.rel_path)
-                 FROM content c
-                 JOIN file f ON f.content_id = c.id
+                // With one min(), SQLite takes the other columns from its row.
+                "SELECT c.id, o.location, min(l.rel_path), l.file_hash
+                 FROM version c
+                 JOIN file f ON f.version_id = c.id
                  JOIN location l ON l.file_hash = f.hash AND l.hash_state = 'done'
                  JOIN origin o ON o.id = l.origin_id AND o.reachable = 1
                  WHERE c.state = 'pending' AND NOT {}
@@ -178,14 +195,14 @@ impl DocBase {
             .map_err(sql_err)?;
         let rows = statement
             .query_map([limit as i64], |row| {
-                Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
+                Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, String>(3)?))
             })
             .map_err(sql_err)?;
         let mut jobs = Vec::new();
         for row in rows {
-            let (content_id, root, rel_path) = row.map_err(sql_err)?;
+            let (content_id, root, rel_path, file_hash) = row.map_err(sql_err)?;
             if let Some(path) = LocalFolderProvider::new(root).local_path(&rel_path) {
-                jobs.push((content_id, path));
+                jobs.push((content_id, path, file_hash));
             }
         }
         Ok(jobs)
@@ -194,14 +211,15 @@ impl DocBase {
     fn apply_text(
         &self,
         content_id: i64,
-        outcome: Result<Outcome, String>,
+        file_hash: &str,
+        read: Result<Read, String>,
         fields: &[(String, String)],
     ) -> Result<(), String> {
         let mut conn = self.conn();
         let tx = conn.transaction().map_err(sql_err)?;
         // Dropped or already attended while the file was being read.
         let pending: Option<i64> = tx
-            .query_row("SELECT id FROM content WHERE id = ?1 AND state = 'pending'", [content_id], |row| {
+            .query_row("SELECT id FROM version WHERE id = ?1 AND state = 'pending'", [content_id], |row| {
                 row.get(0)
             })
             .optional()
@@ -209,6 +227,20 @@ impl DocBase {
         if pending.is_none() {
             return Ok(());
         }
+        let outcome = match read {
+            Ok(read) => {
+                let pages: Vec<(u32, &str, &str)> = read
+                    .pages
+                    .iter()
+                    .enumerate()
+                    .map(|(index, body)| (index as u32 + 1, EXTRACTION_ENGINE, body.as_str()))
+                    .chain(read.recognized.iter().map(|(page, kept)| (*page, kept.engine_id.as_str(), kept.text.as_str())))
+                    .collect();
+                store_pages(&tx, file_hash, &pages)?;
+                Ok(read.outcome)
+            }
+            Err(error) => Err(error),
+        };
         match outcome {
             Ok(Outcome::Text(text)) => {
                 let kept = store(&tx, content_id, &text, EXTRACTION_ENGINE, "processed")?;
@@ -229,15 +261,28 @@ impl DocBase {
     /// with this hash, so no other copy of it is ever recognised again.
     /// Returns false when the base does not know that file.
     pub fn store_recognized_text(&self, file_hash: &str, text: &str, engine: &str) -> Result<bool, String> {
+        self.store_recognized_pages(file_hash, text, engine, &[])
+    }
+
+    /// Same as `store_recognized_text`, with the pages read, each with its
+    /// number and the engine that read it (`resource_text`).
+    pub fn store_recognized_pages(
+        &self,
+        file_hash: &str,
+        text: &str,
+        engine: &str,
+        pages: &[(u32, &str, &str)],
+    ) -> Result<bool, String> {
         let mut conn = self.conn();
         let tx = conn.transaction().map_err(sql_err)?;
         let content_id: Option<i64> = tx
-            .query_row("SELECT content_id FROM file WHERE hash = ?1", [file_hash], |row| row.get(0))
+            .query_row("SELECT version_id FROM file WHERE hash = ?1", [file_hash], |row| row.get(0))
             .optional()
             .map_err(sql_err)?;
         let Some(content_id) = content_id else {
             return Ok(false);
         };
+        store_pages(&tx, file_hash, pages)?;
         store(&tx, content_id, text, engine, "processed")?;
         tx.commit().map_err(sql_err)?;
         Ok(true)
@@ -250,8 +295,8 @@ impl DocBase {
         self.conn()
             .query_row(
                 "SELECT d.body FROM file f
-                 JOIN content c ON c.id = f.content_id AND c.state = 'processed'
-                 JOIN derivative d ON d.content_id = c.id AND d.kind = 'text'
+                 JOIN version c ON c.id = f.version_id AND c.state = 'processed'
+                 JOIN derivative d ON d.version_id = c.id AND d.kind = 'text'
                  WHERE f.hash = ?1",
                 [file_hash],
                 |row| row.get(0),
@@ -274,7 +319,7 @@ fn store(tx: &Transaction<'_>, content_id: i64, text: &str, engine: &str, state:
     if identity.is_some() && super::similar::generate::is_generated(tx, content_id)? {
         let taken: bool = tx
             .query_row(
-                "SELECT count(*) FROM content WHERE text_hash = ?1 AND id != ?2",
+                "SELECT count(*) FROM version WHERE text_hash = ?1 AND id != ?2",
                 params![identity.as_ref().map(|(hash, _)| hash.clone()), content_id],
                 |row| row.get::<_, i64>(0),
             )
@@ -288,20 +333,27 @@ fn store(tx: &Transaction<'_>, content_id: i64, text: &str, engine: &str, state:
     if let Some((text_hash, _)) = &identity {
         let twin: Option<i64> = tx
             .query_row(
-                "SELECT id FROM content WHERE text_hash = ?1 AND id != ?2",
+                "SELECT id FROM version WHERE text_hash = ?1 AND id != ?2",
                 params![text_hash, content_id],
                 |row| row.get(0),
             )
             .optional()
             .map_err(sql_err)?;
         if let Some(twin) = twin {
-            tx.execute("UPDATE file SET content_id = ?1 WHERE content_id = ?2", params![twin, content_id])
+            tx.execute("UPDATE file SET version_id = ?1 WHERE version_id = ?2", params![twin, content_id])
                 .map_err(sql_err)?;
+            // Its ficha of shape is made again with every file it now has,
+            // so each one gets the prints of its pages (`page_shapes.rs`).
+            tx.execute(
+                "DELETE FROM derivative WHERE version_id = ?1 AND kind = ?2",
+                params![twin, super::page_shapes::SHAPES_KIND],
+            )
+            .map_err(sql_err)?;
             tx.execute("DELETE FROM content_fts WHERE rowid = ?1", [content_id])
                 .map_err(sql_err)?;
             tx.execute("DELETE FROM content_search WHERE rowid = ?1", [content_id])
                 .map_err(sql_err)?;
-            tx.execute("DELETE FROM content WHERE id = ?1", [content_id])
+            tx.execute("DELETE FROM version WHERE id = ?1", [content_id])
                 .map_err(sql_err)?;
             return Ok(twin);
         }
@@ -311,13 +363,13 @@ fn store(tx: &Transaction<'_>, content_id: i64, text: &str, engine: &str, state:
         None => text.split_whitespace().count() as i64,
     };
     tx.execute(
-        "UPDATE content SET state = ?1, text_hash = ?2, word_count = ?3, error = NULL, processed_at = ?4 WHERE id = ?5",
+        "UPDATE version SET state = ?1, text_hash = ?2, word_count = ?3, error = NULL, processed_at = ?4 WHERE id = ?5",
         params![state, identity.map(|(hash, _)| hash), words, now, content_id],
     )
     .map_err(sql_err)?;
     tx.execute(
-        "INSERT INTO derivative (content_id, kind, engine, body, created_at) VALUES (?1, 'text', ?2, ?3, ?4)
-         ON CONFLICT (content_id, kind) DO UPDATE SET engine = excluded.engine, body = excluded.body, created_at = excluded.created_at",
+        "INSERT INTO derivative (version_id, kind, engine, body, created_at) VALUES (?1, 'text', ?2, ?3, ?4)
+         ON CONFLICT (version_id, kind) DO UPDATE SET engine = excluded.engine, body = excluded.body, created_at = excluded.created_at",
         params![content_id, engine, text, now],
     )
     .map_err(sql_err)?;
@@ -329,16 +381,31 @@ fn store(tx: &Transaction<'_>, content_id: i64, text: &str, engine: &str, state:
     Ok(content_id)
 }
 
+/// Keeps the text of each page of a file as an engine read it
+/// (`resource_text`): (page, engine, text), replacing what that engine had
+/// read of that page.
+fn store_pages(tx: &Transaction<'_>, file_hash: &str, pages: &[(u32, &str, &str)]) -> Result<(), String> {
+    let now = now_ms();
+    for (page, engine, body) in pages {
+        tx.execute(
+            "INSERT OR REPLACE INTO resource_text (resource_hash, page_no, engine, body, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![file_hash, page, engine, body, now],
+        )
+        .map_err(sql_err)?;
+    }
+    Ok(())
+}
+
 /// Saves the text of a content that keeps no identity of its text.
 fn store_alone(tx: &Transaction<'_>, content_id: i64, text: &str, engine: &str, state: &str, words: i64, now: i64) -> Result<i64, String> {
     tx.execute(
-        "UPDATE content SET state = ?1, text_hash = NULL, word_count = ?2, error = NULL, processed_at = ?3 WHERE id = ?4",
+        "UPDATE version SET state = ?1, text_hash = NULL, word_count = ?2, error = NULL, processed_at = ?3 WHERE id = ?4",
         params![state, words, now, content_id],
     )
     .map_err(sql_err)?;
     tx.execute(
-        "INSERT INTO derivative (content_id, kind, engine, body, created_at) VALUES (?1, 'text', ?2, ?3, ?4)
-         ON CONFLICT (content_id, kind) DO UPDATE SET engine = excluded.engine, body = excluded.body, created_at = excluded.created_at",
+        "INSERT INTO derivative (version_id, kind, engine, body, created_at) VALUES (?1, 'text', ?2, ?3, ?4)
+         ON CONFLICT (version_id, kind) DO UPDATE SET engine = excluded.engine, body = excluded.body, created_at = excluded.created_at",
         params![content_id, engine, text, now],
     )
     .map_err(sql_err)?;
@@ -363,8 +430,8 @@ fn store_fields(tx: &Transaction<'_>, content_id: i64, fields: &[(String, String
     )
     .map_err(|e| e.to_string())?;
     tx.execute(
-        "INSERT INTO derivative (content_id, kind, engine, body, created_at) VALUES (?1, ?2, ?3, ?4, ?5)
-         ON CONFLICT (content_id, kind) DO UPDATE SET engine = excluded.engine, body = excluded.body, created_at = excluded.created_at",
+        "INSERT INTO derivative (version_id, kind, engine, body, created_at) VALUES (?1, ?2, ?3, ?4, ?5)
+         ON CONFLICT (version_id, kind) DO UPDATE SET engine = excluded.engine, body = excluded.body, created_at = excluded.created_at",
         params![content_id, FIELDS_KIND, EXTRACTION_ENGINE, body, now_ms()],
     )
     .map_err(sql_err)?;
@@ -373,7 +440,7 @@ fn store_fields(tx: &Transaction<'_>, content_id: i64, fields: &[(String, String
 
 fn set_state(tx: &Transaction<'_>, content_id: i64, state: &str, error: Option<&str>) -> Result<(), String> {
     tx.execute(
-        "UPDATE content SET state = ?1, error = ?2, processed_at = ?3 WHERE id = ?4",
+        "UPDATE version SET state = ?1, error = ?2, processed_at = ?3 WHERE id = ?4",
         params![state, error, now_ms(), content_id],
     )
     .map_err(sql_err)?;
@@ -392,27 +459,39 @@ fn form_fields(path: &Path) -> Result<Vec<(String, String)>, String> {
     crate::commands::pdf_form::pdf_form_fields(&path.to_string_lossy())
 }
 
-fn extract(path: &Path) -> Result<Outcome, String> {
+fn extract(path: &Path, store: &RecognizedStore) -> Result<Read, String> {
     let ext = path
         .extension()
         .and_then(|ext| ext.to_str())
         .unwrap_or("")
         .to_lowercase();
-    match crate::commands::fs::extract_text_without_recognition(path)? {
-        Some(text) if ext == "pdf" => {
-            // A page with no text layer is a scanned page.
-            if textless_pages(path).map(|pages| pages.is_empty()).unwrap_or(true) {
-                Ok(Outcome::Text(text))
-            } else if fingerprint(&text).is_some() {
-                Ok(Outcome::Partial(text))
-            } else {
-                Ok(Outcome::NeedsRecognition)
-            }
-        }
-        Some(text) => Ok(Outcome::Text(text)),
-        None if is_recognizable_image(&ext) => Ok(Outcome::NeedsRecognition),
-        None => Ok(Outcome::Unsupported),
+    if ext == "pdf" {
+        // The text of a PDF is its pages joined; each page is kept as it
+        // is in the text.
+        let pages: Vec<String> = pdf_pages_text(&path.to_string_lossy())?.iter().map(PdfPageContent::body).collect();
+        let text = join_pdf_pages(&pages);
+        // The pages of it kept as recognized enter its text, with the
+        // engine that read them, also those its ficha of shape does not
+        // send to be read (D-523).
+        let kept = |text: &str| with_kept_pages(path, text, store);
+        // A page with no text layer is a scanned page.
+        let (outcome, recognized) = if textless_pages(path).map(|pages| pages.is_empty()).unwrap_or(true) {
+            let done = kept(&text);
+            (Outcome::Text(done.text), done.pages)
+        } else if fingerprint(&text).is_some() {
+            let done = kept(&text);
+            (Outcome::Partial(done.text), done.pages)
+        } else {
+            (Outcome::NeedsRecognition, BTreeMap::new())
+        };
+        return Ok(Read { outcome, pages, recognized });
     }
+    let recognized = BTreeMap::new();
+    Ok(match crate::commands::fs::extract_text_without_recognition(path)? {
+        Some(text) => Read { pages: vec![text.clone()], outcome: Outcome::Text(text), recognized },
+        None if is_recognizable_image(&ext) => Read { outcome: Outcome::NeedsRecognition, pages: Vec::new(), recognized },
+        None => Read { outcome: Outcome::Unsupported, pages: Vec::new(), recognized },
+    })
 }
 
 #[cfg(test)]
@@ -456,7 +535,7 @@ mod tests {
         let origin = base.add_origin("O", &dir.path().join("o"), &[]).unwrap();
         settle(&base, &origin.id);
 
-        assert_eq!(count(&base, "SELECT count(*) FROM content WHERE state = 'processed'"), 1);
+        assert_eq!(count(&base, "SELECT count(*) FROM version WHERE state = 'processed'"), 1);
         assert_eq!(count(&base, "SELECT count(*) FROM derivative WHERE kind = 'text'"), 1);
         assert_eq!(state_of(&base, "contrato.md"), "processed");
         assert_eq!(state_of(&base, "contrato firmado.md"), "processed");
@@ -493,7 +572,7 @@ mod tests {
             looked += n;
         }
         assert_eq!(looked, 2);
-        assert_eq!(count(&base, "SELECT count(*) FROM content WHERE state = 'pending'"), 1);
+        assert_eq!(count(&base, "SELECT count(*) FROM version WHERE state = 'pending'"), 1);
         assert_eq!(state_of(&base, "otro.md"), "processed");
         // Once done, the base is at the current version: nothing else.
         assert_eq!(base.refresh_extraction_with(10, |_: &Path| vec![("x".to_string(), "y".to_string())]).unwrap(), 0);
@@ -523,8 +602,19 @@ mod tests {
         settle(&base, &origin.id);
 
         assert_eq!(count(&base, "SELECT count(*) FROM file"), 2);
-        assert_eq!(count(&base, "SELECT count(*) FROM content"), 1);
+        assert_eq!(count(&base, "SELECT count(*) FROM version"), 1);
         assert_eq!(count(&base, "SELECT count(*) FROM content_fts"), 1);
+        // The two files are two appearances of that one version, which has
+        // one document; the one that went took its own document (D-551).
+        assert_eq!(
+            count(&base, "SELECT count(*) FROM appearance a JOIN version v ON v.id = a.version_id WHERE a.selector = 'file' AND a.cut_state = 'confirmed'"),
+            2
+        );
+        assert_eq!(count(&base, "SELECT count(*) FROM document"), 1);
+        assert_eq!(
+            count(&base, "SELECT count(*) FROM document d JOIN version v ON v.document_id = d.id AND d.prevailing_version_id = v.id"),
+            1
+        );
 
         let rows = base.documents(&Visible::All, &DocumentFilter::default()).unwrap().rows;
         assert!(rows.iter().all(|row| row.copies == 2));
@@ -548,7 +638,7 @@ mod tests {
         assert_eq!(state_of(&base, "plano.dwg"), "unsupported");
         // Too short to tell documents apart by text, but still text.
         assert_eq!(state_of(&base, "nota.txt"), "processed");
-        assert_eq!(count(&base, "SELECT count(*) FROM content WHERE text_hash IS NOT NULL"), 0);
+        assert_eq!(count(&base, "SELECT count(*) FROM version WHERE text_hash IS NOT NULL"), 0);
     }
 
     #[test]
@@ -633,6 +723,143 @@ mod tests {
         pdf.into_bytes()
     }
 
+    /// The text of a PDF as it was put together before it was made from
+    /// its pages: the reference the text of a document must keep, byte by
+    /// byte (the answers kept of the model are found by it, D-555).
+    fn joined_as_before(path: &Path) -> String {
+        let _guard = crate::commands::fs::lock_pdfium();
+        let pdfium = crate::commands::fs::pdfium().unwrap();
+        let doc = pdfium.load_pdf_from_file(&path.to_string_lossy().to_string(), None).unwrap();
+        let mut out = String::new();
+        for (page_idx, page) in doc.pages().iter().enumerate() {
+            if !out.is_empty() {
+                out.push_str("\n\n");
+            }
+            out.push_str(&format!("## Page {}\n\n", page_idx + 1));
+            out.push_str(&page.text().unwrap().all());
+            out.push('\n');
+            let fields = crate::commands::pdf_form::page_form_fields(&page);
+            if !fields.is_empty() {
+                out.push_str(&format!("\n{}\n\n", crate::commands::pdf_form::FORM_FIELDS_HEADING));
+                for (name, value) in &fields {
+                    out.push_str(&format!("- {name}: {value}\n"));
+                }
+            }
+        }
+        out
+    }
+
+    fn pages_of(base: &DocBase, hash: &str) -> Vec<(i64, String, String)> {
+        let conn = base.conn();
+        let mut statement = conn
+            .prepare("SELECT page_no, engine, body FROM resource_text WHERE resource_hash = ?1 ORDER BY page_no, engine")
+            .unwrap();
+        let rows = statement.query_map([hash], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?))).unwrap();
+        rows.map(|row| row.unwrap()).collect()
+    }
+
+    fn hash_of(base: &DocBase, name: &str) -> String {
+        base.conn()
+            .query_row("SELECT file_hash FROM location WHERE rel_path = ?1", [name], |row| row.get(0))
+            .unwrap()
+    }
+
+    #[test]
+    fn the_text_made_from_the_pages_is_the_same_as_before_and_each_page_is_kept() {
+        use crate::source_volume::page_shape::test_pdf;
+        let form = "Ficha de cliente. Complete todos los campos con los datos de la persona o de la sociedad, \
+                    indique domicilio y actividad, y firme al pie.";
+        let dir = TempDir::new();
+        let filled = dir.write("o/ficha.pdf", &filled_form(form, "Ana Gomez"));
+        let long = dir.write(
+            "o/nota.pdf",
+            &test_pdf::build(&[
+                test_pdf::page(&["Primera hoja de la nota de prueba", "con dos renglones"], 0.0),
+                test_pdf::page(&["Segunda hoja"], 0.0),
+                test_pdf::page(&[], 0.0),
+            ]),
+        );
+        dir.write("o/carta.txt", CONTRACT.as_bytes());
+        for path in [&filled, &long] {
+            let before = joined_as_before(path);
+            let now = crate::commands::extract_images::extract_pdf_markdown(
+                &path.to_string_lossy(),
+                None,
+                "",
+                &crate::commands::extract_images::ExtractOptions::default(),
+            )
+            .unwrap();
+            assert_eq!(now, before);
+        }
+        assert!(joined_as_before(&filled).contains("Nombre: Ana Gomez"));
+
+        let base = DocBase::in_memory().unwrap();
+        let origin = base.add_origin("O", &dir.path().join("o"), &[]).unwrap();
+        settle(&base, &origin.id);
+        for (name, path) in [("ficha.pdf", &filled), ("nota.pdf", &long)] {
+            let hash = hash_of(&base, name);
+            let text = base.text_of_file(&hash).unwrap().unwrap();
+            assert_eq!(text, joined_as_before(path), "{name}");
+            let pages = pages_of(&base, &hash);
+            assert!(pages.iter().all(|(_, engine, _)| engine == EXTRACTION_ENGINE));
+            let numbers: Vec<i64> = pages.iter().map(|(page, _, _)| *page).collect();
+            assert_eq!(numbers, (1..=numbers.len() as i64).collect::<Vec<_>>());
+            // The pages joined are the text of the document.
+            assert_eq!(join_pdf_pages(pages.iter().map(|(_, _, body)| body.as_str())), text, "{name}");
+        }
+        assert_eq!(pages_of(&base, &hash_of(&base, "nota.pdf")).len(), 3);
+        // A file without pages has one, the whole text.
+        let letter = pages_of(&base, &hash_of(&base, "carta.txt"));
+        assert_eq!(letter, vec![(1, EXTRACTION_ENGINE.to_string(), base.text_of_file(&hash_of(&base, "carta.txt")).unwrap().unwrap())]);
+    }
+
+    #[test]
+    fn the_pages_recognized_are_kept_with_their_engine() {
+        let dir = TempDir::new();
+        dir.write("o/escrito.png", b"not really an image");
+        let base = DocBase::in_memory().unwrap();
+        let origin = base.add_origin("O", &dir.path().join("o"), &[]).unwrap();
+        settle(&base, &origin.id);
+        let hash = hash_of(&base, "escrito.png");
+        assert!(pages_of(&base, &hash).is_empty());
+        assert!(base.store_recognized_pages(&hash, CONTRACT, "motor-a", &[(1, "motor-a", CONTRACT)]).unwrap());
+        assert_eq!(pages_of(&base, &hash), vec![(1, "motor-a".to_string(), CONTRACT.to_string())]);
+        assert_eq!(base.text_of_file(&hash).unwrap().as_deref(), Some(CONTRACT));
+    }
+
+    #[test]
+    fn a_page_kept_as_recognized_enters_the_text_though_its_ficha_does_not_send_it() {
+        use crate::source_volume::page_shape::test_pdf::{build, page};
+        use crate::source_volume::recognition::{splice_recognized_pages, textless_pages};
+        use crate::source_volume::recognized_store::Part;
+        let own = "Hoja con su texto propio, escrita en renglones largos como un escrito comun del estudio de prueba.";
+        let second = "Segunda hoja, tambien con su texto propio y de largo parecido, para que nada la mande a leer.";
+        let dir = TempDir::new();
+        let path = dir.write("o/escrito.pdf", &build(&[page(&[own], 0.0), page(&[second], 0.0)]));
+        assert!(textless_pages(&path).unwrap().is_empty());
+        let before = joined_as_before(&path);
+        let read_before = RecognizedPage { engine_id: "motor-viejo".to_string(), text: "leida antes".to_string(), ..Default::default() };
+
+        // Nothing kept: the text is the one of before.
+        let plain = DocBase::in_memory().unwrap();
+        let origin = plain.add_origin("O", &dir.path().join("o"), &[]).unwrap();
+        settle(&plain, &origin.id);
+        let hash = hash_of(&plain, "escrito.pdf");
+        assert_eq!(plain.text_of_file(&hash).unwrap().as_deref(), Some(before.as_str()));
+
+        // Page 2 kept as read by an engine: it enters, with that engine,
+        // and the document needs no engine.
+        let base = DocBase::in_memory().unwrap();
+        let origin = base.add_origin("O", &dir.path().join("o"), &[]).unwrap();
+        RecognizedStore::at(base.recognized.join(&hash)).put(Part::Page(2), &read_before).unwrap();
+        settle(&base, &origin.id);
+        let expected = splice_recognized_pages(&before, &BTreeMap::from([(2, read_before.clone())]));
+        assert_ne!(expected, before);
+        assert_eq!(base.text_of_file(&hash).unwrap(), Some(expected));
+        assert!(pages_of(&base, &hash).contains(&(2, "motor-viejo".to_string(), "leida antes".to_string())));
+        assert_eq!(state_of(&base, "escrito.pdf"), "processed");
+    }
+
     #[test]
     fn the_same_form_filled_for_two_people_is_two_documents() {
         let form = "Ficha de cliente. Complete todos los campos con los datos de la persona o de la sociedad, \
@@ -646,7 +873,7 @@ mod tests {
         settle(&base, &origin.id);
 
         // Before, only the page was read: both read alike and became one.
-        assert_eq!(count(&base, "SELECT count(*) FROM content WHERE state = 'processed'"), 2);
+        assert_eq!(count(&base, "SELECT count(*) FROM version WHERE state = 'processed'"), 2);
         let rows = base.documents(&Visible::All, &DocumentFilter::default()).unwrap().rows;
         assert!(rows.iter().all(|row| row.copies == 1));
 
@@ -662,7 +889,7 @@ mod tests {
         let fields: String = base
             .conn()
             .query_row(
-                "SELECT d.body FROM derivative d JOIN file f ON f.content_id = d.content_id
+                "SELECT d.body FROM derivative d JOIN file f ON f.version_id = d.version_id
                  JOIN location l ON l.file_hash = f.hash
                  WHERE d.kind = 'fields' AND l.name = 'ficha dos.pdf'",
                 [],

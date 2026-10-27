@@ -5,6 +5,10 @@
 //! the extraction (`text.rs`). Here an engine behind the `TextRecognizer`
 //! contract reads it, one document at a time:
 //!
+//! - by itself, in the background, with the engine of this computer
+//!   (D-558, `recognition_local`), the automatic reading on or off: it
+//!   asks no model in the cloud. Only while its models are there; without
+//!   them, as before:
 //! - by itself, in the background, while the automatic reading is on (the
 //!   same switch as the questions to the model: each page is a question);
 //! - when a person asks for it, even with the automatic reading off. What
@@ -85,7 +89,7 @@ pub(crate) fn recognition_engine(conn: &Connection) -> Result<Option<Recognition
 const REACHABLE_SQL: &str = "EXISTS (SELECT 1 FROM file f
      JOIN location l ON l.file_hash = f.hash AND l.hash_state = 'done'
      JOIN origin o ON o.id = l.origin_id AND o.reachable = 1
-     WHERE f.content_id = c.id AND NOT {excluded})";
+     WHERE f.version_id = c.id AND NOT {excluded})";
 
 fn reachable_sql() -> String {
     REACHABLE_SQL.replace("{excluded}", super::excluded_sql!())
@@ -95,7 +99,7 @@ fn reachable_sql() -> String {
 /// order asked (kept in the base: they survive closing the app).
 pub(crate) fn requested_recognitions(conn: &Connection) -> Result<Vec<i64>, String> {
     let mut statement = conn
-        .prepare("SELECT content_id FROM recognition_request ORDER BY position, content_id")
+        .prepare("SELECT version_id FROM recognition_request ORDER BY position, version_id")
         .map_err(sql_err)?;
     let rows = statement.query_map([], |row| row.get::<_, i64>(0)).map_err(sql_err)?;
     rows.collect::<Result<_, _>>().map_err(sql_err)
@@ -124,8 +128,8 @@ impl DocBase {
                     for id in wanted {
                         let found: Option<(String, Option<String>)> = conn
                             .query_row(
-                                "SELECT c.state, d.engine FROM content c
-                                 LEFT JOIN derivative d ON d.content_id = c.id AND d.kind = 'text' WHERE c.id = ?1",
+                                "SELECT c.state, d.engine FROM version c
+                                 LEFT JOIN derivative d ON d.version_id = c.id AND d.kind = 'text' WHERE c.id = ?1",
                                 [id],
                                 |row| Ok((row.get(0)?, row.get(1)?)),
                             )
@@ -143,7 +147,7 @@ impl DocBase {
                     let failed_only = matches!(which, RecognitionRequest::Failed);
                     let mut statement = conn
                         .prepare(&format!(
-                            "SELECT c.id FROM content c WHERE c.state = 'needs-recognition' AND (?1 = 0 OR c.error IS NOT NULL)
+                            "SELECT c.id FROM version c WHERE c.state = 'needs-recognition' AND (?1 = 0 OR c.error IS NOT NULL)
                              AND {} ORDER BY c.id",
                             reachable_sql()
                         ))
@@ -160,10 +164,10 @@ impl DocBase {
                 .map_err(sql_err)?;
             let at = now_ms();
             for (index, id) in ids.iter().enumerate() {
-                conn.execute("UPDATE content SET error = NULL WHERE id = ?1 AND state = 'needs-recognition'", [id])
+                conn.execute("UPDATE version SET error = NULL WHERE id = ?1 AND state = 'needs-recognition'", [id])
                     .map_err(sql_err)?;
                 conn.execute(
-                    "INSERT OR IGNORE INTO recognition_request (content_id, position, asked_at) VALUES (?1, ?2, ?3)",
+                    "INSERT OR IGNORE INTO recognition_request (version_id, position, asked_at) VALUES (?1, ?2, ?3)",
                     params![id, last + 1 + index as i64, at],
                 )
                 .map_err(sql_err)?;
@@ -178,7 +182,7 @@ impl DocBase {
     /// well or for good: it is no longer asked for.
     fn recognition_ended(&self, content: i64) -> Result<(), String> {
         self.conn()
-            .execute("DELETE FROM recognition_request WHERE content_id = ?1", [content])
+            .execute("DELETE FROM recognition_request WHERE version_id = ?1", [content])
             .map_err(sql_err)?;
         self.engine_state().forget_recognition_tries(&[content]);
         Ok(())
@@ -186,18 +190,31 @@ impl DocBase {
 
     /// The document to recognize next: the first one a person asked for,
     /// or, while the automatic reading is on, the next one waiting that did
-    /// not fail and can be read now.
+    /// not fail and can be read now. While the engine of this computer can
+    /// read, the ones waiting are its own (`next_local_recognition`).
     pub fn next_recognition(&self) -> Result<Option<i64>, String> {
         if let Some(id) = requested_recognitions(&self.conn())?.first().copied() {
             return Ok(Some(id));
         }
-        if !self.background_reading()? {
+        if super::services::local_recognition_engine().is_some() || !self.background_reading()? {
             return Ok(None);
         }
+        self.next_waiting()
+    }
+
+    /// The document the engine of this computer reads next (D-558): the
+    /// next one waiting that did not fail, can be read now and nobody asked
+    /// for, the automatic reading on or off. It asks no model in the cloud.
+    pub fn next_local_recognition(&self) -> Result<Option<i64>, String> {
+        self.next_waiting()
+    }
+
+    fn next_waiting(&self) -> Result<Option<i64>, String> {
         self.conn()
             .query_row(
                 &format!(
-                    "SELECT c.id FROM content c WHERE c.state = 'needs-recognition' AND c.error IS NULL AND {}
+                    "SELECT c.id FROM version c WHERE c.state = 'needs-recognition' AND c.error IS NULL AND {}
+                     AND NOT EXISTS (SELECT 1 FROM recognition_request r WHERE r.version_id = c.id)
                      ORDER BY c.id LIMIT 1",
                     reachable_sql()
                 ),
@@ -213,9 +230,22 @@ impl DocBase {
     /// the provider fails, the document keeps waiting and the stage shows
     /// the error with when it tries again (`retry_in`).
     pub fn recognition_step(&self, recognizer: &dyn TextRecognizer, retry_in: Duration) -> Result<RecognitionStep, String> {
-        let Some(content) = self.next_recognition()? else {
-            return Ok(RecognitionStep::Idle);
-        };
+        match self.next_recognition()? {
+            Some(content) => self.recognition_step_of(content, recognizer, retry_in),
+            None => Ok(RecognitionStep::Idle),
+        }
+    }
+
+    /// The same, for the next document of the engine of this computer
+    /// (`next_local_recognition`).
+    pub fn local_recognition_step(&self, recognizer: &dyn TextRecognizer, retry_in: Duration) -> Result<RecognitionStep, String> {
+        match self.next_local_recognition()? {
+            Some(content) => self.recognition_step_of(content, recognizer, retry_in),
+            None => Ok(RecognitionStep::Idle),
+        }
+    }
+
+    fn recognition_step_of(&self, content: i64, recognizer: &dyn TextRecognizer, retry_in: Duration) -> Result<RecognitionStep, String> {
         let state = self.engine_state();
         state.recognizing(Some(content));
         let result = self.recognize_content(content, recognizer);
@@ -242,7 +272,7 @@ impl DocBase {
                 let marked = self
                     .conn()
                     .execute(
-                        "UPDATE content SET error = ?1 WHERE id = ?2 AND state = 'needs-recognition'",
+                        "UPDATE version SET error = ?1 WHERE id = ?2 AND state = 'needs-recognition'",
                         params![error, content],
                     )
                     .map_err(sql_err)?;
@@ -265,8 +295,8 @@ impl DocBase {
             let conn = self.conn();
             let found: Option<(String, Option<String>)> = conn
                 .query_row(
-                    "SELECT c.state, d.engine FROM content c
-                     LEFT JOIN derivative d ON d.content_id = c.id AND d.kind = 'text' WHERE c.id = ?1",
+                    "SELECT c.state, d.engine FROM version c
+                     LEFT JOIN derivative d ON d.version_id = c.id AND d.kind = 'text' WHERE c.id = ?1",
                     [content_id],
                     |row| Ok((row.get(0)?, row.get(1)?)),
                 )
@@ -282,7 +312,7 @@ impl DocBase {
                     "SELECT f.hash, o.location, l.rel_path, l.ext FROM file f
                      JOIN location l ON l.file_hash = f.hash AND l.hash_state = 'done'
                      JOIN origin o ON o.id = l.origin_id AND o.reachable = 1
-                     WHERE f.content_id = ?1 AND NOT {}
+                     WHERE f.version_id = ?1 AND NOT {}
                      ORDER BY l.id LIMIT 1",
                     super::excluded_sql!()
                 ),
@@ -303,18 +333,23 @@ impl DocBase {
         let state = self.engine_state();
         let on_page = |page: usize, total: usize| state.recognizing_page(page, total);
         let ext = ext.to_lowercase();
-        let text = run_guarded("docbase_recognize_text", || {
+        // The text, and each page read with the engine that read it.
+        let (text, pages) = run_guarded("docbase_recognize_text", || {
             if ext == "pdf" {
                 let extracted = crate::commands::fs::extract_text_without_recognition(&path)?.unwrap_or_default();
-                recognition::complete_pdf_text_reporting(&path, &extracted, &store, recognizer, &on_page)
+                let done = recognition::complete_pdf_text_kept(&path, &extracted, &store, recognizer, &on_page)?;
+                let pages = done.pages.into_iter().map(|(page, read)| (page, read.engine_id, read.text)).collect();
+                Ok((done.text, pages))
             } else if is_recognizable_image(&ext) {
                 on_page(1, 1);
-                recognition::recognize_image_source(&path, &store, recognizer)
+                let text = recognition::recognize_image_source(&path, &store, recognizer)?;
+                Ok((text.clone(), vec![(1, engine.clone(), text)]))
             } else {
                 Err(format!("A .{ext} file is not an image whose text can be recognized"))
             }
         })?;
-        self.store_recognized_text(&hash, &text, &engine)
+        let pages: Vec<(u32, &str, &str)> = pages.iter().map(|(page, engine, body)| (*page, engine.as_str(), body.as_str())).collect();
+        self.store_recognized_pages(&hash, &text, &engine, &pages)
     }
 
     /// Counts the pages each document waiting for recognition needs read,
@@ -327,8 +362,8 @@ impl DocBase {
             let conn = self.conn();
             let mut statement = conn
                 .prepare(&format!(
-                    "SELECT c.id, o.location, l.rel_path, l.ext FROM content c
-                     JOIN file f ON f.content_id = c.id
+                    "SELECT c.id, o.location, l.rel_path, l.ext FROM version c
+                     JOIN file f ON f.version_id = c.id
                      JOIN location l ON l.file_hash = f.hash AND l.hash_state = 'done'
                      JOIN origin o ON o.id = l.origin_id AND o.reachable = 1
                      WHERE c.state = 'needs-recognition' AND NOT {}
@@ -455,7 +490,7 @@ del edificio inventado hasta que alguna de las partes la retire, con aviso de un
     fn content_of(base: &DocBase, name: &str) -> i64 {
         base.conn()
             .query_row(
-                "SELECT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.name = ?1",
+                "SELECT f.version_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.name = ?1",
                 [name],
                 |row| row.get(0),
             )
@@ -476,7 +511,7 @@ del edificio inventado hasta que alguna de las partes la retire, con aviso de un
         base.conn()
             .query_row(
                 "SELECT d.body, d.engine FROM location l JOIN file f ON f.hash = l.file_hash
-                 JOIN derivative d ON d.content_id = f.content_id AND d.kind = 'text' WHERE l.name = ?1",
+                 JOIN derivative d ON d.version_id = f.version_id AND d.kind = 'text' WHERE l.name = ?1",
                 [name],
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
@@ -591,6 +626,31 @@ del edificio inventado hasta que alguna de las partes la retire, con aviso de un
     }
 
     #[test]
+    fn the_engine_of_this_computer_reads_the_new_scans_with_the_reading_off_and_leaves_the_asked_ones() {
+        let (_dir, base, _) = base_of(&[("uno.png", fixture("pagina-prueba.png")), ("dos.pdf", fixture("escaneo-2-paginas.pdf"))]);
+        assert!(!base.background_reading().unwrap());
+        // A person asks for one, with the engine chosen in Ajustes: that one
+        // is not the local engine's.
+        base.set_recognition_engine(Some(&engine("m"))).unwrap();
+        let two = content_of(&base, "dos.pdf");
+        assert_eq!(base.request_recognition(&RecognitionRequest::These(vec![two])).unwrap(), 1);
+
+        let local = FakeRecognizer::of("rapidocr-onnx:ppocrv6-small", vec![Ok(NOTE)]);
+        let one = content_of(&base, "uno.png");
+        assert_eq!(base.local_recognition_step(&local, SLOW).unwrap(), RecognitionStep::Recognized(one));
+        assert_eq!(base.local_recognition_step(&local, SLOW).unwrap(), RecognitionStep::Idle);
+        assert_eq!(local.calls(), 1);
+        assert_eq!(text_of(&base, "uno.png").1, "rapidocr-onnx:ppocrv6-small");
+        assert_eq!(state_of(&base, "dos.pdf"), "needs-recognition");
+        assert_eq!(base.next_recognition().unwrap(), Some(two));
+
+        // A document read by the local engine is not read again by itself.
+        let chosen = fake("m", vec![Ok(PAGE_ONE), Ok(PAGE_TWO)]);
+        assert_eq!(run(&base, &chosen), vec![RecognitionStep::Recognized(two)]);
+        assert_eq!(text_of(&base, "uno.png").1, "rapidocr-onnx:ppocrv6-small");
+    }
+
+    #[test]
     fn without_an_engine_nothing_is_asked_for() {
         let (_dir, base, _) = base_of(&[("uno.png", fixture("pagina-prueba.png"))]);
         assert!(base.request_recognition(&RecognitionRequest::AllWaiting).is_err());
@@ -687,7 +747,7 @@ del edificio inventado hasta que alguna de las partes la retire, con aviso de un
             assert!(matches!(run(&base, &timing_out)[..], [RecognitionStep::Stopped(_)]));
         }
         assert!(matches!(run(&base, &timing_out)[..], [RecognitionStep::Failed(_)]));
-        let error: Option<String> = base.conn().query_row("SELECT error FROM content", [], |row| row.get(0)).unwrap();
+        let error: Option<String> = base.conn().query_row("SELECT error FROM version", [], |row| row.get(0)).unwrap();
         assert!(error.unwrap().contains("did not answer"));
     }
 

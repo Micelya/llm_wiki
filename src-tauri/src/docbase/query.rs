@@ -264,8 +264,8 @@ impl DocBase {
         let (documents, words): (i64, i64) = conn
             .query_row(
                 &format!(
-                    "SELECT count(*), coalesce(sum(word_count), 0) FROM content
-                     WHERE id IN (SELECT content_id FROM ({sql}) WHERE content_id IS NOT NULL)"
+                    "SELECT count(*), coalesce(sum(word_count), 0) FROM version
+                     WHERE id IN (SELECT version_id FROM ({sql}) WHERE version_id IS NOT NULL)"
                 ),
                 params_from_iter(bound.clone()),
                 |row| Ok((row.get(0)?, row.get(1)?)),
@@ -355,7 +355,7 @@ impl DocBase {
             // Only what waits for a person: a copy, a version… (D-497).
             let asks = super::similar::store::asks_person_sql("relation");
             conditions.push(format!(
-                "content_id IN (SELECT a FROM similar_pair WHERE state = 'proposed' AND {asks}
+                "version_id IN (SELECT a FROM similar_pair WHERE state = 'proposed' AND {asks}
                                 UNION SELECT b FROM similar_pair WHERE state = 'proposed' AND {asks})"
             ));
         }
@@ -368,7 +368,7 @@ impl DocBase {
             None => {}
         }
         if let Some(principal) = filter.similar_group {
-            conditions.push("content_id IN (SELECT content_id FROM similar_group_member WHERE principal = ?)".to_string());
+            conditions.push("version_id IN (SELECT version_id FROM similar_group_member WHERE principal = ?)".to_string());
             bound.push(Value::Integer(principal));
         }
         for word in filter
@@ -383,7 +383,7 @@ impl DocBase {
             match fts_prefix(word) {
                 Some(prefix) => {
                     conditions.push(
-                        "(rel_path LIKE ? ESCAPE '\\' OR content_id IN (SELECT rowid FROM content_fts WHERE content_fts MATCH ?))"
+                        "(rel_path LIKE ? ESCAPE '\\' OR version_id IN (SELECT rowid FROM content_fts WHERE content_fts MATCH ?))"
                             .to_string(),
                     );
                     bound.push(like);
@@ -421,7 +421,7 @@ impl DocBase {
             format!(
                 "SELECT * FROM (
                      SELECT *, row_number() OVER (
-                         PARTITION BY coalesce(content_id, -location_id)
+                         PARTITION BY coalesce(version_id, -location_id)
                          ORDER BY mtime_ms DESC, location_id
                      ) AS document_rank
                      FROM ({base_sql}) WHERE {filter_sql}
@@ -470,7 +470,7 @@ impl DocBase {
         let content: Option<(Option<i64>, Option<i64>, Option<String>)> = match row.content_id {
             Some(content_id) => conn
                 .query_row(
-                    "SELECT word_count, processed_at, error FROM content WHERE id = ?1",
+                    "SELECT word_count, processed_at, error FROM version WHERE id = ?1",
                     [content_id],
                     |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
                 )
@@ -483,7 +483,7 @@ impl DocBase {
         let text: Option<(String, String, i64)> = match row.content_id {
             Some(content_id) => conn
                 .query_row(
-                    "SELECT body, engine, created_at FROM derivative WHERE content_id = ?1 AND kind = 'text'",
+                    "SELECT body, engine, created_at FROM derivative WHERE version_id = ?1 AND kind = 'text'",
                     [content_id],
                     |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
                 )
@@ -529,7 +529,7 @@ impl DocBase {
         let found: Option<(Option<i64>, Option<String>, String, String, Option<i64>, String, i64)> = conn
             .query_row(
                 &format!(
-                    "SELECT f.content_id, l.file_hash, o.name, o.location, o.reachable, l.rel_path, l.mtime_ms
+                    "SELECT f.version_id, l.file_hash, o.name, o.location, o.reachable, l.rel_path, l.mtime_ms
                      FROM location l
                      JOIN origin o ON o.id = l.origin_id
                      LEFT JOIN file f ON f.hash = l.file_hash
@@ -597,18 +597,18 @@ pub(crate) fn rows_sql(visible: &Visible, only: Option<i64>) -> (String, Vec<Val
                 o.reachable AS origin_reachable, l.rel_path AS rel_path, l.folder AS folder,
                 l.name AS name, l.ext AS ext, l.size AS size, l.mtime_ms AS mtime_ms,
                 {STATE_SQL} AS state,
-                f.content_id AS content_id,
-                CASE WHEN f.content_id IS NULL THEN 1 ELSE (
+                f.version_id AS version_id,
+                CASE WHEN f.version_id IS NULL THEN 1 ELSE (
                     SELECT count(*) FROM location l2 JOIN file f2 ON f2.hash = l2.file_hash
-                    WHERE f2.content_id = f.content_id AND {visible_l2}
+                    WHERE f2.version_id = f.version_id AND {visible_l2}
                 ) END AS copies,
                 dt.doc_type AS doc_type, dt.stage AS doc_stage, coalesce(dt.proposed, 0) AS doc_type_proposed,
                 dt.proposed_name AS doc_type_name
          FROM location l
          JOIN origin o ON o.id = l.origin_id
          LEFT JOIN file f ON f.hash = l.file_hash
-         LEFT JOIN content c ON c.id = f.content_id
-         LEFT JOIN document_type dt ON dt.content_id = f.content_id
+         LEFT JOIN version c ON c.id = f.version_id
+         LEFT JOIN document_type dt ON dt.version_id = f.version_id
          WHERE {visible_l} {only_sql}"
     );
     (sql, bound)
@@ -631,7 +631,7 @@ fn locations_of(
              FROM location l
              JOIN origin o ON o.id = l.origin_id
              JOIN file f ON f.hash = l.file_hash
-             WHERE f.content_id = ? AND {condition}
+             WHERE f.version_id = ? AND {condition}
              ORDER BY (l.id = ?) DESC, o.name COLLATE NOCASE, l.rel_path COLLATE NOCASE"
         ))
         .map_err(sql_err)?;
@@ -679,7 +679,7 @@ pub(crate) fn read_rows(conn: &Connection, sql: &str, bound: Vec<Value>) -> Resu
                 size: row.get("size")?,
                 mtime_ms: row.get("mtime_ms")?,
                 state: row.get("state")?,
-                content_id: row.get("content_id")?,
+                content_id: row.get("version_id")?,
                 copies: row.get("copies")?,
                 doc_type: row.get("doc_type")?,
                 doc_stage: row.get("doc_stage")?,

@@ -18,6 +18,8 @@
 //!   project's `raw/recognized`).
 //! - `MICELYA_RECOGNIZED_SEED`: folders with that same layout whose text
 //!   is copied (never moved) into the cache before reading anything.
+//! - `MICELYA_RECOGNIZE=local`: read them with the engine of this computer
+//!   (D-558), asking no model.
 //! - `MICELYA_RECOGNIZE=1`: read with Codex the pages still missing;
 //!   without it, documents with missing pages stay without text.
 //! - `MICELYA_ASK_CACHE`: a file where the model's answers are kept
@@ -117,10 +119,38 @@ fn copy_seed(seeds: &str, cache: &Path, hash: &str) {
 /// Reads the folders into a scratch base, with the text of images.
 pub(crate) fn prepare(folders: &str) -> (TempDir, DocBase) {
     let scratch = TempDir::new();
-    let base = DocBase::open(&scratch.path().join(PRIVATE_DB_FILE)).unwrap();
+    let target = scratch.path().join(PRIVATE_DB_FILE);
+    // `MICELYA_DOCBASE_START`: a base of this numbering to start from
+    // (copied, never written), with the answers and the settings brought
+    // into it (`a-la-base-nueva.py`, D-555); an origin of it with the same
+    // folder is the one read.
+    if let Ok(start) = std::env::var("MICELYA_DOCBASE_START") {
+        std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+        std::fs::copy(&start, &target).unwrap();
+    }
+    let base = DocBase::open(&target).unwrap();
+    // The text read from images, kept beside the base before anything is
+    // read, as in the app: the extraction puts in every page already read
+    // (D-523). From the seeds and from the cache of earlier runs.
+    let cache = std::env::var("MICELYA_RECOGNIZED_CACHE")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| base.recognized.clone());
+    let seeds = std::env::var("MICELYA_RECOGNIZED_SEED").unwrap_or_default();
+    let kept = format!("{seeds};{}", cache.display());
+    for seed in kept.split(';').filter(|s| !s.trim().is_empty()) {
+        for entry in std::fs::read_dir(seed.trim()).into_iter().flatten().flatten() {
+            copy_seed(seed, &base.recognized, &entry.file_name().to_string_lossy());
+        }
+    }
     for (index, folder) in folders.split(';').filter(|f| !f.trim().is_empty()).enumerate() {
-        let origin = base.add_origin(&format!("{}", index + 1), Path::new(folder.trim()), &[]).unwrap();
-        base.scan_origin(&origin.id).unwrap();
+        let location = Path::new(folder.trim()).to_string_lossy().to_string();
+        let kept: Option<String> =
+            base.conn().query_row("SELECT id FROM origin WHERE location = ?1", [&location], |row| row.get(0)).ok();
+        let id = match kept {
+            Some(id) => id,
+            None => base.add_origin(&format!("{}", index + 1), Path::new(folder.trim()), &[]).unwrap().id,
+        };
+        base.scan_origin(&id).unwrap();
     }
     while base.hash_pending(32).unwrap() > 0 {}
     while base.extract_pending(8).unwrap() > 0 {}
@@ -128,24 +158,31 @@ pub(crate) fn prepare(folders: &str) -> (TempDir, DocBase) {
 
     // Text read from images: from the cache, from the seeds, and from
     // Codex when asked to.
-    let cache = std::env::var("MICELYA_RECOGNIZED_CACHE")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| scratch.path().join("recognized"));
-    let seeds = std::env::var("MICELYA_RECOGNIZED_SEED").unwrap_or_default();
-    let engine = (std::env::var("MICELYA_RECOGNIZE").as_deref() == Ok("1")).then(|| {
-        recognition::recognizer_for(&RecognitionConfig {
-            engine: "codex-cli".into(),
-            model: std::env::var("MICELYA_ASK_MODEL").unwrap_or_default(),
-        })
-        .unwrap()
-    });
+    // `MICELYA_RECOGNIZE=local`: the engine of this computer reads the
+    // pages still missing (D-558); no model is asked.
+    let engine = match std::env::var("MICELYA_RECOGNIZE").as_deref() {
+        Ok("1") => Some(
+            recognition::recognizer_for(&RecognitionConfig {
+                engine: "codex-cli".into(),
+                model: std::env::var("MICELYA_ASK_MODEL").unwrap_or_default(),
+            })
+            .unwrap(),
+        ),
+        Ok("local") => Some(
+            recognition::recognizer_for(
+                &crate::docbase::services::local_recognition_engine().expect("the engine of this computer is not available"),
+            )
+            .unwrap(),
+        ),
+        _ => None,
+    };
     let counting = Counting { inner: engine.as_deref(), calls: Cell::new(0) };
     let waiting: Vec<(String, String, String)> = {
         let conn = base.conn();
         let mut statement = conn
             .prepare(
-                "SELECT f.hash, min(o.location || '/' || l.rel_path), min(l.ext) FROM content c
-                 JOIN file f ON f.content_id = c.id JOIN location l ON l.file_hash = f.hash
+                "SELECT f.hash, min(o.location || '/' || l.rel_path), min(l.ext) FROM version c
+                 JOIN file f ON f.version_id = c.id JOIN location l ON l.file_hash = f.hash
                  JOIN origin o ON o.id = l.origin_id
                  WHERE c.state = 'needs-recognition' GROUP BY f.hash",
             )
@@ -158,7 +195,9 @@ pub(crate) fn prepare(folders: &str) -> (TempDir, DocBase) {
         rows
     };
     let mut recognized = 0;
+    let mut read_now = 0;
     for (hash, path, ext) in &waiting {
+        let calls_before = counting.calls.get();
         copy_seed(&seeds, &cache, hash);
         let store = RecognizedStore::at(cache.join(hash));
         let path = Path::new(path);
@@ -176,9 +215,12 @@ pub(crate) fn prepare(folders: &str) -> (TempDir, DocBase) {
             }
             Err(error) => println!("not recognized: {} ({error})", path.display()),
         }
+        if counting.calls.get() > calls_before {
+            read_now += 1;
+        }
     }
     println!(
-        "text read from images: {recognized} of {} documents; pages read by Codex now: {}",
+        "text read from images: {recognized} of {} documents; pages read by the engine now: {}, in {read_now} documents",
         waiting.len(),
         counting.calls.get()
     );
@@ -190,7 +232,7 @@ pub(crate) fn paths_by_content(base: &DocBase) -> (HashMap<String, i64>, BTreeMa
     let conn = base.conn();
     let mut statement = conn
         .prepare(
-            "SELECT o.location, l.rel_path, f.content_id FROM location l
+            "SELECT o.location, l.rel_path, f.version_id FROM location l
              JOIN origin o ON o.id = l.origin_id JOIN file f ON f.hash = l.file_hash",
         )
         .unwrap();
@@ -223,7 +265,7 @@ fn texts_of_real_folders() {
     let (_, by_content) = paths_by_content(&base);
     let texts: Vec<(i64, String)> = {
         let conn = base.conn();
-        let mut statement = conn.prepare("SELECT content_id, body FROM derivative WHERE kind = 'text'").unwrap();
+        let mut statement = conn.prepare("SELECT version_id, body FROM derivative WHERE kind = 'text'").unwrap();
         let rows = statement
             .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
             .unwrap()

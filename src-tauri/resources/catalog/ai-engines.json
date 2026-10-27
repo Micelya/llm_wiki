@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "about": "Engines each AI service can use (P-141, D-445): what each one says it can do, where it processes what it is sent and what its provider keeps. Shown in Ajustes → Servicios de IA. An entry is one engine for one service; `inBase` says the base can run it by itself (today Codex, and Micelya Core for the scans); `connection` names the shared connection it needs (Ajustes → Conexiones); `defaultModel` is the model it is saved with when the person does not choose one (`modelChoice` false: the provider says which model reads).",
+  "about": "Engines each AI service can use (P-141, D-445): what each one says it can do, where it processes what it is sent and what its provider keeps. Shown in Ajustes → Servicios de IA. An entry is one engine for one service; `inBase` says the base can run it by itself (today Codex, and for the scans Micelya Core and the engine of this computer, which is the one used when none is chosen and reads the new scans by itself while its models are there, D-558; without them the screens get `unavailable` with why); `connection` names the shared connection it needs (Ajustes → Conexiones); `defaultModel` is the model it is saved with when the person does not choose one (`modelChoice` false: the provider says which model reads).",
   "services": [
     {
       "id": "ask",
@@ -140,6 +140,21 @@
       "notes": "Lee el texto renglón por renglón, con la confianza de cada palabra: las de menos de 90 % quedan marcadas como dudosas. Las tablas salen como renglones, sin sus columnas, y las casillas no se leen (Core los ofrece aparte, más adelante). El manuscrito, solo en inglés. Cuesta centavos de dólar por página, en la cuenta de Core.",
       "processing": "Procesa en Oregón (Estados Unidos). Cada página se convierte en imagen en esta computadora y se manda aparte (hasta 4 a la vez), con un nombre genérico (pagina-N.jpg), nunca el del archivo.",
       "retention": "Textract guarda el resultado 7 días. Desktop borra cada lectura en Core apenas la guarda. Solo borra las que pidió esta computadora; si Core no deja borrar una, lo avisa en Atención y lo vuelve a intentar."
+    },
+    {
+      "service": "recognize",
+      "id": "rapidocr-onnx",
+      "name": "En esta computadora (RapidOCR)",
+      "kind": "local",
+      "inBase": true,
+      "reasoning": false,
+      "defaultModel": "ppocrv6-small",
+      "modelChoice": false,
+      "capabilities": { "text": "yes", "tables": "no", "checkboxes": "no", "handwriting": "no" },
+      "languages": ["castellano", "inglés", "otros de letra latina"],
+      "notes": "Lee lo impreso renglón por renglón, con la confianza de cada renglón: los de poca confianza no entran al texto, así lo manuscrito mal leído no pasa por texto. Lo manuscrito no lo transcribe: se le pide a otro motor. Lee solo los escaneos nuevos, en segundo plano, aunque la lectura automática esté apagada, porque no le pregunta a ningún modelo en la nube; lo que ya leyó otro motor no lo vuelve a leer. Unos segundos por página. Necesita sus modelos instalados con la app.",
+      "processing": "Nada sale de esta computadora: cada página se convierte en imagen y se lee acá mismo.",
+      "retention": "No hay proveedor: el texto queda solo en la base de esta computadora."
     },
     {
       "service": "research",

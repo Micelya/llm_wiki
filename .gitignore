@@ -13,6 +13,10 @@ dist-rc/
 # Rust build artifacts
 src-tauri/target/
 
+# The models and the ONNX Runtime of the local reading of scans
+# (scripts/fetch-ocr-models.mjs): downloaded, never committed.
+src-tauri/ocr/
+
 # Tauri generated files
 src-tauri/gen/
 

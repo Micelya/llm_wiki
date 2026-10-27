@@ -1026,13 +1026,13 @@ fn fingerprint(conn: &Connection, documents: &[i64]) -> Result<String, String> {
     let mut parts = vec![format!("{ENGINE}+{}", super::store::engine_id())];
     for id in documents {
         let signed: Option<(i64, String)> = conn
-            .query_row("SELECT text_at, engine FROM similar_signature WHERE content_id = ?1", [id], |row| {
+            .query_row("SELECT text_at, engine FROM similar_signature WHERE version_id = ?1", [id], |row| {
                 Ok((row.get(0)?, row.get(1)?))
             })
             .optional()
             .map_err(sql_err)?;
         let fields_at: Option<i64> = conn
-            .query_row("SELECT created_at FROM derivative WHERE content_id = ?1 AND kind = 'fields'", [id], |row| row.get(0))
+            .query_row("SELECT created_at FROM derivative WHERE version_id = ?1 AND kind = 'fields'", [id], |row| row.get(0))
             .optional()
             .map_err(sql_err)?;
         let (text_at, engine) = signed.unwrap_or_default();
@@ -1046,9 +1046,9 @@ fn load_text(conn: &Connection, content_id: i64) -> Result<Option<Text>, String>
         .query_row(
             "SELECT d.body, m.skip_pages, m.drop_phrases, fd.body
              FROM derivative d
-             JOIN document_marks m ON m.content_id = d.content_id
-             LEFT JOIN derivative fd ON fd.content_id = d.content_id AND fd.kind = 'fields'
-             WHERE d.content_id = ?1 AND d.kind = 'text'",
+             JOIN document_marks m ON m.version_id = d.version_id
+             LEFT JOIN derivative fd ON fd.version_id = d.version_id AND fd.kind = 'fields'
+             WHERE d.version_id = ?1 AND d.kind = 'text'",
             [content_id],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
         )
@@ -1142,7 +1142,7 @@ fn template_kinds(conn: &Connection) -> Result<HashMap<i64, TemplateKind>, Strin
         let mut statement = conn
             .prepare(
                 "SELECT t.principal, dt.doc_type, dt.proposed_name FROM similar_template t
-                 LEFT JOIN document_type dt ON dt.content_id = t.principal
+                 LEFT JOIN document_type dt ON dt.version_id = t.principal
                  WHERE EXISTS (SELECT 1 FROM similar_template_document d WHERE d.principal = t.principal)
                  ORDER BY t.principal",
             )
@@ -1185,7 +1185,7 @@ const IMAGE_EXTS: &[&str] = &["jpg", "jpeg", "png", "tif", "tiff", "bmp", "gif",
 fn format_of(conn: &Connection, principal: i64, has_form: bool) -> Result<String, String> {
     let ext: String = conn
         .query_row(
-            "SELECT lower(l.ext) FROM location l JOIN file f ON f.hash = l.file_hash WHERE f.content_id = ?1
+            "SELECT lower(l.ext) FROM location l JOIN file f ON f.hash = l.file_hash WHERE f.version_id = ?1
              ORDER BY l.id LIMIT 1",
             [principal],
             |row| row.get(0),
@@ -1194,7 +1194,7 @@ fn format_of(conn: &Connection, principal: i64, has_form: bool) -> Result<String
         .map_err(sql_err)?
         .unwrap_or_default();
     let engine: Option<String> = conn
-        .query_row("SELECT engine FROM derivative WHERE content_id = ?1 AND kind = 'text'", [principal], |row| row.get(0))
+        .query_row("SELECT engine FROM derivative WHERE version_id = ?1 AND kind = 'text'", [principal], |row| row.get(0))
         .optional()
         .map_err(sql_err)?;
     let recognized = engine.is_some_and(|engine| engine != crate::docbase::text::EXTRACTION_ENGINE);
@@ -1217,7 +1217,7 @@ fn format_of(conn: &Connection, principal: i64, has_form: bool) -> Result<String
 fn template_documents(conn: &Connection, visible: &Visible, principal: i64) -> Result<Vec<TemplateDocument>, String> {
     let ids: Vec<i64> = {
         let mut statement = conn
-            .prepare("SELECT content_id FROM similar_template_document WHERE principal = ?1 ORDER BY position")
+            .prepare("SELECT version_id FROM similar_template_document WHERE principal = ?1 ORDER BY position")
             .map_err(sql_err)?;
         let rows = statement
             .query_map([principal], |row| row.get(0))
@@ -1427,7 +1427,7 @@ impl DocBase {
         if let Some(built) = built {
             for (position, id) in built.documents.iter().enumerate() {
                 tx.execute(
-                    "INSERT INTO similar_template_document (principal, content_id, position) VALUES (?1, ?2, ?3)",
+                    "INSERT INTO similar_template_document (principal, version_id, position) VALUES (?1, ?2, ?3)",
                     params![principal, id, position as i64],
                 )
                 .map_err(sql_err)?;
@@ -1454,7 +1454,7 @@ impl DocBase {
                 .map_err(sql_err)?;
                 for (id, value) in built.documents.iter().zip(&field.values) {
                     tx.execute(
-                        "INSERT INTO similar_template_value (principal, position, content_id, value) VALUES (?1, ?2, ?3, ?4)",
+                        "INSERT INTO similar_template_value (principal, position, version_id, value) VALUES (?1, ?2, ?3, ?4)",
                         params![principal, position as i64, id, value],
                     )
                     .map_err(sql_err)?;
@@ -1475,7 +1475,7 @@ impl DocBase {
             .query_row(
                 "SELECT t.principal, t.segments, t.same_documents, t.computed_at FROM similar_template t
                  JOIN similar_template_document d ON d.principal = t.principal
-                 WHERE d.content_id = ?1",
+                 WHERE d.version_id = ?1",
                 [content_id],
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
             )
@@ -1495,7 +1495,7 @@ impl DocBase {
             let marks = vec!["?"; shown.len().max(1)].join(", ");
             let mut statement = conn
                 .prepare(&format!(
-                    "SELECT position, content_id, value FROM similar_template_value WHERE principal = ? AND content_id IN ({marks})"
+                    "SELECT position, version_id, value FROM similar_template_value WHERE principal = ? AND version_id IN ({marks})"
                 ))
                 .map_err(sql_err)?;
             let bound: Vec<i64> = std::iter::once(principal).chain(shown.iter().copied()).collect();
@@ -1672,7 +1672,7 @@ pub(super) fn for_generation(conn: &Connection, principal: i64) -> Result<Option
     };
     let documents: Vec<i64> = {
         let mut statement = conn
-            .prepare("SELECT content_id FROM similar_template_document WHERE principal = ?1 ORDER BY position")
+            .prepare("SELECT version_id FROM similar_template_document WHERE principal = ?1 ORDER BY position")
             .map_err(sql_err)?;
         let rows = statement
             .query_map([principal], |row| row.get(0))
@@ -1684,7 +1684,7 @@ pub(super) fn for_generation(conn: &Connection, principal: i64) -> Result<Option
     let mut fields = read_fields(conn, principal, documents.len())?;
     {
         let mut statement = conn
-            .prepare("SELECT position, content_id, value FROM similar_template_value WHERE principal = ?1")
+            .prepare("SELECT position, version_id, value FROM similar_template_value WHERE principal = ?1")
             .map_err(sql_err)?;
         let rows = statement
             .query_map([principal], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, String>(2)?)))
@@ -1745,7 +1745,7 @@ fn naming_of(conn: &Connection, principal: i64) -> Result<i64, String> {
         Some(None) => {
             let documents: Vec<i64> = {
                 let mut statement = conn
-                    .prepare("SELECT content_id FROM similar_template_document WHERE principal = ?1 ORDER BY position")
+                    .prepare("SELECT version_id FROM similar_template_document WHERE principal = ?1 ORDER BY position")
                     .map_err(sql_err)?;
                 let rows = statement
                     .query_map([principal], |row| row.get(0))

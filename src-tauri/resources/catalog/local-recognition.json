@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "about": "How the engine of this computer reads scanned pages (D-558, source_volume/recognition_local.rs): RapidOCR over ONNX Runtime, without a model in the cloud. `modelSet` is the set of models it reads with (the one the rapidocr package carries, downloaded by scripts/fetch-ocr-models.mjs); `longSidePx`, the longest side, in pixels, of the image of a page it reads (a larger one is scaled down: at 200 dots per inch without a limit the memory went past 11 GB); `minLineConfidence`, from 0 to 1, how sure the engine must be of a line for it to enter the text: below it the line is left out, so handwriting read badly does not enter as text (D-518) while the printed lines, read with more confidence, do. Measured with the answer sheets of printed passages and handwritten values (docbase/similar/check_local_reading.rs, 27 oct): at 0.9 the printed passages keep their lowest error and the values of a form all stay, about half the handwritten values read badly are left out, and only one scanned page in a hundred is left with no line; at 0.95 fewer handwritten values enter but three pages in a hundred are left with no line, and at 0.97 the printed text gets worse.",
+  "modelSet": "ppocrv6-small",
+  "longSidePx": 2000,
+  "minLineConfidence": 0.9
+}

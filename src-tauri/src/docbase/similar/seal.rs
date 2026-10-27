@@ -191,7 +191,7 @@ impl DocBase {
             .query_row(
                 "SELECT l.file_hash, m.signatures FROM location l
                  JOIN file f ON f.hash = l.file_hash
-                 LEFT JOIN document_marks m ON m.content_id = f.content_id
+                 LEFT JOIN document_marks m ON m.version_id = f.version_id
                  WHERE l.id = ?1",
                 [location_id],
                 |row| Ok((row.get(0)?, row.get(1)?)),

@@ -25,6 +25,11 @@
 //!   with paths relative to `root`; it may also have `relations` and
 //!   `not_relations` between its entities (`check_relations.rs`). Several
 //!   sheets go separated by `;`: this run compares with the first.
+//! - `MICELYA_DOCBASE_START` (with `MICELYA_DOCBASE_CHECK`): a base of
+//!   this numbering the folders are read into (a copy of it), with the
+//!   answers and settings `a-la-base-nueva.py` brought from the earlier
+//!   base (D-555). `MICELYA_ASK_OFFLINE`: only the answers kept count; the
+//!   run says, by task, how many questions it looked up and found.
 //! - `MICELYA_ASK_CACHE`: a file where the model's answers are kept
 //!   between runs, by engine and question: a second run asks nothing
 //!   already asked. `MICELYA_ASK_PARALLEL`: questions asked at the same
@@ -226,6 +231,9 @@ impl DocumentAsker for Recorded {
     }
 }
 
+/// The last version of the earlier numbering, whose shape is version 1.
+const EARLIER_LAST_VERSION: i64 = 29;
+
 /// A scratch copy of the base in `MICELYA_DOCBASE_COPY`, or the folders
 /// of `MICELYA_DOCBASE_CHECK` read into a scratch base.
 pub(crate) fn open_base() -> Option<(TempDir, DocBase)> {
@@ -239,19 +247,18 @@ pub(crate) fn open_base() -> Option<(TempDir, DocBase)> {
                 std::fs::copy(&from, PathBuf::from(format!("{}{suffix}", target.display()))).unwrap();
             }
         }
-        // A base another branch already took to its own next version (the
-        // attention view adds a table) is taken back one version on the
-        // copy, so this branch's migration runs; the other tables stay.
+        // A copy of the base of the earlier numbering (D-548) at its last
+        // version, 29, has the shape of version 1 of this one: it is taken
+        // as that, on the copy, so the migrations after it run.
         {
             let conn = rusqlite::Connection::open(&target).unwrap();
             let version: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0)).unwrap();
             let ours: i64 = conn
-                .query_row("SELECT count(*) FROM sqlite_master WHERE name = 'knowledge_extraction'", [], |row| row.get(0))
+                .query_row("SELECT count(*) FROM sqlite_master WHERE name = 'resource_page'", [], |row| row.get(0))
                 .unwrap();
-            // The knowledge layer starts at schema 8 on this branch.
-            if ours == 0 && version >= 8 {
-                println!("the copy is at schema {version} without this branch's tables: taken back to 7");
-                conn.pragma_update(None, "user_version", 7).unwrap();
+            if ours == 0 && version == EARLIER_LAST_VERSION {
+                println!("the copy is of the earlier numbering, at its version {version}: taken as version 1");
+                conn.pragma_update(None, "user_version", 1).unwrap();
             }
         }
         let base = DocBase::open(&target).unwrap();
@@ -391,7 +398,10 @@ pub(crate) fn read_all(base: &DocBase, asker: &Recorded) -> KnowledgeReport {
     }
     loop {
         let report = base.types_run(asker, 100).unwrap();
-        if report.asked + report.data_asked == 0 {
+        // Nothing asked, or nothing answered (without asking the model, a
+        // question not kept fails again in every round).
+        let answered = (report.asked + report.data_asked).saturating_sub(report.failed + report.data_failed);
+        if report.asked + report.data_asked == 0 || answered == 0 {
             break;
         }
     }
@@ -418,6 +428,65 @@ pub(crate) fn read_all(base: &DocBase, asker: &Recorded) -> KnowledgeReport {
     total
 }
 
+/// `MICELYA_LATER_PASSES`: after the reading, the passes of the worker that
+/// ask too (identity, matters, the pages of the wiki), each until nothing
+/// is left or nothing more is answered.
+pub(crate) fn later_passes(base: &DocBase, asker: &Recorded) {
+    let done = |name: &str, skipped: bool, asked: usize, failed: usize, left: usize| {
+        println!("{name}: skipped {skipped}, asked {asked}, failed {failed}, left {left}");
+        skipped || left == 0 || asked <= failed
+    };
+    for _ in 0..1000 {
+        let r = base.knowledge_resolve(Some(asker), 50).unwrap();
+        if done("identity", r.skipped, r.asked, r.failed, r.left) {
+            break;
+        }
+    }
+    for _ in 0..1000 {
+        let r = base.knowledge_propose_matters(Some(asker), 50).unwrap();
+        if done("matters", r.skipped, r.asked, r.failed, r.left) {
+            break;
+        }
+    }
+    for _ in 0..1000 {
+        let r = base.knowledge_project(Some(asker), 50).unwrap();
+        if done("pages", r.skipped, r.asked, r.failed, r.left) {
+            break;
+        }
+    }
+}
+
+/// The questions the run looked up among the kept answers, by task: how
+/// many, and how many were there (D-555). A question takes the task of the
+/// answers kept with its prompt version; one whose version has none kept
+/// goes by its version.
+pub(crate) fn print_cache_hits(base: &DocBase) {
+    let looked: Vec<(String, bool)> = classify::LOOKED_UP.lock().unwrap().clone();
+    let task_of: HashMap<String, String> = {
+        let conn = base.conn();
+        let mut statement = conn.prepare("SELECT DISTINCT prompt_version, task FROM model_answer").unwrap();
+        let rows = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?))).unwrap();
+        rows.collect::<Result<_, _>>().unwrap()
+    };
+    let mut by_key: BTreeMap<String, bool> = BTreeMap::new();
+    for (key, found) in looked {
+        *by_key.entry(key).or_default() |= found;
+    }
+    let mut by_task: BTreeMap<String, (usize, usize)> = BTreeMap::new();
+    for (key, found) in by_key {
+        let version = key.rsplit_once(':').map_or(key.as_str(), |(version, _)| version).to_string();
+        let task = task_of.get(&version).cloned().unwrap_or_else(|| format!("(version {version})"));
+        let entry = by_task.entry(task).or_default();
+        entry.0 += 1;
+        entry.1 += usize::from(found);
+    }
+    println!("
+== the kept answers, by task: questions looked up, found ==");
+    for (task, (looked, found)) in by_task {
+        println!("   {task}: {looked}, {found}");
+    }
+}
+
 #[test]
 #[ignore = "reads a real base or real folders and asks the real model"]
 fn extraction_against_the_entity_sheet() {
@@ -427,6 +496,10 @@ fn extraction_against_the_entity_sheet() {
     };
     let asker = recorded();
     read_all(&base, &asker);
+    if std::env::var("MICELYA_LATER_PASSES").is_ok() {
+        later_passes(&base, &asker);
+    }
+    print_cache_hits(&base);
     let status = base.knowledge_status(&Visible::All).unwrap();
     println!("\n== status ==\n   {status:?}");
     save_copy(&base);
@@ -435,7 +508,7 @@ fn extraction_against_the_entity_sheet() {
     let name = |content: i64| by_content.get(&content).map(|p| p.join(" = ")).unwrap_or_else(|| format!("#{content}"));
     let found: BTreeMap<i64, Vec<Found>> = {
         let conn = base.conn();
-        let mut statement = conn.prepare("SELECT content_id, id, kind, normalized, role FROM knowledge_mention ORDER BY id").unwrap();
+        let mut statement = conn.prepare("SELECT version_id, id, kind, normalized, role FROM knowledge_mention ORDER BY id").unwrap();
         let rows: Vec<(i64, Found)> = statement
             .query_map([], |row| {
                 Ok((row.get(0)?, Found { id: row.get(1)?, kind: row.get(2)?, normalized: row.get(3)?, role: row.get(4)? }))
@@ -453,7 +526,7 @@ fn extraction_against_the_entity_sheet() {
     let evidence: BTreeMap<i64, Vec<(i64, String, Option<i64>)>> = {
         let conn = base.conn();
         let mut statement =
-            conn.prepare("SELECT content_id, subject_mention, predicate, object_mention FROM knowledge_evidence").unwrap();
+            conn.prepare("SELECT version_id, subject_mention, predicate, object_mention FROM knowledge_evidence").unwrap();
         let rows: Vec<(i64, i64, String, Option<i64>)> = statement
             .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)))
             .unwrap()
@@ -480,7 +553,7 @@ fn extraction_against_the_entity_sheet() {
     {
         let conn = base.conn();
         let mut statement =
-            conn.prepare("SELECT content_id, discarded FROM knowledge_extraction WHERE discarded != '[]' ORDER BY content_id").unwrap();
+            conn.prepare("SELECT version_id, discarded FROM knowledge_extraction WHERE discarded != '[]' ORDER BY version_id").unwrap();
         let rows: Vec<(i64, String)> = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?))).unwrap().collect::<Result<_, _>>().unwrap();
         for (content, discarded) in rows {
             let items: Vec<super::Discarded> = serde_json::from_str(&discarded).unwrap_or_default();
@@ -605,7 +678,7 @@ fn extraction_against_the_entity_sheet() {
     println!("\n== claims ==");
     let texts: HashMap<i64, Located> = {
         let conn = base.conn();
-        let mut statement = conn.prepare("SELECT content_id, body FROM derivative WHERE kind = 'text'").unwrap();
+        let mut statement = conn.prepare("SELECT version_id, body FROM derivative WHERE kind = 'text'").unwrap();
         let rows: Vec<(i64, String)> = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?))).unwrap().collect::<Result<_, _>>().unwrap();
         rows.into_iter().map(|(id, body)| (id, Located::new(&body))).collect()
     };

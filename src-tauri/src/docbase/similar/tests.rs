@@ -617,7 +617,7 @@ fn the_section_lists_every_template_with_its_documents_fields_and_type() {
     for template in &list {
         base.conn()
             .execute(
-                "INSERT INTO document_type (content_id, doc_type, source, basis, computed_at) VALUES (?1, 'recibo', 'model', 'x', 1)",
+                "INSERT INTO document_type (version_id, doc_type, source, basis, computed_at) VALUES (?1, 'recibo', 'model', 'x', 1)",
                 [template.principal.content_id],
             )
             .unwrap();
@@ -1084,7 +1084,7 @@ fn a_document_generated_for_a_matter_goes_into_it_as_a_persons_decision_and_the_
     let choice: String = base
         .conn()
         .query_row(
-            "SELECT choice FROM knowledge_matter_choice WHERE matter_id = ?1 AND content_id = ?2",
+            "SELECT choice FROM knowledge_matter_choice WHERE matter_id = ?1 AND version_id = ?2",
             rusqlite::params![matter, content],
             |row| row.get(0),
         )
@@ -1109,7 +1109,7 @@ fn a_document_generated_for_a_matter_goes_into_it_as_a_persons_decision_and_the_
     for document in &template.documents {
         let joined: i64 = base
             .conn()
-            .query_row("SELECT count(*) FROM knowledge_matter_document WHERE content_id = ?1", [document.doc.content_id], |row| row.get(0))
+            .query_row("SELECT count(*) FROM knowledge_matter_document WHERE version_id = ?1", [document.doc.content_id], |row| row.get(0))
             .unwrap();
         assert_eq!(joined, 0, "the template is not joined to the matter");
     }
@@ -1128,7 +1128,7 @@ fn a_document_generated_for_a_matter_goes_into_it_as_a_persons_decision_and_the_
     base.generated_settle().unwrap();
     let (now, put): (Option<i64>, Option<i64>) = base
         .conn()
-        .query_row("SELECT content_id, matter_content FROM generated_document WHERE id = ?1", [generated.id], |row| {
+        .query_row("SELECT version_id, matter_content FROM generated_document WHERE id = ?1", [generated.id], |row| {
             Ok((row.get(0)?, row.get(1)?))
         })
         .unwrap();
@@ -1141,7 +1141,7 @@ fn a_document_generated_for_a_matter_goes_into_it_as_a_persons_decision_and_the_
     let choice: String = base
         .conn()
         .query_row(
-            "SELECT choice FROM knowledge_matter_choice WHERE matter_id = ?1 AND content_id = ?2",
+            "SELECT choice FROM knowledge_matter_choice WHERE matter_id = ?1 AND version_id = ?2",
             rusqlite::params![matter, now.unwrap()],
             |row| row.get(0),
         )
@@ -1193,9 +1193,9 @@ fn a_generated_document_is_known_as_such_never_the_principal_nor_possibly_the_sa
     let same_content = row(&base, "Copia del principal.docx").content_id.unwrap();
     let long_content = row(&base, "Recibo largo.docx").content_id.unwrap();
     assert_ne!(same_content, principal, "never the document whose data it started with");
-    assert_eq!(Some(same_content), base.conn().query_row("SELECT content_id FROM generated_document WHERE id = ?1", [same.id], |r| r.get(0)).unwrap());
+    assert_eq!(Some(same_content), base.conn().query_row("SELECT version_id FROM generated_document WHERE id = ?1", [same.id], |r| r.get(0)).unwrap());
     let principal_files: i64 =
-        base.conn().query_row("SELECT count(*) FROM file WHERE content_id = ?1", [principal], |row| row.get(0)).unwrap();
+        base.conn().query_row("SELECT count(*) FROM file WHERE version_id = ?1", [principal], |row| row.get(0)).unwrap();
     assert_eq!(principal_files, 1);
     assert_eq!(row(&base, "Copia del principal.docx").state, "processed");
 
@@ -1258,7 +1258,7 @@ fn names_in(base: &DocBase, name: &str, who: &str, role: &str) {
     let id = content(base, name);
     base.conn()
         .execute(
-            "INSERT INTO knowledge_mention (content_id, ref, kind, written, normalized, role, quote)
+            "INSERT INTO knowledge_mention (version_id, ref, kind, written, normalized, role, quote)
              VALUES (?1, ?2, 'organizacion', ?2, ?3, ?4, ?2)",
             rusqlite::params![id, who, super::text::normalized(who), role],
         )

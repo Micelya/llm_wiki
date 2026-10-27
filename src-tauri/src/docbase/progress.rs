@@ -341,7 +341,7 @@ impl Scope {
         let (condition, bound) = self.location_sql("l.origin_id", "l.folder");
         let mut statement = conn
             .prepare(&format!(
-                "SELECT DISTINCT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash
+                "SELECT DISTINCT f.version_id FROM location l JOIN file f ON f.hash = l.file_hash
                  WHERE NOT {} AND {condition}",
                 super::excluded_sql!()
             ))
@@ -695,7 +695,7 @@ fn text_members(conn: &Connection, facts: &Facts) -> Result<Members, String> {
 fn recognition_members(conn: &Connection, facts: &Facts) -> Result<Members, String> {
     let mut statement = conn
         .prepare(
-            "SELECT c.id, c.state, c.error FROM content c LEFT JOIN derivative d ON d.content_id = c.id AND d.kind = 'text'
+            "SELECT c.id, c.state, c.error FROM version c LEFT JOIN derivative d ON d.version_id = c.id AND d.kind = 'text'
              WHERE c.state = 'needs-recognition' OR (c.state = 'processed' AND d.engine IS NOT NULL AND d.engine != ?1)",
         )
         .map_err(sql_err)?;
@@ -748,7 +748,8 @@ fn recognition_state(facts: &Facts, members: &Members, error: bool) -> &'static 
         "paused"
     } else if error {
         "error"
-    } else if requested || facts.reading_on {
+    } else if requested || facts.reading_on || super::services::local_recognition_engine().is_some() {
+        // The engine of this computer reads with the reading off (D-558).
         "running"
     } else {
         "paused"
@@ -761,10 +762,10 @@ fn similar_members(conn: &Connection, facts: &Facts) -> Result<Members, String> 
     let mut statement = conn
         .prepare(
             "SELECT c.id,
-                    s.content_id IS NOT NULL AND s.text_at = d.created_at AND s.engine = ?1
-                    AND NOT EXISTS (SELECT 1 FROM similar_dirty sd WHERE sd.content_id = c.id)
-             FROM content c JOIN derivative d ON d.content_id = c.id AND d.kind = 'text'
-             LEFT JOIN similar_signature s ON s.content_id = c.id
+                    s.version_id IS NOT NULL AND s.text_at = d.created_at AND s.engine = ?1
+                    AND NOT EXISTS (SELECT 1 FROM similar_dirty sd WHERE sd.version_id = c.id)
+             FROM version c JOIN derivative d ON d.version_id = c.id AND d.kind = 'text'
+             LEFT JOIN similar_signature s ON s.version_id = c.id
              WHERE c.state = 'processed'",
         )
         .map_err(sql_err)?;
@@ -786,11 +787,11 @@ fn similar_members(conn: &Connection, facts: &Facts) -> Result<Members, String> 
 fn types_members(conn: &Connection, facts: &Facts) -> Result<Members, String> {
     let mut statement = conn
         .prepare(
-            "SELECT s.content_id,
-                    EXISTS (SELECT 1 FROM document_type t WHERE t.content_id = s.content_id),
-                    EXISTS (SELECT 1 FROM document_data dd WHERE dd.content_id = s.content_id AND dd.question IS NOT NULL
+            "SELECT s.version_id,
+                    EXISTS (SELECT 1 FROM document_type t WHERE t.version_id = s.version_id),
+                    EXISTS (SELECT 1 FROM document_data dd WHERE dd.version_id = s.version_id AND dd.question IS NOT NULL
                             AND NOT EXISTS (SELECT 1 FROM model_answer a WHERE a.question = dd.question AND (?1 IS NULL OR a.engine = ?1)))
-             FROM similar_signature s JOIN content c ON c.id = s.content_id AND c.state = 'processed'
+             FROM similar_signature s JOIN version c ON c.id = s.version_id AND c.state = 'processed'
              WHERE s.words >= ?2",
         )
         .map_err(sql_err)?;
@@ -887,7 +888,7 @@ fn matters_members(
     let grouped: BTreeSet<i64> = {
         let mut statement = conn
             .prepare(
-                "SELECT DISTINCT d.content_id FROM knowledge_matter_document d
+                "SELECT DISTINCT d.version_id FROM knowledge_matter_document d
                  JOIN knowledge_matter m ON m.id = d.matter_id WHERE m.state = 'active'",
             )
             .map_err(sql_err)?;
@@ -926,8 +927,8 @@ fn pages_members(conn: &Connection, facts: &Facts, resolving: bool) -> Result<Me
         let mut ids: BTreeSet<String> = facts.active.iter().map(|c| format!("doc-{c}")).collect();
         if !list.is_empty() {
             for sql in [
-                format!("SELECT DISTINCT entity_id FROM knowledge_mention WHERE entity_id IS NOT NULL AND content_id IN ({list})"),
-                format!("SELECT DISTINCT matter_id FROM knowledge_matter_document WHERE content_id IN ({list})"),
+                format!("SELECT DISTINCT entity_id FROM knowledge_mention WHERE entity_id IS NOT NULL AND version_id IN ({list})"),
+                format!("SELECT DISTINCT matter_id FROM knowledge_matter_document WHERE version_id IN ({list})"),
             ] {
                 let mut statement = conn.prepare(&sql).map_err(sql_err)?;
                 let rows = statement.query_map([], |row| row.get::<_, String>(0)).map_err(sql_err)?;
@@ -1147,9 +1148,9 @@ fn describe(
         Key::Location(id) => {
             let found: Option<(String, String, String, String, Option<i64>, Option<String>, Option<String>)> = conn
                 .query_row(
-                    "SELECT l.name, l.origin_id, o.name, l.folder, f.content_id, l.hash_error, c.error
+                    "SELECT l.name, l.origin_id, o.name, l.folder, f.version_id, l.hash_error, c.error
                      FROM location l JOIN origin o ON o.id = l.origin_id
-                     LEFT JOIN file f ON f.hash = l.file_hash LEFT JOIN content c ON c.id = f.content_id
+                     LEFT JOIN file f ON f.hash = l.file_hash LEFT JOIN version c ON c.id = f.version_id
                      WHERE l.id = ?1",
                     [id],
                     |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?)),
@@ -1175,7 +1176,7 @@ fn describe(
                     &format!(
                         "SELECT l.id, l.name, l.origin_id, o.name, l.folder FROM location l
                          JOIN file f ON f.hash = l.file_hash JOIN origin o ON o.id = l.origin_id
-                         WHERE f.content_id = ? AND NOT {} AND {condition}
+                         WHERE f.version_id = ? AND NOT {} AND {condition}
                          ORDER BY l.mtime_ms DESC, l.id LIMIT 1",
                         super::excluded_sql!()
                     ),
@@ -1199,7 +1200,7 @@ fn describe(
             }
             if stage == "reading" && status == FAILED {
                 item.detail = conn
-                    .query_row("SELECT error FROM knowledge_extraction WHERE content_id = ?1", [id], |row| row.get(0))
+                    .query_row("SELECT error FROM knowledge_extraction WHERE version_id = ?1", [id], |row| row.get(0))
                     .optional()
                     .map_err(sql_err)?
                     .flatten();
@@ -1208,7 +1209,7 @@ fn describe(
                 let mut statement = conn
                     .prepare(
                         "SELECT m.name FROM knowledge_matter_document d JOIN knowledge_matter m ON m.id = d.matter_id
-                         WHERE d.content_id = ?1 AND m.state = 'active' ORDER BY m.name",
+                         WHERE d.version_id = ?1 AND m.state = 'active' ORDER BY m.name",
                     )
                     .map_err(sql_err)?;
                 let rows = statement.query_map([id], |row| row.get::<_, String>(0)).map_err(sql_err)?;
@@ -1465,7 +1466,7 @@ del inmueble del domicilio inventado el día del vencimiento, sin observaciones 
         let origin = base.add_origin("O", &dir.path().join("o"), &[]).unwrap();
         refresh(&base, &origin.id);
         base.conn()
-            .execute("UPDATE content SET state = 'error', error = 'archivo dañado'", [])
+            .execute("UPDATE version SET state = 'error', error = 'archivo dañado'", [])
             .unwrap();
         let progress = base.progress(&Scope::default()).unwrap();
         assert_eq!(figures(&progress, "text"), (0, 0, 1, 1));
@@ -1516,7 +1517,7 @@ del inmueble del domicilio inventado el día del vencimiento, sin observaciones 
     fn the_document_being_read_is_named_on_its_stage() {
         let (_dir, base) = base_with(&[("contrato.txt", LEASE)]);
         turn_reading_on(&base);
-        let content: i64 = base.conn().query_row("SELECT id FROM content", [], |row| row.get(0)).unwrap();
+        let content: i64 = base.conn().query_row("SELECT id FROM version", [], |row| row.get(0)).unwrap();
         base.engine_state().asking("type", content);
         let progress = base.progress(&Scope::default()).unwrap();
         let current = stage(&progress, "types").current.as_ref().unwrap();

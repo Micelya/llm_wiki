@@ -661,7 +661,7 @@ mod tests {
         // reaches the examples, only the last question asked.
         base.conn()
             .execute(
-                "INSERT INTO model_answer (question, task, prompt_version, engine, content_id, prompt, answer, asked_at)
+                "INSERT INTO model_answer (question, task, prompt_version, engine, version_id, prompt, answer, asked_at)
                  VALUES ('k1', 'knowledge', ?1, 'codex-cli', 1, 'Texto del documento: Secreto Inventado', '{}', 5),
                         ('k0', 'knowledge', 'conocimiento-1', 'codex-cli', 1, 'Una pregunta vieja', '{}', 9),
                         ('k2', 'knowledge', ?1, 'codex-cli', 2, 'Texto del documento: Otro Secreto', '{}', 7)",

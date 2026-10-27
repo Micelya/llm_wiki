@@ -197,7 +197,7 @@ pub(crate) fn document(conn: &Connection, visible: &Visible, content_id: i64, ca
     let found: Option<(i64, String)> = conn
         .query_row(
             &format!(
-                "SELECT l.id, l.name FROM location l JOIN file f ON f.hash = l.file_hash WHERE f.content_id = ? AND {condition}
+                "SELECT l.id, l.name FROM location l JOIN file f ON f.hash = l.file_hash WHERE f.version_id = ? AND {condition}
                  ORDER BY l.rel_path COLLATE NOCASE LIMIT 1"
             ),
             params_from_iter(values(vec![content_id.into()], params).iter()),
@@ -214,8 +214,8 @@ pub(crate) fn document(conn: &Connection, visible: &Visible, content_id: i64, ca
 }
 
 fn doubts(conn: &Connection, visible: &Visible, entity: Option<&str>) -> Result<Vec<DoubtView>, String> {
-    let (ca, pa) = visible_content("ma.content_id", visible);
-    let (cb, pb) = visible_content("mb.content_id", visible);
+    let (ca, pa) = visible_content("ma.version_id", visible);
+    let (cb, pb) = visible_content("mb.version_id", visible);
     let mut statement = conn
         .prepare(&format!(
             "SELECT d.a, d.b, d.kind, d.entity_a, d.entity_b, ea.name, eb.name, d.reason, d.detail, d.evidence_hash
@@ -267,13 +267,13 @@ impl DocBase {
     /// whose names contain the words of `query`; the most named first.
     pub fn knowledge_entities(&self, visible: &Visible, kind: Option<&str>, query: Option<&str>) -> Result<Vec<EntitySummary>, String> {
         let conn = self.conn();
-        let (condition, params) = visible_content("m.content_id", visible);
+        let (condition, params) = visible_content("m.version_id", visible);
         let mut statement = conn
             .prepare(&format!(
-                "SELECT e.id, e.kind, e.name, count(m.id), count(DISTINCT m.content_id) FROM knowledge_entity e
+                "SELECT e.id, e.kind, e.name, count(m.id), count(DISTINCT m.version_id) FROM knowledge_entity e
                  JOIN knowledge_mention m ON m.entity_id = e.id
                  WHERE e.state = 'active' AND (? IS NULL OR e.kind = ?) AND e.kind != '{reference}' AND {condition}
-                 GROUP BY e.id ORDER BY count(DISTINCT m.content_id) DESC, e.name",
+                 GROUP BY e.id ORDER BY count(DISTINCT m.version_id) DESC, e.name",
                 // References are not entities (D-377), even in a base not
                 // resolved again yet.
                 reference = super::vocabulary::vocabulary().matters.kind.replace('\'', "")
@@ -341,11 +341,11 @@ impl DocBase {
             .map_err(sql_err)?;
         let Some((kind, name, state, merged_into)) = found else { return Ok(None) };
         let mut cache = HashMap::new();
-        let (condition, params) = visible_content("m.content_id", visible);
+        let (condition, params) = visible_content("m.version_id", visible);
         let mut statement = conn
             .prepare(&format!(
-                "SELECT m.id, m.content_id, m.role, m.written, m.quote, m.page, m.resolved_by FROM knowledge_mention m
-                 WHERE m.entity_id = ? AND {condition} ORDER BY m.content_id, m.id"
+                "SELECT m.id, m.version_id, m.role, m.written, m.quote, m.page, m.resolved_by FROM knowledge_mention m
+                 WHERE m.entity_id = ? AND {condition} ORDER BY m.version_id, m.id"
             ))
             .map_err(sql_err)?;
         let rows: Vec<(i64, i64, String, String, String, Option<i64>, Option<String>)> = statement
@@ -385,7 +385,7 @@ impl DocBase {
         {
             let mut statement = conn
                 .prepare(&format!(
-                    "SELECT i.kind, i.value, i.normalized, m.content_id FROM knowledge_identifier i JOIN knowledge_mention m ON m.id = i.mention_id
+                    "SELECT i.kind, i.value, i.normalized, m.version_id FROM knowledge_identifier i JOIN knowledge_mention m ON m.id = i.mention_id
                      WHERE m.entity_id = ? AND {condition}"
                 ))
                 .map_err(sql_err)?;
@@ -504,11 +504,11 @@ fn claims_of(conn: &Connection, visible: &Visible, id: &str, cache: &mut HashMap
         .map_err(sql_err)?
         .collect::<Result<_, _>>()
         .map_err(sql_err)?;
-    let (condition, params) = visible_content("e.content_id", visible);
+    let (condition, params) = visible_content("e.version_id", visible);
     let mut statement = conn
         .prepare(&format!(
-            "SELECT e.id, e.content_id, e.quote, e.page, e.fact_time FROM knowledge_evidence e WHERE e.claim_id = ? AND {condition}
-             ORDER BY e.content_id, e.id"
+            "SELECT e.id, e.version_id, e.quote, e.page, e.fact_time FROM knowledge_evidence e WHERE e.claim_id = ? AND {condition}
+             ORDER BY e.version_id, e.id"
         ))
         .map_err(sql_err)?;
     let mut out = Vec::new();

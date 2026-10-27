@@ -433,15 +433,15 @@ fn matter_name(conn: &Connection, matter_id: &str) -> Result<String, String> {
 /// identity of the template each came from: at the place it was written,
 /// with the bytes it was written with, or the one its record follows.
 pub(crate) const GENERATED_CONTENTS_SQL: &str = "
-    SELECT g.naming AS naming, f.content_id AS content_id FROM generated_document g
+    SELECT g.naming AS naming, f.version_id AS version_id FROM generated_document g
       JOIN location l ON l.origin_id = g.origin_id AND l.rel_path = g.rel_path
       JOIN file f ON f.hash = l.file_hash
-    UNION SELECT g.naming, f.content_id FROM generated_document g JOIN file f ON f.hash = g.file_hash
-    UNION SELECT naming, content_id FROM generated_document WHERE content_id IS NOT NULL";
+    UNION SELECT g.naming, f.version_id FROM generated_document g JOIN file f ON f.hash = g.file_hash
+    UNION SELECT naming, version_id FROM generated_document WHERE version_id IS NOT NULL";
 
 /// The documents that were generated from a template.
 pub(crate) fn generated_contents(conn: &Connection) -> Result<HashSet<i64>, String> {
-    let mut statement = conn.prepare(&format!("SELECT content_id FROM ({GENERATED_CONTENTS_SQL})")).map_err(sql_err)?;
+    let mut statement = conn.prepare(&format!("SELECT version_id FROM ({GENERATED_CONTENTS_SQL})")).map_err(sql_err)?;
     let rows = statement
         .query_map([], |row| row.get::<_, i64>(0))
         .map_err(sql_err)?
@@ -452,7 +452,7 @@ pub(crate) fn generated_contents(conn: &Connection) -> Result<HashSet<i64>, Stri
 
 /// Whether this document was generated from a template.
 pub(crate) fn is_generated(conn: &Connection, content_id: i64) -> Result<bool, String> {
-    conn.query_row(&format!("SELECT count(*) FROM ({GENERATED_CONTENTS_SQL}) WHERE content_id = ?1"), [content_id], |row| {
+    conn.query_row(&format!("SELECT count(*) FROM ({GENERATED_CONTENTS_SQL}) WHERE version_id = ?1"), [content_id], |row| {
         row.get::<_, i64>(0)
     })
     .map(|n| n > 0)
@@ -490,7 +490,7 @@ pub struct GeneratedEntry {
 /// The location the base shows for a document: its first one.
 fn location_of(conn: &Connection, content_id: i64) -> Result<Option<i64>, String> {
     conn.query_row(
-        "SELECT l.id FROM location l JOIN file f ON f.hash = l.file_hash WHERE f.content_id = ?1 ORDER BY l.id LIMIT 1",
+        "SELECT l.id FROM location l JOIN file f ON f.hash = l.file_hash WHERE f.version_id = ?1 ORDER BY l.id LIMIT 1",
         [content_id],
         |row| row.get(0),
     )
@@ -506,10 +506,10 @@ pub(crate) fn generated_line(conn: &Connection, content_id: i64) -> Result<Optio
             "SELECT g.id, g.generated_at, g.template_name, g.naming, g.matter_id, g.matter_name,
                     (SELECT m.name FROM knowledge_matter m WHERE m.id = g.matter_id AND m.state = 'active')
              FROM generated_document g
-             WHERE g.content_id = ?1
-                OR g.file_hash IN (SELECT hash FROM file WHERE content_id = ?1)
+             WHERE g.version_id = ?1
+                OR g.file_hash IN (SELECT hash FROM file WHERE version_id = ?1)
                 OR EXISTS (SELECT 1 FROM location l JOIN file f ON f.hash = l.file_hash
-                           WHERE l.origin_id = g.origin_id AND l.rel_path = g.rel_path AND f.content_id = ?1)
+                           WHERE l.origin_id = g.origin_id AND l.rel_path = g.rel_path AND f.version_id = ?1)
              ORDER BY g.generated_at DESC, g.id DESC LIMIT 1",
             [content_id],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?)),
@@ -546,7 +546,7 @@ pub(crate) fn generated_with(conn: &Connection, naming: Option<i64>) -> Result<V
             .prepare(
                 "SELECT g.id, g.generated_at, g.rel_path, g.matter_name,
                         (SELECT m.name FROM knowledge_matter m WHERE m.id = g.matter_id AND m.state = 'active'),
-                        g.content_id, g.origin_id, g.rel_path
+                        g.version_id, g.origin_id, g.rel_path
                  FROM generated_document g WHERE g.naming = ?1 ORDER BY g.generated_at DESC, g.id DESC",
             )
             .map_err(sql_err)?;
@@ -589,11 +589,11 @@ pub(crate) fn generated_count(conn: &Connection, naming: Option<i64>) -> Result<
 /// Each generated document and its family: the documents of the template
 /// it came from, and the others generated with that same template.
 const GENERATED_FAMILIES_SQL: &str = "
-    SELECT g.content_id AS generated, d.content_id AS source FROM generated g
+    SELECT g.version_id AS generated, d.version_id AS source FROM generated g
       JOIN similar_template t ON t.naming = g.naming
       JOIN similar_template_document d ON d.principal = t.principal
-    UNION SELECT g.content_id, h.content_id FROM generated g
-      JOIN generated h ON h.naming = g.naming AND h.content_id != g.content_id";
+    UNION SELECT g.version_id, h.version_id FROM generated g
+      JOIN generated h ON h.naming = g.naming AND h.version_id != g.version_id";
 
 /// The family of each generated document (the documents of the template
 /// it came from and the others generated with it), by the generated one.
@@ -717,8 +717,8 @@ impl DocBase {
                 .map_err(sql_err)?;
             let (content_id, in_matter) = conn
                 .query_row(
-                    "SELECT g.content_id, EXISTS (SELECT 1 FROM knowledge_matter_choice c
-                                                  WHERE c.matter_id = g.matter_id AND c.content_id = g.content_id AND c.choice = 'in')
+                    "SELECT g.version_id, EXISTS (SELECT 1 FROM knowledge_matter_choice c
+                                                  WHERE c.matter_id = g.matter_id AND c.version_id = g.version_id AND c.choice = 'in')
                      FROM generated_document g WHERE g.id = ?1",
                     [id],
                     |row| Ok((row.get(0)?, row.get(1)?)),
@@ -757,10 +757,10 @@ impl DocBase {
             let conn = self.conn();
             let mut statement = conn
                 .prepare(
-                    "SELECT g.id, g.content_id, coalesce(
-                        (SELECT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash
+                    "SELECT g.id, g.version_id, coalesce(
+                        (SELECT f.version_id FROM location l JOIN file f ON f.hash = l.file_hash
                          WHERE l.origin_id = g.origin_id AND l.rel_path = g.rel_path),
-                        (SELECT f.content_id FROM file f WHERE f.hash = g.file_hash)),
+                        (SELECT f.version_id FROM file f WHERE f.hash = g.file_hash)),
                         g.matter_id, g.matter_content
                      FROM generated_document g",
                 )
@@ -777,7 +777,7 @@ impl DocBase {
             let Some(content) = found else { continue };
             if Some(content) != kept {
                 self.conn()
-                    .execute("UPDATE generated_document SET content_id = ?2 WHERE id = ?1", params![id, content])
+                    .execute("UPDATE generated_document SET version_id = ?2 WHERE id = ?1", params![id, content])
                     .map_err(sql_err)?;
                 changed += 1;
             }
@@ -812,7 +812,7 @@ impl DocBase {
         let taken_out = match previous {
             Some(previous) => {
                 conn.query_row(
-                    "SELECT count(*) FROM knowledge_matter_choice WHERE matter_id = ?1 AND content_id = ?2 AND choice = 'out'",
+                    "SELECT count(*) FROM knowledge_matter_choice WHERE matter_id = ?1 AND version_id = ?2 AND choice = 'out'",
                     params![matter_id, previous],
                     |row| row.get::<_, i64>(0),
                 )
@@ -830,7 +830,7 @@ impl DocBase {
         let conn = self.conn();
         let found: Option<(Option<String>, String, Option<i64>)> = conn
             .query_row(
-                "SELECT o.location, g.rel_path, g.content_id FROM generated_document g
+                "SELECT o.location, g.rel_path, g.version_id FROM generated_document g
                  LEFT JOIN origin o ON o.id = g.origin_id WHERE g.id = ?1",
                 [id],
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
@@ -849,7 +849,7 @@ impl DocBase {
             let elsewhere: Option<(String, String)> = conn
                 .query_row(
                     "SELECT o.location, l.rel_path FROM location l JOIN origin o ON o.id = l.origin_id
-                     JOIN file f ON f.hash = l.file_hash WHERE f.content_id = ?1 ORDER BY l.id LIMIT 1",
+                     JOIN file f ON f.hash = l.file_hash WHERE f.version_id = ?1 ORDER BY l.id LIMIT 1",
                     [content_id],
                     |row| Ok((row.get(0)?, row.get(1)?)),
                 )

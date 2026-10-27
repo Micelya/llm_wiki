@@ -6,7 +6,7 @@
 //!   the file of an open base: a consistent copy, with what the WAL holds.
 //! - A backup is a folder `respaldos/antes-de-v{new}-{AAAA-MM-DD-HHMM}/`
 //!   inside the data folder, with the layout of the data folder
-//!   (`docbase/private.sqlite3`, and the settings and the chat as they
+//!   (`docbase/base.sqlite3`, and the settings and the chat as they
 //!   were), the SHA-256 of each file (`huellas.sha256`), what it is
 //!   (`respaldo.json`: the version of the base it holds, the one it was
 //!   going to, when) and how to go back to it, for a person (`LEEME.txt`).
@@ -358,16 +358,16 @@ fn readme(manifest: &Manifest) -> String {
         "Respaldo de los datos de Micelya Desktop\r\n\
          \r\n\
          Lo hizo la app sola el {made_at}, antes de actualizar la base de la versión {from} a la {to}.\r\n\
-         Tiene la base tal como estaba (docbase/private.sqlite3){others}.\r\n\
+         Tiene la base tal como estaba (docbase/base.sqlite3){others}.\r\n\
          La huella SHA-256 de cada archivo está en {PRINTS}. No cambies nada de esta carpeta ni su nombre.\r\n\
          \r\n\
          Para volver a este respaldo, con la versión de la app de antes de la actualización:\r\n\
          - Si la app lo ofrece: Ajustes > Datos y respaldos > «Volver a este respaldo».\r\n\
          - A mano:\r\n\
          \x20 1. Cerrá Micelya del todo (también desde el ícono junto al reloj).\r\n\
-         \x20 2. En la carpeta de datos, abrí «docbase» y mové a otra carpeta los archivos private.sqlite3,\r\n\
-         \x20    private.sqlite3-wal y private.sqlite3-shm que haya (no los borres).\r\n\
-         \x20 3. Copiá en «docbase» el archivo private.sqlite3 de la carpeta «docbase» de este respaldo.\r\n\
+         \x20 2. En la carpeta de datos, abrí «docbase» y mové a otra carpeta los archivos base.sqlite3,\r\n\
+         \x20    base.sqlite3-wal y base.sqlite3-shm que haya (no los borres).\r\n\
+         \x20 3. Copiá en «docbase» el archivo base.sqlite3 de la carpeta «docbase» de este respaldo.\r\n\
          \x20 4. Abrí Micelya.\r\n\
          Se pierde lo que se hizo en la app después de la fecha de este respaldo.\r\n",
         made_at = manifest.made_at,
@@ -382,7 +382,15 @@ fn read_manifest(folder: &Path) -> Option<Manifest> {
     (manifest.kind == KIND).then_some(manifest)
 }
 
-/// The backups this module wrote, newest first.
+/// A backup of the base this app uses: it keeps `PRIVATE_DB_FILE`. The
+/// backups of the base of the earlier numbering (another file, D-548) are
+/// not of it: they are never listed, deleted nor gone back to, and stay
+/// on disk as they are.
+fn of_this_base(manifest: &Manifest) -> bool {
+    manifest.files.iter().any(|file| file.path == PRIVATE_DB_FILE)
+}
+
+/// The backups this module wrote of this base, newest first.
 fn ours(data_dir: &Path) -> Vec<(String, Manifest)> {
     let Ok(entries) = fs::read_dir(data_dir.join(BACKUPS_DIR)) else { return Vec::new() };
     let mut found: Vec<(String, Manifest)> = entries
@@ -393,7 +401,7 @@ fn ours(data_dir: &Path) -> Vec<(String, Manifest)> {
             if !name.starts_with(PREFIX) {
                 return None;
             }
-            read_manifest(&entry.path()).map(|manifest| (name, manifest))
+            read_manifest(&entry.path()).filter(of_this_base).map(|manifest| (name, manifest))
         })
         .collect();
     found.sort_by(|a, b| b.1.made_at_ms.cmp(&a.1.made_at_ms).then_with(|| b.0.cmp(&a.0)));
@@ -407,8 +415,7 @@ pub fn list(data_dir: &Path) -> Vec<BackupSummary> {
         .into_iter()
         .map(|(name, manifest)| {
             let folder = backups.join(&name);
-            let complete = manifest.files.iter().any(|file| file.path == PRIVATE_DB_FILE)
-                && manifest
+            let complete = manifest
                     .files
                     .iter()
                     .all(|file| fs::metadata(folder.join(&file.path)).map(|m| m.len() == file.bytes).unwrap_or(false));
@@ -477,6 +484,9 @@ pub fn restore(data_dir: &Path, name: &str, current: i64) -> Result<String, Stri
     }
     let backups = data_dir.join(BACKUPS_DIR);
     let folder = backups.join(name);
+    if read_manifest(&folder).is_some_and(|manifest| !of_this_base(&manifest)) {
+        return Err(format!("«{name}» es un respaldo de la base anterior, que esta versión de la app ya no usa"));
+    }
     let manifest = check(&folder)?;
     if manifest.base_version > current {
         return Err(format!(

@@ -211,7 +211,7 @@ fn contents_of_matter(base: &DocBase, matter: &str) -> Result<Option<Vec<i64>>, 
         _ => return Ok(None),
     };
     let conn = base.conn();
-    let mut statement = conn.prepare("SELECT content_id FROM knowledge_matter_document WHERE matter_id = ?1").map_err(sql_err)?;
+    let mut statement = conn.prepare("SELECT version_id FROM knowledge_matter_document WHERE matter_id = ?1").map_err(sql_err)?;
     let rows = statement.query_map([&line.key], |row| row.get(0)).map_err(sql_err)?;
     Ok(Some(rows.collect::<Result<_, _>>().map_err(sql_err)?))
 }
@@ -329,7 +329,7 @@ fn read_text(base: &DocBase, named: &str, part: Option<i64>, context: &ReadConte
     let line = document_of(base, named, context)?;
     let body: Option<String> = base
         .conn()
-        .query_row("SELECT body FROM derivative WHERE content_id = ?1 AND kind = 'text'", [line.content_id], |row| row.get(0))
+        .query_row("SELECT body FROM derivative WHERE version_id = ?1 AND kind = 'text'", [line.content_id], |row| row.get(0))
         .optional()
         .map_err(sql_err)?;
     let text: String = body

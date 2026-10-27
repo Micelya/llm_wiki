@@ -122,6 +122,83 @@ fn should_skip_full_page_pdf_image(
 
 // ── PDF (pdfium) ────────────────────────────────────────────────────────
 
+/// One page of a PDF as its text reads it: what pdfium reads of the page
+/// and the filled-in fields of a form on it.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PdfPageContent {
+    pub text: String,
+    pub fields: Vec<(String, String)>,
+}
+
+impl PdfPageContent {
+    /// The page as it is in the text of its document, after its heading:
+    /// its text, then its fields under [`FORM_FIELDS_HEADING`].
+    pub fn body(&self) -> String {
+        // Single trailing newline so the next block starts on its own
+        // line; the `\n\n` separator before the next `## Page` heading
+        // comes from `join_pdf_pages`.
+        let mut out = format!("{}\n", self.text);
+        if !self.fields.is_empty() {
+            out.push_str(&format!("\n{FORM_FIELDS_HEADING}\n\n"));
+            for (name, value) in &self.fields {
+                out.push_str(&format!("- {name}: {value}\n"));
+            }
+        }
+        out
+    }
+}
+
+/// The text of a PDF from the bodies of its pages, in order, each under
+/// its `## Page N` heading.
+pub fn join_pdf_pages<S: AsRef<str>>(bodies: impl IntoIterator<Item = S>) -> String {
+    let mut out = String::new();
+    for (index, body) in bodies.into_iter().enumerate() {
+        if index > 0 {
+            out.push_str("\n\n");
+        }
+        out.push_str(&format!("## Page {}\n\n", index + 1));
+        out.push_str(body.as_ref());
+    }
+    out
+}
+
+/// Every page of a PDF as its text reads it, in order. Holds the global
+/// pdfium lock while it reads (callers MUST NOT hold it).
+pub fn pdf_pages_text(path: &str) -> Result<Vec<PdfPageContent>, String> {
+    let _guard = crate::commands::fs::lock_pdfium();
+    let pdfium = crate::commands::fs::pdfium()?;
+    let doc = open_pdf(pdfium, path)?;
+    let mut pages = Vec::new();
+    for (page_idx, page) in doc.pages().iter().enumerate() {
+        pages.push(read_pdf_page(&page, page_idx + 1, path)?);
+    }
+    Ok(pages)
+}
+
+fn open_pdf<'a>(
+    pdfium: &'a pdfium_render::prelude::Pdfium,
+    path: &str,
+) -> Result<pdfium_render::prelude::PdfDocument<'a>, String> {
+    use pdfium_render::prelude::*;
+    pdfium.load_pdf_from_file(path, None).map_err(|e| match e {
+        PdfiumError::PdfiumLibraryInternalError(PdfiumInternalError::PasswordError) => {
+            format!("PDF is password-protected and cannot be read: '{path}'")
+        }
+        _ => format!("Failed to open PDF '{path}': {e}"),
+    })
+}
+
+fn read_pdf_page(page: &pdfium_render::prelude::PdfPage<'_>, page_num: usize, path: &str) -> Result<PdfPageContent, String> {
+    let text = page
+        .text()
+        .map_err(|e| format!("Page {page_num} text extraction failed in '{path}': {e}"))?
+        .all();
+    // What was typed into a fillable form lives in its fields, not in
+    // the page: without it, two copies of the same form filled for two
+    // different people read exactly alike.
+    Ok(PdfPageContent { text, fields: page_form_fields(page) })
+}
+
 /// Combined PDF text + image extraction in a single pdfium session.
 ///
 /// Output is a markdown string with `## Page N` headers, the page's
@@ -155,14 +232,13 @@ pub fn extract_pdf_markdown(
 ) -> Result<String, String> {
     use pdfium_render::prelude::*;
 
+    // Without images, the text is its pages joined (`pdf_pages_text`).
+    if media_dest_dir.is_none() {
+        return pdf_pages_text(path).map(|pages| join_pdf_pages(pages.iter().map(PdfPageContent::body)));
+    }
     let _guard = crate::commands::fs::lock_pdfium();
     let pdfium = crate::commands::fs::pdfium()?;
-    let doc = pdfium.load_pdf_from_file(path, None).map_err(|e| match e {
-        PdfiumError::PdfiumLibraryInternalError(PdfiumInternalError::PasswordError) => {
-            format!("PDF is password-protected and cannot be read: '{path}'")
-        }
-        _ => format!("Failed to open PDF '{path}': {e}"),
-    })?;
+    let doc = open_pdf(pdfium, path)?;
 
     let mut out = String::new();
     let mut idx: u32 = 0;
@@ -186,27 +262,9 @@ pub fn extract_pdf_markdown(
         }
         out.push_str(&format!("## Page {page_num}\n\n"));
 
-        let page_text = page
-            .text()
-            .map_err(|e| format!("Page {page_num} text extraction failed in '{path}': {e}"))?;
-        let page_text_content = page_text.all();
-        let page_has_meaningful_text =
-            has_meaningful_page_text(&page_text_content, options.full_page_min_text_chars);
-        out.push_str(&page_text_content);
-        // Single trailing newline so the next block starts on its own
-        // line; the `\n\n` separator before the next `## Page` heading
-        // gets prepended by the loop entry above.
-        out.push('\n');
-        // What was typed into a fillable form lives in its fields, not in
-        // the page: without it, two copies of the same form filled for
-        // two different people read exactly alike.
-        let fields = page_form_fields(&page);
-        if !fields.is_empty() {
-            out.push_str(&format!("\n{FORM_FIELDS_HEADING}\n\n"));
-            for (name, value) in &fields {
-                out.push_str(&format!("- {name}: {value}\n"));
-            }
-        }
+        let read = read_pdf_page(&page, page_num, path)?;
+        let page_has_meaningful_text = has_meaningful_page_text(&read.text, options.full_page_min_text_chars);
+        out.push_str(&read.body());
 
         // Skip image extraction when the caller didn't supply a
         // destination — no point burning pdfium cycles to throw the

@@ -138,7 +138,7 @@ fn load_draft(conn: &Connection, principal: i64) -> Result<Option<(i64, Draft)>,
         let mut statement = conn
             .prepare(
                 "SELECT v.position, v.value FROM similar_template_value v
-                 JOIN similar_template_document d ON d.principal = v.principal AND d.content_id = v.content_id
+                 JOIN similar_template_document d ON d.principal = v.principal AND d.version_id = v.version_id
                  WHERE v.principal = ?1 ORDER BY v.position, d.position",
             )
             .map_err(sql_err)?;

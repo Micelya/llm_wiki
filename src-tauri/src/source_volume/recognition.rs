@@ -142,6 +142,9 @@ pub fn recognizer_for(config: &RecognitionConfig) -> Result<Box<dyn TextRecogniz
         "codex-cli" => Ok(Box::new(CodexRecognizer::new(&config.model))),
         // Its connection is read from the keychain when it reads its first page.
         "core" => Ok(Box::new(CoreRecognizer::new(&config.model))),
+        // On this computer; its models are opened when it reads its first
+        // page, and it says it is not available when they are missing.
+        super::recognition_local::ENGINE => Ok(Box::new(super::recognition_local::LocalRecognizer::new())),
         other => Err(format!("Unknown text recognition engine: '{other}'")),
     }
 }
@@ -211,8 +214,27 @@ pub fn complete_pdf_text_reporting(
     recognizer: &dyn TextRecognizer,
     on_page: &(dyn Fn(usize, usize) + Sync),
 ) -> Result<String, String> {
+    complete_pdf_text_kept(pdf, extracted, store, recognizer, on_page).map(|done| done.text)
+}
+
+/// The text of a PDF with its recognized pages spliced in, and those
+/// pages, by number, as they were read (each with its engine).
+#[derive(Debug, Clone, Default)]
+pub struct CompletedPdf {
+    pub text: String,
+    pub pages: BTreeMap<u32, RecognizedPage>,
+}
+
+/// Same as `complete_pdf_text_reporting`, keeping the pages read.
+pub fn complete_pdf_text_kept(
+    pdf: &Path,
+    extracted: &str,
+    store: &RecognizedStore,
+    recognizer: &dyn TextRecognizer,
+    on_page: &(dyn Fn(usize, usize) + Sync),
+) -> Result<CompletedPdf, String> {
     let shapes = super::page_shape::profile_pdf(pdf)?;
-    complete_pdf_pages(pdf, &shapes.to_read(), &shapes.old_layers(), extracted, store, recognizer, on_page)
+    complete_pdf_pages_kept(pdf, &shapes.to_read(), &shapes.old_layers(), extracted, store, recognizer, on_page)
 }
 
 /// Same as `complete_pdf_text_reporting`, for these pages; the text of
@@ -227,13 +249,31 @@ pub fn complete_pdf_pages(
     recognizer: &dyn TextRecognizer,
     on_page: &(dyn Fn(usize, usize) + Sync),
 ) -> Result<String, String> {
+    complete_pdf_pages_kept(pdf, pages, replaced, extracted, store, recognizer, on_page).map(|done| done.text)
+}
+
+/// Same as `complete_pdf_pages`, keeping the pages read.
+pub fn complete_pdf_pages_kept(
+    pdf: &Path,
+    pages: &[u32],
+    replaced: &BTreeSet<u32>,
+    extracted: &str,
+    store: &RecognizedStore,
+    recognizer: &dyn TextRecognizer,
+    on_page: &(dyn Fn(usize, usize) + Sync),
+) -> Result<CompletedPdf, String> {
+    // Every page of the file kept as recognized enters its text, with the
+    // engine that read it, also when its ficha of shape does not send it to
+    // be read now (D-523): no engine is asked for it.
+    let mut recognized: BTreeMap<u32, RecognizedPage> =
+        store.kept_pages().into_iter().filter(|(page, _)| !pages.contains(page)).collect();
     if pages.is_empty() {
-        return Ok(extracted.to_string());
+        let text = splice_replacing(extracted, &recognized, replaced);
+        return Ok(CompletedPdf { text, pages: recognized });
     }
     let total = pages.len();
     let position = |page: u32| pages.iter().position(|p| *p == page).map_or(0, |index| index + 1);
 
-    let mut recognized = BTreeMap::new();
     let mut to_read = Vec::new();
     for (index, page) in pages.iter().enumerate() {
         match store.get(Part::Page(*page)) {
@@ -245,7 +285,8 @@ pub fn complete_pdf_pages(
         }
     }
     if to_read.is_empty() {
-        return Ok(splice_replacing(extracted, &recognized, replaced));
+        let text = splice_replacing(extracted, &recognized, replaced);
+        return Ok(CompletedPdf { text, pages: recognized });
     }
     let dir = std::env::temp_dir().join(format!("micelya-recognition-{}", uuid::Uuid::new_v4()));
     fs::create_dir_all(&dir).map_err(|e| format!("Failed to create '{}': {e}", dir.display()))?;
@@ -278,7 +319,8 @@ pub fn complete_pdf_pages(
     if let Some((page, err)) = failure {
         return Err(format!("Text recognition failed on page {page}: {err}"));
     }
-    Ok(splice_replacing(extracted, &recognized, replaced))
+    let text = splice_replacing(extracted, &recognized, replaced);
+    Ok(CompletedPdf { text, pages: recognized })
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -355,6 +397,19 @@ fn section_end(text: &str, page: u32) -> Option<usize> {
         Some(next) => Some(body + next),
         None => Some(text.len()),
     }
+}
+
+/// `extracted` (the text PDFium found) with every page of the PDF kept in
+/// `store` spliced in, each with the engine that read it, asking no engine
+/// (D-523); and those pages. A page kept over an old recognition layer
+/// takes its place. Unchanged, and no page, when none is kept.
+pub fn with_kept_pages(pdf: &Path, extracted: &str, store: &RecognizedStore) -> CompletedPdf {
+    let pages = store.kept_pages();
+    if pages.is_empty() {
+        return CompletedPdf { text: extracted.to_string(), pages };
+    }
+    let replaced = super::page_shape::profile_pdf(pdf).map(|shapes| shapes.old_layers()).unwrap_or_default();
+    CompletedPdf { text: splice_replacing(extracted, &pages, &replaced), pages }
 }
 
 /// 1-based numbers of the pages that need recognition, as their ficha of
@@ -709,5 +764,27 @@ CONTRATO de locacion entre las partes
             extracted
         );
         assert_eq!(recognizer.calls(), 0);
+    }
+
+    #[test]
+    fn a_page_kept_enters_the_text_though_its_ficha_does_not_send_it_to_be_read() {
+        let pdf = fixture("con-texto.pdf");
+        assert!(textless_pages(&pdf).unwrap().is_empty());
+        let dir = scratch();
+        let read_before = RecognizedPage { engine_id: "motor-viejo".to_string(), text: "leida antes".to_string(), ..Default::default() };
+        RecognizedStore::at(&dir).put(Part::Page(1), &read_before).unwrap();
+        let recognizer = FakeRecognizer::new(vec![]);
+        let extracted = "## Page 1\n\ncualquier cosa\n";
+
+        // Whatever engine is asked now, no engine reads it: the one that
+        // read it stays.
+        let store = RecognizedStore::at(&dir).for_engine("falso:1");
+        let done = complete_pdf_text_kept(&pdf, extracted, &store, &recognizer, &|_, _| {}).unwrap();
+        let marked = "<!-- texto-reconocido motor=\"motor-viejo\" -->";
+        assert_eq!(done.text, format!("## Page 1\n\ncualquier cosa\n{marked}\nleida antes\n"));
+        assert_eq!(done.pages, BTreeMap::from([(1, read_before)]));
+        assert_eq!(recognizer.calls(), 0);
+        assert_eq!(with_kept_pages(&pdf, extracted, &store).text, done.text);
+        let _ = fs::remove_dir_all(dir);
     }
 }

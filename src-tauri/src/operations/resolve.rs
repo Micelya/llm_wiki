@@ -83,19 +83,19 @@ pub fn document_line(conn: &Connection, content_id: i64) -> Result<Option<DocLin
     let found: Option<(i64, String, String, String)> = conn
         .query_row(
             "SELECT l.id, l.name, l.folder, o.name FROM location l JOIN file f ON f.hash = l.file_hash JOIN origin o ON o.id = l.origin_id
-             WHERE f.content_id = ?1 ORDER BY l.rel_path COLLATE NOCASE LIMIT 1",
+             WHERE f.version_id = ?1 ORDER BY l.rel_path COLLATE NOCASE LIMIT 1",
             [content_id],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
         )
         .optional()
         .map_err(sql_err)?;
     let exists: bool = found.is_some()
-        || conn.query_row("SELECT 1 FROM content WHERE id = ?1", [content_id], |_| Ok(())).optional().map_err(sql_err)?.is_some();
+        || conn.query_row("SELECT 1 FROM version WHERE id = ?1", [content_id], |_| Ok(())).optional().map_err(sql_err)?.is_some();
     if !exists {
         return Ok(None);
     }
     let date: Option<String> = conn
-        .query_row("SELECT doc_date FROM knowledge_extraction WHERE content_id = ?1", [content_id], |row| row.get(0))
+        .query_row("SELECT doc_date FROM knowledge_extraction WHERE version_id = ?1", [content_id], |row| row.get(0))
         .optional()
         .map_err(sql_err)?
         .flatten();
@@ -114,7 +114,7 @@ pub fn document_line(conn: &Connection, content_id: i64) -> Result<Option<DocLin
 
 /// The content of a location.
 fn content_of_location(conn: &Connection, location_id: i64) -> Result<Option<i64>, String> {
-    conn.query_row("SELECT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.id = ?1", [location_id], |row| row.get(0))
+    conn.query_row("SELECT f.version_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.id = ?1", [location_id], |row| row.get(0))
         .optional()
         .map_err(sql_err)
         .map(Option::flatten)

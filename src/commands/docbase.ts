@@ -957,6 +957,8 @@ export interface CatalogEngine {
   processing: string
   /** What its provider keeps. */
   retention: string
+  /** Why it cannot read now, when it cannot: the engine of this computer without its models (D-558). */
+  unavailable?: string
 }
 
 export interface EnginesCatalog {
