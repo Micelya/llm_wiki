@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import {
   getDocument,
   getDocumentArticle,
+  getDocumentPart,
   openLocation,
   setLocationLabel,
   type DocumentDetail,
@@ -20,6 +21,8 @@ import { DocumentRecognition } from "./recognition"
 import { SimilarDocuments } from "./similar-documents"
 import { GeneratedNotice } from "./template-generate-view"
 import { useOpenTemplate } from "./template-panel"
+import { CompoundStrip, cutLine, fill } from "./page-strip"
+import { vocabulary } from "@/vocabulary"
 import { useDocbaseQuery, type DocbaseQuery } from "./use-docbase-query"
 import { DocumentEntitiesSection } from "@/components/knowledge/document-entities"
 import { usePageWords } from "@/components/knowledge/article-text"
@@ -44,14 +47,19 @@ const SHOWN_TEXT_LIMIT = 200_000
  */
 export function DocumentDetailView({
   locationId,
+  versionId = null,
   onBack,
   initialTab = null,
 }: {
   locationId: number
+  /** One of the documents the file at `locationId` includes, opened as a document of its own (D-560). */
+  versionId?: number | null
   onBack: () => void
   initialTab?: DetailTab | null
 }) {
-  const detail = useDocbaseQuery(`document:${locationId}`, () => getDocument(locationId))
+  const detail = useDocbaseQuery(`document:${locationId}:${versionId ?? "file"}`, () =>
+    versionId === null ? getDocument(locationId) : getDocumentPart(locationId, versionId),
+  )
   const contentId = detail.data?.contentId ?? null
   // Its article is asked once the document says which it is: a new
   // document (its text changed) starts the screen over.
@@ -87,6 +95,10 @@ function DocumentScreen({
   const shownBody = page ? withoutEntityBlock(articleBody(page.body)) : null
   const model = useArticle(shownBody === null ? null : pageWord ? withoutListSection(shownBody, pageWord("docLocations")) : shownBody)
   const index = indexOf(model, page ? [{ id: "notas", label: "Notas" }] : [])
+  const openDocument = useDocbaseStore((s) => s.openDocument)
+  // A document a joined file includes: what is of the file (who it names,
+  // its similar documents, the chat) stays with the file.
+  const part = document?.part ?? null
 
   async function handleOpen(id: number, reveal: boolean) {
     setProblem(null)
@@ -99,7 +111,7 @@ function DocumentScreen({
 
   return (
     <DetailTabs
-      back="Documentos"
+      back={part && document ? document.name : "Documentos"}
       onBack={onBack}
       current={page?.title || document?.name || "Documento"}
       kicker="Documento"
@@ -119,9 +131,11 @@ function DocumentScreen({
             {/* The chat reads its text from the base and cites it (P-243). */}
             <Button
               variant="outline"
-              disabled={document.contentId === null || document.state !== "processed"}
+              disabled={part !== null || document.contentId === null || document.state !== "processed"}
               title={
-                document.contentId === null || document.state !== "processed"
+                part !== null
+                  ? "El chat todavía lee el archivo completo, no cada documento que incluye."
+                  : document.contentId === null || document.state !== "processed"
                   ? "Todavía no tiene su texto en la base: el chat no tendría qué leer."
                   : "Abre el chat con este documento adjunto"
               }
@@ -144,6 +158,7 @@ function DocumentScreen({
           )}
           {!detail.loading && !document && !detail.error && <EmptyNote>Este archivo ya no está en el inventario.</EmptyNote>}
           {document?.generated && <GeneratedNotice line={document.generated} onOpenTemplate={openTemplate} />}
+          {part && document && <PartNotice part={part} file={document.name} onFile={onBack} />}
         </>
       }
       article={
@@ -173,13 +188,22 @@ function DocumentScreen({
             </>
           ) : (
             <>
+              {/* Where each document it includes starts: what waits for a person (D-560). */}
+              {!part && document.fileHash && (
+                <CompoundStrip
+                  hash={document.fileHash}
+                  path={document.path}
+                  isPdf={document.ext.toLowerCase() === "pdf"}
+                  onOpen={(included) => openDocument(document.locationId, included.versionId)}
+                />
+              )}
               {/* A scan first: what it needs is a person's action. */}
               <DocumentRecognition document={document} />
-              <DocumentEntitiesSection locationId={document.locationId} />
+              {!part && <DocumentEntitiesSection locationId={document.locationId} />}
               <Section title="Ubicaciones" count={document.locations.length || 1}>
                 <Locations document={document} onOpen={handleOpen} />
               </Section>
-              <SimilarDocuments locationId={document.locationId} name={document.name} onProblem={setProblem} />
+              {!part && <SimilarDocuments locationId={document.locationId} name={document.name} onProblem={setProblem} />}
               {/* The whole text last: it is the longest. */}
               <Section title="Texto">
                 <DocumentText document={document} />
@@ -190,6 +214,23 @@ function DocumentScreen({
       }
       dataAside={document ? <PageAside box={<FactBox document={document} onChanged={detail.reload} onProblem={setProblem} />} /> : null}
     />
+  )
+}
+
+/** «Documento 2 de 5 incluidos en …, páginas 3 a 4», how its start stands, and the way back to the whole file. */
+export function PartNotice({ part, file, onFile }: { part: NonNullable<DocumentDetail["part"]>; file: string; onFile: () => void }) {
+  const words = vocabulary()
+  const terms = words.included
+  return (
+    <div className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-[10px] border bg-card px-4 py-3 text-sm" data-part-notice="">
+      <span>
+        {fill(terms.partOf, { n: part.ordinal, count: part.count, file, first: part.firstPage, last: part.lastPage })}
+      </span>
+      <span className="text-muted-foreground">{cutLine(part, words)}</span>
+      <Button variant="link" size="sm" className="h-auto p-0" onClick={onFile}>
+        {terms.backToFile}
+      </Button>
+    </div>
   )
 }
 

@@ -40,6 +40,8 @@ function row(locationId: number, patch: Partial<DocumentRow> = {}): DocumentRow 
     docStage: null,
     docTypeProposed: false,
     docTypeName: null,
+    included: 0,
+    unconfirmedCuts: 0,
     ...patch,
   }
 }
