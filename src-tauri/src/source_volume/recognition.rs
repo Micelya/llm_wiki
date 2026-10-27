@@ -142,6 +142,9 @@ pub fn recognizer_for(config: &RecognitionConfig) -> Result<Box<dyn TextRecogniz
         "codex-cli" => Ok(Box::new(CodexRecognizer::new(&config.model))),
         // Its connection is read from the keychain when it reads its first page.
         "core" => Ok(Box::new(CoreRecognizer::new(&config.model))),
+        // On this computer; its models are opened when it reads its first
+        // page, and it says it is not available when they are missing.
+        super::recognition_local::ENGINE => Ok(Box::new(super::recognition_local::LocalRecognizer::new())),
         other => Err(format!("Unknown text recognition engine: '{other}'")),
     }
 }

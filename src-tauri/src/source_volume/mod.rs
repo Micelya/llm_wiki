@@ -23,6 +23,8 @@ pub mod recognized_store;
 mod recognition_codex;
 // Text recognition through Micelya Core (Textract), page by page (D-483).
 pub(crate) mod recognition_core;
+// Text recognition on this computer: RapidOCR over ONNX Runtime (D-558).
+pub mod recognition_local;
 
 pub use provider::{LocalFolderProvider, SourceEntry, SourceProvider};
 /// What the recognition of scans asks about each image.

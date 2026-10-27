@@ -67,6 +67,21 @@ uuid = { version = "1", features = ["v4"] }
 #   same caption, no redundant VLM calls. Pulled in here so the
 #   extraction layer can also expose the hash if a caller wants it.
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+# Reads the printed text of scanned pages on this computer, without Python
+# and without a model in the cloud (D-558): the RapidOCR pipeline
+# (detection, orientation, recognition) over ONNX Runtime (`ort`, linked
+# into the program). Apache 2.0. Its models are not in the repository:
+# `scripts/fetch-ocr-models.mjs` downloads them (`recognition_local.rs`).
+# Without `model-download`: the app never downloads them by itself.
+rapidocr-core = { version = "0.2.2", default-features = false }
+# The prerelease of `ort` rapidocr-core is written for: a later one changed
+# its interface (rc.15 asks for an environment to open a model).
+# `load-dynamic`: ONNX Runtime is not linked into the program but opened
+# when the first page is read, from the `onnxruntime.dll` the installer
+# carries beside the models (as `pdfium.dll`). Without it the local engine
+# says it is not available and the app goes on. Linked statically, the
+# program would need DirectML.dll to even start.
+ort = { version = "=2.0.0-rc.12", default-features = false, features = ["load-dynamic"] }
 base64 = "0.22"
 sha2 = "0.10"
 walkdir = "2"
@@ -118,3 +133,22 @@ opt-level = "s"
 # larger binary, but prevents single-file corruption from killing the app.
 panic = "unwind"
 strip = true
+
+# The local reading of scans (D-558) works pixel by pixel around ONNX
+# Runtime: unoptimized, each page takes many times longer, so the
+# development build optimizes those crates too, and the release build
+# optimizes them for speed rather than size.
+[profile.dev.package.rapidocr-core]
+opt-level = 3
+[profile.dev.package.imageproc]
+opt-level = 3
+[profile.dev.package.ndarray]
+opt-level = 3
+[profile.dev.package.image]
+opt-level = 3
+[profile.release.package.rapidocr-core]
+opt-level = 3
+[profile.release.package.imageproc]
+opt-level = 3
+[profile.release.package.ndarray]
+opt-level = 3
