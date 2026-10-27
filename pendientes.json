@@ -2715,11 +2715,11 @@
       "responsable": "usuario",
       "estado": "pendiente",
       "tema": "replanteo",
-      "detalle": "Borradores del 26 oct: docs/design/modelo-de-conocimiento-propuesta.md y docs/design/base-de-datos-inventario.md. Con el visto bueno se pasa al diseño vigente y se diseña la base de destino.",
+      "detalle": "Borradores revisados el 27 oct con la revisión del dueño y otro agente: docs/design/modelo-de-conocimiento-propuesta.md, docs/design/base-de-datos-inventario.md (por significado) y docs/design/base-de-datos-destino.md (base de destino, reinicio y escenarios). Con el visto bueno se pasa al diseño vigente.",
       "depende_de": [],
-      "referencia": "docs/design/modelo-de-conocimiento-propuesta.md; D-530 a D-545",
+      "referencia": "docs/design/modelo-de-conocimiento-propuesta.md; docs/design/base-de-datos-destino.md; D-530 a D-550",
       "creado": "2026-10-26",
-      "actualizado": "2026-10-26"
+      "actualizado": "2026-10-27"
     },
     {
       "id": "P-361",
@@ -2755,19 +2755,19 @@
     },
     {
       "id": "P-363",
-      "titulo": "Diseñar la base de destino y su migración, sin parches",
+      "titulo": "Construir la base de destino del replanteo, desde cero y sin migrar los datos de prueba",
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
       "prioridad": 1,
       "tema": "replanteo",
-      "detalle": "A partir del modelo aprobado y del inventario: registro común de piezas, documento con versiones y apariciones, tabla única de relaciones, un solo lugar para decisiones y para veredictos, nombres canónicos. Revisar el código que usa cada tabla que cambia y migrar con respaldo (D-496).",
+      "detalle": "La propuesta está en docs/design/base-de-datos-destino.md (27 oct). Falta la aprobación del dueño, fijar columnas, índices y disparadores, y construirla como un archivo de base nuevo, sin código de migración (D-546).",
       "depende_de": [
         "P-360"
       ],
-      "referencia": "D-535; docs/design/base-de-datos-inventario.md",
+      "referencia": "D-535; D-546; docs/design/base-de-datos-destino.md",
       "creado": "2026-10-26",
-      "actualizado": "2026-10-26"
+      "actualizado": "2026-10-27"
     },
     {
       "id": "P-364",
@@ -2814,6 +2814,38 @@
       "referencia": "D-535; D-542",
       "creado": "2026-10-26",
       "actualizado": "2026-10-26"
+    },
+    {
+      "id": "P-367",
+      "titulo": "Extraer el aprendizaje de la base real antes de descartarla",
+      "tipo": "tarea",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "replanteo",
+      "detalle": "Decisiones de identidad, tipos aprobados, relaciones entre documentos corregidas, campos de plantillas y criterios de asunto, como propuestas de catálogo y casos de la hoja de respuestas (lista en docs/design/base-de-datos-inventario.md). Lo hace el agente local, o el de la nube cuando la base esté en Drive.",
+      "depende_de": [
+        "P-360"
+      ],
+      "referencia": "D-546; docs/design/base-de-datos-inventario.md",
+      "creado": "2026-10-27",
+      "actualizado": "2026-10-27"
+    },
+    {
+      "id": "P-368",
+      "titulo": "Revisar las hojas de respuesta contra los criterios nuevos de documento y versión",
+      "tipo": "verificacion",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "replanteo",
+      "detalle": "Las hojas (llm_wiki_mi/conjunto-prueba) se armaron con el criterio anterior; hay que revisarlas con D-527, D-534 y D-549 (recurso, representación, versión) antes de medir el proceso nuevo.",
+      "depende_de": [
+        "P-360"
+      ],
+      "referencia": "D-546; D-549",
+      "creado": "2026-10-27",
+      "actualizado": "2026-10-27"
     }
   ]
 }
