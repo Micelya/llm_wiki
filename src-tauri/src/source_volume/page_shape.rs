@@ -18,6 +18,8 @@
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::Path;
+
+use super::page_print::{PagePrint, PRINT_HEIGHT_PX};
 use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
@@ -303,6 +305,16 @@ fn classify(p: &PageProfile, signed: bool) -> (PageShape, TextLayer, bool) {
 
 /// The fichas of every page of a PDF, read with pdfium.
 pub fn profile_pdf(pdf: &Path) -> Result<PdfShapes, String> {
+    profile(pdf, false).map(|(shapes, _)| shapes)
+}
+
+/// Same as `profile_pdf`, with the prints of each page (`page_print`),
+/// opening the PDF once. A page that cannot be drawn has no prints.
+pub fn profile_pdf_with_prints(pdf: &Path) -> Result<(PdfShapes, Vec<PagePrint>), String> {
+    profile(pdf, true)
+}
+
+fn profile(pdf: &Path, with_prints: bool) -> Result<(PdfShapes, Vec<PagePrint>), String> {
     use pdfium_render::prelude::*;
 
     let _guard = crate::commands::fs::lock_pdfium();
@@ -315,7 +327,18 @@ pub fn profile_pdf(pdf: &Path) -> Result<PdfShapes, String> {
         .trim()
         .to_lowercase();
     let mut raw = Vec::new();
-    for page in doc.pages().iter() {
+    // In grays, without the data of a form drawn, at the size the measurement the
+    // perceptual hash comes from drew it (pypdfium2: each side times the
+    // scale, rounded up).
+    let drawing = |width: f64, height: f64| {
+        let scale = PRINT_HEIGHT_PX as f64 / height.max(1.0);
+        PdfRenderConfig::new()
+            .set_target_size((width * scale).ceil() as i32, (height * scale).ceil() as i32)
+            .use_grayscale_rendering(true)
+            .render_form_data(false)
+    };
+    let mut prints = Vec::new();
+    for (index, page) in doc.pages().iter().enumerate() {
         let (width, height) = (page.width().value as f64, page.height().value as f64);
         let area = |object: &PdfPageObject<'_>| -> f64 {
             if width <= 0.0 || height <= 0.0 {
@@ -360,9 +383,15 @@ pub fn profile_pdf(pdf: &Path) -> Result<PdfShapes, String> {
         }
         out.images_cover = out.images_cover.min(1.0);
         out.fields = page.annotations().iter().filter(|a| a.annotation_type() == PdfPageAnnotationType::Widget).count();
+        if with_prints {
+            match page.render_with_config(&drawing(width, height)).and_then(|bitmap| bitmap.as_image()) {
+                Ok(image) => prints.push(PagePrint::of(index as u32 + 1, &image.to_luma8(), &out.text)),
+                Err(e) => eprintln!("[page_shape] page {} of '{}' could not be drawn: {e}", index + 1, pdf.display()),
+            }
+        }
         raw.push(out);
     }
-    Ok(shapes_of(producer, raw))
+    Ok((shapes_of(producer, raw), prints))
 }
 
 /// Builds invented PDFs for the tests (R-24): each page with lines of

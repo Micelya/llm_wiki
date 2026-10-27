@@ -19,7 +19,8 @@ use rusqlite::types::Value;
 use rusqlite::{params, params_from_iter, Connection, OptionalExtension};
 
 use crate::panic_guard::run_guarded;
-use crate::source_volume::page_shape::{profile_pdf, PdfShapes, SHAPES_ENGINE};
+use crate::source_volume::page_print::PagePrint;
+use crate::source_volume::page_shape::{profile_pdf_with_prints, PdfShapes, SHAPES_ENGINE};
 use crate::source_volume::LocalFolderProvider;
 use crate::source_volume::SourceProvider;
 
@@ -38,49 +39,99 @@ pub struct UnreadScans {
 
 impl DocBase {
     /// Computes the ficha of up to `limit` PDF documents that do not have
-    /// one of this version. Returns how many were attended.
+    /// one of this version, and the prints of the pages of each of their
+    /// PDF files (`resource_page`), opening each file once. The ficha is
+    /// the one of its first file. Returns how many were attended.
     pub fn profile_pending(&self, limit: usize) -> Result<usize, String> {
-        let jobs: Vec<(i64, PathBuf)> = {
+        let jobs: Vec<(i64, Vec<(String, PathBuf)>)> = {
             let conn = self.conn();
             let mut statement = conn
                 .prepare(&format!(
-                    "SELECT c.id, o.location, min(l.rel_path) FROM content c
+                    "SELECT DISTINCT c.id FROM content c
                      JOIN file f ON f.content_id = c.id
                      JOIN location l ON l.file_hash = f.hash AND l.hash_state = 'done' AND lower(l.ext) = 'pdf'
                      JOIN origin o ON o.id = l.origin_id AND o.reachable = 1
                      WHERE c.state IN ('processed', 'needs-recognition') AND NOT {}
                        AND NOT EXISTS (SELECT 1 FROM derivative d WHERE d.content_id = c.id AND d.kind = ?1 AND d.engine = ?2)
-                     GROUP BY c.id ORDER BY c.id LIMIT ?3",
+                     ORDER BY c.id LIMIT ?3",
                     super::excluded_sql!()
                 ))
                 .map_err(sql_err)?;
-            let rows = statement
-                .query_map(params![SHAPES_KIND, SHAPES_ENGINE, limit as i64], |row| {
-                    Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
-                })
+            let contents: Vec<i64> = statement
+                .query_map(params![SHAPES_KIND, SHAPES_ENGINE, limit as i64], |row| row.get(0))
+                .map_err(sql_err)?
+                .collect::<Result<_, _>>()
+                .map_err(sql_err)?;
+            let mut files = conn
+                .prepare(&format!(
+                    "SELECT f.hash, o.location, min(l.rel_path) AS first FROM content c
+                     JOIN file f ON f.content_id = c.id
+                     JOIN location l ON l.file_hash = f.hash AND l.hash_state = 'done' AND lower(l.ext) = 'pdf'
+                     JOIN origin o ON o.id = l.origin_id AND o.reachable = 1
+                     WHERE c.id = ?1 AND NOT {}
+                     GROUP BY f.hash ORDER BY first, f.hash",
+                    super::excluded_sql!()
+                ))
                 .map_err(sql_err)?;
             let mut jobs = Vec::new();
-            for row in rows {
-                let (content, root, rel_path) = row.map_err(sql_err)?;
-                jobs.push((content, LocalFolderProvider::new(root).local_path(&rel_path).unwrap_or_default()));
+            for content in contents {
+                let rows: Vec<(String, String, String)> = files
+                    .query_map([content], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+                    .map_err(sql_err)?
+                    .collect::<Result<_, _>>()
+                    .map_err(sql_err)?;
+                let paths = rows
+                    .into_iter()
+                    .map(|(hash, root, rel_path)| (hash, LocalFolderProvider::new(root).local_path(&rel_path).unwrap_or_default()))
+                    .collect();
+                jobs.push((content, paths));
             }
             jobs
         };
-        for (content, path) in &jobs {
-            // A PDF pdfium cannot open keeps an empty ficha: it is not tried
-            // again until the next version of the ficha.
-            let shapes = run_guarded("docbase_page_shapes", || profile_pdf(path)).unwrap_or_default();
-            let body = serde_json::to_string(&shapes).map_err(|e| e.to_string())?;
-            self.conn()
-                .execute(
-                    "INSERT INTO derivative (content_id, kind, engine, body, created_at) VALUES (?1, ?2, ?3, ?4, ?5)
-                     ON CONFLICT (content_id, kind) DO UPDATE SET engine = excluded.engine, body = excluded.body, created_at = excluded.created_at",
-                    params![content, SHAPES_KIND, SHAPES_ENGINE, body, now_ms()],
-                )
-                .map_err(sql_err)?;
+        for (content, files) in &jobs {
+            let mut shapes: Option<PdfShapes> = None;
+            let mut prints: Vec<(&str, Vec<PagePrint>)> = Vec::new();
+            for (hash, path) in files {
+                // A PDF pdfium cannot open keeps an empty ficha and no
+                // prints: it is not tried again until the next version of
+                // the ficha.
+                let (shape, printed) = run_guarded("docbase_page_shapes", || profile_pdf_with_prints(path)).unwrap_or_default();
+                shapes.get_or_insert(shape);
+                prints.push((hash.as_str(), printed));
+            }
+            let body = serde_json::to_string(&shapes.unwrap_or_default()).map_err(|e| e.to_string())?;
+            let mut conn = self.conn();
+            let tx = conn.transaction().map_err(sql_err)?;
+            tx.execute(
+                "INSERT INTO derivative (content_id, kind, engine, body, created_at) VALUES (?1, ?2, ?3, ?4, ?5)
+                 ON CONFLICT (content_id, kind) DO UPDATE SET engine = excluded.engine, body = excluded.body, created_at = excluded.created_at",
+                params![content, SHAPES_KIND, SHAPES_ENGINE, body, now_ms()],
+            )
+            .map_err(sql_err)?;
+            for (hash, pages) in &prints {
+                store_prints(&tx, hash, pages)?;
+            }
+            tx.commit().map_err(sql_err)?;
         }
         Ok(jobs.len())
     }
+}
+
+/// The prints of the pages of a file, in place of the ones it had. Whether
+/// a page has handwriting or a signature stays unknown (null): nothing
+/// tells it yet.
+fn store_prints(tx: &rusqlite::Transaction<'_>, hash: &str, pages: &[PagePrint]) -> Result<(), String> {
+    tx.execute("DELETE FROM resource_page WHERE resource_hash = ?1", [hash]).map_err(sql_err)?;
+    let now = now_ms();
+    for page in pages {
+        tx.execute(
+            "INSERT INTO resource_page (resource_hash, page_no, exact_hash, phash, text_hash, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![hash, page.page_no, page.exact_hash, page.phash, page.text_hash, now],
+        )
+        .map_err(sql_err)?;
+    }
+    Ok(())
 }
 
 /// The pages of a processed document its ficha sends to recognition and
@@ -186,6 +237,57 @@ mod tests {
         while base.hash_pending(50).unwrap() > 0 {}
         while base.extract_pending(50).unwrap() > 0 {}
         base.purge_orphans().unwrap();
+    }
+
+    fn prints_of(base: &DocBase, name: &str) -> Vec<(i64, String, String, Option<String>, Option<i64>)> {
+        let conn = base.conn();
+        let mut statement = conn
+            .prepare(
+                "SELECT p.page_no, p.exact_hash, p.phash, p.text_hash, p.has_signature FROM resource_page p
+                 JOIN location l ON l.file_hash = p.resource_hash WHERE l.rel_path = ?1 ORDER BY p.page_no",
+            )
+            .unwrap();
+        let rows = statement
+            .query_map([name], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)))
+            .unwrap();
+        rows.map(|row| row.unwrap()).collect()
+    }
+
+    #[test]
+    fn each_file_of_a_document_gets_the_prints_of_its_pages() {
+        use crate::source_volume::page_print::{distance, ALIKE_BITS};
+        let pdf = build(&[
+            page(&[PROSE[0], PROSE[1], PROSE[2]], 0.0),
+            page(&[PROSE[0], PROSE[1], PROSE[2]], 0.0),
+            page(&["Anexo"], 0.6),
+        ]);
+        // The same pages in another file (other bytes, the same text): one
+        // document with two files.
+        let mut copy = pdf.clone();
+        copy.extend_from_slice(b"% otra copia\n");
+        let dir = TempDir::new();
+        dir.write("o/escrito.pdf", &pdf);
+        dir.write("o/escrito copia.pdf", &copy);
+        let base = DocBase::in_memory().unwrap();
+        let origin = base.add_origin("O", &dir.path().join("o"), &[]).unwrap();
+        settle(&base, &origin.id);
+        let contents: i64 = base.conn().query_row("SELECT count(*) FROM content", [], |row| row.get(0)).unwrap();
+        assert_eq!(contents, 1);
+        while base.profile_pending(10).unwrap() > 0 {}
+        let one = prints_of(&base, "escrito.pdf");
+        let other = prints_of(&base, "escrito copia.pdf");
+        assert_eq!(one.len(), 3);
+        assert_eq!(one, other);
+        // Two pages alike: the same prints; a different one: others.
+        assert_eq!((&one[0].1, &one[0].2, &one[0].3), (&one[1].1, &one[1].2, &one[1].3));
+        assert!(one[0].3.is_some());
+        assert_ne!(one[0].1, one[2].1);
+        assert!(distance(&one[0].2, &one[2].2).unwrap() > ALIKE_BITS, "{} {}", one[0].2, one[2].2);
+        assert_eq!(one[2].3, None);
+        // Whether it is signed is not known yet.
+        assert!(one.iter().all(|page| page.4.is_none()));
+        // Its ficha is there once, and nothing is left to do.
+        assert_eq!(base.profile_pending(10).unwrap(), 0);
     }
 
     #[test]

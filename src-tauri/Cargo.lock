@@ -3059,6 +3059,7 @@ dependencies = [
  "tauri-plugin-store",
  "tiny_http",
  "tokio",
+ "unicode-normalization",
  "uuid",
  "walkdir",
  "webview2-com",

@@ -70,6 +70,8 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg"]
 base64 = "0.22"
 sha2 = "0.10"
 walkdir = "2"
+# The accents out of the text of a page before its print (`page_print.rs`).
+unicode-normalization = "0.1"
 epub = "2.1.5"
 mobi = "0.8"
 html2text = { version = "0.17.1", default-features = false, features = ["xml"] }
