@@ -14,6 +14,7 @@
 //! model that read it. Nothing is ever written next to the original file.
 //! The base keeps its store beside the database (`docbase::recognize`).
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
 
@@ -64,6 +65,22 @@ impl RecognizedStore {
     pub fn get(&self, part: Part) -> Option<RecognizedPage> {
         let wanted = |page: &RecognizedPage| self.engine.as_deref().is_none_or(|engine| page.engine_id == engine);
         self.read(part).filter(wanted)
+    }
+
+    /// Every page of the PDF kept here, by number, whatever engine read it
+    /// (D-523: what was read is kept); empty when none is.
+    pub fn kept_pages(&self) -> BTreeMap<u32, RecognizedPage> {
+        let Ok(entries) = fs::read_dir(&self.dir) else {
+            return BTreeMap::new();
+        };
+        entries
+            .flatten()
+            .filter_map(|entry| {
+                let name = entry.file_name().to_string_lossy().to_string();
+                let page: u32 = name.strip_prefix("page-")?.strip_suffix(".json")?.parse().ok()?;
+                Some((page, self.read(Part::Page(page))?))
+            })
+            .collect()
     }
 
     pub fn put(&self, part: Part, entry: &RecognizedPage) -> Result<(), String> {

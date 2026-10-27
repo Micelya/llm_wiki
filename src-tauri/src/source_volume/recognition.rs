@@ -262,13 +262,18 @@ pub fn complete_pdf_pages_kept(
     recognizer: &dyn TextRecognizer,
     on_page: &(dyn Fn(usize, usize) + Sync),
 ) -> Result<CompletedPdf, String> {
+    // Every page of the file kept as recognized enters its text, with the
+    // engine that read it, also when its ficha of shape does not send it to
+    // be read now (D-523): no engine is asked for it.
+    let mut recognized: BTreeMap<u32, RecognizedPage> =
+        store.kept_pages().into_iter().filter(|(page, _)| !pages.contains(page)).collect();
     if pages.is_empty() {
-        return Ok(CompletedPdf { text: extracted.to_string(), pages: BTreeMap::new() });
+        let text = splice_replacing(extracted, &recognized, replaced);
+        return Ok(CompletedPdf { text, pages: recognized });
     }
     let total = pages.len();
     let position = |page: u32| pages.iter().position(|p| *p == page).map_or(0, |index| index + 1);
 
-    let mut recognized = BTreeMap::new();
     let mut to_read = Vec::new();
     for (index, page) in pages.iter().enumerate() {
         match store.get(Part::Page(*page)) {
@@ -392,6 +397,19 @@ fn section_end(text: &str, page: u32) -> Option<usize> {
         Some(next) => Some(body + next),
         None => Some(text.len()),
     }
+}
+
+/// `extracted` (the text PDFium found) with every page of the PDF kept in
+/// `store` spliced in, each with the engine that read it, asking no engine
+/// (D-523); and those pages. A page kept over an old recognition layer
+/// takes its place. Unchanged, and no page, when none is kept.
+pub fn with_kept_pages(pdf: &Path, extracted: &str, store: &RecognizedStore) -> CompletedPdf {
+    let pages = store.kept_pages();
+    if pages.is_empty() {
+        return CompletedPdf { text: extracted.to_string(), pages };
+    }
+    let replaced = super::page_shape::profile_pdf(pdf).map(|shapes| shapes.old_layers()).unwrap_or_default();
+    CompletedPdf { text: splice_replacing(extracted, &pages, &replaced), pages }
 }
 
 /// 1-based numbers of the pages that need recognition, as their ficha of
@@ -746,5 +764,27 @@ CONTRATO de locacion entre las partes
             extracted
         );
         assert_eq!(recognizer.calls(), 0);
+    }
+
+    #[test]
+    fn a_page_kept_enters_the_text_though_its_ficha_does_not_send_it_to_be_read() {
+        let pdf = fixture("con-texto.pdf");
+        assert!(textless_pages(&pdf).unwrap().is_empty());
+        let dir = scratch();
+        let read_before = RecognizedPage { engine_id: "motor-viejo".to_string(), text: "leida antes".to_string(), ..Default::default() };
+        RecognizedStore::at(&dir).put(Part::Page(1), &read_before).unwrap();
+        let recognizer = FakeRecognizer::new(vec![]);
+        let extracted = "## Page 1\n\ncualquier cosa\n";
+
+        // Whatever engine is asked now, no engine reads it: the one that
+        // read it stays.
+        let store = RecognizedStore::at(&dir).for_engine("falso:1");
+        let done = complete_pdf_text_kept(&pdf, extracted, &store, &recognizer, &|_, _| {}).unwrap();
+        let marked = "<!-- texto-reconocido motor=\"motor-viejo\" -->";
+        assert_eq!(done.text, format!("## Page 1\n\ncualquier cosa\n{marked}\nleida antes\n"));
+        assert_eq!(done.pages, BTreeMap::from([(1, read_before)]));
+        assert_eq!(recognizer.calls(), 0);
+        assert_eq!(with_kept_pages(&pdf, extracted, &store).text, done.text);
+        let _ = fs::remove_dir_all(dir);
     }
 }

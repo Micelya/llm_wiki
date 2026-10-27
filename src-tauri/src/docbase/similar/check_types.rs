@@ -129,6 +129,19 @@ pub(crate) fn prepare(folders: &str) -> (TempDir, DocBase) {
         std::fs::copy(&start, &target).unwrap();
     }
     let base = DocBase::open(&target).unwrap();
+    // The text read from images, kept beside the base before anything is
+    // read, as in the app: the extraction puts in every page already read
+    // (D-523). From the seeds and from the cache of earlier runs.
+    let cache = std::env::var("MICELYA_RECOGNIZED_CACHE")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| base.recognized.clone());
+    let seeds = std::env::var("MICELYA_RECOGNIZED_SEED").unwrap_or_default();
+    let kept = format!("{seeds};{}", cache.display());
+    for seed in kept.split(';').filter(|s| !s.trim().is_empty()) {
+        for entry in std::fs::read_dir(seed.trim()).into_iter().flatten().flatten() {
+            copy_seed(seed, &base.recognized, &entry.file_name().to_string_lossy());
+        }
+    }
     for (index, folder) in folders.split(';').filter(|f| !f.trim().is_empty()).enumerate() {
         let location = Path::new(folder.trim()).to_string_lossy().to_string();
         let kept: Option<String> =
@@ -145,10 +158,6 @@ pub(crate) fn prepare(folders: &str) -> (TempDir, DocBase) {
 
     // Text read from images: from the cache, from the seeds, and from
     // Codex when asked to.
-    let cache = std::env::var("MICELYA_RECOGNIZED_CACHE")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| scratch.path().join("recognized"));
-    let seeds = std::env::var("MICELYA_RECOGNIZED_SEED").unwrap_or_default();
     // `MICELYA_RECOGNIZE=local`: the engine of this computer reads the
     // pages still missing (D-558); no model is asked.
     let engine = match std::env::var("MICELYA_RECOGNIZE").as_deref() {

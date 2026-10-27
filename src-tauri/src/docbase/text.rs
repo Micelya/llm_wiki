@@ -15,6 +15,7 @@
 //! form filled for two people is two documents, and its fields are the
 //! data that tell them apart.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use rusqlite::{params, OptionalExtension, Transaction};
@@ -22,7 +23,8 @@ use rusqlite::{params, OptionalExtension, Transaction};
 use crate::commands::extract_images::{join_pdf_pages, pdf_pages_text, PdfPageContent};
 use crate::panic_guard::run_guarded;
 use crate::source_volume::catalog::fingerprint;
-use crate::source_volume::recognition::{is_recognizable_image, textless_pages};
+use crate::source_volume::recognition::{is_recognizable_image, textless_pages, with_kept_pages, RecognizedPage};
+use crate::source_volume::recognized_store::RecognizedStore;
 use crate::source_volume::{LocalFolderProvider, SourceProvider};
 
 use super::{now_ms, sql_err, DocBase};
@@ -58,6 +60,9 @@ enum Outcome {
 struct Read {
     outcome: Outcome,
     pages: Vec<String>,
+    /// The pages kept as recognized that entered the text, by number, each
+    /// with the engine that read it.
+    recognized: BTreeMap<u32, RecognizedPage>,
 }
 
 impl DocBase {
@@ -67,7 +72,8 @@ impl DocBase {
         let jobs = self.next_text_jobs(limit)?;
         for (content_id, path, file_hash) in &jobs {
             self.engine_state().reading_file(Some(super::progress::Key::Content(*content_id)));
-            let read = run_guarded("docbase_extract_text", || extract(path));
+            let store = RecognizedStore::at(self.recognized.join(file_hash));
+            let read = run_guarded("docbase_extract_text", || extract(path, &store));
             let fields = run_guarded("docbase_form_fields", || form_fields(path)).unwrap_or_default();
             self.engine_state().reading_file(None);
             self.apply_text(*content_id, file_hash, read, &fields)?;
@@ -228,6 +234,7 @@ impl DocBase {
                     .iter()
                     .enumerate()
                     .map(|(index, body)| (index as u32 + 1, EXTRACTION_ENGINE, body.as_str()))
+                    .chain(read.recognized.iter().map(|(page, kept)| (*page, kept.engine_id.as_str(), kept.text.as_str())))
                     .collect();
                 store_pages(&tx, file_hash, &pages)?;
                 Ok(read.outcome)
@@ -452,7 +459,7 @@ fn form_fields(path: &Path) -> Result<Vec<(String, String)>, String> {
     crate::commands::pdf_form::pdf_form_fields(&path.to_string_lossy())
 }
 
-fn extract(path: &Path) -> Result<Read, String> {
+fn extract(path: &Path, store: &RecognizedStore) -> Result<Read, String> {
     let ext = path
         .extension()
         .and_then(|ext| ext.to_str())
@@ -463,20 +470,27 @@ fn extract(path: &Path) -> Result<Read, String> {
         // is in the text.
         let pages: Vec<String> = pdf_pages_text(&path.to_string_lossy())?.iter().map(PdfPageContent::body).collect();
         let text = join_pdf_pages(&pages);
+        // The pages of it kept as recognized enter its text, with the
+        // engine that read them, also those its ficha of shape does not
+        // send to be read (D-523).
+        let kept = |text: &str| with_kept_pages(path, text, store);
         // A page with no text layer is a scanned page.
-        let outcome = if textless_pages(path).map(|pages| pages.is_empty()).unwrap_or(true) {
-            Outcome::Text(text)
+        let (outcome, recognized) = if textless_pages(path).map(|pages| pages.is_empty()).unwrap_or(true) {
+            let done = kept(&text);
+            (Outcome::Text(done.text), done.pages)
         } else if fingerprint(&text).is_some() {
-            Outcome::Partial(text)
+            let done = kept(&text);
+            (Outcome::Partial(done.text), done.pages)
         } else {
-            Outcome::NeedsRecognition
+            (Outcome::NeedsRecognition, BTreeMap::new())
         };
-        return Ok(Read { outcome, pages });
+        return Ok(Read { outcome, pages, recognized });
     }
+    let recognized = BTreeMap::new();
     Ok(match crate::commands::fs::extract_text_without_recognition(path)? {
-        Some(text) => Read { pages: vec![text.clone()], outcome: Outcome::Text(text) },
-        None if is_recognizable_image(&ext) => Read { outcome: Outcome::NeedsRecognition, pages: Vec::new() },
-        None => Read { outcome: Outcome::Unsupported, pages: Vec::new() },
+        Some(text) => Read { pages: vec![text.clone()], outcome: Outcome::Text(text), recognized },
+        None if is_recognizable_image(&ext) => Read { outcome: Outcome::NeedsRecognition, pages: Vec::new(), recognized },
+        None => Read { outcome: Outcome::Unsupported, pages: Vec::new(), recognized },
     })
 }
 
@@ -811,6 +825,39 @@ mod tests {
         assert!(base.store_recognized_pages(&hash, CONTRACT, "motor-a", &[(1, "motor-a", CONTRACT)]).unwrap());
         assert_eq!(pages_of(&base, &hash), vec![(1, "motor-a".to_string(), CONTRACT.to_string())]);
         assert_eq!(base.text_of_file(&hash).unwrap().as_deref(), Some(CONTRACT));
+    }
+
+    #[test]
+    fn a_page_kept_as_recognized_enters_the_text_though_its_ficha_does_not_send_it() {
+        use crate::source_volume::page_shape::test_pdf::{build, page};
+        use crate::source_volume::recognition::{splice_recognized_pages, textless_pages};
+        use crate::source_volume::recognized_store::Part;
+        let own = "Hoja con su texto propio, escrita en renglones largos como un escrito comun del estudio de prueba.";
+        let second = "Segunda hoja, tambien con su texto propio y de largo parecido, para que nada la mande a leer.";
+        let dir = TempDir::new();
+        let path = dir.write("o/escrito.pdf", &build(&[page(&[own], 0.0), page(&[second], 0.0)]));
+        assert!(textless_pages(&path).unwrap().is_empty());
+        let before = joined_as_before(&path);
+        let read_before = RecognizedPage { engine_id: "motor-viejo".to_string(), text: "leida antes".to_string(), ..Default::default() };
+
+        // Nothing kept: the text is the one of before.
+        let plain = DocBase::in_memory().unwrap();
+        let origin = plain.add_origin("O", &dir.path().join("o"), &[]).unwrap();
+        settle(&plain, &origin.id);
+        let hash = hash_of(&plain, "escrito.pdf");
+        assert_eq!(plain.text_of_file(&hash).unwrap().as_deref(), Some(before.as_str()));
+
+        // Page 2 kept as read by an engine: it enters, with that engine,
+        // and the document needs no engine.
+        let base = DocBase::in_memory().unwrap();
+        let origin = base.add_origin("O", &dir.path().join("o"), &[]).unwrap();
+        RecognizedStore::at(base.recognized.join(&hash)).put(Part::Page(2), &read_before).unwrap();
+        settle(&base, &origin.id);
+        let expected = splice_recognized_pages(&before, &BTreeMap::from([(2, read_before.clone())]));
+        assert_ne!(expected, before);
+        assert_eq!(base.text_of_file(&hash).unwrap(), Some(expected));
+        assert!(pages_of(&base, &hash).contains(&(2, "motor-viejo".to_string(), "leida antes".to_string())));
+        assert_eq!(state_of(&base, "escrito.pdf"), "processed");
     }
 
     #[test]
