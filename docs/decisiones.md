@@ -505,7 +505,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 - **Fecha:** 5 al 8 oct 2026
 - **Tema:** Producto
-- **Estado:** reemplazada en parte por D-548 (la migración de los datos)
+- **Estado:** vigente
 - **El problema:** se partió de una aplicación de escritorio de código abierto que lee documentos y arma con IA un wiki (un conjunto de páginas enlazadas que resumen lo leído). Había que decidir si se la usaba tal cual o se la convertía en algo propio.
 - **Qué se decidió:** la copia propia (el fork `Micelya/llm_wiki`) se convierte en **Micelya Desktop**, un producto aparte orientado a estudios de abogados.
 - **Por qué:** la base sirve, pero el uso jurídico pide capacidades que la app original no tiene (manejo de fuentes, duplicados, documentos parecidos).
@@ -518,7 +518,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 - **Fecha:** 5 al 8 oct 2026
 - **Tema:** Base documental
-- **Estado:** reemplazada en parte por D-549 (la capa compartida queda para su etapa) (hoy es el principio 2 del diseño: "los originales no se tocan")
+- **Estado:** vigente (hoy es el principio 2 del diseño: "los originales no se tocan")
 - **El problema:** la app original copia cada documento dentro de la carpeta del proyecto. En un estudio eso duplica miles de archivos y deja dos versiones que pueden divergir.
 - **Qué se decidió:** las fuentes quedan donde están. La app las lee desde su ubicación original y solo guarda lo que obtiene al procesarlas (texto, resúmenes). Los originales nunca se escriben, mueven ni borran.
 - **Por qué:** evitar copias y no arriesgar los documentos del cliente.
@@ -531,7 +531,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 - **Fecha:** 5 al 8 oct 2026
 - **Tema:** Base documental
-- **Estado:** reemplazada en parte por D-551 (la lectura de personas se guarda por versión)
+- **Estado:** vigente
 - **El problema:** en un estudio el mismo documento aparece muchas veces: en varias carpetas, en Word y en PDF, enviado por mail y guardado con otro nombre. Procesar cada copia con IA gasta cupo y llena el wiki de repeticiones.
 - **Qué se decidió:** detectar las copias y procesar el documento una sola vez, conservando todas sus ubicaciones.
 - **Por qué:** costo y orden; además, saber dónde están todas las copias tiene valor propio.
@@ -5634,14 +5634,14 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 ### D-535 · El modelo de la base se reencauza sin parches, alineado con el modelo conceptual, con nombres canónicos de tablas y campos
 
-- **Fecha:** 26 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **Fecha:** 26 oct 2026 · **Tema:** Replanteo · **Estado:** reemplazada en parte por D-548 (la migración de los datos)
 - **El problema:** El modelo de la base se fue degradando con parches: el mismo concepto en varias tablas, decisiones humanas en seis lugares, columnas agregadas y restos del wiki.
 - **Qué se decidió y por qué:** Se rediseña la base a partir del modelo conceptual, con nombres de tablas y campos en la forma canónica, sin vocabulario de una vertical. No es un parche más: lo que haya que cambiar se cambia. El inventario de partida está en docs/design/base-de-datos-inventario.md; la migración usa el mecanismo con respaldo previo (D-496).
 - **Quién decidió:** El dueño del producto (26 oct).
 
 ### D-536 · Las copias en sistemas de archivos se ofrecen para eliminar y decide el humano; lo que está dentro de un compuesto o de un expediente no se borra; lo generado es único por documento
 
-- **Fecha:** 26 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **Fecha:** 26 oct 2026 · **Tema:** Replanteo · **Estado:** reemplazada en parte por D-551 (la lectura de personas se guarda por versión)
 - **El problema:** Un documento puede aparecer en varios lugares, y eso repetía resúmenes y lecturas, además de dejar copias innecesarias en las carpetas.
 - **Qué se decidió y por qué:** En fuentes de tipo sistema de archivos (disco, OneDrive, Google Drive) la aplicación ofrece eliminar las copias; decide el humano y la aplicación nunca borra sola; si se borra, queda registrado que esa aparición existió y de dónde vino. Una aparición dentro de un documento compuesto o de un expediente del portal no se borra: es parte de otra cosa. Todo lo que genera la aplicación es único por documento: un resumen, una lectura de personas, una ficha.
 - **Quién decidió:** El dueño del producto; lo del compuesto y el expediente lo propuso el agente y el dueño lo confirmó (26 oct).
@@ -5683,7 +5683,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 ### D-542 · El catálogo tiene tres capas: la general por vertical, que viaja con el instalador y puede bajarse actualizada; la compartida; y la personal, cada una aprobada por quien corresponde
 
-- **Fecha:** 26 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **Fecha:** 26 oct 2026 · **Tema:** Replanteo · **Estado:** reemplazada en parte por D-549 (la capa compartida queda para su etapa)
 - **El problema:** Había que decidir dónde vive lo aprendido y quién lo aprueba.
 - **Qué se decidió y por qué:** General, por vertical: viaja con el instalador y opcionalmente se baja de un servicio de Micelya (la aplicación funciona sin él); la aprueba Micelya y, en el entrenamiento actual, el dueño. Compartida: en la base del espacio compartido, la aprueba su operador. Personal: en la base de la persona, la aprueba ella. Siguiendo D-044, la personal ve la general, la compartida y la suya; la compartida no ve la personal. Si una regla personal choca con una compartida, la personal vale solo para esa persona.
 - **Quién decidió:** El dueño del producto; lo del choque entre capas lo recomendó el agente y quedó aceptado (26 oct).
