@@ -25,6 +25,11 @@
 //!   with paths relative to `root`; it may also have `relations` and
 //!   `not_relations` between its entities (`check_relations.rs`). Several
 //!   sheets go separated by `;`: this run compares with the first.
+//! - `MICELYA_DOCBASE_START` (with `MICELYA_DOCBASE_CHECK`): a base of
+//!   this numbering the folders are read into (a copy of it), with the
+//!   answers and settings `a-la-base-nueva.py` brought from the earlier
+//!   base (D-555). `MICELYA_ASK_OFFLINE`: only the answers kept count; the
+//!   run says, by task, how many questions it looked up and found.
 //! - `MICELYA_ASK_CACHE`: a file where the model's answers are kept
 //!   between runs, by engine and question: a second run asks nothing
 //!   already asked. `MICELYA_ASK_PARALLEL`: questions asked at the same
@@ -420,6 +425,37 @@ pub(crate) fn read_all(base: &DocBase, asker: &Recorded) -> KnowledgeReport {
     total
 }
 
+/// The questions the run looked up among the kept answers, by task: how
+/// many, and how many were there (D-555). A question takes the task of the
+/// answers kept with its prompt version; one whose version has none kept
+/// goes by its version.
+pub(crate) fn print_cache_hits(base: &DocBase) {
+    let looked: Vec<(String, bool)> = classify::LOOKED_UP.lock().unwrap().clone();
+    let task_of: HashMap<String, String> = {
+        let conn = base.conn();
+        let mut statement = conn.prepare("SELECT DISTINCT prompt_version, task FROM model_answer").unwrap();
+        let rows = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?))).unwrap();
+        rows.collect::<Result<_, _>>().unwrap()
+    };
+    let mut by_key: BTreeMap<String, bool> = BTreeMap::new();
+    for (key, found) in looked {
+        *by_key.entry(key).or_default() |= found;
+    }
+    let mut by_task: BTreeMap<String, (usize, usize)> = BTreeMap::new();
+    for (key, found) in by_key {
+        let version = key.rsplit_once(':').map_or(key.as_str(), |(version, _)| version).to_string();
+        let task = task_of.get(&version).cloned().unwrap_or_else(|| format!("(version {version})"));
+        let entry = by_task.entry(task).or_default();
+        entry.0 += 1;
+        entry.1 += usize::from(found);
+    }
+    println!("
+== the kept answers, by task: questions looked up, found ==");
+    for (task, (looked, found)) in by_task {
+        println!("   {task}: {looked}, {found}");
+    }
+}
+
 #[test]
 #[ignore = "reads a real base or real folders and asks the real model"]
 fn extraction_against_the_entity_sheet() {
@@ -429,6 +465,7 @@ fn extraction_against_the_entity_sheet() {
     };
     let asker = recorded();
     read_all(&base, &asker);
+    print_cache_hits(&base);
     let status = base.knowledge_status(&Visible::All).unwrap();
     println!("\n== status ==\n   {status:?}");
     save_copy(&base);

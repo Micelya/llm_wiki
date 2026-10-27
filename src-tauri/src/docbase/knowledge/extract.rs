@@ -2426,7 +2426,10 @@ fn kept_answer(conn: &Connection, key: &str, engine: Option<&str>, since: Option
             .optional()
             .map_err(sql_err)?,
     };
-    Ok(found.filter(|(_, at)| *at >= since).map(|(answer, _)| answer))
+    let kept = found.filter(|(_, at)| *at >= since).map(|(answer, _)| answer);
+    #[cfg(test)]
+    crate::docbase::similar::classify::looked_up(key, kept.is_some());
+    Ok(kept)
 }
 
 /// What a person asks to read again (D-432): the document at a location,

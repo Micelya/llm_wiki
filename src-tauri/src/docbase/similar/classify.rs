@@ -798,7 +798,7 @@ fn read_proposed_types(conn: &Connection) -> Result<Vec<ProposedType>, String> {
 /// engine and model gave; without one (no engine was chosen yet), the
 /// latest answer any engine gave.
 pub(crate) fn cached_answer(conn: &Connection, key: &str, engine: Option<&str>) -> Result<Option<String>, String> {
-    match engine {
+    let found = match engine {
         Some(engine) => conn
             .query_row("SELECT answer FROM model_answer WHERE question = ?1 AND engine = ?2", params![key, engine], |row| {
                 row.get(0)
@@ -813,7 +813,22 @@ pub(crate) fn cached_answer(conn: &Connection, key: &str, engine: Option<&str>) 
             )
             .optional()
             .map_err(sql_err),
+    };
+    #[cfg(test)]
+    if let Ok(answer) = &found {
+        looked_up(key, answer.is_some());
     }
+    found
+}
+
+/// The questions looked up among the kept answers, and whether each one
+/// was there: the measurement of the cache (D-555), in the tests only.
+#[cfg(test)]
+pub(crate) static LOOKED_UP: Mutex<Vec<(String, bool)>> = Mutex::new(Vec::new());
+
+#[cfg(test)]
+pub(crate) fn looked_up(key: &str, found: bool) {
+    LOOKED_UP.lock().unwrap().push((key.to_string(), found));
 }
 
 /// Keeps an answer of the model with its question and the engine that

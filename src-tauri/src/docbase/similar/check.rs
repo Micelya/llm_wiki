@@ -126,11 +126,20 @@ fn paths_by_content(base: &DocBase) -> (HashMap<String, i64>, BTreeMap<i64, Vec<
 #[test]
 #[ignore = "reads the real folders named in MICELYA_DOCBASE_CHECK"]
 fn similar_documents_in_real_folders() {
-    let Ok(folders) = std::env::var("MICELYA_DOCBASE_CHECK") else {
-        println!("MICELYA_DOCBASE_CHECK is not set: nothing to check");
-        return;
+    // Over a copy of a base (`MICELYA_DOCBASE_COPY`, of this numbering or
+    // of the earlier one) instead of folders: the same measurement of what
+    // that base already has.
+    let (_scratch, base) = if std::env::var("MICELYA_DOCBASE_COPY").is_ok() {
+        let (scratch, base) = crate::docbase::knowledge::check::open_base().unwrap();
+        while base.similar_step(16).unwrap() > 0 {}
+        (scratch, base)
+    } else {
+        let Ok(folders) = std::env::var("MICELYA_DOCBASE_CHECK") else {
+            println!("MICELYA_DOCBASE_CHECK is not set: nothing to check");
+            return;
+        };
+        run(&folders)
     };
-    let (_scratch, base) = run(&folders);
     let (by_path, by_content) = paths_by_content(&base);
     let name = |content: i64| -> String {
         by_content
