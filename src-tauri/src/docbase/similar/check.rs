@@ -362,20 +362,61 @@ struct Tally {
     as_similar: usize,
 }
 
+/// What a measurement against a sheet covers (the owner, 27 oct): only the
+/// pairs whose two documents the base has with exactly the boundaries the
+/// sheet gives are evaluated; each of the others goes, by its number (from
+/// 1), to the reason it was not.
+#[derive(Default)]
+struct Coverage {
+    pairs: usize,
+    evaluated: Vec<usize>,
+    /// Excluded: the sheet does not measure the pair (`measurable: false`).
+    not_measurable: Vec<usize>,
+    /// Excluded: a file of the pair is not in the base.
+    not_in_base: Vec<usize>,
+    /// Excluded: a relation the engine does not have.
+    unknown_relation: Vec<usize>,
+    /// The sheet names a whole file and the base cut it: the sheet does
+    /// not say which of its documents the pair is about.
+    not_enough_reference: Vec<usize>,
+    /// The sheet says which pages and the base has no document with them:
+    /// it cut otherwise, cut more, or did not cut.
+    cut_errors: Vec<usize>,
+}
+
+/// A measurement against a sheet.
+struct Measured {
+    coverage: Coverage,
+    /// The evaluated pairs only: both sides with exact boundaries.
+    exact: Tally,
+    /// Every pair of a known relation with its two files in the base, each
+    /// side by the part with most pages in common: for diagnosis only, it
+    /// does not count.
+    approximate: Tally,
+    /// The versions the evaluated pairs are about.
+    named: BTreeSet<i64>,
+}
+
 /// What appears in each file of the base: the version of the whole file
 /// and, when it was cut, the versions of its parts with their pages.
 struct Appearances {
     hash_of: HashMap<String, String>,
     paths_of: HashMap<String, Vec<String>>,
     in_file: HashMap<String, Vec<(i64, Option<(u32, u32)>)>>,
+    /// The pages of each file, when the base knows them.
+    pages: HashMap<String, u32>,
 }
 
 /// What a reference of the sheet (a file, and maybe some of its pages)
 /// stands for in the base.
 struct Resolved {
+    /// The document with exactly the boundaries of the reference when
+    /// `exact`; otherwise an approximation, for diagnosis only: the whole
+    /// file when it was not cut, or the part with most pages in common.
     version: i64,
-    /// The base has a document with exactly those pages, or the whole
-    /// file when it was not cut.
+    /// The base has a document with exactly the pages the sheet says: the
+    /// file not cut, when the sheet names the whole file (no pages, or
+    /// all of them); or a part with those very pages.
     exact: bool,
     /// The parts the base has of the file, by pages, when it was cut.
     parts: Vec<(u32, u32)>,
@@ -416,30 +457,45 @@ impl Appearances {
             let (hash, version, selector) = row.unwrap();
             in_file.entry(hash).or_default().push((version, pages_of(&selector)));
         }
-        Appearances { hash_of, paths_of, in_file }
+        let mut statement = conn
+            .prepare(
+                "SELECT resource_hash, max(page_no) FROM (SELECT resource_hash, page_no FROM resource_page
+                 UNION ALL SELECT resource_hash, page_no FROM resource_text) GROUP BY resource_hash",
+            )
+            .unwrap();
+        let pages = statement
+            .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, u32>(1)?)))
+            .unwrap()
+            .collect::<Result<HashMap<_, _>, _>>()
+            .unwrap();
+        Appearances { hash_of, paths_of, in_file, pages }
     }
 
-    /// The version that stands for `selector` (pages of the file; the
-    /// whole file when not said) of the file at `path`: the version of the
-    /// file when it was not cut; otherwise the part with most pages in
-    /// common, the first one on a tie.
+    /// What `selector` (pages of the file; the whole file when not said) of
+    /// the file at `path` stands for in the base (see `Resolved`); the
+    /// approximation takes the first part on a tie.
     fn resolve(&self, root: &str, path: &str, selector: Option<&str>) -> Option<Resolved> {
         let hash = self.hash_of.get(&key(&format!("{root}/{path}")))?;
         let all = self.in_file.get(hash)?;
+        let pages = self.pages.get(hash).map(|n| (1, *n));
+        // A selector that cannot be read names no pages the base can have.
+        let wanted = selector.map(|s| pages_of(s).unwrap_or((0, 0)));
         let mut parts: Vec<(u32, u32, i64)> = all.iter().filter_map(|(v, p)| p.map(|(a, b)| (a, b, *v))).collect();
         parts.sort();
+        let ranges: Vec<(u32, u32)> = parts.iter().map(|(a, b, _)| (*a, *b)).collect();
         if parts.is_empty() {
             let whole = all.iter().find(|(_, p)| p.is_none())?.0;
-            return Some(Resolved { version: whole, exact: selector.is_none(), parts: Vec::new() });
+            let exact = wanted.is_none() || wanted == pages;
+            return Some(Resolved { version: whole, exact, parts: ranges });
         }
-        let wanted = selector.and_then(pages_of).unwrap_or((1, u32::MAX));
+        let target = wanted.or(pages);
+        if let Some(part) = parts.iter().find(|(a, b, _)| Some((*a, *b)) == target) {
+            return Some(Resolved { version: part.2, exact: true, parts: ranges });
+        }
+        let wanted = wanted.unwrap_or((1, u32::MAX));
         let common = |a: u32, b: u32| (b.min(wanted.1) + 1).saturating_sub(a.max(wanted.0));
         let best = parts.iter().max_by_key(|(a, b, _)| (common(*a, *b), std::cmp::Reverse(*a)))?;
-        Some(Resolved {
-            version: best.2,
-            exact: selector.is_some() && (best.0, best.1) == wanted,
-            parts: parts.iter().map(|(a, b, _)| (*a, *b)).collect(),
-        })
+        Some(Resolved { version: best.2, exact: false, parts: ranges })
     }
 
     /// The paths of a version, with the pages when it is a part.
@@ -471,11 +527,154 @@ fn ranges(parts: &[(u32, u32)]) -> String {
     parts.iter().map(|(a, b)| format!("{a}-{b}")).collect::<Vec<_>>().join(", ")
 }
 
+/// A pair of the sheet to judge: its number (from 1), the answer, the
+/// relation the engine should propose and the two versions.
+type ToJudge<'a> = (usize, &'a AnswerPair, &'static str, i64, i64);
+
+/// The pairs of a measurement, judged against what the base proposes.
+#[derive(Default)]
+struct Judged {
+    by_relation: BTreeMap<String, Tally>,
+    total: Tally,
+    /// Proposals inside a "same template" family of the sheet.
+    inferred: Tally,
+    wrong: Vec<String>,
+    missed: Vec<String>,
+    unjudged: Vec<String>,
+}
+
+fn judge(pairs: &[ToJudge], proposed: &HashMap<(i64, i64), String>, seen: &Appearances) -> Judged {
+    let mut judged = Judged::default();
+    let mut said: BTreeSet<(i64, i64)> = BTreeSet::new();
+    // Members of a "same template" family, pairwise: the sheet writes
+    // them against the principal only.
+    let mut template_family: HashMap<i64, i64> = HashMap::new();
+    for (number, answer, expected, ca, cb) in pairs {
+        let (expected, ca, cb) = (*expected, *ca, *cb);
+        if expected == "same-template" {
+            let family = *template_family.get(&ca).or(template_family.get(&cb)).unwrap_or(&ca.min(cb));
+            template_family.insert(ca, family);
+            template_family.insert(cb, family);
+        }
+        let entry = judged.by_relation.entry(expected.to_string()).or_default();
+        entry.expected += 1;
+        let (lo, hi) = (ca.min(cb), ca.max(cb));
+        said.insert((lo, hi));
+        let found = if ca == cb { Some("same-document".to_string()) } else { proposed.get(&(lo, hi)).cloned() };
+        let line = format!(
+            "pair {number}: expected {} ({}), proposed {}: {} ~ {}{}",
+            expected,
+            answer.relation,
+            found.clone().unwrap_or_else(|| "nothing".into()),
+            seen.name(ca),
+            seen.name(cb),
+            answer.note.as_ref().map(|n| format!(" — {n}")).unwrap_or_default()
+        );
+        match (expected, found.as_deref()) {
+            ("none", None) => entry.hits += 1,
+            ("none", Some("similar")) => {
+                entry.hits += 1;
+                entry.as_similar += 1;
+            }
+            ("none", Some(_)) => {
+                entry.wrong += 1;
+                judged.wrong.push(line);
+            }
+            (_, Some(found)) if found == expected => entry.hits += 1,
+            (_, None) => {
+                entry.missed += 1;
+                judged.missed.push(line);
+            }
+            (_, Some("similar")) => {
+                entry.missed += 1;
+                entry.as_similar += 1;
+                judged.missed.push(line);
+            }
+            (_, Some(_)) => {
+                entry.wrong += 1;
+                judged.wrong.push(line);
+            }
+        }
+    }
+    for t in judged.by_relation.values() {
+        judged.total.expected += t.expected;
+        judged.total.hits += t.hits;
+        judged.total.wrong += t.wrong;
+        judged.total.missed += t.missed;
+        judged.total.as_similar += t.as_similar;
+    }
+    // Proposals the sheet does not judge directly.
+    for ((a, b), relation) in proposed {
+        if said.contains(&(*a, *b)) || relation == "similar" {
+            continue;
+        }
+        match (template_family.get(a), template_family.get(b)) {
+            (Some(x), Some(y)) if x == y => {
+                judged.inferred.expected += 1;
+                if relation == "same-template" {
+                    judged.inferred.hits += 1;
+                } else {
+                    judged.inferred.wrong += 1;
+                    judged.wrong.push(format!(
+                        "expected same-template (same family in the sheet), proposed {relation}: {} ~ {}",
+                        seen.name(*a),
+                        seen.name(*b)
+                    ));
+                }
+            }
+            _ => judged.unjudged.push(format!("[{relation}] {} ~ {}", seen.name(*a), seen.name(*b))),
+        }
+    }
+    judged
+}
+
+fn print_tally(judged: &Judged) {
+    println!("   {:<16} {:>8} {:>6} {:>6} {:>7} {:>11}", "relation", "expected", "hits", "WRONG", "missed", "as similar");
+    for (relation, t) in &judged.by_relation {
+        println!("   {:<16} {:>8} {:>6} {:>6} {:>7} {:>11}", relation, t.expected, t.hits, t.wrong, t.missed, t.as_similar);
+    }
+    let t = &judged.total;
+    println!("   {:<16} {:>8} {:>6} {:>6} {:>7} {:>11}", "total", t.expected, t.hits, t.wrong, t.missed, t.as_similar);
+    println!(
+        "   inside a same-template family of the sheet: {} pairs, {} right, {} wrong",
+        judged.inferred.expected, judged.inferred.hits, judged.inferred.wrong
+    );
+}
+
+fn numbers(list: &[usize]) -> String {
+    if list.is_empty() {
+        "none".into()
+    } else {
+        list.iter().map(|n| n.to_string()).collect::<Vec<_>>().join(", ")
+    }
+}
+
+/// How one side of a pair stands: the line that says it when it is not
+/// exact, and whether it is a cut error (the sheet says which pages).
+fn side_line(number: usize, side: &str, resolved: &Resolved, selector: Option<&str>) -> Option<(String, bool)> {
+    if resolved.exact {
+        return None;
+    }
+    let base = if resolved.parts.is_empty() {
+        "the file not cut".to_string()
+    } else {
+        format!("{} parts ({})", resolved.parts.len(), ranges(&resolved.parts))
+    };
+    Some((
+        format!("pair {number} side {side}: the base has {base}; the sheet: {}", selector.unwrap_or("the whole file")),
+        selector.is_some(),
+    ))
+}
+
 /// Measures the pairs of the base against an answer sheet, each pair of
-/// the sheet between the documents its files and pages stand for. The
-/// proposals that wait for a cut to be confirmed (D-556) count as not
-/// made: what a person sees.
-fn against_the_sheet(base: &DocBase, answers: &Answers, list_unjudged: bool) -> Tally {
+/// the sheet between the documents its files and pages stand for. Only
+/// exact boundaries count (the owner, 27 oct): a pair with a side the base
+/// does not have exactly is a cut error or lacks a reference, and goes to
+/// the coverage, not to the hits, wrong and missed; the earlier count,
+/// with the part with most pages in common, is printed after it as a
+/// diagnosis. The proposals that wait for a cut to be confirmed (D-556)
+/// count as not made: what a person sees.
+fn against_the_sheet(base: &DocBase, answers: &Answers, list_unjudged: bool) -> Measured {
     let seen = Appearances::of(base);
     let proposed: HashMap<(i64, i64), String> = {
         let conn = base.conn();
@@ -494,163 +693,104 @@ fn against_the_sheet(base: &DocBase, answers: &Answers, list_unjudged: bool) -> 
         .query_row(&format!("SELECT count(*) FROM similar_pair p WHERE {}", super::store::waiting_sql("p")), [], |row| row.get(0))
         .unwrap();
 
-    let mut tally: BTreeMap<String, Tally> = BTreeMap::new();
-    let mut wrong: Vec<String> = Vec::new();
-    let mut missed: Vec<String> = Vec::new();
+    let mut coverage = Coverage { pairs: answers.pairs.len(), ..Default::default() };
+    let mut exact_pairs: Vec<ToJudge> = Vec::new();
+    let mut approximate_pairs: Vec<ToJudge> = Vec::new();
+    let mut named: BTreeSet<i64> = BTreeSet::new();
     let mut unknown: Vec<String> = Vec::new();
-    // References to a cut file that the sheet does not resolve: numbers
-    // only (the pair of the sheet from 1, its side, the pages).
-    let mut not_said: Vec<String> = Vec::new();
-    let mut cut_otherwise: Vec<String> = Vec::new();
-    let mut judged: BTreeSet<(i64, i64)> = BTreeSet::new();
-    // Members of a "same template" family, pairwise: the sheet writes
-    // them against the principal only.
-    let mut template_family: HashMap<i64, i64> = HashMap::new();
-
+    // The sides not exact: numbers and pages only.
+    let mut cut_lines: Vec<String> = Vec::new();
+    let mut not_said_lines: Vec<String> = Vec::new();
     for (index, answer) in answers.pairs.iter().enumerate() {
-        let a = seen.resolve(&answers.root, &answer.a, answer.a_selector.as_deref());
-        let b = seen.resolve(&answers.root, &answer.b, answer.b_selector.as_deref());
-        for (side, resolved, selector) in [("a", &a, &answer.a_selector), ("b", &b, &answer.b_selector)] {
-            let Some(resolved) = resolved else { continue };
-            if resolved.parts.is_empty() || resolved.exact {
-                continue;
-            }
-            let line = format!(
-                "pair {} side {side}{}: the base has {} parts ({}); the sheet: {}",
-                index + 1,
-                if answer.measurable { "" } else { " (not measurable)" },
-                resolved.parts.len(),
-                ranges(&resolved.parts),
-                selector.as_deref().unwrap_or("the whole file")
-            );
-            if selector.is_some() {
-                cut_otherwise.push(line);
-            } else {
-                not_said.push(line);
-            }
-        }
+        let number = index + 1;
         if !answer.measurable {
+            coverage.not_measurable.push(number);
             continue;
         }
         let Some(expected) = engine_relation(&answer.relation) else {
-            unknown.push(format!("relation '{}' (pair {})", answer.relation, index + 1));
+            coverage.unknown_relation.push(number);
+            unknown.push(format!("relation '{}' (pair {number})", answer.relation));
             continue;
         };
+        let a = seen.resolve(&answers.root, &answer.a, answer.a_selector.as_deref());
+        let b = seen.resolve(&answers.root, &answer.b, answer.b_selector.as_deref());
         let (Some(a), Some(b)) = (a, b) else {
-            unknown.push(format!("not in the base: pair {}", index + 1));
+            coverage.not_in_base.push(number);
             continue;
         };
-        let (ca, cb) = (a.version, b.version);
-        if expected == "same-template" {
-            let family = *template_family.get(&ca).or(template_family.get(&cb)).unwrap_or(&ca.min(cb));
-            template_family.insert(ca, family);
-            template_family.insert(cb, family);
+        let (mut cut_error, mut not_said) = (false, false);
+        for (side, resolved, selector) in [("a", &a, &answer.a_selector), ("b", &b, &answer.b_selector)] {
+            let Some((line, said)) = side_line(number, side, resolved, selector.as_deref()) else { continue };
+            if said {
+                cut_error = true;
+                cut_lines.push(line);
+            } else {
+                not_said = true;
+                not_said_lines.push(line);
+            }
         }
-        let entry = tally.entry(expected.to_string()).or_default();
-        entry.expected += 1;
-        let (lo, hi) = (ca.min(cb), ca.max(cb));
-        judged.insert((lo, hi));
-        let found = if ca == cb { Some("same-document".to_string()) } else { proposed.get(&(lo, hi)).cloned() };
-        let line = format!(
-            "expected {} ({}), proposed {}: {} ~ {}{}",
-            expected,
-            answer.relation,
-            found.clone().unwrap_or_else(|| "nothing".into()),
-            seen.name(ca),
-            seen.name(cb),
-            answer.note.as_ref().map(|n| format!(" — {n}")).unwrap_or_default()
-        );
-        match (expected, found.as_deref()) {
-            ("none", None) => entry.hits += 1,
-            ("none", Some("similar")) => {
-                entry.hits += 1;
-                entry.as_similar += 1;
-            }
-            ("none", Some(_)) => {
-                entry.wrong += 1;
-                wrong.push(line);
-            }
-            (_, Some(found)) if found == expected => entry.hits += 1,
-            (_, None) => {
-                entry.missed += 1;
-                missed.push(line);
-            }
-            (_, Some("similar")) => {
-                entry.missed += 1;
-                entry.as_similar += 1;
-                missed.push(line);
-            }
-            (_, Some(_)) => {
-                entry.wrong += 1;
-                wrong.push(line);
-            }
+        approximate_pairs.push((number, answer, expected, a.version, b.version));
+        if cut_error {
+            coverage.cut_errors.push(number);
+        } else if not_said {
+            coverage.not_enough_reference.push(number);
+        } else {
+            coverage.evaluated.push(number);
+            named.insert(a.version);
+            named.insert(b.version);
+            exact_pairs.push((number, answer, expected, a.version, b.version));
         }
     }
-    // Proposals the sheet does not judge directly.
-    let mut inferred = Tally::default();
-    let mut unjudged: Vec<String> = Vec::new();
-    for ((a, b), relation) in &proposed {
-        if judged.contains(&(*a, *b)) || relation == "similar" {
-            continue;
-        }
-        match (template_family.get(a), template_family.get(b)) {
-            (Some(x), Some(y)) if x == y => {
-                inferred.expected += 1;
-                if relation == "same-template" {
-                    inferred.hits += 1;
-                } else {
-                    inferred.wrong += 1;
-                    wrong.push(format!(
-                        "expected same-template (same family in the sheet), proposed {relation}: {} ~ {}",
-                        seen.name(*a),
-                        seen.name(*b)
-                    ));
-                }
-            }
-            _ => unjudged.push(format!("[{relation}] {} ~ {}", seen.name(*a), seen.name(*b))),
-        }
-    }
+    let exact = judge(&exact_pairs, &proposed, &seen);
+    let approximate = judge(&approximate_pairs, &proposed, &seen);
 
-    println!("\n== against the answer sheet (measurable pairs) ==");
-    println!("   {:<16} {:>8} {:>6} {:>6} {:>7} {:>11}", "relation", "expected", "hits", "WRONG", "missed", "as similar");
-    let mut total = Tally::default();
-    for (relation, t) in &tally {
-        println!("   {:<16} {:>8} {:>6} {:>6} {:>7} {:>11}", relation, t.expected, t.hits, t.wrong, t.missed, t.as_similar);
-        total.expected += t.expected;
-        total.hits += t.hits;
-        total.wrong += t.wrong;
-        total.missed += t.missed;
-        total.as_similar += t.as_similar;
-    }
+    let c = &coverage;
+    let excluded = c.not_measurable.len() + c.not_in_base.len() + c.unknown_relation.len();
+    println!("\n== against the answer sheet: coverage ==");
+    println!("   pairs of the sheet: {}", c.pairs);
+    println!("   evaluated with exact boundaries: {}", c.evaluated.len());
+    println!("   excluded: {excluded}");
+    println!("      the sheet does not measure them (measurable: false): {} [{}]", c.not_measurable.len(), numbers(&c.not_measurable));
+    println!("      a file the base does not have: {} [{}]", c.not_in_base.len(), numbers(&c.not_in_base));
+    println!("      a relation the engine does not have: {} [{}]", c.unknown_relation.len(), numbers(&c.unknown_relation));
     println!(
-        "   {:<16} {:>8} {:>6} {:>6} {:>7} {:>11}",
-        "total", total.expected, total.hits, total.wrong, total.missed, total.as_similar
+        "   not enough reference (the sheet names a whole file the base cut): {} [{}]",
+        c.not_enough_reference.len(),
+        numbers(&c.not_enough_reference)
     );
     println!(
-        "   inside a same-template family of the sheet: {} pairs, {} right, {} wrong",
-        inferred.expected, inferred.hits, inferred.wrong
+        "   cut errors (the sheet says which pages, the base has no such document): {} [{}]",
+        c.cut_errors.len(),
+        numbers(&c.cut_errors)
     );
+    println!(
+        "   of the evaluated: {} hits, {} wrong (another relation), {} missed",
+        exact.total.hits, exact.total.wrong, exact.total.missed
+    );
+
+    println!("\n== against the answer sheet (evaluated pairs, exact boundaries) ==");
+    print_tally(&exact);
     println!("   proposals waiting for a cut to be confirmed (not counted): {waiting}");
-    println!("\n   WRONG proposals (the worst outcome, R-07): {}", wrong.len());
-    for line in &wrong {
+    println!("\n   WRONG proposals (the worst outcome, R-07): {}", exact.wrong.len());
+    for line in &exact.wrong {
         println!("      {line}");
     }
-    println!("\n   missed relations: {}", missed.len());
-    for line in &missed {
+    println!("\n   missed relations: {}", exact.missed.len());
+    for line in &exact.missed {
         println!("      {line}");
     }
-    println!("\n   proposals the sheet does not judge: {}", unjudged.len());
+    println!("\n   proposals the sheet does not judge: {}", exact.unjudged.len());
     if list_unjudged {
-        for line in &unjudged {
+        for line in &exact.unjudged {
             println!("      {line}");
         }
     }
-    println!("\n   a cut file the sheet does not say which part of: {}", not_said.len());
-    for line in &not_said {
+    println!("\n   sides of a cut error: {}", cut_lines.len());
+    for line in &cut_lines {
         println!("      {line}");
     }
-    println!("\n   a cut file the base cuts otherwise than the sheet: {}", cut_otherwise.len());
-    for line in &cut_otherwise {
+    println!("\n   sides without enough reference: {}", not_said_lines.len());
+    for line in &not_said_lines {
         println!("      {line}");
     }
     if !unknown.is_empty() {
@@ -659,7 +799,48 @@ fn against_the_sheet(base: &DocBase, answers: &Answers, list_unjudged: bool) -> 
             println!("      {line}");
         }
     }
-    total
+
+    println!("\n== diagnostic, not counted: each side by the part with most pages in common ==");
+    print_tally(&approximate);
+    let only_here: Vec<usize> = c.cut_errors.iter().chain(&c.not_enough_reference).copied().collect::<BTreeSet<_>>().into_iter().collect();
+    println!("   pairs only in this count: {} [{}]", only_here.len(), numbers(&only_here));
+
+    Measured { exact: exact.total, approximate: approximate.total, named, coverage }
+}
+
+#[test]
+fn a_side_counts_only_with_exact_boundaries() {
+    let file = |name: &str| (key(&format!("root/{name}")), name.to_string());
+    let seen = Appearances {
+        hash_of: [file("whole"), file("cut")].into_iter().collect(),
+        paths_of: HashMap::new(),
+        in_file: [
+            ("whole".to_string(), vec![(1, None)]),
+            ("cut".to_string(), vec![(2, None), (3, Some((1, 1))), (4, Some((2, 4)))]),
+        ]
+        .into_iter()
+        .collect(),
+        pages: [("whole".to_string(), 3), ("cut".to_string(), 4)].into_iter().collect(),
+    };
+    let resolve = |path: &str, selector: Option<&str>| seen.resolve("root", path, selector).unwrap();
+    let fate = |path: &str, selector: Option<&str>| side_line(1, "a", &resolve(path, selector), selector).map(|(_, cut)| cut);
+    // A file not cut: the whole file, with its pages said or not, is
+    // exact; a stretch of it is a cut the base did not make.
+    assert!(resolve("whole", None).exact);
+    assert!(resolve("whole", Some("pages:1-3")).exact);
+    assert_eq!(fate("whole", Some("pages:1-2")), Some(true));
+    // A cut file: only a part with those very pages is exact; the part
+    // with most pages in common stands for it in the diagnosis only.
+    let part = resolve("cut", Some("pages:2-4"));
+    assert!(part.exact && part.version == 4);
+    let one_document = resolve("cut", Some("pages:1-4"));
+    assert!(!one_document.exact && one_document.version == 4);
+    assert_eq!(fate("cut", Some("pages:1-4")), Some(true));
+    assert_eq!(fate("cut", Some("pages:1-3")), Some(true));
+    // The sheet names the whole file and the base cut it: no reference.
+    assert_eq!(fate("cut", None), Some(false));
+    assert_eq!(fate("whole", None), None);
+    assert!(seen.resolve("root", "missing", None).is_none());
 }
 
 /// The copies and versions over the whole folder with the joined PDFs cut,
@@ -669,7 +850,11 @@ fn against_the_sheet(base: &DocBase, answers: &Answers, list_unjudged: bool) -> 
 /// (`MICELYA_ASK_OFFLINE`), measured against every sheet of
 /// `MICELYA_SIMILAR_ANSWERS` (separated by `;`) twice: as it is, with the
 /// cuts proposed and their proposals waiting, and with every cut confirmed
-/// as if a person had looked at them.
+/// as if a person had looked at them. Each time it also says how much of
+/// the cuts has a reference: the joined PDFs the parts sheet of
+/// `MICELYA_CUT_SHEET` has, and the included documents no reference
+/// covers. `MICELYA_KNOWLEDGE_SAVE`: where a copy of the base is kept at
+/// the end.
 #[test]
 #[ignore = "reads the real folders named in MICELYA_DOCBASE_CHECK"]
 fn similar_documents_of_the_included_documents() {
@@ -701,6 +886,11 @@ fn similar_documents_of_the_included_documents() {
             Some((name, serde_json::from_str(&text).map_err(|e| println!("{p}: {e}")).ok()?))
         })
         .collect();
+    // The fingerprints of the files of the parts sheet (`files`, `sha256`).
+    let parts_sheet: Option<BTreeSet<String>> = std::env::var("MICELYA_CUT_SHEET").ok().and_then(|path| {
+        let sheet: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(path).ok()?).ok()?;
+        Some(sheet["files"].as_array()?.iter().filter_map(|f| Some(f["sha256"].as_str()?.to_lowercase())).collect())
+    });
     let report = |when: &str| {
         let count = |sql: &str| -> i64 { base.conn().query_row(sql, [], |row| row.get(0)).unwrap() };
         println!("\n==== {when} ====");
@@ -713,10 +903,72 @@ fn similar_documents_of_the_included_documents() {
             count(&format!("SELECT count(*) FROM version v WHERE {}", crate::docbase::cut::parts::only_proposed_sql("v.id"))),
             count("SELECT count(*) FROM similar_pair"),
         );
+        // The parts of each cut file, by its hash.
+        let parts: Vec<(String, i64)> = {
+            let conn = base.conn();
+            let mut statement = conn.prepare("SELECT resource_hash, version_id FROM appearance WHERE selector <> 'file'").unwrap();
+            let rows = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?))).unwrap().collect::<Result<Vec<_>, _>>().unwrap();
+            rows
+        };
+        let cut_files: BTreeSet<&str> = parts.iter().map(|(h, _)| h.as_str()).collect();
+        match &parts_sheet {
+            Some(sheet) => {
+                let in_base = sheet
+                    .iter()
+                    .filter(|h| count(&format!("SELECT count(*) FROM file WHERE hash = '{}'", h.replace('\'', ""))) > 0)
+                    .count();
+                let cut_in_sheet = sheet.iter().filter(|h| cut_files.contains(h.as_str())).count();
+                let referenced = parts.iter().filter(|(h, _)| sheet.contains(h)).count();
+                println!(
+                    "joined PDFs the base cut: {} · with a reference in the parts sheet: {} · without: {}",
+                    cut_files.len(),
+                    cut_in_sheet,
+                    cut_files.len() - cut_in_sheet
+                );
+                println!(
+                    "files of the parts sheet: {} · cut by the base: {} · in the base and not cut: {} · not in the base: {}",
+                    sheet.len(),
+                    cut_in_sheet,
+                    in_base - cut_in_sheet,
+                    sheet.len() - in_base
+                );
+                println!(
+                    "included documents: {} · in a PDF of the parts sheet: {} · without a reference for their boundaries: {}",
+                    parts.len(),
+                    referenced,
+                    parts.len() - referenced
+                );
+            }
+            None => println!("MICELYA_CUT_SHEET is not set or not readable: no count of the cuts with a reference"),
+        }
         for (name, sheet) in &sheets {
             println!("\n---- sheet {name} ----");
-            let t = against_the_sheet(&base, sheet, false);
-            println!("summary {when} · {name}: {} expected, {} hits, {} wrong, {} missed", t.expected, t.hits, t.wrong, t.missed);
+            let m = against_the_sheet(&base, sheet, false);
+            let c = &m.coverage;
+            println!(
+                "summary {when} · {name}: {} pairs · {} evaluated: {} hits, {} wrong, {} missed · excluded {} (not measurable {}, not in the base {}, unknown relation {}) · not enough reference {} · cut errors {}",
+                c.pairs,
+                c.evaluated.len(),
+                m.exact.hits,
+                m.exact.wrong,
+                m.exact.missed,
+                c.not_measurable.len() + c.not_in_base.len() + c.unknown_relation.len(),
+                c.not_measurable.len(),
+                c.not_in_base.len(),
+                c.unknown_relation.len(),
+                c.not_enough_reference.len(),
+                c.cut_errors.len()
+            );
+            println!(
+                "   diagnostic, not counted: {} expected, {} hits, {} wrong, {} missed",
+                m.approximate.expected, m.approximate.hits, m.approximate.wrong, m.approximate.missed
+            );
+            let included: BTreeSet<i64> = parts.iter().map(|(_, v)| *v).collect();
+            println!(
+                "   included documents an evaluated pair is about: {} of {}",
+                included.intersection(&m.named).count(),
+                included.len()
+            );
         }
     };
     report("as it is: cuts proposed, their proposals waiting");
@@ -732,6 +984,7 @@ fn similar_documents_of_the_included_documents() {
     while base.cut_parts_pending(64).unwrap() > 0 {}
     while base.similar_step(16).unwrap() > 0 {}
     report("every cut confirmed");
+    crate::docbase::knowledge::check::save_copy(&base);
 }
 
 /// Words that say nothing about a case even though they appear in the
