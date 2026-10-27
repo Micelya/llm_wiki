@@ -2715,11 +2715,11 @@
       "responsable": "usuario",
       "estado": "pendiente",
       "tema": "replanteo",
-      "detalle": "Borradores del 26 oct: docs/design/modelo-de-conocimiento-propuesta.md y docs/design/base-de-datos-inventario.md. Con el visto bueno se pasa al diseño vigente y se diseña la base de destino.",
+      "detalle": "Borradores revisados el 27 oct con la revisión del dueño y otro agente: docs/design/modelo-de-conocimiento-propuesta.md, docs/design/base-de-datos-inventario.md (por significado) y docs/design/base-de-datos-destino.md (base de destino, reinicio y escenarios). Con el visto bueno se pasa al diseño vigente.",
       "depende_de": [],
-      "referencia": "docs/design/modelo-de-conocimiento-propuesta.md; D-530 a D-545",
+      "referencia": "docs/design/modelo-de-conocimiento-propuesta.md; docs/design/base-de-datos-destino.md; D-530 a D-545; D-548 a D-553",
       "creado": "2026-10-26",
-      "actualizado": "2026-10-26"
+      "actualizado": "2026-10-27"
     },
     {
       "id": "P-361",
@@ -2755,19 +2755,19 @@
     },
     {
       "id": "P-363",
-      "titulo": "Diseñar la base de destino y su migración, sin parches",
+      "titulo": "Construir la base de destino del replanteo, desde cero y sin migrar los datos de prueba",
       "tipo": "codigo",
       "responsable": "claude",
       "estado": "pendiente",
       "prioridad": 1,
       "tema": "replanteo",
-      "detalle": "A partir del modelo aprobado y del inventario: registro común de piezas, documento con versiones y apariciones, tabla única de relaciones, un solo lugar para decisiones y para veredictos, nombres canónicos. Revisar el código que usa cada tabla que cambia y migrar con respaldo (D-496).",
+      "detalle": "La propuesta está en docs/design/base-de-datos-destino.md (27 oct). Falta la aprobación del dueño, fijar columnas, índices y disparadores, y construirla como un archivo de base nuevo, sin código de migración (D-548).",
       "depende_de": [
         "P-360"
       ],
-      "referencia": "D-535; docs/design/base-de-datos-inventario.md",
+      "referencia": "D-535; D-548; docs/design/base-de-datos-destino.md",
       "creado": "2026-10-26",
-      "actualizado": "2026-10-26"
+      "actualizado": "2026-10-27"
     },
     {
       "id": "P-364",
@@ -2828,6 +2828,56 @@
       "referencia": "https://github.com/Micelya/llm_wiki/pull/72",
       "creado": "2026-10-26",
       "actualizado": "2026-10-26"
+    },
+    {
+      "id": "P-368",
+      "titulo": "Extraer el aprendizaje de la base real antes de descartarla",
+      "tipo": "codigo",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "replanteo",
+      "detalle": "Decisiones de identidad, tipos aprobados, relaciones entre documentos corregidas, campos de plantillas y criterios de asunto, como propuestas de catálogo y casos de la hoja de respuestas (lista en docs/design/base-de-datos-inventario.md). Lo hace el agente local en la PC del dueño (D-553).",
+      "depende_de": [
+        "P-360"
+      ],
+      "referencia": "D-548; docs/design/base-de-datos-inventario.md",
+      "creado": "2026-10-27",
+      "actualizado": "2026-10-27"
+    },
+    {
+      "id": "P-369",
+      "titulo": "Revisar las hojas de respuesta contra los criterios nuevos de documento y versión",
+      "tipo": "verificacion",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "replanteo",
+      "detalle": "Las hojas (llm_wiki_mi/conjunto-prueba) se armaron con el criterio anterior; hay que revisarlas con D-527, D-534 y D-551 (recurso, representación, versión) antes de medir el proceso nuevo.",
+      "depende_de": [
+        "P-360"
+      ],
+      "referencia": "D-548; D-551",
+      "creado": "2026-10-27",
+      "actualizado": "2026-10-27"
+    },
+    {
+      "id": "P-370",
+      "titulo": "Comparar el reproceso con la base nueva contra lo que tenía la base original",
+      "tipo": "verificacion",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "replanteo",
+      "detalle": "Con la base nueva construida y el reproceso terminado en la PC del dueño (agente local), comparar documentos, versiones, personas y organizaciones, relaciones y asuntos contra la base original guardada solo para leer, y contra las hojas de respuesta. Usa cupo de Codex; el dueño ya lo aceptó (D-553).",
+      "depende_de": [
+        "P-363",
+        "P-368",
+        "P-369"
+      ],
+      "referencia": "D-548; D-553",
+      "creado": "2026-10-27",
+      "actualizado": "2026-10-27"
     }
   ]
 }

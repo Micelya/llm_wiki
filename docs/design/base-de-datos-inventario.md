@@ -1,111 +1,124 @@
-# Inventario de la base de datos frente al modelo del replanteo (26 oct 2026)
+# Inventario de la base de datos por significado (27 oct 2026)
 
-**Estado:** borrador para que el dueño lo revise. Acompaña a la [propuesta del modelo de documentos y conocimiento](modelo-de-conocimiento-propuesta.md). No describe la base de destino tabla por tabla: dice qué hay hoy, qué problema tiene frente al modelo y qué pasaría con cada tabla.
+**Estado:** borrador para que el dueño lo revise. Reemplaza la versión del 26 oct, corregida con la revisión del dueño y otro agente (ver «Qué se corrigió»). Acompaña a la [propuesta del modelo](modelo-de-conocimiento-propuesta.md) y a la [base de destino](base-de-datos-destino.md).
 
-**Pedido del dueño (D-535):** el modelo de la base se fue degradando con parches. Hay que reencauzarlo, prolijo y alineado con el modelo conceptual, con nombres de tablas y campos canónicos y sin vocabulario de una vertical. No es un parche más: lo que haya que cambiar se cambia.
+**Para qué sirve ahora.** Los datos actuales se pueden descartar (D-548): este inventario **no es un mapa de migración**. Sirve para tres cosas: recuperar qué necesidad descubrimos con cada tabla, para que la base nueva no la pierda; saber qué aprendizaje hay que extraer antes de descartar la base real; y saber qué código toca cada parte.
 
-**Cómo se hizo:** un guion leyó las definiciones de `src-tauri/src/docbase/schema.rs` (las `CREATE TABLE` y los `ALTER TABLE … ADD COLUMN`) y los comentarios que el propio programa escribe sobre cada tabla; para las tablas sospechadas de restos se contaron las referencias en el código. No se leyó el código que usa cada tabla: lo que dice «inferencia» falta verificarlo.
+**Cómo se hizo.** Un guion buscó, en el código de `src-tauri/src` (sin pruebas, sin `schema.rs` ni `upgrade.rs`), qué archivos escriben cada tabla (`INSERT`, `UPDATE`, `DELETE`) y cuáles la leen (`FROM`, `JOIN`). Se leyeron a mano solo los casos dudosos. El significado sale de los comentarios del propio esquema y de esas lecturas. Lo que dice «inferencia» no se verificó leyendo el código.
 
-## 1. Lo que muestra el inventario
+## Qué se corrigió respecto del 26 oct
 
-Son unas 60 tablas. Las tablas `knowledge_decision_v15`, `knowledge_decision_v29` y `model_answer_by_engine` son pasos intermedios de migraciones, no tablas vivas.
+- **Un `content` no es un archivo.** Al guardar el texto, si otro contenido ya tiene el mismo texto, los dos pasan a ser uno (`text.rs`, `store`): un Word y su PDF quedan bajo el mismo `content`. Es una mezcla de recurso binario y documento, que la base nueva separa.
+- **`knowledge_matter.state` y `status` son dos cosas:** `state` dice si el registro sigue activo; `status` (D-475) si el caso está abierto, cerrado o archivado. Las dos hacen falta.
+- **La respuesta del modelo y el veredicto no se duplican:** `model_answer` guarda lo recibido; el veredicto es la conclusión que usa el programa. Se mantiene la distinción.
+- **Faltaban tres tablas vivas:** `content_fts` (búsqueda en el texto), `content_search` (búsqueda en números normalizados y resúmenes) y `similar_key_data` (los datos clave con que se detecta que hay que volver a comparar).
+- **Contar referencias no prueba que una tabla esté muerta.** Ahora se separan escrituras, lecturas, importaciones únicas y restos.
 
-**Un mismo concepto en varios lugares (verificado):**
+## Naturaleza de lo que guarda cada tabla
 
-| Concepto | Dónde está hoy |
-|---|---|
-| Asunto | `knowledge_matter` y, a la vez, entidades de tipo `asunto` en `knowledge_entity` (el catálogo lo define como tipo de entidad; D-183 decidió extraer los asuntos como entidades) |
-| Relaciones | `knowledge_claim` (entre entidades); `similar_pair` (entre documentos: copia, versión, uno dentro de otro); `knowledge_matter_document` (documento y asunto); `knowledge_group` (grupos de organizaciones); `generated_document.matter_id` y `matter_name` |
-| Decisiones del humano | `knowledge_decision`; `type_decision`; `knowledge_matter_choice`; `knowledge_matter_question.answer`; columnas de decisión en `similar_pair` (`state`, `chosen_relation`, `decided_at`…); `knowledge_matter.confirmation` y `name_by_person`; `template_field_choice`; `label_manual` |
-| Lo que dijo el modelo | `model_answer` (la respuesta guardada) y, encima, `knowledge_verdict`, `knowledge_matter_verdict`, `template_field_answer`, campos de pregunta en `document_type` y `document_data` |
-| Identificador común | Ya existe uno hecho a mano: `knowledge_note.object_id` usa prefijos `ent-…`, `mat-…`, `doc-…` |
-
-**Lo que no existe (verificado):**
-- **El documento como unidad.** La pieza es el contenido (`content`), identificado por la huella del archivo entero. Un documento incluido en un compuesto no tiene dónde vivir; tampoco las versiones ni la que prevalece.
-- **Otra forma de ubicar que no sea la página.** `knowledge_mention`, `knowledge_identifier` y `knowledge_evidence` guardan solo `page`.
-- **Las cosas** (inmuebles, vehículos) como piezas.
-- **Relaciones cuyo sujeto no sea una entidad.** `knowledge_claim.subject` apunta solo a `knowledge_entity`.
-
-**Rastros de parches (verificado):**
-- `knowledge_matter` tiene `state` y `status`, más cinco columnas agregadas después.
-- `knowledge_claim` tiene cinco columnas agregadas después (`certainty`, `amount`, `detail`, `context_entity`, `qualifier`).
-- `wiki_link` y `knowledge_source_block` no tienen ninguna referencia en el código fuera de la definición de la base. `wiki_page` y `wiki_page_source` solo las usa la importación del wiki retirado (y `wiki_page`, además, `agent/runtime.rs`).
-
-**Nombres:** las tablas y los campos ya están casi todos en inglés canónico (inferencia sobre la lista; no se revisaron uno por uno). El vocabulario de una vertical está sobre todo **en los datos del catálogo**: los tipos de entidad `persona`, `organizacion` y `asunto`, y relaciones solo jurídicas (`causante`, `heredero_de`) mezcladas con las generales. Excepciones en la base: `knowledge_matter_record.portal` y `jurisdiction` (propias del expediente judicial).
-
-## 2. Qué pasa con cada tabla
-
-Leyenda: **queda** (con cambios menores); **cambia** (de forma o de nombre); **se funde** en otra; **sale**.
-
-### Espacio, orígenes y archivos
-
-| Tabla | Qué guarda hoy | Qué pasa |
+| Naturaleza | Qué quiere decir | Con la base descartable |
 |---|---|---|
-| `space` | El espacio de la base | Queda. Se suma la clase «entrenamiento» |
-| `origin` | Cada origen (carpeta, proveedor) | Queda. Es la fuente de la procedencia |
-| `location` | Cada archivo en un origen | Cambia: es una aparición con ubicación de clase «archivo». `label_overrides` pasa a decisiones |
-| `file` | La huella de cada archivo | Queda |
-| `content` | El contenido de un archivo entero, hoy usado como «el documento» | Cambia: sigue siendo el recurso binario; el **documento** pasa a ser una pieza propia, con versiones y apariciones (una aparición = recurso + ubicación dentro de él) |
-| `derivative` | Lo obtenido de un contenido (texto, y más adelante resumen) | Cambia: lo generado es por documento, de la versión que prevalece; el texto sigue siendo por recurso |
-| `change`, `exclusion`, `recognition_request` | Registro de cambios; lo excluido del procesamiento; la cola de reconocimiento de escaneos | Quedan |
-| `project`, `project_origin` | Proyectos del wiki | A revisar: el wiki se retiró, pero el código aún los usa (`origins.rs`, `work_origin.rs`, `chat_files.rs`) |
-| `wiki_page`, `wiki_page_source`, `wiki_link`, `knowledge_source_block` | Restos del wiki | Salen, después de verificar la importación y `agent/runtime.rs` |
+| **Observación** | Lo que la base vio en los orígenes: archivos, huellas, cambios | Se vuelve a observar al recorrer |
+| **Resultado** | Lo que el programa calcula y puede recalcular | Se recalcula |
+| **Respuesta del modelo** | Lo que dijo la IA, guardado para no preguntar dos veces (R-20) | Se puede recalcular, pero cuesta cupo; con las preguntas nuevas, la mayoría se vuelve a hacer |
+| **Decisión humana** | Lo que decidió una persona | No se migra; **se extrae el criterio o el ejemplo que enseña** |
+| **Creado por el usuario** | Lo que una persona cargó: un caso, una nota, una investigación | En pruebas se descarta; en el uso real es dato fuente |
+| **Cola o configuración** | Trabajo pendiente, ajustes, registro de actividad | Se reinicia |
+
+## Las tablas
+
+Las columnas «escriben» y «leen» dan los archivos principales (sin `docbase/`).
+
+### Orígenes, archivos y texto
+
+| Tabla | Naturaleza | Escriben / leen | Necesidad que cubre | En el modelo nuevo |
+|---|---|---|---|---|
+| `space` | Configuración | la crea el esquema / `mod` | De qué espacio es la base | Queda (privado; la clase «entrenamiento» se suma) |
+| `origin` | Configuración | `origins`, `scan`, `identity` / 17 archivos | Cada fuente: carpeta, proveedor, carpeta de trabajo | Queda como **fuente**; la procedencia se modela aparte |
+| `location` | Observación | `scan`, `identity`, `work_origin` / 34 archivos | Cada archivo en un origen, con su huella | Pasa a ser la **ubicación de clase archivo** de un recurso. `label_overrides` va a las etiquetas |
+| `file` | Observación | `identity`, `text` / 30 archivos | Cada huella de archivo y su contenido | Se vuelve el **recurso binario** (huella, tamaño) |
+| `content` | Resultado (mezcla) | `identity`, `text`, `recognize` / 20 archivos | Hoy junta archivos con el mismo texto: es a la vez recurso y documento | **Se parte** en recurso, representación textual y documento (ver la base de destino) |
+| `derivative` | Resultado | `text`, `page_shapes` / 18 archivos | El texto obtenido y otros derivados | Queda, **por recurso o por versión** según el derivado |
+| `content_fts`, `content_search` | Resultado | `text`, `search` / `search`, `query` | Dos búsquedas distintas: texto y números normalizados más resúmenes | Quedan, **por documento** |
+| `recognition_request` | Cola | `recognize` | Escaneos que esperan reconocimiento | Queda, por recurso |
+| `change` | Observación | `scan`, `identity` / `changes`, `query` | «Qué cambió desde…» | Queda |
+| `exclusion` | Decisión humana | `tree` / `mod`, `work_origin` | Qué entra al procesamiento | Queda: decidir qué entra es aparte de interpretar |
+
+### Lo heredado del wiki
+
+| Tabla | Naturaleza | Escriben / leen | En el modelo nuevo |
+|---|---|---|---|
+| `project`, `project_origin` | Configuración | `origins`, `work_origin`, `chat_files`, `pages/check_retire` | **Sale.** Hoy asocian los orígenes al «proyecto general» y sirven a la copia única de archivos de chat del wiki; con una base nueva no hay nada que copiar. `origins.rs` y `work_origin.rs` dejan de usarlas |
+| `wiki_page`, `wiki_page_source` | Resto | solo las lee `pages/import` (importación única del wiki) | **Sale**, con `pages/import` y `chat_files` |
+| `wiki_link`, `knowledge_source_block` | Resto | ningún archivo | **Sale** |
 
 ### Etiquetas
 
-| Tabla | Qué pasa |
+| Tabla | Naturaleza | En el modelo nuevo |
+|---|---|---|
+| `label_group`, `label`, `location_label` | Creado por el usuario / resultado | Quedan para clasificar |
+| `label_rule` | Decisión humana | Queda; su maquinaria se reutiliza para los criterios por carpeta (que crean relaciones) |
+| `label_manual` | Decisión humana | Queda |
+
+### Lectura y conocimiento
+
+| Tabla | Naturaleza | Escriben / leen | Necesidad que cubre | En el modelo nuevo |
+|---|---|---|---|---|
+| `knowledge_extraction` | Resultado + respuesta | `extract` / 12 archivos | Una lectura por contenido, con su base (versión de instrucciones, vocabulario, texto) | Una lectura **por versión de documento**, con su base |
+| `knowledge_mention` | Resultado | `extract`, `resolve` / 22 archivos | Cómo un documento nombra algo, con rol y cita | Queda, con **ubicación extensible** en vez de `page`, y apuntando a la versión |
+| `knowledge_identifier` | Resultado | `extract` / 11 archivos | DNI, CUIT… de una mención | Queda, idem |
+| `knowledge_evidence` | Resultado | `extract`, `claims` / 17 archivos | Lo que un documento dice de una mención | Queda como **evidencia**, atada a la versión y con postura (apoya o cuestiona) |
+| `knowledge_entity`, `knowledge_alias` | Resultado | `resolve` / 15 y 2 archivos | Personas y organizaciones y sus nombres | Quedan, con id del registro común; sale el tipo `asunto` |
+| `knowledge_claim` | Resultado | `claims` / 13 archivos | Lo que se sostiene, calculado de la evidencia. `context_entity` (el cargo **dentro de** una empresa) y `qualifier` (un domicilio constituido no es el real) evitan contradicciones falsas (D-210, D-516) | Pasa a ser la **relación**, con sus extremos en el registro común. **El contexto y la calificación se conservan** (ver la propuesta, sección 5) |
+| `knowledge_group` | Resultado | `resolve` / `graph`, `pages` | Grupos de organizaciones vinculadas | Se vuelve relación entre entidades |
+| `knowledge_doubt` | Resultado | `resolve` / `claims`, `entities` | Pares que la resolución no pudo distinguir | Queda como **duda**, entre piezas cualesquiera |
+| `knowledge_verdict` | Respuesta del modelo | `resolve` | El veredicto del modelo sobre dos grupos de menciones | Queda como **veredicto**, separado de la respuesta cruda |
+| `knowledge_decision` | Decisión humana | `decide`, `anchors` / `matters`, `screens` | Unir, separar, marcar como errónea, confirmar, nombrar. **Se ancla a claves estables de las menciones, no a ids de filas**, así sobrevive a una nueva lectura (`anchors.rs`) | Queda como el lugar de las decisiones sobre identidad y relaciones, **con el mismo anclaje estable** |
+| `knowledge_summary` | Resultado | `extract` / `pages`, `search` | Los puntos del resumen con su cita | Queda, por documento, citando la versión |
+| `knowledge_page`, `knowledge_overview` | Resultado | `pages` / 12 archivos | Las páginas que la app escribe por entidad y el panorama | Quedan como derivados de una pieza |
+| `knowledge_note`, `knowledge_query`, `knowledge_research` | Creado por el usuario | `articles`, `research` | Notas, preguntas guardadas, investigaciones | Quedan, apuntando al registro común (hoy `object_id` usa prefijos `ent-`, `mat-`, `doc-`) |
+| `knowledge_gone`, `knowledge_gone_file`, `knowledge_gone_mention` | Resultado (por disparadores) | disparadores del esquema / `changes`, `identity` | Que un documento reemplazado conserve las identidades de sus nombres | Quedan, por documento |
+| `knowledge_dirty`, `similar_dirty` | Cola | `resolve`, `pages` / `similar/store` | Qué hay que recalcular | Quedan; la granularidad es la del reproceso (documento y etapa) |
+
+### Asuntos
+
+| Tabla | Naturaleza | Escriben / leen | Necesidad que cubre | En el modelo nuevo |
+|---|---|---|---|---|
+| `knowledge_matter` | Resultado + creado por el usuario | `matter_edit`, `matters`, `matter_records` / 13 archivos | El asunto: puede crearse **sin documentos** (`matter_edit`); `state` (activo) y `status` (abierto, cerrado, archivado); quién lo creó | **Pieza de clase asunto.** Se conservan los dos estados; `confirmation` y `name_by_person` van a decisiones |
+| `knowledge_matter_document` | Resultado | `matters`, `matter_edit` / 12 archivos | Qué documentos están en el asunto y por qué | Relación documento–asunto |
+| `knowledge_matter_choice` | Decisión humana | `matter_edit` | Documento puesto o sacado a mano | Decisión sobre esa relación |
+| `knowledge_matter_record` | Observación (del portal) | `matter_records` / `portals/check_records` | El expediente: portal, jurisdicción, número, año, título, de dónde vino | **Pieza de clase expediente** (propuesta) y procedencia de sus actuaciones |
+| `knowledge_matter_question` | Resultado + decisión | `matter_records` | Si un asunto parecido al de un expediente es el mismo | Duda entre asuntos, con su decisión |
+| `knowledge_matter_verdict` | Respuesta del modelo | `matters` | Si un documento pertenece a un asunto | Veredicto |
+
+### Tipos, datos y parecidos
+
+| Tabla | Naturaleza | Escriben / leen | Necesidad que cubre | En el modelo nuevo |
+|---|---|---|---|---|
+| `document_type`, `document_data` | Resultado + respuesta | `similar/classify`, `similar/store` / 8 archivos | Qué es cada documento y sus datos, con de dónde salió (marcas, modelo o familia) | Por documento (tipo) y por versión (datos) |
+| `type_decision` | Decisión humana | `similar/classify` | Un tipo propuesto aceptado o rechazado | **Aprendizaje del catálogo**: es exactamente una aprobación de vocabulario |
+| `document_marks` | Resultado | `similar/store` | Lo verificado sin modelo (firmas, marcas) | Por recurso |
+| `similar_signature`, `similar_band`, `similar_common`, `similar_key_data` | Resultado | `similar/store` | El motor de parecidos: huellas de texto, vecinos, texto rutinario, datos clave | Quedan; se suman las **huellas de página** |
+| `similar_pair` | Resultado + decisión | `similar/store`, `by_type`, `generate` / 13 archivos | La relación entre dos documentos, sus medidas y la decisión de una persona | La relación va a **relaciones**, las medidas a **evidencia**, la decisión a **decisiones** |
+| `similar_group`, `similar_group_member` | Resultado | `similar/store` | Familias de documentos | Se vuelven **versiones de un documento** o **documentos de una plantilla** |
+| `similar_template*`, `template_naming` | Resultado | `similar/template`, `similar/store` | Plantillas, sus campos y valores, con una identidad que dura | **Pieza de clase plantilla** (propuesta) |
+| `template_field_choice`, `template_field_answer` | Decisión humana / respuesta | `similar/template`, `similar/naming` | Qué es cada campo de una plantilla | Decisión y veredicto sobre la plantilla |
+| `generated_document` | Observación | `similar/generate` | Lo que la app generó desde una plantilla, para qué asunto | Documento con procedencia «generado por la aplicación» |
+| `model_answer` | Respuesta del modelo | `questions`, `similar/classify` / 8 archivos | Cada respuesta, una vez por pregunta (R-20) | Queda |
+
+### Fuera del conocimiento
+
+`local_program`, `local_program_use`, `operation_log` (el servidor local y el registro de operaciones) y `docbase_setting` (ajustes) quedan.
+
+## Qué aprendizaje extraer de la base real antes de descartarla
+
+Lo hace el agente local en la PC del dueño (D-553). Sale como entradas del catálogo, ejemplos y hoja de respuestas, nunca como registros a migrar.
+
+| De dónde | Qué se extrae |
 |---|---|
-| `label_group`, `label`, `location_label`, `label_manual` | Quedan para clasificar y filtrar. Ninguna pieza es una etiqueta |
-| `label_rule` | Queda, y su maquinaria se reutiliza para los criterios por carpeta, que crean relaciones con origen «regla de carpeta» |
-
-### Piezas y relaciones
-
-| Tabla | Qué pasa |
-|---|---|
-| *(nueva)* registro común de piezas | Identificador opaco (UUID v7) y clase de cada pieza. Reemplaza los prefijos hechos a mano de `knowledge_note.object_id` |
-| `knowledge_entity` | Cambia: solo personas y organizaciones, con su id en el registro común. Sale el tipo `asunto` |
-| `knowledge_matter` | Cambia: el asunto, con su id en el registro común. Un solo campo de estado; `origin` dice quién lo creó (portal, aplicación o persona); `confirmation` y `name_by_person` pasan a decisiones |
-| `knowledge_matter_record` | Cambia: el expediente. Si es una pieza propia está abierto (propuesta, sección 9); `portal` y `jurisdiction` se generalizan como organismo y procedencia |
-| *(nuevas)* cosas | Tabla de la clase «cosa», con su tipo e identificadores del catálogo |
-| *(nueva)* documento, versión, aparición | Ver la sección 3 de la propuesta |
-| `knowledge_alias` | Cambia: nombres de cualquier pieza, no solo de entidades |
-| `knowledge_claim` | Cambia: **la tabla única de relaciones.** Sujeto y objeto apuntan al registro común; desde y hasta con su precisión; origen; certeza; estado. Absorbe a `similar_pair` (la relación; las medidas quedan como evidencia), `knowledge_matter_document`, `knowledge_group` y el asunto de `generated_document` |
-| `knowledge_evidence`, `knowledge_mention`, `knowledge_identifier` | Cambian: la `page` se reemplaza por una ubicación extensible según la clase de fuente |
-| `knowledge_extraction` | Queda: la lectura de cada documento, con la versión del catálogo |
-| `knowledge_summary` | Se funde con lo generado por documento |
-| `knowledge_page`, `knowledge_overview`, `knowledge_note`, `knowledge_query`, `knowledge_research` | Quedan; apuntan al registro común |
-| `knowledge_gone`, `knowledge_gone_file`, `knowledge_gone_mention` | Quedan: la memoria de lo que se fue |
-| `knowledge_dirty`, `similar_dirty` | Quedan como colas de trabajo; a evaluar si se unen |
-
-### Decisiones, dudas y respuestas del modelo
-
-| Tabla | Qué pasa |
-|---|---|
-| `knowledge_decision` | Cambia: **el único lugar de las decisiones humanas.** Absorbe `type_decision`, `knowledge_matter_choice`, la respuesta de `knowledge_matter_question`, las columnas de decisión de `similar_pair` y de `knowledge_matter`, y `template_field_choice` |
-| `knowledge_doubt` | Cambia: dudas entre dos piezas cualesquiera, más las contradicciones abiertas. Absorbe la pregunta de `knowledge_matter_question` |
-| `model_answer` | Queda: cada respuesta del modelo, una sola vez por pregunta (R-20) |
-| `knowledge_verdict`, `knowledge_matter_verdict`, `template_field_answer` | Se funden en una tabla de veredictos, con la clase de pregunta |
-| `document_type`, `document_data` | Cambian: por documento, no por contenido. Los tipos propuestos alimentan el ciclo de aprendizaje |
-
-### Parecidos y plantillas
-
-| Tabla | Qué pasa |
-|---|---|
-| `similar_signature`, `similar_band`, `similar_common`, `document_marks` | Quedan: son el motor que mide. Se suman las huellas de página |
-| `similar_pair` | Se funde: la relación va a la tabla única; las medidas quedan como evidencia |
-| `similar_group`, `similar_group_member` | Cambian: las familias son versiones de un documento o documentos de una plantilla |
-| `similar_template*`, `template_naming` | Cambian: la plantilla como pieza, si se confirma (propuesta, sección 9) |
-| `generated_document` | Cambia: un documento con procedencia «generado por la aplicación»; el asunto pasa a una relación |
-
-### Fuera del modelo de conocimiento
-
-| Tabla | Qué pasa |
-|---|---|
-| `local_program`, `local_program_use`, `operation_log`, `docbase_setting` | Quedan |
-
-## 3. Cómo se haría
-
-1. Diseñar la base de destino tabla por tabla a partir del modelo aprobado.
-2. Revisar el código que usa cada tabla que cambia (lo que acá es inferencia).
-3. Migrar a una versión nueva de la base con el mecanismo existente: respaldo previo y ningún cambio sin respaldo (D-496).
-4. Los ids del catálogo, canónicos; lo jurídico en la capa de la vertical.
+| `knowledge_decision` (unir, separar, errónea) | Los pares que una persona separó o unió: casos difíciles de identidad, y si alguno revela un criterio general |
+| `type_decision` | Los tipos aprobados con su nombre y descripción: candidatos al catálogo |
+| `similar_pair` con decisión | Las relaciones entre documentos que una persona corrigió: ejemplos para versiones, copias y plantillas |
+| `template_field_choice` | Qué es cada campo de las plantillas reconocidas |
+| `knowledge_matter_choice` y asuntos confirmados o descartados | Criterios de pertenencia a un asunto |
+| Las hojas de respuesta (fuera de la base, `llm_wiki_mi/conjunto-prueba`) | Se conservan enteras; se revisan contra el criterio nuevo de documento (D-527, D-534) |
