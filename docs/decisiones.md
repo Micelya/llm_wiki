@@ -509,6 +509,11 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-564 | 27 oct | Replanteo | Todos los PDF de un documento llevan las huellas de sus páginas; la ficha de forma se rehace cuando el documento suma un archivo | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-565 | 27 oct | Replanteo | Las huellas de cada página se calculan como en la prueba en la nube, sin bibliotecas de imágenes nuevas | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-566 | 27 oct | Replanteo | La versión 1 de la base nueva es un archivo SQL generado de la base vieja en su versión 29 | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-567 | 27 oct | Replanteo | El motor local de las páginas escaneadas es rapidocr-core sobre ONNX Runtime, que la app abre al leer y no lleva adentro | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-568 | 27 oct | Replanteo | Los modelos y ONNX Runtime los baja un guion a una carpeta que git ignora; todavía no entran al instalador | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-569 | 27 oct | Replanteo | El motor local lee los escaneos nuevos en segundo plano aunque la lectura automática esté apagada, sea cual sea el motor elegido en Ajustes | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-570 | 27 oct | Replanteo | Un renglón entra al texto solo si el motor local está seguro en un 90 % o más | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-571 | 27 oct | Replanteo | Una página del motor local sin ningún renglón seguro queda como ilegible, y el nombre del motor no incluye el umbral | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -5867,4 +5872,39 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
 - **El problema:** La V1 tiene que tener exactamente la forma de la base vieja en su versión 29 (D-548) y no puede escribirse a mano.
 - **Qué se decidió y por qué:** Se generó una vez desde la base vieja armada en memoria con sus 29 migraciones: tablas, índices y disparadores de sqlite_master, cada grupo en su orden de creación, sin las tablas internas de la búsqueda. Queda en src-tauri/src/docbase/schema_v1.sql y la migración lo incluye tal cual. No siembra filas: la única siembra vieja era el ajuste de lectura automática, que no va (la lectura arranca apagada). Comparada con la 29 vieja: el mismo SQL normalizado y los mismos PRAGMA. Alternativa: dejar el SQL dentro de schema.rs como texto.
+- **Quién decidió:** Claude (corrida desatendida)
+
+### D-567 · El motor local de las páginas escaneadas es rapidocr-core sobre ONNX Runtime, que la app abre al leer y no lleva adentro
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** D-558 pide leer lo impreso de las páginas escaneadas en la PC con RapidOCR y sin Python. Hacía falta elegir con qué se corren sus modelos en Rust y qué se distribuye con el instalador.
+- **Qué se decidió y por qué:** Se usa el paquete de Rust rapidocr-core 0.2.2 (licencia Apache 2.0, compatible con la GPL v3), que ya hace lo de RapidOCR: encontrar los renglones, enderezarlos, leerlos y decodificarlos, con los mismos modelos PP-OCRv6 «small» que trae el paquete rapidocr 3.10.0 de la prueba de Docling (comprobado: el mismo sha256). Debajo corre ONNX Runtime 1.24.4 por medio de ort 2.0.0-rc.12, fijado porque la versión siguiente cambió su interfaz. La biblioteca de ONNX Runtime (onnxruntime.dll, 14 MB) no va dentro del programa: la app la abre cuando lee la primera página, como pdfium.dll. Así, si falta, el motor dice «no disponible» y la app sigue. Alternativas: enlazar ONNX Runtime adentro del programa con los binarios de ort (el programa no arrancaría sin DirectML.dll), tract-onnx (todo en Rust, sin biblioteca aparte, pero sin probar con estos modelos y más lento) o paddle-ocr-rs (también sigue a RapidOCR y es más chico, pero no trae registrados los modelos de la prueba ni los comprueba con su sha256).
+- **Quién decidió:** Claude (corrida desatendida)
+
+### D-568 · Los modelos y ONNX Runtime los baja un guion a una carpeta que git ignora; todavía no entran al instalador
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Los modelos (31,8 MB) y la biblioteca de ONNX Runtime (14,2 MB) no van al repositorio. La app tiene que encontrarlos y, si faltan, decirlo sin fallar.
+- **Qué se decidió y por qué:** scripts/fetch-ocr-models.mjs (solo Node, sin paquetes) baja los cuatro archivos de los modelos y la biblioteca, cada uno comprobado con su sha256 fijo, a src-tauri/ocr/, que git ignora. La app los busca en la carpeta ocr/ de los recursos del instalador, al lado del programa, en la variable MICELYA_OCR_DIR y, en la versión de desarrollo, en src-tauri/ocr. Todavía no se suman a la lista de recursos del instalador, porque la compilación falla si la carpeta no está y la integración continua no la baja: queda pendiente. La biblioteca se baja solo para Windows de 64 bits; para Linux y macOS, solo los modelos. Alternativa: sumarlos ya al instalador y bajarlos en la integración continua antes de compilar.
+- **Quién decidió:** Claude (corrida desatendida)
+
+### D-569 · El motor local lee los escaneos nuevos en segundo plano aunque la lectura automática esté apagada, sea cual sea el motor elegido en Ajustes
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** D-558 lo hace el motor por defecto de las páginas escaneadas nuevas. La lectura automática existe para no gastar el cupo de un proveedor; el motor local no pregunta a ningún modelo en la nube.
+- **Qué se decidió y por qué:** Mientras sus modelos están, un hilo propio lee uno por uno los escaneos que esperan, que no fallaron y que nadie pidió, con la lectura automática prendida o apagada y sea cual sea el motor elegido en Ajustes → Servicios de IA → Reconocer escaneos. Lo que una persona pide sigue yendo al motor elegido (Codex, Core o el local), y el local es el elegido cuando no hay ninguno. Lo ya leído por otro motor no se vuelve a leer solo. Sin los modelos, todo queda como antes. Alternativas: esperar a que se prenda la lectura automática, o que el local solo lea cuando no se eligió ningún motor (en la base del dueño, con Codex elegido, cada página seguiría siendo una pregunta al modelo).
+- **Quién decidió:** Claude (corrida desatendida)
+
+### D-570 · Un renglón entra al texto solo si el motor local está seguro en un 90 % o más
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** RapidOCR da una confianza por renglón. Lo manuscrito mal leído no debe entrar como texto (D-518), sin perder lo impreso.
+- **Qué se decidió y por qué:** El umbral está en el catálogo (resources/catalog/local-recognition.json, minLineConfidence 0,9), no en el código. Medido con las hojas: de los 37 valores manuscritos, con 0,9 entran 5 bien y 5 más con errores leves (sin umbral, 9 bien y 9 más con errores); el error de caracteres de los dos pasajes impresos queda en 1,5 % y 2,4 % (sin umbral, 1,5 % y 3,2 %) y del formulario siguen apareciendo 26 de 27 valores. Sobre las 119 páginas escaneadas de la carpeta de prueba entra el 68 % de los renglones y 1 página queda sin ninguno. Alternativas: 0,95, entran 2 valores manuscritos bien y 2 más con errores, lo impreso de las hojas queda igual, pero entra el 57 % de los renglones de la carpeta y 3 páginas quedan sin ninguno (no se sabe cuánto de eso es impreso); o 0,5, el valor por defecto de RapidOCR (entra casi todo).
+- **Quién decidió:** Claude (corrida desatendida)
+
+### D-571 · Una página del motor local sin ningún renglón seguro queda como ilegible, y el nombre del motor no incluye el umbral
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Con el umbral, una página puede quedar sin texto. Y lo que lee un motor se guarda con su nombre: si el nombre cambia, todo se vuelve a leer.
+- **Qué se decidió y por qué:** Una página con renglones pero ninguno por encima del umbral se guarda como «[ilegible]», como hace Codex, así las pantallas la ofrecen a otro motor; una sin ningún renglón queda en blanco. Lo leído se guarda como rapidocr-onnx:ppocrv6-small, sin el umbral: cambiar el umbral no vuelve a leer lo ya leído. Alternativa: incluir el umbral en el nombre, para que un umbral nuevo vuelva a leer todo.
 - **Quién decidió:** Claude (corrida desatendida)

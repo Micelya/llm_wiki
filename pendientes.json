@@ -2761,7 +2761,7 @@
       "estado": "en-curso",
       "prioridad": 1,
       "tema": "replanteo",
-      "detalle": "La propuesta está en docs/design/base-de-datos-destino.md (27 oct). Falta la aprobación del dueño, fijar columnas, índices y disparadores, y construirla como un archivo de base nuevo, sin código de migración (D-548). 2026-10-27: Por capas (D-554). Primera corrida (desatendido-12): archivo de base nuevo, recursos y texto y huellas por página, RapidOCR en la PC, documento, versión y aparición, y la caché (D-555). Después: el corte, copias y versiones por incluido y el reproceso; y al final la capa de arriba. 2026-10-27: Paso 2 de desatendido-12 hecho: archivo nuevo docbase/base.sqlite3 con numeración propia (V1 = la forma de la vieja en su versión 29, V2 = resource_text y resource_page), texto por página y por motor, y huellas de cada página (exacta, pHash, texto) en la ficha de forma (D-562 a D-566). Commits 475533c, 4e1eb8f, ef85237, 9ad1e96.",
+      "detalle": "La propuesta está en docs/design/base-de-datos-destino.md (27 oct). Falta la aprobación del dueño, fijar columnas, índices y disparadores, y construirla como un archivo de base nuevo, sin código de migración (D-548). 2026-10-27: Por capas (D-554). Primera corrida (desatendido-12): archivo de base nuevo, recursos y texto y huellas por página, RapidOCR en la PC, documento, versión y aparición, y la caché (D-555). Después: el corte, copias y versiones por incluido y el reproceso; y al final la capa de arriba. 2026-10-27: Paso 2 de desatendido-12 hecho: archivo nuevo docbase/base.sqlite3 con numeración propia (V1 = la forma de la vieja en su versión 29, V2 = resource_text y resource_page), texto por página y por motor, y huellas de cada página (exacta, pHash, texto) en la ficha de forma (D-562 a D-566). Commits 475533c, 4e1eb8f, ef85237, 9ad1e96. 2026-10-27: Paso 2b de desatendido-12 hecho: lo impreso de las páginas escaneadas se lee en la PC con RapidOCR y sin Python (D-558). El paquete de Rust rapidocr-core, con los modelos PP-OCRv6 «small» del paquete rapidocr 3.10.0 de la prueba, sobre ONNX Runtime 1.24.4, que la app abre al leer (D-567). Los modelos y la biblioteca los baja scripts/fetch-ocr-models.mjs (D-568). Lee los escaneos nuevos en segundo plano aunque la lectura automática esté apagada; lo pedido sigue con el motor elegido (D-569). Umbral por renglón 0,9 en el catálogo (D-570). Ajustes → Servicios de IA lo lista como «En esta computadora (RapidOCR)». Medido: impreso 1,5 % y 2,4 % de caracteres errados; formulario 26 de 27 valores; manuscrito, de 37 valores entran 5 bien y 5 con errores (sin umbral, 9 y 9); 119 de 119 páginas escaneadas de la carpeta con texto, 7 segundos por página y 650 MB de memoria, en versión de depuración.",
       "depende_de": [
         "P-360"
       ],
@@ -2962,6 +2962,62 @@
       "detalle": "La app ya no abre docbase/private.sqlite3 ni lista sus respaldos (respaldos/antes-de-v…), pero no los borra. Decidir si la app ofrece borrarlos (en Ajustes, con confirmación) o si se dejan para que el dueño los borre a mano.",
       "depende_de": [],
       "referencia": "D-548; D-562",
+      "creado": "2026-10-27",
+      "actualizado": "2026-10-27"
+    },
+    {
+      "id": "P-379",
+      "titulo": "Ver en la app: los escaneos nuevos se leen en la PC con la lectura automática apagada",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "replanteo",
+      "detalle": "Antes: correr una vez «node scripts/fetch-ocr-models.mjs» en la carpeta de la app (baja 46 MB a src-tauri/ocr) y abrir la app de desarrollo. 1) Ajustes → Servicios de IA → Reconocer escaneos: en la lista aparece «En esta computadora (RapidOCR)» con lo que lee y dónde procesa; sin los modelos dice «(no disponible)». 2) Con la lectura automática apagada, agregar una carpeta con un PDF escaneado nuevo: en En curso, la etapa de los escaneos queda trabajando y el documento pasa a procesado sin preguntar a ningún modelo; su texto lleva la marca del motor rapidocr-onnx. 3) Una página manuscrita: lo manuscrito casi no entra como texto. 4) Pedir de nuevo un documento con Codex elegido: lo lee Codex. Medido (versión de depuración): unos 7 segundos por página (la más lenta, 13), 8 segundos al arrancar el motor, 650 MB de memoria; 119 de 119 páginas escaneadas de la carpeta de prueba con texto con el umbral de 0,5 y 118 con el de 0,9.",
+      "depende_de": [],
+      "referencia": "D-558; D-567; D-568; D-569; D-570; D-571",
+      "creado": "2026-10-27",
+      "actualizado": "2026-10-27"
+    },
+    {
+      "id": "P-380",
+      "titulo": "Sumar los modelos y ONNX Runtime del motor local al instalador",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "replanteo",
+      "detalle": "La carpeta ocr/ (modelos 31,8 MB y onnxruntime.dll 14,2 MB, que comprimidos pesan algo menos) no está todavía en los recursos del instalador (tauri.windows.conf.json), porque la compilación falla si la carpeta no existe: la integración continua tiene que correr scripts/fetch-ocr-models.mjs antes de compilar, y recién ahí sumar «ocr/**» a los recursos. El guion baja la biblioteca solo para Windows de 64 bits: falta la de Linux y macOS (vienen en .tgz). Medir también en la versión de entrega los segundos por página y la memoria (lo medido fue en depuración, con las dependencias del motor optimizadas).",
+      "depende_de": [],
+      "referencia": "D-567; D-568",
+      "creado": "2026-10-27",
+      "actualizado": "2026-10-27"
+    },
+    {
+      "id": "P-381",
+      "titulo": "El aviso de los escaneos por reconocer dice que cada página es una pregunta al modelo",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "replanteo",
+      "detalle": "src/components/docbase/background-reading-panel.tsx (scansWaiting) avisa antes de prender la lectura automática «N páginas, una pregunta al modelo por página». Con el motor local disponible esas páginas se leen igual en la PC y no son preguntas al modelo: el aviso debería decirlo o no aparecer.",
+      "depende_de": [],
+      "referencia": "D-569",
+      "creado": "2026-10-27",
+      "actualizado": "2026-10-27"
+    },
+    {
+      "id": "P-382",
+      "titulo": "Un documento pedido mientras el motor local lo está leyendo se lee dos veces",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "replanteo",
+      "detalle": "El motor local lee en un hilo propio y lo pedido va por el hilo de las preguntas. Si una persona pide un documento justo mientras el local lo lee, los dos lo leen a la vez y queda el texto del último que termina. No rompe nada, pero gasta el doble y puede dejar el texto del local en vez del pedido. Arreglo posible: marcar en la base el documento que se está leyendo y que el otro hilo lo saltee hasta que termine.",
+      "depende_de": [],
+      "referencia": "D-569",
       "creado": "2026-10-27",
       "actualizado": "2026-10-27"
     }
