@@ -303,18 +303,23 @@ impl DocBase {
         let state = self.engine_state();
         let on_page = |page: usize, total: usize| state.recognizing_page(page, total);
         let ext = ext.to_lowercase();
-        let text = run_guarded("docbase_recognize_text", || {
+        // The text, and each page read with the engine that read it.
+        let (text, pages) = run_guarded("docbase_recognize_text", || {
             if ext == "pdf" {
                 let extracted = crate::commands::fs::extract_text_without_recognition(&path)?.unwrap_or_default();
-                recognition::complete_pdf_text_reporting(&path, &extracted, &store, recognizer, &on_page)
+                let done = recognition::complete_pdf_text_kept(&path, &extracted, &store, recognizer, &on_page)?;
+                let pages = done.pages.into_iter().map(|(page, read)| (page, read.engine_id, read.text)).collect();
+                Ok((done.text, pages))
             } else if is_recognizable_image(&ext) {
                 on_page(1, 1);
-                recognition::recognize_image_source(&path, &store, recognizer)
+                let text = recognition::recognize_image_source(&path, &store, recognizer)?;
+                Ok((text.clone(), vec![(1, engine.clone(), text)]))
             } else {
                 Err(format!("A .{ext} file is not an image whose text can be recognized"))
             }
         })?;
-        self.store_recognized_text(&hash, &text, &engine)
+        let pages: Vec<(u32, &str, &str)> = pages.iter().map(|(page, engine, body)| (*page, engine.as_str(), body.as_str())).collect();
+        self.store_recognized_pages(&hash, &text, &engine, &pages)
     }
 
     /// Counts the pages each document waiting for recognition needs read,

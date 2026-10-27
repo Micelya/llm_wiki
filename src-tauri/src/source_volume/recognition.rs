@@ -211,8 +211,27 @@ pub fn complete_pdf_text_reporting(
     recognizer: &dyn TextRecognizer,
     on_page: &(dyn Fn(usize, usize) + Sync),
 ) -> Result<String, String> {
+    complete_pdf_text_kept(pdf, extracted, store, recognizer, on_page).map(|done| done.text)
+}
+
+/// The text of a PDF with its recognized pages spliced in, and those
+/// pages, by number, as they were read (each with its engine).
+#[derive(Debug, Clone, Default)]
+pub struct CompletedPdf {
+    pub text: String,
+    pub pages: BTreeMap<u32, RecognizedPage>,
+}
+
+/// Same as `complete_pdf_text_reporting`, keeping the pages read.
+pub fn complete_pdf_text_kept(
+    pdf: &Path,
+    extracted: &str,
+    store: &RecognizedStore,
+    recognizer: &dyn TextRecognizer,
+    on_page: &(dyn Fn(usize, usize) + Sync),
+) -> Result<CompletedPdf, String> {
     let shapes = super::page_shape::profile_pdf(pdf)?;
-    complete_pdf_pages(pdf, &shapes.to_read(), &shapes.old_layers(), extracted, store, recognizer, on_page)
+    complete_pdf_pages_kept(pdf, &shapes.to_read(), &shapes.old_layers(), extracted, store, recognizer, on_page)
 }
 
 /// Same as `complete_pdf_text_reporting`, for these pages; the text of
@@ -227,8 +246,21 @@ pub fn complete_pdf_pages(
     recognizer: &dyn TextRecognizer,
     on_page: &(dyn Fn(usize, usize) + Sync),
 ) -> Result<String, String> {
+    complete_pdf_pages_kept(pdf, pages, replaced, extracted, store, recognizer, on_page).map(|done| done.text)
+}
+
+/// Same as `complete_pdf_pages`, keeping the pages read.
+pub fn complete_pdf_pages_kept(
+    pdf: &Path,
+    pages: &[u32],
+    replaced: &BTreeSet<u32>,
+    extracted: &str,
+    store: &RecognizedStore,
+    recognizer: &dyn TextRecognizer,
+    on_page: &(dyn Fn(usize, usize) + Sync),
+) -> Result<CompletedPdf, String> {
     if pages.is_empty() {
-        return Ok(extracted.to_string());
+        return Ok(CompletedPdf { text: extracted.to_string(), pages: BTreeMap::new() });
     }
     let total = pages.len();
     let position = |page: u32| pages.iter().position(|p| *p == page).map_or(0, |index| index + 1);
@@ -245,7 +277,8 @@ pub fn complete_pdf_pages(
         }
     }
     if to_read.is_empty() {
-        return Ok(splice_replacing(extracted, &recognized, replaced));
+        let text = splice_replacing(extracted, &recognized, replaced);
+        return Ok(CompletedPdf { text, pages: recognized });
     }
     let dir = std::env::temp_dir().join(format!("micelya-recognition-{}", uuid::Uuid::new_v4()));
     fs::create_dir_all(&dir).map_err(|e| format!("Failed to create '{}': {e}", dir.display()))?;
@@ -278,7 +311,8 @@ pub fn complete_pdf_pages(
     if let Some((page, err)) = failure {
         return Err(format!("Text recognition failed on page {page}: {err}"));
     }
-    Ok(splice_replacing(extracted, &recognized, replaced))
+    let text = splice_replacing(extracted, &recognized, replaced);
+    Ok(CompletedPdf { text, pages: recognized })
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
