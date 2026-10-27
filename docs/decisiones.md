@@ -538,6 +538,10 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-593 | 27 oct | base | Las palabras de la tira: «Sin confirmar» o «Confirmado», y quién lo dijo en palabras que no son de programa | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-594 | 27 oct | base | «Para mirar» es todo paso dudoso que ninguna persona decidió, aunque el modelo lo haya contestado | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-595 | 27 oct | base | Un documento incluido se abre dentro de su archivo, y la lista muestra el archivo con cuántos incluye, no una fila por incluido | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-596 | 27 oct | base | Las copias y versiones de un PDF que junta varios documentos se buscan entre cada documento incluido y los demás, no con el archivo entero | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-597 | 27 oct | base | Un parecido con un documento de corte sin confirmar no se muestra ni se cuenta hasta que se confirma el corte | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-598 | 27 oct | replanteo | La hoja de copias y versiones traducida al documento incluido: un archivo nuevo con las páginas de cada lado del par | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-599 | 27 oct | replanteo | Las relaciones de la hoja de copias y versiones no cambian de nombre con el criterio nuevo | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -6100,3 +6104,31 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **El problema:** Un documento incluido no tiene archivo propio: la lista, el detalle y la búsqueda se arman por ubicación de un archivo y no sabían mostrarlo (P-399).
 - **Qué se decidió y por qué:** Un incluido se abre desde la tira o desde un resultado de la búsqueda como un documento: su lectura, su texto (solo el de sus páginas), su tipo, su estado y «Documento k de N incluidos en …, páginas a a b», con «Ver el archivo completo» para volver. Lo que es del archivo (dónde está, su huella, las etiquetas) sigue siendo del archivo; a quién nombra, los parecidos y el chat, que se calculan por archivo, no se muestran para un incluido todavía (pendiente aparte). En la lista, el archivo dice bajo su nombre «incluye N documentos · K sin confirmar»; los incluidos no son filas propias. Alternativa: una fila por documento incluido en la lista, que con 199 incluidos en 29 archivos llenaría la lista de documentos sin nombre propio.
 - **Quién decidió:** Claude, en la corrida desatendida
+
+### D-596 · Las copias y versiones de un PDF que junta varios documentos se buscan entre cada documento incluido y los demás, no con el archivo entero
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Después del corte (D-560), un PDF compuesto tenía a la vez la versión del archivo entero y una versión por cada documento incluido, y el motor de parecidos comparaba las dos cosas: el archivo entero aparecía como «contiene a» o «versión de» documentos que en realidad son uno de sus incluidos, y el mismo parecido salía dos veces.
+- **Qué se decidió y por qué:** El archivo entero que tiene documentos incluidos no se compara: no se le calcula firma de texto, y cuando aparecen sus partes se borran su firma, sus marcas y los pares que tenía propuestos (lo que decidió una persona se conserva). Cada documento incluido se compara con su propio texto. Si una persona vuelve a juntar el archivo en un solo documento, el archivo entero se compara otra vez. Alternativa: comparar también el archivo entero, para encontrar otro compuesto parecido entero; hoy eso sale igual de la comparación de sus partes.
+- **Quién decidió:** Claude, en la corrida desatendida; el dueño revisa
+
+### D-597 · Un parecido con un documento de corte sin confirmar no se muestra ni se cuenta hasta que se confirma el corte
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** D-556 dice que las propuestas esperan a que el corte se confirme. Hasta el paso 1b esperaban solo las familias y los asuntos: los pares propuestos con un documento incluido sin confirmar se veían en la lista de copias y versiones para revisar, en su contador y en los parecidos de un documento.
+- **Qué se decidió y por qué:** Esos pares se siguen calculando, pero no se muestran ni se cuentan hasta que el corte del documento se confirma; lo que una persona ya decidió sobre un par se ve siempre. Cuando una persona parte, junta o confirma un corte, las familias se rearman en el momento, sin esperar otra medición. Alternativa: mostrarlos con un aviso de que el corte espera confirmación.
+- **Quién decidió:** Claude, en la corrida desatendida; el dueño revisa
+
+### D-598 · La hoja de copias y versiones traducida al documento incluido: un archivo nuevo con las páginas de cada lado del par
+
+- **Fecha:** 27 oct 2026 · **Tema:** replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La hoja de copias y versiones se armó por archivo. Con el criterio nuevo, un par con un PDF compuesto es entre uno de sus documentos incluidos y el otro, y hacía falta decir cuál sin mirar los documentos (R-25).
+- **Qué se decidió y por qué:** La hoja nueva (respuestas-v2.json, la vieja no cambia) agrega a cada lado de un par las páginas del documento incluido, en el formato de la base (pages:desde-hasta), solo para los archivos que cubre la hoja de partes: un archivo de varios documentos lleva el que corresponde, elegido por el tipo que nombra la nota del par; uno de un solo documento lleva todas sus páginas. Los archivos que la base corta y la hoja de partes no cubre siguen enteros y van a una lista para el dueño, solo con números (paso3-hoja-dudas.md); al medir, un lado entero de un archivo cortado es la parte con más páginas en común. No se agregó ningún par. Alternativa: dejar esos pares fuera de la medición hasta que el dueño conteste.
+- **Quién decidió:** Claude, en la corrida desatendida; el dueño revisa
+
+### D-599 · Las relaciones de la hoja de copias y versiones no cambian de nombre con el criterio nuevo
+
+- **Fecha:** 27 oct 2026 · **Tema:** replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Con D-534 un ejemplar firmado es una versión nueva (cambia algo que importa: la firma). Habría que decidir si la hoja traducida pasa «ejemplar-firmado» a «version».
+- **Qué se decidió y por qué:** Las relaciones siguen como estaban: «ejemplar firmado» es la clase de versión que dice qué cambió, y el motor la propone con ese nombre. La traducción solo cambia entre qué documentos es cada par. Alternativa: llevar «ejemplar firmado» a «versión» y contar como acierto que el motor proponga cualquiera de las dos.
+- **Quién decidió:** Claude, en la corrida desatendida; el dueño revisa

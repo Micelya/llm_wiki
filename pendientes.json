@@ -2853,7 +2853,7 @@
       "estado": "pendiente",
       "prioridad": 1,
       "tema": "replanteo",
-      "detalle": "Las hojas (llm_wiki_mi/conjunto-prueba) se armaron con el criterio anterior; hay que revisarlas con D-527, D-534 y D-551 (recurso, representación, versión) antes de medir el proceso nuevo. 2026-10-27: La traducción de las relaciones de la hoja de copias y versiones al criterio nuevo (recurso, representación, versión) va con el paso de documento, versión y aparición de la primera corrida.",
+      "detalle": "Las hojas (llm_wiki_mi/conjunto-prueba) se armaron con el criterio anterior; hay que revisarlas con D-527, D-534 y D-551 (recurso, representación, versión) antes de medir el proceso nuevo. 2026-10-27: La traducción de las relaciones de la hoja de copias y versiones al criterio nuevo (recurso, representación, versión) va con el paso de documento, versión y aparición de la primera corrida. 2026-10-27: Paso 3 de la corrida desatendida 13: la hoja de copias y versiones quedó traducida al documento incluido en un archivo nuevo, conjunto-prueba/respuestas-v2.json (la vieja no cambia; D-598 y D-599): 6 lados de par llevan las páginas del documento incluido según la hoja de partes, ningún par nuevo. Quedan 4 pares con un archivo que la base corta y la hoja de partes no cubre, para el dueño (P-409, lista en desatendido-13/paso3-hoja-dudas.md). Sigue abierto por las otras hojas: la de entidades y las de tipos siguen armadas por archivo.",
       "depende_de": [
         "P-360"
       ],
@@ -3250,6 +3250,42 @@
       "prioridad": 2,
       "tema": "base",
       "detalle": "Un documento incluido en un PDF compuesto se abre dentro de su archivo (paso 2 de la corrida desatendida 13). Las secciones que hoy se calculan por ubicación del archivo (a quién nombra, copias y versiones parecidas) no se muestran para un incluido, el botón del chat queda deshabilitado (el chat leería el archivo completo) y las etiquetas que se le ponen desde su detalle quedan en el archivo. Falta: que el chat adjunte solo el texto del incluido, que «a quién nombra» y los parecidos se pidan por la versión y no por la ubicación, y decidir si una etiqueta puede ser de un documento incluido o solo de su archivo.",
+      "creado": "2026-10-27",
+      "actualizado": "2026-10-27"
+    },
+    {
+      "id": "P-407",
+      "titulo": "Ver en la app: las copias y versiones de los documentos incluidos de un PDF compuesto esperan a que se confirme su corte",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "base",
+      "detalle": "Con la rama sesion-22/cortador (no con la app de llm_wiki_wt), y mejor sobre una copia de la base: confirmar un corte cambia la base y no tiene deshacer. 1) Abrí un PDF que diga bajo su nombre «incluye N documentos · K sin confirmar» y mirá «Copias y versiones» del archivo: ya no salen parecidos del archivo entero (antes salía, por ejemplo, «contiene a» el escrito suelto que es uno de sus incluidos). 2) Anotá el contador de copias y versiones para revisar. 3) En la tira de páginas de ese archivo, «Confirmar» todos los cortes; volvé al contador: si alguno de sus documentos tiene una copia o versión en otro archivo, ahora aparece (antes de confirmar esperaba, D-597). Medido en la carpeta de prueba, sin preguntar a Codex: 291 documentos comparados, 516 pares, 243 de ellos esperando un corte; contra la hoja traducida, 48 de 57 aciertos, 3 errados y 6 faltantes tal como queda, y 51 de 57, 4 errados y 2 faltantes con todos los cortes confirmados (la primera corrida, sin cortes, daba 52, 3 y 2).",
+      "creado": "2026-10-27",
+      "actualizado": "2026-10-27"
+    },
+    {
+      "id": "P-408",
+      "titulo": "Un ejemplar firmado cuya constancia de firma quedó como documento aparte se propone como «versión» y no como «ejemplar firmado»",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "Medido en el paso 3 de la corrida desatendida 13: con los cortes confirmados, el único error nuevo respecto de la corrida sin cortes (4 errados en vez de 3) es un acuerdo firmado cuyo PDF el cortador parte en el acuerdo (páginas 1-2) y la constancia de firma del servicio (página 3), como manda D-527. Sin la constancia, el acuerdo ya no se ve firmado y el motor lo propone como «versión» del original sin firmar. Regla general a evaluar: que la regla de ejemplar firmado mire también la constancia de firma relacionada del mismo archivo. Probado y descartado: que cada parte herede la firma embebida del PDF entero (no cambió la medición, y marcaría como firmada cualquier documentación adjunta a un escrito firmado).",
+      "creado": "2026-10-27",
+      "actualizado": "2026-10-27"
+    },
+    {
+      "id": "P-409",
+      "titulo": "Decir cuál documento incluido es en 4 pares de la hoja de copias y versiones",
+      "tipo": "decision",
+      "responsable": "usuario",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "replanteo",
+      "detalle": "La hoja traducida (conjunto-prueba/respuestas-v2.json) no puede decir sin mirar los documentos cuál de las partes es el lado de 4 pares: archivos que la base corta en partes y la hoja de partes no cubre (2 de esos pares se miden). La lista, solo con números de par y de página, está en llm_wiki_mi/desatendido-13/paso3-hoja-dudas.md, con una pista que no es respuesta. Con cada respuesta se agrega a ese lado su a_selector o b_selector (pages:desde-hasta). Ejemplo: en el par 57 la base parte un archivo en las páginas 1-2 y 3; si el ejemplar firmado es el de las páginas 1-2, el lado b lleva pages:1-2.",
       "creado": "2026-10-27",
       "actualizado": "2026-10-27"
     }
