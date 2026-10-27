@@ -477,17 +477,19 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-532 | 26 oct | Replanteo | Un registro común de piezas: cada pieza tiene un identificador opaco y único en el mundo, y un URI para lo que cruza de un espacio a otro | vigente |
 | D-533 | 26 oct | Replanteo | El asunto se guarda una sola vez: las menciones de un asunto en los documentos se resuelven hacia el asunto, y sale el tipo de entidad «asunto» | vigente |
 | D-534 | 26 oct | Replanteo | Documento, versión, aparición y ubicación son conceptos distintos, y la ubicación depende de la clase de fuente: la página no es la forma universal | vigente |
-| D-535 | 26 oct | Replanteo | El modelo de la base se reencauza sin parches, alineado con el modelo conceptual, con nombres canónicos de tablas y campos | vigente |
+| D-535 | 26 oct | Replanteo | El modelo de la base se reencauza sin parches, alineado con el modelo conceptual, con nombres canónicos de tablas y campos | reemplazada en parte por D-546 (la migración de los datos) |
 | D-536 | 26 oct | Replanteo | Las copias en sistemas de archivos se ofrecen para eliminar y decide el humano; lo que está dentro de un compuesto o de un expediente no se borra; lo generado es único por documento | vigente |
 | D-537 | 26 oct | Replanteo | El original y el ejemplar firmado son dos versiones del mismo documento, y una versión prevalece según reglas del catálogo | vigente |
 | D-538 | 26 oct | Replanteo | Contención y procedencia son dos hechos distintos y los dos aportan contexto; el asunto no es un contenedor; la certeza se evalúa en cada relación | vigente |
 | D-539 | 26 oct | Replanteo | Todas las relaciones tienen una misma forma, pueden conectar cualquier clase de pieza, y el desde y el hasta son una sola relación | vigente |
 | D-540 | 26 oct | Replanteo | La aplicación une sola con certeza alta, deja dudoso lo de certeza media y no propone sin elementos; el humano siempre puede romper una unión; resuelve sola solo las contradicciones triviales | vigente |
 | D-541 | 26 oct | Replanteo | La plataforma aprende con un catálogo que crece, no entrenando modelos propios; cada regla dice si se aplica con código determinista, con IA o con ambos | vigente |
-| D-542 | 26 oct | Replanteo | El catálogo tiene tres capas: la general por vertical, que viaja con el instalador y puede bajarse actualizada; la compartida; y la personal, cada una aprobada por quien corresponde | vigente |
+| D-542 | 26 oct | Replanteo | El catálogo tiene tres capas: la general por vertical, que viaja con el instalador y puede bajarse actualizada; la compartida; y la personal, cada una aprobada por quien corresponde | reemplazada en parte por D-547 (la capa compartida queda para su etapa) |
 | D-543 | 26 oct | Replanteo | Lo que aprende una instancia es de su usuario y pasa al catálogo general solo con su consentimiento y anonimizado; lo que enseñamos ahora va al general, anonimizado | vigente |
 | D-544 | 26 oct | Replanteo | Antes de poner ejemplos en el catálogo se mide si agregan valor; si lo agregan, van anonimizados y separados de lo que se usa para medir | en revisión (espera la prueba) |
 | D-545 | 26 oct | Replanteo | El entrenamiento se hace en un modo de la misma aplicación, con el mismo motor y una base propia | vigente |
+| D-546 | 27 oct | Replanteo | Los datos actuales de la base se pueden descartar: la base nueva se arma desde cero y se vuelve a procesar; lo que se conserva es el aprendizaje del descubrimiento | vigente |
+| D-547 | 27 oct | Replanteo | La primera implementación es solo de la dimensión individual; el catálogo tiene por ahora dos fuentes: el que viene con la aplicación y lo que agrega la instancia | vigente |
 
 ---
 
@@ -5626,7 +5628,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 ### D-535 · El modelo de la base se reencauza sin parches, alineado con el modelo conceptual, con nombres canónicos de tablas y campos
 
-- **Fecha:** 26 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **Fecha:** 26 oct 2026 · **Tema:** Replanteo · **Estado:** reemplazada en parte por D-546 (la migración de los datos)
 - **El problema:** El modelo de la base se fue degradando con parches: el mismo concepto en varias tablas, decisiones humanas en seis lugares, columnas agregadas y restos del wiki.
 - **Qué se decidió y por qué:** Se rediseña la base a partir del modelo conceptual, con nombres de tablas y campos en la forma canónica, sin vocabulario de una vertical. No es un parche más: lo que haya que cambiar se cambia. El inventario de partida está en docs/design/base-de-datos-inventario.md; la migración usa el mecanismo con respaldo previo (D-496).
 - **Quién decidió:** El dueño del producto (26 oct).
@@ -5675,7 +5677,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 ### D-542 · El catálogo tiene tres capas: la general por vertical, que viaja con el instalador y puede bajarse actualizada; la compartida; y la personal, cada una aprobada por quien corresponde
 
-- **Fecha:** 26 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **Fecha:** 26 oct 2026 · **Tema:** Replanteo · **Estado:** reemplazada en parte por D-547 (la capa compartida queda para su etapa)
 - **El problema:** Había que decidir dónde vive lo aprendido y quién lo aprueba.
 - **Qué se decidió y por qué:** General, por vertical: viaja con el instalador y opcionalmente se baja de un servicio de Micelya (la aplicación funciona sin él); la aprueba Micelya y, en el entrenamiento actual, el dueño. Compartida: en la base del espacio compartido, la aprueba su operador. Personal: en la base de la persona, la aprueba ella. Siguiendo D-044, la personal ve la general, la compartida y la suya; la compartida no ve la personal. Si una regla personal choca con una compartida, la personal vale solo para esa persona.
 - **Quién decidió:** El dueño del producto; lo del choque entre capas lo recomendó el agente y quedó aceptado (26 oct).
@@ -5700,3 +5702,17 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **El problema:** Hace falta un lugar para entrenar la plataforma con expedientes del portal y documentos elegidos, sin mezclarlo con el uso real.
 - **Qué se decidió y por qué:** Un modo entrenamiento en la misma aplicación y con el mismo motor: un indicador lo activa y redirige todo a una base propia de entrenamiento (un espacio más). El dueño aprueba lo que se descubre, y salen entradas del catálogo general, ejemplos anonimizados y entradas de la hoja de respuestas. Se descartó una herramienta aparte con su propio código, porque lo entrenado podría comportarse distinto en la aplicación.
 - **Quién decidió:** El dueño del producto, sobre la recomendación del agente (26 oct).
+
+### D-546 · Los datos actuales de la base se pueden descartar: la base nueva se arma desde cero y se vuelve a procesar; lo que se conserva es el aprendizaje del descubrimiento
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **El problema:** El rediseño de la base (D-535) suponía migrar los registros actuales. Pero todo lo que hay en la base se usó para pruebas y descubrimiento.
+- **Qué se decidió y por qué:** La base actual se puede descartar y volver a procesar si eso facilita el modelo correcto; no hace falta migrar sus registros. Se conserva el aprendizaje: las decisiones de producto y diseño con sus motivos; las reglas y criterios de reconocimiento e identidad; los ejemplos que revelaron errores o situaciones difíciles; las hojas de respuesta revisadas; las mediciones que explican por qué se eligió o se descartó una técnica. Las correcciones humanas guardadas en la base se revisan para extraer el criterio o el ejemplo que aportan, sin obligación de conservar cada registro. Reiniciar la base de resultados no es borrar los documentos fuente, que siguen siendo la entrada. Reemplaza en parte D-535: la migración de los datos con respaldo.
+- **Quién decidió:** El dueño del producto (26 oct, en la revisión con otro agente; registrado el 27).
+
+### D-547 · La primera implementación es solo de la dimensión individual; el catálogo tiene por ahora dos fuentes: el que viene con la aplicación y lo que agrega la instancia
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **El problema:** El modelo (D-542, D-543) incluía la capa compartida, la combinación de espacios y los permisos sobre conocimiento compartido, que complican mucho la definición.
+- **Qué se decidió y por qué:** Primero se resuelve todo con una base individual. Se difieren la combinación de bases personales y compartidas, la publicación y sincronización, los permisos sobre conocimiento compartido y la prioridad entre catálogos personal y compartido. Se mantienen los identificadores estables, que sirven igual en el uso individual. El catálogo distingue lo que viene con la aplicación de lo que agrega o ajusta la instancia. Reemplaza en parte D-542: la capa compartida queda para su etapa. El principio de D-543 (lo aprendido es del usuario) sigue vigente.
+- **Quién decidió:** El dueño del producto (26 oct, en la revisión con otro agente; registrado el 27).
