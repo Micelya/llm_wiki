@@ -521,6 +521,8 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-576 | 27 oct | base | Las etiquetas de cada archivo se copian solo para los archivos que la base nueva ya encontró; el guion se puede volver a correr | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-577 | 27 oct | base | Las imágenes reconocidas que solo tienen el texto junto también reciben su image.json | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-578 | 27 oct | base | La respuesta importada lleva el número de la versión nueva con la misma huella de archivo cuando ya existe; si no, queda sin número | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-579 | 27 oct | base | Una página guardada como reconocida entra al texto de su PDF con el motor que la leyó, sea cual sea el motor elegido hoy | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-580 | 27 oct | base | El texto de un PDF con páginas guardadas que nada manda a leer sigue siendo de la extracción; cada página guarda su motor | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -5964,3 +5966,17 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **El problema:** model_answer guarda a qué contenido respondió, pero la búsqueda es por la pregunta y el motor; los números de la base vieja no significan nada en la nueva.
 - **Qué se decidió y por qué:** Si la base nueva ya leyó un archivo de esa versión vieja (y todos sus archivos dan una sola versión nueva), la respuesta lleva ese número; si no, nulo. El número es informativo: la pregunta idéntica encuentra la respuesta con o sin él. Alternativa: dejarlo siempre nulo.
 - **Quién decidió:** Claude (corrida desatendida 12, paso 3)
+
+### D-579 · Una página guardada como reconocida entra al texto de su PDF con el motor que la leyó, sea cual sea el motor elegido hoy
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La base nueva solo usaba las páginas guardadas que la ficha de forma de hoy manda a leer, y entre esas, solo las del motor elegido hoy. Las páginas que una regla anterior de la ficha había mandado a leer quedaban afuera aunque estuvieran guardadas: 11 PDF salían con otro texto que en la base real (P-387).
+- **Qué se decidió y por qué:** Al armar el texto de un PDF entra toda página guardada de su huella, con el motor que la leyó y sin preguntar a ningún motor, aunque la ficha de hoy no la mande a leer y aunque la haya leído otro motor que el elegido hoy (D-523: lo ya leído se conserva). Si la página tenía una capa vieja de reconocimiento, la lectura guardada toma su lugar, como al reconocer. Lo que la ficha manda a leer sigue como antes: si lo guardado es de otro motor, el motor de hoy lo lee de nuevo (P-242). Alternativa: contar solo las páginas del motor de hoy; con eso, cambiar de motor cambiaría el texto de documentos que nadie manda a leer.
+- **Quién decidió:** Claude (corrida desatendida 12, paso 3b)
+
+### D-580 · El texto de un PDF con páginas guardadas que nada manda a leer sigue siendo de la extracción; cada página guarda su motor
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Un PDF cuya ficha no manda a leer ninguna página se termina en la extracción, sin pasar por el reconocimiento. Con D-579 su texto puede llevar páginas reconocidas: había que decir qué motor queda como autor del texto.
+- **Qué se decidió y por qué:** El texto queda con el motor de la extracción y cada página entra con el suyo a las páginas del archivo (`resource_text`), como al reconocer. Así, elegir otro motor no manda a leer de nuevo un documento que la ficha no manda a leer. Las páginas guardadas entran también al texto parcial de un PDF que espera reconocimiento. Alternativa: poner como autor del texto el motor de sus páginas; con eso, cambiar de motor lo mandaría a una lectura que no lee nada.
+- **Quién decidió:** Claude (corrida desatendida 12, paso 3b)
