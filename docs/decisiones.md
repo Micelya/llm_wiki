@@ -478,7 +478,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-533 | 26 oct | Replanteo | El asunto se guarda una sola vez: las menciones de un asunto en los documentos se resuelven hacia el asunto, y sale el tipo de entidad «asunto» | vigente |
 | D-534 | 26 oct | Replanteo | Documento, versión, aparición y ubicación son conceptos distintos, y la ubicación depende de la clase de fuente: la página no es la forma universal | vigente |
 | D-535 | 26 oct | Replanteo | El modelo de la base se reencauza sin parches, alineado con el modelo conceptual, con nombres canónicos de tablas y campos | reemplazada en parte por D-546 (la migración de los datos) |
-| D-536 | 26 oct | Replanteo | Las copias en sistemas de archivos se ofrecen para eliminar y decide el humano; lo que está dentro de un compuesto o de un expediente no se borra; lo generado es único por documento | vigente |
+| D-536 | 26 oct | Replanteo | Las copias en sistemas de archivos se ofrecen para eliminar y decide el humano; lo que está dentro de un compuesto o de un expediente no se borra; lo generado es único por documento | reemplazada en parte por D-549 (la lectura de personas se guarda por versión) |
 | D-537 | 26 oct | Replanteo | El original y el ejemplar firmado son dos versiones del mismo documento, y una versión prevalece según reglas del catálogo | vigente |
 | D-538 | 26 oct | Replanteo | Contención y procedencia son dos hechos distintos y los dos aportan contexto; el asunto no es un contenedor; la certeza se evalúa en cada relación | vigente |
 | D-539 | 26 oct | Replanteo | Todas las relaciones tienen una misma forma, pueden conectar cualquier clase de pieza, y el desde y el hasta son una sola relación | vigente |
@@ -490,6 +490,9 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-545 | 26 oct | Replanteo | El entrenamiento se hace en un modo de la misma aplicación, con el mismo motor y una base propia | vigente |
 | D-546 | 27 oct | Replanteo | Los datos actuales de la base se pueden descartar: la base nueva se arma desde cero y se vuelve a procesar; lo que se conserva es el aprendizaje del descubrimiento | vigente |
 | D-547 | 27 oct | Replanteo | La primera implementación es solo de la dimensión individual; el catálogo tiene por ahora dos fuentes: el que viene con la aplicación y lo que agrega la instancia | vigente |
+| D-548 | 27 oct | Replanteo | Relación, evidencia y decisión son registros distintos; la relación conserva su contexto, y el mismo vínculo puede darse en varios períodos | vigente |
+| D-549 | 27 oct | Replanteo | Se distinguen recurso, representación y versión; hay una ficha principal por documento, pero las lecturas y la evidencia se guardan por versión, y una ubicación queda atada a su recurso | vigente |
+| D-550 | 27 oct | Replanteo | En la primera etapa se reprocesa por documento y por etapa; lo aprendido se guarda con su revisión, su procedencia y su aprobación; el vocabulario crece sin cambiar la base, una clase nueva se programa | vigente |
 
 ---
 
@@ -5635,7 +5638,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 ### D-536 · Las copias en sistemas de archivos se ofrecen para eliminar y decide el humano; lo que está dentro de un compuesto o de un expediente no se borra; lo generado es único por documento
 
-- **Fecha:** 26 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **Fecha:** 26 oct 2026 · **Tema:** Replanteo · **Estado:** reemplazada en parte por D-549 (la lectura de personas se guarda por versión)
 - **El problema:** Un documento puede aparecer en varios lugares, y eso repetía resúmenes y lecturas, además de dejar copias innecesarias en las carpetas.
 - **Qué se decidió y por qué:** En fuentes de tipo sistema de archivos (disco, OneDrive, Google Drive) la aplicación ofrece eliminar las copias; decide el humano y la aplicación nunca borra sola; si se borra, queda registrado que esa aparición existió y de dónde vino. Una aparición dentro de un documento compuesto o de un expediente del portal no se borra: es parte de otra cosa. Todo lo que genera la aplicación es único por documento: un resumen, una lectura de personas, una ficha.
 - **Quién decidió:** El dueño del producto; lo del compuesto y el expediente lo propuso el agente y el dueño lo confirmó (26 oct).
@@ -5716,3 +5719,24 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **El problema:** El modelo (D-542, D-543) incluía la capa compartida, la combinación de espacios y los permisos sobre conocimiento compartido, que complican mucho la definición.
 - **Qué se decidió y por qué:** Primero se resuelve todo con una base individual. Se difieren la combinación de bases personales y compartidas, la publicación y sincronización, los permisos sobre conocimiento compartido y la prioridad entre catálogos personal y compartido. Se mantienen los identificadores estables, que sirven igual en el uso individual. El catálogo distingue lo que viene con la aplicación de lo que agrega o ajusta la instancia. Reemplaza en parte D-542: la capa compartida queda para su etapa. El principio de D-543 (lo aprendido es del usuario) sigue vigente.
 - **Quién decidió:** El dueño del producto (26 oct, en la revisión con otro agente; registrado el 27).
+
+### D-548 · Relación, evidencia y decisión son registros distintos; la relación conserva su contexto, y el mismo vínculo puede darse en varios períodos
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **El problema:** La forma única de las relaciones (D-539) podía perder detalles (el cargo dentro de qué organización, el rol, el monto con su moneda) y no decía qué pasa cuando alguien sale de una organización y vuelve a entrar. Además, una relación puede tener varios respaldos, a favor y en contra, y decisiones humanas.
+- **Qué se decidió y por qué:** La relación (lo que se sostiene), la evidencia (cada respaldo con su procedencia, que apoya o cuestiona) y la decisión (lo que hizo una persona, con su motivo) se guardan por separado; la relación se calcula de las otras dos. Las decisiones se anclan a claves estables, no a ids de filas, para que valgan después de reprocesar. La relación conserva explícitamente su contexto: dentro de qué pieza vale, el rol, una calificación y los datos del valor; distinto contexto no es contradicción. El mismo tipo de relación entre las mismas partes puede tener varios períodos: un inicio posterior a un fin conocido abre otra relación. Precisa D-539 (que sigue vigente en lo demás).
+- **Quién decidió:** El dueño del producto, sobre la revisión de otro agente (27 oct).
+
+### D-549 · Se distinguen recurso, representación y versión; hay una ficha principal por documento, pero las lecturas y la evidencia se guardan por versión, y una ubicación queda atada a su recurso
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **El problema:** La base actual junta en un mismo «contenido» archivos distintos con el mismo texto (un Word y su PDF), y «una sola lectura por documento» (D-536) impedía explicar un dato que solo está en una de sus versiones.
+- **Qué se decidió y por qué:** Recurso: una secuencia de bytes, por su huella. Representación: la misma versión en otro formato, sin cambios que importen. Versión: un estado del contenido que cambia algo que importa (texto, datos clave, firmas). Hay una ficha y un resumen principales por documento, de la versión que prevalece; las lecturas y la evidencia se guardan por versión y cada afirmación sabe de qué versión salió. La versión que prevalece decide el resumen, la ficha y los datos mostrados, y cuando cambia se recalculan solo esos. Una ubicación siempre está atada a la huella de su recurso: si el archivo cambia, no pasa a señalar otro contenido. Reemplaza en parte D-536: la lectura de personas ya no es única por documento sino por versión.
+- **Quién decidió:** El dueño del producto, sobre la revisión de otro agente (27 oct).
+
+### D-550 · En la primera etapa se reprocesa por documento y por etapa; lo aprendido se guarda con su revisión, su procedencia y su aprobación; el vocabulario crece sin cambiar la base, una clase nueva se programa
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **El problema:** «Reprocesar solo lo afectado» (D-541) prometía una precisión que el sistema no puede justificar sin conocer las dependencias entre cada resultado y cada regla; y «clases nuevas sin rehacer la base» (D-531) podía leerse como guardar cualquier cosa sin definición.
+- **Qué se decidió y por qué:** Cuando cambia una entrada del catálogo se recalcula la etapa que la usa en los documentos donde aplica (por tipo de documento, o todos si no se puede acotar); lo que decidió un humano no se pisa. Cada entrada del catálogo guarda su revisión, su procedencia, su estado y quién la aprobó; cada resultado guarda la revisión del catálogo, las instrucciones y el motor que lo produjo. Tipos de cosa, identificadores, roles y tipos de relación son vocabulario y entran al catálogo sin cambiar la base; una clase fundamental nueva se diseña y se programa. Una entrada del catálogo usa capacidades existentes; una capacidad nueva hay que programarla. Precisa D-541 y D-531.
+- **Quién decidió:** El dueño del producto, sobre la revisión de otro agente (27 oct).
