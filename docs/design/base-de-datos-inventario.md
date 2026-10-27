@@ -1,6 +1,6 @@
 # Inventario de la base de datos por significado (27 oct 2026)
 
-**Estado:** borrador para que el dueño lo revise. Reemplaza la versión del 26 oct, corregida con la revisión del dueño y otro agente (ver «Qué se corrigió»). Acompaña a la [propuesta del modelo](modelo-de-conocimiento-propuesta.md) y a la [base de destino](base-de-datos-destino.md).
+**Estado:** aprobado por el dueño el 27 oct junto con el modelo y la base de destino (D-554), con dos precisiones del agente local (D-560): el `content` y las anclas de las decisiones, abajo. Reemplaza la versión del 26 oct, corregida con la revisión del dueño y otro agente (ver «Qué se corrigió»). Acompaña a la [propuesta del modelo](modelo-de-conocimiento-propuesta.md) y a la [base de destino](base-de-datos-destino.md).
 
 **Para qué sirve ahora.** Los datos actuales se pueden descartar (D-548): este inventario **no es un mapa de migración**. Sirve para tres cosas: recuperar qué necesidad descubrimos con cada tabla, para que la base nueva no la pierda; saber qué aprendizaje hay que extraer antes de descartar la base real; y saber qué código toca cada parte.
 
@@ -37,7 +37,7 @@ Las columnas «escriben» y «leen» dan los archivos principales (sin `docbase/
 | `origin` | Configuración | `origins`, `scan`, `identity` / 17 archivos | Cada fuente: carpeta, proveedor, carpeta de trabajo | Queda como **fuente**; la procedencia se modela aparte |
 | `location` | Observación | `scan`, `identity`, `work_origin` / 34 archivos | Cada archivo en un origen, con su huella | Pasa a ser la **ubicación de clase archivo** de un recurso. `label_overrides` va a las etiquetas |
 | `file` | Observación | `identity`, `text` / 30 archivos | Cada huella de archivo y su contenido | Se vuelve el **recurso binario** (huella, tamaño) |
-| `content` | Resultado (mezcla) | `identity`, `text`, `recognize` / 20 archivos | Hoy junta archivos con el mismo texto: es a la vez recurso y documento | **Se parte** en recurso, representación textual y documento (ver la base de destino) |
+| `content` | Resultado (mezcla) | `identity`, `text`, `recognize` / 20 archivos | Hoy junta archivos con el mismo texto: es a la vez recurso y documento | **Se parte** en recurso, representación textual y documento (ver la base de destino). Por lo que junta (archivos con el mismo texto) **es casi la versión**: en la construcción por capas pasa a ser la `version`, con el documento arriba y la aparición abajo, y lo que hoy cuelga de él cuelga de la versión (D-554, D-560) |
 | `derivative` | Resultado | `text`, `page_shapes` / 18 archivos | El texto obtenido y otros derivados | Queda, **por recurso o por versión** según el derivado |
 | `content_fts`, `content_search` | Resultado | `text`, `search` / `search`, `query` | Dos búsquedas distintas: texto y números normalizados más resúmenes | Quedan, **por documento** |
 | `recognition_request` | Cola | `recognize` | Escaneos que esperan reconocimiento | Queda, por recurso |
@@ -73,7 +73,7 @@ Las columnas «escriben» y «leen» dan los archivos principales (sin `docbase/
 | `knowledge_group` | Resultado | `resolve` / `graph`, `pages` | Grupos de organizaciones vinculadas | Se vuelve relación entre entidades |
 | `knowledge_doubt` | Resultado | `resolve` / `claims`, `entities` | Pares que la resolución no pudo distinguir | Queda como **duda**, entre piezas cualesquiera |
 | `knowledge_verdict` | Respuesta del modelo | `resolve` | El veredicto del modelo sobre dos grupos de menciones | Queda como **veredicto**, separado de la respuesta cruda |
-| `knowledge_decision` | Decisión humana | `decide`, `anchors` / `matters`, `screens` | Unir, separar, marcar como errónea, confirmar, nombrar. **Se ancla a claves estables de las menciones, no a ids de filas**, así sobrevive a una nueva lectura (`anchors.rs`) | Queda como el lugar de las decisiones sobre identidad y relaciones, **con el mismo anclaje estable** |
+| `knowledge_decision` | Decisión humana | `decide`, `anchors` / `matters`, `screens` | Unir, separar, marcar como errónea, confirmar, nombrar. **Se ancla a claves estables de las menciones, no a ids de filas**, así sobrevive a una nueva lectura (`anchors.rs`) | Queda como el lugar de las decisiones sobre identidad y relaciones. **Ojo:** las claves de hoy llevan el número de fila del contenido (`decide.rs`, `document_key`), que cambia al rehacer la base o al volver a cortar un compuesto; en la base nueva se anclan a la huella del recurso, las páginas y el nombre o la cita, según el alcance de cada decisión (D-561) |
 | `knowledge_summary` | Resultado | `extract` / `pages`, `search` | Los puntos del resumen con su cita | Queda, por documento, citando la versión |
 | `knowledge_page`, `knowledge_overview` | Resultado | `pages` / 12 archivos | Las páginas que la app escribe por entidad y el panorama | Quedan como derivados de una pieza |
 | `knowledge_note`, `knowledge_query`, `knowledge_research` | Creado por el usuario | `articles`, `research` | Notas, preguntas guardadas, investigaciones | Quedan, apuntando al registro común (hoy `object_id` usa prefijos `ent-`, `mat-`, `doc-`) |

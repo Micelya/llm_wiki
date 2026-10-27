@@ -1732,14 +1732,14 @@
       "titulo": "Búsqueda por significado (vectores) sobre la base",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "en-espera",
       "prioridad": 3,
       "tema": "búsqueda",
-      "detalle": "El LLM-Wiki partía sus páginas en pedazos y los convertía en vectores para buscar por significado (embeddings y LanceDB); se retiró con el wiki (commit 6ce32a9) y hoy la búsqueda es solo por palabras, en la base y en el chat. Reimplementarla sobre el texto de la base: con las bases documentales de Core (preguntado en el mensaje 002, Q2) o con un modelo de vectores local. Confirmado por el dueño el 22 oct. 2026-10-22 (tarde): el dueño pidió revisarlo con Core o evaluar un modelo de vectores local, si es viable en computadoras de escritorio como las de un abogado (sin placa de video): medir tiempo y memoria con la base real antes de elegir.",
+      "detalle": "El LLM-Wiki partía sus páginas en pedazos y los convertía en vectores para buscar por significado (embeddings y LanceDB); se retiró con el wiki (commit 6ce32a9) y hoy la búsqueda es solo por palabras, en la base y en el chat. Reimplementarla sobre el texto de la base: con las bases documentales de Core (preguntado en el mensaje 002, Q2) o con un modelo de vectores local. Confirmado por el dueño el 22 oct. 2026-10-22 (tarde): el dueño pidió revisarlo con Core o evaluar un modelo de vectores local, si es viable en computadoras de escritorio como las de un abogado (sin placa de video): medir tiempo y memoria con la base real antes de elegir. 2026-10-27: D-557: los vectores se difieren y se piden a Core, en AWS (mensaje 004, pedido #77). Desktop no los calcula en la PC; sin proveedor, la búsqueda sigue por palabras.",
       "depende_de": [],
       "referencia": "mensaje 002 a Core (Q2); servicios-de-ia-propuesta.md (tabla 2.1)",
       "creado": "2026-10-22",
-      "actualizado": "2026-10-22"
+      "actualizado": "2026-10-27"
     },
     {
       "id": "P-290",
@@ -2382,13 +2382,13 @@
       "estado": "pendiente",
       "prioridad": 3,
       "tema": "lectura",
-      "detalle": "D-518: lo manuscrito no se transcribe automáticamente. Cada documento con manuscrito detectado ofrece una opción para que una persona pida su lectura (un modelo con imagen, por Codex o por Core), solo para ese documento. Lo leído queda marcado como lectura de manuscrito, «sin confirmar», y se compara con las personas del caso antes de crear fichas nuevas. 2026-10-26: Prueba en la nube de manuscritos (docs/investigacion/manuscritos/informe.md, pedido #75): Qwen3-VL-2B, en el dispositivo, lee 25 de 37 valores manuscritos casi bien (21 exactos) contra 12 de RapidOCR, a unos 5 minutos por página y 12,7 GB en procesador. Recomendación del informe: RapidOCR para lo impreso y Qwen3-VL solo para las páginas marcadas como manuscritas, en segundo plano. Es el candidato para esta lectura; cambiaría lo de D-518 (se detecta, no se transcribe), así que lo decide el dueño. Falta medir con menos memoria, en Windows y con más páginas.",
+      "detalle": "D-518: lo manuscrito no se transcribe automáticamente. Cada documento con manuscrito detectado ofrece una opción para que una persona pida su lectura (un modelo con imagen, por Codex o por Core), solo para ese documento. Lo leído queda marcado como lectura de manuscrito, «sin confirmar», y se compara con las personas del caso antes de crear fichas nuevas. 2026-10-26: Prueba en la nube de manuscritos (docs/investigacion/manuscritos/informe.md, pedido #75): Qwen3-VL-2B, en el dispositivo, lee 25 de 37 valores manuscritos casi bien (21 exactos) contra 12 de RapidOCR, a unos 5 minutos por página y 12,7 GB en procesador. Recomendación del informe: RapidOCR para lo impreso y Qwen3-VL solo para las páginas marcadas como manuscritas, en segundo plano. Es el candidato para esta lectura; cambiaría lo de D-518 (se detecta, no se transcribe), así que lo decide el dueño. Falta medir con menos memoria, en Windows y con más páginas. 2026-10-27: D-558: lo manuscrito se pide a Core cuando lo tenga; no se lleva un modelo de visión a la PC.",
       "depende_de": [
         "P-320"
       ],
       "referencia": "D-518",
       "creado": "2026-10-24",
-      "actualizado": "2026-10-26"
+      "actualizado": "2026-10-27"
     },
     {
       "id": "P-335",
@@ -2658,13 +2658,13 @@
       "estado": "en-curso",
       "prioridad": 1,
       "tema": "lectura",
-      "detalle": "Dirección del dueño del 25 oct, no definición: docs/design/replanteo-del-proceso-notas.md. La unidad de trabajo pasa del archivo al documento (con huella por página); los documentos compuestos, los expedientes de un portal y las carpetas son contenedores, cada uno con su nivel de certeza; un documento puede estar en varios; el resumen de un contenedor habla de las relaciones que crea y de por qué existe; no hay páginas duplicadas para un documento suelto y dentro de un compuesto. Próximo paso: la prueba en la nube de huellas de página y embeddings (P-359) y, con su resultado, el documento de diseño del proceso, que reemplaza o absorbe la propuesta de documentos compuestos (P-350). 26 oct: borrador del modelo en docs/design/modelo-de-conocimiento-propuesta.md e inventario de la base en docs/design/base-de-datos-inventario.md (D-530 a D-545); espera la revisión del dueño (P-360). 2026-10-26: Llegaron las tres pruebas en la nube: huellas de página y embeddings (#73), el mismo documento en dos lugares (#74) y manuscritos (#75). Con ellas y la revisión del dueño del borrador del modelo (P-360) se escribe el diseño del proceso.",
+      "detalle": "Dirección del dueño del 25 oct, no definición: docs/design/replanteo-del-proceso-notas.md. La unidad de trabajo pasa del archivo al documento (con huella por página); los documentos compuestos, los expedientes de un portal y las carpetas son contenedores, cada uno con su nivel de certeza; un documento puede estar en varios; el resumen de un contenedor habla de las relaciones que crea y de por qué existe; no hay páginas duplicadas para un documento suelto y dentro de un compuesto. Próximo paso: la prueba en la nube de huellas de página y embeddings (P-359) y, con su resultado, el documento de diseño del proceso, que reemplaza o absorbe la propuesta de documentos compuestos (P-350). 26 oct: borrador del modelo en docs/design/modelo-de-conocimiento-propuesta.md e inventario de la base en docs/design/base-de-datos-inventario.md (D-530 a D-545); espera la revisión del dueño (P-360). 2026-10-26: Llegaron las tres pruebas en la nube: huellas de página y embeddings (#73), el mismo documento en dos lugares (#74) y manuscritos (#75). Con ellas y la revisión del dueño del borrador del modelo (P-360) se escribe el diseño del proceso. 2026-10-27: Diseño aprobado para construir por capas (D-554 a D-561). La construcción sigue en P-363.",
       "depende_de": [
         "P-359"
       ],
       "referencia": "docs/design/replanteo-del-proceso-notas.md; D-518; D-527",
       "creado": "2026-10-25",
-      "actualizado": "2026-10-26"
+      "actualizado": "2026-10-27"
     },
     {
       "id": "P-357",
@@ -2713,9 +2713,9 @@
       "titulo": "Revisar el borrador del modelo de documentos y conocimiento y el inventario de la base",
       "tipo": "decision",
       "responsable": "usuario",
-      "estado": "pendiente",
+      "estado": "hecho",
       "tema": "replanteo",
-      "detalle": "Borradores revisados el 27 oct con la revisión del dueño y otro agente: docs/design/modelo-de-conocimiento-propuesta.md, docs/design/base-de-datos-inventario.md (por significado) y docs/design/base-de-datos-destino.md (base de destino, reinicio y escenarios). Con el visto bueno se pasa al diseño vigente.",
+      "detalle": "Borradores revisados el 27 oct con la revisión del dueño y otro agente: docs/design/modelo-de-conocimiento-propuesta.md, docs/design/base-de-datos-inventario.md (por significado) y docs/design/base-de-datos-destino.md (base de destino, reinicio y escenarios). Con el visto bueno se pasa al diseño vigente. 2026-10-27: El dueño aprobó el diseño para construirlo por capas (D-554), con las ocho correcciones del agente local (D-560) y las precisiones del revisor externo (D-561, asumida); confirmó el expediente y la plantilla como piezas (D-559). Escrito en los tres documentos.",
       "depende_de": [],
       "referencia": "docs/design/modelo-de-conocimiento-propuesta.md; docs/design/base-de-datos-destino.md; D-530 a D-545; D-548 a D-553",
       "creado": "2026-10-26",
@@ -2758,10 +2758,10 @@
       "titulo": "Construir la base de destino del replanteo, desde cero y sin migrar los datos de prueba",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "en-curso",
       "prioridad": 1,
       "tema": "replanteo",
-      "detalle": "La propuesta está en docs/design/base-de-datos-destino.md (27 oct). Falta la aprobación del dueño, fijar columnas, índices y disparadores, y construirla como un archivo de base nuevo, sin código de migración (D-548).",
+      "detalle": "La propuesta está en docs/design/base-de-datos-destino.md (27 oct). Falta la aprobación del dueño, fijar columnas, índices y disparadores, y construirla como un archivo de base nuevo, sin código de migración (D-548). 2026-10-27: Por capas (D-554). Primera corrida (desatendido-12): archivo de base nuevo, recursos y texto y huellas por página, RapidOCR en la PC, documento, versión y aparición, y la caché (D-555). Después: el corte, copias y versiones por incluido y el reproceso; y al final la capa de arriba.",
       "depende_de": [
         "P-360"
       ],
@@ -2774,14 +2774,14 @@
       "titulo": "Revisar la propuesta de documentos compuestos contra el modelo del replanteo",
       "tipo": "decision",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "hecho",
       "prioridad": 1,
       "tema": "replanteo",
-      "detalle": "Decir qué partes de D-525 siguen en pie con documento, versión, aparición, ubicación, contención y procedencia (D-534, D-538) y cuáles hay que reformular antes de construir.",
+      "detalle": "Decir qué partes de D-525 siguen en pie con documento, versión, aparición, ubicación, contención y procedencia (D-534, D-538) y cuáles hay que reformular antes de construir. 2026-10-27: Resuelto con D-556 (cómo se corta, qué espera, quién revisa, el caso apunta al compuesto, regiones después) y D-560 (el compuesto como documento propio). Lo que propone el compuesto como conjunto va con la etapa de relaciones.",
       "depende_de": [],
       "referencia": "docs/design/documentos-compuestos-propuesta.md; D-525",
       "creado": "2026-10-26",
-      "actualizado": "2026-10-26"
+      "actualizado": "2026-10-27"
     },
     {
       "id": "P-365",
@@ -2853,7 +2853,7 @@
       "estado": "pendiente",
       "prioridad": 1,
       "tema": "replanteo",
-      "detalle": "Las hojas (llm_wiki_mi/conjunto-prueba) se armaron con el criterio anterior; hay que revisarlas con D-527, D-534 y D-551 (recurso, representación, versión) antes de medir el proceso nuevo.",
+      "detalle": "Las hojas (llm_wiki_mi/conjunto-prueba) se armaron con el criterio anterior; hay que revisarlas con D-527, D-534 y D-551 (recurso, representación, versión) antes de medir el proceso nuevo. 2026-10-27: La traducción de las relaciones de la hoja de copias y versiones al criterio nuevo (recurso, representación, versión) va con el paso de documento, versión y aparición de la primera corrida.",
       "depende_de": [
         "P-360"
       ],
@@ -2876,6 +2876,36 @@
         "P-369"
       ],
       "referencia": "D-548; D-553",
+      "creado": "2026-10-27",
+      "actualizado": "2026-10-27"
+    },
+    {
+      "id": "P-371",
+      "titulo": "Corregir el borrador del mensaje 005 a Core con lo decidido el 27 oct y pedirle al dueño que lo apruebe",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "core",
+      "detalle": "El borrador (llm_wiki_mi/desatendido-9/core-004-borrador.md) pasa a ser el 005, porque el 004 se usó para los vectores. Corregir su sección 4 con D-558 (lo impreso y la estructura liviana en la PC, Docling afuera; las tablas con líneas y lo manuscrito, de Core) y D-556 (el corte se hace en Desktop: el pedido 003-R1 ya no hace falta como está). Después, que el dueño lo apruebe para enviarlo.",
+      "depende_de": [],
+      "referencia": "D-556; D-558; docs/dropbox/core/",
+      "creado": "2026-10-27",
+      "actualizado": "2026-10-27"
+    },
+    {
+      "id": "P-372",
+      "titulo": "Pasar el diseño del replanteo al diseño vigente cuando la segunda corrida se vea andando",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "replanteo",
+      "detalle": "El modelo, el inventario y la base de destino del replanteo están aprobados para construir (D-554), pero el diseño vigente sigue siendo docs/design/base-documental.md. Cuando el corte, copias y versiones y el reproceso se vean en la app, actualizar base-documental.md con lo construido y dejar los tres documentos como historia.",
+      "depende_de": [
+        "P-363"
+      ],
+      "referencia": "D-554; docs/design/base-documental.md",
       "creado": "2026-10-27",
       "actualizado": "2026-10-27"
     }

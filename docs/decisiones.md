@@ -496,6 +496,14 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-551 | 27 oct | Replanteo | Se distinguen recurso, representación y versión; hay una ficha principal por documento, pero las lecturas y la evidencia se guardan por versión, y una ubicación queda atada a su recurso | vigente |
 | D-552 | 27 oct | Replanteo | En la primera etapa se reprocesa por documento y por etapa; lo aprendido se guarda con su revisión, su procedencia y su aprobación; el vocabulario crece sin cambiar la base, una clase nueva se programa | vigente |
 | D-553 | 27 oct | Forma de trabajo | El reproceso y la extracción del aprendizaje se hacen en la PC del dueño con el agente local, y el resultado del reproceso se compara con lo que había | vigente |
+| D-554 | 27 oct | Replanteo | La base nueva se construye por capas: primero lo de abajo (recursos, páginas, documento, versión y aparición, el corte de los compuestos, copias y versiones); después las piezas, las relaciones y el catálogo | vigente |
+| D-555 | 27 oct | Replanteo | Las respuestas guardadas del modelo y el texto reconocido por página pasan a la base nueva como caché, solo para preguntas idénticas | vigente |
+| D-556 | 27 oct | Documentos compuestos | El corte de los compuestos: reglas primero y el modelo solo en lo dudoso; lo que se apoya en un corte propuesto se lee, pero no genera propuestas nuevas hasta que se confirme | vigente |
+| D-557 | 27 oct | Servicios de IA | Los vectores para la búsqueda por significado se difieren y se piden a Core, en AWS; Desktop no los calcula en la PC | vigente |
+| D-558 | 27 oct | Lectura de documentos | Lo impreso de las páginas escaneadas se lee en la PC con RapidOCR, sin Python; la estructura liviana con pdfium; Docling no entra a Desktop; las tablas con líneas y lo manuscrito, a Core cuando lo tenga | vigente |
+| D-559 | 27 oct | Replanteo | El expediente y la plantilla son clases de pieza propias; la plantilla nace propuesta, con su certeza | vigente |
+| D-560 | 27 oct | Replanteo | Ocho correcciones al diseño del replanteo, para que coincida con las notas del dueño y con las pruebas del 26 oct | vigente |
+| D-561 | 27 oct | Replanteo | Tres precisiones del revisor externo: cuándo dos evidencias son el mismo hecho, a qué se ancla cada decisión y cómo se propaga lo que cambia | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -5764,3 +5772,59 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **El problema:** La base nueva se arma desde cero y se vuelve a procesar (D-548). Había que decidir dónde se procesa y qué se hace con el resultado; la base real ya está en Drive y el agente en la nube podría usarla.
 - **Qué se decidió y por qué:** Todo el procesamiento (extraer el aprendizaje de la base real, reprocesar con la base nueva) lo hace el agente local en la PC del dueño, que además aporta una perspectiva distinta y un contexto fresco sobre el diseño. El reproceso se compara con lo que tenía la base original, que queda guardada solo para leer. El cupo de Codex que use no es un motivo para evitarlo: interesa ver cómo termina.
 - **Quién decidió:** El dueño del producto (27 oct).
+
+### D-554 · La base nueva se construye por capas: primero lo de abajo (recursos, páginas, documento, versión y aparición, el corte de los compuestos, copias y versiones); después las piezas, las relaciones y el catálogo
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **El problema:** La base de destino reemplaza casi todas las tablas. El módulo de la base tiene unas 60.500 líneas de Rust en 97 archivos, 75 tablas, 107 comandos y 447 pruebas, y el número del contenido es la clave de casi todo (38 archivos de la interfaz lo usan). Cambiarlo todo de una vez deja la app sin andar hasta el final y no se puede medir capa por capa.
+- **Qué se decidió y por qué:** Se construye en dos tiempos. Primero lo de abajo: el archivo de base nuevo con su numeración, recursos, ubicaciones, texto y huellas por página, la lectura de lo impreso en la PC, documento, versión y aparición, el corte de los compuestos y copias y versiones por documento incluido; mientras tanto, la lectura, las personas y los casos de hoy cuelgan de la versión (el contenido de hoy, que junta los archivos con el mismo texto, es casi la versión). Después, lo de arriba: el registro común de piezas, relación, evidencia y decisión, y el catálogo de la instancia. Cada capa se mide contra su hoja y la app sigue andando en cada paso. Alternativa descartada: todo junto, que no entra en ningún tope razonable de consumo.
+- **Quién decidió:** El dueño del producto (27 oct), sobre la recomendación del agente.
+
+### D-555 · Las respuestas guardadas del modelo y el texto reconocido por página pasan a la base nueva como caché, solo para preguntas idénticas
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **El problema:** La base nueva se arma desde cero (D-548). La base vieja tiene 1.718 respuestas de Codex y el texto reconocido de las páginas escaneadas. Sin caché, el reproceso hace unas 1.300 preguntas y la comparación con la base original mezcla lo que cambia la estructura con lo que varía el modelo.
+- **Qué se decidió y por qué:** Un guion aparte, fuera de la app, copia las respuestas del modelo por la huella de la pregunta; el texto reconocido por página sigue en la carpeta recognized, al lado de la base, atado a la huella de los bytes. La app nueva no lee la base vieja. La caché solo responde preguntas idénticas: las que se hicieron sobre compuestos enteros no se usan, porque el texto de cada incluido es otro (en los 16 PDF de 8 páginas o más: 34 de 153 lecturas, 21 de 124 tipos, 10 de 36 de casos y 127 de 269 de identidad). El texto reconocido sí sirve para los incluidos, porque es por página; lo que quedó guardado como texto del archivo entero, sin separación por página, se vuelve a leer. No es para ahorrar cupo: es para medir limpio.
+- **Quién decidió:** El dueño del producto (27 oct), sobre la recomendación del agente.
+
+### D-556 · El corte de los compuestos: reglas primero y el modelo solo en lo dudoso; lo que se apoya en un corte propuesto se lee, pero no genera propuestas nuevas hasta que se confirme
+
+- **Fecha:** 27 oct 2026 · **Tema:** Documentos compuestos · **Estado:** vigente
+- **El problema:** La propuesta de documentos compuestos (D-525) dejaba preguntas abiertas que el replanteo tenía que cerrar antes de construir el corte: qué espera a que se confirme un corte, quién revisa, a qué apunta el caso y si se corta por regiones.
+- **Qué se decidió y por qué:** Se corta como midió la investigación del corte: reglas sin modelo con la ficha de forma de cada página (las de cambio de papel o de escaneo, como posible corte) y el modelo solo en los pasos dudosos, mirando la imagen de las dos páginas; lo que tiene emisor y fecha propios es un documento aparte (D-527). Cada corte dice quién lo hizo y si está propuesto o confirmado. La lectura de un incluido no espera a que se confirme el corte; las propuestas nuevas que salen de él (copias y versiones, casos, plantillas) sí (opción a). Asumido por el agente sin objeción del dueño: una persona revisa solo lo que cambia algo (dos documentos de personas o tipos distintos pegados, uno partido al medio, un corte que contradice lo que anuncia el escrito) y lo demás se confirma solo; el caso apunta al compuesto y sus incluidos van con él, y un incluido puede entrar solo a otro caso; por ahora se corta por páginas y las regiones quedan para después. Se mide contra la hoja de partes.
+- **Quién decidió:** El dueño del producto eligió qué espera (27 oct); lo demás lo recomendó el agente y el dueño no lo objetó.
+
+### D-557 · Los vectores para la búsqueda por significado se difieren y se piden a Core, en AWS; Desktop no los calcula en la PC
+
+- **Fecha:** 27 oct 2026 · **Tema:** Servicios de IA · **Estado:** vigente
+- **El problema:** La prueba del 26 oct mostró que el modelo de vectores grande busca mucho mejor que las palabras (83 % contra 50 % entre los 5 primeros), pero en la PC cuesta 1,9 segundos por página y 4,7 GB de memoria.
+- **Qué se decidió y por qué:** Los vectores no se calculan en la PC. Se piden a Core, que los correría en AWS cuando Infraestructura despliegue lo necesario; el pedido está en el mensaje 004. Desktop guarda los vectores en su base y busca ahí; Core no guarda textos ni vectores. Sin un proveedor configurado, la búsqueda sigue por palabras (D-291). El diseño les reserva el lugar: un vector por versión, con el modelo y su versión.
+- **Quién decidió:** El dueño del producto (27 oct).
+
+### D-558 · Lo impreso de las páginas escaneadas se lee en la PC con RapidOCR, sin Python; la estructura liviana con pdfium; Docling no entra a Desktop; las tablas con líneas y lo manuscrito, a Core cuando lo tenga
+
+- **Fecha:** 27 oct 2026 · **Tema:** Lectura de documentos · **Estado:** vigente
+- **El problema:** El dueño quería pasar a AWS la lectura de lo impreso y el reconocimiento de estructura (Docling), salvo que fueran livianos. Hoy la app lee cada página escaneada con una pregunta al modelo.
+- **Qué se decidió y por qué:** RapidOCR es liviano (31 MB de modelos, de 2 a 5 segundos por página, alrededor de 1 GB de memoria limitando el tamaño de la imagen) y lee bien lo impreso (0,2 % de caracteres errados en escaneos) y la zona de lectura del DNI: se usa en la PC, como motor de la app y sin Python, para las páginas que la ficha de forma marca como escaneo o con capa de texto vieja. Baja el uso de la IA en producción: una pregunta menos por página escaneada. La estructura liviana (forma de la página, formularios aplanados y tablas sin líneas leídos por posición, páginas en blanco, capa vieja) se lee con pdfium. Docling no entra a Desktop: pesa unos 760 MB y 3 GB de memoria, necesita Python y tres arreglos, y lo único propio que agrega son las tablas con líneas. Las tablas con líneas y lo manuscrito se piden a Core cuando lo tenga. Se suma a la primera corrida de la construcción por capas.
+- **Quién decidió:** El dueño del producto (27 oct), sobre la recomendación del agente.
+
+### D-559 · El expediente y la plantilla son clases de pieza propias; la plantilla nace propuesta, con su certeza
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **El problema:** El modelo del replanteo dejaba abiertas dos clases: el expediente (el registro de un asunto ante un organismo) y la plantilla (la estructura que comparten documentos distintos).
+- **Qué se decidió y por qué:** Las dos son piezas propias. El expediente tiene identidad ante un organismo (organismo, número y año), un asunto puede tener varios, y es procedencia y contenedor de sus actuaciones. La plantilla relaciona documentos que comparten estructura sin confundirlos con versiones del mismo documento; como una plantilla detectada con pocos documentos puede ser falsa, nace propuesta, con su certeza, y queda firme cuando una persona la confirma o la certeza es alta (D-540). Se construyen con la capa de arriba.
+- **Quién decidió:** El dueño del producto (27 oct), sobre la recomendación del agente y del revisor externo.
+
+### D-560 · Ocho correcciones al diseño del replanteo, para que coincida con las notas del dueño y con las pruebas del 26 oct
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** vigente
+- **El problema:** Al revisar el diseño contra las notas del 25 oct, las decisiones y las tres pruebas en la nube, el agente local encontró huecos y choques.
+- **Qué se decidió y por qué:** 1) El documento compuesto es un documento propio, con la lista ordenada de lo que incluye: tiene su resumen, entra entero a un asunto y se analiza como conjunto. 2) El mismo documento se reconoce primero por el texto, con el método de la app (53 de 57 en la hoja); la huella de imagen de página solo desempata entre mismo documento y versión y propone candidatos entre escaneos sin texto, nunca como prueba sola. 3) Se compara el texto de cada versión, es decir de cada documento incluido, no el del recurso entero; para eso el texto se guarda por página. 4) Los vectores tienen su lugar reservado (D-557). 5) El corte tiene estado (propuesto o confirmado), dice quién lo hizo y se corrige con decisiones de partir y unir páginas. 6) Las anclas de las decisiones van a la huella de los bytes, las páginas y el nombre o la cita normalizados: hoy llevan el número de fila del contenido, que cambia al rehacer la base. 7) Se marcan lo manuscrito y las firmas por página o región, una lectura pedida queda sin confirmar, y los pares rótulo-valor de un formulario leído por posición tienen su lugar. 8) La base nueva no trae código para migrar la vieja, pero desde su primera versión cada actualización respeta los datos con su migración y un respaldo previo (D-496). Están escritas en los tres documentos del replanteo.
+- **Quién decidió:** El agente local las propuso y el dueño las aprobó (27 oct).
+
+### D-561 · Tres precisiones del revisor externo: cuándo dos evidencias son el mismo hecho, a qué se ancla cada decisión y cómo se propaga lo que cambia
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Un revisor externo (otro agente que el dueño usó al armar el diseño) señaló tres puntos que podían fallar al implementar: juntar evidencia que habla de hechos distintos, aplicar una decisión a un destino equivocado y no actualizar lo que depende de un resultado que cambió.
+- **Qué se decidió y por qué:** 1) Cada tipo de relación declara en el catálogo qué datos identifican el mismo hecho (por ejemplo, el rol en una participación) y si admite uno o varios valores: con uno, un valor distinto es una contradicción; con varios, es otro hecho. 2) Cada decisión se ancla según su alcance: una pieza creada por una persona, por su identificador; lo que encontró la aplicación, por sus menciones; una interpretación de un documento, además por su versión y su evidencia (lo marcado como erróneo en el borrador no pasa al firmado); si al reprocesar hay varios destinos posibles, la decisión pasa a revisión y no se aplica, como hace hoy el programa. 3) Las etapas tienen un orden fijo y, cuando una cambia un resultado, se recalculan las que dependen de él con alcance conservador; la cola acepta documentos y piezas; con la caché, eso solo le vuelve a preguntar al modelo cuando la pregunta cambió. Precisa D-550 y D-552.
+- **Quién decidió:** Lo propuso el revisor externo; el agente lo evaluó, agregó los matices y lo incorporó en la corrida desatendida.
