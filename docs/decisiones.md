@@ -542,6 +542,9 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-597 | 27 oct | base | Un parecido con un documento de corte sin confirmar no se muestra ni se cuenta hasta que se confirma el corte | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-598 | 27 oct | replanteo | La hoja de copias y versiones traducida al documento incluido: un archivo nuevo con las páginas de cada lado del par | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-599 | 27 oct | replanteo | Las relaciones de la hoja de copias y versiones no cambian de nombre con el criterio nuevo | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-600 | 27 oct | replanteo | Lo que harán las tareas que esperan a otras (identidad, asuntos, síntesis, campos) se estima con lo que preguntó la base original, no con una pregunta por documento | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-601 | 27 oct | replanteo | En el reproceso, «Reconocer escaneos» pasa al motor de esta computadora antes de encender la lectura automática | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-602 | 27 oct | replanteo | Las respuestas de Codex ya pagadas en una corrida se suman a la base nueva con un guion aparte, en seco por defecto y sin pisar nada | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -6131,4 +6134,25 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Fecha:** 27 oct 2026 · **Tema:** replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
 - **El problema:** Con D-534 un ejemplar firmado es una versión nueva (cambia algo que importa: la firma). Habría que decidir si la hoja traducida pasa «ejemplar-firmado» a «version».
 - **Qué se decidió y por qué:** Las relaciones siguen como estaban: «ejemplar firmado» es la clase de versión que dice qué cambió, y el motor la propone con ese nombre. La traducción solo cambia entre qué documentos es cada par. Alternativa: llevar «ejemplar firmado» a «versión» y contar como acierto que el motor proponga cualquiera de las dos.
+- **Quién decidió:** Claude, en la corrida desatendida; el dueño revisa
+
+### D-600 · Lo que harán las tareas que esperan a otras (identidad, asuntos, síntesis, campos) se estima con lo que preguntó la base original, no con una pregunta por documento
+
+- **Fecha:** 27 oct 2026 · **Tema:** replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Contando sin preguntar, la identidad solo mira los documentos ya leídos y los asuntos y la síntesis esperan a la identidad: no llegan a preguntar, y hay que estimar cuántas consultas harán en el reproceso.
+- **Qué se decidió y por qué:** Para cada una de esas tareas se toma cuántas respuestas guardó la base original en su última versión de la pregunta (las mismas personas, ahora repartidas en los documentos incluidos), menos las que ya se encuentran, y el informe la marca como estimación. Lo contado (corte, tipo, lectura y la identidad de lo ya leído) se informa aparte. Alternativa: una pregunta por documento sin respuesta, que para la síntesis y la identidad daría números sin relación con cómo preguntan (por persona y por par, no por documento).
+- **Quién decidió:** Claude, en la corrida desatendida; el dueño revisa
+
+### D-601 · En el reproceso, «Reconocer escaneos» pasa al motor de esta computadora antes de encender la lectura automática
+
+- **Fecha:** 27 oct 2026 · **Tema:** replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La base de la app tiene elegido Codex para reconocer escaneos (lo trajo la base vieja). Con la lectura encendida, las páginas de escaneos que nadie leyó todavía se pedirían a Codex, una consulta por página.
+- **Qué se decidió y por qué:** La lista del reproceso (herramientas/reproceso.md) pide cambiar «Reconocer escaneos» al motor de esta computadora antes de encender la lectura: lee esas páginas sin cupo, y lo que cambia de texto se mide en el paso 4. Alternativa: dejar Codex, que lee mejor la letra difícil, y pagar esas páginas.
+- **Quién decidió:** Claude, en la corrida desatendida; el dueño revisa
+
+### D-602 · Las respuestas de Codex ya pagadas en una corrida se suman a la base nueva con un guion aparte, en seco por defecto y sin pisar nada
+
+- **Fecha:** 27 oct 2026 · **Tema:** replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Las 127 respuestas de corte que pagó esta corrida están en un archivo (semillas/cortes.json); el reproceso las volvería a preguntar si no están en la base de la app.
+- **Qué se decidió y por qué:** Un guion aparte, herramientas/sumar-respuestas.py: lee archivos de respuestas, dice cuántas son nuevas por tarea y, solo con --escribir y la app cerrada, las agrega sin número de versión; una respuesta que la base ya tiene (misma pregunta y motor) queda como está. Deja un registro con la huella de cada archivo. Se corre antes de abrir la app con la rama, para que el primer corte ya las use. Alternativa: una opción nueva de a-la-base-nueva.py, que hoy solo trae de la base vieja a la nueva.
 - **Quién decidió:** Claude, en la corrida desatendida; el dueño revisa

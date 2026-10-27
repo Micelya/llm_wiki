@@ -2869,7 +2869,7 @@
       "estado": "pendiente",
       "prioridad": 1,
       "tema": "replanteo",
-      "detalle": "Con la base nueva construida y el reproceso terminado en la PC del dueño (agente local), comparar documentos, versiones, personas y organizaciones, relaciones y asuntos contra la base original guardada solo para leer, y contra las hojas de respuesta. Usa cupo de Codex; el dueño ya lo aceptó (D-553).",
+      "detalle": "Con la base nueva construida y el reproceso terminado en la PC del dueño (agente local), comparar documentos, versiones, personas y organizaciones, relaciones y asuntos contra la base original guardada solo para leer, y contra las hojas de respuesta. Usa cupo de Codex; el dueño ya lo aceptó (D-553). 2026-10-27: Paso 4 de la corrida desatendida 13: la lista del reproceso (llm_wiki_mi/herramientas/reproceso.md) dice cómo respaldar (respaldar-base.py, con sha256), sumar las respuestas ya pagadas (sumar-respuestas.py), encender la lectura y qué medir al terminar. Falta el guion que compara las dos bases con números (P-412).",
       "depende_de": [
         "P-363",
         "P-368",
@@ -3225,7 +3225,7 @@
       "estado": "pendiente",
       "prioridad": 2,
       "tema": "base",
-      "detalle": "Primer cálculo del costo del reproceso, sobre toda la carpeta de prueba y solo con las respuestas ya guardadas: la lectura buscó 287 preguntas y encontró 84 (quedan 203, casi todas de los documentos incluidos, que son textos nuevos); la identidad buscó 47 y encontró 2; los tipos, 86 y 73. Del cortador, quedan 181 pasos dudosos sin preguntar en 43 PDF fuera de la hoja que las reglas no cortan (las 80 consultas de esta corrida fueron primero a los PDF que las reglas ya cortaban: no les queda ninguno). Se relaciona con dónde conviene preguntar al cortador (P-393).",
+      "detalle": "Primer cálculo del costo del reproceso, sobre toda la carpeta de prueba y solo con las respuestas ya guardadas: la lectura buscó 287 preguntas y encontró 84 (quedan 203, casi todas de los documentos incluidos, que son textos nuevos); la identidad buscó 47 y encontró 2; los tipos, 86 y 73. Del cortador, quedan 181 pasos dudosos sin preguntar en 43 PDF fuera de la hoja que las reglas no cortan (las 80 consultas de esta corrida fueron primero a los PDF que las reglas ya cortaban: no les queda ninguno). Se relaciona con dónde conviene preguntar al cortador (P-393). 2026-10-27: Paso 4 de la corrida desatendida 13: contado sin preguntar sobre una base armada desde cero (la caché importada y las 127 respuestas de corte), el reproceso pediría a Codex unas 960 consultas: 442 contadas (181 pasos dudosos de corte, 13 tipos, 203 lecturas, 45 de identidad) y unas 520 estimadas con lo que preguntó la base original (identidad, asuntos, síntesis, campos y 16 lecturas que esperan su tipo; D-600). Unas 2 horas a 7,8 segundos por consulta. La lista del reproceso está en llm_wiki_mi/herramientas/reproceso.md.",
       "creado": "2026-10-27",
       "actualizado": "2026-10-27"
     },
@@ -3286,6 +3286,48 @@
       "prioridad": 2,
       "tema": "replanteo",
       "detalle": "La hoja traducida (conjunto-prueba/respuestas-v2.json) no puede decir sin mirar los documentos cuál de las partes es el lado de 4 pares: archivos que la base corta en partes y la hoja de partes no cubre (2 de esos pares se miden). La lista, solo con números de par y de página, está en llm_wiki_mi/desatendido-13/paso3-hoja-dudas.md, con una pista que no es respuesta. Con cada respuesta se agrega a ese lado su a_selector o b_selector (pages:desde-hasta). Ejemplo: en el par 57 la base parte un archivo en las páginas 1-2 y 3; si el ejemplar firmado es el de las páginas 1-2, el lado b lleva pages:1-2.",
+      "creado": "2026-10-27",
+      "actualizado": "2026-10-27"
+    },
+    {
+      "id": "P-411",
+      "titulo": "Ver en la app: el reproceso de la base con el cortador, siguiendo la lista de herramientas/reproceso.md",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "replanteo",
+      "detalle": "Con la app cerrada, seguí llm_wiki_mi/herramientas/reproceso.md: respaldar, sumar las 127 respuestas de corte ya pagadas (primero en seco: tiene que decir 127 nuevas), abrir la app con la rama sesion-22/cortador, pasar «Reconocer escaneos» al motor de esta computadora (hoy dice Codex) y, en «En curso», «Activar la lectura automática». Lo medido sobre una copia: unas 960 consultas a Codex (442 contadas y unas 520 estimadas), unas 2 horas; con el motor local, 2 más y 35 páginas de 1 escaneo leídas sin cupo; si los escaneos quedan en Codex, unas 1000. Al terminar, la base tendría que tener unas 331 versiones, 29 compuestos con 199 incluidos, y en la hoja de partes 98 de 102 con las páginas exactas. Las preguntas de corte no se ven en «En curso»: avanzan por detrás.",
+      "depende_de": [
+        "P-370"
+      ],
+      "creado": "2026-10-27",
+      "actualizado": "2026-10-27"
+    },
+    {
+      "id": "P-412",
+      "titulo": "Un guion que compare con números la base nueva de la app contra la original guardada",
+      "tipo": "tarea",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "replanteo",
+      "detalle": "Para medir el reproceso (P-370): herramientas/comparar-bases.py, solo lectura (mode=ro), que compare documentos, versiones, personas y organizaciones, relaciones y asuntos de base.sqlite3 contra private.sqlite3 (numeración vieja, hasta la 29), solo con números. El paso 4 de la corrida desatendida 13 no lo hizo: no le alcanzaba el tope de consumo.",
+      "depende_de": [
+        "P-370"
+      ],
+      "creado": "2026-10-27",
+      "actualizado": "2026-10-27"
+    },
+    {
+      "id": "P-413",
+      "titulo": "Los guiones de herramientas que leen o cambian la base de la app todavía apuntan a la base vieja",
+      "tipo": "tarea",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "replanteo",
+      "detalle": "lectura-automatica.py y consulta.py usan docbase/private.sqlite3; la app ya trabaja con docbase/base.sqlite3. Para el reproceso no hace falta (la lectura se enciende desde «En curso»), pero conviene que tomen la base nueva, o que digan cuál.",
       "creado": "2026-10-27",
       "actualizado": "2026-10-27"
     }
