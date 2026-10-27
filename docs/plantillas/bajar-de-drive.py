@@ -1,7 +1,7 @@
 """Baja a disco una carpeta compartida de Google Drive, o solo algunas de sus subcarpetas, sin pasar el contenido por el contexto del agente.
 
 Uso: python bajar-de-drive.py <id_carpeta> <destino> [subcarpeta ...]
-  <id_carpeta>: el id del enlace compartido que el dueño pasa en el prompt (nunca va al repositorio).
+  <id_carpeta>: el enlace compartido que el dueño pasa en el prompt, o solo su id (nunca va al repositorio).
   subcarpeta:   ruta relativa a la carpeta, por ejemplo  pruebas/base  pruebas/hojas-de-respuestas  caso-ps
                 Sin subcarpetas, baja todo.
 Deja los archivos en <destino>/datos/ y la lista en <destino>/lista.tsv (id, ruta, bytes). No imprime nombres.
@@ -63,6 +63,9 @@ def sha256(path):
 
 def main():
     raiz, destino = sys.argv[1], sys.argv[2]
+    m = re.search(r"folders/([A-Za-z0-9_-]+)|[?&]id=([A-Za-z0-9_-]+)", raiz)
+    if m:
+        raiz = m.group(1) or m.group(2)
     pedidas = [p.strip("/").replace("\\", "/") for p in sys.argv[3:]]
     datos = os.path.join(destino, "datos")
     archivos = errores = total = 0
