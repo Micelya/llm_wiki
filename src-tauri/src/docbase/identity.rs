@@ -248,13 +248,19 @@ impl DocBase {
             [],
         )
         .map_err(sql_err)?;
+        // A version included in a file (a part of a joined PDF) has no
+        // file of its own: it stays while it appears in one (D-560).
         tx.execute(
-            "DELETE FROM content_fts WHERE rowid IN (SELECT id FROM version WHERE id NOT IN (SELECT version_id FROM file))",
+            "DELETE FROM content_fts WHERE rowid IN (SELECT id FROM version
+                 WHERE id NOT IN (SELECT version_id FROM file) AND id NOT IN (SELECT version_id FROM appearance))",
             [],
         )
         .map_err(sql_err)?;
         let dropped = tx
-            .execute("DELETE FROM version WHERE id NOT IN (SELECT version_id FROM file)", [])
+            .execute(
+                "DELETE FROM version WHERE id NOT IN (SELECT version_id FROM file) AND id NOT IN (SELECT version_id FROM appearance)",
+                [],
+            )
             .map_err(sql_err)?;
         super::search::forget_gone(&tx)?;
         tx.commit().map_err(sql_err)?;

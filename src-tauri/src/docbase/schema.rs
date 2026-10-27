@@ -15,7 +15,7 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3, V4];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5];
 
 /// The shape of the base at version 29 of the earlier numbering, in one
 /// migration, generated from that base (`schema_v1.sql`). It seeds no row:
@@ -212,6 +212,27 @@ CREATE TABLE cut_step (
 CREATE INDEX cut_step_by_question ON cut_step (question) WHERE question IS NOT NULL;
 ";
 
+/// What a person said of the cuts of a PDF (D-560, `docbase/cut/parts.rs`):
+/// whether `page` starts another document (`starts`) or goes on with the
+/// one before it (`continues`). It wins over the rules and the model, and
+/// is anchored to the print of the file and its page, not to the file row:
+/// the same file read again finds it. `cut_applied`: what the versions of
+/// the parts of a file were last made from, so a file is made again only
+/// when its version, its steps, its text or a person's word change.
+const V5: &str = "
+CREATE TABLE cut_decision (
+    resource_hash  TEXT NOT NULL,
+    page           INTEGER NOT NULL CHECK (page >= 2),
+    decision       TEXT NOT NULL CHECK (decision IN ('starts', 'continues')),
+    decided_at     INTEGER NOT NULL,
+    PRIMARY KEY (resource_hash, page)
+) WITHOUT ROWID;
+CREATE TABLE cut_applied (
+    resource_hash  TEXT PRIMARY KEY REFERENCES file (hash) ON DELETE CASCADE,
+    basis          TEXT NOT NULL
+) WITHOUT ROWID;
+";
+
 /// The version of a base: 0 for one just created.
 pub fn version(conn: &Connection) -> Result<i64, String> {
     conn.query_row("PRAGMA user_version", [], |row| row.get(0)).map_err(sql_err)
@@ -333,6 +354,35 @@ mod tests {
         conn.execute("DELETE FROM file WHERE hash = 'h1'", []).unwrap();
         let left: i64 = conn.query_row("SELECT count(*) FROM cut_step", [], |row| row.get(0)).unwrap();
         assert_eq!(left, 0);
+    }
+
+    /// A base at version 4 with its cuts keeps them and gains what a
+    /// person says of the cuts, which stays when the file goes.
+    #[test]
+    fn version_5_keeps_what_a_person_said_of_the_cuts() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+        build_at(&mut conn, 4);
+        conn.execute_batch(
+            "INSERT INTO version (id, state, first_seen_at) VALUES (1, 'processed', 1);
+             INSERT INTO file (hash, version_id, size) VALUES ('h1', 1, 10);
+             INSERT INTO cut_step (resource_hash, after_page, verdict, rule, rules_version, text_stamp, created_at)
+                VALUES ('h1', 0, 'new', 'start', 'r', 1, 1);",
+        )
+        .unwrap();
+        migrate(&mut conn).unwrap();
+        assert_eq!(version(&conn).unwrap(), CURRENT_VERSION);
+        let count = |sql: &str| -> i64 { conn.query_row(sql, [], |row| row.get(0)).unwrap() };
+        assert_eq!(count("SELECT count(*) FROM cut_step"), 1);
+        conn.execute_batch(
+            "INSERT INTO cut_decision (resource_hash, page, decision, decided_at) VALUES ('h1', 3, 'starts', 1);
+             INSERT INTO cut_applied (resource_hash, basis) VALUES ('h1', 'b');",
+        )
+        .unwrap();
+        assert!(conn.execute("INSERT INTO cut_decision (resource_hash, page, decision, decided_at) VALUES ('h1', 1, 'starts', 1)", []).is_err());
+        assert!(conn.execute("INSERT INTO cut_decision (resource_hash, page, decision, decided_at) VALUES ('h1', 4, 'quizas', 1)", []).is_err());
+        conn.execute("DELETE FROM file WHERE hash = 'h1'", []).unwrap();
+        assert_eq!((count("SELECT count(*) FROM cut_decision"), count("SELECT count(*) FROM cut_applied")), (1, 0));
     }
 
     #[test]

@@ -127,8 +127,9 @@ struct Link {
 fn documents(conn: &Connection) -> Result<Vec<(i64, String)>, String> {
     let mut statement = conn
         .prepare(&format!(
-            "SELECT k.version_id, k.text_hash FROM knowledge_extraction k WHERE k.state = 'done' AND {}",
-            changes::active_content("k.version_id")
+            "SELECT k.version_id, k.text_hash FROM knowledge_extraction k WHERE k.state = 'done' AND {} AND NOT {}",
+            changes::active_content("k.version_id"),
+            crate::docbase::cut::parts::only_proposed_sql("k.version_id")
         ))
         .map_err(sql_err)?;
     let rows = statement.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))).map_err(sql_err)?;

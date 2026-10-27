@@ -572,6 +572,12 @@ fn step(base: &DocBase) -> Result<bool, String> {
         Ok(_) => {}
         Err(error) => eprintln!("[docbase] cuts: {error}"),
     }
+    // The parts of each cut file, as versions of their own (D-560).
+    match base.cut_parts_pending(CUT_BATCH) {
+        Ok(made) if made > 0 => return Ok(true),
+        Ok(_) => {}
+        Err(error) => eprintln!("[docbase] parts: {error}"),
+    }
     // Similar documents: only once every text is read, a little at a
     // time, so it never holds the reading back.
     if base.similar_step(SIMILAR_BATCH)? > 0 {

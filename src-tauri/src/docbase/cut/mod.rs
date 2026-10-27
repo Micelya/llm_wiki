@@ -14,11 +14,11 @@
 //! instruction and the exact prints of the two pages: the same pages in
 //! another file are not asked again.
 //!
-//! Versions and appearances are not made here: the steps are what a later
-//! pass turns into them.
+//! The steps are turned into versions and appearances in `parts.rs`.
 
 mod ask;
 mod catalog;
+pub mod parts;
 mod rules;
 mod signals;
 

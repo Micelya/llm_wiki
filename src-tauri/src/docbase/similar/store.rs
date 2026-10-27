@@ -1355,6 +1355,19 @@ fn save_pair(
 /// (`GROUP_RELATIONS`) or the units for types and templates
 /// (`UNIT_RELATIONS`).
 pub(crate) fn grouped(conn: &Connection, relations: &[&str]) -> Result<(Vec<Family>, Links), String> {
+    grouped_with(conn, relations, &super::super::cut::parts::only_proposed(conn)?)
+}
+
+/// As `grouped`, with every pair: also those of a version that appears
+/// only in cuts still proposed (the units the types are asked by).
+pub(crate) fn grouped_all(conn: &Connection, relations: &[&str]) -> Result<(Vec<Family>, Links), String> {
+    grouped_with(conn, relations, &BTreeSet::new())
+}
+
+/// The families of the pairs, leaving out those of the versions `held`
+/// (they appear only in cuts still proposed: no proposal comes out of
+/// them, D-556).
+fn grouped_with(conn: &Connection, relations: &[&str], held: &BTreeSet<i64>) -> Result<(Vec<Family>, Links), String> {
     let generated = super::generate::generated_contents(conn)?;
     let mut adjacent: Links = BTreeMap::new();
     {
@@ -1369,6 +1382,9 @@ pub(crate) fn grouped(conn: &Connection, relations: &[&str]) -> Result<(Vec<Fami
             .map_err(sql_err)?;
         for row in rows {
             let (a, b, relation, cover) = row.map_err(sql_err)?;
+            if held.contains(&a) || held.contains(&b) {
+                continue;
+            }
             if !relations.contains(&relation.as_str()) {
                 continue;
             }
@@ -1485,7 +1501,7 @@ fn visible_content(visible: &Visible, column: &str) -> (String, Vec<Value>) {
     let (condition, bound) = visible.condition("l.origin_id");
     (
         format!(
-            "EXISTS (SELECT 1 FROM file f JOIN location l ON l.file_hash = f.hash
+            "EXISTS (SELECT 1 FROM appearance f JOIN location l ON l.file_hash = f.resource_hash
                      WHERE f.version_id = {column} AND {condition} AND NOT {})",
             super::super::excluded_sql!()
         ),
