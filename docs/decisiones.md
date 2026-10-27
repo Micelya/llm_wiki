@@ -523,6 +523,11 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-578 | 27 oct | base | La respuesta importada lleva el número de la versión nueva con la misma huella de archivo cuando ya existe; si no, queda sin número | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-579 | 27 oct | base | Una página guardada como reconocida entra al texto de su PDF con el motor que la leyó, sea cual sea el motor elegido hoy | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-580 | 27 oct | base | El texto de un PDF con páginas guardadas que nada manda a leer sigue siendo de la extracción; cada página guarda su motor | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-581 | 27 oct | base | El cortador lee el texto reconocido de las páginas escaneadas | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-582 | 27 oct | base | Lo que dice el cortador se guarda paso por paso, con el comienzo del archivo como paso 0 | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-583 | 27 oct | base | Las preguntas de los pasos dudosos van antes de los tipos, sin etapa propia en el progreso | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-584 | 27 oct | base | La pregunta de corte no lleva los números de página y su clave son las huellas exactas de las dos páginas | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-585 | 27 oct | base | Una respuesta guardada sobre dos páginas se usa aunque la lectura automática esté apagada | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -5980,3 +5985,38 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **El problema:** Un PDF cuya ficha no manda a leer ninguna página se termina en la extracción, sin pasar por el reconocimiento. Con D-579 su texto puede llevar páginas reconocidas: había que decir qué motor queda como autor del texto.
 - **Qué se decidió y por qué:** El texto queda con el motor de la extracción y cada página entra con el suyo a las páginas del archivo (`resource_text`), como al reconocer. Así, elegir otro motor no manda a leer de nuevo un documento que la ficha no manda a leer. Las páginas guardadas entran también al texto parcial de un PDF que espera reconocimiento. Alternativa: poner como autor del texto el motor de sus páginas; con eso, cambiar de motor lo mandaría a una lectura que no lee nada.
 - **Quién decidió:** Claude (corrida desatendida 12, paso 3b)
+
+### D-581 · El cortador lee el texto reconocido de las páginas escaneadas
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** El prototipo del cortador solo miraba el texto que trae el PDF; en una hoja escaneada sin texto propio las fórmulas de apertura y de cierre, «página x de y» y los códigos no se ven, y el paso queda dudoso.
+- **Qué se decidió y por qué:** Para cada página, el cortador usa el texto que leyó un motor de reconocimiento cuando la ficha de forma la manda a leer o su capa de texto no es la suya, y el texto del PDF en las demás. Así las reglas también deciden en los escaneos ya leídos, sin preguntar. Si el texto de las páginas cambia (llega una lectura nueva), el archivo se corta otra vez. Alternativa: solo el texto del PDF, como el prototipo (más dudosos y más consultas al modelo).
+- **Quién decidió:** Claude, en la corrida desatendida
+
+### D-582 · Lo que dice el cortador se guarda paso por paso, con el comienzo del archivo como paso 0
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Hacía falta guardar, para cada PDF de dos páginas o más, lo que el cortador dice de cada paso, y saber cuándo rehacerlo.
+- **Qué se decidió y por qué:** Una tabla nueva en la versión 4 de la base (cut_step): una fila por paso de una página a la siguiente, con el veredicto (continúa, empieza otro, dudoso), la regla, la clave de la pregunta al modelo, lo que respondió y el tipo que sugiere la página siguiente según el vocabulario y según el modelo. El paso 0 es el comienzo del archivo y lleva el tipo de su primera página. Cada fila guarda la versión de las reglas y del catálogo y la fecha del último texto de las páginas: si cambia cualquiera, el archivo se corta otra vez. Alternativa: guardar solo los cortes (sin los pasos que continúan), lo que no deja ver por qué no se cortó.
+- **Quién decidió:** Claude, en la corrida desatendida
+
+### D-583 · Las preguntas de los pasos dudosos van antes de los tipos, sin etapa propia en el progreso
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Las preguntas al modelo de los pasos dudosos tienen que respetar la lectura automática y no trabar lo demás.
+- **Qué se decidió y por qué:** El hilo que pregunta al modelo hace primero, de a una, las preguntas de los pasos dudosos y después las de tipo, bajo la misma etapa «tipos» del progreso. Un motor que no puede mirar imágenes no pregunta nada de los cortes, sin error. Con la lectura apagada no se pregunta: el paso queda dudoso y cuenta como «continúa». Alternativa: una etapa propia «cortes» en el progreso, que pide cambiar la pantalla.
+- **Quién decidió:** Claude, en la corrida desatendida
+
+### D-584 · La pregunta de corte no lleva los números de página y su clave son las huellas exactas de las dos páginas
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La pregunta del prototipo nombraba las páginas por su número, así que las mismas dos páginas en otro archivo eran otra pregunta.
+- **Qué se decidió y por qué:** La instrucción (en el catálogo, cut.json, versión cut-ask/1, adaptada a D-527: lo que tiene emisor y fecha propios empieza otro documento) es la misma para todo par de páginas; la clave de la pregunta junta su versión, la huella exacta de cada página y el texto. Las imágenes van en color, con el lado largo de 1000 píxeles. Alternativa: dejar los números de página en la pregunta, como el prototipo, y preguntar de nuevo en cada archivo.
+- **Quién decidió:** Claude, en la corrida desatendida
+
+### D-585 · Una respuesta guardada sobre dos páginas se usa aunque la lectura automática esté apagada
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Con la lectura apagada no se pregunta nada; pero puede haber una respuesta ya guardada sobre las mismas dos páginas (de otro archivo, o sembrada desde una medición).
+- **Qué se decidió y por qué:** Al cortar con las reglas, un paso dudoso toma la respuesta guardada de sus dos páginas, del motor elegido o, sin motor elegido, de cualquiera, sin preguntar. Usar lo ya respondido no cuesta nada. Alternativa: con la lectura apagada, ignorar también lo guardado.
+- **Quién decidió:** Claude, en la corrida desatendida

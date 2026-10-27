@@ -3132,6 +3132,54 @@
       "referencia": "P-387; D-555; llm_wiki_mi/desatendido-12/paso3b-informe.md",
       "creado": "2026-10-27",
       "actualizado": "2026-10-27"
+    },
+    {
+      "id": "P-392",
+      "titulo": "Ver en la app: la base pasa a la versión 4 y el cortador trabaja de fondo sin preguntar con la lectura automática apagada",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "base",
+      "detalle": "Con la rama sesion-22/cortador (no con la app de llm_wiki_wt): abrí la app con la base nueva de siempre y la lectura automática apagada. Tiene que abrir como siempre (la base pasa sola de la versión 3 a la 4), seguir mostrando los mismos documentos, y no tiene que aparecer ninguna consulta nueva a Codex en «En curso». El cortador todavía no tiene pantalla: lo que dice queda guardado para el paso siguiente, que arma los documentos de cada parte. Medido sobre los seis PDF de la hoja de partes: solo con las reglas, 71 de 96 cortes, 2 de más, 25 perdidos, 57 de 104 documentos exactos y 47 pasos dudosos; con Codex en esos 47 pasos, 96 de 96 cortes, 3 de más, ninguno perdido y 97 de 104 documentos exactos (el prototipo: 89, 4, 7 y 83). 47 consultas, 367 segundos. De los otros 64 PDF de la carpeta, las reglas cortan 21 y dejan 266 pasos dudosos.",
+      "creado": "2026-10-27",
+      "actualizado": "2026-10-27"
+    },
+    {
+      "id": "P-393",
+      "titulo": "Decidir en qué PDF pregunta el cortador: con la lectura encendida preguntaría 266 pasos dudosos de PDF que no juntan documentos",
+      "tipo": "decision",
+      "responsable": "usuario",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "base",
+      "detalle": "Hoy, con la lectura automática encendida, el cortador pregunta a Codex cada paso dudoso de todo PDF de dos páginas o más (D-556). En la carpeta de prueba, además de los 47 pasos de los seis PDF de la hoja, quedan 266 pasos dudosos en los otros 64 PDF, casi todos de un solo documento largo: unas 266 consultas y cerca de 35 minutos de Codex, una sola vez (las mismas páginas no se preguntan dos veces). Opciones: a) dejarlo así; b) preguntar solo en los PDF donde las reglas ya cortaron algo (más barato, pero se pierden los compuestos de dos documentos digitales sin fórmulas); c) preguntar solo cuando la persona abre o pide cortar un PDF. Recomiendo medir b sobre la hoja antes de elegir.",
+      "creado": "2026-10-27",
+      "actualizado": "2026-10-27"
+    },
+    {
+      "id": "P-394",
+      "titulo": "Las preguntas de corte no se ven en «En curso» ni tienen etapa propia en el progreso",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "Las preguntas de los pasos dudosos corren en el hilo que pregunta al modelo bajo la etapa «tipos» (D-583), sin avisar a «En curso» qué documento se está mirando y sin contar cuántos pasos dudosos faltan. Falta: una etapa «cortes» (o el conteo dentro de «tipos») y el aviso de «En curso», con su palabra en el vocabulario de la vertical.",
+      "creado": "2026-10-27",
+      "actualizado": "2026-10-27"
+    },
+    {
+      "id": "P-395",
+      "titulo": "El cortador tarda casi un segundo por PDF: vuelve a abrir cada PDF para leer el tamaño y la imagen de cada página",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "base",
+      "detalle": "Medido: 70 PDF cortados por las reglas en 47 segundos, porque además de la ficha de forma el cortador abre cada PDF con pdfium para leer el tamaño de la página y la resolución y el espacio de color de su imagen principal. Es una sola vez por archivo y de fondo. Si molesta, esas señales pueden ir a la ficha de forma (una versión nueva de la ficha, que se calcularía otra vez para toda la base).",
+      "creado": "2026-10-27",
+      "actualizado": "2026-10-27"
     }
   ]
 }
