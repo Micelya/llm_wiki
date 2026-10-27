@@ -48,6 +48,9 @@ pub struct IncludedPart {
     pub cut_by: String,
     /// `proposed` or `confirmed`.
     pub cut_state: String,
+    /// The pages of the part whose step from the page before is doubtful
+    /// and no person decided: for a person to look at.
+    pub doubtful_pages: Vec<u32>,
 }
 
 /// A part of a file as the steps and a person's word give it.
@@ -319,7 +322,15 @@ impl DocBase {
     /// The documents a joined PDF includes, in order, with their pages,
     /// the state of their cut and who cut it; none for a file of one part.
     pub fn included_parts(&self, hash: &str) -> Result<Vec<IncludedPart>, String> {
+        let steps = self.cut_steps(hash)?;
         let conn = self.conn();
+        let decided = decisions(&conn, hash)?;
+        let doubtful: BTreeSet<u32> = steps
+            .iter()
+            .filter(|step| step.after > 0 && step.verdict == Verdict::Doubtful)
+            .map(|step| step.after + 1)
+            .filter(|page| !decided.contains_key(page))
+            .collect();
         let mut statement = conn
             .prepare(
                 "SELECT a.position, a.version_id, v.document_id, a.selector, a.cut_by, a.cut_state FROM appearance a
@@ -343,10 +354,15 @@ impl DocBase {
                     last_page: last,
                     cut_by: row.get::<_, Option<String>>(4)?.unwrap_or_default(),
                     cut_state: row.get(5)?,
+                    doubtful_pages: Vec::new(),
                 })
             })
             .map_err(sql_err)?;
-        rows.collect::<Result<_, _>>().map_err(sql_err)
+        let mut parts: Vec<IncludedPart> = rows.collect::<Result<_, _>>().map_err(sql_err)?;
+        for part in &mut parts {
+            part.doubtful_pages = doubtful.range(part.first_page..=part.last_page).copied().collect();
+        }
+        Ok(parts)
     }
 
     /// The number of pages of a cut file: none while it is not cut.
@@ -647,5 +663,54 @@ mod tests {
         assert_eq!(parts.len(), 3);
         let state = |id: i64| -> String { base.conn().query_row("SELECT state FROM version WHERE id = ?1", [id], |r| r.get(0)).unwrap() };
         assert_eq!((state(parts[0].version_id), state(parts[2].version_id)), ("processed".to_string(), "needs-recognition".to_string()));
+    }
+
+    #[test]
+    fn the_doubtful_steps_no_person_decided_are_marked_on_their_pages() {
+        let (_dir, base) = open();
+        add_file(&base, 1, "h1", &joined(&[1, 2, 3, 4, 5]));
+        cut(&base, "h1", 5, &[4], &[2, 3], 1);
+        base.cut_parts_pending(10).unwrap();
+        let parts = base.included_parts("h1").unwrap();
+        assert_eq!(parts.iter().map(|p| p.doubtful_pages.clone()).collect::<Vec<_>>(), vec![vec![2, 3], vec![]]);
+        // A person decides one of them: it is no longer for looking at.
+        let split = base.cut_split_at("h1", 3).unwrap();
+        assert_eq!(split.iter().map(|p| p.doubtful_pages.clone()).collect::<Vec<_>>(), vec![vec![2], vec![], vec![]]);
+        // Confirming leaves none.
+        assert!(base.cut_confirm_all("h1").unwrap().iter().all(|p| p.doubtful_pages.is_empty()));
+    }
+
+    #[test]
+    fn a_joined_file_says_what_it_includes_and_each_part_opens_as_a_document() {
+        let (_dir, base) = open();
+        add_file(&base, 1, "h1", &joined(&[1, 2, 3, 4]));
+        cut(&base, "h1", 4, &[3], &[], 1);
+        base.cut_parts_pending(10).unwrap();
+        let rows = base.documents(&crate::docbase::Visible::All, &Default::default()).unwrap().rows;
+        assert_eq!((rows[0].included, rows[0].unconfirmed_cuts), (2, 2));
+        let location = rows[0].location_id;
+        let parts = base.included_parts("h1").unwrap();
+        // The second part: its own text and its pages, inside the file.
+        let detail = base.document_part(&crate::docbase::Visible::All, location, parts[1].version_id).unwrap().unwrap();
+        assert_eq!(detail.row.content_id, Some(parts[1].version_id));
+        assert_eq!(detail.file_hash.as_deref(), Some("h1"));
+        let part = detail.part.unwrap();
+        assert_eq!((part.ordinal, part.count, part.first_page, part.last_page), (2, 2, 3, 4));
+        assert!(detail.text.unwrap().contains(&page_words(3)));
+        // The file itself is not one of its parts.
+        assert!(base.document_part(&crate::docbase::Visible::All, location, 1).unwrap().is_none());
+        // Its page opens inside the file.
+        base.conn()
+            .execute(
+                "INSERT INTO knowledge_page (entity_id, path, fingerprint, written_at) VALUES (?1, 'wiki/documents/parte.md', 'f', 1)",
+                [format!("doc-{}", parts[1].version_id)],
+            )
+            .unwrap();
+        let object = base.knowledge_object_of_page("wiki/documents/parte.md").unwrap().unwrap();
+        assert_eq!((object.location_id, object.included), (Some(location), true));
+        // Confirmed, nothing is left to confirm.
+        base.cut_confirm_all("h1").unwrap();
+        let rows = base.documents(&crate::docbase::Visible::All, &Default::default()).unwrap().rows;
+        assert_eq!((rows[0].included, rows[0].unconfirmed_cuts), (2, 0));
     }
 }

@@ -333,6 +333,17 @@ pub fn docbase_get_document(
     state.base()?.document(&Visible::All, location_id)
 }
 
+/// A document a joined file includes, seen from a location of that file:
+/// its text and its pages (D-560). None when it is not a part of it.
+#[tauri::command(async)]
+pub fn docbase_get_document_part(
+    state: State<'_, DocBaseState>,
+    location_id: i64,
+    version_id: i64,
+) -> Result<Option<DocumentDetail>, String> {
+    state.base()?.document_part(&Visible::All, location_id, version_id)
+}
+
 #[tauri::command(async)]
 pub fn docbase_label_groups(state: State<'_, DocBaseState>) -> Result<Vec<LabelGroup>, String> {
     state.base()?.label_groups()

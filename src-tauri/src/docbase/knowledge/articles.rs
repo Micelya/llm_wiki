@@ -56,6 +56,9 @@ pub struct PageObject {
     /// it, to open its screen.
     pub content_id: Option<i64>,
     pub location_id: Option<i64>,
+    /// The document has no file of its own: it is one of the documents a
+    /// joined file includes, and `location_id` is a place of that file.
+    pub included: bool,
 }
 
 /// The overview of the archive.
@@ -186,6 +189,7 @@ impl DocBase {
                 path: OVERVIEW_PATH.into(),
                 content_id: None,
                 location_id: None,
+                included: false,
             }));
         }
         let conn = self.conn();
@@ -201,19 +205,29 @@ impl DocBase {
         let Some((id, path)) = found else { return Ok(None) };
         let Some(kind) = kind_of(id) else { return Ok(None) };
         let content_id = id.strip_prefix("doc-").and_then(|n| n.parse::<i64>().ok());
-        let location_id = match content_id {
-            Some(content) => conn
-                .query_row(
-                    "SELECT l.id FROM location l JOIN file f ON f.hash = l.file_hash WHERE f.version_id = ?1 AND l.kind = 'file'
-                     ORDER BY l.id LIMIT 1",
-                    [content],
-                    |row| row.get(0),
-                )
-                .optional()
-                .map_err(sql_err)?,
+        let first_location = |sql: &str, content: i64| -> Result<Option<i64>, String> {
+            conn.query_row(sql, [content], |row| row.get(0)).optional().map_err(sql_err)
+        };
+        let own = match content_id {
+            Some(content) => first_location(
+                "SELECT l.id FROM location l JOIN file f ON f.hash = l.file_hash WHERE f.version_id = ?1 AND l.kind = 'file'
+                 ORDER BY l.id LIMIT 1",
+                content,
+            )?,
             None => None,
         };
-        Ok(Some(PageObject { object_id: id.clone(), kind: kind.into(), path: path.clone(), content_id, location_id }))
+        // A document a joined file includes opens inside that file.
+        let of_file = match (content_id, own) {
+            (Some(content), None) => first_location(
+                "SELECT l.id FROM appearance a JOIN location l ON l.file_hash = a.resource_hash
+                 WHERE a.version_id = ?1 AND a.selector <> 'file' AND l.kind = 'file' ORDER BY l.id LIMIT 1",
+                content,
+            )?,
+            _ => None,
+        };
+        let included = of_file.is_some();
+        let location_id = own.or(of_file);
+        Ok(Some(PageObject { object_id: id.clone(), kind: kind.into(), path: path.clone(), content_id, location_id, included }))
     }
 
     /// A page whole, as the old wiki's file had it (what the app wrote, then

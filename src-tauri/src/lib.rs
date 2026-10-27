@@ -468,6 +468,7 @@ pub fn run() {
             docbase::commands::docbase_set_excluded,
             docbase::commands::docbase_open_folder,
             docbase::commands::docbase_get_document,
+            docbase::commands::docbase_get_document_part,
             docbase::commands::docbase_document_copies,
             docbase::commands::docbase_label_groups,
             docbase::commands::docbase_ensure_label,
