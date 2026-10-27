@@ -1,0 +1,145 @@
+{
+ "app_contra_la_hoja": {
+  "carpeta": "empresa",
+  "documentos": 66,
+  "con_texto": 55,
+  "por_relacion": {
+   "none": [
+    12,
+    12,
+    0,
+    0
+   ],
+   "preview": [
+    1,
+    0,
+    0,
+    1
+   ],
+   "same-document": [
+    12,
+    11,
+    1,
+    0
+   ],
+   "same-template": [
+    26,
+    24,
+    0,
+    2
+   ],
+   "signed-copy": [
+    4,
+    4,
+    0,
+    0
+   ],
+   "version": [
+    2,
+    2,
+    0,
+    0
+   ]
+  },
+  "columnas": [
+   "esperados",
+   "aciertos",
+   "equivocados",
+   "no_encontrados"
+  ],
+  "total": [
+   57,
+   53,
+   1,
+   3
+  ],
+  "propuestas_que_la_hoja_no_juzga": 12,
+  "segundos_lectura": 10.1,
+  "segundos_comparacion": 5.6,
+  "compilacion": "debug"
+ },
+ "app_con_compuestos_partidos": {
+  "pares_de_la_app": 392,
+  "partes": 104,
+  "partes_con_algun_suelto": 14,
+  "relaciones_parte_suelto": {
+   "contained-in": 2,
+   "same-template": 8,
+   "signed-copy": 1,
+   "similar": 16,
+   "version": 2
+  },
+  "grupo_del_suelto": {
+   "caso": 21,
+   "empresa": 8
+  },
+  "otros_pares": {
+   "suelto-suelto:contained-in": 11,
+   "suelto-suelto:same-template": 131,
+   "parte-parte:same-template": 8,
+   "suelto-suelto:signed-copy": 5,
+   "parte-su-compuesto:signed-copy": 1,
+   "suelto-suelto:similar": 167,
+   "parte-parte:similar": 34,
+   "suelto-suelto:version": 5,
+   "parte-parte:version": 1
+  },
+  "rutas_sin_mapa": 0,
+  "partes_con_suelto_por_relacion": {
+   "contained-in": 2,
+   "same-template": 3,
+   "signed-copy": 1,
+   "similar": 7,
+   "version": 2
+  },
+  "documentos_en_la_base": 234,
+  "con_texto": 171,
+  "segundos_lectura": 11.4,
+  "segundos_comparacion": 9.9
+ },
+ "cruce_con_phash": {
+  "hoja": {
+   "none | nada | mismo": 1,
+   "none | nada | nada": 4,
+   "none | nada | no-pdf": 7,
+   "preview | nada | no-pdf": 1,
+   "same-document | idénticos | -": 7,
+   "same-document | nada | mismo": 2,
+   "same-document | nada | no-pdf": 2,
+   "same-document | version | mismo": 1,
+   "same-template | nada | no-pdf": 1,
+   "same-template | same-template | dentro": 1,
+   "same-template | same-template | mismo": 1,
+   "same-template | same-template | nada": 18,
+   "same-template | same-template | parcial": 4,
+   "same-template | similar | nada": 1,
+   "signed-copy | signed-copy | dentro": 4,
+   "version | nada | no-pdf": 1,
+   "version | version | no-pdf": 1
+  },
+  "hoja_correcciones": {
+   "phash_no_ayuda": 17,
+   "phash_tambien_se_equivoca": 1,
+   "app_bien_y_phash_falso": 2,
+   "phash_avisa_mismo_documento_que_la_app_no_dio": 3
+  },
+  "partes": {
+   "app_debil / phash_nada / con_texto": 8,
+   "app_nada / phash_nada / sin_texto": 18,
+   "app_nada / phash_nada / con_texto": 69,
+   "app_fuerte / phash_nada / con_texto": 4,
+   "app_fuerte / phash / con_texto": 1,
+   "mismo_suelto_en_los_dos": 1,
+   "app_nada / phash / con_texto": 3,
+   "app_debil / phash / con_texto": 1
+  },
+  "partes_sin_texto": 18,
+  "partes_total": 104
+ },
+ "revision_de_casos_de_un_solo_metodo": {
+  "phash_solo_con_texto_compartido_0": 3,
+  "phash_solo_con_texto_compartido_alto": 1,
+  "app_fuerte_el_suelto_contiene_a_la_parte": 3,
+  "app_version_sin_coincidencia_de_imagen": 1
+ }
+}
