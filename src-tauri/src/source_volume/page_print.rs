@@ -214,7 +214,7 @@ mod tests {
         let letter = page(&[(20, 140), (40, 120), (60, 140), (80, 60)]);
         let again = page(&[(20, 140), (40, 120), (60, 140), (80, 60)]);
         let other = page(&[(120, 40), (200, 140), (220, 140)]);
-        let text = "Señor Juez: la parte actora se presenta y solicita lo que sigue.";
+        let text = "Señora Directora: el grupo de lectura informa el horario de la reunión.";
         let (a, b, c) = (PagePrint::of(1, &letter, text), PagePrint::of(2, &again, text), PagePrint::of(1, &other, "Anexo"));
         assert_eq!((a.exact_hash.as_str(), a.phash.as_str()), (b.exact_hash.as_str(), b.phash.as_str()));
         assert_eq!(a.phash.len(), 16);
@@ -245,7 +245,7 @@ mod tests {
         assert_eq!(normalized_text("  Señor JUEZ: art. 3º, inc. «b»—fs. 12/13  "), "senor juez art 3o inc b fs 12 13");
         assert_eq!(text_hash("corto"), None);
         assert_eq!(text_hash("Á B C"), None);
-        let long = "La parte actora solicita se dicte sentencia conforme a derecho";
+        let long = "El grupo de lectura informa el horario de la reunion semanal";
         assert_eq!(text_hash(long), text_hash(&long.to_uppercase()));
     }
 }
