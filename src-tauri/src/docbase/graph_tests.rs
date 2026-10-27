@@ -11,8 +11,8 @@ fn document(base: &DocBase, id: i64, origin: &str) {
         [origin],
     )
     .unwrap();
-    conn.execute("INSERT INTO content (id, state, first_seen_at) VALUES (?1, 'done', 0)", [id]).unwrap();
-    conn.execute("INSERT INTO file (hash, content_id, size) VALUES (?1, ?2, 1)", params![format!("h{id}"), id]).unwrap();
+    conn.execute("INSERT INTO version (id, state, first_seen_at) VALUES (?1, 'done', 0)", [id]).unwrap();
+    conn.execute("INSERT INTO file (hash, version_id, size) VALUES (?1, ?2, 1)", params![format!("h{id}"), id]).unwrap();
     conn.execute(
         "INSERT INTO location (origin_id, rel_path, folder, name, ext, size, mtime_ms, file_hash, first_seen_at, last_seen_at)
          VALUES (?1, ?2, '', ?3, 'pdf', 1, 0, ?4, 0, 0)",
@@ -43,7 +43,7 @@ fn person(base: &DocBase, id: &str, name: &str) {
 fn mention(base: &DocBase, content: i64, entity: &str, role: &str) -> i64 {
     let conn = base.conn();
     conn.execute(
-        "INSERT INTO knowledge_mention (content_id, ref, kind, written, normalized, role, quote, entity_id)
+        "INSERT INTO knowledge_mention (version_id, ref, kind, written, normalized, role, quote, entity_id)
          VALUES (?1, ?2, 'persona', ?3, ?3, ?4, ?5, ?3)",
         params![content, format!("{entity}-{content}-{role}"), entity, role, format!("cita de {entity}")],
     )
@@ -71,7 +71,7 @@ fn edges_are_the_relations_of_the_base_with_type_quote_and_state() {
         )
         .unwrap();
         conn.execute(
-            "INSERT INTO knowledge_evidence (content_id, subject_mention, predicate, object_mention, quote, claim_id)
+            "INSERT INTO knowledge_evidence (version_id, subject_mention, predicate, object_mention, quote, claim_id)
              VALUES (1, ?1, 'representa_a', ?2, 'Beto en nombre de Ana', 1)",
             params![b1, a1],
         )
@@ -151,8 +151,8 @@ fn nodes_are_the_objects_of_the_base_with_or_without_a_page() {
             )
             .unwrap();
         }
-        conn.execute("INSERT INTO knowledge_matter_document (matter_id, content_id, state) VALUES ('mat-p', 2, 'proposed')", []).unwrap();
-        conn.execute("INSERT INTO knowledge_matter_document (matter_id, content_id) VALUES ('mat-d', 5)", []).unwrap();
+        conn.execute("INSERT INTO knowledge_matter_document (matter_id, version_id, state) VALUES ('mat-p', 2, 'proposed')", []).unwrap();
+        conn.execute("INSERT INTO knowledge_matter_document (matter_id, version_id) VALUES ('mat-d', 5)", []).unwrap();
     }
     mention(&base, 2, "ent-m", "parte");
     mention(&base, 5, "ent-c", "emisor");

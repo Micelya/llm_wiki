@@ -118,7 +118,7 @@ impl Archive {
     fn content(&self, file: &str) -> i64 {
         self.base
             .conn()
-            .query_row("SELECT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.name = ?1", [file], |r| r.get(0))
+            .query_row("SELECT f.version_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.name = ?1", [file], |r| r.get(0))
             .unwrap_or_else(|_| panic!("no document {file}"))
     }
 
@@ -130,12 +130,12 @@ impl Archive {
         let location: i64 = self
             .base
             .conn()
-            .query_row("SELECT l.id FROM location l JOIN file f ON f.hash = l.file_hash WHERE f.content_id = ?1 LIMIT 1", [content], |r| r.get(0))
+            .query_row("SELECT l.id FROM location l JOIN file f ON f.hash = l.file_hash WHERE f.version_id = ?1 LIMIT 1", [content], |r| r.get(0))
             .unwrap();
         let target = super::extract::RereadTarget { location_id: Some(location), ..Default::default() };
         assert_eq!(self.base.knowledge_request_reread(&target).unwrap(), 1);
         let conn = self.base.conn();
-        conn.execute("DELETE FROM model_answer WHERE content_id = ?1", [content]).unwrap();
+        conn.execute("DELETE FROM model_answer WHERE version_id = ?1", [content]).unwrap();
         drop(conn);
         read(&self.base, &self.model);
         self.project();
@@ -145,7 +145,7 @@ impl Archive {
         let content = self.content(file);
         self.base
             .conn()
-            .query_row("SELECT id FROM knowledge_mention WHERE content_id = ?1 AND written = ?2", rusqlite::params![content, written], |r| r.get(0))
+            .query_row("SELECT id FROM knowledge_mention WHERE version_id = ?1 AND written = ?2", rusqlite::params![content, written], |r| r.get(0))
             .unwrap_or_else(|_| panic!("no mention {written} in {file}"))
     }
 
@@ -154,7 +154,7 @@ impl Archive {
         self.base
             .conn()
             .query_row(
-                "SELECT entity_id FROM knowledge_mention WHERE content_id = ?1 AND written = ?2",
+                "SELECT entity_id FROM knowledge_mention WHERE version_id = ?1 AND written = ?2",
                 rusqlite::params![content, written],
                 |r| r.get(0),
             )
@@ -165,7 +165,7 @@ impl Archive {
         let content = self.content(file);
         self.base
             .conn()
-            .query_row("SELECT id FROM knowledge_evidence WHERE content_id = ?1 AND predicate = ?2", rusqlite::params![content, predicate], |r| {
+            .query_row("SELECT id FROM knowledge_evidence WHERE version_id = ?1 AND predicate = ?2", rusqlite::params![content, predicate], |r| {
                 r.get(0)
             })
             .unwrap_or_else(|_| panic!("no {predicate} in {file}"))

@@ -92,8 +92,8 @@ fn identities(base: &DocBase) -> Result<BTreeMap<i64, Vec<String>>, String> {
         let mount = origin.name.as_str();
         let mut statement = conn
             .prepare(&format!(
-                "SELECT l.rel_path, f.content_id FROM location l JOIN file f ON f.hash = l.file_hash
-                 WHERE l.origin_id = ?1 AND l.kind = 'file' AND f.content_id IS NOT NULL AND NOT {} ORDER BY l.rel_path",
+                "SELECT l.rel_path, f.version_id FROM location l JOIN file f ON f.hash = l.file_hash
+                 WHERE l.origin_id = ?1 AND l.kind = 'file' AND f.version_id IS NOT NULL AND NOT {} ORDER BY l.rel_path",
                 crate::docbase::excluded_sql!()
             ))
             .map_err(sql_err)?;
@@ -220,7 +220,7 @@ pub(super) fn file_title(conn: &Connection, record: &Record, content: i64) -> Re
 /// its first letter in capitals ("Carta documento").
 fn type_name(conn: &Connection, content: i64) -> Result<Option<String>, String> {
     let row: Option<(String, Option<String>)> = conn
-        .query_row("SELECT doc_type, proposed_name FROM document_type WHERE content_id = ?1", [content], |row| Ok((row.get(0)?, row.get(1)?)))
+        .query_row("SELECT doc_type, proposed_name FROM document_type WHERE version_id = ?1", [content], |row| Ok((row.get(0)?, row.get(1)?)))
         .optional()
         .map_err(sql_err)?;
     Ok(row.filter(|(id, _)| !id.trim().is_empty()).map(|(id, proposed)| {
@@ -238,7 +238,7 @@ fn type_name(conn: &Connection, content: i64) -> Result<Option<String>, String> 
 /// The data of a document as the base keeps it: (field, value), in order.
 fn data_of(conn: &Connection, content: i64) -> Result<Vec<(String, String)>, String> {
     let row: Option<String> =
-        conn.query_row("SELECT data FROM document_data WHERE content_id = ?1", [content], |row| row.get(0)).optional().map_err(sql_err)?;
+        conn.query_row("SELECT data FROM document_data WHERE version_id = ?1", [content], |row| row.get(0)).optional().map_err(sql_err)?;
     let list: Vec<serde_json::Value> = row.and_then(|d| serde_json::from_str(&d).ok()).unwrap_or_default();
     Ok(list
         .iter()
@@ -305,12 +305,12 @@ fn parties_of(vocabulary: &Vocabulary, record: &Record, content: i64) -> String 
 /// summary when its kind is not known; none when the base knows neither.
 fn readable_title(conn: &Connection, vocabulary: &Vocabulary, record: &Record, content: i64) -> Result<Option<String>, String> {
     let doc_type: Option<String> = conn
-        .query_row("SELECT doc_type FROM document_type WHERE content_id = ?1", [content], |row| row.get(0))
+        .query_row("SELECT doc_type FROM document_type WHERE version_id = ?1", [content], |row| row.get(0))
         .optional()
         .map_err(sql_err)?;
     let Some(doc_type) = doc_type.filter(|t| !t.trim().is_empty()) else {
         let topic: Option<String> = conn
-            .query_row("SELECT topic FROM knowledge_summary WHERE content_id = ?1", [content], |row| row.get(0))
+            .query_row("SELECT topic FROM knowledge_summary WHERE version_id = ?1", [content], |row| row.get(0))
             .optional()
             .map_err(sql_err)?
             .flatten();
@@ -339,7 +339,7 @@ fn readable_title(conn: &Connection, vocabulary: &Vocabulary, record: &Record, c
         title.push_str(&format!(" {parties}"));
     }
     let read: Option<String> = conn
-        .query_row("SELECT doc_date FROM knowledge_extraction WHERE content_id = ?1", [content], |row| row.get(0))
+        .query_row("SELECT doc_date FROM knowledge_extraction WHERE version_id = ?1", [content], |row| row.get(0))
         .optional()
         .map_err(sql_err)?
         .flatten();
@@ -437,7 +437,7 @@ fn version_labels(conn: &Connection, vocabulary: &Vocabulary, family: &Family) -
     let mut labels: Vec<String> = Vec::new();
     for content in &family.members {
         let stage: Option<String> = conn
-            .query_row("SELECT stage FROM document_type WHERE content_id = ?1", [content], |row| row.get(0))
+            .query_row("SELECT stage FROM document_type WHERE version_id = ?1", [content], |row| row.get(0))
             .optional()
             .map_err(sql_err)?
             .flatten();
@@ -471,12 +471,12 @@ fn versions_mark(labels: &[String], family: &Family, contents: &BTreeSet<i64>) -
 fn facts_of(conn: &Connection, vocabulary: &Vocabulary, content: i64) -> Result<Vec<String>, String> {
     let words = &vocabulary.pages;
     let (doc_type, stage): (Option<String>, Option<String>) = conn
-        .query_row("SELECT doc_type, stage FROM document_type WHERE content_id = ?1", [content], |row| Ok((row.get(0)?, row.get(1)?)))
+        .query_row("SELECT doc_type, stage FROM document_type WHERE version_id = ?1", [content], |row| Ok((row.get(0)?, row.get(1)?)))
         .optional()
         .map_err(sql_err)?
         .unwrap_or((None, None));
     let date: Option<String> = conn
-        .query_row("SELECT doc_date FROM knowledge_extraction WHERE content_id = ?1", [content], |row| row.get(0))
+        .query_row("SELECT doc_date FROM knowledge_extraction WHERE version_id = ?1", [content], |row| row.get(0))
         .optional()
         .map_err(sql_err)?
         .flatten();
@@ -494,7 +494,7 @@ fn facts_of(conn: &Connection, vocabulary: &Vocabulary, content: i64) -> Result<
 /// The words of a document's text, to know which versions say a quote.
 fn text_words(conn: &Connection, content: i64) -> Result<Vec<String>, String> {
     let body: Option<String> = conn
-        .query_row("SELECT body FROM derivative WHERE content_id = ?1 AND kind = 'text'", [content], |row| row.get(0))
+        .query_row("SELECT body FROM derivative WHERE version_id = ?1 AND kind = 'text'", [content], |row| row.get(0))
         .optional()
         .map_err(sql_err)?;
     Ok(quote::words(&body.unwrap_or_default()))
@@ -562,7 +562,7 @@ pub(super) fn render_document(
     let mut summaries: Vec<(i64, Option<String>, Vec<super::super::extract::SummaryPoint>)> = Vec::new();
     for &content in &family.members {
         let row: Option<(Option<String>, String)> = conn
-            .query_row("SELECT topic, points FROM knowledge_summary WHERE content_id = ?1", [content], |row| Ok((row.get(0)?, row.get(1)?)))
+            .query_row("SELECT topic, points FROM knowledge_summary WHERE version_id = ?1", [content], |row| Ok((row.get(0)?, row.get(1)?)))
             .optional()
             .map_err(sql_err)?;
         if let Some((topic, points)) = row {
@@ -622,7 +622,7 @@ pub(super) fn render_document(
     let mut data: BTreeMap<(String, String), BTreeSet<i64>> = BTreeMap::new();
     let mut order: Vec<(String, String)> = Vec::new();
     let principal_type: Option<String> =
-        conn.query_row("SELECT doc_type FROM document_type WHERE content_id = ?1", [principal], |row| row.get(0)).optional().map_err(sql_err)?;
+        conn.query_row("SELECT doc_type FROM document_type WHERE version_id = ?1", [principal], |row| row.get(0)).optional().map_err(sql_err)?;
     for &content in &family.members {
         for (field, value) in data_of(conn, content)? {
             let value = if data_kind(principal_type.as_deref(), &field).as_deref() == Some("date") { spelled_date(vocabulary, &value) } else { value };
@@ -668,7 +668,7 @@ pub(super) fn render_document(
         let mut of_evidence: HashMap<i64, i64> = HashMap::new();
         {
             let mut statement =
-                conn.prepare("SELECT id, claim_id FROM knowledge_evidence WHERE content_id = ?1 AND claim_id IS NOT NULL").map_err(sql_err)?;
+                conn.prepare("SELECT id, claim_id FROM knowledge_evidence WHERE version_id = ?1 AND claim_id IS NOT NULL").map_err(sql_err)?;
             let rows = statement.query_map([content], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?))).map_err(sql_err)?;
             for row in rows {
                 let (evidence, claim) = row.map_err(sql_err)?;

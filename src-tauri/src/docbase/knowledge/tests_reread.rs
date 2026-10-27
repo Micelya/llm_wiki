@@ -150,7 +150,7 @@ fn what_was_read_with_another_version_or_model_is_counted_and_read_again_only_wh
 
     // One of them with an earlier version of the question too: still two documents.
     base.conn()
-        .execute("UPDATE knowledge_extraction SET prompt_version = 'conocimiento-0' WHERE content_id = (SELECT min(content_id) FROM knowledge_extraction)", [])
+        .execute("UPDATE knowledge_extraction SET prompt_version = 'conocimiento-0' WHERE version_id = (SELECT min(version_id) FROM knowledge_extraction)", [])
         .unwrap();
     let plan = base.knowledge_reread_plan(&outdated).unwrap();
     assert_eq!((plan.documents, plan.other_model, plan.older_version), (2, 2, 1), "{plan:?}");

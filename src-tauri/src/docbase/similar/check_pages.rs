@@ -58,8 +58,8 @@ fn key(path: &str) -> String {
 fn texts(conn: &Connection) -> HashMap<String, (Option<String>, Option<String>, Option<String>)> {
     let mut statement = conn
         .prepare(
-            "SELECT f.hash, c.text_hash, d.body, d.engine FROM file f JOIN content c ON c.id = f.content_id
-             LEFT JOIN derivative d ON d.content_id = c.id AND d.kind = 'text'",
+            "SELECT f.hash, c.text_hash, d.body, d.engine FROM file f JOIN version c ON c.id = f.version_id
+             LEFT JOIN derivative d ON d.version_id = c.id AND d.kind = 'text'",
         )
         .unwrap();
     let rows = statement
@@ -138,7 +138,7 @@ fn pages_and_their_prints() {
         ),
         count(
             &conn,
-            "SELECT count(*) FROM file f JOIN derivative d ON d.content_id = f.content_id AND d.kind = 'text'
+            "SELECT count(*) FROM file f JOIN derivative d ON d.version_id = f.version_id AND d.kind = 'text'
              WHERE NOT EXISTS (SELECT 1 FROM resource_text t WHERE t.resource_hash = f.hash)"
         ),
     );

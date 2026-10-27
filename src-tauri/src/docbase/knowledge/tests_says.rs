@@ -181,7 +181,7 @@ fn the_same_number_read_as_another_kind_is_that_identifier() {
     let entity_of = |content: &str| -> String {
         base.conn()
             .query_row(
-                "SELECT m.entity_id FROM knowledge_mention m JOIN file f ON f.content_id = m.content_id JOIN location l ON l.file_hash = f.hash
+                "SELECT m.entity_id FROM knowledge_mention m JOIN file f ON f.version_id = m.version_id JOIN location l ON l.file_hash = f.hash
                  WHERE l.name = ?1",
                 [content],
                 |row| row.get(0),

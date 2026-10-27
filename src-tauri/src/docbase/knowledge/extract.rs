@@ -214,8 +214,8 @@ pub(crate) fn standings(conn: &Connection, visible: &Visible, only: Option<i64>)
         .prepare(&format!(
             "SELECT c.id, d.created_at, k.state, k.basis, k.text_at, k.prompt_version, k.vocabulary, k.discarded, k.text_hash,
                     k.engine
-             FROM content c JOIN derivative d ON d.content_id = c.id AND d.kind = 'text'
-             LEFT JOIN knowledge_extraction k ON k.content_id = c.id
+             FROM version c JOIN derivative d ON d.version_id = c.id AND d.kind = 'text'
+             LEFT JOIN knowledge_extraction k ON k.version_id = c.id
              WHERE c.state = 'processed' AND coalesce(c.word_count, 0) >= ?1 AND (?2 IS NULL OR c.id = ?2) AND {condition}
                AND {active}
              ORDER BY c.id",
@@ -329,14 +329,14 @@ pub struct Hints {
 
 fn hints(conn: &Connection, content_id: i64, body: &str) -> Result<Hints, String> {
     let (doc_type, stage): (Option<String>, Option<String>) = conn
-        .query_row("SELECT doc_type, stage FROM document_type WHERE content_id = ?1", [content_id], |row| {
+        .query_row("SELECT doc_type, stage FROM document_type WHERE version_id = ?1", [content_id], |row| {
             Ok((row.get(0)?, row.get(1)?))
         })
         .optional()
         .map_err(sql_err)?
         .unwrap_or((None, None));
     let data: Vec<Datum> = conn
-        .query_row("SELECT data FROM document_data WHERE content_id = ?1", [content_id], |row| row.get::<_, String>(0))
+        .query_row("SELECT data FROM document_data WHERE version_id = ?1", [content_id], |row| row.get::<_, String>(0))
         .optional()
         .map_err(sql_err)?
         .and_then(|d| serde_json::from_str(&d).ok())
@@ -2273,16 +2273,16 @@ fn write_reading(
 ) -> Result<(), String> {
     let vocabulary = vocabulary();
     let tx = conn.transaction().map_err(sql_err)?;
-    tx.execute("DELETE FROM knowledge_mention WHERE content_id = ?1", [pending.content_id]).map_err(sql_err)?;
-    tx.execute("DELETE FROM knowledge_evidence WHERE content_id = ?1", [pending.content_id]).map_err(sql_err)?;
-    tx.execute("DELETE FROM knowledge_summary WHERE content_id = ?1", [pending.content_id]).map_err(sql_err)?;
+    tx.execute("DELETE FROM knowledge_mention WHERE version_id = ?1", [pending.content_id]).map_err(sql_err)?;
+    tx.execute("DELETE FROM knowledge_evidence WHERE version_id = ?1", [pending.content_id]).map_err(sql_err)?;
+    tx.execute("DELETE FROM knowledge_summary WHERE version_id = ?1", [pending.content_id]).map_err(sql_err)?;
     let doc_date = reading.ok().and_then(|r| r.doc_date.clone());
     let (state, mentions, evidence, discarded, error) = match reading {
         Ok(reading) => {
             let mut ids: HashMap<&str, i64> = HashMap::new();
             for mention in &reading.mentions {
                 tx.execute(
-                    "INSERT INTO knowledge_mention (content_id, ref, same_as, kind, written, normalized, role, quote, page, defined)
+                    "INSERT INTO knowledge_mention (version_id, ref, same_as, kind, written, normalized, role, quote, page, defined)
                      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
                     params![
                         pending.content_id,
@@ -2312,7 +2312,7 @@ fn write_reading(
             for item in &reading.evidence {
                 tx.execute(
                     "INSERT INTO knowledge_evidence
-                        (content_id, subject_mention, predicate, object_mention, object_value, object_normalized, quote, page, fact_time,
+                        (version_id, subject_mention, predicate, object_mention, object_value, object_normalized, quote, page, fact_time,
                          amount, detail)
                      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
                     params![
@@ -2334,7 +2334,7 @@ fn write_reading(
             // The summary, its mentions and the evidence its quotes back
             // by the ids just written (D-330).
             let evidence_ids: Vec<(i64, String)> = {
-                let mut statement = tx.prepare("SELECT id, quote FROM knowledge_evidence WHERE content_id = ?1 ORDER BY id").map_err(sql_err)?;
+                let mut statement = tx.prepare("SELECT id, quote FROM knowledge_evidence WHERE version_id = ?1 ORDER BY id").map_err(sql_err)?;
                 let rows = statement
                     .query_map([pending.content_id], |row| Ok((row.get(0)?, row.get(1)?)))
                     .map_err(sql_err)?
@@ -2354,7 +2354,7 @@ fn write_reading(
                 .collect();
             if reading.summary.topic.is_some() || !points.is_empty() {
                 tx.execute(
-                    "INSERT INTO knowledge_summary (content_id, topic, points) VALUES (?1, ?2, ?3)",
+                    "INSERT INTO knowledge_summary (version_id, topic, points) VALUES (?1, ?2, ?3)",
                     params![pending.content_id, reading.summary.topic, serde_json::to_string(&points).map_err(|e| e.to_string())?],
                 )
                 .map_err(sql_err)?;
@@ -2371,10 +2371,10 @@ fn write_reading(
     };
     tx.execute(
         "INSERT INTO knowledge_extraction
-            (content_id, state, basis, prompt_version, vocabulary, text_hash, text_at, engine, questions, parts, mentions,
+            (version_id, state, basis, prompt_version, vocabulary, text_hash, text_at, engine, questions, parts, mentions,
              evidence, discarded, error, extracted_at, doc_date)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
-         ON CONFLICT (content_id) DO UPDATE SET
+         ON CONFLICT (version_id) DO UPDATE SET
             state = excluded.state, basis = excluded.basis, prompt_version = excluded.prompt_version,
             vocabulary = excluded.vocabulary, text_hash = excluded.text_hash, text_at = excluded.text_at, engine = excluded.engine,
             questions = excluded.questions, parts = excluded.parts, mentions = excluded.mentions,
@@ -2482,13 +2482,13 @@ impl DocBase {
         let mut waiting_count = 0;
         for standing in stale {
             let body: String = conn
-                .query_row("SELECT body FROM derivative WHERE content_id = ?1 AND kind = 'text'", [standing.content_id], |row| row.get(0))
+                .query_row("SELECT body FROM derivative WHERE version_id = ?1 AND kind = 'text'", [standing.content_id], |row| row.get(0))
                 .map_err(sql_err)?;
             let hash = text_hash(&body);
             let reading = standing.reading.as_ref();
             if reading.is_some_and(|r| !r.reread && r.hash == hash && !(r.state == "failed" && r.older)) {
                 // The same text written again: the reading stands as it was.
-                conn.execute("UPDATE knowledge_extraction SET text_at = ?1 WHERE content_id = ?2", params![standing.text_at, standing.content_id])
+                conn.execute("UPDATE knowledge_extraction SET text_at = ?1 WHERE version_id = ?2", params![standing.text_at, standing.content_id])
                     .map_err(sql_err)?;
                 continue;
             }
@@ -2528,7 +2528,7 @@ impl DocBase {
             #[allow(clippy::type_complexity)]
             let (basis_kept, prompt_version, hash, text_at, engine, keys, extracted_at): (String, String, String, i64, Option<String>, String, i64) = conn
                 .query_row(
-                    "SELECT basis, prompt_version, text_hash, text_at, engine, questions, extracted_at FROM knowledge_extraction WHERE content_id = ?1",
+                    "SELECT basis, prompt_version, text_hash, text_at, engine, questions, extracted_at FROM knowledge_extraction WHERE version_id = ?1",
                     [content_id],
                     |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?)),
                 )
@@ -2546,7 +2546,7 @@ impl DocBase {
                 }
             }
             if keys.is_empty() || answers.len() < keys.len() {
-                conn.execute("UPDATE knowledge_extraction SET vocabulary = ?1 WHERE content_id = ?2", params![vocabulary.reading_digest, content_id])
+                conn.execute("UPDATE knowledge_extraction SET vocabulary = ?1 WHERE version_id = ?2", params![vocabulary.reading_digest, content_id])
                     .map_err(sql_err)?;
                 continue;
             }
@@ -2580,7 +2580,7 @@ impl DocBase {
         let conn = self.conn();
         let contents: BTreeSet<i64> = match target.location_id {
             Some(location) => conn
-                .query_row("SELECT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.id = ?1", [location], |row| row.get(0))
+                .query_row("SELECT f.version_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.id = ?1", [location], |row| row.get(0))
                 .optional()
                 .map_err(sql_err)?
                 .into_iter()
@@ -2612,7 +2612,7 @@ impl DocBase {
                 plan.other_model += usize::from(reading.other_model(answering.as_deref()));
             }
             let parts_kept: i64 = conn
-                .query_row("SELECT parts FROM knowledge_extraction WHERE content_id = ?1", [standing.content_id], |row| row.get(0))
+                .query_row("SELECT parts FROM knowledge_extraction WHERE version_id = ?1", [standing.content_id], |row| row.get(0))
                 .map_err(sql_err)?;
             plan.questions += if parts_kept > 0 { parts_kept as usize } else { parts(&classify::body_of(&conn, standing.content_id)?).len().max(1) };
         }
@@ -2635,7 +2635,7 @@ impl DocBase {
                 continue;
             }
             conn.execute(
-                "UPDATE knowledge_extraction SET basis = ?1 WHERE content_id = ?2",
+                "UPDATE knowledge_extraction SET basis = ?1 WHERE version_id = ?2",
                 params![format!("{REREAD}{now}|{}", reading.basis), standing.content_id],
             )
             .map_err(sql_err)?;
@@ -2695,7 +2695,7 @@ impl DocBase {
             .collect();
         let conn = self.conn();
         for content_id in &failed {
-            conn.execute("DELETE FROM knowledge_extraction WHERE content_id = ?1 AND state = 'failed'", [content_id])
+            conn.execute("DELETE FROM knowledge_extraction WHERE version_id = ?1 AND state = 'failed'", [content_id])
                 .map_err(sql_err)?;
         }
         Ok(failed.len())

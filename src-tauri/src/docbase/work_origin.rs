@@ -375,7 +375,7 @@ mod tests {
             let mut statement = conn.prepare("SELECT id FROM location ORDER BY id").unwrap();
             statement.query_map([], |row| row.get(0)).unwrap().map(Result::unwrap).collect()
         };
-        let contents = count(&base, "SELECT count(*) FROM content");
+        let contents = count(&base, "SELECT count(*) FROM version");
         let texts = count(&base, "SELECT count(*) FROM derivative");
 
         let work = base.ensure_work_origin(NAMES, &dir.path().join("trabajo"), APP_FOLDERS).unwrap();
@@ -397,7 +397,7 @@ mod tests {
             statement.query_map([], |row| row.get(0)).unwrap().map(Result::unwrap).collect()
         };
         assert_eq!(after, before);
-        assert_eq!(count(&base, "SELECT count(*) FROM content"), contents);
+        assert_eq!(count(&base, "SELECT count(*) FROM version"), contents);
         assert_eq!(count(&base, "SELECT count(*) FROM derivative"), texts);
         assert_eq!(count(&base, "SELECT count(*) FROM location WHERE folder = 'Expedientes/PJN/ZZZ 1-2020'"), 2);
         // Its rule, its exclusion and its history went with it.

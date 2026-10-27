@@ -121,7 +121,7 @@ fn partition(base: &DocBase) -> (BTreeSet<BTreeSet<(String, String)>>, BTreeSet<
     let mut statement = conn
         .prepare(
             "SELECT m.entity_id, l.name, m.written FROM knowledge_mention m
-             JOIN file f ON f.content_id = m.content_id JOIN location l ON l.file_hash = f.hash WHERE m.entity_id IS NOT NULL",
+             JOIN file f ON f.version_id = m.version_id JOIN location l ON l.file_hash = f.hash WHERE m.entity_id IS NOT NULL",
         )
         .unwrap();
     let rows: Vec<(String, String, String)> =
@@ -148,7 +148,7 @@ fn partition(base: &DocBase) -> (BTreeSet<BTreeSet<(String, String)>>, BTreeSet<
 fn entity(base: &DocBase, document: &str, written: &str) -> Option<String> {
     base.conn()
         .query_row(
-            "SELECT m.entity_id FROM knowledge_mention m JOIN file f ON f.content_id = m.content_id
+            "SELECT m.entity_id FROM knowledge_mention m JOIN file f ON f.version_id = m.version_id
              JOIN location l ON l.file_hash = f.hash WHERE l.name = ?1 AND m.written = ?2",
             [document, written],
             |row| row.get(0),
@@ -159,7 +159,7 @@ fn entity(base: &DocBase, document: &str, written: &str) -> Option<String> {
 fn mention_id(base: &DocBase, document: &str, written: &str) -> i64 {
     base.conn()
         .query_row(
-            "SELECT m.id FROM knowledge_mention m JOIN file f ON f.content_id = m.content_id
+            "SELECT m.id FROM knowledge_mention m JOIN file f ON f.version_id = m.version_id
              JOIN location l ON l.file_hash = f.hash WHERE l.name = ?1 AND m.written = ?2",
             [document, written],
             |row| row.get(0),

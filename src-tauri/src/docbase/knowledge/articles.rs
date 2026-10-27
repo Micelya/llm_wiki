@@ -204,7 +204,7 @@ impl DocBase {
         let location_id = match content_id {
             Some(content) => conn
                 .query_row(
-                    "SELECT l.id FROM location l JOIN file f ON f.hash = l.file_hash WHERE f.content_id = ?1 AND l.kind = 'file'
+                    "SELECT l.id FROM location l JOIN file f ON f.hash = l.file_hash WHERE f.version_id = ?1 AND l.kind = 'file'
                      ORDER BY l.id LIMIT 1",
                     [content],
                     |row| row.get(0),

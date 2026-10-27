@@ -150,7 +150,7 @@ fn a_clip_sent_to_the_server_is_saved_and_the_base_takes_it() {
     let (folder, state): (String, String) = base
         .conn()
         .query_row(
-            "SELECT l.folder, c.state FROM location l JOIN file f ON f.hash = l.file_hash JOIN content c ON c.id = f.content_id",
+            "SELECT l.folder, c.state FROM location l JOIN file f ON f.hash = l.file_hash JOIN version c ON c.id = f.version_id",
             [],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )

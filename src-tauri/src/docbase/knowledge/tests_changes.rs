@@ -267,7 +267,7 @@ fn a_new_version_keeps_its_entities_and_what_a_person_decided() {
     let old_mentions: i64 = archive
         .base
         .conn()
-        .query_row("SELECT count(*) FROM knowledge_mention WHERE content_id NOT IN (SELECT id FROM content)", [], |r| r.get(0))
+        .query_row("SELECT count(*) FROM knowledge_mention WHERE version_id NOT IN (SELECT id FROM version)", [], |r| r.get(0))
         .unwrap();
     assert_eq!(old_mentions, 0);
 }

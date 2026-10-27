@@ -132,7 +132,7 @@ impl DocBase {
             "out" => {
                 let (origin, others): (String, i64) = conn
                     .query_row(
-                        "SELECT m.origin, (SELECT count(*) FROM knowledge_matter_document d WHERE d.matter_id = m.id AND d.content_id != ?2)
+                        "SELECT m.origin, (SELECT count(*) FROM knowledge_matter_document d WHERE d.matter_id = m.id AND d.version_id != ?2)
                          FROM knowledge_matter m WHERE m.id = ?1",
                         params![matter_id, content],
                         |row| Ok((row.get(0)?, row.get(1)?)),
@@ -142,12 +142,12 @@ impl DocBase {
                     return Err("Es su último documento: para que no quede, descartalo".to_string());
                 }
                 conn.execute(
-                    "INSERT INTO knowledge_matter_choice (matter_id, content_id, choice, decided_at) VALUES (?1, ?2, 'out', ?3)
-                     ON CONFLICT (matter_id, content_id) DO UPDATE SET choice = 'out', decided_at = excluded.decided_at",
+                    "INSERT INTO knowledge_matter_choice (matter_id, version_id, choice, decided_at) VALUES (?1, ?2, 'out', ?3)
+                     ON CONFLICT (matter_id, version_id) DO UPDATE SET choice = 'out', decided_at = excluded.decided_at",
                     params![matter_id, content, now],
                 )
                 .map_err(sql_err)?;
-                conn.execute("DELETE FROM knowledge_matter_document WHERE matter_id = ?1 AND content_id = ?2", params![matter_id, content])
+                conn.execute("DELETE FROM knowledge_matter_document WHERE matter_id = ?1 AND version_id = ?2", params![matter_id, content])
                     .map_err(sql_err)?;
             }
             other => return Err(format!("'{other}' no es una elección sobre un documento")),
@@ -179,7 +179,7 @@ impl DocBase {
         };
         let member = |content: i64| -> Result<Option<MatterDocumentSnapshot>, String> {
             conn.query_row(
-                "SELECT state, reasons FROM knowledge_matter_document WHERE matter_id = ?1 AND content_id = ?2",
+                "SELECT state, reasons FROM knowledge_matter_document WHERE matter_id = ?1 AND version_id = ?2",
                 params![matter_id, content],
                 |row| Ok(MatterDocumentSnapshot { content_id: content, state: row.get(0)?, reasons: row.get(1)? }),
             )
@@ -188,7 +188,7 @@ impl DocBase {
         };
         let documents: Vec<MatterDocumentSnapshot> = {
             let mut statement = conn
-                .prepare("SELECT content_id, state, reasons FROM knowledge_matter_document WHERE matter_id = ?1 ORDER BY content_id")
+                .prepare("SELECT version_id, state, reasons FROM knowledge_matter_document WHERE matter_id = ?1 ORDER BY version_id")
                 .map_err(sql_err)?;
             let rows = statement
                 .query_map([matter_id], |row| Ok(MatterDocumentSnapshot { content_id: row.get(0)?, state: row.get(1)?, reasons: row.get(2)? }))
@@ -199,7 +199,7 @@ impl DocBase {
         for &content in contents {
             let chosen: Option<(String, i64)> = conn
                 .query_row(
-                    "SELECT choice, decided_at FROM knowledge_matter_choice WHERE matter_id = ?1 AND content_id = ?2",
+                    "SELECT choice, decided_at FROM knowledge_matter_choice WHERE matter_id = ?1 AND version_id = ?2",
                     params![matter_id, content],
                     |row| Ok((row.get(0)?, row.get(1)?)),
                 )
@@ -243,14 +243,14 @@ impl DocBase {
             match (&choice.choice, choice.decided_at) {
                 (Some(kind), Some(at)) => {
                     tx.execute(
-                        "INSERT INTO knowledge_matter_choice (matter_id, content_id, choice, decided_at) VALUES (?1, ?2, ?3, ?4)
-                         ON CONFLICT (matter_id, content_id) DO UPDATE SET choice = excluded.choice, decided_at = excluded.decided_at",
+                        "INSERT INTO knowledge_matter_choice (matter_id, version_id, choice, decided_at) VALUES (?1, ?2, ?3, ?4)
+                         ON CONFLICT (matter_id, version_id) DO UPDATE SET choice = excluded.choice, decided_at = excluded.decided_at",
                         params![snapshot.id, choice.content_id, kind, at],
                     )
                     .map_err(sql_err)?;
                 }
                 _ => {
-                    tx.execute("DELETE FROM knowledge_matter_choice WHERE matter_id = ?1 AND content_id = ?2", params![snapshot.id, choice.content_id])
+                    tx.execute("DELETE FROM knowledge_matter_choice WHERE matter_id = ?1 AND version_id = ?2", params![snapshot.id, choice.content_id])
                         .map_err(sql_err)?;
                 }
             }
@@ -258,14 +258,14 @@ impl DocBase {
                 match &choice.member {
                     Some(member) => {
                         tx.execute(
-                            "INSERT INTO knowledge_matter_document (matter_id, content_id, state, reasons) VALUES (?1, ?2, ?3, ?4)
-                             ON CONFLICT (matter_id, content_id) DO UPDATE SET state = excluded.state, reasons = excluded.reasons",
+                            "INSERT INTO knowledge_matter_document (matter_id, version_id, state, reasons) VALUES (?1, ?2, ?3, ?4)
+                             ON CONFLICT (matter_id, version_id) DO UPDATE SET state = excluded.state, reasons = excluded.reasons",
                             params![snapshot.id, member.content_id, member.state, member.reasons],
                         )
                         .map_err(sql_err)?;
                     }
                     None => {
-                        tx.execute("DELETE FROM knowledge_matter_document WHERE matter_id = ?1 AND content_id = ?2", params![snapshot.id, choice.content_id])
+                        tx.execute("DELETE FROM knowledge_matter_document WHERE matter_id = ?1 AND version_id = ?2", params![snapshot.id, choice.content_id])
                             .map_err(sql_err)?;
                     }
                 }
@@ -291,10 +291,10 @@ impl DocBase {
             tx.execute("DELETE FROM knowledge_matter_document WHERE matter_id = ?1", [&snapshot.id]).map_err(sql_err)?;
             for document in &snapshot.documents {
                 let present: bool =
-                    tx.query_row("SELECT 1 FROM content WHERE id = ?1", [document.content_id], |_| Ok(())).optional().map_err(sql_err)?.is_some();
+                    tx.query_row("SELECT 1 FROM version WHERE id = ?1", [document.content_id], |_| Ok(())).optional().map_err(sql_err)?.is_some();
                 if present {
                     tx.execute(
-                        "INSERT INTO knowledge_matter_document (matter_id, content_id, state, reasons) VALUES (?1, ?2, ?3, ?4)",
+                        "INSERT INTO knowledge_matter_document (matter_id, version_id, state, reasons) VALUES (?1, ?2, ?3, ?4)",
                         params![snapshot.id, document.content_id, document.state, document.reasons],
                     )
                     .map_err(sql_err)?;
@@ -345,14 +345,14 @@ fn origin_of(conn: &rusqlite::Connection, matter_id: &str) -> Result<String, Str
 /// Puts a document in a matter, as a person's choice.
 pub(super) fn put(conn: &rusqlite::Connection, matter_id: &str, content: i64, now: i64) -> Result<(), String> {
     conn.execute(
-        "INSERT INTO knowledge_matter_choice (matter_id, content_id, choice, decided_at) VALUES (?1, ?2, 'in', ?3)
-         ON CONFLICT (matter_id, content_id) DO UPDATE SET choice = 'in', decided_at = excluded.decided_at",
+        "INSERT INTO knowledge_matter_choice (matter_id, version_id, choice, decided_at) VALUES (?1, ?2, 'in', ?3)
+         ON CONFLICT (matter_id, version_id) DO UPDATE SET choice = 'in', decided_at = excluded.decided_at",
         params![matter_id, content, now],
     )
     .map_err(sql_err)?;
     conn.execute(
-        "INSERT INTO knowledge_matter_document (matter_id, content_id, state, reasons) VALUES (?1, ?2, 'firm', '[]')
-         ON CONFLICT (matter_id, content_id) DO UPDATE SET state = 'firm'",
+        "INSERT INTO knowledge_matter_document (matter_id, version_id, state, reasons) VALUES (?1, ?2, 'firm', '[]')
+         ON CONFLICT (matter_id, version_id) DO UPDATE SET state = 'firm'",
         params![matter_id, content],
     )
     .map_err(sql_err)?;

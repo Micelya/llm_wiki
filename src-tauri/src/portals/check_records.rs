@@ -50,8 +50,8 @@ fn what_the_integration_of_the_records_does_to_the_matters() {
                     let prefix = format!("{rel}/");
                     let mut statement = conn
                         .prepare(
-                            "SELECT DISTINCT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash
-                             WHERE l.origin_id = ?1 AND substr(l.rel_path, 1, length(?2)) = ?2 AND l.ext = 'pdf' AND f.content_id IS NOT NULL",
+                            "SELECT DISTINCT f.version_id FROM location l JOIN file f ON f.hash = l.file_hash
+                             WHERE l.origin_id = ?1 AND substr(l.rel_path, 1, length(?2)) = ?2 AND l.ext = 'pdf' AND f.version_id IS NOT NULL",
                         )
                         .unwrap();
                     statement.query_map(rusqlite::params![origin.id, prefix], |row| row.get(0)).unwrap().map(Result::unwrap).collect()

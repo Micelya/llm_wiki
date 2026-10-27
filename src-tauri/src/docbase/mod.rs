@@ -6,10 +6,19 @@
 //! - a *location* is a file at a path inside an origin: what appears,
 //!   changes, moves or disappears;
 //! - a *file* is an exact sequence of bytes, named by its SHA-256;
-//! - a *content* is one document. Several files can be the same content
-//!   (the same text saved in two formats), and everything derived from a
-//!   document (its text, later its summary and type) hangs from the
-//!   content, so it is produced once per space however many copies exist.
+//! - a *version* (table `version`, once `content`) is one state of a
+//!   document. Several files can be appearances of the same version (the
+//!   same text saved in two formats: table `appearance`), and everything
+//!   derived from a document (its text, later its summary and type) hangs
+//!   from the version, so it is produced once per space however many
+//!   copies exist. Each version belongs to a `document` (one each, for
+//!   now), with a stable `uid`.
+//!
+//! In Rust, in `serde` and in the interface the names stay those of
+//! before: `content_id` and `contentId` mean the number of the version
+//! (`version.id`, the column `version_id` of every table); a `content` in
+//! a name is a version. Renaming them is pending, as are the names of
+//! `file`, `location`, `content_fts` and `content_search`.
 //!
 //! Origins are read-only: nothing here writes next to the originals. The
 //! database lives in the app's own local data folder.

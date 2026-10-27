@@ -127,8 +127,8 @@ struct Link {
 fn documents(conn: &Connection) -> Result<Vec<(i64, String)>, String> {
     let mut statement = conn
         .prepare(&format!(
-            "SELECT k.content_id, k.text_hash FROM knowledge_extraction k WHERE k.state = 'done' AND {}",
-            changes::active_content("k.content_id")
+            "SELECT k.version_id, k.text_hash FROM knowledge_extraction k WHERE k.state = 'done' AND {}",
+            changes::active_content("k.version_id")
         ))
         .map_err(sql_err)?;
     let rows = statement.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))).map_err(sql_err)?;
@@ -214,7 +214,7 @@ pub(crate) fn group(conn: &Connection, vocabulary: &Vocabulary, joins: &[(String
         // alike: two matters (D-263, D-378).
         let parties: BTreeMap<i64, BTreeSet<String>> = {
             let mut statement = conn
-                .prepare("SELECT DISTINCT content_id, role, entity_id FROM knowledge_mention WHERE entity_id IS NOT NULL AND kind != ?1")
+                .prepare("SELECT DISTINCT version_id, role, entity_id FROM knowledge_mention WHERE entity_id IS NOT NULL AND kind != ?1")
                 .map_err(sql_err)?;
             let rows = statement
                 .query_map([&rules.kind], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)))
@@ -275,7 +275,7 @@ pub(crate) fn group(conn: &Connection, vocabulary: &Vocabulary, joins: &[(String
     {
         let mut statement = conn
             .prepare(
-                "SELECT m.content_id, i.kind, i.value FROM knowledge_identifier i JOIN knowledge_mention m ON m.id = i.mention_id
+                "SELECT m.version_id, i.kind, i.value FROM knowledge_identifier i JOIN knowledge_mention m ON m.id = i.mention_id
                  WHERE m.kind = ?1",
             )
             .map_err(sql_err)?;
@@ -295,7 +295,7 @@ pub(crate) fn group(conn: &Connection, vocabulary: &Vocabulary, joins: &[(String
     // The data of each document by its type: identifiers and amounts.
     {
         let catalog = crate::docbase::similar::types::catalog();
-        let mut statement = conn.prepare("SELECT content_id, doc_type, data FROM document_data").map_err(sql_err)?;
+        let mut statement = conn.prepare("SELECT version_id, doc_type, data FROM document_data").map_err(sql_err)?;
         let rows = statement
             .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)))
             .map_err(sql_err)?;
@@ -325,7 +325,7 @@ pub(crate) fn group(conn: &Connection, vocabulary: &Vocabulary, joins: &[(String
     {
         let mut statement = conn
             .prepare(
-                "SELECT e.content_id, e.predicate, coalesce(e.amount, e.object_value), s.normalized FROM knowledge_evidence e
+                "SELECT e.version_id, e.predicate, coalesce(e.amount, e.object_value), s.normalized FROM knowledge_evidence e
                  JOIN knowledge_mention s ON s.id = e.subject_mention WHERE coalesce(e.amount, e.object_value) IS NOT NULL",
             )
             .map_err(sql_err)?;
@@ -349,7 +349,7 @@ pub(crate) fn group(conn: &Connection, vocabulary: &Vocabulary, joins: &[(String
     {
         let known: BTreeSet<String> = shared.keys().filter(|(_, kind, _)| kind == "numero").map(|(_, _, digits)| digits.clone()).collect();
         if !known.is_empty() {
-            let mut statement = conn.prepare("SELECT content_id, body FROM derivative WHERE kind = 'text'").map_err(sql_err)?;
+            let mut statement = conn.prepare("SELECT version_id, body FROM derivative WHERE kind = 'text'").map_err(sql_err)?;
             let rows = statement.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))).map_err(sql_err)?;
             for row in rows {
                 let (content, body) = row.map_err(sql_err)?;
@@ -446,7 +446,7 @@ pub(crate) fn group(conn: &Connection, vocabulary: &Vocabulary, joins: &[(String
             let documents: BTreeSet<i64> = decided.and_then(|d| serde_json::from_str(&d).ok()).unwrap_or_default();
             out.insert(id, (state, documents));
         }
-        let mut statement = conn.prepare("SELECT matter_id, content_id FROM knowledge_matter_document").map_err(sql_err)?;
+        let mut statement = conn.prepare("SELECT matter_id, version_id FROM knowledge_matter_document").map_err(sql_err)?;
         let rows = statement.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))).map_err(sql_err)?;
         for row in rows {
             let (id, content) = row.map_err(sql_err)?;
@@ -501,7 +501,7 @@ pub(crate) fn group(conn: &Connection, vocabulary: &Vocabulary, joins: &[(String
         for content in put_in {
             // Also a document the layer has not read yet, while it exists.
             let exists = index.contains_key(content)
-                || conn.query_row("SELECT 1 FROM content WHERE id = ?1", [content], |_| Ok(())).is_ok();
+                || conn.query_row("SELECT 1 FROM version WHERE id = ?1", [content], |_| Ok(())).is_ok();
             if exists {
                 now_reasons.entry(*content).or_insert_with(|| "[]".into());
             }
@@ -536,7 +536,7 @@ pub(crate) fn group(conn: &Connection, vocabulary: &Vocabulary, joins: &[(String
         let same_docs = before.is_some_and(|(state, b)| state == "active" && *b == contents.iter().copied().collect());
         let stored_name: Option<String> = conn.query_row("SELECT name FROM knowledge_matter WHERE id = ?1", [id], |row| row.get(0)).ok();
         let stored_reasons: BTreeMap<i64, String> = {
-            let mut statement = conn.prepare("SELECT content_id, reasons FROM knowledge_matter_document WHERE matter_id = ?1").map_err(sql_err)?;
+            let mut statement = conn.prepare("SELECT version_id, reasons FROM knowledge_matter_document WHERE matter_id = ?1").map_err(sql_err)?;
             let rows = statement.query_map([id], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))).map_err(sql_err)?;
             rows.collect::<Result<_, _>>().map_err(sql_err)?
         };
@@ -552,7 +552,7 @@ pub(crate) fn group(conn: &Connection, vocabulary: &Vocabulary, joins: &[(String
         conn.execute("DELETE FROM knowledge_matter_document WHERE matter_id = ?1", [id]).map_err(sql_err)?;
         for (content, reasons) in &now_reasons {
             conn.execute(
-                "INSERT OR REPLACE INTO knowledge_matter_document (matter_id, content_id, state, reasons) VALUES (?1, ?2, 'firm', ?3)",
+                "INSERT OR REPLACE INTO knowledge_matter_document (matter_id, version_id, state, reasons) VALUES (?1, ?2, 'firm', ?3)",
                 params![id, content, reasons],
             )
             .map_err(sql_err)?;
@@ -588,7 +588,7 @@ pub(crate) fn group(conn: &Connection, vocabulary: &Vocabulary, joins: &[(String
 /// documents put in by hand and those taken out, after the documents that
 /// took the place of others.
 pub(crate) fn person_choices(conn: &Connection, successors: &HashMap<i64, i64>) -> Result<HashMap<String, (BTreeSet<i64>, BTreeSet<i64>)>, String> {
-    let mut statement = conn.prepare("SELECT matter_id, content_id, choice FROM knowledge_matter_choice").map_err(sql_err)?;
+    let mut statement = conn.prepare("SELECT matter_id, version_id, choice FROM knowledge_matter_choice").map_err(sql_err)?;
     let rows = statement.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?, row.get::<_, String>(2)?))).map_err(sql_err)?;
     let mut out: HashMap<String, (BTreeSet<i64>, BTreeSet<i64>)> = HashMap::new();
     for row in rows {
@@ -645,13 +645,13 @@ fn matter_name(conn: &Connection, vocabulary: &Vocabulary, contents: &[i64]) -> 
     let mut parties: BTreeMap<String, (usize, usize, String)> = BTreeMap::new();
     let mut statement = conn
         .prepare(&format!(
-            "SELECT DISTINCT m.content_id, m.kind, m.role, e.id, e.name FROM knowledge_mention m JOIN knowledge_entity e ON e.id = m.entity_id
-             WHERE m.content_id IN ({list}) AND e.state = 'active' AND m.kind != ?1
+            "SELECT DISTINCT m.version_id, m.kind, m.role, e.id, e.name FROM knowledge_mention m JOIN knowledge_entity e ON e.id = m.entity_id
+             WHERE m.version_id IN ({list}) AND e.state = 'active' AND m.kind != ?1
              UNION
-             SELECT DISTINCT m.content_id, m.kind, m.role, 'ref:' || m.normalized,
+             SELECT DISTINCT m.version_id, m.kind, m.role, 'ref:' || m.normalized,
                     (SELECT r.written FROM knowledge_mention r WHERE r.kind = m.kind AND r.normalized = m.normalized
                      GROUP BY r.written ORDER BY count(*) DESC, length(r.written) DESC, r.written LIMIT 1)
-             FROM knowledge_mention m WHERE m.content_id IN ({list}) AND m.kind = ?1 AND m.defined = 0"
+             FROM knowledge_mention m WHERE m.version_id IN ({list}) AND m.kind = ?1 AND m.defined = 0"
         ))
         .map_err(sql_err)?;
     // The references by their normalized form (D-377), the entities by id.
@@ -721,7 +721,7 @@ fn matter_name(conn: &Connection, vocabulary: &Vocabulary, contents: &[i64]) -> 
         let mut statement = conn
             .prepare(&format!(
                 "SELECT DISTINCT c.id, c.subject, c.object_entity FROM knowledge_claim c JOIN knowledge_evidence e ON e.claim_id = c.id
-                 WHERE e.content_id IN ({list}) AND c.amount IS NOT NULL AND c.object_entity IS NOT NULL AND c.state != 'retired'
+                 WHERE e.version_id IN ({list}) AND c.amount IS NOT NULL AND c.object_entity IS NOT NULL AND c.state != 'retired'
                  AND coalesce(c.qualifier, '') IN ({claimed})",
                 claimed = rules.claim_kinds.iter().map(|k| format!("'{}'", k.replace('\'', ""))).collect::<Vec<_>>().join(",")
             ))
@@ -766,7 +766,7 @@ fn matter_name(conn: &Connection, vocabulary: &Vocabulary, contents: &[i64]) -> 
 fn common_type(conn: &Connection, contents: &[i64]) -> Option<String> {
     let mut kinds = BTreeSet::new();
     for content in contents {
-        let kind: String = conn.query_row("SELECT doc_type FROM document_type WHERE content_id = ?1", [content], |row| row.get(0)).ok()?;
+        let kind: String = conn.query_row("SELECT doc_type FROM document_type WHERE version_id = ?1", [content], |row| row.get(0)).ok()?;
         kinds.insert(kind);
     }
     if kinds.len() != 1 {
@@ -886,7 +886,7 @@ pub fn schema() -> serde_json::Value {
 fn parties_by_document(conn: &Connection, vocabulary: &Vocabulary) -> Result<BTreeMap<i64, BTreeSet<String>>, String> {
     let mut statement = conn
         .prepare(
-            "SELECT DISTINCT m.content_id, m.role, e.id, e.kind, e.name FROM knowledge_mention m JOIN knowledge_entity e ON e.id = m.entity_id
+            "SELECT DISTINCT m.version_id, m.role, e.id, e.kind, e.name FROM knowledge_mention m JOIN knowledge_entity e ON e.id = m.entity_id
              WHERE e.state = 'active' AND e.kind != ?1",
         )
         .map_err(sql_err)?;
@@ -920,14 +920,14 @@ struct DocumentView {
 /// it and with what role, what it says of them, and how it starts.
 fn describe_document(conn: &Connection, vocabulary: &Vocabulary, content: i64) -> Result<String, String> {
     let name = crate::docbase::similar::classify::name_of(conn, content)?;
-    let doc_type: Option<String> = conn.query_row("SELECT doc_type FROM document_type WHERE content_id = ?1", [content], |row| row.get(0)).ok();
+    let doc_type: Option<String> = conn.query_row("SELECT doc_type FROM document_type WHERE version_id = ?1", [content], |row| row.get(0)).ok();
     let mut statement = conn
         .prepare(
             "SELECT DISTINCT e.name AS name, e.kind AS kind, m.role AS role FROM knowledge_mention m JOIN knowledge_entity e ON e.id = m.entity_id
-             WHERE m.content_id = ?1 AND e.state = 'active' AND m.kind != ?2
+             WHERE m.version_id = ?1 AND e.state = 'active' AND m.kind != ?2
              UNION
              SELECT DISTINCT m.normalized, m.kind, m.role
-             FROM knowledge_mention m WHERE m.content_id = ?1 AND m.kind = ?2 AND m.defined = 0
+             FROM knowledge_mention m WHERE m.version_id = ?1 AND m.kind = ?2 AND m.defined = 0
              ORDER BY kind, name, role",
         )
         .map_err(sql_err)?;
@@ -953,7 +953,7 @@ fn describe_document(conn: &Connection, vocabulary: &Vocabulary, content: i64) -
         .prepare(
             "SELECT e.predicate, coalesce(e.object_value, CASE WHEN e.amount IS NOT NULL THEN e.amount || ' — ' || o.written ELSE o.written END), e.quote
              FROM knowledge_evidence e
-             LEFT JOIN knowledge_mention o ON o.id = e.object_mention WHERE e.content_id = ?1 ORDER BY e.id LIMIT ?2",
+             LEFT JOIN knowledge_mention o ON o.id = e.object_mention WHERE e.version_id = ?1 ORDER BY e.id LIMIT ?2",
         )
         .map_err(sql_err)?;
     let facts: Vec<(String, String, String)> = statement
@@ -962,7 +962,7 @@ fn describe_document(conn: &Connection, vocabulary: &Vocabulary, content: i64) -
         .collect::<Result<_, _>>()
         .map_err(sql_err)?;
     let body: Option<String> =
-        conn.query_row("SELECT body FROM derivative WHERE content_id = ?1 AND kind = 'text'", [content], |row| row.get(0)).ok();
+        conn.query_row("SELECT body FROM derivative WHERE version_id = ?1 AND kind = 'text'", [content], |row| row.get(0)).ok();
     Ok(document_text(vocabulary, &DocumentView { name, doc_type, shown, facts, body }))
 }
 
@@ -996,7 +996,7 @@ fn describe_matter(conn: &Connection, vocabulary: &Vocabulary, name: &str, docum
     let mut shown: Vec<(String, Option<String>)> = Vec::new();
     for content in documents.iter().take(MATTER_DOCUMENTS) {
         let doc_name = crate::docbase::similar::classify::name_of(conn, *content)?;
-        let doc_type: Option<String> = conn.query_row("SELECT doc_type FROM document_type WHERE content_id = ?1", [content], |row| row.get(0)).ok();
+        let doc_type: Option<String> = conn.query_row("SELECT doc_type FROM document_type WHERE version_id = ?1", [content], |row| row.get(0)).ok();
         shown.push((doc_name, doc_type));
     }
     let mut names: Vec<String> = Vec::new();
@@ -1124,7 +1124,7 @@ impl crate::docbase::DocBase {
             let mut matters: BTreeMap<String, (String, BTreeSet<i64>)> = BTreeMap::new();
             let mut statement = conn
                 .prepare(
-                    "SELECT m.id, m.name, d.content_id FROM knowledge_matter m JOIN knowledge_matter_document d ON d.matter_id = m.id
+                    "SELECT m.id, m.name, d.version_id FROM knowledge_matter m JOIN knowledge_matter_document d ON d.matter_id = m.id
                      WHERE m.state = 'active' AND m.status = 'open' AND d.state = 'firm' AND (m.confirmation = 'confirmed' OR m.origin = 'person')",
                 )
                 .map_err(sql_err)?;
@@ -1138,7 +1138,7 @@ impl crate::docbase::DocBase {
             // A document in any matter, proposed or not, is not loose.
             let grouped: BTreeSet<i64> = {
                 let mut statement = conn
-                    .prepare("SELECT DISTINCT d.content_id FROM knowledge_matter_document d JOIN knowledge_matter m ON m.id = d.matter_id WHERE m.state = 'active'")
+                    .prepare("SELECT DISTINCT d.version_id FROM knowledge_matter_document d JOIN knowledge_matter m ON m.id = d.matter_id WHERE m.state = 'active'")
                     .map_err(sql_err)?;
                 let rows = statement.query_map([], |row| row.get::<_, i64>(0)).map_err(sql_err)?;
                 rows.collect::<Result<_, _>>().map_err(sql_err)?
@@ -1187,7 +1187,7 @@ impl crate::docbase::DocBase {
                 for id in &ids {
                     let found: Option<String> = conn
                         .query_row(
-                            "SELECT verdict FROM knowledge_matter_verdict WHERE content_id = ?1 AND matter_id = ?2 AND engine = ?3",
+                            "SELECT verdict FROM knowledge_matter_verdict WHERE version_id = ?1 AND matter_id = ?2 AND engine = ?3",
                             params![content, id, engine.clone().unwrap_or_default()],
                             |row| row.get(0),
                         )
@@ -1244,7 +1244,7 @@ impl crate::docbase::DocBase {
                 };
                 self.conn()
                     .execute(
-                        "INSERT OR REPLACE INTO knowledge_matter_verdict (content_id, matter_id, engine, verdict, reason, question, asked_at)
+                        "INSERT OR REPLACE INTO knowledge_matter_verdict (version_id, matter_id, engine, verdict, reason, question, asked_at)
                          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
                         params![content, id, engine.clone().unwrap_or_default(), verdict, reason, question.key, now],
                     )
@@ -1268,10 +1268,10 @@ pub(crate) fn proposals(conn: &Connection) -> Result<BTreeMap<i64, Vec<(String, 
     let engine = crate::docbase::similar::classify::ask_engine(conn)?.map(|c| crate::source_volume::asking::engine_id(&c));
     let mut statement = conn
         .prepare(
-            "SELECT v.content_id, v.matter_id, v.reason, v.engine FROM knowledge_matter_verdict v
+            "SELECT v.version_id, v.matter_id, v.reason, v.engine FROM knowledge_matter_verdict v
              JOIN knowledge_matter m ON m.id = v.matter_id AND m.state = 'active'
-             WHERE v.verdict = 'same' AND NOT EXISTS (SELECT 1 FROM knowledge_matter_document d WHERE d.content_id = v.content_id)
-             ORDER BY v.content_id, v.matter_id",
+             WHERE v.verdict = 'same' AND NOT EXISTS (SELECT 1 FROM knowledge_matter_document d WHERE d.version_id = v.version_id)
+             ORDER BY v.version_id, v.matter_id",
         )
         .map_err(sql_err)?;
     let rows = statement
@@ -1288,7 +1288,7 @@ pub(crate) fn proposals(conn: &Connection) -> Result<BTreeMap<i64, Vec<(String, 
     let apart = separated_documents(conn)?;
     let mut members: HashMap<String, Vec<i64>> = HashMap::new();
     {
-        let mut statement = conn.prepare("SELECT matter_id, content_id FROM knowledge_matter_document").map_err(sql_err)?;
+        let mut statement = conn.prepare("SELECT matter_id, version_id FROM knowledge_matter_document").map_err(sql_err)?;
         let rows = statement.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))).map_err(sql_err)?;
         for row in rows {
             let (matter, content) = row.map_err(sql_err)?;

@@ -144,7 +144,7 @@ impl DocBase {
         match outcome {
             Ok(Some(hash)) => {
                 let known: Option<i64> = tx
-                    .query_row("SELECT content_id FROM file WHERE hash = ?1", [&hash], |row| row.get(0))
+                    .query_row("SELECT version_id FROM file WHERE hash = ?1", [&hash], |row| row.get(0))
                     .optional()
                     .map_err(sql_err)?;
                 if known.is_none() {
@@ -152,15 +152,15 @@ impl DocBase {
                         // An id is never given twice: what a person decided
                         // about a document that went away names it by its id
                         // (`knowledge_gone`).
-                        "INSERT INTO content (id, state, first_seen_at) VALUES (
-                             (SELECT max(n) + 1 FROM (SELECT coalesce(max(id), 0) AS n FROM content
-                                                      UNION ALL SELECT coalesce(max(content_id), 0) FROM knowledge_gone)),
+                        "INSERT INTO version (id, state, first_seen_at) VALUES (
+                             (SELECT max(n) + 1 FROM (SELECT coalesce(max(id), 0) AS n FROM version
+                                                      UNION ALL SELECT coalesce(max(version_id), 0) FROM knowledge_gone)),
                              'pending', ?1)",
                         [now],
                     )
                     .map_err(sql_err)?;
                     tx.execute(
-                        "INSERT INTO file (hash, content_id, size) VALUES (?1, ?2, ?3)",
+                        "INSERT INTO file (hash, version_id, size) VALUES (?1, ?2, ?3)",
                         params![hash, tx.last_insert_rowid(), size],
                     )
                     .map_err(sql_err)?;
@@ -249,12 +249,12 @@ impl DocBase {
         )
         .map_err(sql_err)?;
         tx.execute(
-            "DELETE FROM content_fts WHERE rowid IN (SELECT id FROM content WHERE id NOT IN (SELECT content_id FROM file))",
+            "DELETE FROM content_fts WHERE rowid IN (SELECT id FROM version WHERE id NOT IN (SELECT version_id FROM file))",
             [],
         )
         .map_err(sql_err)?;
         let dropped = tx
-            .execute("DELETE FROM content WHERE id NOT IN (SELECT content_id FROM file)", [])
+            .execute("DELETE FROM version WHERE id NOT IN (SELECT version_id FROM file)", [])
             .map_err(sql_err)?;
         super::search::forget_gone(&tx)?;
         tx.commit().map_err(sql_err)?;
@@ -289,7 +289,7 @@ mod tests {
 
         assert_eq!(count(&base, "SELECT count(*) FROM location WHERE hash_state = 'done'"), 3);
         assert_eq!(count(&base, "SELECT count(*) FROM file"), 2);
-        assert_eq!(count(&base, "SELECT count(*) FROM content"), 2);
+        assert_eq!(count(&base, "SELECT count(*) FROM version"), 2);
         assert_eq!(count(&base, "SELECT count(DISTINCT file_hash) FROM location WHERE name IN ('doc0042.pdf', 'Escritura Perez.pdf')"), 1);
     }
 
@@ -304,7 +304,7 @@ mod tests {
         settle(&base, &a.id);
         settle(&base, &b.id);
 
-        assert_eq!(count(&base, "SELECT count(*) FROM content"), 1);
+        assert_eq!(count(&base, "SELECT count(*) FROM version"), 1);
     }
 
     #[test]
@@ -314,9 +314,9 @@ mod tests {
         let base = DocBase::in_memory().unwrap();
         let origin = base.add_origin("O", &dir.path().join("o"), &[]).unwrap();
         settle(&base, &origin.id);
-        let content_before = count(&base, "SELECT id FROM content");
+        let content_before = count(&base, "SELECT id FROM version");
         base.conn()
-            .execute("UPDATE content SET state = 'processed'", [])
+            .execute("UPDATE version SET state = 'processed'", [])
             .unwrap();
 
         dir.write("o/BOREAL/carta documento 13-02.pdf", b"carta documento");
@@ -324,9 +324,9 @@ mod tests {
         settle(&base, &origin.id);
 
         assert_eq!(count(&base, "SELECT count(*) FROM location"), 1);
-        assert_eq!(count(&base, "SELECT count(*) FROM content"), 1);
+        assert_eq!(count(&base, "SELECT count(*) FROM version"), 1);
         // Same document, already processed: nothing is redone.
-        assert_eq!(count(&base, "SELECT id FROM content WHERE state = 'processed'"), content_before);
+        assert_eq!(count(&base, "SELECT id FROM version WHERE state = 'processed'"), content_before);
         assert_eq!(count(&base, "SELECT count(*) FROM change WHERE kind = 'moved' AND rel_path = 'BOREAL/carta documento 13-02.pdf'"), 1);
     }
 
@@ -341,19 +341,19 @@ mod tests {
         {
             let conn = base.conn();
             conn.execute(
-                "INSERT INTO derivative (content_id, kind, engine, body, created_at)
-                 SELECT id, 'text', 'test', 'texto', 1 FROM content",
+                "INSERT INTO derivative (version_id, kind, engine, body, created_at)
+                 SELECT id, 'text', 'test', 'texto', 1 FROM version",
                 [],
             )
             .unwrap();
-            conn.execute("INSERT INTO content_fts (rowid, body) SELECT id, 'texto' FROM content", [])
+            conn.execute("INSERT INTO content_fts (rowid, body) SELECT id, 'texto' FROM version", [])
                 .unwrap();
         }
 
         dir.remove("o/a.txt");
         settle(&base, &origin.id);
 
-        assert_eq!(count(&base, "SELECT count(*) FROM content"), 1);
+        assert_eq!(count(&base, "SELECT count(*) FROM version"), 1);
         assert_eq!(count(&base, "SELECT count(*) FROM derivative"), 1);
         assert_eq!(count(&base, "SELECT count(*) FROM content_fts"), 1);
     }
@@ -378,7 +378,7 @@ mod tests {
             .query_row("SELECT file_hash FROM location", [], |row| row.get(0))
             .unwrap();
         assert_ne!(before, after);
-        assert_eq!(count(&base, "SELECT count(*) FROM content"), 1);
+        assert_eq!(count(&base, "SELECT count(*) FROM version"), 1);
         assert_eq!(count(&base, "SELECT count(*) FROM file"), 1);
     }
 
@@ -394,7 +394,7 @@ mod tests {
         settle(&base, &origin.id);
 
         assert_eq!(count(&base, "SELECT count(*) FROM location"), 1);
-        assert_eq!(count(&base, "SELECT count(*) FROM content"), 1);
+        assert_eq!(count(&base, "SELECT count(*) FROM version"), 1);
     }
 
     #[test]

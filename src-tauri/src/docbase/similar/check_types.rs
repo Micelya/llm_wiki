@@ -144,8 +144,8 @@ pub(crate) fn prepare(folders: &str) -> (TempDir, DocBase) {
         let conn = base.conn();
         let mut statement = conn
             .prepare(
-                "SELECT f.hash, min(o.location || '/' || l.rel_path), min(l.ext) FROM content c
-                 JOIN file f ON f.content_id = c.id JOIN location l ON l.file_hash = f.hash
+                "SELECT f.hash, min(o.location || '/' || l.rel_path), min(l.ext) FROM version c
+                 JOIN file f ON f.version_id = c.id JOIN location l ON l.file_hash = f.hash
                  JOIN origin o ON o.id = l.origin_id
                  WHERE c.state = 'needs-recognition' GROUP BY f.hash",
             )
@@ -190,7 +190,7 @@ pub(crate) fn paths_by_content(base: &DocBase) -> (HashMap<String, i64>, BTreeMa
     let conn = base.conn();
     let mut statement = conn
         .prepare(
-            "SELECT o.location, l.rel_path, f.content_id FROM location l
+            "SELECT o.location, l.rel_path, f.version_id FROM location l
              JOIN origin o ON o.id = l.origin_id JOIN file f ON f.hash = l.file_hash",
         )
         .unwrap();
@@ -223,7 +223,7 @@ fn texts_of_real_folders() {
     let (_, by_content) = paths_by_content(&base);
     let texts: Vec<(i64, String)> = {
         let conn = base.conn();
-        let mut statement = conn.prepare("SELECT content_id, body FROM derivative WHERE kind = 'text'").unwrap();
+        let mut statement = conn.prepare("SELECT version_id, body FROM derivative WHERE kind = 'text'").unwrap();
         let rows = statement
             .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
             .unwrap()

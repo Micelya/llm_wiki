@@ -298,7 +298,7 @@ fn another_model_asks_again_but_the_reading_stays_until_the_text_changes() {
     assert_eq!(retire, 1);
     let left: i64 = base
         .conn()
-        .query_row("SELECT count(*) FROM knowledge_mention WHERE content_id = ?1", [old], |row| row.get(0))
+        .query_row("SELECT count(*) FROM knowledge_mention WHERE version_id = ?1", [old], |row| row.get(0))
         .unwrap();
     assert_eq!(left, 0);
 }

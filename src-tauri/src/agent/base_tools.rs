@@ -156,7 +156,7 @@ pub fn base_source_search(base: &DocBase, query: &str, top_k: usize) -> Result<V
         let name: Option<String> = conn
             .query_row(
                 "SELECT l.name FROM location l JOIN file f ON f.hash = l.file_hash
-                 WHERE f.content_id = ?1 ORDER BY l.id LIMIT 1",
+                 WHERE f.version_id = ?1 ORDER BY l.id LIMIT 1",
                 [hit.content_id],
                 |row| row.get(0),
             )
@@ -272,10 +272,10 @@ pub fn attached_documents(base: &DocBase, location_ids: &[i64]) -> Result<Vec<At
         }
         let found: Option<(String, String, String, Option<i64>, Option<String>)> = conn
             .query_row(
-                "SELECT l.name, o.name, l.folder, f.content_id, d.body FROM location l
+                "SELECT l.name, o.name, l.folder, f.version_id, d.body FROM location l
                  JOIN origin o ON o.id = l.origin_id
                  LEFT JOIN file f ON f.hash = l.file_hash
-                 LEFT JOIN derivative d ON d.content_id = f.content_id AND d.kind = 'text'
+                 LEFT JOIN derivative d ON d.version_id = f.version_id AND d.kind = 'text'
                  WHERE l.id = ?1",
                 [id],
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
@@ -348,14 +348,14 @@ pub(crate) mod tests {
             let conn = base.conn();
             for sql in [
                 "INSERT INTO origin (id, name, provider, location, added_at) VALUES ('o1', 'o1', 'local', 'o1', 0)",
-                "INSERT INTO content (id, state, first_seen_at) VALUES (1, 'done', 0)",
-                "INSERT INTO file (hash, content_id, size) VALUES ('h1', 1, 1)",
+                "INSERT INTO version (id, state, first_seen_at) VALUES (1, 'done', 0)",
+                "INSERT INTO file (hash, version_id, size) VALUES ('h1', 1, 1)",
                 "INSERT INTO location (origin_id, rel_path, folder, name, ext, size, mtime_ms, file_hash, first_seen_at, last_seen_at)
                  VALUES ('o1', 'contrato-prueba.pdf', '', 'contrato-prueba.pdf', 'pdf', 1, 0, 'h1', 0, 0)",
                 "INSERT INTO content_fts (rowid, body) VALUES (1, 'Contrato de locación entre Ana Prueba y Ejemplo SA por el depósito de la calle Falsa')",
                 "INSERT INTO knowledge_entity (id, kind, name, created_at, updated_at) VALUES ('ent-a', 'persona', 'Ana Prueba', 0, 0)",
                 "INSERT INTO knowledge_alias (entity_id, normalized, written) VALUES ('ent-a', 'ana prueba', 'Ana Prueba')",
-                "INSERT INTO knowledge_mention (content_id, ref, kind, written, normalized, role, quote, entity_id)
+                "INSERT INTO knowledge_mention (version_id, ref, kind, written, normalized, role, quote, entity_id)
                  VALUES (1, 'm1', 'persona', 'Ana Prueba', 'ana prueba', 'parte', 'Ana Prueba, locataria', 'ent-a')",
             ] {
                 conn.execute(sql, []).unwrap();
@@ -437,7 +437,7 @@ pub(crate) mod tests {
         {
             let conn = base.conn();
             conn.execute(
-                "INSERT INTO derivative (content_id, kind, body, engine, created_at) VALUES (1, 'text', ?1, 'prueba', 0)",
+                "INSERT INTO derivative (version_id, kind, body, engine, created_at) VALUES (1, 'text', ?1, 'prueba', 0)",
                 ["<!-- texto-reconocido motor=\"prueba\" -->\nContrato de locación del depósito de la calle Falsa."],
             )
             .unwrap();

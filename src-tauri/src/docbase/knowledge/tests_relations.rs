@@ -131,7 +131,7 @@ pub(crate) fn matters(base: &DocBase) -> Vec<Vec<String>> {
     let mut statement = conn
         .prepare(
             "SELECT d.matter_id, l.name FROM knowledge_matter_document d JOIN knowledge_matter m ON m.id = d.matter_id
-             JOIN file f ON f.content_id = d.content_id JOIN location l ON l.file_hash = f.hash
+             JOIN file f ON f.version_id = d.version_id JOIN location l ON l.file_hash = f.hash
              WHERE m.state = 'active' ORDER BY d.matter_id, l.name",
         )
         .unwrap();

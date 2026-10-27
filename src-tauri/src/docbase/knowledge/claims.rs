@@ -285,14 +285,14 @@ fn says(vocabulary: &Vocabulary, piece: &Piece, identifiers: &HashSet<String>) -
 fn load_pieces(conn: &Connection) -> Result<Vec<Piece>, String> {
     let mut statement = conn
         .prepare(
-            "SELECT e.id, e.content_id, s.entity_id, s.normalized, e.predicate, o.entity_id, o.normalized,
+            "SELECT e.id, e.version_id, s.entity_id, s.normalized, e.predicate, o.entity_id, o.normalized,
                     e.object_value, e.object_normalized, e.fact_time, e.subject_mention, e.quote, e.amount, e.detail, k.doc_date,
                     e.object_mention, s.resolved_by, o.resolved_by, o.kind, o.written
              FROM knowledge_evidence e
              JOIN knowledge_mention s ON s.id = e.subject_mention
              LEFT JOIN knowledge_mention o ON o.id = e.object_mention
-             LEFT JOIN knowledge_extraction k ON k.content_id = e.content_id
-             ORDER BY e.content_id, e.id",
+             LEFT JOIN knowledge_extraction k ON k.version_id = e.version_id
+             ORDER BY e.version_id, e.id",
         )
         .map_err(sql_err)?;
     let pieces = statement
@@ -341,7 +341,7 @@ fn load_pieces(conn: &Connection) -> Result<Vec<Piece>, String> {
 fn load_signers(conn: &Connection, vocabulary: &Vocabulary) -> Result<HashSet<(i64, String)>, String> {
     let mut out = HashSet::new();
     let mut statement =
-        conn.prepare("SELECT content_id, entity_id, role FROM knowledge_mention WHERE entity_id IS NOT NULL").map_err(sql_err)?;
+        conn.prepare("SELECT version_id, entity_id, role FROM knowledge_mention WHERE entity_id IS NOT NULL").map_err(sql_err)?;
     let rows = statement
         .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)))
         .map_err(sql_err)?;
@@ -384,7 +384,7 @@ fn role_entities(
     if roles.iter().any(|r| !r.mention_roles.is_empty()) {
         let signed: HashSet<i64> = signers.iter().map(|(content, _)| *content).collect();
         let mut statement =
-            conn.prepare("SELECT content_id, entity_id, role FROM knowledge_mention WHERE entity_id IS NOT NULL ORDER BY id").map_err(sql_err)?;
+            conn.prepare("SELECT version_id, entity_id, role FROM knowledge_mention WHERE entity_id IS NOT NULL ORDER BY id").map_err(sql_err)?;
         let rows = statement
             .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)))
             .map_err(sql_err)?;
@@ -419,7 +419,7 @@ fn load_context(conn: &Connection) -> Result<(Named, HashMap<i64, BTreeSet<Strin
     let mut named: Named = HashMap::new();
     {
         let mut statement = conn
-            .prepare("SELECT id, content_id, kind, entity_id, written FROM knowledge_mention WHERE entity_id IS NOT NULL ORDER BY id")
+            .prepare("SELECT id, version_id, kind, entity_id, written FROM knowledge_mention WHERE entity_id IS NOT NULL ORDER BY id")
             .map_err(sql_err)?;
         let rows = statement
             .query_map([], |row| {
@@ -1051,7 +1051,7 @@ fn doubted_mentions(conn: &Connection) -> Result<HashSet<i64>, String> {
     let mut out = HashSet::new();
     let mut statement = conn
         .prepare(
-            "SELECT id FROM knowledge_mention WHERE content_id = ?1 AND kind = ?2 AND (normalized = ?3 OR (?4 IS NOT NULL AND entity_id = ?4))",
+            "SELECT id FROM knowledge_mention WHERE version_id = ?1 AND kind = ?2 AND (normalized = ?3 OR (?4 IS NOT NULL AND entity_id = ?4))",
         )
         .map_err(sql_err)?;
     for (key, entity) in sides {

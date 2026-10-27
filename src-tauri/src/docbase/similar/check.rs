@@ -101,7 +101,7 @@ fn paths_by_content(base: &DocBase) -> (HashMap<String, i64>, BTreeMap<i64, Vec<
     let conn = base.conn();
     let mut statement = conn
         .prepare(
-            "SELECT o.location, l.rel_path, f.content_id FROM location l
+            "SELECT o.location, l.rel_path, f.version_id FROM location l
              JOIN origin o ON o.id = l.origin_id JOIN file f ON f.hash = l.file_hash",
         )
         .unwrap();
@@ -141,7 +141,7 @@ fn similar_documents_in_real_folders() {
 
     // What there is.
     let count = |sql: &str| -> i64 { base.conn().query_row(sql, [], |row| row.get(0)).unwrap() };
-    println!("\ndocuments: {}", count("SELECT count(*) FROM content"));
+    println!("\ndocuments: {}", count("SELECT count(*) FROM version"));
     println!("with text, signed: {}", count("SELECT count(*) FROM similar_signature"));
     println!(
         "with enough text to compare: {}",
@@ -164,8 +164,8 @@ fn similar_documents_in_real_folders() {
         let conn = base.conn();
         let mut statement = conn
             .prepare(
-                "SELECT c.id, c.state FROM content c
-                 WHERE c.id NOT IN (SELECT content_id FROM similar_signature WHERE length(shingles) > 0) ORDER BY c.state, c.id",
+                "SELECT c.id, c.state FROM version c
+                 WHERE c.id NOT IN (SELECT version_id FROM similar_signature WHERE length(shingles) > 0) ORDER BY c.state, c.id",
             )
             .unwrap();
         let rows: Vec<(i64, String)> = statement
@@ -187,7 +187,7 @@ not compared (no text yet, or too little): {}", rows.len());
     {
         let conn = base.conn();
         let mut statement = conn
-            .prepare("SELECT content_id, marks, signatures, skip_pages FROM document_marks ORDER BY content_id")
+            .prepare("SELECT version_id, marks, signatures, skip_pages FROM document_marks ORDER BY version_id")
             .unwrap();
         let rows: Vec<(i64, String, String, String)> = statement
             .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)))
@@ -228,7 +228,7 @@ not compared (no text yet, or too little): {}", rows.len());
                 if std::env::var("MICELYA_SIMILAR_SHOW_PAGES").is_ok() {
                     let body: String = base
                         .conn()
-                        .query_row("SELECT body FROM derivative WHERE content_id = ?1 AND kind = 'text'", [content], |row| row.get(0))
+                        .query_row("SELECT body FROM derivative WHERE version_id = ?1 AND kind = 'text'", [content], |row| row.get(0))
                         .unwrap();
                     let pages = super::text::pages(&body);
                     let skip: Vec<usize> = serde_json::from_str(&skip).unwrap();

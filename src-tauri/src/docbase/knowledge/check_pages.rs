@@ -118,7 +118,7 @@ fn pages_against_the_entity_sheet() {
         let mut statement = conn
             .prepare(
                 "SELECT p.entity_id, p.path, coalesce(e.kind, 'asunto (grupo)'),
-                        coalesce((SELECT count(DISTINCT m.content_id) FROM knowledge_mention m WHERE m.entity_id = e.id),
+                        coalesce((SELECT count(DISTINCT m.version_id) FROM knowledge_mention m WHERE m.entity_id = e.id),
                                  (SELECT count(*) FROM knowledge_matter_document d WHERE d.matter_id = p.entity_id))
                  FROM knowledge_page p LEFT JOIN knowledge_entity e ON e.id = p.entity_id WHERE p.state = 'projected'",
             )
@@ -176,7 +176,7 @@ fn pages_against_the_entity_sheet() {
     // Mentions read, by document.
     let read: Vec<(i64, i64, String, String, Option<String>)> = {
         let conn = base.conn();
-        let mut statement = conn.prepare("SELECT id, content_id, kind, normalized, entity_id FROM knowledge_mention").unwrap();
+        let mut statement = conn.prepare("SELECT id, version_id, kind, normalized, entity_id FROM knowledge_mention").unwrap();
         let rows = statement.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))).unwrap();
         rows.collect::<Result<_, _>>().unwrap()
     };
@@ -308,7 +308,7 @@ fn matters_against_the_sheet(
     let ours: Vec<(String, i64)> = {
         let conn = base.conn();
         let mut statement = conn
-            .prepare("SELECT d.matter_id, d.content_id FROM knowledge_matter_document d JOIN knowledge_matter m ON m.id = d.matter_id WHERE m.state = 'active'")
+            .prepare("SELECT d.matter_id, d.version_id FROM knowledge_matter_document d JOIN knowledge_matter m ON m.id = d.matter_id WHERE m.state = 'active'")
             .unwrap();
         let rows = statement.query_map([], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
         rows.collect::<Result<_, _>>().unwrap()
@@ -492,8 +492,8 @@ fn changes(base: &crate::docbase::DocBase, asker: &super::check::Recorded, _root
     let (content, named): (i64, i64) = base
         .conn()
         .query_row(
-            "SELECT content_id, count(DISTINCT entity_id) AS n FROM knowledge_mention WHERE entity_id IS NOT NULL
-             GROUP BY content_id ORDER BY n DESC, content_id LIMIT 1",
+            "SELECT version_id, count(DISTINCT entity_id) AS n FROM knowledge_mention WHERE entity_id IS NOT NULL
+             GROUP BY version_id ORDER BY n DESC, version_id LIMIT 1",
             [],
             |r| Ok((r.get(0)?, r.get(1)?)),
         )
@@ -501,8 +501,8 @@ fn changes(base: &crate::docbase::DocBase, asker: &super::check::Recorded, _root
     let only_there: i64 = base
         .conn()
         .query_row(
-            "SELECT count(DISTINCT entity_id) FROM knowledge_mention m WHERE m.content_id = ?1 AND m.entity_id IS NOT NULL
-             AND NOT EXISTS (SELECT 1 FROM knowledge_mention o WHERE o.entity_id = m.entity_id AND o.content_id != ?1)",
+            "SELECT count(DISTINCT entity_id) FROM knowledge_mention m WHERE m.version_id = ?1 AND m.entity_id IS NOT NULL
+             AND NOT EXISTS (SELECT 1 FROM knowledge_mention o WHERE o.entity_id = m.entity_id AND o.version_id != ?1)",
             [content],
             |r| r.get(0),
         )
@@ -510,7 +510,7 @@ fn changes(base: &crate::docbase::DocBase, asker: &super::check::Recorded, _root
     let locations: Vec<(String, String)> = {
         let conn = base.conn();
         let mut statement = conn
-            .prepare("SELECT l.origin_id, l.rel_path FROM location l JOIN file f ON f.hash = l.file_hash WHERE f.content_id = ?1")
+            .prepare("SELECT l.origin_id, l.rel_path FROM location l JOIN file f ON f.hash = l.file_hash WHERE f.version_id = ?1")
             .unwrap();
         let rows = statement.query_map([content], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
         rows.collect::<Result<_, _>>().unwrap()
@@ -596,8 +596,8 @@ fn references_leave_the_entities() {
         let conn = base.conn();
         let mut statement = conn
             .prepare(
-                "SELECT m.id, m.name, m.confirmation, m.status, count(d.content_id) FROM knowledge_matter m
-                 JOIN knowledge_matter_document d ON d.matter_id = m.id WHERE m.state = 'active' GROUP BY m.id ORDER BY count(d.content_id) DESC, m.id",
+                "SELECT m.id, m.name, m.confirmation, m.status, count(d.version_id) FROM knowledge_matter m
+                 JOIN knowledge_matter_document d ON d.matter_id = m.id WHERE m.state = 'active' GROUP BY m.id ORDER BY count(d.version_id) DESC, m.id",
             )
             .unwrap();
         let rows: Vec<(String, String, String, String, i64)> =

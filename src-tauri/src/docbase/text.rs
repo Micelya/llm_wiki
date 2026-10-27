@@ -102,10 +102,10 @@ impl DocBase {
             let mut statement = conn
                 .prepare(&format!(
                     "SELECT c.id, o.location, min(l.rel_path), fd.body
-                     FROM content c
-                     JOIN derivative d ON d.content_id = c.id AND d.kind = 'text' AND d.engine = ?3
-                     LEFT JOIN derivative fd ON fd.content_id = c.id AND fd.kind = ?4
-                     JOIN file f ON f.content_id = c.id
+                     FROM version c
+                     JOIN derivative d ON d.version_id = c.id AND d.kind = 'text' AND d.engine = ?3
+                     LEFT JOIN derivative fd ON fd.version_id = c.id AND fd.kind = ?4
+                     JOIN file f ON f.version_id = c.id
                      JOIN location l ON l.file_hash = f.hash AND l.hash_state = 'done'
                      JOIN origin o ON o.id = l.origin_id AND o.reachable = 1
                      WHERE c.state = 'processed' AND c.id > ?1 AND NOT {}
@@ -145,7 +145,7 @@ impl DocBase {
         }
         let conn = self.conn();
         for content_id in &marked {
-            conn.execute("UPDATE content SET state = 'pending' WHERE id = ?1 AND state = 'processed'", [content_id])
+            conn.execute("UPDATE version SET state = 'pending' WHERE id = ?1 AND state = 'processed'", [content_id])
                 .map_err(sql_err)?;
         }
         let last = jobs.last().map(|(id, ..)| *id);
@@ -176,8 +176,8 @@ impl DocBase {
             .prepare(&format!(
                 // With one min(), SQLite takes the other columns from its row.
                 "SELECT c.id, o.location, min(l.rel_path), l.file_hash
-                 FROM content c
-                 JOIN file f ON f.content_id = c.id
+                 FROM version c
+                 JOIN file f ON f.version_id = c.id
                  JOIN location l ON l.file_hash = f.hash AND l.hash_state = 'done'
                  JOIN origin o ON o.id = l.origin_id AND o.reachable = 1
                  WHERE c.state = 'pending' AND NOT {}
@@ -213,7 +213,7 @@ impl DocBase {
         let tx = conn.transaction().map_err(sql_err)?;
         // Dropped or already attended while the file was being read.
         let pending: Option<i64> = tx
-            .query_row("SELECT id FROM content WHERE id = ?1 AND state = 'pending'", [content_id], |row| {
+            .query_row("SELECT id FROM version WHERE id = ?1 AND state = 'pending'", [content_id], |row| {
                 row.get(0)
             })
             .optional()
@@ -269,7 +269,7 @@ impl DocBase {
         let mut conn = self.conn();
         let tx = conn.transaction().map_err(sql_err)?;
         let content_id: Option<i64> = tx
-            .query_row("SELECT content_id FROM file WHERE hash = ?1", [file_hash], |row| row.get(0))
+            .query_row("SELECT version_id FROM file WHERE hash = ?1", [file_hash], |row| row.get(0))
             .optional()
             .map_err(sql_err)?;
         let Some(content_id) = content_id else {
@@ -288,8 +288,8 @@ impl DocBase {
         self.conn()
             .query_row(
                 "SELECT d.body FROM file f
-                 JOIN content c ON c.id = f.content_id AND c.state = 'processed'
-                 JOIN derivative d ON d.content_id = c.id AND d.kind = 'text'
+                 JOIN version c ON c.id = f.version_id AND c.state = 'processed'
+                 JOIN derivative d ON d.version_id = c.id AND d.kind = 'text'
                  WHERE f.hash = ?1",
                 [file_hash],
                 |row| row.get(0),
@@ -312,7 +312,7 @@ fn store(tx: &Transaction<'_>, content_id: i64, text: &str, engine: &str, state:
     if identity.is_some() && super::similar::generate::is_generated(tx, content_id)? {
         let taken: bool = tx
             .query_row(
-                "SELECT count(*) FROM content WHERE text_hash = ?1 AND id != ?2",
+                "SELECT count(*) FROM version WHERE text_hash = ?1 AND id != ?2",
                 params![identity.as_ref().map(|(hash, _)| hash.clone()), content_id],
                 |row| row.get::<_, i64>(0),
             )
@@ -326,19 +326,19 @@ fn store(tx: &Transaction<'_>, content_id: i64, text: &str, engine: &str, state:
     if let Some((text_hash, _)) = &identity {
         let twin: Option<i64> = tx
             .query_row(
-                "SELECT id FROM content WHERE text_hash = ?1 AND id != ?2",
+                "SELECT id FROM version WHERE text_hash = ?1 AND id != ?2",
                 params![text_hash, content_id],
                 |row| row.get(0),
             )
             .optional()
             .map_err(sql_err)?;
         if let Some(twin) = twin {
-            tx.execute("UPDATE file SET content_id = ?1 WHERE content_id = ?2", params![twin, content_id])
+            tx.execute("UPDATE file SET version_id = ?1 WHERE version_id = ?2", params![twin, content_id])
                 .map_err(sql_err)?;
             // Its ficha of shape is made again with every file it now has,
             // so each one gets the prints of its pages (`page_shapes.rs`).
             tx.execute(
-                "DELETE FROM derivative WHERE content_id = ?1 AND kind = ?2",
+                "DELETE FROM derivative WHERE version_id = ?1 AND kind = ?2",
                 params![twin, super::page_shapes::SHAPES_KIND],
             )
             .map_err(sql_err)?;
@@ -346,7 +346,7 @@ fn store(tx: &Transaction<'_>, content_id: i64, text: &str, engine: &str, state:
                 .map_err(sql_err)?;
             tx.execute("DELETE FROM content_search WHERE rowid = ?1", [content_id])
                 .map_err(sql_err)?;
-            tx.execute("DELETE FROM content WHERE id = ?1", [content_id])
+            tx.execute("DELETE FROM version WHERE id = ?1", [content_id])
                 .map_err(sql_err)?;
             return Ok(twin);
         }
@@ -356,13 +356,13 @@ fn store(tx: &Transaction<'_>, content_id: i64, text: &str, engine: &str, state:
         None => text.split_whitespace().count() as i64,
     };
     tx.execute(
-        "UPDATE content SET state = ?1, text_hash = ?2, word_count = ?3, error = NULL, processed_at = ?4 WHERE id = ?5",
+        "UPDATE version SET state = ?1, text_hash = ?2, word_count = ?3, error = NULL, processed_at = ?4 WHERE id = ?5",
         params![state, identity.map(|(hash, _)| hash), words, now, content_id],
     )
     .map_err(sql_err)?;
     tx.execute(
-        "INSERT INTO derivative (content_id, kind, engine, body, created_at) VALUES (?1, 'text', ?2, ?3, ?4)
-         ON CONFLICT (content_id, kind) DO UPDATE SET engine = excluded.engine, body = excluded.body, created_at = excluded.created_at",
+        "INSERT INTO derivative (version_id, kind, engine, body, created_at) VALUES (?1, 'text', ?2, ?3, ?4)
+         ON CONFLICT (version_id, kind) DO UPDATE SET engine = excluded.engine, body = excluded.body, created_at = excluded.created_at",
         params![content_id, engine, text, now],
     )
     .map_err(sql_err)?;
@@ -392,13 +392,13 @@ fn store_pages(tx: &Transaction<'_>, file_hash: &str, pages: &[(u32, &str, &str)
 /// Saves the text of a content that keeps no identity of its text.
 fn store_alone(tx: &Transaction<'_>, content_id: i64, text: &str, engine: &str, state: &str, words: i64, now: i64) -> Result<i64, String> {
     tx.execute(
-        "UPDATE content SET state = ?1, text_hash = NULL, word_count = ?2, error = NULL, processed_at = ?3 WHERE id = ?4",
+        "UPDATE version SET state = ?1, text_hash = NULL, word_count = ?2, error = NULL, processed_at = ?3 WHERE id = ?4",
         params![state, words, now, content_id],
     )
     .map_err(sql_err)?;
     tx.execute(
-        "INSERT INTO derivative (content_id, kind, engine, body, created_at) VALUES (?1, 'text', ?2, ?3, ?4)
-         ON CONFLICT (content_id, kind) DO UPDATE SET engine = excluded.engine, body = excluded.body, created_at = excluded.created_at",
+        "INSERT INTO derivative (version_id, kind, engine, body, created_at) VALUES (?1, 'text', ?2, ?3, ?4)
+         ON CONFLICT (version_id, kind) DO UPDATE SET engine = excluded.engine, body = excluded.body, created_at = excluded.created_at",
         params![content_id, engine, text, now],
     )
     .map_err(sql_err)?;
@@ -423,8 +423,8 @@ fn store_fields(tx: &Transaction<'_>, content_id: i64, fields: &[(String, String
     )
     .map_err(|e| e.to_string())?;
     tx.execute(
-        "INSERT INTO derivative (content_id, kind, engine, body, created_at) VALUES (?1, ?2, ?3, ?4, ?5)
-         ON CONFLICT (content_id, kind) DO UPDATE SET engine = excluded.engine, body = excluded.body, created_at = excluded.created_at",
+        "INSERT INTO derivative (version_id, kind, engine, body, created_at) VALUES (?1, ?2, ?3, ?4, ?5)
+         ON CONFLICT (version_id, kind) DO UPDATE SET engine = excluded.engine, body = excluded.body, created_at = excluded.created_at",
         params![content_id, FIELDS_KIND, EXTRACTION_ENGINE, body, now_ms()],
     )
     .map_err(sql_err)?;
@@ -433,7 +433,7 @@ fn store_fields(tx: &Transaction<'_>, content_id: i64, fields: &[(String, String
 
 fn set_state(tx: &Transaction<'_>, content_id: i64, state: &str, error: Option<&str>) -> Result<(), String> {
     tx.execute(
-        "UPDATE content SET state = ?1, error = ?2, processed_at = ?3 WHERE id = ?4",
+        "UPDATE version SET state = ?1, error = ?2, processed_at = ?3 WHERE id = ?4",
         params![state, error, now_ms(), content_id],
     )
     .map_err(sql_err)?;
@@ -521,7 +521,7 @@ mod tests {
         let origin = base.add_origin("O", &dir.path().join("o"), &[]).unwrap();
         settle(&base, &origin.id);
 
-        assert_eq!(count(&base, "SELECT count(*) FROM content WHERE state = 'processed'"), 1);
+        assert_eq!(count(&base, "SELECT count(*) FROM version WHERE state = 'processed'"), 1);
         assert_eq!(count(&base, "SELECT count(*) FROM derivative WHERE kind = 'text'"), 1);
         assert_eq!(state_of(&base, "contrato.md"), "processed");
         assert_eq!(state_of(&base, "contrato firmado.md"), "processed");
@@ -558,7 +558,7 @@ mod tests {
             looked += n;
         }
         assert_eq!(looked, 2);
-        assert_eq!(count(&base, "SELECT count(*) FROM content WHERE state = 'pending'"), 1);
+        assert_eq!(count(&base, "SELECT count(*) FROM version WHERE state = 'pending'"), 1);
         assert_eq!(state_of(&base, "otro.md"), "processed");
         // Once done, the base is at the current version: nothing else.
         assert_eq!(base.refresh_extraction_with(10, |_: &Path| vec![("x".to_string(), "y".to_string())]).unwrap(), 0);
@@ -588,8 +588,19 @@ mod tests {
         settle(&base, &origin.id);
 
         assert_eq!(count(&base, "SELECT count(*) FROM file"), 2);
-        assert_eq!(count(&base, "SELECT count(*) FROM content"), 1);
+        assert_eq!(count(&base, "SELECT count(*) FROM version"), 1);
         assert_eq!(count(&base, "SELECT count(*) FROM content_fts"), 1);
+        // The two files are two appearances of that one version, which has
+        // one document; the one that went took its own document (D-551).
+        assert_eq!(
+            count(&base, "SELECT count(*) FROM appearance a JOIN version v ON v.id = a.version_id WHERE a.selector = 'file' AND a.cut_state = 'confirmed'"),
+            2
+        );
+        assert_eq!(count(&base, "SELECT count(*) FROM document"), 1);
+        assert_eq!(
+            count(&base, "SELECT count(*) FROM document d JOIN version v ON v.document_id = d.id AND d.prevailing_version_id = v.id"),
+            1
+        );
 
         let rows = base.documents(&Visible::All, &DocumentFilter::default()).unwrap().rows;
         assert!(rows.iter().all(|row| row.copies == 2));
@@ -613,7 +624,7 @@ mod tests {
         assert_eq!(state_of(&base, "plano.dwg"), "unsupported");
         // Too short to tell documents apart by text, but still text.
         assert_eq!(state_of(&base, "nota.txt"), "processed");
-        assert_eq!(count(&base, "SELECT count(*) FROM content WHERE text_hash IS NOT NULL"), 0);
+        assert_eq!(count(&base, "SELECT count(*) FROM version WHERE text_hash IS NOT NULL"), 0);
     }
 
     #[test]
@@ -815,7 +826,7 @@ mod tests {
         settle(&base, &origin.id);
 
         // Before, only the page was read: both read alike and became one.
-        assert_eq!(count(&base, "SELECT count(*) FROM content WHERE state = 'processed'"), 2);
+        assert_eq!(count(&base, "SELECT count(*) FROM version WHERE state = 'processed'"), 2);
         let rows = base.documents(&Visible::All, &DocumentFilter::default()).unwrap().rows;
         assert!(rows.iter().all(|row| row.copies == 1));
 
@@ -831,7 +842,7 @@ mod tests {
         let fields: String = base
             .conn()
             .query_row(
-                "SELECT d.body FROM derivative d JOIN file f ON f.content_id = d.content_id
+                "SELECT d.body FROM derivative d JOIN file f ON f.version_id = d.version_id
                  JOIN location l ON l.file_hash = f.hash
                  WHERE d.kind = 'fields' AND l.name = 'ficha dos.pdf'",
                 [],

@@ -419,7 +419,7 @@ pub fn build(base: &DocBase, operation: &Operation, input: &Value, request: Opti
 /// model, not answered yet) or not.
 fn membership(conn: &Connection, matter: &str, content: i64) -> Result<Option<String>, String> {
     let firm: Option<String> = conn
-        .query_row("SELECT state FROM knowledge_matter_document WHERE matter_id = ?1 AND content_id = ?2", rusqlite::params![matter, content], |row| row.get(0))
+        .query_row("SELECT state FROM knowledge_matter_document WHERE matter_id = ?1 AND version_id = ?2", rusqlite::params![matter, content], |row| row.get(0))
         .optional()
         .map_err(sql_err)?;
     if firm.is_some() {
@@ -709,7 +709,7 @@ pub fn refresh(base: &DocBase, card: &mut Card, first: bool) -> Result<(), Strin
                 let content = content_of(&card.items[1]).unwrap_or_default();
                 let mentions: i64 = base
                     .conn()
-                    .query_row("SELECT count(*) FROM knowledge_mention WHERE entity_id = ?1 AND content_id = ?2", rusqlite::params![entity, content], |row| row.get(0))
+                    .query_row("SELECT count(*) FROM knowledge_mention WHERE entity_id = ?1 AND version_id = ?2", rusqlite::params![entity, content], |row| row.get(0))
                     .map_err(sql_err)?;
                 print.push(format!("mentions|{mentions}"));
                 if mentions == 0 {

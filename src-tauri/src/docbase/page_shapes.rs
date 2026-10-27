@@ -47,12 +47,12 @@ impl DocBase {
             let conn = self.conn();
             let mut statement = conn
                 .prepare(&format!(
-                    "SELECT DISTINCT c.id FROM content c
-                     JOIN file f ON f.content_id = c.id
+                    "SELECT DISTINCT c.id FROM version c
+                     JOIN file f ON f.version_id = c.id
                      JOIN location l ON l.file_hash = f.hash AND l.hash_state = 'done' AND lower(l.ext) = 'pdf'
                      JOIN origin o ON o.id = l.origin_id AND o.reachable = 1
                      WHERE c.state IN ('processed', 'needs-recognition') AND NOT {}
-                       AND NOT EXISTS (SELECT 1 FROM derivative d WHERE d.content_id = c.id AND d.kind = ?1 AND d.engine = ?2)
+                       AND NOT EXISTS (SELECT 1 FROM derivative d WHERE d.version_id = c.id AND d.kind = ?1 AND d.engine = ?2)
                      ORDER BY c.id LIMIT ?3",
                     super::excluded_sql!()
                 ))
@@ -64,8 +64,8 @@ impl DocBase {
                 .map_err(sql_err)?;
             let mut files = conn
                 .prepare(&format!(
-                    "SELECT f.hash, o.location, min(l.rel_path) AS first FROM content c
-                     JOIN file f ON f.content_id = c.id
+                    "SELECT f.hash, o.location, min(l.rel_path) AS first FROM version c
+                     JOIN file f ON f.version_id = c.id
                      JOIN location l ON l.file_hash = f.hash AND l.hash_state = 'done' AND lower(l.ext) = 'pdf'
                      JOIN origin o ON o.id = l.origin_id AND o.reachable = 1
                      WHERE c.id = ?1 AND NOT {}
@@ -103,8 +103,8 @@ impl DocBase {
             let mut conn = self.conn();
             let tx = conn.transaction().map_err(sql_err)?;
             tx.execute(
-                "INSERT INTO derivative (content_id, kind, engine, body, created_at) VALUES (?1, ?2, ?3, ?4, ?5)
-                 ON CONFLICT (content_id, kind) DO UPDATE SET engine = excluded.engine, body = excluded.body, created_at = excluded.created_at",
+                "INSERT INTO derivative (version_id, kind, engine, body, created_at) VALUES (?1, ?2, ?3, ?4, ?5)
+                 ON CONFLICT (version_id, kind) DO UPDATE SET engine = excluded.engine, body = excluded.body, created_at = excluded.created_at",
                 params![content, SHAPES_KIND, SHAPES_ENGINE, body, now_ms()],
             )
             .map_err(sql_err)?;
@@ -139,9 +139,9 @@ fn store_prints(tx: &rusqlite::Transaction<'_>, hash: &str, pages: &[PagePrint])
 pub(super) fn unread_of(conn: &Connection, recognized: &Path, content: i64) -> Result<Vec<u32>, String> {
     let found: Option<(String, Option<String>)> = conn
         .query_row(
-            "SELECT d.body, t.engine FROM content c
-             JOIN derivative d ON d.content_id = c.id AND d.kind = ?2 AND d.engine = ?3
-             LEFT JOIN derivative t ON t.content_id = c.id AND t.kind = 'text'
+            "SELECT d.body, t.engine FROM version c
+             JOIN derivative d ON d.version_id = c.id AND d.kind = ?2 AND d.engine = ?3
+             LEFT JOIN derivative t ON t.version_id = c.id AND t.kind = 'text'
              WHERE c.id = ?1 AND c.state = 'processed'",
             params![content, SHAPES_KIND, SHAPES_ENGINE],
             |row| Ok((row.get(0)?, row.get(1)?)),
@@ -167,7 +167,7 @@ pub(super) fn unread_of(conn: &Connection, recognized: &Path, content: i64) -> R
 
 /// The pages of any file of this content whose recognition the base keeps.
 fn recognized_pages(conn: &Connection, recognized: &Path, content: i64) -> Result<BTreeSet<u32>, String> {
-    let mut statement = conn.prepare("SELECT hash FROM file WHERE content_id = ?1").map_err(sql_err)?;
+    let mut statement = conn.prepare("SELECT hash FROM file WHERE version_id = ?1").map_err(sql_err)?;
     let hashes = statement
         .query_map([content], |row| row.get::<_, String>(0))
         .map_err(sql_err)?
@@ -191,10 +191,10 @@ fn recognized_pages(conn: &Connection, recognized: &Path, content: i64) -> Resul
 pub(crate) fn unread_scans(conn: &Connection, recognized: &Path, rows_sql: &str, bound: &[Value]) -> Result<UnreadScans, String> {
     let mut statement = conn
         .prepare(&format!(
-            "SELECT DISTINCT c.id FROM content c
-             JOIN derivative d ON d.content_id = c.id AND d.kind = '{SHAPES_KIND}'
+            "SELECT DISTINCT c.id FROM version c
+             JOIN derivative d ON d.version_id = c.id AND d.kind = '{SHAPES_KIND}'
              WHERE c.state = 'processed'
-               AND c.id IN (SELECT content_id FROM ({rows_sql}) WHERE content_id IS NOT NULL)
+               AND c.id IN (SELECT version_id FROM ({rows_sql}) WHERE version_id IS NOT NULL)
              ORDER BY c.id"
         ))
         .map_err(sql_err)?;
@@ -271,7 +271,7 @@ mod tests {
         let base = DocBase::in_memory().unwrap();
         let origin = base.add_origin("O", &dir.path().join("o"), &[]).unwrap();
         settle(&base, &origin.id);
-        let contents: i64 = base.conn().query_row("SELECT count(*) FROM content", [], |row| row.get(0)).unwrap();
+        let contents: i64 = base.conn().query_row("SELECT count(*) FROM version", [], |row| row.get(0)).unwrap();
         assert_eq!(contents, 1);
         while base.profile_pending(10).unwrap() > 0 {}
         let one = prints_of(&base, "escrito.pdf");
@@ -321,12 +321,12 @@ mod tests {
         let origin = base.add_origin("O", &dir.path().join("o"), &[]).unwrap();
         settle(&base, &origin.id);
         // As the test of the 80 characters read it before: whole text.
-        let content: i64 = base.conn().query_row("SELECT id FROM content", [], |row| row.get(0)).unwrap();
-        base.conn().execute("UPDATE content SET state = 'processed' WHERE id = ?1", [content]).unwrap();
+        let content: i64 = base.conn().query_row("SELECT id FROM version", [], |row| row.get(0)).unwrap();
+        base.conn().execute("UPDATE version SET state = 'processed' WHERE id = ?1", [content]).unwrap();
         base.conn()
             .execute(
-                "INSERT INTO derivative (content_id, kind, engine, body, created_at) VALUES (?1, 'text', 'extraction', 'texto', 0)
-                 ON CONFLICT (content_id, kind) DO NOTHING",
+                "INSERT INTO derivative (version_id, kind, engine, body, created_at) VALUES (?1, 'text', 'extraction', 'texto', 0)
+                 ON CONFLICT (version_id, kind) DO NOTHING",
                 [content],
             )
             .unwrap();

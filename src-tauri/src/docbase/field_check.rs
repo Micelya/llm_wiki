@@ -60,12 +60,12 @@ fn inventory_of_real_folders() {
 
     println!("\nlocations: {}", page.total);
     println!("files (distinct bytes): {}", conn_count("SELECT count(*) FROM file"));
-    println!("documents (contents): {}", conn_count("SELECT count(*) FROM content"));
+    println!("documents (contents): {}", conn_count("SELECT count(*) FROM version"));
     println!(
         "contents made of more than one file (same text, other bytes): {}",
-        conn_count("SELECT count(*) FROM (SELECT content_id FROM file GROUP BY content_id HAVING count(*) > 1)")
+        conn_count("SELECT count(*) FROM (SELECT version_id FROM file GROUP BY version_id HAVING count(*) > 1)")
     );
-    println!("words indexed: {}", conn_count("SELECT coalesce(sum(word_count), 0) FROM content"));
+    println!("words indexed: {}", conn_count("SELECT coalesce(sum(word_count), 0) FROM version"));
 
     let mut states: std::collections::BTreeMap<String, usize> = Default::default();
     for row in &page.rows {

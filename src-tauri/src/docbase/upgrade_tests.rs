@@ -54,6 +54,22 @@ const PERSON_DECISIONS: &[&str] = &[
 /// so far: every update only adds.
 const CHANGED_ON_PURPOSE: &[(i64, &str, &str)] = &[];
 
+/// The tables and columns an update renamed, (version, before, after): their
+/// rows are looked for under the new name.
+const RENAMED_TABLES: &[(i64, &str, &str)] = &[(3, "content", "version")];
+const RENAMED_COLUMNS: &[(i64, &str, &str)] = &[(3, "content_id", "version_id")];
+
+/// The name a table and its columns of a base at `version` have now.
+fn named_now(version: i64, table: &str, names: &[String]) -> (String, Vec<String>) {
+    let now = |renames: &[(i64, &str, &str)], name: &str| {
+        renames
+            .iter()
+            .filter(|(v, _, _)| *v > version)
+            .fold(name.to_string(), |name, (_, before, after)| if name == *before { after.to_string() } else { name })
+    };
+    (now(RENAMED_TABLES, table), names.iter().map(|n| now(RENAMED_COLUMNS, n)).collect())
+}
+
 struct Column {
     name: String,
     decl: String,
@@ -404,7 +420,8 @@ fn bring_up(version: i64) {
             if CHANGED_ON_PURPOSE.iter().any(|(v, t, _)| *v > version && *t == table.as_str()) {
                 continue;
             }
-            let kept = rows_of(&conn, table, names);
+            let (now_table, now_names) = named_now(version, table, names);
+            let kept = rows_of(&conn, &now_table, &now_names);
             let lost = missing(rows, &kept);
             assert!(lost.is_empty(), "version {version}: the table {table} lost or changed {lost:?}");
             if PERSON_DECISIONS.contains(&table.as_str()) {
@@ -525,7 +542,7 @@ fn a_failed_update_keeps_its_backup_and_names_it() {
     {
         // A table the next version adds is already there: its change fails.
         let conn = Connection::open(data.join(PRIVATE_DB_FILE)).unwrap();
-        conn.execute_batch("CREATE TABLE resource_page (x)").unwrap();
+        conn.execute_batch("CREATE TABLE appearance (x)").unwrap();
     }
     let (base, opening) = DocBase::open_in_data_folder(data);
     let problem = base.unwrap_err();
@@ -590,7 +607,8 @@ fn a_base_of_a_newer_version_is_left_alone_and_the_backup_takes_its_place() {
     assert!(opening.backup.is_some());
     let conn = base.conn();
     for (table, (names, rows)) in &before {
-        assert!(missing(rows, &rows_of(&conn, table, names)).is_empty(), "{table}");
+        let (now_table, now_names) = named_now(version, table, names);
+        assert!(missing(rows, &rows_of(&conn, &now_table, &now_names)).is_empty(), "{table}");
     }
     assert_eq!(list(data).len(), 2);
 }

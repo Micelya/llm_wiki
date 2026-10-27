@@ -89,7 +89,7 @@ pub(crate) fn recognition_engine(conn: &Connection) -> Result<Option<Recognition
 const REACHABLE_SQL: &str = "EXISTS (SELECT 1 FROM file f
      JOIN location l ON l.file_hash = f.hash AND l.hash_state = 'done'
      JOIN origin o ON o.id = l.origin_id AND o.reachable = 1
-     WHERE f.content_id = c.id AND NOT {excluded})";
+     WHERE f.version_id = c.id AND NOT {excluded})";
 
 fn reachable_sql() -> String {
     REACHABLE_SQL.replace("{excluded}", super::excluded_sql!())
@@ -99,7 +99,7 @@ fn reachable_sql() -> String {
 /// order asked (kept in the base: they survive closing the app).
 pub(crate) fn requested_recognitions(conn: &Connection) -> Result<Vec<i64>, String> {
     let mut statement = conn
-        .prepare("SELECT content_id FROM recognition_request ORDER BY position, content_id")
+        .prepare("SELECT version_id FROM recognition_request ORDER BY position, version_id")
         .map_err(sql_err)?;
     let rows = statement.query_map([], |row| row.get::<_, i64>(0)).map_err(sql_err)?;
     rows.collect::<Result<_, _>>().map_err(sql_err)
@@ -128,8 +128,8 @@ impl DocBase {
                     for id in wanted {
                         let found: Option<(String, Option<String>)> = conn
                             .query_row(
-                                "SELECT c.state, d.engine FROM content c
-                                 LEFT JOIN derivative d ON d.content_id = c.id AND d.kind = 'text' WHERE c.id = ?1",
+                                "SELECT c.state, d.engine FROM version c
+                                 LEFT JOIN derivative d ON d.version_id = c.id AND d.kind = 'text' WHERE c.id = ?1",
                                 [id],
                                 |row| Ok((row.get(0)?, row.get(1)?)),
                             )
@@ -147,7 +147,7 @@ impl DocBase {
                     let failed_only = matches!(which, RecognitionRequest::Failed);
                     let mut statement = conn
                         .prepare(&format!(
-                            "SELECT c.id FROM content c WHERE c.state = 'needs-recognition' AND (?1 = 0 OR c.error IS NOT NULL)
+                            "SELECT c.id FROM version c WHERE c.state = 'needs-recognition' AND (?1 = 0 OR c.error IS NOT NULL)
                              AND {} ORDER BY c.id",
                             reachable_sql()
                         ))
@@ -164,10 +164,10 @@ impl DocBase {
                 .map_err(sql_err)?;
             let at = now_ms();
             for (index, id) in ids.iter().enumerate() {
-                conn.execute("UPDATE content SET error = NULL WHERE id = ?1 AND state = 'needs-recognition'", [id])
+                conn.execute("UPDATE version SET error = NULL WHERE id = ?1 AND state = 'needs-recognition'", [id])
                     .map_err(sql_err)?;
                 conn.execute(
-                    "INSERT OR IGNORE INTO recognition_request (content_id, position, asked_at) VALUES (?1, ?2, ?3)",
+                    "INSERT OR IGNORE INTO recognition_request (version_id, position, asked_at) VALUES (?1, ?2, ?3)",
                     params![id, last + 1 + index as i64, at],
                 )
                 .map_err(sql_err)?;
@@ -182,7 +182,7 @@ impl DocBase {
     /// well or for good: it is no longer asked for.
     fn recognition_ended(&self, content: i64) -> Result<(), String> {
         self.conn()
-            .execute("DELETE FROM recognition_request WHERE content_id = ?1", [content])
+            .execute("DELETE FROM recognition_request WHERE version_id = ?1", [content])
             .map_err(sql_err)?;
         self.engine_state().forget_recognition_tries(&[content]);
         Ok(())
@@ -213,8 +213,8 @@ impl DocBase {
         self.conn()
             .query_row(
                 &format!(
-                    "SELECT c.id FROM content c WHERE c.state = 'needs-recognition' AND c.error IS NULL AND {}
-                     AND NOT EXISTS (SELECT 1 FROM recognition_request r WHERE r.content_id = c.id)
+                    "SELECT c.id FROM version c WHERE c.state = 'needs-recognition' AND c.error IS NULL AND {}
+                     AND NOT EXISTS (SELECT 1 FROM recognition_request r WHERE r.version_id = c.id)
                      ORDER BY c.id LIMIT 1",
                     reachable_sql()
                 ),
@@ -272,7 +272,7 @@ impl DocBase {
                 let marked = self
                     .conn()
                     .execute(
-                        "UPDATE content SET error = ?1 WHERE id = ?2 AND state = 'needs-recognition'",
+                        "UPDATE version SET error = ?1 WHERE id = ?2 AND state = 'needs-recognition'",
                         params![error, content],
                     )
                     .map_err(sql_err)?;
@@ -295,8 +295,8 @@ impl DocBase {
             let conn = self.conn();
             let found: Option<(String, Option<String>)> = conn
                 .query_row(
-                    "SELECT c.state, d.engine FROM content c
-                     LEFT JOIN derivative d ON d.content_id = c.id AND d.kind = 'text' WHERE c.id = ?1",
+                    "SELECT c.state, d.engine FROM version c
+                     LEFT JOIN derivative d ON d.version_id = c.id AND d.kind = 'text' WHERE c.id = ?1",
                     [content_id],
                     |row| Ok((row.get(0)?, row.get(1)?)),
                 )
@@ -312,7 +312,7 @@ impl DocBase {
                     "SELECT f.hash, o.location, l.rel_path, l.ext FROM file f
                      JOIN location l ON l.file_hash = f.hash AND l.hash_state = 'done'
                      JOIN origin o ON o.id = l.origin_id AND o.reachable = 1
-                     WHERE f.content_id = ?1 AND NOT {}
+                     WHERE f.version_id = ?1 AND NOT {}
                      ORDER BY l.id LIMIT 1",
                     super::excluded_sql!()
                 ),
@@ -362,8 +362,8 @@ impl DocBase {
             let conn = self.conn();
             let mut statement = conn
                 .prepare(&format!(
-                    "SELECT c.id, o.location, l.rel_path, l.ext FROM content c
-                     JOIN file f ON f.content_id = c.id
+                    "SELECT c.id, o.location, l.rel_path, l.ext FROM version c
+                     JOIN file f ON f.version_id = c.id
                      JOIN location l ON l.file_hash = f.hash AND l.hash_state = 'done'
                      JOIN origin o ON o.id = l.origin_id AND o.reachable = 1
                      WHERE c.state = 'needs-recognition' AND NOT {}
@@ -490,7 +490,7 @@ del edificio inventado hasta que alguna de las partes la retire, con aviso de un
     fn content_of(base: &DocBase, name: &str) -> i64 {
         base.conn()
             .query_row(
-                "SELECT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.name = ?1",
+                "SELECT f.version_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.name = ?1",
                 [name],
                 |row| row.get(0),
             )
@@ -511,7 +511,7 @@ del edificio inventado hasta que alguna de las partes la retire, con aviso de un
         base.conn()
             .query_row(
                 "SELECT d.body, d.engine FROM location l JOIN file f ON f.hash = l.file_hash
-                 JOIN derivative d ON d.content_id = f.content_id AND d.kind = 'text' WHERE l.name = ?1",
+                 JOIN derivative d ON d.version_id = f.version_id AND d.kind = 'text' WHERE l.name = ?1",
                 [name],
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
@@ -747,7 +747,7 @@ del edificio inventado hasta que alguna de las partes la retire, con aviso de un
             assert!(matches!(run(&base, &timing_out)[..], [RecognitionStep::Stopped(_)]));
         }
         assert!(matches!(run(&base, &timing_out)[..], [RecognitionStep::Failed(_)]));
-        let error: Option<String> = base.conn().query_row("SELECT error FROM content", [], |row| row.get(0)).unwrap();
+        let error: Option<String> = base.conn().query_row("SELECT error FROM version", [], |row| row.get(0)).unwrap();
         assert!(error.unwrap().contains("did not answer"));
     }
 

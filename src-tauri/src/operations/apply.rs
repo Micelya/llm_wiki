@@ -143,7 +143,7 @@ pub fn apply(base: &DocBase, card: &Card, keys: &[String], note: &str) -> Result
                     let mentions: Vec<i64> = {
                         let conn = base.conn();
                         let mut statement = conn
-                            .prepare("SELECT id FROM knowledge_mention WHERE entity_id = ?1 AND content_id = ?2 ORDER BY id")
+                            .prepare("SELECT id FROM knowledge_mention WHERE entity_id = ?1 AND version_id = ?2 ORDER BY id")
                             .map_err(crate::docbase::sql_err)?;
                         let rows = statement.query_map(rusqlite::params![entity, content], |row| row.get(0)).map_err(crate::docbase::sql_err)?;
                         rows.collect::<Result<_, _>>().map_err(crate::docbase::sql_err)?

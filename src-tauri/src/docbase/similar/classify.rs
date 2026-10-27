@@ -265,9 +265,9 @@ fn fingerprint(parts: &[&str]) -> String {
 pub(super) fn load_docs(conn: &Connection) -> Result<BTreeMap<i64, DocInfo>, String> {
     let mut statement = conn
         .prepare(
-            "SELECT s.content_id, s.text_at, coalesce(m.marks, '[]') FROM similar_signature s
-             JOIN content c ON c.id = s.content_id AND c.state = 'processed'
-             LEFT JOIN document_marks m ON m.content_id = s.content_id
+            "SELECT s.version_id, s.text_at, coalesce(m.marks, '[]') FROM similar_signature s
+             JOIN version c ON c.id = s.version_id AND c.state = 'processed'
+             LEFT JOIN document_marks m ON m.version_id = s.version_id
              WHERE s.words >= ?1",
         )
         .map_err(sql_err)?;
@@ -287,7 +287,7 @@ pub(super) fn load_docs(conn: &Connection) -> Result<BTreeMap<i64, DocInfo>, Str
 /// whose relation is not one that keeps documents in a family.
 fn principal_type_parts_family(conn: &Connection, catalog: &Catalog, principal: i64) -> Result<bool, String> {
     let doc_type: Option<String> = conn
-        .query_row("SELECT doc_type FROM document_type WHERE content_id = ?1", [principal], |r| r.get(0))
+        .query_row("SELECT doc_type FROM document_type WHERE version_id = ?1", [principal], |r| r.get(0))
         .optional()
         .map_err(sql_err)?;
     Ok(doc_type.and_then(|t| catalog.doc_type(&t)).is_some_and(|t| {
@@ -743,7 +743,7 @@ fn write_type_rows(conn: &Connection, rows: &[TypeRow], basis: &str) -> Result<u
     for row in rows {
         let before: Option<(String, Option<String>, String)> = conn
             .query_row(
-                "SELECT doc_type, stage, basis FROM document_type WHERE content_id = ?1",
+                "SELECT doc_type, stage, basis FROM document_type WHERE version_id = ?1",
                 [row.content_id],
                 |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
             )
@@ -754,7 +754,7 @@ fn write_type_rows(conn: &Connection, rows: &[TypeRow], basis: &str) -> Result<u
         }
         conn.execute(
             "INSERT OR REPLACE INTO document_type
-                (content_id, doc_type, stage, proposed, proposed_name, proposed_description, source, principal,
+                (version_id, doc_type, stage, proposed, proposed_name, proposed_description, source, principal,
                  confidence, reason, question, basis, computed_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
             params![
@@ -820,7 +820,7 @@ pub(crate) fn cached_answer(conn: &Connection, key: &str, engine: Option<&str>) 
 /// gave it.
 pub(crate) fn keep_answer(conn: &Connection, question: &Question, engine: &str, answer: &str) -> Result<(), String> {
     conn.execute(
-        "INSERT OR REPLACE INTO model_answer (question, task, prompt_version, engine, content_id, prompt, answer, asked_at)
+        "INSERT OR REPLACE INTO model_answer (question, task, prompt_version, engine, version_id, prompt, answer, asked_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         params![question.key, question.task, question.version, engine, question.content_id, question.prompt, answer, now_ms()],
     )
@@ -835,7 +835,7 @@ fn answering_engine(conn: &Connection) -> Result<Option<String>, String> {
 }
 
 pub(crate) fn body_of(conn: &Connection, content_id: i64) -> Result<String, String> {
-    conn.query_row("SELECT body FROM derivative WHERE content_id = ?1 AND kind = 'text'", [content_id], |row| row.get(0))
+    conn.query_row("SELECT body FROM derivative WHERE version_id = ?1 AND kind = 'text'", [content_id], |row| row.get(0))
         .optional()
         .map_err(sql_err)
         .map(Option::unwrap_or_default)
@@ -843,7 +843,7 @@ pub(crate) fn body_of(conn: &Connection, content_id: i64) -> Result<String, Stri
 
 pub(crate) fn name_of(conn: &Connection, content_id: i64) -> Result<String, String> {
     conn.query_row(
-        "SELECT l.name FROM location l JOIN file f ON f.hash = l.file_hash WHERE f.content_id = ?1
+        "SELECT l.name FROM location l JOIN file f ON f.hash = l.file_hash WHERE f.version_id = ?1
          ORDER BY l.rel_path COLLATE NOCASE LIMIT 1",
         [content_id],
         |row| row.get(0),
@@ -954,7 +954,7 @@ impl DocBase {
         let units = load_units(&conn, catalog, &docs)?;
         let decisions = read_type_decisions(&conn)?;
         let current: HashMap<i64, String> = {
-            let mut statement = conn.prepare("SELECT content_id, basis FROM document_type").map_err(sql_err)?;
+            let mut statement = conn.prepare("SELECT version_id, basis FROM document_type").map_err(sql_err)?;
             let rows = statement
                 .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
                 .map_err(sql_err)?
@@ -966,8 +966,8 @@ impl DocBase {
         let gone: Vec<i64> = current.keys().filter(|id| !docs.contains_key(id)).copied().collect();
         let mut written = 0;
         for id in gone {
-            conn.execute("DELETE FROM document_type WHERE content_id = ?1", [id]).map_err(sql_err)?;
-            conn.execute("DELETE FROM document_data WHERE content_id = ?1", [id]).map_err(sql_err)?;
+            conn.execute("DELETE FROM document_type WHERE version_id = ?1", [id]).map_err(sql_err)?;
+            conn.execute("DELETE FROM document_data WHERE version_id = ?1", [id]).map_err(sql_err)?;
             written += 1;
         }
         let mut pending = Vec::new();
@@ -1002,7 +1002,7 @@ impl DocBase {
         let engine = answering_engine(&conn)?;
         let docs = load_docs(&conn)?;
         let typed: Vec<(i64, String, bool)> = {
-            let mut statement = conn.prepare("SELECT content_id, doc_type, proposed FROM document_type").map_err(sql_err)?;
+            let mut statement = conn.prepare("SELECT version_id, doc_type, proposed FROM document_type").map_err(sql_err)?;
             let rows = statement
                 .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
                 .map_err(sql_err)?
@@ -1011,7 +1011,7 @@ impl DocBase {
             rows
         };
         let current: HashMap<i64, (String, Option<String>)> = {
-            let mut statement = conn.prepare("SELECT content_id, basis, question FROM document_data").map_err(sql_err)?;
+            let mut statement = conn.prepare("SELECT version_id, basis, question FROM document_data").map_err(sql_err)?;
             let rows = statement
                 .query_map([], |row| Ok((row.get(0)?, (row.get(1)?, row.get(2)?))))
                 .map_err(sql_err)?
@@ -1059,7 +1059,7 @@ impl DocBase {
             }
             let still_missing: Vec<&String> = missing.iter().filter(|m| !found.iter().any(|d| &d.field == *m)).collect();
             conn.execute(
-                "INSERT OR REPLACE INTO document_data (content_id, doc_type, data, missing, question, basis, computed_at)
+                "INSERT OR REPLACE INTO document_data (version_id, doc_type, data, missing, question, basis, computed_at)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
                 params![
                     content_id,
@@ -1076,7 +1076,7 @@ impl DocBase {
         }
         // Data of documents that lost their type.
         written += conn
-            .execute("DELETE FROM document_data WHERE content_id NOT IN (SELECT content_id FROM document_type)", [])
+            .execute("DELETE FROM document_data WHERE version_id NOT IN (SELECT version_id FROM document_type)", [])
             .map_err(sql_err)?;
         Ok((written, pending))
     }
@@ -1335,7 +1335,7 @@ impl DocBase {
         let conn = self.conn();
         let content: Option<i64> = conn
             .query_row(
-                "SELECT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.id = ?1",
+                "SELECT f.version_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.id = ?1",
                 [location_id],
                 |row| row.get(0),
             )
@@ -1562,9 +1562,9 @@ pub(crate) fn example_data_question(part: crate::docbase::questions::Part) -> Op
 pub(super) fn read_types(conn: &Connection, only: Option<i64>) -> Result<BTreeMap<i64, DocumentType>, String> {
     let mut statement = conn
         .prepare(
-            "SELECT content_id, doc_type, stage, proposed, proposed_name, proposed_description, source, principal,
+            "SELECT version_id, doc_type, stage, proposed, proposed_name, proposed_description, source, principal,
                     confidence, reason, computed_at
-             FROM document_type WHERE ?1 IS NULL OR content_id = ?1",
+             FROM document_type WHERE ?1 IS NULL OR version_id = ?1",
         )
         .map_err(sql_err)?;
     let rows = statement
@@ -1594,7 +1594,7 @@ pub(super) fn read_types(conn: &Connection, only: Option<i64>) -> Result<BTreeMa
 
 pub(super) fn read_data(conn: &Connection, only: Option<i64>) -> Result<BTreeMap<i64, Option<Vec<Datum>>>, String> {
     let mut statement = conn
-        .prepare("SELECT content_id, data FROM document_data WHERE ?1 IS NULL OR content_id = ?1")
+        .prepare("SELECT version_id, data FROM document_data WHERE ?1 IS NULL OR version_id = ?1")
         .map_err(sql_err)?;
     let rows = statement
         .query_map([only], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)))

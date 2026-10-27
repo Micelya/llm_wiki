@@ -195,10 +195,10 @@ fn object_of(
     // header names them.
     let mut contents: Vec<i64> = {
         let found = conn.prepare(
-            "SELECT DISTINCT f.content_id FROM wiki_page p
+            "SELECT DISTINCT f.version_id FROM wiki_page p
              JOIN wiki_page_source s ON s.page_id = p.id JOIN location l ON l.id = s.location_id
              JOIN file f ON f.hash = l.file_hash
-             WHERE lower(p.path) = lower(?1) AND f.content_id IS NOT NULL ORDER BY f.content_id",
+             WHERE lower(p.path) = lower(?1) AND f.version_id IS NOT NULL ORDER BY f.version_id",
         );
         match found {
             Ok(mut statement) => statement

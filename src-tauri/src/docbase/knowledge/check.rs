@@ -437,7 +437,7 @@ fn extraction_against_the_entity_sheet() {
     let name = |content: i64| by_content.get(&content).map(|p| p.join(" = ")).unwrap_or_else(|| format!("#{content}"));
     let found: BTreeMap<i64, Vec<Found>> = {
         let conn = base.conn();
-        let mut statement = conn.prepare("SELECT content_id, id, kind, normalized, role FROM knowledge_mention ORDER BY id").unwrap();
+        let mut statement = conn.prepare("SELECT version_id, id, kind, normalized, role FROM knowledge_mention ORDER BY id").unwrap();
         let rows: Vec<(i64, Found)> = statement
             .query_map([], |row| {
                 Ok((row.get(0)?, Found { id: row.get(1)?, kind: row.get(2)?, normalized: row.get(3)?, role: row.get(4)? }))
@@ -455,7 +455,7 @@ fn extraction_against_the_entity_sheet() {
     let evidence: BTreeMap<i64, Vec<(i64, String, Option<i64>)>> = {
         let conn = base.conn();
         let mut statement =
-            conn.prepare("SELECT content_id, subject_mention, predicate, object_mention FROM knowledge_evidence").unwrap();
+            conn.prepare("SELECT version_id, subject_mention, predicate, object_mention FROM knowledge_evidence").unwrap();
         let rows: Vec<(i64, i64, String, Option<i64>)> = statement
             .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)))
             .unwrap()
@@ -482,7 +482,7 @@ fn extraction_against_the_entity_sheet() {
     {
         let conn = base.conn();
         let mut statement =
-            conn.prepare("SELECT content_id, discarded FROM knowledge_extraction WHERE discarded != '[]' ORDER BY content_id").unwrap();
+            conn.prepare("SELECT version_id, discarded FROM knowledge_extraction WHERE discarded != '[]' ORDER BY version_id").unwrap();
         let rows: Vec<(i64, String)> = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?))).unwrap().collect::<Result<_, _>>().unwrap();
         for (content, discarded) in rows {
             let items: Vec<super::Discarded> = serde_json::from_str(&discarded).unwrap_or_default();
@@ -607,7 +607,7 @@ fn extraction_against_the_entity_sheet() {
     println!("\n== claims ==");
     let texts: HashMap<i64, Located> = {
         let conn = base.conn();
-        let mut statement = conn.prepare("SELECT content_id, body FROM derivative WHERE kind = 'text'").unwrap();
+        let mut statement = conn.prepare("SELECT version_id, body FROM derivative WHERE kind = 'text'").unwrap();
         let rows: Vec<(i64, String)> = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?))).unwrap().collect::<Result<_, _>>().unwrap();
         rows.into_iter().map(|(id, body)| (id, Located::new(&body))).collect()
     };

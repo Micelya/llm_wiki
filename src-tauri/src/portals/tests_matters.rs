@@ -59,7 +59,7 @@ impl Brought {
         self.base.hash_pending(100).unwrap();
         let conn = self.base.conn();
         let content = |name: &str| -> i64 {
-            conn.query_row("SELECT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.name = ?1", [name], |r| r.get(0))
+            conn.query_row("SELECT f.version_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.name = ?1", [name], |r| r.get(0))
                 .unwrap()
         };
         ((0..copies).map(|n| content(&format!("copia {n}.pdf"))).collect(), content("nota propia.pdf"))
@@ -193,12 +193,12 @@ fn a_proposed_matter_that_only_cites_the_number_is_asked_about_and_takes_the_tit
             [],
         )
         .unwrap();
-        conn.execute("INSERT INTO knowledge_matter_document (matter_id, content_id, state, reasons) VALUES ('mat-propuesto', ?1, 'firm', '[]')", [own])
+        conn.execute("INSERT INTO knowledge_matter_document (matter_id, version_id, state, reasons) VALUES ('mat-propuesto', ?1, 'firm', '[]')", [own])
             .unwrap();
         // The note cites the record, and a related one.
         for (n, written) in [(1, "expediente N° 4.321/2011"), (2, "expediente ZZZ 4322/2011")] {
             conn.execute(
-                "INSERT INTO knowledge_mention (content_id, ref, kind, written, normalized, role, quote) VALUES (?1, ?2, ?3, ?4, ?5, 'objeto', ?4)",
+                "INSERT INTO knowledge_mention (version_id, ref, kind, written, normalized, role, quote) VALUES (?1, ?2, ?3, ?4, ?5, 'objeto', ?4)",
                 rusqlite::params![own, format!("m{n}"), vocabulary().matters.kind, written, crate::docbase::knowledge::quote::words(written).join(" ")],
             )
             .unwrap();
@@ -246,7 +246,7 @@ fn what_the_first_version_left_is_repaired_by_general_rules() {
     let mut record = world.record();
     let contents: Vec<String> = {
         let conn = world.base.conn();
-        let mut statement = conn.prepare("SELECT DISTINCT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash ORDER BY f.content_id").unwrap();
+        let mut statement = conn.prepare("SELECT DISTINCT f.version_id FROM location l JOIN file f ON f.hash = l.file_hash ORDER BY f.version_id").unwrap();
         statement.query_map([], |r| r.get::<_, i64>(0)).unwrap().map(|c| format!("content:{}", c.unwrap())).collect()
     };
     // Two integrations at once, as the first version made them: both as a

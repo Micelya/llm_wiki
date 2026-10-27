@@ -97,7 +97,7 @@ fn collected() -> (AgentEventSink, Arc<Mutex<Vec<AgentEvent>>>) {
 
 fn matter_documents(base: &DocBase, matter: &str) -> Vec<i64> {
     let conn = base.conn();
-    let mut statement = conn.prepare("SELECT content_id FROM knowledge_matter_document WHERE matter_id = ?1 ORDER BY content_id").unwrap();
+    let mut statement = conn.prepare("SELECT version_id FROM knowledge_matter_document WHERE matter_id = ?1 ORDER BY version_id").unwrap();
     let rows = statement.query_map([matter], |row| row.get(0)).unwrap();
     rows.map(Result::unwrap).collect()
 }

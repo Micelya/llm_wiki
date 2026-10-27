@@ -54,8 +54,8 @@ pub struct ReferenceQuote {
 pub(crate) fn document_references(conn: &Connection, vocabulary: &Vocabulary, content: Option<i64>) -> Result<Vec<Reference>, String> {
     let mut statement = conn
         .prepare(
-            "SELECT content_id, id, written, normalized, role, quote, page FROM knowledge_mention
-             WHERE kind = ?1 AND defined = 0 AND (?2 IS NULL OR content_id = ?2) ORDER BY content_id, id",
+            "SELECT version_id, id, written, normalized, role, quote, page FROM knowledge_mention
+             WHERE kind = ?1 AND defined = 0 AND (?2 IS NULL OR version_id = ?2) ORDER BY version_id, id",
         )
         .map_err(sql_err)?;
     let rows = statement
@@ -90,7 +90,7 @@ pub(crate) fn documents_citing(conn: &Connection, vocabulary: &Vocabulary, numbe
     let short = format!("%{:02}%", year % 100);
     let mut statement = conn
         .prepare(
-            "SELECT content_id, written, normalized FROM knowledge_mention
+            "SELECT version_id, written, normalized FROM knowledge_mention
              WHERE kind = ?1 AND defined = 0 AND (normalized LIKE ?2 OR written LIKE ?2)",
         )
         .map_err(sql_err)?;

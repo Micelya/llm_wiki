@@ -59,7 +59,7 @@ fn document_key(conn: &Connection, reference: &str) -> Result<String, String> {
     }
     if let Some(id) = id_of(reference, "location:") {
         let content: Option<i64> = conn
-            .query_row("SELECT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.id = ?1", [id], |row| row.get(0))
+            .query_row("SELECT f.version_id FROM location l JOIN file f ON f.hash = l.file_hash WHERE l.id = ?1", [id], |row| row.get(0))
             .optional()
             .map_err(sql_err)?;
         return content.map(super::matters::content_key).ok_or_else(|| "Ese documento ya no existe".to_string());
@@ -96,8 +96,8 @@ pub struct DecisionView {
 fn representative(conn: &Connection, entity: &str, avoid: Option<&str>) -> Result<String, String> {
     let mut statement = conn
         .prepare(
-            "SELECT content_id, kind, normalized, count(*) OVER (PARTITION BY normalized) AS uses FROM knowledge_mention
-             WHERE entity_id = ?1 ORDER BY uses DESC, normalized, content_id",
+            "SELECT version_id, kind, normalized, count(*) OVER (PARTITION BY normalized) AS uses FROM knowledge_mention
+             WHERE entity_id = ?1 ORDER BY uses DESC, normalized, version_id",
         )
         .map_err(sql_err)?;
     let rows: Vec<(i64, String, String)> = statement
@@ -126,7 +126,7 @@ fn group_key(conn: &Connection, reference: &str, avoid: Option<&str>) -> Result<
     }
     if let Some(id) = id_of(reference, "mention:") {
         let found: Option<(i64, String, String)> = conn
-            .query_row("SELECT content_id, kind, normalized FROM knowledge_mention WHERE id = ?1", [id], |row| {
+            .query_row("SELECT version_id, kind, normalized FROM knowledge_mention WHERE id = ?1", [id], |row| {
                 Ok((row.get(0)?, row.get(1)?, row.get(2)?))
             })
             .optional()
@@ -145,7 +145,7 @@ fn wrong_key(conn: &Connection, reference: &str) -> Result<String, String> {
     if let Some(id) = id_of(reference, "evidence:") {
         let found: Option<(i64, String, String, Option<String>, Option<String>)> = conn
             .query_row(
-                "SELECT e.content_id, s.normalized, e.predicate, o.normalized, e.object_normalized FROM knowledge_evidence e
+                "SELECT e.version_id, s.normalized, e.predicate, o.normalized, e.object_normalized FROM knowledge_evidence e
                  JOIN knowledge_mention s ON s.id = e.subject_mention LEFT JOIN knowledge_mention o ON o.id = e.object_mention
                  WHERE e.id = ?1",
                 [id],
@@ -185,7 +185,7 @@ fn shown_by_default(conn: &Connection, keys: &[&str]) -> Result<String, String> 
         let names: Vec<String> = match parse_cluster_key(key) {
             Some((content, kind, normalized)) => {
                 let mut statement = conn
-                    .prepare("SELECT DISTINCT written FROM knowledge_mention WHERE content_id = ?1 AND kind = ?2 AND normalized = ?3")
+                    .prepare("SELECT DISTINCT written FROM knowledge_mention WHERE version_id = ?1 AND kind = ?2 AND normalized = ?3")
                     .map_err(sql_err)?;
                 let rows = statement.query_map(params![content, kind, normalized], |row| row.get(0)).map_err(sql_err)?;
                 rows.collect::<Result<_, _>>().map_err(sql_err)?

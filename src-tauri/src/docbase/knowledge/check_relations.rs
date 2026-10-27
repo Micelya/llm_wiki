@@ -90,7 +90,7 @@ fn record(base: &DocBase) -> Record {
     let conn = base.conn();
     let mut mentions: BTreeMap<i64, Vec<Mention>> = BTreeMap::new();
     {
-        let mut statement = conn.prepare("SELECT content_id, id, kind, normalized, entity_id FROM knowledge_mention").unwrap();
+        let mut statement = conn.prepare("SELECT version_id, id, kind, normalized, entity_id FROM knowledge_mention").unwrap();
         let rows = statement
             .query_map([], |r| Ok((r.get::<_, i64>(0)?, Mention { id: r.get(1)?, kind: r.get(2)?, normalized: r.get(3)?, entity: r.get(4)? })))
             .unwrap();
@@ -103,7 +103,7 @@ fn record(base: &DocBase) -> Record {
     {
         let mut statement = conn
             .prepare(
-                "SELECT e.content_id, e.subject_mention, e.predicate, e.object_mention, c.certainty, c.state
+                "SELECT e.version_id, e.subject_mention, e.predicate, e.object_mention, c.certainty, c.state
                  FROM knowledge_evidence e LEFT JOIN knowledge_claim c ON c.id = e.claim_id",
             )
             .unwrap();

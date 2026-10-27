@@ -602,9 +602,9 @@ pub fn ensure_matter(base: &DocBase, record: &mut RecordFile, origin_id: &str, r
         let prefix = if rel_folder.is_empty() { String::new() } else { format!("{rel_folder}/") };
         let mut statement = conn
             .prepare(
-                "SELECT DISTINCT f.content_id FROM location l JOIN file f ON f.hash = l.file_hash
-                 WHERE l.origin_id = ?1 AND substr(l.rel_path, 1, length(?2)) = ?2 AND l.ext = 'pdf' AND f.content_id IS NOT NULL
-                 ORDER BY f.content_id",
+                "SELECT DISTINCT f.version_id FROM location l JOIN file f ON f.hash = l.file_hash
+                 WHERE l.origin_id = ?1 AND substr(l.rel_path, 1, length(?2)) = ?2 AND l.ext = 'pdf' AND f.version_id IS NOT NULL
+                 ORDER BY f.version_id",
             )
             .map_err(sql_err)?;
         let rows = statement.query_map(params![origin_id, prefix], |row| row.get(0)).map_err(sql_err)?;
