@@ -1388,3 +1388,42 @@ mod tests {
         );
     }
 }
+
+/// The documents a joined PDF includes, in order, with their pages, the
+/// state of their cut and who cut it (D-560): none for a file of one part.
+#[tauri::command(async)]
+pub fn docbase_included_parts(
+    state: State<'_, DocBaseState>,
+    hash: String,
+) -> Result<Vec<super::cut::parts::IncludedPart>, String> {
+    state.base()?.included_parts(&hash)
+}
+
+/// A person says another document starts at `page` of the file.
+#[tauri::command(async)]
+pub fn docbase_cut_split(
+    state: State<'_, DocBaseState>,
+    hash: String,
+    page: u32,
+) -> Result<Vec<super::cut::parts::IncludedPart>, String> {
+    state.base()?.cut_split_at(&hash, page)
+}
+
+/// A person joins the part that starts at `page` to the one before it.
+#[tauri::command(async)]
+pub fn docbase_cut_join(
+    state: State<'_, DocBaseState>,
+    hash: String,
+    page: u32,
+) -> Result<Vec<super::cut::parts::IncludedPart>, String> {
+    state.base()?.cut_join_with_previous(&hash, page)
+}
+
+/// A person confirms every cut of the file as it is now.
+#[tauri::command(async)]
+pub fn docbase_cut_confirm(
+    state: State<'_, DocBaseState>,
+    hash: String,
+) -> Result<Vec<super::cut::parts::IncludedPart>, String> {
+    state.base()?.cut_confirm_all(&hash)
+}
