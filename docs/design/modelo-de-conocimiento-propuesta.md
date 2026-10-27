@@ -1,145 +1,142 @@
-# Modelo de documentos y conocimiento: propuesta del replanteo (26 oct 2026)
+# Modelo de documentos y conocimiento: propuesta del replanteo
 
-**Estado:** borrador para que el dueño lo revise. No es el diseño vigente ni autoriza cambios al programa. Sale de la conversación del 26 de octubre, que siguió a las [notas del replanteo](replanteo-del-proceso-notas.md) del 25. Las decisiones del dueño están en `docs/decisiones.md` (D-530 a D-545); lo que propone el agente y el dueño aceptó lo dice cada una.
+**Estado:** borrador para que el dueño lo revise (26 oct; revisado el 27 oct con la revisión del dueño y otro agente). No es el diseño vigente ni autoriza cambios al programa. Sale de la conversación del 26 de octubre, que siguió a las [notas del replanteo](replanteo-del-proceso-notas.md) del 25. Las decisiones están en `docs/decisiones.md` (D-530 a D-545 y D-548 a D-553).
 
-El inventario de la base actual y qué pasa con cada tabla está en [base-de-datos-inventario.md](base-de-datos-inventario.md).
+Documentos que lo acompañan: el [inventario de la base por significado](base-de-datos-inventario.md) y la [base de destino](base-de-datos-destino.md), con el reinicio, el reproceso y los escenarios de prueba.
+
+## 0. Alcance de la primera etapa
+
+- **Los datos actuales de la base se pueden descartar** (D-548). La base nueva se arma desde cero y se vuelve a procesar. Se conserva el aprendizaje del descubrimiento: decisiones, reglas, ejemplos difíciles, hojas de respuesta y mediciones. Los documentos fuente no se tocan.
+- **Solo la dimensión individual** (D-549). La combinación con el espacio compartido, la publicación y los permisos sobre conocimiento compartido quedan para su etapa. Los identificadores estables se mantienen.
 
 ## 1. Para qué
 
-**Definir el proceso mediante el cual la aplicación incorpora materiales de distintos orígenes, reconoce y representa fielmente sus documentos y construye, sobre esa base, conocimiento relacionado, verificable y actualizable** (dueño, 26 oct).
-
-Son dos resultados, uno sobre el otro:
+**Definir el proceso mediante el cual la aplicación incorpora materiales de distintos orígenes, reconoce y representa fielmente sus documentos y construye, sobre esa base, conocimiento relacionado, verificable y actualizable** (dueño, D-530).
 
 1. **Conocer bien el material:** qué documentos hay, dónde aparece cada uno, cómo está organizado su contenido y cómo recuperarlo; copias, versiones, parecidos y plantillas.
 2. **Construir conocimiento con él:** personas, organizaciones, asuntos y cosas; cuándo distintas menciones son lo mismo; y las relaciones, respaldadas por los documentos y por el contexto de sus orígenes.
 
-Todo lo que el sistema sostiene se puede rastrear hasta el contenido o el contexto que lo respalda.
+Todo lo que el sistema sostiene se rastrea hasta el contenido o el contexto que lo respalda. Cada dato tiene una responsabilidad clara y una fuente de verdad definida.
 
-**Y la plataforma aprende** (dueño, 26 oct): reconoce clases, relaciones e identificadores nuevos a medida que procesa documentos, con un catálogo que crece. No se entrenan modelos de IA propios.
+**La plataforma aprende** (D-541) con un catálogo que crece, no entrenando modelos propios.
 
 ## 2. Las piezas con identidad
-
-Cuatro clases iniciales. Pueden aparecer clases nuevas sin rehacer la base.
 
 | Clase | Qué es | Ejemplo |
 |---|---|---|
 | **Documento** | La unidad documental reconocida, esté suelta o dentro de otra cosa. | Una escritura. |
 | **Entidad** | Una persona o una organización. Mismo significado en todas las verticales. | Pérez; un estudio de abogados. |
-| **Asunto** | Lo que relaciona documentos, entidades y cosas. En la vertical jurídica se dice «caso». Puede tener varios expedientes. Lo crean un portal, la aplicación o el usuario. | Sucesión Pérez. |
+| **Asunto** | Lo que relaciona documentos, entidades y cosas. En la vertical jurídica, «caso». Puede tener varios expedientes. Lo crean un portal, la aplicación o el usuario, y puede existir sin documentos. | Sucesión Pérez. |
 | **Cosa** | Algo con existencia material o digital e identidad propia. | Un inmueble, un vehículo, un dominio de Internet. |
 
-- **Un registro común de piezas.** Cada pieza recibe un identificador opaco, único en el mundo (UUID versión 7), en un registro que dice de qué clase es. Sus datos propios van en la tabla de su clase. Las relaciones apuntan a ese identificador.
-- **Un URI para cruzar espacios:** `micelya:<espacio>/<clase>/<id>`. Lo usan lo que viene del espacio compartido, del catálogo general o lo que se exporta. Nunca lleva nombres.
-- **El dueño de una instancia es una entidad** (en el primer escenario, A&G). Ser cliente es una relación con esa entidad, no una clase de persona.
-- **Las etiquetas siguen sirviendo para clasificar y filtrar,** pero ninguna pieza es una etiqueta.
+Propuestas abiertas (sección 9): el **expediente** y la **plantilla** como clases propias.
 
-## 3. Documento, versión, aparición y ubicación
+- **Registro común de piezas** (D-532): cada pieza tiene un identificador opaco (UUID versión 7) y su clase; sus datos van en la tabla de su clase; las relaciones apuntan al registro. El URI `micelya:<espacio>/<clase>/<id>` queda para cuando las piezas crucen espacios.
+- **Lo que crece con el uso y lo que no.** Un tipo de cosa, un identificador, un rol o un tipo de relación nuevos son **vocabulario**: entran al catálogo sin cambiar la base. Una **clase fundamental nueva** puede necesitar datos y comportamientos propios: el registro común evita rehacer las relaciones, pero la clase nueva se diseña y se programa. La extensibilidad no es una excusa para guardar datos sin definición.
+- **El dueño de la instancia es una entidad** (un estudio de abogados); ser cliente es una relación con ella.
+- **Lo que crea el usuario es válido sin documentos:** el dueño de la instancia, un caso cargado antes que sus documentos, un cliente cargado a mano. Se guarda con su procedencia (una decisión humana) y pertenece a la instancia.
+- **Las etiquetas clasifican y filtran;** ninguna pieza es una etiqueta.
 
-| Concepto | Qué es |
-|---|---|
-| **Documento** | La unidad reconocida. Todo lo que genera la aplicación es único por documento: un resumen, una lectura de personas, una ficha. |
-| **Versión** | Una forma distinta del mismo documento: el original y el ejemplar firmado, un borrador y el definitivo. Una versión **prevalece**, y lo generado se basa en ella. |
-| **Aparición** | Una presencia concreta de una versión en una fuente. |
-| **Ubicación** | Cómo se llega a una aparición. Depende de la clase de fuente: el archivo entero; unas páginas o regiones de un PDF; una entrada de un ZIP; un adjunto de un correo; el identificador del portal. |
+## 3. Recurso, documento, versión, aparición y ubicación
 
-- **La versión que prevalece** se elige con reglas del catálogo, en este orden: la firmada sobre la no firmada; la presentada o registrada sobre el borrador; la completa sobre la incompleta; la de fecha posterior. Si no alcanzan, queda dudosa y decide el humano, que siempre puede cambiarla.
-- **La evidencia puede citar cualquier versión.** La diferencia entre dos versiones se guarda en la relación entre ellas.
-- **Copias en sistemas de archivos** (disco, OneDrive, Google Drive): la aplicación ofrece eliminar las copias; decide el humano; nunca borra sola. Si se borra una copia, queda registrado que esa aparición existió y de dónde vino. **Una aparición dentro de un documento compuesto o de un expediente del portal no se borra:** es parte de otra cosa.
-- **Cómo se reconoce el mismo documento:** la prueba en la nube del 26 de octubre (`docs/investigacion/huellas-y-embeddings/informe.md`, en su rama) midió que la huella de la imagen de cada página reconoce el mismo documento aunque no sea idéntico byte por byte, y encuentra el original dentro del ejemplar firmado. Los documentos de una misma plantilla quedan tan cerca como las copias: se separan exigiendo que coincidan los datos clave. La huella de página vale donde hay páginas; no es la forma universal de ubicar.
-
-## 4. El contexto: contención y procedencia
-
-Dos hechos distintos que se guardan por separado. **Los dos aportan contexto valioso para procesar y relacionar** (dueño, 26 oct).
-
-| Hecho | Ejemplos | Qué aporta |
+| Concepto | Qué es | Ejemplo |
 |---|---|---|
-| **Contención:** dónde está algo | Un documento compuesto, una carpeta, un ZIP, un correo | Que alguien juntó esas cosas, y en qué orden |
-| **Procedencia:** de dónde vino | Un portal judicial, un correo recibido, una carga del usuario, la aplicación que lo generó | Lo que la fuente afirma: «esta actuación es de este expediente, con esta fecha y estas fojas» |
+| **Recurso** | Una secuencia de bytes, por su huella. | `Contrato.docx`; `Contrato.pdf`. |
+| **Documento** | La unidad reconocida. | El contrato. |
+| **Versión** | Un estado del contenido del documento que cambia algo que importa. | El borrador; el ejemplar firmado. |
+| **Representación** | La misma versión en otro formato, sin cambios que importen. | El Word y su PDF con el mismo texto. |
+| **Aparición** | Una presencia concreta de una versión en un recurso. | La escritura suelta; la escritura en las páginas 4 a 9 de un compuesto. |
+| **Ubicación** | La selección dentro del recurso que recupera la aparición, según la clase de fuente. | El archivo entero; unas páginas o regiones; una entrada de un ZIP; un adjunto; un identificador del portal. |
 
-- Un documento puede tener varias de cada una. Los contenedores se anidan: un compuesto dentro de una carpeta; un expediente del portal guardado en una carpeta local.
-- Mover o copiar cambia la contención; la procedencia no se pierde.
-- **El asunto no es un contenedor:** es una pieza de conocimiento que relaciona otras.
-- **Cuánto pesa cada contexto se evalúa en cada relación**, según su evidencia. No hay un nivel de certeza fijo por clase de contenedor (reemplaza en parte la tabla de la sección 2.3 de las notas del 25).
-- **Las carpetas no significan nada por sí solas.** El operador puede asociar un nodo del árbol a un asunto o a una entidad; los descendientes heredan el criterio, con excepciones; un nodo puede solo organizar. Decidir qué entra al procesamiento es aparte de interpretar lo que entra. La maquinaria de reglas por carpeta de las etiquetas se reutiliza, pero lo que crea son relaciones con origen «regla de carpeta».
+- **Versión o representación:** dos recursos son la misma versión cuando su contenido coincide en lo que importa (texto, datos clave, firmas); son versiones distintas cuando cambia algo de eso. El Word y su PDF con el mismo texto: una versión, dos representaciones. El original y el firmado: dos versiones (D-537). Hoy la base mezcla todo esto en `content`; la base nueva lo separa.
+- **Una ubicación siempre está atada al recurso, por su huella.** Si el archivo cambia, es otro recurso: la ubicación vieja no pasa a señalar otro contenido.
+- **Una ficha principal por documento** (D-536, precisado en D-551): un resumen y una ficha. **Las lecturas y la evidencia se guardan por versión**, y cada afirmación sabe de qué versión salió. Si el borrador nombra a un representante y el firmado a otro, se pueden explicar los dos.
+- **La versión que prevalece** se usa para: el resumen y la ficha principal, el tipo y los datos que se muestran del documento, y la elección de qué leer primero. **No** se usa para borrar ni trasladar la evidencia de otras versiones. Cuando cambia la versión que prevalece se recalculan el resumen, la ficha y los datos mostrados; la evidencia de cada versión queda.
+- **Reglas de la que prevalece** (catálogo): firmada sobre no firmada; presentada o registrada sobre borrador; completa sobre incompleta; posterior sobre anterior. Si no alcanzan, decide el humano, que siempre puede cambiarla.
+- **Cómo se reconoce el mismo documento:** la huella de la imagen de cada página reconoce el mismo documento aunque no sea idéntico byte por byte, y encuentra el original dentro del firmado (prueba en la nube del 26 oct). Los documentos de una misma plantilla quedan tan cerca como las copias: se separan exigiendo que coincidan los datos clave. **Dos formularios casi idénticos completados para personas distintas no son el mismo documento.**
+- **Copias en sistemas de archivos:** la aplicación ofrece eliminarlas y decide el humano. Lo que está dentro de un compuesto o de un expediente no se borra.
 
-## 5. Las relaciones
+## 4. Contención y procedencia
 
-Todas con la misma forma:
+| Hecho | Qué responde | Ejemplos |
+|---|---|---|
+| **Contención** | Qué está dentro de qué ahora, en qué orden | Una carpeta contiene un archivo; un compuesto contiene la escritura en las páginas 4 a 9 |
+| **Procedencia** | Cómo se obtuvo algo y qué dijo la fuente | El portal judicial dio esta actuación del expediente X, con fecha y fojas; un correo de tal remitente trajo este adjunto; el usuario lo cargó; la aplicación lo generó desde una plantilla |
 
-| Parte | Qué es |
+- **Las dos sobreviven por separado.** Un documento bajado del portal y guardado en una carpeta: la carpeta dice dónde está (y se actualiza si se mueve); el portal, el expediente y la actuación dicen de dónde vino (y no cambian).
+- **El origen** (`origin`) es solo la fuente configurada (una carpeta, un proveedor). La procedencia es un registro propio por recurso o documento, con la fuente, cuándo y los datos que dio.
+- Los contenedores se anidan; un documento tiene varias contenciones y varias procedencias.
+- **El asunto no es un contenedor:** es una pieza que relaciona otras.
+- **El peso del contexto se evalúa en cada relación,** según su evidencia (D-538).
+- **Las carpetas no significan nada por sí solas.** El operador puede asociar un nodo a un asunto o una entidad, con herencia y excepciones; eso crea relaciones con origen «regla de carpeta».
+
+## 5. Relaciones, evidencia y decisiones
+
+Tres registros distintos (D-550):
+
+| Registro | Qué es |
 |---|---|
-| Sujeto | Una pieza de cualquier clase |
-| Relación | Un tipo del catálogo, que dice qué clases puede conectar |
-| Objeto | Otra pieza, o un valor (una fecha, un monto) |
-| Evidencia | Dónde se apoya: un fragmento con su ubicación, un dato del portal, un orden dentro de un compuesto, una decisión del operador |
-| Vigencia | **Desde** y **hasta**, cada extremo con su evidencia y su precisión (día, mes o año). «Hasta desconocido» no es «sigue vigente» |
-| Origen | La lectura de un documento, el contexto, una regla o el operador |
-| Certeza | Se calcula con la evidencia |
-| Estado | Propuesta, confirmada o rechazada |
+| **Relación** | Lo que el sistema sostiene: sujeto, tipo, objeto, contexto, período, certeza y estado actual |
+| **Evidencia** | Cada respaldo, con su procedencia: un fragmento de una versión con su ubicación, un dato del portal, un orden dentro de un compuesto, una regla de carpeta. Cada una **apoya o cuestiona** la relación |
+| **Decisión** | Lo que hizo una persona: confirmar, rechazar, unir, separar, corregir. Con su motivo y cuándo |
 
-- **El desde y el hasta son una sola relación.** El documento que trae el fin completa la relación que ya existe. Ejemplo: «Lucía Ferraro trabajó en Talleres Andinos desde marzo de 2021 hasta junio de 2024», con el inicio de un documento y el fin de otro.
-- **Relaciones iniciales:** cliente de, participa en un asunto con un rol, titular de, describe a, incluido en, versión de, hecho con la plantilla, más las 27 que ya tiene el catálogo. **Se suman las que se descubran** (sección 8).
-- **Lo que hoy está repartido en varias tablas pasa a esta sola:** las afirmaciones entre entidades, los pares de copias y versiones, la pertenencia de un documento a un asunto, los grupos de organizaciones (ver el inventario).
+- **La relación se calcula de su evidencia y de las decisiones.** Al reprocesar, la evidencia cambia; las decisiones no: se anclan a claves estables (las menciones, por documento, nombre y cita), no a ids de filas, como ya hace hoy la base (`anchors.rs`). Así una unión rechazada no vuelve.
+- **El contexto se conserva explícitamente.** Una relación puede llevar:
+  - **dentro de qué pieza vale:** el cargo de director **en** tal organización; la persona representa a una empresa **en** tal asunto;
+  - **un rol:** parte, apoderado, testigo;
+  - **una calificación:** un domicilio constituido no es el real;
+  - **datos del valor:** un monto con su moneda y su concepto.
+
+  Hoy eso lo hacen `context_entity` y `qualifier`; en la base nueva el contexto apunta al registro común, así puede ser un asunto o una organización. Lo que cambia de contexto no es contradicción: una persona directora de una y empleada de otra son dos relaciones.
+- **Períodos:** una relación tiene **desde** y **hasta**, cada uno con su evidencia y su precisión. «Hasta desconocido» no es «sigue vigente». **El mismo tipo de relación entre las mismas partes puede darse en varios períodos:** quien sale de una organización y vuelve a entrar tiene dos relaciones de empleo. Un fin completa la relación cuyo período encaja; un inicio posterior a un fin conocido abre otra.
+- **Tipos de relación:** cliente de, participa en un asunto con un rol, titular de, describe a, incluido en, versión de, hecho con la plantilla, más los que ya tiene el catálogo. Cada tipo dice qué clases conecta y qué datos pide. Se suman los que se descubran.
 
 ## 6. Certeza, uniones y contradicciones
 
 | Certeza | Qué hace la aplicación |
 |---|---|
 | Alta | Une o afirma sola, con el porqué registrado, y se puede deshacer |
-| Media | La deja dudosa, con la evidencia a favor y en contra, para el humano |
+| Media | La deja dudosa, con la evidencia a favor y en contra |
 | Baja | No propone nada |
 
-- La aplicación no deja todo al humano ni une sin elementos suficientes.
-- **Romper una unión es siempre potestad del humano.** La ruptura queda registrada: la aplicación no vuelve a unir lo mismo y aprende del caso.
-- Los umbrales son por clase de decisión y se miden contra una hoja de respuestas.
-- **Contradicciones:** la aplicación resuelve las triviales con reglas explícitas (el mismo dato escrito distinto; datos que valen en períodos distintos, que no son contradicción sino cambio). El resto queda abierto, con las dos afirmaciones y su evidencia, para el humano.
+- Romper una unión es siempre potestad del humano, y se recuerda.
+- Umbrales por clase de decisión, medidos contra la hoja de respuestas.
+- **Contradicciones:** las triviales se resuelven con reglas (el mismo dato escrito distinto; contextos o períodos distintos, que no son contradicción). El resto queda abierto, con las dos afirmaciones y su evidencia.
 
-## 7. Las piezas y los espacios
+## 7. Visibilidad
 
-Vale la regla de los espacios privado y compartido (D-044): el compartido solo conoce lo compartido; lo que ve una persona es su espacio privado más lo que puede ver del compartido, armado en su PC; una base por espacio; lo privado puede usar lo compartido y no al revés; publicar es un acto explícito del usuario. Una pieza o una relación se ve solo a través de documentos visibles.
+En la dimensión individual todo lo de la base es visible para su usuario, incluido lo que creó sin documentos. **Para la etapa compartida (diferida):** vale la regla de los espacios (D-044) y habrá que definir cómo se combinan referencias y permisos y cómo se evita que una conclusión revele datos de fuentes que el usuario no puede ver.
 
 ## 8. Aprender con el catálogo
 
-**Qué se aprende:**
-1. **El vocabulario:** clases, tipos de relación, identificadores (la matrícula de un inmueble), roles.
-2. **Las reglas de reconocimiento:** cómo detectar cada cosa.
-3. **Los criterios de unión y de versión que prevalece,** ajustados con las decisiones del humano.
+**El catálogo expresa conocimiento configurable; los motores lo ejecutan.** Sirve al LLM y al código determinista:
 
-**Cada regla dice cómo se aplica:** con código determinista, con IA, o con IA solo cuando el código no alcanza. Se elige lo que logra la misma eficacia o una mejor. Hoy el catálogo ya sirve a las dos: al modelo le da las descripciones; al código, listas de palabras y valores.
-
-**El ciclo:**
-1. **Descubrir:** la IA encuentra algo que el catálogo no tiene y lo propone con su evidencia.
-2. **Validar:** el humano lo acepta, lo corrige o lo rechaza.
-3. **Consolidar:** pasa al catálogo y desde ahí se reconoce en todos los documentos.
-4. **Medir:** contra la hoja de respuestas, para comprobar que lo nuevo no empeoró lo anterior.
-5. **Reprocesar solo lo afectado:** lo que la aplicación había concluido sola se reemplaza; lo que decidió un humano no se pisa; cada afirmación guarda con qué versión del catálogo y de qué evidencia salió.
-
-Las decisiones del humano en el uso diario alimentan el mismo ciclo.
-
-**Tres capas de catálogo:**
-
-| Capa | Dónde vive | Quién aprueba |
+| Entrada del catálogo | El LLM | El código |
 |---|---|---|
-| General, por vertical | Viaja con el instalador; opcionalmente se baja actualizado de un servicio de Micelya (la aplicación funciona sin él) | Micelya. En el entrenamiento actual, el dueño |
-| Compartida | En la base del espacio compartido | El operador de esa instancia |
-| Personal | En la base de la persona | La persona |
+| Tipo de documento | Lo reconoce e interpreta | Valida tipo y campos requeridos |
+| Tipo de identificador | Lo encuentra en texto o imagen | Lo normaliza y valida su formato |
+| Tipo de relación | Reconoce el vínculo | Verifica clases y datos requeridos |
+| Criterio de identidad | Evalúa lo ambiguo | Compara identificadores y aplica condiciones |
 
-La personal ve la general, la compartida y la suya; la compartida ve la general y la suya. Si una regla personal choca con una compartida, la personal vale solo para esa persona y la compartida no cambia (recomendación aceptada).
+Ejemplo: el LLM encuentra una matrícula inmobiliaria; el código la normaliza, valida su estructura y busca el inmueble ya reconocido. **Una entrada nueva usa capacidades existentes; una capacidad nueva (leer un formato nuevo) hay que programarla.**
 
-**Lo que aprende una instancia es de su usuario.** Solo pasa al catálogo general con su consentimiento explícito y anonimizado. Cada cosa aprendida lleva de qué capa salió y si tiene consentimiento.
+**El ciclo:** descubrir (la IA propone lo que el catálogo no tiene, con evidencia) → validar (el humano) → consolidar (entra al catálogo) → medir (contra la hoja de respuestas) → reprocesar lo afectado.
 
-**Lo que enseñamos nosotros ahora va al catálogo general, anonimizado.** Incluye todo lo de la carpeta de prueba, también el caso de la familia que se usa de ejemplo, aunque sea público en el portal.
+**Qué se guarda de lo aprendido:** cada entrada con su revisión, su procedencia (de qué documentos o decisiones salió), su estado (propuesta, aprobada, corregida, rechazada) y quién la aprobó. Cada resultado guarda la revisión del catálogo y de las instrucciones, y el motor, con que se produjo.
 
-**Los ejemplos en el catálogo:** si agregan valor se mide antes de decidir (pendiente). Si lo agregan, van anonimizados de forma coherente (el mismo nombre falso para la misma persona en todos los documentos, números con formato válido), y los documentos que dan ejemplos nunca son los que se usan para medir. Eso pide cambiar la regla de que ni el programa ni el catálogo tengan casos reales (R-24), que se propone aparte.
+**Reprocesar, en la primera etapa, por documento y por etapa** (D-552). Cuando cambia una entrada del catálogo se recalcula la etapa que la usa (lectura, resolución de identidad, relaciones, tipos) en los documentos donde aplica (por tipo de documento, o todos si no se puede acotar). No se promete una selección más fina. Lo que decidió un humano no se pisa.
 
-**Las hojas de respuesta:** un conjunto de documentos con la respuesta correcta escrita. Las arma el agente con las mediciones y las revisa y corrige el dueño (D-101). Sirven para medir, nunca para escribir reglas (R-25). Con el entrenamiento hay que separar siempre lo que enseña de lo que mide.
+**Dos fuentes de catálogo en esta etapa** (D-549): el que viene con la aplicación (por vertical, con el instalador y opcionalmente actualizable desde un servicio de Micelya) y lo que agrega o ajusta la instancia, que es de su usuario (D-543). La capa compartida queda para su etapa.
 
-**El modo entrenamiento:** la misma aplicación y el mismo motor, con un indicador que la lleva a una base propia de entrenamiento (un espacio más). Ahí se cargan expedientes del portal y documentos elegidos; el dueño aprueba lo que se descubre; salen entradas del catálogo general, ejemplos anonimizados y entradas de la hoja de respuestas.
+**Ejemplos:** si agregan valor se mide antes de decidir (D-544). Lo que enseña se separa siempre de lo que mide.
+
+**Las hojas de respuesta:** un conjunto de documentos con la respuesta correcta escrita; las arma el agente con las mediciones y las corrige el dueño (D-101); miden, no enseñan (R-25).
+
+**El modo entrenamiento** (D-545): la misma aplicación y el mismo motor, con una base propia de entrenamiento.
 
 ## 9. Lo que sigue abierto
 
-1. **El expediente:** ¿es una pieza con identidad propia (una clase «registro» de un asunto ante un organismo), además de procedencia y contenedor de sus actuaciones? El agente propone que sí.
-2. **La plantilla:** ¿es una pieza (una estructura documental) con la relación «hecho con la plantilla»? El agente propone que sí.
+1. **El expediente como pieza propia** (clase «expediente»: el registro de un asunto ante un organismo), además de procedencia y contenedor de sus actuaciones. El agente propone que sí.
+2. **La plantilla como pieza propia,** con la relación «hecho con la plantilla». El agente propone que sí.
 3. **Los tipos de cosa iniciales** y sus identificadores.
-4. **Qué parte de la propuesta de documentos compuestos (D-525) sigue en pie:** el agente todavía no la revisó contra este modelo.
-5. **El rediseño de la base** (ver el inventario): se diseña la base de destino y se migra con respaldo, sin parches.
+4. **Qué parte de la propuesta de documentos compuestos (D-525) sigue en pie** frente a este modelo.
