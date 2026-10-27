@@ -23,3 +23,4 @@ Cada lado lee el buzón del otro y nunca escribe en él. Core lee este buzón en
 | [001](2026-10-21-001-reconocimiento-y-conexion.md) | 21 oct 2026 | Reconocimiento de texto, conexión desde la app de escritorio y lo que Desktop necesita de Core | respondido |
 | [002](2026-10-22-002-lectura-probada-modelos-y-piloto.md) | 22 oct 2026 | Lectura probada; preguntas a modelos, lectura por piezas y una organización para el piloto | abierto |
 | [003](2026-10-22-003-piezas-de-un-escaneo.md) | 22 oct 2026 | Partir un escaneo en piezas y decir qué es cada una | abierto |
+| [004](2026-10-27-004-vectores.md) | 27 oct 2026 | Un servicio de vectores para la búsqueda por significado de Desktop | abierto |
