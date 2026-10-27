@@ -398,7 +398,10 @@ pub(crate) fn read_all(base: &DocBase, asker: &Recorded) -> KnowledgeReport {
     }
     loop {
         let report = base.types_run(asker, 100).unwrap();
-        if report.asked + report.data_asked == 0 {
+        // Nothing asked, or nothing answered (without asking the model, a
+        // question not kept fails again in every round).
+        let answered = (report.asked + report.data_asked).saturating_sub(report.failed + report.data_failed);
+        if report.asked + report.data_asked == 0 || answered == 0 {
             break;
         }
     }
@@ -423,6 +426,34 @@ pub(crate) fn read_all(base: &DocBase, asker: &Recorded) -> KnowledgeReport {
     );
     println!("   {total:?}");
     total
+}
+
+/// `MICELYA_LATER_PASSES`: after the reading, the passes of the worker that
+/// ask too (identity, matters, the pages of the wiki), each until nothing
+/// is left or nothing more is answered.
+pub(crate) fn later_passes(base: &DocBase, asker: &Recorded) {
+    let done = |name: &str, skipped: bool, asked: usize, failed: usize, left: usize| {
+        println!("{name}: skipped {skipped}, asked {asked}, failed {failed}, left {left}");
+        skipped || left == 0 || asked <= failed
+    };
+    for _ in 0..1000 {
+        let r = base.knowledge_resolve(Some(asker), 50).unwrap();
+        if done("identity", r.skipped, r.asked, r.failed, r.left) {
+            break;
+        }
+    }
+    for _ in 0..1000 {
+        let r = base.knowledge_propose_matters(Some(asker), 50).unwrap();
+        if done("matters", r.skipped, r.asked, r.failed, r.left) {
+            break;
+        }
+    }
+    for _ in 0..1000 {
+        let r = base.knowledge_project(Some(asker), 50).unwrap();
+        if done("pages", r.skipped, r.asked, r.failed, r.left) {
+            break;
+        }
+    }
 }
 
 /// The questions the run looked up among the kept answers, by task: how
@@ -465,6 +496,9 @@ fn extraction_against_the_entity_sheet() {
     };
     let asker = recorded();
     read_all(&base, &asker);
+    if std::env::var("MICELYA_LATER_PASSES").is_ok() {
+        later_passes(&base, &asker);
+    }
     print_cache_hits(&base);
     let status = base.knowledge_status(&Visible::All).unwrap();
     println!("\n== status ==\n   {status:?}");
