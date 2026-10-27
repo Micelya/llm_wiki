@@ -15,7 +15,10 @@
 //!   version goes (`knowledge_gone`); the new ones are made.
 //! - A PDF with one part changes nothing.
 //!
-//! The parts are made once the text of the file is whole (`processed`).
+//! The parts are made once the file has its text, also while some of its
+//! pages wait for recognition: a part with too little text waits with them
+//! (`needs-recognition`), and when they are read the parts whose text
+//! changed are made again.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -173,7 +176,7 @@ impl DocBase {
             let mut statement = conn
                 .prepare(&format!(
                     "SELECT f.hash, {BASIS_SQL} AS basis FROM file f
-                     JOIN version c ON c.id = f.version_id AND c.state = 'processed'
+                     JOIN version c ON c.id = f.version_id AND c.state IN ('processed', 'needs-recognition')
                      JOIN derivative d ON d.version_id = c.id AND d.kind = 'text'
                      WHERE EXISTS (SELECT 1 FROM cut_step s WHERE s.resource_hash = f.hash)
                        AND basis IS NOT (SELECT a.basis FROM cut_applied a WHERE a.resource_hash = f.hash)
@@ -193,16 +196,16 @@ impl DocBase {
         let steps = self.cut_steps(hash)?;
         let mut conn = self.conn();
         let tx = conn.transaction().map_err(sql_err)?;
-        let whole: Option<(i64, String, String)> = tx
+        let whole: Option<(i64, String, String, String)> = tx
             .query_row(
-                "SELECT c.id, d.body, d.engine FROM file f JOIN version c ON c.id = f.version_id
+                "SELECT c.id, d.body, d.engine, c.state FROM file f JOIN version c ON c.id = f.version_id
                  JOIN derivative d ON d.version_id = c.id AND d.kind = 'text' WHERE f.hash = ?1",
                 [hash],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
             )
             .optional()
             .map_err(sql_err)?;
-        let Some((whole_id, text, engine)) = whole else {
+        let Some((whole_id, text, engine, whole_state)) = whole else {
             return Ok(());
         };
         let pages = steps.iter().map(|s| s.after).max().unwrap_or(0) + 1;
@@ -280,7 +283,10 @@ impl DocBase {
                     )
                     .map_err(sql_err)?;
                     let id = tx.last_insert_rowid();
-                    crate::docbase::text::store(&tx, id, &body, &engine, "processed")?
+                    // Some pages of the file wait for recognition: a part
+                    // with too little text to tell it waits with them.
+                    let read = whole_state == "processed" || identity.is_some();
+                    crate::docbase::text::store(&tx, id, &body, &engine, if read { "processed" } else { "needs-recognition" })?
                 }
             };
             tx.execute(
@@ -370,7 +376,7 @@ impl DocBase {
             .conn()
             .query_row(
                 &format!(
-                    "SELECT {BASIS_SQL} FROM file f JOIN version c ON c.id = f.version_id AND c.state = 'processed'
+                    "SELECT {BASIS_SQL} FROM file f JOIN version c ON c.id = f.version_id AND c.state IN ('processed', 'needs-recognition')
                      JOIN derivative d ON d.version_id = c.id AND d.kind = 'text' WHERE f.hash = ?1"
                 ),
                 [hash],
@@ -623,5 +629,23 @@ mod tests {
         base.conn().execute_batch("DELETE FROM location;").unwrap();
         base.purge_orphans().unwrap();
         assert_eq!(count(&base, "SELECT count(*) FROM version"), 0);
+    }
+
+    #[test]
+    fn a_file_waiting_for_recognition_is_cut_and_the_part_without_text_waits() {
+        let (_dir, base) = open();
+        let text = format!("{}
+
+## Page 3
+
+", joined(&[1, 2]));
+        add_file(&base, 1, "h1", &text);
+        base.conn().execute("UPDATE version SET state = 'needs-recognition' WHERE id = 1", []).unwrap();
+        cut(&base, "h1", 3, &[2, 3], &[], 1);
+        base.cut_parts_pending(10).unwrap();
+        let parts = base.included_parts("h1").unwrap();
+        assert_eq!(parts.len(), 3);
+        let state = |id: i64| -> String { base.conn().query_row("SELECT state FROM version WHERE id = ?1", [id], |r| r.get(0)).unwrap() };
+        assert_eq!((state(parts[0].version_id), state(parts[2].version_id)), ("processed".to_string(), "needs-recognition".to_string()));
     }
 }
