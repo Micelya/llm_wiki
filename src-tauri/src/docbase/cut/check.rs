@@ -308,7 +308,11 @@ fn the_parts_over_the_whole_folder() {
         crate::docbase::knowledge::check::later_passes(&base, &asker);
     }
     crate::docbase::knowledge::check::print_cache_hits(&base);
+    // The questions the thread that asks the model would take about the
+    // doubtful steps once the automatic reading is on (`cut_background`).
+    println!("   cut, doubtful steps without an answer kept: {}", base.cut_doubtful_left(None).unwrap());
     parts_report(&base, &sheet, "after the reading");
+    crate::docbase::knowledge::check::save_copy(&base);
     let Ok(limit) = std::env::var("MICELYA_CUT_ASK") else {
         return;
     };
