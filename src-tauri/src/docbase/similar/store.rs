@@ -322,13 +322,20 @@ impl DocBase {
             .map_err(sql_err)
     }
 
-    /// Uncounts and drops the signatures of contents that went away.
+    /// Uncounts and drops the signatures of contents that went away, and
+    /// those of the version of a whole file that now has included parts:
+    /// its parts are compared instead (D-560). What was proposed with it
+    /// goes too; a person's decision stays.
     fn similar_forget_orphans(&self) -> Result<usize, String> {
         let mut conn = self.conn();
         let tx = conn.transaction().map_err(sql_err)?;
         let gone: Vec<(i64, Vec<u8>)> = {
             let mut statement = tx
-                .prepare("SELECT version_id, shingles FROM similar_signature WHERE version_id NOT IN (SELECT id FROM version)")
+                .prepare(&format!(
+                    "SELECT s.version_id, s.shingles FROM similar_signature s
+                     WHERE s.version_id NOT IN (SELECT id FROM version) OR {}",
+                    super::super::cut::parts::has_included_sql("s.version_id")
+                ))
                 .map_err(sql_err)?;
             let rows = statement
                 .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
@@ -342,6 +349,10 @@ impl DocBase {
             tx.execute("DELETE FROM similar_signature WHERE version_id = ?1", [content_id])
                 .map_err(sql_err)?;
             tx.execute("DELETE FROM similar_dirty WHERE version_id = ?1", [content_id])
+                .map_err(sql_err)?;
+            tx.execute("DELETE FROM document_marks WHERE version_id = ?1", [content_id])
+                .map_err(sql_err)?;
+            tx.execute("DELETE FROM similar_pair WHERE state = 'proposed' AND (a = ?1 OR b = ?1)", [content_id])
                 .map_err(sql_err)?;
         }
         tx.commit().map_err(sql_err)?;
@@ -374,8 +385,10 @@ impl DocBase {
         let engine = engine_id();
         let jobs: Vec<(i64, String, i64, Option<String>, Vec<(String, PathBuf)>)> = {
             let conn = self.conn();
+            // The version of a whole file with included parts is not
+            // compared: each part is, with its own text (D-560).
             let mut statement = conn
-                .prepare(
+                .prepare(&format!(
                     "SELECT c.id, d.body, d.created_at, fd.body
                      FROM version c
                      JOIN derivative d ON d.version_id = c.id AND d.kind = 'text'
@@ -383,9 +396,11 @@ impl DocBase {
                      LEFT JOIN similar_signature s ON s.version_id = c.id
                      WHERE c.state = 'processed'
                        AND (s.version_id IS NULL OR s.text_at != d.created_at OR s.engine != ?1)
+                       AND NOT {}
                      ORDER BY c.id
                      LIMIT ?2",
-                )
+                    super::super::cut::parts::has_included_sql("c.id")
+                ))
                 .map_err(sql_err)?;
             let rows = statement
                 .query_map(params![engine, limit as i64], |row| {
@@ -657,8 +672,9 @@ impl DocBase {
         };
         let mut statement = conn
             .prepare(&format!(
-                "SELECT {PAIR_COLUMNS} FROM similar_pair WHERE a = ?1 OR b = ?1
-                 ORDER BY (state = 'discarded'), (relation = 'similar'), cover DESC"
+                "SELECT {PAIR_COLUMNS} FROM similar_pair WHERE (a = ?1 OR b = ?1) AND NOT {}
+                 ORDER BY (state = 'discarded'), (relation = 'similar'), cover DESC",
+                waiting_sql("similar_pair")
             ))
             .map_err(sql_err)?;
         let rows = statement
@@ -736,11 +752,12 @@ impl DocBase {
         let mut statement = conn
             .prepare(&format!(
                 "SELECT {PAIR_COLUMNS} FROM similar_pair p
-                 WHERE p.state = 'proposed' AND p.relation != 'similar' AND NOT EXISTS (
+                 WHERE p.state = 'proposed' AND p.relation != 'similar' AND NOT {} AND NOT EXISTS (
                     SELECT 1 FROM similar_group_member m
                     WHERE m.principal != m.version_id
                       AND ((m.principal = p.a AND m.version_id = p.b) OR (m.principal = p.b AND m.version_id = p.a)))
-                 ORDER BY p.cover DESC, p.a, p.b"
+                 ORDER BY p.cover DESC, p.a, p.b",
+                waiting_sql("p")
             ))
             .map_err(sql_err)?;
         let rows = statement
@@ -838,7 +855,7 @@ impl DocBase {
     /// document (D-497).
     pub fn similar_pending(&self, visible: &Visible) -> Result<SimilarPending, String> {
         let conn = self.conn();
-        let asks = asks_person_sql("p.relation");
+        let asks = format!("{} AND NOT {}", asks_person_sql("p.relation"), waiting_sql("p"));
         let (seen_a, mut bound) = visible_content(visible, "p.a");
         let (seen_b, bound_b) = visible_content(visible, "p.b");
         bound.extend(bound_b);
@@ -865,7 +882,7 @@ impl DocBase {
                 |row| row.get(0),
             )
             .map_err(sql_err)?;
-        let one = same_document_sql("p.relation");
+        let one = format!("{} AND NOT {}", same_document_sql("p.relation"), waiting_sql("p"));
         let (seen_a, mut bound) = visible_content(visible, "p.a");
         let (seen_b, bound_b) = visible_content(visible, "p.b");
         bound.extend(bound_b);
@@ -993,6 +1010,18 @@ pub fn makes_one_document(relation: &str) -> bool {
 }
 
 /// SQL condition: the relation in `column` makes both one document.
+/// SQL condition: the pair in `table` is a proposal that waits because
+/// one of its documents appears only in cuts still proposed (D-556). It
+/// is seen when the cut is confirmed; a person's decision is always seen.
+pub(crate) fn waiting_sql(table: &str) -> String {
+    use super::super::cut::parts::only_proposed_sql;
+    format!(
+        "({table}.state = 'proposed' AND ({} OR {}))",
+        only_proposed_sql(&format!("{table}.a")),
+        only_proposed_sql(&format!("{table}.b"))
+    )
+}
+
 fn same_document_sql(column: &str) -> String {
     relation_sql(column, |r| r.same_document && !r.automatic)
 }

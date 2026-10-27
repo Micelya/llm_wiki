@@ -402,9 +402,12 @@ impl DocBase {
             .map_err(sql_err)?
             .flatten();
         match basis {
-            Some(basis) => self.make_parts(hash, &basis),
-            None => Ok(()),
+            Some(basis) => self.make_parts(hash, &basis)?,
+            None => return Ok(()),
         }
+        // A person's word: what waited for the cut (families) comes now,
+        // without waiting for another measurement (D-556).
+        self.similar_regroup()
     }
 
     /// A person says another document starts at `page` of the file.
@@ -645,6 +648,44 @@ mod tests {
         base.conn().execute_batch("DELETE FROM location;").unwrap();
         base.purge_orphans().unwrap();
         assert_eq!(count(&base, "SELECT count(*) FROM version"), 0);
+    }
+
+    #[test]
+    fn copies_and_versions_compare_each_part_not_the_whole_file_and_wait_for_the_cut() {
+        let (_dir, base) = open();
+        add_file(&base, 1, "h1", &joined(&[1, 2, 3]));
+        // Another file with the text of pages 2 and 3, and one page more.
+        add_file(&base, 2, "h2", &joined(&[2, 3, 4]));
+        while base.similar_step(16).unwrap() > 0 {}
+        let signed = |base: &DocBase, id: i64| count(base, &format!("SELECT count(*) FROM similar_signature WHERE version_id = {id}"));
+        let pairs_of = |base: &DocBase, id: i64| count(base, &format!("SELECT count(*) FROM similar_pair WHERE a = {id} OR b = {id}"));
+        assert_eq!((signed(&base, 1), pairs_of(&base, 1)), (1, 1));
+        cut(&base, "h1", 3, &[2], &[], 1);
+        base.cut_parts_pending(10).unwrap();
+        let parts: Vec<i64> = base.included_parts("h1").unwrap().iter().map(|p| p.version_id).collect();
+        while base.similar_step(16).unwrap() > 0 {}
+        // The whole file is not compared any more, and what it had goes;
+        // each part is compared with its own text.
+        assert_eq!((signed(&base, 1), pairs_of(&base, 1)), (0, 0));
+        assert!(parts.iter().all(|id| signed(&base, *id) == 1));
+        let second = parts[1];
+        assert_eq!(
+            count(&base, &format!("SELECT count(*) FROM similar_pair WHERE a = min({second}, 2) AND b = max({second}, 2)")),
+            1
+        );
+        assert_eq!(pairs_of(&base, parts[0]), 0);
+        // Its proposal waits for the cut, and comes when a person confirms it.
+        let waiting = |base: &DocBase| {
+            count(base, &format!("SELECT count(*) FROM similar_pair p WHERE {}", crate::docbase::similar::store::waiting_sql("p")))
+        };
+        assert_eq!(waiting(&base), 1);
+        base.cut_confirm_all("h1").unwrap();
+        assert_eq!(waiting(&base), 0);
+        // Joined again into one document, the whole file is compared again.
+        base.cut_join_with_previous("h1", 2).unwrap();
+        assert!(base.included_parts("h1").unwrap().is_empty());
+        while base.similar_step(16).unwrap() > 0 {}
+        assert_eq!(signed(&base, 1), 1);
     }
 
     #[test]
