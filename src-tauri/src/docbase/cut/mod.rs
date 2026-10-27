@@ -23,7 +23,7 @@ mod rules;
 mod signals;
 
 #[cfg(test)]
-mod check;
+pub(crate) mod check;
 #[cfg(test)]
 mod tests;
 

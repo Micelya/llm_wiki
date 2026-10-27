@@ -38,7 +38,7 @@ use crate::source_volume::asking::{asker_for, AskConfig};
 
 use super::{CutAskReport, Verdict, CUT_TASK};
 
-fn seed_answers(base: &DocBase, files: &str) -> usize {
+pub(crate) fn seed_answers(base: &DocBase, files: &str) -> usize {
     let mut put = 0;
     for file in files.split(';').filter(|f| !f.trim().is_empty()) {
         let rows: Vec<Value> = serde_json::from_str(&std::fs::read_to_string(file.trim()).unwrap()).unwrap();
