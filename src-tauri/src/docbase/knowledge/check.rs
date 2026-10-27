@@ -226,6 +226,9 @@ impl DocumentAsker for Recorded {
     }
 }
 
+/// The last version of the earlier numbering, whose shape is version 1.
+const EARLIER_LAST_VERSION: i64 = 29;
+
 /// A scratch copy of the base in `MICELYA_DOCBASE_COPY`, or the folders
 /// of `MICELYA_DOCBASE_CHECK` read into a scratch base.
 pub(crate) fn open_base() -> Option<(TempDir, DocBase)> {
@@ -239,19 +242,18 @@ pub(crate) fn open_base() -> Option<(TempDir, DocBase)> {
                 std::fs::copy(&from, PathBuf::from(format!("{}{suffix}", target.display()))).unwrap();
             }
         }
-        // A base another branch already took to its own next version (the
-        // attention view adds a table) is taken back one version on the
-        // copy, so this branch's migration runs; the other tables stay.
+        // A copy of the base of the earlier numbering (D-548) at its last
+        // version, 29, has the shape of version 1 of this one: it is taken
+        // as that, on the copy, so the migrations after it run.
         {
             let conn = rusqlite::Connection::open(&target).unwrap();
             let version: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0)).unwrap();
             let ours: i64 = conn
-                .query_row("SELECT count(*) FROM sqlite_master WHERE name = 'knowledge_extraction'", [], |row| row.get(0))
+                .query_row("SELECT count(*) FROM sqlite_master WHERE name = 'resource_page'", [], |row| row.get(0))
                 .unwrap();
-            // The knowledge layer starts at schema 8 on this branch.
-            if ours == 0 && version >= 8 {
-                println!("the copy is at schema {version} without this branch's tables: taken back to 7");
-                conn.pragma_update(None, "user_version", 7).unwrap();
+            if ours == 0 && version == EARLIER_LAST_VERSION {
+                println!("the copy is of the earlier numbering, at its version {version}: taken as version 1");
+                conn.pragma_update(None, "user_version", 1).unwrap();
             }
         }
         let base = DocBase::open(&target).unwrap();

@@ -62,7 +62,9 @@ macro_rules! excluded_sql {
 pub(crate) use excluded_sql;
 
 /// File name of the private space's database inside the app data folder.
-pub const PRIVATE_DB_FILE: &str = "docbase/private.sqlite3";
+/// A new file (D-548): the base of the earlier numbering, which was
+/// `docbase/private.sqlite3`, is never opened nor brought over.
+pub const PRIVATE_DB_FILE: &str = "docbase/base.sqlite3";
 
 /// The version of the base's shape this app writes (`schema.rs`).
 pub const SCHEMA_VERSION: i64 = schema::CURRENT_VERSION;
