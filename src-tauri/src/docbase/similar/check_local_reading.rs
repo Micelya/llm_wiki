@@ -280,7 +280,7 @@ fn the_engine_of_this_computer_against_the_sheets_and_the_folder() {
     }
     let read_pages = sample.len().max(1) as f64;
     let report = serde_json::json!({
-        "version": if cfg!(debug_assertions) { "depuracion (dependencias del motor optimizadas)" } else { "publicacion" },
+        "version": if cfg!(debug_assertions) { "depuracion (dependencias del motor optimizadas)" } else { "entrega" },
         "arranque_motor_s": start_s,
         "hilos": std::thread::available_parallelism().map_or(1, |n| n.get() / 2).clamp(1, 4),
         "archivos_de_la_hoja_encontrados": files.len(),
