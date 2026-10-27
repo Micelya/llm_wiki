@@ -504,6 +504,11 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-559 | 27 oct | Replanteo | El expediente y la plantilla son clases de pieza propias; la plantilla nace propuesta, con su certeza | vigente |
 | D-560 | 27 oct | Replanteo | Ocho correcciones al diseño del replanteo, para que coincida con las notas del dueño y con las pruebas del 26 oct | vigente |
 | D-561 | 27 oct | Replanteo | Tres precisiones del revisor externo: cuándo dos evidencias son el mismo hecho, a qué se ancla cada decisión y cómo se propaga lo que cambia | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-562 | 27 oct | Replanteo | Los respaldos de la base de la numeración anterior quedan en disco sin listarse, sin borrarse y sin poder volver a ellos | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-563 | 27 oct | Replanteo | Cada página guarda su texto tal como va en el texto del documento, con sus campos de formulario | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-564 | 27 oct | Replanteo | Todos los PDF de un documento llevan las huellas de sus páginas; la ficha de forma se rehace cuando el documento suma un archivo | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-565 | 27 oct | Replanteo | Las huellas de cada página se calculan como en la prueba en la nube, sin bibliotecas de imágenes nuevas | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-566 | 27 oct | Replanteo | La versión 1 de la base nueva es un archivo SQL generado de la base vieja en su versión 29 | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -5828,3 +5833,38 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **El problema:** Un revisor externo (otro agente que el dueño usó al armar el diseño) señaló tres puntos que podían fallar al implementar: juntar evidencia que habla de hechos distintos, aplicar una decisión a un destino equivocado y no actualizar lo que depende de un resultado que cambió.
 - **Qué se decidió y por qué:** 1) Cada tipo de relación declara en el catálogo qué datos identifican el mismo hecho (por ejemplo, el rol en una participación) y si admite uno o varios valores: con uno, un valor distinto es una contradicción; con varios, es otro hecho. 2) Cada decisión se ancla según su alcance: una pieza creada por una persona, por su identificador; lo que encontró la aplicación, por sus menciones; una interpretación de un documento, además por su versión y su evidencia (lo marcado como erróneo en el borrador no pasa al firmado); si al reprocesar hay varios destinos posibles, la decisión pasa a revisión y no se aplica, como hace hoy el programa. 3) Las etapas tienen un orden fijo y, cuando una cambia un resultado, se recalculan las que dependen de él con alcance conservador; la cola acepta documentos y piezas; con la caché, eso solo le vuelve a preguntar al modelo cuando la pregunta cambió. Precisa D-550 y D-552.
 - **Quién decidió:** Lo propuso el revisor externo; el agente lo evaluó, agregó los matices y lo incorporó en la corrida desatendida.
+
+### D-562 · Los respaldos de la base de la numeración anterior quedan en disco sin listarse, sin borrarse y sin poder volver a ellos
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La base nueva vive en otro archivo (docbase/base.sqlite3, D-548). Los respaldos hechos antes guardan docbase/private.sqlite3: listados, aparecerían incompletos, y volver a uno fallaría a medias.
+- **Qué se decidió y por qué:** Un respaldo es de esta base solo si guarda el archivo de esta base. Los de la anterior no aparecen en Ajustes, la poda no los cuenta ni los borra, y volver a uno se rechaza antes de tocar nada, con el mensaje «es un respaldo de la base anterior, que esta versión de la app ya no usa». Alternativa: listarlos como «de otra base», sin el botón de volver.
+- **Quién decidió:** Claude (corrida desatendida)
+
+### D-563 · Cada página guarda su texto tal como va en el texto del documento, con sus campos de formulario
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** El texto por página (resource_text, D-560) tiene que servir para armar el texto de cada documento incluido, y el texto junto no puede cambiar ni un byte (la caché de respuestas del modelo depende de él, D-555).
+- **Qué se decidió y por qué:** La fila de cada página es su bloque del texto junto sin el título «## Page N»: el texto de la página, un salto, y los campos del formulario de esa página si los tiene. Juntar las páginas en orden da el texto del documento byte por byte. Se guardan todas las páginas de un PDF, también las sin capa de texto; un archivo sin páginas tiene una fila, la 1, con todo su texto; lo reconocido guarda cada página con su motor. Alternativa: el texto crudo de pdfium por página y los campos aparte.
+- **Quién decidió:** Claude (corrida desatendida)
+
+### D-564 · Todos los PDF de un documento llevan las huellas de sus páginas; la ficha de forma se rehace cuando el documento suma un archivo
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La ficha de forma es por documento y se calculaba con un solo archivo; las huellas son por archivo (resource_page). Dos archivos con el mismo texto y distintos bytes son un documento, y para compararlos por imagen hacen falta las huellas de los dos.
+- **Qué se decidió y por qué:** La ficha de forma abre cada PDF del documento una sola vez y guarda las huellas de cada uno; la ficha es la del primero (como antes). Cuando un archivo se suma a un documento que ya tenía ficha, la ficha se borra y se vuelve a calcular con todos. Alternativa: huellas solo del primer archivo, o una cola aparte por archivo con una marca de intentado.
+- **Quién decidió:** Claude (corrida desatendida)
+
+### D-565 · Las huellas de cada página se calculan como en la prueba en la nube, sin bibliotecas de imágenes nuevas
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** El pHash tiene que poder compararse con el que midió la prueba en la nube (imagehash sobre pypdfium2), y no había biblioteca de pHash en el programa.
+- **Qué se decidió y por qué:** La página se dibuja en grises, sin los datos del formulario, del tamaño que la dibuja pypdfium2 (cada lado por la escala de 256 px de alto, redondeado hacia arriba). La reducción a 32 × 32 copia el Lanczos de Pillow en punto fijo y la DCT se escribe a mano, con el ruido de redondeo en cero. La huella exacta es SHA-256 de los píxeles; la del texto, de su normalización (minúsculas, sin acentos, letras y dígitos), desde 40 caracteres, con el crate chico unicode-normalization (MIT o Apache, compatible con GPL v3). Resultado: cada página queda a 0–6 bits de la de Python (367 de 601 iguales). Alternativa: la reducción del crate image, más simple pero más lejos de Python.
+- **Quién decidió:** Claude (corrida desatendida)
+
+### D-566 · La versión 1 de la base nueva es un archivo SQL generado de la base vieja en su versión 29
+
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La V1 tiene que tener exactamente la forma de la base vieja en su versión 29 (D-548) y no puede escribirse a mano.
+- **Qué se decidió y por qué:** Se generó una vez desde la base vieja armada en memoria con sus 29 migraciones: tablas, índices y disparadores de sqlite_master, cada grupo en su orden de creación, sin las tablas internas de la búsqueda. Queda en src-tauri/src/docbase/schema_v1.sql y la migración lo incluye tal cual. No siembra filas: la única siembra vieja era el ajuste de lectura automática, que no va (la lectura arranca apagada). Comparada con la 29 vieja: el mismo SQL normalizado y los mismos PRAGMA. Alternativa: dejar el SQL dentro de schema.rs como texto.
+- **Quién decidió:** Claude (corrida desatendida)

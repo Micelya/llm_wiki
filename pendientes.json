@@ -2761,7 +2761,7 @@
       "estado": "en-curso",
       "prioridad": 1,
       "tema": "replanteo",
-      "detalle": "La propuesta está en docs/design/base-de-datos-destino.md (27 oct). Falta la aprobación del dueño, fijar columnas, índices y disparadores, y construirla como un archivo de base nuevo, sin código de migración (D-548). 2026-10-27: Por capas (D-554). Primera corrida (desatendido-12): archivo de base nuevo, recursos y texto y huellas por página, RapidOCR en la PC, documento, versión y aparición, y la caché (D-555). Después: el corte, copias y versiones por incluido y el reproceso; y al final la capa de arriba.",
+      "detalle": "La propuesta está en docs/design/base-de-datos-destino.md (27 oct). Falta la aprobación del dueño, fijar columnas, índices y disparadores, y construirla como un archivo de base nuevo, sin código de migración (D-548). 2026-10-27: Por capas (D-554). Primera corrida (desatendido-12): archivo de base nuevo, recursos y texto y huellas por página, RapidOCR en la PC, documento, versión y aparición, y la caché (D-555). Después: el corte, copias y versiones por incluido y el reproceso; y al final la capa de arriba. 2026-10-27: Paso 2 de desatendido-12 hecho: archivo nuevo docbase/base.sqlite3 con numeración propia (V1 = la forma de la vieja en su versión 29, V2 = resource_text y resource_page), texto por página y por motor, y huellas de cada página (exacta, pHash, texto) en la ficha de forma (D-562 a D-566). Commits 475533c, 4e1eb8f, ef85237, 9ad1e96.",
       "depende_de": [
         "P-360"
       ],
@@ -2906,6 +2906,62 @@
         "P-363"
       ],
       "referencia": "D-554; docs/design/base-documental.md",
+      "creado": "2026-10-27",
+      "actualizado": "2026-10-27"
+    },
+    {
+      "id": "P-374",
+      "titulo": "Ver en la app: la base nueva arranca vacía, con la lectura apagada, y lee la carpeta como antes",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "replanteo",
+      "detalle": "Con la rama sesion-21/replanteo-base la app usa un archivo nuevo (docbase/base.sqlite3) y no abre el viejo. Mirar: (1) la base arranca vacía; (2) en Ajustes la lectura automática está apagada; (3) en Ajustes > Datos y respaldos no aparece ningún respaldo de la base vieja; (4) agregar la carpeta, prender la lectura y ver que los documentos y su texto aparecen como antes. Medido en el arnés: 111 de 111 textos extraídos idénticos byte por byte a los de la base real; 601 páginas con huellas en 130 archivos; 607 páginas de texto.",
+      "depende_de": [],
+      "referencia": "D-548; D-560; D-562",
+      "creado": "2026-10-27",
+      "actualizado": "2026-10-27"
+    },
+    {
+      "id": "P-375",
+      "titulo": "El pHash de la app no reproduce los números de la prueba en la nube",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "replanteo",
+      "detalle": "Con las mismas reglas que la nube (6 bits, páginas comunes en 5 archivos o más) da: mismo documento 2 de 3, ejemplar firmado dentro 1 de 4 (2 parciales), 4 falsos de 37; la nube dio 3 de 3, 4 de 4 y 3. Página por página contra imagehash de Python: 367 iguales, 203 a 2 bits, 30 a 4, 1 a 6; la diferencia viene del dibujo de cada pdfium (el de la app y el de pypdfium2). Antes de usar el pHash para copias, versiones y ejemplares firmados: decidir la tolerancia o medir con el mismo pdfium, y mirar los pares que cambian (arnés docbase::similar::check_pages, con MICELYA_PRINTS_OUT para volcar las huellas).",
+      "depende_de": [],
+      "referencia": "D-534; D-565",
+      "creado": "2026-10-27",
+      "actualizado": "2026-10-27"
+    },
+    {
+      "id": "P-376",
+      "titulo": "Medir el costo de las huellas de página en la versión de entrega",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "replanteo",
+      "detalle": "En depuración la ficha de forma con huellas tarda 39 s sobre los 130 PDF de la carpeta de prueba, contra 4 s la ficha sola: dibujar cada página y reducirla. Medir en versión de entrega; si pesa, dibujar en un hilo aparte del cerrojo de pdfium solo lo necesario o reducir antes de la DCT.",
+      "depende_de": [],
+      "referencia": "D-565",
+      "creado": "2026-10-27",
+      "actualizado": "2026-10-27"
+    },
+    {
+      "id": "P-377",
+      "titulo": "El archivo de la base vieja y sus respaldos quedan en disco",
+      "tipo": "decision",
+      "responsable": "usuario",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "replanteo",
+      "detalle": "La app ya no abre docbase/private.sqlite3 ni lista sus respaldos (respaldos/antes-de-v…), pero no los borra. Decidir si la app ofrece borrarlos (en Ajustes, con confirmación) o si se dejan para que el dueño los borre a mano.",
+      "depende_de": [],
+      "referencia": "D-548; D-562",
       "creado": "2026-10-27",
       "actualizado": "2026-10-27"
     }

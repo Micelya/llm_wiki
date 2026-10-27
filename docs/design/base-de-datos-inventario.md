@@ -1,6 +1,6 @@
 # Inventario de la base de datos por significado (27 oct 2026)
 
-**Estado:** aprobado por el dueño el 27 oct junto con el modelo y la base de destino (D-554), con dos precisiones del agente local (D-560): el `content` y las anclas de las decisiones, abajo. Reemplaza la versión del 26 oct, corregida con la revisión del dueño y otro agente (ver «Qué se corrigió»). Acompaña a la [propuesta del modelo](modelo-de-conocimiento-propuesta.md) y a la [base de destino](base-de-datos-destino.md).
+**Estado:** aprobado por el dueño el 27 oct junto con el modelo y la base de destino (D-554), con dos precisiones del agente local (D-560): el `content` y las anclas de las decisiones, abajo. Reemplaza la versión del 26 oct, corregida con la revisión del dueño y otro agente (ver «Qué se corrigió»). Va con la [propuesta del modelo](modelo-de-conocimiento-propuesta.md) y a la [base de destino](base-de-datos-destino.md).
 
 **Para qué sirve ahora.** Los datos actuales se pueden descartar (D-548): este inventario **no es un mapa de migración**. Sirve para tres cosas: recuperar qué necesidad descubrimos con cada tabla, para que la base nueva no la pierda; saber qué aprendizaje hay que extraer antes de descartar la base real; y saber qué código toca cada parte.
 

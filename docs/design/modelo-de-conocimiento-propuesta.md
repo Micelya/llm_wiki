@@ -2,12 +2,12 @@
 
 **Estado:** aprobado por el dueño el 27 oct para construirlo por capas (D-554), con las correcciones del agente local (D-560) y las precisiones del revisor (D-561, asumidas en la corrida desatendida). Antes: borrador del 26 oct, revisado el 27 con el dueño y otro agente. Sale de la conversación del 26 de octubre, que siguió a las [notas del replanteo](replanteo-del-proceso-notas.md) del 25. Las decisiones están en `docs/decisiones.md` (D-530 a D-545 y D-548 a D-553).
 
-Documentos que lo acompañan: el [inventario de la base por significado](base-de-datos-inventario.md) y la [base de destino](base-de-datos-destino.md), con el reinicio, el reproceso y los escenarios de prueba.
+Documentos que van con este: el [inventario de la base por significado](base-de-datos-inventario.md) y la [base de destino](base-de-datos-destino.md), con el reinicio, el reproceso y los escenarios de prueba.
 
 ## 0. Alcance de la primera etapa
 
 - **Los datos actuales de la base se pueden descartar** (D-548). La base nueva se arma desde cero y se vuelve a procesar. Se conserva el aprendizaje del descubrimiento: decisiones, reglas, ejemplos difíciles, hojas de respuesta y mediciones. Los documentos fuente no se tocan.
-- **Solo la dimensión individual** (D-549). La combinación con el espacio compartido, la publicación y los permisos sobre conocimiento compartido quedan para su etapa. Los identificadores estables se mantienen.
+- **Solo la dimensión individual** (D-549). La combinación con el espacio compartido, lo que se publica y los permisos sobre conocimiento compartido quedan para su etapa. Los identificadores estables se mantienen.
 
 ## 1. Para qué
 
@@ -27,7 +27,7 @@ Todo lo que el sistema sostiene se rastrea hasta el contenido o el contexto que 
 | **Documento** | La unidad documental reconocida, esté suelta o dentro de otra cosa. | Una escritura. |
 | **Entidad** | Una persona o una organización. Mismo significado en todas las verticales. | Pérez; un estudio de abogados. |
 | **Asunto** | Lo que relaciona documentos, entidades y cosas. En la vertical jurídica, «caso». Puede tener varios expedientes. Lo crean un portal, la aplicación o el usuario, y puede existir sin documentos. | Sucesión Pérez. |
-| **Cosa** | Algo con existencia material o digital e identidad propia. | Un inmueble, un vehículo, un dominio de Internet. |
+| **Cosa** | Algo material o digital con identidad propia. | Un inmueble, un vehículo, un dominio de Internet. |
 
 **Dos clases más** (D-559):
 - **Expediente:** el registro de un asunto ante un organismo (organismo, número y año). Un asunto puede tener varios. Es además la procedencia y el contenedor de sus actuaciones.
