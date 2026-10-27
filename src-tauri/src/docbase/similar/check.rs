@@ -488,6 +488,8 @@ not compared (no text yet, or too little): {}", rows.len());
 /// names of the test files: generic words of documents, in the two
 /// languages of the test folder.
 const GENERIC: &[&str] = &[
+    // Words of the formulas and kinds of court documents the cutter looks for (cut.json).
+    "tengo", "cedula", "solicitud", "provea", "hagase", "dictamen",
     "agreement", "assignment", "exhibit", "termination", "notice", "partnership", "template", "summary", "screenshot",
     "draft", "final", "copia", "copy", "dup", "duplicados", "movidos", "consumos", "facturas", "impagas", "rechazo",
     "rechaza", "factura", "intimacion", "pago", "bloqueo", "consulta", "subscripcion", "anual", "propuesta",
