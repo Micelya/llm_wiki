@@ -36,7 +36,7 @@ export function openPageObject(found: PageObject): boolean {
     case "document":
       if (found.locationId === null) return false
       wiki.setActiveView("documents")
-      useDocbaseStore.getState().openDocument(found.locationId)
+      useDocbaseStore.getState().openDocument(found.locationId, found.included ? found.contentId : null)
       return true
     case "overview":
       wiki.setActiveView("home")

@@ -41,6 +41,18 @@ describe("openWikiPath: every page is the screen of what it names (D-407)", () =
     expect(useDocbaseStore.getState().openLocationId).toBe(30)
   })
 
+  it("a document a joined file includes opens inside that file, as itself (D-560)", async () => {
+    objectOfPage.mockResolvedValue(
+      found({ objectId: "doc-8", kind: "document", path: "wiki/sources/anexo-8.md", contentId: 8, locationId: 30, included: true }),
+    )
+    expect(await openWikiPath("anexo-8")).toBe(true)
+    expect(useDocbaseStore.getState()).toMatchObject({ openLocationId: 30, openVersionId: 8 })
+    // A document with a file of its own opens just that file.
+    objectOfPage.mockResolvedValue(found({ objectId: "doc-3", kind: "document", path: "wiki/sources/contrato-3.md", contentId: 3, locationId: 31 }))
+    expect(await openWikiPath("contrato-3")).toBe(true)
+    expect(useDocbaseStore.getState()).toMatchObject({ openLocationId: 31, openVersionId: null })
+  })
+
   it("the overview opens Inicio", async () => {
     objectOfPage.mockResolvedValue(found({ objectId: "overview", kind: "overview", path: "wiki/overview.md" }))
     expect(await openWikiPath("overview")).toBe(true)
