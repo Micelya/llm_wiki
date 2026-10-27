@@ -104,7 +104,7 @@ fn visible_content(column: &str, visible: &Visible) -> (String, Vec<String>) {
     let (condition, params) = visible.condition("vl.origin_id");
     (
         format!(
-            "EXISTS (SELECT 1 FROM file vf JOIN location vl ON vl.file_hash = vf.hash
+            "EXISTS (SELECT 1 FROM appearance vf JOIN location vl ON vl.file_hash = vf.resource_hash
                      WHERE vf.version_id = {column} AND {condition})"
         ),
         params,

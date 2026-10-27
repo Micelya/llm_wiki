@@ -165,6 +165,17 @@ fn text_default(column: &Column) -> Option<String> {
 }
 
 fn invented(table: &str, column: &Column, row: usize, admitted: Option<&Vec<String>>, defaults: bool) -> Value {
+    // A range of pages of an appearance (V3), cut by someone.
+    if table == "appearance" && column.name == "selector" {
+        return Value::Text(format!("pages:{}-{}", row + 1, row + 2));
+    }
+    if table == "appearance" && column.name == "cut_by" {
+        return Value::Text("rule".into());
+    }
+    // The whole-file appearances its files made took the first numbers.
+    if table == "appearance" && column.name == "id" {
+        return Value::Integer(row as i64 + 1000);
+    }
     if let Some(values) = admitted {
         return Value::Text(values[row % values.len()].clone());
     }
@@ -207,6 +218,25 @@ fn fill(conn: &Connection) {
             .filter(|t| keys[*t].iter().all(|k| &k.parent == *t || done.contains(&k.parent) || !tables.contains(&k.parent)))
             .cloned()
             .collect();
+        // A circle of keys (a version and its document) is broken where
+        // the key can wait: the tables whose keys to what is not filled
+        // yet are all of columns that admit null.
+        let ready = if ready.is_empty() {
+            tables
+                .iter()
+                .filter(|t| !done.contains(*t))
+                .filter(|t| {
+                    let nullable: BTreeSet<String> = columns(conn, t).into_iter().filter(|c| c.nullable).map(|c| c.name).collect();
+                    keys[*t]
+                        .iter()
+                        .filter(|k| &k.parent != *t && !done.contains(&k.parent) && tables.contains(&k.parent))
+                        .all(|k| k.from.iter().all(|f| nullable.contains(f)))
+                })
+                .cloned()
+                .collect()
+        } else {
+            ready
+        };
         assert!(!ready.is_empty(), "the foreign keys of these tables go round in a circle: {:?}", tables.iter().filter(|t| !done.contains(*t)).collect::<Vec<_>>());
         for table in ready {
             fill_table(conn, &table, &keys[&table]);
@@ -252,7 +282,7 @@ fn fill_table(conn: &Connection, table: &str, keys: &[ForeignKey]) {
             for key in &keys {
                 let k = per_parent.entry(key.parent.as_str()).or_insert(0);
                 let parents = plain_rows(conn, &key.parent, &key.to);
-                let chosen = if key.parent == table {
+                let chosen = if key.parent == table || parents.is_empty() {
                     parents.first()
                 } else {
                     Some(&parents[(row + *k) % parents.len()])
@@ -277,7 +307,7 @@ fn fill_table(conn: &Connection, table: &str, keys: &[ForeignKey]) {
                     written = true;
                     break;
                 }
-                Err(error) => last_error = error.to_string(),
+                Err(error) => last_error.push_str(&format!("{error}; ")),
             }
         }
         assert!(
@@ -542,7 +572,7 @@ fn a_failed_update_keeps_its_backup_and_names_it() {
     {
         // A table the next version adds is already there: its change fails.
         let conn = Connection::open(data.join(PRIVATE_DB_FILE)).unwrap();
-        conn.execute_batch("CREATE TABLE appearance (x)").unwrap();
+        conn.execute_batch("CREATE TABLE cut_decision (x)").unwrap();
     }
     let (base, opening) = DocBase::open_in_data_folder(data);
     let problem = base.unwrap_err();

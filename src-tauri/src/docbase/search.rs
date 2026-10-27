@@ -252,7 +252,7 @@ fn query_terms(query: &str) -> (Vec<String>, Vec<String>) {
 fn visible_condition(visible: &Visible, within: Option<&[i64]>, column: &str) -> (String, Vec<Value>) {
     let (condition, bound) = visible.condition("l.origin_id");
     let mut sql = format!(
-        "{column} IN (SELECT f.version_id FROM file f JOIN location l ON l.file_hash = f.hash WHERE {condition})"
+        "{column} IN (SELECT f.version_id FROM appearance f JOIN location l ON l.file_hash = f.resource_hash WHERE {condition})"
     );
     let mut values: Vec<Value> = bound.into_iter().map(Value::Text).collect();
     if let Some(within) = within {

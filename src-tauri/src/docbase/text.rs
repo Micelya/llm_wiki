@@ -313,7 +313,7 @@ impl DocBase {
 /// A document generated from a template (D-488) is never another one with
 /// the same text (the one of the template whose data it started with): it
 /// stays a document of its own, without the identity of its text.
-fn store(tx: &Transaction<'_>, content_id: i64, text: &str, engine: &str, state: &str) -> Result<i64, String> {
+pub(crate) fn store(tx: &Transaction<'_>, content_id: i64, text: &str, engine: &str, state: &str) -> Result<i64, String> {
     let now = now_ms();
     let identity = fingerprint(text);
     if identity.is_some() && super::similar::generate::is_generated(tx, content_id)? {

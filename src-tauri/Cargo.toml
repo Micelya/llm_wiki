@@ -84,6 +84,7 @@ rapidocr-core = { version = "0.2.2", default-features = false }
 ort = { version = "=2.0.0-rc.12", default-features = false, features = ["load-dynamic"] }
 base64 = "0.22"
 sha2 = "0.10"
+regex = "1.12"
 walkdir = "2"
 # The accents out of the text of a page before its print (`page_print.rs`).
 unicode-normalization = "0.1"

@@ -40,6 +40,12 @@ struct AnswerPair {
     a: String,
     b: String,
     relation: String,
+    /// The pages of the file `a` the pair is about (`pages:3-5`), when
+    /// the file holds several documents; the whole file when not said.
+    #[serde(default)]
+    a_selector: Option<String>,
+    #[serde(default)]
+    b_selector: Option<String>,
     #[serde(default)]
     measurable: bool,
     #[serde(default)]
@@ -67,7 +73,9 @@ fn engine_relation(answer: &str) -> Option<&'static str> {
 }
 
 fn answers() -> Option<Answers> {
-    let path = std::env::var("MICELYA_SIMILAR_ANSWERS").ok()?;
+    // Several sheets go separated by `;`: the first one is used here.
+    let paths = std::env::var("MICELYA_SIMILAR_ANSWERS").ok()?;
+    let path = paths.split(';').next()?.trim().to_string();
     let text = std::fs::read_to_string(&path).map_err(|e| println!("cannot read {path}: {e}")).ok()?;
     serde_json::from_str(&text).map_err(|e| println!("{path} is not a valid answer sheet: {e}")).ok()
 }
@@ -140,7 +148,7 @@ fn similar_documents_in_real_folders() {
         };
         run(&folders)
     };
-    let (by_path, by_content) = paths_by_content(&base);
+    let (_, by_content) = paths_by_content(&base);
     let name = |content: i64| -> String {
         by_content
             .get(&content)
@@ -338,39 +346,201 @@ not compared (no text yet, or too little): {}", rows.len());
 
     // Against the answer sheet.
     let Some(answers) = answers() else {
-        println!("\nMICELYA_SIMILAR_ANSWERS is not set or not readable: no comparison with the answer sheet");
+        println!("
+MICELYA_SIMILAR_ANSWERS is not set or not readable: no comparison with the answer sheet");
         return;
     };
-    let proposed: HashMap<(i64, i64), (String, Option<i64>)> =
-        pairs.iter().map(|p| ((p.0, p.1), (p.2.clone(), p.3))).collect();
-    let content_of = |path: &str| -> Option<i64> { by_path.get(&key(&format!("{}/{}", answers.root, path))).copied() };
+    against_the_sheet(&base, &answers, true);
+}
 
-    #[derive(Default)]
-    struct Tally {
-        expected: usize,
-        hits: usize,
-        wrong: usize,
-        missed: usize,
-        as_similar: usize,
+#[derive(Default)]
+struct Tally {
+    expected: usize,
+    hits: usize,
+    wrong: usize,
+    missed: usize,
+    as_similar: usize,
+}
+
+/// What appears in each file of the base: the version of the whole file
+/// and, when it was cut, the versions of its parts with their pages.
+struct Appearances {
+    hash_of: HashMap<String, String>,
+    paths_of: HashMap<String, Vec<String>>,
+    in_file: HashMap<String, Vec<(i64, Option<(u32, u32)>)>>,
+}
+
+/// What a reference of the sheet (a file, and maybe some of its pages)
+/// stands for in the base.
+struct Resolved {
+    version: i64,
+    /// The base has a document with exactly those pages, or the whole
+    /// file when it was not cut.
+    exact: bool,
+    /// The parts the base has of the file, by pages, when it was cut.
+    parts: Vec<(u32, u32)>,
+}
+
+fn pages_of(selector: &str) -> Option<(u32, u32)> {
+    let (first, last) = selector.strip_prefix("pages:")?.split_once('-')?;
+    Some((first.parse().ok()?, last.parse().ok()?))
+}
+
+impl Appearances {
+    fn of(base: &DocBase) -> Self {
+        let conn = base.conn();
+        let mut hash_of = HashMap::new();
+        let mut paths_of: HashMap<String, Vec<String>> = HashMap::new();
+        let mut statement = conn
+            .prepare(
+                "SELECT o.location, l.rel_path, l.file_hash FROM location l JOIN origin o ON o.id = l.origin_id
+                 WHERE l.file_hash IS NOT NULL ORDER BY l.rel_path",
+            )
+            .unwrap();
+        let rows = statement
+            .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)))
+            .unwrap();
+        for row in rows {
+            let (root, rel_path, hash) = row.unwrap();
+            hash_of.insert(key(&format!("{root}/{rel_path}")), hash.clone());
+            paths_of.entry(hash).or_default().push(rel_path);
+        }
+        let mut in_file: HashMap<String, Vec<(i64, Option<(u32, u32)>)>> = HashMap::new();
+        let mut statement = conn
+            .prepare("SELECT resource_hash, version_id, selector FROM appearance ORDER BY resource_hash, version_id")
+            .unwrap();
+        let rows = statement
+            .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?, row.get::<_, String>(2)?)))
+            .unwrap();
+        for row in rows {
+            let (hash, version, selector) = row.unwrap();
+            in_file.entry(hash).or_default().push((version, pages_of(&selector)));
+        }
+        Appearances { hash_of, paths_of, in_file }
     }
+
+    /// The version that stands for `selector` (pages of the file; the
+    /// whole file when not said) of the file at `path`: the version of the
+    /// file when it was not cut; otherwise the part with most pages in
+    /// common, the first one on a tie.
+    fn resolve(&self, root: &str, path: &str, selector: Option<&str>) -> Option<Resolved> {
+        let hash = self.hash_of.get(&key(&format!("{root}/{path}")))?;
+        let all = self.in_file.get(hash)?;
+        let mut parts: Vec<(u32, u32, i64)> = all.iter().filter_map(|(v, p)| p.map(|(a, b)| (a, b, *v))).collect();
+        parts.sort();
+        if parts.is_empty() {
+            let whole = all.iter().find(|(_, p)| p.is_none())?.0;
+            return Some(Resolved { version: whole, exact: selector.is_none(), parts: Vec::new() });
+        }
+        let wanted = selector.and_then(pages_of).unwrap_or((1, u32::MAX));
+        let common = |a: u32, b: u32| (b.min(wanted.1) + 1).saturating_sub(a.max(wanted.0));
+        let best = parts.iter().max_by_key(|(a, b, _)| (common(*a, *b), std::cmp::Reverse(*a)))?;
+        Some(Resolved {
+            version: best.2,
+            exact: selector.is_some() && (best.0, best.1) == wanted,
+            parts: parts.iter().map(|(a, b, _)| (*a, *b)).collect(),
+        })
+    }
+
+    /// The paths of a version, with the pages when it is a part.
+    fn name(&self, version: i64) -> String {
+        let mut names = Vec::new();
+        for (hash, list) in &self.in_file {
+            for (v, pages) in list {
+                if *v != version {
+                    continue;
+                }
+                for path in self.paths_of.get(hash).into_iter().flatten() {
+                    names.push(match pages {
+                        Some((a, b)) => format!("{path} [pages {a}-{b}]"),
+                        None => path.clone(),
+                    });
+                }
+            }
+        }
+        names.sort();
+        if names.is_empty() {
+            format!("#{version}")
+        } else {
+            names.join(" = ")
+        }
+    }
+}
+
+fn ranges(parts: &[(u32, u32)]) -> String {
+    parts.iter().map(|(a, b)| format!("{a}-{b}")).collect::<Vec<_>>().join(", ")
+}
+
+/// Measures the pairs of the base against an answer sheet, each pair of
+/// the sheet between the documents its files and pages stand for. The
+/// proposals that wait for a cut to be confirmed (D-556) count as not
+/// made: what a person sees.
+fn against_the_sheet(base: &DocBase, answers: &Answers, list_unjudged: bool) -> Tally {
+    let seen = Appearances::of(base);
+    let proposed: HashMap<(i64, i64), String> = {
+        let conn = base.conn();
+        let mut statement = conn
+            .prepare(&format!("SELECT p.a, p.b, p.relation FROM similar_pair p WHERE NOT {}", super::store::waiting_sql("p")))
+            .unwrap();
+        let rows = statement
+            .query_map([], |row| Ok(((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?), row.get::<_, String>(2)?)))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        rows.into_iter().collect()
+    };
+    let waiting: i64 = base
+        .conn()
+        .query_row(&format!("SELECT count(*) FROM similar_pair p WHERE {}", super::store::waiting_sql("p")), [], |row| row.get(0))
+        .unwrap();
+
     let mut tally: BTreeMap<String, Tally> = BTreeMap::new();
     let mut wrong: Vec<String> = Vec::new();
     let mut missed: Vec<String> = Vec::new();
     let mut unknown: Vec<String> = Vec::new();
+    // References to a cut file that the sheet does not resolve: numbers
+    // only (the pair of the sheet from 1, its side, the pages).
+    let mut not_said: Vec<String> = Vec::new();
+    let mut cut_otherwise: Vec<String> = Vec::new();
     let mut judged: BTreeSet<(i64, i64)> = BTreeSet::new();
     // Members of a "same template" family, pairwise: the sheet writes
     // them against the principal only.
     let mut template_family: HashMap<i64, i64> = HashMap::new();
 
-    for answer in answers.pairs.iter().filter(|p| p.measurable) {
+    for (index, answer) in answers.pairs.iter().enumerate() {
+        let a = seen.resolve(&answers.root, &answer.a, answer.a_selector.as_deref());
+        let b = seen.resolve(&answers.root, &answer.b, answer.b_selector.as_deref());
+        for (side, resolved, selector) in [("a", &a, &answer.a_selector), ("b", &b, &answer.b_selector)] {
+            let Some(resolved) = resolved else { continue };
+            if resolved.parts.is_empty() || resolved.exact {
+                continue;
+            }
+            let line = format!(
+                "pair {} side {side}{}: the base has {} parts ({}); the sheet: {}",
+                index + 1,
+                if answer.measurable { "" } else { " (not measurable)" },
+                resolved.parts.len(),
+                ranges(&resolved.parts),
+                selector.as_deref().unwrap_or("the whole file")
+            );
+            if selector.is_some() {
+                cut_otherwise.push(line);
+            } else {
+                not_said.push(line);
+            }
+        }
+        if !answer.measurable {
+            continue;
+        }
         let Some(expected) = engine_relation(&answer.relation) else {
-            unknown.push(format!("relation '{}' ({} ~ {})", answer.relation, answer.a, answer.b));
+            unknown.push(format!("relation '{}' (pair {})", answer.relation, index + 1));
             continue;
         };
-        let (Some(ca), Some(cb)) = (content_of(&answer.a), content_of(&answer.b)) else {
-            unknown.push(format!("not in the base: {} ~ {}", answer.a, answer.b));
+        let (Some(a), Some(b)) = (a, b) else {
+            unknown.push(format!("not in the base: pair {}", index + 1));
             continue;
         };
+        let (ca, cb) = (a.version, b.version);
         if expected == "same-template" {
             let family = *template_family.get(&ca).or(template_family.get(&cb)).unwrap_or(&ca.min(cb));
             template_family.insert(ca, family);
@@ -380,18 +550,14 @@ not compared (no text yet, or too little): {}", rows.len());
         entry.expected += 1;
         let (lo, hi) = (ca.min(cb), ca.max(cb));
         judged.insert((lo, hi));
-        let found = if ca == cb {
-            Some("same-document".to_string())
-        } else {
-            proposed.get(&(lo, hi)).map(|(relation, _)| relation.clone())
-        };
+        let found = if ca == cb { Some("same-document".to_string()) } else { proposed.get(&(lo, hi)).cloned() };
         let line = format!(
             "expected {} ({}), proposed {}: {} ~ {}{}",
             expected,
             answer.relation,
             found.clone().unwrap_or_else(|| "nothing".into()),
-            answer.a,
-            answer.b,
+            seen.name(ca),
+            seen.name(cb),
             answer.note.as_ref().map(|n| format!(" — {n}")).unwrap_or_default()
         );
         match (expected, found.as_deref()) {
@@ -423,7 +589,7 @@ not compared (no text yet, or too little): {}", rows.len());
     // Proposals the sheet does not judge directly.
     let mut inferred = Tally::default();
     let mut unjudged: Vec<String> = Vec::new();
-    for ((a, b), (relation, _)) in &proposed {
+    for ((a, b), relation) in &proposed {
         if judged.contains(&(*a, *b)) || relation == "similar" {
             continue;
         }
@@ -436,12 +602,12 @@ not compared (no text yet, or too little): {}", rows.len());
                     inferred.wrong += 1;
                     wrong.push(format!(
                         "expected same-template (same family in the sheet), proposed {relation}: {} ~ {}",
-                        name(*a),
-                        name(*b)
+                        seen.name(*a),
+                        seen.name(*b)
                     ));
                 }
             }
-            _ => unjudged.push(format!("[{relation}] {} ~ {}", name(*a), name(*b))),
+            _ => unjudged.push(format!("[{relation}] {} ~ {}", seen.name(*a), seen.name(*b))),
         }
     }
 
@@ -464,6 +630,7 @@ not compared (no text yet, or too little): {}", rows.len());
         "   inside a same-template family of the sheet: {} pairs, {} right, {} wrong",
         inferred.expected, inferred.hits, inferred.wrong
     );
+    println!("   proposals waiting for a cut to be confirmed (not counted): {waiting}");
     println!("\n   WRONG proposals (the worst outcome, R-07): {}", wrong.len());
     for line in &wrong {
         println!("      {line}");
@@ -473,7 +640,17 @@ not compared (no text yet, or too little): {}", rows.len());
         println!("      {line}");
     }
     println!("\n   proposals the sheet does not judge: {}", unjudged.len());
-    for line in &unjudged {
+    if list_unjudged {
+        for line in &unjudged {
+            println!("      {line}");
+        }
+    }
+    println!("\n   a cut file the sheet does not say which part of: {}", not_said.len());
+    for line in &not_said {
+        println!("      {line}");
+    }
+    println!("\n   a cut file the base cuts otherwise than the sheet: {}", cut_otherwise.len());
+    for line in &cut_otherwise {
         println!("      {line}");
     }
     if !unknown.is_empty() {
@@ -482,12 +659,87 @@ not compared (no text yet, or too little): {}", rows.len());
             println!("      {line}");
         }
     }
+    total
+}
+
+/// The copies and versions over the whole folder with the joined PDFs cut,
+/// each included document on its own: from the base of
+/// `MICELYA_DOCBASE_START` and the answers about cuts of
+/// `MICELYA_ANSWER_SEED`, the reading with only the answers kept
+/// (`MICELYA_ASK_OFFLINE`), measured against every sheet of
+/// `MICELYA_SIMILAR_ANSWERS` (separated by `;`) twice: as it is, with the
+/// cuts proposed and their proposals waiting, and with every cut confirmed
+/// as if a person had looked at them.
+#[test]
+#[ignore = "reads the real folders named in MICELYA_DOCBASE_CHECK"]
+fn similar_documents_of_the_included_documents() {
+    let Some((_scratch, base)) = crate::docbase::knowledge::check::open_base() else {
+        println!("MICELYA_DOCBASE_CHECK is not set: nothing to measure");
+        return;
+    };
+    if let Ok(seeds) = std::env::var("MICELYA_ANSWER_SEED") {
+        println!("answers seeded: {}", crate::docbase::cut::check::seed_answers(&base, &seeds));
+    }
+    while base.refresh_extraction(50).unwrap() > 0 {}
+    while base.extract_pending(50).unwrap() > 0 {}
+    while base.profile_pending(16).unwrap() > 0 {}
+    while base.cut_pending(16).unwrap() > 0 {}
+    while base.cut_parts_pending(64).unwrap() > 0 {}
+    let asker = crate::docbase::knowledge::check::recorded();
+    let reading = crate::docbase::knowledge::check::read_all(&base, &asker);
+    println!("reading, only the answers kept: {} asked, {} read, {} left", reading.asked, reading.extracted, reading.left);
+    let started = Instant::now();
+    while base.similar_step(16).unwrap() > 0 {}
+    println!("similar documents: {:.1}s", started.elapsed().as_secs_f32());
+    let sheets: Vec<(String, Answers)> = std::env::var("MICELYA_SIMILAR_ANSWERS")
+        .unwrap_or_default()
+        .split(';')
+        .filter(|p| !p.trim().is_empty())
+        .filter_map(|p| {
+            let text = std::fs::read_to_string(p.trim()).ok()?;
+            let name = Path::new(p.trim()).file_name()?.to_string_lossy().to_string();
+            Some((name, serde_json::from_str(&text).map_err(|e| println!("{p}: {e}")).ok()?))
+        })
+        .collect();
+    let report = |when: &str| {
+        let count = |sql: &str| -> i64 { base.conn().query_row(sql, [], |row| row.get(0)).unwrap() };
+        println!("\n==== {when} ====");
+        println!(
+            "versions {} · compared {} · cut files {} · parts {} · versions waiting for a cut {} · pairs {}",
+            count("SELECT count(*) FROM version"),
+            count("SELECT count(*) FROM similar_signature WHERE length(shingles) > 0"),
+            count("SELECT count(DISTINCT resource_hash) FROM appearance WHERE selector <> 'file'"),
+            count("SELECT count(*) FROM appearance WHERE selector <> 'file'"),
+            count(&format!("SELECT count(*) FROM version v WHERE {}", crate::docbase::cut::parts::only_proposed_sql("v.id"))),
+            count("SELECT count(*) FROM similar_pair"),
+        );
+        for (name, sheet) in &sheets {
+            println!("\n---- sheet {name} ----");
+            let t = against_the_sheet(&base, sheet, false);
+            println!("summary {when} · {name}: {} expected, {} hits, {} wrong, {} missed", t.expected, t.hits, t.wrong, t.missed);
+        }
+    };
+    report("as it is: cuts proposed, their proposals waiting");
+    let cut: Vec<String> = {
+        let conn = base.conn();
+        let mut statement = conn.prepare("SELECT DISTINCT resource_hash FROM appearance WHERE selector <> 'file'").unwrap();
+        let rows = statement.query_map([], |row| row.get(0)).unwrap().collect::<Result<Vec<_>, _>>().unwrap();
+        rows
+    };
+    for hash in &cut {
+        base.cut_confirm_all(hash).unwrap();
+    }
+    while base.cut_parts_pending(64).unwrap() > 0 {}
+    while base.similar_step(16).unwrap() > 0 {}
+    report("every cut confirmed");
 }
 
 /// Words that say nothing about a case even though they appear in the
 /// names of the test files: generic words of documents, in the two
 /// languages of the test folder.
 const GENERIC: &[&str] = &[
+    // Words of the formulas and kinds of court documents the cutter looks for (cut.json).
+    "tengo", "cedula", "solicitud", "provea", "hagase", "dictamen",
     "agreement", "assignment", "exhibit", "termination", "notice", "partnership", "template", "summary", "screenshot",
     "draft", "final", "copia", "copy", "dup", "duplicados", "movidos", "consumos", "facturas", "impagas", "rechazo",
     "rechaza", "factura", "intimacion", "pago", "bloqueo", "consulta", "subscripcion", "anual", "propuesta",

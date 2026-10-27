@@ -125,6 +125,10 @@ export interface DocumentRow {
   docTypeProposed: boolean
   /** The name of a type outside the catalog: proposed by the model, or given by a person who confirmed it. */
   docTypeName: string | null
+  /** The documents the file includes when it joins several (D-560); 0 for a file of one document. */
+  included: number
+  /** How many of those documents have a cut no person confirmed yet. */
+  unconfirmedCuts: number
 }
 
 /** A label: an answer ("Zentora") to its group's question ("Cliente"), or standing alone. */
@@ -239,6 +243,36 @@ export interface DocumentDetail extends DocumentRow {
   locations: LocationRef[]
   /** When it was generated from a template: when, from which and for which matter (D-488). */
   generated: GeneratedLine | null
+  /** When it is a document a joined file includes: which one and its pages; the rest is of that file. */
+  part: PartOf | null
+}
+
+/** Who said where a document of a joined file starts. */
+export type CutBy = "rule" | "model" | "person"
+export type CutState = "proposed" | "confirmed"
+
+/** Where a document included in a joined file is in it. */
+export interface PartOf {
+  /** Its place among the documents of the file, from 1. */
+  ordinal: number
+  count: number
+  firstPage: number
+  lastPage: number
+  cutBy: CutBy
+  cutState: CutState
+}
+
+/** A document a joined file includes, as the detail of that file shows it (D-560). */
+export interface IncludedPart {
+  position: number
+  versionId: number
+  documentId: number
+  firstPage: number
+  lastPage: number
+  cutBy: CutBy
+  cutState: CutState
+  /** Pages whose step from the page before is doubtful and no person decided. */
+  doubtfulPages: number[]
 }
 
 /** What the screen of a generated document says of it. */
@@ -351,6 +385,31 @@ export function documentCopies(locationId: number): Promise<LocationRef[]> {
 
 export function getDocument(locationId: number): Promise<DocumentDetail | null> {
   return invoke<DocumentDetail | null>("docbase_get_document", { locationId })
+}
+
+/** A document a joined file includes, seen from a location of that file; null when it is not a part of it. */
+export function getDocumentPart(locationId: number, versionId: number): Promise<DocumentDetail | null> {
+  return invoke<DocumentDetail | null>("docbase_get_document_part", { locationId, versionId })
+}
+
+/** The documents a joined file includes, in order; none for a file of one document. */
+export function includedParts(hash: string): Promise<IncludedPart[]> {
+  return invoke<IncludedPart[]>("docbase_included_parts", { hash })
+}
+
+/** A person says another document starts at `page` of the file. */
+export function cutSplit(hash: string, page: number): Promise<IncludedPart[]> {
+  return invoke<IncludedPart[]>("docbase_cut_split", { hash, page })
+}
+
+/** A person joins the document that starts at `page` to the one before it. */
+export function cutJoin(hash: string, page: number): Promise<IncludedPart[]> {
+  return invoke<IncludedPart[]>("docbase_cut_join", { hash, page })
+}
+
+/** A person confirms where every document of the file starts, as it is now. */
+export function cutConfirm(hash: string): Promise<IncludedPart[]> {
+  return invoke<IncludedPart[]>("docbase_cut_confirm", { hash })
 }
 
 /** Opens the original with the system's program, or shows it in its folder. */
@@ -1670,6 +1729,8 @@ export interface PageObject {
   /** For a document: the document its page is named by, and one place of it. */
   contentId: number | null
   locationId: number | null
+  /** The document is one a joined file includes: `locationId` is a place of that file. */
+  included?: boolean
 }
 
 export interface KnowledgeOverview {

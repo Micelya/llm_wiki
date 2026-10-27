@@ -122,18 +122,21 @@ impl CodexAsker {
         self
     }
 
-    fn args(&self, schema_file: &Path, answer_file: &Path) -> Vec<std::ffi::OsString> {
-        let mut args: Vec<std::ffi::OsString> = vec![
-            "-a".into(),
-            "never".into(),
-            "exec".into(),
+    fn args(&self, schema_file: &Path, answer_file: &Path, images: &[PathBuf]) -> Vec<std::ffi::OsString> {
+        let mut args: Vec<std::ffi::OsString> = vec!["-a".into(), "never".into(), "exec".into()];
+        // `-i` takes a list, so it goes first and the next flag ends it.
+        if !images.is_empty() {
+            args.push("-i".into());
+            args.extend(images.iter().map(|i| i.as_os_str().to_os_string()));
+        }
+        args.extend::<Vec<std::ffi::OsString>>(vec![
             "--skip-git-repo-check".into(),
             "--sandbox".into(),
             "read-only".into(),
             "--ephemeral".into(),
             "--output-schema".into(),
             schema_file.into(),
-        ];
+        ]);
         if !self.model.is_empty() {
             args.push("--model".into());
             args.push((&self.model).into());
@@ -161,6 +164,18 @@ impl DocumentAsker for CodexAsker {
     }
 
     fn ask(&self, prompt: &str, schema: &serde_json::Value) -> Result<String, String> {
+        self.ask_with_images(prompt, schema, &[])
+    }
+
+    fn sees_images(&self) -> bool {
+        true
+    }
+
+    fn ask_with_images(&self, prompt: &str, schema: &serde_json::Value, images: &[PathBuf]) -> Result<String, String> {
+        if let Some(missing) = images.iter().find(|i| !i.is_absolute() || !i.exists()) {
+            // Codex does not fail on an image it cannot find: it answers without it.
+            return Err(format!("The image '{}' cannot be shown to the model", missing.display()));
+        }
         let codex = find_codex()?;
         let scratch = std::env::temp_dir().join(format!("micelya-codex-{}", uuid::Uuid::new_v4()));
         fs::create_dir_all(&scratch).map_err(|e| format!("Failed to create '{}': {e}", scratch.display()))?;
@@ -168,7 +183,7 @@ impl DocumentAsker for CodexAsker {
         let answer_file = scratch.join("respuesta.json");
         let result = fs::write(&schema_file, schema.to_string())
             .map_err(|e| format!("Failed to write the answer's shape: {e}"))
-            .and_then(|()| run_codex(&codex, &self.args(&schema_file, &answer_file), &scratch, prompt))
+            .and_then(|()| run_codex(&codex, &self.args(&schema_file, &answer_file, images), &scratch, prompt))
             .and_then(|()| {
                 let text = fs::read_to_string(&answer_file).map_err(|e| format!("Codex did not write an answer: {e}"))?;
                 if text.trim().is_empty() {
@@ -283,7 +298,7 @@ mod tests {
     fn a_question_carries_its_answer_shape_and_comes_from_stdin() {
         let asker = CodexAsker::new("gpt-6-luna");
         let args = asker
-            .args(Path::new("forma.json"), Path::new("out.json"))
+            .args(Path::new("forma.json"), Path::new("out.json"), &[])
             .into_iter()
             .map(|a| a.to_string_lossy().to_string())
             .collect::<Vec<_>>();
@@ -297,10 +312,28 @@ mod tests {
     }
 
     #[test]
+    fn a_question_with_images_shows_them_first_and_a_missing_image_is_never_sent() {
+        let asker = CodexAsker::new("m");
+        let images = [PathBuf::from("/a/uno.jpg"), PathBuf::from("/a/dos.jpg")];
+        let args = asker
+            .args(Path::new("forma.json"), Path::new("out.json"), &images)
+            .into_iter()
+            .map(|a| a.to_string_lossy().to_string())
+            .collect::<Vec<_>>();
+        let at = args.iter().position(|a| a == "-i").unwrap();
+        assert_eq!(&args[at - 1], "exec");
+        assert_eq!(args[at + 1..at + 3].to_vec(), images.iter().map(|i| i.to_string_lossy().to_string()).collect::<Vec<_>>());
+        assert!(args[at + 3].starts_with("--"));
+        assert!(asker.sees_images());
+        let missing = asker.ask_with_images("p", &serde_json::json!({}), &[PathBuf::from("no-esta.jpg")]);
+        assert!(missing.unwrap_err().contains("cannot be shown"));
+    }
+
+    #[test]
     fn a_question_carries_the_reasoning_level_to_codex() {
         let asker = CodexAsker::new("gpt-6-luna").with_reasoning("high");
         let args = asker
-            .args(Path::new("forma.json"), Path::new("out.json"))
+            .args(Path::new("forma.json"), Path::new("out.json"), &[])
             .into_iter()
             .map(|a| a.to_string_lossy().to_string())
             .collect::<Vec<_>>();

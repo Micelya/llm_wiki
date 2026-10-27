@@ -523,6 +523,28 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-578 | 27 oct | base | La respuesta importada lleva el número de la versión nueva con la misma huella de archivo cuando ya existe; si no, queda sin número | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-579 | 27 oct | base | Una página guardada como reconocida entra al texto de su PDF con el motor que la leyó, sea cual sea el motor elegido hoy | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-580 | 27 oct | base | El texto de un PDF con páginas guardadas que nada manda a leer sigue siendo de la extracción; cada página guarda su motor | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-581 | 27 oct | base | El cortador lee el texto reconocido de las páginas escaneadas | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-582 | 27 oct | base | Lo que dice el cortador se guarda paso por paso, con el comienzo del archivo como paso 0 | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-583 | 27 oct | base | Las preguntas de los pasos dudosos van antes de los tipos, sin etapa propia en el progreso | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-584 | 27 oct | base | La pregunta de corte no lleva los números de página y su clave son las huellas exactas de las dos páginas | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-585 | 27 oct | base | Una respuesta guardada sobre dos páginas se usa aunque la lectura automática esté apagada | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-586 | 27 oct | base | El PDF compuesto que tiene documentos incluidos no se lee entero: se leen sus incluidos | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-587 | 27 oct | base | Quién cortó una parte y cuándo queda confirmada | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-588 | 27 oct | base | Las partes se arman aunque algunas páginas esperen reconocimiento | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-589 | 27 oct | base | Lo que dice una persona de un corte se guarda por página y sobrevive a todo reproceso | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-590 | 27 oct | base | De un corte propuesto salen el tipo y la lectura, pero no familias ni asuntos | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-591 | 27 oct | base | Una versión incluida se ve y se busca donde se ve su archivo | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-592 | 27 oct | base | La tira de páginas de un PDF compuesto va arriba de «Datos y correcciones» y dibuja las miniaturas en el equipo, solo las que se ven | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-593 | 27 oct | base | Las palabras de la tira: «Sin confirmar» o «Confirmado», y quién lo dijo en palabras que no son de programa | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-594 | 27 oct | base | «Para mirar» es todo paso dudoso que ninguna persona decidió, aunque el modelo lo haya contestado | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-595 | 27 oct | base | Un documento incluido se abre dentro de su archivo, y la lista muestra el archivo con cuántos incluye, no una fila por incluido | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-596 | 27 oct | base | Las copias y versiones de un PDF que junta varios documentos se buscan entre cada documento incluido y los demás, no con el archivo entero | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-597 | 27 oct | base | Un parecido con un documento de corte sin confirmar no se muestra ni se cuenta hasta que se confirma el corte | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-598 | 27 oct | replanteo | La hoja de copias y versiones traducida al documento incluido: un archivo nuevo con las páginas de cada lado del par | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-599 | 27 oct | replanteo | Las relaciones de la hoja de copias y versiones no cambian de nombre con el criterio nuevo | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-600 | 27 oct | replanteo | Lo que harán las tareas que esperan a otras (identidad, asuntos, síntesis, campos) se estima con lo que preguntó la base original, no con una pregunta por documento | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-601 | 27 oct | replanteo | En el reproceso, «Reconocer escaneos» pasa al motor de esta computadora antes de encender la lectura automática | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-602 | 27 oct | replanteo | Las respuestas de Codex ya pagadas en una corrida se suman a la base nueva con un guion aparte, en seco por defecto y sin pisar nada | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -5980,3 +6002,157 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **El problema:** Un PDF cuya ficha no manda a leer ninguna página se termina en la extracción, sin pasar por el reconocimiento. Con D-579 su texto puede llevar páginas reconocidas: había que decir qué motor queda como autor del texto.
 - **Qué se decidió y por qué:** El texto queda con el motor de la extracción y cada página entra con el suyo a las páginas del archivo (`resource_text`), como al reconocer. Así, elegir otro motor no manda a leer de nuevo un documento que la ficha no manda a leer. Las páginas guardadas entran también al texto parcial de un PDF que espera reconocimiento. Alternativa: poner como autor del texto el motor de sus páginas; con eso, cambiar de motor lo mandaría a una lectura que no lee nada.
 - **Quién decidió:** Claude (corrida desatendida 12, paso 3b)
+
+### D-581 · El cortador lee el texto reconocido de las páginas escaneadas
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** El prototipo del cortador solo miraba el texto que trae el PDF; en una hoja escaneada sin texto propio las fórmulas de apertura y de cierre, «página x de y» y los códigos no se ven, y el paso queda dudoso.
+- **Qué se decidió y por qué:** Para cada página, el cortador usa el texto que leyó un motor de reconocimiento cuando la ficha de forma la manda a leer o su capa de texto no es la suya, y el texto del PDF en las demás. Así las reglas también deciden en los escaneos ya leídos, sin preguntar. Si el texto de las páginas cambia (llega una lectura nueva), el archivo se corta otra vez. Alternativa: solo el texto del PDF, como el prototipo (más dudosos y más consultas al modelo).
+- **Quién decidió:** Claude, en la corrida desatendida
+
+### D-582 · Lo que dice el cortador se guarda paso por paso, con el comienzo del archivo como paso 0
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Hacía falta guardar, para cada PDF de dos páginas o más, lo que el cortador dice de cada paso, y saber cuándo rehacerlo.
+- **Qué se decidió y por qué:** Una tabla nueva en la versión 4 de la base (cut_step): una fila por paso de una página a la siguiente, con el veredicto (continúa, empieza otro, dudoso), la regla, la clave de la pregunta al modelo, lo que respondió y el tipo que sugiere la página siguiente según el vocabulario y según el modelo. El paso 0 es el comienzo del archivo y lleva el tipo de su primera página. Cada fila guarda la versión de las reglas y del catálogo y la fecha del último texto de las páginas: si cambia cualquiera, el archivo se corta otra vez. Alternativa: guardar solo los cortes (sin los pasos que continúan), lo que no deja ver por qué no se cortó.
+- **Quién decidió:** Claude, en la corrida desatendida
+
+### D-583 · Las preguntas de los pasos dudosos van antes de los tipos, sin etapa propia en el progreso
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Las preguntas al modelo de los pasos dudosos tienen que respetar la lectura automática y no trabar lo demás.
+- **Qué se decidió y por qué:** El hilo que pregunta al modelo hace primero, de a una, las preguntas de los pasos dudosos y después las de tipo, bajo la misma etapa «tipos» del progreso. Un motor que no puede mirar imágenes no pregunta nada de los cortes, sin error. Con la lectura apagada no se pregunta: el paso queda dudoso y cuenta como «continúa». Alternativa: una etapa propia «cortes» en el progreso, que pide cambiar la pantalla.
+- **Quién decidió:** Claude, en la corrida desatendida
+
+### D-584 · La pregunta de corte no lleva los números de página y su clave son las huellas exactas de las dos páginas
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La pregunta del prototipo nombraba las páginas por su número, así que las mismas dos páginas en otro archivo eran otra pregunta.
+- **Qué se decidió y por qué:** La instrucción (en el catálogo, cut.json, versión cut-ask/1, adaptada a D-527: lo que tiene emisor y fecha propios empieza otro documento) es la misma para todo par de páginas; la clave de la pregunta junta su versión, la huella exacta de cada página y el texto. Las imágenes van en color, con el lado largo de 1000 píxeles. Alternativa: dejar los números de página en la pregunta, como el prototipo, y preguntar de nuevo en cada archivo.
+- **Quién decidió:** Claude, en la corrida desatendida
+
+### D-585 · Una respuesta guardada sobre dos páginas se usa aunque la lectura automática esté apagada
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Con la lectura apagada no se pregunta nada; pero puede haber una respuesta ya guardada sobre las mismas dos páginas (de otro archivo, o sembrada desde una medición).
+- **Qué se decidió y por qué:** Al cortar con las reglas, un paso dudoso toma la respuesta guardada de sus dos páginas, del motor elegido o, sin motor elegido, de cualquiera, sin preguntar. Usar lo ya respondido no cuesta nada. Alternativa: con la lectura apagada, ignorar también lo guardado.
+- **Quién decidió:** Claude, en la corrida desatendida
+
+### D-586 · El PDF compuesto que tiene documentos incluidos no se lee entero: se leen sus incluidos
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Un PDF que junta varios documentos es un documento propio (D-560) y cada parte es otra versión con su texto. Si se lee el compuesto entero y además cada parte, se paga dos veces la lectura y las personas, fechas y montos aparecen repetidos.
+- **Qué se decidió y por qué:** La lectura (y lo que se arma con ella: identidad, síntesis, asuntos) toma cada versión incluida con su texto y deja afuera la versión del compuesto mientras tenga incluidos; una lectura vieja del compuesto deja de contar. Su análisis «como conjunto» se arma más adelante con lo de sus incluidos. Alternativa: leer también el compuesto entero, con su costo y las repeticiones.
+- **Quién decidió:** Claude, en la corrida desatendida
+
+### D-587 · Quién cortó una parte y cuándo queda confirmada
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Una parte la definen varios pasos: dónde empieza, que las páginas de adentro siguen y dónde empieza la próxima. Cada paso lo puede haber decidido una regla, el modelo o una persona, y la aparición guarda un solo «quién cortó» y un solo estado.
+- **Qué se decidió y por qué:** La parte queda confirmada, cortada por una persona, solo si una persona decidió todos los pasos que la definen; si no, queda propuesta, cortada por el modelo si el modelo decidió alguno de esos pasos y por la regla si no. Por ejemplo, si una persona parte en la página 2 un PDF de seis páginas, la parte de la página 1 queda confirmada y las demás siguen propuestas. Alternativa: que el «quién cortó» sea solo quien decidió dónde empieza la parte.
+- **Quién decidió:** Claude, en la corrida desatendida
+
+### D-588 · Las partes se arman aunque algunas páginas esperen reconocimiento
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Un PDF con páginas escaneadas que todavía esperan reconocimiento tiene un texto parcial. Si las partes esperaran el texto entero, un PDF de noventa páginas con una sola página sin leer quedaría sin ninguno de sus documentos.
+- **Qué se decidió y por qué:** Las versiones de las partes se arman en cuanto el archivo tiene texto, aunque sea parcial. Una parte con muy poco texto para reconocerla (menos de treinta palabras) queda esperando reconocimiento, como su archivo. Cuando llegan las páginas leídas, solo las partes cuyo texto cambió se rehacen, con número nuevo; las demás conservan el suyo. Alternativa: esperar a que el archivo tenga todo su texto.
+- **Quién decidió:** Claude, en la corrida desatendida
+
+### D-589 · Lo que dice una persona de un corte se guarda por página y sobrevive a todo reproceso
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** El corte de una persona tiene que volver igual al reprocesar (D-560). Hay que decidir qué se guarda y qué hace «confirmar todos los cortes».
+- **Qué se decidió y por qué:** Se guarda, por la huella del archivo y el número de página, si esa página empieza otro documento o sigue el anterior (tabla de decisiones de corte, versión 5 de la base). No se ata a la fila del archivo: si el archivo se va y vuelve, la decisión sigue. «Partir aquí» y «juntar con la anterior» guardan una página; «confirmar todos» guarda la palabra de la persona en cada página tal como está el corte en ese momento. Alternativa: una sola marca de «confirmado» por archivo, que se perdería si las reglas cambian.
+- **Quién decidió:** Claude, en la corrida desatendida
+
+### D-590 · De un corte propuesto salen el tipo y la lectura, pero no familias ni asuntos
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** D-556 pide que las propuestas nuevas que salen de un incluido esperen a que el corte se confirme. Hay que decidir dónde se corta.
+- **Qué se decidió y por qué:** Una versión que aparece solo en cortes propuestos tiene tipo y lectura, pero no entra en las familias de copias y versiones (y por lo tanto tampoco en las plantillas, que salen de ellas) ni en los asuntos. Los pares de parecidos se siguen calculando: cuando una persona confirma el corte, la familia aparece la próxima vez que se rearman las familias, sin volver a comparar textos. Alternativa: mostrarlas como propuestas provisorias, marcadas.
+- **Quién decidió:** Claude, en la corrida desatendida
+
+### D-591 · Una versión incluida se ve y se busca donde se ve su archivo
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Una versión incluida no tiene archivo propio: aparece solo en el archivo compuesto. Lo que decide si un documento se ve (el espacio, las exclusiones) y la búsqueda miraban solo el archivo propio de cada versión.
+- **Qué se decidió y por qué:** Esas condiciones miran ahora todas las apariciones de la versión: una parte se ve, se busca y queda excluida igual que su archivo. Alternativa: tratar las partes aparte, con sus propias reglas de visibilidad.
+- **Quién decidió:** Claude, en la corrida desatendida
+
+### D-592 · La tira de páginas de un PDF compuesto va arriba de «Datos y correcciones» y dibuja las miniaturas en el equipo, solo las que se ven
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Una persona tiene que revisar y corregir dónde empieza cada documento de un PDF que junta varios (D-560). Hacía falta un lugar en la pantalla y una forma de mostrar las páginas sin guardar imágenes nuevas en la base.
+- **Qué se decidió y por qué:** La tira es la primera sección de «Datos y correcciones» del archivo, que es la pestaña de las correcciones: una fila por documento incluido, con sus páginas en miniatura, sus páginas, si está confirmado y quién lo propuso, y «Abrir». Las miniaturas se dibujan en el equipo desde el original, con el mismo lector de PDF de la vista previa, y solo cuando entran en la pantalla; si el original no está a mano (origen sin conexión, archivo de más de 128 MB), se ve el número de cada página. Partir y juntar están en cada página; confirmar, una vez para todo el archivo. Alternativas: una pantalla aparte para revisar los cortes, o guardar en la base las imágenes que el cortador ya hace para el modelo.
+- **Quién decidió:** Claude, en la corrida desatendida
+
+### D-593 · Las palabras de la tira: «Sin confirmar» o «Confirmado», y quién lo dijo en palabras que no son de programa
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La pantalla tiene que decir quién cortó (la regla, el modelo o una persona) y en qué estado está el corte, sin «cut», «appearance» ni «version» (D-512), y con las palabras de la vertical.
+- **Qué se decidió y por qué:** Todo va en el vocabulario de la vertical, en una sección nueva «included», en castellano y en inglés: «Documentos que incluye»; «Documento k · páginas a a b»; «Sin confirmar» o «Confirmado»; «lo propuso la app por el texto» (la regla), «lo propuso el modelo mirando las páginas», «lo decidió una persona»; «Para mirar»; «Empieza otro acá», «Juntar con el anterior», «Confirmar dónde empieza cada documento». En la lista, «incluye N documentos · K sin confirmar». Adentro siguen los nombres canónicos (rule, model, person; proposed, confirmed). Alternativa: decir «la regla» tal cual, más exacto pero menos claro para quien no programa.
+- **Quién decidió:** Claude, en la corrida desatendida
+
+### D-594 · «Para mirar» es todo paso dudoso que ninguna persona decidió, aunque el modelo lo haya contestado
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La tira tiene que marcar los pasos que quedaron dudosos. Un paso dudoso puede estar sin respuesta o contestado por el modelo; hay que elegir cuáles se marcan.
+- **Qué se decidió y por qué:** Cada documento incluido dice qué páginas suyas tienen un paso dudoso desde la página anterior sin la palabra de una persona; se marcan con borde ámbar y «Para mirar», tanto los que el modelo contestó como los que no (los del modelo dicen además «lo propuso el modelo»). Partir o juntar en esa página, o confirmar el archivo, la saca de la lista. Alternativa: marcar solo los dudosos sin respuesta del modelo, menos para mirar pero confiando en el modelo sin que nadie lo vea.
+- **Quién decidió:** Claude, en la corrida desatendida
+
+### D-595 · Un documento incluido se abre dentro de su archivo, y la lista muestra el archivo con cuántos incluye, no una fila por incluido
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Un documento incluido no tiene archivo propio: la lista, el detalle y la búsqueda se arman por ubicación de un archivo y no sabían mostrarlo (P-399).
+- **Qué se decidió y por qué:** Un incluido se abre desde la tira o desde un resultado de la búsqueda como un documento: su lectura, su texto (solo el de sus páginas), su tipo, su estado y «Documento k de N incluidos en …, páginas a a b», con «Ver el archivo completo» para volver. Lo que es del archivo (dónde está, su huella, las etiquetas) sigue siendo del archivo; a quién nombra, los parecidos y el chat, que se calculan por archivo, no se muestran para un incluido todavía (pendiente aparte). En la lista, el archivo dice bajo su nombre «incluye N documentos · K sin confirmar»; los incluidos no son filas propias. Alternativa: una fila por documento incluido en la lista, que con 199 incluidos en 29 archivos llenaría la lista de documentos sin nombre propio.
+- **Quién decidió:** Claude, en la corrida desatendida
+
+### D-596 · Las copias y versiones de un PDF que junta varios documentos se buscan entre cada documento incluido y los demás, no con el archivo entero
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Después del corte (D-560), un PDF compuesto tenía a la vez la versión del archivo entero y una versión por cada documento incluido, y el motor de parecidos comparaba las dos cosas: el archivo entero aparecía como «contiene a» o «versión de» documentos que en realidad son uno de sus incluidos, y el mismo parecido salía dos veces.
+- **Qué se decidió y por qué:** El archivo entero que tiene documentos incluidos no se compara: no se le calcula firma de texto, y cuando aparecen sus partes se borran su firma, sus marcas y los pares que tenía propuestos (lo que decidió una persona se conserva). Cada documento incluido se compara con su propio texto. Si una persona vuelve a juntar el archivo en un solo documento, el archivo entero se compara otra vez. Alternativa: comparar también el archivo entero, para encontrar otro compuesto parecido entero; hoy eso sale igual de la comparación de sus partes.
+- **Quién decidió:** Claude, en la corrida desatendida; el dueño revisa
+
+### D-597 · Un parecido con un documento de corte sin confirmar no se muestra ni se cuenta hasta que se confirma el corte
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** D-556 dice que las propuestas esperan a que el corte se confirme. Hasta el paso 1b esperaban solo las familias y los asuntos: los pares propuestos con un documento incluido sin confirmar se veían en la lista de copias y versiones para revisar, en su contador y en los parecidos de un documento.
+- **Qué se decidió y por qué:** Esos pares se siguen calculando, pero no se muestran ni se cuentan hasta que el corte del documento se confirma; lo que una persona ya decidió sobre un par se ve siempre. Cuando una persona parte, junta o confirma un corte, las familias se rearman en el momento, sin esperar otra medición. Alternativa: mostrarlos con un aviso de que el corte espera confirmación.
+- **Quién decidió:** Claude, en la corrida desatendida; el dueño revisa
+
+### D-598 · La hoja de copias y versiones traducida al documento incluido: un archivo nuevo con las páginas de cada lado del par
+
+- **Fecha:** 27 oct 2026 · **Tema:** replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La hoja de copias y versiones se armó por archivo. Con el criterio nuevo, un par con un PDF compuesto es entre uno de sus documentos incluidos y el otro, y hacía falta decir cuál sin mirar los documentos (R-25).
+- **Qué se decidió y por qué:** La hoja nueva (respuestas-v2.json, la vieja no cambia) agrega a cada lado de un par las páginas del documento incluido, en el formato de la base (pages:desde-hasta), solo para los archivos que cubre la hoja de partes: un archivo de varios documentos lleva el que corresponde, elegido por el tipo que nombra la nota del par; uno de un solo documento lleva todas sus páginas. Los archivos que la base corta y la hoja de partes no cubre siguen enteros y van a una lista para el dueño, solo con números (paso3-hoja-dudas.md); al medir, un lado entero de un archivo cortado es la parte con más páginas en común. No se agregó ningún par. Alternativa: dejar esos pares fuera de la medición hasta que el dueño conteste.
+- **Quién decidió:** Claude, en la corrida desatendida; el dueño revisa
+
+### D-599 · Las relaciones de la hoja de copias y versiones no cambian de nombre con el criterio nuevo
+
+- **Fecha:** 27 oct 2026 · **Tema:** replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Con D-534 un ejemplar firmado es una versión nueva (cambia algo que importa: la firma). Habría que decidir si la hoja traducida pasa «ejemplar-firmado» a «version».
+- **Qué se decidió y por qué:** Las relaciones siguen como estaban: «ejemplar firmado» es la clase de versión que dice qué cambió, y el motor la propone con ese nombre. La traducción solo cambia entre qué documentos es cada par. Alternativa: llevar «ejemplar firmado» a «versión» y contar como acierto que el motor proponga cualquiera de las dos.
+- **Quién decidió:** Claude, en la corrida desatendida; el dueño revisa
+
+### D-600 · Lo que harán las tareas que esperan a otras (identidad, asuntos, síntesis, campos) se estima con lo que preguntó la base original, no con una pregunta por documento
+
+- **Fecha:** 27 oct 2026 · **Tema:** replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Contando sin preguntar, la identidad solo mira los documentos ya leídos y los asuntos y la síntesis esperan a la identidad: no llegan a preguntar, y hay que estimar cuántas consultas harán en el reproceso.
+- **Qué se decidió y por qué:** Para cada una de esas tareas se toma cuántas respuestas guardó la base original en su última versión de la pregunta (las mismas personas, ahora repartidas en los documentos incluidos), menos las que ya se encuentran, y el informe la marca como estimación. Lo contado (corte, tipo, lectura y la identidad de lo ya leído) se informa aparte. Alternativa: una pregunta por documento sin respuesta, que para la síntesis y la identidad daría números sin relación con cómo preguntan (por persona y por par, no por documento).
+- **Quién decidió:** Claude, en la corrida desatendida; el dueño revisa
+
+### D-601 · En el reproceso, «Reconocer escaneos» pasa al motor de esta computadora antes de encender la lectura automática
+
+- **Fecha:** 27 oct 2026 · **Tema:** replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La base de la app tiene elegido Codex para reconocer escaneos (lo trajo la base vieja). Con la lectura encendida, las páginas de escaneos que nadie leyó todavía se pedirían a Codex, una consulta por página.
+- **Qué se decidió y por qué:** La lista del reproceso (herramientas/reproceso.md) pide cambiar «Reconocer escaneos» al motor de esta computadora antes de encender la lectura: lee esas páginas sin cupo, y lo que cambia de texto se mide en el paso 4. Alternativa: dejar Codex, que lee mejor la letra difícil, y pagar esas páginas.
+- **Quién decidió:** Claude, en la corrida desatendida; el dueño revisa
+
+### D-602 · Las respuestas de Codex ya pagadas en una corrida se suman a la base nueva con un guion aparte, en seco por defecto y sin pisar nada
+
+- **Fecha:** 27 oct 2026 · **Tema:** replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Las 127 respuestas de corte que pagó esta corrida están en un archivo (semillas/cortes.json); el reproceso las volvería a preguntar si no están en la base de la app.
+- **Qué se decidió y por qué:** Un guion aparte, herramientas/sumar-respuestas.py: lee archivos de respuestas, dice cuántas son nuevas por tarea y, solo con --escribir y la app cerrada, las agrega sin número de versión; una respuesta que la base ya tiene (misma pregunta y motor) queda como está. Deja un registro con la huella de cada archivo. Se corre antes de abrir la app con la rama, para que el primer corte ya las use. Alternativa: una opción nueva de a-la-base-nueva.py, que hoy solo trae de la base vieja a la nueva.
+- **Quién decidió:** Claude, en la corrida desatendida; el dueño revisa

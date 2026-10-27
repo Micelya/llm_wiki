@@ -38,12 +38,16 @@ use crate::docbase::{excluded_sql, now_ms, sql_err};
 const LEFT_OUT_SETTING: &str = "knowledge-left-out";
 
 /// SQL condition: the content `{column}` has a location that is not
-/// excluded. A document with none is not processed by the layer.
+/// excluded, through any file it appears in (a part of a joined PDF
+/// appears in its file, D-560). A document with none is not processed by
+/// the layer, nor the version of a whole file that has parts: its parts
+/// are read instead.
 pub(crate) fn active_content(column: &str) -> String {
     format!(
-        "EXISTS (SELECT 1 FROM file af JOIN location l ON l.file_hash = af.hash
-                 WHERE af.version_id = {column} AND NOT {})",
-        excluded_sql!()
+        "EXISTS (SELECT 1 FROM appearance af JOIN location l ON l.file_hash = af.resource_hash
+                 WHERE af.version_id = {column} AND NOT {}) AND NOT {}",
+        excluded_sql!(),
+        crate::docbase::cut::parts::has_included_sql(column)
     )
 }
 
@@ -53,7 +57,7 @@ pub(crate) fn left_out(conn: &Connection) -> Result<BTreeSet<i64>, String> {
     let mut statement = conn
         .prepare(&format!(
             "SELECT k.version_id FROM knowledge_extraction k
-             WHERE EXISTS (SELECT 1 FROM file f JOIN location l ON l.file_hash = f.hash WHERE f.version_id = k.version_id)
+             WHERE EXISTS (SELECT 1 FROM appearance f JOIN location l ON l.file_hash = f.resource_hash WHERE f.version_id = k.version_id)
                AND NOT {}",
             active_content("k.version_id")
         ))

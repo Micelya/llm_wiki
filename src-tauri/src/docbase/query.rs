@@ -89,6 +89,11 @@ pub struct DocumentRow {
     /// The name of a type outside the catalog: the one the model proposed,
     /// or the one a person gave it when confirming it.
     pub doc_type_name: Option<String>,
+    /// The documents the file includes, when it joins several (D-560):
+    /// 0 for a file of one document.
+    pub included: i64,
+    /// How many of those documents have a cut no person confirmed yet.
+    pub unconfirmed_cuts: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -137,6 +142,24 @@ pub struct DocumentDetail {
     /// When it was generated from a template: when, from which and for
     /// which matter (D-488).
     pub generated: Option<super::similar::generate::GeneratedLine>,
+    /// When it is a document a joined file includes: which one and its
+    /// pages; the rest of the detail (where, the hash) is of that file.
+    pub part: Option<PartOf>,
+}
+
+/// Where a document included in a joined file is in it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PartOf {
+    /// Its place among the documents of the file, from 1.
+    pub ordinal: i64,
+    pub count: i64,
+    pub first_page: u32,
+    pub last_page: u32,
+    /// `rule`, `model` or `person`.
+    pub cut_by: String,
+    /// `proposed` or `confirmed`.
+    pub cut_state: String,
 }
 
 /// How the archive is doing, in numbers.
@@ -513,8 +536,79 @@ impl DocBase {
             text_at: text.map(|(.., at)| at),
             locations,
             generated,
+            part: None,
             row,
         }))
+    }
+
+    /// The detail of a document a joined file includes, seen from one
+    /// location of that file: its own text, type and state, and its
+    /// pages. None when the version is not a part of that file.
+    pub fn document_part(&self, visible: &Visible, location_id: i64, version_id: i64) -> Result<Option<DocumentDetail>, String> {
+        let Some(mut detail) = self.document(visible, location_id)? else {
+            return Ok(None);
+        };
+        let Some(hash) = detail.file_hash.clone() else {
+            return Ok(None);
+        };
+        let parts = self.included_parts(&hash)?;
+        let Some(ordinal) = parts.iter().position(|p| p.version_id == version_id) else {
+            return Ok(None);
+        };
+        let part = &parts[ordinal];
+        let conn = self.conn();
+        let (state, word_count, processed_at, error): (String, Option<i64>, Option<i64>, Option<String>) = conn
+            .query_row(
+                "SELECT state, word_count, processed_at, error FROM version WHERE id = ?1",
+                [version_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+            )
+            .map_err(sql_err)?;
+        let text: Option<(String, String, i64)> = conn
+            .query_row(
+                "SELECT body, engine, created_at FROM derivative WHERE version_id = ?1 AND kind = 'text'",
+                [version_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .optional()
+            .map_err(sql_err)?;
+        let doc_type: Option<(Option<String>, Option<String>, bool, Option<String>)> = conn
+            .query_row(
+                "SELECT doc_type, stage, coalesce(proposed, 0), proposed_name FROM document_type WHERE version_id = ?1",
+                [version_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+            )
+            .optional()
+            .map_err(sql_err)?;
+        let (doc_type, doc_stage, doc_type_proposed, doc_type_name) = doc_type.unwrap_or((None, None, false, None));
+        detail.row = DocumentRow {
+            state,
+            content_id: Some(version_id),
+            copies: 1,
+            doc_type,
+            doc_stage,
+            doc_type_proposed,
+            doc_type_name,
+            included: 0,
+            unconfirmed_cuts: 0,
+            ..detail.row
+        };
+        detail.error = error;
+        detail.word_count = word_count;
+        detail.processed_at = processed_at;
+        detail.text = text.as_ref().map(|(body, ..)| body.clone());
+        detail.text_engine = text.as_ref().map(|(_, engine, _)| engine.clone());
+        detail.text_at = text.map(|(.., at)| at);
+        detail.generated = None;
+        detail.part = Some(PartOf {
+            ordinal: ordinal as i64 + 1,
+            count: parts.len() as i64,
+            first_page: part.first_page,
+            last_page: part.last_page,
+            cut_by: part.cut_by.clone(),
+            cut_state: part.cut_state.clone(),
+        });
+        Ok(Some(detail))
     }
 
     /// Every visible location of the document this location holds, this
@@ -603,7 +697,10 @@ pub(crate) fn rows_sql(visible: &Visible, only: Option<i64>) -> (String, Vec<Val
                     WHERE f2.version_id = f.version_id AND {visible_l2}
                 ) END AS copies,
                 dt.doc_type AS doc_type, dt.stage AS doc_stage, coalesce(dt.proposed, 0) AS doc_type_proposed,
-                dt.proposed_name AS doc_type_name
+                dt.proposed_name AS doc_type_name,
+                (SELECT count(*) FROM appearance a WHERE a.resource_hash = l.file_hash AND a.selector <> 'file') AS included,
+                (SELECT count(*) FROM appearance a WHERE a.resource_hash = l.file_hash AND a.selector <> 'file'
+                    AND a.cut_state <> 'confirmed') AS unconfirmed_cuts
          FROM location l
          JOIN origin o ON o.id = l.origin_id
          LEFT JOIN file f ON f.hash = l.file_hash
@@ -685,6 +782,8 @@ pub(crate) fn read_rows(conn: &Connection, sql: &str, bound: Vec<Value>) -> Resu
                 doc_stage: row.get("doc_stage")?,
                 doc_type_proposed: row.get("doc_type_proposed")?,
                 doc_type_name: row.get("doc_type_name")?,
+                included: row.get("included")?,
+                unconfirmed_cuts: row.get("unconfirmed_cuts")?,
             })
         })
         .map_err(sql_err)?;

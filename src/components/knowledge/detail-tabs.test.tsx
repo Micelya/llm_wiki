@@ -86,6 +86,8 @@ function documentDetail(overrides: Partial<DocumentDetail> = {}): DocumentDetail
     docStage: null,
     docTypeProposed: false,
     docTypeName: null,
+    included: 0,
+    unconfirmedCuts: 0,
     path: "C:/prueba/Contratos/Locación de ejemplo.pdf",
     fileHash: null,
     error: null,
@@ -97,6 +99,7 @@ function documentDetail(overrides: Partial<DocumentDetail> = {}): DocumentDetail
     textAt: Date.UTC(2026, 9, 1, 13),
     locations: [],
     generated: null,
+    part: null,
     ...overrides,
   }
 }

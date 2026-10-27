@@ -18,6 +18,7 @@ import {
 } from "@/commands/docbase"
 import { useDocbaseStore } from "@/stores/docbase-store"
 import { DocumentDetailView } from "./document-detail"
+import { IncludedNote } from "./page-strip"
 import { DOCUMENT_STATES, DOCUMENT_STATE_ORDER, DocumentStateBadge } from "./document-state"
 import { LabelChip } from "./labels"
 import { DocbasePage, EmptyNote, ErrorNote } from "./page"
@@ -46,7 +47,20 @@ const SELECT_CLASS =
 
 export function DocumentsView() {
   const openLocationId = useDocbaseStore((s) => s.openLocationId)
+  const openVersionId = useDocbaseStore((s) => s.openVersionId)
+  const openDocument = useDocbaseStore((s) => s.openDocument)
   const closeDocument = useDocbaseStore((s) => s.closeDocument)
+  if (openLocationId !== null && openVersionId !== null) {
+    // A document the file includes: back goes to the whole file.
+    return (
+      <DocumentDetailView
+        key={`${openLocationId}:${openVersionId}`}
+        locationId={openLocationId}
+        versionId={openVersionId}
+        onBack={() => openDocument(openLocationId)}
+      />
+    )
+  }
   if (openLocationId !== null) {
     return <DocumentDetailView key={openLocationId} locationId={openLocationId} onBack={closeDocument} />
   }
@@ -304,6 +318,7 @@ function DocumentTableRow({ row, onOpen }: { row: DocumentRow; onOpen: (location
           <LongName className="font-semibold text-link hover:underline" title={row.name}>
             {row.name}
           </LongName>
+          <IncludedNote included={row.included} unconfirmed={row.unconfirmedCuts} />
           {/* In a narrow window, where it is, when it changed and its copies go under its name. */}
           <div className={`${NARROW_ONLY} mt-0.5 text-[0.78125rem] text-muted-foreground`}>
             <LongName title={`${row.originName} › ${row.folder}`}>{where}</LongName>

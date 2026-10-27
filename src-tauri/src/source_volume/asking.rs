@@ -62,6 +62,18 @@ pub trait DocumentAsker: Send + Sync {
     /// An engine must fail rather than return an empty or partial answer,
     /// so a failure is never saved as an answer.
     fn ask(&self, prompt: &str, schema: &serde_json::Value) -> Result<String, String>;
+
+    /// Whether the engine can look at images (`ask_with_images`).
+    fn sees_images(&self) -> bool {
+        false
+    }
+
+    /// The same, with images the model looks at, in order (absolute
+    /// paths). An engine that cannot look at images fails.
+    fn ask_with_images(&self, prompt: &str, schema: &serde_json::Value, images: &[std::path::PathBuf]) -> Result<String, String> {
+        let _ = (prompt, schema, images);
+        Err(format!("The engine '{}' cannot look at images", self.engine_id()))
+    }
 }
 
 /// The name an engine and model are saved with (what `engine_id` of its

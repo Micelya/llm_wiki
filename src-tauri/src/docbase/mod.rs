@@ -29,6 +29,7 @@ pub mod auto_questions;
 pub mod bridge;
 pub mod chat_files;
 pub mod commands;
+pub mod cut;
 #[cfg(test)]
 mod field_check;
 mod identity;

@@ -131,6 +131,32 @@ export interface Vocabulary {
    * here is shown as words.
    */
   knowledge: KnowledgeTerms
+  /**
+   * The words of a file that joins several documents (a writ with its
+   * attachments): the documents it includes and where each one starts.
+   * `by` and `states` by the neutral ids the base gives the cuts (`rule`,
+   * `model`, `person`; `proposed`, `confirmed`). `{n}`, `{count}`,
+   * `{first}`, `{last}` and `{file}` are filled by the screen.
+   */
+  included: {
+    title: string
+    description: string
+    part: string
+    pages: string
+    by: Record<string, string>
+    states: Record<string, string>
+    doubtful: string
+    doubtfulHelp: string
+    split: string
+    join: string
+    confirm: string
+    confirmed: string
+    open: string
+    partOf: string
+    backToFile: string
+    listIncludes: string
+    listUnconfirmed: string
+  }
 }
 
 export interface KnowledgeTerms {
