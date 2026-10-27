@@ -112,7 +112,7 @@ Las columnas «escriben» y «leen» dan los archivos principales (sin `docbase/
 
 ## Qué aprendizaje extraer de la base real antes de descartarla
 
-Lo hace el agente local, o este cuando la base esté en Drive (no se ve desde la nube). Sale como entradas del catálogo, ejemplos y hoja de respuestas, nunca como registros a migrar.
+Lo hace el agente local en la PC del dueño (D-551). Sale como entradas del catálogo, ejemplos y hoja de respuestas, nunca como registros a migrar.
 
 | De dónde | Qué se extrae |
 |---|---|

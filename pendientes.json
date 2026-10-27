@@ -2823,7 +2823,7 @@
       "estado": "pendiente",
       "prioridad": 1,
       "tema": "replanteo",
-      "detalle": "Decisiones de identidad, tipos aprobados, relaciones entre documentos corregidas, campos de plantillas y criterios de asunto, como propuestas de catálogo y casos de la hoja de respuestas (lista en docs/design/base-de-datos-inventario.md). Lo hace el agente local, o el de la nube cuando la base esté en Drive.",
+      "detalle": "Decisiones de identidad, tipos aprobados, relaciones entre documentos corregidas, campos de plantillas y criterios de asunto, como propuestas de catálogo y casos de la hoja de respuestas (lista en docs/design/base-de-datos-inventario.md). Lo hace el agente local en la PC del dueño (D-551).",
       "depende_de": [
         "P-360"
       ],
@@ -2844,6 +2844,24 @@
         "P-360"
       ],
       "referencia": "D-546; D-549",
+      "creado": "2026-10-27",
+      "actualizado": "2026-10-27"
+    },
+    {
+      "id": "P-369",
+      "titulo": "Comparar el reproceso con la base nueva contra lo que tenía la base original",
+      "tipo": "verificacion",
+      "responsable": "ambos",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "replanteo",
+      "detalle": "Con la base nueva construida y el reproceso terminado en la PC del dueño (agente local), comparar documentos, versiones, personas y organizaciones, relaciones y asuntos contra la base original guardada solo para leer, y contra las hojas de respuesta. Usa cupo de Codex; el dueño ya lo aceptó (D-551).",
+      "depende_de": [
+        "P-363",
+        "P-367",
+        "P-368"
+      ],
+      "referencia": "D-546; D-551",
       "creado": "2026-10-27",
       "actualizado": "2026-10-27"
     }

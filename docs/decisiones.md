@@ -493,6 +493,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-548 | 27 oct | Replanteo | Relación, evidencia y decisión son registros distintos; la relación conserva su contexto, y el mismo vínculo puede darse en varios períodos | vigente |
 | D-549 | 27 oct | Replanteo | Se distinguen recurso, representación y versión; hay una ficha principal por documento, pero las lecturas y la evidencia se guardan por versión, y una ubicación queda atada a su recurso | vigente |
 | D-550 | 27 oct | Replanteo | En la primera etapa se reprocesa por documento y por etapa; lo aprendido se guarda con su revisión, su procedencia y su aprobación; el vocabulario crece sin cambiar la base, una clase nueva se programa | vigente |
+| D-551 | 27 oct | Forma de trabajo | El reproceso y la extracción del aprendizaje se hacen en la PC del dueño con el agente local, y el resultado del reproceso se compara con lo que había | vigente |
 
 ---
 
@@ -5740,3 +5741,10 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **El problema:** «Reprocesar solo lo afectado» (D-541) prometía una precisión que el sistema no puede justificar sin conocer las dependencias entre cada resultado y cada regla; y «clases nuevas sin rehacer la base» (D-531) podía leerse como guardar cualquier cosa sin definición.
 - **Qué se decidió y por qué:** Cuando cambia una entrada del catálogo se recalcula la etapa que la usa en los documentos donde aplica (por tipo de documento, o todos si no se puede acotar); lo que decidió un humano no se pisa. Cada entrada del catálogo guarda su revisión, su procedencia, su estado y quién la aprobó; cada resultado guarda la revisión del catálogo, las instrucciones y el motor que lo produjo. Tipos de cosa, identificadores, roles y tipos de relación son vocabulario y entran al catálogo sin cambiar la base; una clase fundamental nueva se diseña y se programa. Una entrada del catálogo usa capacidades existentes; una capacidad nueva hay que programarla. Precisa D-541 y D-531.
 - **Quién decidió:** El dueño del producto, sobre la revisión de otro agente (27 oct).
+
+### D-551 · El reproceso y la extracción del aprendizaje se hacen en la PC del dueño con el agente local, y el resultado del reproceso se compara con lo que había
+
+- **Fecha:** 27 oct 2026 · **Tema:** Forma de trabajo · **Estado:** vigente
+- **El problema:** La base nueva se arma desde cero y se vuelve a procesar (D-546). Había que decidir dónde se procesa y qué se hace con el resultado; la base real ya está en Drive y el agente en la nube podría usarla.
+- **Qué se decidió y por qué:** Todo el procesamiento (extraer el aprendizaje de la base real, reprocesar con la base nueva) lo hace el agente local en la PC del dueño, que además aporta una perspectiva distinta y un contexto fresco sobre el diseño. El reproceso se compara con lo que tenía la base original, que queda guardada solo para leer. El cupo de Codex que use no es un motivo para evitarlo: interesa ver cómo termina.
+- **Quién decidió:** El dueño del producto (27 oct).

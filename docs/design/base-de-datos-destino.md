@@ -114,8 +114,8 @@ Cada resultado (`reading`, `relation`, `document`) guarda la **huella del catál
 
 ## 9. Reinicio y reproceso
 
-1. **Respaldo** de la base actual, como siempre (D-496). Queda solo para leer.
-2. **Extraer el aprendizaje** de la base real (la lista está en el inventario): decisiones de identidad, tipos aprobados, relaciones entre documentos corregidas, campos de plantillas, criterios de asunto. Sale como propuestas de entradas del catálogo y como casos para la hoja de respuestas, revisadas por el dueño. Lo hace el agente local, o este cuando la base esté en Drive.
+1. **Respaldo** de la base actual, como siempre (D-496). Queda solo para leer, y al final se compara el reproceso contra ella (D-551). Todo el procesamiento se hace en la PC del dueño con el agente local.
+2. **Extraer el aprendizaje** de la base real (la lista está en el inventario): decisiones de identidad, tipos aprobados, relaciones entre documentos corregidas, campos de plantillas, criterios de asunto. Sale como propuestas de entradas del catálogo y como casos para la hoja de respuestas, revisadas por el dueño. Lo hace el agente local en la PC del dueño (D-551).
 3. **Revisar las hojas de respuesta** contra los criterios nuevos de documento y versión (D-527, D-534, D-549).
 4. **La base nueva es un archivo nuevo,** con su propia numeración de versiones. La aplicación nueva no lee la base vieja ni trae código para migrarla; la vieja queda en su lugar hasta que el dueño la borre. Se retiran también las importaciones únicas del wiki (`pages/import`, `chat_files`).
 5. **Procesar por etapas, midiendo cada una contra su hoja** (R-17): recorrido de orígenes → recursos y texto → páginas → documentos, versiones y apariciones → lectura → identidad → relaciones → asuntos → resúmenes. La lectura automática sigue apagada hasta que el dueño la encienda; **la lectura con el modelo usa cupo de Codex y se avisa antes.**
