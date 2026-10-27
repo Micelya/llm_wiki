@@ -514,13 +514,13 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-569 | 27 oct | Replanteo | El motor local lee los escaneos nuevos en segundo plano aunque la lectura automática esté apagada, sea cual sea el motor elegido en Ajustes | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-570 | 27 oct | Replanteo | Un renglón entra al texto solo si el motor local está seguro en un 90 % o más | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-571 | 27 oct | Replanteo | Una página del motor local sin ningún renglón seguro queda como ilegible, y el nombre del motor no incluye el umbral | asumida en la corrida desatendida (D-500): el dueño la revisa |
-| D-572 | 2026-10-27 | base | El documento nace con el número de su primera versión y un identificador UUID v7 hecho por la propia base | asumida en la corrida desatendida (D-500): el dueño la revisa |
-| D-573 | 2026-10-27 | base | Documento y aparición se mantienen solos con disparadores de la base, no con código en cada lugar que crea o junta versiones | asumida en la corrida desatendida (D-500): el dueño la revisa |
-| D-574 | 2026-10-27 | base | El selector de una aparición es un texto de forma fija: file o pages:desde-hasta | asumida en la corrida desatendida (D-500): el dueño la revisa |
-| D-575 | 2026-10-27 | base | El guion de importación copia solo los ajustes que elige una persona; los que describen el trabajo de la base vieja no pasan | asumida en la corrida desatendida (D-500): el dueño la revisa |
-| D-576 | 2026-10-27 | base | Las etiquetas de cada archivo se copian solo para los archivos que la base nueva ya encontró; el guion se puede volver a correr | asumida en la corrida desatendida (D-500): el dueño la revisa |
-| D-577 | 2026-10-27 | base | Las imágenes reconocidas que solo tienen el texto junto también reciben su image.json | asumida en la corrida desatendida (D-500): el dueño la revisa |
-| D-578 | 2026-10-27 | base | La respuesta importada lleva el número de la versión nueva con la misma huella de archivo cuando ya existe; si no, queda sin número | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-572 | 27 oct | base | El documento nace con el número de su primera versión y un identificador UUID v7 hecho por la propia base | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-573 | 27 oct | base | Documento y aparición se mantienen solos con disparadores de la base, no con código en cada lugar que crea o junta versiones | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-574 | 27 oct | base | El selector de una aparición es un texto de forma fija: file o pages:desde-hasta | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-575 | 27 oct | base | El guion de importación copia solo los ajustes que elige una persona; los que describen el trabajo de la base vieja no pasan | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-576 | 27 oct | base | Las etiquetas de cada archivo se copian solo para los archivos que la base nueva ya encontró; el guion se puede volver a correr | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-577 | 27 oct | base | Las imágenes reconocidas que solo tienen el texto junto también reciben su image.json | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-578 | 27 oct | base | La respuesta importada lleva el número de la versión nueva con la misma huella de archivo cuando ya existe; si no, queda sin número | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -5918,49 +5918,49 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 ### D-572 · El documento nace con el número de su primera versión y un identificador UUID v7 hecho por la propia base
 
-- **Fecha:** 2026-10-27 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
 - **El problema:** La V3 crea un documento por versión (D-554). Hacía falta decidir su número, cómo se hace su identificador estable (uid, UUID versión 7) y qué dice «por qué prevalece» su versión.
 - **Qué se decidió y por qué:** El documento toma el número de la versión con la que nace (los números de versión nunca se reusan, así que tampoco los de documento). El uid es un UUID versión 7 armado por SQLite con el momento en que la versión se vio por primera vez y bytes al azar, de modo que el orden de los uid sigue la historia. prevailing_reason admite only (la única versión), rule, model y person; hoy todos son only. Un disparador impide que prevalezca una versión que no es del documento. Alternativa: numeración propia del documento y uid hecho en Rust con la crate uuid (habría que activar su variante v7).
 - **Quién decidió:** Claude (corrida desatendida 12, paso 3)
 
 ### D-573 · Documento y aparición se mantienen solos con disparadores de la base, no con código en cada lugar que crea o junta versiones
 
-- **Fecha:** 2026-10-27 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
 - **El problema:** La especificación pide que al crear la versión se creen su documento y la aparición del archivo entero, que al juntar dos gemelos por el texto el archivo pase a ser otra aparición de la misma versión y que al borrar un archivo se vayan sus apariciones.
 - **Qué se decidió y por qué:** Cinco disparadores en la V3: la versión nueva crea su documento; el archivo nuevo crea su aparición de archivo entero (confirmada, sin cortador); el archivo que cambia de versión lleva su aparición a esa versión (es lo que hace store al juntar gemelos); la versión que se va se lleva su documento si no le quedan versiones; el archivo que se va se lleva sus apariciones (clave foránea en cascada). apply_hash y store no cambiaron. Alternativa: escribirlo en Rust en apply_hash, store y la limpieza de huérfanos; más visible en el código pero fácil de olvidar en un lugar nuevo.
 - **Quién decidió:** Claude (corrida desatendida 12, paso 3)
 
 ### D-574 · El selector de una aparición es un texto de forma fija: file o pages:desde-hasta
 
-- **Fecha:** 2026-10-27 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
 - **El problema:** La aparición necesita decir qué parte del recurso ocupa (D-551, D-556).
 - **Qué se decidió y por qué:** selector vale file (el archivo entero) o pages:N-M (páginas desde y hasta, números positivos). El archivo entero lleva cut_by nulo y siempre está confirmed; un corte de páginas tiene que decir quién lo hizo (rule, model, person). position es el orden dentro del recurso (1 para el archivo entero). Única por (archivo, selector). No se controla todavía que desde sea menor o igual que hasta ni que el recurso tenga páginas (pendiente). Alternativa: un selector en JSON, más flexible para regiones, más difícil de hacer único.
 - **Quién decidió:** Claude (corrida desatendida 12, paso 3)
 
 ### D-575 · El guion de importación copia solo los ajustes que elige una persona; los que describen el trabajo de la base vieja no pasan
 
-- **Fecha:** 2026-10-27 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
 - **El problema:** La especificación pide copiar los ajustes de docbase_setting con la lectura automática siempre apagada. Ocho de los catorce ajustes de la base real no son elecciones de una persona sino marcas de lo que la base vieja ya hizo con sus propios datos (versión de extracción de los textos, cálculo del registro y de las páginas, archivos de la wiki y del chat ya traídos, versión de la app, datos clave comparados).
 - **Qué se decidió y por qué:** Se copian el idioma de la wiki, el registro de servicios de inteligencia artificial, el motor para preguntar, el de reconocer escaneos y el origen de la carpeta de trabajo (con el origen traducido), sin pisar los que la base nueva ya tenga; la lectura automática se escribe siempre en 0. Las otras ocho marcas no se copian: copiarlas haría creer a la base nueva que ya hizo un trabajo que no hizo (por ejemplo, no volvería a extraer los textos). Alternativa: copiar todo salvo la lectura automática.
 - **Quién decidió:** Claude (corrida desatendida 12, paso 3)
 
 ### D-576 · Las etiquetas de cada archivo se copian solo para los archivos que la base nueva ya encontró; el guion se puede volver a correr
 
-- **Fecha:** 2026-10-27 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
 - **El problema:** label_manual y location_label cuelgan de una ubicación, que la base nueva crea recién al leer el origen. Recién creada, la base nueva no tiene ninguna.
 - **Qué se decidió y por qué:** El guion busca cada ubicación por origen y ruta relativa; si la base nueva ya la tiene, copia la etiqueta, y si no, la cuenta como «espera su archivo». No pisa nada, así que correrlo de nuevo después de la primera lectura copia las que faltaban. Los orígenes se copian con su carpeta y sin fecha de lectura (la base nueva los lee como nuevos); un origen de la base nueva con la misma carpeta es el mismo. Alternativa: que el guion cree las ubicaciones; no puede, porque cada una necesita la huella de su archivo.
 - **Quién decidió:** Claude (corrida desatendida 12, paso 3)
 
 ### D-577 · Las imágenes reconocidas que solo tienen el texto junto también reciben su image.json
 
-- **Fecha:** 2026-10-27 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
 - **El problema:** De los 15 archivos reconocidos sin páginas guardadas, 12 son PDF y 3 son imágenes sueltas, que no tienen encabezados de página.
 - **Qué se decidió y por qué:** Para las imágenes, el guion guarda image.json con el texto que sigue a la marca del motor, la misma regla que para las páginas. Se comprobó la regla de corte contra las 68 páginas que sí estaban guardadas: las 68 salen idénticas, con su motor. Alternativa: solo las páginas de los PDF, y las tres imágenes quedarían para volver a leer.
 - **Quién decidió:** Claude (corrida desatendida 12, paso 3)
 
 ### D-578 · La respuesta importada lleva el número de la versión nueva con la misma huella de archivo cuando ya existe; si no, queda sin número
 
-- **Fecha:** 2026-10-27 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
 - **El problema:** model_answer guarda a qué contenido respondió, pero la búsqueda es por la pregunta y el motor; los números de la base vieja no significan nada en la nueva.
 - **Qué se decidió y por qué:** Si la base nueva ya leyó un archivo de esa versión vieja (y todos sus archivos dan una sola versión nueva), la respuesta lleva ese número; si no, nulo. El número es informativo: la pregunta idéntica encuentra la respuesta con o sin él. Alternativa: dejarlo siempre nulo.
 - **Quién decidió:** Claude (corrida desatendida 12, paso 3)
