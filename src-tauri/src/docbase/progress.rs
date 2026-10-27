@@ -748,7 +748,8 @@ fn recognition_state(facts: &Facts, members: &Members, error: bool) -> &'static 
         "paused"
     } else if error {
         "error"
-    } else if requested || facts.reading_on {
+    } else if requested || facts.reading_on || super::services::local_recognition_engine().is_some() {
+        // The engine of this computer reads with the reading off (D-558).
         "running"
     } else {
         "paused"
