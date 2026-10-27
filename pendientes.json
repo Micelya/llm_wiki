@@ -2382,13 +2382,13 @@
       "estado": "pendiente",
       "prioridad": 3,
       "tema": "lectura",
-      "detalle": "D-518: lo manuscrito no se transcribe automáticamente. Cada documento con manuscrito detectado ofrece una opción para que una persona pida su lectura (un modelo con imagen, por Codex o por Core), solo para ese documento. Lo leído queda marcado como lectura de manuscrito, «sin confirmar», y se compara con las personas del caso antes de crear fichas nuevas.",
+      "detalle": "D-518: lo manuscrito no se transcribe automáticamente. Cada documento con manuscrito detectado ofrece una opción para que una persona pida su lectura (un modelo con imagen, por Codex o por Core), solo para ese documento. Lo leído queda marcado como lectura de manuscrito, «sin confirmar», y se compara con las personas del caso antes de crear fichas nuevas. 2026-10-26: Prueba en la nube de manuscritos (docs/investigacion/manuscritos/informe.md, pedido #75): Qwen3-VL-2B, en el dispositivo, lee 25 de 37 valores manuscritos casi bien (21 exactos) contra 12 de RapidOCR, a unos 5 minutos por página y 12,7 GB en procesador. Recomendación del informe: RapidOCR para lo impreso y Qwen3-VL solo para las páginas marcadas como manuscritas, en segundo plano. Es el candidato para esta lectura; cambiaría lo de D-518 (se detecta, no se transcribe), así que lo decide el dueño. Falta medir con menos memoria, en Windows y con más páginas.",
       "depende_de": [
         "P-320"
       ],
       "referencia": "D-518",
       "creado": "2026-10-24",
-      "actualizado": "2026-10-24"
+      "actualizado": "2026-10-26"
     },
     {
       "id": "P-335",
@@ -2658,7 +2658,7 @@
       "estado": "en-curso",
       "prioridad": 1,
       "tema": "lectura",
-      "detalle": "Dirección del dueño del 25 oct, no definición: docs/design/replanteo-del-proceso-notas.md. La unidad de trabajo pasa del archivo al documento (con huella por página); los documentos compuestos, los expedientes de un portal y las carpetas son contenedores, cada uno con su nivel de certeza; un documento puede estar en varios; el resumen de un contenedor habla de las relaciones que crea y de por qué existe; no hay páginas duplicadas para un documento suelto y dentro de un compuesto. Próximo paso: la prueba en la nube de huellas de página y embeddings (P-359) y, con su resultado, el documento de diseño del proceso, que reemplaza o absorbe la propuesta de documentos compuestos (P-350). 26 oct: borrador del modelo en docs/design/modelo-de-conocimiento-propuesta.md e inventario de la base en docs/design/base-de-datos-inventario.md (D-530 a D-545); espera la revisión del dueño (P-360).",
+      "detalle": "Dirección del dueño del 25 oct, no definición: docs/design/replanteo-del-proceso-notas.md. La unidad de trabajo pasa del archivo al documento (con huella por página); los documentos compuestos, los expedientes de un portal y las carpetas son contenedores, cada uno con su nivel de certeza; un documento puede estar en varios; el resumen de un contenedor habla de las relaciones que crea y de por qué existe; no hay páginas duplicadas para un documento suelto y dentro de un compuesto. Próximo paso: la prueba en la nube de huellas de página y embeddings (P-359) y, con su resultado, el documento de diseño del proceso, que reemplaza o absorbe la propuesta de documentos compuestos (P-350). 26 oct: borrador del modelo en docs/design/modelo-de-conocimiento-propuesta.md e inventario de la base en docs/design/base-de-datos-inventario.md (D-530 a D-545); espera la revisión del dueño (P-360). 2026-10-26: Llegaron las tres pruebas en la nube: huellas de página y embeddings (#73), el mismo documento en dos lugares (#74) y manuscritos (#75). Con ellas y la revisión del dueño del borrador del modelo (P-360) se escribe el diseño del proceso.",
       "depende_de": [
         "P-359"
       ],
@@ -2688,7 +2688,7 @@
       "estado": "hecho",
       "prioridad": 1,
       "tema": "entornos",
-      "detalle": "Pedido del dueño (25 oct) para la próxima sesión: trabajamos en dos entornos, las pruebas con un agente en la nube y la continuidad con un agente local. El agente en la nube solo ve la carpeta de Drive «Mi unidad\\@Temporal - Se puede borrar\\Desarrollo Micelya\\POC-Micelya» (copia de C:\\Documentos temporales para borrar\\POC-Micelya). Hoy ya está ahí la subcarpeta pruebas\\ (hojas de respuestas, los seis PDF de prueba, el expediente bajado del PJN, lo que sabe la app exportado a CSV, investigaciones previas; ver su LEEME.md). Falta: la base (copia consistente, nunca la viva), los archivos de llm-wiki-workspace y cómo se mantiene al día; y decidir qué pasa con la privacidad (los datos son reales). 2026-10-26: Construido (D-547). herramientas\\a-drive.py, en la PC, deja en pruebas\\base\\ de Drive la base completa (copia propia de SQLite, controlada y comprimida: 42 MB en 12 MB) con su ficha, rehace las planillas de estado-de-la-app y copia los documentos nuevos o cambiados de POC-Micelya y de la carpeta de trabajo (Expedientes, en pruebas\\expedientes-pjn); a pedido, primero en seco, nunca escribe fuera de POC-Micelya de Drive ni borra ahí; la historia queda en llm_wiki_mi\\copias-de-la-base\\. En la nube se baja con docs/plantillas/bajar-de-drive.py, solo las subcarpetas pedidas, y comprueba la huella. Primera copia: 26 oct 22:10, versión 29. Probado en la PC por el enlace público, sin iniciar sesión: bajó la base, la huella coincidió y la base abre. Falta verlo en una sesión en la nube. 2026-10-26: Visto funcionar en la nube por el dueño: una sesión bajó pruebas/base con docs/plantillas/bajar-de-drive.py (de la rama integracion/replanteo-y-drive), la huella coincidió, la base abrió en la versión 29 con 198 ubicaciones, con muy pocas fichas.",
+      "detalle": "Pedido del dueño (25 oct) para la próxima sesión: trabajamos en dos entornos, las pruebas con un agente en la nube y la continuidad con un agente local. El agente en la nube solo ve la carpeta de Drive «Mi unidad\\@Temporal - Se puede borrar\\Desarrollo Micelya\\POC-Micelya» (copia de C:\\Documentos temporales para borrar\\POC-Micelya). Hoy ya está ahí la subcarpeta pruebas\\ (hojas de respuestas, los seis PDF de prueba, el expediente bajado del PJN, lo que sabe la app exportado a CSV, investigaciones previas; ver su LEEME.md). Falta: la base (copia consistente, nunca la viva), los archivos de llm-wiki-workspace y cómo se mantiene al día; y decidir qué pasa con la privacidad (los datos son reales). 2026-10-26: Construido (D-547). herramientas\\a-drive.py, en la PC, deja en pruebas\\base\\ de Drive la base completa (copia propia de SQLite, controlada y comprimida: 42 MB en 12 MB) con su ficha, rehace las planillas de estado-de-la-app y copia los documentos nuevos o cambiados de POC-Micelya y de la carpeta de trabajo (Expedientes, en pruebas\\expedientes-pjn); a pedido, primero en seco, nunca escribe fuera de POC-Micelya de Drive ni borra ahí; la historia queda en llm_wiki_mi\\copias-de-la-base\\. En la nube se baja con docs/plantillas/bajar-de-drive.py, solo las subcarpetas pedidas, y comprueba la huella. Primera copia: 26 oct 22:10, versión 29. Probado en la PC por el enlace público, sin iniciar sesión: bajó la base, la huella coincidió y la base abre. Falta verlo en una sesión en la nube. 2026-10-26: Visto funcionar en la nube por el dueño: una sesión bajó pruebas/base con docs/plantillas/bajar-de-drive.py (de la rama integracion/replanteo-y-drive), la huella coincidió, la base abrió en la versión 29 con 198 ubicaciones, con muy pocas fichas. 2026-10-26: Para los agentes en la nube: docs/plantillas/pruebas-en-la-nube.md (bajar, comprobar y usar la base, buscar datos reales y entregar) y docs/plantillas/revisar-datos-reales.py, con la lista de palabras sensibles en pruebas/revision-de-datos/ de Drive; CLAUDE.md apunta al instructivo.",
       "depende_de": [],
       "referencia": "G:\\Mi unidad\\@Temporal - Se puede borrar\\Desarrollo Micelya\\POC-Micelya\\pruebas\\LEEME.md",
       "creado": "2026-10-25",
@@ -2812,6 +2812,20 @@
         "P-363"
       ],
       "referencia": "D-535; D-542",
+      "creado": "2026-10-26",
+      "actualizado": "2026-10-26"
+    },
+    {
+      "id": "P-367",
+      "titulo": "Borrar las ramas de las sesiones en la nube ya juntadas en el pedido #72",
+      "tipo": "github-manual",
+      "responsable": "usuario",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "entornos",
+      "detalle": "Después de integrar el #72, borrar claude/confident-dijkstra-v0e55z y claude/loving-keller-xguuoe desde la página de ramas de GitHub (el agente local no tiene permiso). La primera todavía muestra un ejemplo con datos reales de una persona; aun borrada, su commit se puede abrir un tiempo con el enlace directo: si se quiere que desaparezca del todo, se le pide al soporte de GitHub. Hay una copia de las dos en la PC (ramas respaldo/…).",
+      "depende_de": [],
+      "referencia": "https://github.com/Micelya/llm_wiki/pull/72",
       "creado": "2026-10-26",
       "actualizado": "2026-10-26"
     }

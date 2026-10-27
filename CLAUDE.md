@@ -33,13 +33,16 @@ Este repositorio es el fork `Micelya/llm_wiki` de `nashsu/llm_wiki` (remoto `ups
 
 ## Pruebas en la nube: traer y entregar archivos (D-546, D-547)
 
+**Un agente en la nube, antes de empezar una prueba, sigue `docs/plantillas/pruebas-en-la-nube.md`:** cómo bajar los datos y la base de la app a su entorno, comprobarla, usarla, buscar datos reales antes de subir la rama y entregar. Lo de abajo es el resumen.
+
 - **Traer de Drive, sin pasar por el contexto:** con el enlace compartido de la carpeta, nunca con el conector.
   - El dueño pasa el enlace en el prompt de la sesión. **El enlace nunca va al repositorio** ni a un mensaje a Core: da acceso a datos reales sin iniciar sesión.
   - Bajar con `python docs/plantillas/bajar-de-drive.py <id_carpeta> <destino> [subcarpeta ...]`, directo a disco y fuera del repositorio. **Bajar solo las subcarpetas que usa la prueba** (por ejemplo `pruebas/base pruebas/hojas-de-respuestas caso-ps`).
   - Por dentro, lista con `https://drive.google.com/embeddedfolderview?id=<carpeta>` y baja con `curl -L -o <archivo> "https://drive.usercontent.google.com/download?id=<archivo>&export=download&confirm=t"`.
   - El conector de Drive, solo para comprobaciones mínimas, como la fecha de un archivo: devuelve el contenido dentro del contexto. Un PDF de 33 KB costó unas 44 mil fichas, y contar la carpeta, 133 mil.
   - Los dominios `drive.google.com` y `drive.usercontent.google.com` tienen que estar permitidos en la red del entorno.
-- **La base de la app** está en `pruebas/base/`: `micelya-base.zip` y su `ficha.json`. El guion de descarga comprueba la huella: si no coincide, no usarla. Qué es cada cosa de la carpeta está en `pruebas/LEEME.md`. La copia la actualiza a pedido el agente local, con un guion de su PC.
+- **La base de la app** está en `pruebas/base/`: `micelya-base.zip` y su `ficha.json`. El guion de descarga comprueba la huella: si no coincide, no usarla. Se trabaja sobre una copia descomprimida, con los orígenes apuntados a lo que se bajó (el instructivo dice cómo). Qué es cada cosa de la carpeta está en `pruebas/LEEME.md`. La copia la actualiza a pedido el agente local, con un guion de su PC.
+- **Antes del push, buscar datos reales** con `python docs/plantillas/revisar-datos-reales.py <datos>`: compara lo que la rama agrega con los nombres de la base, las palabras sensibles y las hojas de respuestas. Un nombre real dado como ejemplo en la conversación también es un dato real.
 - **Entregar archivos al dueño** (por ejemplo, un .zip con resultados que tienen datos reales):
   1. Dejarlos dentro de la carpeta del proyecto, en una carpeta que git ignore solo en ese entorno (agregarla a `.git/info/exclude`). Nunca en un commit.
   2. Mandarlos con la herramienta de envío de archivos de la sesión (`SendUserFile`), sin forzar el modo de presentación. Al dueño le aparece una tarjeta con el nombre del archivo: haciendo clic, se descarga.
