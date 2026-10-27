@@ -183,7 +183,7 @@ fn rules() -> &'static Rules {
 }
 
 /// A line as compared between pages: spaces collapsed, digits as `#`.
-fn normalized_line(line: &str) -> String {
+pub(crate) fn normalized_line(line: &str) -> String {
     line.split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
@@ -192,12 +192,12 @@ fn normalized_line(line: &str) -> String {
         .collect()
 }
 
-fn visible_chars(text: &str) -> usize {
+pub(crate) fn visible_chars(text: &str) -> usize {
     text.chars().filter(|c| !c.is_whitespace()).count()
 }
 
 /// The lines repeated on most pages of a file of these page texts.
-fn repeated_lines(texts: &[String]) -> HashSet<String> {
+pub(crate) fn repeated_lines(texts: &[String]) -> HashSet<String> {
     let r = &rules().repeated;
     let n = texts.len();
     if n < r.min_pages {

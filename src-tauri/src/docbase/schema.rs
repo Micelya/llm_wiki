@@ -15,7 +15,7 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4];
 
 /// The shape of the base at version 29 of the earlier numbering, in one
 /// migration, generated from that base (`schema_v1.sql`). It seeds no row:
@@ -185,6 +185,33 @@ CREATE TRIGGER file_moves AFTER UPDATE OF version_id ON file BEGIN
 END;
 ";
 
+/// What the cutter says of each step of a PDF (D-556, `docbase/cut`):
+/// `after_page` is the step from that page to the next, 0 the start of
+/// the file. `verdict` is the rules' (`doubtful` counts as continue until
+/// the model answers), `rule` the one that gave it; `question` the key of
+/// the question about the two pages (`model_answer`, task `cut`) and
+/// `model_says` its answer (1, the next page starts another document);
+/// `rule_type` and `model_type` the type the next page suggests. Steps of
+/// other rules, another catalog or another text (`text_stamp`, the latest
+/// `resource_text` of the file) are decided again. They go with their file.
+const V4: &str = "
+CREATE TABLE cut_step (
+    resource_hash  TEXT NOT NULL REFERENCES file (hash) ON DELETE CASCADE,
+    after_page     INTEGER NOT NULL CHECK (after_page >= 0),
+    verdict        TEXT NOT NULL CHECK (verdict IN ('continue', 'new', 'doubtful')),
+    rule           TEXT NOT NULL,
+    question       TEXT,
+    model_says     INTEGER CHECK (model_says IN (0, 1)),
+    rule_type      TEXT,
+    model_type     TEXT,
+    rules_version  TEXT NOT NULL,
+    text_stamp     INTEGER NOT NULL,
+    created_at     INTEGER NOT NULL,
+    PRIMARY KEY (resource_hash, after_page)
+) WITHOUT ROWID;
+CREATE INDEX cut_step_by_question ON cut_step (question) WHERE question IS NOT NULL;
+";
+
 /// The version of a base: 0 for one just created.
 pub fn version(conn: &Connection) -> Result<i64, String> {
     conn.query_row("PRAGMA user_version", [], |row| row.get(0)).map_err(sql_err)
@@ -275,6 +302,37 @@ mod tests {
             [],
         );
         assert!(unknown.is_err());
+    }
+
+    /// A base at version 3 with invented data keeps it and gains the steps
+    /// of the cutter, which go with their file.
+    #[test]
+    fn version_4_keeps_the_cuts_of_each_file() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+        build_at(&mut conn, 3);
+        conn.execute_batch(
+            "INSERT INTO version (id, state, first_seen_at) VALUES (1, 'processed', 1);
+             INSERT INTO file (hash, version_id, size) VALUES ('h1', 1, 10);",
+        )
+        .unwrap();
+        migrate(&mut conn).unwrap();
+        assert_eq!(version(&conn).unwrap(), CURRENT_VERSION);
+        let appearances: i64 = conn.query_row("SELECT count(*) FROM appearance", [], |row| row.get(0)).unwrap();
+        assert_eq!(appearances, 1);
+        conn.execute_batch(
+            "INSERT INTO cut_step (resource_hash, after_page, verdict, rule, rules_version, text_stamp, created_at)
+                VALUES ('h1', 0, 'new', 'start', 'r', 1, 1), ('h1', 1, 'doubtful', 'none', 'r', 1, 1);",
+        )
+        .unwrap();
+        let bad = conn.execute(
+            "INSERT INTO cut_step (resource_hash, after_page, verdict, rule, rules_version, text_stamp, created_at) VALUES ('h1', 2, 'quizas', 'x', 'r', 1, 1)",
+            [],
+        );
+        assert!(bad.is_err());
+        conn.execute("DELETE FROM file WHERE hash = 'h1'", []).unwrap();
+        let left: i64 = conn.query_row("SELECT count(*) FROM cut_step", [], |row| row.get(0)).unwrap();
+        assert_eq!(left, 0);
     }
 
     #[test]

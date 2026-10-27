@@ -1,0 +1,102 @@
+{
+  "version": 1,
+  "about": "El cortador de los PDF que juntan varios documentos (D-556): para cada paso de una página a la siguiente dice si sigue el mismo documento, si empieza otro o si es dudoso. Primero las reglas, sin modelo; el modelo mira las dos páginas solo en los pasos dudosos. Lo que tiene emisor y fecha propios es un documento aparte (D-527). Las expresiones se buscan sin tildes y en minúsculas, en el texto propio de la página (sin los renglones que se repiten en casi todas las páginas del archivo).",
+  "patterns": {
+    "about": "Expresiones regulares sobre el texto propio de una página, con mayúsculas y tildes. pageOf: «página x de y» (dos grupos: x e y). documentCode: el código de un documento de un sistema de expedientes electrónicos (TIPO-AÑO-NÚMERO-…). sheetSerial: la serie de una foja notarial (una o dos letras y 8 o 9 dígitos, dos grupos). machineZone: la zona de lectura mecánica de un documento de identidad.",
+    "pageOf": "(?i)p[áa]g(?:ina)?\\.?\\s*(\\d{1,3})\\s*(?:de|/)\\s*(\\d{1,3})",
+    "documentCode": "\\b([A-Z]{2,4}-\\d{4}-\\d{6,}-[A-Z0-9-]*[A-Z])",
+    "sheetSerial": "\\b([A-Z]{1,2})\\s?(\\d{8,9})\\b",
+    "machineZone": "[A-Z0-9<]{20,}<<"
+  },
+  "thresholds": {
+    "about": "photoMaxDpi: dos fotos de menos de esta resolución, del mismo tamaño de página y de imagen, son las dos caras de una tarjeta. captureDpiShare: dos escaneos cuya resolución difiere en más de esta parte son dos capturas. paperShare: a la misma resolución, una página que difiere en más de esta parte de ancho o de alto es otro papel. tailLines y headLines: los renglones propios del final y del principio donde se buscan las fórmulas de cierre y de apertura.",
+    "photoMaxDpi": 100,
+    "captureDpiShare": 0.1,
+    "paperShare": 0.04,
+    "tailLines": 4,
+    "headLines": 4
+  },
+  "openers": {
+    "about": "Expresiones con que empieza un documento: si aparecen en los primeros renglones propios de una página, ahí empieza otro.",
+    "phrases": [
+      "senor juez", "sr. juez", "sr juez", "senora jueza", "sra. jueza", "excma. camara", "excelentisima camara",
+      "autos y vistos", "y vistos", "vistos:",
+      "tengo el agrado", "me dirijo a", "cedula de notificacion", "oficio",
+      "acta de nacimiento", "acta de defuncion", "acta de matrimonio", "partida de",
+      "testimonio", "primera copia", "escritura numero", "escritura n",
+      "declaratoria de herederos", "certificado de", "solicitud de informe",
+      "asunto:", "subject:", "de: ", "from:"
+    ]
+  },
+  "closers": {
+    "about": "Expresiones con que termina un documento: si aparecen en los últimos renglones propios de una página, la siguiente empieza otro.",
+    "phrases": [
+      "sera justicia", "proveer de conformidad", "provea de conformidad", "saludo a usted atentamente",
+      "saludo a ud. atentamente", "saluda atentamente", "notifiquese", "registrese", "hagase saber", "conste"
+    ]
+  },
+  "types": {
+    "about": "Expresiones que dicen el tipo de un documento, buscadas en el texto propio de su primera página. Gana la primera que aparece en el orden de la lista. Una página con zona de lectura mecánica es un documento de identidad.",
+    "machineZone": "identity_document",
+    "rules": [
+      ["medical_death_certificate", ["certificado medico de defuncion", "certificado de defuncion"]],
+      ["heirs_declaration", ["declaratoria de herederos", "declarase", "declarar herederos", "declarar que por fallecimiento"]],
+      ["death_record", ["acta de defuncion", "partida de defuncion", "defuncion"]],
+      ["birth_record", ["acta de nacimiento", "partida de nacimiento", "nacimiento"]],
+      ["marriage_record", ["acta de matrimonio", "partida de matrimonio", "matrimonio"]],
+      ["family_booklet", ["libreta de familia"]],
+      ["identity_document", ["documento nacional de identidad", "registro nacional de las personas"]],
+      ["power_of_attorney", ["poder general", "poder especial", "confiere poder", "otorga poder"]],
+      ["notarial_deed", ["escritura numero", "escritura n", "ante mi, escribano", "escribano autorizante"]],
+      ["vehicle_title", ["titulo del automotor", "titulo de propiedad del automotor"]],
+      ["registry_report", ["informe de dominio", "informa:", "certificado de dominio"]],
+      ["registry_request_form", ["solicitud de informe", "solicitud de certificado", "minuta"]],
+      ["tax_certificate", ["libre deuda", "certificado fiscal", "deuda fiscal"]],
+      ["prosecutor_opinion", ["dictamen", "fiscalia"]],
+      ["court_official_letter", ["oficio", "cedula de notificacion", "tengo el agrado", "me dirijo a"]],
+      ["court_order", ["autos y vistos", "y vistos", "considerando", "resuelvo"]],
+      ["clerk_report", ["informe actuarial", "senor juez: informo", "informo a v.s."]],
+      ["court_filing", ["senor juez", "sr. juez", "sr juez", "senora jueza", "sera justicia", "proveer de conformidad"]],
+      ["simple_court_order", ["agreguese", "tengase presente", "proveyendo", "atento a lo solicitado"]],
+      ["email", ["asunto:", "subject:", "from:", "enviado:"]],
+      ["boleta", ["boleta", "tasa de justicia"]],
+      ["recibo", ["recibo"]]
+    ]
+  },
+  "ask": {
+    "about": "La pregunta al modelo en un paso dudoso, con las dos páginas como imágenes (el lado largo en imageLongSide píxeles). version entra en la clave de la pregunta, con las huellas exactas de las dos páginas: las mismas páginas en otro archivo no se preguntan dos veces, y otra instrucción pregunta de nuevo. {types} es la lista de los tipos, con su glosa.",
+    "version": "cut-ask/1",
+    "imageLongSide": 1000,
+    "prompt": "Las dos imágenes son dos páginas seguidas de un mismo archivo PDF, que puede juntar varios documentos (por ejemplo, un escrito con su documentación adjunta). La primera imagen es una página y la segunda, la que la sigue.\n\n¿La segunda página sigue el documento de la primera, o empieza otro documento?\nCriterios generales:\n- Lo que tiene emisor y fecha propios es un documento aparte, aunque certifique, firme o acompañe a otro: una certificación de copia fiel, la hoja adicional de firmas de una digitalización, el informe de un servicio de firma, un comprobante de pago o de timbre, la respuesta de un registro, las notas de inscripción de un registro. Si la segunda página empieza una pieza así, empieza otro documento.\n- Lo que no tiene emisor ni fecha propios (un dorso en blanco, un anexo sin firma) sigue el documento al que pertenece.\n- Una página en blanco, o con solo el pie, sigue el documento anterior.\n- El frente y el dorso de una misma tarjeta o documento de identidad son un documento.\n- Cada ejemplar completo de un documento es un documento aparte, aunque sea igual al anterior. Una foja repetida dentro de un documento no empieza otro.\n- En un expediente, cada escrito, providencia, oficio, cédula, informe o dictamen con su fecha y firma propias es un documento.\n- Las notas de oficina (el cargo, el «recibido», el pase, los números de foja) no son documentos.\n\nDecí también el tipo del documento de cada página, con uno de estos identificadores (o \"other\" si ninguno sirve):\n{types}\n\nRespondé solo con el JSON pedido.",
+    "types": {
+      "birth_record": "partida o acta de nacimiento",
+      "boleta": "boleta de pago",
+      "clerk_report": "informe del secretario o actuario en un expediente",
+      "constancia-de-firma": "constancia de firma de un servicio de firma",
+      "copy_certification": "certificación de copia fiel",
+      "court_filing": "escrito presentado por una parte en un expediente",
+      "court_official_letter": "oficio o cédula librados en un expediente",
+      "court_order": "resolución o sentencia con fundamentos",
+      "death_record": "partida o acta de defunción",
+      "email": "correo electrónico impreso",
+      "family_booklet": "libreta de familia",
+      "fee_stamp": "comprobante de timbre o tasa",
+      "ficha-de-cliente": "ficha o perfil de cliente",
+      "heirs_declaration": "declaratoria de herederos",
+      "identity_document": "documento de identidad",
+      "marriage_record": "partida o acta de matrimonio",
+      "medical_death_certificate": "certificado médico de defunción",
+      "notarial_deed": "escritura o actuación notarial",
+      "power_of_attorney": "poder",
+      "prosecutor_opinion": "dictamen del fiscal o de un ministerio público",
+      "recibo": "recibo",
+      "registry_inscription": "nota de inscripción de un registro",
+      "registry_report": "informe de un registro",
+      "registry_request_form": "formulario de pedido a un registro",
+      "signature_sheet": "hoja de firmas",
+      "simple_court_order": "providencia simple de trámite",
+      "tax_certificate": "certificado fiscal o de deuda",
+      "vehicle_title": "título de un automotor"
+    }
+  }
+}

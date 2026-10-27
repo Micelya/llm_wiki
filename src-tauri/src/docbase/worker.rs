@@ -21,6 +21,8 @@ const RECHECK_BATCH: usize = 4;
 const SCAN_PAGES_BATCH: usize = 2;
 /// PDFs whose ficha of shape is computed at a time.
 const PROFILE_BATCH: usize = 4;
+/// PDFs cut by the rules in one step (D-556): pdfium and the text, no model.
+const CUT_BATCH: usize = 4;
 const NOTIFY_EVERY: Duration = Duration::from_millis(800);
 
 /// How the rest of the app asks the worker to sweep now.
@@ -175,7 +177,24 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
         state.failed(Some(stage), &errors.join("; "), Some(ASK_BACKOFF));
         ASK_BACKOFF
     };
+    // The doubtful steps of the cutter, with the two pages as images
+    // (D-556), before what each document is.
     state.at_stage(Some("types"));
+    match base.cut_background(asker.as_ref(), 1) {
+        Ok(report) => {
+            if report.asked + report.kept > 0 {
+                on_change();
+            }
+            if report.failed > 0 {
+                eprintln!("[docbase] questions about the cuts: {}", report.errors.join("; "));
+                return failed("types", &report.errors);
+            }
+            if report.asked > 0 {
+                return Duration::ZERO;
+            }
+        }
+        Err(error) => eprintln!("[docbase] {error}"),
+    }
     match base.types_run(asker.as_ref(), 1) {
         Ok(report) => {
             state.ran("types", report.left);
@@ -545,6 +564,13 @@ fn step(base: &DocBase) -> Result<bool, String> {
     // The ficha of shape of each PDF page (P-320): pdfium only, no model.
     if base.profile_pending(PROFILE_BATCH)? > 0 {
         return Ok(true);
+    }
+    // What the cutter says of each step of the PDFs (D-556): the rules
+    // only, they ask nothing.
+    match base.cut_pending(CUT_BATCH) {
+        Ok(cut) if cut > 0 => return Ok(true),
+        Ok(_) => {}
+        Err(error) => eprintln!("[docbase] cuts: {error}"),
     }
     // Similar documents: only once every text is read, a little at a
     // time, so it never holds the reading back.
