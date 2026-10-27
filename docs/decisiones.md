@@ -534,6 +534,10 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-589 | 27 oct | base | Lo que dice una persona de un corte se guarda por página y sobrevive a todo reproceso | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-590 | 27 oct | base | De un corte propuesto salen el tipo y la lectura, pero no familias ni asuntos | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-591 | 27 oct | base | Una versión incluida se ve y se busca donde se ve su archivo | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-592 | 27 oct | base | La tira de páginas de un PDF compuesto va arriba de «Datos y correcciones» y dibuja las miniaturas en el equipo, solo las que se ven | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-593 | 27 oct | base | Las palabras de la tira: «Sin confirmar» o «Confirmado», y quién lo dijo en palabras que no son de programa | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-594 | 27 oct | base | «Para mirar» es todo paso dudoso que ninguna persona decidió, aunque el modelo lo haya contestado | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-595 | 27 oct | base | Un documento incluido se abre dentro de su archivo, y la lista muestra el archivo con cuántos incluye, no una fila por incluido | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -6067,4 +6071,32 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
 - **El problema:** Una versión incluida no tiene archivo propio: aparece solo en el archivo compuesto. Lo que decide si un documento se ve (el espacio, las exclusiones) y la búsqueda miraban solo el archivo propio de cada versión.
 - **Qué se decidió y por qué:** Esas condiciones miran ahora todas las apariciones de la versión: una parte se ve, se busca y queda excluida igual que su archivo. Alternativa: tratar las partes aparte, con sus propias reglas de visibilidad.
+- **Quién decidió:** Claude, en la corrida desatendida
+
+### D-592 · La tira de páginas de un PDF compuesto va arriba de «Datos y correcciones» y dibuja las miniaturas en el equipo, solo las que se ven
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Una persona tiene que revisar y corregir dónde empieza cada documento de un PDF que junta varios (D-560). Hacía falta un lugar en la pantalla y una forma de mostrar las páginas sin guardar imágenes nuevas en la base.
+- **Qué se decidió y por qué:** La tira es la primera sección de «Datos y correcciones» del archivo, que es la pestaña de las correcciones: una fila por documento incluido, con sus páginas en miniatura, sus páginas, si está confirmado y quién lo propuso, y «Abrir». Las miniaturas se dibujan en el equipo desde el original, con el mismo lector de PDF de la vista previa, y solo cuando entran en la pantalla; si el original no está a mano (origen sin conexión, archivo de más de 128 MB), se ve el número de cada página. Partir y juntar están en cada página; confirmar, una vez para todo el archivo. Alternativas: una pantalla aparte para revisar los cortes, o guardar en la base las imágenes que el cortador ya hace para el modelo.
+- **Quién decidió:** Claude, en la corrida desatendida
+
+### D-593 · Las palabras de la tira: «Sin confirmar» o «Confirmado», y quién lo dijo en palabras que no son de programa
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La pantalla tiene que decir quién cortó (la regla, el modelo o una persona) y en qué estado está el corte, sin «cut», «appearance» ni «version» (D-512), y con las palabras de la vertical.
+- **Qué se decidió y por qué:** Todo va en el vocabulario de la vertical, en una sección nueva «included», en castellano y en inglés: «Documentos que incluye»; «Documento k · páginas a a b»; «Sin confirmar» o «Confirmado»; «lo propuso la app por el texto» (la regla), «lo propuso el modelo mirando las páginas», «lo decidió una persona»; «Para mirar»; «Empieza otro acá», «Juntar con el anterior», «Confirmar dónde empieza cada documento». En la lista, «incluye N documentos · K sin confirmar». Adentro siguen los nombres canónicos (rule, model, person; proposed, confirmed). Alternativa: decir «la regla» tal cual, más exacto pero menos claro para quien no programa.
+- **Quién decidió:** Claude, en la corrida desatendida
+
+### D-594 · «Para mirar» es todo paso dudoso que ninguna persona decidió, aunque el modelo lo haya contestado
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La tira tiene que marcar los pasos que quedaron dudosos. Un paso dudoso puede estar sin respuesta o contestado por el modelo; hay que elegir cuáles se marcan.
+- **Qué se decidió y por qué:** Cada documento incluido dice qué páginas suyas tienen un paso dudoso desde la página anterior sin la palabra de una persona; se marcan con borde ámbar y «Para mirar», tanto los que el modelo contestó como los que no (los del modelo dicen además «lo propuso el modelo»). Partir o juntar en esa página, o confirmar el archivo, la saca de la lista. Alternativa: marcar solo los dudosos sin respuesta del modelo, menos para mirar pero confiando en el modelo sin que nadie lo vea.
+- **Quién decidió:** Claude, en la corrida desatendida
+
+### D-595 · Un documento incluido se abre dentro de su archivo, y la lista muestra el archivo con cuántos incluye, no una fila por incluido
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Un documento incluido no tiene archivo propio: la lista, el detalle y la búsqueda se arman por ubicación de un archivo y no sabían mostrarlo (P-399).
+- **Qué se decidió y por qué:** Un incluido se abre desde la tira o desde un resultado de la búsqueda como un documento: su lectura, su texto (solo el de sus páginas), su tipo, su estado y «Documento k de N incluidos en …, páginas a a b», con «Ver el archivo completo» para volver. Lo que es del archivo (dónde está, su huella, las etiquetas) sigue siendo del archivo; a quién nombra, los parecidos y el chat, que se calculan por archivo, no se muestran para un incluido todavía (pendiente aparte). En la lista, el archivo dice bajo su nombre «incluye N documentos · K sin confirmar»; los incluidos no son filas propias. Alternativa: una fila por documento incluido en la lista, que con 199 incluidos en 29 archivos llenaría la lista de documentos sin nombre propio.
 - **Quién decidió:** Claude, en la corrida desatendida

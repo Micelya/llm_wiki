@@ -3210,10 +3210,10 @@
       "titulo": "La lista, el detalle y la búsqueda de documentos todavía no muestran los documentos incluidos, que no tienen archivo propio",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "a-verificar",
       "prioridad": 1,
       "tema": "base",
-      "detalle": "Un documento incluido aparece solo por su aparición en el PDF compuesto. Las consultas de la lista y del detalle de documentos siguen partiendo de los archivos, así que no los muestran; la búsqueda ya los encuentra por su texto, pero su resultado no tiene un archivo propio que abrir. El comando que da los incluidos de un PDF en orden, con páginas, estado y quién cortó, ya está (para la tira de páginas del paso 2).",
+      "detalle": "Un documento incluido aparece solo por su aparición en el PDF compuesto. Las consultas de la lista y del detalle de documentos siguen partiendo de los archivos, así que no los muestran; la búsqueda ya los encuentra por su texto, pero su resultado no tiene un archivo propio que abrir. El comando que da los incluidos de un PDF en orden, con páginas, estado y quién cortó, ya está (para la tira de páginas del paso 2). 2026-10-27: Paso 2 de la corrida desatendida 13: la lista muestra bajo el nombre del archivo cuántos documentos incluye y cuántos esperan confirmación; el detalle del archivo trae la tira de páginas; cada documento incluido se abre como un documento dentro de su archivo (su lectura, su texto, su tipo y sus páginas), y un resultado de la búsqueda de un documento incluido lo abre así (antes decía que ya no estaba en la base). Queda lo que es del archivo en el detalle de un incluido (el chat, las etiquetas, a quién nombra, los parecidos): ver el pendiente nuevo sobre eso.",
       "creado": "2026-10-27",
       "actualizado": "2026-10-27"
     },
@@ -3226,6 +3226,30 @@
       "prioridad": 2,
       "tema": "base",
       "detalle": "Primer cálculo del costo del reproceso, sobre toda la carpeta de prueba y solo con las respuestas ya guardadas: la lectura buscó 287 preguntas y encontró 84 (quedan 203, casi todas de los documentos incluidos, que son textos nuevos); la identidad buscó 47 y encontró 2; los tipos, 86 y 73. Del cortador, quedan 181 pasos dudosos sin preguntar en 43 PDF fuera de la hoja que las reglas no cortan (las 80 consultas de esta corrida fueron primero a los PDF que las reglas ya cortaban: no les queda ninguno). Se relaciona con dónde conviene preguntar al cortador (P-393).",
+      "creado": "2026-10-27",
+      "actualizado": "2026-10-27"
+    },
+    {
+      "id": "P-403",
+      "titulo": "Ver en la app: la tira de páginas de un PDF que junta varios documentos, con partir, juntar y confirmar",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "base",
+      "detalle": "Con la rama sesion-22/cortador (no con la app de llm_wiki_wt), y mejor sobre una copia de la base: confirmar y corregir cambian la base y la pantalla no tiene «deshacer» (juntar deshace un partir, y al revés). 1) En Documentos, buscá un PDF que diga bajo su nombre «incluye N documentos · K sin confirmar» (por ejemplo un escrito largo con su documentación adjunta; medido en el paso 1b: 29 así en la carpeta de prueba, con 199 documentos incluidos, todos sin confirmar). 2) Abrilo y andá a «Datos y correcciones»: arriba, «Documentos que incluye», una fila por documento con sus páginas en miniatura (si el origen está conectado; si no, el número de cada página), sus páginas, si está confirmado y quién lo propuso. Las páginas con borde ámbar dicen «Para mirar»: la app no estaba segura de si ahí empezaba otro documento. Mirá si las miniaturas cargan rápido y si la tira se entiende sin explicación. 3) En una página del medio de una fila, «Empieza otro acá»: aparece una fila nueva desde esa página; en la primera página de esa fila nueva, «Juntar con el anterior»: vuelve como estaba. 4) «Abrir» en una fila abre ese documento con su lectura y su texto (solo el de sus páginas) y arriba «Documento k de N incluidos en …, páginas a a b»; «Ver el archivo completo» vuelve. 5) «Confirmar dónde empieza cada documento»: todas las filas pasan a «Confirmado · lo decidió una persona», no queda ninguna «Para mirar», y en la lista desaparece «sin confirmar». 6) Buscá en Buscar una frase de un documento incluido: el resultado tiene que abrir ese documento dentro de su archivo. Medido: no hubo medición nueva en este paso (solo pantalla); las cifras son las del paso 1b.",
+      "creado": "2026-10-27",
+      "actualizado": "2026-10-27"
+    },
+    {
+      "id": "P-404",
+      "titulo": "Lo que es del archivo en el detalle de un documento incluido: el chat, las etiquetas, a quién nombra y los parecidos",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "Un documento incluido en un PDF compuesto se abre dentro de su archivo (paso 2 de la corrida desatendida 13). Las secciones que hoy se calculan por ubicación del archivo (a quién nombra, copias y versiones parecidas) no se muestran para un incluido, el botón del chat queda deshabilitado (el chat leería el archivo completo) y las etiquetas que se le ponen desde su detalle quedan en el archivo. Falta: que el chat adjunte solo el texto del incluido, que «a quién nombra» y los parecidos se pidan por la versión y no por la ubicación, y decidir si una etiqueta puede ser de un documento incluido o solo de su archivo.",
       "creado": "2026-10-27",
       "actualizado": "2026-10-27"
     }
