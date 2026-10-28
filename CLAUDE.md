@@ -97,6 +97,7 @@ Este repositorio es el fork `Micelya/llm_wiki` de `nashsu/llm_wiki` (remoto `ups
 | 25 oct, madrugada | 0,60 M y 0,37 M | |
 | 27 oct, madrugada | 1,16 M | 5 pasos, tope 1,2 M con el principal; un paso chico agregado se pasó (0,19 M contra 0,10 M) |
 | 27 oct, día | 1,00 M | 5 pasos, tope 1,2 M con el principal; solo el primero se pasó (0,25 M contra 0,20 M) |
+| 27 oct, tarde | 0,30 M | revisión del dueño: 2 pasos, tope 0,5 M con el principal; el mapa de código se pasó (0,15 M contra 0,13 M, dentro del 20 %) |
 
 ## Uso de la inteligencia artificial
 

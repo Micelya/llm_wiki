@@ -498,7 +498,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-553 | 27 oct | Forma de trabajo | El reproceso y la extracción del aprendizaje se hacen en la PC del dueño con el agente local, y el resultado del reproceso se compara con lo que había | vigente |
 | D-554 | 27 oct | Replanteo | La base nueva se construye por capas: primero lo de abajo (recursos, páginas, documento, versión y aparición, el corte de los compuestos, copias y versiones); después las piezas, las relaciones y el catálogo | vigente |
 | D-555 | 27 oct | Replanteo | Las respuestas guardadas del modelo y el texto reconocido por página pasan a la base nueva como caché, solo para preguntas idénticas | vigente |
-| D-556 | 27 oct | Documentos compuestos | El corte de los compuestos: reglas primero y el modelo solo en lo dudoso; lo que se apoya en un corte propuesto se lee, pero no genera propuestas nuevas hasta que se confirme | vigente |
+| D-556 | 27 oct | Documentos compuestos | El corte de los compuestos: reglas primero y el modelo solo en lo dudoso; lo que se apoya en un corte propuesto se lee, pero no genera propuestas nuevas hasta que se confirme | vigente; cambiada por D-603 (qué avanza y qué queda incierto) y D-606 (cuándo se pregunta al modelo) |
 | D-557 | 27 oct | Servicios de IA | Los vectores para la búsqueda por significado se difieren y se piden a Core, en AWS; Desktop no los calcula en la PC | vigente |
 | D-558 | 27 oct | Lectura de documentos | Lo impreso de las páginas escaneadas se lee en la PC con RapidOCR, sin Python; la estructura liviana con pdfium; Docling no entra a Desktop; las tablas con líneas y lo manuscrito, a Core cuando lo tenga | vigente |
 | D-559 | 27 oct | Replanteo | El expediente y la plantilla son clases de pieza propias; la plantilla nace propuesta, con su certeza | vigente |
@@ -511,9 +511,9 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-566 | 27 oct | Replanteo | La versión 1 de la base nueva es un archivo SQL generado de la base vieja en su versión 29 | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-567 | 27 oct | Replanteo | El motor local de las páginas escaneadas es rapidocr-core sobre ONNX Runtime, que la app abre al leer y no lleva adentro | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-568 | 27 oct | Replanteo | Los modelos y ONNX Runtime los baja un guion a una carpeta que git ignora; todavía no entran al instalador | asumida en la corrida desatendida (D-500): el dueño la revisa |
-| D-569 | 27 oct | Replanteo | El motor local lee los escaneos nuevos en segundo plano aunque la lectura automática esté apagada, sea cual sea el motor elegido en Ajustes | asumida en la corrida desatendida (D-500): el dueño la revisa |
-| D-570 | 27 oct | Replanteo | Un renglón entra al texto solo si el motor local está seguro en un 90 % o más | asumida en la corrida desatendida (D-500): el dueño la revisa |
-| D-571 | 27 oct | Replanteo | Una página del motor local sin ningún renglón seguro queda como ilegible, y el nombre del motor no incluye el umbral | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-569 | 27 oct | Replanteo | El motor local lee los escaneos nuevos en segundo plano aunque la lectura automática esté apagada, sea cual sea el motor elegido en Ajustes | revisada por el dueño (27 oct): se mantiene, con D-612 |
+| D-570 | 27 oct | Replanteo | Un renglón entra al texto solo si el motor local está seguro en un 90 % o más | cambiada por D-604: lo que queda por debajo del umbral se guarda como lectura incierta |
+| D-571 | 27 oct | Replanteo | Una página del motor local sin ningún renglón seguro queda como ilegible, y el nombre del motor no incluye el umbral | cambiada por D-604 |
 | D-572 | 27 oct | base | El documento nace con el número de su primera versión y un identificador UUID v7 hecho por la propia base | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-573 | 27 oct | base | Documento y aparición se mantienen solos con disparadores de la base, no con código en cada lugar que crea o junta versiones | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-574 | 27 oct | base | El selector de una aparición es un texto de forma fija: file o pages:desde-hasta | asumida en la corrida desatendida (D-500): el dueño la revisa |
@@ -529,22 +529,34 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-584 | 27 oct | base | La pregunta de corte no lleva los números de página y su clave son las huellas exactas de las dos páginas | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-585 | 27 oct | base | Una respuesta guardada sobre dos páginas se usa aunque la lectura automática esté apagada | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-586 | 27 oct | base | El PDF compuesto que tiene documentos incluidos no se lee entero: se leen sus incluidos | asumida en la corrida desatendida (D-500): el dueño la revisa |
-| D-587 | 27 oct | base | Quién cortó una parte y cuándo queda confirmada | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-587 | 27 oct | base | Quién cortó una parte y cuándo queda confirmada | reemplazada por D-603 |
 | D-588 | 27 oct | base | Las partes se arman aunque algunas páginas esperen reconocimiento | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-589 | 27 oct | base | Lo que dice una persona de un corte se guarda por página y sobrevive a todo reproceso | asumida en la corrida desatendida (D-500): el dueño la revisa |
-| D-590 | 27 oct | base | De un corte propuesto salen el tipo y la lectura, pero no familias ni asuntos | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-590 | 27 oct | base | De un corte propuesto salen el tipo y la lectura, pero no familias ni asuntos | cambiada por D-603: lo que sale de un corte incierto se calcula y se marca como incierto |
 | D-591 | 27 oct | base | Una versión incluida se ve y se busca donde se ve su archivo | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-592 | 27 oct | base | La tira de páginas de un PDF compuesto va arriba de «Datos y correcciones» y dibuja las miniaturas en el equipo, solo las que se ven | asumida en la corrida desatendida (D-500): el dueño la revisa |
-| D-593 | 27 oct | base | Las palabras de la tira: «Sin confirmar» o «Confirmado», y quién lo dijo en palabras que no son de programa | asumida en la corrida desatendida (D-500): el dueño la revisa |
-| D-594 | 27 oct | base | «Para mirar» es todo paso dudoso que ninguna persona decidió, aunque el modelo lo haya contestado | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-593 | 27 oct | base | Las palabras de la tira: «Sin confirmar» o «Confirmado», y quién lo dijo en palabras que no son de programa | cambiada por D-603: tres estados en lugar de dos |
+| D-594 | 27 oct | base | «Para mirar» es todo paso dudoso que ninguna persona decidió, aunque el modelo lo haya contestado | reemplazada por D-603 |
 | D-595 | 27 oct | base | Un documento incluido se abre dentro de su archivo, y la lista muestra el archivo con cuántos incluye, no una fila por incluido | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-596 | 27 oct | base | Las copias y versiones de un PDF que junta varios documentos se buscan entre cada documento incluido y los demás, no con el archivo entero | asumida en la corrida desatendida (D-500): el dueño la revisa |
-| D-597 | 27 oct | base | Un parecido con un documento de corte sin confirmar no se muestra ni se cuenta hasta que se confirma el corte | asumida en la corrida desatendida (D-500): el dueño la revisa |
-| D-598 | 27 oct | replanteo | La hoja de copias y versiones traducida al documento incluido: un archivo nuevo con las páginas de cada lado del par | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-597 | 27 oct | base | Un parecido con un documento de corte sin confirmar no se muestra ni se cuenta hasta que se confirma el corte | cambiada por D-603 |
+| D-598 | 27 oct | replanteo | La hoja de copias y versiones traducida al documento incluido: un archivo nuevo con las páginas de cada lado del par | cambiada por D-609: la medición ya no usa la parte con más páginas en común |
 | D-599 | 27 oct | replanteo | Las relaciones de la hoja de copias y versiones no cambian de nombre con el criterio nuevo | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-600 | 27 oct | replanteo | Lo que harán las tareas que esperan a otras (identidad, asuntos, síntesis, campos) se estima con lo que preguntó la base original, no con una pregunta por documento | asumida en la corrida desatendida (D-500): el dueño la revisa |
-| D-601 | 27 oct | replanteo | En el reproceso, «Reconocer escaneos» pasa al motor de esta computadora antes de encender la lectura automática | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-601 | 27 oct | replanteo | En el reproceso, «Reconocer escaneos» pasa al motor de esta computadora antes de encender la lectura automática | en espera: el reproceso se postergó (D-611) |
 | D-602 | 27 oct | replanteo | Las respuestas de Codex ya pagadas en una corrida se suman a la base nueva con un guion aparte, en seco por defecto y sin pisar nada | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-603 | 27 oct | base | Una persona revisa solo lo relevante o dudoso: un corte con respaldo avanza solo y uno incierto queda marcado como incierto, sin consulta obligatoria | vigente; falta el código (P-414) |
+| D-604 | 27 oct | base | El texto de lectura incierta se guarda aparte como evidencia y no funda información estructurada; lo leído con respaldo se aprovecha sin presentar el documento como leído entero | vigente; falta el código (P-415) |
+| D-605 | 27 oct | base | Cobertura y confiabilidad son dos medidas distintas, guardadas por página, fragmento o dato; ningún puntaje único, y ningún puntaje del lector como porcentaje de certeza sin validarlo | vigente; el indicador de la pantalla se evalúa (P-416) |
+| D-606 | 27 oct | base | El modelo grande es el último escalón y se le pregunta con un motivo; lo que queda sin resolver puede quedar incierto, y cada consulta se cuenta | vigente; falta el código (P-417, P-418) |
+| D-607 | 27 oct | base | Separar la constancia de firma no le quita al documento su firma: la evidencia sale de las firmas visibles del documento y de su relación con la constancia | vigente; falta el código (P-408) |
+| D-608 | 27 oct | base | Un anexo con título, cláusulas y firmas propios es otro documento del mismo asunto; la constancia de firma queda unida al documento que acredita; un anexo sin firma ni fecha propias sigue en el documento | vigente; falta el vocabulario y el código (P-419) |
+| D-609 | 27 oct | replanteo | La medición cuenta solo límites exactos; lo aproximado va aparte como diagnóstico, y cada medición dice su cobertura | vigente: el arnés de copias y versiones ya cuenta así (35758a9) |
+| D-610 | 27 oct | base | Se explora con una prueba acotada un clasificador chico para decidir si una página sigue el documento anterior o empieza otro; la hoja mide y no enseña | propuesta: el dueño aprueba la prueba (P-421) |
+| D-611 | 27 oct | replanteo | El reproceso completo se posterga hasta tener un proceso definido y probado sobre copias; la lectura apagada no garantiza que abrir la app no cambie la base | vigente |
+| D-612 | 27 oct | replanteo | El motor local sigue leyendo de fondo los escaneos nuevos, pero la pantalla dice qué motor leyó cada página y para qué sirve el motor elegido en Ajustes | vigente; falta el código (P-423) |
+| D-613 | 27 oct | base | Cuándo un lado de un par de la hoja tiene límites exactos y a qué cuenta va un par que no los tiene | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-614 | 27 oct | base | Qué cuenta como PDF compuesto y como documento incluido sin referencia en la cobertura de la medición | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -5830,7 +5842,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 ### D-556 · El corte de los compuestos: reglas primero y el modelo solo en lo dudoso; lo que se apoya en un corte propuesto se lee, pero no genera propuestas nuevas hasta que se confirme
 
-- **Fecha:** 27 oct 2026 · **Tema:** Documentos compuestos · **Estado:** vigente
+- **Fecha:** 27 oct 2026 · **Tema:** Documentos compuestos · **Estado:** vigente; cambiada por D-603 (qué avanza y qué queda incierto) y D-606 (cuándo se pregunta al modelo)
 - **El problema:** La propuesta de documentos compuestos (D-525) dejaba preguntas abiertas que el replanteo tenía que cerrar antes de construir el corte: qué espera a que se confirme un corte, quién revisa, a qué apunta el caso y si se corta por regiones.
 - **Qué se decidió y por qué:** Se corta como midió la investigación del corte: reglas sin modelo con la ficha de forma de cada página (las de cambio de papel o de escaneo, como posible corte) y el modelo solo en los pasos dudosos, mirando la imagen de las dos páginas; lo que tiene emisor y fecha propios es un documento aparte (D-527). Cada corte dice quién lo hizo y si está propuesto o confirmado. La lectura de un incluido no espera a que se confirme el corte; las propuestas nuevas que salen de él (copias y versiones, casos, plantillas) sí (opción a). Asumido por el agente sin objeción del dueño: una persona revisa solo lo que cambia algo (dos documentos de personas o tipos distintos pegados, uno partido al medio, un corte que contradice lo que anuncia el escrito) y lo demás se confirma solo; el caso apunta al compuesto y sus incluidos van con él, y un incluido puede entrar solo a otro caso; por ahora se corta por páginas y las regiones quedan para después. Se mide contra la hoja de partes.
 - **Quién decidió:** El dueño del producto eligió qué espera (27 oct); lo demás lo recomendó el agente y el dueño no lo objetó.
@@ -5921,21 +5933,21 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 ### D-569 · El motor local lee los escaneos nuevos en segundo plano aunque la lectura automática esté apagada, sea cual sea el motor elegido en Ajustes
 
-- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** revisada por el dueño (27 oct): se mantiene, con D-612
 - **El problema:** D-558 lo hace el motor por defecto de las páginas escaneadas nuevas. La lectura automática existe para no gastar el cupo de un proveedor; el motor local no pregunta a ningún modelo en la nube.
 - **Qué se decidió y por qué:** Mientras sus modelos están, un hilo propio lee uno por uno los escaneos que esperan, que no fallaron y que nadie pidió, con la lectura automática prendida o apagada y sea cual sea el motor elegido en Ajustes → Servicios de IA → Reconocer escaneos. Lo que una persona pide sigue yendo al motor elegido (Codex, Core o el local), y el local es el elegido cuando no hay ninguno. Lo ya leído por otro motor no se vuelve a leer solo. Sin los modelos, todo queda como antes. Alternativas: esperar a que se prenda la lectura automática, o que el local solo lea cuando no se eligió ningún motor (en la base del dueño, con Codex elegido, cada página seguiría siendo una pregunta al modelo).
 - **Quién decidió:** Claude (corrida desatendida)
 
 ### D-570 · Un renglón entra al texto solo si el motor local está seguro en un 90 % o más
 
-- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** cambiada por D-604: lo que queda por debajo del umbral se guarda como lectura incierta
 - **El problema:** RapidOCR da una confianza por renglón. Lo manuscrito mal leído no debe entrar como texto (D-518), sin perder lo impreso.
 - **Qué se decidió y por qué:** El umbral está en el catálogo (resources/catalog/local-recognition.json, minLineConfidence 0,9), no en el código. Medido con las hojas: de los 37 valores manuscritos, con 0,9 entran 5 bien y 5 más con errores leves (sin umbral, 9 bien y 9 más con errores); el error de caracteres de los dos pasajes impresos queda en 1,5 % y 2,4 % (sin umbral, 1,5 % y 3,2 %) y del formulario siguen apareciendo 26 de 27 valores. Sobre las 119 páginas escaneadas de la carpeta de prueba entra el 68 % de los renglones y 1 página queda sin ninguno. Alternativas: 0,95, entran 2 valores manuscritos bien y 2 más con errores, lo impreso de las hojas queda igual, pero entra el 57 % de los renglones de la carpeta y 3 páginas quedan sin ninguno (no se sabe cuánto de eso es impreso); o 0,5, el valor por defecto de RapidOCR (entra casi todo).
 - **Quién decidió:** Claude (corrida desatendida)
 
 ### D-571 · Una página del motor local sin ningún renglón seguro queda como ilegible, y el nombre del motor no incluye el umbral
 
-- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **Fecha:** 27 oct 2026 · **Tema:** Replanteo · **Estado:** cambiada por D-604
 - **El problema:** Con el umbral, una página puede quedar sin texto. Y lo que lee un motor se guarda con su nombre: si el nombre cambia, todo se vuelve a leer.
 - **Qué se decidió y por qué:** Una página con renglones pero ninguno por encima del umbral se guarda como «[ilegible]», como hace Codex, así las pantallas la ofrecen a otro motor; una sin ningún renglón queda en blanco. Lo leído se guarda como rapidocr-onnx:ppocrv6-small, sin el umbral: cambiar el umbral no vuelve a leer lo ya leído. Alternativa: incluir el umbral en el nombre, para que un umbral nuevo vuelva a leer todo.
 - **Quién decidió:** Claude (corrida desatendida)
@@ -6047,7 +6059,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 ### D-587 · Quién cortó una parte y cuándo queda confirmada
 
-- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** reemplazada por D-603
 - **El problema:** Una parte la definen varios pasos: dónde empieza, que las páginas de adentro siguen y dónde empieza la próxima. Cada paso lo puede haber decidido una regla, el modelo o una persona, y la aparición guarda un solo «quién cortó» y un solo estado.
 - **Qué se decidió y por qué:** La parte queda confirmada, cortada por una persona, solo si una persona decidió todos los pasos que la definen; si no, queda propuesta, cortada por el modelo si el modelo decidió alguno de esos pasos y por la regla si no. Por ejemplo, si una persona parte en la página 2 un PDF de seis páginas, la parte de la página 1 queda confirmada y las demás siguen propuestas. Alternativa: que el «quién cortó» sea solo quien decidió dónde empieza la parte.
 - **Quién decidió:** Claude, en la corrida desatendida
@@ -6068,7 +6080,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 ### D-590 · De un corte propuesto salen el tipo y la lectura, pero no familias ni asuntos
 
-- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** cambiada por D-603: lo que sale de un corte incierto se calcula y se marca como incierto
 - **El problema:** D-556 pide que las propuestas nuevas que salen de un incluido esperen a que el corte se confirme. Hay que decidir dónde se corta.
 - **Qué se decidió y por qué:** Una versión que aparece solo en cortes propuestos tiene tipo y lectura, pero no entra en las familias de copias y versiones (y por lo tanto tampoco en las plantillas, que salen de ellas) ni en los asuntos. Los pares de parecidos se siguen calculando: cuando una persona confirma el corte, la familia aparece la próxima vez que se rearman las familias, sin volver a comparar textos. Alternativa: mostrarlas como propuestas provisorias, marcadas.
 - **Quién decidió:** Claude, en la corrida desatendida
@@ -6089,14 +6101,14 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 ### D-593 · Las palabras de la tira: «Sin confirmar» o «Confirmado», y quién lo dijo en palabras que no son de programa
 
-- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** cambiada por D-603: tres estados en lugar de dos
 - **El problema:** La pantalla tiene que decir quién cortó (la regla, el modelo o una persona) y en qué estado está el corte, sin «cut», «appearance» ni «version» (D-512), y con las palabras de la vertical.
 - **Qué se decidió y por qué:** Todo va en el vocabulario de la vertical, en una sección nueva «included», en castellano y en inglés: «Documentos que incluye»; «Documento k · páginas a a b»; «Sin confirmar» o «Confirmado»; «lo propuso la app por el texto» (la regla), «lo propuso el modelo mirando las páginas», «lo decidió una persona»; «Para mirar»; «Empieza otro acá», «Juntar con el anterior», «Confirmar dónde empieza cada documento». En la lista, «incluye N documentos · K sin confirmar». Adentro siguen los nombres canónicos (rule, model, person; proposed, confirmed). Alternativa: decir «la regla» tal cual, más exacto pero menos claro para quien no programa.
 - **Quién decidió:** Claude, en la corrida desatendida
 
 ### D-594 · «Para mirar» es todo paso dudoso que ninguna persona decidió, aunque el modelo lo haya contestado
 
-- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** reemplazada por D-603
 - **El problema:** La tira tiene que marcar los pasos que quedaron dudosos. Un paso dudoso puede estar sin respuesta o contestado por el modelo; hay que elegir cuáles se marcan.
 - **Qué se decidió y por qué:** Cada documento incluido dice qué páginas suyas tienen un paso dudoso desde la página anterior sin la palabra de una persona; se marcan con borde ámbar y «Para mirar», tanto los que el modelo contestó como los que no (los del modelo dicen además «lo propuso el modelo»). Partir o juntar en esa página, o confirmar el archivo, la saca de la lista. Alternativa: marcar solo los dudosos sin respuesta del modelo, menos para mirar pero confiando en el modelo sin que nadie lo vea.
 - **Quién decidió:** Claude, en la corrida desatendida
@@ -6117,14 +6129,14 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 ### D-597 · Un parecido con un documento de corte sin confirmar no se muestra ni se cuenta hasta que se confirma el corte
 
-- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** cambiada por D-603
 - **El problema:** D-556 dice que las propuestas esperan a que el corte se confirme. Hasta el paso 1b esperaban solo las familias y los asuntos: los pares propuestos con un documento incluido sin confirmar se veían en la lista de copias y versiones para revisar, en su contador y en los parecidos de un documento.
 - **Qué se decidió y por qué:** Esos pares se siguen calculando, pero no se muestran ni se cuentan hasta que el corte del documento se confirma; lo que una persona ya decidió sobre un par se ve siempre. Cuando una persona parte, junta o confirma un corte, las familias se rearman en el momento, sin esperar otra medición. Alternativa: mostrarlos con un aviso de que el corte espera confirmación.
 - **Quién decidió:** Claude, en la corrida desatendida; el dueño revisa
 
 ### D-598 · La hoja de copias y versiones traducida al documento incluido: un archivo nuevo con las páginas de cada lado del par
 
-- **Fecha:** 27 oct 2026 · **Tema:** replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **Fecha:** 27 oct 2026 · **Tema:** replanteo · **Estado:** cambiada por D-609: la medición ya no usa la parte con más páginas en común
 - **El problema:** La hoja de copias y versiones se armó por archivo. Con el criterio nuevo, un par con un PDF compuesto es entre uno de sus documentos incluidos y el otro, y hacía falta decir cuál sin mirar los documentos (R-25).
 - **Qué se decidió y por qué:** La hoja nueva (respuestas-v2.json, la vieja no cambia) agrega a cada lado de un par las páginas del documento incluido, en el formato de la base (pages:desde-hasta), solo para los archivos que cubre la hoja de partes: un archivo de varios documentos lleva el que corresponde, elegido por el tipo que nombra la nota del par; uno de un solo documento lleva todas sus páginas. Los archivos que la base corta y la hoja de partes no cubre siguen enteros y van a una lista para el dueño, solo con números (paso3-hoja-dudas.md); al medir, un lado entero de un archivo cortado es la parte con más páginas en común. No se agregó ningún par. Alternativa: dejar esos pares fuera de la medición hasta que el dueño conteste.
 - **Quién decidió:** Claude, en la corrida desatendida; el dueño revisa
@@ -6145,7 +6157,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 
 ### D-601 · En el reproceso, «Reconocer escaneos» pasa al motor de esta computadora antes de encender la lectura automática
 
-- **Fecha:** 27 oct 2026 · **Tema:** replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **Fecha:** 27 oct 2026 · **Tema:** replanteo · **Estado:** en espera: el reproceso se postergó (D-611)
 - **El problema:** La base de la app tiene elegido Codex para reconocer escaneos (lo trajo la base vieja). Con la lectura encendida, las páginas de escaneos que nadie leyó todavía se pedirían a Codex, una consulta por página.
 - **Qué se decidió y por qué:** La lista del reproceso (herramientas/reproceso.md) pide cambiar «Reconocer escaneos» al motor de esta computadora antes de encender la lectura: lee esas páginas sin cupo, y lo que cambia de texto se mide en el paso 4. Alternativa: dejar Codex, que lee mejor la letra difícil, y pagar esas páginas.
 - **Quién decidió:** Claude, en la corrida desatendida; el dueño revisa
@@ -6155,4 +6167,88 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Fecha:** 27 oct 2026 · **Tema:** replanteo · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
 - **El problema:** Las 127 respuestas de corte que pagó esta corrida están en un archivo (semillas/cortes.json); el reproceso las volvería a preguntar si no están en la base de la app.
 - **Qué se decidió y por qué:** Un guion aparte, herramientas/sumar-respuestas.py: lee archivos de respuestas, dice cuántas son nuevas por tarea y, solo con --escribir y la app cerrada, las agrega sin número de versión; una respuesta que la base ya tiene (misma pregunta y motor) queda como está. Deja un registro con la huella de cada archivo. Se corre antes de abrir la app con la rama, para que el primer corte ya las use. Alternativa: una opción nueva de a-la-base-nueva.py, que hoy solo trae de la base vieja a la nueva.
+- **Quién decidió:** Claude, en la corrida desatendida; el dueño revisa
+
+### D-603 · Una persona revisa solo lo relevante o dudoso: un corte con respaldo avanza solo y uno incierto queda marcado como incierto, sin consulta obligatoria
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** vigente; falta el código (P-414)
+- **El problema:** D-556 decía que una persona revisa solo lo que cambia algo y que lo demás se confirma solo. Lo construido en la corrida 13 hace otra cosa: una parte queda confirmada solo si una persona decidió todos sus pasos (D-587), lo que sale de un corte propuesto espera esa confirmación (D-590, D-597) y todo paso dudoso que no decidió una persona va a «Para mirar» (D-594). Sin nadie que mire, todo queda esperando; y si una persona tiene que confirmar dónde empieza y termina cada documento, nadie va a usar el sistema.
+- **Qué se decidió y por qué:** Cada paso de corte y cada parte tienen uno de tres estados: confirmado por una persona; con respaldo (una regla segura, o la respuesta del modelo pedida con un motivo, D-606); incierto (un paso dudoso sin respuesta). Lo confirmado y lo que tiene respaldo avanza solo: de ahí salen las familias de copias y versiones, las plantillas y los asuntos. Lo que sale de un corte incierto se calcula igual y queda marcado como incierto: no se esconde, no se da por firme y no se cuenta como confirmado. «No supimos decidir» no equivale a «las páginas son del mismo documento»: un paso dudoso sin respuesta no se guarda como un «sigue» seguro. Lo mismo vale para un PDF que no se cortó: si tiene pasos dudosos sin respuesta, no es «un solo documento» confirmado (hoy la base lo da por firme); para no dejar inciertos todos los documentos largos se mide primero una regla general que dé «sigue» con respaldo cuando el archivo es parejo (P-420). «Para mirar» queda para los inciertos que cambian algo (dos documentos de personas o tipos distintos juntos, un documento partido al medio, un corte que contradice lo que anuncia el escrito, como ya decía D-556), no para todo paso dudoso. La solución principal es identificar mejor con reglas, señales y modelos chicos (D-610), no pedir más revisión. Reemplaza D-587 y D-594 y cambia D-590, D-593 y D-597. Alternativa: mantener la confirmación solo por una persona, que deja todo esperando.
+- **Quién decidió:** El dueño del producto (27 oct) decidió el criterio; los tres estados y qué va a «Para mirar» los propuso Claude con esa revisión
+
+### D-604 · El texto de lectura incierta se guarda aparte como evidencia y no funda información estructurada; lo leído con respaldo se aprovecha sin presentar el documento como leído entero
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** vigente; falta el código (P-415)
+- **El problema:** El objetivo no es leer todo letra por letra: es saber qué documentos hay, relacionarlos, encontrar copias y parecidos y sacar la información que tenga respaldo. Que una parte no se pueda leer no es un fracaso; que entre información errónea como conocimiento, sí. El motor local descarta los renglones con menos del 90 % de confianza (D-570) y la página queda presentada sin decir que le faltan renglones.
+- **Qué se decidió y por qué:** Lo de lectura incierta (un renglón por debajo del umbral, una página ilegible, lo que un proveedor marque como dudoso) se guarda aparte, con su confianza, su ubicación y su procedencia, y la página registra qué omitió. No funda personas, organizaciones, campos, relaciones definitivas, uniones de entidades ni afirmaciones seguras. Puede orientar búsquedas, sugerir tipos de documento o proponer comparaciones, que siguen siendo propuestas. La distinción sigue en todo lo que viene después: resúmenes, páginas derivadas y respuestas. Si una parte se leyó con respaldo y otra no, la primera se usa y el documento no se presenta como leído entero. Cambia D-570 (lo que queda por debajo del umbral ya no se descarta: queda como lectura incierta) y D-571. Alternativa: seguir descartándolo, que pierde la pista sin decirlo.
+- **Quién decidió:** El dueño del producto (27 oct)
+
+### D-605 · Cobertura y confiabilidad son dos medidas distintas, guardadas por página, fragmento o dato; ningún puntaje único, y ningún puntaje del lector como porcentaje de certeza sin validarlo
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** vigente; el indicador de la pantalla se evalúa (P-416)
+- **El problema:** Un documento leído en parte puede tener datos confiables, y tener texto en todas las páginas no garantiza que sea correcto. Un único puntaje por documento daría por confiables todos sus datos.
+- **Qué se decidió y por qué:** Cobertura es cuánto del documento se pudo leer; confiabilidad, qué respaldo tiene lo que se leyó. Adentro se guardan la procedencia y la calidad de la evidencia por página, fragmento o dato extraído, según corresponda. La pantalla puede mostrar algo simple, con las causas cuando la lectura es parcial o imposible. Los puntajes del lector o de un clasificador no se muestran como porcentajes de certeza hasta validar qué significan en nuestros casos. Alternativa: un puntaje global por documento.
+- **Quién decidió:** El dueño del producto (27 oct); el indicador queda a evaluar
+
+### D-606 · El modelo grande es el último escalón y se le pregunta con un motivo; lo que queda sin resolver puede quedar incierto, y cada consulta se cuenta
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** vigente; falta el código (P-417, P-418)
+- **El problema:** Preguntarle a un modelo grande ante cualquier duda no es viable por costo ni por tiempo. El cortador hoy le pregunta cada paso dudoso de todo PDF de dos páginas o más (D-556, P-393): en la carpeta de prueba, unos 266 pasos más, casi todos de documentos largos que son uno solo.
+- **Qué se decidió y por qué:** Primero señales y reglas deterministas; después modelos chicos especializados, cuando den una mejora comprobada (D-610); el modelo grande solo en casos elegidos con un motivo concreto. Lo que queda sin resolver queda incierto o procesado en parte (D-603), sin disparar una consulta cara ni pedirle a una persona. Para el cortador, desde ahora y hasta la prueba del modelo chico: el modelo grande solo en los pasos dudosos de los PDF que las reglas ya cortaron y cuando una persona lo pide sobre un PDF (opciones b y c de P-393); los demás pasos dudosos quedan inciertos. El motivo de cada consulta (la tarea y la regla que eligió preguntar) se guarda de este lado, sin cambiar la pregunta. La app cuenta cuántas consultas hace y para qué; qué mejora traen se mide en el desarrollo contra las hojas. Cambia D-556 (el modelo ya no va a todo paso dudoso). Alternativas: preguntar todo paso dudoso (unas 266 consultas más en la carpeta de prueba), o solo lo que pide una persona, que deja sin cortar los compuestos que nadie abre.
+- **Quién decidió:** El dueño del producto (27 oct) decidió la escalera; Claude la aplicó al cortador con las opciones b y c de P-393
+
+### D-607 · Separar la constancia de firma no le quita al documento su firma: la evidencia sale de las firmas visibles del documento y de su relación con la constancia
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** vigente; falta el código (P-408)
+- **El problema:** El cortador separa la constancia o el historial de firma de un servicio como documento aparte, con emisor y fecha propios (D-527). Medido en la corrida 13: un acuerdo firmado así cortado se propone como «versión» del original sin firmar y no como «ejemplar firmado» (P-408), aunque sus firmas siguen visibles en sus propias páginas.
+- **Qué se decidió y por qué:** Un documento firmado sigue firmado después de separarle la constancia. La evidencia de firma sale de dos fuentes: las firmas visibles en el propio documento y su relación con la constancia («constancia de firma de»). No se supone que toda la evidencia estaba en la página separada. Que cada parte herede la firma embebida del PDF entero ya se probó y se descartó (P-408): marcaría como firmada cualquier documentación adjunta. Alternativa: no separar la constancia, que contradice D-527.
+- **Quién decidió:** El dueño del producto (27 oct)
+
+### D-608 · Un anexo con título, cláusulas y firmas propios es otro documento del mismo asunto; la constancia de firma queda unida al documento que acredita; un anexo sin firma ni fecha propias sigue en el documento
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** vigente; falta el vocabulario y el código (P-419)
+- **El problema:** Para medir, entrenar y mostrar hay que definir de una sola manera qué es un documento aparte y cómo se representan sus anexos y constancias. La hoja de partes ya dice que lo que tiene emisor y fecha propios es un documento aparte y que un anexo sin firma sigue siendo parte del documento (D-527), pero no tiene la relación de un anexo firmado con su contrato.
+- **Qué se decidió y por qué:** Con un caso que revisó el dueño como ejemplo (un PDF con un contrato de seis páginas, un anexo de siete con título, cláusulas y firmas propios, y una página de constancia de firma): el anexo firmado es un documento aparte, unido al principal («anexo de») y del mismo asunto; la constancia es un documento aparte, unida al documento o los documentos cuya firma acredita («constancia de firma de»); un anexo sin firma ni fecha propias sigue en el documento. En la hoja de copias y versiones, cuando un par habla del asunto de un PDF así, la referencia es el documento principal; que el anexo no sea la referencia no lo pasa a otro asunto. Alternativa: tratar el anexo firmado como parte del contrato, que pierde sus firmas y su fecha propias.
+- **Quién decidió:** El dueño del producto (27 oct) con el caso; la relación «anexo de» y su lugar en la hoja, Claude
+
+### D-609 · La medición cuenta solo límites exactos; lo aproximado va aparte como diagnóstico, y cada medición dice su cobertura
+
+- **Fecha:** 27 oct 2026 · **Tema:** replanteo · **Estado:** vigente: el arnés de copias y versiones ya cuenta así (35758a9)
+- **El problema:** Al medir copias y versiones, un lado de un par en un archivo cortado se tomaba como la parte con más páginas en común (D-598). Así se ocultaba un corte errado: un archivo de un solo documento de cuatro páginas que la base corta en la página 1 y las páginas 2 a 4 se medía con la parte 2 a 4.
+- **Qué se decidió y por qué:** Un par entra a la cuenta solo si sus dos lados coinciden exactamente con un documento de la base. Si no, cuenta como error de corte (la hoja dice qué páginas y la base cortó distinto, de más o de menos) o como sin referencia suficiente (la hoja no dice páginas y la base cortó el archivo). Lo aproximado se imprime aparte y no suma. Cada medición dice por separado: evaluados con referencia, excluidos y su motivo, sin referencia suficiente, errores de corte y errores de relación. Una muestra no se presenta como si fuera toda la base, y los compuestos que la hoja de partes no cubre se completan de a poco (P-431). Reemplaza la última parte de D-598. Alternativa: dejar la aproximación, que infla el resultado.
+- **Quién decidió:** El dueño del producto (27 oct)
+
+### D-610 · Se explora con una prueba acotada un clasificador chico para decidir si una página sigue el documento anterior o empieza otro; la hoja mide y no enseña
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** propuesta: el dueño aprueba la prueba (P-421)
+- **El problema:** En la hoja de partes, las reglas solas encuentran 71 de 96 cortes y dejan 47 pasos dudosos; con el modelo grande en esos pasos, 96 de 96, con 47 consultas. El modelo grande no puede ser la respuesta a cada duda (D-606).
+- **Qué se decidió y por qué:** Una prueba acotada, sin elegir todavía una arquitectura ni autorizar un entrenamiento grande: un conjunto de árboles de decisión sobre las señales que ya calcula el cortador (numeración, títulos, forma y distribución de la página, parecido del texto, firmas y cierres, calidad de la lectura, páginas vecinas), comparado con las reglas. Ninguna señal sola es una regla universal: una firma puede ir seguida de un anexo. Lo simple que ya funciona no se reemplaza, como las huellas para los archivos idénticos. Los datos: ejemplos variados y bien identificados con el criterio de D-608; entrenamiento y examen separados, con las copias, versiones y páginas de un mismo documento del mismo lado; documentos y formatos nuevos reservados para el examen. El conjunto ya usado para ajustar las reglas no se presenta como prueba independiente. Lo que proponga un modelo grande al preparar ejemplos es una propuesta que se comprueba. Se busca aprender patrones, no estos documentos: nada se programa por nombre, archivo, ruta o huella (R-24 a R-26). La propuesta, con datos, comparación y criterios de éxito, está en docs/design/clasificador-de-cortes-propuesta.md.
+- **Quién decidió:** El dueño del producto (27 oct) decidió explorar; la propuesta es de Claude
+
+### D-611 · El reproceso completo se posterga hasta tener un proceso definido y probado sobre copias; la lectura apagada no garantiza que abrir la app no cambie la base
+
+- **Fecha:** 27 oct 2026 · **Tema:** replanteo · **Estado:** vigente
+- **El problema:** La lista del reproceso (P-411) estaba lista para una noche, pero faltaban piezas para hacerlo con seguridad y medirlo, y decía que con la lectura apagada la app no pregunta nada, como si abrirla no cambiara la base.
+- **Qué se decidió y por qué:** No se enciende la lectura automática para reprocesar toda la base por ahora; las pruebas acotadas se hacen sobre copias o conjuntos controlados. Antes de retomarlo: las correcciones de esta revisión en el código (D-603, D-604, D-607); un respaldo que se pueda restaurar, probado; la comparación lista (P-412); el proveedor y la configuración anotados; los trabajos de corte, lo que espera confirmación y las demás tareas de fondo a la vista (P-394); y un criterio de fin que los cuente a todos, porque que «En curso» no muestre lecturas pendientes no prueba que todo terminó (P-422). Abrir la app con código nuevo puede cambiar la base aunque la lectura esté apagada (migraciones, cortes por reglas, el motor local de fondo): se respalda antes. Las unas 960 consultas estimadas y los conteos de la corrida de prueba son referencias provisionales, no resultados a forzar. D-601 sigue valiendo para cuando se retome.
+- **Quién decidió:** El dueño del producto (27 oct)
+
+### D-612 · El motor local sigue leyendo de fondo los escaneos nuevos, pero la pantalla dice qué motor leyó cada página y para qué sirve el motor elegido en Ajustes
+
+- **Fecha:** 27 oct 2026 · **Tema:** replanteo · **Estado:** vigente; falta el código (P-423)
+- **El problema:** D-569 hace que el motor de esta computadora lea de fondo los escaneos nuevos aunque en Ajustes esté elegido otro motor para «Reconocer escaneos». El dueño pidió revisar esa coherencia para que el comportamiento se entienda.
+- **Qué se decidió y por qué:** Se mantiene, porque es el escalón barato (D-606) y no gasta cupo. Lo que cambia es que se diga: Ajustes explica que las páginas escaneadas nuevas las lee primero el motor de esta computadora y que el motor elegido se usa cuando una persona pide leer una página (por ejemplo, una que el motor local dejó ilegible); el detalle de un documento dice qué motor leyó cada página y si la lectura fue parcial (D-604). Alternativa: que el motor local lea de fondo solo cuando es el elegido, que con Codex elegido vuelve a pagar cada página.
+- **Quién decidió:** Claude, con la revisión del dueño del 27 oct
+
+### D-613 · Cuándo un lado de un par de la hoja tiene límites exactos y a qué cuenta va un par que no los tiene
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** El dueño decidió que la medición de copias y versiones cuente solo límites exactos y que un par sin ellos vaya a «error de corte» o a «sin referencia suficiente». Faltaba decir tres casos de borde: si «pages:1-N» de un archivo no cortado vale como el archivo entero; qué pasa con un archivo cortado cuando la hoja no dice páginas pero una parte lo cubre entero; y a qué cuenta va un par con un lado en cada situación, o un par que la hoja no mide.
+- **Qué se decidió y por qué:** Un lado es exacto si el archivo no está cortado y la hoja no dice páginas o dice todas (de la página 1 a la última, según las huellas de página o el texto por página); o si el archivo está cortado y una parte tiene exactamente las páginas que dice la hoja (sin páginas, la parte tendría que ir de la 1 a la última). Un par con un lado que es error de corte va a «error de corte» aunque el otro lado no tenga referencia. Un par con «measurable: false» va a excluidos aunque la base corte distinto alguno de sus archivos (por ejemplo, los pares 80 y 81). La cuenta aproximada de diagnóstico abarca, como antes, todos los pares medibles con los dos archivos en la base, para que se pueda comparar con las cifras de antes. Alternativas: exigir siempre que no haya selector en un archivo no cortado; contar aparte los pares que tienen las dos razones; o que el diagnóstico tome solo los pares no exactos.
+- **Quién decidió:** Claude, en la corrida desatendida; el dueño revisa
+
+### D-614 · Qué cuenta como PDF compuesto y como documento incluido sin referencia en la cobertura de la medición
+
+- **Fecha:** 27 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La prueba de toda la carpeta tiene que decir cuántos PDF compuestos tienen referencia en la hoja de partes y cuántos documentos incluidos quedan sin referencia. La base no sabe qué PDF son compuestos de verdad: solo sabe cuáles cortó.
+- **Qué se decidió y por qué:** PDF compuesto es un archivo que la base cortó (tiene partes por páginas). Tiene referencia si su huella está en la hoja de partes. Un documento incluido queda sin referencia para sus límites cuando es una parte de un PDF compuesto que no está en la hoja de partes. Además se dice cuántos de los archivos de la hoja de partes la base no cortó, y cuántos documentos incluidos toca algún par evaluado de la hoja de parecidos. Alternativa: tomar como compuestos también los PDF con algún paso dudoso sin respuesta, que podrían tener un corte que la base no hizo.
 - **Quién decidió:** Claude, en la corrida desatendida; el dueño revisa
