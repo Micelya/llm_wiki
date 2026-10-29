@@ -573,6 +573,10 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-632 | 28 oct | base | Un hilo de correos impreso es un solo documento | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-633 | 28 oct | base | Una carátula que anuncia un anexo va con el anexo | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-634 | 28 oct | base | Tres casos de etiqueta que la hoja de partes no cubre | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-635 | 28 oct | base | El clasificador chico se entrena solo con los pasos que ninguna regla decide, y se valida por grupos de documentos | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-636 | 28 oct | base | Los dos umbrales del clasificador chico deciden lo más posible con a lo sumo un error cada 50 pasos | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-637 | 28 oct | base | Cómo se miden las variantes B y D del cortador | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-638 | 28 oct | base | La prueba del clasificador chico se para: lo aprendido va a las reglas y al catálogo | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -6380,3 +6384,31 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **El problema:** Al etiquetar 64 PDF de la carpeta de prueba y los del examen nuevo aparecieron tres formas que la hoja de partes no trae y que se repiten.
 - **Qué se decidió y por qué:** (1) El certificado de un servicio de firma y sus páginas de condiciones de uso de la firma electrónica son un solo documento: las condiciones son una sección del certificado, sin emisor ni fecha propios. (2) Un oficio o una cédula electrónicos del juzgado y la resolución que llevan adjunta son documentos distintos: la resolución tiene su propia fecha y su propia firma. (3) Los cupones de pago de una misma boleta (uno por cada medio de pago, con el mismo número) son un solo documento. Alternativas: (1) separar las condiciones como documento aparte; (2) tratar el oficio y su adjunto como uno solo; (3) cada cupón como documento.
 - **Quién decidió:** Claude, en la corrida desatendida del 28 oct (paso 6)
+
+### D-635 · El clasificador chico se entrena solo con los pasos que ninguna regla decide, y se valida por grupos de documentos
+
+- **Fecha:** 28 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La prueba del clasificador (D-610) pedía una validación por grupos, pero no decía qué relaciones arman un grupo ni con qué pasos se entrena. Si una versión de un acuerdo queda para entrenar y otra para validar, la validación sale mejor de lo que es.
+- **Qué se decidió y por qué:** Un grupo es un archivo con sus copias, su mismo documento y los archivos unidos por una relación «versión», «casi idéntico» o «copia firmada» en la base. Quedaron 49 grupos, y cada uno se valida con un modelo entrenado sin él. Se entrena solo con los pasos dudosos de las reglas (262, sin los 4 con «seguro: no»), porque es ahí donde trabajaría el clasificador. Alternativas: agrupar solo por «versión»; entrenar con todos los pasos y una señal de la regla.
+- **Quién decidió:** Claude, en la corrida desatendida del 28 oct (paso 7)
+
+### D-636 · Los dos umbrales del clasificador chico deciden lo más posible con a lo sumo un error cada 50 pasos
+
+- **Fecha:** 28 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La propuesta pedía dos umbrales, «sigue» por debajo, «empieza» por encima e «incierto» en el medio, elegidos en la validación, sin decir con qué regla.
+- **Qué se decidió y por qué:** Se eligen sobre las respuestas de la validación por grupos: son los que deciden más pasos con a lo sumo 5 errores entre los 262 que decide (1 cada 50, la misma vara del criterio de calidad). Quedaron en 0,0642 y 0,9871, y se fijaron antes de mirar la hoja de partes y el examen. Alternativa: fijar de antemano qué parte de los pasos va al modelo (por ejemplo, el 30 %) y elegir la franja que da ese número.
+- **Quién decidió:** Claude, en la corrida desatendida del 28 oct (paso 7)
+
+### D-637 · Cómo se miden las variantes B y D del cortador
+
+- **Fecha:** 28 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La variante B lleva el modelo a todo paso dudoso, pero desde el paso 1 «archivo parejo» da por «sigue» parte de esos pasos. En la variante D, la consulta selectiva (D-622) pregunta solo en los PDF que ya tienen un corte después de la primera página, y no estaba dicho si cuenta un corte del clasificador.
+- **Qué se decidió y por qué:** B pregunta en todo paso que ninguna regla decide, también en los de un archivo parejo (246 consultas nuevas a Codex, guardadas). En D, un corte del clasificador también abre la consulta selectiva, como la vería la base si el veredicto se guardara. Además se midieron D+C (el archivo parejo toma lo que D deja incierto) y D* (el modelo en todo lo que el clasificador deja incierto, sin la consulta selectiva). Alternativas: B sin los pasos parejos; que solo un corte de una regla abra la consulta.
+- **Quién decidió:** Claude, en la corrida desatendida del 28 oct (paso 7)
+
+### D-638 · La prueba del clasificador chico se para: lo aprendido va a las reglas y al catálogo
+
+- **Fecha:** 28 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** En el examen nuevo, la variante D (reglas, clasificador y consulta selectiva) tiene los mismos 22 errores que las reglas solas, y el modelo grande en cada paso dudoso tiene 10. D* (el modelo en todo lo que el clasificador deja incierto) tiene 15 errores y 69,8 % menos consultas. El tope de calidad era 12 errores, y el de ahorro, 70 %. En la validación, D* sí pasaba.
+- **Qué se decidió y por qué:** Vale el examen, como dice la propuesta: no pasa la calidad, así que la prueba se para y no se propone llevar el clasificador a la app. D* tampoco se acepta, aunque pase en la validación. Las señales que más separan se proponen como reglas o umbrales del catálogo (P-454), y los cortes de más de las fórmulas de apertura y cierre se revisan aparte (P-453). La prueba ignorada que exporta las señales queda en el repositorio para medir esas reglas. Alternativas: aceptar D* con un umbral más ancho, medido en un examen nuevo; reintentar con más etiquetas de escaneos compuestos (P-455).
+- **Quién decidió:** Claude, en la corrida desatendida del 28 oct (paso 7)

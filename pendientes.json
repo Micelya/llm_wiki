@@ -3591,7 +3591,7 @@
       "estado": "pendiente",
       "prioridad": 2,
       "tema": "base",
-      "detalle": "Medido en la carpeta de prueba (corrida desatendida 14, paso 3): 5 PDF que ninguna regla corta tienen cortes que dio solo el modelo, 6 en total; todos son de AEROS BGH\\ContenidoExtra y casi todos «firmado» (el documento y la constancia de la firma electrónica), por ejemplo «el recibo de pago firmado de dos cuotas (desatendido-14/paso4-informe.md)», «el contrato firmado con anexo e informe de auditoría (desatendido-14/paso4-informe.md)» y «una boleta de pago». En la base del dueño esas respuestas ya están pagadas y los cortes siguen; en una base nueva o un archivo nuevo, con D-622 el modelo no pregunta solo y el PDF queda como un solo documento, marcado incierto, hasta que alguien toque «Preguntar al modelo». Opción recomendada: sumar al filtro el paso que sigue a una página que termina con firma (la misma señal de D-616), guardándola en el paso del cortador, y medir cuántas consultas suma. Otras: dejarlo así; o un clasificador chico (D-610) que diga dónde vale la pena preguntar. Además, en la línea del pie de la ventana «Esperando tu permiso» no aparece cuando las que esperan son solo las de corte (la tarjeta de «En curso» sí lo dice).",
+      "detalle": "Medido en la carpeta de prueba (corrida desatendida 14, paso 3): 5 PDF que ninguna regla corta tienen cortes que dio solo el modelo, 6 en total; todos son de AEROS BGH\\ContenidoExtra y casi todos «firmado» (el documento y la constancia de la firma electrónica), por ejemplo «el recibo de pago firmado de dos cuotas (desatendido-14/paso4-informe.md)», «el contrato firmado con anexo e informe de auditoría (desatendido-14/paso4-informe.md)» y «una boleta de pago». En la base del dueño esas respuestas ya están pagadas y los cortes siguen; en una base nueva o un archivo nuevo, con D-622 el modelo no pregunta solo y el PDF queda como un solo documento, marcado incierto, hasta que alguien toque «Preguntar al modelo». Opción recomendada: sumar al filtro el paso que sigue a una página que termina con firma (la misma señal de D-616), guardándola en el paso del cortador, y medir cuántas consultas suma. Otras: dejarlo así; o un clasificador chico (D-610) que diga dónde vale la pena preguntar. Además, en la línea del pie de la ventana «Esperando tu permiso» no aparece cuando las que esperan son solo las de corte (la tarjeta de «En curso» sí lo dice). 2026-10-29: Medido en el paso 7: de los 6 cortes de 5 PDF que solo hizo el modelo, el clasificador chico recupera 2 sin el modelo. En el examen nuevo, 16 de los 20 cortes reales están en PDF que ninguna regla corta: con la consulta selectiva, el modelo no pregunta en ninguno y quedan 17 cortes perdidos, igual que con las reglas solas. Preguntar en todo lo que el clasificador deja incierto recupera 7 de esos cortes con 29 consultas en lugar de 96.",
       "creado": "2026-10-29",
       "actualizado": "2026-10-29"
     },
@@ -3660,10 +3660,10 @@
       "titulo": "Entrenar y medir el clasificador chico (variantes A a D) con las etiquetas del paso 6",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "hecho",
       "prioridad": 2,
       "tema": "base",
-      "detalle": "Las etiquetas ya están (desatendido-14/clasificador/ y examen-cortador/). Falta lo de las secciones 5, 7 y 8 de docs/design/clasificador-de-cortes-propuesta.md: calcular las señales por paso, entrenar con los 64 PDF de entrenamiento validando por grupos (cada archivo con sus copias y versiones en el mismo grupo), medir aparte en la hoja de partes (128 pasos, R-25: mide, no enseña) y una sola vez en el examen nuevo (15 PDF, 118 pasos). Las 4 etiquetas con «seguro: no» del entrenamiento se dejan afuera del entrenamiento; las 4 del examen se miden como una página en blanco (el corte antes o después vale igual). El examen tiene 8 PDF escaneados sin capa de texto: hay que leerlos antes (lectura de la app) o medirlos aparte.",
+      "detalle": "Las etiquetas ya están (desatendido-14/clasificador/ y examen-cortador/). Falta lo de las secciones 5, 7 y 8 de docs/design/clasificador-de-cortes-propuesta.md: calcular las señales por paso, entrenar con los 64 PDF de entrenamiento validando por grupos (cada archivo con sus copias y versiones en el mismo grupo), medir aparte en la hoja de partes (128 pasos, R-25: mide, no enseña) y una sola vez en el examen nuevo (15 PDF, 118 pasos). Las 4 etiquetas con «seguro: no» del entrenamiento se dejan afuera del entrenamiento; las 4 del examen se miden como una página en blanco (el corte antes o después vale igual). El examen tiene 8 PDF escaneados sin capa de texto: hay que leerlos antes (lectura de la app) o medirlos aparte. 2026-10-29: Hecho en el paso 7: entrenado y medido. No pasa los criterios de la sección 8 de la propuesta (calidad contra el modelo grande en el examen), así que la prueba se para (D-635 a D-638; resultado en desatendido-14/clasificador/resultado.md). Siguen P-452 a P-455.",
       "creado": "2026-10-29",
       "actualizado": "2026-10-29"
     },
@@ -3676,6 +3676,54 @@
       "prioridad": 3,
       "tema": "base",
       "detalle": "Elegir los candidatos del examen nuevo leyendo la unidad G (Google Drive en streaming) es lento: cada PDF se baja para contar sus páginas. Con un tope de 25 minutos para Administration y 14 para Extrimian, quedaron 579 candidatos de 3 a 40 páginas, pero el recorrido no llegó al final de ninguna de las dos carpetas (Administration paró dentro de 10.Gestión de Clientes; Extrimian, dentro de Marketing). El examen sirve igual (15 PDF de 17 carpetas, 8 escaneados y 7 digitales), pero si se arma un segundo examen conviene recorrer primero solo los nombres y tamaños, y abrir solo los elegidos. El guion es desatendido-14/clasificador/examen.py.",
+      "creado": "2026-10-29",
+      "actualizado": "2026-10-29"
+    },
+    {
+      "id": "P-452",
+      "titulo": "Ver: el resultado de la prueba del clasificador chico, que no pasó (la app no cambia)",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "base",
+      "detalle": "Paso 7 de la corrida del 28 oct (D-610). En la app no cambia nada: solo entró en el repositorio una prueba ignorada que escribe las señales de cada paso entre páginas. Se entrenó un clasificador de árboles con 262 pasos dudosos de la carpeta de prueba y se midieron cuatro variantes. En el examen nuevo (118 pasos, 20 cortes reales): reglas solas, 22 errores; reglas y modelo grande en cada dudoso, 10 errores y 96 consultas; reglas y clasificador con la consulta selectiva, 22 errores y 5 consultas; clasificador y modelo en todo lo incierto, 15 errores y 29 consultas. No cumple la calidad contra el modelo grande (el tope era 12 errores), así que la prueba se para y el clasificador no se lleva a la app (D-638). Qué mirar: en llm_wiki_mi/examen-cortador/pdf/, el 04.pdf, páginas 27 a 33 (seis cortes reales que el clasificador dio por «sigue» sin dudar), y el 06.pdf, páginas 17 y 18 (resolvió bien 15 pasos que las reglas dejaban sin decidir y erró en este). Los archivos están en la sección «Para el dueño» de desatendido-14/paso7-informe.md, y la tabla completa en desatendido-14/clasificador/resultado.md. Decidir si la línea del clasificador se cierra o se reintenta con más etiquetas (P-455).",
+      "creado": "2026-10-29",
+      "actualizado": "2026-10-29"
+    },
+    {
+      "id": "P-453",
+      "titulo": "Las fórmulas de apertura y cierre del catálogo cortan de más: 19 de los 27 cortes de más de las reglas en el entrenamiento",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "Medido en el paso 7 de la corrida del 28 oct, con las etiquetas del paso 6. Sobre los 343 pasos del entrenamiento, las reglas dicen «empieza otro» donde la etiqueta dice «sigue» 27 veces, en 17 PDF (9 en uno solo): fórmula de apertura 11, fórmula de cierre 8, captura 3, papel 3, hechura 2. En la hoja de partes son 2 (papel 1, apertura 1). Ninguna variante del clasificador lo arregla, porque solo mira los pasos dudosos. Revisar las frases de apertura y cierre del catálogo con esas etiquetas y medir otra vez la variante A con las tres hojas, sin modelo. Cada arreglo, como regla general (R-24 a R-26).",
+      "creado": "2026-10-29",
+      "actualizado": "2026-10-29"
+    },
+    {
+      "id": "P-454",
+      "titulo": "Probar como reglas del catálogo las señales que más separan en el clasificador chico",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "Lo aprendido en la prueba del clasificador (paso 7 de la corrida del 28 oct, D-638). Las señales que más pesaron: mayúsculas en los primeros renglones de la página nueva (un título; 18 % de la ganancia de los árboles), palabras compartidas con el paso siguiente (12 %), cambio de alto del papel entre las dos páginas, también si son digitales (10 %), y poco texto propio o muchos renglones cortos en la página anterior (7 % y 6 %). Probar cada una como regla o umbral del catálogo, medida con la variante A sobre la validación, la hoja de partes y el examen, sin modelo, y aceptarla solo si baja los cortes perdidos sin agregar cortes de más. El exportador de señales (prueba ignorada docbase::cut::export) y los guiones de desatendido-14/clasificador sirven para medirlas.",
+      "creado": "2026-10-29",
+      "actualizado": "2026-10-29"
+    },
+    {
+      "id": "P-455",
+      "titulo": "Decidir si el clasificador chico se reintenta con más etiquetas de escaneos compuestos o se cierra la línea",
+      "tipo": "decision",
+      "responsable": "usuario",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "base",
+      "detalle": "Resultado del paso 7 de la corrida del 28 oct. El clasificador se entrenó con solo 34 pasos «empieza» entre los dudosos. En el examen falló sobre todo en escaneos compuestos que lee el lector de esta computadora: dio por «sigue» 10 de 67 pasos que decidió, y 6 de esos estaban seguidos en un mismo PDF. Con la consulta selectiva no mejora a las reglas solas; sin ella, recupera 7 cortes con 29 consultas en lugar de 96, pero sigue con 5 errores más que el modelo grande. Reintentar costaría etiquetar unos 30 a 50 PDF compuestos más, escaneados y leídos por el lector local, y volver a medir con los mismos guiones. La alternativa es cerrar la línea y quedarse con las reglas (P-453 y P-454) y la escalera de consultas.",
       "creado": "2026-10-29",
       "actualizado": "2026-10-29"
     }
