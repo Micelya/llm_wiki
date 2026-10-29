@@ -633,6 +633,11 @@ function Documents({ matter, run, busy }: { matter: MatterDetail; run: Run; busy
         </ul>
       )}
       {doc.proposalReason && <p className="mt-1.5 ml-6 text-sm text-muted-foreground">El modelo: «{doc.proposalReason}»</p>}
+      {doc.uncertain && (
+        <p className="mt-1.5 ml-6 text-sm text-amber-800 dark:text-amber-300" data-uncertain="">
+          {words.included.uncertain}: {words.included.uncertainHelp}
+        </p>
+      )}
     </li>
   )
 

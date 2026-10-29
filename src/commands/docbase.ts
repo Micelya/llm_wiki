@@ -260,6 +260,8 @@ export interface PartOf {
   lastPage: number
   cutBy: CutBy
   cutState: CutState
+  /** A step that bounds it, or one inside it, has nothing to back it (D-603). */
+  uncertain: boolean
 }
 
 /** A document a joined file includes, as the detail of that file shows it (D-560). */
@@ -271,8 +273,12 @@ export interface IncludedPart {
   lastPage: number
   cutBy: CutBy
   cutState: CutState
-  /** Pages whose step from the page before is doubtful and no person decided. */
+  /** Pages whose step from the page before nothing backs and no person decided (D-603). */
   doubtfulPages: number[]
+  /** A step that bounds it, or one inside it, has nothing to back it: it goes on, marked (D-603). */
+  uncertain: boolean
+  /** The whole file, for a PDF of one document with uncertain steps: nothing else to open. */
+  whole: boolean
 }
 
 /** What the screen of a generated document says of it. */
@@ -531,6 +537,8 @@ export interface SimilarDocument {
    * template (D-440, D-497).
    */
   possiblySame: boolean
+  /** Undecided, and one of the two appears only in uncertain cuts: proposed all the same, marked (D-603). */
+  uncertain: boolean
 }
 
 export type SimilarDecision =
@@ -560,6 +568,8 @@ export interface SimilarGroupMember {
   relation: RelationId | null
   cover: number | null
   state: SimilarState | null
+  /** It appears only in uncertain cuts (D-603). */
+  uncertain: boolean
 }
 
 export interface SimilarGroup {
@@ -576,6 +586,8 @@ export interface SimilarGroup {
   templateFields: number | null
   /** Pairs of its template's documents where nothing changes but a few words, undecided: possibly the same document. */
   possiblySame: number
+  /** Members, the principal too, that appear only in uncertain cuts (D-603). */
+  uncertain: number
 }
 
 /** A piece of a template's text: what all its documents say, or a field. */
@@ -1600,6 +1612,8 @@ export interface MatterDocument {
   state: "firm" | "proposed"
   reasons: MatterReason[]
   proposalReason: string | null
+  /** It appears only in uncertain cuts: in the matter all the same, marked (D-603). */
+  uncertain: boolean
 }
 
 export interface MatterParty {

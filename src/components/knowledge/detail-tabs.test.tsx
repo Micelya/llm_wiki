@@ -131,8 +131,8 @@ function matterDetail(overrides: Partial<MatterDetail> = {}): MatterDetail {
     confirmation: "proposed",
     pagePath: "wiki/entities/reclamo-de-ficticia.md",
     documents: [
-      { document: { contentId: 5, locationId: 10, name: "Carta documento de prueba.pdf" }, state: "firm", reasons: [], proposalReason: null },
-      { document: { contentId: 6, locationId: 11, name: "Recibo inventado.pdf" }, state: "proposed", reasons: [], proposalReason: "habla del mismo local" },
+      { document: { contentId: 5, locationId: 10, name: "Carta documento de prueba.pdf" }, state: "firm", reasons: [], proposalReason: null, uncertain: false },
+      { document: { contentId: 6, locationId: 11, name: "Recibo inventado.pdf" }, state: "proposed", reasons: [], proposalReason: "habla del mismo local", uncertain: false },
     ],
     parties: [{ entityId: "ent-1", kind: "organizacion", name: "Ficticia SA", roles: ["parte"], documents: 2 }],
     decisions: [],

@@ -13,10 +13,13 @@ import { useDocbaseQuery } from "./use-docbase-query"
 /**
  * The strip of pages of a file that joins several documents (D-560): each
  * row is one of the documents it includes, from the page it starts on,
- * with whether that start is confirmed and who said it, and the pages
- * whose start is doubtful marked to look at. A person splits a document
- * at a page, joins one to the one before it, or confirms them all; what
- * is confirmed lets the reading of the matter go on (D-556).
+ * with how that start stands (backed, uncertain or confirmed) and who
+ * said it, and the pages nothing backs marked to look at. What is backed
+ * goes on by itself, and what is uncertain goes on marked (D-603): a
+ * person looks only at that. A PDF of one document with uncertain steps
+ * has its strip too, with the whole file as its only row. A person splits
+ * a document at a page, joins one to the one before it, or confirms them
+ * all.
  */
 
 /** What a person does to the cuts of a file. */
@@ -39,16 +42,30 @@ export function fill(text: string, values: Record<string, string | number>): str
   return text.replace(/\{(\w+)\}/g, (whole, name: string) => (name in values ? String(values[name]) : whole))
 }
 
-/** «Sin confirmar · lo propuso la app por el texto»: how a document's start stands, in the vertical's words. */
-export function cutLine(part: Pick<PartOf, "cutBy" | "cutState">, words: Vocabulary): string {
+/**
+ * «Incierto · lo propuso la app por el texto»: how a document's start stands, in the vertical's words.
+ * The mark decides over the state: the appearance of a whole file stays confirmed in the base (D-603).
+ */
+export function cutLine(part: Pick<PartOf, "cutBy" | "cutState" | "uncertain">, words: Vocabulary): string {
   const terms = words.included
-  return `${terms.states[part.cutState] ?? part.cutState} · ${terms.by[part.cutBy] ?? part.cutBy}`
+  const state = part.uncertain ? "uncertain" : part.cutState
+  return `${terms.states[state] ?? state} · ${terms.by[part.cutBy] ?? part.cutBy}`
 }
 
-/** Under a file's name in the list: «incluye 5 documentos · 3 sin confirmar»; nothing for a file of one document. */
+/**
+ * Under a file's name in the list: «incluye 5 documentos · 3 inciertos»; for a PDF of one document
+ * with an uncertain step, «un documento · incierto»; nothing otherwise.
+ */
 export function IncludedNote({ included, unconfirmed, words = vocabulary() }: { included: number; unconfirmed: number; words?: Vocabulary }) {
-  if (included <= 0) return null
   const terms = words.included
+  if (included <= 0) {
+    if (unconfirmed <= 0) return null
+    return (
+      <div className="mt-0.5 text-[0.78125rem] text-amber-800 dark:text-amber-300" data-included={0}>
+        {terms.listOneUncertain}
+      </div>
+    )
+  }
   return (
     <div className="mt-0.5 text-[0.78125rem] text-muted-foreground" data-included={included}>
       {fill(terms.listIncludes, { count: included })}
@@ -133,13 +150,15 @@ export function PageStrip({
 }) {
   const terms = words.included
   const unconfirmed = parts.filter((part) => part.cutState !== "confirmed").length
+  const uncertain = parts.filter((part) => part.uncertain).length
+  const whole = parts.length === 1 && parts[0].whole
   return (
     <Section
-      title={terms.title}
-      count={parts.length}
-      intro={terms.description}
+      title={whole ? terms.wholeTitle : terms.title}
+      count={whole ? undefined : parts.length}
+      intro={whole ? terms.wholeDescription : terms.description}
       action={
-        <Button variant={unconfirmed > 0 ? "default" : "outline"} size="sm" disabled={busy || unconfirmed === 0} onClick={() => onAction({ kind: "confirm" })}>
+        <Button variant={uncertain > 0 ? "default" : "outline"} size="sm" disabled={busy || unconfirmed === 0} onClick={() => onAction({ kind: "confirm" })}>
           <Check /> {unconfirmed > 0 ? terms.confirm : terms.confirmed}
         </Button>
       }
@@ -157,22 +176,25 @@ export function PageStrip({
             data-part={index + 1}
             data-cut-state={part.cutState}
             data-cut-by={part.cutBy}
+            data-uncertain={part.uncertain ? "" : undefined}
           >
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
               <span className="font-medium">{fill(terms.part, { n: index + 1 })}</span>
               <span className="text-sm text-muted-foreground">{fill(terms.pages, { first: part.firstPage, last: part.lastPage })}</span>
               <span
                 className={
-                  part.cutState === "confirmed"
-                    ? "text-sm text-muted-foreground"
-                    : "rounded-md bg-amber-500/10 px-1.5 text-sm text-amber-800 dark:text-amber-300"
+                  part.uncertain
+                    ? "rounded-md bg-amber-500/10 px-1.5 text-sm text-amber-800 dark:text-amber-300"
+                    : "text-sm text-muted-foreground"
                 }
               >
                 {cutLine(part, words)}
               </span>
-              <Button variant="link" size="sm" className="ml-auto h-auto p-0" onClick={() => onOpen(part)}>
-                <ExternalLink /> {terms.open}
-              </Button>
+              {!part.whole && (
+                <Button variant="link" size="sm" className="ml-auto h-auto p-0" onClick={() => onOpen(part)}>
+                  <ExternalLink /> {terms.open}
+                </Button>
+              )}
             </div>
             <div className="mt-2 flex flex-wrap gap-2">
               {pagesOf(part).map((page) => {

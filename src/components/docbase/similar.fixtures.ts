@@ -59,6 +59,7 @@ export function similarDocument(patch: Partial<SimilarDocument> = {}): SimilarDo
     wikiSource: null,
     decidedAt: null,
     possiblySame: false,
+    uncertain: false,
     ...patch,
   }
 }
@@ -100,11 +101,13 @@ export function similarGroup(
       relation: index === 0 ? null : relation,
       cover: index === 0 ? null : 0.9,
       state: index === 0 ? null : index <= pending ? "proposed" : "joined",
+      uncertain: false,
     })),
     flags,
     pending: asks ? pending : 0,
     pendingSameDocument: asks && oneDocument ? pending : 0,
     templateFields: relation === "same-template" ? 3 : null,
     possiblySame: 0,
+    uncertain: 0,
   }
 }

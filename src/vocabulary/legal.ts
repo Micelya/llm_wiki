@@ -122,13 +122,13 @@ export const legal: Vertical = {
       included: {
         title: "Documentos que incluye",
         description:
-          "Este archivo junta varios documentos. Cada fila empieza donde empieza un documento; revisá dónde se corta y confirmalo para que la lectura del caso los tome.",
+          "Este archivo junta varios documentos. Cada fila empieza donde empieza un documento. Lo que la app respalda ya cuenta para la lectura del caso; lo incierto también cuenta, marcado, hasta que mires sus páginas.",
         part: "Documento {n}",
         pages: "páginas {first} a {last}",
         by: { rule: "lo propuso la app por el texto", model: "lo propuso el modelo mirando las páginas", person: "lo decidió una persona" },
-        states: { proposed: "Sin confirmar", confirmed: "Confirmado" },
+        states: { proposed: "Respaldado", confirmed: "Confirmado", uncertain: "Incierto" },
         doubtful: "Para mirar",
-        doubtfulHelp: "La app no está segura de si acá empieza otro documento.",
+        doubtfulHelp: "La app no pudo decidir si acá empieza otro documento: lo toma como que sigue y lo marca como incierto.",
         split: "Empieza otro acá",
         join: "Juntar con el anterior",
         confirm: "Confirmar dónde empieza cada documento",
@@ -137,7 +137,13 @@ export const legal: Vertical = {
         partOf: "Documento {n} de {count} incluidos en {file}, páginas {first} a {last}",
         backToFile: "Ver el archivo completo",
         listIncludes: "incluye {count} documentos",
-        listUnconfirmed: "{count} sin confirmar",
+        listUnconfirmed: "{count} inciertos",
+        listOneUncertain: "un documento · incierto",
+        wholeTitle: "Dónde podría empezar otro documento",
+        wholeDescription:
+          "La app lee este archivo como un solo documento, pero no pudo decidir si en las páginas marcadas empieza otro. Cuenta igual, marcado como incierto, hasta que lo mires.",
+        uncertain: "Incierto",
+        uncertainHelp: "Sale de un corte que la app no pudo decidir: cuenta igual, pero conviene mirarlo.",
       },
       knowledge: {
         entities: "Personas y organizaciones",
@@ -332,13 +338,13 @@ export const legal: Vertical = {
       included: {
         title: "Documents it includes",
         description:
-          "This file joins several documents. Each row starts where a document starts; check where it is cut and confirm it so the reading of the matter takes them.",
+          "This file joins several documents. Each row starts where a document starts. What the app backs already counts for the reading of the matter; what is uncertain counts too, marked, until you look at its pages.",
         part: "Document {n}",
         pages: "pages {first} to {last}",
         by: { rule: "proposed by the app from the text", model: "proposed by the model looking at the pages", person: "decided by a person" },
-        states: { proposed: "Not confirmed", confirmed: "Confirmed" },
+        states: { proposed: "Backed", confirmed: "Confirmed", uncertain: "Uncertain" },
         doubtful: "To look at",
-        doubtfulHelp: "The app is not sure whether another document starts here.",
+        doubtfulHelp: "The app could not tell whether another document starts here: it takes it as going on and marks it uncertain.",
         split: "Another starts here",
         join: "Join with the previous one",
         confirm: "Confirm where each document starts",
@@ -347,7 +353,13 @@ export const legal: Vertical = {
         partOf: "Document {n} of {count} included in {file}, pages {first} to {last}",
         backToFile: "See the whole file",
         listIncludes: "includes {count} documents",
-        listUnconfirmed: "{count} not confirmed",
+        listUnconfirmed: "{count} uncertain",
+        listOneUncertain: "one document · uncertain",
+        wholeTitle: "Where another document might start",
+        wholeDescription:
+          "The app reads this file as one document, but could not tell whether another starts at the marked pages. It counts all the same, marked uncertain, until you look at it.",
+        uncertain: "Uncertain",
+        uncertainHelp: "It comes from a cut the app could not decide: it counts all the same, but it is worth a look.",
       },
       knowledge: {
         entities: "People and organizations",
