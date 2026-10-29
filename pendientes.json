@@ -3270,12 +3270,12 @@
       "titulo": "Un ejemplar firmado cuya constancia de firma quedó como documento aparte se propone como «versión» y no como «ejemplar firmado»",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "hecho",
       "prioridad": 2,
       "tema": "base",
-      "detalle": "Medido en el paso 3 de la corrida desatendida 13: con los cortes confirmados, el único error nuevo respecto de la corrida sin cortes (4 errados en vez de 3) es un acuerdo firmado cuyo PDF el cortador parte en el acuerdo (páginas 1-2) y la constancia de firma del servicio (página 3), como manda D-527. Sin la constancia, el acuerdo ya no se ve firmado y el motor lo propone como «versión» del original sin firmar. Regla general a evaluar: que la regla de ejemplar firmado mire también la constancia de firma relacionada del mismo archivo. Probado y descartado: que cada parte herede la firma embebida del PDF entero (no cambió la medición, y marcaría como firmada cualquier documentación adjunta a un escrito firmado). 2026-10-27: El dueño (D-607): investigarlo con las dos fuentes, las firmas visibles del propio documento (en el acuerdo revisado siguen en su segunda página) y su relación con la constancia; no suponer que toda la evidencia estaba en la página separada. Va con P-419. Dónde: una parte no recibe las firmas embebidas (similar/store.rs, pdf_paths), el sello visible del servicio exige el sello que la parte no tiene (document-types.json) y resource_page.has_signature se lee pero nada lo escribe. Propuesta: la parte recibe los sellos del servicio de su archivo solo como contexto, nunca como firma propia. Mediano, sin versión nueva de la base; se mide con la hoja de copias y versiones con los cortes confirmados (de 4 errados a 3).",
+      "detalle": "Medido en el paso 3 de la corrida desatendida 13: con los cortes confirmados, el único error nuevo respecto de la corrida sin cortes (4 errados en vez de 3) es un acuerdo firmado cuyo PDF el cortador parte en el acuerdo (páginas 1-2) y la constancia de firma del servicio (página 3), como manda D-527. Sin la constancia, el acuerdo ya no se ve firmado y el motor lo propone como «versión» del original sin firmar. Regla general a evaluar: que la regla de ejemplar firmado mire también la constancia de firma relacionada del mismo archivo. Probado y descartado: que cada parte herede la firma embebida del PDF entero (no cambió la medición, y marcaría como firmada cualquier documentación adjunta a un escrito firmado). 2026-10-27: El dueño (D-607): investigarlo con las dos fuentes, las firmas visibles del propio documento (en el acuerdo revisado siguen en su segunda página) y su relación con la constancia; no suponer que toda la evidencia estaba en la página separada. Va con P-419. Dónde: una parte no recibe las firmas embebidas (similar/store.rs, pdf_paths), el sello visible del servicio exige el sello que la parte no tiene (document-types.json) y resource_page.has_signature se lee pero nada lo escribe. Propuesta: la parte recibe los sellos del servicio de su archivo solo como contexto, nunca como firma propia. Mediano, sin versión nueva de la base; se mide con la hoja de copias y versiones con los cortes confirmados (de 4 errados a 3). 2026-10-29: Corrida desatendida 14, paso 4 (commit 6497710): resuelto. La parte toma el sello del servicio de su archivo solo como contexto y la constancia del mismo archivo le pasa sus firmas a la parte de la que da fe (D-625, D-626). El acuerdo firmado vuelve a «ejemplar firmado»: 50 bien · 3 mal · 2 faltan en los dos estados (antes 49 · 4 · 2). Queda para mirar en la app (P-442).",
       "creado": "2026-10-27",
-      "actualizado": "2026-10-27"
+      "actualizado": "2026-10-29"
     },
     {
       "id": "P-409",
@@ -3604,6 +3604,42 @@
       "prioridad": 3,
       "tema": "base",
       "detalle": "D-623 dejó la pregunta sin motivo para no invalidar las 132 respuestas de corte guardadas (el texto de la pregunta forma parte de su clave, ask.rs). Prueba acotada: una versión nueva de la pregunta con el motivo, solo sobre los pasos dudosos de la hoja de partes (unas 42 consultas con imágenes), comparada contra la hoja con la variante B actual; si mejora, volver a preguntar en los compuestos.",
+      "creado": "2026-10-29",
+      "actualizado": "2026-10-29"
+    },
+    {
+      "id": "P-442",
+      "titulo": "Ver en la app: la parte firmada recibe la firma de su constancia y queda relacionada con ella",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "base",
+      "detalle": "Con la rama sesion-23/correcciones (commit 6497710). Al abrir, la app vuelve a firmar y a comparar los documentos una vez (motor de parecidos versión 5), sin preguntarle al modelo. Qué mirar: 1) en Parecidos, AEROS BGH\\ContenidoExtra\\el acuerdo de terminación firmado del primer ejemplo de desatendido-14/paso4-informe.md (páginas 1 y 2) frente al mismo acuerdo sin firmar sale «ejemplar firmado» y ya no «versión»; 2) la página 3 de ese PDF (la constancia del servicio) aparece como «constancia de firma» de las páginas 1 y 2, propuesta para que una persona la confirme; 3) lo mismo en otro acuerdo de terminación firmado (desatendido-14/paso4-informe.md) y en el recibo de pago firmado de dos cuotas (desatendido-14/paso4-informe.md) (misma carpeta); 4) en el contrato firmado con anexo e informe de auditoría (desatendido-14/paso4-informe.md) (misma carpeta) el informe de auditoría de la página 14 da fe solo del anexo (páginas 7 a 13) y no del contrato (1 a 6): decir si el contrato también tiene que contar como firmado (D-626, alternativa). Medido en la carpeta de prueba: 50 bien · 3 mal · 2 faltan en los dos estados (antes 49 · 4 · 2); 4 partes firmadas por su constancia, 4 relaciones propuestas, ninguna firmada de más contra la hoja de partes.",
+      "creado": "2026-10-29",
+      "actualizado": "2026-10-29"
+    },
+    {
+      "id": "P-443",
+      "titulo": "Las firmas manuscritas de una página no se registran: nada escribe la firma por página",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "La base tiene dónde guardar si una página lleva firma (`resource_page.has_signature`, que se lee en page_shapes.rs) pero nada la escribe, así que una parte firmada a mano no cuenta como firmada y no se propone «ejemplar firmado». En la hoja de partes hay 4 partes con firma de sistema que la regla de la constancia no cubre (firmas digitales de un tribunal o de un registro) y muchas páginas con firma manuscrita. Lo que costaría, en relativo: con una regla local (una página con trazo de firma cerca de «firma» o «aclaración», del reconocimiento local) sin consultas pero menos segura; con el modelo de visión, una consulta por la última página de cada parte (unas 210 en la carpeta de prueba, y en proporción en la base del dueño). Esfuerzo mediano; conviene medirlo contra la columna de firma por página de partes.json.",
+      "creado": "2026-10-29",
+      "actualizado": "2026-10-29"
+    },
+    {
+      "id": "P-444",
+      "titulo": "Un anexo con firmas propias y su documento principal del mismo PDF no quedan relacionados («mismo asunto»)",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "base",
+      "detalle": "D-608 dice que un anexo con firmas propias es otro documento del mismo asunto. La regla de la constancia del paso 4 de la corrida 14 no lo cubre: no hay en el catálogo una relación entre el anexo y su principal, y saber qué parte es anexo de cuál necesita otra señal (el título «Anexo» o «Exhibit», que lo nombre el principal). Se podría agregar en between-parts.json con el mismo mecanismo (una parte que se nombra como anexo, relacionada con la anterior), más una relación nueva en el catálogo de tipos; eso último cambia su huella y vuelve a preguntar los tipos y los datos de toda la base (D-627), así que conviene juntarlo con otro cambio del catálogo. Esfuerzo chico a mediano.",
       "creado": "2026-10-29",
       "actualizado": "2026-10-29"
     }
