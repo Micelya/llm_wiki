@@ -3738,6 +3738,18 @@
       "detalle": "Lo encontró el principal al cruzar las señales del paso 7 de la corrida 14 con las etiquetas del examen nuevo (15 PDF de otro origen, 118 pasos, 20 cortes reales). La regla «archivo parejo» (paso 1, D-615 a D-617) dio «sigue» con respaldo en 65 pasos del examen, y 16 de ellos eran cortes reales: 10 en un legajo escaneado de 34 páginas que ninguna regla corta, 2 en un contrato escaneado con dos anexos firmados y 2 y 2 en dos PDF digitales de 3 páginas con el mismo comprobante en varios ejemplares. En la carpeta de prueba tapaba solo 2 de 77, y en la hoja de partes ninguno, por eso no se vio antes. Juntos con el respaldo (paso 2, D-618 a D-621) y la consulta selectiva (paso 3, D-622 a D-624), esos PDF quedan como un solo documento respaldado: sin marca de incierto, sin la tira «Para mirar», sin el botón de preguntar y sin consulta al modelo. Es lo contrario de «no supimos decidir nunca equivale a confirmamos» (D-603). Antes de esta corrida, esos pasos eran dudosos y se le preguntaban al modelo, que en el legajo acertó 5 de 6 de los cortes que la regla tapa. Opciones para el dueño, sin medir todavía: (1) que «archivo parejo» no respalde: el paso queda incierto, y solo baja su prioridad en la cola; (2) que no valga en escaneos ni entre páginas casi idénticas (un ejemplar repetido), medido en la carpeta de prueba y en un examen nuevo, porque este ya se miró; (3) dejarlo como está. El examen ya no sirve para ajustar la regla: un arreglo necesita un segundo examen. Los números por archivo están en el informe de la mañana de la corrida 14 (fuera del repositorio).",
       "creado": "2026-10-29",
       "actualizado": "2026-10-29"
+    },
+    {
+      "id": "P-457",
+      "titulo": "Las «cosas» como entidades: inmuebles, vehículos, cuentas y participaciones, después de la prueba de estructura",
+      "tipo": "codigo",
+      "responsable": "ambos",
+      "estado": "en-espera",
+      "prioridad": 2,
+      "tema": "identidad y fichas",
+      "detalle": "Pedido del dueño el 29 oct, para después de la prueba de la estructura de la página. Hoy la capa de conocimiento reconoce tres clases: personas, organizaciones y asuntos, con sus identificadores (DNI, CUIT, CUIL, matrícula, expediente). Un inmueble, un vehículo, una cuenta bancaria o una participación en una sociedad queda solo como texto del documento, aunque en una sucesión los bienes son el centro del caso: el compuesto de 93 páginas de la hoja de partes tiene 6 pedidos a registros con sus 6 respuestas, un título de automotor y una escritura. No entra en la prueba de estructura porque no hay hoja de respuestas de cosas y porque mezclar dos cambios no deja saber qué mejoró qué. Pasos propuestos: (1) definir qué es una cosa y qué datos lleva (inmueble: matrícula, partida, nomenclatura catastral, dirección; vehículo: dominio; cuenta: banco y número; participación: sociedad y porcentaje), con la palabra canónica adentro y la de la vertical en la pantalla (D-512); (2) armar una hoja de cosas del caso de la sucesión de la carpeta de prueba, que etiqueta Claude y revisa el dueño, del tamaño de la hoja de entidades de la sucesión; (3) extraerlas y medir. La lectura por zonas de la prueba de estructura ayuda: los formularios de registro salen como pares rótulo y valor, que es donde están esos datos.",
+      "creado": "2026-10-29",
+      "actualizado": "2026-10-29"
     }
   ]
 }
