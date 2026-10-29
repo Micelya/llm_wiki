@@ -58,7 +58,7 @@ pub(crate) fn seed_answers(base: &DocBase, files: &str) -> usize {
     put
 }
 
-fn written_answers(base: &DocBase) -> Value {
+pub(super) fn written_answers(base: &DocBase) -> Value {
     let conn = base.conn();
     let mut statement = conn
         .prepare("SELECT question, task, prompt_version, engine, prompt, answer, asked_at FROM model_answer WHERE task = ?1 ORDER BY question, engine")

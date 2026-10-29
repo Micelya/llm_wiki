@@ -28,6 +28,8 @@ mod signals;
 #[cfg(test)]
 pub(crate) mod check;
 #[cfg(test)]
+mod export;
+#[cfg(test)]
 mod tests;
 
 use std::collections::{BTreeMap, BTreeSet};
