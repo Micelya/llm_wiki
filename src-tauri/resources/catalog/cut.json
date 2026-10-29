@@ -17,9 +17,11 @@
     "headLines": 4
   },
   "uniform": {
-    "about": "Archivo parejo (D-603, P-420): se decide después de todos los pasos, porque mira el archivo entero. Vale en un PDF en el que ningún paso empieza otro documento por una regla y cuyas páginas no blancas son todas digitales o todas escaneadas, de la misma orientación y del mismo tamaño (dentro de sizeShare de ancho y de alto, como paperShare). Ahí, un paso sin ninguna señal y sin respuesta del modelo sigue el mismo documento (regla uniform) y no se le pregunta al modelo. Una respuesta del modelo pesa más (D-615): es evidencia del contenido y esta regla es un valor por defecto. on: si la regla está activa.",
+    "about": "Archivo parejo (D-603, P-420): se decide después de todos los pasos, porque mira el archivo entero. Vale en un PDF en el que ningún paso empieza otro documento por una regla y cuyas páginas no blancas son todas digitales o todas escaneadas, de la misma orientación y del mismo tamaño (dentro de sizeShare de ancho y de alto, como paperShare). Ahí, un paso sin ninguna señal y sin respuesta del modelo sigue el mismo documento (regla uniform) y no se le pregunta al modelo. Una respuesta del modelo pesa más (D-615): es evidencia del contenido y esta regla es un valor por defecto. No vale en el paso cuya página anterior termina con una firma (D-616): una de las expresiones de signatures en sus últimos signatureLines renglones propios; ese paso queda dudoso. on: si la regla está activa.",
     "on": true,
-    "sizeShare": 0.04
+    "sizeShare": 0.04,
+    "signatureLines": 6,
+    "signatures": ["_____", "Aclaración", "Firma y sello", "Firmado digitalmente", "Firma digital"]
   },
   "openers": {
     "about": "Expresiones con que empieza un documento: si aparecen en los primeros renglones propios de una página, ahí empieza otro.",

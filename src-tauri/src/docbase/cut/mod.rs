@@ -277,14 +277,16 @@ impl DocBase {
                 steps.push(s);
             }
             // The even file sees the whole file: a step no rule decided and
-            // the model did not answer goes on (D-603). It keeps its
-            // question, for an answer that comes later. A person's word is
-            // not looked at here: it wins over any step when the parts are
-            // made (`parts.rs`).
+            // the model did not answer goes on (D-603), unless the page
+            // before ends with a signature (D-616). It keeps its question,
+            // for an answer that comes later. A person's word is not looked
+            // at here: it wins over any step when the parts are made
+            // (`parts.rs`).
             let verdicts: Vec<Verdict> = steps.iter().skip(1).map(|s| s.verdict).collect();
             if rules::uniform(&pages, &verdicts) {
                 for s in steps.iter_mut().skip(1) {
-                    if s.verdict == Verdict::Doubtful && s.rule == rules::NONE && s.model_says.is_none() {
+                    let signed = pages.iter().find(|p| p.page == s.after).is_some_and(rules::signed_at_the_end);
+                    if s.verdict == Verdict::Doubtful && s.rule == rules::NONE && s.model_says.is_none() && !signed {
                         s.verdict = Verdict::Continue;
                         s.rule = rules::UNIFORM.into();
                     }

@@ -24,13 +24,17 @@ struct Raw {
     ask: AskCatalog,
 }
 
-/// The rule of the even file: whether it is on, and the share of width
-/// or height two pages may differ by and still be the same paper.
+/// The rule of the even file: whether it is on, the share of width or
+/// height two pages may differ by and still be the same paper, and the
+/// signatures that, in the last lines of a page, keep the step after it
+/// doubtful (folded, as the text is compared).
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Uniform {
     pub on: bool,
     pub size_share: f64,
+    pub signature_lines: usize,
+    pub signatures: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -108,7 +112,7 @@ pub fn catalog() -> &'static CutCatalog {
                 machine_zone: regex(&raw.patterns.machine_zone),
             },
             thresholds: raw.thresholds,
-            uniform: raw.uniform,
+            uniform: Uniform { signatures: folded(raw.uniform.signatures.clone()), ..raw.uniform },
             openers: folded(raw.openers.phrases),
             closers: folded(raw.closers.phrases),
             machine_zone_type: raw.types.machine_zone,

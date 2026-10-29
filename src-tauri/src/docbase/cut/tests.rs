@@ -136,6 +136,28 @@ fn a_file_with_pages_of_two_sizes_keeps_its_doubtful_steps() {
 }
 
 #[test]
+fn in_an_even_file_the_step_after_a_signed_page_stays_doubtful() {
+    let signed = page(
+        &[
+            "Texto inventado de la prueba del cortador, un recibo, con bastantes letras",
+            "para que la extraccion lo lea como una pagina digital y no como un escaneo,",
+            "y al final un renglon para firmar:",
+            "______________________________",
+            "Firma",
+        ],
+        0.0,
+    );
+    let dir = TempDir::new();
+    dir.write("o/tres.pdf", &build(&[prose("una"), signed, prose("otra")]));
+    let base = DocBase::in_memory().unwrap();
+    let origin = base.add_origin("O", &dir.path().join("o"), &[]).unwrap();
+    settle(&base, &origin.id);
+    let steps = base.cut_steps(&hash_of(&base, "tres.pdf")).unwrap();
+    let said: Vec<_> = steps.iter().skip(1).map(|s| (s.verdict, s.rule.as_str())).collect();
+    assert_eq!(said, vec![(Verdict::Continue, "uniform"), (Verdict::Doubtful, "none")]);
+}
+
+#[test]
 fn a_file_is_cut_again_when_the_rules_change_and_one_page_is_not_cut() {
     let dir = TempDir::new();
     dir.write("o/dos.pdf", &build(&[prose("una"), prose("otra")]));

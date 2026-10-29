@@ -25,7 +25,8 @@
 //! catalog): when no step starts another document by a rule and every
 //! page that is not blank is made the same way, on paper of the same
 //! orientation and size, a step `none` the model did not answer goes on
-//! (D-603). An answer of the model weighs more (D-615).
+//! (D-603). An answer of the model weighs more (D-615), and a step after
+//! a page that ends with a signature stays doubtful (D-616).
 
 use super::catalog::catalog;
 use super::signals::{Making, PageSignals};
@@ -152,6 +153,15 @@ pub fn uniform(pages: &[PageSignals], verdicts: &[Verdict]) -> bool {
     kept.all(|p| p.making == first.making && same_paper(first.size, p.size, u.size_share))
 }
 
+/// Whether a page ends with a signature (`signatures` of the even file,
+/// in its last `signatureLines` own lines): the step after it is not let
+/// go on by the even file, as a signed page often closes a document.
+pub fn signed_at_the_end(page: &PageSignals) -> bool {
+    let u = &catalog().uniform;
+    let tail = page.lines[page.lines.len().saturating_sub(u.signature_lines)..].join(" ");
+    has_any(&tail, &u.signatures).is_some()
+}
+
 /// The type the vocabulary finds in the first page of a document.
 pub fn type_of(page: &PageSignals) -> Option<String> {
     let c = catalog();
@@ -259,6 +269,17 @@ mod tests {
         assert!(!uniform(&[sized(1, a4), blank, paper.clone()], &[Continue, Doubtful]));
         // Scans alike are even too.
         assert!(uniform(&[scan(1, 200, (1654, 2339), "Gray", a4), paper], &[Doubtful]));
+    }
+
+    #[test]
+    fn a_page_that_ends_with_a_signature_is_signed_at_the_end() {
+        let sign = catalog().uniform.signatures[1].clone();
+        assert!(signed_at_the_end(&digital(1, &[PLAIN[0], &sign, "nombre inventado", PLAIN[1]])));
+        assert!(!signed_at_the_end(&digital(1, &PLAIN)));
+        // Far from the end it is not the page's signature.
+        let mut lines = vec![sign.as_str()];
+        lines.extend([PLAIN[0]; 8]);
+        assert!(!signed_at_the_end(&digital(1, &lines)));
     }
 
     #[test]
