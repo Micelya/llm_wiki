@@ -1,6 +1,6 @@
 //! The cutter over invented PDFs (R-24): the rules always run, a doubtful
-//! step is asked only with the automatic reading on, and the same two
-//! pages are never asked twice.
+//! step is asked only with the automatic reading on, the same two pages
+//! are never asked twice, and an even file goes on without asking.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -72,21 +72,27 @@ fn a_doubtful_step_is_asked_only_with_the_reading_on_and_the_same_pages_never_tw
     settle(&base, &origin.id);
 
     let (uno, dos) = (hash_of(&base, "uno.pdf"), hash_of(&base, "dos.pdf"));
+    // An even file without a cut: its step goes on, and is not asked.
     let steps = base.cut_steps(&uno).unwrap();
-    assert_eq!(steps.iter().map(|s| (s.after, s.verdict)).collect::<Vec<_>>(), vec![(0, Verdict::New), (1, Verdict::Doubtful)]);
+    assert_eq!(steps.iter().map(|s| (s.after, s.verdict)).collect::<Vec<_>>(), vec![(0, Verdict::New), (1, Verdict::Continue)]);
+    assert_eq!(steps[1].rule, "uniform");
     assert!(steps[1].question.is_some());
-    assert!(!steps[1].starts(), "doubtful counts as continue");
+    assert!(!steps[1].starts());
+    // An even file with a cut of a rule keeps its doubtful steps.
     let steps = base.cut_steps(&dos).unwrap();
     assert_eq!((steps[2].verdict, steps[2].rule.as_str()), (Verdict::New, "opener"));
+    assert_eq!((steps[1].verdict, steps[1].rule.as_str()), (Verdict::Doubtful, "none"));
+    assert!(!steps[1].starts(), "doubtful counts as continue");
     assert_eq!(steps[1].question, base.cut_steps(&uno).unwrap()[1].question, "the same pages, the same question");
 
     // With the automatic reading off, nothing is asked.
     let eyes = FakeEyes { calls: AtomicUsize::new(0) };
     let report = base.cut_background(&eyes, 5).unwrap();
-    assert_eq!((eyes.calls.load(Ordering::SeqCst), report.asked, report.left), (0, 0, 2));
+    assert_eq!((eyes.calls.load(Ordering::SeqCst), report.asked, report.left), (0, 0, 1));
     assert!(base.cut_steps(&uno).unwrap()[1].model_says.is_none());
 
-    // With it on, once for both files.
+    // With it on, once: the doubtful step. The answer about the same
+    // pages decides the even file too: it weighs more than the rule.
     base.set_background_reading(true).unwrap();
     let report = base.cut_background(&eyes, 5).unwrap();
     assert_eq!((eyes.calls.load(Ordering::SeqCst), report.asked, report.left), (1, 1, 0));
@@ -97,14 +103,36 @@ fn a_doubtful_step_is_asked_only_with_the_reading_on_and_the_same_pages_never_tw
     }
 
     // Another file with the same two pages takes the answer kept, while
-    // its rules run, without asking.
+    // its rules run, without asking; the step with the answer keeps it,
+    // and in this even file its other step goes on.
     dir.write("o/tres.pdf", &build(&[opener, x, y]));
     settle(&base, &origin.id);
     let steps = base.cut_steps(&hash_of(&base, "tres.pdf")).unwrap();
-    assert_eq!(steps[2].model_says, Some(true));
-    // Only its other doubtful step (from its first page) is asked.
+    assert_eq!((steps[2].verdict, steps[2].model_says), (Verdict::Doubtful, Some(true)));
+    assert!(steps[2].starts());
+    assert_eq!((steps[1].verdict, steps[1].rule.as_str()), (Verdict::Continue, "uniform"));
     let report = base.cut_background(&eyes, 5).unwrap();
-    assert_eq!((eyes.calls.load(Ordering::SeqCst), report.asked, report.left), (2, 1, 0));
+    assert_eq!((eyes.calls.load(Ordering::SeqCst), report.asked, report.left), (1, 0, 0));
+}
+
+/// A PDF whose last page is of another paper: same length, so the
+/// cross-reference table stays right.
+fn with_last_page_taller(mut pdf: Vec<u8>) -> Vec<u8> {
+    let (from, to) = (b"/MediaBox [0 0 612 792]", b"/MediaBox [0 0 612 999]");
+    let at = pdf.windows(from.len()).rposition(|w| w == from).unwrap();
+    pdf[at..at + to.len()].copy_from_slice(to);
+    pdf
+}
+
+#[test]
+fn a_file_with_pages_of_two_sizes_keeps_its_doubtful_steps() {
+    let dir = TempDir::new();
+    dir.write("o/dos.pdf", &with_last_page_taller(build(&[prose("una"), prose("otra")])));
+    let base = DocBase::in_memory().unwrap();
+    let origin = base.add_origin("O", &dir.path().join("o"), &[]).unwrap();
+    settle(&base, &origin.id);
+    let steps = base.cut_steps(&hash_of(&base, "dos.pdf")).unwrap();
+    assert_eq!((steps[1].verdict, steps[1].rule.as_str()), (Verdict::Doubtful, "none"));
 }
 
 #[test]

@@ -7,8 +7,9 @@
 //! (`continue`, `new` or `doubtful`), the rule that gave it and the type
 //! the next page suggests. The rules ask nothing, so they always run; a
 //! file is cut again when the rules, the catalog (`cut.json`) or the text
-//! of its pages change. A doubtful step counts as `continue` until the
-//! model answers; it is asked only by the thread that asks the model,
+//! of its pages change. In an even file (`rules::uniform`) a step no rule
+//! decided goes on and is not asked. A doubtful step counts as `continue`
+//! until the model answers; it is asked only by the thread that asks the model,
 //! while the automatic reading is on, with the two pages as images. The
 //! answer is kept in `model_answer` (task `cut`) by the version of the
 //! instruction and the exact prints of the two pages: the same pages in
@@ -48,7 +49,7 @@ pub use rules::Verdict;
 
 /// The version of the rules. With the catalog's, what the kept steps were
 /// decided with: another one decides them again.
-pub const RULES_VERSION: &str = "cut-rules/1";
+pub const RULES_VERSION: &str = "cut-rules/2";
 
 pub fn rules_version() -> String {
     format!("{RULES_VERSION}+cut.json/{}", catalog::catalog().version)
@@ -73,15 +74,21 @@ pub struct CutStep {
 }
 
 impl CutStep {
-    /// Whether a document starts at the next page: as the rules say, or as
-    /// the model says in a doubtful step; doubtful without an answer
-    /// counts as continue.
+    /// Whether the model's answer decides the step: in a doubtful step, and
+    /// in one the even file let go on when an answer about its two pages
+    /// comes later (an answer weighs more than that rule, D-615).
+    pub fn by_model(&self) -> bool {
+        self.model_says.is_some() && (self.verdict == Verdict::Doubtful || self.rule == rules::UNIFORM)
+    }
+
+    /// Whether a document starts at the next page: as the model says when
+    /// its answer decides, as the rules say otherwise; doubtful without an
+    /// answer counts as continue.
     pub fn starts(&self) -> bool {
-        match self.verdict {
-            Verdict::New => true,
-            Verdict::Continue => false,
-            Verdict::Doubtful => self.model_says == Some(true),
+        if self.by_model() {
+            return self.model_says == Some(true);
         }
+        self.verdict == Verdict::New
     }
 
     pub fn suggested_type(&self) -> Option<&str> {
@@ -268,6 +275,20 @@ impl DocBase {
                     }
                 }
                 steps.push(s);
+            }
+            // The even file sees the whole file: a step no rule decided and
+            // the model did not answer goes on (D-603). It keeps its
+            // question, for an answer that comes later. A person's word is
+            // not looked at here: it wins over any step when the parts are
+            // made (`parts.rs`).
+            let verdicts: Vec<Verdict> = steps.iter().skip(1).map(|s| s.verdict).collect();
+            if rules::uniform(&pages, &verdicts) {
+                for s in steps.iter_mut().skip(1) {
+                    if s.verdict == Verdict::Doubtful && s.rule == rules::NONE && s.model_says.is_none() {
+                        s.verdict = Verdict::Continue;
+                        s.rule = rules::UNIFORM.into();
+                    }
+                }
             }
             for (after, answer) in answers {
                 if let Some(before) = steps.iter_mut().find(|s| s.after + 1 == after) {

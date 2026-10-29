@@ -68,7 +68,7 @@ fn said(steps: &BTreeMap<u32, &CutStep>, decisions: &BTreeMap<u32, bool>, page: 
         return (starts, "person");
     }
     match steps.get(&(page - 1)) {
-        Some(s) if s.verdict == Verdict::Doubtful && s.model_says.is_some() => (s.starts(), "model"),
+        Some(s) if s.by_model() => (s.starts(), "model"),
         Some(s) => (s.starts(), "rule"),
         None => (false, "rule"),
     }
@@ -150,7 +150,7 @@ pub(crate) fn only_proposed_sql(column: &str) -> String {
 const BASIS_SQL: &str = "c.id || ':' || d.created_at
     || ':' || (SELECT max(s.created_at) FROM cut_step s WHERE s.resource_hash = f.hash)
     || ':' || coalesce((SELECT group_concat(s.after_page || '=' || coalesce(s.model_says, ''), ',') FROM cut_step s
-                        WHERE s.resource_hash = f.hash AND s.verdict = 'doubtful'), '')
+                        WHERE s.resource_hash = f.hash AND (s.verdict = 'doubtful' OR s.rule = 'uniform')), '')
     || ':' || coalesce((SELECT group_concat(k.page || k.decision, ',') FROM cut_decision k WHERE k.resource_hash = f.hash), '')";
 
 fn decisions(conn: &Connection, hash: &str) -> Result<BTreeMap<u32, bool>, String> {

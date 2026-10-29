@@ -27,6 +27,7 @@
 //!   `MICELYA_ASK_REASONING`), one at a time.
 //! - `MICELYA_ANSWER_SEED_WRITE`: where the answers about cuts the base
 //!   keeps at the end are written, as `model_answer` rows.
+//! - `MICELYA_KNOWLEDGE_SAVE`: where a copy of the base is kept at the end.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -81,7 +82,7 @@ fn decisions(base: &DocBase, hash: &str, name: &str, pages: u64, with_model: boo
     let mut out = Vec::new();
     let mut types = BTreeMap::new();
     for s in &steps {
-        let answered = with_model && s.verdict == Verdict::Doubtful && s.model_says.is_some();
+        let answered = with_model && s.by_model();
         let (decision, rule) = if answered {
             (if s.starts() { "new" } else { "continue" }, "codex")
         } else {
@@ -166,7 +167,7 @@ fn the_cutter_over_the_parts_sheet() {
     }
     let answered: usize = sheet_files
         .iter()
-        .map(|(h, _, _)| base.cut_steps(h).unwrap().iter().filter(|s| s.verdict == Verdict::Doubtful && s.model_says.is_some()).count())
+        .map(|(h, _, _)| base.cut_steps(h).unwrap().iter().filter(|s| s.by_model()).count())
         .sum();
     let b: Vec<Value> = sheet_files.iter().map(|(h, n, p)| decisions(&base, h, n, *p, true)).collect();
     let meta = json!({"codex_calls": answered + report.failed, "codex_seconds": report.seconds, "codex_failed": report.failed,
@@ -180,7 +181,7 @@ fn the_cutter_over_the_parts_sheet() {
         let rows = statement.query_map([], |row| row.get(0)).unwrap();
         rows.map(|r| r.unwrap()).filter(|h: &String| !only.contains(h)).collect()
     };
-    let (mut with_cut, mut cuts, mut doubtful, mut steps) = (0, 0, 0, 0);
+    let (mut with_cut, mut cuts, mut doubtful, mut even, mut steps) = (0, 0, 0, 0, 0);
     let mut by_rule: BTreeMap<String, usize> = BTreeMap::new();
     for h in &others {
         let s = base.cut_steps(h).unwrap();
@@ -191,10 +192,11 @@ fn the_cutter_over_the_parts_sheet() {
         with_cut += usize::from(!new.is_empty());
         cuts += new.len();
         doubtful += s.iter().filter(|s| s.verdict == Verdict::Doubtful).count();
+        even += s.iter().filter(|s| s.rule == super::rules::UNIFORM).count();
         steps += s.iter().filter(|s| s.after > 0).count();
     }
     println!(
-        "other PDFs of two pages or more: {}; with some cut: {with_cut}; cuts: {cuts} {by_rule:?}; steps: {steps}; doubtful: {doubtful}",
+        "other PDFs of two pages or more: {}; with some cut: {with_cut}; cuts: {cuts} {by_rule:?}; steps: {steps}; doubtful: {doubtful}; going on as an even file: {even}",
         others.len()
     );
     if let Ok(path) = std::env::var("MICELYA_ANSWER_SEED_WRITE") {
@@ -202,6 +204,7 @@ fn the_cutter_over_the_parts_sheet() {
         println!("answers about cuts written: {}", answers.as_array().unwrap().len());
         std::fs::write(path, serde_json::to_string_pretty(&answers).unwrap()).unwrap();
     }
+    crate::docbase::knowledge::check::save_copy(&base);
 }
 
 /// Makes an empty base of this version at `MICELYA_EMPTY_BASE`, for
