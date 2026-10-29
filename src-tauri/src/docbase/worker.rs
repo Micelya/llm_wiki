@@ -178,10 +178,12 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
         ASK_BACKOFF
     };
     // The doubtful steps of the cutter, with the two pages as images
-    // (D-556), before what each document is.
+    // (D-556), before what each document is: only in the files a rule
+    // already cut (D-622), and in the round with a cap (D-606). While they
+    // wait for a person, the rest goes on.
     state.at_stage(Some("types"));
-    match base.cut_background(asker.as_ref(), 1) {
-        Ok(report) => {
+    match base.cut_round_turn(asker.as_ref(), 1) {
+        Ok(Some(report)) => {
             if report.asked + report.kept > 0 {
                 on_change();
             }
@@ -193,6 +195,7 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
                 return Duration::ZERO;
             }
         }
+        Ok(None) => {}
         Err(error) => eprintln!("[docbase] {error}"),
     }
     match base.types_run(asker.as_ref(), 1) {
@@ -343,10 +346,13 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
                 Duration::ZERO
             } else {
                 // Nothing left to ask anywhere: the round of automatic
-                // questions is over (D-484).
+                // questions is over (D-484); not while questions about the
+                // cuts wait for a person.
                 state.at_stage(None);
-                if let Err(error) = base.auto_questions_round_over() {
-                    eprintln!("[docbase] {error}");
+                if super::auto_questions::pending(&state.snapshot()) == 0 {
+                    if let Err(error) = base.auto_questions_round_over() {
+                        eprintln!("[docbase] {error}");
+                    }
                 }
                 ASK_IDLE
             }

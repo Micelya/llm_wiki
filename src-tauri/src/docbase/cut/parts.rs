@@ -462,7 +462,7 @@ impl DocBase {
     }
 
     /// Makes the parts of one file again now, if anything changed.
-    fn cut_parts_of(&self, hash: &str) -> Result<(), String> {
+    pub(crate) fn cut_parts_of(&self, hash: &str) -> Result<(), String> {
         let basis: Option<String> = self
             .conn()
             .query_row(

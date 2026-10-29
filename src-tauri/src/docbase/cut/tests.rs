@@ -4,6 +4,7 @@
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use crate::docbase::progress::Scope;
 use crate::docbase::testing::TempDir;
 use crate::docbase::DocBase;
 use crate::source_volume::asking::DocumentAsker;
@@ -174,4 +175,85 @@ fn a_file_is_cut_again_when_the_rules_change_and_one_page_is_not_cut() {
     let version: String =
         base.conn().query_row("SELECT DISTINCT rules_version FROM cut_step WHERE resource_hash = ?1", [&hash], |row| row.get(0)).unwrap();
     assert_eq!(version, rules_version());
+}
+
+/// A compound file (a rule cuts it) with a doubtful step, and a PDF of one
+/// document with another.
+fn compound_and_single(dir: &TempDir) -> (DocBase, String, String, String) {
+    let opener = page(&["Senor Juez:", "Texto inventado de otro escrito que empieza en esta pagina de la prueba."], 0.0);
+    dir.write("o/dos.pdf", &build(&[prose("primera hoja"), prose("segunda hoja"), opener.clone()]));
+    dir.write("o/cuatro.pdf", &build(&[prose("tercera hoja"), prose("cuarta hoja"), opener]));
+    dir.write("o/uno.pdf", &with_last_page_taller(build(&[prose("una"), prose("otra")])));
+    let base = DocBase::in_memory().unwrap();
+    let origin = base.add_origin("O", &dir.path().join("o"), &[]).unwrap();
+    settle(&base, &origin.id);
+    let (dos, cuatro, uno) = (hash_of(&base, "dos.pdf"), hash_of(&base, "cuatro.pdf"), hash_of(&base, "uno.pdf"));
+    (base, dos, cuatro, uno)
+}
+
+#[test]
+fn by_itself_the_model_is_asked_only_in_the_files_a_rule_cut_and_in_the_round_with_its_cap() {
+    let dir = TempDir::new();
+    let (base, _dos, _cuatro, uno) = compound_and_single(&dir);
+    assert_eq!(base.cut_questions().unwrap(), super::CutQuestions { by_itself: 2, on_request: 1 });
+    base.set_background_reading(true).unwrap();
+    let eyes = FakeEyes { calls: AtomicUsize::new(0) };
+
+    // The round already asked 50: two more pass its cap, so they wait for
+    // a person, and «En curso» says so.
+    let state = base.engine_state();
+    state.auto_asked(50);
+    assert!(base.cut_round_turn(&eyes, 1).unwrap().is_none());
+    assert_eq!(eyes.calls.load(Ordering::SeqCst), 0);
+    let shown = base.progress(&Scope::default()).unwrap().auto_questions;
+    assert_eq!((shown.pending, shown.cut_pending, shown.held), (2, 2, Some("cut")));
+    // A stage with nothing to ask leaves that wait as it is.
+    state.ran("resolve", 0);
+    assert!(base.auto_questions_judge("resolve").unwrap());
+    assert_eq!(state.snapshot().auto_held, Some("cut"));
+
+    // A person lets them go: one at a time, counted in the round.
+    base.auto_questions_decide(true).unwrap();
+    let report = base.cut_round_turn(&eyes, 1).unwrap().unwrap();
+    assert_eq!((eyes.calls.load(Ordering::SeqCst), report.asked, report.left), (1, 1, 1));
+    let report = base.cut_round_turn(&eyes, 1).unwrap().unwrap();
+    assert_eq!((report.asked, report.left), (1, 0));
+    assert_eq!(state.snapshot().auto_asked, 52);
+    // The PDF of one document is not asked by itself: it goes on uncertain.
+    assert!(base.cut_steps(&uno).unwrap()[1].uncertain());
+    assert_eq!(base.cut_questions().unwrap(), super::CutQuestions { by_itself: 0, on_request: 1 });
+    let report = base.cut_round_turn(&eyes, 5).unwrap().unwrap();
+    assert_eq!((eyes.calls.load(Ordering::SeqCst), report.asked), (2, 0));
+}
+
+#[test]
+fn a_person_asks_about_one_pdf_with_the_reading_off_and_it_is_counted() {
+    let dir = TempDir::new();
+    let (base, _dos, _cuatro, uno) = compound_and_single(&dir);
+    let eyes = FakeEyes { calls: AtomicUsize::new(0) };
+    assert!(!base.background_reading().unwrap());
+    let parts = base.cut_ask_file(&eyes, &uno).unwrap();
+    // Only that file; the answer says another document starts: two parts.
+    assert_eq!(eyes.calls.load(Ordering::SeqCst), 1);
+    assert_eq!(parts.iter().map(|p| (p.first_page, p.last_page)).collect::<Vec<_>>(), vec![(1, 1), (2, 2)]);
+    assert!(!base.cut_steps(&uno).unwrap()[1].uncertain());
+    assert_eq!(base.cut_questions().unwrap(), super::CutQuestions { by_itself: 2, on_request: 0 });
+    // «En curso» says what it was for and what it did.
+    let shown = base.progress(&Scope::default()).unwrap().auto_questions;
+    assert!(shown.asked_for.iter().any(|a| a.task == super::CUT_TASK && a.asked == 1));
+    assert_eq!(shown.cut_effect, crate::docbase::auto_questions::CutEffect { starts: 1, backed: 0, uncertain: 0 });
+    // Asked again, the answer is kept: nothing more is sent.
+    base.cut_ask_file(&eyes, &uno).unwrap();
+    assert_eq!(eyes.calls.load(Ordering::SeqCst), 1);
+    // An engine that does not look at images says so.
+    struct Blind;
+    impl DocumentAsker for Blind {
+        fn engine_id(&self) -> String {
+            "falso:ciego".into()
+        }
+        fn ask(&self, _prompt: &str, _schema: &serde_json::Value) -> Result<String, String> {
+            Err("blind".into())
+        }
+    }
+    assert!(base.cut_ask_file(&Blind, &uno).is_err());
 }

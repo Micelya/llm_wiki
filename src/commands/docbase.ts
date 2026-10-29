@@ -2031,10 +2031,16 @@ export interface AutoQuestions {
   /** Asked since the round began. */
   asked: number
   cap: number
+  /** Of the questions left, those about the doubtful steps of the cutter (D-606). */
+  cutPending?: number
   /** The stage whose questions wait for a person, when one does. */
-  held: "resolve" | "pages" | null
+  held: "cut" | "resolve" | "pages" | null
   /** What a person said of the round. */
   decision: "allowed" | "later" | null
+  /** Every question to the model since the round began, by task (`cut`, `type`, `identity`…), the most first. */
+  askedFor?: { task: string; asked: number }[]
+  /** What the answers about cuts of the round did: new cuts, steps now backed, steps still uncertain. */
+  cutEffect?: { starts: number; backed: number; uncertain: number }
 }
 
 /** `go`: the questions of the round are asked now; otherwise they are left for later (D-484). */
