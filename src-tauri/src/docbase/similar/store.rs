@@ -155,6 +155,9 @@ pub struct SimilarDocument {
     /// with the template they would wait for no one, but they may be one
     /// same document, so they wait for a person (D-497).
     pub possibly_same: bool,
+    /// Still undecided, and one of the two appears only in uncertain cuts
+    /// (D-603): it is proposed all the same, marked.
+    pub uncertain: bool,
 }
 
 /// What waits for a person, for Inicio.
@@ -183,6 +186,8 @@ pub struct GroupMember {
     pub relation: Option<String>,
     pub cover: Option<f64>,
     pub state: Option<String>,
+    /// It appears only in uncertain cuts (D-603).
+    pub uncertain: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -203,6 +208,9 @@ pub struct SimilarGroup {
     /// Pairs of its template's documents where nothing changes but a few
     /// words, still undecided: possibly the same document (P-218).
     pub possibly_same: i64,
+    /// Members, the principal too, that appear only in uncertain cuts
+    /// (D-603): the family is made all the same, marked.
+    pub uncertain: i64,
 }
 
 /// One decision of `decide_similar_many`.
@@ -226,7 +234,8 @@ pub struct OpenPair {
     pub similar: SimilarDocument,
 }
 
-/// The columns `pair_from_row` reads, in its order.
+/// The columns `pair_from_row` reads, in its order; after them, whether
+/// the pair is uncertain (`uncertain_pair_sql`).
 const PAIR_COLUMNS: &str = "a, b, relation, subject, certainty, description, jaccard, containment, cover, similarity, \
      suggested_source, evidence, evidence_hash, computed_at, state, chosen_relation, wiki_source, decided_at";
 
@@ -259,6 +268,7 @@ fn pair_from_row(row: &rusqlite::Row<'_>, seen_from: i64) -> rusqlite::Result<(i
             wiki_source: row.get(16)?,
             decided_at: row.get(17)?,
             possibly_same: false,
+            uncertain: row.get(18)?,
         },
     ))
 }
@@ -672,9 +682,9 @@ impl DocBase {
         };
         let mut statement = conn
             .prepare(&format!(
-                "SELECT {PAIR_COLUMNS} FROM similar_pair WHERE (a = ?1 OR b = ?1) AND NOT {}
+                "SELECT {PAIR_COLUMNS}, {} FROM similar_pair WHERE (a = ?1 OR b = ?1)
                  ORDER BY (state = 'discarded'), (relation = 'similar'), cover DESC",
-                waiting_sql("similar_pair")
+                uncertain_pair_sql("similar_pair")
             ))
             .map_err(sql_err)?;
         let rows = statement
@@ -751,13 +761,13 @@ impl DocBase {
         let possibly_same = super::template::possibly_same_pairs(&conn)?;
         let mut statement = conn
             .prepare(&format!(
-                "SELECT {PAIR_COLUMNS} FROM similar_pair p
-                 WHERE p.state = 'proposed' AND p.relation != 'similar' AND NOT {} AND NOT EXISTS (
+                "SELECT {PAIR_COLUMNS}, {} FROM similar_pair p
+                 WHERE p.state = 'proposed' AND p.relation != 'similar' AND NOT EXISTS (
                     SELECT 1 FROM similar_group_member m
                     WHERE m.principal != m.version_id
                       AND ((m.principal = p.a AND m.version_id = p.b) OR (m.principal = p.b AND m.version_id = p.a)))
                  ORDER BY p.cover DESC, p.a, p.b",
-                waiting_sql("p")
+                uncertain_pair_sql("p")
             ))
             .map_err(sql_err)?;
         let rows = statement
@@ -855,7 +865,7 @@ impl DocBase {
     /// document (D-497).
     pub fn similar_pending(&self, visible: &Visible) -> Result<SimilarPending, String> {
         let conn = self.conn();
-        let asks = format!("{} AND NOT {}", asks_person_sql("p.relation"), waiting_sql("p"));
+        let asks = asks_person_sql("p.relation");
         let (seen_a, mut bound) = visible_content(visible, "p.a");
         let (seen_b, bound_b) = visible_content(visible, "p.b");
         bound.extend(bound_b);
@@ -882,7 +892,7 @@ impl DocBase {
                 |row| row.get(0),
             )
             .map_err(sql_err)?;
-        let one = format!("{} AND NOT {}", same_document_sql("p.relation"), waiting_sql("p"));
+        let one = same_document_sql("p.relation");
         let (seen_a, mut bound) = visible_content(visible, "p.a");
         let (seen_b, bound_b) = visible_content(visible, "p.b");
         bound.extend(bound_b);
@@ -915,16 +925,17 @@ impl DocBase {
             let Some(head) = doc_ref(&conn, visible, principal)? else {
                 continue;
             };
-            let members: Vec<(i64, Option<String>, Option<f64>, Option<String>)> = {
+            let members: Vec<(i64, Option<String>, Option<f64>, Option<String>, bool)> = {
                 let mut statement = conn
-                    .prepare(
-                        "SELECT m.version_id, m.relation, m.cover, p.state FROM similar_group_member m
+                    .prepare(&format!(
+                        "SELECT m.version_id, m.relation, m.cover, p.state, {} FROM similar_group_member m
                          LEFT JOIN similar_pair p ON p.a = min(m.principal, m.version_id) AND p.b = max(m.principal, m.version_id)
                          WHERE m.principal = ?1 ORDER BY m.version_id = m.principal DESC, m.cover DESC, m.version_id",
-                    )
+                        super::super::cut::parts::only_uncertain_sql("m.version_id")
+                    ))
                     .map_err(sql_err)?;
                 let rows = statement
-                    .query_map([principal], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)))
+                    .query_map([principal], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)))
                     .map_err(sql_err)?
                     .collect::<Result<Vec<_>, _>>()
                     .map_err(sql_err)?;
@@ -933,7 +944,8 @@ impl DocBase {
             let mut list = Vec::new();
             let mut pending = 0;
             let mut pending_same_document = 0;
-            for (content_id, relation, cover, state) in members {
+            let uncertain_members = members.iter().filter(|m| m.4).count() as i64;
+            for (content_id, relation, cover, state, uncertain) in members {
                 if state.as_deref() == Some("proposed") && relation.as_deref().is_some_and(asks_person) {
                     pending += 1;
                     if relation.as_deref().is_some_and(makes_one_document) {
@@ -941,7 +953,7 @@ impl DocBase {
                     }
                 }
                 if let Some(doc) = doc_ref(&conn, visible, content_id)? {
-                    list.push(GroupMember { doc, relation, cover, state });
+                    list.push(GroupMember { doc, relation, cover, state, uncertain });
                 }
             }
             let template = super::template::summary(&conn, principal)?;
@@ -953,6 +965,7 @@ impl DocBase {
                 pending_same_document,
                 template_fields: template.map(|(fields, _)| fields),
                 possibly_same: template.map(|(_, same)| same).unwrap_or(0),
+                uncertain: uncertain_members,
             });
         }
         Ok(out)
@@ -1009,19 +1022,19 @@ pub fn makes_one_document(relation: &str) -> bool {
     types::catalog().relation(relation).is_some_and(|r| r.same_document && !r.automatic)
 }
 
-/// SQL condition: the relation in `column` makes both one document.
-/// SQL condition: the pair in `table` is a proposal that waits because
-/// one of its documents appears only in cuts still proposed (D-556). It
-/// is seen when the cut is confirmed; a person's decision is always seen.
-pub(crate) fn waiting_sql(table: &str) -> String {
-    use super::super::cut::parts::only_proposed_sql;
+/// SQL condition: the pair in `table` is undecided and one of its
+/// documents appears only in uncertain cuts (D-603). It is proposed all
+/// the same, marked; a person's decision is not marked.
+pub(crate) fn uncertain_pair_sql(table: &str) -> String {
+    use super::super::cut::parts::only_uncertain_sql;
     format!(
         "({table}.state = 'proposed' AND ({} OR {}))",
-        only_proposed_sql(&format!("{table}.a")),
-        only_proposed_sql(&format!("{table}.b"))
+        only_uncertain_sql(&format!("{table}.a")),
+        only_uncertain_sql(&format!("{table}.b"))
     )
 }
 
+/// SQL condition: the relation in `column` makes both one document.
 fn same_document_sql(column: &str) -> String {
     relation_sql(column, |r| r.same_document && !r.automatic)
 }
@@ -1383,20 +1396,10 @@ fn save_pair(
 /// (`families`), with the links between them: the families shown
 /// (`GROUP_RELATIONS`) or the units for types and templates
 /// (`UNIT_RELATIONS`).
+/// Every pair counts, also those of a version that appears only in
+/// uncertain cuts: they go on without waiting for a person, and the
+/// families show the mark (D-603).
 pub(crate) fn grouped(conn: &Connection, relations: &[&str]) -> Result<(Vec<Family>, Links), String> {
-    grouped_with(conn, relations, &super::super::cut::parts::only_proposed(conn)?)
-}
-
-/// As `grouped`, with every pair: also those of a version that appears
-/// only in cuts still proposed (the units the types are asked by).
-pub(crate) fn grouped_all(conn: &Connection, relations: &[&str]) -> Result<(Vec<Family>, Links), String> {
-    grouped_with(conn, relations, &BTreeSet::new())
-}
-
-/// The families of the pairs, leaving out those of the versions `held`
-/// (they appear only in cuts still proposed: no proposal comes out of
-/// them, D-556).
-fn grouped_with(conn: &Connection, relations: &[&str], held: &BTreeSet<i64>) -> Result<(Vec<Family>, Links), String> {
     let generated = super::generate::generated_contents(conn)?;
     let mut adjacent: Links = BTreeMap::new();
     {
@@ -1411,9 +1414,6 @@ fn grouped_with(conn: &Connection, relations: &[&str], held: &BTreeSet<i64>) -> 
             .map_err(sql_err)?;
         for row in rows {
             let (a, b, relation, cover) = row.map_err(sql_err)?;
-            if held.contains(&a) || held.contains(&b) {
-                continue;
-            }
             if !relations.contains(&relation.as_str()) {
                 continue;
             }

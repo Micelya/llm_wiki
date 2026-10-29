@@ -55,6 +55,15 @@ pub fn rules_version() -> String {
     format!("{RULES_VERSION}+cut.json/{}", catalog::catalog().version)
 }
 
+/// The confidence of an answer that does not back a step.
+pub const LOW_CONFIDENCE: &str = "low";
+
+/// The confidence of an answer as the base keeps it: one of the three the
+/// question allows, nothing otherwise.
+fn known_confidence(confidence: &str) -> Option<String> {
+    ["high", "medium", LOW_CONFIDENCE].contains(&confidence).then(|| confidence.to_string())
+}
+
 /// What the cutter says of one step.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CutStep {
@@ -67,6 +76,8 @@ pub struct CutStep {
     pub question: Option<String>,
     /// What the model said: whether the next page starts another document.
     pub model_says: Option<bool>,
+    /// How sure the model said it was: `high`, `medium` or `low`.
+    pub model_confidence: Option<String>,
     /// The type the vocabulary finds in the next page, and the one the
     /// model gave.
     pub rule_type: Option<String>,
@@ -89,6 +100,18 @@ impl CutStep {
             return self.model_says == Some(true);
         }
         self.verdict == Verdict::New
+    }
+
+    /// Whether nothing backs what the step says (D-603): a doubtful step
+    /// the model did not answer, or answered with low confidence. A rule
+    /// other than `none` (the even file too) or an answer of high or
+    /// medium confidence backs it; a person's word backs any step, and
+    /// wins over it when the parts are made (`parts.rs`).
+    pub fn uncertain(&self) -> bool {
+        if self.by_model() {
+            return self.model_confidence.as_deref() == Some(LOW_CONFIDENCE);
+        }
+        self.verdict == Verdict::Doubtful
     }
 
     pub fn suggested_type(&self) -> Option<&str> {
@@ -172,8 +195,8 @@ fn keep_cut_answer(conn: &Connection, key: &str, engine: &str, version_id: Optio
 /// it, the type of the first page.
 fn apply_answer(conn: &Connection, key: &str, answer: &CutAnswer) -> Result<(), String> {
     conn.execute(
-        "UPDATE cut_step SET model_says = ?1, model_type = coalesce(?2, model_type) WHERE question = ?3",
-        params![answer.second_starts_new_document, CutAnswer::known(&answer.second_page_type), key],
+        "UPDATE cut_step SET model_says = ?1, model_type = coalesce(?2, model_type), model_confidence = ?4 WHERE question = ?3",
+        params![answer.second_starts_new_document, CutAnswer::known(&answer.second_page_type), key, known_confidence(&answer.confidence)],
     )
     .map_err(sql_err)?;
     if let Some(first) = CutAnswer::known(&answer.first_page_type) {
@@ -247,6 +270,7 @@ impl DocBase {
                 rule: "start".into(),
                 question: None,
                 model_says: None,
+                model_confidence: None,
                 rule_type: pages.first().and_then(rules::type_of),
                 model_type: None,
             }];
@@ -259,6 +283,7 @@ impl DocBase {
                     rule: rule.into(),
                     question: None,
                     model_says: None,
+                    model_confidence: None,
                     rule_type: rules::type_of(&pair[1]),
                     model_type: None,
                 };
@@ -268,6 +293,7 @@ impl DocBase {
                         let kept = cached_answer(&self.conn(), &key, engine.as_deref())?;
                         if let Some(answer) = kept.and_then(|a| CutAnswer::parse(&a).ok()) {
                             s.model_says = Some(answer.second_starts_new_document);
+                            s.model_confidence = known_confidence(&answer.confidence);
                             s.model_type = CutAnswer::known(&answer.second_page_type);
                             answers.push((s.after, answer));
                         }
@@ -306,9 +332,9 @@ impl DocBase {
             for s in &steps {
                 tx.execute(
                     "INSERT INTO cut_step (resource_hash, after_page, verdict, rule, question, model_says, rule_type, model_type,
-                                           rules_version, text_stamp, created_at)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
-                    params![hash, s.after, s.verdict.as_str(), s.rule, s.question, s.model_says, s.rule_type, s.model_type, version, stamp, now],
+                                           rules_version, text_stamp, created_at, model_confidence)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                    params![hash, s.after, s.verdict.as_str(), s.rule, s.question, s.model_says, s.rule_type, s.model_type, version, stamp, now, s.model_confidence],
                 )
                 .map_err(sql_err)?;
             }
@@ -324,7 +350,7 @@ impl DocBase {
         let conn = self.conn();
         let mut statement = conn
             .prepare(
-                "SELECT after_page, verdict, rule, question, model_says, rule_type, model_type FROM cut_step
+                "SELECT after_page, verdict, rule, question, model_says, rule_type, model_type, model_confidence FROM cut_step
                  WHERE resource_hash = ?1 ORDER BY after_page",
             )
             .map_err(sql_err)?;
@@ -338,6 +364,7 @@ impl DocBase {
                     model_says: row.get(4)?,
                     rule_type: row.get(5)?,
                     model_type: row.get(6)?,
+                    model_confidence: row.get(7)?,
                 })
             })
             .map_err(sql_err)?;

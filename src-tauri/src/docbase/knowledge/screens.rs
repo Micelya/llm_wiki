@@ -214,6 +214,9 @@ pub struct MatterDocument {
     pub reasons: Vec<MatterReason>,
     /// What the model said, for a proposed one.
     pub proposal_reason: Option<String>,
+    /// It appears only in uncertain cuts (D-603): it is in the matter all
+    /// the same, marked.
+    pub uncertain: bool,
 }
 
 /// A party or a person of a matter.
@@ -764,6 +767,7 @@ impl DocBase {
             rows.collect::<Result<_, _>>().map_err(sql_err)?
         };
         let visible_contents = visible_contents(&conn, visible)?;
+        let uncertain = crate::docbase::cut::parts::only_uncertain(&conn)?;
         let mut documents = Vec::new();
         for (content, document_state, reasons) in &rows {
             let parsed: Vec<Reason> = serde_json::from_str(reasons).unwrap_or_default();
@@ -787,6 +791,7 @@ impl DocBase {
                 state: document_state.clone(),
                 reasons: shown,
                 proposal_reason: None,
+                uncertain: uncertain.contains(content),
             });
         }
         for (content, list) in open_proposals(&conn)? {
@@ -800,6 +805,7 @@ impl DocBase {
                         state: "proposed".into(),
                         reasons: Vec::new(),
                         proposal_reason: reason,
+                        uncertain: uncertain.contains(&content),
                     });
                 }
             }

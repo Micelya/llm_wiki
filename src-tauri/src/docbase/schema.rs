@@ -15,7 +15,7 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6];
 
 /// The shape of the base at version 29 of the earlier numbering, in one
 /// migration, generated from that base (`schema_v1.sql`). It seeds no row:
@@ -233,6 +233,24 @@ CREATE TABLE cut_applied (
 ) WITHOUT ROWID;
 ";
 
+/// What backs a cut (D-603): an appearance is `uncertain` when one of the
+/// steps that bound its pages, or of those inside, has nothing to back
+/// it (`CutStep::uncertain`); it goes on, marked, without waiting for a
+/// person. The appearance `file` of a PDF gets it too: also for a PDF of
+/// one part, which stays `confirmed` by its constraint. A cut step keeps
+/// how sure the model said it was, taken from the answers kept; every cut
+/// file has its parts made again, to mark them.
+const V6: &str = "
+ALTER TABLE appearance ADD COLUMN uncertain INTEGER NOT NULL DEFAULT 0 CHECK (uncertain IN (0, 1));
+ALTER TABLE cut_step ADD COLUMN model_confidence TEXT CHECK (model_confidence IN ('high', 'medium', 'low'));
+UPDATE cut_step SET model_confidence = (
+    SELECT CASE WHEN json_valid(m.answer) THEN json_extract(m.answer, '$.confidence') END AS confidence
+    FROM model_answer m WHERE m.question = cut_step.question AND confidence IN ('high', 'medium', 'low')
+    ORDER BY m.asked_at DESC LIMIT 1)
+WHERE model_says IS NOT NULL AND question IS NOT NULL;
+DELETE FROM cut_applied;
+";
+
 /// The version of a base: 0 for one just created.
 pub fn version(conn: &Connection) -> Result<i64, String> {
     conn.query_row("PRAGMA user_version", [], |row| row.get(0)).map_err(sql_err)
@@ -383,6 +401,36 @@ mod tests {
         assert!(conn.execute("INSERT INTO cut_decision (resource_hash, page, decision, decided_at) VALUES ('h1', 4, 'quizas', 1)", []).is_err());
         conn.execute("DELETE FROM file WHERE hash = 'h1'", []).unwrap();
         assert_eq!((count("SELECT count(*) FROM cut_decision"), count("SELECT count(*) FROM cut_applied")), (1, 0));
+    }
+
+    /// A base at version 5 with invented cuts keeps them, gains how sure
+    /// the model was from its answers kept and what backs each appearance,
+    /// and makes the parts of every cut file again.
+    #[test]
+    fn version_6_marks_what_backs_each_cut() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+        build_at(&mut conn, 5);
+        conn.execute_batch(
+            "INSERT INTO version (id, state, first_seen_at) VALUES (1, 'processed', 1);
+             INSERT INTO file (hash, version_id, size) VALUES ('h1', 1, 10);
+             INSERT INTO cut_step (resource_hash, after_page, verdict, rule, question, model_says, rules_version, text_stamp, created_at)
+                VALUES ('h1', 0, 'new', 'start', NULL, NULL, 'r', 1, 1), ('h1', 1, 'doubtful', 'none', 'q1', 1, 'r', 1, 1),
+                       ('h1', 2, 'doubtful', 'none', 'q2', 0, 'r', 1, 1), ('h1', 3, 'doubtful', 'none', 'q3', NULL, 'r', 1, 1);
+             INSERT INTO model_answer (question, task, prompt_version, engine, prompt, answer, asked_at)
+                VALUES ('q1', 'cut', 'p', 'e', 'x', '{\"confidence\": \"low\"}', 1), ('q2', 'cut', 'p', 'e', 'x', 'no es json', 1);
+             INSERT INTO cut_applied (resource_hash, basis) VALUES ('h1', 'b');",
+        )
+        .unwrap();
+        migrate(&mut conn).unwrap();
+        assert_eq!(version(&conn).unwrap(), CURRENT_VERSION);
+        let count = |sql: &str| -> i64 { conn.query_row(sql, [], |row| row.get(0)).unwrap() };
+        assert_eq!(count("SELECT count(*) FROM appearance WHERE uncertain = 0"), 1);
+        assert_eq!(count("SELECT count(*) FROM cut_step WHERE model_confidence = 'low' AND after_page = 1"), 1);
+        assert_eq!(count("SELECT count(*) FROM cut_step WHERE model_confidence IS NULL"), 3);
+        assert_eq!(count("SELECT count(*) FROM cut_applied"), 0);
+        assert!(conn.execute("UPDATE appearance SET uncertain = 2", []).is_err());
+        assert!(conn.execute("UPDATE cut_step SET model_confidence = 'quizas'", []).is_err());
     }
 
     #[test]

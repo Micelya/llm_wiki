@@ -679,7 +679,7 @@ fn against_the_sheet(base: &DocBase, answers: &Answers, list_unjudged: bool) -> 
     let proposed: HashMap<(i64, i64), String> = {
         let conn = base.conn();
         let mut statement = conn
-            .prepare(&format!("SELECT p.a, p.b, p.relation FROM similar_pair p WHERE NOT {}", super::store::waiting_sql("p")))
+            .prepare("SELECT p.a, p.b, p.relation FROM similar_pair p")
             .unwrap();
         let rows = statement
             .query_map([], |row| Ok(((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?), row.get::<_, String>(2)?)))
@@ -688,9 +688,9 @@ fn against_the_sheet(base: &DocBase, answers: &Answers, list_unjudged: bool) -> 
             .unwrap();
         rows.into_iter().collect()
     };
-    let waiting: i64 = base
+    let uncertain: i64 = base
         .conn()
-        .query_row(&format!("SELECT count(*) FROM similar_pair p WHERE {}", super::store::waiting_sql("p")), [], |row| row.get(0))
+        .query_row(&format!("SELECT count(*) FROM similar_pair p WHERE {}", super::store::uncertain_pair_sql("p")), [], |row| row.get(0))
         .unwrap();
 
     let mut coverage = Coverage { pairs: answers.pairs.len(), ..Default::default() };
@@ -770,7 +770,7 @@ fn against_the_sheet(base: &DocBase, answers: &Answers, list_unjudged: bool) -> 
 
     println!("\n== against the answer sheet (evaluated pairs, exact boundaries) ==");
     print_tally(&exact);
-    println!("   proposals waiting for a cut to be confirmed (not counted): {waiting}");
+    println!("   proposals marked uncertain by their cut (counted): {uncertain}");
     println!("\n   WRONG proposals (the worst outcome, R-07): {}", exact.wrong.len());
     for line in &exact.wrong {
         println!("      {line}");
@@ -849,7 +849,7 @@ fn a_side_counts_only_with_exact_boundaries() {
 /// `MICELYA_ANSWER_SEED`, the reading with only the answers kept
 /// (`MICELYA_ASK_OFFLINE`), measured against every sheet of
 /// `MICELYA_SIMILAR_ANSWERS` (separated by `;`) twice: as it is, with the
-/// cuts proposed and their proposals waiting, and with every cut confirmed
+/// cuts as the base makes them and the uncertain marked (D-603), and with every cut confirmed
 /// as if a person had looked at them. Each time it also says how much of
 /// the cuts has a reference: the joined PDFs the parts sheet of
 /// `MICELYA_CUT_SHEET` has, and the included documents no reference
@@ -895,13 +895,54 @@ fn similar_documents_of_the_included_documents() {
         let count = |sql: &str| -> i64 { base.conn().query_row(sql, [], |row| row.get(0)).unwrap() };
         println!("\n==== {when} ====");
         println!(
-            "versions {} · compared {} · cut files {} · parts {} · versions waiting for a cut {} · pairs {}",
+            "versions {} · compared {} · cut files {} · parts {} · versions only in uncertain cuts {} · pairs {}",
             count("SELECT count(*) FROM version"),
             count("SELECT count(*) FROM similar_signature WHERE length(shingles) > 0"),
             count("SELECT count(DISTINCT resource_hash) FROM appearance WHERE selector <> 'file'"),
             count("SELECT count(*) FROM appearance WHERE selector <> 'file'"),
-            count(&format!("SELECT count(*) FROM version v WHERE {}", crate::docbase::cut::parts::only_proposed_sql("v.id"))),
+            count(&format!("SELECT count(*) FROM version v WHERE {}", crate::docbase::cut::parts::only_uncertain_sql("v.id"))),
             count("SELECT count(*) FROM similar_pair"),
+        );
+        // What is marked uncertain (D-603).
+        let only_uncertain = crate::docbase::cut::parts::only_uncertain_sql;
+        println!(
+            "uncertain: steps {} · parts {} · pairs {} · families {} · family members {} · matter members {}",
+            {
+                let conn = base.conn();
+                let mut statement = conn.prepare("SELECT DISTINCT resource_hash FROM cut_step").unwrap();
+                let hashes: Vec<String> = statement.query_map([], |row| row.get(0)).unwrap().collect::<Result<_, _>>().unwrap();
+                drop(statement);
+                drop(conn);
+                hashes.iter().map(|h| base.cut_steps(h).unwrap().iter().filter(|s| s.uncertain()).count()).sum::<usize>()
+            },
+            count("SELECT count(*) FROM appearance WHERE selector <> 'file' AND uncertain = 1"),
+            count(&format!("SELECT count(*) FROM similar_pair p WHERE {}", super::store::uncertain_pair_sql("p"))),
+            count(&format!(
+                "SELECT count(DISTINCT principal) FROM similar_group_member m WHERE {}",
+                only_uncertain("m.version_id")
+            )),
+            count(&format!("SELECT count(*) FROM similar_group_member m WHERE {}", only_uncertain("m.version_id"))),
+            count(&format!("SELECT count(*) FROM knowledge_matter_document k WHERE {}", only_uncertain("k.version_id"))),
+        );
+        // The PDFs with an uncertain part, by group: those of the parts
+        // sheet, the other joined ones, those of one document.
+        let marked: Vec<(String, bool)> = {
+            let conn = base.conn();
+            let mut statement = conn
+                .prepare(
+                    "SELECT a.resource_hash, EXISTS (SELECT 1 FROM appearance p WHERE p.resource_hash = a.resource_hash AND p.selector <> 'file')
+                     FROM appearance a WHERE a.selector = 'file' AND a.uncertain = 1",
+                )
+                .unwrap();
+            let rows = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?))).unwrap().collect::<Result<Vec<_>, _>>().unwrap();
+            rows
+        };
+        let in_sheet = |h: &str| parts_sheet.as_ref().is_some_and(|s| s.contains(h));
+        println!(
+            "PDFs with an uncertain part: of the parts sheet {} · other joined {} · of one document {}",
+            marked.iter().filter(|(h, _)| in_sheet(h)).count(),
+            marked.iter().filter(|(h, joined)| *joined && !in_sheet(h)).count(),
+            marked.iter().filter(|(h, joined)| !*joined && !in_sheet(h)).count(),
         );
         // The parts of each cut file, by its hash.
         let parts: Vec<(String, i64)> = {
@@ -971,7 +1012,7 @@ fn similar_documents_of_the_included_documents() {
             );
         }
     };
-    report("as it is: cuts proposed, their proposals waiting");
+    report("as it is: cuts as the base makes them, the uncertain marked");
     let cut: Vec<String> = {
         let conn = base.conn();
         let mut statement = conn.prepare("SELECT DISTINCT resource_hash FROM appearance WHERE selector <> 'file'").unwrap();

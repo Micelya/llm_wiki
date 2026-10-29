@@ -1407,7 +1407,7 @@ pub fn docbase_included_parts(
     state: State<'_, DocBaseState>,
     hash: String,
 ) -> Result<Vec<super::cut::parts::IncludedPart>, String> {
-    state.base()?.included_parts(&hash)
+    state.base()?.strip_parts(&hash)
 }
 
 /// A person says another document starts at `page` of the file.

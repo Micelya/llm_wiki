@@ -8,6 +8,11 @@
 //! - A cut of the rules or of the model is `proposed`; one a person made
 //!   (`cut_decision`), `confirmed`. What a person says wins over the rules
 //!   and the model, and is applied again when the file is cut again.
+//! - A cut goes on without waiting for a person (D-603): a part with a
+//!   step that nothing backs (`CutStep::uncertain`) is `uncertain`, and
+//!   so is what comes out of it (copies and versions, families, matters).
+//!   The appearance `file` of a cut PDF is uncertain when any of its
+//!   steps is, also for a PDF of one part.
 //! - A part with the text of a version that already exists is another
 //!   appearance of that version.
 //! - When the cut changes, the parts with the same pages and the same text
@@ -27,7 +32,7 @@ use serde::Serialize;
 
 use crate::source_volume::catalog::{fingerprint, is_page_heading};
 
-use super::{CutStep, Verdict};
+use super::CutStep;
 use crate::docbase::{now_ms, sql_err, DocBase};
 
 /// What a person says of a page: it starts another document, or it goes
@@ -48,9 +53,15 @@ pub struct IncludedPart {
     pub cut_by: String,
     /// `proposed` or `confirmed`.
     pub cut_state: String,
-    /// The pages of the part whose step from the page before is doubtful
-    /// and no person decided: for a person to look at.
+    /// The pages of the part whose step from the page before nothing
+    /// backs and no person decided: for a person to look at.
     pub doubtful_pages: Vec<u32>,
+    /// Whether a step that bounds the part, or one inside it, has nothing
+    /// to back it (D-603): what decides how its cut is shown.
+    pub uncertain: bool,
+    /// The whole file, for a PDF of one part with uncertain steps: there
+    /// is no other document to open.
+    pub whole: bool,
 }
 
 /// A part of a file as the steps and a person's word give it.
@@ -60,17 +71,19 @@ pub(crate) struct Part {
     pub last: u32,
     pub by: &'static str,
     pub confirmed: bool,
+    pub uncertain: bool,
 }
 
-/// Whether `page` starts a document, and who says so.
-fn said(steps: &BTreeMap<u32, &CutStep>, decisions: &BTreeMap<u32, bool>, page: u32) -> (bool, &'static str) {
+/// Whether `page` starts a document, who says so, and whether nothing
+/// backs it (a step not made yet is not backed either).
+fn said(steps: &BTreeMap<u32, &CutStep>, decisions: &BTreeMap<u32, bool>, page: u32) -> (bool, &'static str, bool) {
     if let Some(&starts) = decisions.get(&page) {
-        return (starts, "person");
+        return (starts, "person", false);
     }
     match steps.get(&(page - 1)) {
-        Some(s) if s.by_model() => (s.starts(), "model"),
-        Some(s) => (s.starts(), "rule"),
-        None => (false, "rule"),
+        Some(s) if s.by_model() => (s.starts(), "model", s.uncertain()),
+        Some(s) => (s.starts(), "rule", s.uncertain()),
+        None => (false, "rule", true),
     }
 }
 
@@ -78,17 +91,20 @@ fn said(steps: &BTreeMap<u32, &CutStep>, decisions: &BTreeMap<u32, bool>, page: 
 /// the steps that make it (its first page, the pages inside, the page
 /// after it): a person when a person decided them all, and then it is
 /// confirmed; the model when the model decided one; the rules otherwise.
+/// It is uncertain when one of those steps has nothing to back it.
 pub(crate) fn partition(pages: u32, steps: &[CutStep], decisions: &BTreeMap<u32, bool>) -> Vec<Part> {
     let by_after: BTreeMap<u32, &CutStep> = steps.iter().map(|s| (s.after, s)).collect();
-    let says: BTreeMap<u32, (bool, &'static str)> = (2..=pages).map(|p| (p, said(&by_after, decisions, p))).collect();
+    let says: BTreeMap<u32, (bool, &'static str, bool)> = (2..=pages).map(|p| (p, said(&by_after, decisions, p))).collect();
     let mut starts = vec![1];
-    starts.extend(says.iter().filter(|(_, (starts, _))| *starts).map(|(page, _)| *page));
+    starts.extend(says.iter().filter(|(_, (starts, ..))| *starts).map(|(page, _)| *page));
     starts
         .iter()
         .enumerate()
         .map(|(index, &first)| {
             let last = starts.get(index + 1).map(|next| next - 1).unwrap_or(pages);
-            let who: Vec<&str> = (first.max(2)..=(last + 1).min(pages)).map(|p| says[&p].1).collect();
+            let bounds = first.max(2)..=(last + 1).min(pages);
+            let who: Vec<&str> = bounds.clone().map(|p| says[&p].1).collect();
+            let uncertain = bounds.into_iter().any(|p| says[&p].2);
             let confirmed = !who.is_empty() && who.iter().all(|w| *w == "person");
             let by = if confirmed {
                 "person"
@@ -97,7 +113,7 @@ pub(crate) fn partition(pages: u32, steps: &[CutStep], decisions: &BTreeMap<u32,
             } else {
                 "rule"
             };
-            Part { first, last, by, confirmed }
+            Part { first, last, by, confirmed, uncertain }
         })
         .collect()
 }
@@ -128,20 +144,22 @@ pub(crate) fn has_included_sql(column: &str) -> String {
     )
 }
 
-/// The versions that appear only in cuts still proposed: no proposal
-/// (copies and versions, matters, templates) comes out of them until a
-/// cut is confirmed (D-556).
-pub(crate) fn only_proposed(conn: &Connection) -> Result<BTreeSet<i64>, String> {
-    let mut statement = conn
-        .prepare("SELECT version_id FROM appearance GROUP BY version_id HAVING max(cut_state = 'confirmed') = 0")
-        .map_err(sql_err)?;
+/// The versions that appear only in uncertain cuts. What comes out of them
+/// (copies and versions, families, matters, templates) goes on without
+/// waiting for a person, marked as uncertain (D-603): not being able to
+/// tell is never the same as knowing.
+pub(crate) fn only_uncertain(conn: &Connection) -> Result<BTreeSet<i64>, String> {
+    let mut statement = conn.prepare(&format!("SELECT version_id FROM ({UNCERTAIN_VERSIONS})")).map_err(sql_err)?;
     let rows = statement.query_map([], |row| row.get(0)).map_err(sql_err)?;
     rows.collect::<Result<_, _>>().map_err(sql_err)
 }
 
-/// SQL: the version in `column` appears only in cuts still proposed.
-pub(crate) fn only_proposed_sql(column: &str) -> String {
-    format!("{column} IN (SELECT version_id FROM appearance GROUP BY version_id HAVING max(cut_state = 'confirmed') = 0)")
+/// SQL: the versions that appear only in uncertain cuts.
+pub(crate) const UNCERTAIN_VERSIONS: &str = "SELECT version_id FROM appearance GROUP BY version_id HAVING min(uncertain) = 1";
+
+/// SQL: the version in `column` appears only in uncertain cuts.
+pub(crate) fn only_uncertain_sql(column: &str) -> String {
+    format!("{column} IN ({UNCERTAIN_VERSIONS})")
 }
 
 /// What the parts of a file are made from: its version and the time of
@@ -149,9 +167,20 @@ pub(crate) fn only_proposed_sql(column: &str) -> String {
 /// tables are read in the order of their key).
 const BASIS_SQL: &str = "c.id || ':' || d.created_at
     || ':' || (SELECT max(s.created_at) FROM cut_step s WHERE s.resource_hash = f.hash)
-    || ':' || coalesce((SELECT group_concat(s.after_page || '=' || coalesce(s.model_says, ''), ',') FROM cut_step s
+    || ':' || coalesce((SELECT group_concat(s.after_page || '=' || coalesce(s.model_says, '') || '/' || coalesce(s.model_confidence, ''), ',') FROM cut_step s
                         WHERE s.resource_hash = f.hash AND (s.verdict = 'doubtful' OR s.rule = 'uniform')), '')
     || ':' || coalesce((SELECT group_concat(k.page || k.decision, ',') FROM cut_decision k WHERE k.resource_hash = f.hash), '')";
+
+/// The pages for a person to look at: those whose step from the page
+/// before nothing backs, and no person decided (D-603).
+fn to_look_at(steps: &[CutStep], decided: &BTreeMap<u32, bool>) -> BTreeSet<u32> {
+    steps
+        .iter()
+        .filter(|step| step.after > 0 && step.uncertain())
+        .map(|step| step.after + 1)
+        .filter(|page| !decided.contains_key(page))
+        .collect()
+}
 
 fn decisions(conn: &Connection, hash: &str) -> Result<BTreeMap<u32, bool>, String> {
     let mut statement = conn.prepare("SELECT page, decision FROM cut_decision WHERE resource_hash = ?1").map_err(sql_err)?;
@@ -213,6 +242,13 @@ impl DocBase {
         };
         let pages = steps.iter().map(|s| s.after).max().unwrap_or(0) + 1;
         let mut parts = partition(pages, &steps, &decisions(&tx, hash)?);
+        // The whole file is uncertain when any of its steps is: for a PDF
+        // of one part, what is said of its only document.
+        tx.execute(
+            "UPDATE appearance SET uncertain = ?1 WHERE resource_hash = ?2 AND selector = 'file'",
+            params![parts.iter().any(|p| p.uncertain), hash],
+        )
+        .map_err(sql_err)?;
         if parts.len() < 2 {
             parts.clear();
         }
@@ -248,8 +284,8 @@ impl DocBase {
                 Some(e) => {
                     kept.insert(e.id);
                     tx.execute(
-                        "UPDATE appearance SET position = ?1, cut_by = ?2, cut_state = ?3 WHERE id = ?4",
-                        params![index as i64 + 1, part.by, state(part), e.id],
+                        "UPDATE appearance SET position = ?1, cut_by = ?2, cut_state = ?3, uncertain = ?4 WHERE id = ?5",
+                        params![index as i64 + 1, part.by, state(part), part.uncertain, e.id],
                     )
                     .map_err(sql_err)?;
                 }
@@ -293,9 +329,9 @@ impl DocBase {
                 }
             };
             tx.execute(
-                "INSERT INTO appearance (version_id, resource_hash, selector, position, cut_by, cut_state, created_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                params![version_id, hash, selector, index as i64 + 1, part.by, state(part), now],
+                "INSERT INTO appearance (version_id, resource_hash, selector, position, cut_by, cut_state, uncertain, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                params![version_id, hash, selector, index as i64 + 1, part.by, state(part), part.uncertain, now],
             )
             .map_err(sql_err)?;
             left.remove(&version_id);
@@ -325,15 +361,10 @@ impl DocBase {
         let steps = self.cut_steps(hash)?;
         let conn = self.conn();
         let decided = decisions(&conn, hash)?;
-        let doubtful: BTreeSet<u32> = steps
-            .iter()
-            .filter(|step| step.after > 0 && step.verdict == Verdict::Doubtful)
-            .map(|step| step.after + 1)
-            .filter(|page| !decided.contains_key(page))
-            .collect();
+        let doubtful = to_look_at(&steps, &decided);
         let mut statement = conn
             .prepare(
-                "SELECT a.position, a.version_id, v.document_id, a.selector, a.cut_by, a.cut_state FROM appearance a
+                "SELECT a.position, a.version_id, v.document_id, a.selector, a.cut_by, a.cut_state, a.uncertain FROM appearance a
                  JOIN version v ON v.id = a.version_id
                  WHERE a.resource_hash = ?1 AND a.selector <> 'file' ORDER BY a.position",
             )
@@ -355,6 +386,8 @@ impl DocBase {
                     cut_by: row.get::<_, Option<String>>(4)?.unwrap_or_default(),
                     cut_state: row.get(5)?,
                     doubtful_pages: Vec::new(),
+                    uncertain: row.get(6)?,
+                    whole: false,
                 })
             })
             .map_err(sql_err)?;
@@ -363,6 +396,48 @@ impl DocBase {
             part.doubtful_pages = doubtful.range(part.first_page..=part.last_page).copied().collect();
         }
         Ok(parts)
+    }
+
+    /// What the strip of pages of a file shows: its parts, or, for a PDF
+    /// of one part with uncertain steps, the whole file as its only part,
+    /// with those pages to look at (D-603). Its appearance stays
+    /// `confirmed` by its constraint; the mark decides how it is shown.
+    pub fn strip_parts(&self, hash: &str) -> Result<Vec<IncludedPart>, String> {
+        let parts = self.included_parts(hash)?;
+        if !parts.is_empty() {
+            return Ok(parts);
+        }
+        let Some(pages) = self.cut_pages(hash)? else {
+            return Ok(parts);
+        };
+        let whole: Option<(i64, i64)> = self
+            .conn()
+            .query_row(
+                "SELECT a.version_id, v.document_id FROM appearance a JOIN version v ON v.id = a.version_id
+                 WHERE a.resource_hash = ?1 AND a.selector = 'file' AND a.uncertain = 1",
+                [hash],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()
+            .map_err(sql_err)?;
+        let Some((version_id, document_id)) = whole else {
+            return Ok(parts);
+        };
+        let steps = self.cut_steps(hash)?;
+        let decided = decisions(&self.conn(), hash)?;
+        let by = partition(pages, &steps, &decided).first().map(|p| p.by).unwrap_or("rule");
+        Ok(vec![IncludedPart {
+            position: 1,
+            version_id,
+            document_id,
+            first_page: 1,
+            last_page: pages,
+            cut_by: by.into(),
+            cut_state: "proposed".into(),
+            doubtful_pages: to_look_at(&steps, &decided).into_iter().collect(),
+            uncertain: true,
+            whole: true,
+        }])
     }
 
     /// The number of pages of a cut file: none while it is not cut.
@@ -413,13 +488,13 @@ impl DocBase {
     /// A person says another document starts at `page` of the file.
     pub fn cut_split_at(&self, hash: &str, page: u32) -> Result<Vec<IncludedPart>, String> {
         self.decide(hash, page, STARTS)?;
-        self.included_parts(hash)
+        self.strip_parts(hash)
     }
 
     /// A person joins the part that starts at `page` to the one before it.
     pub fn cut_join_with_previous(&self, hash: &str, page: u32) -> Result<Vec<IncludedPart>, String> {
         self.decide(hash, page, CONTINUES)?;
-        self.included_parts(hash)
+        self.strip_parts(hash)
     }
 
     /// A person confirms every cut of the file as it is now: each page
@@ -446,7 +521,7 @@ impl DocBase {
             tx.commit().map_err(sql_err)?;
         }
         self.cut_parts_of(hash)?;
-        self.included_parts(hash)
+        self.strip_parts(hash)
     }
 }
 
@@ -627,7 +702,7 @@ mod tests {
     }
 
     #[test]
-    fn the_whole_file_with_parts_is_not_read_and_proposed_parts_give_no_proposals() {
+    fn the_whole_file_with_parts_is_not_read_and_its_parts_go_on_without_a_person() {
         let (_dir, base) = open();
         add_file(&base, 1, "h1", &joined(&[1, 2, 3]));
         add_file(&base, 2, "h2", &joined(&[7, 8]));
@@ -635,15 +710,16 @@ mod tests {
             crate::docbase::knowledge::extract::standings(&base.conn(), &Visible::All, None).unwrap().iter().map(|s| s.content_id).collect()
         };
         assert_eq!(read(&base), vec![1, 2]);
-        cut(&base, "h1", 3, &[2], &[], 1);
+        // The step into page 3 is doubtful and nobody answered it.
+        cut(&base, "h1", 3, &[2], &[3], 1);
         base.cut_parts_pending(10).unwrap();
         let parts: Vec<i64> = base.included_parts("h1").unwrap().iter().map(|p| p.version_id).collect();
         // The parts are read, each with its text; the whole file is not.
         assert_eq!(read(&base), [vec![2], parts.clone()].concat());
-        let held = only_proposed(&base.conn()).unwrap();
-        assert_eq!(held, parts.iter().copied().collect::<BTreeSet<i64>>());
+        // The second part goes on, marked: the step inside it is uncertain.
+        assert_eq!(only_uncertain(&base.conn()).unwrap(), BTreeSet::from([parts[1], 1]));
         base.cut_confirm_all("h1").unwrap();
-        assert!(only_proposed(&base.conn()).unwrap().is_empty());
+        assert!(only_uncertain(&base.conn()).unwrap().is_empty());
         // When the file goes, its parts go with it.
         base.conn().execute_batch("DELETE FROM location;").unwrap();
         base.purge_orphans().unwrap();
@@ -651,7 +727,7 @@ mod tests {
     }
 
     #[test]
-    fn copies_and_versions_compare_each_part_not_the_whole_file_and_wait_for_the_cut() {
+    fn copies_and_versions_compare_each_part_not_the_whole_file_and_mark_an_uncertain_cut() {
         let (_dir, base) = open();
         add_file(&base, 1, "h1", &joined(&[1, 2, 3]));
         // Another file with the text of pages 2 and 3, and one page more.
@@ -660,7 +736,7 @@ mod tests {
         let signed = |base: &DocBase, id: i64| count(base, &format!("SELECT count(*) FROM similar_signature WHERE version_id = {id}"));
         let pairs_of = |base: &DocBase, id: i64| count(base, &format!("SELECT count(*) FROM similar_pair WHERE a = {id} OR b = {id}"));
         assert_eq!((signed(&base, 1), pairs_of(&base, 1)), (1, 1));
-        cut(&base, "h1", 3, &[2], &[], 1);
+        cut(&base, "h1", 3, &[2], &[3], 1);
         base.cut_parts_pending(10).unwrap();
         let parts: Vec<i64> = base.included_parts("h1").unwrap().iter().map(|p| p.version_id).collect();
         while base.similar_step(16).unwrap() > 0 {}
@@ -674,13 +750,14 @@ mod tests {
             1
         );
         assert_eq!(pairs_of(&base, parts[0]), 0);
-        // Its proposal waits for the cut, and comes when a person confirms it.
-        let waiting = |base: &DocBase| {
-            count(base, &format!("SELECT count(*) FROM similar_pair p WHERE {}", crate::docbase::similar::store::waiting_sql("p")))
+        // Its proposal does not wait for the cut: it is made, marked as
+        // uncertain, and the mark goes when a person confirms the cut.
+        let uncertain = |base: &DocBase| {
+            count(base, &format!("SELECT count(*) FROM similar_pair p WHERE {}", crate::docbase::similar::store::uncertain_pair_sql("p")))
         };
-        assert_eq!(waiting(&base), 1);
+        assert_eq!(uncertain(&base), 1);
         base.cut_confirm_all("h1").unwrap();
-        assert_eq!(waiting(&base), 0);
+        assert_eq!(uncertain(&base), 0);
         // Joined again into one document, the whole file is compared again.
         base.cut_join_with_previous("h1", 2).unwrap();
         assert!(base.included_parts("h1").unwrap().is_empty());
@@ -721,14 +798,76 @@ mod tests {
         assert!(base.cut_confirm_all("h1").unwrap().iter().all(|p| p.doubtful_pages.is_empty()));
     }
 
+    /// What backs each step (D-603): an answer of high or medium
+    /// confidence backs it; no answer, or one of low confidence, leaves it
+    /// uncertain, and so the parts it bounds or holds.
+    #[test]
+    fn an_answer_of_low_confidence_or_none_leaves_the_step_uncertain() {
+        let (_dir, base) = open();
+        add_file(&base, 1, "h1", &joined(&[1, 2, 3, 4, 5, 6]));
+        // Doubtful steps into pages 2, 4 and 6; another document at 5.
+        cut(&base, "h1", 6, &[5], &[2, 4, 6], 1);
+        let answer = |after: u32, says: bool, confidence: &str| {
+            base.conn()
+                .execute(
+                    "UPDATE cut_step SET model_says = ?1, model_confidence = ?2 WHERE resource_hash = 'h1' AND after_page = ?3",
+                    params![says, confidence, after],
+                )
+                .unwrap();
+        };
+        answer(1, true, "high");
+        answer(3, false, "low");
+        base.cut_parts_pending(10).unwrap();
+        let parts = base.included_parts("h1").unwrap();
+        // Page 2 starts by an answer of high confidence: backed. Page 4
+        // goes on by one of low confidence, page 6 with no answer.
+        assert_eq!(
+            parts.iter().map(|p| (p.first_page, p.last_page, p.uncertain, p.doubtful_pages.clone())).collect::<Vec<_>>(),
+            vec![(1, 1, false, vec![]), (2, 4, true, vec![4]), (5, 6, true, vec![6])]
+        );
+        answer(3, false, "medium");
+        answer(5, false, "medium");
+        base.cut_parts_pending(10).unwrap();
+        assert!(base.included_parts("h1").unwrap().iter().all(|p| !p.uncertain && p.doubtful_pages.is_empty()));
+        assert_eq!(count(&base, "SELECT uncertain FROM appearance WHERE selector = 'file'"), 0);
+    }
+
+    /// A PDF of one document with an uncertain step stays one document,
+    /// marked: its strip shows the whole file with that page to look at,
+    /// and a person's word takes the mark away.
+    #[test]
+    fn a_pdf_of_one_document_with_an_uncertain_step_shows_its_strip() {
+        let (_dir, base) = open();
+        add_file(&base, 1, "h1", &joined(&[1, 2, 3]));
+        cut(&base, "h1", 3, &[], &[3], 1);
+        base.cut_parts_pending(10).unwrap();
+        assert!(base.included_parts("h1").unwrap().is_empty());
+        assert_eq!(count(&base, "SELECT uncertain FROM appearance WHERE selector = 'file'"), 1);
+        let strip = base.strip_parts("h1").unwrap();
+        assert_eq!(
+            strip.iter().map(|p| (p.first_page, p.last_page, p.uncertain, p.whole, p.doubtful_pages.clone())).collect::<Vec<_>>(),
+            vec![(1, 3, true, true, vec![3])]
+        );
+        let rows = base.documents(&Visible::All, &Default::default()).unwrap().rows;
+        assert_eq!((rows[0].included, rows[0].unconfirmed_cuts), (0, 1));
+        assert!(base.cut_confirm_all("h1").unwrap().is_empty());
+        assert_eq!(count(&base, "SELECT uncertain FROM appearance WHERE selector = 'file'"), 0);
+        // A file with nothing doubtful has no strip.
+        add_file(&base, 2, "h2", &joined(&[7, 8]));
+        cut(&base, "h2", 2, &[], &[], 1);
+        base.cut_parts_pending(10).unwrap();
+        assert!(base.strip_parts("h2").unwrap().is_empty());
+    }
+
     #[test]
     fn a_joined_file_says_what_it_includes_and_each_part_opens_as_a_document() {
         let (_dir, base) = open();
         add_file(&base, 1, "h1", &joined(&[1, 2, 3, 4]));
-        cut(&base, "h1", 4, &[3], &[], 1);
+        // The step into page 2 is doubtful: the first part is uncertain.
+        cut(&base, "h1", 4, &[3], &[2], 1);
         base.cut_parts_pending(10).unwrap();
         let rows = base.documents(&crate::docbase::Visible::All, &Default::default()).unwrap().rows;
-        assert_eq!((rows[0].included, rows[0].unconfirmed_cuts), (2, 2));
+        assert_eq!((rows[0].included, rows[0].unconfirmed_cuts), (2, 1));
         let location = rows[0].location_id;
         let parts = base.included_parts("h1").unwrap();
         // The second part: its own text and its pages, inside the file.
@@ -749,7 +888,7 @@ mod tests {
             .unwrap();
         let object = base.knowledge_object_of_page("wiki/documents/parte.md").unwrap().unwrap();
         assert_eq!((object.location_id, object.included), (Some(location), true));
-        // Confirmed, nothing is left to confirm.
+        // Confirmed, nothing is left uncertain.
         base.cut_confirm_all("h1").unwrap();
         let rows = base.documents(&crate::docbase::Visible::All, &Default::default()).unwrap().rows;
         assert_eq!((rows[0].included, rows[0].unconfirmed_cuts), (2, 0));
