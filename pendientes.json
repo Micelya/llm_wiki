@@ -3351,9 +3351,9 @@
       "estado": "pendiente",
       "prioridad": 1,
       "tema": "base",
-      "detalle": "D-604. El motor local descarta los renglones con menos del 90 % de confianza (D-570) sin dejar constancia. Falta: guardar esos renglones como lectura incierta, con confianza y posición, y por página cuántos renglones quedaron afuera; que la extracción de personas, organizaciones, campos y relaciones use solo lo leído con respaldo; que la búsqueda, los tipos y los parecidos puedan usar lo incierto como pista; que el detalle del documento diga que la lectura es parcial. Medir con las hojas de impreso y manuscrito (conjunto-prueba) que lo estructurado no empeore. Dónde: source_volume/recognition_local.rs (text_of) descarta lo que está por debajo de minLineConfidence y no implementa recognize_page; el motor de Core hace lo contrario y deja las palabras dudosas dentro del texto (recognition_core.rs), con las dudosas aparte solo en recognized/page-<n>.json. La regla vale para los dos motores: una parte segura que entra al texto y al conocimiento y una insegura que es evidencia. Propuesta: una tabla de evidencia y, en resource_page, los renglones leídos y los seguros (versión 6, la misma de P-414). Grande; cambia el texto de lo leído por Core y obliga a volver a extraer el conocimiento.",
+      "detalle": "D-604. El motor local descarta los renglones con menos del 90 % de confianza (D-570) sin dejar constancia. Falta: guardar esos renglones como lectura incierta, con confianza y posición, y por página cuántos renglones quedaron afuera; que la extracción de personas, organizaciones, campos y relaciones use solo lo leído con respaldo; que la búsqueda, los tipos y los parecidos puedan usar lo incierto como pista; que el detalle del documento diga que la lectura es parcial. Medir con las hojas de impreso y manuscrito (conjunto-prueba) que lo estructurado no empeore. Dónde: source_volume/recognition_local.rs (text_of) descarta lo que está por debajo de minLineConfidence y no implementa recognize_page; el motor de Core hace lo contrario y deja las palabras dudosas dentro del texto (recognition_core.rs), con las dudosas aparte solo en recognized/page-<n>.json. La regla vale para los dos motores: una parte segura que entra al texto y al conocimiento y una insegura que es evidencia. Propuesta: una tabla de evidencia y, en resource_page, los renglones leídos y los seguros (versión 6, la misma de P-414). Grande; cambia el texto de lo leído por Core y obliga a volver a extraer el conocimiento. 2026-10-29: Corrida desatendida 14: no se hizo por el tope de consumo de la noche (los pasos 1 a 4, 6 y 7 gastaron 1,42 M de 1,62 M y no quedaba lo que pide este paso). La especificación está lista, con el alcance recortado y lo aprendido de los otros pasos, en llm_wiki_mi/desatendido-14/paso5-spec.md (fuera del repositorio); los números reservados D-628 a D-631 y P-445 a P-448 quedan para ella.",
       "creado": "2026-10-27",
-      "actualizado": "2026-10-27"
+      "actualizado": "2026-10-29"
     },
     {
       "id": "P-416",
@@ -3724,6 +3724,18 @@
       "prioridad": 3,
       "tema": "base",
       "detalle": "Resultado del paso 7 de la corrida del 28 oct. El clasificador se entrenó con solo 34 pasos «empieza» entre los dudosos. En el examen falló sobre todo en escaneos compuestos que lee el lector de esta computadora: dio por «sigue» 10 de 67 pasos que decidió, y 6 de esos estaban seguidos en un mismo PDF. Con la consulta selectiva no mejora a las reglas solas; sin ella, recupera 7 cortes con 29 consultas en lugar de 96, pero sigue con 5 errores más que el modelo grande. Reintentar costaría etiquetar unos 30 a 50 PDF compuestos más, escaneados y leídos por el lector local, y volver a medir con los mismos guiones. La alternativa es cerrar la línea y quedarse con las reglas (P-453 y P-454) y la escalera de consultas.",
+      "creado": "2026-10-29",
+      "actualizado": "2026-10-29"
+    },
+    {
+      "id": "P-456",
+      "titulo": "«Archivo parejo» tapa cortes reales en escaneos de varios documentos y en ejemplares repetidos: en el examen nuevo, 16 de 20, sin marca de incierto",
+      "tipo": "codigo",
+      "responsable": "usuario",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "base",
+      "detalle": "Lo encontró el principal al cruzar las señales del paso 7 de la corrida 14 con las etiquetas del examen nuevo (15 PDF de otro origen, 118 pasos, 20 cortes reales). La regla «archivo parejo» (paso 1, D-615 a D-617) dio «sigue» con respaldo en 65 pasos del examen, y 16 de ellos eran cortes reales: 10 en un legajo escaneado de 34 páginas que ninguna regla corta, 2 en un contrato escaneado con dos anexos firmados y 2 y 2 en dos PDF digitales de 3 páginas con el mismo comprobante en varios ejemplares. En la carpeta de prueba tapaba solo 2 de 77, y en la hoja de partes ninguno, por eso no se vio antes. Juntos con el respaldo (paso 2, D-618 a D-621) y la consulta selectiva (paso 3, D-622 a D-624), esos PDF quedan como un solo documento respaldado: sin marca de incierto, sin la tira «Para mirar», sin el botón de preguntar y sin consulta al modelo. Es lo contrario de «no supimos decidir nunca equivale a confirmamos» (D-603). Antes de esta corrida, esos pasos eran dudosos y se le preguntaban al modelo, que en el legajo acertó 5 de 6 de los cortes que la regla tapa. Opciones para el dueño, sin medir todavía: (1) que «archivo parejo» no respalde: el paso queda incierto, y solo baja su prioridad en la cola; (2) que no valga en escaneos ni entre páginas casi idénticas (un ejemplar repetido), medido en la carpeta de prueba y en un examen nuevo, porque este ya se miró; (3) dejarlo como está. El examen ya no sirve para ajustar la regla: un arreglo necesita un segundo examen. Los números por archivo están en el informe de la mañana de la corrida 14 (fuera del repositorio).",
       "creado": "2026-10-29",
       "actualizado": "2026-10-29"
     }
