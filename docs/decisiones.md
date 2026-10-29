@@ -570,6 +570,9 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-625 | 28 oct | base | Una parte de un PDF toma el sello del servicio de firma de su archivo solo como contexto | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-626 | 28 oct | base | La constancia de firma da fe de la parte que nombra, o de la anterior, y le pasa sus firmas | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-627 | 28 oct | base | Las reglas entre partes de un mismo PDF van en su propio archivo del catálogo, para no volver a preguntarle al modelo | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-632 | 28 oct | base | Un hilo de correos impreso es un solo documento | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-633 | 28 oct | base | Una carátula que anuncia un anexo va con el anexo | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-634 | 28 oct | base | Tres casos de etiqueta que la hoja de partes no cubre | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -6356,3 +6359,24 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **El problema:** Las respuestas del modelo sobre tipos y datos dependen de la huella del archivo del catálogo de tipos. Cualquier cambio en ese archivo, aunque sea un renglón de explicación, cambia la huella y hace que se vuelvan a preguntar los tipos y los datos de todos los documentos. En la carpeta de prueba, la primera medición de este paso, con la regla puesta en ese archivo, volvió a preguntar 170 preguntas de tipos y datos, y tenía 225 de lectura por delante cuando se la detuvo.
 - **Qué se decidió y por qué:** La regla de la constancia va en un archivo propio del catálogo, «relaciones entre partes» (`between-parts.json`), que no entra en esa huella. Para que las partes se vuelvan a leer con la regla nueva sube la versión del motor de parecidos, lo que vuelve a firmar y a comparar sin preguntarle al modelo. Lo decidió el sub-agente para cuidar el uso del modelo en producción. Alternativa: dejarla en el catálogo de tipos y pagar una vez todas esas preguntas en la base del dueño.
 - **Quién decidió:** el sub-agente del paso 4
+
+### D-632 · Un hilo de correos impreso es un solo documento
+
+- **Fecha:** 28 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Al etiquetar los pasos para el clasificador chico (D-610) aparecieron correos impresos con varios mensajes. Cada mensaje tiene remitente y fecha propios, y el criterio de la hoja de partes dice que lo que tiene emisor y fecha propios es otro documento. Si se aplica al pie de la letra, cada mensaje sería un documento, y los cortes caerían en medio de las páginas.
+- **Qué se decidió y por qué:** Un hilo de correos impreso de una vez es un solo documento; sus mensajes son regiones. Un adjunto impreso dentro del hilo, en cambio, sí es otro documento. Por qué: el hilo se guarda, se cita y se busca como una conversación, y los límites de los mensajes casi nunca coinciden con los de las páginas. Alternativa: cada mensaje es un documento aparte, relacionado con el anterior («responde a»).
+- **Quién decidió:** Claude, en la corrida desatendida del 28 oct (paso 6)
+
+### D-633 · Una carátula que anuncia un anexo va con el anexo
+
+- **Fecha:** 28 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Algunos contratos traen una página que solo dice «Anexo A: copia de …» y después el anexo, que tiene sus propias firmas y por eso es otro documento. Los criterios de la hoja no dicen si esa carátula cierra el contrato o abre el anexo.
+- **Qué se decidió y por qué:** La carátula va con el anexo que anuncia: el corte se pone antes de ella. Esas etiquetas quedan con «seguro: no» para que el entrenamiento pueda dejarlas afuera, y al medir conviene tratarlas como una página en blanco (el corte antes o después vale igual). Alternativa: la carátula va con el documento anterior.
+- **Quién decidió:** Claude, en la corrida desatendida del 28 oct (paso 6)
+
+### D-634 · Tres casos de etiqueta que la hoja de partes no cubre
+
+- **Fecha:** 28 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Al etiquetar 64 PDF de la carpeta de prueba y los del examen nuevo aparecieron tres formas que la hoja de partes no trae y que se repiten.
+- **Qué se decidió y por qué:** (1) El certificado de un servicio de firma y sus páginas de condiciones de uso de la firma electrónica son un solo documento: las condiciones son una sección del certificado, sin emisor ni fecha propios. (2) Un oficio o una cédula electrónicos del juzgado y la resolución que llevan adjunta son documentos distintos: la resolución tiene su propia fecha y su propia firma. (3) Los cupones de pago de una misma boleta (uno por cada medio de pago, con el mismo número) son un solo documento. Alternativas: (1) separar las condiciones como documento aparte; (2) tratar el oficio y su adjunto como uno solo; (3) cada cupón como documento.
+- **Quién decidió:** Claude, en la corrida desatendida del 28 oct (paso 6)

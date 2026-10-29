@@ -3642,6 +3642,42 @@
       "detalle": "D-608 dice que un anexo con firmas propias es otro documento del mismo asunto. La regla de la constancia del paso 4 de la corrida 14 no lo cubre: no hay en el catálogo una relación entre el anexo y su principal, y saber qué parte es anexo de cuál necesita otra señal (el título «Anexo» o «Exhibit», que lo nombre el principal). Se podría agregar en between-parts.json con el mismo mecanismo (una parte que se nombra como anexo, relacionada con la anterior), más una relación nueva en el catálogo de tipos; eso último cambia su huella y vuelve a preguntar los tipos y los datos de toda la base (D-627), así que conviene juntarlo con otro cambio del catálogo. Esfuerzo chico a mediano.",
       "creado": "2026-10-29",
       "actualizado": "2026-10-29"
+    },
+    {
+      "id": "P-449",
+      "titulo": "Ver: las etiquetas del examen nuevo del cortador y las 8 que quedaron dudosas",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "base",
+      "detalle": "Paso 6 de la corrida del 28 oct (prueba del clasificador chico, D-610). No cambia nada en la app: son etiquetas en archivos. Claude etiquetó a ciegas, sin mirar los cortes de la base ni las respuestas del modelo: 64 PDF de la carpeta de prueba (343 pasos: 77 «empieza», 266 «sigue»), y un examen nuevo de 15 PDF de la unidad G (118 pasos: 20 «empieza», 98 «sigue»; 7 PDF compuestos). Control a ciegas contra la hoja de partes: 30 de 30 pasos iguales. Segunda pasada: 72 pasos mirados de nuevo, 4 cambiaron (ninguno de la muestra al azar; 3 de los dudosos y 1 vecino). Qué mirar: abrir llm_wiki_mi/examen-cortador/pdf/03.pdf, 04.pdf y 06.pdf y comprobar dónde empieza cada documento (la sección «Para el dueño» de desatendido-14/paso6-informe.md dice en qué página); y decidir las 4 etiquetas dudosas del entrenamiento (la carátula «Anexo A» de los cuatro PDF del acuerdo de cesión, D-633). Las etiquetas están en desatendido-14/clasificador/etiquetas-entrenamiento.json y en examen-cortador/etiquetas-examen.json.",
+      "creado": "2026-10-29",
+      "actualizado": "2026-10-29"
+    },
+    {
+      "id": "P-450",
+      "titulo": "Entrenar y medir el clasificador chico (variantes A a D) con las etiquetas del paso 6",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "Las etiquetas ya están (desatendido-14/clasificador/ y examen-cortador/). Falta lo de las secciones 5, 7 y 8 de docs/design/clasificador-de-cortes-propuesta.md: calcular las señales por paso, entrenar con los 64 PDF de entrenamiento validando por grupos (cada archivo con sus copias y versiones en el mismo grupo), medir aparte en la hoja de partes (128 pasos, R-25: mide, no enseña) y una sola vez en el examen nuevo (15 PDF, 118 pasos). Las 4 etiquetas con «seguro: no» del entrenamiento se dejan afuera del entrenamiento; las 4 del examen se miden como una página en blanco (el corte antes o después vale igual). El examen tiene 8 PDF escaneados sin capa de texto: hay que leerlos antes (lectura de la app) o medirlos aparte.",
+      "creado": "2026-10-29",
+      "actualizado": "2026-10-29"
+    },
+    {
+      "id": "P-451",
+      "titulo": "El recorrido de la unidad G para elegir el examen quedó cortado por tiempo",
+      "tipo": "mejora",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "base",
+      "detalle": "Elegir los candidatos del examen nuevo leyendo la unidad G (Google Drive en streaming) es lento: cada PDF se baja para contar sus páginas. Con un tope de 25 minutos para Administration y 14 para Extrimian, quedaron 579 candidatos de 3 a 40 páginas, pero el recorrido no llegó al final de ninguna de las dos carpetas (Administration paró dentro de 10.Gestión de Clientes; Extrimian, dentro de Marketing). El examen sirve igual (15 PDF de 17 carpetas, 8 escaneados y 7 digitales), pero si se arma un segundo examen conviene recorrer primero solo los nombres y tamaños, y abrir solo los elegidos. El guion es desatendido-14/clasificador/examen.py.",
+      "creado": "2026-10-29",
+      "actualizado": "2026-10-29"
     }
   ]
 }
