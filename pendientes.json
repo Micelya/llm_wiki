@@ -3411,9 +3411,9 @@
       "estado": "pendiente",
       "prioridad": 1,
       "tema": "base",
-      "detalle": "D-603 y D-606. Medido sobre la copia del 27 oct: en los 100 PDF que la base no corta, todos los pasos entre páginas son dudosos, porque las reglas solo dicen «sigue» ante una marca explícita (página en blanco, «página x de y», código, serie, par de fotos; cut/rules.rs, step) y las comparaciones de papel y captura solo dicen «empieza otro» y solo comparan escaneos. Las 22 respuestas del modelo en esos pasos dicen «sigue». Propuesta del mapa de código: en un PDF donde ninguna regla dice «empieza otro» y todas las páginas tienen la misma hechura y el mismo papel (comparando el tamaño también en las digitales), un paso sin señal cuenta como «sigue», con el respaldo «parejo»; en los PDF que las reglas cortaron sigue dudoso. Chico, sin versión nueva de la base (cambia la versión de las reglas y se vuelve a cortar todo). Riesgo: dos documentos digitales del mismo papel, sin fórmulas de cierre ni de apertura, pasarían como uno. Se mide con la hoja de partes antes de adoptarla, y es una de las variantes de la prueba del clasificador chico (P-421).",
+      "detalle": "D-603 y D-606. Medido sobre la copia del 27 oct: en los 100 PDF que la base no corta, todos los pasos entre páginas son dudosos, porque las reglas solo dicen «sigue» ante una marca explícita (página en blanco, «página x de y», código, serie, par de fotos; cut/rules.rs, step) y las comparaciones de papel y captura solo dicen «empieza otro» y solo comparan escaneos. Las 22 respuestas del modelo en esos pasos dicen «sigue». Propuesta del mapa de código: en un PDF donde ninguna regla dice «empieza otro» y todas las páginas tienen la misma hechura y el mismo papel (comparando el tamaño también en las digitales), un paso sin señal cuenta como «sigue», con el respaldo «parejo»; en los PDF que las reglas cortaron sigue dudoso. Chico, sin versión nueva de la base (cambia la versión de las reglas y se vuelve a cortar todo). Riesgo: dos documentos digitales del mismo papel, sin fórmulas de cierre ni de apertura, pasarían como uno. Se mide con la hoja de partes antes de adoptarla, y es una de las variantes de la prueba del clasificador chico (P-421). 2026-10-28: Corrida desatendida 14, paso 1: construida en sesion-23/correcciones (regla uniform, valores en el catálogo del cortador, reglas cut-rules/2) con la excepción de la página firmada (D-616). Medida: en toda la carpeta, 114 de los 181 pasos dudosos sin respuesta pasan a «sigue por archivo parejo» (30 PDF de un solo documento; ningún compuesto tocado); copias y versiones igual que antes (47, 3, 5, 2 y 49, 4, 2, 2). En el orden de la app, el modelo deja de recibir 138 de 313 preguntas de corte, y en la hoja de partes queda en 96 cortes, 2 de más, 0 perdidos y 98 documentos exactos. Falta verlo en la app (P-432).",
       "creado": "2026-10-27",
-      "actualizado": "2026-10-27"
+      "actualizado": "2026-10-28"
     },
     {
       "id": "P-421",
@@ -3510,6 +3510,42 @@
       "detalle": "Qué es: la hoja de partes (conjunto-prueba/partes.json) da los límites correctos de 6 PDF compuestos. La base corta 29 archivos de la carpeta de prueba; 5 están en la hoja, 24 no; y uno de la hoja la base no lo corta. De los 213 documentos incluidos (las partes), 104 están en un PDF de la hoja y 109 no tienen referencia para sus límites. La hoja de parecidos evalúa solo 3 documentos incluidos. Ejemplo: si un PDF de la carpeta que no está en la hoja junta tres documentos y la base lo corta en dos, hoy ninguna medición lo ve. Qué cambia si se amplía: la medición de cortes y la de parecidos cubrirían más de la carpeta y una mejora del cortador se notaría en las cifras. Costo: el dueño dice, por PDF, en qué páginas empieza cada documento; unos minutos por archivo. Propuesta para bajar el costo: Claude propone los cortes de cada PDF con su texto y hojas de miniaturas, y el dueño solo comprueba; esos PDF sirven además de examen para el clasificador chico (P-421), porque no se usaron para ajustar las reglas (D-609, D-610).",
       "creado": "2026-10-27",
       "actualizado": "2026-10-27"
+    },
+    {
+      "id": "P-432",
+      "titulo": "Ver en la app: la regla «archivo parejo» del cortador",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": "1",
+      "tema": "base",
+      "detalle": "Con la rama sesion-23/correcciones la app vuelve a cortar todos los PDF al abrir (reglas cut-rules/2). Qué mirar: 1) la lista de documentos y las partes de los PDF compuestos son las mismas de antes (medido: 29 PDF cortados, copias y versiones 47 bien, 3 mal, 5 faltantes; con los cortes confirmados 49, 4, 2); 2) con la lectura automática apagada no aparece ninguna consulta nueva en «En curso»; 3) si se enciende, el cortador pregunta menos: en la carpeta de prueba quedan 175 pasos para el modelo en lugar de 313. Ejemplos en llm_wiki_mi/desatendido-14/paso1-informe.md («Para el dueño»).",
+      "creado": "2026-10-28",
+      "actualizado": "2026-10-28"
+    },
+    {
+      "id": "P-433",
+      "titulo": "Ampliar y medir la lista de firmas que frena el archivo parejo",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": "2",
+      "tema": "base",
+      "detalle": "D-616. La lista (renglón para firmar, «aclaración», «firma y sello», «firmado digitalmente», «firma digital») salió de un solo corte de la hoja de partes. En el orden de la app frena 7 pasos en toda la carpeta (uno es ese corte real), y no hay hoja de partes para los 30 PDF parejos: en ellos las 19 respuestas ya pagadas dicen «sigue» y ninguna «empieza otro», pero los 114 pasos sin respuesta no tienen referencia. Medir con más PDF compuestos y otras formas de firma (sello, firma escaneada sin texto).",
+      "creado": "2026-10-28",
+      "actualizado": "2026-10-28"
+    },
+    {
+      "id": "P-434",
+      "titulo": "Que el arnés del cortador mida también en el orden de la app (cortar antes de toda respuesta)",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": "3",
+      "tema": "base",
+      "detalle": "cut/check.rs siembra las respuestas antes de cortar, y así una regla que deja de preguntar parece inofensiva: la variante B no cambia. En el paso 1 de la corrida 14 se midió a mano, con una corrida sin semillas y las respuestas pagadas cruzadas por pregunta. Sumar esa variante al arnés (cortar sin respuestas, preguntar solo los dudosos que quedan, usar las semillas como respuestas).",
+      "creado": "2026-10-28",
+      "actualizado": "2026-10-28"
     }
   ]
 }

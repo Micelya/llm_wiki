@@ -557,6 +557,9 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-612 | 27 oct | replanteo | El motor local sigue leyendo de fondo los escaneos nuevos, pero la pantalla dice qué motor leyó cada página y para qué sirve el motor elegido en Ajustes | vigente; falta el código (P-423) |
 | D-613 | 27 oct | base | Cuándo un lado de un par de la hoja tiene límites exactos y a qué cuenta va un par que no los tiene | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-614 | 27 oct | base | Qué cuenta como PDF compuesto y como documento incluido sin referencia en la cobertura de la medición | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-615 | 28 oct | base | En el archivo parejo, una respuesta del modelo sobre las dos páginas pesa más que la regla, también si llega después | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-616 | 28 oct | base | El archivo parejo no vale en el paso que sigue a una página que termina con una firma | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-617 | 28 oct | base | Cómo compara el archivo parejo: todas las páginas no blancas contra la primera, con su propio margen en el catálogo, sin mirar la palabra de una persona | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -6252,3 +6255,24 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **El problema:** La prueba de toda la carpeta tiene que decir cuántos PDF compuestos tienen referencia en la hoja de partes y cuántos documentos incluidos quedan sin referencia. La base no sabe qué PDF son compuestos de verdad: solo sabe cuáles cortó.
 - **Qué se decidió y por qué:** PDF compuesto es un archivo que la base cortó (tiene partes por páginas). Tiene referencia si su huella está en la hoja de partes. Un documento incluido queda sin referencia para sus límites cuando es una parte de un PDF compuesto que no está en la hoja de partes. Además se dice cuántos de los archivos de la hoja de partes la base no cortó, y cuántos documentos incluidos toca algún par evaluado de la hoja de parecidos. Alternativa: tomar como compuestos también los PDF con algún paso dudoso sin respuesta, que podrían tener un corte que la base no hizo.
 - **Quién decidió:** Claude, en la corrida desatendida; el dueño revisa
+
+### D-615 · En el archivo parejo, una respuesta del modelo sobre las dos páginas pesa más que la regla, también si llega después
+
+- **Fecha:** 28 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La regla «archivo parejo» da «sigue» por defecto a los pasos sin señal de un PDF parejo. Hay que decidir qué pasa cuando el modelo ya dijo algo de esas dos páginas, o lo dice más tarde (las mismas páginas en otro archivo).
+- **Qué se decidió y por qué:** La respuesta del modelo gana: es evidencia del contenido y la regla es un valor por defecto. Un paso con respuesta guardada no pasa a «sigue por archivo parejo»; uno que ya pasó conserva su pregunta, y si llega una respuesta sobre esas mismas páginas, decide ella. A los pasos del archivo parejo no se les pregunta. Alternativa: que la regla gane sobre la respuesta del modelo, lo que ahorraría alguna consulta pero perdería cortes que el modelo vio.
+- **Quién decidió:** Claude (corrida desatendida 14, paso 1)
+
+### D-616 · El archivo parejo no vale en el paso que sigue a una página que termina con una firma
+
+- **Fecha:** 28 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Medida en el orden real de la app (primero se corta, después se pregunta), la regla escondía un corte real de la hoja de partes: un documento de una página firmado, seguido de otra página del mismo papel. Ese paso ya no se le preguntaría al modelo.
+- **Qué se decidió y por qué:** Si los últimos renglones propios de la página anterior (6, en el catálogo) tienen una firma (un renglón para firmar, «aclaración», «firma y sello», «firmado digitalmente», «firma digital»; la lista está en el catálogo del cortador), ese paso queda dudoso y se le pregunta al modelo. Con eso la hoja no pierde ningún corte. Alternativas: que la regla no valga en los PDF de dos páginas, o aceptar la pérdida.
+- **Quién decidió:** Claude (corrida desatendida 14, paso 1)
+
+### D-617 · Cómo compara el archivo parejo: todas las páginas no blancas contra la primera, con su propio margen en el catálogo, sin mirar la palabra de una persona
+
+- **Fecha:** 28 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La regla necesita decir cuándo dos páginas son «del mismo tamaño», y si tiene en cuenta lo que una persona ya decidió de una página.
+- **Qué se decidió y por qué:** Cada página no blanca se compara con la primera no blanca: misma hechura (digital o escaneada), misma orientación y el mismo ancho y alto dentro de un margen propio del catálogo (sizeShare, hoy 0,04, igual que el del papel de los escaneos). El cortador no mira la palabra de una persona: ya gana sobre cualquier paso cuando se arman las partes, y así el resultado no depende de cuándo decidió. Alternativas: comparar solo páginas vecinas (dejaría pasar un cambio de tamaño gradual) o usar el mismo valor del papel de los escaneos (no se podría ajustar por separado).
+- **Quién decidió:** Claude (corrida desatendida 14, paso 1)
