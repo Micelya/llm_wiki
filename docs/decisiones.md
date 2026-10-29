@@ -560,6 +560,10 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-615 | 28 oct | base | En el archivo parejo, una respuesta del modelo sobre las dos páginas pesa más que la regla, también si llega después | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-616 | 28 oct | base | El archivo parejo no vale en el paso que sigue a una página que termina con una firma | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-617 | 28 oct | base | Cómo compara el archivo parejo: todas las páginas no blancas contra la primera, con su propio margen en el catálogo, sin mirar la palabra de una persona | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-618 | 28 oct | base | Lo incierto es una marca aparte en cada aparición, y la confianza del modelo queda guardada en cada paso del cortador | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-619 | 28 oct | pantalla | Las palabras de la pantalla: «Respaldado», «Incierto» y «Confirmado», y la tira del PDF de un solo documento | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-620 | 28 oct | base | Cuándo un par, una familia o un documento de un asunto lleva la marca de incierto | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-621 | 28 oct | base | Una respuesta del modelo sin confianza conocida respalda el paso; un paso que falta no | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -6276,3 +6280,31 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **El problema:** La regla necesita decir cuándo dos páginas son «del mismo tamaño», y si tiene en cuenta lo que una persona ya decidió de una página.
 - **Qué se decidió y por qué:** Cada página no blanca se compara con la primera no blanca: misma hechura (digital o escaneada), misma orientación y el mismo ancho y alto dentro de un margen propio del catálogo (sizeShare, hoy 0,04, igual que el del papel de los escaneos). El cortador no mira la palabra de una persona: ya gana sobre cualquier paso cuando se arman las partes, y así el resultado no depende de cuándo decidió. Alternativas: comparar solo páginas vecinas (dejaría pasar un cambio de tamaño gradual) o usar el mismo valor del papel de los escaneos (no se podría ajustar por separado).
 - **Quién decidió:** Claude (corrida desatendida 14, paso 1)
+
+### D-618 · Lo incierto es una marca aparte en cada aparición, y la confianza del modelo queda guardada en cada paso del cortador
+
+- **Fecha:** 28 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Lo bien respaldado avanza solo y lo incierto avanza marcado (D-603). Hay que guardar en la base cuál es cuál, y saber qué tan seguro estuvo el modelo en cada paso, cosa que la tabla de pasos no guardaba.
+- **Qué se decidió y por qué:** La versión 6 de la base agrega a cada aparición una marca «incierto» (sí o no) en lugar de un tercer estado del corte, porque un tercer estado obliga a rehacer la tabla y sus disparadores. La marca se llena siempre, también en el archivo entero de un PDF de un solo documento, que la base deja «confirmado» por una restricción: en pantalla manda la marca, nunca se presenta como confirmado por una persona. Cada paso guarda también la confianza del modelo (alta, media o baja), tomada al actualizar de las respuestas ya guardadas, y al actualizar se rehacen una vez las partes de todos los PDF cortados para marcarlas. Alternativa: el tercer estado en el corte, más limpio de leer pero con la tabla rehecha.
+- **Quién decidió:** Claude (corrida desatendida 14, paso 2)
+
+### D-619 · Las palabras de la pantalla: «Respaldado», «Incierto» y «Confirmado», y la tira del PDF de un solo documento
+
+- **Fecha:** 28 oct 2026 · **Tema:** pantalla · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** «Sin confirmar» deja de describir lo que pasa: lo respaldado ya cuenta sin que nadie lo confirme. Y un PDF de un solo documento con pasos inciertos tiene que mostrar su tira.
+- **Qué se decidió y por qué:** Cada documento incluido dice «Respaldado», «Incierto» o «Confirmado», seguido de quién lo propuso; la lista dice «incluye 5 documentos · 3 inciertos», y para un PDF de un solo documento con un paso incierto, «un documento · incierto». Su tira se titula «Dónde podría empezar otro documento», muestra el archivo entero como única fila con las páginas para mirar y sin «Abrir». Los pares, las familias y los documentos de un asunto muestran «Incierto» con la explicación «Sale de un corte que la app no pudo decidir: cuenta igual, pero conviene mirarlo». Las palabras están en el vocabulario de la vertical. Alternativa: «Propuesto» en lugar de «Respaldado».
+- **Quién decidió:** Claude (corrida desatendida 14, paso 2)
+
+### D-620 · Cuándo un par, una familia o un documento de un asunto lleva la marca de incierto
+
+- **Fecha:** 28 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Lo que sale de un corte incierto entra igual a copias y versiones, familias, plantillas y asuntos, marcado. Hay que decir qué lo marca cuando un mismo texto aparece en varios archivos, y qué pasa cuando una persona decide.
+- **Qué se decidió y por qué:** Un documento lleva la marca solo si todas sus apariciones son inciertas: si el mismo texto aparece en otro archivo con corte respaldado, no la lleva. Un par la lleva mientras nadie lo decidió y uno de los dos la lleva; la decisión de una persona sobre el par la quita. Una familia dice cuántos de sus miembros la llevan. El archivo entero de un PDF con partes la lleva si alguno de sus pasos es incierto (no se lee entero, así que solo informa). Alternativa: marcar por la parte aunque su texto esté respaldado en otro archivo, que marcaría más pares.
+- **Quién decidió:** Claude (corrida desatendida 14, paso 2)
+
+### D-621 · Una respuesta del modelo sin confianza conocida respalda el paso; un paso que falta no
+
+- **Fecha:** 28 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La regla de D-603 dice que respalda una respuesta de confianza alta o media y deja incierta una de confianza baja. Quedan dos casos sin decir: una respuesta guardada cuya confianza no se puede leer, y una página sin paso del cortador.
+- **Qué se decidió y por qué:** La respuesta sin confianza conocida respalda el paso, porque el modelo sí miró las dos páginas (en la carpeta de prueba no hay ninguna: 128 de confianza alta y 4 media). Una página sin paso cuenta como incierta, porque nadie dijo nada de ella. El botón «Confirmar» sigue disponible mientras quede algo sin confirmar, y se destaca solo cuando hay algo incierto. Alternativa: tratar la respuesta sin confianza como incierta, más prudente pero marcaría respuestas viejas que nadie dudó.
+- **Quién decidió:** Claude (corrida desatendida 14, paso 2)

@@ -3339,9 +3339,9 @@
       "estado": "pendiente",
       "prioridad": 1,
       "tema": "base",
-      "detalle": "D-603. Hoy una parte queda confirmada solo si una persona decidió todos sus pasos (D-587), lo que sale de un corte propuesto espera (D-590, D-597) y todo paso dudoso sin la palabra de una persona va a «Para mirar» (D-594). Falta: un paso con regla segura o con respuesta del modelo pedida con motivo cuenta como «con respaldo» y avanza solo (familias, plantillas, asuntos); un paso dudoso sin respuesta queda «incierto», no como un «sigue» seguro; lo que sale de un corte incierto se calcula y se marca; «Para mirar» solo para los inciertos que cambian algo; las palabras de la tira con los tres estados (vocabulario de la vertical). Medir con la hoja de partes y la de copias y versiones, con el arnés corregido (D-609). Dónde (mapa de código del 27 oct, llm_wiki_mi/revision-27oct/pasoA-informe.md): un paso dudoso sin respuesta cuenta como «sigue» en cut/mod.rs (CutStep::starts); cut/parts.rs (partition) confirma solo lo que decidió una persona, y only_proposed traba familias, asuntos y plantillas (similar/store.rs waiting_sql y grouped, knowledge/matters.rs); un PDF de una sola parte queda confirmado a la fuerza por una restricción de la base (schema.rs), así que los no cortados con pasos dudosos se ven firmes; «Para mirar» en parts.rs (included_parts) marca todo dudoso sin persona; la tira no aparece en un PDF de una sola parte (documents-view.tsx); unconfirmed_cuts (query.rs); las palabras en legal.ts. Propuesta del mapa: una columna «incierto» en la aparición (versión 6 de la base) que marca en lugar de excluir. Grande.",
+      "detalle": "D-603. Hoy una parte queda confirmada solo si una persona decidió todos sus pasos (D-587), lo que sale de un corte propuesto espera (D-590, D-597) y todo paso dudoso sin la palabra de una persona va a «Para mirar» (D-594). Falta: un paso con regla segura o con respuesta del modelo pedida con motivo cuenta como «con respaldo» y avanza solo (familias, plantillas, asuntos); un paso dudoso sin respuesta queda «incierto», no como un «sigue» seguro; lo que sale de un corte incierto se calcula y se marca; «Para mirar» solo para los inciertos que cambian algo; las palabras de la tira con los tres estados (vocabulario de la vertical). Medir con la hoja de partes y la de copias y versiones, con el arnés corregido (D-609). Dónde (mapa de código del 27 oct, llm_wiki_mi/revision-27oct/pasoA-informe.md): un paso dudoso sin respuesta cuenta como «sigue» en cut/mod.rs (CutStep::starts); cut/parts.rs (partition) confirma solo lo que decidió una persona, y only_proposed traba familias, asuntos y plantillas (similar/store.rs waiting_sql y grouped, knowledge/matters.rs); un PDF de una sola parte queda confirmado a la fuerza por una restricción de la base (schema.rs), así que los no cortados con pasos dudosos se ven firmes; «Para mirar» en parts.rs (included_parts) marca todo dudoso sin persona; la tira no aparece en un PDF de una sola parte (documents-view.tsx); unconfirmed_cuts (query.rs); las palabras en legal.ts. Propuesta del mapa: una columna «incierto» en la aparición (versión 6 de la base) que marca en lugar de excluir. Grande. 2026-10-29: Corrida desatendida 14, paso 2: construido en sesion-23/correcciones (versión 6 de la base: marca «incierto» en cada aparición y confianza del modelo en cada paso; D-618 a D-621). Lo respaldado avanza sin confirmación y lo incierto avanza marcado en pares, familias y asuntos. Medido en toda la carpeta: tal como queda, copias y versiones pasan de 47 bien, 3 mal y 5 faltantes a 49, 4 y 2 (igual que con los cortes confirmados); quedan inciertos 67 pasos, 13 PDF de un solo documento, 21 pares y 3 familias. Falta verlo en la app (P-435).",
       "creado": "2026-10-27",
-      "actualizado": "2026-10-27"
+      "actualizado": "2026-10-29"
     },
     {
       "id": "P-415",
@@ -3546,6 +3546,30 @@
       "detalle": "cut/check.rs siembra las respuestas antes de cortar, y así una regla que deja de preguntar parece inofensiva: la variante B no cambia. En el paso 1 de la corrida 14 se midió a mano, con una corrida sin semillas y las respuestas pagadas cruzadas por pregunta. Sumar esa variante al arnés (cortar sin respuestas, preguntar solo los dudosos que quedan, usar las semillas como respuestas).",
       "creado": "2026-10-28",
       "actualizado": "2026-10-28"
+    },
+    {
+      "id": "P-435",
+      "titulo": "Ver en la app: lo respaldado avanza solo y lo incierto queda marcado",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "base",
+      "detalle": "Con la rama sesion-23/correcciones la base pasa a la versión 6 al abrir (deja su copia de respaldo) y rehace una vez las partes de los PDF cortados. Qué mirar: 1) en Documentos, AEROS BGH\\ContenidoExtra\\el contrato de un solo documento con un paso incierto (desatendido-14/paso2-informe.md) dice «un documento · incierto»; abierto, muestra la tira «Dónde podría empezar otro documento» con la página 8 «Para mirar»; «Confirmar» quita la marca; 2) el acuerdo de terminación firmado del primer ejemplo de desatendido-14/paso4-informe.md (misma carpeta) muestra sus dos documentos «Respaldado · lo propuso el modelo mirando las páginas», y sus relaciones con los otros acuerdos aparecen en Parecidos sin confirmar nada; 3) otro acuerdo de terminación firmado (desatendido-14/paso2-informe.md) queda como un documento incierto y sus relaciones dicen «Incierto». Medido: copias y versiones tal como queda 49 bien, 4 mal, 2 faltantes (antes 47, 3, 5); 67 pasos, 13 PDF, 21 pares y 3 familias inciertos. Ejemplos en llm_wiki_mi/desatendido-14/paso2-informe.md, sección «Para el dueño».",
+      "creado": "2026-10-29",
+      "actualizado": "2026-10-29"
+    },
+    {
+      "id": "P-436",
+      "titulo": "La marca «Incierto» en cada miembro de una familia y en las plantillas, y medirla en los asuntos",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "Desde D-603 lo incierto entra marcado. La base ya dice qué miembro de una familia lo es (y el documento de un asunto), pero la pantalla de familias solo muestra cuántos, y las plantillas no muestran nada. La medición de la carpeta no tiene asuntos armados (lectura solo con respuestas guardadas), así que los documentos inciertos de un asunto quedaron sin medir (0 de 0).",
+      "creado": "2026-10-29",
+      "actualizado": "2026-10-29"
     }
   ]
 }
