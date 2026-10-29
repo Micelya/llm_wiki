@@ -891,9 +891,85 @@ fn similar_documents_of_the_included_documents() {
         let sheet: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(path).ok()?).ok()?;
         Some(sheet["files"].as_array()?.iter().filter_map(|f| Some(f["sha256"].as_str()?.to_lowercase())).collect())
     });
+    // The signature the parts sheet reads on each page (`page_marks`).
+    let sheet_signatures: HashMap<String, Vec<String>> = std::env::var("MICELYA_CUT_SHEET")
+        .ok()
+        .and_then(|path| {
+            let sheet: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(path).ok()?).ok()?;
+            Some(
+                sheet["files"]
+                    .as_array()?
+                    .iter()
+                    .filter_map(|f| {
+                        let pages = f["page_marks"].as_array()?.iter().map(|p| p["signature"].as_str().unwrap_or("").to_string());
+                        Some((f["sha256"].as_str()?.to_lowercase(), pages.collect()))
+                    })
+                    .collect(),
+            )
+        })
+        .unwrap_or_default();
     let report = |when: &str| {
         let count = |sql: &str| -> i64 { base.conn().query_row(sql, [], |row| row.get(0)).unwrap() };
         println!("\n==== {when} ====");
+        // The parts that count as signed (D-607): in the parts sheet and in
+        // the other cut PDFs, and in the sheet against what it reads.
+        {
+            let conn = base.conn();
+            let mut statement = conn
+                .prepare(
+                    "SELECT a.resource_hash, a.selector, m.marks FROM appearance a
+                     JOIN document_marks m ON m.version_id = a.version_id WHERE a.selector <> 'file'",
+                )
+                .unwrap();
+            let rows: Vec<(String, String, String)> =
+                statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?))).unwrap().collect::<Result<_, _>>().unwrap();
+            let within: Vec<String> = Catalog::builtin().within_file.iter().map(|w| w.id.clone()).collect();
+            let mut groups = [[0usize; 3]; 2]; // parts, signed, signed by a certificate
+            let (mut right, mut wrong, mut missed) = (0, 0, 0);
+            let mut listed = Vec::new();
+            for (hash, selector, marks) in rows {
+                let marks: Vec<Mark> = serde_json::from_str(&marks).unwrap_or_default();
+                let signed = marks.iter().any(|m| m.kind == "party-signature");
+                let by_certificate = marks.iter().any(|m| m.kind == "party-signature" && within.contains(&m.signal));
+                let pages = sheet_signatures.get(&hash.to_lowercase());
+                let group = &mut groups[if pages.is_some() { 0 } else { 1 }];
+                group[0] += 1;
+                group[1] += signed as usize;
+                group[2] += by_certificate as usize;
+                if signed {
+                    listed.push(format!("{selector} {} of {hash:.12}", if by_certificate { "by a certificate" } else { "by its pages" }));
+                }
+                let range = selector.strip_prefix("pages:").and_then(|r| r.split_once('-'));
+                if let (Some(pages), Some((first, last))) = (pages, range) {
+                    let (first, last): (usize, usize) = (first.parse().unwrap_or(1), last.parse().unwrap_or(0));
+                    let system = pages.iter().skip(first.saturating_sub(1)).take(last + 1 - first.min(last + 1)).any(|s| s == "system");
+                    match (signed, system) {
+                        (true, true) => right += 1,
+                        (true, false) => wrong += 1,
+                        (false, true) => missed += 1,
+                        _ => {}
+                    }
+                }
+            }
+            println!(
+                "signed parts: parts sheet {} of {} ({} by a certificate) · other cut PDFs {} of {} ({} by a certificate)",
+                groups[0][1], groups[0][0], groups[0][2], groups[1][1], groups[1][0], groups[1][2]
+            );
+            println!("   parts sheet: signed with a system signature {right} · signed without one {wrong} · not signed with one {missed}");
+            for line in listed {
+                println!("   signed: {line}");
+            }
+            for rule in &within {
+                let pairs: Vec<(String, Option<i64>, String)> = {
+                    let mut statement = conn
+                        .prepare("SELECT relation, subject, state FROM similar_pair WHERE type_rule = ?1 ORDER BY a, b")
+                        .unwrap();
+                    let rows = statement.query_map([rule], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?))).unwrap();
+                    rows.collect::<Result<_, _>>().unwrap()
+                };
+                println!("   pairs by {rule}: {} {:?}", pairs.len(), pairs.iter().map(|p| (&p.0, &p.2)).collect::<Vec<_>>());
+            }
+        }
         println!(
             "versions {} · compared {} · cut files {} · parts {} · versions only in uncertain cuts {} · pairs {}",
             count("SELECT count(*) FROM version"),

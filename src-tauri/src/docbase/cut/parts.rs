@@ -292,6 +292,9 @@ impl DocBase {
                 None => to_make.push((index, part, selector, body, identity)),
             }
         }
+        // What one part says of another (a signing certificate, D-607)
+        // is read again when the parts change.
+        let changed = !to_make.is_empty() || kept.len() < existing.len();
         let mut left: BTreeSet<i64> = BTreeSet::new();
         for e in existing.iter().filter(|e| !kept.contains(&e.id)) {
             tx.execute("DELETE FROM appearance WHERE id = ?1", [e.id]).map_err(sql_err)?;
@@ -348,6 +351,14 @@ impl DocBase {
                 tx.execute("DELETE FROM content_fts WHERE rowid = ?1", [version_id]).map_err(sql_err)?;
                 tx.execute("DELETE FROM version WHERE id = ?1", [version_id]).map_err(sql_err)?;
             }
+        }
+        if changed {
+            tx.execute(
+                "UPDATE similar_signature SET text_at = -1
+                 WHERE version_id IN (SELECT version_id FROM appearance WHERE resource_hash = ?1 AND selector <> 'file')",
+                [hash],
+            )
+            .map_err(sql_err)?;
         }
         crate::docbase::search::forget_gone(&tx)?;
         tx.execute("INSERT OR REPLACE INTO cut_applied (resource_hash, basis) VALUES (?1, ?2)", params![hash, basis])

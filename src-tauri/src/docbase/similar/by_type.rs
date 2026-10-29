@@ -92,6 +92,8 @@ struct Known {
     kinds: BTreeSet<String>,
     /// Comparable values of each datum, and the first one as written.
     data: BTreeMap<String, (BTreeSet<String>, String)>,
+    /// The parts of its file that certify it: (version, relation, rule).
+    certified_by: Vec<(i64, String, String)>,
 }
 
 fn words(id: &str) -> String {
@@ -116,6 +118,10 @@ fn load_known(conn: &Connection, catalog: &Catalog) -> Result<HashMap<i64, Known
             if catalog.doc_type(&mark.doc_type).is_some_and(|t| t.carrier) {
                 known.kinds.insert(mark.doc_type.clone());
             }
+            let within = catalog.within_file.iter().find(|w| w.id == mark.signal);
+            if let (Some(rule), Some(certifier)) = (within, mark.value.as_deref().and_then(|v| v.parse::<i64>().ok())) {
+                known.certified_by.push((certifier, rule.relation.clone(), rule.id.clone()));
+            }
         }
         for datum in data.get(&id).cloned().flatten().unwrap_or_default() {
             let entry = known.data.entry(datum.field.clone()).or_insert_with(|| (BTreeSet::new(), datum.value.clone()));
@@ -134,6 +140,21 @@ fn rules_of<'a>(catalog: &'a Catalog, doc_type: &str, kind: &'a str) -> impl Ite
 /// measured (`None`: nothing).
 fn verdict(catalog: &Catalog, a: (i64, &Known), b: (i64, &Known), measured: Option<&str>) -> Option<Verdict> {
     let shared: Vec<&String> = a.1.kinds.intersection(&b.1.kinds).collect();
+
+    // A part of the same file that certifies the other (`attest.rs`).
+    if measured.is_none_or(|m| SHARED_DATA_OVER.contains(&m)) {
+        for (certified, certifier) in [(a, b), (b, a)] {
+            let Some((_, relation, rule)) = certified.1.certified_by.iter().find(|(id, _, _)| *id == certifier.0) else { continue };
+            return Some(Verdict {
+                relation: relation.clone(),
+                subject: Some(certifier.0),
+                rule: rule.clone(),
+                certainty: Some("high"),
+                description: "Va en el mismo archivo y da fe de su firma.".to_string(),
+                evidence: serde_json::json!({ "withinFile": rule, "measured": measured }),
+            });
+        }
+    }
 
     // Different data: different documents.
     if let Some(measured) = measured {
@@ -438,7 +459,13 @@ impl DocBase {
         }
 
         // Pairs no measurement found that a rule of the type proposes.
-        for (a, b) in shared_data_candidates(catalog, &known) {
+        let certified: BTreeSet<(i64, i64)> = known
+            .iter()
+            .flat_map(|(id, doc)| doc.certified_by.iter().map(move |(by, _, _)| (*id.min(by), *id.max(by))))
+            .filter(|(a, b)| a != b && known.contains_key(a) && known.contains_key(b))
+            .collect();
+        let candidates: BTreeSet<(i64, i64)> = shared_data_candidates(catalog, &known).into_iter().chain(certified).collect();
+        for (a, b) in candidates {
             if seen.contains(&(a, b)) || decided.contains(&(a, b)) {
                 continue;
             }
@@ -541,5 +568,17 @@ mod tests {
         assert_eq!(verdict(&catalog, (1, &other), (2, &receipt), None), None);
         // A relation the measurement already gave is not replaced.
         assert_eq!(verdict(&catalog, (1, &letter), (2, &receipt), Some("version")), None);
+    }
+
+    #[test]
+    fn a_part_certified_by_another_of_its_file_has_it_as_its_signing_certificate() {
+        let catalog = Catalog::builtin();
+        let mut agreement = Known::default();
+        agreement.certified_by.push((7, "signing-certificate-of".into(), "firmado-segun-su-constancia".into()));
+        let certificate = Known::default();
+        let v = verdict(&catalog, (3, &agreement), (7, &certificate), None).unwrap();
+        assert_eq!((v.relation.as_str(), v.subject, v.certainty), ("signing-certificate-of", Some(7), Some("high")));
+        // Another part of the file is not its certificate.
+        assert_eq!(verdict(&catalog, (3, &agreement), (8, &certificate), None), None);
     }
 }

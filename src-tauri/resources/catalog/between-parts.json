@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "about": [
+    "Relaciones entre las partes de un mismo PDF cortado (D-560, D-607, D-608), por lo que una parte dice de otra. Es conocimiento general: nunca nombra un caso, una persona, un archivo ni un número concreto (R-24).",
+    "Va aparte del catálogo de tipos (document-types.json) porque no cambia lo que se le pregunta al modelo: cambiar aquel archivo hace que se vuelvan a preguntar los tipos y los datos de todos los documentos.",
+    "Una parte recibe el sello del servicio de firma de su archivo solo como contexto, para cumplir con 'requires' del catálogo de tipos; nunca cuenta como firma de la parte, y la firma de una persona que lleve el archivo no pasa a sus partes.",
+    "Cada regla: una parte con todas las marcas de 'certifierMarks' (una constancia de firma que muestra firmas) da fe de las partes del mismo archivo que nombra ('namedBy': 'identifier', un identificador largo de letras y dígitos que está en las dos, con o sin guiones; 'title', la primera línea de la otra parte); si no nombra ninguna, de la parte anterior ('otherwise': 'previous'). La parte de la que da fe recibe la marca 'gives' de la constancia, que deja de contarla como propia: la evidencia de firma sale del documento y de su constancia (D-607). La relación 'relation' del catálogo de tipos queda propuesta entre las dos."
+  ],
+  "rules": [
+    {
+      "id": "firmado-segun-su-constancia",
+      "relation": "signing-certificate-of",
+      "certifierMarks": [
+        "signing-audit",
+        "party-signature"
+      ],
+      "namedBy": [
+        "identifier",
+        "title"
+      ],
+      "otherwise": "previous",
+      "gives": "party-signature"
+    }
+  ]
+}

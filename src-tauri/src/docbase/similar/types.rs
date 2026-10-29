@@ -19,6 +19,15 @@ use std::sync::OnceLock;
 use serde::{Deserialize, Serialize};
 
 const BUILTIN: &str = include_str!("../../../resources/catalog/document-types.json");
+/// Relations between the parts of one cut file. Apart from the catalog of
+/// types, so that changing them does not change its digest: what the model
+/// was asked with that catalog is not asked again.
+const BETWEEN_PARTS: &str = include_str!("../../../resources/catalog/between-parts.json");
+
+#[derive(Deserialize)]
+struct BetweenParts {
+    rules: Vec<WithinFile>,
+}
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -32,6 +41,9 @@ pub struct Catalog {
     /// catalog is computed again.
     #[serde(skip)]
     pub digest: String,
+    /// How the relations hold between parts of one file (`BETWEEN_PARTS`).
+    #[serde(skip)]
+    pub within_file: Vec<WithinFile>,
 }
 
 /// One relation two documents can have. Its name for the user comes from
@@ -61,6 +73,31 @@ pub struct RelationDef {
     /// one (D-497).
     #[serde(default)]
     pub asks_person: bool,
+}
+
+/// How a part cut from a file certifies another part of the same file
+/// (D-607, D-608): a signing certificate cut apart from what it certifies
+/// (`between-parts.json`, `attest.rs`).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WithinFile {
+    /// The id of the mark the certified part gets (its `signal`).
+    pub id: String,
+    /// The relation between the two, from `relations`.
+    pub relation: String,
+    /// The marks a part needs, all of them, to certify another.
+    pub certifier_marks: Vec<String>,
+    /// How the certifier names the part it certifies: `identifier` (a
+    /// long token of letters and digits found in both) or `title` (the
+    /// first line of the other part, found in it).
+    #[serde(default)]
+    pub named_by: Vec<String>,
+    /// What it certifies when it names no part: `previous`, the part
+    /// before it. None: nothing.
+    #[serde(default)]
+    pub otherwise: Option<String>,
+    /// The kind of the certifier's mark the certified part gets.
+    pub gives: String,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
@@ -241,6 +278,9 @@ impl Catalog {
         let mut catalog: Catalog =
             serde_json::from_str(text).map_err(|e| format!("The document type catalog is not valid: {e}"))?;
         catalog.digest = format!("{:016x}", super::text::fnv1a(text.as_bytes()));
+        let between: BetweenParts =
+            serde_json::from_str(BETWEEN_PARTS).map_err(|e| format!("The catalog of relations between parts is not valid: {e}"))?;
+        catalog.within_file = between.rules;
         Ok(catalog)
     }
 
@@ -364,6 +404,15 @@ mod tests {
         let kinds = ["identifier", "amount", "date", "number", "text"];
         let rule_kinds = ["different-data", "stage-pair", "shared-data"];
         assert!(catalog.document_types().count() >= 5);
+        assert!(!catalog.within_file.is_empty());
+        for within in &catalog.within_file {
+            let marks: Vec<&str> = catalog.types.iter().flat_map(|t| t.signals.iter()).filter_map(|s| s.mark.as_deref()).collect();
+            assert!(catalog.relation(&within.relation).is_some(), "{}", within.id);
+            assert!(within.certifier_marks.iter().all(|m| marks.contains(&m.as_str())), "{}", within.id);
+            assert!(marks.contains(&within.gives.as_str()), "{}", within.id);
+            assert!(within.named_by.iter().all(|n| ["identifier", "title"].contains(&n.as_str())), "{}", within.id);
+            assert!(within.otherwise.as_deref().is_none_or(|o| o == "previous"), "{}", within.id);
+        }
         for doc_type in &catalog.types {
             for datum in &doc_type.data {
                 assert!(kinds.contains(&datum.kind.as_str()), "{} {}", doc_type.id, datum.id);

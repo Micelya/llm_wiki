@@ -26,6 +26,7 @@ use crate::source_volume::{LocalFolderProvider, SourceProvider};
 
 use super::super::{now_ms, sql_err, DocBase, Visible};
 use super::align;
+use super::attest;
 use super::changes::{self, Changes};
 use super::key_data::{self, KeyData, TextIndex};
 use super::marks::{self, Mark, PdfSignature};
@@ -39,8 +40,11 @@ use super::types::{self, RelationDef};
 /// everything again. `similar-2`: the key data of the two documents decide
 /// whether a version or a similar pair are another document (D-497).
 /// `similar-3`: a version shares much in both directions. `similar-4`:
-/// the text is compared without what its format adds (D-521).
-pub const ENGINE: &str = "similar-4";
+/// the text is compared without what its format adds (D-521). `similar-5`:
+/// a part of a cut file reads the seal of its file as context, and a
+/// signing certificate of the same file passes its signatures to the part
+/// it certifies (D-607).
+pub const ENGINE: &str = "similar-5";
 /// Where the base keeps how the key data looked when it last compared
 /// them (`similar_key_data_check`).
 const KEY_DATA_SETTING: &str = "similar-key-data";
@@ -383,7 +387,7 @@ impl DocBase {
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .map_err(sql_err)?;
-        let signed = sign(content_id, &body, text_at, fields.is_some(), signatures);
+        let signed = sign(content_id, &body, text_at, fields.is_some(), signatures, &[], Default::default());
         let mut conn = self.conn();
         let tx = conn.transaction().map_err(sql_err)?;
         save_signature(&tx, &signed, &engine_id())?;
@@ -393,7 +397,7 @@ impl DocBase {
     /// Signs up to `limit` contents whose signature is missing or stale.
     fn similar_sign_pending(&self, limit: usize) -> Result<usize, String> {
         let engine = engine_id();
-        let jobs: Vec<(i64, String, i64, Option<String>, Vec<(String, PathBuf)>)> = {
+        let jobs: Vec<(i64, String, i64, Option<String>, Vec<(String, PathBuf)>, Vec<CutFrom>)> = {
             let conn = self.conn();
             // The version of a whole file with included parts is not
             // compared: each part is, with its own text (D-560).
@@ -422,25 +426,45 @@ impl DocBase {
             let mut jobs = Vec::new();
             for (content_id, body, text_at, fields) in rows {
                 let paths = pdf_paths(&conn, content_id)?;
-                jobs.push((content_id, body, text_at, fields, paths));
+                let cut_from = files_cut_into(&conn, content_id)?;
+                jobs.push((content_id, body, text_at, fields, paths, cut_from));
             }
             jobs
         };
-        for (content_id, body, text_at, fields, paths) in &jobs {
-            let mut signatures = Vec::new();
-            for (file, path) in paths {
-                match run_guarded("docbase_pdf_signatures", || marks::pdf_signatures(path, Some(file))) {
-                    Ok(found) => {
-                        for signature in found {
-                            if !signatures.contains(&signature) {
-                                signatures.push(signature);
-                            }
-                        }
-                    }
-                    Err(error) => eprintln!("[docbase] signatures of '{}': {error}", path.display()),
-                }
+        // The signatures of each file a part is cut from, read once.
+        let mut of_file: HashMap<String, Vec<PdfSignature>> = HashMap::new();
+        // And what the catalog reads in each of its parts.
+        let mut readings_of: HashMap<String, Vec<Vec<Mark>>> = HashMap::new();
+        for (content_id, body, text_at, fields, paths, cut_from) in &jobs {
+            let signatures = read_signatures(paths);
+            let mut context = Vec::new();
+            for file in cut_from {
+                let found = of_file.entry(file.hash.clone()).or_insert_with(|| read_signatures(&file.paths));
+                context.extend(found.iter().filter(|s| !context.contains(*s)).cloned().collect::<Vec<_>>());
             }
-            let signed = sign(*content_id, body, *text_at, fields.is_some(), signatures);
+            // What the other parts of its files say of it (D-607).
+            let mut certified = Vec::new();
+            let mut given: Vec<String> = Vec::new();
+            for file in cut_from {
+                let context = &of_file[&file.hash];
+                let readings = readings_of.entry(file.hash.clone()).or_insert_with(|| {
+                    file.parts.iter().map(|(_, text, has_fields)| sign_reading(text, *has_fields, &[], context).marks).collect()
+                });
+                let parts: Vec<attest::Part<'_>> = file
+                    .parts
+                    .iter()
+                    .zip(readings.iter())
+                    .map(|((version_id, text, _), marks)| attest::Part { version_id: *version_id, text, marks })
+                    .collect();
+                let found = attest::certification(types::catalog(), *content_id, &parts);
+                for mark in found.gets {
+                    if !certified.contains(&mark) {
+                        certified.push(mark);
+                    }
+                }
+                given.extend(found.gives.into_iter().filter(|kind| !given.contains(kind)).collect::<Vec<_>>());
+            }
+            let signed = sign(*content_id, body, *text_at, fields.is_some(), signatures, &context, (certified, given));
             let mut conn = self.conn();
             let tx = conn.transaction().map_err(sql_err)?;
             save_signature(&tx, &signed, &engine)?;
@@ -1072,10 +1096,35 @@ pub fn relations() -> Vec<RelationDef> {
 }
 
 /// Computes what is stored for one content.
-fn sign(content_id: i64, body: &str, text_at: i64, has_fields: bool, signatures: Vec<PdfSignature>) -> Signed {
+/// What the catalog reads in a text. `context`: the signatures of the
+/// file a part is cut from (`marks::Facts`).
+fn sign_reading(body: &str, has_fields: bool, signatures: &[PdfSignature], context: &[PdfSignature]) -> marks::Reading {
     let body = format::comparable(body);
     let pages = text::pages(&body);
-    let reading = marks::read(types::catalog(), &marks::Facts { pages: &pages, has_fields, signatures: &signatures });
+    marks::read(types::catalog(), &marks::Facts { pages: &pages, has_fields, signatures, context })
+}
+
+/// `certified`: the marks the parts of its file that certify it give it,
+/// and the kinds of its own marks it gives to the parts it certifies
+/// (`attest.rs`).
+fn sign(
+    content_id: i64,
+    body: &str,
+    text_at: i64,
+    has_fields: bool,
+    signatures: Vec<PdfSignature>,
+    context: &[PdfSignature],
+    (certified, given): (Vec<Mark>, Vec<String>),
+) -> Signed {
+    let mut reading = sign_reading(body, has_fields, &signatures, context);
+    reading.marks.retain(|mark| !given.contains(&mark.kind));
+    for mark in certified {
+        if !reading.marks.contains(&mark) {
+            reading.marks.push(mark);
+        }
+    }
+    let body = format::comparable(body);
+    let pages = text::pages(&body);
     let prepared = Prepared::new(&pages, &reading.skip_pages, &reading.drop_phrases);
     let shingles = if prepared.word_count() >= MIN_WORDS { prepared.shingles() } else { Vec::new() };
     let minhash = minhash::signature(&shingles);
@@ -1212,17 +1261,77 @@ fn estimated_containment(a: &Option<(usize, usize, Vec<u64>)>, b: &(usize, usize
 
 /// The PDF files of a content, where they can be read now.
 fn pdf_paths(conn: &Connection, content_id: i64) -> Result<Vec<(String, PathBuf)>, String> {
+    pdf_paths_where(conn, "f.version_id = ?1", &content_id)
+}
+
+/// A file a content is a part of (D-560), with the parts of that file in
+/// order: their version, their text and whether they have form fields.
+struct CutFrom {
+    hash: String,
+    paths: Vec<(String, PathBuf)>,
+    parts: Vec<(i64, String, bool)>,
+}
+
+fn files_cut_into(conn: &Connection, content_id: i64) -> Result<Vec<CutFrom>, String> {
+    let hashes: Vec<String> = {
+        let mut statement = conn
+            .prepare("SELECT DISTINCT resource_hash FROM appearance WHERE version_id = ?1 AND selector <> 'file' ORDER BY 1")
+            .map_err(sql_err)?;
+        let rows = statement.query_map([content_id], |row| row.get(0)).map_err(sql_err)?;
+        rows.collect::<Result<_, _>>().map_err(sql_err)?
+    };
+    let mut out = Vec::new();
+    for hash in hashes {
+        let mut statement = conn
+            .prepare(
+                "SELECT a.version_id, d.body, fd.version_id IS NOT NULL FROM appearance a
+                 JOIN derivative d ON d.version_id = a.version_id AND d.kind = 'text'
+                 LEFT JOIN derivative fd ON fd.version_id = a.version_id AND fd.kind = 'fields'
+                 WHERE a.resource_hash = ?1 AND a.selector <> 'file'
+                 ORDER BY a.position, a.id",
+            )
+            .map_err(sql_err)?;
+        let parts = statement
+            .query_map([&hash], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+            .map_err(sql_err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(sql_err)?;
+        let paths = pdf_paths_where(conn, "f.hash = ?1", &hash)?;
+        out.push(CutFrom { hash, paths, parts });
+    }
+    Ok(out)
+}
+
+/// The digital signatures of these PDF files, each once.
+fn read_signatures(paths: &[(String, PathBuf)]) -> Vec<PdfSignature> {
+    let mut signatures = Vec::new();
+    for (file, path) in paths {
+        match run_guarded("docbase_pdf_signatures", || marks::pdf_signatures(path, Some(file))) {
+            Ok(found) => {
+                for signature in found {
+                    if !signatures.contains(&signature) {
+                        signatures.push(signature);
+                    }
+                }
+            }
+            Err(error) => eprintln!("[docbase] signatures of '{}': {error}", path.display()),
+        }
+    }
+    signatures
+}
+
+fn pdf_paths_where(conn: &Connection, filter: &str, value: &dyn rusqlite::ToSql) -> Result<Vec<(String, PathBuf)>, String> {
     let mut statement = conn
-        .prepare(
+        .prepare(&format!(
             "SELECT f.hash, o.location, min(l.rel_path) FROM file f
              JOIN location l ON l.file_hash = f.hash AND l.hash_state = 'done' AND l.ext = 'pdf'
              JOIN origin o ON o.id = l.origin_id AND o.reachable = 1
-             WHERE f.version_id = ?1
-             GROUP BY f.hash",
-        )
+             WHERE {filter}
+             GROUP BY f.hash"
+        ))
         .map_err(sql_err)?;
     let rows = statement
-        .query_map([content_id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)))
+        .query_map([value], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)))
         .map_err(sql_err)?
         .collect::<Result<Vec<_>, _>>()
         .map_err(sql_err)?;
