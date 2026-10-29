@@ -3531,9 +3531,9 @@
       "estado": "pendiente",
       "prioridad": "2",
       "tema": "base",
-      "detalle": "D-616. La lista (renglón para firmar, «aclaración», «firma y sello», «firmado digitalmente», «firma digital») salió de un solo corte de la hoja de partes. En el orden de la app frena 7 pasos en toda la carpeta (uno es ese corte real), y no hay hoja de partes para los 30 PDF parejos: en ellos las 19 respuestas ya pagadas dicen «sigue» y ninguna «empieza otro», pero los 114 pasos sin respuesta no tienen referencia. Medir con más PDF compuestos y otras formas de firma (sello, firma escaneada sin texto).",
+      "detalle": "D-616. La lista (renglón para firmar, «aclaración», «firma y sello», «firmado digitalmente», «firma digital») salió de un solo corte de la hoja de partes. En el orden de la app frena 7 pasos en toda la carpeta (uno es ese corte real), y no hay hoja de partes para los 30 PDF parejos: en ellos las 19 respuestas ya pagadas dicen «sigue» y ninguna «empieza otro», pero los 114 pasos sin respuesta no tienen referencia. Medir con más PDF compuestos y otras formas de firma (sello, firma escaneada sin texto). 2026-10-29: Corrida desatendida 14, paso 3: con D-622 un PDF que ninguna regla corta ya no se le pregunta solo al modelo, así que un compuesto parejo sin firma queda como un solo documento, marcado incierto, hasta que una persona use «Preguntar al modelo». Ver P-440.",
       "creado": "2026-10-28",
-      "actualizado": "2026-10-28"
+      "actualizado": "2026-10-29"
     },
     {
       "id": "P-434",
@@ -3543,9 +3543,9 @@
       "estado": "pendiente",
       "prioridad": "3",
       "tema": "base",
-      "detalle": "cut/check.rs siembra las respuestas antes de cortar, y así una regla que deja de preguntar parece inofensiva: la variante B no cambia. En el paso 1 de la corrida 14 se midió a mano, con una corrida sin semillas y las respuestas pagadas cruzadas por pregunta. Sumar esa variante al arnés (cortar sin respuestas, preguntar solo los dudosos que quedan, usar las semillas como respuestas).",
+      "detalle": "cut/check.rs siembra las respuestas antes de cortar, y así una regla que deja de preguntar parece inofensiva: la variante B no cambia. En el paso 1 de la corrida 14 se midió a mano, con una corrida sin semillas y las respuestas pagadas cruzadas por pregunta. Sumar esa variante al arnés (cortar sin respuestas, preguntar solo los dudosos que quedan, usar las semillas como respuestas). 2026-10-29: Corrida desatendida 14, paso 3: en parte. La prueba ignorada `the_questions_the_cutter_would_ask` (cut/check.rs, MICELYA_CUT_BASE y MICELYA_CUT_SHEET) vuelve a cortar una copia de la base sin las respuestas de corte, como corta la app, y cuenta las consultas por grupo. Las partes contra la hoja todavía no se miden en ese orden.",
       "creado": "2026-10-28",
-      "actualizado": "2026-10-28"
+      "actualizado": "2026-10-29"
     },
     {
       "id": "P-435",
@@ -3568,6 +3568,42 @@
       "prioridad": 2,
       "tema": "base",
       "detalle": "Desde D-603 lo incierto entra marcado. La base ya dice qué miembro de una familia lo es (y el documento de un asunto), pero la pantalla de familias solo muestra cuántos, y las plantillas no muestran nada. La medición de la carpeta no tiene asuntos armados (lectura solo con respuestas guardadas), así que los documentos inciertos de un asunto quedaron sin medir (0 de 0).",
+      "creado": "2026-10-29",
+      "actualizado": "2026-10-29"
+    },
+    {
+      "id": "P-439",
+      "titulo": "Ver en la app: el modelo pregunta solo en los PDF que una regla ya cortó, a pedido en los demás, y «En curso» cuenta las consultas",
+      "tipo": "verificacion",
+      "responsable": "usuario",
+      "estado": "a-verificar",
+      "prioridad": 1,
+      "tema": "base",
+      "detalle": "Con la rama sesion-23/correcciones (commits 17f7b4a, 6e0721f y e9378f6). Qué mirar: 1) con la lectura automática encendida, «En curso» muestra una tarjeta «En esta vuelta la app hizo N preguntas al modelo» con el detalle por tarea («8 sobre dónde empieza cada documento (3 cortes nuevos, 5 pasos respaldados), 4 sobre quién es quién»); si las de corte pasan de 50 en la vuelta, piden permiso como las de quién es quién y el resto del trabajo sigue. 2) En Documentos, abrir AEROS BGH\\ContenidoExtra\\el contrato de un solo documento con un paso incierto (desatendido-14/paso2-informe.md) (un documento · incierto): la tira «Dónde podría empezar otro documento» tiene, al lado de «Confirmar», el botón «Preguntar al modelo»; con la lectura automática apagada también funciona, puede tardar cerca de un minuto por paso incierto (el botón queda ocupado), después la tira muestra las partes con lo que dijo el modelo y la tarjeta de «En curso» suma esas consultas. Medido en la carpeta de prueba, en el orden de la app (sin respuestas guardadas): de 175 pasos dudosos que iban al modelo, 89 van solos (41 de la hoja de partes y 48 de otros 21 compuestos) y 86 esperan a una persona (85 en 43 PDF de un solo documento y 1 de la hoja). Con las respuestas ya pagadas, 0 van solos y 67 esperan. Sin Codex.",
+      "creado": "2026-10-29",
+      "actualizado": "2026-10-29"
+    },
+    {
+      "id": "P-440",
+      "titulo": "Decidir si el modelo también pregunta solo en otra señal de que un PDF junta varios documentos: con D-622, cinco PDF que solo cortó el modelo quedarían enteros",
+      "tipo": "decision",
+      "responsable": "usuario",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "Medido en la carpeta de prueba (corrida desatendida 14, paso 3): 5 PDF que ninguna regla corta tienen cortes que dio solo el modelo, 6 en total; todos son de AEROS BGH\\ContenidoExtra y casi todos «firmado» (el documento y la constancia de la firma electrónica), por ejemplo «el recibo de pago firmado de dos cuotas (desatendido-14/paso4-informe.md)», «el contrato firmado con anexo e informe de auditoría (desatendido-14/paso4-informe.md)» y «una boleta de pago». En la base del dueño esas respuestas ya están pagadas y los cortes siguen; en una base nueva o un archivo nuevo, con D-622 el modelo no pregunta solo y el PDF queda como un solo documento, marcado incierto, hasta que alguien toque «Preguntar al modelo». Opción recomendada: sumar al filtro el paso que sigue a una página que termina con firma (la misma señal de D-616), guardándola en el paso del cortador, y medir cuántas consultas suma. Otras: dejarlo así; o un clasificador chico (D-610) que diga dónde vale la pena preguntar. Además, en la línea del pie de la ventana «Esperando tu permiso» no aparece cuando las que esperan son solo las de corte (la tarjeta de «En curso» sí lo dice).",
+      "creado": "2026-10-29",
+      "actualizado": "2026-10-29"
+    },
+    {
+      "id": "P-441",
+      "titulo": "Probar si el motivo en la pregunta de corte («este archivo junta varios documentos») hace cortar mejor al modelo",
+      "tipo": "mejora",
+      "responsable": "agente",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "base",
+      "detalle": "D-623 dejó la pregunta sin motivo para no invalidar las 132 respuestas de corte guardadas (el texto de la pregunta forma parte de su clave, ask.rs). Prueba acotada: una versión nueva de la pregunta con el motivo, solo sobre los pasos dudosos de la hoja de partes (unas 42 consultas con imágenes), comparada contra la hoja con la variante B actual; si mejora, volver a preguntar en los compuestos.",
       "creado": "2026-10-29",
       "actualizado": "2026-10-29"
     }

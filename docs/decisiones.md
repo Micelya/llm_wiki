@@ -564,6 +564,9 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-619 | 28 oct | pantalla | Las palabras de la pantalla: «Respaldado», «Incierto» y «Confirmado», y la tira del PDF de un solo documento | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-620 | 28 oct | base | Cuándo un par, una familia o un documento de un asunto lleva la marca de incierto | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-621 | 28 oct | base | Una respuesta del modelo sin confianza conocida respalda el paso; un paso que falta no | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-622 | 28 oct | base | Solo, el modelo pregunta por los cortes únicamente en los PDF que una regla ya cortó | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-623 | 28 oct | base | Por ahora la pregunta de corte no lleva el motivo por el que se hace | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-624 | 28 oct | base | Las preguntas de corte entran en la vuelta con tope, y «En curso» cuenta todas las consultas desde que empezó la vuelta | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -6308,3 +6311,24 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **El problema:** La regla de D-603 dice que respalda una respuesta de confianza alta o media y deja incierta una de confianza baja. Quedan dos casos sin decir: una respuesta guardada cuya confianza no se puede leer, y una página sin paso del cortador.
 - **Qué se decidió y por qué:** La respuesta sin confianza conocida respalda el paso, porque el modelo sí miró las dos páginas (en la carpeta de prueba no hay ninguna: 128 de confianza alta y 4 media). Una página sin paso cuenta como incierta, porque nadie dijo nada de ella. El botón «Confirmar» sigue disponible mientras quede algo sin confirmar, y se destaca solo cuando hay algo incierto. Alternativa: tratar la respuesta sin confianza como incierta, más prudente pero marcaría respuestas viejas que nadie dudó.
 - **Quién decidió:** Claude (corrida desatendida 14, paso 2)
+
+### D-622 · Solo, el modelo pregunta por los cortes únicamente en los PDF que una regla ya cortó
+
+- **Fecha:** 28 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Con la lectura automática encendida, la app le preguntaba al modelo por todos los pasos dudosos de todos los PDF, sin tope ni cuenta (D-606 pide que el modelo grande sea el último escalón, consultado de forma selectiva). Por ejemplo, un PDF de 20 páginas de un solo escrito largo con dos pasos dudosos se mandaba igual, de a dos páginas como imágenes.
+- **Qué se decidió y por qué:** Solo se pregunta por sí misma en los PDF donde una regla ya dice que después de la primera página empieza otro documento: ahí se sabe que el archivo junta varios y la duda es dónde termina cada uno. En los demás el paso dudoso queda incierto (D-603) y se pregunta solo cuando una persona lo pide con el botón «Preguntar al modelo» de la tira de páginas. Lo propuso el agente principal aplicando el criterio del dueño. Alternativas: preguntar en todos los PDF como antes (175 consultas en la carpeta de prueba, sin respuestas guardadas) o no preguntar nunca solo. Riesgo: un PDF que junta varios documentos y que ninguna regla corta queda como uno solo, marcado incierto, hasta que alguien pregunte.
+- **Quién decidió:** el agente principal, aplicando el criterio del dueño (D-606)
+
+### D-623 · Por ahora la pregunta de corte no lleva el motivo por el que se hace
+
+- **Fecha:** 28 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Ahora que se pregunta solo en PDF que juntan varios documentos, se le podría decir al modelo «este archivo junta varios documentos: ¿empieza otro en la segunda página?». Pero el texto de la pregunta forma parte de su clave, y cambiarlo invalida las 132 respuestas de corte ya guardadas y pagadas.
+- **Qué se decidió y por qué:** La pregunta queda igual, sin motivo, y las respuestas guardadas siguen valiendo. Alternativa: agregar el motivo (cambia la versión de la pregunta) y volver a preguntar los pasos ya respondidos, unas 130 consultas con imágenes en la carpeta de prueba, para ver si el modelo corta mejor con ese contexto.
+- **Quién decidió:** el agente principal
+
+### D-624 · Las preguntas de corte entran en la vuelta con tope, y «En curso» cuenta todas las consultas desde que empezó la vuelta
+
+- **Fecha:** 28 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** D-606 pide que las consultas se cuenten. Las de corte no tenían tope ni aparecían en «En curso». Había que decidir cómo entran en la vuelta de preguntas con tope de 50 (D-484), qué cuenta «En curso» y si lo que pide una persona gasta ese tope.
+- **Qué se decidió y por qué:** Las preguntas de corte son la primera etapa de la vuelta: si con ellas la vuelta pasa de 50, esperan el permiso de una persona («Seguir» o «Dejarlas para después»), y mientras esperan, el resto del trabajo sigue. «En curso» dice cuántas consultas al modelo hizo la app en esta vuelta (desde que se abrió la app o terminó la vuelta anterior), para qué (por tarea) y qué hicieron las de corte: cortes nuevos, pasos que pasaron a respaldados y los que siguen inciertos. Lo que pide una persona con el botón se cuenta ahí igual, pero no gasta el tope de la vuelta automática, porque ya lo decidió una persona; un clic pregunta por todos los pasos inciertos de ese PDF. Alternativas: que lo pedido a mano también gaste el tope; un límite de preguntas por clic; contar desde el principio de cada día en lugar de por vuelta.
+- **Quién decidió:** el agente principal
