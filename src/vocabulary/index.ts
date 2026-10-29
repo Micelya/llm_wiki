@@ -159,6 +159,9 @@ export interface Vocabulary {
     listUnconfirmed: string
     /** A PDF of one document with an uncertain step. */
     listOneUncertain: string
+    /** A person asks the model about the uncertain steps of the file (D-606), and what it costs. */
+    ask: string
+    askHelp: string
     /** The strip of a PDF of one document with uncertain steps. */
     wholeTitle: string
     wholeDescription: string

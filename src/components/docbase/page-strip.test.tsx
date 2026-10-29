@@ -6,10 +6,12 @@ import { vocabularyFor } from "@/vocabulary"
 const cutSplit = vi.fn<(hash: string, page: number) => Promise<IncludedPart[]>>()
 const cutJoin = vi.fn<(hash: string, page: number) => Promise<IncludedPart[]>>()
 const cutConfirm = vi.fn<(hash: string) => Promise<IncludedPart[]>>()
+const cutAsk = vi.fn<(hash: string) => Promise<IncludedPart[]>>()
 vi.mock("@/commands/docbase", () => ({
   cutSplit: (hash: string, page: number) => cutSplit(hash, page),
   cutJoin: (hash: string, page: number) => cutJoin(hash, page),
   cutConfirm: (hash: string) => cutConfirm(hash),
+  cutAsk: (hash: string) => cutAsk(hash),
   includedParts: () => Promise.resolve([]),
   onDocbaseChanged: () => Promise.resolve(() => {}),
 }))
@@ -68,6 +70,7 @@ describe("the strip of pages of a joined file (D-560)", () => {
     cutSplit.mockReset()
     cutJoin.mockReset()
     cutConfirm.mockReset()
+    cutAsk.mockReset()
   })
 
   it("shows where each document starts, how its start stands and who said it, in the vertical's words", () => {
@@ -174,5 +177,19 @@ describe("a joined file in the list and its documents opened", () => {
     )
     expect(text(html)).toContain("Documento 2 de 3 incluidos en escrito con anexos.pdf, páginas 3 a 5")
     expect(text(html)).toContain("Ver el archivo completo")
+  })
+
+  it("while a step is uncertain a person can ask the model about the file, with its own command (D-606)", async () => {
+    const before = strip(PARTS)
+    expect(tagWith(before, "data-cut-ask")).toHaveLength(1)
+    expect(text(before)).toContain("Preguntar al modelo")
+    expect(tagWith(before, "data-cut-ask")[0]).toContain("Usa la cuota de tu proveedor")
+    cutAsk.mockResolvedValue(PARTS.map((p) => ({ ...p, cutBy: p.uncertain ? "model" : p.cutBy, doubtfulPages: [], uncertain: false })))
+    const after = strip(await runCutAction("h-1", { kind: "ask" }))
+    expect(cutAsk).toHaveBeenCalledWith("h-1")
+    // Nothing uncertain left: nothing to ask.
+    expect(tagWith(after, "data-cut-ask")).toHaveLength(0)
+    // A PDF of one document with an uncertain step has it too.
+    expect(tagWith(strip([part(1, 3, { whole: true, uncertain: true, doubtfulPages: [3] })]), "data-cut-ask")).toHaveLength(1)
   })
 })

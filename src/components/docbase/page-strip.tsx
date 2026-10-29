@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import type { PDFDocumentLoadingTask, PDFDocumentProxy, RenderTask } from "pdfjs-dist"
-import { Check, ExternalLink, Merge, Scissors } from "lucide-react"
+import { Check, ExternalLink, Merge, Scissors, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { cutConfirm, cutJoin, cutSplit, includedParts, type IncludedPart, type PartOf } from "@/commands/docbase"
+import { cutAsk, cutConfirm, cutJoin, cutSplit, includedParts, type IncludedPart, type PartOf } from "@/commands/docbase"
 import { getFileSize, readFileAsBase64 } from "@/commands/fs"
 import { decodeBase64 } from "@/components/editor/file-preview"
 import { Section } from "@/components/knowledge/shared"
@@ -19,11 +19,13 @@ import { useDocbaseQuery } from "./use-docbase-query"
  * person looks only at that. A PDF of one document with uncertain steps
  * has its strip too, with the whole file as its only row. A person splits
  * a document at a page, joins one to the one before it, or confirms them
- * all.
+ * all. While some step is uncertain, a person can ask the model about the
+ * file (D-606): by itself the model is asked only in a file a rule already
+ * cut.
  */
 
 /** What a person does to the cuts of a file. */
-export type CutAction = { kind: "split"; page: number } | { kind: "join"; page: number } | { kind: "confirm" }
+export type CutAction = { kind: "split"; page: number } | { kind: "join"; page: number } | { kind: "confirm" } | { kind: "ask" }
 
 /** Each action is its command of the base, which answers the parts as they are now. */
 export function runCutAction(hash: string, action: CutAction): Promise<IncludedPart[]> {
@@ -34,6 +36,8 @@ export function runCutAction(hash: string, action: CutAction): Promise<IncludedP
       return cutJoin(hash, action.page)
     case "confirm":
       return cutConfirm(hash)
+    case "ask":
+      return cutAsk(hash)
   }
 }
 
@@ -158,9 +162,16 @@ export function PageStrip({
       count={whole ? undefined : parts.length}
       intro={whole ? terms.wholeDescription : terms.description}
       action={
-        <Button variant={uncertain > 0 ? "default" : "outline"} size="sm" disabled={busy || unconfirmed === 0} onClick={() => onAction({ kind: "confirm" })}>
-          <Check /> {unconfirmed > 0 ? terms.confirm : terms.confirmed}
-        </Button>
+        <div className="flex flex-wrap justify-end gap-1.5">
+          {uncertain > 0 && (
+            <Button variant="outline" size="sm" disabled={busy} title={terms.askHelp} data-cut-ask="" onClick={() => onAction({ kind: "ask" })}>
+              <Sparkles /> {terms.ask}
+            </Button>
+          )}
+          <Button variant={uncertain > 0 ? "default" : "outline"} size="sm" disabled={busy || unconfirmed === 0} onClick={() => onAction({ kind: "confirm" })}>
+            <Check /> {unconfirmed > 0 ? terms.confirm : terms.confirmed}
+          </Button>
+        </div>
       }
     >
       {problem && (

@@ -418,6 +418,11 @@ export function cutConfirm(hash: string): Promise<IncludedPart[]> {
   return invoke<IncludedPart[]>("docbase_cut_confirm", { hash })
 }
 
+/** A person asks the model about the uncertain steps of the file (D-606), with the reading on or off; it costs the quota. */
+export function cutAsk(hash: string): Promise<IncludedPart[]> {
+  return invoke<IncludedPart[]>("docbase_cut_ask", { hash })
+}
+
 /** Opens the original with the system's program, or shows it in its folder. */
 export function openLocation(locationId: number, reveal = false): Promise<void> {
   return invoke<void>("docbase_open_location", { locationId, reveal })

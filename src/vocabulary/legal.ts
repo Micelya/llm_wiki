@@ -133,6 +133,9 @@ export const legal: Vertical = {
         join: "Juntar con el anterior",
         confirm: "Confirmar dónde empieza cada documento",
         confirmed: "Todo confirmado",
+        ask: "Preguntar al modelo",
+        askHelp:
+          "El modelo mira las dos páginas de cada paso incierto y dice si ahí empieza otro documento. Usa la cuota de tu proveedor y se cuenta en «En curso».",
         open: "Abrir",
         partOf: "Documento {n} de {count} incluidos en {file}, páginas {first} a {last}",
         backToFile: "Ver el archivo completo",
@@ -349,6 +352,9 @@ export const legal: Vertical = {
         join: "Join with the previous one",
         confirm: "Confirm where each document starts",
         confirmed: "All confirmed",
+        ask: "Ask the model",
+        askHelp:
+          "The model looks at the two pages of each uncertain step and says whether another document starts there. It uses your provider's quota and is counted in «En curso».",
         open: "Open",
         partOf: "Document {n} of {count} included in {file}, pages {first} to {last}",
         backToFile: "See the whole file",

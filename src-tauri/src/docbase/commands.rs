@@ -1438,3 +1438,24 @@ pub fn docbase_cut_confirm(
 ) -> Result<Vec<super::cut::parts::IncludedPart>, String> {
     state.base()?.cut_confirm_all(&hash)
 }
+
+/// A person asks the model where each document of the file starts
+/// (D-606): its doubtful steps without an answer, with the automatic
+/// reading on or off, one at a time with the two pages as images. It costs
+/// the provider's quota, and «En curso» counts it like any question.
+/// Returns the parts as they are now.
+#[tauri::command(async)]
+pub fn docbase_cut_ask(
+    app: tauri::AppHandle,
+    state: State<'_, DocBaseState>,
+    hash: String,
+) -> Result<Vec<super::cut::parts::IncludedPart>, String> {
+    let base = state.base()?;
+    let Some(engine) = super::similar::classify::ask_engine(&base.conn())? else {
+        return Err("Falta elegir el motor de «Preguntar al modelo» en Ajustes → Servicios de IA: sin él no se puede preguntar.".to_string());
+    };
+    let asker = asker_for(&engine)?;
+    let parts = base.cut_ask_file(asker.as_ref(), &hash);
+    let _ = app.emit(CHANGED_EVENT, ());
+    parts
+}
