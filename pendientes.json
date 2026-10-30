@@ -3972,10 +3972,10 @@
       "titulo": "Verificar si en la app las partes de un PDF cortado reciben su tipo",
       "tipo": "verificacion",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "hecho",
       "prioridad": 2,
       "tema": "base",
-      "detalle": "En el paso 10 de la prueba de la estructura (D-662), seguir desde la base de la medición de copias habría preguntado el tipo de unas 160 partes de PDF cortados que esa medición armó y nunca tipó. Puede ser solo cosa de la medición, que arma las partes sin pasar por el trabajador de la app. Si en la app pasa lo mismo, agregar contenido a un archivo con PDF cortados haría tipar todas esas partes de golpe. Hay que mirar si el trabajador de la app tipa cada parte al cortarla.",
+      "detalle": "En el paso 10 de la prueba de la estructura (D-662), seguir desde la base de la medición de copias habría preguntado el tipo de unas 160 partes de PDF cortados que esa medición armó y nunca tipó. Puede ser solo cosa de la medición, que arma las partes sin pasar por el trabajador de la app. Si en la app pasa lo mismo, agregar contenido a un archivo con PDF cortados haría tipar todas esas partes de golpe. Hay que mirar si el trabajador de la app tipa cada parte al cortarla. 2026-10-30: Verificado en el código el 30 oct. En la app, el trabajador que pregunta a la IA (la lectura automática) pide el tipo de todo documento que no lo tiene, uno por uno y apenas aparece. Las partes de un PDF cortado son documentos propios, así que reciben su tipo en el flujo normal, sin acumularse. Lo de la prueba es solo cosa de la medición de copias, que arma las partes sin hacer preguntas. Con la lectura automática apagada, todo lo pendiente espera hasta que se encienda, partes incluidas, como cualquier otro documento.",
       "creado": "2026-10-30",
       "actualizado": "2026-10-30"
     }
