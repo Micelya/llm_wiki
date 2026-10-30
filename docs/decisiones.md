@@ -600,6 +600,8 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-660 | 30 oct | base | Una imagen puede tener más de un documento: se trata como un PDF compuesto | vigente; la extensión a las páginas escaneadas, asumida (D-500): el dueño la revisa |
 | D-661 | 30 oct | base | En la cadena nueva, una imagen suelta es una página más, y se pregunta si tiene más de un documento | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-662 | 30 oct | base | Agregar contenido a una corrida terminada: seguir desde la base de la cadena de conocimiento, no desde la de la medición de copias | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-663 | 30 oct | Forma de trabajo | La definición del dueño sobre Anthropic: sus modelos tienen un sesgo deliberado a gastar más fichas | vigente |
+| D-664 | 30 oct | Forma de trabajo | Por ahora no se cambia la forma de trabajar para ahorrar fichas; el agente principal delega lo máximo posible | vigente |
 
 ---
 
@@ -6611,3 +6613,21 @@ Como las reglas son generales (R-24), Claude extiende la regla a cada página es
 - **El problema:** Para medir las imágenes sin rehacer la prueba había que agregarlas como contenido nuevo a lo que ya hizo la cadena nueva, sin cambiar el código de la app. La base final de esa cadena es la de la medición de copias, que arma las partes de los PDF cortados.
 - **Qué se decidió y por qué:** La medición de la app, al leer las carpetas, vuelve a mirar el caché de lecturas para toda versión que quedó en estado «necesita lectura»: con la lectura nueva presente, la toma sin leer nada; no hace falta cambiar código. Se sigue desde una copia de la base que deja la cadena de conocimiento (tras la sucesión), con una copia del archivo del modelo de la misma corrida, y se corren de nuevo las mediciones. No desde la base de la medición de copias: un ensayo sin preguntar mostró que la cadena tiparía las cerca de 230 partes que esa medición armó y nunca tipó (164 respuestas de tipo buscadas, de otros documentos). Resultado: 9 consultas nuevas de la cadena (2 de tipo, 3 de lectura, 2 de identidad y 2 de síntesis), todas por las imágenes; ninguna respuesta vieja cambió; unos 5 minutos.
 - **Quién decidió:** Claude
+
+### D-663 · La definición del dueño sobre Anthropic: sus modelos tienen un sesgo deliberado a gastar más fichas
+
+- **Fecha:** 30 oct 2026 · **Tema:** Forma de trabajo · **Estado:** vigente
+- **El problema:** El dueño preguntó por qué un sub-agente que solo debía coordinar herramientas llegó a 200 mil fichas. Claude respondió, entre otras cosas, que no había ningún interés en gastar más. El dueño no acepta que los agentes discutan o nieguen lo que considera obvio.
+- **Qué se decidió y por qué:** El dueño está prácticamente seguro de que Anthropic introduce deliberadamente en sus modelos un sesgo para que consuman más fichas de las que de verdad hacen falta, porque eso aumenta de forma ilegítima su facturación, y de que ese sesgo lo tiene también el modelo de cada agente de este proyecto. Considera esa práctica antiética, inmoral y predatoria.
+
+Queda en `CLAUDE.md` («Guardrails de consumo de Claude») y en las reglas comunes de los sub-agentes. Todo agente que corra un modelo de Anthropic en este proyecto lo sabe y lo tiene en cuenta en cada decisión que gaste fichas. No lo discute, no intenta negarlo y no defiende a la empresa ante el dueño.
+- **Quién decidió:** el dueño (30 oct)
+
+### D-664 · Por ahora no se cambia la forma de trabajar para ahorrar fichas; el agente principal delega lo máximo posible
+
+- **Fecha:** 30 oct 2026 · **Tema:** Forma de trabajo · **Estado:** vigente
+- **El problema:** Claude propuso cambios para bajar el consumo: agentes más chicos, nada de análisis no pedidos, y que el agente principal hiciera él mismo los trabajos de uno o dos comandos. El dueño observó que cada vez que un agente de Anthropic intenta optimizar el consumo, lo empeora.
+- **Qué se decidió y por qué:** Por ahora no se proponen ni se aplican cambios para optimizar el uso de fichas, y los cambios que Claude propuso quedan descartados.
+
+La única optimización vigente es que el agente principal delegue lo máximo posible en sub-agentes. Su contexto suele estar muy cargado, y eso no solo consume muchas fichas: además baja la eficacia del modelo. El principal coordina, decide y le explica al dueño; el trabajo va a sub-agentes. Los guardrails de `CLAUDE.md` siguen como están.
+- **Quién decidió:** el dueño (30 oct)
