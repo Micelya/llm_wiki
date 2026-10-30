@@ -585,6 +585,9 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-644 | 29 oct | base | La cadena nueva vuelve a leer toda página con capa vieja, no solo las ruidosas, y además toda página que la app manda a leer | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-646 | 29 oct | base | Qué páginas se mandaron a Core en el paso 3 de la prueba de estructura, y sin la huella del archivo | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-647 | 29 oct | base | Lo digital no se manda a Core por ahora; lo escaneado, después de medir su manuscrito | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-648 | 30 oct | base | En la corrida limpia, las dos cadenas se miden con la misma vara: todos los saltos y las etiquetas tal cual | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-649 | 30 oct | base | Resultado de la corrida limpia: la cadena nueva corta mejor y con menos errores tomados por seguros; la app no cambia hasta que el dueño lo revise | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-650 | 30 oct | base | Una etiqueta que parece mal no se corrige en medio de la medición | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -6476,3 +6479,37 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **El problema:** En lo digital, Core empata con la receta local: 25 de 27 pares seguros, más 2 que no se pueden ubicar porque Core no da la posición, contra 26 de la receta local; las tablas salen iguales celda por celda. Pero cuesta unos 7 centavos por página. En lo escaneado aporta lo que la receta no tiene: firmas, una clase por página y la lectura del manuscrito con un modelo. Eso todavía no está medido contra una hoja.
 - **Qué se decidió y por qué:** Los formularios, recibos y boletas digitales siguen con la receta local. Lo escaneado se decide cuando se mida el manuscrito de Core contra la hoja de 37 valores (P-463). Lo que le falta a Core va en el mensaje 005 (P-464).
 - **Quién decidió:** Claude
+
+### D-648 · En la corrida limpia, las dos cadenas se miden con la misma vara: todos los saltos y las etiquetas tal cual
+
+- **Fecha:** 30 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** El medidor de la cadena de hoy (paso 1 de la prueba de la estructura) toma las etiquetas «sure: no» con flexibilidad y deja afuera las que no tienen pareja. En el examen eso dejó 155 de 159 saltos y contó solo 11 de los 28 documentos. El medidor de la cadena nueva (paso 6) toma todas las etiquetas tal cual. Además, el de la cadena de hoy no separa los errores según la seguridad con que se tomó cada decisión.
+- **Qué se decidió y por qué:** Para comparar, el corte de la cadena de hoy (las reglas, y el modelo en cada salto dudoso) se volvió a medir con la vara del paso 6: todos los saltos y las etiquetas tal cual. Se toma por seguro lo que decide una regla, o el modelo con seguridad alta, igual que en la cadena nueva. Las mediciones originales de cada guion quedan en sus carpetas, sin cambios.
+- **Quién decidió:** Claude, en la corrida desatendida; el dueño la revisa
+
+### D-649 · Resultado de la corrida limpia: la cadena nueva corta mejor y con menos errores tomados por seguros; la app no cambia hasta que el dueño lo revise
+
+- **Fecha:** 30 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La prueba de la estructura comparó dos cadenas, desde cero y sin reusar nada de corridas anteriores, en la carpeta de prueba y en un examen nuevo de otro origen. La cadena de hoy es la de la app. La cadena nueva reconoce zonas, separa el texto seguro, corta solo con reglas seguras y le manda a la IA cada parte entera.
+- **Qué se decidió y por qué:** Los números, cadena de hoy contra cadena nueva, con la vara de D-648:
+
+- **Errores tomados por seguros:** 36 contra 10 en los 343 saltos del entrenamiento; 3 contra 1 en los 128 de la hoja de partes; 11 contra 0 en los 159 del examen.
+- **Documentos con los límites exactos:** 101 contra 127 de 141; 99 contra 98 de 102; 21 contra 27 de 28.
+- **Consultas al modelo:** 277 contra 161 en la carpeta; 140 contra 31 en el examen.
+- **Lo que queda a la vista de una persona:** en la nueva, del 3 al 6 % de los saltos.
+- **Errores de las reglas solas:** las de la app deciden 77 saltos del entrenamiento con 30 errores; las seguras, 66 sin errores.
+- **Entidades, con la misma lectura de la app y el texto seguro de la nueva:**
+  - caso comercial: 357 contra 346 de 404;
+  - sucesión: 546 contra 542 de 743;
+  - falsas conocidas: 20 contra 13 de 78.
+- **Formas de usar la IA:** la forma que solo pregunta en las partes con algún salto dudoso da lo mismo con 91 consultas en lugar de 161. El archivo parejo no se toma como fundamento (D-656).
+
+La cadena nueva queda como propuesta para el dueño. En esta corrida no se cambió nada de la app.
+- **Quién decidió:** Claude, en la corrida desatendida; el dueño la revisa
+
+### D-650 · Una etiqueta que parece mal no se corrige en medio de la medición
+
+- **Fecha:** 30 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Revisando a la vista los errores con seguridad alta de la cadena nueva, una etiqueta del entrenamiento parece mal. Es la página 2 de un formulario de pedido de informe de un registro, que es el dorso del mismo formulario y no otro documento.
+- **Qué se decidió y por qué:** Las dos cadenas se miden con las etiquetas tal como estaban al empezar: las hojas miden y no enseñan (R-25). La revisión queda en P-466. Si la etiqueta se cambia, se anota y se vuelven a medir las dos cadenas.
+- **Quién decidió:** Claude, en la corrida desatendida; el dueño la revisa

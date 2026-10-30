@@ -3834,6 +3834,30 @@
       "detalle": "Paso 3 de la prueba de estructura: 11 páginas leídas en Core de desarrollo (unos US$ 0,81). En lo digital empata con la receta local (pares y tablas). Le falta: la posición de cada par rótulo-valor (sin ella, los rótulos repetidos no se ubican), el subtipo de documento, la marca de impreso o manuscrito por palabra, leer lo poco completado a mano (una página con 2 palabras manuscritas no pasó por el modelo), separar las tablas de las grillas de formulario (en los escaneos da grillas vacías como tablas) y el bloque de firma (tipo y aclaración; la confianza no separa: una firma real a 0,42 y una inventada a 0,29). El borrador del mensaje 005 está en la carpeta del paso 3; hay que ponerlo en el buzón y seguir la respuesta.",
       "creado": "2026-10-30",
       "actualizado": "2026-10-30"
+    },
+    {
+      "id": "P-465",
+      "titulo": "La lectura por zonas de la cadena nueva no lee las imágenes sueltas (JPEG, PNG)",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "En la corrida limpia del 29 y 30 oct, la lectura por zonas (paso 2 de la prueba de la estructura) recorrió solo los PDF. La cadena nueva apaga el lector de la app. Así, tres imágenes de la carpeta de prueba, dos cartas documento escaneadas y una captura de pantalla, quedaron sin texto y «no reconocidas»; la cadena de hoy sí las leyó. Parte de las 11 entidades de menos del caso comercial (D-649) puede venir de ahí. Antes de adoptar la cadena nueva, la lectura por zonas tiene que leer también las imágenes sueltas, y la comparación de entidades se repite sobre esos archivos.",
+      "creado": "2026-10-30",
+      "actualizado": "2026-10-30"
+    },
+    {
+      "id": "P-466",
+      "titulo": "Los errores con seguridad alta que quedan en la IA sobre partes enteras: dónde termina un anexo, y una etiqueta que parece mal",
+      "tipo": "verificacion",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "En la corrida limpia, la IA sobre partes enteras tuvo 10 errores con seguridad «alta» en los 343 saltos del entrenamiento, ninguno en los 159 del examen y 1 en la hoja de partes, que viene de una regla segura (P-468). Los 10 del entrenamiento son tres casos, repetidos en copias del mismo archivo:\n\n1. **La carátula «Anexo A» de un acuerdo en inglés:** la etiqueta la pone con el documento que sigue y la IA, con el acuerdo de antes. Son 7 errores en 4 copias; es lo de P-473.\n2. **El aviso legal de la firma electrónica que sigue al certificado de la firma:** la etiqueta lo une al certificado y la IA lo corta. Son 2 errores en 2 copias.\n3. **Un formulario de pedido de informe de un registro, cuya página 2 es el dorso del mismo formulario:** la etiqueta dice que ahí empieza otro documento y la IA los une. A la vista, la etiqueta parece mal (D-650). Es 1 error.\n\nQueda por hacer:\n- que el dueño confirme el criterio de los anexos (P-473);\n- escribirlo en los criterios de corte y volver a medir;\n- revisar la etiqueta del tercer caso en un paso aparte, anotándolo, sin tocar la vara en medio de una medición.",
+      "creado": "2026-10-30",
+      "actualizado": "2026-10-30"
     }
   ]
 }
