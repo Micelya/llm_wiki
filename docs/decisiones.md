@@ -602,6 +602,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-662 | 30 oct | base | Agregar contenido a una corrida terminada: seguir desde la base de la cadena de conocimiento, no desde la de la medición de copias | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-663 | 30 oct | Forma de trabajo | La definición del dueño sobre Anthropic: sus modelos tienen un sesgo deliberado a gastar más fichas | vigente |
 | D-664 | 30 oct | Forma de trabajo | Por ahora no se cambia la forma de trabajar para ahorrar fichas; el agente principal delega lo máximo posible | vigente |
+| D-665 | 30 oct | base | Qué cuenta como mención: el código de un asunto, un correo solo y los nombres de una carátula sí; un cargo sin nombre y un asunto dicho con una frase, no | vigente |
 
 ---
 
@@ -6630,4 +6631,19 @@ Queda en `CLAUDE.md` («Guardrails de consumo de Claude») y en las reglas comun
 - **Qué se decidió y por qué:** Por ahora no se proponen ni se aplican cambios para optimizar el uso de fichas, y los cambios que Claude propuso quedan descartados.
 
 La única optimización vigente es que el agente principal delegue lo máximo posible en sub-agentes. Su contexto suele estar muy cargado, y eso no solo consume muchas fichas: además baja la eficacia del modelo. El principal coordina, decide y le explica al dueño; el trabajo va a sub-agentes. Los guardrails de `CLAUDE.md` siguen como están.
+- **Quién decidió:** el dueño (30 oct)
+
+### D-665 · Qué cuenta como mención: el código de un asunto, un correo solo y los nombres de una carátula sí; un cargo sin nombre y un asunto dicho con una frase, no
+
+- **Fecha:** 30 oct 2026 · **Tema:** base · **Estado:** vigente
+- **El problema:** En el paso 12 de la prueba de la estructura, 38 de las 71 menciones que el modelo omitió con el texto a la vista eran formas que la hoja de entidades cuenta como mención y la pregunta de la extracción no pide con claridad, o pide no dar (P-479).
+- **Qué se decidió y por qué:** El dueño acepta las cinco recomendaciones de Claude:
+
+1. El código de un proyecto en el encabezado de una factura («Proyecto: …») sí es mención del asunto: cada factura queda unida a su proyecto.
+2. Una dirección de correo sola, sin nombre, sí es mención: es un dato de la persona, o de una persona todavía desconocida.
+3. Los nombres que solo están dentro de la carátula de un expediente («X c/ Y s/ …») sí son mención: las partes del juicio quedan como personas unidas a él.
+4. Un cargo sin nombre no es mención, salvo que el mismo documento diga quién lo ocupa. La regla de la pregunta queda como está.
+5. Un asunto nombrado solo con una frase no es mención. Queda como está.
+
+Para 1 a 3 se cambia la pregunta de la extracción, con reglas generales (R-24). Para 4 y 5 se alinea la hoja, no la pregunta. Los dos trabajos entran en el plan de cambios y se miden en una sola medición nueva de la extracción.
 - **Quién decidió:** el dueño (30 oct)

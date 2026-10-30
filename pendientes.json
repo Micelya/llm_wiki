@@ -4008,10 +4008,10 @@
       "titulo": "Acordar qué cuenta como mención entre la hoja de entidades y la pregunta de la extracción",
       "tipo": "decision",
       "responsable": "usuario",
-      "estado": "pendiente",
+      "estado": "hecho",
       "prioridad": 2,
       "tema": "lectura y relaciones",
-      "detalle": "En el paso 12 de la prueba de la estructura, 38 de las 71 omisiones del modelo son formas que la hoja cuenta como mención y la pregunta no pide con claridad o pide no dar: una dirección de correo sola (11), un código de proyecto en el encabezado de una factura como mención del asunto (13), un nombre que solo está dentro de la carátula de un expediente (9 casos; el modelo da el asunto, no la persona), un cargo sin nombre (3; la pregunta dice no registrar un papel sin nombre) y un asunto nombrado por una frase (2). Hay que decidir, para cada forma, si es mención; y después alinear la pregunta o la hoja. Esfuerzo: chico para decidir; chico a mediano para cambiar la pregunta. Ver el informe del paso 12.",
+      "detalle": "En el paso 12 de la prueba de la estructura, 38 de las 71 omisiones del modelo son formas que la hoja cuenta como mención y la pregunta no pide con claridad o pide no dar: una dirección de correo sola (11), un código de proyecto en el encabezado de una factura como mención del asunto (13), un nombre que solo está dentro de la carátula de un expediente (9 casos; el modelo da el asunto, no la persona), un cargo sin nombre (3; la pregunta dice no registrar un papel sin nombre) y un asunto nombrado por una frase (2). Hay que decidir, para cada forma, si es mención; y después alinear la pregunta o la hoja. Esfuerzo: chico para decidir; chico a mediano para cambiar la pregunta. Ver el informe del paso 12. 2026-10-30: Decidido por el dueño (D-665): el código de un asunto, un correo solo y los nombres de una carátula sí son mención; un cargo sin nombre y un asunto dicho con una frase, no. Lo que sigue es trabajo de Claude: cambiar la pregunta para los tres primeros y alinear la hoja para los dos últimos, en el plan de cambios.",
       "creado": "2026-10-30",
       "actualizado": "2026-10-30"
     },
