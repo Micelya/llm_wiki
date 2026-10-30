@@ -3750,6 +3750,30 @@
       "detalle": "Pedido del dueño el 29 oct, para después de la prueba de la estructura de la página. Hoy la capa de conocimiento reconoce tres clases: personas, organizaciones y asuntos, con sus identificadores (DNI, CUIT, CUIL, matrícula, expediente). Un inmueble, un vehículo, una cuenta bancaria o una participación en una sociedad queda solo como texto del documento, aunque en una sucesión los bienes son el centro del caso: el compuesto de 93 páginas de la hoja de partes tiene 6 pedidos a registros con sus 6 respuestas, un título de automotor y una escritura. No entra en la prueba de estructura porque no hay hoja de respuestas de cosas y porque mezclar dos cambios no deja saber qué mejoró qué. Pasos propuestos: (1) definir qué es una cosa y qué datos lleva (inmueble: matrícula, partida, nomenclatura catastral, dirección; vehículo: dominio; cuenta: banco y número; participación: sociedad y porcentaje), con la palabra canónica adentro y la de la vertical en la pantalla (D-512); (2) armar una hoja de cosas del caso de la sucesión de la carpeta de prueba, que etiqueta Claude y revisa el dueño, del tamaño de la hoja de entidades de la sucesión; (3) extraerlas y medir. La lectura por zonas de la prueba de estructura ayuda: los formularios de registro salen como pares rótulo y valor, que es donde están esos datos.",
       "creado": "2026-10-29",
       "actualizado": "2026-10-29"
+    },
+    {
+      "id": "P-458",
+      "titulo": "Las pruebas de medición de entidades no hacen las partes del corte antes de leer",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": "2",
+      "tema": "base",
+      "detalle": "La prueba de entidades y la del corte no llaman a cut_parts_pending: los PDF compuestos se leen enteros, a diferencia de la app. Hace falta que la medición pueda hacer las partes antes de leer y medir las menciones por parte (la hoja de entidades hoy compara por archivo). Ver el informe del paso 1 de la prueba de la estructura.",
+      "creado": "2026-10-30",
+      "actualizado": "2026-10-30"
+    },
+    {
+      "id": "P-459",
+      "titulo": "Variables de las pruebas de medición que no hacen lo que dicen, y la lentitud del lector en ellas",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": "3",
+      "tema": "base",
+      "detalle": "El límite de preguntas de entidades solo recorta el precalentamiento; el renglón de respuestas guardadas del corte cuenta también los saltos repetidos de la misma corrida; las respuestas del corte se guardan solo al final, y una caída las pierde; el lector de esta computadora necesita que se le diga dónde están sus modelos; en la compilación de prueba tarda unos 6,6 s por página (lo previsto eran 2,5), y la compilación optimizada no se probó.",
+      "creado": "2026-10-30",
+      "actualizado": "2026-10-30"
     }
   ]
 }

@@ -577,6 +577,9 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-636 | 28 oct | base | Los dos umbrales del clasificador chico deciden lo más posible con a lo sumo un error cada 50 pasos | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-637 | 28 oct | base | Cómo se miden las variantes B y D del cortador | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-638 | 28 oct | base | La prueba del clasificador chico se para: lo aprendido va a las reglas y al catálogo | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-639 | 29 oct | base | La corrida limpia de una cadena: corte, entidades sobre archivos enteros, identidad aparte y copias con partes | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-640 | 29 oct | base | El corte de la corrida limpia pregunta en todos los PDF de la carpeta | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-641 | 29 oct | base | El tope de preguntas de entidades lo pone el guion, mirando el archivo del modelo | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -6412,3 +6415,24 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **El problema:** En el examen nuevo, la variante D (reglas, clasificador y consulta selectiva) tiene los mismos 22 errores que las reglas solas, y el modelo grande en cada paso dudoso tiene 10. D* (el modelo en todo lo que el clasificador deja incierto) tiene 15 errores y 69,8 % menos consultas. El tope de calidad era 12 errores, y el de ahorro, 70 %. En la validación, D* sí pasaba.
 - **Qué se decidió y por qué:** Vale el examen, como dice la propuesta: no pasa la calidad, así que la prueba se para y no se propone llevar el clasificador a la app. D* tampoco se acepta, aunque pase en la validación. Las señales que más separan se proponen como reglas o umbrales del catálogo (P-454), y los cortes de más de las fórmulas de apertura y cierre se revisan aparte (P-453). La prueba ignorada que exporta las señales queda en el repositorio para medir esas reglas. Alternativas: aceptar D* con un umbral más ancho, medido en un examen nuevo; reintentar con más etiquetas de escaneos compuestos (P-455).
 - **Quién decidió:** Claude, en la corrida desatendida del 28 oct (paso 7)
+
+### D-639 · La corrida limpia de una cadena: corte, entidades sobre archivos enteros, identidad aparte y copias con partes
+
+- **Fecha:** 29 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Las pruebas de medición del corte y de las entidades no convierten los cortes en partes (no llaman a cut_parts_pending, que en la app hace el trabajador), y los pasos que siguen a la lectura traen las páginas de la wiki, que preguntan mucho.
+- **Qué se decidió y por qué:** La secuencia es: el corte sobre una base vacía nueva; las entidades sobre la base del corte, por archivo entero, que es lo que la hoja de entidades sabe medir; la identidad, los asuntos y las páginas de la wiki en un punto aparte, que si el tope lo corta no se lleva lo anterior; la hoja de la sucesión sin preguntar; y las copias dos veces: con los cortes hechos partes y sobre la base tal cual. Las entidades de las dos cadenas se miden igual, así que la comparación se sostiene.
+- **Quién decidió:** Claude
+
+### D-640 · El corte de la corrida limpia pregunta en todos los PDF de la carpeta
+
+- **Fecha:** 29 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La prueba que pregunta los saltos dudosos exige una lista de archivos; sin ella no pregunta nada.
+- **Qué se decidió y por qué:** Sin lista, el guion arma una con todos los PDF de la carpeta, con un tope de 700 preguntas: la cadena de hoy pregunta en cada salto que las reglas no deciden. Si el seco dice más de 700, la lista son las dos etiquetas de cortes, para que se respondan primero las que se miden.
+- **Quién decidió:** Claude
+
+### D-641 · El tope de preguntas de entidades lo pone el guion, mirando el archivo del modelo
+
+- **Fecha:** 29 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La variable que limita las preguntas de entidades solo recorta las de lectura que se precalientan; las de tipo, las demás de lectura y las de identidad y wiki se preguntan igual.
+- **Qué se decidió y por qué:** El guion cuenta cada 15 segundos las respuestas del archivo del modelo y corta la prueba al llegar al tope (1.200 en la carpeta entera); un punto que pregunta no empieza si el tope ya está lleno. Las respuestas no se pierden: quedan en el archivo y no se vuelven a preguntar al relanzar.
+- **Quién decidió:** Claude
