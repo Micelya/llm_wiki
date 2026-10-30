@@ -598,6 +598,8 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-658 | 29 oct | base | En las etiquetas del examen, «empieza otro documento» se escribe "new" | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-659 | 29 oct | base | Etiquetas del examen: portadas y agregados que van antes del documento al que pertenecen | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-660 | 30 oct | base | Una imagen puede tener más de un documento: se trata como un PDF compuesto | vigente; la extensión a las páginas escaneadas, asumida (D-500): el dueño la revisa |
+| D-661 | 30 oct | base | En la cadena nueva, una imagen suelta es una página más, y se pregunta si tiene más de un documento | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-662 | 30 oct | base | Agregar contenido a una corrida terminada: seguir desde la base de la cadena de conocimiento, no desde la de la medición de copias | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -6595,3 +6597,17 @@ La cadena nueva queda como propuesta para el dueño. En esta corrida no se cambi
 
 Como las reglas son generales (R-24), Claude extiende la regla a cada página escaneada de un PDF, porque una hoja fotocopiada también puede tener varios documentos. Esa extensión la confirma el dueño. El trabajo queda en P-474.
 - **Quién decidió:** el dueño (30 oct); la extensión a las páginas escaneadas, Claude
+
+### D-661 · En la cadena nueva, una imagen suelta es una página más, y se pregunta si tiene más de un documento
+
+- **Fecha:** 30 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La lectura por zonas de la cadena nueva recorría solo los PDF, y la cadena apaga el lector de la app: las imágenes sueltas de la carpeta de prueba quedaron sin texto. Además, una imagen puede tener varios documentos fotografiados o fotocopiados juntos (D-660).
+- **Qué se decidió y por qué:** 1) Toda imagen que la app lee (png, jpg, jpeg) pasa por la misma receta que una página de PDF: se endereza según sus datos de cámara, se lleva a 2000 píxeles del lado mayor, se reconocen las zonas y se lee; solo el texto seguro entra en la lectura (formato N, image.json) y lo dudoso queda aparte. Una imagen repetida se lee una vez. 2) Una consulta por imagen, con la imagen adjunta, pregunta cuántos documentos tiene, un recuadro aproximado por documento y la seguridad (alta, media o baja); con más de uno y seguridad alta, la imagen se cortaría (en esta prueba no se corta: se anota). Medido en las tres imágenes de la carpeta de prueba (dos fotos de cartas documento y una captura de pantalla, un documento cada una): 3 de 3 bien, con seguridad alta, sin cortes inventados; de 6 a 20 segundos de lectura y unos 7 de consulta por imagen. Con ellas, la cadena nueva halla 6 de las 16 entidades que la hoja espera en esas imágenes (la de hoy, 10) y pasa de 346 a 352 de 404 en el caso comercial. La detección de varios documentos queda sin medir (P-474).
+- **Quién decidió:** Claude
+
+### D-662 · Agregar contenido a una corrida terminada: seguir desde la base de la cadena de conocimiento, no desde la de la medición de copias
+
+- **Fecha:** 30 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Para medir las imágenes sin rehacer la prueba había que agregarlas como contenido nuevo a lo que ya hizo la cadena nueva, sin cambiar el código de la app. La base final de esa cadena es la de la medición de copias, que arma las partes de los PDF cortados.
+- **Qué se decidió y por qué:** La medición de la app, al leer las carpetas, vuelve a mirar el caché de lecturas para toda versión que quedó en estado «necesita lectura»: con la lectura nueva presente, la toma sin leer nada; no hace falta cambiar código. Se sigue desde una copia de la base que deja la cadena de conocimiento (tras la sucesión), con una copia del archivo del modelo de la misma corrida, y se corren de nuevo las mediciones. No desde la base de la medición de copias: un ensayo sin preguntar mostró que la cadena tiparía las cerca de 230 partes que esa medición armó y nunca tipó (164 respuestas de tipo buscadas, de otros documentos). Resultado: 9 consultas nuevas de la cadena (2 de tipo, 3 de lectura, 2 de identidad y 2 de síntesis), todas por las imágenes; ninguna respuesta vieja cambió; unos 5 minutos.
+- **Quién decidió:** Claude

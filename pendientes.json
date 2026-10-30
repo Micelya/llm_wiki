@@ -3840,10 +3840,10 @@
       "titulo": "La lectura por zonas de la cadena nueva no lee las imágenes sueltas (JPEG, PNG)",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "hecho",
       "prioridad": 2,
       "tema": "base",
-      "detalle": "En la corrida limpia del 29 y 30 oct, la lectura por zonas (paso 2 de la prueba de la estructura) recorrió solo los PDF. La cadena nueva apaga el lector de la app. Así, tres imágenes de la carpeta de prueba, dos cartas documento escaneadas y una captura de pantalla, quedaron sin texto y «no reconocidas»; la cadena de hoy sí las leyó. Parte de las 11 entidades de menos del caso comercial (D-649) puede venir de ahí. Antes de adoptar la cadena nueva, la lectura por zonas tiene que leer también las imágenes sueltas, y la comparación de entidades se repite sobre esos archivos. 2026-10-30: Contado por archivo en los registros de las dos corridas: las tres imágenes tienen 16 entidades en la hoja del caso comercial. La cadena de hoy halló 10 y la nueva 0, porque no tenían texto. Son 10 de las 11 entidades de menos. Sin las imágenes, las dos cadenas hallan casi lo mismo: 347 contra 346 de 388. Las dos capturas de pantalla son el mismo archivo en dos carpetas, por eso son tres imágenes y no cuatro. Leer las imágenes no es un límite de las herramientas: el guion de lectura por zonas busca solo archivos .pdf, y la lectura y las zonas funcionan igual sobre una imagen.",
+      "detalle": "En la corrida limpia del 29 y 30 oct, la lectura por zonas (paso 2 de la prueba de la estructura) recorrió solo los PDF. La cadena nueva apaga el lector de la app. Así, tres imágenes de la carpeta de prueba, dos cartas documento escaneadas y una captura de pantalla, quedaron sin texto y «no reconocidas»; la cadena de hoy sí las leyó. Parte de las 11 entidades de menos del caso comercial (D-649) puede venir de ahí. Antes de adoptar la cadena nueva, la lectura por zonas tiene que leer también las imágenes sueltas, y la comparación de entidades se repite sobre esos archivos. 2026-10-30: Contado por archivo en los registros de las dos corridas: las tres imágenes tienen 16 entidades en la hoja del caso comercial. La cadena de hoy halló 10 y la nueva 0, porque no tenían texto. Son 10 de las 11 entidades de menos. Sin las imágenes, las dos cadenas hallan casi lo mismo: 347 contra 346 de 388. Las dos capturas de pantalla son el mismo archivo en dos carpetas, por eso son tres imágenes y no cuatro. Leer las imágenes no es un límite de las herramientas: el guion de lectura por zonas busca solo archivos .pdf, y la lectura y las zonas funcionan igual sobre una imagen. 2026-10-30: Hecho el 30 oct en el paso 10 de la prueba de la estructura (D-661 y D-662). Las tres imágenes se leyeron por zonas y se agregaron como contenido nuevo a lo que ya había hecho la cadena nueva, sin rehacer la prueba. La cadena nueva pasa de 346 a 352 de 404 en el caso comercial, contra 357 de la de hoy. En las imágenes halla 6 de 16, contra 10 de la de hoy. Lo que pierde viene de dos reglas del texto seguro (P-475). La sucesión y las copias no cambian.",
       "creado": "2026-10-30",
       "actualizado": "2026-10-30"
     },
@@ -3951,7 +3951,31 @@
       "estado": "pendiente",
       "prioridad": 2,
       "tema": "base",
-      "detalle": "Por D-660. Hoy la app y la cadena nueva de la prueba de la estructura cortan solo entre páginas: una imagen o una página con dos documentos queda como uno solo.\n\nHace falta:\n\n1. **Ejemplos para medir:** fotos o fotocopias con varios documentos juntos. La carpeta de prueba no tiene ninguno: sus tres imágenes sueltas tienen un documento cada una.\n2. **La detección:** con la estructura de la página (las zonas) y la IA sobre la imagen entera. Se corta solo con seguridad alta; si no, queda a la vista de una persona.\n3. **Cómo se guarda un documento que es una parte de una página** (su recuadro), para la cita, la vista y las copias.\n\nEl paso 10 de la prueba de la estructura probó solo la pregunta a la IA sobre esas tres imágenes.",
+      "detalle": "Por D-660. Hoy la app y la cadena nueva de la prueba de la estructura cortan solo entre páginas: una imagen o una página con dos documentos queda como uno solo.\n\nHace falta:\n\n1. **Ejemplos para medir:** fotos o fotocopias con varios documentos juntos. La carpeta de prueba no tiene ninguno: sus tres imágenes sueltas tienen un documento cada una.\n2. **La detección:** con la estructura de la página (las zonas) y la IA sobre la imagen entera. Se corta solo con seguridad alta; si no, queda a la vista de una persona.\n3. **Cómo se guarda un documento que es una parte de una página** (su recuadro), para la cita, la vista y las copias.\n\nEl paso 10 de la prueba de la estructura probó solo la pregunta a la IA sobre esas tres imágenes. 2026-10-30: El paso 10 de la prueba de la estructura (30 oct) preguntó a la IA, con la imagen adjunta, si cada una de las tres imágenes sueltas tenía más de un documento: 3 de 3 bien, con seguridad alta y sin cortes inventados (D-661). Como las tres tienen un solo documento, la detección sigue sin medir. El conjunto que hace falta: imágenes con varios documentos juntos (dos cartas lado a lado, frente y dorso en una misma foto, un recibo sobre una factura), etiquetadas antes de medir, para medir aciertos, recuadros y seguridad. También falta decidir qué muestra la app a la persona cuando la seguridad es media o baja.",
+      "creado": "2026-10-30",
+      "actualizado": "2026-10-30"
+    },
+    {
+      "id": "P-475",
+      "titulo": "Revisar la regla «no parece palabras» y la de zona de imagen de la lectura por zonas",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "En las fotos de cartas documento, la cadena nueva halla 6 de 16 entidades contra 10 de la de hoy. Lo que pierde no es por leer mal. La razón social del destinatario se leyó con confianza de 0,977 y 0,999 y la regla «no parece palabras» la descartó: cuenta como letras sueltas las iniciales con puntos de la forma societaria, y en un renglón corto eso pasa la mitad. El número de la carta documento, leído con 0,999, cayó en una zona que el reconocedor llama imagen, donde nada es texto seguro. Las dos reglas son generales y afectan a todos los escaneos, no solo a las imágenes. Probar con criterios generales (por ejemplo, las iniciales con puntos como un solo token, o aceptar en zonas de imagen los renglones de confianza muy alta que no son el dibujo) y medir contra las hojas, sin ajustar a estos casos.",
+      "creado": "2026-10-30",
+      "actualizado": "2026-10-30"
+    },
+    {
+      "id": "P-476",
+      "titulo": "Verificar si en la app las partes de un PDF cortado reciben su tipo",
+      "tipo": "verificacion",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "En el paso 10 de la prueba de la estructura (D-662), seguir desde la base de la medición de copias habría preguntado el tipo de unas 160 partes de PDF cortados que esa medición armó y nunca tipó. Puede ser solo cosa de la medición, que arma las partes sin pasar por el trabajador de la app. Si en la app pasa lo mismo, agregar contenido a un archivo con PDF cortados haría tipar todas esas partes de golpe. Hay que mirar si el trabajador de la app tipa cada parte al cortarla.",
       "creado": "2026-10-30",
       "actualizado": "2026-10-30"
     }
