@@ -3858,6 +3858,30 @@
       "detalle": "En la corrida limpia, la IA sobre partes enteras tuvo 10 errores con seguridad «alta» en los 343 saltos del entrenamiento, ninguno en los 159 del examen y 1 en la hoja de partes, que viene de una regla segura (P-468). Los 10 del entrenamiento son tres casos, repetidos en copias del mismo archivo:\n\n1. **La carátula «Anexo A» de un acuerdo en inglés:** la etiqueta la pone con el documento que sigue y la IA, con el acuerdo de antes. Son 7 errores en 4 copias; es lo de P-473.\n2. **El aviso legal de la firma electrónica que sigue al certificado de la firma:** la etiqueta lo une al certificado y la IA lo corta. Son 2 errores en 2 copias.\n3. **Un formulario de pedido de informe de un registro, cuya página 2 es el dorso del mismo formulario:** la etiqueta dice que ahí empieza otro documento y la IA los une. A la vista, la etiqueta parece mal (D-650). Es 1 error.\n\nQueda por hacer:\n- que el dueño confirme el criterio de los anexos (P-473);\n- escribirlo en los criterios de corte y volver a medir;\n- revisar la etiqueta del tercer caso en un paso aparte, anotándolo, sin tocar la vara en medio de una medición.",
       "creado": "2026-10-30",
       "actualizado": "2026-10-30"
+    },
+    {
+      "id": "P-467",
+      "titulo": "Comparar el corte por reglas seguras de la cadena nueva con el corte de la cadena de hoy",
+      "tipo": "tarea",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "Cuando la corrida de la cadena de hoy deje su resultado, contar cuántos saltos decidió sin preguntar a la IA y con cuántos errores (cortes de más y cortes perdidos), sobre los 343 saltos del entrenamiento, los 128 de la hoja de partes y aparte el compuesto de 93 páginas, y ponerlo al lado de los números del paso 5 de la prueba de la estructura (informe del paso 5, sección «Para el dueño»). Al cerrar el paso 5 ese resultado todavía no existía.",
+      "creado": "2026-10-30",
+      "actualizado": "2026-10-30"
+    },
+    {
+      "id": "P-468",
+      "titulo": "Reglas de corte que necesitan más etiquetas para probarse, y un error de la frase abierta",
+      "tipo": "verificacion",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "En el paso 5 de la prueba de la estructura: (1) la numeración de renglones no aparece en ninguna página de la carpeta de prueba, así que la regla no se pudo probar; (2) «Página 1 de N» y «la última página» acertaron solo 3 veces en el entrenamiento y «Hoja X» en un solo archivo, así que quedaron como pistas; (3) la regla de la página que termina en una palabra de enlace, que pasó la prueba, se equivocó una vez en la hoja de partes: en un escaneo el último renglón seguro era el de un sello de copia fiel, no la prosa. Un arreglo general (que el último renglón no sea de un sello ni esté todo en mayúsculas) se tiene que probar con etiquetas nuevas, no con la hoja. Hacen falta etiquetas de otra carpeta para decidir los tres.",
+      "creado": "2026-10-30",
+      "actualizado": "2026-10-30"
     }
   ]
 }

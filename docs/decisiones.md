@@ -588,6 +588,9 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-648 | 30 oct | base | En la corrida limpia, las dos cadenas se miden con la misma vara: todos los saltos y las etiquetas tal cual | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-649 | 30 oct | base | Resultado de la corrida limpia: la cadena nueva corta mejor y con menos errores tomados por seguros; la app no cambia hasta que el dueño lo revise | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-650 | 30 oct | base | Una etiqueta que parece mal no se corrige en medio de la medición | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-651 | 30 oct | base | Qué reglas de corte se someten a la prueba de seguridad y cuáles quedan solo como pistas | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-652 | 30 oct | base | Una regla decide sola con cero errores y además 5 aciertos en al menos 2 archivos del entrenamiento | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-653 | 30 oct | base | Cómo se combinan las reglas en un salto y qué texto puede fundar una decisión | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -6512,4 +6515,25 @@ La cadena nueva queda como propuesta para el dueño. En esta corrida no se cambi
 - **Fecha:** 30 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
 - **El problema:** Revisando a la vista los errores con seguridad alta de la cadena nueva, una etiqueta del entrenamiento parece mal. Es la página 2 de un formulario de pedido de informe de un registro, que es el dorso del mismo formulario y no otro documento.
 - **Qué se decidió y por qué:** Las dos cadenas se miden con las etiquetas tal como estaban al empezar: las hojas miden y no enseñan (R-25). La revisión queda en P-466. Si la etiqueta se cambia, se anota y se vuelven a medir las dos cadenas.
+- **Quién decidió:** Claude, en la corrida desatendida; el dueño la revisa
+
+### D-651 · Qué reglas de corte se someten a la prueba de seguridad y cuáles quedan solo como pistas
+
+- **Fecha:** 30 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** El dueño nombró cinco reglas seguras (cambio entre página digital y escaneada, la frase que sigue, la numeración de renglones, «Página X de Y» y el bloque de firma) y dijo que las visuales de hoy pasan a pistas. Quedaban sin decir las reglas de texto de hoy que no son visuales y las variantes de las cinco.
+- **Qué se decidió y por qué:** Todas pasan por la misma prueba, cada caso por separado y por dirección. La frase que sigue incluye dos variantes generales: la página que termina en coma o en una palabra de enlace (de, la, que, y...), que no puede cerrar un documento. «Página X de Y» se parte en casos (sigue, empieza en 1, última página, otro total, aparece sola) y cada caso necesita su propio acierto. Las reglas de texto de hoy (página en blanco, código de documento, serie notarial, fórmulas de apertura y de cierre) también se prueban y pueden decidir si pasan. Las visuales (otro papel, otra resolución, otro color, otra hechura y el par de fotos) nunca deciden. «Otra hechura» se entiende como el cambio de forma de página dentro de la misma clase (prosa digital a formulario, escaneo a foto), porque el cambio entre digital y escaneada es una regla del dueño.
+- **Quién decidió:** Claude, en la corrida desatendida; el dueño la revisa
+
+### D-652 · Una regla decide sola con cero errores y además 5 aciertos en al menos 2 archivos del entrenamiento
+
+- **Fecha:** 30 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La prueba pide que una regla no se equivoque nunca en los 343 saltos del entrenamiento. Una regla que dispara una o dos veces pasa esa prueba sin decir nada de su seguridad, y una que acierta 44 veces en un solo archivo prueba un solo caso.
+- **Qué se decidió y por qué:** Además de no equivocarse nunca, una regla tiene que acertar al menos 5 veces y en al menos 2 archivos distintos; si no, queda como pista. Se eligió antes de mirar la hoja de partes. Con la prueba literal (sin mínimo) decidirían además «Página 1 de N», «la última página» y «Hoja X»; esa variante se midió aparte y queda como alternativa, pero no se elige por su resultado en la hoja, porque eso sería ajustar a la hoja. Se cambia con dos parámetros del guion de la prueba.
+- **Quién decidió:** Claude, en la corrida desatendida; el dueño la revisa
+
+### D-653 · Cómo se combinan las reglas en un salto y qué texto puede fundar una decisión
+
+- **Fecha:** 30 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** En un mismo salto pueden disparar varias reglas, a veces en direcciones opuestas, y parte del texto de un escaneo es dudoso.
+- **Qué se decidió y por qué:** Un salto se decide solo si dispara al menos una regla final y todas las finales que disparan dicen lo mismo; si se contradicen, queda dudoso con todas como pistas. Las reglas de texto leen solo el texto seguro de la lectura por zonas; si la línea que haría falta es dudosa, la regla dispara con el sufijo «dudoso» y solo da pista. El cambio entre digital y escaneada exige que las dos lecturas de la página (zonas y pdfium) estén de acuerdo. Las etiquetas marcadas como no seguras cuentan igual en la prueba: un error contra ellas también baja la regla a pista.
 - **Quién decidió:** Claude, en la corrida desatendida; el dueño la revisa
