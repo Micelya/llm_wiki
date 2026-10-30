@@ -3942,6 +3942,18 @@
       "detalle": "Se asumió en D-659: una portada que solo dice «ANEXO 1», o una foto firmada al dorso que va delante del acta que la menciona, sigue al documento que viene después y no es un documento aparte. Si el dueño prefiere que sean documentos aparte, cambian 4 etiquetas del examen, que hoy están marcadas como dudosas («sure: no»). Ejemplos con sus rutas en «Para el dueño» del informe del paso 8.",
       "creado": "2026-10-30",
       "actualizado": "2026-10-30"
+    },
+    {
+      "id": "P-474",
+      "titulo": "Detectar más de un documento dentro de una imagen o de una página escaneada",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "Por D-660. Hoy la app y la cadena nueva de la prueba de la estructura cortan solo entre páginas: una imagen o una página con dos documentos queda como uno solo.\n\nHace falta:\n\n1. **Ejemplos para medir:** fotos o fotocopias con varios documentos juntos. La carpeta de prueba no tiene ninguno: sus tres imágenes sueltas tienen un documento cada una.\n2. **La detección:** con la estructura de la página (las zonas) y la IA sobre la imagen entera. Se corta solo con seguridad alta; si no, queda a la vista de una persona.\n3. **Cómo se guarda un documento que es una parte de una página** (su recuadro), para la cita, la vista y las copias.\n\nEl paso 10 de la prueba de la estructura probó solo la pregunta a la IA sobre esas tres imágenes.",
+      "creado": "2026-10-30",
+      "actualizado": "2026-10-30"
     }
   ]
 }

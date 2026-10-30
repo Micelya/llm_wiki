@@ -597,6 +597,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-657 | 29 oct | base | Cómo se eligió la muestra del examen nuevo de cortes | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-658 | 29 oct | base | En las etiquetas del examen, «empieza otro documento» se escribe "new" | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-659 | 29 oct | base | Etiquetas del examen: portadas y agregados que van antes del documento al que pertenecen | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-660 | 30 oct | base | Una imagen puede tener más de un documento: se trata como un PDF compuesto | vigente; la extensión a las páginas escaneadas, asumida (D-500): el dueño la revisa |
 
 ---
 
@@ -6585,3 +6586,12 @@ La cadena nueva queda como propuesta para el dueño. En esta corrida no se cambi
 - **El problema:** Los criterios del catálogo de cortes dicen que lo que no tiene emisor ni fecha propios sigue al documento al que pertenece, pero piensan en un agregado que va después. El examen tiene tres casos en que va antes: una portada que solo dice «ANEXO 1» delante del documento anexado; una foto de una pantalla, firmada y sellada al dorso por el escribano, delante del acta notarial que la menciona; y una hoja casi en blanco con la nota del escribano («las fotocopias que anteceden fueron certificadas en la hoja…»), delante de esa hoja de certificación.
 - **Qué se decidió y por qué:** En los tres casos, el salto de la portada o del agregado al documento se etiqueta «sigue» ("continue"), con "sure": "no": ninguno tiene fecha propia, y la nota del escribano es una nota de oficina. Por eso se cuentan aparte en la medición. Además: en un libro de actas, cada acta con su fecha y firmas es un documento; cada edición de un diario oficial es un documento aparte; el frente y el dorso de un documento de identidad en una misma página son uno.
 - **Quién decidió:** Claude
+
+### D-660 · Una imagen puede tener más de un documento: se trata como un PDF compuesto
+
+- **Fecha:** 30 oct 2026 · **Tema:** base · **Estado:** vigente; la extensión a las páginas escaneadas, asumida (D-500): el dueño la revisa
+- **El problema:** La app trata cada imagen suelta (foto o captura) como un solo documento, y la cadena nueva de la prueba de la estructura ni siquiera las leyó (P-465). Pero es común fotografiar o fotocopiar varios documentos juntos, de modo que una sola imagen puede tener más de uno.
+- **Qué se decidió y por qué:** Las imágenes reciben un tratamiento parecido al de los PDF compuestos: hay que ver si dentro de la imagen hay más de un documento y, si lo hay, separarlos. Vale el mismo criterio de confianza: lo que no tenga una confianza muy alta queda a la vista de una persona, y nada se da por bueno sin ella.
+
+Como las reglas son generales (R-24), Claude extiende la regla a cada página escaneada de un PDF, porque una hoja fotocopiada también puede tener varios documentos. Esa extensión la confirma el dueño. El trabajo queda en P-474.
+- **Quién decidió:** el dueño (30 oct); la extensión a las páginas escaneadas, Claude
