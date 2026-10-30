@@ -24,3 +24,4 @@ Cada lado lee el buzón del otro y nunca escribe en él. Core lee este buzón en
 | [002](2026-10-22-002-lectura-probada-modelos-y-piloto.md) | 22 oct 2026 | Lectura probada; preguntas a modelos, lectura por piezas y una organización para el piloto | abierto |
 | [003](2026-10-22-003-piezas-de-un-escaneo.md) | 22 oct 2026 | Partir un escaneo en piezas y decir qué es cada una | abierto |
 | [004](2026-10-27-004-vectores.md) | 27 oct 2026 | Un servicio de vectores para la búsqueda por significado de Desktop | abierto |
+| [005](2026-10-29-005-lectura-con-analisis.md) | 29 oct 2026 | Lo que le falta a la lectura con análisis para los formularios y los escaneos | abierto |
