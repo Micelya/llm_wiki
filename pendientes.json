@@ -3906,6 +3906,42 @@
       "detalle": "(1) Con el resultado de la corrida de la cadena de hoy, poner al lado de la medición del paso 6: saltos decididos sin preguntar, consultas, cortes de más, cortes perdidos y tiempo, en el entrenamiento, la hoja de partes y el compuesto de 93 páginas. La tabla vacía está en el informe del paso 6. (2) El archivo parejo tomado como fundamento dio 7 cortes perdidos con seguridad alta en 42 saltos (D-656). Medir la versión de la app, que no vale en el salto cuya página anterior termina con una firma, con etiquetas que no sean las de la hoja, antes de usarla para ahorrar consultas.",
       "creado": "2026-10-30",
       "actualizado": "2026-10-30"
+    },
+    {
+      "id": "P-471",
+      "titulo": "Etiquetar el expediente de 175 páginas del examen nuevo como segundo examen",
+      "tipo": "verificacion",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": "2",
+      "tema": "base",
+      "detalle": "Es el PDF más variado del examen nuevo: 175 páginas, 28 tamaños de página, 45 páginas casi sin texto y un tercio de los saltos con algún cambio por pdfium. Quedó fuera de la muestra porque por sí solo tiene 174 saltos y pasaba el tope de 160. Sin él, el examen tiene pocos comienzos de documento (16 de 159 saltos). Conviene etiquetarlo como segundo examen, con el mismo método: el texto en las páginas digitales y hojas de miniaturas en los escaneos. Cuesta unas 4 hojas de miniaturas y un paso de presupuesto parecido al 8. Ver «Para el dueño» en el informe del paso 8 de la prueba de la estructura.",
+      "creado": "2026-10-30",
+      "actualizado": "2026-10-30"
+    },
+    {
+      "id": "P-472",
+      "titulo": "Dos PDF de 31 páginas del examen nuevo parecen la misma presentación con otra huella",
+      "tipo": "verificacion",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": "3",
+      "tema": "base",
+      "detalle": "Tienen las mismas letras por página según pdfium, pero distinta huella (sha256). Ninguno entró en la muestra. Si son la misma presentación subida dos veces, sirven como caso de copias casi iguales. Hay que compararlos página por página, sin modelo. Ver «Para el dueño» en el informe del paso 8.",
+      "creado": "2026-10-30",
+      "actualizado": "2026-10-30"
+    },
+    {
+      "id": "P-473",
+      "titulo": "El dueño confirma cómo se cortan las portadas y agregados que van antes de su documento",
+      "tipo": "decision",
+      "responsable": "usuario",
+      "estado": "pendiente",
+      "prioridad": "3",
+      "tema": "base",
+      "detalle": "Se asumió en D-659: una portada que solo dice «ANEXO 1», o una foto firmada al dorso que va delante del acta que la menciona, sigue al documento que viene después y no es un documento aparte. Si el dueño prefiere que sean documentos aparte, cambian 4 etiquetas del examen, que hoy están marcadas como dudosas («sure: no»). Ejemplos con sus rutas en «Para el dueño» del informe del paso 8.",
+      "creado": "2026-10-30",
+      "actualizado": "2026-10-30"
     }
   ]
 }

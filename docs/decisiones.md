@@ -594,6 +594,9 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-654 | 30 oct | base | Cómo se arma la consulta de la IA sobre una parte entera | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-655 | 30 oct | base | Qué se hace cuando una página recibe dos respuestas por la pisada de los tramos | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-656 | 30 oct | base | Cómo se define el archivo parejo en la cadena nueva, y por qué no conviene tomarlo como fundamento | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-657 | 29 oct | base | Cómo se eligió la muestra del examen nuevo de cortes | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-658 | 29 oct | base | En las etiquetas del examen, «empieza otro documento» se escribe "new" | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-659 | 29 oct | base | Etiquetas del examen: portadas y agregados que van antes del documento al que pertenecen | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -6561,3 +6564,24 @@ La cadena nueva queda como propuesta para el dueño. En esta corrida no se cambi
 - **El problema:** La forma (b) del paso 6 se mide tomando el archivo parejo como fundamento y sin tomarlo. El plan lo define como un PDF cuyas páginas tienen el mismo papel, la misma hechura y la misma captura, y se toma como un solo documento sin preguntar. Faltaba la definición operativa.
 - **Qué se decidió y por qué:** Es parejo un PDF de dos páginas o más, sin ningún corte seguro, cuyas páginas no blancas son todas digitales o todas escaneadas, sin ningún salto con las pistas de otra hechura o de cambio entre digital y escaneada (misma hechura), con la misma orientación y medida de papel dentro del 4 % de los criterios de la app (mismo papel), y sin ningún salto con otra resolución u otro color (misma captura). No lleva la excepción de la app para el salto cuya página anterior termina con una firma, porque el plan no la nombra. Medido sin la IA, tomado como fundamento decide 42 saltos con 7 cortes perdidos dados por seguros (6 de 41 en el entrenamiento y 1 de 1 en la hoja de partes). Por eso se recomienda no tomarlo como fundamento; la versión con la excepción de la firma queda para medir (P-470).
 - **Quién decidió:** Claude, en la corrida desatendida; el dueño la revisa
+
+### D-657 · Cómo se eligió la muestra del examen nuevo de cortes
+
+- **Fecha:** 29 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** El examen nuevo es una causa pública de 33 PDF con unos 600 saltos. Etiquetarlos todos no entra en el presupuesto, y la especificación pide unos 150 saltos (hasta 160), por archivo entero, elegidos antes de mirar el contenido.
+- **Qué se decidió y por qué:** Se eligió solo con números de pdfium: letras, tamaño y rotación de cada página. 1) Una copia exacta (misma huella) queda una sola vez. 2) Entran los PDF que tienen alguna página de menos de 200 letras o algún salto con un cambio: de tamaño, de rotación o de cantidad de letras (el triple, o cruzar las 200). 3) Si pasan de 160 saltos, salen primero los parejos (menos del 10 % de saltos con cambio), del más largo al más corto, y después el más largo. 4) Si quedan menos de 150, vuelve el sacado con más proporción de cambio que entre en 160. Quedaron 15 PDF, 174 páginas y 159 saltos. Quedaron fuera seis PDF largos y parejos y el de 175 páginas, que por sí solo pasaba el tope. El guion es paso8/guiones/elegir.py.
+- **Quién decidió:** Claude
+
+### D-658 · En las etiquetas del examen, «empieza otro documento» se escribe "new"
+
+- **Fecha:** 29 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La especificación del paso 8 dice «start». En cambio, el formato de referencia (las etiquetas de la hoja de partes) y el guion de medición del paso 1 usan "new". Con «start», la medición contaría todos los saltos como «sigue».
+- **Qué se decidió y por qué:** Las etiquetas del examen usan "new" y "continue", igual que el formato de referencia. Significan lo mismo que «start» y «continue» de la especificación.
+- **Quién decidió:** Claude
+
+### D-659 · Etiquetas del examen: portadas y agregados que van antes del documento al que pertenecen
+
+- **Fecha:** 29 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Los criterios del catálogo de cortes dicen que lo que no tiene emisor ni fecha propios sigue al documento al que pertenece, pero piensan en un agregado que va después. El examen tiene tres casos en que va antes: una portada que solo dice «ANEXO 1» delante del documento anexado; una foto de una pantalla, firmada y sellada al dorso por el escribano, delante del acta notarial que la menciona; y una hoja casi en blanco con la nota del escribano («las fotocopias que anteceden fueron certificadas en la hoja…»), delante de esa hoja de certificación.
+- **Qué se decidió y por qué:** En los tres casos, el salto de la portada o del agregado al documento se etiqueta «sigue» ("continue"), con "sure": "no": ninguno tiene fecha propia, y la nota del escribano es una nota de oficina. Por eso se cuentan aparte en la medición. Además: en un libro de actas, cada acta con su fecha y firmas es un documento; cada edición de un diario oficial es un documento aparte; el frente y el dorso de un documento de identidad en una misma página son uno.
+- **Quién decidió:** Claude
