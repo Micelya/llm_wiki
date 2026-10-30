@@ -580,6 +580,9 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-639 | 29 oct | base | La corrida limpia de una cadena: corte, entidades sobre archivos enteros, identidad aparte y copias con partes | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-640 | 29 oct | base | El corte de la corrida limpia pregunta en todos los PDF de la carpeta | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-641 | 29 oct | base | El tope de preguntas de entidades lo pone el guion, mirando el archivo del modelo | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-642 | 29 oct | base | La receta de estructura de la cadena nueva: zonas con pp_doc_layoutv2, lectura de la página entera repartida por zonas, tablas con SLANet-plus | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-643 | 29 oct | base | Texto seguro de la cadena nueva: confianza 0,97, o 0,9 con todas las palabras en un léxico general, o igual a la capa vieja | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-644 | 29 oct | base | La cadena nueva vuelve a leer toda página con capa vieja, no solo las ruidosas, y además toda página que la app manda a leer | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -6435,4 +6438,25 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Fecha:** 29 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
 - **El problema:** La variable que limita las preguntas de entidades solo recorta las de lectura que se precalientan; las de tipo, las demás de lectura y las de identidad y wiki se preguntan igual.
 - **Qué se decidió y por qué:** El guion cuenta cada 15 segundos las respuestas del archivo del modelo y corta la prueba al llegar al tope (1.200 en la carpeta entera); un punto que pregunta no empieza si el tope ya está lleno. Las respuestas no se pierden: quedan en el archivo y no se vuelven a preguntar al relanzar.
+- **Quién decidió:** Claude
+
+### D-642 · La receta de estructura de la cadena nueva: zonas con pp_doc_layoutv2, lectura de la página entera repartida por zonas, tablas con SLANet-plus
+
+- **Fecha:** 29 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La cadena nueva tiene que reconocer las zonas de cada página y leer por zonas. Se probaron 4 modelos de zonas (pp_doc_layoutv2, pp_doc_layoutv3, yolov8n general6 y doclayout docstructbench), leer la página entera o cada zona recortada, y 3 modelos de tablas, sobre las 134 páginas de la hoja de partes.
+- **Qué se decidió y por qué:** Zonas con pp_doc_layoutv2 (puntaje de zona 0,5): con v3 son los únicos con clase de sello sin inventar, y v2 encuentra algo más, es más rápido y usa menos memoria. Se lee la página entera con RapidOCR PP-OCRv6 small a 2000 píxeles, como la app, y cada renglón va a la zona más chica que lo contiene; recortar zonas tardaba de 4 a 5 veces más y perdía lo de fuera de las zonas. Tablas con SLANet-plus: las mismas celdas que UniTable en las tablas de la hoja, 50 veces más rápido y sin torch. Las páginas digitales toman el texto de pdfium por posición, repartido por zonas, siempre seguro.
+- **Quién decidió:** Claude
+
+### D-643 · Texto seguro de la cadena nueva: confianza 0,97, o 0,9 con todas las palabras en un léxico general, o igual a la capa vieja
+
+- **Fecha:** 29 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Lo leído solo funda datos si la confianza es muy alta. Sobre los 37 valores manuscritos de la hoja, con umbral 0,95 quedaban 2 valores seguros y mal leídos; con 0,96 o más, ninguno, pero lo impreso nuevo perdía texto.
+- **Qué se decidió y por qué:** Un renglón es seguro si su confianza llega a 0,97; o a 0,9 si no tiene cifras y todas sus palabras de 3 letras o más (al menos 2) están en un léxico general del castellano; o si su texto, de 8 letras o más, está igual en la capa vieja de la página. Lo leído en una zona de sello o de imagen nunca es seguro. Lo demás es evidencia: se guarda aparte y no funda datos. Medido: 0 seguros y mal leídos, 1 seguro y bien leído, 19 en evidencia, 17 no leídos; lo impreso nuevo, 0,2 % de error de caracteres. Se eligió 0,97 y no 0,96 para no quedar a una milésima del peor caso de la hoja.
+- **Quién decidió:** Claude
+
+### D-644 · La cadena nueva vuelve a leer toda página con capa vieja, no solo las ruidosas, y además toda página que la app manda a leer
+
+- **Fecha:** 29 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La app manda a leer las páginas sin texto propio y, de las de capa vieja, solo las ruidosas: en el compuesto de 93 páginas de la hoja de partes lee 40 y deja 53 con la capa vieja. El plan dice que las escaneadas y las de capa vieja se leen con el lector de cada cadena.
+- **Qué se decidió y por qué:** La cadena nueva lee toda página sin capa propia y toda página con capa vieja (117 de las 134 de la hoja), y da su lectura, con solo el texto seguro, para esas páginas y para toda página que la corrida de la app haya mandado a leer (se le pasa la lista). Nunca da lectura de una página digital. Riesgo medido: en la página de impreso viejo de la hoja, la capa vieja tiene menos error que la lectura nueva; ver P-462.
 - **Quién decidió:** Claude

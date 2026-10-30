@@ -3774,6 +3774,42 @@
       "detalle": "El límite de preguntas de entidades solo recorta el precalentamiento; el renglón de respuestas guardadas del corte cuenta también los saltos repetidos de la misma corrida; las respuestas del corte se guardan solo al final, y una caída las pierde; el lector de esta computadora necesita que se le diga dónde están sus modelos; en la compilación de prueba tarda unos 6,6 s por página (lo previsto eran 2,5), y la compilación optimizada no se probó.",
       "creado": "2026-10-30",
       "actualizado": "2026-10-30"
+    },
+    {
+      "id": "P-460",
+      "titulo": "El manuscrito, el sello y la firma no se reconocen bien con señales generales en la cadena nueva",
+      "tipo": "verificacion",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": "2",
+      "tema": "base",
+      "detalle": "Paso 2 de la prueba de estructura, sobre las 134 páginas de la hoja de partes. Sello (clase de pp_doc_layoutv2): encuentra 27 de 99 páginas, sin inventar. Firma a mano (texto de firma o sello en página escaneada): 34 de 92, con 8 inventadas. Manuscrito (renglones de confianza baja): 35 de 37 con 38 inventadas a 0,9, y 31 de 37 con 28 a 0,8. Campos de formulario: 16 de 45. De los 37 valores manuscritos de la hoja, solo 1 queda seguro con la receta: el resto va a evidencia o no se lee. Falta un detector de manuscrito y de sello, o tratar estas marcas como no reconocidas. Además, la medida del manuscrito compara textos: un valor igual a un rótulo impreso cuenta como bien leído. Ver el informe del paso 2, «Para el dueño».",
+      "creado": "2026-10-30",
+      "actualizado": "2026-10-30"
+    },
+    {
+      "id": "P-461",
+      "titulo": "Medir el detector de QR de la cadena nueva",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": "3",
+      "tema": "base",
+      "detalle": "El detector de QR de OpenCV sin decodificar no halló ninguna de las 3 páginas con QR de la hoja de partes e inventó 13. El guion de la receta usa ahora el que decodifica, sin medir. Medirlo contra la marca qr de la hoja, o sacar la bandera.",
+      "creado": "2026-10-30",
+      "actualizado": "2026-10-30"
+    },
+    {
+      "id": "P-462",
+      "titulo": "En las páginas de capa vieja no ruidosa, ¿conservar la capa o la lectura nueva?",
+      "tipo": "decision",
+      "responsable": "usuario",
+      "estado": "pendiente",
+      "prioridad": "2",
+      "tema": "base",
+      "detalle": "En la página de impreso viejo de la hoja (compuesto de 93 páginas), el error de caracteres de la capa vieja es 3,8 %, el de RapidOCR sobre la página entera 9,0 %, y el del texto seguro de la receta 14,4 % (lo que falta cuenta como error). La medida no cuenta espacios, que es lo que hace ruidosa esa capa. La cadena nueva hoy reemplaza la capa en todas las páginas de capa vieja (D-644). Ejemplo: en un escrito mecanografiado escaneado con capa vieja de buena calidad, la lectura nueva da menos texto seguro que la capa. Qué cambia: conservar la capa en las no ruidosas iguala la cadena nueva a la de la app en esas páginas, pero da por bueno un texto sin confianza medida. Costo: un parámetro del guion. Ver el informe del paso 2, «Para el dueño».",
+      "creado": "2026-10-30",
+      "actualizado": "2026-10-30"
     }
   ]
 }
