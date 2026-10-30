@@ -583,6 +583,8 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-642 | 29 oct | base | La receta de estructura de la cadena nueva: zonas con pp_doc_layoutv2, lectura de la página entera repartida por zonas, tablas con SLANet-plus | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-643 | 29 oct | base | Texto seguro de la cadena nueva: confianza 0,97, o 0,9 con todas las palabras en un léxico general, o igual a la capa vieja | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-644 | 29 oct | base | La cadena nueva vuelve a leer toda página con capa vieja, no solo las ruidosas, y además toda página que la app manda a leer | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-646 | 29 oct | base | Qué páginas se mandaron a Core en el paso 3 de la prueba de estructura, y sin la huella del archivo | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-647 | 29 oct | base | Lo digital no se manda a Core por ahora; lo escaneado, después de medir su manuscrito | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -6459,4 +6461,18 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 - **Fecha:** 29 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
 - **El problema:** La app manda a leer las páginas sin texto propio y, de las de capa vieja, solo las ruidosas: en el compuesto de 93 páginas de la hoja de partes lee 40 y deja 53 con la capa vieja. El plan dice que las escaneadas y las de capa vieja se leen con el lector de cada cadena.
 - **Qué se decidió y por qué:** La cadena nueva lee toda página sin capa propia y toda página con capa vieja (117 de las 134 de la hoja), y da su lectura, con solo el texto seguro, para esas páginas y para toda página que la corrida de la app haya mandado a leer (se le pasa la lista). Nunca da lectura de una página digital. Riesgo medido: en la página de impreso viejo de la hoja, la capa vieja tiene menos error que la lectura nueva; ver P-462.
+- **Quién decidió:** Claude
+
+### D-646 · Qué páginas se mandaron a Core en el paso 3 de la prueba de estructura, y sin la huella del archivo
+
+- **Fecha:** 29 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La especificación pedía la página 1 de la boleta de multas de la hoja de partes, pero la tabla de esa boleta está en la página 3, que es la que midió la receta local. Además, si el pedido de lectura lleva la huella del archivo, Core devuelve la lectura que ya tenga del mismo archivo, y la corrida tenía que ser limpia.
+- **Qué se decidió y por qué:** De la boleta se mandaron las páginas 1 y 3. Del compuesto de 93 páginas se eligieron 4 de las 18 marcadas como formulario completado a mano: con capa vieja y sin capa, con firma y sin firma, con sello y sin sello. En total fueron 11 páginas, por unos US$ 0,81 a precio de lista. Los pedidos fueron sin la huella, y Core leyó todo de nuevo. Cada lectura se borró en Core al traer su resultado.
+- **Quién decidió:** Claude
+
+### D-647 · Lo digital no se manda a Core por ahora; lo escaneado, después de medir su manuscrito
+
+- **Fecha:** 29 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** En lo digital, Core empata con la receta local: 25 de 27 pares seguros, más 2 que no se pueden ubicar porque Core no da la posición, contra 26 de la receta local; las tablas salen iguales celda por celda. Pero cuesta unos 7 centavos por página. En lo escaneado aporta lo que la receta no tiene: firmas, una clase por página y la lectura del manuscrito con un modelo. Eso todavía no está medido contra una hoja.
+- **Qué se decidió y por qué:** Los formularios, recibos y boletas digitales siguen con la receta local. Lo escaneado se decide cuando se mida el manuscrito de Core contra la hoja de 37 valores (P-463). Lo que le falta a Core va en el mensaje 005 (P-464).
 - **Quién decidió:** Claude

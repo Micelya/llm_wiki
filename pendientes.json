@@ -3810,6 +3810,30 @@
       "detalle": "En la página de impreso viejo de la hoja (compuesto de 93 páginas), el error de caracteres de la capa vieja es 3,8 %, el de RapidOCR sobre la página entera 9,0 %, y el del texto seguro de la receta 14,4 % (lo que falta cuenta como error). La medida no cuenta espacios, que es lo que hace ruidosa esa capa. La cadena nueva hoy reemplaza la capa en todas las páginas de capa vieja (D-644). Ejemplo: en un escrito mecanografiado escaneado con capa vieja de buena calidad, la lectura nueva da menos texto seguro que la capa. Qué cambia: conservar la capa en las no ruidosas iguala la cadena nueva a la de la app en esas páginas, pero da por bueno un texto sin confianza medida. Costo: un parámetro del guion. Ver el informe del paso 2, «Para el dueño».",
       "creado": "2026-10-30",
       "actualizado": "2026-10-30"
+    },
+    {
+      "id": "P-463",
+      "titulo": "Medir el manuscrito de Core contra la hoja de 37 valores manuscritos",
+      "tipo": "verificacion",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": "2",
+      "tema": "base",
+      "detalle": "Paso 3 de la prueba de estructura: en 4 páginas completadas a mano del compuesto de 93 páginas de la hoja de partes, Core devolvió una transcripción con un modelo de lenguaje (Claude Sonnet 4.6), con su legibilidad y con marcas de ilegible y de firma. Pero esas páginas no tienen hoja de valores manuscritos, así que no se sabe cuántos valores lee bien. Falta mandar a Core las 2 páginas del compuesto de 23 páginas que tienen los 37 valores manuscritos de la hoja, solo con piezas (unos 3 centavos), y contarlos con el criterio del paso 2 (seguro y bien, seguro y mal, evidencia, no leído), contra la receta local (1, 0, 19 y 17). Con eso se decide si el manuscrito escaneado va a Core.",
+      "creado": "2026-10-30",
+      "actualizado": "2026-10-30"
+    },
+    {
+      "id": "P-464",
+      "titulo": "Seguir el mensaje 005 a Core: lo que le falta a la lectura con análisis",
+      "tipo": "verificacion",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": "2",
+      "tema": "base",
+      "detalle": "Paso 3 de la prueba de estructura: 11 páginas leídas en Core de desarrollo (unos US$ 0,81). En lo digital empata con la receta local (pares y tablas). Le falta: la posición de cada par rótulo-valor (sin ella, los rótulos repetidos no se ubican), el subtipo de documento, la marca de impreso o manuscrito por palabra, leer lo poco completado a mano (una página con 2 palabras manuscritas no pasó por el modelo), separar las tablas de las grillas de formulario (en los escaneos da grillas vacías como tablas) y el bloque de firma (tipo y aclaración; la confianza no separa: una firma real a 0,42 y una inventada a 0,29). El borrador del mensaje 005 está en la carpeta del paso 3; hay que ponerlo en el buzón y seguir la respuesta.",
+      "creado": "2026-10-30",
+      "actualizado": "2026-10-30"
     }
   ]
 }
