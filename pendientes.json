@@ -3882,6 +3882,30 @@
       "detalle": "En el paso 5 de la prueba de la estructura: (1) la numeración de renglones no aparece en ninguna página de la carpeta de prueba, así que la regla no se pudo probar; (2) «Página 1 de N» y «la última página» acertaron solo 3 veces en el entrenamiento y «Hoja X» en un solo archivo, así que quedaron como pistas; (3) la regla de la página que termina en una palabra de enlace, que pasó la prueba, se equivocó una vez en la hoja de partes: en un escaneo el último renglón seguro era el de un sello de copia fiel, no la prosa. Un arreglo general (que el último renglón no sea de un sello ni esté todo en mayúsculas) se tiene que probar con etiquetas nuevas, no con la hoja. Hacen falta etiquetas de otra carpeta para decidir los tres.",
       "creado": "2026-10-30",
       "actualizado": "2026-10-30"
+    },
+    {
+      "id": "P-469",
+      "titulo": "Correr el ensayo y la corrida entera de la IA sobre partes enteras, y medirlos",
+      "tipo": "tarea",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "base",
+      "detalle": "Cuando Codex quede libre, el agente principal corre el ensayo del paso 6 de la prueba de la estructura (6 consultas: una parte corta, una larga en 3 tramos y los dos primeros tramos del compuesto de 93 páginas de la hoja de partes) y mira lo que dice la sección «Comandos» del informe del paso 6: cero respuestas guardadas al empezar, seis respuestas sin fallas, páginas con los números del archivo y ningún salto sin respuesta en los dos archivos cortos. Si anda, corre la forma (a) entera (161 consultas, 663 imágenes), repitiendo la vuelta de 9 minutos hasta que diga «listo», y la mide con el medidor del paso 6 sobre los 343 saltos del entrenamiento y los 128 de la hoja, con el compuesto aparte. Los comandos exactos están en el informe del paso 6, sección «Comandos».",
+      "creado": "2026-10-30",
+      "actualizado": "2026-10-30"
+    },
+    {
+      "id": "P-470",
+      "titulo": "Comparar la IA sobre partes enteras con la cadena de hoy, y medir el archivo parejo con la excepción de la firma",
+      "tipo": "verificacion",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "(1) Con el resultado de la corrida de la cadena de hoy, poner al lado de la medición del paso 6: saltos decididos sin preguntar, consultas, cortes de más, cortes perdidos y tiempo, en el entrenamiento, la hoja de partes y el compuesto de 93 páginas. La tabla vacía está en el informe del paso 6. (2) El archivo parejo tomado como fundamento dio 7 cortes perdidos con seguridad alta en 42 saltos (D-656). Medir la versión de la app, que no vale en el salto cuya página anterior termina con una firma, con etiquetas que no sean las de la hoja, antes de usarla para ahorrar consultas.",
+      "creado": "2026-10-30",
+      "actualizado": "2026-10-30"
     }
   ]
 }

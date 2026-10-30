@@ -591,6 +591,9 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-651 | 30 oct | base | Qué reglas de corte se someten a la prueba de seguridad y cuáles quedan solo como pistas | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-652 | 30 oct | base | Una regla decide sola con cero errores y además 5 aciertos en al menos 2 archivos del entrenamiento | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-653 | 30 oct | base | Cómo se combinan las reglas en un salto y qué texto puede fundar una decisión | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-654 | 30 oct | base | Cómo se arma la consulta de la IA sobre una parte entera | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-655 | 30 oct | base | Qué se hace cuando una página recibe dos respuestas por la pisada de los tramos | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-656 | 30 oct | base | Cómo se define el archivo parejo en la cadena nueva, y por qué no conviene tomarlo como fundamento | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -6536,4 +6539,25 @@ La cadena nueva queda como propuesta para el dueño. En esta corrida no se cambi
 - **Fecha:** 30 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
 - **El problema:** En un mismo salto pueden disparar varias reglas, a veces en direcciones opuestas, y parte del texto de un escaneo es dudoso.
 - **Qué se decidió y por qué:** Un salto se decide solo si dispara al menos una regla final y todas las finales que disparan dicen lo mismo; si se contradicen, queda dudoso con todas como pistas. Las reglas de texto leen solo el texto seguro de la lectura por zonas; si la línea que haría falta es dudosa, la regla dispara con el sufijo «dudoso» y solo da pista. El cambio entre digital y escaneada exige que las dos lecturas de la página (zonas y pdfium) estén de acuerdo. Las etiquetas marcadas como no seguras cuentan igual en la prueba: un error contra ellas también baja la regla a pista.
+- **Quién decidió:** Claude, en la corrida desatendida; el dueño la revisa
+
+### D-654 · Cómo se arma la consulta de la IA sobre una parte entera
+
+- **Fecha:** 30 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** El plan pide una consulta por parte, con las imágenes, el texto por zonas, las pistas del paso 5 y los criterios de corte de la app, y la respuesta con esquema. Quedaban sin decir: cómo se pide la seguridad, qué se hace con los saltos que ya decidió una regla segura, qué pasa con la primera página de un tramo que sigue a otro, y cuánto texto entra.
+- **Qué se decidió y por qué:** La respuesta da, por cada página, si en ella empieza un documento y con qué seguridad (alta, media o baja), y por cada documento su primera página, su tipo y la seguridad del tipo. La pregunta define «alta» como «una persona que mire no dudaría» y dice que lo que no es alta lo revisa una persona. Los criterios y los tipos salen de los criterios de corte de la app; las pistas van dichas en palabras, sin números de acierto. Las zonas dudosas van como un renglón de aviso, sin el texto; las zonas sin texto propio, como un solo renglón por página; el texto de una página se recorta a 3500 letras. Los saltos que decidió una regla segura van marcados como resueltos y quedan como están en las dos formas; lo que diga la IA sobre ellos solo se mide aparte. La primera página de un tramo que sigue a otro no se usa para cortar, porque la IA no ve la anterior: ese salto lo ve el tramo anterior por la pisada. Una consulta sin respuesta se repite una vez; después cuenta como no reconocida.
+- **Quién decidió:** Claude, en la corrida desatendida; el dueño la revisa
+
+### D-655 · Qué se hace cuando una página recibe dos respuestas por la pisada de los tramos
+
+- **Fecha:** 30 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Las partes largas van en tramos de 10 páginas que se pisan en 2, y el plan dice que una página con dos respuestas distintas queda con la de menor seguridad. No decía qué pasa si las dos tienen la misma seguridad y dicen cosas distintas, ni si las dos dicen lo mismo con distinta seguridad.
+- **Qué se decidió y por qué:** Siempre queda la respuesta de menor seguridad, también cuando las dos dicen lo mismo. Si las dos dicen cosas distintas con la misma seguridad, queda la del primer tramo con seguridad baja, porque dos lecturas igual de seguras que se contradicen no fundan nada. Si la IA numera las imágenes de 1 a 10 en vez de usar los números del archivo, las páginas se corren y se cuenta aparte.
+- **Quién decidió:** Claude, en la corrida desatendida; el dueño la revisa
+
+### D-656 · Cómo se define el archivo parejo en la cadena nueva, y por qué no conviene tomarlo como fundamento
+
+- **Fecha:** 30 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La forma (b) del paso 6 se mide tomando el archivo parejo como fundamento y sin tomarlo. El plan lo define como un PDF cuyas páginas tienen el mismo papel, la misma hechura y la misma captura, y se toma como un solo documento sin preguntar. Faltaba la definición operativa.
+- **Qué se decidió y por qué:** Es parejo un PDF de dos páginas o más, sin ningún corte seguro, cuyas páginas no blancas son todas digitales o todas escaneadas, sin ningún salto con las pistas de otra hechura o de cambio entre digital y escaneada (misma hechura), con la misma orientación y medida de papel dentro del 4 % de los criterios de la app (mismo papel), y sin ningún salto con otra resolución u otro color (misma captura). No lleva la excepción de la app para el salto cuya página anterior termina con una firma, porque el plan no la nombra. Medido sin la IA, tomado como fundamento decide 42 saltos con 7 cortes perdidos dados por seguros (6 de 41 en el entrenamiento y 1 de 1 en la hoja de partes). Por eso se recomienda no tomarlo como fundamento; la versión con la excepción de la firma queda para medir (P-470).
 - **Quién decidió:** Claude, en la corrida desatendida; el dueño la revisa
