@@ -67,7 +67,7 @@ pub const SYNTHESIS_PROMPT: &str = "sintesis-3";
 /// Raised when a change in the program changes what a projection writes
 /// (which names have a page, what a block lists): every page is written
 /// again from the record, without asking more.
-const PROJECTION_VERSION: &str = "proyeccion-13";
+const PROJECTION_VERSION: &str = "proyeccion-14";
 /// The task its answers are kept under in `model_answer`.
 pub const TASK: &str = "synthesis";
 /// The words of the vocabulary (`pages.words`) a page is written with.
@@ -90,6 +90,8 @@ pub const WORDS: &[&str] = &[
     "notesMark",
     "aliases",
     "page",
+    "partPage",
+    "partPages",
     "documentWord",
     "documentsWord",
     "kept",
@@ -328,15 +330,53 @@ struct Entity {
 
 #[derive(Debug, Clone, Default)]
 struct Document {
+    /// The name of its file, as the questions to the model say it: none
+    /// for a document cut from a file (it has no file of its own).
     name: String,
-    /// What the wiki calls it (`<origin>/<path inside it>`).
+    /// What the wiki calls it (`<origin>/<path inside it>`): for a document
+    /// cut from a file, the whole file.
     identity: Option<String>,
-    /// The page the wiki wrote from it.
+    /// The page the wiki wrote from it: for a document cut from a file,
+    /// the page of the whole file.
     page: Option<String>,
     doc_type: Option<String>,
     /// Joined with another one as the same document, and that one chosen
     /// as the wiki's source.
     chosen: Option<i64>,
+    /// Where it is, when it is a document cut from a file (D-667).
+    part: Option<Part>,
+}
+
+/// A document cut from a file (D-667): the pages name it by its file and
+/// its pages, never the questions (their text, and so their answers, stay).
+#[derive(Debug, Clone)]
+struct Part {
+    /// The version of the whole file.
+    whole: i64,
+    /// The name of the file ("Acuerdo.pdf").
+    file: String,
+    /// Its pages in the file ("págs. 5-10").
+    pages: String,
+    /// Where the file is, when another document cut from another file
+    /// would read the same (as `family::titles` does with two pages).
+    place: Option<String>,
+}
+
+impl Document {
+    /// What a page calls it: its file's name, and for a document cut from
+    /// a file, the file's name with its pages when `pages`. A quote with
+    /// its page says the file alone: the page is the file's.
+    fn shown(&self, pages: bool) -> String {
+        let Some(part) = &self.part else { return self.name.clone() };
+        let mut out = part.file.clone();
+        if pages {
+            out.push_str(&format!(", {}", part.pages));
+        }
+        if let Some(place) = &part.place {
+            out.push_str(&format!(" ({place})"));
+        }
+        out
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -1114,7 +1154,53 @@ fn load(conn: &Connection, identities: &HashMap<i64, String>) -> Result<Record, 
             );
         }
     }
+    name_parts(conn, &mut documents, identities)?;
     Ok(Record { entities, documents, pages, matters, matter_of, proposed })
+}
+
+/// The documents cut from a file (D-667) have no file of their own, and
+/// so no name: the pages call each one by its file's name and its pages
+/// ("Acuerdo.pdf, págs. 5-10"), and it goes with the whole file in
+/// `sources:` and to its page. Its name for the questions stays empty.
+fn name_parts(conn: &Connection, documents: &mut BTreeMap<i64, Document>, identities: &HashMap<i64, String>) -> Result<(), String> {
+    let words = &vocabulary().pages;
+    let mut statement = conn
+        .prepare(
+            "SELECT a.selector, f.version_id FROM appearance a JOIN file f ON f.hash = a.resource_hash
+             WHERE a.version_id = ?1 AND a.selector <> 'file' AND f.version_id IS NOT NULL ORDER BY a.id LIMIT 1",
+        )
+        .map_err(sql_err)?;
+    for (content, document) in documents.iter_mut().filter(|(_, d)| d.name.is_empty()) {
+        let found = statement.query_row([content], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))).optional().map_err(sql_err)?;
+        let Some((selector, whole)) = found else { continue };
+        let Some((first, last)) = selector.strip_prefix("pages:").and_then(|s| s.split_once('-')) else { continue };
+        let file = classify::name_of(conn, whole)?;
+        if file.is_empty() {
+            continue;
+        }
+        let pages = if first == last {
+            format!("{} {first}", words.word("partPage"))
+        } else {
+            format!("{} {first}-{last}", words.word("partPages"))
+        };
+        document.identity = identities.get(&whole).cloned();
+        document.part = Some(Part { whole, file, pages, place: None });
+    }
+    // Two of two files that would read the same say where their file is.
+    let mut files: HashMap<String, BTreeSet<i64>> = HashMap::new();
+    for document in documents.values() {
+        if let Some(part) = &document.part {
+            files.entry(document.shown(true).to_lowercase()).or_default().insert(part.whole);
+        }
+    }
+    for document in documents.values_mut() {
+        let shown = document.shown(true).to_lowercase();
+        let identity = document.identity.clone();
+        if let Some(part) = document.part.as_mut().filter(|_| files.get(&shown).is_some_and(|f| f.len() > 1)) {
+            part.place = identity;
+        }
+    }
+    Ok(())
 }
 
 /// The language the wiki is written in, as the wiki said it; none when it
@@ -1466,15 +1552,17 @@ struct Rendered {
     discarded: usize,
 }
 
-fn document_link(record: &Record, content: i64) -> String {
+/// A document as a page names it, linked to its page; `pages`: with the
+/// pages of a document cut from a file (`Document::shown`).
+fn document_link(record: &Record, content: i64, pages: bool) -> String {
     match record.documents.get(&content) {
         // A copy joined with the chosen one: its own name (the quote is in
         // its text), and the one the wiki reads.
-        Some(Document { chosen: Some(chosen), name, .. }) if *chosen != content => {
-            format!("{name} → {}", document_link(record, *chosen))
+        Some(document @ Document { chosen: Some(chosen), .. }) if *chosen != content => {
+            format!("{} → {}", document.shown(pages), document_link(record, *chosen, pages))
         }
-        Some(Document { page: Some(page), name, .. }) => link(page, name),
-        Some(document) => document.name.clone(),
+        Some(document @ Document { page: Some(page), .. }) => link(page, &document.shown(pages)),
+        Some(document) => document.shown(pages),
         None => format!("#{content}"),
     }
 }
@@ -1618,7 +1706,7 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
             .iter()
             .map(|(content, quote, page)| {
                 let at = page.map(|p| format!(", {} {p}", words.word("page"))).unwrap_or_default();
-                format!("«{}» ({}{at})", one_line(quote), document_link(record, *content))
+                format!("«{}» ({}{at})", one_line(quote), document_link(record, *content, page.is_none()))
             })
             .collect();
         let time = claim.valid_from.as_deref().map(|t| format!(" ({})", localized_dates(vocabulary, &one_line(t)))).unwrap_or_default();
@@ -1705,7 +1793,7 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
             .and_then(|d| d.doc_type.as_deref())
             .map(|t| format!(" · {}", t.replace('-', " ")))
             .unwrap_or_default();
-        format!("- {} — {}{kind}\n", document_link(record, content), roles.join(", "))
+        format!("- {} — {}{kind}\n", document_link(record, content, true), roles.join(", "))
     };
     if entity.kind == "asunto" && !vocabulary.pages.rule("asunto").is_some_and(|r| r.by_matter) {
         for (content, roles) in &entity.documents {
@@ -1799,7 +1887,7 @@ fn render(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<String, Str
             .evidence
             .iter()
             .take(QUOTES_PER_CLAIM)
-            .map(|(content, quote, _)| format!("«{}» ({})", one_line(quote), document_link(record, *content)))
+            .map(|(content, quote, _)| format!("«{}» ({})", one_line(quote), document_link(record, *content, true)))
             .collect()
     };
     for claim in &entity.claims {
@@ -2268,7 +2356,7 @@ fn render_matter(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<Stri
             .take(QUOTES_PER_CLAIM)
             .map(|(content, quote, page)| {
                 let at = page.map(|p| format!(", {} {p}", words.word("page"))).unwrap_or_default();
-                format!("«{}» ({}{at})", one_line(quote), document_link(record, *content))
+                format!("«{}» ({}{at})", one_line(quote), document_link(record, *content, page.is_none()))
             })
             .collect()
     };
@@ -2340,7 +2428,7 @@ fn render_matter(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<Stri
             .and_then(|d| d.doc_type.as_deref())
             .map(|t| format!(" · {}", t.replace('-', " ")))
             .unwrap_or_default();
-        out.push_str(&format!("- {}{kind}\n", document_link(record, *content)));
+        out.push_str(&format!("- {}{kind}\n", document_link(record, *content, true)));
     }
     out.push('\n');
     let proposed: Vec<(i64, Option<&String>)> = record
@@ -2352,7 +2440,7 @@ fn render_matter(vocabulary: &Vocabulary, record: &Record, paths: &BTreeMap<Stri
         out.push_str(&format!("### {}\n\n*{}*\n\n", words.word("matterProposed"), words.word("matterProposedNote")));
         for (content, reason) in proposed {
             let reason = reason.map(|r| format!(" — {}", one_line(r))).unwrap_or_default();
-            out.push_str(&format!("- {}{reason}\n", document_link(record, content)));
+            out.push_str(&format!("- {}{reason}\n", document_link(record, content, true)));
         }
         out.push('\n');
     }
@@ -2720,6 +2808,11 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
                 document.page = Some(path.clone());
             }
         }
+    }
+    // A document cut from a file links to the page of the whole file.
+    for document in record.documents.values_mut().filter(|d| d.page.is_none()) {
+        let whole = document.part.as_ref().and_then(|p| families.family_of(p.whole));
+        document.page = whole.and_then(|f| document_paths.get(&f.id)).cloned();
     }
     paths.extend(document_paths.clone());
     report.source_pages = families.list.len();

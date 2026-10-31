@@ -225,6 +225,8 @@
       "notesMark": "lo que se escriba debajo de esta línea la app no lo reescribe nunca",
       "aliases": "También escrito como",
       "page": "p.",
+      "partPage": "pág.",
+      "partPages": "págs.",
       "documentWord": "documento",
       "documentsWord": "documentos",
       "kept": "Esta página ya no se arma desde los documentos: la entidad dejó el registro. Se conserva por las notas que tiene.",
