@@ -3939,9 +3939,9 @@
       "estado": "pendiente",
       "prioridad": "3",
       "tema": "base",
-      "detalle": "Se asumió en D-659: una portada que solo dice «ANEXO 1», o una foto firmada al dorso que va delante del acta que la menciona, sigue al documento que viene después y no es un documento aparte. Si el dueño prefiere que sean documentos aparte, cambian 4 etiquetas del examen, que hoy están marcadas como dudosas («sure: no»). Ejemplos con sus rutas en «Para el dueño» del informe del paso 8.",
+      "detalle": "Se asumió en D-659: una portada que solo dice «ANEXO 1», o una foto firmada al dorso que va delante del acta que la menciona, sigue al documento que viene después y no es un documento aparte. Si el dueño prefiere que sean documentos aparte, cambian 4 etiquetas del examen, que hoy están marcadas como dudosas («sure: no»). Ejemplos con sus rutas en «Para el dueño» del informe del paso 8. 2026-10-31: Un caso decidido por el dueño, solo para ese caso (D-699): en un acuerdo con su anexo, la página que solo trae el título del anexo va con el acuerdo, y el anexo queda como copia exacta de su original. Búsqueda del 31 oct en la carpeta de prueba y en el examen: solo los cuatro ejemplares de ese acuerdo tienen una página así entre dos documentos; en el examen, dos archivos empiezan con una página que solo dice «Anexo 1», al principio del archivo, donde no cambia ningún corte. Además hay una certificación notarial de una copia adjunta, dentro de un compuesto, que es otra clase de página. Si es una regla general, lo decide el dueño.",
       "creado": "2026-10-30",
-      "actualizado": "2026-10-30"
+      "actualizado": "2026-10-31"
     },
     {
       "id": "P-474",

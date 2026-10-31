@@ -618,6 +618,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-678 | 31 oct | Forma de trabajo | Una corrida desatendida no tiene límite de tiempo, solo de fichas, y tiene que poder cortarse y retomarse sin perder lo hecho | vigente |
 | D-679 | 31 oct | base | El umbral bajo de confianza se fija con una medición previa, no a mano | vigente |
 | D-680 | 31 oct | base | Un correo genérico va con su organización, y lo que «no parece palabras» queda como texto aproximado | vigente |
+| D-699 | 31 oct | base | En el acuerdo con su anexo, la página que anuncia el anexo va con el acuerdo, y el anexo es copia exacta del original | vigente, solo para este caso |
 
 ---
 
@@ -6842,4 +6843,13 @@ La prueba del texto aproximado usa ese umbral.
 
 1. Una dirección de correo genérica de una organización, como «info@…» o «contacto@…» con su dominio, es un dato de la organización, no de una persona.
 2. Un renglón que «no parece palabras» queda como texto aproximado, no se descarta, salvo que esté por debajo del umbral bajo.
+- **Quién decidió:** el dueño (31 oct)
+
+### D-699 · En el acuerdo con su anexo, la página que anuncia el anexo va con el acuerdo, y el anexo es copia exacta del original
+
+- **Fecha:** 31 oct 2026 · **Tema:** base · **Estado:** vigente, solo para este caso
+- **El problema:** Cada ejemplar del acuerdo con su anexo (D-675) tiene, entre el acuerdo y la copia del contrato original, una página que solo trae el título del anexo. La regla asumida para las etiquetas del examen (D-659) pone las portadas con el documento que sigue, y el criterio de los anexos sigue abierto (P-473).
+- **Qué se decidió y por qué:** La página del título del anexo va con el primer documento. El acuerdo queda de la página 1 a la 4, y la copia del contrato, de la 5 a la 10. Así, el segundo documento es copia exacta del contrato original suelto que el dueño agregó a la carpeta, y en la hoja de copias su relación esperada es la de copia, no la de versión.
+
+Vale solo para este caso: no se generaliza ni se cambian otras etiquetas. Si es una regla general, lo decide el dueño con P-473. En la carpeta de prueba y en el examen, el único otro caso de una página que solo anuncia un anexo está al principio de su archivo, donde la decisión no cambia ningún corte.
 - **Quién decidió:** el dueño (31 oct)
