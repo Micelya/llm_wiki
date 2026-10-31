@@ -633,6 +633,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-692 | 31 oct | pruebas y calidad | El umbral bajo de la lectura queda en 0,90, según la calibración | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-693 | 31 oct | pruebas y calidad | El indicador de calidad de la lectura: la parte firme de las letras, por documento | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-694 | 31 oct | pruebas y calidad | Cómo se confirma texto aproximado con documentos del mismo caso | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-700 | 31 oct | forma de trabajo | El tope de la segunda corrida de la prueba de la estructura sube de 2,5 M a 3 M de fichas | vigente |
 
 ---
 
@@ -6965,3 +6966,10 @@ Vale solo para este caso: no se generaliza ni se cambian otras etiquetas. Si es 
 - **El problema:** P-492 pide confirmar tramos de texto aproximado con texto firme de documentos relacionados, sin IA, y contar las uniones falsas. Faltaban detalles de la regla.
 - **Qué se decidió y por qué:** Relacionado es de la misma carpeta de primer nivel. Se normaliza: minúsculas, sin tildes ni signos; las formas jurídicas de la app como una palabra; unas abreviaturas de la vertical; las fechas en una sola forma; los números con separadores como sus cifras; un CUIT firme que no verifica no confirma. Un tramo se confirma si es igual a texto firme de otro documento y tiene dos palabras o más, una de 4 letras o más o un número (para no confirmar «de la»), o es un número de 4 cifras o más o una fecha. Un renglón que solo se parece en un 85 % o más, con los mismos números, queda posible. En un documento de calidad baja, un tramo solo se une a una entidad ya extraída de documentos de calidad normal. Con la cadena de hoy confirma unos 670 tramos, sin uniones falsas de texto, pero recupera 2 de 10 menciones que estaban solo en texto aproximado: se recomienda usarlo como marca para la persona y no para dar datos. No hace consultas a la IA.
 - **Quién decidió:** Claude, paso 10 de la segunda corrida
+
+### D-700 · El tope de la segunda corrida de la prueba de la estructura sube de 2,5 M a 3 M de fichas
+
+- **Fecha:** 31 oct 2026 · **Tema:** forma de trabajo · **Estado:** vigente
+- **El problema:** La segunda corrida (P-481) tenía un tope de 2,5 M de fichas con el agente principal incluido, y un orden de recorte para no pasarlo: primero las partes de las pruebas con IA que no entran a la app, después la confirmación con documentos relacionados. A las 09:30 del 31 oct llevaba unas 1,92 M, con dos pasos de sub-agente por delante (220 mil y 180 mil de tope). Varios pasos se habían pasado de su tope entre un 7 % y un 42 %, así que, si los dos últimos también se pasaban, el total llegaba justo a 2,5 M y había que recortar.
+- **Qué se decidió y por qué:** El dueño sube el tope total de la corrida a 3 M de fichas, para que no se recorte ningún paso. Los topes de cada paso no cambian, y sigue valiendo avisar cuando un paso se pasa más de un 20 % del suyo. El orden de recorte del plan queda solo para el caso en que la proyección pase de 3 M.
+- **Quién decidió:** El dueño, durante la corrida
