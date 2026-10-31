@@ -4035,9 +4035,9 @@
       "estado": "en-espera",
       "prioridad": 1,
       "tema": "pruebas y calidad",
-      "detalle": "Plan armado el 30 oct en `prueba-estructura\\corrida2\\plan.md`, fuera del repositorio, con una especificación por paso (D-673). Son dos noches desatendidas, con un tope de 2,5 M de fichas para toda la corrida. Primera noche: volver a preguntar, la hoja nueva, los cambios de la app, las pruebas en el orden nuevo, la cadena de hoy y la lectura nueva de la cadena nueva. Segunda noche: el corte y la cadena nueva, la calidad de la lectura, la medición de las dos cadenas y las pruebas con IA que no entran a la app. En espera de que el dueño revise el plan.",
+      "detalle": "Plan armado el 30 oct en `prueba-estructura\\corrida2\\plan.md`, fuera del repositorio, con una especificación por paso (D-673). Son dos noches desatendidas, con un tope de 2,5 M de fichas para toda la corrida. Primera noche: volver a preguntar, la hoja nueva, los cambios de la app, las pruebas en el orden nuevo, la cadena de hoy y la lectura nueva de la cadena nueva. Segunda noche: el corte y la cadena nueva, la calidad de la lectura, la medición de las dos cadenas y las pruebas con IA que no entran a la app. En espera de que el dueño revise el plan. 2026-10-31: Plan revisado el 31 oct con los comentarios del dueño (D-674 a D-680): una sola corrida seguida, sin límite de tiempo, que se puede cortar y retomar; el examen de cortes incluido; una hoja nueva de parecidos; una calibración del umbral bajo; estimaciones de fichas y de tiempo fundadas en pasos parecidos. Son 13 pasos, unos 2,1 M de fichas y de 13 a 16,5 h de reloj.",
       "creado": "2026-10-30",
-      "actualizado": "2026-10-30"
+      "actualizado": "2026-10-31"
     },
     {
       "id": "P-482",
@@ -4071,9 +4071,9 @@
       "estado": "pendiente",
       "prioridad": 1,
       "tema": "pruebas y calidad",
-      "detalle": "La verificación del 30 oct mostró que el error de orden es solo de las pruebas. La app ya corta, crea los documentos y busca parecidos antes de pedir el tipo y las entidades, y saca las entidades por documento. Las pruebas, en cambio, extraían de los archivos enteros, y en la de copias leían antes de calcular los parecidos. Hace falta: una prueba que haga todo en orden sobre una sola base; una variable para darle a la app cortes ya decididos, para la cadena nueva, sin que pregunte; que la medición de entidades junte las menciones de los documentos de cada archivo; y variables de medición apagadas por defecto (tamaño del fragmento, tipo sin herencia). Solo código de pruebas: sin efecto en producción. Paso 3 de la segunda corrida (P-481).",
+      "detalle": "La verificación del 30 oct mostró que el error de orden es solo de las pruebas. La app ya corta, crea los documentos y busca parecidos antes de pedir el tipo y las entidades, y saca las entidades por documento. Las pruebas, en cambio, extraían de los archivos enteros, y en la de copias leían antes de calcular los parecidos. Hace falta: una prueba que haga todo en orden sobre una sola base; una variable para darle a la app cortes ya decididos, para la cadena nueva, sin que pregunte; que la medición de entidades junte las menciones de los documentos de cada archivo; y variables de medición apagadas por defecto (tamaño del fragmento, tipo sin herencia). Solo código de pruebas: sin efecto en producción. Paso 3 de la segunda corrida (P-481). 2026-10-31: Se suma: que la corrida se pueda cortar y retomar sin perder lo hecho (D-678), y que la medición de parecidos lea la hoja nueva (P-497).",
       "creado": "2026-10-30",
-      "actualizado": "2026-10-30"
+      "actualizado": "2026-10-31"
     },
     {
       "id": "P-485",
@@ -4083,33 +4083,33 @@
       "estado": "pendiente",
       "prioridad": 2,
       "tema": "base",
-      "detalle": "El dueño no acepta como normales los errores de la búsqueda de parecidos (D-666). La verificación del 30 oct encontró 4 pares con error, 7 casos entre las dos cadenas. Casi nada vino de la lectura: vinieron de las reglas por tipo, de una marca de agua que ningún lector lee y de la hoja. Propuesta: 1) la regla de «datos distintos» baja a «misma plantilla», no a «parecido», cuando el texto en común es al menos el 80 %; 2) el dato que sale de una marca (por ejemplo, un número de envío) toma el propio del documento, no uno citado en el cuerpo; 3) una etapa exige sus datos: una carta «enviada» sin número de envío no es enviada; 4) el sello de un servicio de firma electrónica cuenta como firma de una parte. Se mide con la hoja de copias: cuántos pares arregla y cuántos rompe cada regla. Efecto en producción: ninguno, son reglas locales. Paso 2 de la segunda corrida (P-481).",
+      "detalle": "El dueño no acepta como normales los errores de la búsqueda de parecidos (D-666). La verificación del 30 oct encontró 4 pares con error, 7 casos entre las dos cadenas. Casi nada vino de la lectura: vinieron de las reglas por tipo, de una marca de agua que ningún lector lee y de la hoja. Propuesta: 1) la regla de «datos distintos» baja a «misma plantilla», no a «parecido», cuando el texto en común es al menos el 80 %; 2) el dato que sale de una marca (por ejemplo, un número de envío) toma el propio del documento, no uno citado en el cuerpo; 3) una etapa exige sus datos: una carta «enviada» sin número de envío no es enviada; 4) el sello de un servicio de firma electrónica cuenta como firma de una parte. Se mide con la hoja de copias: cuántos pares arregla y cuántos rompe cada regla. Efecto en producción: ninguno, son reglas locales. Paso 2 de la segunda corrida (P-481). 2026-10-31: Según D-676, las cuatro reglas se miden con la hoja nueva de parecidos (P-497), sin contar los pares de los que salieron. La hoja vieja se informa aparte.",
       "creado": "2026-10-30",
-      "actualizado": "2026-10-30"
+      "actualizado": "2026-10-31"
     },
     {
       "id": "P-486",
       "titulo": "¿El tipo pasa a toda la familia de parecidos o solo a las copias idénticas?",
       "tipo": "decision",
       "responsable": "usuario",
-      "estado": "pendiente",
+      "estado": "hecho",
       "prioridad": 2,
       "tema": "base",
-      "detalle": "La app hace hoy una pregunta de tipo por familia: una versión, un ejemplar firmado, una vista previa o un documento de la misma plantilla reciben el tipo del principal. El resguardo de D-666 (heredar solo lo idéntico) sumaría unas 23 preguntas de tipo en los 311 documentos de la carpeta de prueba. Recomendación de Claude: dejar la herencia por familia y medir en la segunda corrida, solo en la prueba, cuántos tipos heredados son distintos de los que daría una pregunta propia. Las entidades ya se sacan de cada versión distinta: solo las comparten los textos idénticos.",
+      "detalle": "La app hace hoy una pregunta de tipo por familia: una versión, un ejemplar firmado, una vista previa o un documento de la misma plantilla reciben el tipo del principal. El resguardo de D-666 (heredar solo lo idéntico) sumaría unas 23 preguntas de tipo en los 311 documentos de la carpeta de prueba. Recomendación de Claude: dejar la herencia por familia y medir en la segunda corrida, solo en la prueba, cuántos tipos heredados son distintos de los que daría una pregunta propia. Las entidades ya se sacan de cada versión distinta: solo las comparten los textos idénticos. 2026-10-31: Decidido por el dueño (D-674): el tipo pasa a toda la familia, como hace la app; las entidades se leen de cada versión distinta.",
       "creado": "2026-10-30",
-      "actualizado": "2026-10-30"
+      "actualizado": "2026-10-31"
     },
     {
       "id": "P-487",
       "titulo": "Un par de la hoja de copias pide una relación que no coincide con lo que tienen los archivos",
       "tipo": "decision",
       "responsable": "usuario",
-      "estado": "pendiente",
+      "estado": "hecho",
       "prioridad": 3,
       "tema": "pruebas y calidad",
-      "detalle": "Son dos ejemplares de un mismo acuerdo digital, de 10 páginas, que difieren en un solo tramo. La hoja dice «mismo documento, ninguno firmado». Pero el archivo que se llama «sin firmar» trae dos veces el sello de un servicio de firma electrónica, con nombre, fecha y hora. Hay que decidir si la hoja está bien o si es «ejemplar firmado». Las rutas están en el informe de la verificación de la segunda corrida, fuera del repositorio.",
+      "detalle": "Son dos ejemplares de un mismo acuerdo digital, de 10 páginas, que difieren en un solo tramo. La hoja dice «mismo documento, ninguno firmado». Pero el archivo que se llama «sin firmar» trae dos veces el sello de un servicio de firma electrónica, con nombre, fecha y hora. Hay que decidir si la hoja está bien o si es «ejemplar firmado». Las rutas están en el informe de la verificación de la segunda corrida, fuera del repositorio. 2026-10-31: Decidido por el dueño (D-675): el ejemplar está firmado electrónicamente, y cada ejemplar tiene dos documentos, el segundo copia de un original que el dueño agregó a la carpeta. Entra en las hojas nuevas (P-497).",
       "creado": "2026-10-30",
-      "actualizado": "2026-10-30"
+      "actualizado": "2026-10-31"
     },
     {
       "id": "P-488",
@@ -4218,6 +4218,30 @@
       "detalle": "Hay un indicio en el paso 12, no una medición: los fragmentos cortos dan más menciones por palabra. Con el orden nuevo, la mayoría de los documentos ya cabe en un fragmento: en la carpeta de prueba, 319 fragmentos de 4.000 palabras contra 336 de 2.000. Efecto en producción: suma alrededor de un 5 % de consultas de extracción; no entra a la app sin decisión del dueño (D-672). Se mide en el paso 10 de la segunda corrida (P-481).",
       "creado": "2026-10-30",
       "actualizado": "2026-10-30"
+    },
+    {
+      "id": "P-497",
+      "titulo": "Una hoja nueva de parecidos, con documentos que no se usaron para diseñar las reglas",
+      "tipo": "tarea",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "pruebas y calidad",
+      "detalle": "Según D-676 y D-675. En la preparación de la segunda corrida (P-481), Claude busca, en la carpeta de prueba y en el examen, documentos compuestos y sus copias. Sobre todo busca copias que aparecen recién al cortar, y también pares parecidos que no son copia. Arma con ellos una hoja de comparación nueva, con su criterio escrito, y marca los pares que sirvieron para diseñar alguna regla. Los candidatos salen de un método propio, sin usar la búsqueda de parecidos de la app, para no medirla con sus propias propuestas. En la misma versión nueva de las hojas entra el caso del acuerdo con su anexo: sus cortes, sus parecidos con el original y las entidades del archivo nuevo.",
+      "creado": "2026-10-31",
+      "actualizado": "2026-10-31"
+    },
+    {
+      "id": "P-498",
+      "titulo": "Calibrar el umbral bajo de confianza con una segunda lectura de los renglones",
+      "tipo": "verificacion",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "base",
+      "detalle": "Según D-679. Con la lectura nueva de la cadena nueva: una muestra fija de renglones de cada tramo de confianza (de 0,90 a 0,97, de 0,80 a 0,90, y así hasta menos de 0,50), recortados, que transcribe una segunda IA. Se mide la parte de letras bien leídas en cada tramo. El umbral bajo sale de un criterio general escrito antes de medir. Propuesta: es el borde de abajo del último tramo en que la mayoría de los renglones tiene al menos dos tercios de las letras bien. Solo en la prueba; unas 12 consultas con imágenes.",
+      "creado": "2026-10-31",
+      "actualizado": "2026-10-31"
     }
   ]
 }

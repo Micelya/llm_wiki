@@ -603,7 +603,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-663 | 30 oct | Forma de trabajo | La definición del dueño sobre Anthropic: sus modelos tienen un sesgo deliberado a gastar más fichas | vigente |
 | D-664 | 30 oct | Forma de trabajo | Por ahora no se cambia la forma de trabajar para ahorrar fichas; el agente principal delega lo máximo posible | vigente |
 | D-665 | 30 oct | base | Qué cuenta como mención: el código de un asunto, un correo solo y los nombres de una carátula sí; un cargo sin nombre y un asunto dicho con una frase, no | vigente |
-| D-666 | 30 oct | base | El orden de las etapas: primero cortar, crear los documentos y buscar copias; después el tipo y las entidades, una sola vez por documento real | vigente |
+| D-666 | 30 oct | base | El orden de las etapas: primero cortar, crear los documentos y buscar copias; después el tipo y las entidades, una sola vez por documento real | vigente; el resguardo sobre el tipo lo precisa D-674 |
 | D-667 | 30 oct | Forma de trabajo | Las palabras «documento» y «fragmento» | vigente |
 | D-668 | 30 oct | base | Dos umbrales de confianza por renglón: texto firme, aproximado y descartado | vigente |
 | D-669 | 30 oct | base | La calidad de la lectura de cada documento se calcula a la salida del lector, y un documento de calidad baja no da datos estructurados | vigente |
@@ -611,6 +611,13 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-671 | 30 oct | base | El texto digital vale 1; la capa de texto vieja de un escaneo se lee siempre con el lector y queda como segundo testigo | vigente |
 | D-672 | 30 oct | base | Un cambio que sume consultas a la IA por documento en producción necesita una decisión del dueño, con números | vigente |
 | D-673 | 30 oct | Forma de trabajo | La segunda corrida limpia: las dos cadenas desde cero, con el orden nuevo, y volver a preguntar con controles | vigente |
+| D-674 | 31 oct | base | El tipo pasa a toda la familia de documentos parecidos; las entidades se leen de cada versión distinta | vigente |
+| D-675 | 31 oct | base | Un acuerdo con su anexo es un archivo compuesto: dos documentos, y el segundo es copia de un original que está en la carpeta | vigente |
+| D-676 | 31 oct | Forma de trabajo | Una regla no se mide con los casos de los que salió: los parecidos se miden con una hoja nueva | vigente |
+| D-677 | 31 oct | Forma de trabajo | La corrida nueva se hace completa: de las anteriores se usa solo el conocimiento | vigente |
+| D-678 | 31 oct | Forma de trabajo | Una corrida desatendida no tiene límite de tiempo, solo de fichas, y tiene que poder cortarse y retomarse sin perder lo hecho | vigente |
+| D-679 | 31 oct | base | El umbral bajo de confianza se fija con una medición previa, no a mano | vigente |
+| D-680 | 31 oct | base | Un correo genérico va con su organización, y lo que «no parece palabras» queda como texto aproximado | vigente |
 
 ---
 
@@ -6658,7 +6665,7 @@ Para 1 a 3 se cambia la pregunta de la extracción, con reglas generales (R-24).
 
 ### D-666 · El orden de las etapas: primero cortar, crear los documentos y buscar copias; después el tipo y las entidades, una sola vez por documento real
 
-- **Fecha:** 30 oct 2026 · **Tema:** base · **Estado:** vigente
+- **Fecha:** 30 oct 2026 · **Tema:** base · **Estado:** vigente; el resguardo sobre el tipo lo precisa D-674
 - **El problema:** En la corrida limpia de la prueba de la estructura, el tipo y las entidades se pidieron sobre los archivos enteros (D-639). Las partes de los PDF cortados aparecieron recién en la medición de copias, y nadie les preguntó el tipo: un PDF compuesto recibió un solo tipo y una sola extracción. La app ya corta y crea las partes antes de pedir el tipo, pero no estaba verificado si se saltea las copias.
 - **Qué se decidió y por qué:** El orden, en la app y en las pruebas, es este:
 
@@ -6759,3 +6766,80 @@ La hoja de entidades se alinea con D-665 en una versión nueva, con los cambios 
 
 El plan se arma en una sesión y se ejecuta en otra, desatendida y de noche, con un tope de 2,5 M de fichas para toda la corrida, el agente principal incluido.
 - **Quién decidió:** el dueño (30 oct)
+
+### D-674 · El tipo pasa a toda la familia de documentos parecidos; las entidades se leen de cada versión distinta
+
+- **Fecha:** 31 oct 2026 · **Tema:** base · **Estado:** vigente
+- **El problema:** D-666 pedía, como resguardo, que una copia heredara solo si su texto es idéntico. La verificación del 30 oct mostró que la app hace una sola pregunta de tipo por familia: una versión, el ejemplar firmado, la vista previa o un documento de la misma plantilla reciben el tipo del principal (P-486).
+- **Qué se decidió y por qué:** Es correcto lo que hace la app. Por ejemplo, el borrador y el ejemplar firmado de una carta reciben un solo tipo.
+
+El resguardo de D-666 queda para las entidades, y es lo que la app ya hace: las entidades se leen de cada versión distinta, y solo comparten la lectura los textos idénticos. No se mide aparte el tipo heredado.
+- **Quién decidió:** el dueño (31 oct)
+
+### D-675 · Un acuerdo con su anexo es un archivo compuesto: dos documentos, y el segundo es copia de un original que está en la carpeta
+
+- **Fecha:** 31 oct 2026 · **Tema:** base · **Estado:** vigente
+- **El problema:** La hoja de copias decía que dos ejemplares de un acuerdo digital de 10 páginas eran «mismo documento, ninguno firmado». El que se llama «sin firmar» trae el sello de un servicio de firma electrónica (P-487).
+- **Qué se decidió y por qué:** Según el dueño, ese ejemplar está firmado con el certificado de un servicio de firma electrónica. Además, cada ejemplar es un archivo compuesto con dos documentos, cada uno con su página de firmas:
+
+- el acuerdo, de la página 1 a la 3, con la firma en la 3;
+- en la página 4, solo un título que anuncia el anexo;
+- de la 5 a la 10, la copia del contrato original, con su firma en la 10.
+
+El dueño agregó a la carpeta de prueba el contrato original firmado.
+
+Lo ideal es que la app lo trate como dos documentos, y que reconozca el segundo como copia del original. El caso entra en las hojas nuevas de la segunda corrida con todo ese detalle: los cortes, los parecidos y las entidades del archivo nuevo.
+- **Quién decidió:** el dueño (31 oct)
+
+### D-676 · Una regla no se mide con los casos de los que salió: los parecidos se miden con una hoja nueva
+
+- **Fecha:** 31 oct 2026 · **Tema:** Forma de trabajo · **Estado:** vigente
+- **El problema:** Las cuatro reglas nuevas de la búsqueda de parecidos (P-485) salieron de cuatro pares de la hoja de copias. Medirlas con esa misma hoja no mide nada, y además vuelve el proceso hecho a medida de esos documentos, en vez de genérico.
+- **Qué se decidió y por qué:** Una regla se mide con casos que no se usaron para diseñarla.
+
+Para los parecidos, como parte de la preparación de la segunda corrida, Claude busca documentos compuestos y sus copias, y arma una hoja de comparación nueva. Sobre todo busca copias que aparecen recién al cortar, como un documento dentro de un compuesto que es copia de otro suelto.
+
+Los pares que sirvieron para diseñar una regla se marcan y no cuentan como prueba de esa regla. La hoja vieja se informa aparte.
+- **Quién decidió:** el dueño (31 oct)
+
+### D-677 · La corrida nueva se hace completa: de las anteriores se usa solo el conocimiento
+
+- **Fecha:** 31 oct 2026 · **Tema:** Forma de trabajo · **Estado:** vigente
+- **El problema:** El plan de la segunda corrida dejaba afuera el examen de cortes, porque el código del corte no cambiaba.
+- **Qué se decidió y por qué:** No se reusa nada de corridas anteriores, salvo el conocimiento ganado en ellas: el código, las reglas, los criterios y las hojas.
+
+La corrida nueva corre las dos cadenas completas, en la carpeta de prueba y en el examen, con todo leído y preguntado de nuevo.
+- **Quién decidió:** el dueño (31 oct)
+
+### D-678 · Una corrida desatendida no tiene límite de tiempo, solo de fichas, y tiene que poder cortarse y retomarse sin perder lo hecho
+
+- **Fecha:** 31 oct 2026 · **Tema:** Forma de trabajo · **Estado:** vigente
+- **El problema:** El plan estimó dos noches de unas 10 h cada una. Ninguna corrida anterior duró más de unas 10 h, y la estimación no estaba fundada en datos.
+- **Qué se decidió y por qué:** Una corrida desatendida sigue lo que haga falta, de noche o de día, y solo la corta el tope de fichas.
+
+Se diseña para poder interrumpirse y retomarse sin perder lo ya procesado:
+- las respuestas de la IA se guardan a medida que llegan;
+- cada etapa y cada paso dejan su marca al terminar;
+- un estado escrito dice qué falta.
+
+Las estimaciones de tiempo y de fichas se fundamentan paso por paso, con lo que midieron pasos parecidos de corridas anteriores. Las IA suelen equivocarse al estimar tiempos, salvo cuando ya hicieron exactamente lo mismo.
+- **Quién decidió:** el dueño (31 oct)
+
+### D-679 · El umbral bajo de confianza se fija con una medición previa, no a mano
+
+- **Fecha:** 31 oct 2026 · **Tema:** base · **Estado:** vigente
+- **El problema:** El plan probaba dos umbrales bajos, 0,80 y 0,60, elegidos sin datos. Por debajo de 0,90 nunca se midió cuán bien lee el lector.
+- **Qué se decidió y por qué:** Antes de usar el umbral bajo, una calibración mide cuán bien están leídos los renglones en cada tramo de confianza, por debajo de 0,97, comparándolos con una segunda lectura de su recorte. Con un criterio general escrito antes de medir, la calibración fija el umbral.
+
+La prueba del texto aproximado usa ese umbral.
+- **Quién decidió:** el dueño (31 oct)
+
+### D-680 · Un correo genérico va con su organización, y lo que «no parece palabras» queda como texto aproximado
+
+- **Fecha:** 31 oct 2026 · **Tema:** base · **Estado:** vigente
+- **El problema:** El plan de la segunda corrida asumía dos cosas que el dueño no había decidido.
+- **Qué se decidió y por qué:** El dueño las confirma:
+
+1. Una dirección de correo genérica de una organización, como «info@…» o «contacto@…» con su dominio, es un dato de la organización, no de una persona.
+2. Un renglón que «no parece palabras» queda como texto aproximado, no se descarta, salvo que esté por debajo del umbral bajo.
+- **Quién decidió:** el dueño (31 oct)
