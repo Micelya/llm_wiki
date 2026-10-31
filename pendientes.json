@@ -4398,6 +4398,30 @@
       "detalle": "La prueba de medición de entidades de la app junta las menciones de los documentos de un archivo cortado con su archivo. Cuando un mismo documento es también un archivo entero sin cortar (una copia), sus menciones se cuentan con el archivo cortado y el archivo entero queda con 0 aciertos. En la sucesión, con la cadena de hoy, da 543 aciertos en vez de 572 contados por documento. El paso 11 compara las dos cadenas con esa medición: puede torcer la comparación si cortan distinto. Arreglo: contar por documento, o asignar al archivo de la hoja y no al cortado. No cambia consultas en producción: es solo de la prueba.",
       "creado": "2026-10-31",
       "actualizado": "2026-10-31"
+    },
+    {
+      "id": "P-512",
+      "titulo": "Poder apagar cada regla de parecidos en la prueba de copias, para medir cuánto arregla y cuánto rompe",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "pruebas y calidad",
+      "detalle": "El paso 11 de la segunda corrida tenía que medir, regla por regla, cuántos pares de la hoja nueva de parecidos arreglan y cuántos rompen las cuatro reglas del paso 3 (los datos distintos que bajan a misma plantilla, el dato propio de una marca, la etapa que exige sus datos y el sello del servicio de firma). El registro de la prueba solo nombra dos de ellas, y ninguna dio la relación de un par que la hoja juzgue: la de los datos distintos actuó en 2 y 6 pares que la hoja no juzga (partidas de personas distintas, misma plantilla, que parece correcto) y la del sello, en 1 par de archivos enteros. Las otras dos cambian la cuenta por dentro y no se pueden separar. Propuesta general: una variable de la prueba, apagada por defecto, que desactive cada regla, y medir la hoja nueva con cada una apagada. Efecto en producción: ninguna consulta (es solo de la prueba).",
+      "creado": "2026-10-31",
+      "actualizado": "2026-10-31"
+    },
+    {
+      "id": "P-513",
+      "titulo": "Las reglas de corte de la cadena de hoy dan por seguros cortes equivocados",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "lectura y relaciones",
+      "detalle": "Con las mismas etiquetas y el método de D-648, en el paso 11 de la segunda corrida la cadena de hoy dio por seguros 32 saltos equivocados en el entrenamiento (de 348) y 11 en el examen (de 159); la cadena nueva, 3 y 0. De los 32, 30 son de reglas, no del modelo: la que corta cuando una página abre un documento (11), la que corta cuando la anterior cierra (8), la del papel (3), la de la captura (3), la de la hechura de la página (2) y la del código de documento, que une 3 que van separados. En el examen, 7 de los 11 son de la regla del papel. Además, la columna de la medición del paso 1 que dice lo que guardó la base lee el veredicto del corte anterior a las respuestas del modelo y no lo que la base creó. Propuesta: si el corte de la cadena nueva no reemplaza al de hoy, revisar esas reglas con criterios generales (R-24) y medirlas contra las etiquetas; y corregir esa columna de la medición. Efecto en producción: revisar reglas no suma consultas; si una regla deja de decidir y pasa el salto al modelo, suma una consulta por salto dudoso.",
+      "creado": "2026-10-31",
+      "actualizado": "2026-10-31"
     }
   ]
 }

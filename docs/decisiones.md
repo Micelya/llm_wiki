@@ -634,6 +634,8 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-693 | 31 oct | pruebas y calidad | El indicador de calidad de la lectura: la parte firme de las letras, por documento | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-694 | 31 oct | pruebas y calidad | Cómo se confirma texto aproximado con documentos del mismo caso | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-700 | 31 oct | forma de trabajo | El tope de la segunda corrida de la prueba de la estructura sube de 2,5 M a 3 M de fichas | vigente |
+| D-695 | 31 oct | pruebas y calidad | El corte de las dos cadenas se mide igual: todos los saltos, las etiquetas tal cual, y los documentos que la base creó | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-696 | 31 oct | pruebas y calidad | Criterios del paso 11 para las formas de mención, la cita por la forma jurídica y la variación de los totales | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -6973,3 +6975,17 @@ Vale solo para este caso: no se generaliza ni se cambian otras etiquetas. Si es 
 - **El problema:** La segunda corrida (P-481) tenía un tope de 2,5 M de fichas con el agente principal incluido, y un orden de recorte para no pasarlo: primero las partes de las pruebas con IA que no entran a la app, después la confirmación con documentos relacionados. A las 09:30 del 31 oct llevaba unas 1,92 M, con dos pasos de sub-agente por delante (220 mil y 180 mil de tope). Varios pasos se habían pasado de su tope entre un 7 % y un 42 %, así que, si los dos últimos también se pasaban, el total llegaba justo a 2,5 M y había que recortar.
 - **Qué se decidió y por qué:** El dueño sube el tope total de la corrida a 3 M de fichas, para que no se recorte ningún paso. Los topes de cada paso no cambian, y sigue valiendo avisar cuando un paso se pasa más de un 20 % del suyo. El orden de recorte del plan queda solo para el caso en que la proyección pase de 3 M.
 - **Quién decidió:** El dueño, durante la corrida
+
+### D-695 · El corte de las dos cadenas se mide igual: todos los saltos, las etiquetas tal cual, y los documentos que la base creó
+
+- **Fecha:** 31 oct 2026 · **Tema:** pruebas y calidad · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La cadena de hoy midió su corte con el método del paso 1 (que deja fuera algunos saltos y mueve el corte en las etiquetas dudosas) y solo contra las etiquetas de entrenamiento; la nueva, con el del paso 6 y también contra la hoja. Además, una columna de la medición del paso 1 leía el veredicto del corte antes de las respuestas del modelo.
+- **Qué se decidió y por qué:** Las dos cadenas se miden contra las mismas tres etiquetas (entrenamiento, hoja y examen) con el método del paso 6 (D-648): todos los saltos, las etiquetas tal cual, y tomado por seguro lo que decide una regla o el modelo con seguridad alta. Los documentos de cada cadena se leen de lo que su base creó; donde la base no tiene documentos (el examen de la cadena de hoy, que corre solo el corte), de sus decisiones, que en la carpeta coinciden con la base. Los números del corte de la cadena de hoy en el paso 11 no son los de su propio resultado del examen (20 de 28 documentos exactos en lugar de 6 de 11), porque se cuentan de otra manera. Sin efecto en las consultas de producción.
+- **Quién decidió:** Claude, paso 11 de la segunda corrida
+
+### D-696 · Criterios del paso 11 para las formas de mención, la cita por la forma jurídica y la variación de los totales
+
+- **Fecha:** 31 oct 2026 · **Tema:** pruebas y calidad · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La medición tenía que separar las formas nuevas de D-665, contar las citas que entraron solo por la forma jurídica (P-480) y juzgar cada diferencia con la variación del paso 1, que se midió por fragmento y no por total.
+- **Qué se decidió y por qué:** Correo solo: una mención cuya forma escrita es solo una dirección. Nombres de una carátula: una forma con «s/» o «c/». Identificador rotulado de un asunto: una mención de un asunto que lleva números. Una cita entró por la forma jurídica si no está en el texto con una comparación tolerante (minúsculas, sin acentos ni puntuación) y sí está al sacar la forma jurídica final de la cita y del texto; la base no guarda el motivo, así que es una reconstrucción. La variación de un total es la raíz de la suma de las varianzas por fragmento del paso 1 (unas ±10 menciones halladas sobre unos 300 fragmentos), y una diferencia se distingue si supera el doble. Con estos criterios las entidades halladas de las dos cadenas no se distinguen, y la cita por la forma jurídica dejó entrar una mención por cadena, correcta. Sin efecto en las consultas de producción.
+- **Quién decidió:** Claude, paso 11 de la segunda corrida
