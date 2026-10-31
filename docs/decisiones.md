@@ -636,6 +636,8 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-700 | 31 oct | forma de trabajo | El tope de la segunda corrida de la prueba de la estructura sube de 2,5 M a 3 M de fichas | vigente |
 | D-695 | 31 oct | pruebas y calidad | El corte de las dos cadenas se mide igual: todos los saltos, las etiquetas tal cual, y los documentos que la base creó | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-696 | 31 oct | pruebas y calidad | Criterios del paso 11 para las formas de mención, la cita por la forma jurídica y la variación de los totales | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-697 | 31 oct | pruebas y calidad | Cómo se midió el texto aproximado: la pregunta exacta con un campo de prueba, un juez ciego y los «posibles» contra toda la hoja | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-698 | 31 oct | pruebas y calidad | La segunda pasada se disparó con la regla amplia: cualquier nombre de dos palabras, sigla, correo o campo rotulado sin mención | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -6989,3 +6991,17 @@ Vale solo para este caso: no se generaliza ni se cambian otras etiquetas. Si es 
 - **El problema:** La medición tenía que separar las formas nuevas de D-665, contar las citas que entraron solo por la forma jurídica (P-480) y juzgar cada diferencia con la variación del paso 1, que se midió por fragmento y no por total.
 - **Qué se decidió y por qué:** Correo solo: una mención cuya forma escrita es solo una dirección. Nombres de una carátula: una forma con «s/» o «c/». Identificador rotulado de un asunto: una mención de un asunto que lleva números. Una cita entró por la forma jurídica si no está en el texto con una comparación tolerante (minúsculas, sin acentos ni puntuación) y sí está al sacar la forma jurídica final de la cita y del texto; la base no guarda el motivo, así que es una reconstrucción. La variación de un total es la raíz de la suma de las varianzas por fragmento del paso 1 (unas ±10 menciones halladas sobre unos 300 fragmentos), y una diferencia se distingue si supera el doble. Con estos criterios las entidades halladas de las dos cadenas no se distinguen, y la cita por la forma jurídica dejó entrar una mención por cadena, correcta. Sin efecto en las consultas de producción.
 - **Quién decidió:** Claude, paso 11 de la segunda corrida
+
+### D-697 · Cómo se midió el texto aproximado: la pregunta exacta con un campo de prueba, un juez ciego y los «posibles» contra toda la hoja
+
+- **Fecha:** 31 oct 2026 · **Tema:** pruebas y calidad · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La prueba del texto aproximado (P-494) pedía medir si se entiende el documento, cuántos «posibles» son ciertos y si lo aproximado contamina lo firme. La pregunta exacta de la extracción ya trae el tipo que dio el clasificador, el esquema de respuesta no tiene dónde marcar un «posible», y la hoja de entidades no anota en cada documento todas las entidades que aparecen en él.
+- **Qué se decidió y por qué:** Se dejó la pregunta exacta tal cual, con su esquema armado del vocabulario igual que en el código, más un campo de prueba (tipo, de qué trata y las «ref» de lo que sale solo del bloque aproximado), el mismo en las tres preguntas. Entender el documento lo juzgó una sola consulta a Codex, a ciegas, con los casos mezclados y sin decir de qué pregunta salen, contra el tipo y la descripción de la hoja de partes. Un «posible» se cuenta como cierto si es la entidad que la hoja anota en el documento, y como entidad real del caso si coincide con cualquier entidad de la hoja, del mismo tipo, con el nombre igual o con una similitud de 0,8 o más (letras mal leídas). Contaminación es un dato firme nuevo que no está en el texto firme. En la segunda pasada y en los fragmentos de 2.000 palabras se comparan respuestas crudas con respuestas crudas, medidas igual.
+- **Quién decidió:** Claude (paso 12 de la segunda corrida)
+
+### D-698 · La segunda pasada se disparó con la regla amplia: cualquier nombre de dos palabras, sigla, correo o campo rotulado sin mención
+
+- **Fecha:** 31 oct 2026 · **Tema:** pruebas y calidad · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La especificación de la segunda pasada (P-478) nombra qué buscar, pero no cuán estricta es la búsqueda, y eso fija el costo en producción.
+- **Qué se decidió y por qué:** Se usó la regla amplia: nombres de dos o más palabras con mayúscula, siglas de 2 a 6 letras (fuera de una lista corta de siglas genéricas), correos y campos rotulados con su valor, cubiertos si sus palabras están en una mención o un identificador del documento. Con esa regla dispara el 98 % de los documentos. Se informa también cuántos dispararían solo por correos o campos rotulados, sin consultas propias.
+- **Quién decidió:** Claude (paso 12 de la segunda corrida)

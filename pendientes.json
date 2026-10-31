@@ -4422,6 +4422,30 @@
       "detalle": "Con las mismas etiquetas y el método de D-648, en el paso 11 de la segunda corrida la cadena de hoy dio por seguros 32 saltos equivocados en el entrenamiento (de 348) y 11 en el examen (de 159); la cadena nueva, 3 y 0. De los 32, 30 son de reglas, no del modelo: la que corta cuando una página abre un documento (11), la que corta cuando la anterior cierra (8), la del papel (3), la de la captura (3), la de la hechura de la página (2) y la del código de documento, que une 3 que van separados. En el examen, 7 de los 11 son de la regla del papel. Además, la columna de la medición del paso 1 que dice lo que guardó la base lee el veredicto del corte anterior a las respuestas del modelo y no lo que la base creó. Propuesta: si el corte de la cadena nueva no reemplaza al de hoy, revisar esas reglas con criterios generales (R-24) y medirlas contra las etiquetas; y corregir esa columna de la medición. Efecto en producción: revisar reglas no suma consultas; si una regla deja de decidir y pasa el salto al modelo, suma una consulta por salto dudoso.",
       "creado": "2026-10-31",
       "actualizado": "2026-10-31"
+    },
+    {
+      "id": "P-514",
+      "titulo": "Decidir si la extracción recibe el texto aproximado solo en los documentos con poco texto firme, a 0,90, con lo «posible» decidido por la app",
+      "tipo": "decision",
+      "responsable": "usuario",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "pruebas y calidad",
+      "detalle": "El paso 12 de la segunda corrida midió 30 documentos con mucho texto aproximado, con tres preguntas cada uno. Mandar el bloque aproximado no suma consultas (deja igual: 0 por documento) y alarga la pregunta un 3 % en la mediana. Con el umbral calibrado de 0,90, 29 de 44 «posibles» son entidades reales del caso, 18 de ellas con letras mal leídas, y ninguna es una falsa conocida. Con 0,80 hay un 55 % más de posibles, se duplican los dudosos y la contaminación de lo firme pasa de 2 a 8. La comprensión del documento no mejora más allá del azar con ninguno de los dos. En los documentos con menos de 100 palabras firmes, el bloque trae la mayoría de los nombres reales (26 de 35); en los demás no aporta. Recomendación: mandarlo solo a esos documentos (31 de 290 en la carpeta de prueba), a 0,90, y que la app marque «posible» toda mención cuya cita no está en el texto firme, sin fundar datos (D-668). La marca de la IA no basta: sin bloque marcó igual 8 posibles. Además recomienda no adoptar la segunda pasada (P-478: +1 consulta en el 98 % de los documentos, 3 menciones ganadas en 40) ni los fragmentos de 2.000 palabras (P-496: casi el doble de consultas en los documentos largos, sin hallar más). Cuesta código: el bloque, el estado «posible» y el control de la cita.",
+      "creado": "2026-10-31",
+      "actualizado": "2026-10-31"
+    },
+    {
+      "id": "P-515",
+      "titulo": "Medir cuánto varía sola la pregunta de la extracción en documentos chicos escaneados, para juzgar diferencias de pocas menciones",
+      "tipo": "verificacion",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 4,
+      "tema": "pruebas y calidad",
+      "detalle": "Las diferencias de 1 a 5 menciones entre las tres preguntas de la prueba del texto aproximado (paso 12 de la segunda corrida) se juzgaron con la variación del paso 1, que es de fragmentos de otros documentos. En una de las 90 respuestas, la IA devolvió solo 3 menciones donde las otras dos preguntas daban 14 y 19. Repetir la pregunta solo firme una vez en los mismos 30 documentos (30 consultas, solo de prueba, sin efecto en producción) separaría el efecto del bloque del azar, si el dueño sigue con P-514.",
+      "creado": "2026-10-31",
+      "actualizado": "2026-10-31"
     }
   ]
 }
