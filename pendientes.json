@@ -4056,12 +4056,12 @@
       "titulo": "Versión nueva de las hojas de entidades, alineada con D-665",
       "tipo": "tarea",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "hecho",
       "prioridad": 2,
       "tema": "pruebas y calidad",
-      "detalle": "Sacar de la hoja, con un criterio general, las menciones que son un cargo sin nombre o un asunto nombrado solo con una frase, y dejar anotado cada cambio. La versión anterior se guarda tal cual, para que los números viejos se puedan reproducir. Va fuera del repositorio, porque las hojas tienen datos reales. Paso 1 de la segunda corrida (P-481).",
+      "detalle": "Sacar de la hoja, con un criterio general, las menciones que son un cargo sin nombre o un asunto nombrado solo con una frase, y dejar anotado cada cambio. La versión anterior se guarda tal cual, para que los números viejos se puedan reproducir. Va fuera del repositorio, porque las hojas tienen datos reales. Paso 1 de la segunda corrida (P-481). 2026-10-31: Hecho en el paso 1 de la segunda corrida, con el criterio de D-681: 5 menciones sacadas (3 cargos sin nombre y 2 frases de un asunto, que queda sin menciones), 30 dudosas sin sacar (29 títulos genéricos de contratos y formularios, y un cargo en un archivo compuesto que nombra a alguien con ese cargo). Lo de los títulos lo decide el dueño (P-499).",
       "creado": "2026-10-30",
-      "actualizado": "2026-10-30"
+      "actualizado": "2026-10-31"
     },
     {
       "id": "P-484",
@@ -4200,12 +4200,12 @@
       "titulo": "Volver a preguntar con controles: cuánto varía una respuesta de la extracción",
       "tipo": "verificacion",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "hecho",
       "prioridad": 1,
       "tema": "pruebas y calidad",
-      "detalle": "Según D-673: 8 menciones omitidas y 4 halladas, dos veces cada una, con la pregunta exacta de la primera corrida (24 consultas). Antes, comprobar que la pregunta reconstruida da la misma clave que la respuesta guardada. Solo en la prueba. Paso 1 de la segunda corrida (P-481).",
+      "detalle": "Según D-673: 8 menciones omitidas y 4 halladas, dos veces cada una, con la pregunta exacta de la primera corrida (24 consultas). Antes, comprobar que la pregunta reconstruida da la misma clave que la respuesta guardada. Solo en la prueba. Paso 1 de la segunda corrida (P-481). 2026-10-31: Hecho en el paso 1 de la segunda corrida: las claves de las 147 preguntas reconstruidas coinciden con las respuestas guardadas; 24 consultas. De 8 omisiones, 3 salen en las dos respuestas nuevas y 5 en ninguna; de 4 controles, uno se pierde en las dos. En el fragmento largo del compuesto de 93 páginas, la misma pregunta trae de 14 a 51 menciones y de 15 a 31 de las 32 entidades de la hoja; en los otros dos fragmentos varía poco. Ver P-500.",
       "creado": "2026-10-30",
-      "actualizado": "2026-10-30"
+      "actualizado": "2026-10-31"
     },
     {
       "id": "P-496",
@@ -4240,6 +4240,30 @@
       "prioridad": 1,
       "tema": "base",
       "detalle": "Según D-679. Con la lectura nueva de la cadena nueva: una muestra fija de renglones de cada tramo de confianza (de 0,90 a 0,97, de 0,80 a 0,90, y así hasta menos de 0,50), recortados, que transcribe una segunda IA. Se mide la parte de letras bien leídas en cada tramo. El umbral bajo sale de un criterio general escrito antes de medir. Propuesta: es el borde de abajo del último tramo en que la mayoría de los renglones tiene al menos dos tercios de las letras bien. Solo en la prueba; unas 12 consultas con imágenes.",
+      "creado": "2026-10-31",
+      "actualizado": "2026-10-31"
+    },
+    {
+      "id": "P-499",
+      "titulo": "Decidir si el título genérico de un contrato o un formulario cuenta como mención de su asunto",
+      "tipo": "decision",
+      "responsable": "dueño",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "pruebas y calidad",
+      "detalle": "Al alinear las hojas de entidades con D-665 (D-681), quedaron como dudosas 29 menciones de asuntos que son solo el título genérico del propio documento, en mayúsculas o con mayúscula en cada palabra, sin identificador ni nombre propio: por ejemplo, un acuerdo de terminación titulado solo «ACUERDO DE TERMINACIÓN», o un formulario titulado «PERFIL DE PERSONA FÍSICA». Hay 13 asuntos de la hoja comercial que solo tienen menciones de esa forma. Si cuentan como «frase», se sacan y esos 13 asuntos quedan sin menciones en la hoja; si no, quedan y la pregunta debería pedirlas. No cambia las consultas de producción por documento. También quedó como dudoso un cargo sin nombre («Agente Fiscal») en un archivo compuesto que nombra a un fiscal en otro de sus documentos.",
+      "creado": "2026-10-31",
+      "actualizado": "2026-10-31"
+    },
+    {
+      "id": "P-500",
+      "titulo": "La respuesta de la extracción varía mucho de una vez a otra en un fragmento largo de texto antiguo",
+      "tipo": "decision",
+      "responsable": "dueño",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "pruebas y calidad",
+      "detalle": "Medido en el paso 1 de la segunda corrida (D-673): la misma pregunta, 14 veces sobre un fragmento de unas 3.900 palabras de documentos escaneados antiguos, trajo de 14 a 51 menciones y halló de 15 a 31 de las 32 entidades de la hoja (23 en promedio). En un fragmento de 3.660 palabras del mismo archivo varió de 25 a 28, y en una carta corta no varió. Preguntar dos veces por fragmento y unir las respuestas sube el promedio de 23 a 26 entidades en el fragmento largo y de 27 a 28 en el otro, pero suma una consulta por fragmento en producción (duplica las de la extracción). No entra a la app sin una decisión del dueño (D-672). Queda por ver qué hace inestable ese fragmento (la calidad del texto, la cantidad de nombres al pasar o el largo) antes de proponer otra cosa.",
       "creado": "2026-10-31",
       "actualizado": "2026-10-31"
     }

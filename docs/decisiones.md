@@ -619,6 +619,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-679 | 31 oct | base | El umbral bajo de confianza se fija con una medición previa, no a mano | vigente |
 | D-680 | 31 oct | base | Un correo genérico va con su organización, y lo que «no parece palabras» queda como texto aproximado | vigente |
 | D-699 | 31 oct | base | En el acuerdo con su anexo, la página que anuncia el anexo va con el acuerdo, y el anexo es copia exacta del original | vigente, solo para este caso |
+| D-681 | 31 oct | pruebas y calidad | El criterio general para alinear las hojas de entidades con D-665 | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -6853,3 +6854,10 @@ La prueba del texto aproximado usa ese umbral.
 
 Vale solo para este caso: no se generaliza ni se cambian otras etiquetas. Si es una regla general, lo decide el dueño con P-473. En la carpeta de prueba y en el examen, el único otro caso de una página que solo anuncia un anexo está al principio de su archivo, donde la decisión no cambia ningún corte.
 - **Quién decidió:** el dueño (31 oct)
+
+### D-681 · El criterio general para alinear las hojas de entidades con D-665
+
+- **Fecha:** 31 oct 2026 · **Tema:** pruebas y calidad · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** D-665 dice que un cargo sin nombre y un asunto nombrado solo con una frase no son mención, y que se alinea la hoja (P-483). Hacía falta un criterio general (R-24) para aplicarlo a toda la hoja, no solo a los 5 casos del paso 12 de la primera corrida.
+- **Qué se decidió y por qué:** Un cargo sin nombre es una forma sin ningún nombre propio, sin números ni correo, con una palabra de cargo o de papel (las listas del vocabulario de la app más una lista corta); se saca si el mismo archivo no nombra a nadie con ese cargo, y queda como dudosa si lo nombra. Un asunto dicho con una frase es una forma sin identificador y sin la forma de una carátula que no nombra el asunto por su clase y una parte; se saca si es una frase del texto que describe un hecho o un estado del asunto. El título genérico del propio documento (por ejemplo, un contrato titulado solo con su clase) queda como dudoso, sin sacarlo, hasta que el dueño diga si cuenta como frase (P-499). Resultado: 5 menciones sacadas de 743 en la hoja de la sucesión, ninguna de 404 en la otra; 30 dudosas quedan en las hojas; un asunto queda sin menciones.
+- **Quién decidió:** Claude, en la corrida desatendida (D-500); el dueño la revisa
