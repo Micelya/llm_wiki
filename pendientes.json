@@ -4338,6 +4338,30 @@
       "detalle": "Los cortes dados de la cadena nueva entran a la app como decisiones de una persona, también los que la IA dio con seguridad que no es alta (D-687). El conversor los anota aparte, pero la medición de copias y de entidades no los separa. La medición de las dos cadenas (paso 11 de la segunda corrida) tiene que decir cuántos documentos dependen de un corte así y cómo les fue.",
       "creado": "2026-10-31",
       "actualizado": "2026-10-31"
+    },
+    {
+      "id": "P-507",
+      "titulo": "Decidir si el logo partido se une solo cuando todas sus partes tienen la misma franja",
+      "tipo": "decision",
+      "responsable": "dueño",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "pruebas y calidad",
+      "detalle": "En la lectura nueva de N (paso 6 de la segunda corrida, D-691), el renglón unido toma la confianza mínima de sus partes. Así, una palabra bien leída unida a otra mal leída deja de ser firme: en la carpeta de prueba se pierden 27 palabras firmes en 24 de los 108 renglones unidos, y en el examen 31 en 26 de 74 (por ejemplo, un rótulo de formulario o el cargo de un sello de firma). La alternativa es unir solo cuando todas las partes tienen la misma franja: se mantendrían 70 de las 108 uniones de la carpeta, entre ellas la del logo de un correo que motivó el cambio, y no se perdería ninguna palabra firme. Ninguna de las dos cambia las consultas de producción por documento. Mientras tanto, la lectura del paso 6 usa la confianza mínima, como pedía la especificación.",
+      "creado": "2026-10-31",
+      "actualizado": "2026-10-31"
+    },
+    {
+      "id": "P-508",
+      "titulo": "Revisar la regla segura «termina en nexo» con las certificaciones de copia",
+      "tipo": "verificacion",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "pruebas y calidad",
+      "detalle": "Con la lectura nueva de N (paso 6 de la segunda corrida), las reglas seguras de corte deciden 74 pasos «sigue» en la carpeta de prueba y 21 en el examen, con un solo error: en un escrito con documentación adjunta, el último renglón firme de una página es una certificación cortada («… ES COPIA FIEL DEL»), la regla «termina en nexo» une, y la hoja marca un documento nuevo en la página siguiente. Ver si el error se repite en la cadena N completa antes de cambiar la regla (por ejemplo, no contar como final de página un renglón de certificación). No cambia las consultas de producción por documento.",
+      "creado": "2026-10-31",
+      "actualizado": "2026-10-31"
     }
   ]
 }

@@ -628,6 +628,8 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-687 | 31 oct | pruebas y calidad | Los cortes dados de la cadena nueva se deciden en el corte como una persona, y lo que no traen queda con las reglas, sin preguntar | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-688 | 31 oct | pruebas y calidad | En la medición de entidades, un nombre de una palabra cuenta si su cita cae en una página donde está la mención de la hoja | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-689 | 31 oct | pruebas y calidad | Las respuestas de cada etapa se guardan a medida que llegan, y las del corte se reconocen por la pregunta y el contenido de las imágenes | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-690 | 31 oct | pruebas y calidad | Cómo se arma la franja de cada renglón en la lectura nueva de N | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-691 | 31 oct | pruebas y calidad | Qué es una zona chica para unir el logo partido | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -6925,3 +6927,17 @@ Vale solo para este caso: no se generaliza ni se cambian otras etiquetas. Si es 
 - **El problema:** Una corrida tiene que poder cortarse y retomarse sin volver a preguntar lo ya respondido (D-678). Las respuestas del corte solo se escribían al final de la etapa, y el archivo de respuestas se reescribía entero en cada respuesta: un corte justo al escribir podía dejarlo roto. En el ensayo, además, dos saltos de archivos distintos con la misma pregunta y las mismas páginas compartieron una respuesta, porque se reconocían solo por la pregunta y el nombre de las imágenes.
 - **Qué se decidió y por qué:** El corte usa el mismo guardado que las demás etapas, en un archivo propio. Cada respuesta se escribe primero aparte y después se pone en su lugar. Una pregunta con imágenes se reconoce por la pregunta y la huella del contenido de cada imagen. Efecto en producción: ninguno, es código de pruebas.
 - **Quién decidió:** Claude (corrida desatendida)
+
+### D-690 · Cómo se arma la franja de cada renglón en la lectura nueva de N
+
+- **Fecha:** 31 oct 2026 · **Tema:** pruebas y calidad · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** D-668, D-670, D-671 y D-680 fijan las franjas firme, aproximada y descartada, pero dejaban abiertos algunos bordes: qué pasa con el texto de una página digital que cae en una zona de imagen, si el acuerdo con la capa vieja rescata con cualquier confianza, y si N lee además las páginas que lee la app.
+- **Qué se decidió y por qué:** Un renglón es firme con 0,97 o más si parece palabras contando las iniciales y las siglas como palabras (V1); con los rescates de hoy (el léxico desde 0,90, o el acuerdo con la capa vieja con cualquier confianza, como hasta ahora); o si es texto de una página digital, aunque caiga en una zona de imagen, porque no lo leyó el lector. Lo leído por el lector en zonas de imagen o sello es a lo sumo aproximado. Lo de 0,97 o más que no parece palabras es aproximado. Lo demás es aproximado desde el umbral bajo (0,80 provisorio hasta el paso 7) y descartado debajo. Cada renglón guarda su confianza y si podía ser firme, para recalcular la franja con el umbral definitivo sin leer de nuevo. N decide sola qué páginas lee (todas las escaneadas y las de capa vieja), sin la lista de páginas de la app. No cambia las consultas de producción por documento: la lectura es local. Resultado en la carpeta de prueba: 61 % firme, 24 % aproximada y 15 % descartada de los renglones leídos; ninguna página escaneada sin leer.
+- **Quién decidió:** Claude, en la corrida desatendida (D-500); el dueño la revisa
+
+### D-691 · Qué es una zona chica para unir el logo partido
+
+- **Fecha:** 31 oct 2026 · **Tema:** pruebas y calidad · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** El lector da algunos logos con una palabra por renglón, y hay que unirlos en una misma zona chica, con un criterio general. En el caso que lo pidió, el modelo de zonas mete el logo dentro de una zona de tabla grande, así que el área de la zona sola no alcanza.
+- **Qué se decidió y por qué:** Se unen dos o más renglones seguidos del lector que son cada uno una sola palabra sin cifras, con la confianza mínima de sus partes, cuando están en una zona chica: la zona del modelo, si ocupa a lo sumo el 3 % de la página y tiene a lo sumo 8 renglones; o, dentro de una zona más grande, el bloque que forman las palabras apiladas (cada una empieza a lo sumo media altura de renglón debajo de la anterior y se superponen en lo ancho al menos en la mitad de la más angosta), de a lo sumo 8 renglones y el 1 % de la página. El texto de pdfium no se une. Resultado: el logo de un correo queda en un renglón firme; en la carpeta se unen 108 renglones (76 por la zona y 32 por el bloque) y en el examen 74. No cambia las consultas de producción por documento.
+- **Quién decidió:** Claude, en la corrida desatendida (D-500); el dueño la revisa
