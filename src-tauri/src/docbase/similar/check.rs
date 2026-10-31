@@ -1138,9 +1138,10 @@ const GENERIC: &[&str] = &[
 /// Words the program uses for its own reasons that a case happens to share:
 /// the vendors and models it talks to (a search provider, the model of the
 /// reading), ordinary English words of the tests brought from the original
-/// project, and a letter of the Greek alphabet. They say nothing about a
-/// case.
-const NOT_OF_CASES: &[&str] = &["google", "luna", "tea", "foundation", "grant", "iota"];
+/// project, a letter of the Greek alphabet, and "cap" (a limit, in the
+/// program; a term of an investment agreement, in a file name of the test
+/// folder). They say nothing about a case.
+const NOT_OF_CASES: &[&str] = &["google", "luna", "tea", "foundation", "grant", "iota", "cap"];
 
 /// Words of the names of public bodies (courts, registries, the official
 /// gazette, public banks, the bar), common words of the trade: an
