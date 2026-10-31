@@ -603,6 +603,14 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-663 | 30 oct | Forma de trabajo | La definición del dueño sobre Anthropic: sus modelos tienen un sesgo deliberado a gastar más fichas | vigente |
 | D-664 | 30 oct | Forma de trabajo | Por ahora no se cambia la forma de trabajar para ahorrar fichas; el agente principal delega lo máximo posible | vigente |
 | D-665 | 30 oct | base | Qué cuenta como mención: el código de un asunto, un correo solo y los nombres de una carátula sí; un cargo sin nombre y un asunto dicho con una frase, no | vigente |
+| D-666 | 30 oct | base | El orden de las etapas: primero cortar, crear los documentos y buscar copias; después el tipo y las entidades, una sola vez por documento real | vigente |
+| D-667 | 30 oct | Forma de trabajo | Las palabras «documento» y «fragmento» | vigente |
+| D-668 | 30 oct | base | Dos umbrales de confianza por renglón: texto firme, aproximado y descartado | vigente |
+| D-669 | 30 oct | base | La calidad de la lectura de cada documento se calcula a la salida del lector, y un documento de calidad baja no da datos estructurados | vigente |
+| D-670 | 30 oct | base | No se dice «manuscrito» por una confianza baja; leer con la IA, solo a pedido de una persona | vigente |
+| D-671 | 30 oct | base | El texto digital vale 1; la capa de texto vieja de un escaneo se lee siempre con el lector y queda como segundo testigo | vigente |
+| D-672 | 30 oct | base | Un cambio que sume consultas a la IA por documento en producción necesita una decisión del dueño, con números | vigente |
+| D-673 | 30 oct | Forma de trabajo | La segunda corrida limpia: las dos cadenas desde cero, con el orden nuevo, y volver a preguntar con controles | vigente |
 
 ---
 
@@ -6646,4 +6654,108 @@ La única optimización vigente es que el agente principal delegue lo máximo po
 5. Un asunto nombrado solo con una frase no es mención. Queda como está.
 
 Para 1 a 3 se cambia la pregunta de la extracción, con reglas generales (R-24). Para 4 y 5 se alinea la hoja, no la pregunta. Los dos trabajos entran en el plan de cambios y se miden en una sola medición nueva de la extracción.
+- **Quién decidió:** el dueño (30 oct)
+
+### D-666 · El orden de las etapas: primero cortar, crear los documentos y buscar copias; después el tipo y las entidades, una sola vez por documento real
+
+- **Fecha:** 30 oct 2026 · **Tema:** base · **Estado:** vigente
+- **El problema:** En la corrida limpia de la prueba de la estructura, el tipo y las entidades se pidieron sobre los archivos enteros (D-639). Las partes de los PDF cortados aparecieron recién en la medición de copias, y nadie les preguntó el tipo: un PDF compuesto recibió un solo tipo y una sola extracción. La app ya corta y crea las partes antes de pedir el tipo, pero no estaba verificado si se saltea las copias.
+- **Qué se decidió y por qué:** El orden, en la app y en las pruebas, es este:
+
+1. leer;
+2. cortar;
+3. crear los documentos;
+4. buscar copias;
+5. tipo y entidades, una sola vez por documento real;
+6. identidad;
+7. sucesión.
+
+Una copia recibe el tipo y las entidades del original sin preguntar, pero conserva su lugar propio: el archivo y el caso en que está. Así no se procesa varias veces el mismo documento, y se aprovechan las copias que aparecen recién al cortar.
+
+Como resguardo, mientras no se refine la búsqueda de copias, una copia hereda solo si su texto es idéntico al del original; si solo se parece, se pregunta. El dueño no acepta como normales los errores de la búsqueda de copias: en la corrida, la cadena de hoy marcó 3 mal de 47, y la nueva marcó 1 mal y no encontró 2, de 46. El mecanismo se revisa y se refina.
+- **Quién decidió:** el dueño (30 oct)
+
+### D-667 · Las palabras «documento» y «fragmento»
+
+- **Fecha:** 30 oct 2026 · **Tema:** Forma de trabajo · **Estado:** vigente
+- **El problema:** Se usaba «parte» para dos cosas distintas, y eso hizo difícil de entender una explicación al dueño.
+- **Qué se decidió y por qué:** «Documento» es cada parte de un PDF cortado, o el archivo entero si no se corta.
+
+«Fragmento» es cada tramo de hasta 4.000 palabras en que la extracción le manda un documento a la IA.
+
+Se usan así en los planes, los informes y los registros.
+- **Quién decidió:** el dueño (30 oct)
+
+### D-668 · Dos umbrales de confianza por renglón: texto firme, aproximado y descartado
+
+- **Fecha:** 30 oct 2026 · **Tema:** base · **Estado:** vigente
+- **El problema:** En la cadena nueva, un solo umbral de confianza del lector (0,97) separa el texto seguro del dudoso, y lo dudoso no se usa. El dueño quiere aprovecharlo para entender un documento, sin que funde datos.
+- **Qué se decidió y por qué:** Cada renglón leído cae en una de tres franjas, según la confianza del lector.
+
+- **Firme, desde el umbral alto.** Es el único texto que puede dar datos estructurados: nombres, números de documento, fechas, montos y domicilios, los que se usan para identificar o procesar automáticamente. El umbral alto es hoy 0,97, según la medición del paso 11, y se mantiene salvo que otra medición diga lo contrario.
+- **Aproximada, entre los dos umbrales.** Sirve para entender de qué trata el documento, va marcada, y nada posterior la toma por buena. Lo que se derive de ella lleva la franja del renglón del que salió. Un nombre de esta franja no crea ni une entidades: a lo sumo queda como «posible».
+- **Descartada, debajo del umbral bajo.**
+
+El umbral bajo se mide con su propia vara: si el texto aproximado alcanza para entender el documento. Las demás reglas de la lectura deciden la franja del renglón, no solo si se usa o se tira: «no parece palabras», la zona de imagen o sello, y los rescates por léxico o por acuerdo con otra lectura.
+
+El texto aproximado va en la misma consulta que ya se hace, separado y marcado: no suma consultas, pero la alarga.
+- **Quién decidió:** el dueño (30 oct)
+
+### D-669 · La calidad de la lectura de cada documento se calcula a la salida del lector, y un documento de calidad baja no da datos estructurados
+
+- **Fecha:** 30 oct 2026 · **Tema:** base · **Estado:** vigente
+- **El problema:** Un papel viejo, manchado y con partes a mano no merece la misma confianza que una carta impresa, pero hoy nada lo distingue a nivel de documento.
+- **Qué se decidió y por qué:** Cada documento real, después de cortar, tiene un indicador de la calidad de su lectura. Se calcula solo con las confianzas del lector, nunca con la IA, que puede emprolijar un texto mal leído.
+
+Su nivel más bajo es «calidad baja». Un documento así no da datos estructurados en ningún momento, ni siquiera de sus renglones firmes. Su texto queda solo para entender, y todo lo que se derive de él hereda la marca: resúmenes, entidades posibles y páginas de la wiki. Una confirmación desde otro documento solo puede unirlo a una entidad ya conocida («este documento menciona a X»), sin agregarle datos nuevos.
+
+El corte entre la calidad normal y la baja se mide, no se elige a ojo: los documentos con indicador bajo tienen que ser los que pierden menciones y sacan de más. Antes de fijarlo se mide, con las hojas, cuántas menciones correctas se perderían en los documentos mixtos, como un encabezado impreso limpio en un documento malo. Los nombres de los niveles en la pantalla salen del vocabulario de la vertical.
+- **Quién decidió:** el dueño (30 oct)
+
+### D-670 · No se dice «manuscrito» por una confianza baja; leer con la IA, solo a pedido de una persona
+
+- **Fecha:** 30 oct 2026 · **Tema:** base · **Estado:** vigente
+- **El problema:** La marca de página «a mano» de la cadena nueva sale de las confianzas del lector, que no dicen cómo se escribió la página: afirma algo que no sabe. Al dueño le importan la confianza de la lectura y la eficiencia, no si algo está escrito a mano.
+- **Qué se decidió y por qué:** Donde la app o las pruebas digan o usen «manuscrito» por una confianza baja, pasan a decir y usar «lectura de baja confianza». La regla queda homogénea: la franja sale de la confianza, y nada más.
+
+Leer una página con la IA, para aprovechar lo que el lector no lee bien, es una opción que pide una persona en la app, nunca automática. Su resultado queda marcado como «leído por IA a pedido», y no levanta solo la marca de calidad baja. La confirmación de una persona es otra cosa, y queda por definir.
+
+No se agrega ninguna consulta para detectar la letra a mano. El lector local es más eficiente: unos 8 s por página, sin costo por uso, contra 20 a 25 s y un costo por consulta. Además, la página casi siempre es mixta y hay que leerla igual.
+- **Quién decidió:** el dueño (30 oct)
+
+### D-671 · El texto digital vale 1; la capa de texto vieja de un escaneo se lee siempre con el lector y queda como segundo testigo
+
+- **Fecha:** 30 oct 2026 · **Tema:** base · **Estado:** vigente
+- **El problema:** Un escaneo puede traer su propia capa de texto, sin confianza y a veces mal leída. Hoy la app la usa sin leer la página cuando no la considera ruidosa.
+- **Qué se decidió y por qué:** El texto digital real de un PDF tiene confianza 1.
+
+Un escaneo que trae su propia capa de texto se lee siempre con el lector, que es el que da la confianza. La capa vieja queda solo como segundo testigo: si coincide exactamente con el lector, el renglón puede subir a firme; si no, queda con la franja que le dio el lector. Descartarla sin más perdería los casos en que lee mejor: en una página medida tuvo 3,8 % de error, contra 9 % del lector.
+
+Costo: leer las páginas que hoy se usan sin leer. Es tiempo de lector, sin IA.
+- **Quién decidió:** el dueño (30 oct)
+
+### D-672 · Un cambio que sume consultas a la IA por documento en producción necesita una decisión del dueño, con números
+
+- **Fecha:** 30 oct 2026 · **Tema:** base · **Estado:** vigente
+- **El problema:** Al dueño no le preocupan las consultas que se hacen para medir en una prueba. Le preocupa que la app, en producción, haga cada vez más consultas a la IA por documento.
+- **Qué se decidió y por qué:** Cada cambio que se proponga a la app lleva su efecto en las consultas a la IA de producción por documento: si suma, resta o deja igual.
+
+Lo que sume necesita una decisión explícita del dueño, con números, antes de entrar a la app. Se puede medir en una prueba, pero no se adopta sin esa decisión.
+
+Hoy hay dos casos así:
+- la segunda pasada de la extracción (P-478);
+- los fragmentos más chicos para los documentos largos.
+- **Quién decidió:** el dueño (30 oct)
+
+### D-673 · La segunda corrida limpia: las dos cadenas desde cero, con el orden nuevo, y volver a preguntar con controles
+
+- **Fecha:** 30 oct 2026 · **Tema:** Forma de trabajo · **Estado:** vigente
+- **El problema:** Los cambios que salieron de los pasos 11 y 12 y las reglas nuevas de la lectura hay que medirlos. Sumar mediciones sueltas sobre la corrida anterior no da una comparación limpia.
+- **Qué se decidió y por qué:** Se mide en una sola corrida nueva, desde cero, con las dos cadenas y con el orden nuevo (D-666). No se compara con números de la corrida anterior.
+
+Antes, se vuelve a hacer la misma pregunta de la extracción a 8 menciones omitidas y a 4 halladas, dos veces cada una: 24 consultas. Así se sabe cuánto varía una respuesta de una vez a otra. Es solo una medición de la prueba, y no agrega nada a la app.
+
+La hoja de entidades se alinea con D-665 en una versión nueva, con los cambios anotados, y la anterior se guarda.
+
+El plan se arma en una sesión y se ejecuta en otra, desatendida y de noche, con un tope de 2,5 M de fichas para toda la corrida, el agente principal incluido.
 - **Quién decidió:** el dueño (30 oct)
