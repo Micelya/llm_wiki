@@ -20,6 +20,7 @@
 //! The steps are turned into versions and appearances in `parts.rs`.
 
 mod ask;
+pub(crate) mod by_zones;
 mod catalog;
 pub mod parts;
 mod rules;
@@ -27,6 +28,8 @@ mod signals;
 
 #[cfg(test)]
 pub(crate) mod check;
+#[cfg(test)]
+mod check_zones;
 #[cfg(test)]
 mod export;
 #[cfg(test)]
@@ -86,6 +89,11 @@ pub struct CutStep {
     /// model gave.
     pub rule_type: Option<String>,
     pub model_type: Option<String>,
+    /// Decided by the cut by zones (`by_zones`): over windows of pages,
+    /// where only an answer of high confidence backs a step.
+    pub zones: bool,
+    /// The hints of the rules of the cut by zones (JSON), in its steps.
+    pub hints: Option<String>,
 }
 
 impl CutStep {
@@ -111,8 +119,13 @@ impl CutStep {
     /// other than `none` (the even file too) or an answer of high or
     /// medium confidence backs it; a person's word backs any step, and
     /// wins over it when the parts are made (`parts.rs`).
+    /// In the cut by zones only a high one backs it: a medium one is
+    /// uncertain too.
     pub fn uncertain(&self) -> bool {
         if self.by_model() {
+            if self.zones {
+                return self.model_confidence.as_deref() != Some("high");
+            }
             return self.model_confidence.as_deref() == Some(LOW_CONFIDENCE);
         }
         self.verdict == Verdict::Doubtful
@@ -159,16 +172,18 @@ const STAMP_SQL: &str = "(SELECT max(t.created_at) FROM resource_text t WHERE t.
 
 /// The files the cutter reads: `f`, with its version `c`, at a location
 /// `l` (a PDF) of a reachable origin `o`; with `cuttable_where`.
+/// `z` is its reading by zones, when it has one (`by_zones`).
 const CUTTABLE_FROM: &str = "file f JOIN version c ON c.id = f.version_id
      JOIN location l ON l.file_hash = f.hash AND l.hash_state = 'done' AND lower(l.ext) = 'pdf'
-     JOIN origin o ON o.id = l.origin_id AND o.reachable = 1";
+     JOIN origin o ON o.id = l.origin_id AND o.reachable = 1
+     LEFT JOIN derivative z ON z.version_id = c.id AND z.kind = 'zones'";
 
 /// SQL: the file of `CUTTABLE_FROM` is read, at a location not excluded,
-/// and has the text of its pages.
+/// and has the text of its pages or its reading by zones.
 fn cuttable_where() -> String {
     format!(
         "c.state IN ('processed', 'needs-recognition') AND NOT {}
-         AND EXISTS (SELECT 1 FROM resource_text t WHERE t.resource_hash = f.hash)",
+         AND (z.body IS NOT NULL OR EXISTS (SELECT 1 FROM resource_text t WHERE t.resource_hash = f.hash))",
         super::excluded_sql!()
     )
 }
@@ -176,12 +191,21 @@ fn cuttable_where() -> String {
 /// SQL: the steps of the file `f` were decided with the rules `rules` (an
 /// SQL value) and the text its pages have now, or its cut failed with
 /// them (`note_failure`): it is not cut again until they change.
+/// A file with its reading by zones `z` is cut by it (`by_zones`), with
+/// its version and the time of that reading.
 fn cut_settled_sql(rules: &str) -> String {
+    let zones = format!("'{}'", by_zones::zones_version());
     format!(
-        "(EXISTS (SELECT 1 FROM cut_step s WHERE s.resource_hash = f.hash AND s.after_page = 0
-              AND s.rules_version = {rules} AND s.text_stamp = {STAMP_SQL})
-          OR {failed})",
-        failed = failed_sql(CUT_STAGE, "f.hash", &format!("{rules} || '|' || {STAMP_SQL}"))
+        "(CASE WHEN z.created_at IS NOT NULL THEN
+             (EXISTS (SELECT 1 FROM cut_step s WHERE s.resource_hash = f.hash AND s.after_page = 0
+                  AND s.rules_version = {zones} AND s.text_stamp = z.created_at)
+              OR {failed_zones})
+          ELSE
+             (EXISTS (SELECT 1 FROM cut_step s WHERE s.resource_hash = f.hash AND s.after_page = 0
+                  AND s.rules_version = {rules} AND s.text_stamp = {STAMP_SQL})
+              OR {failed}) END)",
+        failed = failed_sql(CUT_STAGE, "f.hash", &format!("{rules} || '|' || {STAMP_SQL}")),
+        failed_zones = failed_sql(CUT_STAGE, "f.hash", &format!("{zones} || '|' || z.created_at"))
     )
 }
 
@@ -301,32 +325,46 @@ impl DocBase {
     /// its two pages, and nothing is asked. Returns how many were cut.
     pub fn cut_pending(&self, limit: usize) -> Result<usize, String> {
         let version = rules_version();
-        type Job = (String, i64, String, String, String, i64);
+        type Job = (String, i64, String, String, Option<String>, Option<i64>, Option<String>, Option<i64>);
         let jobs: Vec<Job> = {
             let conn = self.conn();
             let mut statement = conn
                 .prepare(&format!(
-                    "SELECT f.hash, f.version_id, o.location, min(l.rel_path), d.body, {STAMP_SQL} AS stamp
+                    "SELECT f.hash, f.version_id, o.location, min(l.rel_path), d.body, {STAMP_SQL} AS stamp, z.body, z.created_at
                      FROM {CUTTABLE_FROM}
-                     JOIN derivative d ON d.version_id = c.id AND d.kind = ?1 AND d.engine = ?2
-                     WHERE {cuttable} AND json_array_length(d.body, '$.pages') >= 2 AND NOT {settled}
+                     LEFT JOIN derivative d ON d.version_id = c.id AND d.kind = ?1 AND d.engine = ?2
+                     WHERE {cuttable} AND NOT {settled}
+                       AND CASE WHEN z.body IS NOT NULL THEN json_array_length(z.body) >= 2
+                           ELSE d.body IS NOT NULL AND json_array_length(d.body, '$.pages') >= 2 AND NOT {waiting} END
                      GROUP BY f.hash ORDER BY f.hash LIMIT ?4",
                     cuttable = cuttable_where(),
                     settled = cut_settled_sql("?3"),
+                    waiting = by_zones::zones_waiting_sql(),
                 ))
                 .map_err(sql_err)?;
             let rows = statement
                 .query_map(params![SHAPES_KIND, SHAPES_ENGINE, version, limit as i64], |row| {
-                    Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?))
+                    Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?, row.get(7)?))
                 })
                 .map_err(sql_err)?;
             rows.collect::<Result<_, _>>().map_err(sql_err)?
         };
-        for (hash, version_id, root, rel_path, body, stamp) in &jobs {
+        for (hash, version_id, root, rel_path, body, stamp, zones, zones_stamp) in &jobs {
+            // A file with its reading by zones is cut by it (D-668).
+            if let (Some(zones), Some(zones_stamp)) = (zones, zones_stamp) {
+                let path = LocalFolderProvider::new(root.clone()).local_path(rel_path).unwrap_or_default();
+                let engine = super::services::ask_engine(&self.conn())?.map(|c| crate::source_volume::asking::engine_id(&c));
+                if let Err(error) = self.cut_by_zones(hash, &path, zones, *zones_stamp, engine.as_deref()) {
+                    note_failure(&self.conn(), CUT_STAGE, hash, &format!("{}|{zones_stamp}", by_zones::zones_version()), &error)?;
+                }
+                continue;
+            }
+            let body = body.clone().unwrap_or_default();
+            let stamp = stamp.unwrap_or_default();
             // One file at a time: a cut that fails is written down and the
             // others go on (D-488); that file is read whole, as before.
             let cut = || -> Result<(), String> {
-                let shapes: PdfShapes = serde_json::from_str(body).unwrap_or_default();
+                let shapes: PdfShapes = serde_json::from_str(&body).unwrap_or_default();
                 let path = LocalFolderProvider::new(root.clone()).local_path(rel_path).unwrap_or_default();
                 // A PDF pdfium cannot open is cut by its text alone.
                 let scans = run_guarded("docbase_cut", || signals::scan_pages(&path)).unwrap_or_default();
@@ -353,6 +391,8 @@ impl DocBase {
                     model_confidence: None,
                     rule_type: pages.first().and_then(rules::type_of),
                     model_type: None,
+                    zones: false,
+                    hints: None,
                 }];
                 let mut answers: Vec<(u32, CutAnswer)> = Vec::new();
                 for pair in pages.windows(2) {
@@ -366,6 +406,8 @@ impl DocBase {
                         model_confidence: None,
                         rule_type: rules::type_of(&pair[1]),
                         model_type: None,
+                        zones: false,
+                        hints: None,
                     };
                     if verdict == Verdict::Doubtful {
                         if let (Some(a), Some(b)) = (prints.get(&pair[0].page), prints.get(&pair[1].page)) {
@@ -444,7 +486,7 @@ impl DocBase {
                 "SELECT f.version_id FROM {CUTTABLE_FROM}
                  LEFT JOIN derivative d ON d.version_id = c.id AND d.kind = ?1 AND d.engine = ?2
                  WHERE {cuttable} AND NOT {settled}
-                   AND coalesce(json_array_length(d.body, '$.pages'),
+                   AND coalesce(json_array_length(z.body), json_array_length(d.body, '$.pages'),
                                 (SELECT count(DISTINCT t.page_no) FROM resource_text t WHERE t.resource_hash = f.hash)) >= 2
                  UNION
                  SELECT f.version_id FROM {parts_from} WHERE {parts}",
@@ -477,10 +519,14 @@ impl DocBase {
         let mut statement = conn
             .prepare(&format!(
                 "SELECT DISTINCT a.version_id FROM appearance a
-                 WHERE EXISTS (SELECT 1 FROM cut_step s WHERE s.resource_hash = a.resource_hash AND {WITHOUT_ANSWER} AND {ASKED_BY_ITSELF})
+                 WHERE (EXISTS (SELECT 1 FROM cut_step s WHERE s.resource_hash = a.resource_hash AND {WITHOUT_ANSWER} AND {ASKED_BY_ITSELF})
+                        OR (EXISTS (SELECT 1 FROM cut_window w WHERE w.resource_hash = a.resource_hash AND {window_without})
+                            AND {windows_by_itself}))
                    AND EXISTS (SELECT 1 FROM location l JOIN origin o ON o.id = l.origin_id AND o.reachable = 1
-                               WHERE l.file_hash = a.resource_hash AND l.hash_state = 'done' AND NOT {})",
-                super::excluded_sql!()
+                               WHERE l.file_hash = a.resource_hash AND l.hash_state = 'done' AND NOT {excluded})",
+                excluded = super::excluded_sql!(),
+                window_without = by_zones::WINDOW_WITHOUT_ANSWER,
+                windows_by_itself = by_zones::by_itself_sql(),
             ))
             .map_err(sql_err)?;
         let rows = statement.query_map([], |row| row.get(0)).map_err(sql_err)?;
@@ -493,7 +539,8 @@ impl DocBase {
         let conn = self.conn();
         let mut statement = conn
             .prepare(
-                "SELECT after_page, verdict, rule, question, model_says, rule_type, model_type, model_confidence FROM cut_step
+                "SELECT after_page, verdict, rule, question, model_says, rule_type, model_type, model_confidence,
+                        rules_version LIKE 'cut-zones/%', hints FROM cut_step
                  WHERE resource_hash = ?1 ORDER BY after_page",
             )
             .map_err(sql_err)?;
@@ -508,6 +555,8 @@ impl DocBase {
                     rule_type: row.get(5)?,
                     model_type: row.get(6)?,
                     model_confidence: row.get(7)?,
+                    zones: row.get(8)?,
+                    hints: row.get(9)?,
                 })
             })
             .map_err(sql_err)?;
@@ -549,7 +598,24 @@ impl DocBase {
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .map_err(sql_err)?;
-        Ok(CutQuestions { by_itself: by_itself as usize, on_request: (all - by_itself) as usize })
+        // Each window of the cut by zones still without an answer is one
+        // question more: by itself only when `WINDOWS_BY_ITSELF` is on.
+        let (windows_by_itself, windows): (i64, i64) = self
+            .conn()
+            .query_row(
+                &format!(
+                    "SELECT coalesce(sum({}), 0), count(*) FROM cut_window w WHERE {}",
+                    by_zones::by_itself_sql(),
+                    by_zones::WINDOW_WITHOUT_ANSWER
+                ),
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .map_err(sql_err)?;
+        Ok(CutQuestions {
+            by_itself: (by_itself + windows_by_itself) as usize,
+            on_request: (all - by_itself + windows - windows_by_itself) as usize,
+        })
     }
 
     /// Doubtful steps without an answer in the files of `only`, or, without
@@ -558,11 +624,12 @@ impl DocBase {
         let Some(only) = only else {
             return Ok(self.cut_questions()?.by_itself);
         };
+        let windows = self.windows_left(Some(only))?;
         let conn = self.conn();
         let mut statement = conn.prepare(&format!("SELECT s.resource_hash FROM cut_step s WHERE {WITHOUT_ANSWER}")).map_err(sql_err)?;
         let hashes: Vec<String> =
             statement.query_map([], |row| row.get(0)).map_err(sql_err)?.collect::<Result<_, _>>().map_err(sql_err)?;
-        Ok(hashes.iter().filter(|h| only.contains(*h)).count())
+        Ok(hashes.iter().filter(|h| only.contains(*h)).count() + windows)
     }
 
     /// A person asks the model where each document of one PDF starts
@@ -657,6 +724,10 @@ impl DocBase {
                     }
                 }
             }
+        }
+        // The windows of the cut by zones: one question each.
+        if !report.errors.last().is_some_and(|e| stops_the_run(e)) {
+            self.cut_windows_ask(asker, limit, only, &mut report)?;
         }
         // The reading waits for these answers only while they come
         // (`waiting_for_cut_answers`).

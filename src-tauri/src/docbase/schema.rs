@@ -15,7 +15,7 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7];
 
 /// The shape of the base at version 29 of the earlier numbering, in one
 /// migration, generated from that base (`schema_v1.sql`). It seeds no row:
@@ -249,6 +249,28 @@ UPDATE cut_step SET model_confidence = (
     ORDER BY m.asked_at DESC LIMIT 1)
 WHERE model_says IS NOT NULL AND question IS NOT NULL;
 DELETE FROM cut_applied;
+";
+
+/// The cut over the reading by zones (`cut/by_zones`, D-668): the windows
+/// of pages asked about a file (`cut_window`), each one question with its
+/// key and its text, and the hints of the rules of each step
+/// (`cut_step.hints`, JSON). They go with their file.
+const V7: &str = "
+CREATE TABLE cut_window (
+    resource_hash  TEXT NOT NULL REFERENCES file (hash) ON DELETE CASCADE,
+    first_page     INTEGER NOT NULL CHECK (first_page >= 1),
+    last_page      INTEGER NOT NULL,
+    part_first     INTEGER NOT NULL,
+    part_last      INTEGER NOT NULL,
+    window_no      INTEGER NOT NULL CHECK (window_no >= 1),
+    windows        INTEGER NOT NULL,
+    question       TEXT NOT NULL,
+    prompt         TEXT NOT NULL,
+    created_at     INTEGER NOT NULL,
+    PRIMARY KEY (resource_hash, first_page)
+) WITHOUT ROWID;
+CREATE INDEX cut_window_by_question ON cut_window (question);
+ALTER TABLE cut_step ADD COLUMN hints TEXT;
 ";
 
 /// The version of a base: 0 for one just created.
