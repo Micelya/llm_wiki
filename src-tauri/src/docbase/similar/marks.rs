@@ -65,6 +65,12 @@ pub struct Facts<'a> {
     pub pages: &'a [Vec<&'a str>],
     pub has_fields: bool,
     pub signatures: &'a [PdfSignature],
+    /// For a part cut from a file, the signatures of that file: a seal
+    /// of a service there fulfils `requires`, as context only. It never
+    /// counts as the part's signature, and leaves no mark on it, so what
+    /// counts is what its own pages show. A party's signature of the file
+    /// is not read: the annexes of a signed filing are not signed (P-408).
+    pub context: &'a [PdfSignature],
 }
 
 /// What the catalog found in a document, and what it says to leave out
@@ -105,6 +111,8 @@ pub fn read(catalog: &Catalog, facts: &Facts<'_>) -> Reading {
             let mut found: Vec<(Option<usize>, Option<String>, Option<String>)> = Vec::new(); // page, value, variant
             let mut conditions = 0;
             let mut holds = true;
+            // A seal only the file of the part has: it fires, for `requires`.
+            let mut only_context = false;
 
             if let Some(wanted) = signal.form_fields {
                 conditions += 1;
@@ -123,7 +131,10 @@ pub fn read(catalog: &Catalog, facts: &Facts<'_>) -> Reading {
                         _ => false,
                     })
                     .collect();
-                holds &= !matching.is_empty();
+                if matching.is_empty() && kind == "service" {
+                    only_context = facts.context.iter().any(|s| verifies(s) && covers(s) && service_of(s).is_some());
+                }
+                holds &= !matching.is_empty() || only_context;
                 for (signature, service) in matching {
                     found.push((None, Some(signature.names.join("; ")), service));
                 }
@@ -164,6 +175,9 @@ pub fn read(catalog: &Catalog, facts: &Facts<'_>) -> Reading {
                 continue;
             }
             fired.push(signal.id.as_str());
+            if only_context {
+                continue;
+            }
             if found.is_empty() {
                 found.push((None, None, None));
             }
@@ -307,7 +321,13 @@ mod tests {
 
     fn read_text(text: &str, has_fields: bool, signatures: &[PdfSignature]) -> Reading {
         let pages = pages(text);
-        read(&Catalog::builtin(), &Facts { pages: &pages, has_fields, signatures })
+        read(&Catalog::builtin(), &Facts { pages: &pages, has_fields, signatures, context: &[] })
+    }
+
+    /// A part cut from a file with these signatures.
+    fn read_part(text: &str, file: &[PdfSignature]) -> Reading {
+        let pages = pages(text);
+        read(&Catalog::builtin(), &Facts { pages: &pages, has_fields: false, signatures: &[], context: file })
     }
 
     fn kinds(reading: &Reading) -> Vec<&str> {
@@ -381,6 +401,26 @@ mod tests {
         assert!(read_text("texto", false, &[checked("modified", root, name, "file")]).marks.is_empty());
         assert!(read_text("texto", false, &[checked("invalid", root, name, "file")]).marks.is_empty());
         assert!(read_text("texto", false, &[checked("valid", root, name, "part")]).marks.is_empty());
+    }
+
+    #[test]
+    fn a_part_takes_the_seal_of_its_file_as_context_only() {
+        let catalog = Catalog::builtin();
+        let service = catalog.signing_services().next().unwrap();
+        let (root, name) = (service.root_fingerprints[0].as_str(), service.certificate_names[0].as_str());
+        let seal = checked("valid", root, name, "file");
+        let party = checked("valid", &"ab".repeat(32), "Una Persona", "file");
+        let stamped = "## Page 1\n\nAcuerdo entre las partes.\nDocuSigned by:\nUna Persona";
+        // The seal of the file fulfils `requires`: the signature its own
+        // page shows counts, and the seal leaves no mark on the part.
+        assert_eq!(kinds(&read_part(stamped, &[seal.clone()])), ["party-signature"]);
+        // The seal alone is no signature of the part.
+        assert!(read_part("## Page 1\n\nAcuerdo entre las partes.", &[seal.clone()]).marks.is_empty());
+        // Without the seal, the stamp proves nothing.
+        assert!(read_part(stamped, &[]).marks.is_empty());
+        // The annex of a filing a party signed is not signed (P-408).
+        assert!(read_part("## Page 1\n\nAnexo documental.", &[party.clone()]).marks.is_empty());
+        assert!(read_part("## Page 1\n\nAnexo documental.", &[seal, party]).marks.is_empty());
     }
 
     #[test]

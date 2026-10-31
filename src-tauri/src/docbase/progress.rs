@@ -138,6 +138,9 @@ pub(crate) struct EngineNow {
     /// The stage whose questions wait for a person: the round passed its
     /// cap, or a person left them for later (D-484).
     pub auto_held: Option<&'static str>,
+    /// When the round began: the last round's end, or the app's opening.
+    /// The questions the base keeps from then on are the round's (D-606).
+    pub round_since: i64,
     /// The document whose text is being recognized now (`recognize.rs`).
     /// What a person asked to recognize is kept in the base
     /// (`recognition_request`), so it survives closing the app.
@@ -162,9 +165,15 @@ pub(crate) struct Recognizing {
 /// What the engine is doing now and the last error of the model, kept in
 /// memory by the threads of the worker (`worker.rs`) and the questions to
 /// the model (`classify::ask_and_keep`).
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct EngineState {
     now: Mutex<EngineNow>,
+}
+
+impl Default for EngineState {
+    fn default() -> Self {
+        Self { now: Mutex::new(EngineNow { round_since: now_ms(), ..EngineNow::default() }) }
+    }
 }
 
 impl EngineState {
@@ -237,6 +246,7 @@ impl EngineState {
         self.with(|now| {
             now.auto_asked = 0;
             now.auto_held = None;
+            now.round_since = now_ms();
         });
     }
 
@@ -454,8 +464,10 @@ pub struct Progress {
     /// reads; `None` when none was chosen.
     pub recognition_engine: Option<String>,
     pub last_error: Option<ModelError>,
-    /// The questions of «quién es quién» and of the summaries that go by
-    /// themselves: how many, and whether they wait for a person (D-484).
+    /// The questions about the cuts, of «quién es quién» and of the
+    /// summaries that go by themselves: how many, whether they wait for a
+    /// person (D-484), and what every question since the round began was
+    /// for (D-606).
     pub auto_questions: super::auto_questions::AutoQuestions,
 }
 
@@ -1067,7 +1079,7 @@ fn summarize(conn: &Connection, facts: &Facts, members: Vec<Members>) -> Result<
         engine_chosen: facts.engine_chosen,
         recognition_engine: facts.recognizer.clone(),
         last_error: facts.now.last_error.clone(),
-        auto_questions: super::auto_questions::AutoQuestions::of(&facts.now, facts.permit),
+        auto_questions: super::auto_questions::AutoQuestions::of(conn, &facts.now, facts.permit)?,
     })
 }
 

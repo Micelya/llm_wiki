@@ -7,10 +7,13 @@
 //! (`continue`, `new` or `doubtful`), the rule that gave it and the type
 //! the next page suggests. The rules ask nothing, so they always run; a
 //! file is cut again when the rules, the catalog (`cut.json`) or the text
-//! of its pages change. A doubtful step counts as `continue` until the
-//! model answers; it is asked only by the thread that asks the model,
-//! while the automatic reading is on, with the two pages as images. The
-//! answer is kept in `model_answer` (task `cut`) by the version of the
+//! of its pages change. In an even file (`rules::uniform`) a step no rule
+//! decided goes on and is not asked. A doubtful step counts as `continue`
+//! until the model answers, with the two pages as images: by itself, while
+//! the automatic reading is on, only in a file where a rule already says
+//! another document starts (D-622), in the round of questions with a cap
+//! (`auto_questions.rs`); in the others only when a person asks
+//! (`cut_ask_file`), with the reading on or off. The answer is kept in `model_answer` (task `cut`) by the version of the
 //! instruction and the exact prints of the two pages: the same pages in
 //! another file are not asked again.
 //!
@@ -24,6 +27,8 @@ mod signals;
 
 #[cfg(test)]
 pub(crate) mod check;
+#[cfg(test)]
+mod export;
 #[cfg(test)]
 mod tests;
 
@@ -48,10 +53,19 @@ pub use rules::Verdict;
 
 /// The version of the rules. With the catalog's, what the kept steps were
 /// decided with: another one decides them again.
-pub const RULES_VERSION: &str = "cut-rules/1";
+pub const RULES_VERSION: &str = "cut-rules/2";
 
 pub fn rules_version() -> String {
     format!("{RULES_VERSION}+cut.json/{}", catalog::catalog().version)
+}
+
+/// The confidence of an answer that does not back a step.
+pub const LOW_CONFIDENCE: &str = "low";
+
+/// The confidence of an answer as the base keeps it: one of the three the
+/// question allows, nothing otherwise.
+fn known_confidence(confidence: &str) -> Option<String> {
+    ["high", "medium", LOW_CONFIDENCE].contains(&confidence).then(|| confidence.to_string())
 }
 
 /// What the cutter says of one step.
@@ -66,6 +80,8 @@ pub struct CutStep {
     pub question: Option<String>,
     /// What the model said: whether the next page starts another document.
     pub model_says: Option<bool>,
+    /// How sure the model said it was: `high`, `medium` or `low`.
+    pub model_confidence: Option<String>,
     /// The type the vocabulary finds in the next page, and the one the
     /// model gave.
     pub rule_type: Option<String>,
@@ -73,15 +89,33 @@ pub struct CutStep {
 }
 
 impl CutStep {
-    /// Whether a document starts at the next page: as the rules say, or as
-    /// the model says in a doubtful step; doubtful without an answer
-    /// counts as continue.
+    /// Whether the model's answer decides the step: in a doubtful step, and
+    /// in one the even file let go on when an answer about its two pages
+    /// comes later (an answer weighs more than that rule, D-615).
+    pub fn by_model(&self) -> bool {
+        self.model_says.is_some() && (self.verdict == Verdict::Doubtful || self.rule == rules::UNIFORM)
+    }
+
+    /// Whether a document starts at the next page: as the model says when
+    /// its answer decides, as the rules say otherwise; doubtful without an
+    /// answer counts as continue.
     pub fn starts(&self) -> bool {
-        match self.verdict {
-            Verdict::New => true,
-            Verdict::Continue => false,
-            Verdict::Doubtful => self.model_says == Some(true),
+        if self.by_model() {
+            return self.model_says == Some(true);
         }
+        self.verdict == Verdict::New
+    }
+
+    /// Whether nothing backs what the step says (D-603): a doubtful step
+    /// the model did not answer, or answered with low confidence. A rule
+    /// other than `none` (the even file too) or an answer of high or
+    /// medium confidence backs it; a person's word backs any step, and
+    /// wins over it when the parts are made (`parts.rs`).
+    pub fn uncertain(&self) -> bool {
+        if self.by_model() {
+            return self.model_confidence.as_deref() == Some(LOW_CONFIDENCE);
+        }
+        self.verdict == Verdict::Doubtful
     }
 
     pub fn suggested_type(&self) -> Option<&str> {
@@ -96,10 +130,32 @@ pub struct CutAskReport {
     /// Answered from an answer kept (the same pages in another file).
     pub kept: usize,
     pub failed: usize,
-    /// Doubtful steps still without an answer.
+    /// Doubtful steps still without an answer, of the files the run went
+    /// over (by itself: those of `ASKED_BY_ITSELF`).
     pub left: usize,
     pub seconds: f64,
     pub errors: Vec<String>,
+}
+
+/// The files whose doubtful steps the thread that asks the model takes by
+/// itself (D-622): those where a rule already says another document starts
+/// after the first page. There it is known that the file joins several
+/// documents, and the doubt is where each one ends. In the others a
+/// doubtful step goes on uncertain (D-603) and is asked only when a person
+/// asks (`cut_ask_file`). `s` is the step.
+const ASKED_BY_ITSELF: &str =
+    "EXISTS (SELECT 1 FROM cut_step r WHERE r.resource_hash = s.resource_hash AND r.verdict = 'new' AND r.after_page > 0)";
+
+/// A doubtful step still without an answer, with the key of its question.
+const WITHOUT_ANSWER: &str = "s.verdict = 'doubtful' AND s.model_says IS NULL AND s.question IS NOT NULL";
+
+/// The doubtful steps still without an answer (D-606).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct CutQuestions {
+    /// The thread that asks the model takes them by itself.
+    pub by_itself: usize,
+    /// They wait for a person to ask (`cut_ask_file`).
+    pub on_request: usize,
 }
 
 /// The text of each page as the cutter reads it: a recognizer's when the
@@ -165,8 +221,8 @@ fn keep_cut_answer(conn: &Connection, key: &str, engine: &str, version_id: Optio
 /// it, the type of the first page.
 fn apply_answer(conn: &Connection, key: &str, answer: &CutAnswer) -> Result<(), String> {
     conn.execute(
-        "UPDATE cut_step SET model_says = ?1, model_type = coalesce(?2, model_type) WHERE question = ?3",
-        params![answer.second_starts_new_document, CutAnswer::known(&answer.second_page_type), key],
+        "UPDATE cut_step SET model_says = ?1, model_type = coalesce(?2, model_type), model_confidence = ?4 WHERE question = ?3",
+        params![answer.second_starts_new_document, CutAnswer::known(&answer.second_page_type), key, known_confidence(&answer.confidence)],
     )
     .map_err(sql_err)?;
     if let Some(first) = CutAnswer::known(&answer.first_page_type) {
@@ -240,6 +296,7 @@ impl DocBase {
                 rule: "start".into(),
                 question: None,
                 model_says: None,
+                model_confidence: None,
                 rule_type: pages.first().and_then(rules::type_of),
                 model_type: None,
             }];
@@ -252,6 +309,7 @@ impl DocBase {
                     rule: rule.into(),
                     question: None,
                     model_says: None,
+                    model_confidence: None,
                     rule_type: rules::type_of(&pair[1]),
                     model_type: None,
                 };
@@ -261,6 +319,7 @@ impl DocBase {
                         let kept = cached_answer(&self.conn(), &key, engine.as_deref())?;
                         if let Some(answer) = kept.and_then(|a| CutAnswer::parse(&a).ok()) {
                             s.model_says = Some(answer.second_starts_new_document);
+                            s.model_confidence = known_confidence(&answer.confidence);
                             s.model_type = CutAnswer::known(&answer.second_page_type);
                             answers.push((s.after, answer));
                         }
@@ -268,6 +327,22 @@ impl DocBase {
                     }
                 }
                 steps.push(s);
+            }
+            // The even file sees the whole file: a step no rule decided and
+            // the model did not answer goes on (D-603), unless the page
+            // before ends with a signature (D-616). It keeps its question,
+            // for an answer that comes later. A person's word is not looked
+            // at here: it wins over any step when the parts are made
+            // (`parts.rs`).
+            let verdicts: Vec<Verdict> = steps.iter().skip(1).map(|s| s.verdict).collect();
+            if rules::uniform(&pages, &verdicts) {
+                for s in steps.iter_mut().skip(1) {
+                    let signed = pages.iter().find(|p| p.page == s.after).is_some_and(rules::signed_at_the_end);
+                    if s.verdict == Verdict::Doubtful && s.rule == rules::NONE && s.model_says.is_none() && !signed {
+                        s.verdict = Verdict::Continue;
+                        s.rule = rules::UNIFORM.into();
+                    }
+                }
             }
             for (after, answer) in answers {
                 if let Some(before) = steps.iter_mut().find(|s| s.after + 1 == after) {
@@ -283,9 +358,9 @@ impl DocBase {
             for s in &steps {
                 tx.execute(
                     "INSERT INTO cut_step (resource_hash, after_page, verdict, rule, question, model_says, rule_type, model_type,
-                                           rules_version, text_stamp, created_at)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
-                    params![hash, s.after, s.verdict.as_str(), s.rule, s.question, s.model_says, s.rule_type, s.model_type, version, stamp, now],
+                                           rules_version, text_stamp, created_at, model_confidence)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                    params![hash, s.after, s.verdict.as_str(), s.rule, s.question, s.model_says, s.rule_type, s.model_type, version, stamp, now, s.model_confidence],
                 )
                 .map_err(sql_err)?;
             }
@@ -301,7 +376,7 @@ impl DocBase {
         let conn = self.conn();
         let mut statement = conn
             .prepare(
-                "SELECT after_page, verdict, rule, question, model_says, rule_type, model_type FROM cut_step
+                "SELECT after_page, verdict, rule, question, model_says, rule_type, model_type, model_confidence FROM cut_step
                  WHERE resource_hash = ?1 ORDER BY after_page",
             )
             .map_err(sql_err)?;
@@ -315,6 +390,7 @@ impl DocBase {
                     model_says: row.get(4)?,
                     rule_type: row.get(5)?,
                     model_type: row.get(6)?,
+                    model_confidence: row.get(7)?,
                 })
             })
             .map_err(sql_err)?;
@@ -322,26 +398,78 @@ impl DocBase {
     }
 
     /// The questions about the doubtful steps, for the thread that asks
-    /// the model: nothing while the automatic reading is off.
+    /// the model: nothing while the automatic reading is off, and only in
+    /// the files of `ASKED_BY_ITSELF`.
     pub fn cut_background(&self, asker: &dyn DocumentAsker, limit: usize) -> Result<CutAskReport, String> {
         if !self.background_reading()? {
-            return Ok(CutAskReport { left: self.cut_doubtful_left(None)?, ..CutAskReport::default() });
+            return Ok(CutAskReport { left: self.cut_questions()?.by_itself, ..CutAskReport::default() });
         }
         self.cut_ask_run(asker, limit, None)
     }
 
-    fn cut_doubtful_left(&self, only: Option<&BTreeSet<String>>) -> Result<usize, String> {
-        let conn = self.conn();
-        let mut statement = conn
-            .prepare("SELECT resource_hash FROM cut_step WHERE verdict = 'doubtful' AND model_says IS NULL AND question IS NOT NULL")
+    /// The worker's turn for the questions about the cuts (D-606): when the
+    /// round of questions with a cap lets them go, up to `limit` more,
+    /// counted in the round; `None` while they wait for a person.
+    pub(crate) fn cut_round_turn(&self, asker: &dyn DocumentAsker, limit: usize) -> Result<Option<CutAskReport>, String> {
+        if !self.auto_questions_go("cut")? {
+            return Ok(None);
+        }
+        let report = self.cut_background(asker, limit)?;
+        let state = self.engine_state();
+        state.ran("cut", report.left);
+        state.auto_asked(report.asked);
+        Ok(Some(report))
+    }
+
+    /// How many doubtful steps are still without an answer: those the
+    /// thread asks by itself and those that wait for a person. Asks nothing.
+    pub fn cut_questions(&self) -> Result<CutQuestions, String> {
+        let (by_itself, all): (i64, i64) = self
+            .conn()
+            .query_row(
+                &format!("SELECT coalesce(sum({ASKED_BY_ITSELF}), 0), count(*) FROM cut_step s WHERE {WITHOUT_ANSWER}"),
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
             .map_err(sql_err)?;
+        Ok(CutQuestions { by_itself: by_itself as usize, on_request: (all - by_itself) as usize })
+    }
+
+    /// Doubtful steps without an answer in the files of `only`, or, without
+    /// it, in those the thread asks by itself.
+    fn cut_doubtful_left(&self, only: Option<&BTreeSet<String>>) -> Result<usize, String> {
+        let Some(only) = only else {
+            return Ok(self.cut_questions()?.by_itself);
+        };
+        let conn = self.conn();
+        let mut statement = conn.prepare(&format!("SELECT s.resource_hash FROM cut_step s WHERE {WITHOUT_ANSWER}")).map_err(sql_err)?;
         let hashes: Vec<String> =
             statement.query_map([], |row| row.get(0)).map_err(sql_err)?.collect::<Result<_, _>>().map_err(sql_err)?;
-        Ok(hashes.iter().filter(|h| only.is_none_or(|o| o.contains(*h))).count())
+        Ok(hashes.iter().filter(|h| only.contains(*h)).count())
+    }
+
+    /// A person asks the model where each document of one PDF starts
+    /// (D-606): every doubtful step of it still without an answer, one at
+    /// a time, with the automatic reading on or off; the answers are kept
+    /// and counted like any other. Its parts are made again with them.
+    /// Returns the parts as they are now.
+    pub fn cut_ask_file(&self, asker: &dyn DocumentAsker, hash: &str) -> Result<Vec<parts::IncludedPart>, String> {
+        if !asker.sees_images() {
+            return Err("El motor de «Preguntar al modelo» no mira imágenes: no puede decir dónde empieza cada documento.".into());
+        }
+        let only = BTreeSet::from([hash.to_string()]);
+        let report = self.cut_ask_run(asker, usize::MAX, Some(&only))?;
+        self.cut_parts_of(hash)?;
+        if report.asked + report.kept == 0 {
+            if let Some(error) = report.errors.first() {
+                return Err(error.clone());
+            }
+        }
+        self.strip_parts(hash)
     }
 
     /// Asks the model about up to `limit` doubtful steps (of the files in
-    /// `only`, when given), one at a time, with the two pages as images. A
+    /// `only`, when given; otherwise of those of `ASKED_BY_ITSELF`), one at a time, with the two pages as images. A
     /// step whose pages were already answered takes that answer without
     /// asking. An engine that cannot look at images asks nothing.
     pub fn cut_ask_run(&self, asker: &dyn DocumentAsker, limit: usize, only: Option<&BTreeSet<String>>) -> Result<CutAskReport, String> {
@@ -356,10 +484,15 @@ impl DocBase {
             let conn = self.conn();
             let mut statement = conn
                 .prepare(
-                    "SELECT s.resource_hash, s.after_page, s.question, f.version_id FROM cut_step s
-                     JOIN file f ON f.hash = s.resource_hash
-                     WHERE s.verdict = 'doubtful' AND s.model_says IS NULL AND s.question IS NOT NULL
-                     ORDER BY s.resource_hash, s.after_page",
+                    &format!(
+                        "SELECT s.resource_hash, s.after_page, s.question, f.version_id FROM cut_step s
+                         JOIN file f ON f.hash = s.resource_hash
+                         WHERE {WITHOUT_ANSWER} AND ({by_itself})
+                         ORDER BY s.resource_hash, s.after_page",
+                        // The files asked for go whole; without them, only
+                        // those the thread asks by itself.
+                        by_itself = if only.is_some() { "1" } else { ASKED_BY_ITSELF }
+                    ),
                 )
                 .map_err(sql_err)?;
             let rows = statement

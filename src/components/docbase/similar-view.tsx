@@ -164,6 +164,13 @@ function FamilyCard({
               {plural(group.possiblySame, "par sin datos que cambien", "pares sin datos que cambien")}
             </StatusBadge>
           )}
+          {group.uncertain > 0 && (
+            <span title={vocabulary().included.uncertainHelp} data-uncertain={group.uncertain}>
+              <StatusBadge tone="busy">
+                {vocabulary().included.uncertain} · {group.uncertain}
+              </StatusBadge>
+            </span>
+          )}
           {group.templateFields !== null && (
             <StatusBadge tone="neutral">
               plantilla: {plural(group.templateFields, "campo", "campos")}

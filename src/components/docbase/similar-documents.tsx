@@ -285,6 +285,11 @@ export function SimilarCard({
           Son de la misma plantilla, pero no cambia ningún dato entre los dos: posiblemente sean el mismo documento.
         </p>
       )}
+      {item.uncertain && (
+        <p className="mt-1 text-warn" data-uncertain="">
+          {vocabulary().included.uncertain}: {vocabulary().included.uncertainHelp}
+        </p>
+      )}
 
       <ul className="mt-1 flex flex-col text-xs text-muted-foreground">
         {measuresInWords(item).map((line) => (

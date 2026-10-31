@@ -26,6 +26,7 @@ use crate::source_volume::{LocalFolderProvider, SourceProvider};
 
 use super::super::{now_ms, sql_err, DocBase, Visible};
 use super::align;
+use super::attest;
 use super::changes::{self, Changes};
 use super::key_data::{self, KeyData, TextIndex};
 use super::marks::{self, Mark, PdfSignature};
@@ -39,8 +40,11 @@ use super::types::{self, RelationDef};
 /// everything again. `similar-2`: the key data of the two documents decide
 /// whether a version or a similar pair are another document (D-497).
 /// `similar-3`: a version shares much in both directions. `similar-4`:
-/// the text is compared without what its format adds (D-521).
-pub const ENGINE: &str = "similar-4";
+/// the text is compared without what its format adds (D-521). `similar-5`:
+/// a part of a cut file reads the seal of its file as context, and a
+/// signing certificate of the same file passes its signatures to the part
+/// it certifies (D-607).
+pub const ENGINE: &str = "similar-5";
 /// Where the base keeps how the key data looked when it last compared
 /// them (`similar_key_data_check`).
 const KEY_DATA_SETTING: &str = "similar-key-data";
@@ -155,6 +159,9 @@ pub struct SimilarDocument {
     /// with the template they would wait for no one, but they may be one
     /// same document, so they wait for a person (D-497).
     pub possibly_same: bool,
+    /// Still undecided, and one of the two appears only in uncertain cuts
+    /// (D-603): it is proposed all the same, marked.
+    pub uncertain: bool,
 }
 
 /// What waits for a person, for Inicio.
@@ -183,6 +190,8 @@ pub struct GroupMember {
     pub relation: Option<String>,
     pub cover: Option<f64>,
     pub state: Option<String>,
+    /// It appears only in uncertain cuts (D-603).
+    pub uncertain: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -203,6 +212,9 @@ pub struct SimilarGroup {
     /// Pairs of its template's documents where nothing changes but a few
     /// words, still undecided: possibly the same document (P-218).
     pub possibly_same: i64,
+    /// Members, the principal too, that appear only in uncertain cuts
+    /// (D-603): the family is made all the same, marked.
+    pub uncertain: i64,
 }
 
 /// One decision of `decide_similar_many`.
@@ -226,7 +238,8 @@ pub struct OpenPair {
     pub similar: SimilarDocument,
 }
 
-/// The columns `pair_from_row` reads, in its order.
+/// The columns `pair_from_row` reads, in its order; after them, whether
+/// the pair is uncertain (`uncertain_pair_sql`).
 const PAIR_COLUMNS: &str = "a, b, relation, subject, certainty, description, jaccard, containment, cover, similarity, \
      suggested_source, evidence, evidence_hash, computed_at, state, chosen_relation, wiki_source, decided_at";
 
@@ -259,6 +272,7 @@ fn pair_from_row(row: &rusqlite::Row<'_>, seen_from: i64) -> rusqlite::Result<(i
             wiki_source: row.get(16)?,
             decided_at: row.get(17)?,
             possibly_same: false,
+            uncertain: row.get(18)?,
         },
     ))
 }
@@ -373,7 +387,7 @@ impl DocBase {
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .map_err(sql_err)?;
-        let signed = sign(content_id, &body, text_at, fields.is_some(), signatures);
+        let signed = sign(content_id, &body, text_at, fields.is_some(), signatures, &[], Default::default());
         let mut conn = self.conn();
         let tx = conn.transaction().map_err(sql_err)?;
         save_signature(&tx, &signed, &engine_id())?;
@@ -383,7 +397,7 @@ impl DocBase {
     /// Signs up to `limit` contents whose signature is missing or stale.
     fn similar_sign_pending(&self, limit: usize) -> Result<usize, String> {
         let engine = engine_id();
-        let jobs: Vec<(i64, String, i64, Option<String>, Vec<(String, PathBuf)>)> = {
+        let jobs: Vec<(i64, String, i64, Option<String>, Vec<(String, PathBuf)>, Vec<CutFrom>)> = {
             let conn = self.conn();
             // The version of a whole file with included parts is not
             // compared: each part is, with its own text (D-560).
@@ -412,25 +426,45 @@ impl DocBase {
             let mut jobs = Vec::new();
             for (content_id, body, text_at, fields) in rows {
                 let paths = pdf_paths(&conn, content_id)?;
-                jobs.push((content_id, body, text_at, fields, paths));
+                let cut_from = files_cut_into(&conn, content_id)?;
+                jobs.push((content_id, body, text_at, fields, paths, cut_from));
             }
             jobs
         };
-        for (content_id, body, text_at, fields, paths) in &jobs {
-            let mut signatures = Vec::new();
-            for (file, path) in paths {
-                match run_guarded("docbase_pdf_signatures", || marks::pdf_signatures(path, Some(file))) {
-                    Ok(found) => {
-                        for signature in found {
-                            if !signatures.contains(&signature) {
-                                signatures.push(signature);
-                            }
-                        }
-                    }
-                    Err(error) => eprintln!("[docbase] signatures of '{}': {error}", path.display()),
-                }
+        // The signatures of each file a part is cut from, read once.
+        let mut of_file: HashMap<String, Vec<PdfSignature>> = HashMap::new();
+        // And what the catalog reads in each of its parts.
+        let mut readings_of: HashMap<String, Vec<Vec<Mark>>> = HashMap::new();
+        for (content_id, body, text_at, fields, paths, cut_from) in &jobs {
+            let signatures = read_signatures(paths);
+            let mut context = Vec::new();
+            for file in cut_from {
+                let found = of_file.entry(file.hash.clone()).or_insert_with(|| read_signatures(&file.paths));
+                context.extend(found.iter().filter(|s| !context.contains(*s)).cloned().collect::<Vec<_>>());
             }
-            let signed = sign(*content_id, body, *text_at, fields.is_some(), signatures);
+            // What the other parts of its files say of it (D-607).
+            let mut certified = Vec::new();
+            let mut given: Vec<String> = Vec::new();
+            for file in cut_from {
+                let context = &of_file[&file.hash];
+                let readings = readings_of.entry(file.hash.clone()).or_insert_with(|| {
+                    file.parts.iter().map(|(_, text, has_fields)| sign_reading(text, *has_fields, &[], context).marks).collect()
+                });
+                let parts: Vec<attest::Part<'_>> = file
+                    .parts
+                    .iter()
+                    .zip(readings.iter())
+                    .map(|((version_id, text, _), marks)| attest::Part { version_id: *version_id, text, marks })
+                    .collect();
+                let found = attest::certification(types::catalog(), *content_id, &parts);
+                for mark in found.gets {
+                    if !certified.contains(&mark) {
+                        certified.push(mark);
+                    }
+                }
+                given.extend(found.gives.into_iter().filter(|kind| !given.contains(kind)).collect::<Vec<_>>());
+            }
+            let signed = sign(*content_id, body, *text_at, fields.is_some(), signatures, &context, (certified, given));
             let mut conn = self.conn();
             let tx = conn.transaction().map_err(sql_err)?;
             save_signature(&tx, &signed, &engine)?;
@@ -672,9 +706,9 @@ impl DocBase {
         };
         let mut statement = conn
             .prepare(&format!(
-                "SELECT {PAIR_COLUMNS} FROM similar_pair WHERE (a = ?1 OR b = ?1) AND NOT {}
+                "SELECT {PAIR_COLUMNS}, {} FROM similar_pair WHERE (a = ?1 OR b = ?1)
                  ORDER BY (state = 'discarded'), (relation = 'similar'), cover DESC",
-                waiting_sql("similar_pair")
+                uncertain_pair_sql("similar_pair")
             ))
             .map_err(sql_err)?;
         let rows = statement
@@ -751,13 +785,13 @@ impl DocBase {
         let possibly_same = super::template::possibly_same_pairs(&conn)?;
         let mut statement = conn
             .prepare(&format!(
-                "SELECT {PAIR_COLUMNS} FROM similar_pair p
-                 WHERE p.state = 'proposed' AND p.relation != 'similar' AND NOT {} AND NOT EXISTS (
+                "SELECT {PAIR_COLUMNS}, {} FROM similar_pair p
+                 WHERE p.state = 'proposed' AND p.relation != 'similar' AND NOT EXISTS (
                     SELECT 1 FROM similar_group_member m
                     WHERE m.principal != m.version_id
                       AND ((m.principal = p.a AND m.version_id = p.b) OR (m.principal = p.b AND m.version_id = p.a)))
                  ORDER BY p.cover DESC, p.a, p.b",
-                waiting_sql("p")
+                uncertain_pair_sql("p")
             ))
             .map_err(sql_err)?;
         let rows = statement
@@ -855,7 +889,7 @@ impl DocBase {
     /// document (D-497).
     pub fn similar_pending(&self, visible: &Visible) -> Result<SimilarPending, String> {
         let conn = self.conn();
-        let asks = format!("{} AND NOT {}", asks_person_sql("p.relation"), waiting_sql("p"));
+        let asks = asks_person_sql("p.relation");
         let (seen_a, mut bound) = visible_content(visible, "p.a");
         let (seen_b, bound_b) = visible_content(visible, "p.b");
         bound.extend(bound_b);
@@ -882,7 +916,7 @@ impl DocBase {
                 |row| row.get(0),
             )
             .map_err(sql_err)?;
-        let one = format!("{} AND NOT {}", same_document_sql("p.relation"), waiting_sql("p"));
+        let one = same_document_sql("p.relation");
         let (seen_a, mut bound) = visible_content(visible, "p.a");
         let (seen_b, bound_b) = visible_content(visible, "p.b");
         bound.extend(bound_b);
@@ -915,16 +949,17 @@ impl DocBase {
             let Some(head) = doc_ref(&conn, visible, principal)? else {
                 continue;
             };
-            let members: Vec<(i64, Option<String>, Option<f64>, Option<String>)> = {
+            let members: Vec<(i64, Option<String>, Option<f64>, Option<String>, bool)> = {
                 let mut statement = conn
-                    .prepare(
-                        "SELECT m.version_id, m.relation, m.cover, p.state FROM similar_group_member m
+                    .prepare(&format!(
+                        "SELECT m.version_id, m.relation, m.cover, p.state, {} FROM similar_group_member m
                          LEFT JOIN similar_pair p ON p.a = min(m.principal, m.version_id) AND p.b = max(m.principal, m.version_id)
                          WHERE m.principal = ?1 ORDER BY m.version_id = m.principal DESC, m.cover DESC, m.version_id",
-                    )
+                        super::super::cut::parts::only_uncertain_sql("m.version_id")
+                    ))
                     .map_err(sql_err)?;
                 let rows = statement
-                    .query_map([principal], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)))
+                    .query_map([principal], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)))
                     .map_err(sql_err)?
                     .collect::<Result<Vec<_>, _>>()
                     .map_err(sql_err)?;
@@ -933,7 +968,8 @@ impl DocBase {
             let mut list = Vec::new();
             let mut pending = 0;
             let mut pending_same_document = 0;
-            for (content_id, relation, cover, state) in members {
+            let uncertain_members = members.iter().filter(|m| m.4).count() as i64;
+            for (content_id, relation, cover, state, uncertain) in members {
                 if state.as_deref() == Some("proposed") && relation.as_deref().is_some_and(asks_person) {
                     pending += 1;
                     if relation.as_deref().is_some_and(makes_one_document) {
@@ -941,7 +977,7 @@ impl DocBase {
                     }
                 }
                 if let Some(doc) = doc_ref(&conn, visible, content_id)? {
-                    list.push(GroupMember { doc, relation, cover, state });
+                    list.push(GroupMember { doc, relation, cover, state, uncertain });
                 }
             }
             let template = super::template::summary(&conn, principal)?;
@@ -953,6 +989,7 @@ impl DocBase {
                 pending_same_document,
                 template_fields: template.map(|(fields, _)| fields),
                 possibly_same: template.map(|(_, same)| same).unwrap_or(0),
+                uncertain: uncertain_members,
             });
         }
         Ok(out)
@@ -1009,19 +1046,19 @@ pub fn makes_one_document(relation: &str) -> bool {
     types::catalog().relation(relation).is_some_and(|r| r.same_document && !r.automatic)
 }
 
-/// SQL condition: the relation in `column` makes both one document.
-/// SQL condition: the pair in `table` is a proposal that waits because
-/// one of its documents appears only in cuts still proposed (D-556). It
-/// is seen when the cut is confirmed; a person's decision is always seen.
-pub(crate) fn waiting_sql(table: &str) -> String {
-    use super::super::cut::parts::only_proposed_sql;
+/// SQL condition: the pair in `table` is undecided and one of its
+/// documents appears only in uncertain cuts (D-603). It is proposed all
+/// the same, marked; a person's decision is not marked.
+pub(crate) fn uncertain_pair_sql(table: &str) -> String {
+    use super::super::cut::parts::only_uncertain_sql;
     format!(
         "({table}.state = 'proposed' AND ({} OR {}))",
-        only_proposed_sql(&format!("{table}.a")),
-        only_proposed_sql(&format!("{table}.b"))
+        only_uncertain_sql(&format!("{table}.a")),
+        only_uncertain_sql(&format!("{table}.b"))
     )
 }
 
+/// SQL condition: the relation in `column` makes both one document.
 fn same_document_sql(column: &str) -> String {
     relation_sql(column, |r| r.same_document && !r.automatic)
 }
@@ -1059,10 +1096,35 @@ pub fn relations() -> Vec<RelationDef> {
 }
 
 /// Computes what is stored for one content.
-fn sign(content_id: i64, body: &str, text_at: i64, has_fields: bool, signatures: Vec<PdfSignature>) -> Signed {
+/// What the catalog reads in a text. `context`: the signatures of the
+/// file a part is cut from (`marks::Facts`).
+fn sign_reading(body: &str, has_fields: bool, signatures: &[PdfSignature], context: &[PdfSignature]) -> marks::Reading {
     let body = format::comparable(body);
     let pages = text::pages(&body);
-    let reading = marks::read(types::catalog(), &marks::Facts { pages: &pages, has_fields, signatures: &signatures });
+    marks::read(types::catalog(), &marks::Facts { pages: &pages, has_fields, signatures, context })
+}
+
+/// `certified`: the marks the parts of its file that certify it give it,
+/// and the kinds of its own marks it gives to the parts it certifies
+/// (`attest.rs`).
+fn sign(
+    content_id: i64,
+    body: &str,
+    text_at: i64,
+    has_fields: bool,
+    signatures: Vec<PdfSignature>,
+    context: &[PdfSignature],
+    (certified, given): (Vec<Mark>, Vec<String>),
+) -> Signed {
+    let mut reading = sign_reading(body, has_fields, &signatures, context);
+    reading.marks.retain(|mark| !given.contains(&mark.kind));
+    for mark in certified {
+        if !reading.marks.contains(&mark) {
+            reading.marks.push(mark);
+        }
+    }
+    let body = format::comparable(body);
+    let pages = text::pages(&body);
     let prepared = Prepared::new(&pages, &reading.skip_pages, &reading.drop_phrases);
     let shingles = if prepared.word_count() >= MIN_WORDS { prepared.shingles() } else { Vec::new() };
     let minhash = minhash::signature(&shingles);
@@ -1199,17 +1261,77 @@ fn estimated_containment(a: &Option<(usize, usize, Vec<u64>)>, b: &(usize, usize
 
 /// The PDF files of a content, where they can be read now.
 fn pdf_paths(conn: &Connection, content_id: i64) -> Result<Vec<(String, PathBuf)>, String> {
+    pdf_paths_where(conn, "f.version_id = ?1", &content_id)
+}
+
+/// A file a content is a part of (D-560), with the parts of that file in
+/// order: their version, their text and whether they have form fields.
+struct CutFrom {
+    hash: String,
+    paths: Vec<(String, PathBuf)>,
+    parts: Vec<(i64, String, bool)>,
+}
+
+fn files_cut_into(conn: &Connection, content_id: i64) -> Result<Vec<CutFrom>, String> {
+    let hashes: Vec<String> = {
+        let mut statement = conn
+            .prepare("SELECT DISTINCT resource_hash FROM appearance WHERE version_id = ?1 AND selector <> 'file' ORDER BY 1")
+            .map_err(sql_err)?;
+        let rows = statement.query_map([content_id], |row| row.get(0)).map_err(sql_err)?;
+        rows.collect::<Result<_, _>>().map_err(sql_err)?
+    };
+    let mut out = Vec::new();
+    for hash in hashes {
+        let mut statement = conn
+            .prepare(
+                "SELECT a.version_id, d.body, fd.version_id IS NOT NULL FROM appearance a
+                 JOIN derivative d ON d.version_id = a.version_id AND d.kind = 'text'
+                 LEFT JOIN derivative fd ON fd.version_id = a.version_id AND fd.kind = 'fields'
+                 WHERE a.resource_hash = ?1 AND a.selector <> 'file'
+                 ORDER BY a.position, a.id",
+            )
+            .map_err(sql_err)?;
+        let parts = statement
+            .query_map([&hash], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+            .map_err(sql_err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(sql_err)?;
+        let paths = pdf_paths_where(conn, "f.hash = ?1", &hash)?;
+        out.push(CutFrom { hash, paths, parts });
+    }
+    Ok(out)
+}
+
+/// The digital signatures of these PDF files, each once.
+fn read_signatures(paths: &[(String, PathBuf)]) -> Vec<PdfSignature> {
+    let mut signatures = Vec::new();
+    for (file, path) in paths {
+        match run_guarded("docbase_pdf_signatures", || marks::pdf_signatures(path, Some(file))) {
+            Ok(found) => {
+                for signature in found {
+                    if !signatures.contains(&signature) {
+                        signatures.push(signature);
+                    }
+                }
+            }
+            Err(error) => eprintln!("[docbase] signatures of '{}': {error}", path.display()),
+        }
+    }
+    signatures
+}
+
+fn pdf_paths_where(conn: &Connection, filter: &str, value: &dyn rusqlite::ToSql) -> Result<Vec<(String, PathBuf)>, String> {
     let mut statement = conn
-        .prepare(
+        .prepare(&format!(
             "SELECT f.hash, o.location, min(l.rel_path) FROM file f
              JOIN location l ON l.file_hash = f.hash AND l.hash_state = 'done' AND l.ext = 'pdf'
              JOIN origin o ON o.id = l.origin_id AND o.reachable = 1
-             WHERE f.version_id = ?1
-             GROUP BY f.hash",
-        )
+             WHERE {filter}
+             GROUP BY f.hash"
+        ))
         .map_err(sql_err)?;
     let rows = statement
-        .query_map([content_id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)))
+        .query_map([value], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)))
         .map_err(sql_err)?
         .collect::<Result<Vec<_>, _>>()
         .map_err(sql_err)?;
@@ -1383,20 +1505,10 @@ fn save_pair(
 /// (`families`), with the links between them: the families shown
 /// (`GROUP_RELATIONS`) or the units for types and templates
 /// (`UNIT_RELATIONS`).
+/// Every pair counts, also those of a version that appears only in
+/// uncertain cuts: they go on without waiting for a person, and the
+/// families show the mark (D-603).
 pub(crate) fn grouped(conn: &Connection, relations: &[&str]) -> Result<(Vec<Family>, Links), String> {
-    grouped_with(conn, relations, &super::super::cut::parts::only_proposed(conn)?)
-}
-
-/// As `grouped`, with every pair: also those of a version that appears
-/// only in cuts still proposed (the units the types are asked by).
-pub(crate) fn grouped_all(conn: &Connection, relations: &[&str]) -> Result<(Vec<Family>, Links), String> {
-    grouped_with(conn, relations, &BTreeSet::new())
-}
-
-/// The families of the pairs, leaving out those of the versions `held`
-/// (they appear only in cuts still proposed: no proposal comes out of
-/// them, D-556).
-fn grouped_with(conn: &Connection, relations: &[&str], held: &BTreeSet<i64>) -> Result<(Vec<Family>, Links), String> {
     let generated = super::generate::generated_contents(conn)?;
     let mut adjacent: Links = BTreeMap::new();
     {
@@ -1411,9 +1523,6 @@ fn grouped_with(conn: &Connection, relations: &[&str], held: &BTreeSet<i64>) -> 
             .map_err(sql_err)?;
         for row in rows {
             let (a, b, relation, cover) = row.map_err(sql_err)?;
-            if held.contains(&a) || held.contains(&b) {
-                continue;
-            }
             if !relations.contains(&relation.as_str()) {
                 continue;
             }

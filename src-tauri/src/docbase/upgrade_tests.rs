@@ -50,9 +50,9 @@ const PERSON_DECISIONS: &[&str] = &[
 ];
 
 /// The data an update changes on purpose, for the version that does it to
-/// say why: (version, table, why). The test leaves those rows alone. None
-/// so far: every update only adds.
-const CHANGED_ON_PURPOSE: &[(i64, &str, &str)] = &[];
+/// say why: (version, table, why). The test leaves those rows alone.
+const CHANGED_ON_PURPOSE: &[(i64, &str, &str)] =
+    &[(6, "cut_applied", "every cut file has its parts made again, to mark what is uncertain (D-603)")];
 
 /// The tables and columns an update renamed, (version, before, after): their
 /// rows are looked for under the new name.
@@ -175,6 +175,10 @@ fn invented(table: &str, column: &Column, row: usize, admitted: Option<&Vec<Stri
     // The whole-file appearances its files made took the first numbers.
     if table == "appearance" && column.name == "id" {
         return Value::Integer(row as i64 + 1000);
+    }
+    // What a person said of a page other than the first (V5).
+    if table == "cut_decision" && column.name == "page" {
+        return Value::Integer(row as i64 + 2);
     }
     if let Some(values) = admitted {
         return Value::Text(values[row % values.len()].clone());
@@ -570,9 +574,9 @@ fn a_failed_update_keeps_its_backup_and_names_it() {
     let before = CURRENT_VERSION - 1;
     old_base(data, before);
     {
-        // A table the next version adds is already there: its change fails.
+        // A column the next version adds is already there: its change fails.
         let conn = Connection::open(data.join(PRIVATE_DB_FILE)).unwrap();
-        conn.execute_batch("CREATE TABLE cut_decision (x)").unwrap();
+        conn.execute_batch("ALTER TABLE appearance ADD COLUMN uncertain INTEGER").unwrap();
     }
     let (base, opening) = DocBase::open_in_data_folder(data);
     let problem = base.unwrap_err();
@@ -637,6 +641,9 @@ fn a_base_of_a_newer_version_is_left_alone_and_the_backup_takes_its_place() {
     assert!(opening.backup.is_some());
     let conn = base.conn();
     for (table, (names, rows)) in &before {
+        if CHANGED_ON_PURPOSE.iter().any(|(v, t, _)| *v > version && *t == table.as_str()) {
+            continue;
+        }
         let (now_table, now_names) = named_now(version, table, names);
         assert!(missing(rows, &rows_of(&conn, &now_table, &now_names)).is_empty(), "{table}");
     }

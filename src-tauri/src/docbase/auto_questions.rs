@@ -1,12 +1,16 @@
-//! The questions of «quién es quién» and of the summaries of the pages
-//! that follow a change in what was read (D-484): they go by themselves
-//! while the automatic reading is on, «En curso» says how many they are,
-//! and when a round of them passes `CAP` the app waits for a person before
-//! going on («Seguir» or «Dejarlas para después»).
+//! The questions about the doubtful steps of the cutter (D-606), of «quién
+//! es quién» and of the summaries of the pages that follow a change in
+//! what was read (D-484): they go by themselves while the automatic
+//! reading is on, «En curso» says how many they are, and when a round of
+//! them passes `CAP` the app waits for a person before going on («Seguir»
+//! or «Dejarlas para después»).
 //!
-//! A round lasts until neither stage has questions left. How many were
-//! asked in it lives in memory (`EngineState`); what a person said of it is
-//! kept in the base, so that «para después» survives closing the app.
+//! A round lasts until no stage has questions left. How many were asked in
+//! it lives in memory (`EngineState`); what a person said of it is kept in
+//! the base, so that «para después» survives closing the app. «En curso»
+//! also says what every question to the model since the round began was
+//! for, as the base keeps them (`model_answer.task` and `asked_at`), and
+//! what the answers about cuts did to their steps.
 
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
@@ -17,8 +21,9 @@ use super::{sql_err, DocBase};
 /// Past this many questions in a round, a person says whether to go on.
 pub const CAP: usize = 50;
 
-/// The stages whose questions make the round, in the order they ask.
-pub const STAGES: [&str; 2] = ["resolve", "pages"];
+/// The stages whose questions make the round, in the order they ask: the
+/// doubtful steps of the cutter, the identities and the pages.
+pub const STAGES: [&str; 3] = ["cut", "resolve", "pages"];
 
 /// What a person said of the round (`docbase_setting`).
 const SETTING: &str = "auto_questions";
@@ -66,12 +71,37 @@ pub(crate) fn may_go(asked: usize, pending: usize, permit: Option<Permit>) -> bo
     }
 }
 
+/// The questions to the model of one task since the round began, by
+/// themselves or because a person asked.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AskedFor {
+    /// `cut`, `type`, `knowledge`, `identity`, `synthesis`…
+    pub task: String,
+    pub asked: usize,
+}
+
+/// What the answers about cuts asked since the round began did to their
+/// steps (D-606).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CutEffect {
+    /// Another document starts there: a new cut.
+    pub starts: usize,
+    /// It goes on, and the answer backs it: no longer uncertain.
+    pub backed: usize,
+    /// It goes on, with an answer of low confidence: still uncertain.
+    pub uncertain: usize,
+}
+
 /// The round as «En curso» shows it.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AutoQuestions {
     /// Questions left, as last counted.
     pub pending: usize,
+    /// Of them, those about the doubtful steps of the cutter.
+    pub cut_pending: usize,
     /// Asked since the round began.
     pub asked: usize,
     pub cap: usize,
@@ -79,12 +109,45 @@ pub struct AutoQuestions {
     pub held: Option<&'static str>,
     /// What a person said of the round: `allowed`, `later` or nothing.
     pub decision: Option<&'static str>,
+    /// Every question to the model since the round began, by task, the
+    /// most first.
+    pub asked_for: Vec<AskedFor>,
+    pub cut_effect: CutEffect,
 }
 
 impl AutoQuestions {
-    pub(crate) fn of(now: &EngineNow, permit: Option<Permit>) -> Self {
-        Self {
+    pub(crate) fn of(conn: &Connection, now: &EngineNow, permit: Option<Permit>) -> Result<Self, String> {
+        let since = now.round_since;
+        let mut statement = conn
+            .prepare("SELECT task, count(*) FROM model_answer WHERE asked_at > ?1 GROUP BY task ORDER BY count(*) DESC, task")
+            .map_err(sql_err)?;
+        let asked_for = statement
+            .query_map([since], |row| Ok(AskedFor { task: row.get(0)?, asked: row.get::<_, i64>(1)? as usize }))
+            .map_err(sql_err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(sql_err)?;
+        let low = super::cut::LOW_CONFIDENCE;
+        let cut_effect = conn
+            .query_row(
+                &format!(
+                    "SELECT coalesce(sum(s.model_says = 1), 0), coalesce(sum(s.model_says = 0 AND coalesce(s.model_confidence, '') <> '{low}'), 0),
+                            coalesce(sum(s.model_says = 0 AND s.model_confidence = '{low}'), 0)
+                     FROM cut_step s WHERE s.verdict = 'doubtful' AND s.model_says IS NOT NULL
+                       AND EXISTS (SELECT 1 FROM model_answer a WHERE a.question = s.question AND a.task = ?2 AND a.asked_at > ?1)"
+                ),
+                params![since, super::cut::CUT_TASK],
+                |row| {
+                    Ok(CutEffect {
+                        starts: row.get::<_, i64>(0)? as usize,
+                        backed: row.get::<_, i64>(1)? as usize,
+                        uncertain: row.get::<_, i64>(2)? as usize,
+                    })
+                },
+            )
+            .map_err(sql_err)?;
+        Ok(Self {
             pending: pending(now),
+            cut_pending: now.left.get("cut").copied().unwrap_or(0),
             asked: now.auto_asked,
             cap: CAP,
             held: now.auto_held,
@@ -92,12 +155,14 @@ impl AutoQuestions {
                 Permit::Allowed { .. } => "allowed",
                 Permit::Later => "later",
             }),
-        }
+            asked_for,
+            cut_effect,
+        })
     }
 }
 
 impl DocBase {
-    /// Whether the questions of `stage` (`resolve` or `pages`) may be asked
+    /// Whether the questions of `stage` (`cut`, `resolve` or `pages`) may be asked
     /// now (D-484). Unless a person allowed the round and it did not grow
     /// past that, it counts them first, asking nothing: with the answers
     /// kept, what the resolution or the pages would still ask. Says which
@@ -114,7 +179,9 @@ impl DocBase {
             None => true,
         };
         if recount {
-            if stage == "resolve" {
+            if stage == "cut" {
+                state.ran(stage, self.cut_questions()?.by_itself);
+            } else if stage == "resolve" {
                 let report = self.knowledge_resolve(None, 0)?;
                 state.ran(stage, report.left);
             } else {
@@ -134,8 +201,14 @@ impl DocBase {
         let state = self.engine_state();
         let now = state.snapshot();
         let own = now.left.get(stage).copied().unwrap_or(0);
-        let go = own == 0 || may_go(now.auto_asked, pending(&now), permit(&self.conn())?);
-        state.auto_held((!go).then_some(stage));
+        let round_goes = may_go(now.auto_asked, pending(&now), permit(&self.conn())?);
+        let go = own == 0 || round_goes;
+        // A stage with nothing to ask leaves another's wait as it is.
+        if !go {
+            state.auto_held(Some(stage));
+        } else if round_goes || now.auto_held == Some(stage) {
+            state.auto_held(None);
+        }
         Ok(go)
     }
 
@@ -155,7 +228,7 @@ impl DocBase {
         Ok(())
     }
 
-    /// Nothing left to ask in either stage: the round is over, and what a
+    /// Nothing left to ask in any stage: the round is over, and what a
     /// person said of it goes with it.
     pub(crate) fn auto_questions_round_over(&self) -> Result<(), String> {
         self.engine_state().auto_round_over();
@@ -226,7 +299,7 @@ domicilio inventado, sin observaciones de ninguna de las partes.";
         assert_eq!(base.engine_state().snapshot().left.get("resolve"), Some(&0));
         assert_eq!(base.engine_state().snapshot().auto_held, None);
         let shown = base.progress(&Scope::default()).unwrap().auto_questions;
-        assert_eq!(shown, AutoQuestions { pending: 0, asked: 0, cap: CAP, held: None, decision: None });
+        assert_eq!(shown, AutoQuestions { pending: 0, asked: 0, cap: CAP, held: None, decision: None, ..shown.clone() });
     }
 
     #[test]
@@ -242,7 +315,7 @@ domicilio inventado, sin observaciones de ninguna de las partes.";
         state.ran("resolve", 60);
         assert!(!base.auto_questions_judge("resolve").unwrap());
         let progress = base.progress(&Scope::default()).unwrap();
-        assert_eq!(progress.auto_questions, AutoQuestions { pending: 60, asked: 0, cap: CAP, held: Some("resolve"), decision: None });
+        assert_eq!(progress.auto_questions, AutoQuestions { pending: 60, asked: 0, cap: CAP, held: Some("resolve"), decision: None, ..progress.auto_questions.clone() });
         let stage = resolve_stage(&base);
         assert_eq!((stage.state, stage.extra.get("held")), ("paused", Some(&1)));
 
@@ -265,7 +338,9 @@ domicilio inventado, sin observaciones de ninguna de las partes.";
         state.ran("pages", 0);
         base.auto_questions_round_over().unwrap();
         let shown = base.progress(&Scope::default()).unwrap().auto_questions;
-        assert_eq!(shown, AutoQuestions { pending: 0, asked: 0, cap: CAP, held: None, decision: None });
+        assert_eq!(shown, AutoQuestions { pending: 0, asked: 0, cap: CAP, held: None, decision: None, ..shown.clone() });
+        // A new round: the questions asked before are not its own (D-606).
+        assert!(shown.asked_for.is_empty(), "{:?}", shown.asked_for);
 
         // Left for later: even a few wait, until a person says go on; it
         // survives closing the app.

@@ -302,7 +302,7 @@ fn load_units(conn: &Connection, catalog: &Catalog, docs: &BTreeMap<i64, DocInfo
     // Typed together: a family and the documents of the same template,
     // which are different documents of the same type.
     let mut families: BTreeMap<i64, Vec<(i64, Option<String>)>> = BTreeMap::new();
-    let (units, links) = super::store::grouped_all(conn, super::store::UNIT_RELATIONS)?;
+    let (units, links) = super::store::grouped(conn, super::store::UNIT_RELATIONS)?;
     for unit in units {
         let entry = families.entry(unit.principal).or_default();
         for member in unit.members.into_iter().filter(|m| *m != unit.principal) {

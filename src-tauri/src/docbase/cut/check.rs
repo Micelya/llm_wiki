@@ -27,6 +27,7 @@
 //!   `MICELYA_ASK_REASONING`), one at a time.
 //! - `MICELYA_ANSWER_SEED_WRITE`: where the answers about cuts the base
 //!   keeps at the end are written, as `model_answer` rows.
+//! - `MICELYA_KNOWLEDGE_SAVE`: where a copy of the base is kept at the end.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -57,7 +58,7 @@ pub(crate) fn seed_answers(base: &DocBase, files: &str) -> usize {
     put
 }
 
-fn written_answers(base: &DocBase) -> Value {
+pub(super) fn written_answers(base: &DocBase) -> Value {
     let conn = base.conn();
     let mut statement = conn
         .prepare("SELECT question, task, prompt_version, engine, prompt, answer, asked_at FROM model_answer WHERE task = ?1 ORDER BY question, engine")
@@ -81,7 +82,7 @@ fn decisions(base: &DocBase, hash: &str, name: &str, pages: u64, with_model: boo
     let mut out = Vec::new();
     let mut types = BTreeMap::new();
     for s in &steps {
-        let answered = with_model && s.verdict == Verdict::Doubtful && s.model_says.is_some();
+        let answered = with_model && s.by_model();
         let (decision, rule) = if answered {
             (if s.starts() { "new" } else { "continue" }, "codex")
         } else {
@@ -166,7 +167,7 @@ fn the_cutter_over_the_parts_sheet() {
     }
     let answered: usize = sheet_files
         .iter()
-        .map(|(h, _, _)| base.cut_steps(h).unwrap().iter().filter(|s| s.verdict == Verdict::Doubtful && s.model_says.is_some()).count())
+        .map(|(h, _, _)| base.cut_steps(h).unwrap().iter().filter(|s| s.by_model()).count())
         .sum();
     let b: Vec<Value> = sheet_files.iter().map(|(h, n, p)| decisions(&base, h, n, *p, true)).collect();
     let meta = json!({"codex_calls": answered + report.failed, "codex_seconds": report.seconds, "codex_failed": report.failed,
@@ -180,7 +181,7 @@ fn the_cutter_over_the_parts_sheet() {
         let rows = statement.query_map([], |row| row.get(0)).unwrap();
         rows.map(|r| r.unwrap()).filter(|h: &String| !only.contains(h)).collect()
     };
-    let (mut with_cut, mut cuts, mut doubtful, mut steps) = (0, 0, 0, 0);
+    let (mut with_cut, mut cuts, mut doubtful, mut even, mut steps) = (0, 0, 0, 0, 0);
     let mut by_rule: BTreeMap<String, usize> = BTreeMap::new();
     for h in &others {
         let s = base.cut_steps(h).unwrap();
@@ -191,10 +192,11 @@ fn the_cutter_over_the_parts_sheet() {
         with_cut += usize::from(!new.is_empty());
         cuts += new.len();
         doubtful += s.iter().filter(|s| s.verdict == Verdict::Doubtful).count();
+        even += s.iter().filter(|s| s.rule == super::rules::UNIFORM).count();
         steps += s.iter().filter(|s| s.after > 0).count();
     }
     println!(
-        "other PDFs of two pages or more: {}; with some cut: {with_cut}; cuts: {cuts} {by_rule:?}; steps: {steps}; doubtful: {doubtful}",
+        "other PDFs of two pages or more: {}; with some cut: {with_cut}; cuts: {cuts} {by_rule:?}; steps: {steps}; doubtful: {doubtful}; going on as an even file: {even}",
         others.len()
     );
     if let Ok(path) = std::env::var("MICELYA_ANSWER_SEED_WRITE") {
@@ -202,6 +204,7 @@ fn the_cutter_over_the_parts_sheet() {
         println!("answers about cuts written: {}", answers.as_array().unwrap().len());
         std::fs::write(path, serde_json::to_string_pretty(&answers).unwrap()).unwrap();
     }
+    crate::docbase::knowledge::check::save_copy(&base);
 }
 
 /// Makes an empty base of this version at `MICELYA_EMPTY_BASE`, for
@@ -309,8 +312,13 @@ fn the_parts_over_the_whole_folder() {
     }
     crate::docbase::knowledge::check::print_cache_hits(&base);
     // The questions the thread that asks the model would take about the
-    // doubtful steps once the automatic reading is on (`cut_background`).
-    println!("   cut, doubtful steps without an answer kept: {}", base.cut_doubtful_left(None).unwrap());
+    // doubtful steps once the automatic reading is on (`cut_background`),
+    // and those that wait for a person to ask (D-622).
+    let questions = base.cut_questions().unwrap();
+    println!(
+        "   cut, doubtful steps without an answer kept: {} asked by itself, {} only when a person asks",
+        questions.by_itself, questions.on_request
+    );
     parts_report(&base, &sheet, "after the reading");
     crate::docbase::knowledge::check::save_copy(&base);
     let Ok(limit) = std::env::var("MICELYA_CUT_ASK") else {
@@ -361,4 +369,74 @@ fn the_parts_over_the_whole_folder() {
         std::fs::write(&path, serde_json::to_string_pretty(&written_answers(&base)).unwrap()).unwrap();
         println!("answers about cuts written: {path}");
     }
+}
+
+/// How many doubtful steps the thread that asks the model takes by itself
+/// and how many wait for a person to ask (D-606, D-622), by group: the
+/// files of the parts sheet (`MICELYA_CUT_SHEET`), the other files a rule
+/// cuts and those of one document. On a copy of a base (`MICELYA_CUT_BASE`:
+/// it is changed, keep it outside the repository) it counts them with the
+/// answers kept, and then without the answers about cuts, every PDF cut
+/// again as the app cuts before any answer. Asks nothing.
+#[test]
+#[ignore = "changes the copy of a base named in MICELYA_CUT_BASE"]
+fn the_questions_the_cutter_would_ask() {
+    let (Ok(path), Ok(sheet)) = (std::env::var("MICELYA_CUT_BASE"), std::env::var("MICELYA_CUT_SHEET")) else {
+        println!("MICELYA_CUT_BASE or MICELYA_CUT_SHEET is not set: nothing to measure");
+        return;
+    };
+    let sheet: Value = serde_json::from_str(&std::fs::read_to_string(&sheet).unwrap()).unwrap();
+    let in_sheet: BTreeSet<String> =
+        sheet["files"].as_array().into_iter().flatten().filter_map(|f| f["sha256"].as_str().map(str::to_string)).collect();
+    let base = DocBase::open(std::path::Path::new(&path)).unwrap();
+    let count = |when: &str| {
+        // The connection is let go before the base counts on its own.
+        let rows: Vec<(String, bool, i64, i64, i64, i64)> = {
+        let conn = base.conn();
+        let mut statement = conn
+            .prepare(
+                "SELECT resource_hash, max(verdict = 'new' AND after_page > 0), count(*) - 1, sum(rule = 'uniform'),
+                        sum(verdict = 'doubtful' AND question IS NOT NULL),
+                        sum(verdict = 'doubtful' AND model_says IS NULL AND question IS NOT NULL)
+                 FROM cut_step GROUP BY resource_hash HAVING max(after_page) >= 1",
+            )
+            .unwrap();
+        let rows = statement
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)))
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect();
+        rows
+        };
+        println!("--- {when}: group · files · steps · even · doubtful · without an answer · asked by itself · waiting for a person");
+        let groups: [(&str, Box<dyn Fn(&(String, bool, i64, i64, i64, i64)) -> bool>); 3] = [
+            ("sheet", Box::new(|r| in_sheet.contains(&r.0))),
+            ("other compound", Box::new(|r| !in_sheet.contains(&r.0) && r.1)),
+            ("one document", Box::new(|r| !in_sheet.contains(&r.0) && !r.1)),
+        ];
+        for (name, of) in groups.iter() {
+            let rows: Vec<_> = rows.iter().filter(|r| of(r)).collect();
+            let sum = |f: &dyn Fn(&(String, bool, i64, i64, i64, i64)) -> i64| rows.iter().map(|r| f(r)).sum::<i64>();
+            let by_itself = sum(&|r| if r.1 { r.5 } else { 0 });
+            println!(
+                "   {name} · {} · {} · {} · {} · {} · {by_itself} · {}",
+                rows.len(),
+                sum(&|r| r.2),
+                sum(&|r| r.3),
+                sum(&|r| r.4),
+                sum(&|r| r.5),
+                sum(&|r| r.5) - by_itself
+            );
+        }
+        let questions = base.cut_questions().unwrap();
+        println!("   all: asked by itself {} · waiting for a person {}", questions.by_itself, questions.on_request);
+    };
+    count("with the answers kept");
+    {
+        let conn = base.conn();
+        conn.execute("DELETE FROM model_answer WHERE task = ?1", [CUT_TASK]).unwrap();
+        conn.execute("DELETE FROM cut_step", []).unwrap();
+    }
+    while base.cut_pending(16).unwrap() > 0 {}
+    count("cut again without the answers about cuts (the order of the app)");
 }

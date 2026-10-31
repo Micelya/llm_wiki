@@ -92,7 +92,8 @@ pub struct DocumentRow {
     /// The documents the file includes, when it joins several (D-560):
     /// 0 for a file of one document.
     pub included: i64,
-    /// How many of those documents have a cut no person confirmed yet.
+    /// How many of those documents have an uncertain cut (D-603); for a
+    /// PDF of one document, 1 when one of its steps is uncertain.
     pub unconfirmed_cuts: i64,
 }
 
@@ -160,6 +161,9 @@ pub struct PartOf {
     pub cut_by: String,
     /// `proposed` or `confirmed`.
     pub cut_state: String,
+    /// A step that bounds it, or one inside it, has nothing to back it
+    /// (D-603): it is shown as uncertain.
+    pub uncertain: bool,
 }
 
 /// How the archive is doing, in numbers.
@@ -607,6 +611,7 @@ impl DocBase {
             last_page: part.last_page,
             cut_by: part.cut_by.clone(),
             cut_state: part.cut_state.clone(),
+            uncertain: part.uncertain,
         });
         Ok(Some(detail))
     }
@@ -699,8 +704,9 @@ pub(crate) fn rows_sql(visible: &Visible, only: Option<i64>) -> (String, Vec<Val
                 dt.doc_type AS doc_type, dt.stage AS doc_stage, coalesce(dt.proposed, 0) AS doc_type_proposed,
                 dt.proposed_name AS doc_type_name,
                 (SELECT count(*) FROM appearance a WHERE a.resource_hash = l.file_hash AND a.selector <> 'file') AS included,
-                (SELECT count(*) FROM appearance a WHERE a.resource_hash = l.file_hash AND a.selector <> 'file'
-                    AND a.cut_state <> 'confirmed') AS unconfirmed_cuts
+                (SELECT count(*) FROM appearance a WHERE a.resource_hash = l.file_hash AND a.uncertain = 1
+                    AND (a.selector <> 'file' OR NOT EXISTS (SELECT 1 FROM appearance p
+                                                             WHERE p.resource_hash = a.resource_hash AND p.selector <> 'file'))) AS unconfirmed_cuts
          FROM location l
          JOIN origin o ON o.id = l.origin_id
          LEFT JOIN file f ON f.hash = l.file_hash

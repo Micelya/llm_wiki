@@ -569,6 +569,7 @@ pub fn run() {
             docbase::commands::docbase_cut_split,
             docbase::commands::docbase_cut_join,
             docbase::commands::docbase_cut_confirm,
+            docbase::commands::docbase_cut_ask,
             commands::fs::delete_file,
             commands::fs::create_directory,
             commands::fs::get_file_size,

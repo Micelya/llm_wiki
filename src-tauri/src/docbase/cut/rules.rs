@@ -20,6 +20,13 @@
 //! 9. `closer` / `opener`: the page before ends with a closing formula, or
 //!    the next one starts with an opening formula: new.
 //! 10. `none`: doubtful (it counts as continue until the model answers).
+//!
+//! Then, over the whole file, `uniform` (the even file, `uniform` in the
+//! catalog): when no step starts another document by a rule and every
+//! page that is not blank is made the same way, on paper of the same
+//! orientation and size, a step `none` the model did not answer goes on
+//! (D-603). An answer of the model weighs more (D-615), and a step after
+//! a page that ends with a signature stays doubtful (D-616).
 
 use super::catalog::catalog;
 use super::signals::{Making, PageSignals};
@@ -117,7 +124,42 @@ pub fn step(prev: &PageSignals, next: &PageSignals) -> (Verdict, &'static str) {
     if has_any(&head, &c.openers).is_some() {
         return (Verdict::New, "opener");
     }
-    (Verdict::Doubtful, "none")
+    (Verdict::Doubtful, NONE)
+}
+
+/// The rule a step takes when the file is even.
+pub const UNIFORM: &str = "uniform";
+
+/// The rule of a step no rule decided.
+pub const NONE: &str = "none";
+
+fn same_paper((aw, ah): (f64, f64), (bw, bh): (f64, f64), share: f64) -> bool {
+    (aw > ah) == (bw > bh) && !differs(aw, bw, share) && !differs(ah, bh, share)
+}
+
+/// Whether a file is even: the rule is on, none of the `verdicts` of its
+/// steps (from one page to the next) starts another document, and its
+/// pages that are not blank are all digital or all scans, on paper of the
+/// orientation and, within `sizeShare`, the size of the first of them.
+pub fn uniform(pages: &[PageSignals], verdicts: &[Verdict]) -> bool {
+    let u = &catalog().uniform;
+    if !u.on || verdicts.contains(&Verdict::New) {
+        return false;
+    }
+    let mut kept = pages.iter().filter(|p| p.making != Making::Blank);
+    let Some(first) = kept.next() else {
+        return false;
+    };
+    kept.all(|p| p.making == first.making && same_paper(first.size, p.size, u.size_share))
+}
+
+/// Whether a page ends with a signature (`signatures` of the even file,
+/// in its last `signatureLines` own lines): the step after it is not let
+/// go on by the even file, as a signed page often closes a document.
+pub fn signed_at_the_end(page: &PageSignals) -> bool {
+    let u = &catalog().uniform;
+    let tail = page.lines[page.lines.len().saturating_sub(u.signature_lines)..].join(" ");
+    has_any(&tail, &u.signatures).is_some()
 }
 
 /// The type the vocabulary finds in the first page of a document.
@@ -206,6 +248,38 @@ mod tests {
         assert_eq!(step(&digital(1, &[PLAIN[0], &closer]), &digital(2, &PLAIN)), (Verdict::New, "closer"));
         assert_eq!(step(&digital(1, &PLAIN), &digital(2, &[&opener, PLAIN[1]])), (Verdict::New, "opener"));
         assert_eq!(step(&digital(1, &PLAIN), &digital(2, &PLAIN)), (Verdict::Doubtful, "none"));
+    }
+
+    #[test]
+    fn a_file_is_even_with_no_cut_of_a_rule_and_pages_made_alike_on_the_same_paper() {
+        use Verdict::{Continue, Doubtful, New};
+        let a4 = (595.0, 842.0);
+        let sized = |page, size| PageSignals { size, ..digital(page, &PLAIN) };
+        let even = [sized(1, a4), sized(2, (596.0, 840.0)), sized(3, a4)];
+        assert!(uniform(&even, &[Doubtful, Continue]));
+        // A cut of a rule anywhere: not even.
+        assert!(!uniform(&even, &[New, Doubtful]));
+        // Digital pages of two sizes, or of another orientation.
+        assert!(!uniform(&[sized(1, a4), sized(2, (612.0, 1008.0))], &[Doubtful]));
+        assert!(!uniform(&[sized(1, a4), sized(2, (842.0, 595.0))], &[Doubtful]));
+        // A scan beside digital pages, past a blank page that hides it from the steps.
+        let blank = PageSignals { size: (612.0, 1008.0), ..PageSignals::bare(2, Making::Blank) };
+        assert!(uniform(&[sized(1, a4), blank.clone(), sized(3, a4)], &[Continue, Doubtful]));
+        let paper = scan(3, 200, (1654, 2339), "Gray", a4);
+        assert!(!uniform(&[sized(1, a4), blank, paper.clone()], &[Continue, Doubtful]));
+        // Scans alike are even too.
+        assert!(uniform(&[scan(1, 200, (1654, 2339), "Gray", a4), paper], &[Doubtful]));
+    }
+
+    #[test]
+    fn a_page_that_ends_with_a_signature_is_signed_at_the_end() {
+        let sign = catalog().uniform.signatures[1].clone();
+        assert!(signed_at_the_end(&digital(1, &[PLAIN[0], &sign, "nombre inventado", PLAIN[1]])));
+        assert!(!signed_at_the_end(&digital(1, &PLAIN)));
+        // Far from the end it is not the page's signature.
+        let mut lines = vec![sign.as_str()];
+        lines.extend([PLAIN[0]; 8]);
+        assert!(!signed_at_the_end(&digital(1, &lines)));
     }
 
     #[test]

@@ -62,30 +62,88 @@ export function OngoingTab({ progress, error, extra }: { progress: Progress | nu
   )
 }
 
-/** What the round of automatic questions has, in words (D-484). */
+/** What each task of the model asks, in words (D-606). */
+const TASK_WORDS: Record<string, string> = {
+  cut: "dónde empieza cada documento",
+  type: "qué es cada documento",
+  data: "los datos de los documentos",
+  "template-fields": "los campos de las plantillas",
+  knowledge: "la lectura de los documentos",
+  identity: "quién es quién",
+  matter: "los casos",
+  synthesis: "el resumen de las fichas",
+}
+
+/**
+ * The questions to the model since the round began and what they were for (D-606):
+ * «12 preguntas» and «8 sobre dónde empieza cada documento (3 cortes nuevos, 5 pasos respaldados), 4 sobre quién es quién».
+ */
+export function askedForText(round: AutoQuestions): { count: string; detail: string } | null {
+  const asked = (round.askedFor ?? []).filter((item) => item.asked > 0)
+  const total = asked.reduce((sum, item) => sum + item.asked, 0)
+  if (total === 0) return null
+  const effect = round.cutEffect
+  const cut = effect
+    ? [
+        effect.starts > 0 && plural(effect.starts, "corte nuevo", "cortes nuevos"),
+        effect.backed > 0 && plural(effect.backed, "paso respaldado", "pasos respaldados"),
+        effect.uncertain > 0 && plural(effect.uncertain, "incierto", "inciertos"),
+      ].filter(Boolean)
+    : []
+  const detail = asked.map(({ task, asked: count }) => {
+    const what = `${formatCount(count)} sobre ${TASK_WORDS[task] ?? task}`
+    return task === "cut" && cut.length > 0 ? `${what} (${cut.join(", ")})` : what
+  })
+  return { count: plural(total, "pregunta", "preguntas"), detail: detail.join(", ") }
+}
+
+/** What the questions left of the round are about. */
+function roundWhat(round: AutoQuestions): string {
+  const cut = round.cutPending ?? 0
+  if (cut === 0) return "de quién es quién y de resumen de las fichas"
+  if (cut >= round.pending) return "sobre dónde empieza cada documento"
+  return "sobre dónde empieza cada documento, de quién es quién y de resumen de las fichas"
+}
+
+/** What the round of automatic questions has, in words (D-484), and what it already asked (D-606). */
 export function autoQuestionsText(round: AutoQuestions): { title: string; explanation: string } | null {
   const total = round.asked + round.pending
-  if (round.pending === 0) return null
+  const soFar = askedForText(round)
+  if (round.pending === 0) {
+    if (!soFar) return null
+    return {
+      title: `En esta vuelta la app hizo ${soFar.count} al modelo`,
+      explanation: `${soFar.detail}. Usan la cuota de tu proveedor.`,
+    }
+  }
+  const already = soFar ? ` En esta vuelta ya hizo ${soFar.count}: ${soFar.detail}.` : ""
   const questions = plural(round.pending, "pregunta", "preguntas")
   const done = round.asked > 0 ? ` (ya hizo ${formatCount(round.asked)} de ${formatCount(total)})` : ""
+  const what = roundWhat(round)
+  const onlyCuts = (round.cutPending ?? 0) >= round.pending
   if (round.held && round.decision === "later") {
     return {
-      title: `Dejaste para después ${questions} de quién es quién y de resumen de las fichas`,
+      title: `Dejaste para después ${questions} ${what}`,
       explanation:
-        "Hasta que sigas, algunas identidades quedan sin resolver y algunas fichas sin su resumen. Usan la cuota de tu proveedor.",
+        (onlyCuts
+          ? "Hasta que sigas, esos pasos entre páginas quedan inciertos. Usan la cuota de tu proveedor."
+          : "Hasta que sigas, algunas identidades quedan sin resolver y algunas fichas sin su resumen. Usan la cuota de tu proveedor.") + already,
     }
   }
   if (round.held) {
     return {
       title: `La app espera tu permiso para hacer ${questions} al modelo`,
       explanation:
-        `Son preguntas de quién es quién y de resumen de las fichas${done}, que siguen a un cambio en lo leído. ` +
-        `Pasan de ${formatCount(round.cap)}, así que la app no sigue sin tu permiso. Usan la cuota de tu proveedor.`,
+        `Son preguntas ${what}${done}, que siguen a un cambio en lo leído. ` +
+        `Pasan de ${formatCount(round.cap)}, así que la app no sigue sin tu permiso. Usan la cuota de tu proveedor.` +
+        already,
     }
   }
   return {
-    title: `La app va a hacer ${questions} de quién es quién y de resumen de las fichas${done}`,
-    explanation: `Van solas mientras la lectura automática está activa. Si en total pasan de ${formatCount(round.cap)}, la app pide permiso antes de seguir.`,
+    title: `La app va a hacer ${questions} ${what}${done}`,
+    explanation:
+      `Van solas mientras la lectura automática está activa. Si en total pasan de ${formatCount(round.cap)}, la app pide permiso antes de seguir.` +
+      already,
   }
 }
 

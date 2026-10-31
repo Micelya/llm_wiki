@@ -38,6 +38,7 @@
 //! (R-06). The rules it follows are `docs/design/reglas-de-procesamiento.md`.
 
 pub mod align;
+pub mod attest;
 pub mod by_type;
 pub mod changes;
 #[cfg(test)]

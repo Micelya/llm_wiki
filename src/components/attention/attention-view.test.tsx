@@ -354,6 +354,20 @@ describe("the questions that go by themselves in «En curso» (D-484)", () => {
     expect(text(renderToStaticMarkup(<AttentionView />))).toContain("La app va a hacer 8 preguntas de quién es quién")
   })
 
+  it("says what the questions of the round were for and what those about cuts did (D-606)", () => {
+    const done = autoQuestionsText(
+      round({ askedFor: [{ task: "cut", asked: 8 }, { task: "identity", asked: 4 }], cutEffect: { starts: 3, backed: 5, uncertain: 0 } }),
+    )
+    expect(done?.title).toBe("En esta vuelta la app hizo 12 preguntas al modelo")
+    expect(done?.explanation).toContain("8 sobre dónde empieza cada documento (3 cortes nuevos, 5 pasos respaldados), 4 sobre quién es quién")
+    const going = autoQuestionsText(round({ pending: 6, cutPending: 6, askedFor: [{ task: "cut", asked: 2 }] }))
+    expect(going?.title).toBe("La app va a hacer 6 preguntas sobre dónde empieza cada documento")
+    expect(going?.explanation).toContain("En esta vuelta ya hizo 2 preguntas: 2 sobre dónde empieza cada documento.")
+    const later = autoQuestionsText(round({ pending: 60, cutPending: 60, held: "cut", decision: "later" }))
+    expect(later?.title).toBe("Dejaste para después 60 preguntas sobre dónde empieza cada documento")
+    expect(later?.explanation).toContain("esos pasos entre páginas quedan inciertos")
+  })
+
   it("past the cap, asks for permission to go on or to leave them for later", async () => {
     const html = renderToStaticMarkup(<AutoQuestionsLine round={round({ pending: 60, held: "resolve" })} />)
     expect(html).toContain('data-auto-questions="held"')

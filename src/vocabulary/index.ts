@@ -155,7 +155,19 @@ export interface Vocabulary {
     partOf: string
     backToFile: string
     listIncludes: string
+    /** How many of the documents a file includes have an uncertain cut (D-603). */
     listUnconfirmed: string
+    /** A PDF of one document with an uncertain step. */
+    listOneUncertain: string
+    /** A person asks the model about the uncertain steps of the file (D-606), and what it costs. */
+    ask: string
+    askHelp: string
+    /** The strip of a PDF of one document with uncertain steps. */
+    wholeTitle: string
+    wholeDescription: string
+    /** The mark of what comes out of an uncertain cut: a pair, a family, a member of a matter. */
+    uncertain: string
+    uncertainHelp: string
   }
 }
 
