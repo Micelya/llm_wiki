@@ -4020,12 +4020,12 @@
       "titulo": "La verificación de la extracción tira una cita que difiere del texto solo en la forma jurídica final",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "a-verificar",
       "prioridad": 3,
       "tema": "lectura y relaciones",
-      "detalle": "En el paso 12 de la prueba de la estructura, la verificación tiró menciones que el modelo sí dio, porque su cita traía una forma jurídica final («S.A.», «S.R.L.») que el texto no tiene, o al revés. El motivo fue «cita-no-encontrada». Propuesta general: buscar la cita también sin la forma jurídica final, de un lado y del otro, y medir que no entre nada falso. Una cita que es solo una dirección web está bien tirada y no cambia. Esfuerzo: chico. Ver el informe del paso 12. 2026-10-30: Va en el paso 2 de la segunda corrida (P-481). Efecto en producción: ninguna consulta.",
+      "detalle": "En el paso 12 de la prueba de la estructura, la verificación tiró menciones que el modelo sí dio, porque su cita traía una forma jurídica final («S.A.», «S.R.L.») que el texto no tiene, o al revés. El motivo fue «cita-no-encontrada». Propuesta general: buscar la cita también sin la forma jurídica final, de un lado y del otro, y medir que no entre nada falso. Una cita que es solo una dirección web está bien tirada y no cambia. Esfuerzo: chico. Ver el informe del paso 12. 2026-10-30: Va en el paso 2 de la segunda corrida (P-481). Efecto en producción: ninguna consulta. 2026-10-31: Hecho el código en el paso 3 de la segunda corrida (D-684): una cita que no está en el texto se busca otra vez sin la forma jurídica final, de un lado y del otro; dos formas distintas no se aceptan, y una cita que es solo una dirección web se sigue tirando. Falta medir en el paso 11 que no entre nada falso. Efecto en producción: ninguna consulta.",
       "creado": "2026-10-30",
-      "actualizado": "2026-10-30"
+      "actualizado": "2026-10-31"
     },
     {
       "id": "P-481",
@@ -4044,12 +4044,12 @@
       "titulo": "La pregunta de la extracción con las tres formas que sí son mención (D-665)",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "a-verificar",
       "prioridad": 2,
       "tema": "lectura y relaciones",
-      "detalle": "Cambiar la pregunta y su versión, con reglas generales (R-24). Las tres formas: un identificador rotulado de un asunto («Proyecto:», «Expediente N°», «Orden de compra»), que es mención de ese asunto; una dirección de correo sola, que es un dato de la persona, o de la organización si el correo es de ella; y los nombres de las partes dentro de una carátula, que son personas unidas al asunto. El cargo sin nombre sigue sin registrarse. Efecto en producción: no suma consultas; la pregunta es algo más larga. Paso 2 de la segunda corrida (P-481).",
+      "detalle": "Cambiar la pregunta y su versión, con reglas generales (R-24). Las tres formas: un identificador rotulado de un asunto («Proyecto:», «Expediente N°», «Orden de compra»), que es mención de ese asunto; una dirección de correo sola, que es un dato de la persona, o de la organización si el correo es de ella; y los nombres de las partes dentro de una carátula, que son personas unidas al asunto. El cargo sin nombre sigue sin registrarse. Efecto en producción: no suma consultas; la pregunta es algo más larga. Paso 2 de la segunda corrida (P-481). 2026-10-31: Hecho el código en el paso 3 de la segunda corrida: la pregunta de la extracción pasa a «conocimiento-8», con las tres formas que sí son mención como reglas generales (D-665, D-680). No hizo falta un campo nuevo en la respuesta: el correo de alguien va como su «contacto», y un correo solo va como mención cuyo nombre escrito es la dirección, que la base ya guarda y compara por la dirección. Falta medirlo con la hoja de entidades (paso 11). Efecto en producción: las mismas consultas por documento; la pregunta es algo más larga. Las lecturas hechas con «conocimiento-7» se conservan y no se vuelven a preguntar solas.",
       "creado": "2026-10-30",
-      "actualizado": "2026-10-30"
+      "actualizado": "2026-10-31"
     },
     {
       "id": "P-483",
@@ -4080,10 +4080,10 @@
       "titulo": "Refinar la búsqueda de documentos parecidos: cuatro reglas generales",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "a-verificar",
       "prioridad": 2,
       "tema": "base",
-      "detalle": "El dueño no acepta como normales los errores de la búsqueda de parecidos (D-666). La verificación del 30 oct encontró 4 pares con error, 7 casos entre las dos cadenas. Casi nada vino de la lectura: vinieron de las reglas por tipo, de una marca de agua que ningún lector lee y de la hoja. Propuesta: 1) la regla de «datos distintos» baja a «misma plantilla», no a «parecido», cuando el texto en común es al menos el 80 %; 2) el dato que sale de una marca (por ejemplo, un número de envío) toma el propio del documento, no uno citado en el cuerpo; 3) una etapa exige sus datos: una carta «enviada» sin número de envío no es enviada; 4) el sello de un servicio de firma electrónica cuenta como firma de una parte. Se mide con la hoja de copias: cuántos pares arregla y cuántos rompe cada regla. Efecto en producción: ninguno, son reglas locales. Paso 2 de la segunda corrida (P-481). 2026-10-31: Según D-676, las cuatro reglas se miden con la hoja nueva de parecidos (P-497), sin contar los pares de los que salieron. La hoja vieja se informa aparte.",
+      "detalle": "El dueño no acepta como normales los errores de la búsqueda de parecidos (D-666). La verificación del 30 oct encontró 4 pares con error, 7 casos entre las dos cadenas. Casi nada vino de la lectura: vinieron de las reglas por tipo, de una marca de agua que ningún lector lee y de la hoja. Propuesta: 1) la regla de «datos distintos» baja a «misma plantilla», no a «parecido», cuando el texto en común es al menos el 80 %; 2) el dato que sale de una marca (por ejemplo, un número de envío) toma el propio del documento, no uno citado en el cuerpo; 3) una etapa exige sus datos: una carta «enviada» sin número de envío no es enviada; 4) el sello de un servicio de firma electrónica cuenta como firma de una parte. Se mide con la hoja de copias: cuántos pares arregla y cuántos rompe cada regla. Efecto en producción: ninguno, son reglas locales. Paso 2 de la segunda corrida (P-481). 2026-10-31: Según D-676, las cuatro reglas se miden con la hoja nueva de parecidos (P-497), sin contar los pares de los que salieron. La hoja vieja se informa aparte. 2026-10-31: Hecho el código en el paso 3 de la segunda corrida, con una prueba unitaria por regla y textos inventados: datos distintos bajan a «misma plantilla» si comparten al menos el 80 % del texto (D-685); el dato de una marca es el primero en el orden de lectura y el dato compartido tiene que ser el propio de cada uno; una etapa exige sus datos, como dato del catálogo (D-686); el sello de un servicio de firma, en un PDF sellado, cuenta como firma de una parte (D-686). Falta medirlas con la hoja nueva de parecidos (paso 11). Efecto en producción: no suma consultas; resta una pregunta de tipo por cada carta de la misma plantilla que antes se tipaba aparte.",
       "creado": "2026-10-30",
       "actualizado": "2026-10-31"
     },
@@ -4288,6 +4288,30 @@
       "prioridad": 3,
       "tema": "pruebas y calidad",
       "detalle": "Los 39 pares para medir de la hoja nueva de parecidos (P-497, D-683) los decidió Claude leyendo los textos, y quedan sin confirmar. Los que más conviene mirar: dos copias de un escrito que solo agregan el sello de incorporación de un oficio electrónico, puestas como «prácticamente el mismo»; una resolución transcripta dentro de un oficio, puesta como «contenido en»; dos páginas de un mismo oficio, una con el sello del juzgado y la firma de la secretaría, puesta como «ejemplar firmado»; y dos pares de escritos distintos sobre el mismo pedido, puestos como «mismo asunto». El examen aporta solo 4 pares, porque sus archivos son de asuntos distintos.",
+      "creado": "2026-10-31",
+      "actualizado": "2026-10-31"
+    },
+    {
+      "id": "P-503",
+      "titulo": "Decidir si la etapa corregida por sus datos se muestra en la pantalla",
+      "tipo": "decision",
+      "responsable": "dueño",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "base",
+      "detalle": "Desde D-686, una carta que el modelo dio como «enviada» sin número de envío se toma como «vista previa» para las reglas de parecidos, pero la pantalla sigue mostrando la etapa que dijo el modelo. Así, un par puede aparecer como «vista previa» y el documento como «enviada». Mostrar la etapa corregida cambia lo que ve la persona y lo que guarda la base, sin consultas nuevas. Riesgo a medir antes: una carta enviada cuyo número no se pudo leer (un escaneo malo) o de un correo cuyo número el catálogo no reconoce pasa a «vista previa»; si no tiene una marca que muestre que se envió, puede salir como vista previa de su borrador.",
+      "creado": "2026-10-31",
+      "actualizado": "2026-10-31"
+    },
+    {
+      "id": "P-504",
+      "titulo": "Medir si el nombre con una forma jurídica que el texto no tiene confunde la identidad",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "lectura y relaciones",
+      "detalle": "Desde D-684 se acepta una cita que difiere del texto solo en la forma jurídica final. El nombre escrito queda como lo dio el modelo, así que puede llevar una forma que el texto no dice («X S.A.» donde el texto dice «X»). Para la identidad, cada forma es una organización distinta: ese nombre podría separarse de «X S.R.L.» o unirse a «X S.A.» sin que el texto lo diga. Medirlo con la hoja de entidades (paso 11). Si pasa, la propuesta general es quitar del nombre la forma que el texto no tiene. Efecto en producción: ninguna consulta.",
       "creado": "2026-10-31",
       "actualizado": "2026-10-31"
     }
