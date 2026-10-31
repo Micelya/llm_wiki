@@ -167,6 +167,11 @@ pub fn find(rule: &DataRule, body: &str, marks: &[Mark]) -> Vec<(String, &'stati
                 push(&mut from_marks, value.clone());
             }
         }
+        // The document's own value is the first in reading order, the one
+        // of its form or its heading; one cited in its body comes later and
+        // is a reference to another document (P-485).
+        let at = |value: &String| tokens.iter().position(|t| comparable(&t.raw.text) == comparable(value)).unwrap_or(usize::MAX);
+        from_marks.sort_by_key(at);
     }
     for token in &tokens {
         if rule.shapes.iter().any(|shape| has_shape(&token.raw.text, shape)) {
@@ -281,6 +286,31 @@ mod tests {
         assert_eq!(values(&rule("amount", &["total"]), INVOICE), ["$ 145.200,00"]);
         assert_eq!(values(&rule("text", &["periodo facturado"]), INVOICE), ["01/02/2026 al 28/02/2026"]);
         assert!(values(&rule("amount", &["descuento"]), INVOICE).is_empty());
+    }
+
+    #[test]
+    fn the_value_of_a_mark_is_the_documents_own_the_first_in_reading_order() {
+        // P-485: the marks come by the catalog's order of signals; the
+        // number of the form comes first in the text, the one the body
+        // cites later.
+        let mark = |value: &str, signal: &str| Mark {
+            kind: "shipment-number".into(),
+            doc_type: "carta-documento".into(),
+            variant: None,
+            stage: None,
+            signal: signal.into(),
+            page: None,
+            value: Some(value.into()),
+        };
+        let body = "CARTA DOCUMENTO\nN° Q12345ZZ678\nHemos recibido su carta identificada como XY123456789AR, la cual rechazamos.";
+        let marks = [mark("XY123456789AR", "uno"), mark("Q12345ZZ678", "otro")];
+        let rule = DataRule { id: "numero-de-envio".into(), kind: "identifier".into(), from_mark: Some("shipment-number".into()), ..Default::default() };
+        let found: Vec<String> = find(&rule, body, &marks).into_iter().map(|(v, _)| v).collect();
+        assert_eq!(found, ["Q12345ZZ678"]);
+        // Every value, in reading order, when the datum has many.
+        let many = DataRule { many: true, ..rule };
+        let found: Vec<String> = find(&many, body, &marks).into_iter().map(|(v, _)| v).collect();
+        assert_eq!(found, ["Q12345ZZ678", "XY123456789AR"]);
     }
 
     #[test]

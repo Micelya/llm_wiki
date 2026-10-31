@@ -321,8 +321,9 @@ fn load_units(conn: &Connection, catalog: &Catalog, docs: &BTreeMap<i64, DocInfo
         }
         // A document that only shares the template of the principal is
         // typed on its own when the principal's type has a rule that can
-        // take that family apart (two letters with different shipment
-        // numbers are only similar). Otherwise the member would get the
+        // take that family apart (a relation that is not a family's; since
+        // P-485 the built-in rules keep two documents of a template with
+        // other data in it, D-685). Otherwise the member would get the
         // type from the family, the rule would undo the family with that
         // type, the member alone would get its own type, the rule would
         // stop applying and the family would come back: the type and

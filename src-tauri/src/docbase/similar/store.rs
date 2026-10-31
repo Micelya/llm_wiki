@@ -43,8 +43,11 @@ use super::types::{self, RelationDef};
 /// the text is compared without what its format adds (D-521). `similar-5`:
 /// a part of a cut file reads the seal of its file as context, and a
 /// signing certificate of the same file passes its signatures to the part
-/// it certifies (D-607).
-pub const ENGINE: &str = "similar-5";
+/// it certifies (D-607). `similar-6`: the stamp of a signing service in a
+/// sealed file is a party's signature, and the rules of the type take
+/// different data down to the same template, use each document's own
+/// datum and need a stage's data (P-485).
+pub const ENGINE: &str = "similar-6";
 /// Where the base keeps how the key data looked when it last compared
 /// them (`similar_key_data_check`).
 const KEY_DATA_SETTING: &str = "similar-key-data";

@@ -111,6 +111,11 @@ pub struct DocType {
     /// How each stage is told apart, in words: it goes to the model.
     #[serde(default)]
     pub stage_descriptions: std::collections::BTreeMap<String, String>,
+    /// The data a stage needs (P-485): a document said to be in it
+    /// without one of them is in the latest earlier stage whose data it
+    /// has (a letter "sent" without its shipment number is not sent yet).
+    #[serde(default)]
+    pub stage_data: std::collections::BTreeMap<String, Vec<String>>,
     /// It says how a document was issued or made (a signing service, a
     /// fillable form), not what the document is: its marks never give the
     /// type, and its data and rules apply to whatever document carries
@@ -127,6 +132,21 @@ pub struct DocType {
     /// How two documents of this type relate (pass 6).
     #[serde(default)]
     pub rules: Vec<RelationRule>,
+}
+
+impl DocType {
+    /// The stage a document is in, given the one `said` and whether it has
+    /// each datum: a stage whose data (`stage_data`) are missing gives way
+    /// to the latest earlier stage whose data are there; none if there is
+    /// no such stage.
+    pub fn stage_with_data(&self, said: &str, has: impl Fn(&str) -> bool) -> Option<String> {
+        let ready = |stage: &str| self.stage_data.get(stage).is_none_or(|fields| fields.iter().all(|field| has(field)));
+        if ready(said) {
+            return Some(said.to_string());
+        }
+        let at = self.stages.iter().position(|s| s == said)?;
+        self.stages[..at].iter().rev().find(|stage| ready(stage)).cloned()
+    }
 }
 
 /// One datum of a type, and the general pattern it is found with.
@@ -440,6 +460,28 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn the_data_a_stage_needs_are_data_of_its_type() {
+        let catalog = Catalog::builtin();
+        let mut any = false;
+        for doc_type in &catalog.types {
+            for (stage, fields) in &doc_type.stage_data {
+                any = true;
+                assert!(doc_type.stages.contains(stage), "{} {stage}", doc_type.id);
+                assert!(!fields.is_empty(), "{} {stage}", doc_type.id);
+                for field in fields {
+                    assert!(doc_type.data.iter().any(|d| &d.id == field), "{} {stage} {field}", doc_type.id);
+                }
+            }
+        }
+        assert!(any, "some stage needs its data");
+        // Without its data, the stage before; with them, the one said.
+        let letter = catalog.doc_type("carta-documento").unwrap();
+        assert_eq!(letter.stage_with_data("enviada", |_| false).as_deref(), Some("vista-previa"));
+        assert_eq!(letter.stage_with_data("enviada", |field| field == "numero-de-envio").as_deref(), Some("enviada"));
+        assert_eq!(letter.stage_with_data("borrador", |_| false).as_deref(), Some("borrador"));
     }
 
     #[test]

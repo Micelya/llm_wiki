@@ -8,6 +8,7 @@
 //! | If… | Proposed |
 //! |---|---|
 //! | One has the verifiable signature of a party, the other not, and holds it whole | `signed-copy` |
+//! | One is sealed by a signing service and all it adds are stamps of a name with a date and a time | `signed-copy` |
 //! | One has the marks of a preview, the other not, and holds it almost whole, with no identifier or amount replaced | `preview` |
 //! | They share almost everything (`NEAR_SAME`), in short changes, none of them data | `near-identical` |
 //! | A is almost whole inside B (`CONTAINED`) and B has much more text (`CONTAINER_LONGER`) | `contained-in` |
@@ -163,6 +164,20 @@ pub fn propose(a: &Side, b: &Side, m: &Measures, changes: &Changes) -> Option<Pr
             && swapped_ids == 0
         {
             return Some(make("signed-copy", Some(signed.content_id), Some(signed.content_id), "party-signature", certainty));
+        }
+    }
+    // The stamp a signing service puts by a signature (a name with a date
+    // and a time) in a file the service sealed is a party's signature
+    // (P-485), when it is all that tells the two apart.
+    for (signed, other, stamps) in [(a, b, changes.stamps_a), (b, a, changes.stamps_b)] {
+        if signed.has("service-seal")
+            && !other.has("party-signature")
+            && stamps > 0
+            && stamps == changes.hunks
+            && other.cover() >= SIGNED_COVER - slack
+            && swapped_ids == 0
+        {
+            return Some(make("signed-copy", Some(signed.content_id), Some(signed.content_id), "service-seal-stamp", certainty));
         }
     }
     for (preview, other) in [(a, b), (b, a)] {
@@ -406,6 +421,27 @@ mod tests {
         assert_eq!(proposal.suggested_source, Some(2));
         // A service's seal alone proves nothing.
         assert_ne!(relation(&plain, &sealed, &c).as_deref(), Some("signed-copy"));
+    }
+
+    #[test]
+    fn the_stamp_of_a_signing_service_in_a_sealed_file_is_a_partys_signature() {
+        // P-485: all that tells them apart is one block the sealed one adds,
+        // a name with a date and a time.
+        let plain = side(1, 100, 100, &[]);
+        let sealed = side(2, 120, 100, &["service-seal"]);
+        let stamped = Changes { hunks: 1, stamps_b: 1, added_words: 20, longest_hunk: 20, largest_block: 20, ..Default::default() };
+        let proposal = propose(&plain, &sealed, &measures(&plain, &sealed, (1, 1, 1)), &stamped).unwrap();
+        assert_eq!((proposal.relation.as_str(), proposal.subject, proposal.rule.as_str()), ("signed-copy", Some(2), "service-seal-stamp"));
+        assert_eq!(proposal.suggested_source, Some(2));
+        // Without the seal of a service the stamp proves nothing.
+        let unsealed = side(2, 120, 100, &[]);
+        assert_eq!(relation(&plain, &unsealed, &stamped).as_deref(), Some("version"));
+        // Another change besides the stamp, or the stamp on the other side:
+        // not a signed copy.
+        let more = Changes { hunks: 2, ..stamped.clone() };
+        assert_ne!(relation(&plain, &sealed, &more).as_deref(), Some("signed-copy"));
+        let elsewhere = Changes { stamps_a: 1, stamps_b: 0, ..stamped.clone() };
+        assert_ne!(relation(&plain, &sealed, &elsewhere).as_deref(), Some("signed-copy"));
     }
 
     #[test]
