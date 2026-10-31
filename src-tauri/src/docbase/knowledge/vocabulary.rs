@@ -76,7 +76,7 @@ pub struct Vocabulary {
 
 /// Whether a way of writing, in lowercase, is a web address
 /// ("www.ejemplo.com.ar"): where to find someone, not who.
-fn is_web(lower: &str) -> bool {
+pub(crate) fn is_web(lower: &str) -> bool {
     lower.starts_with("www.")
         || lower.starts_with("http")
         || (!lower.contains(char::is_whitespace)
@@ -1003,6 +1003,21 @@ impl Vocabulary {
     /// standard ("Ley 123", "Norma ABC"), for an organization. The check of
     /// a reading drops such a mention (but a mail address, which still
     /// says whose contact it is); the screens and the pages show none.
+    /// The legal forms that close a name ("Ejemplo S.A."), each with its
+    /// ways of writing as normalized words: a quote that differs from the
+    /// text only in one of them is the text (P-480). The forms written
+    /// before a name ("Fundación …") are left out: their words are words
+    /// of any text.
+    pub fn closing_legal_forms(&self) -> Vec<(String, Vec<String>)> {
+        self.identity
+            .legal_forms
+            .iter()
+            .filter(|form| !form.before)
+            .flat_map(|form| form.variants.iter().map(move |v| (form.id.clone(), super::quote::words(v))))
+            .filter(|(_, words)| !words.is_empty())
+            .collect()
+    }
+
     pub fn not_named(&self, kind: &str, text: &str) -> Option<&'static str> {
         if self.is_reference(kind) {
             return None;

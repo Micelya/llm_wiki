@@ -1315,7 +1315,9 @@ impl ClaimCheck<'_> {
 /// and puts them together: the mentions of every part, the same mention
 /// (type, name and role) once, and each claim once.
 pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &[Answer]) -> Reading {
-    let text = Located::new(body);
+    // A quote that differs from the text only in the legal form that closes
+    // a name is the text (P-480).
+    let text = Located::new(body).with_forms(&vocabulary.closing_legal_forms());
     let shapes: BTreeSet<String> = shapes.iter().map(|s| names::identifier_value(s)).collect();
     let certificate = read_checks::certificate_pages(vocabulary, body);
     let window = vocabulary.reading.label_window;
