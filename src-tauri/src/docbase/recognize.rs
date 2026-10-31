@@ -768,6 +768,14 @@ del edificio inventado hasta que alguna de las partes la retire, con aviso de un
         assert_eq!(base.types_run(&asker, 10).unwrap().asked, 0);
 
         run(&base, &fake("m", vec![Ok(PAGE_ONE), Ok(PAGE_TWO)]));
+        // Its text is ready, but a PDF of two pages is read once it is cut
+        // (D-666): nothing of it is read before.
+        assert_eq!(base.knowledge_run(&asker, 10).unwrap().asked, 0);
+        // The usual path, in the worker's order: the ficha of its pages, its
+        // cut, the documents it gives and the search of similar documents.
+        while base.profile_pending(16).unwrap() > 0 {}
+        while base.cut_pending(16).unwrap() > 0 {}
+        while base.cut_parts_pending(16).unwrap() > 0 {}
         while base.similar_step(10).unwrap() > 0 {}
         assert_eq!(base.types_run(&asker, 10).unwrap().typed, 1);
         base.knowledge_run(&asker, 10).unwrap();

@@ -97,7 +97,8 @@ pub struct KnowledgeReport {
     /// Documents left for another run (limit reached, or the provider
     /// stopped answering).
     pub left: usize,
-    /// Documents waiting for their type to be asked first.
+    /// Documents waiting for what goes first (D-666): the cut of their
+    /// file and its parts, the search of similar documents, their type.
     pub waiting_for_type: usize,
     /// Readings checked again from the answers kept, without asking.
     pub rechecked: usize,
@@ -132,7 +133,8 @@ pub struct KnowledgePlan {
     pub documents: usize,
     /// Questions that takes.
     pub questions: usize,
-    /// Documents that wait for their type to be asked first.
+    /// Documents that wait for what goes first (D-666): the cut of their
+    /// file and its parts, the search of similar documents, their type.
     pub waiting_for_type: usize,
     /// The engine that reads while the archive's wiki is active.
     pub engine: Option<crate::source_volume::asking::AskConfig>,
@@ -2491,12 +2493,28 @@ pub struct RereadPlan {
 }
 
 impl DocBase {
+    /// What the reading waits for, in the order of the worker (D-666, as
+    /// `check::in_order_before_reading` runs it): the cut of a whole file
+    /// and its parts, the answers about its doubtful steps the model is
+    /// still to give by itself (an engine that looks at images:
+    /// `sees_images`), the signature of the search of similar documents,
+    /// and the type. Each document is read once, as what it is. What failed
+    /// or waits for a person is not waited for: it is read as it is.
+    fn waiting_before_reading(&self, sees_images: bool) -> Result<BTreeSet<i64>, String> {
+        let mut waiting = self.waiting_for_cut()?;
+        waiting.extend(self.waiting_for_cut_answers(sees_images)?);
+        waiting.extend(self.waiting_for_similar()?);
+        waiting.extend(self.contents_waiting_for_type()?);
+        Ok(waiting)
+    }
+
     /// The documents to ask the model about: never read, read over another
     /// text, failed under other instructions, or asked again by a person
     /// (those first; `only_requested`: only those). A reading of an earlier
-    /// version of the instructions is not one of them (D-432). Those whose
-    /// type is still to be asked are left out and counted.
-    fn knowledge_pending(&self, only_requested: bool) -> Result<(Vec<Pending>, usize), String> {
+    /// version of the instructions is not one of them (D-432). Those that
+    /// wait for what goes before the reading (`waiting_before_reading`) are
+    /// left out and counted.
+    fn knowledge_pending(&self, only_requested: bool, sees_images: bool) -> Result<(Vec<Pending>, usize), String> {
         let mut stale: Vec<Standing> = standings(&self.conn(), &Visible::All, None)?
             .into_iter()
             .filter(|s| !s.reading.as_ref().is_some_and(|r| r.current))
@@ -2506,7 +2524,7 @@ impl DocBase {
             return Ok((Vec::new(), 0));
         }
         stale.sort_by_key(|s| !s.reading.as_ref().is_some_and(|r| r.reread));
-        let waiting = self.contents_waiting_for_type()?;
+        let waiting = self.waiting_before_reading(sees_images)?;
         let vocabulary = vocabulary();
         let conn = self.conn();
         let mut pending = Vec::new();
@@ -2683,7 +2701,7 @@ impl DocBase {
     /// warms its cache with them before the run).
     #[cfg(test)]
     pub(crate) fn knowledge_questions(&self) -> Result<Vec<Question>, String> {
-        let (pending, _) = self.knowledge_pending(false)?;
+        let (pending, _) = self.knowledge_pending(false, false)?;
         let conn = self.conn();
         let mut out = Vec::new();
         for item in pending {
@@ -2698,7 +2716,13 @@ impl DocBase {
     pub fn knowledge_plan(&self) -> Result<KnowledgePlan, String> {
         let engine = classify::ask_engine(&self.conn())?;
         let engine_id = engine.as_ref().map(crate::source_volume::asking::engine_id);
-        let (pending, waiting) = self.knowledge_pending(false)?;
+        // Whether that engine would ask by itself about the doubtful steps
+        // of the cuts, whose answers the reading waits for.
+        let sees_images = engine
+            .as_ref()
+            .and_then(|config| crate::source_volume::asking::asker_for(config).ok())
+            .is_some_and(|asker| asker.sees_images());
+        let (pending, waiting) = self.knowledge_pending(false, sees_images)?;
         let conn = self.conn();
         let mut count = 0;
         let min_words = vocabulary().attention.empty_min_words;
@@ -2752,7 +2776,7 @@ impl DocBase {
         if !only_requested {
             report.rechecked = self.knowledge_recheck(usize::MAX)?;
         }
-        let (pending, waiting) = self.knowledge_pending(only_requested)?;
+        let (pending, waiting) = self.knowledge_pending(only_requested, asker.sees_images())?;
         report.waiting_for_type = waiting;
         let vocabulary = vocabulary();
         let engine = asker.engine_id();

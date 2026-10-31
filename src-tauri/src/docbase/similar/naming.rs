@@ -423,6 +423,13 @@ fn principals(conn: &Connection) -> Result<Vec<i64>, String> {
     Ok(rows)
 }
 
+/// The documents the template of this principal is built from.
+fn template_documents(conn: &Connection, principal: i64) -> Result<Vec<i64>, String> {
+    let mut statement = conn.prepare("SELECT version_id FROM similar_template_document WHERE principal = ?1").map_err(sql_err)?;
+    let rows = statement.query_map([principal], |row| row.get(0)).map_err(sql_err)?;
+    rows.collect::<Result<_, _>>().map_err(sql_err)
+}
+
 /// How many fields of the template of this principal wait for the model.
 pub(crate) fn waiting_fields(conn: &Connection, principal: i64) -> Result<usize, String> {
     Ok(load_draft(conn, principal)?.map(|(_, draft)| draft.fields.iter().filter(|f| f.asked).count()).unwrap_or(0))
@@ -462,7 +469,13 @@ impl DocBase {
         let mut budget = max_questions;
         let mut stopped = false;
         let all = principals(&self.conn())?;
+        // A template with a whole file that is to be cut again is named
+        // once the cut makes it again (D-666).
+        let to_cut = if all.is_empty() { BTreeSet::new() } else { self.waiting_for_cut()? };
         for principal in all {
+            if !to_cut.is_empty() && template_documents(&self.conn(), principal)?.iter().any(|id| to_cut.contains(id)) {
+                continue;
+            }
             let Some(pending) = pending_of(&self.conn(), principal)? else { continue };
             let kept = cached_answer(&self.conn(), &pending.question.key, Some(&engine))?;
             let answer = match kept {

@@ -292,6 +292,29 @@ pub enum Decision {
     Undo,
 }
 
+/// What `note_failure` writes down for the signature of a document.
+const SIGN_STAGE: &str = "similar";
+
+/// A version `c`, its text `d` and its signature `s`, with `unsigned_where`.
+const UNSIGNED_FROM: &str = "version c
+     JOIN derivative d ON d.version_id = c.id AND d.kind = 'text'
+     LEFT JOIN similar_signature s ON s.version_id = c.id";
+
+/// SQL over `UNSIGNED_FROM`: the signature of the version is missing, or
+/// was made over another text or by another engine than `?1`, and its
+/// signing did not fail over this text (`note_failure`). The version of a
+/// whole file with included parts is not compared: each part is, with its
+/// own text (D-560).
+fn unsigned_where() -> String {
+    format!(
+        "c.state = 'processed'
+         AND (s.version_id IS NULL OR s.text_at != d.created_at OR s.engine != ?1)
+         AND NOT {included} AND NOT {failed}",
+        included = super::super::cut::parts::has_included_sql("c.id"),
+        failed = super::super::cut::failed_sql(SIGN_STAGE, "c.id", "d.created_at || '|' || ?1")
+    )
+}
+
 impl DocBase {
     /// One small piece of the similar-documents work. Returns how much was
     /// done (0: nothing pending).
@@ -397,6 +420,18 @@ impl DocBase {
         tx.commit().map_err(sql_err)
     }
 
+    /// The versions the search of similar documents has still to sign, or
+    /// sign again: the reading waits for it, as it waits for the type,
+    /// which needs it (D-666). One whose signature failed is not waited for
+    /// (`note_failure`). Asks nothing.
+    pub(crate) fn waiting_for_similar(&self) -> Result<BTreeSet<i64>, String> {
+        let conn = self.conn();
+        let mut statement =
+            conn.prepare(&format!("SELECT c.id FROM {UNSIGNED_FROM} WHERE {}", unsigned_where())).map_err(sql_err)?;
+        let rows = statement.query_map(params![engine_id()], |row| row.get(0)).map_err(sql_err)?;
+        rows.collect::<Result<_, _>>().map_err(sql_err)
+    }
+
     /// Signs up to `limit` contents whose signature is missing or stale.
     fn similar_sign_pending(&self, limit: usize) -> Result<usize, String> {
         let engine = engine_id();
@@ -407,16 +442,12 @@ impl DocBase {
             let mut statement = conn
                 .prepare(&format!(
                     "SELECT c.id, d.body, d.created_at, fd.body
-                     FROM version c
-                     JOIN derivative d ON d.version_id = c.id AND d.kind = 'text'
+                     FROM {UNSIGNED_FROM}
                      LEFT JOIN derivative fd ON fd.version_id = c.id AND fd.kind = 'fields'
-                     LEFT JOIN similar_signature s ON s.version_id = c.id
-                     WHERE c.state = 'processed'
-                       AND (s.version_id IS NULL OR s.text_at != d.created_at OR s.engine != ?1)
-                       AND NOT {}
+                     WHERE {unsigned}
                      ORDER BY c.id
                      LIMIT ?2",
-                    super::super::cut::parts::has_included_sql("c.id")
+                    unsigned = unsigned_where()
                 ))
                 .map_err(sql_err)?;
             let rows = statement
@@ -468,10 +499,18 @@ impl DocBase {
                 given.extend(found.gives.into_iter().filter(|kind| !given.contains(kind)).collect::<Vec<_>>());
             }
             let signed = sign(*content_id, body, *text_at, fields.is_some(), signatures, &context, (certified, given));
-            let mut conn = self.conn();
-            let tx = conn.transaction().map_err(sql_err)?;
-            save_signature(&tx, &signed, &engine)?;
-            tx.commit().map_err(sql_err)?;
+            // One document at a time: a signature that fails is written
+            // down and the others go on (D-488); nothing waits for it.
+            let saved = || -> Result<(), String> {
+                let mut conn = self.conn();
+                let tx = conn.transaction().map_err(sql_err)?;
+                save_signature(&tx, &signed, &engine)?;
+                tx.commit().map_err(sql_err)
+            };
+            if let Err(error) = saved() {
+                let basis = format!("{text_at}|{engine}");
+                super::super::cut::note_failure(&self.conn(), SIGN_STAGE, &content_id.to_string(), &basis, &error)?;
+            }
         }
         Ok(jobs.len())
     }

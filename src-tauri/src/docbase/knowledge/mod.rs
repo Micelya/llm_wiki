@@ -88,6 +88,8 @@ mod tests_reading;
 mod tests_quality;
 #[cfg(test)]
 mod tests_repeated;
+#[cfg(test)]
+mod tests_order;
 pub mod vocabulary;
 
 use std::collections::BTreeMap;

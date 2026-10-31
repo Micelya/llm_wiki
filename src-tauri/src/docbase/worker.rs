@@ -180,7 +180,10 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
     // The doubtful steps of the cutter, with the two pages as images
     // (D-556), before what each document is: only in the files a rule
     // already cut (D-622), and in the round with a cap (D-606). While they
-    // wait for a person, the rest goes on.
+    // wait for a person, the rest goes on. Otherwise the parts of those
+    // files are read after the answers, once (D-666): the reading waits for
+    // the cut, the parts and the search of similar documents the other
+    // thread makes (`knowledge::extract::waiting_before_reading`).
     state.at_stage(Some("types"));
     match base.cut_round_turn(asker.as_ref(), 1) {
         Ok(Some(report)) => {
