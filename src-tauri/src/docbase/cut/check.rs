@@ -39,6 +39,94 @@ use crate::source_volume::asking::{asker_for, AskConfig};
 
 use super::{CutAskReport, Verdict, CUT_TASK};
 
+/// What `apply_given_cuts` did.
+#[derive(Debug, Default)]
+pub(crate) struct GivenCuts {
+    /// Files of the cuts given that the base has, already cut.
+    pub files: usize,
+    /// Pages decided as a person would (from the second of each file).
+    pub pages: usize,
+    /// Files of the cuts given the base does not have, or has not cut.
+    pub missing: usize,
+    /// Files whose number of pages is not the one of the cuts given.
+    pub other_pages: usize,
+    /// Steps of those files that no person decided after it (should be 0).
+    pub undecided: i64,
+}
+
+/// `MICELYA_CUTS_GIVEN`: the cuts of a file in the shape of the parts
+/// sheet (`files[].sha256`, `pages`, `documents[].first_page`), decided
+/// after `cut_pending` as a person would decide them, page by page from
+/// the second one, with `cut_split_at` and `cut_join_with_previous`: the
+/// cut asks the model nothing about those files. Only for the tests (the
+/// chain N of the trial of the structure, P-484).
+pub(crate) fn apply_given_cuts(base: &DocBase) -> Option<GivenCuts> {
+    let path = std::env::var("MICELYA_CUTS_GIVEN").ok()?;
+    let sheet: Value = serde_json::from_str(&std::fs::read_to_string(path.trim()).unwrap()).unwrap();
+    let mut done = GivenCuts::default();
+    for file in sheet["files"].as_array().into_iter().flatten() {
+        let hash = file["sha256"].as_str().unwrap_or_default().to_lowercase();
+        if file["pages"].as_u64() == Some(1) {
+            continue;
+        }
+        let pages: Option<u32> = base
+            .conn()
+            .query_row("SELECT max(after_page) + 1 FROM cut_step WHERE resource_hash = ?1", [&hash], |row| row.get(0))
+            .unwrap();
+        let Some(pages) = pages else {
+            done.missing += 1;
+            continue;
+        };
+        if file["pages"].as_u64().is_some_and(|p| p != u64::from(pages)) {
+            done.other_pages += 1;
+            continue;
+        }
+        let starts: BTreeSet<u32> = file["documents"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|d| d["first_page"].as_u64().map(|p| p as u32))
+            .collect();
+        for page in 2..=pages {
+            // A page already decided the same way stays as it is: its
+            // documents are not made again when a run is taken up again.
+            let wanted = if starts.contains(&page) { super::parts::STARTS } else { super::parts::CONTINUES };
+            let kept: Option<String> = base
+                .conn()
+                .query_row(
+                    "SELECT decision FROM cut_decision WHERE resource_hash = ?1 AND page = ?2",
+                    rusqlite::params![hash, page],
+                    |row| row.get(0),
+                )
+                .ok();
+            if kept.as_deref() == Some(wanted) {
+                continue;
+            }
+            if starts.contains(&page) {
+                base.cut_split_at(&hash, page).unwrap();
+            } else {
+                base.cut_join_with_previous(&hash, page).unwrap();
+            }
+            done.pages += 1;
+        }
+        done.undecided += base
+            .conn()
+            .query_row(
+                "SELECT count(*) FROM cut_step s WHERE s.resource_hash = ?1 AND s.after_page >= 1
+                   AND NOT EXISTS (SELECT 1 FROM cut_decision d WHERE d.resource_hash = s.resource_hash AND d.page = s.after_page + 1)",
+                [&hash],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap();
+        done.files += 1;
+    }
+    println!(
+        "cuts given (MICELYA_CUTS_GIVEN): {} files decided page by page ({} pages); not in the base or not cut: {}; with other pages: {}; steps left without a person's word: {}",
+        done.files, done.pages, done.missing, done.other_pages, done.undecided
+    );
+    Some(done)
+}
+
 pub(crate) fn seed_answers(base: &DocBase, files: &str) -> usize {
     let mut put = 0;
     for file in files.split(';').filter(|f| !f.trim().is_empty()) {

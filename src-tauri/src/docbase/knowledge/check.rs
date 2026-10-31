@@ -181,6 +181,8 @@ pub(crate) struct Recorded {
     file: Option<PathBuf>,
     saved: Mutex<BTreeMap<String, String>>,
     pub asked: AtomicUsize,
+    /// The new questions of each kind, in the order they were asked.
+    marks: Mutex<Vec<(&'static str, usize)>>,
 }
 
 impl Recorded {
@@ -199,7 +201,55 @@ impl DocumentAsker for Recorded {
     }
 
     fn ask(&self, prompt: &str, schema: &serde_json::Value) -> Result<String, String> {
-        let key = self.key(prompt);
+        self.kept_or(prompt, || self.inner.ask(prompt, schema))
+    }
+
+    fn sees_images(&self) -> bool {
+        self.inner.sees_images()
+    }
+
+    /// The same, kept by the prompt and the content of the images (the
+    /// cut's questions: the pages of a step, whose prompt alone can be the
+    /// same in two files), so a stage cut short asks again only what it
+    /// did not get (D-678).
+    fn ask_with_images(&self, prompt: &str, schema: &serde_json::Value, images: &[PathBuf]) -> Result<String, String> {
+        use sha2::{Digest, Sha256};
+        let seen: Vec<String> = images
+            .iter()
+            .map(|i| std::fs::read(i).map(|bytes| format!("{:x}", Sha256::digest(&bytes))).unwrap_or_default())
+            .collect();
+        let keyed = format!("{prompt}\u{0}{}", seen.join("\u{0}"));
+        self.kept_or(&keyed, || self.inner.ask_with_images(prompt, schema, images))
+    }
+}
+
+impl Recorded {
+    /// The new questions since the last mark are of `kind`.
+    pub(crate) fn mark(&self, kind: &'static str) {
+        let now = self.asked.load(Ordering::SeqCst);
+        let mut marks = self.marks.lock().unwrap();
+        let before: usize = marks.iter().map(|(_, n)| n).sum();
+        marks.push((kind, now.saturating_sub(before)));
+    }
+
+    /// The new questions of this run by kind (D-672): this test never
+    /// asks about cuts nor reads pages with the model.
+    pub(crate) fn print_by_kind(&self) {
+        let marks = self.marks.lock().unwrap();
+        let of = |kind: &str| marks.iter().filter(|(k, _)| *k == kind).map(|(_, n)| n).sum::<usize>();
+        println!(
+            "questions to the model in this run, by kind: cut 0, type {}, reading 0, entities {}, identity {}, matters {}, pages {}",
+            of("type"),
+            of("entities"),
+            of("identity"),
+            of("matters"),
+            of("pages")
+        );
+    }
+
+    /// The kept answer to `keyed`, or the one `ask` gets, kept at once.
+    fn kept_or(&self, keyed: &str, ask: impl Fn() -> Result<String, String>) -> Result<String, String> {
+        let key = self.key(keyed);
         if let Some(answer) = self.saved.lock().unwrap().get(&key) {
             return Ok(answer.clone());
         }
@@ -212,7 +262,7 @@ impl DocumentAsker for Recorded {
         let mut attempt = 0;
         let answer = loop {
             self.asked.fetch_add(1, Ordering::SeqCst);
-            match self.inner.ask(prompt, schema) {
+            match ask() {
                 Ok(answer) => break answer,
                 Err(error) if attempt < 6 && is_limit(&error) => {
                     attempt += 1;
@@ -224,8 +274,13 @@ impl DocumentAsker for Recorded {
         };
         let mut saved = self.saved.lock().unwrap();
         saved.insert(key, answer.clone());
+        // Written aside and then put in place: a run cut short while
+        // writing never leaves the kept answers half written (D-678).
         if let Some(file) = &self.file {
-            let _ = std::fs::write(file, serde_json::to_string_pretty(&*saved).unwrap());
+            let aside = file.with_extension("json.escribiendo");
+            if std::fs::write(&aside, serde_json::to_string_pretty(&*saved).unwrap()).is_ok() {
+                let _ = std::fs::rename(&aside, file);
+            }
         }
         Ok(answer)
     }
@@ -302,6 +357,7 @@ struct Found {
     kind: String,
     normalized: String,
     role: String,
+    page: Option<i64>,
 }
 
 fn ratio(a: usize, b: usize) -> String {
@@ -331,6 +387,7 @@ pub(crate) fn recorded() -> Recorded {
         file,
         saved: Mutex::new(saved),
         asked: AtomicUsize::new(0),
+        marks: Mutex::new(Vec::new()),
     }
 }
 
@@ -405,6 +462,7 @@ pub(crate) fn read_all(base: &DocBase, asker: &Recorded) -> KnowledgeReport {
             break;
         }
     }
+    asker.mark("type");
     let types_asked = asker.asked.load(Ordering::SeqCst);
     println!("types: {:.1}s, {types_asked} questions to the model", started.elapsed().as_secs_f32());
     let started = Instant::now();
@@ -425,6 +483,7 @@ pub(crate) fn read_all(base: &DocBase, asker: &Recorded) -> KnowledgeReport {
         failures.len()
     );
     println!("   {total:?}");
+    asker.mark("entities");
     total
 }
 
@@ -442,18 +501,21 @@ pub(crate) fn later_passes(base: &DocBase, asker: &Recorded) {
             break;
         }
     }
+    asker.mark("identity");
     for _ in 0..1000 {
         let r = base.knowledge_propose_matters(Some(asker), 50).unwrap();
         if done("matters", r.skipped, r.asked, r.failed, r.left) {
             break;
         }
     }
+    asker.mark("matters");
     for _ in 0..1000 {
         let r = base.knowledge_project(Some(asker), 50).unwrap();
         if done("pages", r.skipped, r.asked, r.failed, r.left) {
             break;
         }
     }
+    asker.mark("pages");
 }
 
 /// The questions the run looked up among the kept answers, by task: how
@@ -487,6 +549,43 @@ pub(crate) fn print_cache_hits(base: &DocBase) {
     }
 }
 
+/// `MICELYA_IN_ORDER`: before the reading, what the app's worker does
+/// first, in its order (D-666): the cuts of the base (and the cuts given,
+/// `MICELYA_CUTS_GIVEN`), the documents of every cut file, and the search
+/// of similar documents, whose signature the type needs. Asks nothing.
+fn in_order_before_reading(base: &DocBase) {
+    let started = Instant::now();
+    while base.refresh_extraction(50).unwrap() > 0 {}
+    while base.extract_pending(50).unwrap() > 0 {}
+    while base.profile_pending(16).unwrap() > 0 {}
+    while base.cut_pending(16).unwrap() > 0 {}
+    crate::docbase::cut::check::apply_given_cuts(base);
+    while base.cut_parts_pending(16).unwrap() > 0 {}
+    let cut_steps = started.elapsed().as_secs_f32();
+    while base.similar_step(16).unwrap() > 0 {}
+    let count = |sql: &str| -> i64 { base.conn().query_row(sql, [], |row| row.get(0)).unwrap() };
+    println!(
+        "in order (D-666): files cut in documents {}, documents of cut files {}; cuts and documents {cut_steps:.1}s, similar documents {:.1}s",
+        count("SELECT count(DISTINCT resource_hash) FROM appearance WHERE selector <> 'file'"),
+        count("SELECT count(*) FROM appearance WHERE selector <> 'file'"),
+        started.elapsed().as_secs_f32() - cut_steps
+    );
+}
+
+/// The documents of cut files with a type and without one.
+fn print_parts_typed(base: &DocBase) {
+    let (typed, all): (i64, i64) = base
+        .conn()
+        .query_row(
+            "SELECT count(DISTINCT t.version_id), count(DISTINCT a.version_id) FROM appearance a
+             LEFT JOIN document_type t ON t.version_id = a.version_id WHERE a.selector <> 'file'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    println!("documents of cut files with a type: {typed} of {all}");
+}
+
 #[test]
 #[ignore = "reads a real base or real folders and asks the real model"]
 fn extraction_against_the_entity_sheet() {
@@ -494,11 +593,16 @@ fn extraction_against_the_entity_sheet() {
         println!("MICELYA_DOCBASE_COPY or MICELYA_DOCBASE_CHECK is not set: nothing to check");
         return;
     };
+    if std::env::var("MICELYA_IN_ORDER").is_ok() {
+        in_order_before_reading(&base);
+    }
     let asker = recorded();
     read_all(&base, &asker);
     if std::env::var("MICELYA_LATER_PASSES").is_ok() {
         later_passes(&base, &asker);
     }
+    asker.print_by_kind();
+    print_parts_typed(&base);
     print_cache_hits(&base);
     let status = base.knowledge_status(&Visible::All).unwrap();
     println!("\n== status ==\n   {status:?}");
@@ -506,19 +610,41 @@ fn extraction_against_the_entity_sheet() {
 
     let (by_path, by_content) = paths_by_content(&base);
     let name = |content: i64| by_content.get(&content).map(|p| p.join(" = ")).unwrap_or_else(|| format!("#{content}"));
+    // By document (P-484): the mentions and evidence of the documents of
+    // a cut file count with the file the sheet names (`appearance` with
+    // `selector <> 'file'`), as the app reads the documents and not the
+    // whole version of a file with documents.
+    let part_of: HashMap<i64, i64> = {
+        let conn = base.conn();
+        let mut statement = conn
+            .prepare("SELECT a.version_id, f.version_id FROM appearance a JOIN file f ON f.hash = a.resource_hash WHERE a.selector <> 'file'")
+            .unwrap();
+        let rows = statement.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?))).unwrap();
+        rows.collect::<Result<_, _>>().unwrap()
+    };
+    let whole_of = |version: i64| part_of.get(&version).copied().unwrap_or(version);
+    println!(
+        "\nby document: {} documents of {} cut files counted with their file",
+        part_of.len(),
+        part_of.values().collect::<BTreeSet<_>>().len()
+    );
     let found: BTreeMap<i64, Vec<Found>> = {
         let conn = base.conn();
-        let mut statement = conn.prepare("SELECT version_id, id, kind, normalized, role FROM knowledge_mention ORDER BY id").unwrap();
+        let mut statement =
+            conn.prepare("SELECT version_id, id, kind, normalized, role, page FROM knowledge_mention ORDER BY id").unwrap();
         let rows: Vec<(i64, Found)> = statement
             .query_map([], |row| {
-                Ok((row.get(0)?, Found { id: row.get(1)?, kind: row.get(2)?, normalized: row.get(3)?, role: row.get(4)? }))
+                Ok((
+                    row.get(0)?,
+                    Found { id: row.get(1)?, kind: row.get(2)?, normalized: row.get(3)?, role: row.get(4)?, page: row.get(5)? },
+                ))
             })
             .unwrap()
             .collect::<Result<_, _>>()
             .unwrap();
         let mut out: BTreeMap<i64, Vec<Found>> = BTreeMap::new();
         for (content, mention) in rows {
-            out.entry(content).or_default().push(mention);
+            out.entry(whole_of(content)).or_default().push(mention);
         }
         out
     };
@@ -534,7 +660,7 @@ fn extraction_against_the_entity_sheet() {
             .unwrap();
         let mut out: BTreeMap<i64, Vec<(i64, String, Option<i64>)>> = BTreeMap::new();
         for (content, subject, predicate, object) in rows {
-            out.entry(content).or_default().push((subject, predicate, object));
+            out.entry(whole_of(content)).or_default().push((subject, predicate, object));
         }
         out
     };
@@ -587,9 +713,16 @@ fn extraction_against_the_entity_sheet() {
         println!("   not in the base: {path}");
     }
 
+    let texts: HashMap<i64, Located> = {
+        let conn = base.conn();
+        let mut statement = conn.prepare("SELECT version_id, body FROM derivative WHERE kind = 'text'").unwrap();
+        let rows: Vec<(i64, String)> = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?))).unwrap().collect::<Result<_, _>>().unwrap();
+        rows.into_iter().map(|(id, body)| (id, Located::new(&body))).collect()
+    };
     println!("\n== mentions by document ==");
     println!("   {:>4} {:>5} {:>5} {:>6} {:>5} {:>5}  document", "exp", "found", "hit", "strict", "role", "extra");
     let (mut all_expected, mut all_hits, mut all_strict, mut all_roles, mut all_found, mut all_found_hits) = (0, 0, 0, 0, 0, 0);
+    let mut all_other_names = 0;
     let mut misses = Vec::new();
     let mut extras = Vec::new();
     let mut by_type: BTreeMap<String, (usize, usize)> = BTreeMap::new();
@@ -605,6 +738,23 @@ fn extraction_against_the_entity_sheet() {
                 .iter()
                 .filter(|f| f.kind == entity.kind && names.iter().any(|n| names_match(n, &f.normalized)))
                 .collect();
+            // P-477: also one of the other names of the entity in the sheet,
+            // or a name of one word of those names whose quote falls on a
+            // page where the sheet's mention is.
+            let other: Vec<String> = entity.aliases.iter().map(|a| normalized(a)).collect();
+            let one_word_on_its_page = |f: &Found| {
+                !f.normalized.is_empty()
+                    && !f.normalized.contains(' ')
+                    && names.iter().chain(other.iter()).any(|n| n.split(' ').any(|w| w == f.normalized))
+                    && f.page.is_some_and(|p| texts.get(&content).is_some_and(|t| t.locate(written, Some(p)) == Some(Some(p))))
+            };
+            if !matching.is_empty()
+                || got.iter().any(|f| {
+                    f.kind == entity.kind && (other.iter().any(|n| names_match(n, &f.normalized)) || one_word_on_its_page(f))
+                })
+            {
+                all_other_names += 1;
+            }
             let entry = by_type.entry(entity.kind.clone()).or_default();
             entry.0 += 1;
             if matching.is_empty() {
@@ -657,6 +807,11 @@ fn extraction_against_the_entity_sheet() {
         ratio(all_roles, all_hits)
     );
     println!(
+        "   with the other names of the sheet and one-word names on their page (P-477): {all_other_names} of {all_expected} ({}); {} more",
+        ratio(all_other_names, all_expected),
+        all_other_names - all_hits
+    );
+    println!(
         "   mentions found that the sheet has: {all_found_hits} of {all_found} ({}); the rest are not in the sheet (true or not)",
         ratio(all_found_hits, all_found)
     );
@@ -676,12 +831,6 @@ fn extraction_against_the_entity_sheet() {
     // the predicates of the vocabulary that say the same. An identifier
     // the sheet gives as a claim is found among the mention's identifiers.
     println!("\n== claims ==");
-    let texts: HashMap<i64, Located> = {
-        let conn = base.conn();
-        let mut statement = conn.prepare("SELECT version_id, body FROM derivative WHERE kind = 'text'").unwrap();
-        let rows: Vec<(i64, String)> = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?))).unwrap().collect::<Result<_, _>>().unwrap();
-        rows.into_iter().map(|(id, body)| (id, Located::new(&body))).collect()
-    };
     let (mut claims, mut comparable, mut claim_hits, mut id_claims, mut id_hits, mut sheet_quotes_found) = (0, 0, 0, 0, 0, 0);
     let mut claim_misses = Vec::new();
     let mut not_in_vocabulary: BTreeMap<String, usize> = BTreeMap::new();

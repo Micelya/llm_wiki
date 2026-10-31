@@ -33,7 +33,6 @@ use serde_json::{json, Value};
 use crate::docbase::page_shapes::SHAPES_KIND;
 use crate::docbase::similar::check_types::prepare;
 use crate::docbase::DocBase;
-use crate::source_volume::asking::{asker_for, AskConfig};
 use crate::source_volume::page_shape::{normalized_line, repeated_lines, visible_chars, PdfShapes, SHAPES_ENGINE};
 
 use super::catalog::catalog;
@@ -282,6 +281,8 @@ fn the_signals_of_every_step() {
     }
     while base.profile_pending(16).unwrap() > 0 {}
     while base.cut_pending(16).unwrap() > 0 {}
+    // The cuts given (chain N): decided as a person would, nothing asked.
+    let given = super::check::apply_given_cuts(&base);
     let hashes: Vec<String> = {
         let conn = base.conn();
         let mut statement = conn.prepare("SELECT DISTINCT resource_hash FROM cut_step ORDER BY 1").unwrap();
@@ -308,6 +309,7 @@ fn the_signals_of_every_step() {
             .sum()
     };
     println!("files cut: {} · counted: {} · steps no rule decided without an answer kept: {}", hashes.len(), counted.len(), missing(&base));
+    let mut cut_asked = 0;
     if let Ok(limit) = std::env::var("MICELYA_CUT_ASK") {
         let only = only.as_ref().expect("MICELYA_CUT_ASK needs MICELYA_CUT_ONLY");
         for h in only {
@@ -315,13 +317,10 @@ fn the_signals_of_every_step() {
                 .execute("UPDATE cut_step SET verdict = 'doubtful', rule = 'none' WHERE resource_hash = ?1 AND rule = ?2", rusqlite::params![h, rules::UNIFORM])
                 .unwrap();
         }
-        let config = AskConfig {
-            engine: "codex-cli".into(),
-            model: std::env::var("MICELYA_ASK_MODEL").unwrap_or_default(),
-            reasoning: std::env::var("MICELYA_ASK_REASONING").unwrap_or_default(),
-        };
-        let asker = asker_for(&config).unwrap();
-        let report = base.cut_ask_run(asker.as_ref(), limit.trim().parse().unwrap(), Some(only)).unwrap();
+        // The model with its answers kept as they come, in `MICELYA_ASK_CACHE`:
+        // a stage cut short and run again asks only what it did not get (D-678).
+        let asker = crate::docbase::knowledge::check::recorded();
+        let report = base.cut_ask_run(&asker, limit.trim().parse().unwrap(), Some(only)).unwrap();
         println!(
             "Codex: {} asked, {} failed, {} from the answers kept, {:.0} s; left without an answer: {}",
             report.asked,
@@ -333,7 +332,13 @@ fn the_signals_of_every_step() {
         for e in report.errors.iter().take(3) {
             println!("  error: {}", e.chars().take(200).collect::<String>());
         }
+        cut_asked = asker.asked.load(std::sync::atomic::Ordering::SeqCst);
     }
+    // The questions of this run by kind (D-672): only the cut asks here.
+    println!(
+        "questions to the model in this run, by kind: cut {cut_asked}, type 0, reading 0, entities 0, identity 0, pages 0{}",
+        if given.is_some() { " (cuts given: the cut asks nothing)" } else { "" }
+    );
     let files: Vec<Value> = hashes.iter().filter_map(|h| file_value(&base, h)).collect();
     let relations: Vec<Value> = {
         let conn = base.conn();
