@@ -4542,6 +4542,30 @@
       "detalle": "Visto al arreglar P-519, y no cambiado porque es otro comportamiento. El hilo que pregunta hace primero las preguntas dudosas del corte, de a una, y si una falla corta su vuelta ahí, antes del tipo, las plantillas y la extracción (worker.rs, ask_step, después de cut_round_turn). La falla no queda anotada: la próxima vuelta vuelve a intentar la misma pregunta primero (cut_ask_run las ordena por archivo y página). Si la IA contesta siempre con otra forma a esa pregunta, el hilo no avanza nunca más, y eso choca con D-488 (una falla no frena lo demás). P-519 no lo empeora: la espera de las respuestas del corte se apaga cuando esas preguntas fallan. Propuesta: anotar la pregunta del corte que falla (como ya se anotan ahora el corte, las partes y la firma que fallan) y no reintentarla hasta que cambie el motor o la pregunta; ese paso queda incierto, como cuando nadie lo contesta (D-603). Efecto en las consultas de producción por documento: resta (deja de repetir una pregunta que falla); no suma.",
       "creado": "2026-10-31",
       "actualizado": "2026-10-31"
+    },
+    {
+      "id": "P-524",
+      "titulo": "Un PDF cortado por la lectura por zonas sin texto de la extracción no tiene partes",
+      "tipo": "tarea",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "Las partes de un PDF cortado se hacen con el texto de sus páginas que guardó la extracción. En la prueba del examen, la base no tenía el texto de las páginas escaneadas (nada las leyó), y 3 PDF escaneados quedaron sin partes aunque su corte estaba bien: faltaron 5 cortes en los documentos de la base. En la segunda parte, la lectura por zonas tiene que dejar también el texto de cada página para la extracción, o las partes tienen que tomarlo de ella. Se comprueba con la misma prueba del examen: los documentos de la base tienen que coincidir con los saltos que guarda el corte (27 de 28 exactos).",
+      "creado": "2026-10-31",
+      "actualizado": "2026-10-31"
+    },
+    {
+      "id": "P-525",
+      "titulo": "Contar lo que el corte de hoy pregunta solo en el examen con el texto de la app",
+      "tipo": "tarea",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "base",
+      "detalle": "Para comparar con las 0,32 consultas por documento del corte nuevo (decisión 3 del plan del corte), se contó sin preguntar lo que el corte de hoy preguntaría solo. En la carpeta se usó una base con el texto de la app: 88 preguntas. En el examen no hay una base así, y la base de prueba no tenía el texto de las páginas escaneadas: dio 128 preguntas en 4 archivos, un número que no es comparable del todo. Si la decisión 3 lo necesita, se repite con el texto de la app en el examen, sin preguntar nada.",
+      "creado": "2026-10-31",
+      "actualizado": "2026-10-31"
     }
   ]
 }
