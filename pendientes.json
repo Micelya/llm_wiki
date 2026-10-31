@@ -4374,6 +4374,30 @@
       "detalle": "La calibración (D-692) deja el umbral bajo en 0,90 porque en el tramo de 0,80 a 0,90 sirve para entender el 45 % de los renglones (15 de 33), apenas debajo de la mitad y dentro del margen de unos 17 puntos de una muestra de ese tamaño. Partido en dos, como dato informativo y no para elegir: de 0,85 a 0,90 sirve el 53 % (9 de 17) y de 0,80 a 0,85 el 38 % (6 de 16). Opciones: dejar 0,90 (lo prudente, ya aplicado); o medir unos 80 renglones más en ese tramo, con unas 4 consultas a Codex y unas 40 mil fichas, antes de bajarlo. El cambio no suma consultas en producción: el umbral solo decide qué texto se marca aproximado.",
       "creado": "2026-10-31",
       "actualizado": "2026-10-31"
+    },
+    {
+      "id": "P-510",
+      "titulo": "Elegir el corte entre la calidad normal y la baja de la lectura",
+      "tipo": "decision",
+      "responsable": "dueño",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "pruebas y calidad",
+      "detalle": "El indicador de calidad (D-693) es la parte de las letras que el lector lee firme, por documento real. Si un documento de calidad baja no diera datos estructurados (D-669), con la cadena de hoy y sin el compuesto de 93 páginas (239 documentos, 854 menciones correctas y 799 de más): con el corte en 0,90 se perderían 33 correctas (4 %) y se evitarían 111 de más (14 %); en 0,80, 28 y 98; en 0,70, 25 y 96; en 0,50, 20 y 80; en 0,97, 80 y 145. Entre 0,70 y 0,90 el balance casi no cambia. Cuesta más en el compuesto (con 0,80 pierde el 27 % de sus correctas) y en los documentos mixtos, como un encabezado limpio en un documento malo (6 con 0,80). Opciones: un corte entre 0,70 y 0,90; o medir antes la regla por página en vez de por documento. No suma consultas en producción; podría restar si a un documento bajo no se le piden entidades.",
+      "creado": "2026-10-31",
+      "actualizado": "2026-10-31"
+    },
+    {
+      "id": "P-511",
+      "titulo": "La medición de entidades cuenta mal un documento que es a la vez un archivo entero y una parte de otro archivo",
+      "tipo": "tarea",
+      "responsable": "Claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "pruebas y calidad",
+      "detalle": "La prueba de medición de entidades de la app junta las menciones de los documentos de un archivo cortado con su archivo. Cuando un mismo documento es también un archivo entero sin cortar (una copia), sus menciones se cuentan con el archivo cortado y el archivo entero queda con 0 aciertos. En la sucesión, con la cadena de hoy, da 543 aciertos en vez de 572 contados por documento. El paso 11 compara las dos cadenas con esa medición: puede torcer la comparación si cortan distinto. Arreglo: contar por documento, o asignar al archivo de la hoja y no al cortado. No cambia consultas en producción: es solo de la prueba.",
+      "creado": "2026-10-31",
+      "actualizado": "2026-10-31"
     }
   ]
 }

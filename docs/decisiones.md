@@ -631,6 +631,8 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-690 | 31 oct | pruebas y calidad | Cómo se arma la franja de cada renglón en la lectura nueva de N | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-691 | 31 oct | pruebas y calidad | Qué es una zona chica para unir el logo partido | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-692 | 31 oct | pruebas y calidad | El umbral bajo de la lectura queda en 0,90, según la calibración | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-693 | 31 oct | pruebas y calidad | El indicador de calidad de la lectura: la parte firme de las letras, por documento | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-694 | 31 oct | pruebas y calidad | Cómo se confirma texto aproximado con documentos del mismo caso | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -6949,3 +6951,17 @@ Vale solo para este caso: no se generaliza ni se cambian otras etiquetas. Si es 
 - **El problema:** D-679 pide fijar el umbral bajo (el borde entre el texto aproximado, que sirve para entender, y el descartado) con una medición y no a mano. El dueño aceptó el criterio: un renglón sirve si tiene bien al menos dos tercios de sus letras, y el umbral es el borde de abajo del último tramo en que la mayoría sirve. Quedaban abiertos detalles de la medición.
 - **Qué se decidió y por qué:** Con 40 renglones al azar por tramo de confianza (280 en total, de la carpeta de prueba y del examen, solo zonas de texto), transcritos por Codex en 14 consultas: sirve para entender el 92 % de 0,97 o más, el 74 % de 0,90 a 0,97, el 45 % de 0,80 a 0,90, el 21 % de 0,70 a 0,80, el 13 % de 0,60 a 0,70 y nada por debajo de 0,60. El umbral bajo queda en 0,90. Detalles fijados antes de medir: la similitud es 1 menos la distancia de edición dividida por el largo del texto más largo, tras pasar a minúsculas y sacar tildes y signos; «ilegible» cuenta como que no sirve; se apartan los recortes que Codex marca cortados por el borde (con ellos el umbral sale igual); un recuadro del lector que abarca varios renglones de letra chica cuenta, porque es el renglón tal como lo armó el lector; si un tramo no cumple, los de abajo no cuentan. Con 0,90, en la carpeta de prueba queda descartado el 2,8 % de las letras (antes, con el provisorio 0,80, el 1,6 %); en los escaneos sin el compuesto de 93 páginas, el 13 %.
 - **Quién decidió:** Claude, en la corrida desatendida (D-500); el dueño la revisa
+
+### D-693 · El indicador de calidad de la lectura: la parte firme de las letras, por documento
+
+- **Fecha:** 31 oct 2026 · **Tema:** pruebas y calidad · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** D-669 pide un indicador de calidad por documento real, solo con las confianzas del lector, sin contar sellos, logos ni firmas, y con el texto digital valiendo 1. Faltaba definir cómo se cuenta y cómo se reconoce una firma.
+- **Qué se decidió y por qué:** Por página, las letras (sin espacios) de cada franja con el umbral bajo calibrado; por documento, la suma de sus páginas, y el indicador es la parte firme. Se guarda la peor página entre las de al menos 100 letras. No cuentan las zonas de imagen, sello, figura o gráfico, los logos unidos en una zona chica, ni las rúbricas: un renglón no firme, de hasta 25 letras, que no parece palabras y que está a lo sumo a un 8 % del alto de la página de un renglón que dice firma, aclaración, fdo o firmado digitalmente, o pegado a un sello. Una página digital es toda firme y un documento sin lector vale 1. Con la cadena de hoy separa claramente un escaneo viejo (0,02) de una carta documento impresa (0,92 a 0,995). No hace consultas a la IA.
+- **Quién decidió:** Claude, paso 10 de la segunda corrida
+
+### D-694 · Cómo se confirma texto aproximado con documentos del mismo caso
+
+- **Fecha:** 31 oct 2026 · **Tema:** pruebas y calidad · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** P-492 pide confirmar tramos de texto aproximado con texto firme de documentos relacionados, sin IA, y contar las uniones falsas. Faltaban detalles de la regla.
+- **Qué se decidió y por qué:** Relacionado es de la misma carpeta de primer nivel. Se normaliza: minúsculas, sin tildes ni signos; las formas jurídicas de la app como una palabra; unas abreviaturas de la vertical; las fechas en una sola forma; los números con separadores como sus cifras; un CUIT firme que no verifica no confirma. Un tramo se confirma si es igual a texto firme de otro documento y tiene dos palabras o más, una de 4 letras o más o un número (para no confirmar «de la»), o es un número de 4 cifras o más o una fecha. Un renglón que solo se parece en un 85 % o más, con los mismos números, queda posible. En un documento de calidad baja, un tramo solo se une a una entidad ya extraída de documentos de calidad normal. Con la cadena de hoy confirma unos 670 tramos, sin uniones falsas de texto, pero recupera 2 de 10 menciones que estaban solo en texto aproximado: se recomienda usarlo como marca para la persona y no para dar datos. No hace consultas a la IA.
+- **Quién decidió:** Claude, paso 10 de la segunda corrida
