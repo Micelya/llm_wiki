@@ -647,6 +647,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-707 | 31 oct | pruebas y calidad | El corte de calidad de la lectura es provisorio, la marca «posible» no se implementa, y primero se cierran el corte y el orden de las etapas | decidida |
 | D-708 | 31 oct | base | Una copia toma todo del original sin repetir ningún proceso; lo que queda es afinar cómo se detecta una copia | decidida |
 | D-709 | 31 oct | pruebas y calidad | El tipo se medirá con una hoja de tipos en castellano, primero de la vertical legal, alineada con el catálogo | decidida |
+| D-710 | 31 oct | pruebas y calidad | Qué espera la extracción antes de leer un documento, y qué nunca la frena | asumida (D-500) al arreglar P-519: el dueño la revisa |
 
 ---
 
@@ -7077,3 +7078,10 @@ Vale solo para este caso: no se generaliza ni se cambian otras etiquetas. Si es 
 - **El problema:** El paso 11 de la segunda corrida no pudo medir el tipo: la hoja de partes usa nombres de tipo que no son los del catálogo de la app.
 - **Qué se decidió y por qué:** Se armará una hoja de tipos en castellano, al principio para la vertical legal, alineada con el catálogo. Queda en P-522.
 - **Quién decidió:** El dueño
+
+### D-710 · Qué espera la extracción antes de leer un documento, y qué nunca la frena
+
+- **Fecha:** 31 oct 2026 · **Tema:** pruebas y calidad · **Estado:** asumida (D-500) al arreglar P-519: el dueño la revisa
+- **El problema:** Para arreglar P-519 (la extracción leía entero un PDF de varios documentos antes de que lo cortaran), hubo que elegir qué espera la extracción, qué pasa cuando algo falla y qué pasa cuando la ronda de preguntas con tope (D-606) espera a una persona.
+- **Qué se decidió y por qué:** 1) La extracción espera, en el orden de D-666: el corte de un PDF de 2 páginas o más (por su ficha, o por el texto de sus páginas mientras la ficha no está), sus partes, la firma de la búsqueda de parecidos y el tipo. No espera la medición de copias que viene después de la firma: una medición que falla hoy frena toda la búsqueda de parecidos, y esperarla podría frenar la lectura para siempre. 2) Un corte, unas partes o una firma que fallan se anotan por archivo, con la base sobre la que fallaron (el texto, las reglas): no se reintentan ni se esperan hasta que esa base cambie, y el archivo se lee entero, como antes. Así una falla no frena ni al resto ni a ese archivo (D-488). 3) Las partes de un archivo con pasos dudosos que la IA pregunta sola esperan esa respuesta solo si va a llegar: lectura automática encendida, motor que mira imágenes, ronda que no espera a una persona y preguntas del corte que no están fallando. Si la ronda pasó su tope y espera a una persona, las partes se leen como están, marcadas inciertas; si después una respuesta las cambia, se leen de nuevo solo las partes que cambiaron. Elegido así porque nunca se espera a una persona, y una ronda parada puede durar días. 4) Consecuencia: en una base nueva, la primera lectura empieza cuando el hilo local terminó el texto, las fichas, los cortes, las partes y las firmas de toda la carpeta.
+- **Quién decidió:** Claude, al arreglar P-519 (D-500); el dueño la revisa
