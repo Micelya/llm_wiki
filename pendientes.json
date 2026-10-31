@@ -4224,10 +4224,10 @@
       "titulo": "Una hoja nueva de parecidos, con documentos que no se usaron para diseñar las reglas",
       "tipo": "tarea",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "hecho",
       "prioridad": 1,
       "tema": "pruebas y calidad",
-      "detalle": "Según D-676 y D-675. En la preparación de la segunda corrida (P-481), Claude busca, en la carpeta de prueba y en el examen, documentos compuestos y sus copias. Sobre todo busca copias que aparecen recién al cortar, y también pares parecidos que no son copia. Arma con ellos una hoja de comparación nueva, con su criterio escrito, y marca los pares que sirvieron para diseñar alguna regla. Los candidatos salen de un método propio, sin usar la búsqueda de parecidos de la app, para no medirla con sus propias propuestas. En la misma versión nueva de las hojas entra el caso del acuerdo con su anexo: sus cortes, sus parecidos con el original y las entidades del archivo nuevo.",
+      "detalle": "Según D-676 y D-675. En la preparación de la segunda corrida (P-481), Claude busca, en la carpeta de prueba y en el examen, documentos compuestos y sus copias. Sobre todo busca copias que aparecen recién al cortar, y también pares parecidos que no son copia. Arma con ellos una hoja de comparación nueva, con su criterio escrito, y marca los pares que sirvieron para diseñar alguna regla. Los candidatos salen de un método propio, sin usar la búsqueda de parecidos de la app, para no medirla con sus propias propuestas. En la misma versión nueva de las hojas entra el caso del acuerdo con su anexo: sus cortes, sus parecidos con el original y las entidades del archivo nuevo. 2026-10-31: Hecho en el paso 2 de la segunda corrida, con el criterio de D-683: la hoja nueva de parecidos tiene 52 pares, 39 para medir y 13 del caso del acuerdo con su anexo marcados como usados para diseñar una regla. De los 39, 27 tienen algún lado dentro de un compuesto; 35 son de la carpeta, 2 del examen y 2 entre las dos carpetas. Ninguno sale de la búsqueda de la app ni está en la hoja vieja. Falta que el dueño los confirme (P-502).",
       "creado": "2026-10-31",
       "actualizado": "2026-10-31"
     },
@@ -4264,6 +4264,30 @@
       "prioridad": 2,
       "tema": "pruebas y calidad",
       "detalle": "Medido en el paso 1 de la segunda corrida (D-673): la misma pregunta, 14 veces sobre un fragmento de unas 3.900 palabras de documentos escaneados antiguos, trajo de 14 a 51 menciones y halló de 15 a 31 de las 32 entidades de la hoja (23 en promedio). En un fragmento de 3.660 palabras del mismo archivo varió de 25 a 28, y en una carta corta no varió. Preguntar dos veces por fragmento y unir las respuestas sube el promedio de 23 a 26 entidades en el fragmento largo y de 27 a 28 en el otro, pero suma una consulta por fragmento en producción (duplica las de la extracción). No entra a la app sin una decisión del dueño (D-672). Queda por ver qué hace inestable ese fragmento (la calidad del texto, la cantidad de nombres al pasar o el largo) antes de proponer otra cosa.",
+      "creado": "2026-10-31",
+      "actualizado": "2026-10-31"
+    },
+    {
+      "id": "P-501",
+      "titulo": "Decidir la relación entre la copia del contrato del anexo y el contrato original que agregó el dueño",
+      "tipo": "decision",
+      "responsable": "dueño",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "pruebas y calidad",
+      "detalle": "D-699 dice que la copia del contrato que va en el anexo del acuerdo de cesión es copia del contrato original que agregó el dueño (D-675), y así quedó en las hojas: «mismo documento». Pero el texto no es el mismo: en el anexo el inversor es la sociedad cedente, por otro monto, con el domicilio de la sociedad y el cargo junto a la firma; en el contrato agregado el inversor es la persona cesionaria, por otro monto, con su domicilio y sin el cargo. El resto del texto, la fecha y el identificador del sobre de firma son iguales. Por el texto la relación sería «misma plantilla» o «versión», y la búsqueda de parecidos no va a dar «mismo documento». Si el dueño confirma «mismo documento», la medición contará como fallo lo que la app dé. Si elige otra, se cambian 4 pares en las dos hojas nuevas, sin costo de consultas.",
+      "creado": "2026-10-31",
+      "actualizado": "2026-10-31"
+    },
+    {
+      "id": "P-502",
+      "titulo": "Confirmar los pares de la hoja nueva de parecidos",
+      "tipo": "decision",
+      "responsable": "dueño",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "pruebas y calidad",
+      "detalle": "Los 39 pares para medir de la hoja nueva de parecidos (P-497, D-683) los decidió Claude leyendo los textos, y quedan sin confirmar. Los que más conviene mirar: dos copias de un escrito que solo agregan el sello de incorporación de un oficio electrónico, puestas como «prácticamente el mismo»; una resolución transcripta dentro de un oficio, puesta como «contenido en»; dos páginas de un mismo oficio, una con el sello del juzgado y la firma de la secretaría, puesta como «ejemplar firmado»; y dos pares de escritos distintos sobre el mismo pedido, puestos como «mismo asunto». El examen aporta solo 4 pares, porque sus archivos son de asuntos distintos.",
       "creado": "2026-10-31",
       "actualizado": "2026-10-31"
     }

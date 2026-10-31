@@ -620,6 +620,8 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-680 | 31 oct | base | Un correo genérico va con su organización, y lo que «no parece palabras» queda como texto aproximado | vigente |
 | D-699 | 31 oct | base | En el acuerdo con su anexo, la página que anuncia el anexo va con el acuerdo, y el anexo es copia exacta del original | vigente, solo para este caso |
 | D-681 | 31 oct | pruebas y calidad | El criterio general para alinear las hojas de entidades con D-665 | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-682 | 31 oct | pruebas y calidad | El registro del servicio de firma va aparte, y el ejemplar firmado por las dos partes es el ejemplar firmado del que firmó una sola | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-683 | 31 oct | pruebas y calidad | Cómo se buscaron y se decidieron los pares de la hoja nueva de parecidos | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -6860,4 +6862,18 @@ Vale solo para este caso: no se generaliza ni se cambian otras etiquetas. Si es 
 - **Fecha:** 31 oct 2026 · **Tema:** pruebas y calidad · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
 - **El problema:** D-665 dice que un cargo sin nombre y un asunto nombrado solo con una frase no son mención, y que se alinea la hoja (P-483). Hacía falta un criterio general (R-24) para aplicarlo a toda la hoja, no solo a los 5 casos del paso 12 de la primera corrida.
 - **Qué se decidió y por qué:** Un cargo sin nombre es una forma sin ningún nombre propio, sin números ni correo, con una palabra de cargo o de papel (las listas del vocabulario de la app más una lista corta); se saca si el mismo archivo no nombra a nadie con ese cargo, y queda como dudosa si lo nombra. Un asunto dicho con una frase es una forma sin identificador y sin la forma de una carátula que no nombra el asunto por su clase y una parte; se saca si es una frase del texto que describe un hecho o un estado del asunto. El título genérico del propio documento (por ejemplo, un contrato titulado solo con su clase) queda como dudoso, sin sacarlo, hasta que el dueño diga si cuenta como frase (P-499). Resultado: 5 menciones sacadas de 743 en la hoja de la sucesión, ninguna de 404 en la otra; 30 dudosas quedan en las hojas; un asunto queda sin menciones.
+- **Quién decidió:** Claude, en la corrida desatendida (D-500); el dueño la revisa
+
+### D-682 · El registro del servicio de firma va aparte, y el ejemplar firmado por las dos partes es el ejemplar firmado del que firmó una sola
+
+- **Fecha:** 31 oct 2026 · **Tema:** pruebas y calidad · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** En el caso del acuerdo de cesión con su anexo (D-675, D-699), el dueño no describió los dos archivos de 12 páginas. Sus páginas 11 y 12 son el informe de auditoría del servicio de firma electrónica: historial del envío, quién firmó y cuándo, y «Documento completado». Además, el archivo de 10 páginas que el dueño señaló como firmado tiene el sello de una sola firma, y los de 12 tienen los sellos de las dos partes. Había que decidir cómo cortar esas dos páginas y qué relación tienen los de 12 con los de 10.
+- **Qué se decidió y por qué:** Con el criterio general de las etiquetas: el informe del servicio de firma es un documento aparte (una constancia de firma), como las demás constancias de las hojas, y se relaciona con el acuerdo como «constancia de firma», no medible. Entre los acuerdos, el que trae una firma que el otro no tiene es su «ejemplar firmado»: el de 12 páginas, con las dos firmas, es el ejemplar firmado del de 10 que tiene una sola, y también del de 10 que no tiene ninguna. Los dos de 12 tienen el mismo texto y son «mismo documento». Esto vale para las hojas de esta corrida; no cambia ninguna regla de la app.
+- **Quién decidió:** Claude, en la corrida desatendida (D-500); el dueño la revisa
+
+### D-683 · Cómo se buscaron y se decidieron los pares de la hoja nueva de parecidos
+
+- **Fecha:** 31 oct 2026 · **Tema:** pruebas y calidad · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La hoja nueva de parecidos (D-676, P-497) necesitaba candidatos que no salieran de la búsqueda de la app, y un criterio parejo para poner la relación de cada par sin mirar casos de las hojas ni ajustar nada a un caso (R-24).
+- **Qué se decidió y por qué:** Los candidatos salen de la parte de secuencias de 5 palabras en común entre dos documentos, con un umbral bajo (10 % del menor y al menos 8 secuencias), descartando las secuencias que aparecen en más de 40 documentos, que son formulario común. Para lo leído con el lector local se agrega una segunda pasada con secuencias de 3 palabras (25 % del menor). Cada par se confirma leyendo los dos textos, y la relación sigue cuatro reglas: el mismo texto, aunque cambien signos o el ruido de la lectura, es «mismo documento»; el mismo texto con solo un sello de trámite agregado (por ejemplo, el de incorporación de un oficio electrónico) es «prácticamente el mismo»; el mismo formulario o la misma fórmula con datos distintos es «misma plantilla»; el mismo escrito presentado otra vez con cambios es «versión»; dos escritos distintos sobre el mismo pedido son «mismo asunto». Todos los pares quedan sin confirmar por el dueño.
 - **Quién decidió:** Claude, en la corrida desatendida (D-500); el dueño la revisa
