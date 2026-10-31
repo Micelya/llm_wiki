@@ -4272,10 +4272,10 @@
       "titulo": "Decidir la relación entre la copia del contrato del anexo y el contrato original que agregó el dueño",
       "tipo": "decision",
       "responsable": "dueño",
-      "estado": "pendiente",
+      "estado": "hecho",
       "prioridad": 2,
       "tema": "pruebas y calidad",
-      "detalle": "D-699 dice que la copia del contrato que va en el anexo del acuerdo de cesión es copia del contrato original que agregó el dueño (D-675), y así quedó en las hojas: «mismo documento». Pero el texto no es el mismo: en el anexo el inversor es la sociedad cedente, por otro monto, con el domicilio de la sociedad y el cargo junto a la firma; en el contrato agregado el inversor es la persona cesionaria, por otro monto, con su domicilio y sin el cargo. El resto del texto, la fecha y el identificador del sobre de firma son iguales. Por el texto la relación sería «misma plantilla» o «versión», y la búsqueda de parecidos no va a dar «mismo documento». Si el dueño confirma «mismo documento», la medición contará como fallo lo que la app dé. Si elige otra, se cambian 4 pares en las dos hojas nuevas, sin costo de consultas.",
+      "detalle": "D-699 dice que la copia del contrato que va en el anexo del acuerdo de cesión es copia del contrato original que agregó el dueño (D-675), y así quedó en las hojas: «mismo documento». Pero el texto no es el mismo: en el anexo el inversor es la sociedad cedente, por otro monto, con el domicilio de la sociedad y el cargo junto a la firma; en el contrato agregado el inversor es la persona cesionaria, por otro monto, con su domicilio y sin el cargo. El resto del texto, la fecha y el identificador del sobre de firma son iguales. Por el texto la relación sería «misma plantilla» o «versión», y la búsqueda de parecidos no va a dar «mismo documento». Si el dueño confirma «mismo documento», la medición contará como fallo lo que la app dé. Si elige otra, se cambian 4 pares en las dos hojas nuevas, sin costo de consultas. 2026-10-31: Cerrado por el caso del contrato original correcto (D-701). El contrato original que se había agregado era otro del mismo modelo, con otro inversor: la persona que después recibe la cesión, a título personal. El dueño agregó el correcto, que tiene el mismo texto y la misma imagen que la copia del anexo en los cuatro ejemplares del acuerdo: «mismo documento». El par con el otro contrato pasa a «misma plantilla», y se suma el par entre los dos contratos sueltos. Las dos hojas de parecidos ya están cambiadas, y la cadena N acierta los 5 pares nuevos.",
       "creado": "2026-10-31",
       "actualizado": "2026-10-31"
     },
@@ -4444,6 +4444,30 @@
       "prioridad": 4,
       "tema": "pruebas y calidad",
       "detalle": "Las diferencias de 1 a 5 menciones entre las tres preguntas de la prueba del texto aproximado (paso 12 de la segunda corrida) se juzgaron con la variación del paso 1, que es de fragmentos de otros documentos. En una de las 90 respuestas, la IA devolvió solo 3 menciones donde las otras dos preguntas daban 14 y 19. Repetir la pregunta solo firme una vez en los mismos 30 documentos (30 consultas, solo de prueba, sin efecto en producción) separaría el efecto del bloque del azar, si el dueño sigue con P-514.",
+      "creado": "2026-10-31",
+      "actualizado": "2026-10-31"
+    },
+    {
+      "id": "P-516",
+      "titulo": "La verificación de la extracción tira un importe cuando la cita del modelo salta un paréntesis corto del medio del texto",
+      "tipo": "tarea",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "pruebas y calidad",
+      "detalle": "En el caso del contrato original correcto (D-701), el modelo sacó bien el importe que invirtió una persona en un contrato de inversión, pero la verificación lo descartó por «cita no encontrada»: la cita del modelo omitía un paréntesis de definición que en el texto está entre el nombre del inversor y el monto (del tipo «X (el “Inversor”) de $N»). Por eso la página de esa persona no dice cuánto invirtió, y no se puede ver el total que invirtió entre su nombre y el de su sociedad. Propuesta: que la verificación acepte una cita que coincide con el texto salvo un paréntesis corto omitido, y que guarde como cita el tramo real del texto. Es parecido a P-480 (la forma jurídica final). Efecto en las consultas de producción por documento: deja igual (0), es una regla. Medir cuántas citas descartadas de la carpeta de prueba se recuperan y si alguna es falsa.",
+      "creado": "2026-10-31",
+      "actualizado": "2026-10-31"
+    },
+    {
+      "id": "P-517",
+      "titulo": "Que un archivo que es copia exacta de un documento que ya está no vuelva a preguntar su tipo ni su extracción",
+      "tipo": "tarea",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "pruebas y calidad",
+      "detalle": "En el caso del contrato original correcto (D-701), el archivo nuevo tenía el mismo texto que la copia del anexo de un acuerdo, ya leída y extraída. La app lo guardó bien en la misma versión, pero volvió a preguntar el tipo y la extracción de esa versión, porque cambió su nombre principal (o los otros documentos de su familia) y con eso la pregunta. La respuesta nueva salió un poco distinta y perdió dos datos que estaban bien (un rol de una persona y la representación de una sociedad por su presidente). Propuesta: cuando a una versión ya tipada y extraída le llega otro archivo con el mismo texto, conservar su tipo y su extracción. Efecto en las consultas de producción: resta 2 por cada copia exacta que llegue (el tipo y una por fragmento de la extracción). Además, en la base de prueba de N, 108 de 290 páginas muestran documentos de archivos cortados sin nombre, y 67 tienen citas sin el nombre del documento: verificar en la app si pasa también ahí.",
       "creado": "2026-10-31",
       "actualizado": "2026-10-31"
     }

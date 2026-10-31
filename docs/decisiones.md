@@ -638,6 +638,8 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-696 | 31 oct | pruebas y calidad | Criterios del paso 11 para las formas de mención, la cita por la forma jurídica y la variación de los totales | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-697 | 31 oct | pruebas y calidad | Cómo se midió el texto aproximado: la pregunta exacta con un campo de prueba, un juez ciego y los «posibles» contra toda la hoja | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-698 | 31 oct | pruebas y calidad | La segunda pasada se disparó con la regla amplia: cualquier nombre de dos palabras, sigla, correo o campo rotulado sin mención | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-701 | 31 oct | pruebas y calidad | El anexo del acuerdo de cesión es el mismo documento que el contrato original correcto; el que se había agregado antes es de la misma plantilla | decidida |
+| D-702 | 31 oct | pruebas y calidad | Cómo se suma un archivo a la cadena N en la prueba, y cómo quedan en la hoja el contrato agregado antes y la firma del inversor en el anexo | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -7005,3 +7007,17 @@ Vale solo para este caso: no se generaliza ni se cambian otras etiquetas. Si es 
 - **El problema:** La especificación de la segunda pasada (P-478) nombra qué buscar, pero no cuán estricta es la búsqueda, y eso fija el costo en producción.
 - **Qué se decidió y por qué:** Se usó la regla amplia: nombres de dos o más palabras con mayúscula, siglas de 2 a 6 letras (fuera de una lista corta de siglas genéricas), correos y campos rotulados con su valor, cubiertos si sus palabras están en una mención o un identificador del documento. Con esa regla dispara el 98 % de los documentos. Se informa también cuántos dispararían solo por correos o campos rotulados, sin consultas propias.
 - **Quién decidió:** Claude (paso 12 de la segunda corrida)
+
+### D-701 · El anexo del acuerdo de cesión es el mismo documento que el contrato original correcto; el que se había agregado antes es de la misma plantilla
+
+- **Fecha:** 31 oct 2026 · **Tema:** pruebas y calidad · **Estado:** decidida
+- **El problema:** D-699 decía que la copia del contrato que va en el anexo del acuerdo de cesión es copia del contrato original que había agregado el dueño, y así quedó en las hojas («mismo documento»). Pero los textos no coincidían (P-501). El dueño aclaró que el contrato agregado era otro del mismo modelo, con otro inversor: la persona que después recibe la cesión, a título personal. Agregó el correcto.
+- **Qué se decidió y por qué:** Se compararon los textos y las imágenes. El contrato correcto y la copia del anexo de los cuatro ejemplares del acuerdo tienen el mismo texto en sus 6 páginas y la misma imagen, píxel a píxel, con las mismas firmas y el mismo identificador del sobre del servicio de firma; solo cambian los bytes del archivo. La relación es «mismo documento». El contrato agregado antes es «misma plantilla» con la copia del anexo y con el contrato correcto: cambian el inversor, el monto, el domicilio del inversor y el cargo junto a la firma; la fecha y el sobre de firma son los mismos. Las hojas de parecidos (la nueva y la versión nueva de la vieja) cambian 4 pares a «misma plantilla» y suman 5: el anexo de cada ejemplar con el contrato correcto, y los dos contratos sueltos entre sí. La hoja de entidades suma las menciones del contrato correcto. Cierra P-501.
+- **Quién decidió:** el dueño (los hechos del caso y la relación con el contrato agregado antes); la comparación del texto y la imagen, en la prueba
+
+### D-702 · Cómo se suma un archivo a la cadena N en la prueba, y cómo quedan en la hoja el contrato agregado antes y la firma del inversor en el anexo
+
+- **Fecha:** 31 oct 2026 · **Tema:** pruebas y calidad · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Sumar un archivo a la cadena N sin repetir toda la corrida (unas 3 horas y 710 consultas) pide reusar las respuestas ya guardadas, sin mezclar corridas viejas. Además, al salir el contrato agregado antes del asunto de la cesión, quedaba sin asunto; y la copia del anexo no tenía en la hoja la mención de quien firma por el inversor, que el contrato correcto sí tiene.
+- **Qué se decidió y por qué:** El archivo nuevo se lee y se corta como en los pasos 6 y 8 (reglas seguras y una consulta a la IA por la parte entera), y se suma a los cortes dados. La cadena corre en una carpeta nueva, con una copia del guion de la corrida que, al empezar, copia las respuestas del modelo de la cadena N de la misma corrida: se reusan por clave (motor y pregunta), como al retomar (D-678), y solo se pregunta lo que cambió. Antes se corre una vuelta en seco, sin preguntar, que cuenta lo que falta; la vuelta de verdad lleva un tope de respuestas para no pasar el de consultas. En la hoja, el contrato agregado antes pasa a un asunto propio (el contrato de esa persona a título personal), y la copia del anexo de los cuatro ejemplares suma la mención de quien firma por el inversor, con su cargo.
+- **Quién decidió:** el agente del caso, asumido (D-500)
