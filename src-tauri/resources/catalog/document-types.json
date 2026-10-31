@@ -9,9 +9,9 @@
     "Una forma ('shape') describe un identificador: 'A' es una letra mayúscula, '9' un dígito y cualquier otro carácter se exige tal cual.",
     "Un archivo con este mismo formato en la carpeta de datos de la app (docbase/document-types.json) reemplaza a este al iniciar.",
     "Un tipo 'carrier' dice cómo se emitió o se hizo un documento (un servicio de firma, un formulario), no qué es: sus marcas nunca dan el tipo, y sus datos y reglas valen para el documento que las lleve.",
-    "'data' son los datos que interesan en un documento del tipo y con qué patrón general se encuentran: el valor de una clase ('identifier', 'amount', 'date', 'number' o 'text', el resto de la línea) pocas palabras después de una frase ('after'), un identificador con una forma ('shapes') o el valor de una marca ('fromMark'). 'required': si las reglas no lo encuentran, se le pregunta al modelo.",
+    "'data' son los datos que interesan en un documento del tipo y con qué patrón general se encuentran: el valor de una clase ('identifier', 'amount', 'date', 'number' o 'text', el resto de la línea) pocas palabras después de una frase ('after'), un identificador con una forma ('shapes') o el valor de una marca ('fromMark': el propio del documento es el primero en el orden de lectura, el de su formulario o su encabezado; uno citado en el cuerpo es una referencia). 'required': si las reglas no lo encuentran, se le pregunta al modelo. 'stageData': los datos que exige una etapa; un documento que el modelo pone en esa etapa sin ellos, y sin una marca que la muestre, está en la etapa anterior que sí tiene sus datos (una carta 'enviada' sin número de envío todavía no se envió).",
     "'asksPerson': la relación pide que una persona decida, porque los dos pueden ser el mismo documento (una copia, una versión, uno dentro del otro, su acuse de recibo o su constancia de firma). Las demás (la misma plantilla con otros datos, solo parecidos) son documentos distintos: se muestran y no piden nada (D-497).",
-    "'rules' dicen cómo se relacionan dos documentos del tipo: 'different-data' (si cambia uno de esos datos son documentos distintos), 'stage-pair' (una etapa y otra del mismo documento, con los mismos datos) y 'shared-data' (un documento de este tipo y uno de 'otherType' con el mismo dato). 'certainty': 'high' cuando el dato compartido nombra una sola cosa (el identificador de un proceso de firma); sin decirlo, la relación se propone con certeza baja.",
+    "'rules' dicen cómo se relacionan dos documentos del tipo: 'different-data' (si cambia uno de esos datos son documentos distintos: su 'relation' si comparten tanto texto como los documentos de una plantilla, y si comparten menos, 'similar'), 'stage-pair' (una etapa y otra del mismo documento, con los mismos datos) y 'shared-data' (un documento de este tipo y uno de 'otherType' con el mismo dato). 'certainty': 'high' cuando el dato compartido nombra una sola cosa (el identificador de un proceso de firma); sin decirlo, la relación se propone con certeza baja.",
     "La firma digital de un PDF se verifica sin conexión. Es el sello de un servicio de firma cuando su cadena de certificados verifica hasta uno de los 'rootFingerprints' del servicio (la huella SHA-256 del certificado de su raíz) y el certificado del firmante lleva una de sus 'certificateNames'. El nombre solo no prueba nada. 'pdfSignature': 'service' es ese sello, cuando además cubre el archivo entero; 'party', una firma que verifica y no es de un servicio."
   ],
   "relations": [
@@ -258,7 +258,7 @@
             "facturas",
             "numero-de-envio"
           ],
-          "relation": "similar"
+          "relation": "same-template"
         },
         {
           "id": "vista-previa-de-la-carta",
@@ -275,6 +275,11 @@
           "relation": "preview"
         }
       ],
+      "stageData": {
+        "enviada": [
+          "numero-de-envio"
+        ]
+      },
       "stageDescriptions": {
         "borrador": "el texto escrito en un procesador de texto, antes de cargarlo en el sistema del correo: sin formulario del correo, número de envío ni sellos",
         "vista-previa": "lo que genera el sistema del correo antes de despacharla, sin valor legal: leyenda o marca de agua de vista previa y casilleros vacíos donde irían el número de envío y el código de barras",

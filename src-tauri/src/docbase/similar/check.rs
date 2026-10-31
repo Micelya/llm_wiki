@@ -29,6 +29,10 @@ use crate::docbase::{DocBase, Visible, PRIVATE_DB_FILE};
 #[derive(Debug, Deserialize)]
 struct Answers {
     root: String,
+    /// The roots a pair's side names with `a_root` and `b_root` (the new
+    /// sheet: the folder and the exam); without one, `root`.
+    #[serde(default)]
+    roots: BTreeMap<String, String>,
     #[serde(default)]
     pairs: Vec<AnswerPair>,
     #[serde(default)]
@@ -50,6 +54,24 @@ struct AnswerPair {
     measurable: bool,
     #[serde(default)]
     note: Option<String>,
+    #[serde(default)]
+    a_root: Option<String>,
+    #[serde(default)]
+    b_root: Option<String>,
+    /// The pair served to design a rule: it is not an independent
+    /// measurement, and is told apart (D-676).
+    #[serde(default)]
+    used_for_rule: bool,
+}
+
+/// The sheet in two: the pairs no rule was designed with, and those that
+/// were (D-676).
+fn split_by_rule(answers: Answers) -> (Answers, Answers) {
+    let (for_rules, independent): (Vec<AnswerPair>, Vec<AnswerPair>) = answers.pairs.into_iter().partition(|p| p.used_for_rule);
+    (
+        Answers { root: answers.root.clone(), roots: answers.roots.clone(), pairs: independent, documents: answers.documents },
+        Answers { root: answers.root, roots: answers.roots, pairs: for_rules, documents: Vec::new() },
+    )
 }
 
 #[derive(Debug, Deserialize)]
@@ -350,7 +372,15 @@ not compared (no text yet, or too little): {}", rows.len());
 MICELYA_SIMILAR_ANSWERS is not set or not readable: no comparison with the answer sheet");
         return;
     };
-    against_the_sheet(&base, &answers, true);
+    let (independent, for_rules) = split_by_rule(answers);
+    if !for_rules.pairs.is_empty() {
+        println!("\n== the pairs no rule was designed with: {} (D-676) ==", independent.pairs.len());
+    }
+    against_the_sheet(&base, &independent, true);
+    if !for_rules.pairs.is_empty() {
+        println!("\n== apart: the pairs used to design a rule, {} (not an independent measurement) ==", for_rules.pairs.len());
+        against_the_sheet(&base, &for_rules, true);
+    }
 }
 
 #[derive(Default)]
@@ -712,8 +742,9 @@ fn against_the_sheet(base: &DocBase, answers: &Answers, list_unjudged: bool) -> 
             unknown.push(format!("relation '{}' (pair {number})", answer.relation));
             continue;
         };
-        let a = seen.resolve(&answers.root, &answer.a, answer.a_selector.as_deref());
-        let b = seen.resolve(&answers.root, &answer.b, answer.b_selector.as_deref());
+        let root_of = |side: &Option<String>| side.as_ref().and_then(|r| answers.roots.get(r)).unwrap_or(&answers.root);
+        let a = seen.resolve(root_of(&answer.a_root), &answer.a, answer.a_selector.as_deref());
+        let b = seen.resolve(root_of(&answer.b_root), &answer.b, answer.b_selector.as_deref());
         let (Some(a), Some(b)) = (a, b) else {
             coverage.not_in_base.push(number);
             continue;
@@ -1138,9 +1169,10 @@ const GENERIC: &[&str] = &[
 /// Words the program uses for its own reasons that a case happens to share:
 /// the vendors and models it talks to (a search provider, the model of the
 /// reading), ordinary English words of the tests brought from the original
-/// project, and a letter of the Greek alphabet. They say nothing about a
-/// case.
-const NOT_OF_CASES: &[&str] = &["google", "luna", "tea", "foundation", "grant", "iota"];
+/// project, a letter of the Greek alphabet, and "cap" (a limit, in the
+/// program; a term of an investment agreement, in a file name of the test
+/// folder). They say nothing about a case.
+const NOT_OF_CASES: &[&str] = &["google", "luna", "tea", "foundation", "grant", "iota", "cap"];
 
 /// Words of the names of public bodies (courts, registries, the official
 /// gazette, public banks, the bar), common words of the trade: an

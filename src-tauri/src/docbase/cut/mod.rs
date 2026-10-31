@@ -149,6 +149,64 @@ const ASKED_BY_ITSELF: &str =
 /// A doubtful step still without an answer, with the key of its question.
 const WITHOUT_ANSWER: &str = "s.verdict = 'doubtful' AND s.model_says IS NULL AND s.question IS NOT NULL";
 
+/// What `note_failure` writes down for the cut of a file and for its parts.
+const CUT_STAGE: &str = "cut";
+const PARTS_STAGE: &str = "parts";
+
+/// The time of the text of the pages of the file `f`: the file is cut
+/// again when it changes.
+const STAMP_SQL: &str = "(SELECT max(t.created_at) FROM resource_text t WHERE t.resource_hash = f.hash)";
+
+/// The files the cutter reads: `f`, with its version `c`, at a location
+/// `l` (a PDF) of a reachable origin `o`; with `cuttable_where`.
+const CUTTABLE_FROM: &str = "file f JOIN version c ON c.id = f.version_id
+     JOIN location l ON l.file_hash = f.hash AND l.hash_state = 'done' AND lower(l.ext) = 'pdf'
+     JOIN origin o ON o.id = l.origin_id AND o.reachable = 1";
+
+/// SQL: the file of `CUTTABLE_FROM` is read, at a location not excluded,
+/// and has the text of its pages.
+fn cuttable_where() -> String {
+    format!(
+        "c.state IN ('processed', 'needs-recognition') AND NOT {}
+         AND EXISTS (SELECT 1 FROM resource_text t WHERE t.resource_hash = f.hash)",
+        super::excluded_sql!()
+    )
+}
+
+/// SQL: the steps of the file `f` were decided with the rules `rules` (an
+/// SQL value) and the text its pages have now, or its cut failed with
+/// them (`note_failure`): it is not cut again until they change.
+fn cut_settled_sql(rules: &str) -> String {
+    format!(
+        "(EXISTS (SELECT 1 FROM cut_step s WHERE s.resource_hash = f.hash AND s.after_page = 0
+              AND s.rules_version = {rules} AND s.text_stamp = {STAMP_SQL})
+          OR {failed})",
+        failed = failed_sql(CUT_STAGE, "f.hash", &format!("{rules} || '|' || {STAMP_SQL}"))
+    )
+}
+
+/// A piece of the background work over one file or document that failed
+/// (the cut of a file, its parts, the signature of a document): written
+/// down with what it was done over (`basis`), it is not done again, nor
+/// waited for, until that changes (D-488: a failure never holds the rest
+/// back). What it did not do stays as before: a file not cut is read
+/// whole, as one document.
+pub(crate) fn note_failure(conn: &Connection, stage: &str, item: &str, basis: &str, error: &str) -> Result<(), String> {
+    eprintln!("[docbase] {stage} of {item}: {error}");
+    conn.execute(
+        "INSERT OR REPLACE INTO docbase_setting (key, value) VALUES (?1, ?2)",
+        params![format!("failed:{stage}:{item}"), basis],
+    )
+    .map_err(sql_err)?;
+    Ok(())
+}
+
+/// SQL: the work of `stage` over `item` failed over `basis` (both SQL
+/// values), as `note_failure` wrote it down.
+pub(crate) fn failed_sql(stage: &str, item: &str, basis: &str) -> String {
+    format!("EXISTS (SELECT 1 FROM docbase_setting fx WHERE fx.key = 'failed:{stage}:' || {item} AND fx.value = {basis})")
+}
+
 /// The doubtful steps still without an answer (D-606).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct CutQuestions {
@@ -248,20 +306,13 @@ impl DocBase {
             let conn = self.conn();
             let mut statement = conn
                 .prepare(&format!(
-                    "SELECT f.hash, f.version_id, o.location, min(l.rel_path), d.body,
-                            (SELECT max(t.created_at) FROM resource_text t WHERE t.resource_hash = f.hash) AS stamp
-                     FROM file f JOIN version c ON c.id = f.version_id
+                    "SELECT f.hash, f.version_id, o.location, min(l.rel_path), d.body, {STAMP_SQL} AS stamp
+                     FROM {CUTTABLE_FROM}
                      JOIN derivative d ON d.version_id = c.id AND d.kind = ?1 AND d.engine = ?2
-                     JOIN location l ON l.file_hash = f.hash AND l.hash_state = 'done' AND lower(l.ext) = 'pdf'
-                     JOIN origin o ON o.id = l.origin_id AND o.reachable = 1
-                     WHERE c.state IN ('processed', 'needs-recognition') AND NOT {}
-                       AND json_array_length(d.body, '$.pages') >= 2
-                       AND EXISTS (SELECT 1 FROM resource_text t WHERE t.resource_hash = f.hash)
-                       AND NOT EXISTS (SELECT 1 FROM cut_step s WHERE s.resource_hash = f.hash AND s.after_page = 0
-                           AND s.rules_version = ?3
-                           AND s.text_stamp = (SELECT max(t.created_at) FROM resource_text t WHERE t.resource_hash = f.hash))
+                     WHERE {cuttable} AND json_array_length(d.body, '$.pages') >= 2 AND NOT {settled}
                      GROUP BY f.hash ORDER BY f.hash LIMIT ?4",
-                    super::excluded_sql!()
+                    cuttable = cuttable_where(),
+                    settled = cut_settled_sql("?3"),
                 ))
                 .map_err(sql_err)?;
             let rows = statement
@@ -272,102 +323,168 @@ impl DocBase {
             rows.collect::<Result<_, _>>().map_err(sql_err)?
         };
         for (hash, version_id, root, rel_path, body, stamp) in &jobs {
-            let shapes: PdfShapes = serde_json::from_str(body).unwrap_or_default();
-            let path = LocalFolderProvider::new(root.clone()).local_path(rel_path).unwrap_or_default();
-            // A PDF pdfium cannot open is cut by its text alone.
-            let scans = run_guarded("docbase_cut", || signals::scan_pages(&path)).unwrap_or_default();
-            let (texts, prints, engine) = {
-                let conn = self.conn();
-                let texts = page_texts(&conn, hash, &shapes)?;
-                let mut statement =
-                    conn.prepare("SELECT page_no, exact_hash FROM resource_page WHERE resource_hash = ?1").map_err(sql_err)?;
-                let prints: BTreeMap<u32, String> = statement
-                    .query_map([hash], |row| Ok((row.get(0)?, row.get(1)?)))
-                    .map_err(sql_err)?
-                    .collect::<Result<_, _>>()
-                    .map_err(sql_err)?;
-                let engine = super::services::ask_engine(&conn)?.map(|c| crate::source_volume::asking::engine_id(&c));
-                (texts, prints, engine)
-            };
-            let pages = signals::signals(&shapes, &scans, &texts);
-            let mut steps = vec![CutStep {
-                after: 0,
-                verdict: Verdict::New,
-                rule: "start".into(),
-                question: None,
-                model_says: None,
-                model_confidence: None,
-                rule_type: pages.first().and_then(rules::type_of),
-                model_type: None,
-            }];
-            let mut answers: Vec<(u32, CutAnswer)> = Vec::new();
-            for pair in pages.windows(2) {
-                let (verdict, rule) = rules::step(&pair[0], &pair[1]);
-                let mut s = CutStep {
-                    after: pair[0].page,
-                    verdict,
-                    rule: rule.into(),
+            // One file at a time: a cut that fails is written down and the
+            // others go on (D-488); that file is read whole, as before.
+            let cut = || -> Result<(), String> {
+                let shapes: PdfShapes = serde_json::from_str(body).unwrap_or_default();
+                let path = LocalFolderProvider::new(root.clone()).local_path(rel_path).unwrap_or_default();
+                // A PDF pdfium cannot open is cut by its text alone.
+                let scans = run_guarded("docbase_cut", || signals::scan_pages(&path)).unwrap_or_default();
+                let (texts, prints, engine) = {
+                    let conn = self.conn();
+                    let texts = page_texts(&conn, hash, &shapes)?;
+                    let mut statement =
+                        conn.prepare("SELECT page_no, exact_hash FROM resource_page WHERE resource_hash = ?1").map_err(sql_err)?;
+                    let prints: BTreeMap<u32, String> = statement
+                        .query_map([hash], |row| Ok((row.get(0)?, row.get(1)?)))
+                        .map_err(sql_err)?
+                        .collect::<Result<_, _>>()
+                        .map_err(sql_err)?;
+                    let engine = super::services::ask_engine(&conn)?.map(|c| crate::source_volume::asking::engine_id(&c));
+                    (texts, prints, engine)
+                };
+                let pages = signals::signals(&shapes, &scans, &texts);
+                let mut steps = vec![CutStep {
+                    after: 0,
+                    verdict: Verdict::New,
+                    rule: "start".into(),
                     question: None,
                     model_says: None,
                     model_confidence: None,
-                    rule_type: rules::type_of(&pair[1]),
+                    rule_type: pages.first().and_then(rules::type_of),
                     model_type: None,
-                };
-                if verdict == Verdict::Doubtful {
-                    if let (Some(a), Some(b)) = (prints.get(&pair[0].page), prints.get(&pair[1].page)) {
-                        let key = ask::key(a, b);
-                        let kept = cached_answer(&self.conn(), &key, engine.as_deref())?;
-                        if let Some(answer) = kept.and_then(|a| CutAnswer::parse(&a).ok()) {
-                            s.model_says = Some(answer.second_starts_new_document);
-                            s.model_confidence = known_confidence(&answer.confidence);
-                            s.model_type = CutAnswer::known(&answer.second_page_type);
-                            answers.push((s.after, answer));
+                }];
+                let mut answers: Vec<(u32, CutAnswer)> = Vec::new();
+                for pair in pages.windows(2) {
+                    let (verdict, rule) = rules::step(&pair[0], &pair[1]);
+                    let mut s = CutStep {
+                        after: pair[0].page,
+                        verdict,
+                        rule: rule.into(),
+                        question: None,
+                        model_says: None,
+                        model_confidence: None,
+                        rule_type: rules::type_of(&pair[1]),
+                        model_type: None,
+                    };
+                    if verdict == Verdict::Doubtful {
+                        if let (Some(a), Some(b)) = (prints.get(&pair[0].page), prints.get(&pair[1].page)) {
+                            let key = ask::key(a, b);
+                            let kept = cached_answer(&self.conn(), &key, engine.as_deref())?;
+                            if let Some(answer) = kept.and_then(|a| CutAnswer::parse(&a).ok()) {
+                                s.model_says = Some(answer.second_starts_new_document);
+                                s.model_confidence = known_confidence(&answer.confidence);
+                                s.model_type = CutAnswer::known(&answer.second_page_type);
+                                answers.push((s.after, answer));
+                            }
+                            s.question = Some(key);
                         }
-                        s.question = Some(key);
+                    }
+                    steps.push(s);
+                }
+                // The even file sees the whole file: a step no rule decided and
+                // the model did not answer goes on (D-603), unless the page
+                // before ends with a signature (D-616). It keeps its question,
+                // for an answer that comes later. A person's word is not looked
+                // at here: it wins over any step when the parts are made
+                // (`parts.rs`).
+                let verdicts: Vec<Verdict> = steps.iter().skip(1).map(|s| s.verdict).collect();
+                if rules::uniform(&pages, &verdicts) {
+                    for s in steps.iter_mut().skip(1) {
+                        let signed = pages.iter().find(|p| p.page == s.after).is_some_and(rules::signed_at_the_end);
+                        if s.verdict == Verdict::Doubtful && s.rule == rules::NONE && s.model_says.is_none() && !signed {
+                            s.verdict = Verdict::Continue;
+                            s.rule = rules::UNIFORM.into();
+                        }
                     }
                 }
-                steps.push(s);
-            }
-            // The even file sees the whole file: a step no rule decided and
-            // the model did not answer goes on (D-603), unless the page
-            // before ends with a signature (D-616). It keeps its question,
-            // for an answer that comes later. A person's word is not looked
-            // at here: it wins over any step when the parts are made
-            // (`parts.rs`).
-            let verdicts: Vec<Verdict> = steps.iter().skip(1).map(|s| s.verdict).collect();
-            if rules::uniform(&pages, &verdicts) {
-                for s in steps.iter_mut().skip(1) {
-                    let signed = pages.iter().find(|p| p.page == s.after).is_some_and(rules::signed_at_the_end);
-                    if s.verdict == Verdict::Doubtful && s.rule == rules::NONE && s.model_says.is_none() && !signed {
-                        s.verdict = Verdict::Continue;
-                        s.rule = rules::UNIFORM.into();
+                for (after, answer) in answers {
+                    if let Some(before) = steps.iter_mut().find(|s| s.after + 1 == after) {
+                        if before.model_type.is_none() {
+                            before.model_type = CutAnswer::known(&answer.first_page_type);
+                        }
                     }
                 }
-            }
-            for (after, answer) in answers {
-                if let Some(before) = steps.iter_mut().find(|s| s.after + 1 == after) {
-                    if before.model_type.is_none() {
-                        before.model_type = CutAnswer::known(&answer.first_page_type);
-                    }
+                let mut conn = self.conn();
+                let tx = conn.transaction().map_err(sql_err)?;
+                tx.execute("DELETE FROM cut_step WHERE resource_hash = ?1", [hash]).map_err(sql_err)?;
+                let now = now_ms();
+                for s in &steps {
+                    tx.execute(
+                        "INSERT INTO cut_step (resource_hash, after_page, verdict, rule, question, model_says, rule_type, model_type,
+                                               rules_version, text_stamp, created_at, model_confidence)
+                         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                        params![hash, s.after, s.verdict.as_str(), s.rule, s.question, s.model_says, s.rule_type, s.model_type, version, stamp, now, s.model_confidence],
+                    )
+                    .map_err(sql_err)?;
                 }
+                tx.commit().map_err(sql_err)
+            };
+            if let Err(error) = cut() {
+                note_failure(&self.conn(), CUT_STAGE, hash, &format!("{version}|{stamp}"), &error)?;
             }
-            let mut conn = self.conn();
-            let tx = conn.transaction().map_err(sql_err)?;
-            tx.execute("DELETE FROM cut_step WHERE resource_hash = ?1", [hash]).map_err(sql_err)?;
-            let now = now_ms();
-            for s in &steps {
-                tx.execute(
-                    "INSERT INTO cut_step (resource_hash, after_page, verdict, rule, question, model_says, rule_type, model_type,
-                                           rules_version, text_stamp, created_at, model_confidence)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
-                    params![hash, s.after, s.verdict.as_str(), s.rule, s.question, s.model_says, s.rule_type, s.model_type, version, stamp, now, s.model_confidence],
-                )
-                .map_err(sql_err)?;
-            }
-            tx.commit().map_err(sql_err)?;
             let _ = version_id;
         }
         Ok(jobs.len())
+    }
+
+    /// The versions of whole files that wait for the cutter before they are
+    /// read, typed or named (D-666): those of a PDF of two pages or more (by
+    /// its ficha, or by the text of its pages while the ficha is still to be
+    /// made) whose cut is still to be made with its text and the rules in
+    /// use (`cut_pending`), or whose parts are still to be made from its
+    /// steps (`cut_parts_pending`). A cut or parts that failed are not
+    /// waited for (`note_failure`), nor a file the cutter does not take: a
+    /// PDF of one page or one pdfium cannot open (its ficha has no pages),
+    /// an image, any other file. Asks nothing.
+    pub(crate) fn waiting_for_cut(&self) -> Result<BTreeSet<i64>, String> {
+        let conn = self.conn();
+        let mut statement = conn
+            .prepare(&format!(
+                "SELECT f.version_id FROM {CUTTABLE_FROM}
+                 LEFT JOIN derivative d ON d.version_id = c.id AND d.kind = ?1 AND d.engine = ?2
+                 WHERE {cuttable} AND NOT {settled}
+                   AND coalesce(json_array_length(d.body, '$.pages'),
+                                (SELECT count(DISTINCT t.page_no) FROM resource_text t WHERE t.resource_hash = f.hash)) >= 2
+                 UNION
+                 SELECT f.version_id FROM {parts_from} WHERE {parts}",
+                cuttable = cuttable_where(),
+                settled = cut_settled_sql("?3"),
+                parts_from = parts::PARTS_FROM,
+                parts = parts::parts_pending_sql(),
+            ))
+            .map_err(sql_err)?;
+        let rows = statement
+            .query_map(params![SHAPES_KIND, SHAPES_ENGINE, rules_version()], |row| row.get(0))
+            .map_err(sql_err)?;
+        rows.collect::<Result<_, _>>().map_err(sql_err)
+    }
+
+    /// The versions of the files whose doubtful steps the thread that asks
+    /// the model is still to ask by itself (`ASKED_BY_ITSELF`), when it
+    /// will ask them: the automatic reading is on, the engine looks at
+    /// images (`sees_images`), the round of questions does not wait for a
+    /// person (D-606) and the questions about the cuts are not failing.
+    /// The answer may make their parts again: they are read after it, once.
+    /// Otherwise nothing waits: never for a person, nor for an answer that
+    /// does not come.
+    pub(crate) fn waiting_for_cut_answers(&self, sees_images: bool) -> Result<BTreeSet<i64>, String> {
+        let now = self.engine_state().snapshot();
+        if !sees_images || now.auto_held == Some("cut") || now.cut_asking_failed || !self.background_reading()? {
+            return Ok(BTreeSet::new());
+        }
+        let conn = self.conn();
+        let mut statement = conn
+            .prepare(&format!(
+                "SELECT DISTINCT a.version_id FROM appearance a
+                 WHERE EXISTS (SELECT 1 FROM cut_step s WHERE s.resource_hash = a.resource_hash AND {WITHOUT_ANSWER} AND {ASKED_BY_ITSELF})
+                   AND EXISTS (SELECT 1 FROM location l JOIN origin o ON o.id = l.origin_id AND o.reachable = 1
+                               WHERE l.file_hash = a.resource_hash AND l.hash_state = 'done' AND NOT {})",
+                super::excluded_sql!()
+            ))
+            .map_err(sql_err)?;
+        let rows = statement.query_map([], |row| row.get(0)).map_err(sql_err)?;
+        rows.collect::<Result<_, _>>().map_err(sql_err)
     }
 
     /// What the cutter says of each step of a file, in order (the start of
@@ -540,6 +657,11 @@ impl DocBase {
                     }
                 }
             }
+        }
+        // The reading waits for these answers only while they come
+        // (`waiting_for_cut_answers`).
+        if only.is_none() && report.asked + report.failed > 0 {
+            self.engine_state().cut_asking_failed(report.failed > 0);
         }
         report.left = self.cut_doubtful_left(only)?;
         Ok(report)

@@ -138,6 +138,10 @@ pub(crate) struct EngineNow {
     /// The stage whose questions wait for a person: the round passed its
     /// cap, or a person left them for later (D-484).
     pub auto_held: Option<&'static str>,
+    /// The last question the thread asked by itself about a doubtful step
+    /// of a cut failed: the reading does not wait for those answers until
+    /// one comes (`cut::waiting_for_cut_answers`, D-488).
+    pub cut_asking_failed: bool,
     /// When the round began: the last round's end, or the app's opening.
     /// The questions the base keeps from then on are the round's (D-606).
     pub round_since: i64,
@@ -239,6 +243,12 @@ impl EngineState {
     /// The stage whose questions wait for a person; `None`: none waits.
     pub(crate) fn auto_held(&self, stage: Option<&'static str>) {
         self.with(|now| now.auto_held = stage);
+    }
+
+    /// Whether the last question about a doubtful step of a cut, asked by
+    /// the thread by itself, failed.
+    pub(crate) fn cut_asking_failed(&self, failed: bool) {
+        self.with(|now| now.cut_asking_failed = failed);
     }
 
     /// The round of automatic questions ended: nothing left to ask.

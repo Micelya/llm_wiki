@@ -24,6 +24,7 @@ Este repositorio es el fork `Micelya/llm_wiki` de `nashsu/llm_wiki` (remoto `ups
 - Antes de cambiar el documento de diseño, mostrar la propuesta y esperar su visto bueno. En una corrida desatendida no se espera: se asume la opción recomendada, se construye y se anota como decisión asumida para que la corrija al día siguiente (D-500).
 - Antes de preguntarle algo, agotar lo que se puede averiguar leyendo los documentos (R-27).
 - Algo construido no está terminado: se cierra cuando cumple su función para quien lo usa (D-154).
+- **La cadena A sale de escena (31 oct).** La cadena de prueba que corta con el código de corte que traía la app (la «cadena A») no se menciona ni se consulta, salvo que el dueño lo pida sobre un tema puntual. La que sigue es la cadena N.
 - **En un proceso de varios pasos: un commit por paso y un solo PR al final, contra `main`.** No apilar PR (uno sobre la rama de otro) salvo que sea inevitable (D-292). Cambios no relacionados, en PR separados. No usar `git push --tags`.
 - El código se edita en `C:\Users\Usuario\LocalRepo\llm_wiki_wt` o `llm_wiki_wt2`; la app del dueño corre desde `llm_wiki_wt` (desde el 22 oct; `LocalRepo\llm_wiki` queda solo para leer `main`). **No editar Rust con la app de desarrollo abierta desde esa misma carpeta:** se recompila sola y escribe en la base real.
 - Solo lectura, siempre: las carpetas originales de los proyectos de prueba (`C:\Documentos temporales para borrar\POC-Micelya`) y todo `G:\`. Los datos de la app se modifican solo con un respaldo previo.
@@ -107,6 +108,7 @@ Este repositorio es el fork `Micelya/llm_wiki` de `nashsu/llm_wiki` (remoto `ups
 | 28 oct, noche | 1,42 M | 6 de 7 pasos, tope 1,80 M con el principal; los pasos 3 y 4 se pasaron (0,22 y 0,25 M contra 0,20 M); el del texto incierto quedó sin hacer por el tope |
 | 29 y 30 oct | 1,64 M | prueba de la estructura, corrida limpia: 9 pasos, tope 2 M con el principal, subido a 3 M el 30 oct y a 4 M esa misma tarde, con unos 2,5 M gastados; se pasaron los pasos 1 (0,22 M contra 0,15 M), 2 (0,23 M contra 0,18 M), 3 (0,13 M contra 0,04 M), 10, las imágenes (0,20 M contra 0,13 M), 11, el texto descartado (0,17 M contra 0,15 M), y 12, las menciones no extraídas (0,21 M contra 0,15 M) |
 | 30 y 31 oct | 0,26 M | plan de la segunda corrida: un sub-agente de verificación, solo lectura (0,26 M contra 0,20 M); el principal, unas 0,3 M; la corrida, en una sesión nueva, tiene un tope de 2,5 M con el principal |
+| 31 oct | 2,42 M | segunda corrida limpia de la prueba de la estructura: 10 pasos de sub-agente, tope 2,5 M con el principal, subido a 3 M durante la corrida (D-700), con unas 2,71 M gastadas y sin recorte; se pasaron los pasos 1 (0,24 M contra 0,17 M), 2 (0,26 M contra 0,20 M), 3 (0,35 M contra 0,25 M), 10 (0,26 M contra 0,20 M), 11 (0,27 M contra 0,22 M), 12 (0,23 M contra 0,18 M) y el borrador del cierre (0,21 M contra 0,15 M) |
 
 ## Uso de la inteligencia artificial
 

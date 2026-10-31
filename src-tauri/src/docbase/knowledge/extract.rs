@@ -51,13 +51,28 @@ use crate::source_volume::catalog::{is_page_heading, RECOGNIZED_MARKER_START};
 /// made before are kept, as of an earlier version (D-432). `conocimiento-7`
 /// asks for one claim per pair a sentence joins (each parent of each
 /// child), of every person of the document, with a quote that names both
-/// and skips nothing (D-459).
-pub const KNOWLEDGE_PROMPT: &str = "conocimiento-7";
+/// and skips nothing (D-459). `conocimiento-8` says three ways of naming
+/// that are mentions (D-665, D-680): an identifier with the label of a
+/// matter ("Expediente N°", "Orden de compra") is a mention of the matter;
+/// a mail address alone is someone's, a person's or, for a general mailbox
+/// of an organization, the organization's; and the names of the parties in
+/// the caption of a case ("X c/ Y s/ …") are people joined to the case.
+pub const KNOWLEDGE_PROMPT: &str = "conocimiento-8";
 /// The task the answers are kept under in `model_answer`.
 pub const TASK: &str = "knowledge";
 /// Words of text in one question; a longer document is read in parts of
 /// whole pages.
 pub const PART_WORDS: usize = 4000;
+
+/// The words of one part: `PART_WORDS`, or, only in the tests, the size
+/// in `MICELYA_PART_WORDS` (a measurement; the app never reads it).
+fn part_words() -> usize {
+    #[cfg(test)]
+    if let Some(words) = std::env::var("MICELYA_PART_WORDS").ok().and_then(|w| w.trim().parse::<usize>().ok()) {
+        return words.max(1);
+    }
+    PART_WORDS
+}
 
 /// The type of entity of a person (`knowledge.json`), and how many words
 /// before a number are looked at to tell whose it is.
@@ -82,7 +97,8 @@ pub struct KnowledgeReport {
     /// Documents left for another run (limit reached, or the provider
     /// stopped answering).
     pub left: usize,
-    /// Documents waiting for their type to be asked first.
+    /// Documents waiting for what goes first (D-666): the cut of their
+    /// file and its parts, the search of similar documents, their type.
     pub waiting_for_type: usize,
     /// Readings checked again from the answers kept, without asking.
     pub rechecked: usize,
@@ -117,7 +133,8 @@ pub struct KnowledgePlan {
     pub documents: usize,
     /// Questions that takes.
     pub questions: usize,
-    /// Documents that wait for their type to be asked first.
+    /// Documents that wait for what goes first (D-666): the cut of their
+    /// file and its parts, the search of similar documents, their type.
     pub waiting_for_type: usize,
     /// The engine that reads while the archive's wiki is active.
     pub engine: Option<crate::source_volume::asking::AskConfig>,
@@ -270,16 +287,17 @@ pub fn parts(body: &str) -> Vec<String> {
         }
         blocks.last_mut().expect("one").push(line);
     }
+    let limit = part_words();
     let words = |lines: &[&str]| lines.iter().map(|l| l.split_whitespace().count()).sum::<usize>();
     let mut pieces: Vec<Vec<&str>> = Vec::new();
     for block in blocks {
-        if words(&block) <= PART_WORDS {
+        if words(&block) <= limit {
             pieces.push(block);
             continue;
         }
         let mut current: Vec<&str> = Vec::new();
         for line in block {
-            if !current.is_empty() && words(&current) + line.split_whitespace().count() > PART_WORDS {
+            if !current.is_empty() && words(&current) + line.split_whitespace().count() > limit {
                 pieces.push(std::mem::take(&mut current));
             }
             current.push(line);
@@ -289,7 +307,7 @@ pub fn parts(body: &str) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     let mut current: Vec<&str> = Vec::new();
     for piece in pieces {
-        if !current.is_empty() && words(&current) + words(&piece) > PART_WORDS {
+        if !current.is_empty() && words(&current) + words(&piece) > limit {
             out.push(current.join("\n").trim().to_string());
             current.clear();
         }
@@ -412,8 +430,18 @@ Si la frase es más larga, la cita es el tramo continuo que hace falta (en una r
 palabras con «...» o «…»: esa cita se descarta. Se va a comprobar que esté en el texto: lo que no esté, se descarta.\n\
 - Una mención por cada forma en que el documento escribe a una entidad y por cada papel que tiene. \"escrito\" es el nombre \
 tal como aparece, y su cita lo contiene. Si dos menciones de este documento son la misma entidad (\"el locatario\" y su nombre, \
-la sigla y la razón social), en \"misma_que\" de la segunda poné la \"ref\" de la primera; si no, null. No registres un pronombre \
-ni un papel sin nombre (\"el locatario\") si el documento no dice quién es.\n\
+la sigla y la razón social), en \"misma_que\" de la segunda poné la \"ref\" de la primera; si no, null. No registres un pronombre, \
+un papel ni un cargo sin nombre (\"el locatario\", \"el gerente\") si el documento no dice quién es.\n\
+- Tres formas de nombrar que sí son menciones:\n\
+  - Un identificador con el rótulo de un asunto (\"Expediente N°\", \"Proyecto:\", \"Orden de compra\" seguidos de un código) \
+es una mención de ese asunto aunque el documento no le dé otro nombre: \"escrito\" es el rótulo con el código, tal como están, y el \
+código va también en sus identificadores.\n\
+  - Una dirección de correo electrónico es un dato de alguien. Si el documento dice de quién es, va como \"contacto\" de esa persona. \
+Si está sola, sin nombre, es una mención de una persona (todavía desconocida) cuyo \"escrito\" es la dirección. Una dirección general \
+de una organización (un buzón como info@, contacto@ o ventas@ con el dominio de ella) va con la organización: \"contacto\" de la \
+organización si el documento la nombra; si no, una mención de una organización cuyo \"escrito\" es la dirección.\n\
+  - En la carátula de un expediente (\"X c/ Y s/ cobro\"), cada nombre de una parte es una mención con el papel \"parte\", y \
+\"parte_en\" del asunto que la carátula nombra, con la carátula como cita.\n\
 - Los términos definidos (\"en adelante «la Empresa»\", \"(«la Locataria»)\", \"hereinafter the «Company»\") no son nombres: \
 van en \"definiciones\", con la \"ref\" de la mención con nombre propio que definen y una cita que tiene el término y ese nombre. \
 Si además registrás el término como mención, en \"misma_que\" poné la \"ref\" de lo que define. Un rótulo de formulario \
@@ -1300,7 +1328,9 @@ impl ClaimCheck<'_> {
 /// and puts them together: the mentions of every part, the same mention
 /// (type, name and role) once, and each claim once.
 pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &[Answer]) -> Reading {
-    let text = Located::new(body);
+    // A quote that differs from the text only in the legal form that closes
+    // a name is the text (P-480).
+    let text = Located::new(body).with_forms(&vocabulary.closing_legal_forms());
     let shapes: BTreeSet<String> = shapes.iter().map(|s| names::identifier_value(s)).collect();
     let certificate = read_checks::certificate_pages(vocabulary, body);
     let window = vocabulary.reading.label_window;
@@ -2463,12 +2493,28 @@ pub struct RereadPlan {
 }
 
 impl DocBase {
+    /// What the reading waits for, in the order of the worker (D-666, as
+    /// `check::in_order_before_reading` runs it): the cut of a whole file
+    /// and its parts, the answers about its doubtful steps the model is
+    /// still to give by itself (an engine that looks at images:
+    /// `sees_images`), the signature of the search of similar documents,
+    /// and the type. Each document is read once, as what it is. What failed
+    /// or waits for a person is not waited for: it is read as it is.
+    fn waiting_before_reading(&self, sees_images: bool) -> Result<BTreeSet<i64>, String> {
+        let mut waiting = self.waiting_for_cut()?;
+        waiting.extend(self.waiting_for_cut_answers(sees_images)?);
+        waiting.extend(self.waiting_for_similar()?);
+        waiting.extend(self.contents_waiting_for_type()?);
+        Ok(waiting)
+    }
+
     /// The documents to ask the model about: never read, read over another
     /// text, failed under other instructions, or asked again by a person
     /// (those first; `only_requested`: only those). A reading of an earlier
-    /// version of the instructions is not one of them (D-432). Those whose
-    /// type is still to be asked are left out and counted.
-    fn knowledge_pending(&self, only_requested: bool) -> Result<(Vec<Pending>, usize), String> {
+    /// version of the instructions is not one of them (D-432). Those that
+    /// wait for what goes before the reading (`waiting_before_reading`) are
+    /// left out and counted.
+    fn knowledge_pending(&self, only_requested: bool, sees_images: bool) -> Result<(Vec<Pending>, usize), String> {
         let mut stale: Vec<Standing> = standings(&self.conn(), &Visible::All, None)?
             .into_iter()
             .filter(|s| !s.reading.as_ref().is_some_and(|r| r.current))
@@ -2478,7 +2524,7 @@ impl DocBase {
             return Ok((Vec::new(), 0));
         }
         stale.sort_by_key(|s| !s.reading.as_ref().is_some_and(|r| r.reread));
-        let waiting = self.contents_waiting_for_type()?;
+        let waiting = self.waiting_before_reading(sees_images)?;
         let vocabulary = vocabulary();
         let conn = self.conn();
         let mut pending = Vec::new();
@@ -2655,7 +2701,7 @@ impl DocBase {
     /// warms its cache with them before the run).
     #[cfg(test)]
     pub(crate) fn knowledge_questions(&self) -> Result<Vec<Question>, String> {
-        let (pending, _) = self.knowledge_pending(false)?;
+        let (pending, _) = self.knowledge_pending(false, false)?;
         let conn = self.conn();
         let mut out = Vec::new();
         for item in pending {
@@ -2670,7 +2716,13 @@ impl DocBase {
     pub fn knowledge_plan(&self) -> Result<KnowledgePlan, String> {
         let engine = classify::ask_engine(&self.conn())?;
         let engine_id = engine.as_ref().map(crate::source_volume::asking::engine_id);
-        let (pending, waiting) = self.knowledge_pending(false)?;
+        // Whether that engine would ask by itself about the doubtful steps
+        // of the cuts, whose answers the reading waits for.
+        let sees_images = engine
+            .as_ref()
+            .and_then(|config| crate::source_volume::asking::asker_for(config).ok())
+            .is_some_and(|asker| asker.sees_images());
+        let (pending, waiting) = self.knowledge_pending(false, sees_images)?;
         let conn = self.conn();
         let mut count = 0;
         let min_words = vocabulary().attention.empty_min_words;
@@ -2724,7 +2776,7 @@ impl DocBase {
         if !only_requested {
             report.rechecked = self.knowledge_recheck(usize::MAX)?;
         }
-        let (pending, waiting) = self.knowledge_pending(only_requested)?;
+        let (pending, waiting) = self.knowledge_pending(only_requested, asker.sees_images())?;
         report.waiting_for_type = waiting;
         let vocabulary = vocabulary();
         let engine = asker.engine_id();
@@ -2916,5 +2968,32 @@ mod tests {
         assert_eq!(schema["additionalProperties"], false);
         let roles = &schema["properties"]["menciones"]["items"]["properties"]["rol"]["enum"];
         assert_eq!(roles.as_array().unwrap().len(), vocabulary.roles.len());
+    }
+
+    #[test]
+    fn the_question_says_the_three_ways_of_naming_that_are_mentions() {
+        // D-665, D-680: general rules, with invented examples only (R-24).
+        assert_eq!(KNOWLEDGE_PROMPT, "conocimiento-8");
+        let vocabulary = Vocabulary::builtin();
+        let prompt = prompt(&vocabulary, &Hints::default(), "texto", 0, 1);
+        for rule in [
+            "Un identificador con el rótulo de un asunto",
+            "es una mención de ese asunto aunque el documento no le dé otro nombre",
+            "Si está sola, sin nombre, es una mención de una persona (todavía desconocida)",
+            "va con la organización",
+            "En la carátula de un expediente",
+            "\"parte_en\" del asunto que la carátula nombra",
+            // What does not change: an office with no name is no one.
+            "un papel ni un cargo sin nombre",
+        ] {
+            assert!(prompt.contains(rule), "the question does not say: {rule}");
+        }
+        // The words inside are the canonical ones (D-512): the vocabulary's
+        // ids, which the question and the answer's lists share.
+        for id in ["asunto", "persona", "organizacion", "parte", "contacto", "parte_en"] {
+            assert!(prompt.contains(id), "{id}");
+        }
+        let types = &schema(&vocabulary)["properties"]["menciones"]["items"]["properties"]["tipo"]["enum"];
+        assert!(["asunto", "persona", "organizacion"].iter().all(|t| types.as_array().unwrap().iter().any(|x| x == t)));
     }
 }

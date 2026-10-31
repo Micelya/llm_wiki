@@ -321,8 +321,9 @@ fn load_units(conn: &Connection, catalog: &Catalog, docs: &BTreeMap<i64, DocInfo
         }
         // A document that only shares the template of the principal is
         // typed on its own when the principal's type has a rule that can
-        // take that family apart (two letters with different shipment
-        // numbers are only similar). Otherwise the member would get the
+        // take that family apart (a relation that is not a family's; since
+        // P-485 the built-in rules keep two documents of a template with
+        // other data in it, D-685). Otherwise the member would get the
         // type from the family, the rule would undo the family with that
         // type, the member alone would get its own type, the rule would
         // stop applying and the family would come back: the type and
@@ -1265,7 +1266,14 @@ impl DocBase {
 
         let (written, pending) = self.pass4_refresh()?;
         report.typed += written;
+        // A whole file that kept a signature from before and is to be cut
+        // again (another text of its pages, other rules) is typed by what
+        // comes out of the cut, once (D-666).
+        let to_cut = if pending.is_empty() { BTreeSet::new() } else { self.waiting_for_cut()? };
         for item in pending {
+            if std::iter::once(item.unit.principal).chain(item.unit.members.iter().map(|(m, _)| *m)).any(|id| to_cut.contains(&id)) {
+                continue;
+            }
             if budget == 0 || stopped {
                 report.left += 1;
                 continue;

@@ -171,6 +171,24 @@ const BASIS_SQL: &str = "c.id || ':' || d.created_at
                         WHERE s.resource_hash = f.hash AND (s.verdict = 'doubtful' OR s.rule = 'uniform')), '')
     || ':' || coalesce((SELECT group_concat(k.page || k.decision, ',') FROM cut_decision k WHERE k.resource_hash = f.hash), '')";
 
+/// The files whose parts `parts_pending_sql` tells: `f`, its version `c`
+/// and the text `d` of that version.
+pub(crate) const PARTS_FROM: &str = "file f
+     JOIN version c ON c.id = f.version_id AND c.state IN ('processed', 'needs-recognition')
+     JOIN derivative d ON d.version_id = c.id AND d.kind = 'text'";
+
+/// SQL over `PARTS_FROM`: the file is cut and its parts are not made from
+/// what they are made of now (`BASIS_SQL`), nor did making them from it
+/// fail (`note_failure`).
+pub(crate) fn parts_pending_sql() -> String {
+    format!(
+        "EXISTS (SELECT 1 FROM cut_step s WHERE s.resource_hash = f.hash)
+         AND ({BASIS_SQL}) IS NOT (SELECT a.basis FROM cut_applied a WHERE a.resource_hash = f.hash)
+         AND NOT {failed}",
+        failed = super::failed_sql(super::PARTS_STAGE, "f.hash", &format!("({BASIS_SQL})"))
+    )
+}
+
 /// The pages for a person to look at: those whose step from the page
 /// before nothing backs, and no person decided (D-603).
 fn to_look_at(steps: &[CutStep], decided: &BTreeMap<u32, bool>) -> BTreeSet<u32> {
@@ -207,19 +225,19 @@ impl DocBase {
             let conn = self.conn();
             let mut statement = conn
                 .prepare(&format!(
-                    "SELECT f.hash, {BASIS_SQL} AS basis FROM file f
-                     JOIN version c ON c.id = f.version_id AND c.state IN ('processed', 'needs-recognition')
-                     JOIN derivative d ON d.version_id = c.id AND d.kind = 'text'
-                     WHERE EXISTS (SELECT 1 FROM cut_step s WHERE s.resource_hash = f.hash)
-                       AND basis IS NOT (SELECT a.basis FROM cut_applied a WHERE a.resource_hash = f.hash)
-                     ORDER BY f.hash LIMIT ?1"
+                    "SELECT f.hash, {BASIS_SQL} AS basis FROM {PARTS_FROM} WHERE {pending} ORDER BY f.hash LIMIT ?1",
+                    pending = parts_pending_sql()
                 ))
                 .map_err(sql_err)?;
             let rows = statement.query_map([limit as i64], |row| Ok((row.get(0)?, row.get(1)?))).map_err(sql_err)?;
             rows.collect::<Result<_, _>>().map_err(sql_err)?
         };
+        // One file at a time: parts that fail are written down and the
+        // others go on (D-488); that file stays as it was.
         for (hash, basis) in &jobs {
-            self.make_parts(hash, basis)?;
+            if let Err(error) = self.make_parts(hash, basis) {
+                super::note_failure(&self.conn(), super::PARTS_STAGE, hash, basis, &error)?;
+            }
         }
         Ok(jobs.len())
     }

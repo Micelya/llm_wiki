@@ -224,7 +224,12 @@ pub(crate) fn prepare(folders: &str) -> (TempDir, DocBase) {
         waiting.len(),
         counting.calls.get()
     );
-    while base.similar_step(16).unwrap() > 0 {}
+    // `MICELYA_IN_ORDER`: the similar documents wait for the cuts and their
+    // documents, as in the app's worker (D-666); the test that runs them
+    // in order looks for them after.
+    if std::env::var("MICELYA_IN_ORDER").is_err() {
+        while base.similar_step(16).unwrap() > 0 {}
+    }
     (scratch, base)
 }
 
