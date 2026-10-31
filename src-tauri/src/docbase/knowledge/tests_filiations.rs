@@ -47,7 +47,7 @@ fn parent(of: &str, child: &str) -> (String, String, String) {
 
 #[test]
 fn the_question_asks_for_each_parent_of_each_person_with_a_quote_that_names_both() {
-    assert_eq!(KNOWLEDGE_PROMPT, "conocimiento-7");
+    assert_eq!(KNOWLEDGE_PROMPT, "conocimiento-8");
     let vocabulary = Vocabulary::builtin();
     let question = prompt(&vocabulary, &Hints::default(), "Texto.", 0, 1);
     // What the question says of every relation.

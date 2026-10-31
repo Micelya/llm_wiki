@@ -51,8 +51,13 @@ use crate::source_volume::catalog::{is_page_heading, RECOGNIZED_MARKER_START};
 /// made before are kept, as of an earlier version (D-432). `conocimiento-7`
 /// asks for one claim per pair a sentence joins (each parent of each
 /// child), of every person of the document, with a quote that names both
-/// and skips nothing (D-459).
-pub const KNOWLEDGE_PROMPT: &str = "conocimiento-7";
+/// and skips nothing (D-459). `conocimiento-8` says three ways of naming
+/// that are mentions (D-665, D-680): an identifier with the label of a
+/// matter ("Expediente N°", "Orden de compra") is a mention of the matter;
+/// a mail address alone is someone's, a person's or, for a general mailbox
+/// of an organization, the organization's; and the names of the parties in
+/// the caption of a case ("X c/ Y s/ …") are people joined to the case.
+pub const KNOWLEDGE_PROMPT: &str = "conocimiento-8";
 /// The task the answers are kept under in `model_answer`.
 pub const TASK: &str = "knowledge";
 /// Words of text in one question; a longer document is read in parts of
@@ -412,8 +417,18 @@ Si la frase es más larga, la cita es el tramo continuo que hace falta (en una r
 palabras con «...» o «…»: esa cita se descarta. Se va a comprobar que esté en el texto: lo que no esté, se descarta.\n\
 - Una mención por cada forma en que el documento escribe a una entidad y por cada papel que tiene. \"escrito\" es el nombre \
 tal como aparece, y su cita lo contiene. Si dos menciones de este documento son la misma entidad (\"el locatario\" y su nombre, \
-la sigla y la razón social), en \"misma_que\" de la segunda poné la \"ref\" de la primera; si no, null. No registres un pronombre \
-ni un papel sin nombre (\"el locatario\") si el documento no dice quién es.\n\
+la sigla y la razón social), en \"misma_que\" de la segunda poné la \"ref\" de la primera; si no, null. No registres un pronombre, \
+un papel ni un cargo sin nombre (\"el locatario\", \"el gerente\") si el documento no dice quién es.\n\
+- Tres formas de nombrar que sí son menciones:\n\
+  - Un identificador con el rótulo de un asunto (\"Expediente N°\", \"Proyecto:\", \"Orden de compra\" seguidos de un código) \
+es una mención de ese asunto aunque el documento no le dé otro nombre: \"escrito\" es el rótulo con el código, tal como están, y el \
+código va también en sus identificadores.\n\
+  - Una dirección de correo electrónico es un dato de alguien. Si el documento dice de quién es, va como \"contacto\" de esa persona. \
+Si está sola, sin nombre, es una mención de una persona (todavía desconocida) cuyo \"escrito\" es la dirección. Una dirección general \
+de una organización (un buzón como info@, contacto@ o ventas@ con el dominio de ella) va con la organización: \"contacto\" de la \
+organización si el documento la nombra; si no, una mención de una organización cuyo \"escrito\" es la dirección.\n\
+  - En la carátula de un expediente (\"X c/ Y s/ cobro\"), cada nombre de una parte es una mención con el papel \"parte\", y \
+\"parte_en\" del asunto que la carátula nombra, con la carátula como cita.\n\
 - Los términos definidos (\"en adelante «la Empresa»\", \"(«la Locataria»)\", \"hereinafter the «Company»\") no son nombres: \
 van en \"definiciones\", con la \"ref\" de la mención con nombre propio que definen y una cita que tiene el término y ese nombre. \
 Si además registrás el término como mención, en \"misma_que\" poné la \"ref\" de lo que define. Un rótulo de formulario \
@@ -2916,5 +2931,32 @@ mod tests {
         assert_eq!(schema["additionalProperties"], false);
         let roles = &schema["properties"]["menciones"]["items"]["properties"]["rol"]["enum"];
         assert_eq!(roles.as_array().unwrap().len(), vocabulary.roles.len());
+    }
+
+    #[test]
+    fn the_question_says_the_three_ways_of_naming_that_are_mentions() {
+        // D-665, D-680: general rules, with invented examples only (R-24).
+        assert_eq!(KNOWLEDGE_PROMPT, "conocimiento-8");
+        let vocabulary = Vocabulary::builtin();
+        let prompt = prompt(&vocabulary, &Hints::default(), "texto", 0, 1);
+        for rule in [
+            "Un identificador con el rótulo de un asunto",
+            "es una mención de ese asunto aunque el documento no le dé otro nombre",
+            "Si está sola, sin nombre, es una mención de una persona (todavía desconocida)",
+            "va con la organización",
+            "En la carátula de un expediente",
+            "\"parte_en\" del asunto que la carátula nombra",
+            // What does not change: an office with no name is no one.
+            "un papel ni un cargo sin nombre",
+        ] {
+            assert!(prompt.contains(rule), "the question does not say: {rule}");
+        }
+        // The words inside are the canonical ones (D-512): the vocabulary's
+        // ids, which the question and the answer's lists share.
+        for id in ["asunto", "persona", "organizacion", "parte", "contacto", "parte_en"] {
+            assert!(prompt.contains(id), "{id}");
+        }
+        let types = &schema(&vocabulary)["properties"]["menciones"]["items"]["properties"]["tipo"]["enum"];
+        assert!(["asunto", "persona", "organizacion"].iter().all(|t| types.as_array().unwrap().iter().any(|x| x == t)));
     }
 }
