@@ -623,14 +623,14 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-682 | 31 oct | pruebas y calidad | El registro del servicio de firma va aparte, y el ejemplar firmado por las dos partes es el ejemplar firmado del que firmó una sola | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-683 | 31 oct | pruebas y calidad | Cómo se buscaron y se decidieron los pares de la hoja nueva de parecidos | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-684 | 31 oct | lectura y relaciones | La cita con o sin la forma jurídica final usa la lista de formas de la identidad, y dos formas distintas no se aceptan | asumida en la corrida desatendida (D-500): el dueño la revisa |
-| D-685 | 31 oct | base | Dos cartas de la misma plantilla con otros datos quedan en una familia y se tipan juntas | asumida en la corrida desatendida (D-500): el dueño la revisa |
-| D-686 | 31 oct | base | Una etapa sin sus datos vuelve a la etapa anterior, salvo que una marca la muestre, y el sello de un servicio de firma es un tramo de nombre con fecha u hora | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-685 | 31 oct | base | Dos cartas de la misma plantilla con otros datos quedan en una familia y se tipan juntas | pendiente de revisión (D-704) |
+| D-686 | 31 oct | base | Una etapa sin sus datos vuelve a la etapa anterior, salvo que una marca la muestre, y el sello de un servicio de firma es un tramo de nombre con fecha u hora | pendiente de revisión (D-704) |
 | D-687 | 31 oct | pruebas y calidad | Los cortes dados de la cadena nueva se deciden en el corte como una persona, y lo que no traen queda con las reglas, sin preguntar | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-688 | 31 oct | pruebas y calidad | En la medición de entidades, un nombre de una palabra cuenta si su cita cae en una página donde está la mención de la hoja | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-689 | 31 oct | pruebas y calidad | Las respuestas de cada etapa se guardan a medida que llegan, y las del corte se reconocen por la pregunta y el contenido de las imágenes | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-690 | 31 oct | pruebas y calidad | Cómo se arma la franja de cada renglón en la lectura nueva de N | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-691 | 31 oct | pruebas y calidad | Qué es una zona chica para unir el logo partido | asumida en la corrida desatendida (D-500): el dueño la revisa |
-| D-692 | 31 oct | pruebas y calidad | El umbral bajo de la lectura queda en 0,90, según la calibración | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-692 | 31 oct | pruebas y calidad | El umbral bajo de la lectura queda en 0,90, según la calibración | vigente; confirmada por el dueño en D-706 |
 | D-693 | 31 oct | pruebas y calidad | El indicador de calidad de la lectura: la parte firme de las letras, por documento | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-694 | 31 oct | pruebas y calidad | Cómo se confirma texto aproximado con documentos del mismo caso | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-700 | 31 oct | forma de trabajo | El tope de la segunda corrida de la prueba de la estructura sube de 2,5 M a 3 M de fichas | vigente |
@@ -641,6 +641,12 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-701 | 31 oct | pruebas y calidad | El anexo del acuerdo de cesión es el mismo documento que el contrato original correcto; el que se había agregado antes es de la misma plantilla | decidida |
 | D-702 | 31 oct | pruebas y calidad | Cómo se suma un archivo a la cadena N en la prueba, y cómo quedan en la hoja el contrato agregado antes y la firma del inversor en el anexo | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-703 | 31 oct | páginas | Cómo nombran las páginas a un documento de un archivo cortado: el archivo y sus páginas, solo al escribir la página | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-704 | 31 oct | base | Las cuatro reglas de parecidos quedan pendientes de revisión, para una etapa dedicada a parecidos, plantillas y familias | decidida |
+| D-705 | 31 oct | pruebas y calidad | Un documento con poca proporción de texto firme queda «no legible» y se lee solo a pedido, con la IA y conducido por una persona | decidida |
+| D-706 | 31 oct | pruebas y calidad | El umbral bajo de la lectura queda en 0,90, y los umbrales de la lectura van a la configuración de la app | decidida |
+| D-707 | 31 oct | pruebas y calidad | El corte de calidad de la lectura es provisorio, la marca «posible» no se implementa, y primero se cierran el corte y el orden de las etapas | decidida |
+| D-708 | 31 oct | base | Una copia toma todo del original sin repetir ningún proceso; lo que queda es afinar cómo se detecta una copia | decidida |
+| D-709 | 31 oct | pruebas y calidad | El tipo se medirá con una hoja de tipos en castellano, primero de la vertical legal, alineada con el catálogo | decidida |
 
 ---
 
@@ -6906,14 +6912,14 @@ Vale solo para este caso: no se generaliza ni se cambian otras etiquetas. Si es 
 
 ### D-685 · Dos cartas de la misma plantilla con otros datos quedan en una familia y se tipan juntas
 
-- **Fecha:** 31 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **Fecha:** 31 oct 2026 · **Tema:** base · **Estado:** pendiente de revisión (D-704)
 - **El problema:** La primera de las cuatro reglas de parecidos (P-485) hace que dos cartas con otras facturas u otro número de envío queden como «misma plantilla» y no como «parecido». «Misma plantilla» es una de las relaciones que arman una familia, y los miembros de una familia se tipan con una sola pregunta. Hasta ahora esas cartas se tipaban cada una por su lado, para evitar un ida y vuelta de tipos que la regla vieja provocaba.
 - **Qué se decidió y por qué:** Se deja que se tipen juntas, como ya pasaba con las facturas de la misma plantilla. El ida y vuelta no puede darse: con la regla nueva la relación que queda sigue armando la familia, y bajar a «parecido» solo pasa si comparten menos del 80 % del texto, lo que ninguna relación de familia permite. La prueba vieja que mide el ida y vuelta sigue comprobando que el tipo y la relación se asientan, y se asientan desde la primera vuelta; lo que cambió en ella es que el miembro ahora toma el tipo de su familia. Efecto en producción: resta una pregunta de tipo por cada carta de la misma plantilla que antes se preguntaba aparte; la etapa de cada carta se sigue preguntando en la misma pregunta.
 - **Quién decidió:** Claude, en la corrida desatendida (D-500); el dueño la revisa
 
 ### D-686 · Una etapa sin sus datos vuelve a la etapa anterior, salvo que una marca la muestre, y el sello de un servicio de firma es un tramo de nombre con fecha u hora
 
-- **Fecha:** 31 oct 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **Fecha:** 31 oct 2026 · **Tema:** base · **Estado:** pendiente de revisión (D-704)
 - **El problema:** Las reglas tercera y cuarta de parecidos (P-485) dejaban abiertos dos puntos. Si una carta que el modelo dio como «enviada» no tiene número de envío, ¿en qué etapa queda? Y ¿cómo se reconoce, sin modelo, el sello que un servicio de firma agrega junto a una firma?
 - **Qué se decidió y por qué:** La etapa queda en la anterior de la lista del tipo que sí tiene sus datos: una carta «enviada» sin número pasa a «vista previa». Eso lo dice el catálogo como dato del tipo («stageData»), no el código. Si una marca del documento muestra la etapa (por ejemplo, «copia fiel del original»), la etapa queda como estaba. Solo cambia lo que usan las reglas de parecidos: la etapa que muestra la pantalla sigue siendo la del modelo (P-503). El sello es un tramo que solo tiene un documento, hecho de un nombre (palabras con mayúscula) y una fecha u hora (cifras, meses o meses abreviados), en un PDF con el sello verificado del servicio; si es todo lo que distingue a los dos, el sellado es el ejemplar firmado. Ninguna de las dos suma consultas a la IA en producción.
 - **Quién decidió:** Claude, en la corrida desatendida (D-500); el dueño la revisa
@@ -6955,7 +6961,7 @@ Vale solo para este caso: no se generaliza ni se cambian otras etiquetas. Si es 
 
 ### D-692 · El umbral bajo de la lectura queda en 0,90, según la calibración
 
-- **Fecha:** 31 oct 2026 · **Tema:** pruebas y calidad · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **Fecha:** 31 oct 2026 · **Tema:** pruebas y calidad · **Estado:** vigente; confirmada por el dueño en D-706
 - **El problema:** D-679 pide fijar el umbral bajo (el borde entre el texto aproximado, que sirve para entender, y el descartado) con una medición y no a mano. El dueño aceptó el criterio: un renglón sirve si tiene bien al menos dos tercios de sus letras, y el umbral es el borde de abajo del último tramo en que la mayoría sirve. Quedaban abiertos detalles de la medición.
 - **Qué se decidió y por qué:** Con 40 renglones al azar por tramo de confianza (280 en total, de la carpeta de prueba y del examen, solo zonas de texto), transcritos por Codex en 14 consultas: sirve para entender el 92 % de 0,97 o más, el 74 % de 0,90 a 0,97, el 45 % de 0,80 a 0,90, el 21 % de 0,70 a 0,80, el 13 % de 0,60 a 0,70 y nada por debajo de 0,60. El umbral bajo queda en 0,90. Detalles fijados antes de medir: la similitud es 1 menos la distancia de edición dividida por el largo del texto más largo, tras pasar a minúsculas y sacar tildes y signos; «ilegible» cuenta como que no sirve; se apartan los recortes que Codex marca cortados por el borde (con ellos el umbral sale igual); un recuadro del lector que abarca varios renglones de letra chica cuenta, porque es el renglón tal como lo armó el lector; si un tramo no cumple, los de abajo no cuentan. Con 0,90, en la carpeta de prueba queda descartado el 2,8 % de las letras (antes, con el provisorio 0,80, el 1,6 %); en los escaneos sin el compuesto de 93 páginas, el 13 %.
 - **Quién decidió:** Claude, en la corrida desatendida (D-500); el dueño la revisa
@@ -7029,3 +7035,45 @@ Vale solo para este caso: no se generaliza ni se cambian otras etiquetas. Si es 
 - **El problema:** Un documento que sale de cortar un archivo no tiene archivo propio, y las páginas lo mostraban sin nombre ni enlace (P-518). Había que elegir qué nombre mostrar, adónde enlazar, qué poner en sources:, de dónde salen las palabras «pág.» y «págs.», y qué hacer cuando dos se leen igual, sin cambiar ninguna pregunta al modelo.
 - **Qué se decidió y por qué:** En la lista de documentos, el nombre del archivo y sus páginas («Acuerdo.pdf, págs. 5-10», «pág. 5» si es una sola). En una cita con su página, el nombre del archivo solo, porque la página ya es la del archivo; en una cita sin página (la de las relaciones), con las páginas. El enlace va a la página del archivo entero. En sources: va la ruta del archivo entero, sin las páginas: sources: nombra archivos, y la importación de páginas viejas separa sus valores por comas. Si dos documentos de dos archivos distintos se leen igual, cada uno agrega entre paréntesis la ruta de su archivo, como ya pasa con dos páginas de documentos de igual título. Las palabras «pág.» y «págs.» van en el vocabulario, como «p.», y no en el código. Costo: cambiar el vocabulario hace que la app recalcule una vez las identidades desde las respuestas guardadas, sin preguntar nada; en la copia de la base de la corrida, 0 consultas y 0 cambios. El nombre que reciben las preguntas (extracción, tipo, datos y síntesis) sigue vacío: cambiarlo es otra decisión, que se mide aparte. Efecto en las consultas de producción por documento: deja igual (0).
 - **Quién decidió:** Claude, en la corrida desatendida, a partir del pedido del dueño del 31 oct (P-518)
+
+### D-704 · Las cuatro reglas de parecidos quedan pendientes de revisión, para una etapa dedicada a parecidos, plantillas y familias
+
+- **Fecha:** 31 oct 2026 · **Tema:** base · **Estado:** decidida
+- **El problema:** Las cuatro reglas nuevas de la búsqueda de parecidos (P-485) están en el código desde el paso 3 de la segunda corrida: los datos distintos bajan a «misma plantilla» (D-685); el dato propio de una marca; la etapa exige sus datos; y el sello de firma cuenta como firma (las dos últimas, D-686). El paso 11 no pudo medirlas regla por regla (P-512).
+- **Qué se decidió y por qué:** Las cuatro reglas quedan «pendientes de revisión». Se revisan más adelante, en una etapa dedicada a parecidos, plantillas y familias; ahí va también poder apagar cada regla para medirla (P-512). El foco ahora es integrar en la app la lógica de corte de la cadena nueva, el orden de las etapas y lo demás aprendido en las corridas 1 y 2. D-685 y D-686 pasan a «pendiente de revisión (D-704)».
+- **Quién decidió:** El dueño
+
+### D-705 · Un documento con poca proporción de texto firme queda «no legible» y se lee solo a pedido, con la IA y conducido por una persona
+
+- **Fecha:** 31 oct 2026 · **Tema:** pruebas y calidad · **Estado:** decidida
+- **El problema:** P-514 preguntaba si la extracción recibe el texto aproximado en los documentos con poco texto firme, y si la app marca como «posible» lo que sale de ese texto. El paso 12 de la segunda corrida lo midió en 30 documentos con mucho texto aproximado.
+- **Qué se decidió y por qué:** Se define un umbral por debajo del cual el documento se ignora y queda «no legible». El umbral es la proporción de texto firme sobre el texto total del documento, no una cantidad fija de palabras. Un documento «no legible» se lee solo a pedido, uno a uno, desde la app, con la IA y conducido por una persona. Se descarta por ahora mandar el texto dudoso con la marca «posible» de forma automática. P-514 queda hecho; elegir el valor del umbral y llevar a la app «no legible» y la lectura a pedido quedan en P-520.
+- **Quién decidió:** El dueño
+
+### D-706 · El umbral bajo de la lectura queda en 0,90, y los umbrales de la lectura van a la configuración de la app
+
+- **Fecha:** 31 oct 2026 · **Tema:** pruebas y calidad · **Estado:** decidida
+- **El problema:** P-509 preguntaba si el umbral bajo (el borde entre el texto aproximado y el descartado) queda en 0,90, como lo dejó la calibración (D-692), o si antes se mide mejor el tramo de 0,80 a 0,90.
+- **Qué se decidió y por qué:** El umbral bajo queda en 0,90. Este umbral y los demás (los de las franjas y el de la calidad) van como parámetros de configuración de la app, no fijos en el código. P-509 queda hecho; llevar los umbrales a la configuración queda en P-521.
+- **Quién decidió:** El dueño
+
+### D-707 · El corte de calidad de la lectura es provisorio, la marca «posible» no se implementa, y primero se cierran el corte y el orden de las etapas
+
+- **Fecha:** 31 oct 2026 · **Tema:** pruebas y calidad · **Estado:** decidida
+- **El problema:** P-510 pedía elegir el corte entre la calidad normal y la baja de la lectura, con el indicador de calidad por documento (D-693), para que un documento de calidad baja no dé datos estructurados (D-669).
+- **Qué se decidió y por qué:** El corte de calidad es provisorio y se refina más adelante. No se implementa la marca «posible». Se prioriza cerrar el corte y el orden de las etapas, antes de refinar los criterios de las etapas siguientes. P-510 sigue pendiente.
+- **Quién decidió:** El dueño
+
+### D-708 · Una copia toma todo del original sin repetir ningún proceso; lo que queda es afinar cómo se detecta una copia
+
+- **Fecha:** 31 oct 2026 · **Tema:** base · **Estado:** decidida
+- **El problema:** El orden nuevo (D-666) dice que una copia hereda lo del original. Hoy la extracción lee cada versión distinta, aunque la búsqueda de parecidos la marque como la misma, y P-505 pedía decidir qué relaciones cuentan como copia para heredar. Además, una copia exacta que llega después vuelve a preguntar el tipo y la extracción (P-517).
+- **Qué se decidió y por qué:** Una copia («mismo documento») toma todo del original. No se le repite ningún proceso, ni consultas ni otro cálculo. Lo que queda es probar y refinar cómo se detecta que dos documentos son copia, para no declarar copia algo que no lo es. P-505 sigue pendiente por la detección, y P-517 cae bajo esta decisión.
+- **Quién decidió:** El dueño
+
+### D-709 · El tipo se medirá con una hoja de tipos en castellano, primero de la vertical legal, alineada con el catálogo
+
+- **Fecha:** 31 oct 2026 · **Tema:** pruebas y calidad · **Estado:** decidida
+- **El problema:** El paso 11 de la segunda corrida no pudo medir el tipo: la hoja de partes usa nombres de tipo que no son los del catálogo de la app.
+- **Qué se decidió y por qué:** Se armará una hoja de tipos en castellano, al principio para la vertical legal, alineada con el catálogo. Queda en P-522.
+- **Quién decidió:** El dueño
