@@ -3984,12 +3984,12 @@
       "titulo": "La medición de entidades no reconoce una mención extraída con un alias, una sigla o un nombre de una palabra",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "a-verificar",
       "prioridad": 2,
       "tema": "pruebas y calidad",
-      "detalle": "En la comparación con la hoja de entidades, una mención de la hoja cuenta como hallada solo si lo extraído iguala la forma escrita o el nombre principal (names_match pide dos palabras al menos y no mira los alias). En el paso 12 de la prueba de la estructura, 8 de las 89 menciones que estaban en el texto seguro sí se habían extraído: con la sigla del alias, con un nombre de una palabra que la cita ubica, o con «Secretaría» por «Sec.». Propuesta general: contar también los alias de la hoja, y un nombre de una palabra cuando su cita está en la misma página que la mención de la hoja; medir aparte cuántas se ganan así. Es solo de la medición, no de la app. Esfuerzo: chico. Ver el informe del paso 12. 2026-10-30: Va en el paso 3 de la segunda corrida (P-481), con la ganancia medida aparte.",
+      "detalle": "En la comparación con la hoja de entidades, una mención de la hoja cuenta como hallada solo si lo extraído iguala la forma escrita o el nombre principal (names_match pide dos palabras al menos y no mira los alias). En el paso 12 de la prueba de la estructura, 8 de las 89 menciones que estaban en el texto seguro sí se habían extraído: con la sigla del alias, con un nombre de una palabra que la cita ubica, o con «Secretaría» por «Sec.». Propuesta general: contar también los alias de la hoja, y un nombre de una palabra cuando su cita está en la misma página que la mención de la hoja; medir aparte cuántas se ganan así. Es solo de la medición, no de la app. Esfuerzo: chico. Ver el informe del paso 12. 2026-10-30: Va en el paso 3 de la segunda corrida (P-481), con la ganancia medida aparte. 2026-10-31: Hecho en el paso 4 de la segunda corrida (D-688): la medición de entidades imprime también lo hallado contando los otros nombres de la entidad en la hoja y los nombres de una palabra cuya cita cae en una página donde está la mención de la hoja, al lado del número de siempre. Falta verlo con la hoja entera (paso 11). Efecto en producción: ninguno.",
       "creado": "2026-10-30",
-      "actualizado": "2026-10-30"
+      "actualizado": "2026-10-31"
     },
     {
       "id": "P-478",
@@ -4068,10 +4068,10 @@
       "titulo": "Las pruebas de medición en el orden nuevo: una sola base, los cortes de cada cadena y la medición por documento",
       "tipo": "codigo",
       "responsable": "claude",
-      "estado": "pendiente",
+      "estado": "a-verificar",
       "prioridad": 1,
       "tema": "pruebas y calidad",
-      "detalle": "La verificación del 30 oct mostró que el error de orden es solo de las pruebas. La app ya corta, crea los documentos y busca parecidos antes de pedir el tipo y las entidades, y saca las entidades por documento. Las pruebas, en cambio, extraían de los archivos enteros, y en la de copias leían antes de calcular los parecidos. Hace falta: una prueba que haga todo en orden sobre una sola base; una variable para darle a la app cortes ya decididos, para la cadena nueva, sin que pregunte; que la medición de entidades junte las menciones de los documentos de cada archivo; y variables de medición apagadas por defecto (tamaño del fragmento, tipo sin herencia). Solo código de pruebas: sin efecto en producción. Paso 3 de la segunda corrida (P-481). 2026-10-31: Se suma: que la corrida se pueda cortar y retomar sin perder lo hecho (D-678), y que la medición de parecidos lea la hoja nueva (P-497).",
+      "detalle": "La verificación del 30 oct mostró que el error de orden es solo de las pruebas. La app ya corta, crea los documentos y busca parecidos antes de pedir el tipo y las entidades, y saca las entidades por documento. Las pruebas, en cambio, extraían de los archivos enteros, y en la de copias leían antes de calcular los parecidos. Hace falta: una prueba que haga todo en orden sobre una sola base; una variable para darle a la app cortes ya decididos, para la cadena nueva, sin que pregunte; que la medición de entidades junte las menciones de los documentos de cada archivo; y variables de medición apagadas por defecto (tamaño del fragmento, tipo sin herencia). Solo código de pruebas: sin efecto en producción. Paso 3 de la segunda corrida (P-481). 2026-10-31: Se suma: que la corrida se pueda cortar y retomar sin perder lo hecho (D-678), y que la medición de parecidos lea la hoja nueva (P-497). 2026-10-31: Hecho en el paso 4 de la segunda corrida, solo en código de pruebas: una prueba hace todo en orden sobre una sola base (los documentos de los cortes, la búsqueda de parecidos, el tipo, las entidades y los pasos siguientes), con los cortes dados de la cadena nueva sin preguntar (D-687), y la medición de entidades junta las menciones de todos los documentos de cada archivo. Probado en un ensayo chico, cortado a propósito y retomado. Falta la corrida grande (pasos 5 y 9). Efecto en producción: ninguna consulta.",
       "creado": "2026-10-30",
       "actualizado": "2026-10-31"
     },
@@ -4312,6 +4312,30 @@
       "prioridad": 3,
       "tema": "lectura y relaciones",
       "detalle": "Desde D-684 se acepta una cita que difiere del texto solo en la forma jurídica final. El nombre escrito queda como lo dio el modelo, así que puede llevar una forma que el texto no dice («X S.A.» donde el texto dice «X»). Para la identidad, cada forma es una organización distinta: ese nombre podría separarse de «X S.R.L.» o unirse a «X S.A.» sin que el texto lo diga. Medirlo con la hoja de entidades (paso 11). Si pasa, la propuesta general es quitar del nombre la forma que el texto no tiene. Efecto en producción: ninguna consulta.",
+      "creado": "2026-10-31",
+      "actualizado": "2026-10-31"
+    },
+    {
+      "id": "P-505",
+      "titulo": "La herencia de las copias: una copia toma el tipo y las entidades del original sin leerse de nuevo",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": "2",
+      "tema": "pruebas y calidad",
+      "detalle": "El orden nuevo (D-666) dice que el tipo y las entidades se piden una vez por documento real y que una copia hereda lo del original. El tipo ya se hereda dentro de una familia, pero las entidades no: la extracción lee cada versión distinta, aunque la búsqueda de parecidos la marque como la misma. El paso 4 de la segunda corrida cambió solo código de pruebas y no lo agregó, así que las pruebas de la corrida leen también las copias. Hacerlo resta consultas en producción: una por cada fragmento de cada copia. Necesita decisión del dueño sobre qué relaciones cuentan como copia para heredar.",
+      "creado": "2026-10-31",
+      "actualizado": "2026-10-31"
+    },
+    {
+      "id": "P-506",
+      "titulo": "Medir aparte los cortes de la cadena nueva dados con seguridad baja",
+      "tipo": "verificacion",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": "3",
+      "tema": "pruebas y calidad",
+      "detalle": "Los cortes dados de la cadena nueva entran a la app como decisiones de una persona, también los que la IA dio con seguridad que no es alta (D-687). El conversor los anota aparte, pero la medición de copias y de entidades no los separa. La medición de las dos cadenas (paso 11 de la segunda corrida) tiene que decir cuántos documentos dependen de un corte así y cómo les fue.",
       "creado": "2026-10-31",
       "actualizado": "2026-10-31"
     }

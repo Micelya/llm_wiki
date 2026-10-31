@@ -625,6 +625,9 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-684 | 31 oct | lectura y relaciones | La cita con o sin la forma jurídica final usa la lista de formas de la identidad, y dos formas distintas no se aceptan | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-685 | 31 oct | base | Dos cartas de la misma plantilla con otros datos quedan en una familia y se tipan juntas | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-686 | 31 oct | base | Una etapa sin sus datos vuelve a la etapa anterior, salvo que una marca la muestre, y el sello de un servicio de firma es un tramo de nombre con fecha u hora | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-687 | 31 oct | pruebas y calidad | Los cortes dados de la cadena nueva se deciden en el corte como una persona, y lo que no traen queda con las reglas, sin preguntar | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-688 | 31 oct | pruebas y calidad | En la medición de entidades, un nombre de una palabra cuenta si su cita cae en una página donde está la mención de la hoja | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-689 | 31 oct | pruebas y calidad | Las respuestas de cada etapa se guardan a medida que llegan, y las del corte se reconocen por la pregunta y el contenido de las imágenes | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -6901,3 +6904,24 @@ Vale solo para este caso: no se generaliza ni se cambian otras etiquetas. Si es 
 - **El problema:** Las reglas tercera y cuarta de parecidos (P-485) dejaban abiertos dos puntos. Si una carta que el modelo dio como «enviada» no tiene número de envío, ¿en qué etapa queda? Y ¿cómo se reconoce, sin modelo, el sello que un servicio de firma agrega junto a una firma?
 - **Qué se decidió y por qué:** La etapa queda en la anterior de la lista del tipo que sí tiene sus datos: una carta «enviada» sin número pasa a «vista previa». Eso lo dice el catálogo como dato del tipo («stageData»), no el código. Si una marca del documento muestra la etapa (por ejemplo, «copia fiel del original»), la etapa queda como estaba. Solo cambia lo que usan las reglas de parecidos: la etapa que muestra la pantalla sigue siendo la del modelo (P-503). El sello es un tramo que solo tiene un documento, hecho de un nombre (palabras con mayúscula) y una fecha u hora (cifras, meses o meses abreviados), en un PDF con el sello verificado del servicio; si es todo lo que distingue a los dos, el sellado es el ejemplar firmado. Ninguna de las dos suma consultas a la IA en producción.
 - **Quién decidió:** Claude, en la corrida desatendida (D-500); el dueño la revisa
+
+### D-687 · Los cortes dados de la cadena nueva se deciden en el corte como una persona, y lo que no traen queda con las reglas, sin preguntar
+
+- **Fecha:** 31 oct 2026 · **Tema:** pruebas y calidad · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La cadena nueva corta afuera de la app y hay que pasarle esos cortes sin que la app pregunte nada sobre cortes. Había que decidir dónde se aplican, qué pasa con los archivos que el archivo de cortes no trae, y cómo se retoma una corrida cortada sin rehacer los documentos.
+- **Qué se decidió y por qué:** Una variable solo de las pruebas (MICELYA_CUTS_GIVEN) lee un archivo con la forma de la hoja de partes. Después de que la app marca los saltos, un ayudante decide cada página desde la segunda como lo haría una persona, con las mismas dos acciones de la pantalla: empieza un documento o sigue el anterior. Se aplica en la etapa del corte y otra vez antes de leer; una página ya decidida igual no se toca, así que retomar no rehace documentos. Los archivos que el archivo de cortes no trae quedan con los cortes de las reglas y sus saltos dudosos no se preguntan. Los cortes dados quedan como «confirmados», también los que la IA dio con seguridad baja: esos se anotan aparte. Efecto en producción: ninguno, es código de pruebas.
+- **Quién decidió:** Claude (corrida desatendida)
+
+### D-688 · En la medición de entidades, un nombre de una palabra cuenta si su cita cae en una página donde está la mención de la hoja
+
+- **Fecha:** 31 oct 2026 · **Tema:** pruebas y calidad · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** P-477 pide contar como hallada una mención cuando lo extraído es uno de los otros nombres de la entidad en la hoja, o un nombre de una sola palabra cuya cita cae en la misma página. La hoja no dice la página de cada mención, así que había que decidir contra qué página se compara.
+- **Qué se decidió y por qué:** Se compara con las páginas donde el texto del archivo tiene la mención tal como la escribe la hoja. Un nombre de una palabra cuenta si es una de las palabras del nombre, de la forma escrita o de los otros nombres de esa entidad, es del mismo tipo, y la página de su cita es una de esas. La medición imprime los dos números, con y sin esto, para que se vea la ganancia; el número de siempre no cambia.
+- **Quién decidió:** Claude (corrida desatendida)
+
+### D-689 · Las respuestas de cada etapa se guardan a medida que llegan, y las del corte se reconocen por la pregunta y el contenido de las imágenes
+
+- **Fecha:** 31 oct 2026 · **Tema:** pruebas y calidad · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Una corrida tiene que poder cortarse y retomarse sin volver a preguntar lo ya respondido (D-678). Las respuestas del corte solo se escribían al final de la etapa, y el archivo de respuestas se reescribía entero en cada respuesta: un corte justo al escribir podía dejarlo roto. En el ensayo, además, dos saltos de archivos distintos con la misma pregunta y las mismas páginas compartieron una respuesta, porque se reconocían solo por la pregunta y el nombre de las imágenes.
+- **Qué se decidió y por qué:** El corte usa el mismo guardado que las demás etapas, en un archivo propio. Cada respuesta se escribe primero aparte y después se pone en su lugar. Una pregunta con imágenes se reconoce por la pregunta y la huella del contenido de cada imagen. Efecto en producción: ninguno, es código de pruebas.
+- **Quién decidió:** Claude (corrida desatendida)
