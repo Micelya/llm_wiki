@@ -107,6 +107,7 @@ Este repositorio es el fork `Micelya/llm_wiki` de `nashsu/llm_wiki` (remoto `ups
 | 28 oct, noche | 1,42 M | 6 de 7 pasos, tope 1,80 M con el principal; los pasos 3 y 4 se pasaron (0,22 y 0,25 M contra 0,20 M); el del texto incierto quedó sin hacer por el tope |
 | 29 y 30 oct | 1,64 M | prueba de la estructura, corrida limpia: 9 pasos, tope 2 M con el principal, subido a 3 M el 30 oct y a 4 M esa misma tarde, con unos 2,5 M gastados; se pasaron los pasos 1 (0,22 M contra 0,15 M), 2 (0,23 M contra 0,18 M), 3 (0,13 M contra 0,04 M), 10, las imágenes (0,20 M contra 0,13 M), 11, el texto descartado (0,17 M contra 0,15 M), y 12, las menciones no extraídas (0,21 M contra 0,15 M) |
 | 30 y 31 oct | 0,26 M | plan de la segunda corrida: un sub-agente de verificación, solo lectura (0,26 M contra 0,20 M); el principal, unas 0,3 M; la corrida, en una sesión nueva, tiene un tope de 2,5 M con el principal |
+| 31 oct | 2,42 M | segunda corrida limpia de la prueba de la estructura: 10 pasos de sub-agente, tope 2,5 M con el principal, subido a 3 M durante la corrida (D-700), con unas 2,71 M gastadas y sin recorte; se pasaron los pasos 1 (0,24 M contra 0,17 M), 2 (0,26 M contra 0,20 M), 3 (0,35 M contra 0,25 M), 10 (0,26 M contra 0,20 M), 11 (0,27 M contra 0,22 M), 12 (0,23 M contra 0,18 M) y el borrador del cierre (0,21 M contra 0,15 M) |
 
 ## Uso de la inteligencia artificial
 
