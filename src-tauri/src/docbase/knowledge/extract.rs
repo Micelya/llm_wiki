@@ -64,6 +64,16 @@ pub const TASK: &str = "knowledge";
 /// whole pages.
 pub const PART_WORDS: usize = 4000;
 
+/// The words of one part: `PART_WORDS`, or, only in the tests, the size
+/// in `MICELYA_PART_WORDS` (a measurement; the app never reads it).
+fn part_words() -> usize {
+    #[cfg(test)]
+    if let Some(words) = std::env::var("MICELYA_PART_WORDS").ok().and_then(|w| w.trim().parse::<usize>().ok()) {
+        return words.max(1);
+    }
+    PART_WORDS
+}
+
 /// The type of entity of a person (`knowledge.json`), and how many words
 /// before a number are looked at to tell whose it is.
 const PERSON_KIND: &str = "persona";
@@ -275,16 +285,17 @@ pub fn parts(body: &str) -> Vec<String> {
         }
         blocks.last_mut().expect("one").push(line);
     }
+    let limit = part_words();
     let words = |lines: &[&str]| lines.iter().map(|l| l.split_whitespace().count()).sum::<usize>();
     let mut pieces: Vec<Vec<&str>> = Vec::new();
     for block in blocks {
-        if words(&block) <= PART_WORDS {
+        if words(&block) <= limit {
             pieces.push(block);
             continue;
         }
         let mut current: Vec<&str> = Vec::new();
         for line in block {
-            if !current.is_empty() && words(&current) + line.split_whitespace().count() > PART_WORDS {
+            if !current.is_empty() && words(&current) + line.split_whitespace().count() > limit {
                 pieces.push(std::mem::take(&mut current));
             }
             current.push(line);
@@ -294,7 +305,7 @@ pub fn parts(body: &str) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     let mut current: Vec<&str> = Vec::new();
     for piece in pieces {
-        if !current.is_empty() && words(&current) + words(&piece) > PART_WORDS {
+        if !current.is_empty() && words(&current) + words(&piece) > limit {
             out.push(current.join("\n").trim().to_string());
             current.clear();
         }
