@@ -630,6 +630,7 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-689 | 31 oct | pruebas y calidad | Las respuestas de cada etapa se guardan a medida que llegan, y las del corte se reconocen por la pregunta y el contenido de las imágenes | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-690 | 31 oct | pruebas y calidad | Cómo se arma la franja de cada renglón en la lectura nueva de N | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-691 | 31 oct | pruebas y calidad | Qué es una zona chica para unir el logo partido | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-692 | 31 oct | pruebas y calidad | El umbral bajo de la lectura queda en 0,90, según la calibración | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -6940,4 +6941,11 @@ Vale solo para este caso: no se generaliza ni se cambian otras etiquetas. Si es 
 - **Fecha:** 31 oct 2026 · **Tema:** pruebas y calidad · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
 - **El problema:** El lector da algunos logos con una palabra por renglón, y hay que unirlos en una misma zona chica, con un criterio general. En el caso que lo pidió, el modelo de zonas mete el logo dentro de una zona de tabla grande, así que el área de la zona sola no alcanza.
 - **Qué se decidió y por qué:** Se unen dos o más renglones seguidos del lector que son cada uno una sola palabra sin cifras, con la confianza mínima de sus partes, cuando están en una zona chica: la zona del modelo, si ocupa a lo sumo el 3 % de la página y tiene a lo sumo 8 renglones; o, dentro de una zona más grande, el bloque que forman las palabras apiladas (cada una empieza a lo sumo media altura de renglón debajo de la anterior y se superponen en lo ancho al menos en la mitad de la más angosta), de a lo sumo 8 renglones y el 1 % de la página. El texto de pdfium no se une. Resultado: el logo de un correo queda en un renglón firme; en la carpeta se unen 108 renglones (76 por la zona y 32 por el bloque) y en el examen 74. No cambia las consultas de producción por documento.
+- **Quién decidió:** Claude, en la corrida desatendida (D-500); el dueño la revisa
+
+### D-692 · El umbral bajo de la lectura queda en 0,90, según la calibración
+
+- **Fecha:** 31 oct 2026 · **Tema:** pruebas y calidad · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** D-679 pide fijar el umbral bajo (el borde entre el texto aproximado, que sirve para entender, y el descartado) con una medición y no a mano. El dueño aceptó el criterio: un renglón sirve si tiene bien al menos dos tercios de sus letras, y el umbral es el borde de abajo del último tramo en que la mayoría sirve. Quedaban abiertos detalles de la medición.
+- **Qué se decidió y por qué:** Con 40 renglones al azar por tramo de confianza (280 en total, de la carpeta de prueba y del examen, solo zonas de texto), transcritos por Codex en 14 consultas: sirve para entender el 92 % de 0,97 o más, el 74 % de 0,90 a 0,97, el 45 % de 0,80 a 0,90, el 21 % de 0,70 a 0,80, el 13 % de 0,60 a 0,70 y nada por debajo de 0,60. El umbral bajo queda en 0,90. Detalles fijados antes de medir: la similitud es 1 menos la distancia de edición dividida por el largo del texto más largo, tras pasar a minúsculas y sacar tildes y signos; «ilegible» cuenta como que no sirve; se apartan los recortes que Codex marca cortados por el borde (con ellos el umbral sale igual); un recuadro del lector que abarca varios renglones de letra chica cuenta, porque es el renglón tal como lo armó el lector; si un tramo no cumple, los de abajo no cuentan. Con 0,90, en la carpeta de prueba queda descartado el 2,8 % de las letras (antes, con el provisorio 0,80, el 1,6 %); en los escaneos sin el compuesto de 93 páginas, el 13 %.
 - **Quién decidió:** Claude, en la corrida desatendida (D-500); el dueño la revisa

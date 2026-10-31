@@ -4362,6 +4362,18 @@
       "detalle": "Con la lectura nueva de N (paso 6 de la segunda corrida), las reglas seguras de corte deciden 74 pasos «sigue» en la carpeta de prueba y 21 en el examen, con un solo error: en un escrito con documentación adjunta, el último renglón firme de una página es una certificación cortada («… ES COPIA FIEL DEL»), la regla «termina en nexo» une, y la hoja marca un documento nuevo en la página siguiente. Ver si el error se repite en la cadena N completa antes de cambiar la regla (por ejemplo, no contar como final de página un renglón de certificación). No cambia las consultas de producción por documento.",
       "creado": "2026-10-31",
       "actualizado": "2026-10-31"
+    },
+    {
+      "id": "P-509",
+      "titulo": "Decidir si el umbral bajo queda en 0,90 o se mide mejor el tramo de 0,80 a 0,90",
+      "tipo": "decision",
+      "responsable": "dueño",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "pruebas y calidad",
+      "detalle": "La calibración (D-692) deja el umbral bajo en 0,90 porque en el tramo de 0,80 a 0,90 sirve para entender el 45 % de los renglones (15 de 33), apenas debajo de la mitad y dentro del margen de unos 17 puntos de una muestra de ese tamaño. Partido en dos, como dato informativo y no para elegir: de 0,85 a 0,90 sirve el 53 % (9 de 17) y de 0,80 a 0,85 el 38 % (6 de 16). Opciones: dejar 0,90 (lo prudente, ya aplicado); o medir unos 80 renglones más en ese tramo, con unas 4 consultas a Codex y unas 40 mil fichas, antes de bajarlo. El cambio no suma consultas en producción: el umbral solo decide qué texto se marca aproximado.",
+      "creado": "2026-10-31",
+      "actualizado": "2026-10-31"
     }
   ]
 }
