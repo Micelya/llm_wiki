@@ -3,7 +3,8 @@
 // `src-tauri/src/source_volume/recognition_local.rs`): the models of
 // RapidOCR (PP-OCRv6 small detection and recognition, the orientation
 // classifier and the dictionary, the same files the `rapidocr` 3.10.0
-// package carries) and ONNX Runtime 1.24.4, the library that runs them.
+// package carries), the model of zones of the reading by zones, and ONNX
+// Runtime 1.24.4, the library that runs them.
 //
 // They are not in the repository: this script puts them in `src-tauri/ocr/`
 // (ignored by git), each checked against its fixed sha256. The app takes
@@ -45,6 +46,14 @@ const MODELS = [
     file: "ppocrv6_dict.txt",
     url: `${MODELS_AT}/master/paddle/PP-OCRv6/rec/PP-OCRv6_rec_small/ppocrv6_dict.txt`,
     sha256: "b5f2bfe2bdd9448429e3e82b51c789775d9b42f2403d082b00662eb77e401c5d",
+  },
+  // The model of zones of the reading by zones (D-725,
+  // `src-tauri/src/source_volume/layout_local.rs`): PP-DocLayoutV2, the file
+  // the `rapid_layout` 1.2.0 package downloads (214 MB).
+  {
+    file: "pp_doc_layoutv2.onnx",
+    url: "https://www.modelscope.cn/models/RapidAI/RapidLayout/resolve/v1.2.0/onnx/pp_doc_layout/pp_doc_layoutv2.onnx",
+    sha256: "0bd2ea0997fe0789f0300292291f8bbf897d890b44a9a3bd5be72afd6198aa90",
   },
 ]
 

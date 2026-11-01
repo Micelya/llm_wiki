@@ -32,7 +32,8 @@ pub struct Barrier {
     pub scans: usize,
     /// PDFs without the ficha of their pages.
     pub shapes: usize,
-    /// Files still to cut with the rules, or whose parts are still to make.
+    /// Files still to cut with the rules, whose parts are still to make, or
+    /// that wait for their reading by zones (`structure`).
     pub cut: usize,
     /// Documents still to sign, or to measure against the others.
     pub similar: usize,
@@ -70,6 +71,7 @@ fn count(conn: &Connection, sql: &str) -> Result<usize, String> {
 pub(crate) fn barrier(conn: &Connection) -> Result<Barrier, String> {
     let excluded = super::excluded_sql!();
     let free = free_sql("c.id");
+    let thresholds = super::thresholds::thresholds(conn)?;
     let unread = count(
         conn,
         &format!(
@@ -107,7 +109,10 @@ pub(crate) fn barrier(conn: &Connection) -> Result<Barrier, String> {
             |row| row.get(0),
         )
         .map_err(sql_err)?;
-    let cut = super::cut::rules_left(conn, &free)? + super::cut::parts::parts_left(conn, &free)?;
+    let bands = super::structure::page::Bands { high: thresholds.high, low: thresholds.low };
+    let cut = super::cut::rules_left(conn, &free)?
+        + super::cut::parts::parts_left(conn, &free)?
+        + super::structure::zones_left(conn, &free, bands)?;
     let similar = super::similar::store::similar_left(conn, &free)?;
     Ok(Barrier { text: unread + without_text, scans, shapes: shapes.max(0) as usize, cut, similar })
 }

@@ -240,8 +240,10 @@ impl DocBase {
     /// waited for them are read.
     pub(crate) fn scans_with_models(&self) -> Result<(), String> {
         let conn = self.conn();
-        super::failures::resolve_cause(&conn, "models-missing")?;
-        super::failures::resolve_cause(&conn, "models-downloading")
+        // Only the scans: the reading by zones has its own model
+        // (`structure`).
+        super::failures::resolve_stage_cause(&conn, RECOGNITION_STAGE, "models-missing")?;
+        super::failures::resolve_stage_cause(&conn, RECOGNITION_STAGE, "models-downloading")
     }
 
     /// The document the engine of this computer reads next (D-558): the

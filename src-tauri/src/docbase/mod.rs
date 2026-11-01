@@ -51,6 +51,7 @@ pub mod services;
 mod scan;
 mod schema;
 pub mod similar;
+pub(crate) mod structure;
 #[cfg(test)]
 pub(crate) mod testing;
 pub mod text;

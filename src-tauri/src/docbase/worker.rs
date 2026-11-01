@@ -520,6 +520,11 @@ pub fn spawn_local_recognition(base: Arc<DocBase>, on_change: impl Fn() + Send +
 /// One scan read on this computer. Returns how long to wait before the next.
 fn local_recognition_step(base: &DocBase, on_change: &dyn Fn()) -> Duration {
     use super::recognize::RecognitionStep;
+    // The reading by zones of the PDFs goes first: the cut of each one
+    // waits for it (D-746).
+    if let Some(wait) = zones_step(base, on_change) {
+        return wait;
+    }
     let Some(config) = super::services::local_recognition_engine() else {
         // Without its models the scans wait, each with its failure: none
         // goes to the cloud (D-721). There is no way to download them from
@@ -569,6 +574,34 @@ fn local_recognition_step(base: &DocBase, on_change: &dyn Fn()) -> Duration {
         Err(error) => {
             eprintln!("[docbase] {error}");
             LOCAL_IDLE
+        }
+    }
+}
+
+/// One PDF read by zones on this computer (`structure`), when one waits.
+/// `None`: none waits, or the model of zones or the reader is not there,
+/// and each PDF waiting says so with its failure and waits (D-717).
+fn zones_step(base: &DocBase, on_change: &dyn Fn()) -> Option<Duration> {
+    if let Some(why) = crate::source_volume::layout_local::unavailable() {
+        match base.zones_without_models(&why) {
+            Ok(noted) if noted > 0 => on_change(),
+            Ok(_) => {}
+            Err(error) => eprintln!("[docbase] {error}"),
+        }
+        return None;
+    }
+    if let Err(error) = base.zones_with_models() {
+        eprintln!("[docbase] {error}");
+    }
+    match base.read_zones_step() {
+        Ok(true) => {
+            on_change();
+            Some(Duration::ZERO)
+        }
+        Ok(false) => None,
+        Err(error) => {
+            eprintln!("[docbase] reading by zones: {error}");
+            None
         }
     }
 }

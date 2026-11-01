@@ -73,11 +73,19 @@ pub(crate) fn by_itself_sql() -> String {
     format!("coalesce((SELECT value FROM docbase_setting WHERE key = '{WINDOWS_BY_ITSELF}'), '') = '1'")
 }
 
+/// Whether a reading by zones is coming when the setting is not written:
+/// the app reads every PDF by zones (`docbase/structure`, D-746); the
+/// unit tests of the cut of before, made without the model of zones, say
+/// so when they need it.
+const ZONES_READING_BY_DEFAULT: &str = if cfg!(test) { "off" } else { "on" };
+
 /// SQL over a file `f` without its reading by zones: one is coming
 /// (`ZONES_READING`). Also when its reading failed: the file waits with its
 /// failure written down, and is not cut with the cut of before (D-717).
 pub(crate) fn zones_waiting_sql() -> String {
-    format!("(coalesce((SELECT value FROM docbase_setting WHERE key = '{ZONES_READING}'), '') = 'on')")
+    format!(
+        "(coalesce((SELECT value FROM docbase_setting WHERE key = '{ZONES_READING}'), '{ZONES_READING_BY_DEFAULT}') = 'on')"
+    )
 }
 
 /// SQL: a window `w` still without an answer.
@@ -198,8 +206,8 @@ fn window_rows(conn: &Connection, hash: &str) -> Result<Vec<window::Window>, Str
 
 impl DocBase {
     /// Keeps the reading by zones of the pages of a file (by `engine`), for
-    /// its version: its cut is made again with it. In this part only the
-    /// tests give it (the reader by zones comes later).
+    /// its version: its cut is made again with it. The app reads it itself
+    /// (`docbase/structure`); this is for the tests, which give it.
     #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn put_zones(&self, hash: &str, readings: &[PageReading], engine: &str) -> Result<(), String> {
         let body = serde_json::to_string(readings).map_err(|e| e.to_string())?;

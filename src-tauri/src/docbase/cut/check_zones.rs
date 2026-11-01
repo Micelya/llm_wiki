@@ -217,7 +217,12 @@ fn the_cut_by_zones_against_the_scripts_of_n() {
             let rows = statement.query_map([prompt], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?))).unwrap();
             rows.map(|r| r.unwrap()).collect()
         };
+        // The question as the app makes it, to ask it apart when its key
+        // changed (the reading by zones of the app, part 2).
+        let asked = out.join("preguntas");
+        std::fs::create_dir_all(&asked).unwrap();
         for (hash, first, last) in windows {
+            std::fs::write(asked.join(format!("{hash}-{first:03}-{last:03}.txt")), prompt).unwrap();
             let prefix = format!("{}-{first:03}-{last:03}-", &hash[..12]);
             let theirs = kept.iter().find(|(k, _)| k.starts_with(&prefix)).map(|(_, q)| q.clone());
             let why = match theirs {

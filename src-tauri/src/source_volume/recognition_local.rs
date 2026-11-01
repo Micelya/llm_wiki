@@ -55,11 +55,15 @@ pub fn catalog() -> &'static LocalCatalog {
     PARSED.get_or_init(|| serde_json::from_str(CATALOG).expect("the catalog of the local reading is valid"))
 }
 
-/// One line as the engine read it, with how sure it is (0 to 1).
+/// One line as the engine read it, with how sure it is (0 to 1) and its
+/// box in the pixels of the image it read (left, top, right, bottom): the
+/// reading by zones puts each line in the zone that holds it
+/// (`docbase/structure`).
 #[derive(Debug, Clone, PartialEq)]
 pub struct ReadLine {
     pub text: String,
     pub score: f32,
+    pub bbox: [i64; 4],
 }
 
 /// The folders where the models and the library may be, in order.
@@ -126,8 +130,9 @@ pub fn unavailable() -> Option<String> {
     ocr_dir().err()
 }
 
-/// ONNX Runtime opened once per process, from the library in `dir`.
-fn open_runtime(dir: &Path) -> Result<(), String> {
+/// ONNX Runtime opened once per process, from the library in `dir`; the
+/// model of zones (`layout_local`) runs on it too.
+pub(crate) fn open_runtime(dir: &Path) -> Result<(), String> {
     static OPENED: OnceLock<Result<(), String>> = OnceLock::new();
     OPENED
         .get_or_init(|| {
@@ -161,7 +166,7 @@ pub fn start_in(dir: &Path) -> Result<RapidOcr, String> {
 
 /// Threads of the engine: half the processors, up to four, so the app
 /// stays responsive while it reads.
-fn threads() -> usize {
+pub(crate) fn threads() -> usize {
     std::thread::available_parallelism().map_or(1, |n| n.get() / 2).clamp(1, 4)
 }
 
@@ -169,7 +174,7 @@ fn threads() -> usize {
 /// starting it again for every page would cost more than reading it.
 static ENGINE_LOADED: OnceLock<Result<Mutex<RapidOcr>, String>> = OnceLock::new();
 
-fn engine() -> Result<MutexGuard<'static, RapidOcr>, String> {
+pub(crate) fn engine() -> Result<MutexGuard<'static, RapidOcr>, String> {
     let loaded = ENGINE_LOADED.get_or_init(|| ocr_dir().and_then(|dir| start_in(&dir)).map(Mutex::new));
     match loaded {
         // A page that panicked half-way leaves the engine as it was.
@@ -189,8 +194,25 @@ pub fn read_lines(ocr: &mut RapidOcr, image: &Path) -> Result<Vec<ReadLine>, Str
     } else {
         picture
     };
-    let output = ocr.run_image(&picture.to_rgb8()).map_err(|error| format!("The engine of this computer failed: {error:#}"))?;
-    Ok(output.lines.into_iter().map(|line| ReadLine { text: line.text, score: line.score }).collect())
+    read_picture(ocr, &picture.to_rgb8())
+}
+
+/// The lines of a picture already drawn, each with its confidence and its
+/// box (the smallest upright rectangle around what the engine found,
+/// truncated to whole pixels as the scripts of N did).
+pub fn read_picture(ocr: &mut RapidOcr, picture: &image::RgbImage) -> Result<Vec<ReadLine>, String> {
+    let output = ocr.run_image(picture).map_err(|error| format!("The engine of this computer failed: {error:#}"))?;
+    Ok(output
+        .lines
+        .into_iter()
+        .map(|line| {
+            let xs = line.bbox.points.iter().map(|p| p[0]);
+            let ys = line.bbox.points.iter().map(|p| p[1]);
+            let (x0, x1) = xs.fold((f32::INFINITY, f32::NEG_INFINITY), |(lo, hi), v| (lo.min(v), hi.max(v)));
+            let (y0, y1) = ys.fold((f32::INFINITY, f32::NEG_INFINITY), |(lo, hi), v| (lo.min(v), hi.max(v)));
+            ReadLine { text: line.text, score: line.score, bbox: [x0 as i64, y0 as i64, x1 as i64, y1 as i64] }
+        })
+        .collect())
 }
 
 /// The text of the lines whose confidence reaches `threshold`, one per
@@ -240,7 +262,7 @@ mod tests {
     }
 
     fn line(text: &str, score: f32) -> ReadLine {
-        ReadLine { text: text.into(), score }
+        ReadLine { text: text.into(), score, bbox: [0, 0, 10, 10] }
     }
 
     #[test]
@@ -291,5 +313,10 @@ mod tests {
         assert!(text.contains("1.284.650,75"), "{text}");
         assert!(text.contains("03/11/2026"), "{text}");
         assert!(lines.iter().all(|line| (0.0..=1.0).contains(&line.score)));
+        // Each line has its box, inside the page and from the top down.
+        assert!(lines.iter().all(|line| line.bbox[0] <= line.bbox[2] && line.bbox[1] <= line.bbox[3] && line.bbox[0] >= 0));
+        let title = lines.iter().find(|line| line.text.contains("CONTRATO DE PRUEBA")).unwrap();
+        let amount = lines.iter().find(|line| line.text.contains("1.284.650,75")).unwrap();
+        assert!(title.bbox[1] < amount.bbox[1], "{title:?} {amount:?}");
     }
 }

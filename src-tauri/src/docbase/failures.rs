@@ -512,6 +512,17 @@ pub fn resolve_cause(conn: &Connection, cause: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// What kept the failures of one cause in one step is gone (the models
+/// of this computer are there now): they are resolved.
+pub fn resolve_stage_cause(conn: &Connection, stage: &str, cause: &str) -> Result<(), String> {
+    conn.execute(
+        "UPDATE failure SET state = 'resolved', next_at = NULL WHERE stage = ?1 AND cause = ?2 AND state <> 'resolved'",
+        params![stage, cause],
+    )
+    .map_err(sql_err)?;
+    Ok(())
+}
+
 /// An engine answered: its failures of the whole engine are resolved.
 pub fn resolve_engine(conn: &Connection, engine: &str) -> Result<(), String> {
     conn.execute(

@@ -9,6 +9,7 @@
 pub mod asking;
 pub mod catalog;
 pub mod file_hash;
+pub mod layout_local;
 // The shape of each page of a PDF, which decides what is recognized (P-320).
 pub mod page_shape;
 pub mod page_print;
