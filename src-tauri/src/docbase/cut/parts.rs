@@ -135,13 +135,26 @@ pub(crate) fn pages_text(text: &str, first: u32, last: u32) -> String {
     out.join("\n").trim_end().to_string()
 }
 
-/// SQL: the version in `column` is the version of a whole file that has
-/// included parts. It is not read whole: its parts are (D-560).
-pub(crate) fn has_included_sql(column: &str) -> String {
-    format!(
-        "EXISTS (SELECT 1 FROM appearance wa JOIN appearance wp ON wp.resource_hash = wa.resource_hash AND wp.selector <> 'file'
-                 WHERE wa.version_id = {column} AND wa.selector = 'file')"
-    )
+/// The selector of the one document of a file of one document (D-718):
+/// from its first page to its last, with the version of the file.
+pub(crate) const ONE_DOCUMENT: &str = "all";
+
+/// SQL: the version in `column` is a document (D-718): it has its place
+/// in the structure of a file, as the one document of its file (`all`) or
+/// as one of the parts of a file of several (`pages:`), one way for both.
+/// A whole file is not, as such: the version of a file of two or more
+/// documents, or of one still without its structure, never goes to the
+/// steps of documents (the signature, the type, the reading, the
+/// identities, the pages); its documents do (D-560, D-718).
+pub(crate) fn is_document_sql(column: &str) -> String {
+    format!("EXISTS (SELECT 1 FROM appearance ds WHERE ds.version_id = {column} AND ds.selector <> 'file')")
+}
+
+/// SQL: the appearance `alias` is one of the parts of a file of two or
+/// more documents (a «documento compuesto», D-718), not the one document
+/// of its file nor the file itself.
+pub(crate) fn is_part_sql(alias: &str) -> String {
+    format!("{alias}.selector GLOB 'pages:*'")
 }
 
 /// The versions that appear only in uncertain cuts. What comes out of them
@@ -269,17 +282,38 @@ impl DocBase {
             params![parts.iter().any(|p| p.uncertain), hash],
         )
         .map_err(sql_err)?;
-        if parts.len() < 2 {
+        let now = now_ms();
+        // Its structure (D-718): one document, with the version of the file
+        // and its place `all`; or two or more, its parts, and no `all`.
+        let had_one: bool = tx
+            .query_row("SELECT EXISTS (SELECT 1 FROM appearance WHERE resource_hash = ?1 AND selector = ?2)", params![hash, ONE_DOCUMENT], |row| row.get(0))
+            .map_err(sql_err)?;
+        let one = parts.len() < 2;
+        if one {
+            let by = parts.first().map_or("rule", |p| p.by);
+            let uncertain = parts.first().is_some_and(|p| p.uncertain);
+            tx.execute(
+                "INSERT INTO appearance (version_id, resource_hash, selector, position, cut_by, cut_state, uncertain, created_at)
+                 VALUES (?1, ?2, ?3, 1, ?4, 'confirmed', ?5, ?6)
+                 ON CONFLICT (resource_hash, selector) DO UPDATE SET version_id = excluded.version_id, cut_by = excluded.cut_by,
+                     uncertain = excluded.uncertain",
+                params![whole_id, hash, ONE_DOCUMENT, by, uncertain, now],
+            )
+            .map_err(sql_err)?;
             parts.clear();
+        } else {
+            tx.execute("DELETE FROM appearance WHERE resource_hash = ?1 AND selector = ?2", params![hash, ONE_DOCUMENT])
+                .map_err(sql_err)?;
         }
         let existing: Vec<Existing> = {
             let mut statement = tx
-                .prepare(
+                .prepare(&format!(
                     "SELECT a.id, a.version_id, a.selector, v.text_hash, d.body FROM appearance a
                      JOIN version v ON v.id = a.version_id
                      LEFT JOIN derivative d ON d.version_id = a.version_id AND d.kind = 'text'
-                     WHERE a.resource_hash = ?1 AND a.selector <> 'file'",
-                )
+                     WHERE a.resource_hash = ?1 AND {}",
+                    is_part_sql("a")
+                ))
                 .map_err(sql_err)?;
             let rows = statement
                 .query_map([hash], |row| {
@@ -288,7 +322,6 @@ impl DocBase {
                 .map_err(sql_err)?;
             rows.collect::<Result<_, _>>().map_err(sql_err)?
         };
-        let now = now_ms();
         let state = |part: &Part| if part.confirmed { "confirmed" } else { "proposed" };
         let mut kept: BTreeSet<i64> = BTreeSet::new();
         let mut to_make = Vec::new();
@@ -314,7 +347,7 @@ impl DocBase {
         }
         // What one part says of another (a signing certificate, D-607)
         // is read again when the parts change.
-        let changed = !to_make.is_empty() || kept.len() < existing.len();
+        let changed = !to_make.is_empty() || kept.len() < existing.len() || had_one != one;
         let mut left: BTreeSet<i64> = BTreeSet::new();
         for e in existing.iter().filter(|e| !kept.contains(&e.id)) {
             tx.execute("DELETE FROM appearance WHERE id = ?1", [e.id]).map_err(sql_err)?;
@@ -397,7 +430,7 @@ impl DocBase {
             .prepare(
                 "SELECT a.position, a.version_id, v.document_id, a.selector, a.cut_by, a.cut_state, a.uncertain FROM appearance a
                  JOIN version v ON v.id = a.version_id
-                 WHERE a.resource_hash = ?1 AND a.selector <> 'file' ORDER BY a.position",
+                 WHERE a.resource_hash = ?1 AND a.selector GLOB 'pages:*' ORDER BY a.position",
             )
             .map_err(sql_err)?;
         let rows = statement
@@ -445,7 +478,7 @@ impl DocBase {
             .conn()
             .query_row(
                 "SELECT a.version_id, v.document_id FROM appearance a JOIN version v ON v.id = a.version_id
-                 WHERE a.resource_hash = ?1 AND a.selector = 'file' AND a.uncertain = 1",
+                 WHERE a.resource_hash = ?1 AND a.selector = 'all' AND a.uncertain = 1",
                 [hash],
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
@@ -670,7 +703,9 @@ mod tests {
         let parts = base.included_parts("h1").unwrap();
         assert_eq!(parts.len(), 2);
         assert_eq!(parts[1].version_id, 1);
-        assert_eq!(count(&base, "SELECT count(*) FROM appearance WHERE version_id = 1"), 2);
+        // The file itself, its one document (D-718) and a part of the other.
+        assert_eq!(count(&base, "SELECT count(*) FROM appearance WHERE version_id = 1"), 3);
+        assert_eq!(count(&base, "SELECT count(*) FROM appearance WHERE version_id = 1 AND selector = 'all'"), 1);
         assert_eq!(count(&base, "SELECT count(*) FROM version"), 3);
     }
 

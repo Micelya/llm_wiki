@@ -1158,16 +1158,19 @@ fn load(conn: &Connection, identities: &HashMap<i64, String>) -> Result<Record, 
     Ok(Record { entities, documents, pages, matters, matter_of, proposed })
 }
 
-/// The documents cut from a file (D-667) have no file of their own, and
-/// so no name: the pages call each one by its file's name and its pages
-/// ("Acuerdo.pdf, págs. 5-10"), and it goes with the whole file in
-/// `sources:` and to its page. Its name for the questions stays empty.
+/// Each document is named by its place in the structure of its file
+/// (D-718), the same way for one or several: the one document of a file,
+/// by the file (`classify::name_of`); a part of a file of several, which
+/// has no file of its own, by its file's name and its pages ("Acuerdo.pdf,
+/// págs. 5-10"), and it goes with the whole file in `sources:` and to its
+/// page until each part has its own (P-527). Its name for the questions
+/// stays empty.
 fn name_parts(conn: &Connection, documents: &mut BTreeMap<i64, Document>, identities: &HashMap<i64, String>) -> Result<(), String> {
     let words = &vocabulary().pages;
     let mut statement = conn
         .prepare(
             "SELECT a.selector, f.version_id FROM appearance a JOIN file f ON f.hash = a.resource_hash
-             WHERE a.version_id = ?1 AND a.selector <> 'file' AND f.version_id IS NOT NULL ORDER BY a.id LIMIT 1",
+             WHERE a.version_id = ?1 AND a.selector GLOB 'pages:*' AND f.version_id IS NOT NULL ORDER BY a.id LIMIT 1",
         )
         .map_err(sql_err)?;
     for (content, document) in documents.iter_mut().filter(|(_, d)| d.name.is_empty()) {
@@ -2809,7 +2812,8 @@ fn project(base: &DocBase, asking: &mut Asking, report: &mut ProjectReport, dry:
             }
         }
     }
-    // A document cut from a file links to the page of the whole file.
+    // A part of a file of several documents links to the page of the
+    // whole file, until it has its own (P-527).
     for document in record.documents.values_mut().filter(|d| d.page.is_none()) {
         let whole = document.part.as_ref().and_then(|p| families.family_of(p.whole));
         document.page = whole.and_then(|f| document_paths.get(&f.id)).cloned();

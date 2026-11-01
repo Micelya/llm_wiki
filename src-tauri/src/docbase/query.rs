@@ -703,10 +703,9 @@ pub(crate) fn rows_sql(visible: &Visible, only: Option<i64>) -> (String, Vec<Val
                 ) END AS copies,
                 dt.doc_type AS doc_type, dt.stage AS doc_stage, coalesce(dt.proposed, 0) AS doc_type_proposed,
                 dt.proposed_name AS doc_type_name,
-                (SELECT count(*) FROM appearance a WHERE a.resource_hash = l.file_hash AND a.selector <> 'file') AS included,
+                (SELECT count(*) FROM appearance a WHERE a.resource_hash = l.file_hash AND a.selector GLOB 'pages:*') AS included,
                 (SELECT count(*) FROM appearance a WHERE a.resource_hash = l.file_hash AND a.uncertain = 1
-                    AND (a.selector <> 'file' OR NOT EXISTS (SELECT 1 FROM appearance p
-                                                             WHERE p.resource_hash = a.resource_hash AND p.selector <> 'file'))) AS unconfirmed_cuts
+                    AND a.selector <> 'file') AS unconfirmed_cuts
          FROM location l
          JOIN origin o ON o.id = l.origin_id
          LEFT JOIN file f ON f.hash = l.file_hash

@@ -90,6 +90,8 @@ mod tests_quality;
 mod tests_repeated;
 #[cfg(test)]
 mod tests_order;
+#[cfg(test)]
+mod tests_levels;
 pub mod vocabulary;
 
 use std::collections::BTreeMap;

@@ -40,14 +40,15 @@ const LEFT_OUT_SETTING: &str = "knowledge-left-out";
 /// SQL condition: the content `{column}` has a location that is not
 /// excluded, through any file it appears in (a part of a joined PDF
 /// appears in its file, D-560). A document with none is not processed by
-/// the layer, nor the version of a whole file that has parts: its parts
-/// are read instead.
+/// the layer. Only documents are (D-718): a version with its place in the
+/// structure of a file, never a whole file as such (the one of two or more
+/// documents is read in its parts).
 pub(crate) fn active_content(column: &str) -> String {
     format!(
         "EXISTS (SELECT 1 FROM appearance af JOIN location l ON l.file_hash = af.resource_hash
-                 WHERE af.version_id = {column} AND NOT {}) AND NOT {}",
+                 WHERE af.version_id = {column} AND NOT {}) AND {}",
         excluded_sql!(),
-        crate::docbase::cut::parts::has_included_sql(column)
+        crate::docbase::cut::parts::is_document_sql(column)
     )
 }
 

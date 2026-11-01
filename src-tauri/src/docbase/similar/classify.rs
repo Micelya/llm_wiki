@@ -857,10 +857,21 @@ pub(crate) fn body_of(conn: &Connection, content_id: i64) -> Result<String, Stri
         .map(Option::unwrap_or_default)
 }
 
+/// The name of a version, read from the structure of its files (D-718):
+/// from the first place it had as a document, the name of its file when it
+/// is the one document of that file, and none when it is a part of a file
+/// of several (the pages name it by its file and its pages, `pages.rs`;
+/// the questions do not, so their text and their answers stay). A whole
+/// file of several documents, which is not a document, is named by its
+/// file. Of the places of one file, the first seen. A copy that comes
+/// later, the same file at another place or another file with the same
+/// text, never changes it, and so never changes its questions (P-517).
 pub(crate) fn name_of(conn: &Connection, content_id: i64) -> Result<String, String> {
     conn.query_row(
-        "SELECT l.name FROM location l JOIN file f ON f.hash = l.file_hash WHERE f.version_id = ?1
-         ORDER BY l.rel_path COLLATE NOCASE LIMIT 1",
+        "SELECT CASE WHEN a.selector IN ('file', 'all') THEN l.name ELSE '' END
+         FROM appearance a JOIN location l ON l.file_hash = a.resource_hash
+         WHERE a.version_id = ?1
+         ORDER BY a.selector = 'file', a.id, l.first_seen_at, l.rel_path COLLATE NOCASE LIMIT 1",
         [content_id],
         |row| row.get(0),
     )

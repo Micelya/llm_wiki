@@ -949,7 +949,7 @@ fn similar_documents_of_the_included_documents() {
             let mut statement = conn
                 .prepare(
                     "SELECT a.resource_hash, a.selector, m.marks FROM appearance a
-                     JOIN document_marks m ON m.version_id = a.version_id WHERE a.selector <> 'file'",
+                     JOIN document_marks m ON m.version_id = a.version_id WHERE a.selector GLOB 'pages:*'",
                 )
                 .unwrap();
             let rows: Vec<(String, String, String)> =
@@ -1005,8 +1005,8 @@ fn similar_documents_of_the_included_documents() {
             "versions {} · compared {} · cut files {} · parts {} · versions only in uncertain cuts {} · pairs {}",
             count("SELECT count(*) FROM version"),
             count("SELECT count(*) FROM similar_signature WHERE length(shingles) > 0"),
-            count("SELECT count(DISTINCT resource_hash) FROM appearance WHERE selector <> 'file'"),
-            count("SELECT count(*) FROM appearance WHERE selector <> 'file'"),
+            count("SELECT count(DISTINCT resource_hash) FROM appearance WHERE selector GLOB 'pages:*'"),
+            count("SELECT count(*) FROM appearance WHERE selector GLOB 'pages:*'"),
             count(&format!("SELECT count(*) FROM version v WHERE {}", crate::docbase::cut::parts::only_uncertain_sql("v.id"))),
             count("SELECT count(*) FROM similar_pair"),
         );
@@ -1022,7 +1022,7 @@ fn similar_documents_of_the_included_documents() {
                 drop(conn);
                 hashes.iter().map(|h| base.cut_steps(h).unwrap().iter().filter(|s| s.uncertain()).count()).sum::<usize>()
             },
-            count("SELECT count(*) FROM appearance WHERE selector <> 'file' AND uncertain = 1"),
+            count("SELECT count(*) FROM appearance WHERE selector GLOB 'pages:*' AND uncertain = 1"),
             count(&format!("SELECT count(*) FROM similar_pair p WHERE {}", super::store::uncertain_pair_sql("p"))),
             count(&format!(
                 "SELECT count(DISTINCT principal) FROM similar_group_member m WHERE {}",
@@ -1037,7 +1037,7 @@ fn similar_documents_of_the_included_documents() {
             let conn = base.conn();
             let mut statement = conn
                 .prepare(
-                    "SELECT a.resource_hash, EXISTS (SELECT 1 FROM appearance p WHERE p.resource_hash = a.resource_hash AND p.selector <> 'file')
+                    "SELECT a.resource_hash, EXISTS (SELECT 1 FROM appearance p WHERE p.resource_hash = a.resource_hash AND p.selector GLOB 'pages:*')
                      FROM appearance a WHERE a.selector = 'file' AND a.uncertain = 1",
                 )
                 .unwrap();
@@ -1054,7 +1054,7 @@ fn similar_documents_of_the_included_documents() {
         // The parts of each cut file, by its hash.
         let parts: Vec<(String, i64)> = {
             let conn = base.conn();
-            let mut statement = conn.prepare("SELECT resource_hash, version_id FROM appearance WHERE selector <> 'file'").unwrap();
+            let mut statement = conn.prepare("SELECT resource_hash, version_id FROM appearance WHERE selector GLOB 'pages:*'").unwrap();
             let rows = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?))).unwrap().collect::<Result<Vec<_>, _>>().unwrap();
             rows
         };
@@ -1122,7 +1122,7 @@ fn similar_documents_of_the_included_documents() {
     report("as it is: cuts as the base makes them, the uncertain marked");
     let cut: Vec<String> = {
         let conn = base.conn();
-        let mut statement = conn.prepare("SELECT DISTINCT resource_hash FROM appearance WHERE selector <> 'file'").unwrap();
+        let mut statement = conn.prepare("SELECT DISTINCT resource_hash FROM appearance WHERE selector GLOB 'pages:*'").unwrap();
         let rows = statement.query_map([], |row| row.get(0)).unwrap().collect::<Result<Vec<_>, _>>().unwrap();
         rows
     };

@@ -566,8 +566,8 @@ fn in_order_before_reading(base: &DocBase) {
     let count = |sql: &str| -> i64 { base.conn().query_row(sql, [], |row| row.get(0)).unwrap() };
     println!(
         "in order (D-666): files cut in documents {}, documents of cut files {}; cuts and documents {cut_steps:.1}s, similar documents {:.1}s",
-        count("SELECT count(DISTINCT resource_hash) FROM appearance WHERE selector <> 'file'"),
-        count("SELECT count(*) FROM appearance WHERE selector <> 'file'"),
+        count("SELECT count(DISTINCT resource_hash) FROM appearance WHERE selector GLOB 'pages:*'"),
+        count("SELECT count(*) FROM appearance WHERE selector GLOB 'pages:*'"),
         started.elapsed().as_secs_f32() - cut_steps
     );
 }
@@ -578,7 +578,7 @@ fn print_parts_typed(base: &DocBase) {
         .conn()
         .query_row(
             "SELECT count(DISTINCT t.version_id), count(DISTINCT a.version_id) FROM appearance a
-             LEFT JOIN document_type t ON t.version_id = a.version_id WHERE a.selector <> 'file'",
+             LEFT JOIN document_type t ON t.version_id = a.version_id WHERE a.selector GLOB 'pages:*'",
             [],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
@@ -612,12 +612,12 @@ fn extraction_against_the_entity_sheet() {
     let name = |content: i64| by_content.get(&content).map(|p| p.join(" = ")).unwrap_or_else(|| format!("#{content}"));
     // By document (P-484): the mentions and evidence of the documents of
     // a cut file count with the file the sheet names (`appearance` with
-    // `selector <> 'file'`), as the app reads the documents and not the
+    // `selector GLOB 'pages:*'`), as the app reads the documents and not the
     // whole version of a file with documents.
     let part_of: HashMap<i64, i64> = {
         let conn = base.conn();
         let mut statement = conn
-            .prepare("SELECT a.version_id, f.version_id FROM appearance a JOIN file f ON f.hash = a.resource_hash WHERE a.selector <> 'file'")
+            .prepare("SELECT a.version_id, f.version_id FROM appearance a JOIN file f ON f.hash = a.resource_hash WHERE a.selector GLOB 'pages:*'")
             .unwrap();
         let rows = statement.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?))).unwrap();
         rows.collect::<Result<_, _>>().unwrap()

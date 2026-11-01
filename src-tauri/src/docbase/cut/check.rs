@@ -322,20 +322,20 @@ fn parts_report(base: &DocBase, sheet: &Value, when: &str) {
         count("SELECT count(*) FROM document"),
         count("SELECT count(*) FROM appearance"),
         count("SELECT count(*) FROM appearance WHERE selector = 'file'"),
-        count("SELECT count(*) FROM appearance WHERE selector <> 'file'"),
-        count("SELECT count(*) FROM appearance WHERE selector <> 'file' AND cut_state = 'proposed'"),
-        count("SELECT count(*) FROM appearance WHERE selector <> 'file' AND cut_state = 'confirmed'"),
+        count("SELECT count(*) FROM appearance WHERE selector GLOB 'pages:*'"),
+        count("SELECT count(*) FROM appearance WHERE selector GLOB 'pages:*' AND cut_state = 'proposed'"),
+        count("SELECT count(*) FROM appearance WHERE selector GLOB 'pages:*' AND cut_state = 'confirmed'"),
     );
     println!(
         "joined files {} · included versions {} (of them, twins of another version {}) · versions read {} (included {})",
-        count("SELECT count(DISTINCT resource_hash) FROM appearance WHERE selector <> 'file'"),
-        count("SELECT count(DISTINCT version_id) FROM appearance WHERE selector <> 'file'"),
+        count("SELECT count(DISTINCT resource_hash) FROM appearance WHERE selector GLOB 'pages:*'"),
+        count("SELECT count(DISTINCT version_id) FROM appearance WHERE selector GLOB 'pages:*'"),
         count(
-            "SELECT count(DISTINCT a.version_id) FROM appearance a WHERE a.selector <> 'file'
+            "SELECT count(DISTINCT a.version_id) FROM appearance a WHERE a.selector GLOB 'pages:*'
              AND (SELECT count(*) FROM appearance b WHERE b.version_id = a.version_id) > 1"
         ),
         count("SELECT count(*) FROM knowledge_extraction WHERE state = 'done'"),
-        count("SELECT count(*) FROM knowledge_extraction k WHERE state = 'done' AND EXISTS (SELECT 1 FROM appearance a WHERE a.version_id = k.version_id AND a.selector <> 'file')"),
+        count("SELECT count(*) FROM knowledge_extraction k WHERE state = 'done' AND EXISTS (SELECT 1 FROM appearance a WHERE a.version_id = k.version_id AND a.selector GLOB 'pages:*')"),
     );
     drop(conn);
     let (mut expected, mut found, mut exact, mut files) = (0, 0, 0, 0);

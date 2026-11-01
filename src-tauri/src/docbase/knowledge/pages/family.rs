@@ -85,6 +85,9 @@ impl Families {
 /// not), with the name of each of their files (`<origin>/<path inside
 /// it>`), the joined copies a person passed over included: they are
 /// versions too. Every origin counts, mounted in a wiki or not (D-402).
+/// Read from the structure of each file (D-718): its one document; a file
+/// of several keeps the identity of the whole file, the page of its parts
+/// until each one has its own (P-527).
 fn identities(base: &DocBase) -> Result<BTreeMap<i64, Vec<String>>, String> {
     let mut out: BTreeMap<i64, Vec<String>> = BTreeMap::new();
     let conn = base.conn();
@@ -92,7 +95,8 @@ fn identities(base: &DocBase) -> Result<BTreeMap<i64, Vec<String>>, String> {
         let mount = origin.name.as_str();
         let mut statement = conn
             .prepare(&format!(
-                "SELECT l.rel_path, f.version_id FROM location l JOIN file f ON f.hash = l.file_hash
+                "SELECT l.rel_path, coalesce(s.version_id, f.version_id) FROM location l JOIN file f ON f.hash = l.file_hash
+                 LEFT JOIN appearance s ON s.resource_hash = f.hash AND s.selector = 'all'
                  WHERE l.origin_id = ?1 AND l.kind = 'file' AND f.version_id IS NOT NULL AND NOT {} ORDER BY l.rel_path",
                 crate::docbase::excluded_sql!()
             ))

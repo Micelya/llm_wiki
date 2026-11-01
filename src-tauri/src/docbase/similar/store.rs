@@ -303,8 +303,8 @@ const UNSIGNED_FROM: &str = "version c
 /// SQL over `UNSIGNED_FROM`: the signature of the version is missing, or
 /// was made over another text or by another engine than `?1`, and its
 /// signing did not fail over this text with a failure that holds
-/// (`note_failure`). The version of a whole file with included parts is
-/// not compared: each part is, with its own text (D-560).
+/// (`note_failure`). Only a document is compared (D-718): never a whole
+/// file as such; each part of one of several is, with its own text (D-560).
 fn unsigned_where() -> String {
     format!(
         "{} AND NOT {failed}",
@@ -319,8 +319,8 @@ fn unsigned_or_failed_where() -> String {
     format!(
         "c.state = 'processed'
          AND (s.version_id IS NULL OR s.text_at != d.created_at OR s.engine != ?1)
-         AND NOT {included}",
-        included = super::super::cut::parts::has_included_sql("c.id"),
+         AND {document}",
+        document = super::super::cut::parts::is_document_sql("c.id"),
     )
 }
 
@@ -372,8 +372,9 @@ impl DocBase {
     }
 
     /// Uncounts and drops the signatures of contents that went away, and
-    /// those of the version of a whole file that now has included parts:
-    /// its parts are compared instead (D-560). What was proposed with it
+    /// those of a version that is no longer a document (D-718), as the
+    /// version of a whole file that now has two or more: its parts are
+    /// compared instead (D-560). What was proposed with it
     /// goes too; a person's decision stays.
     fn similar_forget_orphans(&self) -> Result<usize, String> {
         let mut conn = self.conn();
@@ -382,8 +383,8 @@ impl DocBase {
             let mut statement = tx
                 .prepare(&format!(
                     "SELECT s.version_id, s.shingles FROM similar_signature s
-                     WHERE s.version_id NOT IN (SELECT id FROM version) OR {}",
-                    super::super::cut::parts::has_included_sql("s.version_id")
+                     WHERE s.version_id NOT IN (SELECT id FROM version) OR NOT {}",
+                    super::super::cut::parts::is_document_sql("s.version_id")
                 ))
                 .map_err(sql_err)?;
             let rows = statement
@@ -1338,7 +1339,7 @@ struct CutFrom {
 fn files_cut_into(conn: &Connection, content_id: i64) -> Result<Vec<CutFrom>, String> {
     let hashes: Vec<String> = {
         let mut statement = conn
-            .prepare("SELECT DISTINCT resource_hash FROM appearance WHERE version_id = ?1 AND selector <> 'file' ORDER BY 1")
+            .prepare("SELECT DISTINCT resource_hash FROM appearance WHERE version_id = ?1 AND selector GLOB 'pages:*' ORDER BY 1")
             .map_err(sql_err)?;
         let rows = statement.query_map([content_id], |row| row.get(0)).map_err(sql_err)?;
         rows.collect::<Result<_, _>>().map_err(sql_err)?
@@ -1350,7 +1351,7 @@ fn files_cut_into(conn: &Connection, content_id: i64) -> Result<Vec<CutFrom>, St
                 "SELECT a.version_id, d.body, fd.version_id IS NOT NULL FROM appearance a
                  JOIN derivative d ON d.version_id = a.version_id AND d.kind = 'text'
                  LEFT JOIN derivative fd ON fd.version_id = a.version_id AND fd.kind = 'fields'
-                 WHERE a.resource_hash = ?1 AND a.selector <> 'file'
+                 WHERE a.resource_hash = ?1 AND a.selector GLOB 'pages:*'
                  ORDER BY a.position, a.id",
             )
             .map_err(sql_err)?;
