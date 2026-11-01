@@ -664,6 +664,10 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-724 | 1 nov | Documentos compuestos | El documento compuesto: el anexo que es copia, el anuncio como pieza de la estructura, la constancia de firma y la página del conjunto | decidida |
 | D-725 | 1 nov | base | La lectura por zonas entra en Rust, dentro de la app | decidida |
 | D-726 | 1 nov | forma de trabajo | Las fichas de la tanda del 1 nov: 4,5 M en total, con un 30 % de margen ya incluido en cada tope de paso | decidida |
+| D-730 | 1 nov | base | Las claves de falla de antes entran al registro de fallas como pasajeras, para conocer su causa | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-731 | 1 nov | base | Qué falla espera y qué falla solo se anota: el archivo en uso o en la nube espera; el roto, cifrado o ausente sigue como antes donde no es la ficha | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-732 | 1 nov | base | Un motor con una falla de todo el motor no recibe ninguna pregunta hasta su próximo intento; la credencial, hasta que una pregunta salga bien | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-733 | 1 nov | base | «Incierto» queda para los saltos que solo pregunta una persona; un tramo que falla de forma permanente espera a una persona | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -7213,3 +7217,31 @@ Vale solo para este caso: no se generaliza ni se cambian otras etiquetas. Si es 
 - **El problema:** El dueño fijó el tope de la tanda de correcciones del 1 nov y cómo se cuenta el margen de cada paso. Es otra tanda que la de D-700.
 - **Qué se decidió y por qué:** La tanda tiene un tope de 4,5 M de fichas en total: 2,5 M adicionales a las 2,0 M ya usadas. Cada tope de paso lleva un margen del 30 % ya incluido, y pasarse dentro de ese margen está permitido; se avisa solo si un paso se pasa del margen. Para esta tanda, reemplaza la regla de un 20 % más como máximo sobre el tope.
 - **Quién decidió:** El dueño
+
+### D-730 · Las claves de falla de antes entran al registro de fallas como pasajeras, para conocer su causa
+
+- **Fecha:** 1 nov 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Las claves de falla que la base guardaba entre sus ajustes (D-714) tenían solo el paso, el archivo o documento y sobre qué se hizo; nunca guardaron la causa. Al pasarlas al registro nuevo había que darles una clase, y ninguna de las tres se puede saber sin la causa.
+- **Qué se decidió y por qué:** Cada clave pasa al registro con la causa «antes del registro» y la clase pasajera, con el próximo intento en el momento de abrir la base, y la clave se borra. Así el paso se vuelve a hacer una vez y, si vuelve a fallar, queda la causa real con su clase. Se eligió lo más prudente: un reintento local no gasta consultas, y una desconocida dejaría el archivo esperando para siempre sin saber por qué. Mientras tanto el archivo espera (D-717): no se lee entero. Consultas de producción por documento: 0.
+- **Quién decidió:** Asumida por el agente de la etapa 1 en la corrida desatendida (D-500); el dueño la revisa
+
+### D-731 · Qué falla espera y qué falla solo se anota: el archivo en uso o en la nube espera; el roto, cifrado o ausente sigue como antes donde no es la ficha
+
+- **Fecha:** 1 nov 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** pdfium se usa en cuatro lugares: la ficha de las páginas, la señal de las páginas al cortar, las firmas digitales y la imagen de la pregunta del corte. D-717 pide que el archivo espere cuando algo falla, pero un PDF cuyas firmas digitales están rotas puede leerse bien en todo lo demás, y un archivo que ya no está en su carpeta lo ve el barrido.
+- **Qué se decidió y por qué:** La ficha que falla deja el archivo esperando siempre, con su clase (cifrado o roto, permanente; en uso, en la nube o ausente, pasajera): ya no se guarda una ficha vacía ni se lee entero (P-528). Al cortar y al leer las firmas digitales, solo esperan el archivo en uso por otro programa y el de la nube sin bajar, que se reintentan; uno roto o cifrado sigue como antes (se corta por su texto, se firma sin las firmas digitales) y la falla de las firmas queda anotada como permanente. Un archivo que no está no se anota en las firmas: lo nota el barrido. La imagen que no se puede hacer en la pregunta del corte es una falla del tramo, con la clase de su causa. Consultas de producción por documento: 0.
+- **Quién decidió:** Asumida por el agente de la etapa 1 en la corrida desatendida (D-500); el dueño la revisa
+
+### D-732 · Un motor con una falla de todo el motor no recibe ninguna pregunta hasta su próximo intento; la credencial, hasta que una pregunta salga bien
+
+- **Fecha:** 1 nov 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** D-714 dice que el límite, la cuota, el 429, la falta de conexión y la credencial afectan a todo el motor y que el hilo deja de preguntarle hasta el próximo intento. La credencial rechazada es permanente y no tiene próximo intento; el motor que no mira imágenes es permanente, pero sirve para todo lo que no son imágenes.
+- **Qué se decidió y por qué:** La falla de todo el motor queda anotada sobre el motor, y el hilo que pregunta no le hace ninguna pregunta (corte, tipo, lectura, identidades, asuntos, páginas) hasta su próximo intento, con las esperas de D-714; otro motor sí pregunta. Con la credencial rechazada el motor queda en pausa sin fecha: el hilo vuelve a mirar cada 10 minutos sin preguntar, y la pausa se levanta cuando una persona pide preguntar por el corte de un archivo y la respuesta de ese motor sale bien; si la persona elige otro motor, ese otro pregunta normalmente (falta un botón para reintentar desde Atención: queda pendiente). El motor que no mira imágenes es una falla permanente solo de la pregunta del corte: no pausa las demás preguntas, y se resuelve sola cuando se elige un motor que mira imágenes. Las fallas de una sola pregunta en los pasos que no son el corte se anotan, y esos pasos siguen con su espera de hoy. Consultas de producción por documento: resta: hoy se reintenta cada 10 minutos sin límite.
+- **Quién decidió:** Asumida por el agente de la etapa 1 en la corrida desatendida (D-500); el dueño la revisa
+
+### D-733 · «Incierto» queda para los saltos que solo pregunta una persona; un tramo que falla de forma permanente espera a una persona
+
+- **Fecha:** 1 nov 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** D-717 dice que si la pregunta del corte no se hace, por la razón que sea, el archivo espera, y que «incierto» queda solo para lo que mira una persona. Hoy la app pregunta sola solo en los archivos donde una regla ya cortó (D-622); en los demás, el salto dudoso se pregunta solo cuando una persona lo pide. Además, una falla permanente o desconocida de un tramo no se reintenta nunca.
+- **Qué se decidió y por qué:** Esperan los archivos cuyos saltos dudosos el hilo pregunta solo, sea cual sea la razón por la que la respuesta no llega: la ronda en su tope, la lectura apagada, el motor sin imágenes, la carpeta desconectada o la IA que falla. Los saltos dudosos de los demás archivos siguen marcados inciertos, porque los mira una persona: cambiarlos es la pregunta sola en cada parte con algún salto dudoso (D-720), de una etapa posterior. Un tramo con una falla permanente o desconocida deja el archivo esperando hasta que una persona pida preguntar por ese archivo, que reintenta todos sus tramos. En la copia de la corrida N, 17 archivos (149 versiones) quedarían esperando su pregunta del corte. Consultas de producción por documento: resta, porque una parte no se extrae antes de la respuesta para extraerse otra vez después.
+- **Quién decidió:** Asumida por el agente de la etapa 1 en la corrida desatendida (D-500); el dueño la revisa
