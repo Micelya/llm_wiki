@@ -648,8 +648,9 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-708 | 31 oct | base | Una copia toma todo del original sin repetir ningún proceso; lo que queda es afinar cómo se detecta una copia | decidida |
 | D-709 | 31 oct | pruebas y calidad | El tipo se medirá con una hoja de tipos en castellano, primero de la vertical legal, alineada con el catálogo | decidida |
 | D-710 | 31 oct | pruebas y calidad | Qué espera la extracción antes de leer un documento, y qué nunca la frena | asumida (D-500) al arreglar P-519: el dueño la revisa |
-| D-711 | 31 oct | pruebas y calidad | La cadena A sale de escena: no se menciona ni se consulta, y su material de prueba pasa a un archivo histórico | decidida |
+| D-711 | 31 oct | pruebas y calidad | La cadena A sale de escena: no se menciona ni se consulta, y su material de prueba pasa a un archivo histórico | decidida; ampliada por D-713 |
 | D-712 | 31 oct | base | Dónde guarda la app la lectura por zonas, qué espera mientras llega y qué pasa si falla, mientras conviven los dos cortes | asumida (D-500) en la parte 1 del corte nuevo: el dueño la revisa |
+| D-713 | 31 oct | pruebas y calidad | La cadena A se archiva completa: también lo que la comparaba con N, y lo común queda solo de N | decidida |
 
 ---
 
@@ -7090,7 +7091,7 @@ Vale solo para este caso: no se generaliza ni se cambian otras etiquetas. Si es 
 
 ### D-711 · La cadena A sale de escena: no se menciona ni se consulta, y su material de prueba pasa a un archivo histórico
 
-- **Fecha:** 31 oct 2026 · **Tema:** pruebas y calidad · **Estado:** decidida
+- **Fecha:** 31 oct 2026 · **Tema:** pruebas y calidad · **Estado:** decidida; ampliada por D-713
 - **El problema:** En la prueba de la estructura se comparaban dos cadenas: A, que cortaba con el código de corte que traía la app, y N, la nueva. Con N medida y elegida, seguir nombrando, consultando y guardando A al lado de N mezclaba material que ya no se usa con el que sí, y la medición del corte de N todavía abría la carpeta de A antes de medir N y le tomaba la cantidad de páginas de cada archivo.
 - **Qué se decidió y por qué:** Lo decidió el dueño el 31 oct, en la orden de trabajo de la tanda nueva. La cadena A no se menciona ni se consulta, salvo que el dueño lo pida sobre un tema puntual; la regla está también en el CLAUDE.md del repositorio. Su material de prueba propio (las corridas, los ensayos, la corrida en seco y sus consolas: 550 archivos, unos 209 MB) se movió a un archivo histórico dentro de la carpeta de la prueba de estructura, conservando la estructura de carpetas y sin borrar nada; se contaron los archivos y los bytes antes y después, y dan igual. No se movieron las hojas, los informes, los PDF ni lo que usan las dos cadenas. La medición del corte de N ya no depende de A: A es optativa, y N toma la cantidad de páginas de su propio resultado; los números de N dan exactamente lo mismo que antes, con A y sin A. El código de corte de A en la app no se archiva: se reemplaza en el paso siguiente. No cambia las consultas de la app en producción por documento: solo se tocaron guiones de prueba.
 - **Quién decidió:** El dueño
@@ -7101,3 +7102,10 @@ Vale solo para este caso: no se generaliza ni se cambian otras etiquetas. Si es 
 - **El problema:** En la primera parte del corte de la cadena nueva, el corte nuevo corre solo donde un PDF tiene su lectura por zonas, y el corte de hoy sigue en todos los demás. Hacía falta decidir dónde se guarda esa lectura, cómo espera el corte a que llegue y qué hace un PDF cuya lectura no llega o falla. El plan dice que, si la lectura falla, se anota y el archivo se lee entero, como hoy.
 - **Qué se decidió y por qué:** La lectura por zonas se guarda por versión del archivo, como una ficha más (la de la forma de las páginas ya se guarda así), y un ajuste de la base dice que viene una lectura por zonas para los PDF. Mientras ese ajuste está encendido, un PDF sin su lectura no se corta y la extracción lo espera, como espera el corte; cuando la lectura llega, se corta con ella. Si la lectura de un archivo falla, se anota y ese archivo se corta con el corte de hoy, que en esta parte todavía está. Cuando la tercera parte borre el corte de hoy, ese archivo se leerá entero, como dice el plan. En esta parte nadie enciende el ajuste en la app en uso: lo enciende solo la prueba. No cambia ninguna consulta de producción.
 - **Quién decidió:** Claude, en la parte 1 del corte nuevo (D-500); el dueño la revisa
+
+### D-713 · La cadena A se archiva completa: también lo que la comparaba con N, y lo común queda solo de N
+
+- **Fecha:** 31 oct 2026 · **Tema:** pruebas y calidad · **Estado:** decidida
+- **El problema:** Corrige D-711. D-711 retiró la cadena A de la prueba, pero dejó en su lugar lo que comparaba las dos cadenas: resultados con A al lado de N, la página para revisar entidades, las verificaciones previas y los guiones que todavía tenían un modo A. Así la prueba seguía midiendo y nombrando a A.
+- **Qué se decidió y por qué:** El dueño decidió el 31 oct que la cadena A se archiva completa. 1) Se archivan también los resultados y guiones que comparaban A con N: 297 archivos (unos 5,25 MB) pasaron, enteros, al archivo histórico dentro de la carpeta de la prueba de estructura, con la misma estructura de carpetas. 2) Lo que usaban las dos cadenas se copió: el original quedó en el archivo histórico y en su lugar quedó una versión solo de N (37 archivos: los guiones con modo A, los guiones y las hojas comunes, y los resultados que tenían A al lado de N). 3) Los informes ya escritos quedan como historia, aunque traigan tablas de A contra N. 4) No se reescribió nada de la primera corrida: a sus resultados solo se les sacó la clave o el campo de A. 5) La medición del corte de N da lo mismo que antes, byte a byte: 137 de 142 documentos exactos en la carpeta (100 de 102 en la hoja) y 27 de 28 en el examen. Nada se borró.
+- **Quién decidió:** El dueño
