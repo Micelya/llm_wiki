@@ -1241,6 +1241,13 @@ pub fn docbase_knowledge_attention(state: State<'_, DocBaseState>) -> Result<Kno
     state.base()?.knowledge_attention(&Visible::All)
 }
 
+/// The failures of the background work still open (D-714), the newest
+/// first, for «Atención».
+#[tauri::command(async)]
+pub fn docbase_failures(state: State<'_, DocBaseState>) -> Result<Vec<super::failures::FailureView>, String> {
+    state.base()?.failures_open()
+}
+
 /// The matters of the archive, the largest first.
 #[tauri::command(async)]
 pub fn docbase_knowledge_matters(state: State<'_, DocBaseState>) -> Result<Vec<MatterSummary>, String> {

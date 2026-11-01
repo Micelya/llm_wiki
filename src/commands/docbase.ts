@@ -2147,6 +2147,36 @@ export function requestReread(target: RereadTarget = {}): Promise<number> {
   return invoke<number>("docbase_knowledge_reread", { target })
 }
 
+/** A failure of the background work still open (D-714): `docbase::failures`. */
+export interface FailureView {
+  id: number
+  /** The step where it happened: `shapes`, `cut`, `parts`, `zones`, `similar`, `cut-question`, `types`… */
+  stage: string
+  itemKind: "file" | "version" | "span" | "engine" | "origin" | "thread"
+  item: string
+  /** The code of its cause (`failures::CAUSES`). */
+  cause: string
+  message: string
+  class: "transient" | "permanent" | "unknown"
+  scope: "item" | "engine"
+  engine: string | null
+  attempt: number
+  firstAt: number
+  lastAt: number
+  nextAt: number | null
+  state: "open" | "person"
+  /** Past the threshold of attempts or time: the indicator is on. */
+  indicator: boolean
+  toDiagnose: boolean
+  /** The file it is about, by its path in its folder. */
+  path: string | null
+  locationId: number | null
+}
+
+export function listFailures(): Promise<FailureView[]> {
+  return invoke<FailureView[]>("docbase_failures")
+}
+
 export function getKnowledgeAttention(): Promise<KnowledgeAttention> {
   return invoke<KnowledgeAttention>("docbase_knowledge_attention")
 }

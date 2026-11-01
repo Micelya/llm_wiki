@@ -1001,7 +1001,10 @@ impl DocBase {
             match cached_answer(&conn, &question.key, engine.as_deref())? {
                 Some(answer) => match rows_from_answer(catalog, &decisions, &unit, &docs, &answer, &question.key) {
                     Ok(rows) => written += write_type_rows(&conn, &rows, &basis)?,
-                    Err(error) => eprintln!("[docbase] stored answer {}: {error}", question.key),
+                    Err(error) => {
+                        eprintln!("[docbase] stored answer {}: {error}", question.key);
+                        stored_answer_unread(&conn, "types", unit.principal, &error);
+                    }
                 },
                 None => pending.push(PendingType { unit, basis, question }),
             }
@@ -1066,7 +1069,10 @@ impl DocBase {
                             let fields: Vec<&DataRule> = rules.iter().copied().filter(|r| missing.contains(&r.id)).collect();
                             match data_from_answer(&fields, &answer) {
                                 Ok(more) => found.extend(more),
-                                Err(error) => eprintln!("[docbase] stored answer {}: {error}", question.key),
+                                Err(error) => {
+                                    eprintln!("[docbase] stored answer {}: {error}", question.key);
+                                    stored_answer_unread(&conn, "data", content_id, &error);
+                                }
                             }
                         }
                         None => pending.push(PendingData { content_id, question }),
@@ -1436,6 +1442,17 @@ pub(crate) fn ask_and_keep(base: &DocBase, asker: &dyn DocumentAsker, question: 
 /// registry of AI services, when the base can run it (`services.rs`).
 pub(crate) fn ask_engine(conn: &Connection) -> Result<Option<AskConfig>, String> {
     super::super::services::ask_engine(conn)
+}
+
+/// An answer kept that cannot be read is written down once (D-714): an
+/// unknown failure of that document, until it is read.
+fn stored_answer_unread(conn: &Connection, stage: &str, version_id: i64, error: &str) {
+    use crate::docbase::failures::{self, About, Failure};
+    let mut failure = Failure::new(stage, About::Version(version_id), error);
+    failure.cause = failures::cause("unknown");
+    if let Err(error) = failures::note_once(conn, &failure) {
+        eprintln!("[docbase] the failure could not be written down: {error}");
+    }
 }
 
 /// A failure after which asking more in the same run only wastes time:

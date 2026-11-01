@@ -55,7 +55,8 @@ pub const ZONES_KIND: &str = "zones";
 /// failure (`ZONES_STAGE`), and the extraction waits with it (D-710).
 pub const ZONES_READING: &str = "cut:zones-reading";
 /// What `note_failure` writes down when the reading by zones of a file
-/// failed: that file is cut as before.
+/// failed: that file waits (D-717).
+#[cfg_attr(not(test), allow(dead_code))]
 pub const ZONES_STAGE: &str = "zones";
 
 /// The setting that lets the thread that asks the model take the windows
@@ -73,12 +74,10 @@ pub(crate) fn by_itself_sql() -> String {
 }
 
 /// SQL over a file `f` without its reading by zones: one is coming
-/// (`ZONES_READING`) and its reading did not fail.
+/// (`ZONES_READING`). Also when its reading failed: the file waits with its
+/// failure written down, and is not cut with the cut of before (D-717).
 pub(crate) fn zones_waiting_sql() -> String {
-    format!(
-        "(coalesce((SELECT value FROM docbase_setting WHERE key = '{ZONES_READING}'), '') = 'on' AND NOT {})",
-        super::failed_sql(ZONES_STAGE, "f.hash", "'v' || f.version_id")
-    )
+    format!("(coalesce((SELECT value FROM docbase_setting WHERE key = '{ZONES_READING}'), '') = 'on')")
 }
 
 /// SQL: a window `w` still without an answer.

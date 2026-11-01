@@ -30,6 +30,7 @@ pub mod bridge;
 pub mod chat_files;
 pub mod commands;
 pub mod cut;
+pub mod failures;
 #[cfg(test)]
 mod field_check;
 mod identity;

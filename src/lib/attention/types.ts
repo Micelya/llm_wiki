@@ -67,6 +67,8 @@ export type AttentionAction =
       confirm?: string
       /** A destructive action is drawn as such. */
       danger?: boolean
+      /** Drawn but not usable yet: why, shown on the button. */
+      disabled?: string
     }
 
 /** One of the things a line groups, shown when the line is opened. */

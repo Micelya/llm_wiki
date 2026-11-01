@@ -46,6 +46,7 @@ use crate::source_volume::asking::DocumentAsker;
 use crate::source_volume::page_shape::{PdfShapes, TextLayer, SHAPES_ENGINE};
 use crate::source_volume::{LocalFolderProvider, SourceProvider};
 
+use super::failures;
 use super::page_shapes::SHAPES_KIND;
 use super::similar::classify::{cached_answer, stops_the_run, ASKING};
 use super::text::EXTRACTION_ENGINE;
@@ -148,6 +149,9 @@ pub struct CutAskReport {
     pub left: usize,
     pub seconds: f64,
     pub errors: Vec<String>,
+    /// Until when the engine is not asked: a failure of the whole engine
+    /// (its limit, a 429, no connection, the credential), D-714.
+    pub paused_until: Option<i64>,
 }
 
 /// The files whose doubtful steps the thread that asks the model takes by
@@ -211,24 +215,42 @@ fn cut_settled_sql(rules: &str) -> String {
 
 /// A piece of the background work over one file or document that failed
 /// (the cut of a file, its parts, the signature of a document): written
-/// down with what it was done over (`basis`), it is not done again, nor
-/// waited for, until that changes (D-488: a failure never holds the rest
-/// back). What it did not do stays as before: a file not cut is read
-/// whole, as one document.
+/// down in the record of failures with its cause and class and with what
+/// it was done over (`basis`, D-714). It is not done again over that
+/// basis while the failure holds (a transient one, until its next
+/// attempt). D-488 still holds: a failure never holds the rest back. But
+/// the file waits (D-717): it is not read whole, nor cut with the cut of
+/// before (`failures::file_waits_sql`).
 pub(crate) fn note_failure(conn: &Connection, stage: &str, item: &str, basis: &str, error: &str) -> Result<(), String> {
     eprintln!("[docbase] {stage} of {item}: {error}");
-    conn.execute(
-        "INSERT OR REPLACE INTO docbase_setting (key, value) VALUES (?1, ?2)",
-        params![format!("failed:{stage}:{item}"), basis],
-    )
-    .map_err(sql_err)?;
+    let about = match item.parse::<i64>() {
+        Ok(id) if stage == SIGN_STAGE => failures::About::Version(id),
+        _ => failures::About::File(item.to_string()),
+    };
+    let mut failure = failures::Failure::new(stage, about, error);
+    failure.basis = Some(basis);
+    failures::record(conn, &failure)?;
     Ok(())
 }
 
+/// The step of the signature of a document (`similar::store`): its item
+/// is a version.
+const SIGN_STAGE: &str = "similar";
+
+/// The work of `stage` over `item` came out well: its failure, if it had
+/// one, is resolved.
+pub(crate) fn note_success(conn: &Connection, stage: &str, item: &str) -> Result<(), String> {
+    let about = match item.parse::<i64>() {
+        Ok(id) if stage == SIGN_STAGE => failures::About::Version(id),
+        _ => failures::About::File(item.to_string()),
+    };
+    failures::resolve(conn, stage, &about)
+}
+
 /// SQL: the work of `stage` over `item` failed over `basis` (both SQL
-/// values), as `note_failure` wrote it down.
+/// values), as `note_failure` wrote it down, and the failure holds.
 pub(crate) fn failed_sql(stage: &str, item: &str, basis: &str) -> String {
-    format!("EXISTS (SELECT 1 FROM docbase_setting fx WHERE fx.key = 'failed:{stage}:' || {item} AND fx.value = {basis})")
+    failures::holds_sql(stage, &format!("CAST({item} AS TEXT)"), basis)
 }
 
 /// The doubtful steps still without an answer (D-606).
@@ -354,20 +376,36 @@ impl DocBase {
             if let (Some(zones), Some(zones_stamp)) = (zones, zones_stamp) {
                 let path = LocalFolderProvider::new(root.clone()).local_path(rel_path).unwrap_or_default();
                 let engine = super::services::ask_engine(&self.conn())?.map(|c| crate::source_volume::asking::engine_id(&c));
-                if let Err(error) = self.cut_by_zones(hash, &path, zones, *zones_stamp, engine.as_deref()) {
-                    note_failure(&self.conn(), CUT_STAGE, hash, &format!("{}|{zones_stamp}", by_zones::zones_version()), &error)?;
+                match self.cut_by_zones(hash, &path, zones, *zones_stamp, engine.as_deref()) {
+                    Ok(()) => note_success(&self.conn(), CUT_STAGE, hash)?,
+                    Err(error) => {
+                        note_failure(&self.conn(), CUT_STAGE, hash, &format!("{}|{zones_stamp}", by_zones::zones_version()), &error)?
+                    }
                 }
                 continue;
             }
             let body = body.clone().unwrap_or_default();
             let stamp = stamp.unwrap_or_default();
             // One file at a time: a cut that fails is written down and the
-            // others go on (D-488); that file is read whole, as before.
+            // others go on (D-488); that file waits (D-717), it is not read
+            // whole.
             let cut = || -> Result<(), String> {
                 let shapes: PdfShapes = serde_json::from_str(&body).unwrap_or_default();
                 let path = LocalFolderProvider::new(root.clone()).local_path(rel_path).unwrap_or_default();
-                // A PDF pdfium cannot open is cut by its text alone.
-                let scans = run_guarded("docbase_cut", || signals::scan_pages(&path)).unwrap_or_default();
+                // A PDF pdfium cannot open is cut by its text alone; one in
+                // use by another program or in the cloud without being
+                // downloaded waits for it (a transient failure, D-714).
+                let scans = match run_guarded("docbase_cut", || signals::scan_pages(&path)) {
+                    Ok(scans) => scans,
+                    Err(error) if path.exists() => {
+                        let error = failures::pdf_error_detail(&path, error);
+                        if ["file-locked", "cloud-not-downloaded"].contains(&failures::classify(&error).code) {
+                            return Err(error);
+                        }
+                        Vec::new()
+                    }
+                    Err(_) => Vec::new(),
+                };
                 let (texts, prints, engine) = {
                     let conn = self.conn();
                     let texts = page_texts(&conn, hash, &shapes)?;
@@ -462,8 +500,9 @@ impl DocBase {
                 }
                 tx.commit().map_err(sql_err)
             };
-            if let Err(error) = cut() {
-                note_failure(&self.conn(), CUT_STAGE, hash, &format!("{version}|{stamp}"), &error)?;
+            match cut() {
+                Ok(()) => note_success(&self.conn(), CUT_STAGE, hash)?,
+                Err(error) => note_failure(&self.conn(), CUT_STAGE, hash, &format!("{version}|{stamp}"), &error)?,
             }
             let _ = version_id;
         }
@@ -475,10 +514,10 @@ impl DocBase {
     /// its ficha, or by the text of its pages while the ficha is still to be
     /// made) whose cut is still to be made with its text and the rules in
     /// use (`cut_pending`), or whose parts are still to be made from its
-    /// steps (`cut_parts_pending`). A cut or parts that failed are not
-    /// waited for (`note_failure`), nor a file the cutter does not take: a
-    /// PDF of one page or one pdfium cannot open (its ficha has no pages),
-    /// an image, any other file. Asks nothing.
+    /// steps (`cut_parts_pending`). A file whose ficha, cut or parts failed
+    /// waits too, with the parts of a cut before, as they were (D-717): it
+    /// is not read whole. A file the cutter does not take is not waited
+    /// for: a PDF of one page, an image, any other file. Asks nothing.
     pub(crate) fn waiting_for_cut(&self) -> Result<BTreeSet<i64>, String> {
         let conn = self.conn();
         let mut statement = conn
@@ -489,11 +528,17 @@ impl DocBase {
                    AND coalesce(json_array_length(z.body), json_array_length(d.body, '$.pages'),
                                 (SELECT count(DISTINCT t.page_no) FROM resource_text t WHERE t.resource_hash = f.hash)) >= 2
                  UNION
-                 SELECT f.version_id FROM {parts_from} WHERE {parts}",
+                 SELECT f.version_id FROM {parts_from} WHERE {parts}
+                 UNION
+                 SELECT f.version_id FROM file f WHERE {file_waits}
+                 UNION
+                 SELECT a.version_id FROM appearance a WHERE {part_waits}",
                 cuttable = cuttable_where(),
                 settled = cut_settled_sql("?3"),
                 parts_from = parts::PARTS_FROM,
                 parts = parts::parts_pending_sql(),
+                file_waits = failures::file_waits_sql("f.hash"),
+                part_waits = failures::file_waits_sql("a.resource_hash"),
             ))
             .map_err(sql_err)?;
         let rows = statement
@@ -503,18 +548,15 @@ impl DocBase {
     }
 
     /// The versions of the files whose doubtful steps the thread that asks
-    /// the model is still to ask by itself (`ASKED_BY_ITSELF`), when it
-    /// will ask them: the automatic reading is on, the engine looks at
-    /// images (`sees_images`), the round of questions does not wait for a
-    /// person (D-606) and the questions about the cuts are not failing.
-    /// The answer may make their parts again: they are read after it, once.
-    /// Otherwise nothing waits: never for a person, nor for an answer that
-    /// does not come.
-    pub(crate) fn waiting_for_cut_answers(&self, sees_images: bool) -> Result<BTreeSet<i64>, String> {
-        let now = self.engine_state().snapshot();
-        if !sees_images || now.auto_held == Some("cut") || now.cut_asking_failed || !self.background_reading()? {
-            return Ok(BTreeSet::new());
-        }
+    /// the model is still to ask by itself (`ASKED_BY_ITSELF`): they wait
+    /// for the answer, whatever keeps it from coming (D-717, «la IA nunca
+    /// se saltea»): the round at its cap, the automatic reading off, an
+    /// engine that does not look at images, the folder not connected, the
+    /// model failing. None of them goes on with its uncertain cut: that is
+    /// left only for what a person looks at (the steps asked only when a
+    /// person asks, `cut_ask_file`). The answer may make their parts again:
+    /// they are read after it, once. `_sees_images` no longer matters.
+    pub(crate) fn waiting_for_cut_answers(&self, _sees_images: bool) -> Result<BTreeSet<i64>, String> {
         let conn = self.conn();
         let mut statement = conn
             .prepare(&format!(
@@ -522,8 +564,7 @@ impl DocBase {
                  WHERE (EXISTS (SELECT 1 FROM cut_step s WHERE s.resource_hash = a.resource_hash AND {WITHOUT_ANSWER} AND {ASKED_BY_ITSELF})
                         OR (EXISTS (SELECT 1 FROM cut_window w WHERE w.resource_hash = a.resource_hash AND {window_without})
                             AND {windows_by_itself}))
-                   AND EXISTS (SELECT 1 FROM location l JOIN origin o ON o.id = l.origin_id AND o.reachable = 1
-                               WHERE l.file_hash = a.resource_hash AND l.hash_state = 'done' AND NOT {excluded})",
+                   AND EXISTS (SELECT 1 FROM location l WHERE l.file_hash = a.resource_hash AND l.hash_state = 'done' AND NOT {excluded})",
                 excluded = super::excluded_sql!(),
                 window_without = by_zones::WINDOW_WITHOUT_ANSWER,
                 windows_by_itself = by_zones::by_itself_sql(),
@@ -653,17 +694,46 @@ impl DocBase {
     }
 
     /// Asks the model about up to `limit` doubtful steps (of the files in
-    /// `only`, when given; otherwise of those of `ASKED_BY_ITSELF`), one at a time, with the two pages as images. A
-    /// step whose pages were already answered takes that answer without
-    /// asking. An engine that cannot look at images asks nothing.
+    /// `only`, when given; otherwise of those of `ASKED_BY_ITSELF`), one at
+    /// a time, with the two pages as images. A step whose pages were
+    /// already answered takes that answer without asking.
+    ///
+    /// Each failure is written down with its class (P-523, D-714). One of
+    /// a stretch (one step) does not stop the others: that stretch takes
+    /// its next attempt and the run goes on with the next. One of the whole
+    /// engine pauses only that engine, until its next attempt. An engine
+    /// that cannot look at images asks nothing: a permanent failure, and
+    /// the files wait (D-717).
     pub fn cut_ask_run(&self, asker: &dyn DocumentAsker, limit: usize, only: Option<&BTreeSet<String>>) -> Result<CutAskReport, String> {
         let mut report = CutAskReport::default();
+        let engine = asker.engine_id();
         if !asker.sees_images() {
             report.left = self.cut_doubtful_left(only)?;
+            if only.is_none() && report.left > 0 {
+                let about = failures::About::Engine(engine.clone());
+                if !failures::is_open(&self.conn(), failures::CUT_QUESTION_STAGE, &about)? {
+                    let mut failure = failures::Failure::new(
+                        failures::CUT_QUESTION_STAGE,
+                        about,
+                        "The engine does not look at images: it cannot say where each document starts.",
+                    );
+                    failure.cause = failures::cause("engine-no-images");
+                    failure.engine = Some(&engine);
+                    self.note(&failure);
+                }
+            }
             return Ok(report);
         }
+        failures::resolve_cause(&self.conn(), "engine-no-images")?;
+        if only.is_none() {
+            let paused = failures::engine_paused_until(&self.conn(), &engine)?;
+            if let Some(until) = paused {
+                report.paused_until = Some(until);
+                report.left = self.cut_doubtful_left(only)?;
+                return Ok(report);
+            }
+        }
         let _one_at_a_time = ASKING.lock().unwrap_or_else(|p| p.into_inner());
-        let engine = asker.engine_id();
         let rows: Vec<(String, u32, String, Option<i64>)> = {
             let conn = self.conn();
             let mut statement = conn
@@ -673,9 +743,18 @@ impl DocBase {
                          JOIN file f ON f.hash = s.resource_hash
                          WHERE {WITHOUT_ANSWER} AND ({by_itself})
                          ORDER BY s.resource_hash, s.after_page",
-                        // The files asked for go whole; without them, only
-                        // those the thread asks by itself.
-                        by_itself = if only.is_some() { "1" } else { ASKED_BY_ITSELF }
+                        // The files asked for go whole, also the stretches
+                        // that failed; without them, only those the thread
+                        // asks by itself, but not a stretch whose failure
+                        // holds (its next attempt has not come).
+                        by_itself = if only.is_some() {
+                            "1".to_string()
+                        } else {
+                            format!(
+                                "{ASKED_BY_ITSELF} AND NOT {}",
+                                failures::holds_any_sql(failures::CUT_QUESTION_STAGE, "s.resource_hash || '#' || s.after_page")
+                            )
+                        }
                     ),
                 )
                 .map_err(sql_err)?;
@@ -690,43 +769,61 @@ impl DocBase {
                 continue;
             }
             let kept = cached_answer(&self.conn(), &key, Some(&engine))?.and_then(|a| CutAnswer::parse(&a).ok());
+            let span = failures::About::Span { file: hash.clone(), after };
             if let Some(answer) = kept {
                 apply_answer(&self.conn(), &key, &answer)?;
+                failures::resolve(&self.conn(), failures::CUT_QUESTION_STAGE, &span)?;
                 report.kept += 1;
                 continue;
             }
             if report.asked + report.failed >= limit {
                 continue;
             }
+            // The folder is not connected: a transient failure of the
+            // stretch; the file waits (D-717).
             let Some(path) = file_path(&self.conn(), &hash)? else {
+                let mut failure =
+                    failures::Failure::new(failures::CUT_QUESTION_STAGE, span, "The folder of the file is not connected.");
+                failure.cause = failures::cause("folder-disconnected");
+                self.note(&failure);
                 continue;
             };
             let scratch = std::env::temp_dir().join(format!("micelya-cut-{}", uuid::Uuid::new_v4()));
             std::fs::create_dir_all(&scratch).map_err(|e| e.to_string())?;
             let started = Instant::now();
-            let answer = run_guarded("docbase_cut_render", || ask::render_pages(&path, &[after, after + 1], &scratch))
-                .and_then(|images| asker.ask_with_images(&prompt, &schema, &images));
+            let outcome = ask_one(asker, &path, after, &scratch, &prompt, &schema);
             report.seconds += started.elapsed().as_secs_f64();
             let _ = std::fs::remove_dir_all(&scratch);
-            match answer.and_then(|text| CutAnswer::parse(&text).map(|parsed| (text, parsed))) {
+            match outcome {
                 Ok((text, parsed)) => {
                     let conn = self.conn();
                     keep_cut_answer(&conn, &key, &engine, version_id, &text)?;
                     apply_answer(&conn, &key, &parsed)?;
+                    failures::resolve(&conn, failures::CUT_QUESTION_STAGE, &span)?;
+                    failures::resolve_engine(&conn, &engine)?;
                     report.asked += 1;
                 }
-                Err(error) => {
+                Err(failed) => {
                     report.failed += 1;
-                    let stop = stops_the_run(&error);
-                    report.errors.push(error);
-                    if stop {
+                    report.errors.push(failed.message.clone());
+                    let whole_engine = failed.cause.scope == failures::Scope::Engine;
+                    let about = if whole_engine { failures::About::Engine(engine.clone()) } else { span };
+                    let mut failure = failures::Failure::new(failures::CUT_QUESTION_STAGE, about, &failed.message);
+                    failure.cause = failed.cause;
+                    failure.engine = Some(&engine);
+                    failure.answer = failed.answer.as_deref();
+                    let recorded = self.note(&failure);
+                    if whole_engine {
+                        // Only this engine stops, until its next attempt.
+                        report.paused_until = Some(recorded.and_then(|r| r.next_at).unwrap_or(i64::MAX));
                         break;
                     }
+                    // The next stretch goes on (P-523).
                 }
             }
         }
         // The windows of the cut by zones: one question each.
-        if !report.errors.last().is_some_and(|e| stops_the_run(e)) {
+        if report.paused_until.is_none() && !report.errors.last().is_some_and(|e| stops_the_run(e)) {
             self.cut_windows_ask(asker, limit, only, &mut report)?;
         }
         // The reading waits for these answers only while they come
@@ -736,5 +833,38 @@ impl DocBase {
         }
         report.left = self.cut_doubtful_left(only)?;
         Ok(report)
+    }
+}
+
+/// What failed in one question about a step.
+struct AskFailed {
+    message: String,
+    cause: failures::Cause,
+    /// The answer of another shape, to count the equal ones.
+    answer: Option<String>,
+}
+
+/// One question about the step after page `after` of the PDF at `path`:
+/// the two pages as images, the answer read. A failure says its cause: the
+/// image that cannot be made (as the PDF that does not open), the model's
+/// error, or an answer of another shape (D-714).
+fn ask_one(
+    asker: &dyn DocumentAsker,
+    path: &std::path::Path,
+    after: u32,
+    scratch: &std::path::Path,
+    prompt: &str,
+    schema: &serde_json::Value,
+) -> Result<(String, CutAnswer), AskFailed> {
+    let images = run_guarded("docbase_cut_render", || ask::render_pages(path, &[after, after + 1], scratch)).map_err(|error| {
+        let message = failures::pdf_error_detail(path, error);
+        AskFailed { cause: failures::classify(&message), message, answer: None }
+    })?;
+    let text = asker
+        .ask_with_images(prompt, schema, &images)
+        .map_err(|message| AskFailed { cause: failures::classify(&message), message, answer: None })?;
+    match CutAnswer::parse(&text) {
+        Ok(parsed) => Ok((text, parsed)),
+        Err(message) => Err(AskFailed { message, cause: failures::cause("bad-answer"), answer: Some(text) }),
     }
 }

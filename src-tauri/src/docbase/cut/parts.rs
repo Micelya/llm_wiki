@@ -233,10 +233,12 @@ impl DocBase {
             rows.collect::<Result<_, _>>().map_err(sql_err)?
         };
         // One file at a time: parts that fail are written down and the
-        // others go on (D-488); that file stays as it was.
+        // others go on (D-488); that file waits, with the parts it had, as
+        // they were (D-717).
         for (hash, basis) in &jobs {
-            if let Err(error) = self.make_parts(hash, basis) {
-                super::note_failure(&self.conn(), super::PARTS_STAGE, hash, basis, &error)?;
+            match self.make_parts(hash, basis) {
+                Ok(()) => super::note_success(&self.conn(), super::PARTS_STAGE, hash)?,
+                Err(error) => super::note_failure(&self.conn(), super::PARTS_STAGE, hash, basis, &error)?,
             }
         }
         Ok(jobs.len())

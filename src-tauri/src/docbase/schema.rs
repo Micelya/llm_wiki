@@ -15,7 +15,7 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8];
 
 /// The shape of the base at version 29 of the earlier numbering, in one
 /// migration, generated from that base (`schema_v1.sql`). It seeds no row:
@@ -271,6 +271,58 @@ CREATE TABLE cut_window (
 ) WITHOUT ROWID;
 CREATE INDEX cut_window_by_question ON cut_window (question);
 ALTER TABLE cut_step ADD COLUMN hints TEXT;
+";
+
+/// The record of failures (`failures.rs`, D-714): one row per failure of
+/// a step over one thing, with its cause, class, reach, attempts and
+/// times. The keys `failed:<step>:<item>` of the settings, which kept only
+/// the step and what it was done over, come into it and are not written
+/// any more: their cause was never kept, so they are tried again once
+/// (transient, due now) to learn it.
+const V8: &str = "
+CREATE TABLE failure (
+    id            INTEGER PRIMARY KEY,
+    stage         TEXT NOT NULL,
+    item_kind     TEXT NOT NULL CHECK (item_kind IN ('file', 'version', 'span', 'engine', 'origin', 'thread')),
+    item          TEXT NOT NULL,
+    file_hash     TEXT REFERENCES file (hash) ON DELETE CASCADE,
+    version_id    INTEGER REFERENCES version (id) ON DELETE CASCADE,
+    basis         TEXT,
+    cause         TEXT NOT NULL,
+    message       TEXT NOT NULL,
+    class         TEXT NOT NULL CHECK (class IN ('transient', 'permanent', 'unknown')),
+    scope         TEXT NOT NULL CHECK (scope IN ('item', 'engine')),
+    engine        TEXT,
+    attempt       INTEGER NOT NULL DEFAULT 1 CHECK (attempt >= 1),
+    answer_hash   TEXT,
+    same_answers  INTEGER NOT NULL DEFAULT 0,
+    first_at      INTEGER NOT NULL,
+    last_at       INTEGER NOT NULL,
+    next_at       INTEGER,
+    state         TEXT NOT NULL DEFAULT 'open' CHECK (state IN ('open', 'resolved', 'person')),
+    indicator     INTEGER NOT NULL DEFAULT 0 CHECK (indicator IN (0, 1)),
+    to_diagnose   INTEGER NOT NULL DEFAULT 0 CHECK (to_diagnose IN (0, 1))
+);
+CREATE UNIQUE INDEX failure_open ON failure (stage, item_kind, item) WHERE state <> 'resolved';
+CREATE INDEX failure_by_file ON failure (file_hash) WHERE state <> 'resolved';
+CREATE INDEX failure_by_version ON failure (version_id) WHERE state <> 'resolved';
+INSERT INTO failure (stage, item_kind, item, file_hash, version_id, basis, cause, message, class, scope,
+                     first_at, last_at, next_at, state)
+SELECT k.stage,
+       CASE WHEN k.stage = 'similar' THEN 'version' ELSE 'file' END,
+       k.item,
+       CASE WHEN k.stage <> 'similar' AND EXISTS (SELECT 1 FROM file f WHERE f.hash = k.item) THEN k.item END,
+       CASE WHEN k.stage = 'similar' AND EXISTS (SELECT 1 FROM version v WHERE v.id = CAST(k.item AS INTEGER))
+            THEN CAST(k.item AS INTEGER) END,
+       k.basis, 'before-record',
+       'Failed before the app kept the causes of its failures: tried again to learn it.',
+       'transient', 'item', k.now, k.now, k.now, 'open'
+FROM (SELECT substr(key, 8, instr(substr(key, 8), ':') - 1) AS stage,
+             substr(key, 8 + instr(substr(key, 8), ':')) AS item,
+             value AS basis,
+             CAST(strftime('%s', 'now') AS INTEGER) * 1000 AS now
+      FROM docbase_setting WHERE substr(key, 1, 7) = 'failed:' AND instr(substr(key, 8), ':') > 1) k;
+DELETE FROM docbase_setting WHERE substr(key, 1, 7) = 'failed:';
 ";
 
 /// The version of a base: 0 for one just created.

@@ -1,8 +1,9 @@
 //! The reading waits for what goes before it (D-666, P-519): the cut of a
 //! PDF of several pages, its parts, the answers the model is still to give
-//! about its doubtful steps and the search of similar documents. It never
-//! waits for what failed, for a person, or for a file the cutter does not
-//! take. Invented texts (R-24), without PDFs: the cutter's steps are
+//! about its doubtful steps and the search of similar documents. What
+//! failed waits too, with its failure written down, and so does an answer
+//! that does not come, whatever keeps it (D-717); a file the cutter does
+//! not take does not wait. Invented texts (R-24), without PDFs: the cutter's steps are
 //! written as it writes them, and a stand-in model answers.
 
 use rusqlite::params;
@@ -174,7 +175,7 @@ fn a_pdf_of_one_page_and_a_file_that_is_not_a_pdf_are_read_without_waiting_for_a
 }
 
 #[test]
-fn a_cut_that_fails_does_not_hold_the_reading_back() {
+fn a_cut_that_fails_is_written_down_and_its_file_waits_instead_of_being_read_whole() {
     let (_dir, base) = open();
     let model = model();
     add_file(&base, 1, "h1", "pdf", &[1, 2, 3]);
@@ -194,14 +195,18 @@ fn a_cut_that_fails_does_not_hold_the_reading_back() {
     // Signed from before, the whole file is not typed nor read: it waits.
     ask_turn(&base, &model);
     assert!(model.asked.lock().unwrap().is_empty());
-    // The cut fails: written down, and not tried again with the same text
-    // and rules.
+    // The cut fails: written down with its cause and class (D-714), and
+    // not tried again with the same text and rules while it holds.
     assert_eq!(base.cut_pending(10).unwrap(), 1);
     assert_eq!(base.cut_pending(10).unwrap(), 0);
-    assert!(base.waiting_for_cut().unwrap().is_empty());
-    // The file is read as before the cut existed: whole.
+    let (class, file): (String, Option<String>) =
+        base.conn().query_row("SELECT class, file_hash FROM failure WHERE stage = 'cut'", [], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
+    assert_eq!(file.as_deref(), Some("h1"));
+    assert!(["permanent", "unknown"].contains(&class.as_str()), "{class}");
+    // The file waits (D-717): it is not read whole, nor typed.
+    assert!(base.waiting_for_cut().unwrap().contains(&1));
     ask_turn(&base, &model);
-    assert!(readings(&model).iter().any(|p| has(p, 1) && has(p, 3)));
+    assert!(model.asked.lock().unwrap().is_empty());
 }
 
 #[test]
@@ -235,7 +240,7 @@ fn a_whole_file_signed_before_its_cut_is_not_typed_whole() {
 }
 
 #[test]
-fn the_parts_wait_for_the_answers_the_model_will_give_about_the_cut_and_never_for_a_person() {
+fn the_parts_wait_for_the_answers_about_the_cut_whatever_keeps_them_from_coming() {
     let (_dir, base) = open();
     let seeing = Seeing(model());
     add_file(&base, 1, "h1", "pdf", &[1, 2, 3]);
@@ -246,18 +251,22 @@ fn the_parts_wait_for_the_answers_the_model_will_give_about_the_cut_and_never_fo
     base.set_background_reading(true).unwrap();
     ask_turn(&base, &seeing);
     assert!(readings(&seeing.0).is_empty());
-    // Nothing waits when that answer does not come by itself: an engine
-    // that does not look at images, the round waiting for a person, the
-    // questions about the cuts failing, the reading off.
-    assert!(base.waiting_for_cut_answers(false).unwrap().is_empty());
+    // They wait whatever keeps that answer from coming (D-717, «la IA
+    // nunca se saltea»): an engine that does not look at images, the round
+    // at its cap waiting for a person, the questions about the cuts
+    // failing, the reading off. None goes on with its uncertain cut.
+    assert!(!base.waiting_for_cut_answers(false).unwrap().is_empty());
     base.engine_state().auto_held(Some("cut"));
-    assert!(base.waiting_for_cut_answers(true).unwrap().is_empty());
+    assert!(!base.waiting_for_cut_answers(true).unwrap().is_empty());
+    // The round at its cap: the reading of its parts does not go out.
+    ask_turn(&base, &seeing);
+    assert!(readings(&seeing.0).is_empty());
     base.engine_state().auto_held(None);
     base.engine_state().cut_asking_failed(true);
-    assert!(base.waiting_for_cut_answers(true).unwrap().is_empty());
+    assert!(!base.waiting_for_cut_answers(true).unwrap().is_empty());
     base.engine_state().cut_asking_failed(false);
     base.set_background_reading(false).unwrap();
-    assert!(base.waiting_for_cut_answers(true).unwrap().is_empty());
+    assert!(!base.waiting_for_cut_answers(true).unwrap().is_empty());
     base.set_background_reading(true).unwrap();
     assert!(!base.waiting_for_cut_answers(true).unwrap().is_empty());
     // The answer: page 2 starts another document. The parts are made

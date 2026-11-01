@@ -574,9 +574,9 @@ fn a_failed_update_keeps_its_backup_and_names_it() {
     let before = CURRENT_VERSION - 1;
     old_base(data, before);
     {
-        // A column the next version adds is already there: its change fails.
+        // A table the next version adds is already there: its change fails.
         let conn = Connection::open(data.join(PRIVATE_DB_FILE)).unwrap();
-        conn.execute_batch("ALTER TABLE cut_step ADD COLUMN hints TEXT").unwrap();
+        conn.execute_batch("CREATE TABLE failure (id INTEGER PRIMARY KEY)").unwrap();
     }
     let (base, opening) = DocBase::open_in_data_folder(data);
     let problem = base.unwrap_err();

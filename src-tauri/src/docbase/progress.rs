@@ -53,41 +53,12 @@ pub fn stage_of_task(task: &str) -> &'static str {
 /// rejected), `connection` (no connection, or no answer in time) or
 /// `other`.
 pub fn error_kind(message: &str) -> &'static str {
-    let message = message.to_lowercase();
-    let any = |words: &[&str]| words.iter().any(|w| message.contains(w));
-    if any(&["usage limit", "hit your limit", "rate limit", "rate_limit", "429", "quota", "too many requests"]) {
-        "limit"
-    } else if any(&[
-        "401",
-        "403",
-        "unauthorized",
-        "forbidden",
-        "api key",
-        "api_key",
-        "invalid key",
-        "authentication",
-        "not logged in",
-        "log in",
-        "login",
-        "credential",
-    ]) {
-        "key"
-    } else if any(&[
-        "connection",
-        "network",
-        "timed out",
-        "timeout",
-        "dns",
-        "could not resolve",
-        "error sending request",
-        "offline",
-        "unreachable",
-        "did not answer within",
-        "stream disconnected",
-    ]) {
-        "connection"
-    } else {
-        "other"
+    // The class comes from the only function that classifies (D-714).
+    match super::failures::classify(message).code {
+        "rate-limit" => "limit",
+        "credential" => "key",
+        "no-connection" | "timeout" => "connection",
+        _ => "other",
     }
 }
 

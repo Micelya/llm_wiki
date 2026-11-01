@@ -86,7 +86,7 @@ fn empty_the_cut(base: &DocBase) {
         .execute_batch(
             "DELETE FROM cut_step; DELETE FROM cut_window; DELETE FROM cut_decision; DELETE FROM cut_applied;
              DELETE FROM model_answer WHERE task IN ('cut', 'cut-window');
-             DELETE FROM docbase_setting WHERE key LIKE 'failed:cut:%' OR key LIKE 'failed:parts:%' OR key LIKE 'failed:zones:%';",
+             DELETE FROM failure WHERE stage IN ('cut', 'parts', 'zones');",
         )
         .unwrap();
 }

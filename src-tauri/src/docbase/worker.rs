@@ -8,6 +8,7 @@
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
+use super::failures::{self, About, Failure, Scope};
 use super::{DocBase, Visible};
 
 const SWEEP_EVERY: Duration = Duration::from_secs(5 * 60);
@@ -59,11 +60,13 @@ impl Wake {
 /// Starts the worker thread. `on_change` is called, at most a few times
 /// per second, whenever something the screens show may have changed.
 pub fn spawn(base: Arc<DocBase>, wake: Arc<Wake>, on_change: impl Fn() + Send + 'static) {
+    let base_for_note = base.clone();
     let spawned = std::thread::Builder::new()
         .name("docbase-worker".to_string())
         .spawn(move || run(&base, &wake, &on_change));
     if let Err(error) = spawned {
         eprintln!("[docbase] could not start the background worker: {error}");
+        note_thread(&base_for_note, "docbase-worker", &error.to_string());
     }
 }
 
@@ -78,10 +81,14 @@ fn run(base: &DocBase, wake: &Wake, on_change: &dyn Fn()) {
             last_sweep = Some(Instant::now());
         }
 
-        let worked = match step(base) {
+        // A panic in one step does not end the thread (item 9 of the
+        // first stage of 1 nov): it is written down as an unknown failure,
+        // and the thread waits before going on.
+        let worked = match crate::panic_guard::run_guarded("docbase_worker_step", || step(base)) {
             Ok(worked) => worked,
             Err(error) => {
                 eprintln!("[docbase] {error}");
+                note_thread(base, "docbase-worker", &error);
                 false
             }
         };
@@ -122,10 +129,16 @@ pub fn spawn_asking(
     on_change: impl Fn() + Send + 'static,
     on_pages: impl Fn() + Send + 'static,
 ) {
+    let base_for_note = base.clone();
     let spawned = std::thread::Builder::new()
         .name("docbase-asking".to_string())
         .spawn(move || loop {
-            let wait = ask_step(&base, &on_change, &on_pages);
+            // A panic in one question does not end the thread either.
+            let wait = crate::panic_guard::run_guarded("docbase_ask_step", || Ok(ask_step(&base, &on_change, &on_pages)))
+                .unwrap_or_else(|error| {
+                    note_thread(&base, "docbase-asking", &error);
+                    ASK_BACKOFF
+                });
             if !wait.is_zero() {
                 wake.wait(wait);
             }
@@ -133,6 +146,7 @@ pub fn spawn_asking(
         });
     if let Err(error) = spawned {
         eprintln!("[docbase] could not start the questions to the model: {error}");
+        note_thread(&base_for_note, "docbase-asking", &error.to_string());
     }
 }
 
@@ -173,10 +187,20 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
             return ASK_BACKOFF;
         }
     };
+    let engine_id = asker.engine_id();
+    // An engine with a failure of the whole engine is not asked until its
+    // next attempt (D-714); another engine would be.
+    match failures::engine_paused_until(&base.conn(), &engine_id) {
+        Ok(Some(until)) => return wait_until(until),
+        Ok(None) => {}
+        Err(error) => eprintln!("[docbase] {error}"),
+    }
     let failed = |stage: &'static str, errors: &[String]| {
-        state.failed(Some(stage), &errors.join("; "), Some(ASK_BACKOFF));
-        ASK_BACKOFF
+        let wait = note_asking(base, &engine_id, stage, errors);
+        state.failed(Some(stage), &errors.join("; "), Some(wait));
+        wait
     };
+    let well = |stage: &'static str| asked_well(base, &engine_id, stage);
     // The doubtful steps of the cutter, with the two pages as images
     // (D-556), before what each document is: only in the files a rule
     // already cut (D-622), and in the round with a cap (D-606). While they
@@ -185,6 +209,9 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
     // the cut, the parts and the search of similar documents the other
     // thread makes (`knowledge::extract::waiting_before_reading`).
     state.at_stage(Some("types"));
+    // The question of the cut writes its failures down itself, one by one
+    // (P-523): a stretch that fails takes its next attempt and the next
+    // one goes on; a failure of the whole engine pauses only that engine.
     match base.cut_round_turn(asker.as_ref(), 1) {
         Ok(Some(report)) => {
             if report.asked + report.kept > 0 {
@@ -192,14 +219,21 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
             }
             if report.failed > 0 {
                 eprintln!("[docbase] questions about the cuts: {}", report.errors.join("; "));
-                return failed("types", &report.errors);
+                let wait = report.paused_until.map(wait_until).unwrap_or(Duration::ZERO);
+                state.failed(Some("types"), &report.errors.join("; "), Some(wait));
             }
-            if report.asked > 0 {
+            if let Some(until) = report.paused_until {
+                return wait_until(until);
+            }
+            if report.asked + report.failed > 0 {
                 return Duration::ZERO;
             }
         }
         Ok(None) => {}
-        Err(error) => eprintln!("[docbase] {error}"),
+        Err(error) => {
+            eprintln!("[docbase] {error}");
+            note_base(base, failures::CUT_QUESTION_STAGE, &error);
+        }
     }
     match base.types_run(asker.as_ref(), 1) {
         Ok(report) => {
@@ -210,6 +244,9 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
             if report.failed + report.data_failed > 0 {
                 eprintln!("[docbase] questions to the model: {}", report.errors.join("; "));
                 return failed("types", &report.errors);
+            }
+            if report.asked + report.data_asked > 0 {
+                well("types");
             }
             if report.asked + report.data_asked > 0 {
                 return Duration::ZERO;
@@ -234,6 +271,9 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
                 return failed("templates", &report.errors);
             }
             if report.asked > 0 {
+                well("templates");
+            }
+            if report.asked > 0 {
                 return Duration::ZERO;
             }
         }
@@ -252,6 +292,9 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
             if report.failed > 0 {
                 eprintln!("[docbase] reading for the knowledge layer: {}", report.errors.join("; "));
                 return failed("reading", &report.errors);
+            }
+            if report.asked > 0 {
+                well("reading");
             }
             if report.asked > 0 || report.extracted > 0 {
                 return Duration::ZERO;
@@ -286,6 +329,9 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
                 eprintln!("[docbase] identities of the knowledge layer: {}", report.errors.join("; "));
                 return failed("resolve", &report.errors);
             }
+            if report.asked > 0 {
+                well("resolve");
+            }
             if report.asked > 0 || report.left > 0 {
                 return Duration::ZERO;
             }
@@ -307,6 +353,9 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
             if report.failed > 0 {
                 eprintln!("[docbase] matters of the knowledge layer: {}", report.errors.join("; "));
                 return failed("matters", &report.errors);
+            }
+            if report.asked > 0 {
+                well("matters");
             }
             if report.asked > 0 {
                 on_change();
@@ -344,6 +393,9 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
             if report.failed > 0 {
                 eprintln!("[docbase] pages of the knowledge layer: {}", report.errors.join("; "));
                 return failed("pages", &report.errors);
+            }
+            if report.asked > 0 {
+                well("pages");
             }
             if report.asked > 0 || report.left > 0 {
                 Duration::ZERO
@@ -430,11 +482,13 @@ const LOCAL_UNAVAILABLE: Duration = Duration::from_secs(5 * 60);
 /// there (`recognition_local`); the scans a person asks for go on through
 /// the questions' thread, with the engine chosen in Ajustes.
 pub fn spawn_local_recognition(base: Arc<DocBase>, on_change: impl Fn() + Send + 'static) {
+    let base_for_note = base.clone();
     let spawned = std::thread::Builder::new().name("docbase-local-recognition".to_string()).spawn(move || loop {
         std::thread::sleep(local_recognition_step(&base, &on_change));
     });
     if let Err(error) = spawned {
         eprintln!("[docbase] could not start the reading of scans on this computer: {error}");
+        note_thread(&base_for_note, "docbase-local-recognition", &error.to_string());
     }
 }
 
@@ -509,6 +563,9 @@ fn recognition_step(base: &DocBase, on_change: &dyn Fn()) -> Option<Duration> {
         }
         Ok(RecognitionStep::Failed(content)) => {
             eprintln!("[docbase] the text of document {content} could not be recognized");
+            let mut failure = Failure::new("recognition", About::Version(content), "The text of the document could not be recognized.");
+            failure.cause = failures::cause("unknown");
+            base.note(&failure);
             on_change();
             Some(Duration::ZERO)
         }
@@ -534,8 +591,14 @@ fn sweep(base: &DocBase) -> bool {
     };
     for origin in &origins {
         base.engine_state().sweeping(Some(&origin.id));
-        if let Err(error) = base.scan_origin(&origin.id) {
-            eprintln!("[docbase] sweep of '{}' failed: {error}", origin.name);
+        match base.scan_origin(&origin.id) {
+            Ok(_) => {
+                let _ = failures::resolve(&base.conn(), "sweep", &About::Origin(origin.id.clone()));
+            }
+            Err(error) => {
+                eprintln!("[docbase] sweep of '{}' failed: {error}", origin.name);
+                base.note(&Failure::new("sweep", About::Origin(origin.id.clone()), &error));
+            }
         }
     }
     base.engine_state().sweeping(None);
@@ -579,13 +642,19 @@ fn step(base: &DocBase) -> Result<bool, String> {
     match base.cut_pending(CUT_BATCH) {
         Ok(cut) if cut > 0 => return Ok(true),
         Ok(_) => {}
-        Err(error) => eprintln!("[docbase] cuts: {error}"),
+        Err(error) => {
+            eprintln!("[docbase] cuts: {error}");
+            note_base(base, "cut", &error);
+        }
     }
     // The parts of each cut file, as versions of their own (D-560).
     match base.cut_parts_pending(CUT_BATCH) {
         Ok(made) if made > 0 => return Ok(true),
         Ok(_) => {}
-        Err(error) => eprintln!("[docbase] parts: {error}"),
+        Err(error) => {
+            eprintln!("[docbase] parts: {error}");
+            note_base(base, "parts", &error);
+        }
     }
     // Similar documents: only once every text is read, a little at a
     // time, so it never holds the reading back.
@@ -594,4 +663,55 @@ fn step(base: &DocBase) -> Result<bool, String> {
     }
     // The pages the scans need recognized: the size of that work.
     Ok(base.count_scan_pages(SCAN_PAGES_BATCH)? > 0)
+}
+
+/// How long to wait until `until` (milliseconds): at least the idle wait,
+/// at most the longest backoff; a permanent pause (`i64::MAX`) looks again
+/// after the backoff, in case a person changed the engine.
+fn wait_until(until: i64) -> Duration {
+    let left = until.saturating_sub(super::now_ms());
+    if until == i64::MAX || left <= 0 {
+        return if until == i64::MAX { ASK_BACKOFF } else { ASK_IDLE };
+    }
+    Duration::from_millis(left as u64).clamp(ASK_IDLE, Duration::from_secs(24 * 3600))
+}
+
+/// Writes down a failure of a stage of the questions (D-714), the console
+/// going on as it was. One of the whole engine is about the engine, which
+/// waits until its next attempt; one of a question is about that stage of
+/// the thread, which waits as before. Returns how long to wait.
+fn note_asking(base: &DocBase, engine: &str, stage: &'static str, errors: &[String]) -> Duration {
+    let message = errors.join("; ");
+    let cause = failures::classify(&message);
+    let about = if cause.scope == Scope::Engine { About::Engine(engine.to_string()) } else { About::Thread(format!("docbase-asking/{stage}")) };
+    let mut failure = Failure::new(stage, about, &message);
+    failure.engine = Some(engine);
+    match base.note(&failure) {
+        Some(recorded) if recorded.scope == Scope::Engine => recorded.next_at.map(wait_until).unwrap_or(ASK_BACKOFF),
+        _ => ASK_BACKOFF,
+    }
+}
+
+/// A stage asked and nothing failed: its failures, and those of its
+/// engine, are resolved.
+fn asked_well(base: &DocBase, engine: &str, stage: &str) {
+    let conn = base.conn();
+    let _ = failures::resolve(&conn, stage, &About::Thread(format!("docbase-asking/{stage}")));
+    let _ = failures::resolve_engine(&conn, engine);
+}
+
+/// Writes down an error of the base in a step of the work, that went only
+/// to the console.
+fn note_base(base: &DocBase, stage: &str, error: &str) {
+    base.note(&Failure::new(stage, About::Thread(format!("step/{stage}")), error));
+}
+
+/// Writes down a thread that did not start or a step that panicked:
+/// unknown, unless its message says otherwise.
+fn note_thread(base: &DocBase, thread: &str, error: &str) {
+    let mut failure = Failure::new("thread", About::Thread(thread.to_string()), error);
+    if failure.cause.code == "unknown" {
+        failure.cause = failures::cause("program-error");
+    }
+    base.note(&failure);
 }

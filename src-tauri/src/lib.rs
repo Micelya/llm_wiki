@@ -555,6 +555,7 @@ pub fn run() {
             docbase::commands::docbase_auto_questions_decide,
             docbase::commands::docbase_knowledge_decide_many,
             docbase::commands::docbase_knowledge_attention,
+            docbase::commands::docbase_failures,
             docbase::commands::docbase_knowledge_matters,
             docbase::commands::docbase_knowledge_matter,
             docbase::commands::docbase_knowledge_document_entities,

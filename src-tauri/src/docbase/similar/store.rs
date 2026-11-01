@@ -302,16 +302,25 @@ const UNSIGNED_FROM: &str = "version c
 
 /// SQL over `UNSIGNED_FROM`: the signature of the version is missing, or
 /// was made over another text or by another engine than `?1`, and its
-/// signing did not fail over this text (`note_failure`). The version of a
-/// whole file with included parts is not compared: each part is, with its
-/// own text (D-560).
+/// signing did not fail over this text with a failure that holds
+/// (`note_failure`). The version of a whole file with included parts is
+/// not compared: each part is, with its own text (D-560).
 fn unsigned_where() -> String {
+    format!(
+        "{} AND NOT {failed}",
+        unsigned_or_failed_where(),
+        failed = super::super::cut::failed_sql(SIGN_STAGE, "c.id", "d.created_at || '|' || ?1")
+    )
+}
+
+/// SQL over `UNSIGNED_FROM`: as `unsigned_where`, also when its signing
+/// failed. What waits for it (D-717).
+fn unsigned_or_failed_where() -> String {
     format!(
         "c.state = 'processed'
          AND (s.version_id IS NULL OR s.text_at != d.created_at OR s.engine != ?1)
-         AND NOT {included} AND NOT {failed}",
+         AND NOT {included}",
         included = super::super::cut::parts::has_included_sql("c.id"),
-        failed = super::super::cut::failed_sql(SIGN_STAGE, "c.id", "d.created_at || '|' || ?1")
     )
 }
 
@@ -422,12 +431,12 @@ impl DocBase {
 
     /// The versions the search of similar documents has still to sign, or
     /// sign again: the reading waits for it, as it waits for the type,
-    /// which needs it (D-666). One whose signature failed is not waited for
-    /// (`note_failure`). Asks nothing.
+    /// which needs it (D-666). One whose signature failed waits too
+    /// (D-717): it is not read without it. Asks nothing.
     pub(crate) fn waiting_for_similar(&self) -> Result<BTreeSet<i64>, String> {
         let conn = self.conn();
         let mut statement =
-            conn.prepare(&format!("SELECT c.id FROM {UNSIGNED_FROM} WHERE {}", unsigned_where())).map_err(sql_err)?;
+            conn.prepare(&format!("SELECT c.id FROM {UNSIGNED_FROM} WHERE {}", unsigned_or_failed_where())).map_err(sql_err)?;
         let rows = statement.query_map(params![engine_id()], |row| row.get(0)).map_err(sql_err)?;
         rows.collect::<Result<_, _>>().map_err(sql_err)
     }
@@ -466,23 +475,28 @@ impl DocBase {
             jobs
         };
         // The signatures of each file a part is cut from, read once.
-        let mut of_file: HashMap<String, Vec<PdfSignature>> = HashMap::new();
+        let mut of_file: HashMap<String, (Vec<PdfSignature>, Vec<SignaturesError>)> = HashMap::new();
         // And what the catalog reads in each of its parts.
         let mut readings_of: HashMap<String, Vec<Vec<Mark>>> = HashMap::new();
         for (content_id, body, text_at, fields, paths, cut_from) in &jobs {
-            let signatures = read_signatures(paths);
+            let (signatures, mut unread) = read_signatures(paths);
             let mut context = Vec::new();
             for file in cut_from {
-                let found = of_file.entry(file.hash.clone()).or_insert_with(|| read_signatures(&file.paths));
+                let (found, errors) = of_file.entry(file.hash.clone()).or_insert_with(|| read_signatures(&file.paths));
                 context.extend(found.iter().filter(|s| !context.contains(*s)).cloned().collect::<Vec<_>>());
+                unread.extend(errors.iter().cloned());
             }
+            // Digital signatures that could not be read are written down
+            // (D-714): in use or in the cloud, the signature of the
+            // document waits for them; broken, it goes on without them.
+            let mut signatures_waiting = self.note_signatures_read(paths, cut_from, &unread)?;
             // What the other parts of its files say of it (D-607).
             let mut certified = Vec::new();
             let mut given: Vec<String> = Vec::new();
             for file in cut_from {
                 let context = &of_file[&file.hash];
                 let readings = readings_of.entry(file.hash.clone()).or_insert_with(|| {
-                    file.parts.iter().map(|(_, text, has_fields)| sign_reading(text, *has_fields, &[], context).marks).collect()
+                    file.parts.iter().map(|(_, text, has_fields)| sign_reading(text, *has_fields, &[], &context.0).marks).collect()
                 });
                 let parts: Vec<attest::Part<'_>> = file
                     .parts
@@ -500,16 +514,23 @@ impl DocBase {
             }
             let signed = sign(*content_id, body, *text_at, fields.is_some(), signatures, &context, (certified, given));
             // One document at a time: a signature that fails is written
-            // down and the others go on (D-488); nothing waits for it.
-            let saved = || -> Result<(), String> {
+            // down and the others go on (D-488); that document waits for
+            // it (D-717): it is neither typed nor read.
+            let mut saved = || -> Result<(), String> {
+                if let Some(error) = signatures_waiting.take() {
+                    return Err(error);
+                }
                 let mut conn = self.conn();
                 let tx = conn.transaction().map_err(sql_err)?;
                 save_signature(&tx, &signed, &engine)?;
                 tx.commit().map_err(sql_err)
             };
-            if let Err(error) = saved() {
-                let basis = format!("{text_at}|{engine}");
-                super::super::cut::note_failure(&self.conn(), SIGN_STAGE, &content_id.to_string(), &basis, &error)?;
+            match saved() {
+                Ok(()) => super::super::cut::note_success(&self.conn(), SIGN_STAGE, &content_id.to_string())?,
+                Err(error) => {
+                    let basis = format!("{text_at}|{engine}");
+                    super::super::cut::note_failure(&self.conn(), SIGN_STAGE, &content_id.to_string(), &basis, &error)?;
+                }
             }
         }
         Ok(jobs.len())
@@ -1344,9 +1365,15 @@ fn files_cut_into(conn: &Connection, content_id: i64) -> Result<Vec<CutFrom>, St
     Ok(out)
 }
 
-/// The digital signatures of these PDF files, each once.
-fn read_signatures(paths: &[(String, PathBuf)]) -> Vec<PdfSignature> {
+/// A file whose digital signatures could not be read: its hash and the
+/// error, with what Windows says of it.
+type SignaturesError = (String, String);
+
+/// The digital signatures of these PDF files, each once, and the files
+/// whose signatures could not be read.
+fn read_signatures(paths: &[(String, PathBuf)]) -> (Vec<PdfSignature>, Vec<SignaturesError>) {
     let mut signatures = Vec::new();
+    let mut errors = Vec::new();
     for (file, path) in paths {
         match run_guarded("docbase_pdf_signatures", || marks::pdf_signatures(path, Some(file))) {
             Ok(found) => {
@@ -1356,10 +1383,47 @@ fn read_signatures(paths: &[(String, PathBuf)]) -> Vec<PdfSignature> {
                     }
                 }
             }
-            Err(error) => eprintln!("[docbase] signatures of '{}': {error}", path.display()),
+            Err(error) => {
+                eprintln!("[docbase] signatures of '{}': {error}", path.display());
+                // A file that is not there is the sweep's to notice.
+                if path.exists() {
+                    errors.push((file.clone(), crate::docbase::failures::pdf_error_detail(path, error)));
+                }
+            }
         }
     }
-    signatures
+    (signatures, errors)
+}
+
+impl DocBase {
+    /// Writes down the digital signatures that could not be read, and
+    /// resolves those of the files that were read. Returns the error that
+    /// makes the signature of the document wait: a transient one.
+    fn note_signatures_read(
+        &self,
+        paths: &[(String, PathBuf)],
+        cut_from: &[CutFrom],
+        unread: &[SignaturesError],
+    ) -> Result<Option<String>, String> {
+        use crate::docbase::failures::{self, About, Class, Failure, DIGITAL_SIGNATURES_STAGE};
+        let conn = self.conn();
+        let mut waiting = None;
+        for (hash, error) in unread {
+            let recorded = failures::record(&conn, &Failure::new(DIGITAL_SIGNATURES_STAGE, About::File(hash.clone()), error))?;
+            // In use by another program or in the cloud: the signature
+            // waits. Broken, encrypted or not there: it goes on without
+            // them, as before, with the failure written down.
+            let passing = ["file-locked", "cloud-not-downloaded"].contains(&failures::classify(error).code);
+            if recorded.class == Class::Transient && passing && waiting.is_none() {
+                waiting = Some(error.clone());
+            }
+        }
+        let files = paths.iter().map(|(hash, _)| hash).chain(cut_from.iter().map(|f| &f.hash));
+        for hash in files.filter(|h| !unread.iter().any(|(u, _)| u == *h)) {
+            failures::resolve(&conn, DIGITAL_SIGNATURES_STAGE, &About::File(hash.clone()))?;
+        }
+        Ok(waiting)
+    }
 }
 
 fn pdf_paths_where(conn: &Connection, filter: &str, value: &dyn rusqlite::ToSql) -> Result<Vec<(String, PathBuf)>, String> {
