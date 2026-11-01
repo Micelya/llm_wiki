@@ -4878,6 +4878,18 @@
       "detalle": "La corrida de control terminó con 632 entidades contra 507 de N, 313 páginas contra 289 y 123 preguntas de páginas contra 100 (+23 %). En la hoja de la sucesión salieron 89 menciones de más y 6 falsas conocidas más que N, con las mismas halladas. Hay que ver si la identidad unió menos, o si la lectura por zonas da más nombres partidos. Consultas de producción por documento (D-672): las páginas pasan de 0,34 a 0,41 por documento.",
       "creado": "2026-11-01",
       "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-573",
+      "titulo": "«En curso» cuenta los archivos enteros como documentos que faltan comparar en «Copias, versiones y plantillas»",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "Al abrir la app con la base de la corrida de control de la carpeta, «En curso» dice «Copias, versiones y plantillas: 101 de 136, faltan 35», y no avanza nunca. Los 35 son las versiones de los archivos enteros que tienen 2 documentos o más: los lugares de tipo «archivo» de la estructura. Con los dos niveles (D-734 a D-737), un archivo entero nunca pasa por los parecidos, así que nunca van a tener su firma. El error está en la cuenta de la pantalla: `progress.rs`, en `similar_members`, toma toda versión con texto, sin mirar si es un documento de la estructura. Hay que contar solo los documentos, con la misma regla que la firma de parecidos. La base original de la corrida da lo mismo, así que no es trabajo pendiente de verdad. Consultas de producción por documento (D-672): 0.",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
     }
   ]
 }
