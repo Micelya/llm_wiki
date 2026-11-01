@@ -340,6 +340,28 @@ fn apply_answer(conn: &Connection, key: &str, answer: &CutAnswer) -> Result<(), 
     Ok(())
 }
 
+/// How many files are still to cut with the rules (`cut_pending`) and
+/// `free` (an SQL condition over the version `c`) says do not hold back
+/// the barrier (`barrier.rs`).
+pub(crate) fn rules_left(conn: &rusqlite::Connection, free: &str) -> Result<usize, String> {
+    conn.query_row(
+        &format!(
+            "SELECT count(DISTINCT f.hash) FROM {CUTTABLE_FROM}
+             LEFT JOIN derivative d ON d.version_id = c.id AND d.kind = ?1 AND d.engine = ?2
+             WHERE {cuttable} AND NOT {settled} AND {free}
+               AND CASE WHEN z.body IS NOT NULL THEN json_array_length(z.body) >= 2
+                   ELSE d.body IS NOT NULL AND json_array_length(d.body, '$.pages') >= 2 AND NOT {waiting} END",
+            cuttable = cuttable_where(),
+            settled = cut_settled_sql("?3"),
+            waiting = by_zones::zones_waiting_sql(),
+        ),
+        params![SHAPES_KIND, SHAPES_ENGINE, rules_version()],
+        |row| row.get::<_, i64>(0),
+    )
+    .map(|n| n as usize)
+    .map_err(sql_err)
+}
+
 impl DocBase {
     /// Cuts up to `limit` PDF files whose steps are missing or were decided
     /// with other rules, another catalog or another text of their pages.

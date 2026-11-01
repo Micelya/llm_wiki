@@ -26,6 +26,9 @@
 //! Design: `docs/design/base-documental.md`.
 
 pub mod auto_questions;
+pub mod barrier;
+#[cfg(test)]
+mod barrier_tests;
 pub mod bridge;
 pub mod chat_files;
 pub mod commands;
@@ -38,7 +41,7 @@ pub mod graph;
 pub mod knowledge;
 pub mod labels;
 pub mod origins;
-mod page_shapes;
+pub(crate) mod page_shapes;
 pub mod progress;
 pub mod query;
 pub mod questions;
@@ -51,6 +54,7 @@ pub mod similar;
 #[cfg(test)]
 pub(crate) mod testing;
 pub mod text;
+pub mod thresholds;
 pub mod tree;
 pub mod upgrade;
 pub mod work_origin;

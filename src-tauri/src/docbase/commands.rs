@@ -681,6 +681,8 @@ pub fn docbase_types_run(
     max_questions: Option<usize>,
 ) -> Result<RunReport, String> {
     let base = state.base()?.clone();
+    // It waits for the work without AI too (D-719).
+    base.barrier_check()?;
     let asker = asker_for(&engine)?;
     let report = base.types_run(asker.as_ref(), max_questions.unwrap_or(RUN_LIMIT))?;
     let _ = app.emit(CHANGED_EVENT, ());
@@ -819,6 +821,7 @@ pub fn docbase_knowledge_run(
     max_questions: Option<usize>,
 ) -> Result<KnowledgeReport, String> {
     let base = state.base()?.clone();
+    base.barrier_check()?;
     let asker = asker_for(&engine)?;
     let report = base.knowledge_run(asker.as_ref(), max_questions.unwrap_or(RUN_LIMIT))?;
     let _ = app.emit(CHANGED_EVENT, ());
@@ -838,6 +841,7 @@ pub fn docbase_knowledge_resolve(
     let base = state.base()?.clone();
     let report = match engine {
         Some(engine) => {
+            base.barrier_check()?;
             let asker = asker_for(&engine)?;
             base.knowledge_resolve(Some(asker.as_ref()), max_questions.unwrap_or(RUN_LIMIT))?
         }
@@ -862,6 +866,7 @@ pub fn docbase_knowledge_project(
     let base = state.base()?.clone();
     let report = match engine {
         Some(engine) => {
+            base.barrier_check()?;
             let asker = asker_for(&engine)?;
             base.knowledge_project(Some(asker.as_ref()), max_questions.unwrap_or(RUN_LIMIT))?
         }
@@ -1108,8 +1113,10 @@ pub fn docbase_recognize_text(
         (None, false) => RecognitionRequest::AllWaiting,
     };
     let base = state.base()?;
+    // The engine is the one of the configuration (D-721): the person does
+    // not choose it here. Without its models the scan waits with its failure.
     if base.recognition_engine()?.is_none() {
-        return Err("Falta elegir el motor que reconoce escaneos: en Ajustes → Servicios de IA, elegí uno para «Reconocer escaneos».".to_string());
+        return Err("El lector de escaneos de esta computadora no está disponible: faltan sus modelos. Los escaneos esperan, con su falla en Atención.".to_string());
     }
     let asked = base.request_recognition(&which)?;
     state.ask_wake.request();
@@ -1246,6 +1253,18 @@ pub fn docbase_knowledge_attention(state: State<'_, DocBaseState>) -> Result<Kno
 #[tauri::command(async)]
 pub fn docbase_failures(state: State<'_, DocBaseState>) -> Result<Vec<super::failures::FailureView>, String> {
     state.base()?.failures_open()
+}
+
+/// The thresholds of the base (D-722), for the screen of the configuration.
+#[tauri::command(async)]
+pub fn docbase_thresholds(state: State<'_, DocBaseState>) -> Result<super::thresholds::Thresholds, String> {
+    state.base()?.thresholds()
+}
+
+/// Keeps the thresholds of the base; the next step that uses one reads it.
+#[tauri::command(async)]
+pub fn docbase_set_thresholds(state: State<'_, DocBaseState>, thresholds: super::thresholds::Thresholds) -> Result<(), String> {
+    state.base()?.set_thresholds(&thresholds)
 }
 
 /// The matters of the archive, the largest first.

@@ -114,6 +114,10 @@ pub const CAUSES: &[Cause] = &[
     c("zones-shape", Permanent, Item),
     c("out-of-memory", Transient, Item),
     c("zones-model-missing", Permanent, Item),
+    // The scan waits for the models of the engine of this computer (E of
+    // 1 nov): being downloaded, or with no way to download them.
+    c("models-downloading", Transient, Item),
+    c("models-missing", Permanent, Item),
     // The model: its limit, quota or 429; no connection or no answer in
     // time; the engine not installed or not starting; the credential.
     c("rate-limit", Transient, Engine),
@@ -214,14 +218,16 @@ pub fn classify(message: &str) -> Cause {
 /// How long after its attempt `attempt` (1 the first) a transient failure
 /// is tried again, in milliseconds: 10 minutes, an hour, 6 hours, then
 /// once a day, without end.
+#[cfg(test)]
 pub fn retry_after(attempt: i64) -> i64 {
-    const MINUTE: i64 = 60 * 1000;
-    match attempt {
-        i64::MIN..=1 => 10 * MINUTE,
-        2 => 60 * MINUTE,
-        3 => 6 * 60 * MINUTE,
-        _ => 24 * 60 * MINUTE,
-    }
+    retry_after_with(&super::thresholds::Thresholds::default().retry_minutes, attempt)
+}
+
+/// The same, with the waits of the configuration (`thresholds.rs`), in
+/// minutes: past the last, the last again.
+pub fn retry_after_with(minutes: &[i64], attempt: i64) -> i64 {
+    let index = (attempt.max(1) - 1) as usize;
+    minutes.get(index).or(minutes.last()).copied().unwrap_or(24 * 60) * 60 * 1000
 }
 
 /// The error of pdfium over a file, with what Windows says of it when
@@ -380,7 +386,8 @@ pub fn record_at(conn: &Connection, failure: &Failure<'_>, now: i64) -> Result<R
     if cause.code == "bad-answer" && same >= SAME_ANSWERS {
         cause.class = Class::Unknown;
     }
-    let next_at = (cause.class == Class::Transient).then(|| now + retry_after(attempt));
+    let waits = super::thresholds::retry_minutes(conn)?;
+    let next_at = (cause.class == Class::Transient).then(|| now + retry_after_with(&waits, attempt));
     let (attempts, hours) = indicator_threshold(conn)?;
     let indicator = cause.class != Class::Transient
         || cause.code == "disk-full"

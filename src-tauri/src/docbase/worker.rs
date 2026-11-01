@@ -10,6 +10,7 @@ use std::time::{Duration, Instant};
 
 use super::failures::{self, About, Failure, Scope};
 use super::{DocBase, Visible};
+use crate::source_volume::asking::DocumentAsker;
 
 const SWEEP_EVERY: Duration = Duration::from_secs(5 * 60);
 const IDLE_WAIT: Duration = Duration::from_secs(20);
@@ -161,9 +162,9 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
     if crate::micelya_core::ledger::retry_left_readings(false) {
         on_change();
     }
-    if let Some(wait) = recognition_step(base, on_change) {
-        return wait;
-    }
+    // No scan is read in the cloud any more (D-721): the engine of the
+    // scans is the one of the configuration, the engine of this computer,
+    // with its own thread (`spawn_local_recognition`).
     if let Some(wait) = requested_reading_step(base, on_change) {
         return wait;
     }
@@ -187,6 +188,16 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
             return ASK_BACKOFF;
         }
     };
+    ask_with(base, asker.as_ref(), on_change, on_pages)
+}
+
+/// The questions of one turn with `asker`. At its start it looks whether
+/// the base has work left that needs no AI (D-719, `barrier.rs`): while it
+/// has, only the question of the cut goes out, also when a new file
+/// arrived at a folder already processed.
+pub(super) fn ask_with(base: &DocBase, asker: &dyn DocumentAsker, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Duration {
+    let holds = base.barrier_holds();
+    let state = base.engine_state();
     let engine_id = asker.engine_id();
     // An engine with a failure of the whole engine is not asked until its
     // next attempt (D-714); another engine would be.
@@ -212,7 +223,7 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
     // The question of the cut writes its failures down itself, one by one
     // (P-523): a stretch that fails takes its next attempt and the next
     // one goes on; a failure of the whole engine pauses only that engine.
-    match base.cut_round_turn(asker.as_ref(), 1) {
+    match base.cut_round_turn(asker, 1) {
         Ok(Some(report)) => {
             if report.asked + report.kept > 0 {
                 on_change();
@@ -235,7 +246,12 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
             note_base(base, failures::CUT_QUESTION_STAGE, &error);
         }
     }
-    match base.types_run(asker.as_ref(), 1) {
+    if holds {
+        // The rest waits for the work without AI: «En curso» says why.
+        state.at_stage(None);
+        return ASK_IDLE;
+    }
+    match base.types_run(asker, 1) {
         Ok(report) => {
             state.ran("types", report.left);
             if report.asked + report.data_asked + report.typed + report.corrected > 0 {
@@ -260,7 +276,7 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
     // The names of the fields of the templates that their text does not
     // give, one template at a time (D-488).
     state.at_stage(Some("templates"));
-    match base.templates_naming_run(asker.as_ref(), 1) {
+    match base.templates_naming_run(asker, 1) {
         Ok(report) => {
             state.ran("templates", report.left);
             if report.asked + report.named > 0 {
@@ -283,7 +299,7 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
         }
     }
     state.at_stage(Some("reading"));
-    match base.knowledge_run(asker.as_ref(), 1) {
+    match base.knowledge_run(asker, 1) {
         Ok(report) => {
             state.ran("reading", report.left);
             if report.extracted + report.unusable + report.rechecked > 0 {
@@ -318,7 +334,7 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
             return ASK_IDLE;
         }
     }
-    match base.knowledge_resolve(Some(asker.as_ref()), 1) {
+    match base.knowledge_resolve(Some(asker), 1) {
         Ok(report) => {
             state.ran("resolve", report.left);
             state.auto_asked(report.asked);
@@ -344,7 +360,7 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
     // Every identity resolved: the matter of the documents no evidence puts
     // in one, proposed by the model, one question at a time (D-213).
     state.at_stage(Some("matters"));
-    match base.knowledge_propose_matters(Some(asker.as_ref()), 1) {
+    match base.knowledge_propose_matters(Some(asker), 1) {
         Ok(report) => {
             // Skipped while identities are being resolved: not a pass (D-452).
             if !report.skipped {
@@ -380,7 +396,7 @@ fn ask_step(base: &DocBase, on_change: &dyn Fn(), on_pages: &dyn Fn()) -> Durati
             return ASK_IDLE;
         }
     }
-    match base.knowledge_project(Some(asker.as_ref()), 1) {
+    match base.knowledge_project(Some(asker), 1) {
         Ok(report) => {
             if report.reason.as_deref() != Some("resolving") {
                 state.ran("pages", report.left);
@@ -441,9 +457,18 @@ fn requested_reading_step(base: &DocBase, on_change: &dyn Fn()) -> Option<Durati
         }
     };
     let asker = crate::source_volume::asking::asker_for(&engine).ok()?;
+    requested_reading_with(base, asker.as_ref(), on_change)
+}
+
+/// The same, with `asker`. It waits for the work without AI too (D-719,
+/// D-3 of 1 nov): `None`, and nothing is asked, while there is some.
+pub(super) fn requested_reading_with(base: &DocBase, asker: &dyn DocumentAsker, on_change: &dyn Fn()) -> Option<Duration> {
+    if base.knowledge_rereads_waiting().unwrap_or(0) == 0 || base.barrier_holds() {
+        return None;
+    }
     let state = base.engine_state();
     state.at_stage(Some("reading"));
-    match base.knowledge_run_requested(asker.as_ref(), 1) {
+    match base.knowledge_run_requested(asker, 1) {
         Ok(report) => {
             if report.extracted + report.unusable > 0 {
                 on_change();
@@ -496,8 +521,20 @@ pub fn spawn_local_recognition(base: Arc<DocBase>, on_change: impl Fn() + Send +
 fn local_recognition_step(base: &DocBase, on_change: &dyn Fn()) -> Duration {
     use super::recognize::RecognitionStep;
     let Some(config) = super::services::local_recognition_engine() else {
+        // Without its models the scans wait, each with its failure: none
+        // goes to the cloud (D-721). There is no way to download them from
+        // the app yet, so the failure is permanent.
+        let why = crate::source_volume::recognition_local::unavailable().unwrap_or_default();
+        match base.scans_without_models(&why, false) {
+            Ok(noted) if noted > 0 => on_change(),
+            Ok(_) => {}
+            Err(error) => eprintln!("[docbase] {error}"),
+        }
         return LOCAL_UNAVAILABLE;
     };
+    if let Err(error) = base.scans_with_models() {
+        eprintln!("[docbase] {error}");
+    }
     let recognizer = match crate::source_volume::recognition::recognizer_for(&config) {
         Ok(recognizer) => recognizer,
         Err(error) => {
@@ -505,8 +542,21 @@ fn local_recognition_step(base: &DocBase, on_change: &dyn Fn()) -> Duration {
             return LOCAL_UNAVAILABLE;
         }
     };
-    match base.local_recognition_step(recognizer.as_ref(), LOCAL_UNAVAILABLE) {
+    // What a person asked to recognize goes first, with the same engine:
+    // the one of the configuration (D-721).
+    let step = match base.recognition_step(recognizer.as_ref(), LOCAL_UNAVAILABLE) {
+        Ok(RecognitionStep::Idle) => base.local_recognition_step(recognizer.as_ref(), LOCAL_UNAVAILABLE),
+        other => other,
+    };
+    match step {
         Ok(RecognitionStep::Idle) => LOCAL_IDLE,
+        Ok(RecognitionStep::Failed(content)) => {
+            let mut failure = Failure::new(super::recognize::RECOGNITION_STAGE, About::Version(content), "The text of the document could not be recognized.");
+            failure.cause = failures::cause("unknown");
+            base.note(&failure);
+            on_change();
+            Duration::ZERO
+        }
         Ok(RecognitionStep::Stopped(error)) => {
             eprintln!("[docbase] text recognition on this computer: {error}");
             on_change();
@@ -519,63 +569,6 @@ fn local_recognition_step(base: &DocBase, on_change: &dyn Fn()) -> Duration {
         Err(error) => {
             eprintln!("[docbase] {error}");
             LOCAL_IDLE
-        }
-    }
-}
-
-/// The text of one scan, before any other question (`recognize.rs`): the
-/// first one a person asked for, or, while the automatic reading is on,
-/// the next one waiting (unless the engine of this computer reads those).
-/// `None` when there is none, or no engine to read it: the questions go on.
-fn recognition_step(base: &DocBase, on_change: &dyn Fn()) -> Option<Duration> {
-    use super::recognize::RecognitionStep;
-    let config = match base.recognition_engine() {
-        Ok(Some(config)) => config,
-        Ok(None) => return None,
-        Err(error) => {
-            eprintln!("[docbase] {error}");
-            return None;
-        }
-    };
-    match base.next_recognition() {
-        Ok(Some(_)) => {}
-        Ok(None) => return None,
-        Err(error) => {
-            eprintln!("[docbase] {error}");
-            return None;
-        }
-    }
-    let recognizer = match crate::source_volume::recognition::recognizer_for(&config) {
-        Ok(recognizer) => recognizer,
-        Err(error) => {
-            eprintln!("[docbase] {error}");
-            return None;
-        }
-    };
-    base.engine_state().at_stage(Some("recognition"));
-    on_change();
-    match base.recognition_step(recognizer.as_ref(), ASK_BACKOFF) {
-        Ok(RecognitionStep::Idle) => None,
-        Ok(RecognitionStep::Stopped(error)) => {
-            eprintln!("[docbase] text recognition: {error}");
-            on_change();
-            Some(ASK_BACKOFF)
-        }
-        Ok(RecognitionStep::Failed(content)) => {
-            eprintln!("[docbase] the text of document {content} could not be recognized");
-            let mut failure = Failure::new("recognition", About::Version(content), "The text of the document could not be recognized.");
-            failure.cause = failures::cause("unknown");
-            base.note(&failure);
-            on_change();
-            Some(Duration::ZERO)
-        }
-        Ok(_) => {
-            on_change();
-            Some(Duration::ZERO)
-        }
-        Err(error) => {
-            eprintln!("[docbase] {error}");
-            None
         }
     }
 }

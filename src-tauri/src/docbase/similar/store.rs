@@ -324,6 +324,23 @@ fn unsigned_or_failed_where() -> String {
     )
 }
 
+/// How many documents are still to sign or to measure against the others,
+/// `free` (an SQL condition over the version `c`) saying they hold the
+/// barrier (`barrier.rs`).
+pub(crate) fn similar_left(conn: &Connection, free: &str) -> Result<usize, String> {
+    let unsigned: i64 = conn
+        .query_row(&format!("SELECT count(*) FROM {UNSIGNED_FROM} WHERE {} AND {free}", unsigned_or_failed_where()), [engine_id()], |row| row.get(0))
+        .map_err(sql_err)?;
+    let dirty: i64 = conn
+        .query_row(
+            &format!("SELECT count(*) FROM similar_dirty x WHERE {}", free.replace("c.id", "x.version_id")),
+            [],
+            |row| row.get(0),
+        )
+        .map_err(sql_err)?;
+    Ok((unsigned + dirty).max(0) as usize)
+}
+
 impl DocBase {
     /// One small piece of the similar-documents work. Returns how much was
     /// done (0: nothing pending).

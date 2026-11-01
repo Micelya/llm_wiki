@@ -33,6 +33,8 @@ const CAUSES: Record<string, { one: string; many: string; todo: string }> = {
   "zones-shape": { one: "lectura por zonas vino con otra forma", many: "lecturas por zonas vinieron con otra forma", todo: "Es un error del programa." },
   "out-of-memory": { one: "vez faltó memoria", many: "veces faltó memoria", todo: "Cerrá otros programas que estén abiertos." },
   "zones-model-missing": { one: "vez faltó el modelo de la lectura por zonas", many: "veces faltó el modelo de la lectura por zonas", todo: "Es un problema de la instalación." },
+  "models-downloading": { one: "escaneo espera los modelos del lector de esta computadora, que se están bajando", many: "escaneos esperan los modelos del lector de esta computadora, que se están bajando", todo: "Esperá: se lee solo cuando terminen de bajarse." },
+  "models-missing": { one: "escaneo espera porque faltan los modelos del lector de esta computadora", many: "escaneos esperan porque faltan los modelos del lector de esta computadora", todo: "Es un problema de la instalación: volvé a instalar la app." },
   "rate-limit": { one: "motor de IA llegó a su límite de uso", many: "motores de IA llegaron a su límite de uso", todo: "Esperá: el límite se libera solo. Si pasa seguido, revisá el plan del motor." },
   "no-connection": { one: "vez no hubo conexión con el motor de IA", many: "veces no hubo conexión con el motor de IA", todo: "Revisá la conexión a internet." },
   timeout: { one: "vez el motor de IA no contestó a tiempo", many: "veces el motor de IA no contestó a tiempo", todo: "No hace falta hacer nada." },

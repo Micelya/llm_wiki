@@ -13,6 +13,7 @@ import {
   type ProgressStage,
   type StageItem,
   type StageItems,
+  type Barrier,
 } from "@/commands/docbase"
 import type { AttentionTarget } from "@/lib/attention/types"
 import { modelErrorText, pageOf, stageDetails, stageFigures, stageShare, stageText, stateLabel } from "@/lib/progress/stages"
@@ -53,6 +54,7 @@ export function OngoingTab({ progress, error, extra }: { progress: Progress | nu
         <ReadingState progress={progress} />
         <ScopePicker scope={scope} onChange={setScope} />
       </div>
+      {progress?.barrier && <BarrierLine barrier={progress.barrier} />}
       {progress?.autoQuestions && <AutoQuestionsLine round={progress.autoQuestions} />}
       {error && <ErrorNote>{error}</ErrorNote>}
       {progress ? <StageList progress={progress} scope={scope} /> : !error && <EmptyNote>Buscando…</EmptyNote>}
@@ -103,6 +105,33 @@ function roundWhat(round: AutoQuestions): string {
   if (cut === 0) return "de quién es quién y de resumen de las fichas"
   if (cut >= round.pending) return "sobre dónde empieza cada documento"
   return "sobre dónde empieza cada documento, de quién es quién y de resumen de las fichas"
+}
+
+/**
+ * Why the questions to the AI wait (D-719): the base still has work that
+ * needs no AI, and how much. Null when there is none.
+ */
+export function barrierText(barrier: Barrier): string | null {
+  const parts = [
+    [barrier.text, "texto por leer"],
+    [barrier.scans, "escaneos por leer en esta computadora"],
+    [barrier.shapes, "fichas de páginas"],
+    [barrier.cut, "cortes o partes"],
+    [barrier.similar, "firmas y parecidos"],
+  ] as const
+  const left = parts.filter(([n]) => n > 0).map(([n, what]) => `${n} ${what}`)
+  if (left.length === 0) return null
+  return `Las preguntas a la IA esperan: la base todavía hace trabajo sin IA (${left.join(", ")}). Mientras tanto solo sale la pregunta del corte.`
+}
+
+function BarrierLine({ barrier }: { barrier: Barrier }) {
+  const text = barrierText(barrier)
+  if (!text) return null
+  return (
+    <p data-barrier className="rounded-md border bg-muted/30 px-4 py-2 text-sm text-muted-foreground">
+      {text}
+    </p>
+  )
 }
 
 /** What the round of automatic questions has, in words (D-484), and what it already asked (D-606). */

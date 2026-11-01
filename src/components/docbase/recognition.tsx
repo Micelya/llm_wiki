@@ -6,7 +6,6 @@ import {
   engineName,
   illegibleParts,
   isRecognitionEngine,
-  MISSING_ENGINE,
   pageList,
   RECOGNITION_COST,
   recognitionEngineId,
@@ -60,11 +59,11 @@ export function useRecognize(): Recognize {
  * What the screen of a document says of the recognition of its text
  * («Datos y correcciones»): for a scan, a button «Reconocer el texto»
  * (with the automatic reading on or off) and why the last try failed;
- * for a recognized one, which engine read it and when, the pages it
- * could not read, and reading it again when another engine is chosen.
+ * for a recognized one, which engine read it and when and the pages it
+ * could not read. The engine is the one of the configuration (D-721): the
+ * person does not choose it here.
  */
 export function DocumentRecognition({ document }: { document: DocumentDetail }) {
-  const engine = useRecognitionEngine()
   const recognize = useRecognize()
   const where = `${vocabulary().attention.name} → En curso`
   if (document.contentId === null) return null
@@ -94,12 +93,12 @@ export function DocumentRecognition({ document }: { document: DocumentDetail }) 
                   : "No había nada que reconocer."}
               </p>
             )}
-            {!engine.id && <p className="mt-1 text-warn">{MISSING_ENGINE}</p>}
+
           </div>
           <Button
             size="sm"
             className="shrink-0"
-            disabled={!engine.id || recognize.busy || (recognize.asked ?? 0) > 0}
+            disabled={recognize.busy || (recognize.asked ?? 0) > 0}
             onClick={() => void recognize.run([contentId])}
           >
             {recognize.busy && <Loader2 className="animate-spin" />}
@@ -117,7 +116,6 @@ export function DocumentRecognition({ document }: { document: DocumentDetail }) 
 
   if (!isRecognitionEngine(document.textEngine)) return null
   const illegible = illegibleParts(document.text)
-  const other = engine.id && engine.id !== document.textEngine
   return (
     <section data-recognition="done" className="mb-8 rounded-md border bg-muted/20 px-4 py-3 text-sm">
       <p className="flex items-center gap-2">
@@ -133,17 +131,6 @@ export function DocumentRecognition({ document }: { document: DocumentDetail }) 
             ? `El motor no pudo leer partes de la ${pageList(illegible.pages)}: están marcadas «[ilegible]». Conviene compararlas con el original.`
             : "El motor no pudo leer algunas partes: están marcadas «[ilegible]». Conviene compararlas con el original."}
         </p>
-      )}
-      {other && (
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <Button size="sm" variant="outline" disabled={recognize.busy || (recognize.asked ?? 0) > 0} onClick={() => void recognize.run([contentId])}>
-            {recognize.busy && <Loader2 className="animate-spin" />}
-            Reconocer de nuevo con {engine.name}
-          </Button>
-          <span className="text-xs text-muted-foreground">
-            {recognize.asked ? `Pedido: el avance está en ${where}.` : RECOGNITION_COST}
-          </span>
-        </div>
       )}
       {recognize.problem && (
         <div className="mt-2">

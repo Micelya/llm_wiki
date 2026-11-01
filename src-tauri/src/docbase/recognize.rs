@@ -43,6 +43,8 @@ use super::similar::classify::stops_the_run;
 use super::text::EXTRACTION_ENGINE;
 use super::{now_ms, sql_err, DocBase};
 
+/// The step of the record of failures (`failures.rs`) of the recognition.
+pub const RECOGNITION_STAGE: &str = "recognition";
 /// Folder, beside the database, where the recognized pages are kept.
 pub const RECOGNIZED_DIR: &str = "recognized";
 /// After this many failures of the provider on the same document, the
@@ -91,7 +93,7 @@ const REACHABLE_SQL: &str = "EXISTS (SELECT 1 FROM file f
      JOIN origin o ON o.id = l.origin_id AND o.reachable = 1
      WHERE f.version_id = c.id AND NOT {excluded})";
 
-fn reachable_sql() -> String {
+pub(crate) fn reachable_sql() -> String {
     REACHABLE_SQL.replace("{excluded}", super::excluded_sql!())
 }
 
@@ -200,6 +202,46 @@ impl DocBase {
             return Ok(None);
         }
         self.next_waiting()
+    }
+
+    /// Without the models of the engine of this computer, the only engine
+    /// of the scans (D-721), every scan waiting keeps waiting with its
+    /// failure written down: transient while the models are being
+    /// downloaded, permanent when there is no way to download them. No scan
+    /// goes to the cloud instead. Returns how many were written down.
+    pub(crate) fn scans_without_models(&self, why: &str, downloading: bool) -> Result<usize, String> {
+        let conn = self.conn();
+        let ids: Vec<i64> = {
+            let mut statement = conn
+                .prepare(&format!(
+                    "SELECT c.id FROM version c WHERE c.state = 'needs-recognition' AND c.error IS NULL AND {} ORDER BY c.id",
+                    reachable_sql()
+                ))
+                .map_err(sql_err)?;
+            let rows = statement.query_map([], |row| row.get(0)).map_err(sql_err)?;
+            rows.collect::<Result<_, _>>().map_err(sql_err)?
+        };
+        let cause = super::failures::cause(if downloading { "models-downloading" } else { "models-missing" });
+        let mut noted = 0;
+        for id in &ids {
+            let about = super::failures::About::Version(*id);
+            if super::failures::is_open(&conn, RECOGNITION_STAGE, &about)? {
+                continue;
+            }
+            let mut failure = super::failures::Failure::new(RECOGNITION_STAGE, about, why);
+            failure.cause = cause;
+            super::failures::record(&conn, &failure)?;
+            noted += 1;
+        }
+        Ok(noted)
+    }
+
+    /// The models of the engine of this computer are there: the scans that
+    /// waited for them are read.
+    pub(crate) fn scans_with_models(&self) -> Result<(), String> {
+        let conn = self.conn();
+        super::failures::resolve_cause(&conn, "models-missing")?;
+        super::failures::resolve_cause(&conn, "models-downloading")
     }
 
     /// The document the engine of this computer reads next (D-558): the
@@ -648,6 +690,27 @@ del edificio inventado hasta que alguna de las partes la retire, con aviso de un
         let chosen = fake("m", vec![Ok(PAGE_ONE), Ok(PAGE_TWO)]);
         assert_eq!(run(&base, &chosen), vec![RecognitionStep::Recognized(two)]);
         assert_eq!(text_of(&base, "uno.png").1, "rapidocr-onnx:ppocrv6-small");
+    }
+
+    #[test]
+    fn a_scan_asked_for_is_read_by_the_engine_of_the_configuration_and_never_in_the_cloud() {
+        let (_dir, base, _) = base_of(&[("uno.png", fixture("pagina-prueba.png"))]);
+        // A cloud engine chosen before the configuration had only one (D-721).
+        base.set_recognition_engine(Some(&engine("m"))).unwrap();
+        turn_reading_on(&base);
+        let one = content_of(&base, "uno.png");
+        assert_eq!(base.request_recognition(&RecognitionRequest::These(vec![one])).unwrap(), 1);
+        // The thread that asks the model reads no scan, asked for or not.
+        let model = crate::docbase::knowledge::tests::FakeModel::new("falso:1", |_| String::new());
+        crate::docbase::worker::ask_with(&base, &model, &|| {}, &|| {});
+        assert_eq!(state_of(&base, "uno.png"), "needs-recognition");
+        assert_eq!(requested_recognitions(&base.conn()).unwrap(), vec![one]);
+        // The thread of this computer reads it, what a person asked first,
+        // with the engine of the configuration.
+        let local = FakeRecognizer::of("rapidocr-onnx:ppocrv6-small", vec![Ok(NOTE)]);
+        assert_eq!(base.recognition_step(&local, SLOW).unwrap(), RecognitionStep::Recognized(one));
+        assert_eq!(text_of(&base, "uno.png").1, "rapidocr-onnx:ppocrv6-small");
+        assert!(requested_recognitions(&base.conn()).unwrap().is_empty());
     }
 
     #[test]

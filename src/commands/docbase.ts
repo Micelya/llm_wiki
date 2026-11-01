@@ -2022,6 +2022,17 @@ export interface Progress {
   lastError: ModelError | null
   /** The questions of «quién es quién» and of the summaries that go by themselves (D-484). */
   autoQuestions?: AutoQuestions | null
+  /** The work without AI left in the base (D-719): while there is some, only the question of the cut goes out. */
+  barrier?: Barrier | null
+}
+
+/** The work without AI left in the base, by kind (D-719). */
+export interface Barrier {
+  text: number
+  scans: number
+  shapes: number
+  cut: number
+  similar: number
 }
 
 /**

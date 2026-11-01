@@ -202,6 +202,14 @@ pub(crate) fn parts_pending_sql() -> String {
     )
 }
 
+/// How many cut files still have their parts to make, `free` (an SQL
+/// condition over the version `c`) saying they hold the barrier.
+pub(crate) fn parts_left(conn: &rusqlite::Connection, free: &str) -> Result<usize, String> {
+    conn.query_row(&format!("SELECT count(*) FROM {PARTS_FROM} WHERE {} AND {free}", parts_pending_sql()), [], |row| row.get::<_, i64>(0))
+        .map(|n| n as usize)
+        .map_err(super::super::sql_err)
+}
+
 /// The pages for a person to look at: those whose step from the page
 /// before nothing backs, and no person decided (D-603).
 fn to_look_at(steps: &[CutStep], decided: &BTreeMap<u32, bool>) -> BTreeSet<u32> {
