@@ -4566,6 +4566,42 @@
       "detalle": "Para comparar con las 0,32 consultas por documento del corte nuevo (decisión 3 del plan del corte), se contó sin preguntar lo que el corte de hoy preguntaría solo. En la carpeta se usó una base con el texto de la app: 88 preguntas. En el examen no hay una base así, y la base de prueba no tenía el texto de las páginas escaneadas: dio 128 preguntas en 4 archivos, un número que no es comparable del todo. Si la decisión 3 lo necesita, se repite con el texto de la app en el examen, sin preguntar nada.",
       "creado": "2026-10-31",
       "actualizado": "2026-10-31"
+    },
+    {
+      "id": "P-526",
+      "titulo": "Propuesta del dueño, en validación: un archivo con anexos es un documento compuesto, que se corta y guarda solo su estructura",
+      "tipo": "decision",
+      "responsable": "usuario",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "No está decidida: se valida y se refina; la decisión 2 del plan del corte (P-473), D-699 y D-659 siguen como están. La regla propuesta: 1) un archivo con anexos o apéndices es un documento compuesto, y se corta; 2) hay un tipo nuevo, «documento compuesto», que guarda solo la estructura (qué partes tiene, sus huellas y los atributos que las identifican, con referencias a cada parte) y puede tener su propia página en la wiki, que describa el conjunto a partir de la estructura y de los resúmenes de las partes; 3) la página que solo anuncia el anexo es una parte en sí misma, unida a la parte anterior y a la posterior; 4) el ejemplo: un acuerdo de cesión con su anexo queda con tres partes: la cesión, la página del anuncio y la copia del contrato que se cede. Lo encontrado (31 oct): encaja, porque la base ya guarda la estructura de cada archivo cortado (la versión entera sin tipo ni extracción, y una aparición por parte con sus páginas y su orden); cambia el corte (el anuncio como parte propia, con una regla segura general o con otros criterios en la pregunta), el compuesto como clase de la estructura y no como tipo del catálogo de la pregunta del tipo (que haría preguntar de nuevo todos los tipos), y la wiki (cada parte con su página, P-527, y la del archivo entero como página del conjunto); efecto en las consultas de producción por documento: deja igual (0) si la página del conjunto la arma la app y el anuncio, de menos de 10 palabras, no se tipa ni se extrae; suma una sola vez por base unas 0,32 si cambian los criterios de la pregunta del corte, y 1 por archivo compuesto si la página del conjunto se le pide a la IA.",
+      "creado": "2026-10-31",
+      "actualizado": "2026-10-31"
+    },
+    {
+      "id": "P-527",
+      "titulo": "Las partes de un PDF cortado no tienen página propia en la wiki, y la página del archivo entero dice que todavía no se leyó",
+      "tipo": "tarea",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "Visto en el código y en la base de prueba de la cadena nueva (31 oct). La wiki arma una página por cada archivo de la carpeta (knowledge/pages/family.rs, identities), y una parte de un PDF cortado no es un archivo: enlaza a la página del archivo entero (knowledge/pages.rs, donde un documento cortado toma la página de su archivo). Como el archivo entero no se extrae cuando tiene partes (D-560), esa página dice «Este documento todavía no se leyó», y los resúmenes, datos e importes de las partes no aparecen en ninguna página de documento: las partes solo se ven citadas desde las páginas de las entidades. En la base de prueba: 35 archivos cortados en 209 partes y 131 páginas de documentos. Hace falta: una página por parte, y que la del archivo entero muestre sus partes en orden, con su página y enlace a cada una (es la base de la página del conjunto de P-526). Efecto en las consultas de producción por documento: deja igual (0): las páginas de documentos las arma la app sin IA.",
+      "creado": "2026-10-31",
+      "actualizado": "2026-10-31"
+    },
+    {
+      "id": "P-528",
+      "titulo": "Un PDF que pdfium no abre al armar la ficha de sus páginas queda sin cortar y se lee entero, sin anotar la falla",
+      "tipo": "tarea",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "Visto en el código al analizar las fallas del corte (31 oct). Si pdfium no abre un PDF cuando se arma su ficha (roto o cifrado, pero también abierto en otro programa o un archivo de la nube todavía sin bajar), la ficha se guarda vacía como si fuera buena y no se reintenta hasta otra versión de la ficha (page_shapes.rs, profile_pending). Con la ficha vacía el corte no toma el archivo y la extracción no lo espera (cut/mod.rs, cut_pending y waiting_for_cut): el archivo se lee entero, en fragmentos que pueden mezclar documentos, y no queda ninguna falla anotada ni a la vista. Lo mismo pasa, en menor escala, con las firmas digitales de un PDF que no se pudieron leer al hacer la firma de parecidos (similar/store.rs, read_signatures): se firma como si no las tuviera. Hace falta: anotar esas fallas como las del corte y tratarlas con la regla de las fallas del corte que decida el dueño (reintentos y «corte por revisar»). En la base de prueba de la cadena nueva no hay ningún caso (las 133 fichas tienen páginas). Efecto en las consultas de producción por documento: resta (deja de extraer entero un archivo que se iba a cortar); no suma.",
+      "creado": "2026-10-31",
+      "actualizado": "2026-10-31"
     }
   ]
 }
