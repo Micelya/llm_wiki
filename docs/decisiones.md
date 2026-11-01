@@ -676,6 +676,9 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-739 | 1 nov | base | Las corridas a mano de tipo, lectura, identidades y páginas también esperan la barrera, con un aviso que dice por qué | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-740 | 1 nov | reconocimiento | Sin los modelos del lector del equipo, cada escaneo espera con una falla permanente, porque hoy la app no tiene forma de bajarlos; y lo pedido por una persona lo lee el mismo lector, primero | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-741 | 1 nov | pruebas y calidad | El umbral de calidad («no legible») queda como ajuste con un valor provisional de 0,5 hasta medirlo en la carpeta de prueba | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-745 | 1 nov | base | El rescate por léxico usa el umbral bajo de la configuración | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-746 | 1 nov | base | La lectura por zonas viene encendida: todo PDF de dos páginas o más la espera antes de cortarse | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-747 | 1 nov | base | La forma de cada página queda dentro de la lectura por zonas, y un cambio de umbrales no vuelve a leer | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -7309,3 +7312,24 @@ Vale solo para este caso: no se generaliza ni se cambian otras etiquetas. Si es 
 - **El problema:** La especificación pedía elegir el valor de la proporción de texto firme por debajo del cual un documento queda «no legible» (P-520), con una tabla sobre las lecturas de la corrida N. La etapa llegó a su tope de fichas antes de hacer esa tabla.
 - **Qué se decidió y por qué:** El ajuste existe en la configuración de la base (reading:quality-threshold) con 0,5 por omisión, que no se usa todavía: la lectura por franjas no entró a la app. El valor se elige con la tabla pendiente (P-544), con el criterio de proteger contra dar datos de texto mal leído. Consultas de producción por documento: 0.
 - **Quién decidió:** Asumida por el agente de la etapa 2b en la corrida desatendida (D-500); el dueño la revisa
+
+### D-745 · El rescate por léxico usa el umbral bajo de la configuración
+
+- **Fecha:** 1 nov 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La lectura de N tenía un umbral aparte para el rescate por léxico (0,9) y otro para la marca de lectura de baja confianza (0,9). La configuración (D-722) tiene solo el bajo (0,90) y el alto (0,97).
+- **Qué se decidió y por qué:** El rescate por léxico y la marca de lectura de baja confianza de la página usan el umbral bajo de la configuración. Hoy da lo mismo que N (0,90). Consultas de producción por documento (D-672): 0.
+- **Quién decidió:** Asumida por el agente de la etapa 3a en la corrida desatendida (D-500); el dueño la revisa
+
+### D-746 · La lectura por zonas viene encendida: todo PDF de dos páginas o más la espera antes de cortarse
+
+- **Fecha:** 1 nov 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La lectura por zonas pasa a ser la del corte nuevo (D-725). Hacía falta decidir si la app la hace sola y si el corte la espera.
+- **Qué se decidió y por qué:** El ajuste de la lectura por zonas viene encendido. Un PDF de dos páginas o más se lee por zonas en el hilo del lector del equipo, antes que los escaneos, y su corte la espera. La espera cuenta en la barrera. Si la lectura falla, o faltan el modelo de zonas o el lector, queda la falla con su clase y el archivo espera (D-717). Las pruebas unitarias del corte viejo la tienen apagada salvo que la pidan. Consultas de producción por documento (D-672): 0.
+- **Quién decidió:** Asumida por el agente de la etapa 3a en la corrida desatendida (D-500); el dueño la revisa
+
+### D-747 · La forma de cada página queda dentro de la lectura por zonas, y un cambio de umbrales no vuelve a leer
+
+- **Fecha:** 1 nov 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** El plan dice que la forma de la página se guarda como la ficha de forma de cada página. Hoy la ficha de pdfium sirve todavía al corte viejo, hasta la etapa 3b.
+- **Qué se decidió y por qué:** La forma de cada página (capa, si se lee, forma, firma, marcas y perfil) se guarda en la lectura por zonas de la versión, junto a sus zonas y renglones. La ficha de pdfium sigue como está. Si cambian los umbrales, lo ya leído no se vuelve a leer (pendiente). Consultas de producción por documento (D-672): 0.
+- **Quién decidió:** Asumida por el agente de la etapa 3a en la corrida desatendida (D-500); el dueño la revisa

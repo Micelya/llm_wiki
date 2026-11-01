@@ -4782,6 +4782,54 @@
       "detalle": "Las pruebas de Rust muestran que la barrera frena y libera. Falta abrir una copia de la base N y ver cuánto trabajo sin IA cuenta, que la consulta sea barata con cientos de archivos y que ningún escaneo sin modelos la deje frenada para siempre.",
       "creado": "2026-11-01",
       "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-550",
+      "titulo": "Terminar la comparación de la lectura por zonas de la app con la de N y medir el corte",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "base",
+      "detalle": "La etapa 3a del 1 nov llegó a su tope de fichas con la lectura de la carpeta y del examen empezada (guion leer.sh, retomable). Falta: terminar de leer, la tabla de diferencias página por página (comparar.py), contar los tramos cuya pregunta cambia con la prueba aparte check_zones (deja cada pregunta en preguntas/), preguntarlos de a uno si son 119 o menos (preguntar.py) y medir el corte con corte.py: 137 de 142, 100 de 102 y 27 de 28.",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-551",
+      "titulo": "Volver a calcular las franjas cuando cambian los umbrales, sin volver a leer",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "base",
+      "detalle": "La lectura por zonas guarda la confianza de cada renglón, pero el rescate por la capa vieja necesita esa capa, que no se guarda. Hoy un cambio de umbrales no toca lo ya leído (D-747).",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-552",
+      "titulo": "El modelo de zonas en el instalador y su descarga desde la app",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "El modelo (pp_doc_layoutv2, 214 MB) se baja con scripts/fetch-ocr-models.mjs a la carpeta del lector; el instalador todavía no lo lleva. Sin él, todo PDF de dos páginas o más espera con su falla (D-746).",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-553",
+      "titulo": "Confirmar el origen y la licencia del léxico de la lectura por zonas",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "resources/catalog/lexicon-es-50k.txt es la lista es_50k que usaron los guiones de N, bajada de un repositorio público (al parecer FrequencyWords, CC BY-SA 4.0). Hay que confirmarlo y poner la atribución donde corresponda.",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
     }
   ]
 }
