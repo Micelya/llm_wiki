@@ -4674,6 +4674,54 @@
       "detalle": "Viene de D-717 y de la etapa 1 del 1 nov. La medición del corte por zonas sobre una base (la prueba manual que lee las lecturas de la cadena N) anotaba como falla los archivos sin lectura por zonas, y la app los cortaba con el corte de antes. Ahora esos archivos esperan, como pide D-717, así que la medición deja de cortarlos. Antes de volver a medir con esa herramienta hay que decidir si los archivos sin lectura se cuentan como «esperando» o si la medición apaga la espera solo para ellos. No cambia la app. Consultas de producción por documento: 0.",
       "creado": "2026-11-01",
       "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-537",
+      "titulo": "Que una copia por medición, que no es idéntica, tome las entidades y la lectura del original sin leerse de nuevo",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "Es lo que queda de P-505 después de la etapa 2a del 1 nov. Las copias exactas, de archivo o de texto, ya son la misma versión y comparten todo: tipo, entidades y lectura. Una copia que la búsqueda de parecidos marca como el mismo documento sin ser idéntica sigue leyéndose aparte, y solo hereda el tipo dentro de su familia. D-708 pide que tome todo del original; falta probar que la detección no declara copia algo que no lo es. Consultas de producción por documento: resta 1 por cada fragmento de cada copia de ese tipo.",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-538",
+      "titulo": "Que la página de una cita sea la del lugar desde donde se mira, cuando el mismo documento está suelto y como anexo",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "Desde la etapa 2a del 1 nov, un contrato suelto y el mismo contrato como anexo de un acuerdo son una sola versión, con un solo texto. Ese texto lleva los números de página del primer lugar que se leyó: si fue el anexo, una cita del contrato suelto dice la página del acuerdo (por ejemplo, la 5) y no la suya (la 1). Hace falta llevar el número de página de cada cita al lugar desde donde se mira, con la primera página de ese lugar. Consultas de producción por documento: 0.",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-539",
+      "titulo": "Que la llegada de una copia de texto no rehaga la ficha de forma de la versión, o que lo que rehaga no vuelva a preguntar su tipo",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "Cuando llega otro archivo con el mismo texto que una versión ya tipada, la base borra la ficha de forma de esa versión para hacerla con todos sus archivos (text.rs, store). Si la ficha nueva cambia sus marcas, cambia la base de su tipo y el tipo se vuelve a preguntar, aunque el nombre ya no cambie (etapa 2a del 1 nov). No se vio en las pruebas, que no tienen PDF reales; falta comprobarlo con un caso real y, si pasa, conservar el tipo y la lectura (D-708). Consultas de producción por documento: resta, si pasa, 1 por cada copia de texto que llega después.",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-540",
+      "titulo": "Que un PDF de varias páginas espere su corte también cuando su carpeta no está conectada o todavía no se sabe cuántas páginas tiene",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "La espera del corte (cut/mod.rs, waiting_for_cut) toma solo los PDF de una carpeta conectada y con su cantidad de páginas conocida, por la ficha, la lectura por zonas o el texto de sus páginas. Un PDF de varias páginas fuera de esas condiciones no espera y, con su único documento de nacimiento (D-737), podría tiparse y leerse entero antes de su corte. Era así antes de la etapa 2a del 1 nov; D-717 y D-718 piden que espere. Consultas de producción por documento: 0 (cambia el orden, no la cantidad).",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
     }
   ]
 }

@@ -668,6 +668,10 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-731 | 1 nov | base | Qué falla espera y qué falla solo se anota: el archivo en uso o en la nube espera; el roto, cifrado o ausente sigue como antes donde no es la ficha | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-732 | 1 nov | base | Un motor con una falla de todo el motor no recibe ninguna pregunta hasta su próximo intento; la credencial, hasta que una pregunta salga bien | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-733 | 1 nov | base | «Incierto» queda para los saltos que solo pregunta una persona; un tramo que falla de forma permanente espera a una persona | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-734 | 1 nov | base | El único documento de un archivo se escribe «all», de la primera a la última página, y no con el número de sus páginas | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-735 | 1 nov | base | Una parte de un documento compuesto sigue sin nombre en las preguntas; las páginas la nombran por su archivo y sus páginas | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-736 | 1 nov | base | El nombre de una versión sale del primer lugar que tuvo como documento, y no del primero en orden alfabético | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-737 | 1 nov | base | Todo archivo nace con su único documento y el corte lo cambia por sus partes; mientras espera su corte, no entra a los pasos de documentos | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -7245,3 +7249,31 @@ Vale solo para este caso: no se generaliza ni se cambian otras etiquetas. Si es 
 - **El problema:** D-717 dice que si la pregunta del corte no se hace, por la razón que sea, el archivo espera, y que «incierto» queda solo para lo que mira una persona. Hoy la app pregunta sola solo en los archivos donde una regla ya cortó (D-622); en los demás, el salto dudoso se pregunta solo cuando una persona lo pide. Además, una falla permanente o desconocida de un tramo no se reintenta nunca.
 - **Qué se decidió y por qué:** Esperan los archivos cuyos saltos dudosos el hilo pregunta solo, sea cual sea la razón por la que la respuesta no llega: la ronda en su tope, la lectura apagada, el motor sin imágenes, la carpeta desconectada o la IA que falla. Los saltos dudosos de los demás archivos siguen marcados inciertos, porque los mira una persona: cambiarlos es la pregunta sola en cada parte con algún salto dudoso (D-720), de una etapa posterior. Un tramo con una falla permanente o desconocida deja el archivo esperando hasta que una persona pida preguntar por ese archivo, que reintenta todos sus tramos. En la copia de la corrida N, 17 archivos (149 versiones) quedarían esperando su pregunta del corte. Consultas de producción por documento: resta, porque una parte no se extrae antes de la respuesta para extraerse otra vez después.
 - **Quién decidió:** Asumida por el agente de la etapa 1 en la corrida desatendida (D-500); el dueño la revisa
+
+### D-734 · El único documento de un archivo se escribe «all», de la primera a la última página, y no con el número de sus páginas
+
+- **Fecha:** 1 nov 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** D-718 pide que un archivo de un solo documento tenga su estructura, con una parte que va de la primera a la última página, también en un Word, una imagen o un correo. Hasta ahora una parte se escribía solo con sus páginas («pages:a-b»), y la base no sabe cuántas páginas tienen un Word o un correo, ni las de un PDF antes de leerlo.
+- **Qué se decidió y por qué:** El lugar del único documento de un archivo se escribe «all»: va de la primera a la última página, sea cual sea el archivo. Las partes de un archivo de 2 o más documentos siguen con «pages:a-b». Las dos son la misma forma de referenciar un documento en su archivo (la estructura, con su posición), y la aparición «file» sigue siendo el archivo mismo. Para admitir «all» se rehace la tabla de apariciones en la versión 9 de la base, sin perder ninguna fila. Consultas de producción por documento: 0.
+- **Quién decidió:** Asumida por el agente de la etapa 2a en la corrida desatendida (D-500); el dueño la revisa
+
+### D-735 · Una parte de un documento compuesto sigue sin nombre en las preguntas; las páginas la nombran por su archivo y sus páginas
+
+- **Fecha:** 1 nov 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Con la estructura, cada documento llega al nombre de su archivo. Dar ese nombre a las preguntas de una parte cambiaría el texto de sus preguntas, y el nombre del archivo entero (por ejemplo, el de un acuerdo) podría empujar el tipo de su anexo.
+- **Qué se decidió y por qué:** En las preguntas de tipo, datos y lectura, una parte de un archivo de 2 o más documentos sigue sin nombre, como antes; un archivo de un solo documento lleva el nombre de su archivo, como antes. Las páginas nombran cada parte por su archivo y sus páginas, leídos de la estructura. Así ninguna pregunta ni respuesta guardada cambia. Consultas de producción por documento: 0.
+- **Quién decidió:** Asumida por el agente de la etapa 2a en la corrida desatendida (D-500); el dueño la revisa
+
+### D-736 · El nombre de una versión sale del primer lugar que tuvo como documento, y no del primero en orden alfabético
+
+- **Fecha:** 1 nov 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** Una copia que llega después (los mismos bytes en otro lugar, u otro archivo con el mismo texto) podía cambiar el nombre de una versión ya tipada y leída, porque se elegía el lugar primero en orden alfabético. Con el nombre cambiaba la pregunta, y la versión se volvía a preguntar (P-517).
+- **Qué se decidió y por qué:** El nombre de una versión sale del primer lugar que tuvo en una estructura y, entre los lugares de un mismo archivo, del primero que se vio. Una copia que llega después nunca lo cambia, ni cambia sus preguntas. En las versiones con varios lugares, el nombre puede cambiar una sola vez, al pasar a esta regla; las respuestas guardadas no cambian. Consultas de producción por documento: resta, hasta 1 de tipo y 1 por fragmento de la lectura por cada copia que llega después.
+- **Quién decidió:** Asumida por el agente de la etapa 2a en la corrida desatendida (D-500); el dueño la revisa
+
+### D-737 · Todo archivo nace con su único documento y el corte lo cambia por sus partes; mientras espera su corte, no entra a los pasos de documentos
+
+- **Fecha:** 1 nov 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** D-718 dice que un archivo entero nunca entra a los pasos de documentos, y la etapa 1 hizo que el archivo que no pasó por su corte espere. Faltaba decidir cuándo nace la estructura de un archivo: al llegar, o después de su corte.
+- **Qué se decidió y por qué:** Todo archivo nace con su único documento («all», con la versión del archivo), también un PDF de varias páginas. El corte lo cambia por sus partes si encuentra 2 o más, y lo devuelve si una persona las une. Mientras un PDF de varias páginas espera su corte, su documento espera como desde la etapa 1: no se tipa, no se lee ni se nombra por sí mismo; su firma de parecidos se hace como antes y se borra si el corte da partes. Se eligió así para que un archivo que el corte no toma (un Word, una imagen, un PDF de una página) tenga su documento sin esperar a nadie. Consultas de producción por documento: 0.
+- **Quién decidió:** Asumida por el agente de la etapa 2a en la corrida desatendida (D-500); el dueño la revisa
