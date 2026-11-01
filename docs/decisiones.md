@@ -672,6 +672,10 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-735 | 1 nov | base | Una parte de un documento compuesto sigue sin nombre en las preguntas; las páginas la nombran por su archivo y sus páginas | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-736 | 1 nov | base | El nombre de una versión sale del primer lugar que tuvo como documento, y no del primero en orden alfabético | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-737 | 1 nov | base | Todo archivo nace con su único documento y el corte lo cambia por sus partes; mientras espera su corte, no entra a los pasos de documentos | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-738 | 1 nov | base | La barrera no la frena nada con una falla anotada, de cualquier clase, ni siquiera una pasajera que espera su próximo intento | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-739 | 1 nov | base | Las corridas a mano de tipo, lectura, identidades y páginas también esperan la barrera, con un aviso que dice por qué | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-740 | 1 nov | reconocimiento | Sin los modelos del lector del equipo, cada escaneo espera con una falla permanente, porque hoy la app no tiene forma de bajarlos; y lo pedido por una persona lo lee el mismo lector, primero | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-741 | 1 nov | pruebas y calidad | El umbral de calidad («no legible») queda como ajuste con un valor provisional de 0,5 hasta medirlo en la carpeta de prueba | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -7277,3 +7281,31 @@ Vale solo para este caso: no se generaliza ni se cambian otras etiquetas. Si es 
 - **El problema:** D-718 dice que un archivo entero nunca entra a los pasos de documentos, y la etapa 1 hizo que el archivo que no pasó por su corte espere. Faltaba decidir cuándo nace la estructura de un archivo: al llegar, o después de su corte.
 - **Qué se decidió y por qué:** Todo archivo nace con su único documento («all», con la versión del archivo), también un PDF de varias páginas. El corte lo cambia por sus partes si encuentra 2 o más, y lo devuelve si una persona las une. Mientras un PDF de varias páginas espera su corte, su documento espera como desde la etapa 1: no se tipa, no se lee ni se nombra por sí mismo; su firma de parecidos se hace como antes y se borra si el corte da partes. Se eligió así para que un archivo que el corte no toma (un Word, una imagen, un PDF de una página) tenga su documento sin esperar a nadie. Consultas de producción por documento: 0.
 - **Quién decidió:** Asumida por el agente de la etapa 2a en la corrida desatendida (D-500); el dueño la revisa
+
+### D-738 · La barrera no la frena nada con una falla anotada, de cualquier clase, ni siquiera una pasajera que espera su próximo intento
+
+- **Fecha:** 1 nov 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** D-719 dice que no frenan la barrera lo que espera a una persona y lo que falló. Con el registro de fallas (D-714), una falla pasajera se reintenta sin fin: si frenara, una carpeta en la nube sin bajar o un archivo en uso podrían frenar todas las preguntas durante días.
+- **Qué se decidió y por qué:** Una cosa (archivo, documento o escaneo) con cualquier falla abierta en el registro no cuenta como trabajo sin IA pendiente. Cuando la falla se resuelve, vuelve a contar. También cuenta como trabajo sin IA leer los bytes de un archivo nuevo, que es el primer paso de su texto. Si la base no puede decir cuánto trabajo queda, la barrera frena (lo más prudente). Consultas de producción por documento (D-672): 0; cambia el orden, no la cantidad.
+- **Quién decidió:** Asumida por el agente de la etapa 2b en la corrida desatendida (D-500); el dueño la revisa
+
+### D-739 · Las corridas a mano de tipo, lectura, identidades y páginas también esperan la barrera, con un aviso que dice por qué
+
+- **Fecha:** 1 nov 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** D-719 punto 3 dice que la extracción que pide una persona espera. Además de «Volver a leer», la app tiene órdenes que preguntan a la IA en el momento, a pedido de una persona: tipo, lectura, identidades y páginas.
+- **Qué se decidió y por qué:** Mientras quede trabajo sin IA, esas órdenes no preguntan y devuelven un aviso: «Las preguntas a la IA esperan: la base todavía hace trabajo sin IA (N pendientes)». «Volver a leer» queda anotado y sale solo cuando la barrera se libera. La pregunta del corte que pide una persona sí sale. Consultas de producción por documento: 0.
+- **Quién decidió:** Asumida por el agente de la etapa 2b en la corrida desatendida (D-500); el dueño la revisa
+
+### D-740 · Sin los modelos del lector del equipo, cada escaneo espera con una falla permanente, porque hoy la app no tiene forma de bajarlos; y lo pedido por una persona lo lee el mismo lector, primero
+
+- **Fecha:** 1 nov 2026 · **Tema:** reconocimiento · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** D-721 saca el paso a la nube y pide que el escaneo espere con su falla, pasajera si los modelos se están bajando y permanente si no hay forma. Los modelos vienen con la instalación: la app no los baja.
+- **Qué se decidió y por qué:** La falla es permanente («faltan los modelos del lector»), una por escaneo, sin repetirse. Si los modelos aparecen (otra instalación), esas fallas se resuelven solas y los escaneos se leen. La clase pasajera queda lista para cuando exista la descarga. Un escaneo que pide una persona lo lee el hilo del lector del equipo antes que los demás; el hilo que pregunta a la IA ya no lee escaneos. Consultas de producción por documento: resta, en los escaneados que antes iban a la nube (una por página).
+- **Quién decidió:** Asumida por el agente de la etapa 2b en la corrida desatendida (D-500); el dueño la revisa
+
+### D-741 · El umbral de calidad («no legible») queda como ajuste con un valor provisional de 0,5 hasta medirlo en la carpeta de prueba
+
+- **Fecha:** 1 nov 2026 · **Tema:** pruebas y calidad · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La especificación pedía elegir el valor de la proporción de texto firme por debajo del cual un documento queda «no legible» (P-520), con una tabla sobre las lecturas de la corrida N. La etapa llegó a su tope de fichas antes de hacer esa tabla.
+- **Qué se decidió y por qué:** El ajuste existe en la configuración de la base (reading:quality-threshold) con 0,5 por omisión, que no se usa todavía: la lectura por franjas no entró a la app. El valor se elige con la tabla pendiente (P-544), con el criterio de proteger contra dar datos de texto mal leído. Consultas de producción por documento: 0.
+- **Quién decidió:** Asumida por el agente de la etapa 2b en la corrida desatendida (D-500); el dueño la revisa

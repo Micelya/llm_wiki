@@ -4722,6 +4722,66 @@
       "detalle": "La espera del corte (cut/mod.rs, waiting_for_cut) toma solo los PDF de una carpeta conectada y con su cantidad de páginas conocida, por la ficha, la lectura por zonas o el texto de sus páginas. Un PDF de varias páginas fuera de esas condiciones no espera y, con su único documento de nacimiento (D-737), podría tiparse y leerse entero antes de su corte. Era así antes de la etapa 2a del 1 nov; D-717 y D-718 piden que espere. Consultas de producción por documento: 0 (cambia el orden, no la cantidad).",
       "creado": "2026-11-01",
       "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-542",
+      "titulo": "La pantalla de configuración de los umbrales",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "pruebas y calidad",
+      "detalle": "Los umbrales ya son ajustes de la base con su valor por omisión y tienen sus órdenes para leerlos y guardarlos (docbase_thresholds y docbase_set_thresholds), pero no tienen su lugar en la pantalla de Ajustes: el bajo y el alto de la lectura, la calidad, el indicador de fallas, el tope de la ronda y las esperas de los reintentos. La etapa 2b del 1 nov llegó a su tope de fichas.",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-543",
+      "titulo": "Que Ajustes ofrezca solo el lector del equipo para «Reconocer escaneos»",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "reconocimiento",
+      "detalle": "Desde la etapa 2b del 1 nov la base nunca lee un escaneo en la nube: lo lee el lector del equipo, también lo que pide una persona (D-721). Pero el catálogo de motores sigue ofreciendo Codex y Micelya Core para «Reconocer escaneos», y «En curso» puede nombrar al elegido. Falta sacarlos de esa elección (catálogo, pantalla y sus pruebas) y que la base tome siempre el lector del equipo; el mecanismo de la cola de pedidos de recognize.rs todavía conserva el camino a la nube para el motor que se le pase.",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-544",
+      "titulo": "La tabla de «no legible»: cuántos documentos quedan de cada lado con cada valor",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "pruebas y calidad",
+      "detalle": "Con un guion sobre las lecturas guardadas de la corrida N, sin consultas: para los documentos de la carpeta de prueba, la proporción de texto firme de cada uno y cuántos quedan de cada lado con cada valor posible del umbral. Se recomienda el que más proteja contra dar datos de texto mal leído y se registra el valor (hoy 0,5 provisional, D-741).",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-545",
+      "titulo": "Leer con la IA un documento ilegible, a pedido de una persona",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "reconocimiento",
+      "detalle": "D-721 lo mantiene (D-670, D-705). Hoy la app no tiene un camino propio: se hacía eligiendo otro motor de escaneo, y eso se sacó. Falta una acción en el documento, conducida por una persona, que lea con el motor de «Preguntar al modelo», y que espere la barrera. Llega con «no legible», cuando la lectura por franjas entre a la app.",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-546",
+      "titulo": "Medir la barrera en la copia de la base de la corrida N",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "Las pruebas de Rust muestran que la barrera frena y libera. Falta abrir una copia de la base N y ver cuánto trabajo sin IA cuenta, que la consulta sea barata con cientos de archivos y que ningún escaneo sin modelos la deje frenada para siempre.",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
     }
   ]
 }
