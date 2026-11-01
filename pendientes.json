@@ -4830,6 +4830,54 @@
       "detalle": "resources/catalog/lexicon-es-50k.txt es la lista es_50k que usaron los guiones de N, bajada de un repositorio público (al parecer FrequencyWords, CC BY-SA 4.0). Hay que confirmarlo y poner la atribución donde corresponda.",
       "creado": "2026-11-01",
       "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-569",
+      "titulo": "Cerrar el hueco de la barrera: el trabajo que deja una respuesta tiene que contar antes de la pregunta siguiente",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "base",
+      "detalle": "La clave de los parecidos incluye las entidades, los tipos y las identidades. Cuando llega una respuesta que los cambia, el hilo sin IA marca documentos para volver a medir en su paso siguiente, de 0,1 a 3,3 segundos después. En ese hueco, la barrera da 0 y sale la pregunta siguiente. En la corrida de control salieron así 13 preguntas en la carpeta (4 de tipo, 8 de identidad y 1 de páginas) y 5 de identidad en el examen; ninguna de lectura de entidades. Arreglo posible: que la barrera mire también si la clave de los parecidos cambió, o que el hilo que pregunta la revise antes de mirar la barrera. Además, el volcado de la corrida de control tiene que usar la hora de salida de cada pregunta (D-762). Consultas de producción por documento (D-672): 0, o alguna menos si un tipo sale por familia.",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-570",
+      "titulo": "Documentos con texto y lectura, pero sin tipo, porque la firma de parecidos les cuenta menos de 10 palabras",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "En la corrida de control quedaron sin tipo 13 de 297 documentos de la carpeta. Diez son partidas escaneadas de un mismo archivo, con 52 a 193 palabras de texto pero 0 en la firma; otros dos son una constancia de firma cuyas páginas saltea su marca. La app no pregunta el tipo por debajo de 10 palabras en la firma (MIN_TYPE_WORDS). Lo probable, sin comprobar, es que todo su texto sea aproximado y la firma no lo cuente. Hay que comprobarlo y decidir si el tipo debe usar otra cuenta, o la marca cuando ya dice el tipo. Consultas de producción por documento (D-672): hasta +0,04 si esos documentos se preguntan.",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-571",
+      "titulo": "Revisar los 11 saltos en que el corte de la app difiere del de N",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 1,
+      "tema": "base",
+      "detalle": "Con la lectura por zonas en Rust, la corrida de control dio 134 de 142 documentos exactos en la carpeta, 97 de 102 en la hoja y 24 de 28 en el examen, contra 137, 100 y 27 de N. Los tramos son los mismos. En 9 saltos, la pregunta tiene otro texto, porque el texto escaneado es otro. En 2 archivos digitales, la pregunta es idéntica y el modelo contestó distinto. 9 de los 11 quedaron inciertos, por seguridad media; 2 se tomaron por seguros, y uno de ellos separó una página que solo tiene el pie del sistema. Falta comparar el texto de esos tramos con el de N, ver si la unión del logo partido (etapa 3b) los cambia y decidir qué hacer con una página que solo tiene el pie. Consultas de producción por documento (D-672): 0 para medirlo.",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-572",
+      "titulo": "Más entidades y más preguntas de páginas que N en la corrida de control",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "La corrida de control terminó con 632 entidades contra 507 de N, 313 páginas contra 289 y 123 preguntas de páginas contra 100 (+23 %). En la hoja de la sucesión salieron 89 menciones de más y 6 falsas conocidas más que N, con las mismas halladas. Hay que ver si la identidad unió menos, o si la lectura por zonas da más nombres partidos. Consultas de producción por documento (D-672): las páginas pasan de 0,34 a 0,41 por documento.",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
     }
   ]
 }

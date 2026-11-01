@@ -679,6 +679,8 @@ Este registro junta, en un solo lugar, cada decisión de producto, de diseño y 
 | D-745 | 1 nov | base | El rescate por léxico usa el umbral bajo de la configuración | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-746 | 1 nov | base | La lectura por zonas viene encendida: todo PDF de dos páginas o más la espera antes de cortarse | asumida en la corrida desatendida (D-500): el dueño la revisa |
 | D-747 | 1 nov | base | La forma de cada página queda dentro de la lectura por zonas, y un cambio de umbrales no vuelve a leer | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-762 | 1 nov | base | La barrera se mide con la hora en que sale cada pregunta, no con la hora guardada de su respuesta | asumida en la corrida desatendida (D-500): el dueño la revisa |
+| D-763 | 1 nov | base | Cómo se midieron las entidades y el tipo de la corrida de control sin la hoja traducida | asumida en la corrida desatendida (D-500): el dueño la revisa |
 
 ---
 
@@ -7333,3 +7335,17 @@ Vale solo para este caso: no se generaliza ni se cambian otras etiquetas. Si es 
 - **El problema:** El plan dice que la forma de la página se guarda como la ficha de forma de cada página. Hoy la ficha de pdfium sirve todavía al corte viejo, hasta la etapa 3b.
 - **Qué se decidió y por qué:** La forma de cada página (capa, si se lee, forma, firma, marcas y perfil) se guarda en la lectura por zonas de la versión, junto a sus zonas y renglones. La ficha de pdfium sigue como está. Si cambian los umbrales, lo ya leído no se vuelve a leer (pendiente). Consultas de producción por documento (D-672): 0.
 - **Quién decidió:** Asumida por el agente de la etapa 3a en la corrida desatendida (D-500); el dueño la revisa
+
+### D-762 · La barrera se mide con la hora en que sale cada pregunta, no con la hora guardada de su respuesta
+
+- **Fecha:** 1 nov 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** El volcado de la corrida de control comparaba la hora guardada de cada pregunta con el trabajo sin IA que quedaba. Esa hora la pone la app al guardar la respuesta, de 10 a 25 segundos después de mandarla. Así cuenta como rota una pregunta que salió con la barrera libre, y no ve otras que salieron justo antes de que el hilo sin IA anotara trabajo nuevo.
+- **Qué se decidió y por qué:** La medición de la barrera usa la hora de salida de cada pregunta, reconstruida del registro de vueltas del hilo que pregunta: la vuelta empieza al terminar la anterior cuando esta no esperó. Se informan tres cosas: las preguntas que salieron con trabajo ya anotado, las que salieron mientras se anotaba el trabajo que dejó la respuesta anterior, y lo que dio el volcado. En la corrida de control: 0, 13 y 1 en la carpeta, y 0, 5 y 0 en el examen. Consultas de producción por documento (D-672): 0.
+- **Quién decidió:** Asumida por el agente de la etapa 7b en la corrida desatendida (D-500); el dueño la revisa
+
+### D-763 · Cómo se midieron las entidades y el tipo de la corrida de control sin la hoja traducida
+
+- **Fecha:** 1 nov 2026 · **Tema:** base · **Estado:** asumida en la corrida desatendida (D-500): el dueño la revisa
+- **El problema:** La medición de entidades por documento de la segunda corrida (P-511) no lee la base nueva, que tiene el lugar de un solo documento, y buscaba las menciones sin ubicar en la lectura de N, que es de una corrida anterior. La hoja de tipos traducida (etapa 6) no entró, y la hoja de partes usa nombres que casi no están en el catálogo.
+- **Qué se decidió y por qué:** Entidades: la misma comparación por documento, con los documentos que salen de la base nueva. Una mención que no está en el texto de ningún documento de su archivo cuenta como sin ubicar, y N se mide igual para comparar parejo. Tipo: el acierto exacto se cuenta solo donde la hoja usa un nombre del catálogo, y para el resto se da la tabla de parejas entre el nombre de la hoja y el de la corrida, sin puntaje. Consultas de producción por documento (D-672): 0.
+- **Quién decidió:** Asumida por el agente de la etapa 7b en la corrida desatendida (D-500); el dueño la revisa
