@@ -741,3 +741,9 @@ fn note_thread(base: &DocBase, thread: &str, error: &str) {
     }
     base.note(&failure);
 }
+
+/// The control run of stage 7 (1 nov): the two threads of the app, from
+/// an empty base (a manual test, ignored).
+#[cfg(test)]
+#[path = "worker_control.rs"]
+mod control;
