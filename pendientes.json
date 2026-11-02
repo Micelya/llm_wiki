@@ -5480,6 +5480,30 @@
       "detalle": "Cuatro cosas que deja la etapa C2 del 2 nov (D-798, D-799). 1) Un tipo dudoso y una sugerencia para un documento sin tipo se ven en Atención, pero sin botones para confirmar o cambiar el tipo ahí mismo (como P-532); hoy un tipo propuesto se confirma o rechaza en la revisión de tipos, y uno del catálogo no tiene cómo corregirse desde la pantalla. 2) El paso del tipo lee todos los vectores de la base cada vez que arma las preguntas que faltan; pasados unos 5.000 documentos conviene tenerlos en memoria (P-611). 3) Apagar la pista no vuelve a preguntar lo que ya se clasificó con ella, a propósito, para no sumar consultas: si la corrida de control dice que la pista empeora el tipo, hace falta una forma de volver a preguntar solo los tipos que tuvieron pista. 4) Con la lectura automática apagada y un pedido de tipos de una persona, el documento sin vector no espera a Core y se pregunta sin pista; con ella encendida y Core andando, el paso de los vectores va antes del tipo.",
       "creado": "2026-11-02",
       "actualizado": "2026-11-02"
+    },
+    {
+      "id": "P-618",
+      "titulo": "Lo que el arnés de la corrida de control todavía no anota: el elemento de cada operación sin IA y el efecto de juntar documentos en la pregunta del tipo",
+      "tipo": "mejora",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "base",
+      "detalle": "El arnés de la etapa A4 del 2 nov (D-802) anota, de cada operación, el paso, la hora de inicio y de fin, las preguntas, los pasos anteriores incompletos en la base y, para cada respuesta, el documento y sus pasos anteriores incompletos. Faltan dos cosas que piden tocar el código de los pasos y no solo el arnés: 1) el elemento de las operaciones sin IA (qué archivo o documento leyó, cortó o firmó), que hoy se ve solo como lo que le quedaba a cada paso antes de la operación; 2) medir aparte el efecto de juntar documentos parecidos en una pregunta del tipo: la pregunta sin pista va siempre de a un documento, así que en los que fueron en un grupo la diferencia mezcla el grupo y la pista. Para separarlo haría falta una tercera pregunta, sin pista y con los mismos grupos.",
+      "creado": "2026-11-02",
+      "actualizado": "2026-11-02"
+    },
+    {
+      "id": "P-619",
+      "titulo": "El tipo heredado contra una carga desde cero de la misma carpeta, y la prueba chica con el vigilante y la mitad de los archivos",
+      "tipo": "prueba",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "base",
+      "detalle": "La corrida de control larga (A5) mide el tipo heredado de los documentos que llegan a mitad de la corrida contra la hoja provisoria de tipos y por su fuente (heredado de la familia o preguntado). Compararlo además contra una carga de toda la carpeta de una vez pide una segunda corrida entera, de unas 860 consultas, que no está en el presupuesto de la tanda: queda para cuando el dueño lo decida. La prueba corta de A4 probó el vigilante con un solo archivo; la mitad de la carpeta (unos 60 archivos de una vez) se prueba recién en A5.",
+      "creado": "2026-11-02",
+      "actualizado": "2026-11-02"
     }
   ]
 }
