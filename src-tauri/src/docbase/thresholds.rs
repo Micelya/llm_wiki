@@ -17,6 +17,11 @@
 //!   number is the same or near (E5 of 2 nov, note 2 of the coordinator):
 //!   at most so many letters and at most so much of the name, both
 //!   provisional (2 letters and 15 %, audit 1C).
+//! - Of the type by likeness (C2 of 2 nov): from what likeness of their
+//!   vectors the documents alone go in one question of type (0,85, the
+//!   lowest that mixed no type in C0 of 2 nov), and from what likeness the
+//!   3 neighbours of a document are very close for the doubtful mark (0,85
+//!   too, assumed D-500). Both provisional.
 //!
 //! The least words to compare (30) stay in the code: the owner did not ask
 //! for them. The 10 words to type and to read are gone (E3 of 2 nov): a
@@ -35,6 +40,8 @@ pub const ROUND_CAP: &str = "auto-questions:cap";
 pub const RETRY_MINUTES: &str = "failures:retry-minutes";
 pub const NAME_LETTERS: &str = "identity:name-letters";
 pub const NAME_SHARE: &str = "identity:name-share";
+pub const GROUP_SIMILARITY: &str = "types:group-similarity";
+pub const CLOSE_SIMILARITY: &str = "types:close-similarity";
 
 /// The share of firm text below which a document is «no legible», by
 /// default (P-520): provisional, assumed in the unattended run of 1 nov
@@ -56,6 +63,21 @@ pub const DEFAULT_NAME_LETTERS: usize = 2;
 /// The share of the name those letters may be at most, by default: so a
 /// short name does not take two changes. Provisional, as the letters.
 pub const DEFAULT_NAME_SHARE: f64 = 0.15;
+
+/// The likeness from which the documents alone go in one question of type,
+/// by default (C0 of 2 nov): provisional, until the long run measures it.
+pub const DEFAULT_GROUP_SIMILARITY: f64 = 0.85;
+/// The likeness from which a neighbour is very close, for the doubtful mark
+/// of the type, by default: provisional, the same as the groups (D-500).
+pub const DEFAULT_CLOSE_SIMILARITY: f64 = 0.85;
+
+fn default_group_similarity() -> f64 {
+    DEFAULT_GROUP_SIMILARITY
+}
+
+fn default_close_similarity() -> f64 {
+    DEFAULT_CLOSE_SIMILARITY
+}
 
 fn default_name_letters() -> usize {
     DEFAULT_NAME_LETTERS
@@ -84,6 +106,11 @@ pub struct Thresholds {
     pub name_letters: usize,
     #[serde(default = "default_name_share")]
     pub name_share: f64,
+    /// The type by likeness (C2 of 2 nov): the groups and the very close.
+    #[serde(default = "default_group_similarity")]
+    pub group_similarity: f64,
+    #[serde(default = "default_close_similarity")]
+    pub close_similarity: f64,
 }
 
 impl Default for Thresholds {
@@ -99,6 +126,8 @@ impl Default for Thresholds {
             retry_minutes: vec![10, 60, 6 * 60, 24 * 60],
             name_letters: DEFAULT_NAME_LETTERS,
             name_share: DEFAULT_NAME_SHARE,
+            group_similarity: DEFAULT_GROUP_SIMILARITY,
+            close_similarity: DEFAULT_CLOSE_SIMILARITY,
         }
     }
 }
@@ -134,6 +163,8 @@ pub fn thresholds(conn: &Connection) -> Result<Thresholds, String> {
         retry_minutes: retry_minutes(conn)?,
         name_letters: name_letters(conn)?,
         name_share: share(conn, NAME_SHARE, default.name_share)?,
+        group_similarity: share(conn, GROUP_SIMILARITY, default.group_similarity)?,
+        close_similarity: share(conn, CLOSE_SIMILARITY, default.close_similarity)?,
     })
 }
 
@@ -164,6 +195,9 @@ fn invalid(t: &Thresholds) -> Option<&'static str> {
     }
     if !(0.0..=1.0).contains(&t.quality) || !(0.0..=1.0).contains(&t.low_confidence_type) || !(0.0..=1.0).contains(&t.name_share) {
         return Some("La calidad es una proporción: entre 0 y 1.");
+    }
+    if !(0.0..=1.0).contains(&t.group_similarity) || !(0.0..=1.0).contains(&t.close_similarity) {
+        return Some("El parecido va de 0 a 1.");
     }
     if t.indicator_attempts < 1 || t.indicator_hours < 1 || t.round_cap < 1 {
         return Some("Los intentos, las horas y el tope de la ronda tienen que ser 1 o más.");
@@ -197,6 +231,8 @@ impl DocBase {
             (RETRY_MINUTES, retry),
             (NAME_LETTERS, t.name_letters.to_string()),
             (NAME_SHARE, t.name_share.to_string()),
+            (GROUP_SIMILARITY, t.group_similarity.to_string()),
+            (CLOSE_SIMILARITY, t.close_similarity.to_string()),
         ];
         let mut conn = self.conn();
         let tx = conn.transaction().map_err(sql_err)?;

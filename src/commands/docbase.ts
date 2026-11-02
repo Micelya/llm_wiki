@@ -2261,6 +2261,64 @@ export interface Thresholds {
   /** How far two names may be to join two mentions with the same number: letters, and share of the name. */
   nameLetters: number
   nameShare: number
+  /** The type by likeness (C2 of 2 nov): from what likeness the documents alone go in one question, and the neighbours are very close (0..1). */
+  groupSimilarity: number
+  closeSimilarity: number
+}
+
+/** «Pista del tipo por parecido» (C2 of 2 nov, D-805): the question of the type carries its 3 nearest neighbours. On by default. */
+export function getTypeHint(): Promise<boolean> {
+  return invoke<boolean>("docbase_type_hint")
+}
+
+export function setTypeHint(on: boolean): Promise<void> {
+  return invoke<void>("docbase_set_type_hint", { on })
+}
+
+/** A document typed near another one, by their vectors (`similar/hint.rs`). */
+export interface TypeNeighbour {
+  versionId: number
+  docType: string
+  name: string | null
+  origin: "catalog" | "confirmed" | "proposed"
+  similarity: number
+}
+
+/** A type the model gave against its 3 very close neighbours, that share another one. */
+export interface DoubtfulType {
+  versionId: number
+  locationId: number | null
+  name: string
+  path: string
+  firstPage: number | null
+  lastPage: number | null
+  docType: string
+  neighbourType: string
+  likeness: number[]
+}
+
+/** A document without a type, with the one its neighbours suggest. */
+export interface SuggestedType {
+  versionId: number
+  locationId: number | null
+  name: string
+  path: string
+  firstPage: number | null
+  lastPage: number | null
+  docType: string
+  likeness: number
+  neighbours: TypeNeighbour[]
+  why: string
+}
+
+export interface TypesBySimilarity {
+  doubtful: DoubtfulType[]
+  suggested: SuggestedType[]
+}
+
+/** The doubtful types and the suggestions for the documents without a type. Looking writes nothing. */
+export function getTypesBySimilarity(): Promise<TypesBySimilarity> {
+  return invoke<TypesBySimilarity>("docbase_types_by_similarity")
 }
 
 export function getThresholds(): Promise<Thresholds> {

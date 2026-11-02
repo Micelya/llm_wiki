@@ -99,7 +99,7 @@ fn to_blob(vector: &[f32]) -> Vec<u8> {
     vector.iter().flat_map(|n| n.to_le_bytes()).collect()
 }
 
-fn from_blob(blob: &[u8]) -> Vec<f32> {
+pub(crate) fn from_blob(blob: &[u8]) -> Vec<f32> {
     blob.chunks_exact(4).map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]])).collect()
 }
 

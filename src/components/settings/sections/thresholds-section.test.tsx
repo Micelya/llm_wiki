@@ -37,7 +37,7 @@ describe("Ajustes → Umbrales", () => {
   it("shows every threshold of the base, with what it decides, its value, whether it is provisional and its value by default", () => {
     const words = view(BY_DEFAULT, BY_DEFAULT)
     expect(THRESHOLDS.map((t) => t.key).sort()).toEqual(Object.keys(BY_DEFAULT).sort())
-    for (const group of ["La lectura", "La calidad de la lectura", "La identidad", "Las fallas", "Las preguntas solas"]) {
+    for (const group of ["La lectura", "La calidad de la lectura", "La identidad", "El tipo por parecido", "Las fallas", "Las preguntas solas"]) {
       expect(words).toContain(group)
     }
     expect(words).toContain("No legible Provisorio Debajo de esta proporción de palabras seguras un documento no se puede leer")
@@ -47,7 +47,10 @@ describe("Ajustes → Umbrales", () => {
     expect(words).toContain("Por omisión: 10, 60, 360, 1440 minutos")
     expect(words).not.toContain("Si lo cambiás")
     expect(words).not.toContain("Volver al valor por omisión")
-    expect(words).toContain("Los umbrales de los vectores y de los grupos por parecido todavía no existen")
+    expect(words).toContain("Grupos por parecido Provisorio")
+    expect(words).toContain("Vecinos muy cercanos Provisorio")
+    expect(words).toContain("Por omisión: 85 %")
+    expect(invalid({ ...BY_DEFAULT, groupSimilarity: 1.2 })).toBe("El parecido va de 0 a 1.")
   })
 
   it("says before saving what changing «no legible» does: which documents change side and how many questions", () => {

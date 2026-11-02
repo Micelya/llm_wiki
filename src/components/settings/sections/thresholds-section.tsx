@@ -45,6 +45,8 @@ export const BY_DEFAULT: Thresholds = {
   retryMinutes: [10, 60, 360, 1440],
   nameLetters: 2,
   nameShare: 0.15,
+  groupSimilarity: 0.85,
+  closeSimilarity: 0.85,
 }
 
 const CONFIDENCE = "Se calcula con las proporciones guardadas, sin leer ni preguntar nada."
@@ -115,6 +117,27 @@ export const THRESHOLDS: ThresholdInfo[] = [
       "La identidad se vuelve a calcular en el equipo, sin preguntar. Las páginas de las personas que se unan o se separen se vuelven a escribir: una consulta cada una a «Preguntar al modelo».",
   },
   {
+    key: "groupSimilarity",
+    group: "El tipo por parecido",
+    name: "Grupos por parecido",
+    decides:
+      "Los documentos sin familia cuyo texto se parece desde este valor (por sus vectores) van juntos en una sola pregunta de tipo, a lo sumo 10, con una respuesta para cada uno: cada uno recibe su propio tipo. Por ejemplo, con 85, dos partidas que se parecen 90 se preguntan juntas.",
+    provisional: true,
+    unit: "share",
+    change:
+      "Cambia cómo se juntan las preguntas de tipo que quedan; lo ya clasificado no se vuelve a preguntar. Más bajo junta más y ahorra preguntas, con más riesgo de juntar tipos distintos: 0 consultas nuevas.",
+  },
+  {
+    key: "closeSimilarity",
+    group: "El tipo por parecido",
+    name: "Vecinos muy cercanos",
+    decides:
+      "Si los 3 documentos ya clasificados más parecidos a uno se parecen desde este valor, coinciden en un tipo del catálogo o confirmado y el modelo eligió otro, el tipo queda marcado como dudoso y va a Atención; no se pregunta de nuevo. Por ejemplo, con 85, tres actas de nacimiento a 90 y una respuesta «recibo» se marcan.",
+    provisional: true,
+    unit: "share",
+    change: "Se aplica a las respuestas que lleguen desde ahora: 0 consultas.",
+  },
+  {
     key: "indicatorAttempts",
     group: "Las fallas",
     name: "Intentos antes del aviso",
@@ -181,6 +204,9 @@ export function invalid(t: Thresholds): string | null {
   }
   for (const share of [t.quality, t.lowConfidenceType, t.nameShare]) {
     if (!(share >= 0 && share <= 1)) return "La calidad es una proporción: entre 0 y 1."
+  }
+  for (const likeness of [t.groupSimilarity, t.closeSimilarity]) {
+    if (!(likeness >= 0 && likeness <= 1)) return "El parecido va de 0 a 1."
   }
   if (t.indicatorAttempts < 1 || t.indicatorHours < 1 || t.roundCap < 1) {
     return "Los intentos, las horas y el tope de la ronda tienen que ser 1 o más."
@@ -252,9 +278,6 @@ export function ThresholdsView({ saved, draft, effect, problem, saving, onChange
           ))}
         </section>
       ))}
-      <p className="text-sm text-muted-foreground">
-        Los umbrales de los vectores y de los grupos por parecido todavía no existen: se agregan acá cuando lleguen.
-      </p>
       <div className="flex flex-wrap items-center gap-3 border-t pt-4" data-thresholds="save">
         <Button disabled={pending.length === 0 || why !== null || saving} onClick={onSave}>
           Guardar los umbrales

@@ -6,7 +6,7 @@ vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(() => Promise.resolve(()
 import type { Health, Home, OriginSummary } from "@/commands/docbase"
 import { vocabularyFor } from "@/vocabulary"
 import { docRef, similarGroup } from "@/components/docbase/similar.fixtures"
-import { clipsNotice, coreLeftNotice, docbaseNotices, similarNotice, unreadScansNotice, type DocbaseFacts } from "./docbase"
+import { clipsNotice, coreLeftNotice, docbaseNotices, similarNotice, typesBySimilarityNotices, unreadScansNotice, type DocbaseFacts } from "./docbase"
 
 const words = vocabularyFor("legal", "es")
 
@@ -229,5 +229,23 @@ describe("the readings Micelya Core refused to delete", () => {
     expect(line.cases?.[0].detail).toBe(`${reason} · pedida hace 5 min`)
     const lines = docbaseNotices(facts({}, { coreLeft: [left("l-1", "pagina-1.jpg", reason)] }), words)
     expect(lines.map((n) => n.title)).toEqual(["1 lectura no se pudo borrar en Micelya Core"])
+  })
+})
+
+describe("the type by likeness (C2 of 2 nov)", () => {
+  const place = { locationId: 4, name: "nota.pdf", path: "O/nota.pdf", firstPage: 3, lastPage: 4 }
+  it("shows a doubtful type with its 3 neighbours, and a suggestion for a document without a type", () => {
+    const lines = typesBySimilarityNotices({
+      doubtful: [{ versionId: 7, ...place, docType: "recibo", neighbourType: "factura", likeness: [0.96, 0.95, 0.9] }],
+      suggested: [
+        { versionId: 8, ...place, firstPage: null, lastPage: null, docType: "factura", likeness: 0.84, neighbours: [], why: "la pregunta de su tipo falló" },
+      ],
+    })
+    expect(lines.map((n) => n.title)).toEqual(["1 tipo dudoso", "1 documento sin tipo con una sugerencia por parecido"])
+    expect(lines[0].cases?.[0].title).toBe("nota.pdf, páginas 3 a 4")
+    expect(lines[0].cases?.[0].detail).toContain("(parecido 0,96, 0,95, 0,90)")
+    expect(lines[1].cases?.[0].detail).toContain("(parecido 0,84); la pregunta de su tipo falló")
+    expect(typesBySimilarityNotices({ doubtful: [], suggested: [] })).toEqual([])
+    expect(typesBySimilarityNotices(null)).toEqual([])
   })
 })

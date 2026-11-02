@@ -169,6 +169,8 @@ fn every_order_of_the_screens_that_looks_writes_nothing() {
     look("docbase_thresholds", &|| drop(base.thresholds()));
     look("docbase_knowledge_matters", &|| drop(base.knowledge_matters(&visible)));
     look("docbase_reading_quality", &|| drop(base.reading_quality()));
+    look("docbase_type_hint", &|| drop(base.type_hint()));
+    look("docbase_types_by_similarity", &|| drop(base.types_by_similarity()));
     look("docbase_confidence_effect", &|| drop(base.confidence_effect(0.2, 0.9)));
     for location in &locations {
         look("docbase_get_document", &|| drop(base.document(&visible, *location)));

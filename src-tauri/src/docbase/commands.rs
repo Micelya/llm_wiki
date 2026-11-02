@@ -1258,6 +1258,25 @@ pub fn docbase_set_thresholds(
     Ok(())
 }
 
+/// Whether the questions of the type carry the hint of the neighbours
+/// (C2 of 2 nov, D-805): «Pista del tipo por parecido», on by default.
+#[tauri::command(async)]
+pub fn docbase_type_hint(state: State<'_, DocBaseState>) -> Result<bool, String> {
+    state.base()?.type_hint()
+}
+
+#[tauri::command(async)]
+pub fn docbase_set_type_hint(state: State<'_, DocBaseState>, on: bool) -> Result<(), String> {
+    state.base()?.set_type_hint(on)
+}
+
+/// The doubtful types and the suggestions for the documents without a type
+/// (C2 of 2 nov), for Atención. Looking writes nothing.
+#[tauri::command(async)]
+pub fn docbase_types_by_similarity(state: State<'_, DocBaseState>) -> Result<super::similar::hint::TypesBySimilarity, String> {
+    state.base()?.types_by_similarity()
+}
+
 /// «Calidad de la lectura» (P-544): the documents with few safe words, and
 /// how many stay below each value. Looking writes nothing.
 #[tauri::command(async)]

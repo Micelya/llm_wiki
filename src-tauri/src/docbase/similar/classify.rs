@@ -35,6 +35,11 @@ use crate::source_volume::asking::{AskConfig, DocumentAsker};
 /// Versions of the questions. Changing a prompt changes its version, and
 /// every question is asked again.
 pub const TYPE_PROMPT: &str = "tipo-2";
+/// The question of the type with the signals of the vectors (C2 of 2 nov,
+/// `hint.rs`): with the hint of the neighbours, or of a group by likeness
+/// with one answer for each document. Without a hint and alone, the
+/// question is `tipo-2`, word for word («Ninguno» in «Calcular vectores»).
+pub const TYPE_PROMPT_SIGNALS: &str = "tipo-3";
 pub const DATA_PROMPT: &str = "datos-1";
 /// The excerpt of a long text: its first and last words.
 pub const EXCERPT_HEAD: usize = 1200;
@@ -190,6 +195,38 @@ pub(super) struct DocInfo {
 struct Unit {
     principal: i64,
     members: Vec<(i64, Option<String>)>,
+}
+
+/// The answer to the question of the type without the hint, kept apart
+/// (`DocBase::type_without_hint`, D-805).
+#[cfg_attr(not(test), allow(dead_code))]
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ControlType {
+    pub version_id: i64,
+    pub question: String,
+    pub doc_type: String,
+    pub stage: Option<String>,
+    pub confidence: Option<f64>,
+    /// It was asked now (false: the same question, answered before by the
+    /// same engine, kept apart).
+    pub asked: bool,
+}
+
+/// A document whose type the model gave, with how it was asked
+/// (`DocBase::typed_by_the_model`).
+#[cfg_attr(not(test), allow(dead_code))]
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelTyped {
+    pub version_id: i64,
+    pub doc_type: String,
+    /// `tipo-2` (the question of before) or `tipo-3` (with the vectors).
+    pub question_version: String,
+    /// It went in a group by likeness.
+    pub in_group: bool,
+    /// Its question had the hint of the neighbours.
+    pub with_hint: bool,
 }
 
 /// A row of `document_type` before it is written.
@@ -358,7 +395,10 @@ fn load_units(conn: &Connection, catalog: &Catalog, docs: &BTreeMap<i64, DocInfo
 }
 
 /// What a unit is decided on, without reading any text: when it is the
-/// same, nothing is decided again.
+/// same, nothing is decided again. The form of its question (with the hint
+/// of the vectors or without it, alone or in a group, C2 of 2 nov) is not
+/// part of it: turning the hint or the vectors on or off asks no document
+/// again that already has its type.
 fn unit_basis(catalog: &Catalog, unit: &Unit, docs: &BTreeMap<i64, DocInfo>) -> String {
     let mut parts: Vec<String> = vec![TYPE_PROMPT.to_string(), catalog.digest.clone()];
     let mut add = |id: i64, relation: &str| {
@@ -594,6 +634,7 @@ fn type_prompt(
     body: &str,
     marks: &[Mark],
     members: &[MemberView],
+    hint: Option<&str>,
 ) -> String {
     let (text, cut) = excerpt(body);
     let mut prompt = format!(
@@ -625,6 +666,11 @@ fn type_prompt(
             ));
         }
     }
+    // The hint of the neighbours (C2 of 2 nov): only in `tipo-3`.
+    if let Some(hint) = hint {
+        prompt.push('\n');
+        prompt.push_str(hint);
+    }
     prompt.push_str(&format!(
         "\nEl nombre del archivo es una pista, no una prueba: si el contenido dice otra cosa, manda el contenido.\n\
          Archivo: «{name}»\n\n\
@@ -634,6 +680,64 @@ fn type_prompt(
         if cut { " (extracto: el principio y el final)" } else { "" }
     ));
     prompt
+}
+
+/// A document of a group by likeness, for its question.
+struct GroupItem {
+    name: String,
+    body: String,
+    marks: String,
+    hint: Option<String>,
+}
+
+/// The question of a group by likeness (`tipo-3`, C2 of 2 nov): several
+/// documents alone that are near by their vectors, each with its text, and
+/// one answer for each one. It is not a family: each one gets its own type.
+fn group_prompt(catalog: &Catalog, decisions: &TypeDecisions, items: &[GroupItem]) -> String {
+    let mut prompt = format!(
+        "Clasificá cada uno de los {} documentos de abajo, de un archivo profesional, según la lista de tipos. \
+         Se parecen por su texto, pero cada uno lleva su propia respuesta: pueden ser de tipos o etapas distintos.\n\n\
+         Tipos de documento (elegí uno de esta lista siempre que corresponda):\n{}\n\n\
+         Si ningún tipo de la lista corresponde a un documento, proponé uno nuevo: en \"tipo\" un identificador corto en minúsculas con guiones, \
+         en \"nombre\" cómo se llama y en \"descripcion\" qué es, en términos generales (sin nombres de personas, empresas ni números), \
+         y \"nuevo\": true. Si elegís uno de la lista, \"nuevo\" es false y \"nombre\" y \"descripcion\" van en null.\n\
+         {}\
+         La etapa es una de las del tipo elegido, o null si el tipo no tiene etapas o el documento no permite saberla.\n\
+         El nombre del archivo es una pista, no una prueba: si el contenido dice otra cosa, manda el contenido.\n",
+        items.len(),
+        type_list(catalog, decisions),
+        rejected_text(decisions),
+    );
+    for (index, item) in items.iter().enumerate() {
+        let (text, cut) = excerpt(&item.body);
+        prompt.push_str(&format!(
+            "\n--- Documento {} ---\nArchivo: «{}»\nLo que ya se verificó en el documento sin el modelo: {}.\n{}{}Texto del documento{}:\n\"\"\"\n{text}\n\"\"\"\n",
+            index + 1,
+            item.name,
+            item.marks,
+            item.hint.as_deref().unwrap_or(""),
+            crate::source_volume::bands::note_for(&text),
+            if cut { " (extracto: el principio y el final)" } else { "" }
+        ));
+    }
+    prompt.push_str(
+        "\nRespondé solo con el JSON pedido: en \"documentos\", una respuesta por cada documento, con su número en \"documento\". \
+         \"confianza\" va de 0 a 1; \"razon\" es una frase corta que dice en qué te basaste.",
+    );
+    prompt
+}
+
+fn group_schema() -> serde_json::Value {
+    let mut item = type_schema();
+    item["required"] = serde_json::json!(["documento", "tipo", "etapa", "nuevo", "nombre", "descripcion", "confianza", "razon"]);
+    item["properties"].as_object_mut().expect("an object").remove("otros");
+    item["properties"]["documento"] = serde_json::json!({ "type": "integer" });
+    serde_json::json!({
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["documentos"],
+        "properties": { "documentos": { "type": "array", "items": item } }
+    })
 }
 
 #[derive(Debug, Deserialize)]
@@ -692,12 +796,58 @@ fn rows_from_answer(
     question: &str,
 ) -> Result<Vec<TypeRow>, String> {
     let answer: TypeAnswer = parse_json(answer)?;
+    Ok(rows_from_type_answer(catalog, decisions, unit, docs, answer, question))
+}
+
+/// The rows the answer of a group gives each of its documents, in their
+/// order (C2 of 2 nov). A document the answer does not name gets none, and
+/// is asked again alone.
+fn rows_from_group_answer(
+    catalog: &Catalog,
+    decisions: &TypeDecisions,
+    units: &[(Unit, String)],
+    docs: &BTreeMap<i64, DocInfo>,
+    answer: &str,
+    question: &str,
+) -> Result<Vec<Vec<TypeRow>>, String> {
+    #[derive(Deserialize)]
+    struct GroupAnswer {
+        documentos: Vec<serde_json::Value>,
+    }
+    let answer: GroupAnswer = parse_json(answer)?;
+    let mut by_number: HashMap<i64, TypeAnswer> = HashMap::new();
+    for value in answer.documentos {
+        let Some(number) = value.get("documento").and_then(serde_json::Value::as_i64) else {
+            return Err("La respuesta del modelo no tiene la forma pedida: falta el número de un documento".to_string());
+        };
+        let parsed: TypeAnswer =
+            serde_json::from_value(value).map_err(|e| format!("La respuesta del modelo no tiene la forma pedida: {e}"))?;
+        by_number.entry(number).or_insert(parsed);
+    }
+    Ok(units
+        .iter()
+        .enumerate()
+        .map(|(index, (unit, _))| match by_number.remove(&(index as i64 + 1)) {
+            Some(one) => rows_from_type_answer(catalog, decisions, unit, docs, one, question),
+            None => Vec::new(),
+        })
+        .collect())
+}
+
+fn rows_from_type_answer(
+    catalog: &Catalog,
+    decisions: &TypeDecisions,
+    unit: &Unit,
+    docs: &BTreeMap<i64, DocInfo>,
+    answer: TypeAnswer,
+    question: &str,
+) -> Vec<TypeRow> {
     let id = clean_id(&answer.tipo);
     let known: Option<&DocType> = catalog.doc_type(&id).filter(|t| !t.carrier);
     // A type a person rejected is not used: the documents stay without one
     // until a question that knows of the rejection is answered (R-08).
     if known.is_none() && decisions.rejected.contains_key(&id) {
-        return Ok(Vec::new());
+        return Vec::new();
     }
     // One a person confirmed is part of the closed list, with its name.
     let confirmed = if known.is_none() { decisions.confirmed.get(&id) } else { None };
@@ -747,7 +897,7 @@ fn rows_from_answer(
             });
         rows.push(row(*member, stage, "family"));
     }
-    Ok(rows)
+    rows
 }
 
 /// A row of `document_type` as it is kept: what a document new to a
@@ -873,28 +1023,74 @@ pub(crate) fn types_left(conn: &Connection, only: Option<&BTreeSet<i64>>) -> Res
     let decisions = read_type_decisions(conn)?;
     let engine = answering_engine(conn)?;
     let mut left = TypesLeft::default();
+    let in_scope = |ids: &[i64]| only.is_none_or(|o| ids.iter().any(|id| o.contains(id)));
+    let mut to_ask = Vec::new();
     for unit in units {
         let all: Vec<i64> = std::iter::once(unit.principal).chain(unit.members.iter().map(|(m, _)| *m)).collect();
-        if only.is_some_and(|o| !all.iter().any(|id| o.contains(id))) {
-            continue;
-        }
         let basis = unit_basis(catalog, &unit, &docs);
         if all.iter().all(|id| kept.get(id).is_some_and(|k| k.basis == basis)) {
             continue;
         }
         if rows_by_marks(catalog, &unit, &docs).is_some() {
-            left.by_marks += 1;
+            if in_scope(&all) {
+                left.by_marks += 1;
+                left.units += 1;
+            }
         } else if inherited_rows(catalog, &unit, &docs, &kept).is_some() {
-            left.by_inheritance += 1;
-        } else if cached_answer(conn, &type_question(conn, catalog, &decisions, &unit, &docs)?.key, engine.as_deref())?.is_some() {
+            if in_scope(&all) {
+                left.by_inheritance += 1;
+                left.units += 1;
+            }
+        } else {
+            to_ask.push((unit, basis));
+        }
+    }
+    if to_ask.is_empty() {
+        return Ok(left);
+    }
+    // The groups by likeness are made over every unit to ask, as the step
+    // makes them, and then counted in the scope (C2 of 2 nov).
+    let signals = super::hint::load(conn, catalog, &decisions)?;
+    let mut asks = Vec::new();
+    for (unit, basis) in to_ask {
+        if signals.as_ref().is_some_and(|s| s.waits(unit.principal)) {
+            // It waits for its vector: set aside.
+            let all: Vec<i64> = std::iter::once(unit.principal).chain(unit.members.iter().map(|(m, _)| *m)).collect();
+            if in_scope(&all) {
+                left.held += 1;
+            }
+        } else {
+            asks.push((unit, basis));
+        }
+    }
+    for (units, group) in plan_asks(asks, signals.as_ref(), &held) {
+        let all: Vec<i64> =
+            units.iter().flat_map(|(u, _)| std::iter::once(u.principal).chain(u.members.iter().map(|(m, _)| *m))).collect();
+        if !in_scope(&all) {
+            continue;
+        }
+        let first = units[0].0.principal;
+        // With the vectors a question reads the vectors and the texts: it is
+        // built only when an answer about its document may be kept.
+        let may_be_kept = signals.is_none() || type_answer_kept_for(conn, first)?;
+        if may_be_kept
+            && cached_answer(conn, &ask_question(conn, catalog, &decisions, &units, group, &docs, signals.as_ref())?.key, engine.as_deref())?
+                .is_some()
+        {
             left.by_answer += 1;
-        } else if held.contains(&unit.principal) {
+        } else if held.contains(&first) {
             left.held += 1;
             continue;
         }
         left.units += 1;
     }
     Ok(left)
+}
+
+/// Whether some answer about the type of this document is kept.
+fn type_answer_kept_for(conn: &Connection, version: i64) -> Result<bool, String> {
+    conn.query_row("SELECT EXISTS (SELECT 1 FROM model_answer WHERE task = 'type' AND version_id = ?1)", [version], |row| row.get(0))
+        .map_err(sql_err)
 }
 
 /// How many typed documents (of `only`, or all) still have their data to
@@ -958,6 +1154,8 @@ fn write_type_rows(conn: &Connection, rows: &[TypeRow], basis: &str) -> Result<u
         if before.as_ref().is_some_and(|(t, s, b)| t == &row.doc_type && s == &row.stage && b == basis) {
             continue;
         }
+        // The doubtful mark was about the type before (C2 of 2 nov).
+        conn.execute("DELETE FROM type_doubt WHERE version_id = ?1", [row.content_id]).map_err(sql_err)?;
         conn.execute(
             "INSERT OR REPLACE INTO document_type
                 (version_id, doc_type, stage, proposed, proposed_name, proposed_description, source, principal,
@@ -1085,11 +1283,120 @@ pub(crate) fn name_of(conn: &Connection, content_id: i64) -> Result<String, Stri
     .map(Option::unwrap_or_default)
 }
 
-/// The type rows a pending type question will write, once answered.
+/// The type rows a pending type question will write, once answered: of one
+/// unit, or of the documents of a group by likeness, each with its basis.
 struct PendingType {
-    unit: Unit,
-    basis: String,
+    units: Vec<(Unit, String)>,
+    group: bool,
     question: Question,
+}
+
+impl PendingType {
+    /// Every document its answer types.
+    fn ids(&self) -> impl Iterator<Item = i64> + '_ {
+        self.units.iter().flat_map(|(u, _)| std::iter::once(u.principal).chain(u.members.iter().map(|(m, _)| *m)))
+    }
+}
+
+/// The questions of the type for the units still to ask, before building
+/// them (C2 of 2 nov): the documents alone near by their vectors go in one
+/// question, a group; the others, as before, one question per unit. In the
+/// order of the units: a group where its first document was.
+fn plan_asks(
+    to_ask: Vec<(Unit, String)>,
+    signals: Option<&super::hint::Signals>,
+    held: &BTreeSet<i64>,
+) -> Vec<(Vec<(Unit, String)>, bool)> {
+    let groups = match signals {
+        Some(signals) => {
+            // A document whose question a failure holds waits alone, as before.
+            let alone: Vec<i64> =
+                to_ask.iter().filter(|(u, _)| u.members.is_empty() && !held.contains(&u.principal)).map(|(u, _)| u.principal).collect();
+            signals.groups(&alone)
+        }
+        None => Vec::new(),
+    };
+    let group_of: HashMap<i64, usize> = groups.iter().enumerate().flat_map(|(g, ids)| ids.iter().map(move |id| (*id, g))).collect();
+    let mut members: Vec<Vec<(Unit, String)>> = vec![Vec::new(); groups.len()];
+    let mut order: Vec<Result<(Unit, String), usize>> = Vec::new();
+    for (unit, basis) in to_ask {
+        match group_of.get(&unit.principal) {
+            Some(g) if unit.members.is_empty() => {
+                if members[*g].is_empty() {
+                    order.push(Err(*g));
+                }
+                members[*g].push((unit, basis));
+            }
+            _ => order.push(Ok((unit, basis))),
+        }
+    }
+    order
+        .into_iter()
+        .map(|item| match item {
+            Ok(one) => (vec![one], false),
+            Err(g) => (std::mem::take(&mut members[g]), true),
+        })
+        .collect()
+}
+
+/// The question of a planned ask.
+fn ask_question(
+    conn: &Connection,
+    catalog: &Catalog,
+    decisions: &TypeDecisions,
+    units: &[(Unit, String)],
+    group: bool,
+    docs: &BTreeMap<i64, DocInfo>,
+    signals: Option<&super::hint::Signals>,
+) -> Result<Question, String> {
+    if group {
+        group_question(conn, catalog, decisions, units, docs, signals)
+    } else {
+        type_question(conn, catalog, decisions, &units[0].0, docs, signals)
+    }
+}
+
+/// The rows an answer gives each unit it was asked about, in their order.
+fn answer_rows(
+    catalog: &Catalog,
+    decisions: &TypeDecisions,
+    units: &[(Unit, String)],
+    group: bool,
+    docs: &BTreeMap<i64, DocInfo>,
+    answer: &str,
+    key: &str,
+) -> Result<Vec<Vec<TypeRow>>, String> {
+    if group {
+        rows_from_group_answer(catalog, decisions, units, docs, answer, key)
+    } else {
+        Ok(vec![rows_from_answer(catalog, decisions, &units[0].0, docs, answer, key)?])
+    }
+}
+
+/// Writes the rows an answer gave, each unit on its basis, and the doubtful
+/// mark of each document it was asked about against its neighbours, as the
+/// vectors say now (C2 of 2 nov).
+fn write_answer(
+    conn: &Connection,
+    units: &[(Unit, String)],
+    rows: &[Vec<TypeRow>],
+    signals: Option<&super::hint::Signals>,
+) -> Result<usize, String> {
+    let mut written = 0;
+    for ((_, basis), rows) in units.iter().zip(rows) {
+        written += write_type_rows(conn, rows, basis)?;
+    }
+    if let Some(signals) = signals {
+        let apart: BTreeSet<i64> =
+            units.iter().flat_map(|(u, _)| std::iter::once(u.principal).chain(u.members.iter().map(|(m, _)| *m))).collect();
+        for ((unit, _), rows) in units.iter().zip(rows) {
+            if let Some(row) = rows.iter().find(|r| r.content_id == unit.principal) {
+                let near = signals.doubt(unit.principal, &row.doc_type, &apart);
+                super::hint::note_doubt(conn, unit.principal, &row.doc_type, near.as_deref())?;
+            }
+        }
+    }
+    Ok(written)
 }
 
 /// The data a pending data question will complete, once answered.
@@ -1190,9 +1497,9 @@ fn data_from_answer(fields: &[&DataRule], answer: &str, body: &str) -> Result<Ve
 
 impl DocBase {
     /// Pass 4 without the model: types the marks decide, and answers the
-    /// model already gave. Returns the rows written and the questions
-    /// still to ask.
-    fn pass4_refresh(&self) -> Result<(usize, Vec<PendingType>), String> {
+    /// model already gave. Returns the rows written, the questions still to
+    /// ask and the documents whose question waits for their vector (C2).
+    fn pass4_refresh(&self) -> Result<(usize, Vec<PendingType>, Vec<i64>), String> {
         let catalog = types::catalog();
         let conn = self.conn();
         let engine = answering_engine(&conn)?;
@@ -1218,6 +1525,7 @@ impl DocBase {
             written += 1;
         }
         let mut pending = Vec::new();
+        let mut to_ask = Vec::new();
         for unit in units {
             let basis = unit_basis(catalog, &unit, &docs);
             let all = std::iter::once(unit.principal).chain(unit.members.iter().map(|(m, _)| *m));
@@ -1237,19 +1545,38 @@ impl DocBase {
                 }
                 continue;
             }
-            let question = type_question(&conn, catalog, &decisions, &unit, &docs)?;
-            match cached_answer(&conn, &question.key, engine.as_deref())? {
-                Some(answer) => match rows_from_answer(catalog, &decisions, &unit, &docs, &answer, &question.key) {
-                    Ok(rows) => written += write_type_rows(&conn, &rows, &basis)?,
-                    Err(error) => {
-                        eprintln!("[docbase] stored answer {}: {error}", question.key);
-                        stored_answer_unread(&conn, "types", unit.principal, &error);
-                    }
-                },
-                None => pending.push(PendingType { unit, basis, question }),
+            to_ask.push((unit, basis));
+        }
+        let mut waiting = Vec::new();
+        if to_ask.is_empty() {
+            return Ok((written, pending, waiting));
+        }
+        // The signals of the vectors (C2 of 2 nov): none with «Ninguno».
+        let signals = super::hint::load(&conn, catalog, &decisions)?;
+        let held = crate::docbase::failures::held_versions(&conn, "types")?;
+        let mut asks = Vec::new();
+        for (unit, basis) in to_ask {
+            if signals.as_ref().is_some_and(|s| s.waits(unit.principal)) {
+                waiting.push(unit.principal);
+                waiting.extend(unit.members.iter().map(|(m, _)| *m));
+            } else {
+                asks.push((unit, basis));
             }
         }
-        Ok((written, pending))
+        for (units, group) in plan_asks(asks, signals.as_ref(), &held) {
+            let question = ask_question(&conn, catalog, &decisions, &units, group, &docs, signals.as_ref())?;
+            match cached_answer(&conn, &question.key, engine.as_deref())? {
+                Some(answer) => match answer_rows(catalog, &decisions, &units, group, &docs, &answer, &question.key) {
+                    Ok(rows) => written += write_answer(&conn, &units, &rows, signals.as_ref())?,
+                    Err(error) => {
+                        eprintln!("[docbase] stored answer {}: {error}", question.key);
+                        stored_answer_unread(&conn, "types", question.content_id, &error);
+                    }
+                },
+                None => pending.push(PendingType { units, group, question }),
+            }
+        }
+        Ok((written, pending, waiting))
     }
 
     /// Pass 5 without the model: the data the rules find, completed with
@@ -1351,7 +1678,7 @@ impl DocBase {
     /// already given, data rules, relations by type. Returns how much
     /// changed.
     pub fn types_refresh(&self) -> Result<usize, String> {
-        let (typed, _) = self.pass4_refresh()?;
+        let (typed, _, _) = self.pass4_refresh()?;
         let (data, _) = self.pass5_refresh()?;
         let corrected = self.apply_type_rules()?;
         if corrected > 0 {
@@ -1513,14 +1840,14 @@ impl DocBase {
         let mut budget = max_questions;
         let mut stopped = false;
 
-        let (written, pending) = self.pass4_refresh()?;
+        let (written, pending, _) = self.pass4_refresh()?;
         report.typed += written;
         // A whole file that kept a signature from before and is to be cut
         // again (another text of its pages, other rules) is typed by what
         // comes out of the cut, once (D-666).
         let to_cut = if pending.is_empty() { BTreeSet::new() } else { self.waiting_for_cut()? };
         for item in pending {
-            if std::iter::once(item.unit.principal).chain(item.unit.members.iter().map(|(m, _)| *m)).any(|id| to_cut.contains(&id)) {
+            if item.ids().any(|id| to_cut.contains(&id)) {
                 continue;
             }
             // A unit whose question failed waits for its next attempt, or
@@ -1539,12 +1866,16 @@ impl DocBase {
                 Ok(answer) => {
                     let conn = self.conn();
                     let docs = load_docs(&conn)?;
-                    if !std::iter::once(item.unit.principal).chain(item.unit.members.iter().map(|(m, _)| *m)).all(|id| docs.contains_key(&id)) {
+                    if !item.ids().all(|id| docs.contains_key(&id)) {
                         continue;
                     }
                     let decisions = read_type_decisions(&conn)?;
-                    match rows_from_answer(catalog, &decisions, &item.unit, &docs, &answer, &item.question.key) {
-                        Ok(rows) => report.typed += write_type_rows(&conn, &rows, &item.basis)?,
+                    match answer_rows(catalog, &decisions, &item.units, item.group, &docs, &answer, &item.question.key) {
+                        Ok(rows) => {
+                            // The neighbours as they are now, for the doubtful mark.
+                            let signals = super::hint::load(&conn, catalog, &decisions)?;
+                            report.typed += write_answer(&conn, &item.units, &rows, signals.as_ref())?
+                        }
                         Err(error) => {
                             drop(conn);
                             // An answer that cannot be applied: of another
@@ -1607,14 +1938,111 @@ impl DocBase {
         ask_and_keep(self, asker, question)
     }
 
+    /// The question of the type of `version` WITHOUT the hint, only to
+    /// measure the hint (D-805, C2 of 2 nov): the question of before
+    /// (`tipo-2`, about the document alone, or about its family when it is a
+    /// principal), asked with `asker` and kept apart, in
+    /// `type_control_answer`. The process never reads that table: no type,
+    /// no answer of the process and no failure changes. The same question
+    /// already answered by the same engine is not asked again (D-678).
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub fn type_without_hint(&self, asker: &dyn DocumentAsker, version: i64) -> Result<ControlType, String> {
+        let _one_at_a_time = ASKING.lock().unwrap_or_else(|p| p.into_inner());
+        let catalog = types::catalog();
+        let question = {
+            let conn = self.conn();
+            let docs = load_docs(&conn)?;
+            if !docs.contains_key(&version) {
+                return Err(format!("El documento {version} no tiene palabras para preguntar su tipo"));
+            }
+            let Some(unit) = load_units(&conn, catalog, &docs)?.into_iter().find(|u| u.principal == version) else {
+                return Err(format!("El documento {version} es parte de una familia: su tipo es el de su principal"));
+            };
+            let decisions = read_type_decisions(&conn)?;
+            type_question(&conn, catalog, &decisions, &unit, &docs, None)?
+        };
+        let engine = asker.engine_id();
+        let kept: Option<String> = self
+            .conn()
+            .query_row(
+                "SELECT answer FROM type_control_answer WHERE version_id = ?1 AND question = ?2 AND engine = ?3",
+                params![version, question.key, engine],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(sql_err)?;
+        let asked = kept.is_none();
+        let answer = match kept {
+            Some(answer) => answer,
+            None => {
+                let answer = asker.ask(&question.prompt, &question.schema)?;
+                parse_json::<serde_json::Value>(&answer)?;
+                self.conn()
+                    .execute(
+                        "INSERT OR REPLACE INTO type_control_answer (version_id, question, prompt_version, engine, prompt, answer, asked_at)
+                         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                        params![version, question.key, question.version, engine, question.prompt, answer, now_ms()],
+                    )
+                    .map_err(sql_err)?;
+                answer
+            }
+        };
+        let parsed: TypeAnswer = parse_json(&answer)?;
+        Ok(ControlType {
+            version_id: version,
+            question: question.key,
+            doc_type: clean_id(&parsed.tipo),
+            stage: parsed.etapa.map(|s| clean_id(&s)),
+            confidence: parsed.confianza,
+            asked,
+        })
+    }
+
+    /// The documents whose type the model gave asked about them (no member
+    /// of a family), for the measure of the hint (D-805): alone only, or
+    /// also the principals of a family. Never one of low confidence (its
+    /// question never has the hint). Reads only.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub fn typed_by_the_model(&self, alone_only: bool) -> Result<Vec<ModelTyped>, String> {
+        let conn = self.conn();
+        let catalog = types::catalog();
+        let docs = load_docs(&conn)?;
+        let with_family: BTreeSet<i64> =
+            load_units(&conn, catalog, &docs)?.into_iter().filter(|u| !u.members.is_empty()).map(|u| u.principal).collect();
+        let low = crate::docbase::safe_words::low_confidence(&conn)?;
+        let mut statement = conn
+            .prepare(
+                "SELECT t.version_id, t.doc_type, coalesce(t.question, ''),
+                        (SELECT count(*) FROM document_type u WHERE u.question = t.question AND u.source = 'model'),
+                        (SELECT a.prompt FROM model_answer a WHERE a.question = t.question ORDER BY a.asked_at DESC LIMIT 1)
+                 FROM document_type t WHERE t.source = 'model' AND t.principal = t.version_id ORDER BY t.version_id",
+            )
+            .map_err(sql_err)?;
+        let rows = statement
+            .query_map([], |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, i64>(3)?, row.get::<_, Option<String>>(4)?))
+            })
+            .map_err(sql_err)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(sql_err)?;
+        Ok(rows
+            .into_iter()
+            .filter(|(id, ..)| !low.contains(id) && !(alone_only && with_family.contains(id)))
+            .map(|(version_id, doc_type, question, sharing, prompt)| ModelTyped {
+                version_id,
+                doc_type,
+                question_version: question.split(':').next().unwrap_or_default().to_string(),
+                in_group: sharing > 1,
+                with_hint: prompt.as_deref().is_some_and(|p| p.contains(super::hint::HINT_HEADER)),
+            })
+            .collect())
+    }
+
     /// The contents whose type and stage are still to be asked: what the
     /// layers that use the type as a hint wait for.
     pub(crate) fn contents_waiting_for_type(&self) -> Result<BTreeSet<i64>, String> {
-        let (_, pending) = self.pass4_refresh()?;
-        Ok(pending
-            .iter()
-            .flat_map(|p| std::iter::once(p.unit.principal).chain(p.unit.members.iter().map(|(m, _)| *m)))
-            .collect())
+        let (_, pending, waiting) = self.pass4_refresh()?;
+        Ok(pending.iter().flat_map(PendingType::ids).chain(waiting).collect())
     }
 
     /// The type of the document at this location, and its data.
@@ -1745,6 +2173,7 @@ fn type_question(
     decisions: &TypeDecisions,
     unit: &Unit,
     docs: &BTreeMap<i64, DocInfo>,
+    signals: Option<&super::hint::Signals>,
 ) -> Result<Question, String> {
     let body = body_of(conn, unit.principal)?;
     let name = name_of(conn, unit.principal)?;
@@ -1762,14 +2191,42 @@ fn type_question(
             marks: marks_text(catalog, &docs[member].marks),
         });
     }
-    let prompt = type_prompt(catalog, decisions, &name, &body, &docs[&unit.principal].marks, &members);
+    // The hint of the neighbours (C2 of 2 nov), outside its own family.
+    let apart: BTreeSet<i64> = unit.members.iter().map(|(m, _)| *m).collect();
+    let hint = signals.and_then(|s| s.hint_for(unit.principal, &apart));
+    let version = if hint.is_some() { TYPE_PROMPT_SIGNALS } else { TYPE_PROMPT };
+    let prompt = type_prompt(catalog, decisions, &name, &body, &docs[&unit.principal].marks, &members, hint.as_deref());
+    Ok(Question { key: question_key(version, &prompt), version, task: "type", content_id: unit.principal, prompt, schema: type_schema() })
+}
+
+/// The question of a group by likeness (C2 of 2 nov): each document with
+/// its text, its marks and its own hint (outside the group).
+fn group_question(
+    conn: &Connection,
+    catalog: &Catalog,
+    decisions: &TypeDecisions,
+    units: &[(Unit, String)],
+    docs: &BTreeMap<i64, DocInfo>,
+    signals: Option<&super::hint::Signals>,
+) -> Result<Question, String> {
+    let apart: BTreeSet<i64> = units.iter().map(|(u, _)| u.principal).collect();
+    let mut items = Vec::new();
+    for (unit, _) in units {
+        items.push(GroupItem {
+            name: name_of(conn, unit.principal)?,
+            body: body_of(conn, unit.principal)?,
+            marks: marks_text(catalog, &docs[&unit.principal].marks),
+            hint: signals.and_then(|s| s.hint_for(unit.principal, &apart)),
+        });
+    }
+    let prompt = group_prompt(catalog, decisions, &items);
     Ok(Question {
-        key: question_key(TYPE_PROMPT, &prompt),
-        version: TYPE_PROMPT,
+        key: question_key(TYPE_PROMPT_SIGNALS, &prompt),
+        version: TYPE_PROMPT_SIGNALS,
         task: "type",
-        content_id: unit.principal,
+        content_id: units[0].0.principal,
         prompt,
-        schema: type_schema(),
+        schema: group_schema(),
     })
 }
 
@@ -1831,7 +2288,7 @@ pub(crate) fn example_type_question(
         description: part(GROUP, &super::propose::describe("near-identical", 1.0, &one_word)),
         marks: marks_text(catalog, &[]),
     };
-    let prompt = type_prompt(catalog, &decisions, &part(FILE, example::FILE), &part(TEXT, example::TEXT), &[], &[member]);
+    let prompt = type_prompt(catalog, &decisions, &part(FILE, example::FILE), &part(TEXT, example::TEXT), &[], &[member], None);
     Ok((prompt, type_schema()))
 }
 

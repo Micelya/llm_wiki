@@ -2,6 +2,7 @@ import {
   getDocument,
   getHome,
   getReadingQuality,
+  getTypesBySimilarity,
   getSimilarPending,
   listDocuments,
   listProposedTypes,
@@ -14,6 +15,7 @@ import {
   type ReadingQuality,
   type SimilarGroup,
   type SimilarPending,
+  type TypesBySimilarity,
 } from "@/commands/docbase"
 import { listNewClips, markClipsSeen, openWorkFolder, type NewFiles } from "@/commands/work-folder"
 import { deleteCoreLeftReadings, listCoreLeftReadings, type CoreLeftReading } from "@/commands/micelya-core"
@@ -47,6 +49,8 @@ export interface DocbaseFacts {
   coreLeft?: CoreLeftReading[] | null
   /** How well the documents were read (P-544). */
   readingQuality?: ReadingQuality | null
+  /** The doubtful types and the suggestions by likeness (C2 of 2 nov). */
+  typesBySimilarity?: TypesBySimilarity | null
 }
 
 export function docbaseNotices(facts: DocbaseFacts, words: Vocabulary = vocabulary()): AttentionNotice[] {
@@ -154,6 +158,8 @@ export function docbaseNotices(facts: DocbaseFacts, words: Vocabulary = vocabula
 
   const quality = readingQualityNotice(facts.readingQuality)
   if (quality) out.push(quality)
+
+  out.push(...typesBySimilarityNotices(facts.typesBySimilarity))
 
   const proposed = facts.proposedTypes ?? []
   if (proposed.length > 0) {
@@ -331,6 +337,69 @@ export function readingQualityNotice(quality: ReadingQuality | null | undefined)
   }
 }
 
+/** Where a document is, for a case: its file, and its pages when it is a part. */
+function placeOf(document: { name: string; path: string; firstPage: number | null; lastPage: number | null }): string {
+  const pages =
+    document.firstPage === null ? "" : document.firstPage === document.lastPage ? `, página ${document.firstPage}` : `, páginas ${document.firstPage} a ${document.lastPage}`
+  return `${document.name || document.path}${pages}`
+}
+
+const likenessText = (x: number) => x.toFixed(2).replace(".", ",")
+
+/**
+ * The type by likeness (C2 of 2 nov): the types the model gave against
+ * their 3 very close neighbours (doubtful: not asked again, a person
+ * looks), and the documents without a type with the one their neighbours
+ * suggest (nothing is written as their type).
+ */
+export function typesBySimilarityNotices(found: TypesBySimilarity | null | undefined): AttentionNotice[] {
+  const out: AttentionNotice[] = []
+  if (!found) return out
+  if (found.doubtful.length > 0) {
+    out.push({
+      source: DOCBASE_SOURCE,
+      id: `${DOCBASE_SOURCE}:doubtful-types`,
+      kind: "decision",
+      topic: "doubtful-types",
+      priority: "low",
+      count: found.doubtful.length,
+      title: plural(found.doubtful.length, "tipo dudoso", "tipos dudosos"),
+      explanation:
+        "El modelo eligió un tipo distinto del que comparten los 3 documentos ya clasificados más parecidos a cada uno. No se preguntó de nuevo: el tipo queda como lo dijo el modelo, marcado.",
+      todo: "Abrí cada documento y mirá si el tipo está bien. Si es un tipo propuesto, se confirma o se rechaza en la revisión de tipos.",
+      resolvedWhen: "Desaparece cuando el tipo del documento cambia.",
+      actions: [],
+      cases: found.doubtful.slice(0, DOCUMENT_CASES).map((document) => ({
+        id: String(document.versionId),
+        title: placeOf(document),
+        detail: `El modelo dijo «${documentTypeName(document.docType)}»; sus 3 vecinos son «${documentTypeName(document.neighbourType)}» (parecido ${document.likeness.map(likenessText).join(", ")})`,
+      })),
+    })
+  }
+  if (found.suggested.length > 0) {
+    out.push({
+      source: DOCBASE_SOURCE,
+      id: `${DOCBASE_SOURCE}:suggested-types`,
+      kind: "decision",
+      topic: "suggested-types",
+      priority: "low",
+      count: found.suggested.length,
+      title: plural(found.suggested.length, "documento sin tipo con una sugerencia por parecido", "documentos sin tipo con una sugerencia por parecido"),
+      explanation:
+        "El proceso no les pudo dar un tipo. Los documentos ya clasificados más parecidos sugieren uno: es una pista, no se guarda como su tipo.",
+      todo: "Mirá cada documento: la sugerencia y su parecido ayudan a saber qué es. Un parecido bajo dice poco.",
+      resolvedWhen: "Desaparece cuando el documento tiene tipo.",
+      actions: [],
+      cases: found.suggested.slice(0, DOCUMENT_CASES).map((document) => ({
+        id: String(document.versionId),
+        title: placeOf(document),
+        detail: `Sugerencia: «${documentTypeName(document.docType)}» (parecido ${likenessText(document.likeness)}); ${document.why}`,
+      })),
+    })
+  }
+  return out
+}
+
 export function clipsNotice(clips: NewFiles | null | undefined): AttentionNotice | null {
   if (!clips || clips.total === 0) return null
   return {
@@ -400,6 +469,7 @@ export function useDocbaseNotices(): AttentionNotice[] | null {
   const clips = useDocbaseQuery("attention:new-clips", listNewClips)
   const coreLeft = useDocbaseQuery("attention:core-left", listCoreLeftReadings)
   const quality = useDocbaseQuery("attention:reading-quality", getReadingQuality)
+  const bySimilarity = useDocbaseQuery("attention:types-by-similarity", getTypesBySimilarity)
   if (home.error) throw new Error(home.error)
   if (!home.data) return null
   return docbaseNotices({
@@ -410,6 +480,7 @@ export function useDocbaseNotices(): AttentionNotice[] | null {
     newClips: clips.data,
     coreLeft: coreLeft.data,
     readingQuality: quality.data,
+    typesBySimilarity: bySimilarity.data,
   })
 }
 

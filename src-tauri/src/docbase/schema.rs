@@ -15,7 +15,7 @@ use super::{now_ms, sql_err};
 
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13];
 
 /// The shape of the base at version 29 of the earlier numbering, in one
 /// migration, generated from that base (`schema_v1.sql`). It seeds no row:
@@ -426,6 +426,34 @@ CREATE TABLE version_vector (
     computed_at INTEGER NOT NULL
 );
 CREATE INDEX version_vector_by_text ON version_vector (text_hash, model, dimension);
+";
+
+/// The vectors as a signal of the type (C2 of 2 nov).
+/// - `type_doubt`: the doubtful mark of a type the model gave against its 3
+///   very close neighbours, that share another type (`similar/hint.rs`): the
+///   type it got, the one of the neighbours, and the neighbours with their
+///   likeness (JSON). It goes with its version, and when its type changes.
+/// - `type_control_answer`: the answers to the question of the type asked
+///   without the hint, only to measure it (D-805): kept apart, the process
+///   never reads them, so they change no type.
+const V13: &str = "
+CREATE TABLE type_doubt (
+    version_id     INTEGER PRIMARY KEY REFERENCES version (id) ON DELETE CASCADE,
+    doc_type       TEXT NOT NULL,
+    neighbour_type TEXT NOT NULL,
+    neighbours     TEXT NOT NULL,
+    computed_at    INTEGER NOT NULL
+);
+CREATE TABLE type_control_answer (
+    version_id     INTEGER NOT NULL REFERENCES version (id) ON DELETE CASCADE,
+    question       TEXT NOT NULL,
+    prompt_version TEXT NOT NULL,
+    engine         TEXT NOT NULL,
+    prompt         TEXT NOT NULL,
+    answer         TEXT NOT NULL,
+    asked_at       INTEGER NOT NULL,
+    PRIMARY KEY (version_id, question, engine)
+);
 ";
 
 /// The version of a base: 0 for one just created.

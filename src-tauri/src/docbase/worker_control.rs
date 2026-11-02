@@ -192,3 +192,62 @@ fn the_app_from_zero() {
     }
     log(json!({"t": now_ms(), "event": "closed", "seconds": started.elapsed().as_secs(), "left": left(&base)}));
 }
+
+/// The measure of the hint of the type (C2 of 2 nov, D-805): over the base
+/// of a control run, the question of the type of each document typed by the
+/// model asked AGAIN WITHOUT THE HINT (the question of before, `tipo-2`,
+/// alone), with the same engine of the run, and kept apart
+/// (`type_control_answer`): the process never reads it, and no type changes.
+///
+/// ```text
+/// MICELYA_CONTROL_BASE="C:\corrida\base.sqlite3" MICELYA_CONTROL_LOG="C:\corrida\sin-pista.jsonl" \
+///     MICELYA_ASK_MODEL=... MICELYA_ASK_REASONING=high [MICELYA_CONTROL_NO_HINT_ALL=1] [MICELYA_CONTROL_ASK_LIMIT=n] \
+///     cargo test --lib docbase::worker_control::the_type_without_the_hint -- --ignored --nocapture --test-threads=1
+/// ```
+///
+/// - Run it once the control run is over (or stopped): it opens the same base.
+/// - The documents: those without a family whose type the model gave about
+///   them; with `MICELYA_CONTROL_NO_HINT_ALL=1`, also the principals of a
+///   family. Not the ones whose question had no hint nor group (`tipo-2`):
+///   both questions would be the same one. Never those of low confidence.
+/// - One line per document in the log (`event: "no-hint"`): the type with
+///   the hint (the one kept), the one without it, whether they are the same,
+///   whether it went in a group (then the difference mixes the group and the
+///   hint) and whether it was asked now. Taken up again, what is already
+///   kept apart is not asked again (D-678).
+#[test]
+#[ignore = "asks the real model the type of the documents of a control run without the hint"]
+fn the_type_without_the_hint() {
+    let Ok(path) = std::env::var("MICELYA_CONTROL_BASE") else {
+        println!("MICELYA_CONTROL_BASE is not set: nothing to run");
+        return;
+    };
+    assert!(Path::new(&path).exists(), "the base of the control run is not there: {path}");
+    let all = std::env::var("MICELYA_CONTROL_NO_HINT_ALL").as_deref() == Ok("1");
+    let limit: usize = std::env::var("MICELYA_CONTROL_ASK_LIMIT").ok().and_then(|l| l.parse().ok()).unwrap_or(usize::MAX);
+    let base = DocBase::open(Path::new(&path)).unwrap();
+    let asker = crate::docbase::knowledge::check::recorded();
+    let documents = base.typed_by_the_model(!all).unwrap();
+    let measured: Vec<_> = documents.iter().filter(|d| d.question_version != crate::docbase::similar::classify::TYPE_PROMPT).collect();
+    log(json!({"t": now_ms(), "event": "no-hint-open", "documents": documents.len(), "measured": measured.len(),
+               "with_family": all, "hint_on": base.type_hint().unwrap()}));
+    let (mut asked, mut same, mut done) = (0usize, 0usize, 0usize);
+    for document in measured {
+        if asked >= limit {
+            log(json!({"t": now_ms(), "event": "end", "why": "ask-limit", "asked": asked}));
+            break;
+        }
+        match base.type_without_hint(&asker, document.version_id) {
+            Ok(control) => {
+                asked += usize::from(control.asked);
+                done += 1;
+                same += usize::from(control.doc_type == document.doc_type);
+                log(json!({"t": now_ms(), "event": "no-hint", "version": document.version_id, "with_hint": document.doc_type,
+                           "without_hint": control.doc_type, "same": control.doc_type == document.doc_type,
+                           "in_group": document.in_group, "hint_in_question": document.with_hint, "asked_now": control.asked}));
+            }
+            Err(error) => log(json!({"t": now_ms(), "event": "error", "version": document.version_id, "error": error})),
+        }
+    }
+    log(json!({"t": now_ms(), "event": "no-hint-closed", "measured": done, "same": same, "asked": asked}));
+}

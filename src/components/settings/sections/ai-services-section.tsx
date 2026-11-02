@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { AiServiceId, AiServices, CatalogEngine, EngineChoice, EnginesCatalog } from "@/commands/docbase"
+import { getTypeHint, setTypeHint } from "@/commands/docbase"
 import { availableLlmPresets, findLlmPreset, type LlmPreset } from "@/components/settings/llm-presets"
 import {
   CAPABILITY_LEVEL_NAMES,
@@ -26,6 +27,53 @@ export type ConnectionsPlace = "llm" | "web-search" | "connections"
 const SHARED_CONNECTIONS: Record<string, string> = { "micelya-core": "Micelya Core" }
 
 const ICONS: Record<AiServiceId, typeof Cpu> = { ask: Sparkles, recognize: ScanText, research: Globe, embed: Network }
+
+/**
+ * «Pista del tipo por parecido» (C2 of 2 nov, D-805): a setting of its own,
+ * on by default, under «Calcular vectores». Off, the question of the type
+ * carries no neighbour; the groups, the suggestion and the doubtful mark go on.
+ */
+export function TypeHintToggle() {
+  const [on, setOn] = useState<boolean | null>(null)
+  const [problem, setProblem] = useState<string | null>(null)
+  useEffect(() => {
+    let alive = true
+    getTypeHint()
+      .then((value) => {
+        if (alive) setOn(value)
+      })
+      .catch(() => {
+        if (alive) setOn(null)
+      })
+    return () => {
+      alive = false
+    }
+  }, [])
+  if (on === null) return null
+  async function toggle(next: boolean) {
+    setProblem(null)
+    try {
+      await setTypeHint(next)
+      setOn(next)
+    } catch (cause) {
+      setProblem(String(cause))
+    }
+  }
+  return (
+    <div className="space-y-1" data-type-hint>
+      <label className="flex items-center gap-2 text-sm text-strong">
+        <input type="checkbox" checked={on} onChange={(event) => void toggle(event.target.checked)} />
+        Pista del tipo por parecido
+      </label>
+      <p className="text-xs text-muted-foreground">
+        {on
+          ? "Encendida: cada pregunta de tipo lleva los 3 documentos ya clasificados más parecidos, con su tipo y su parecido, como pista (manda el contenido). No suma consultas."
+          : "Apagada: la pregunta de tipo no lleva los vecinos. Siguen los grupos por parecido, la sugerencia para los documentos sin tipo y la marca de tipo dudoso. Lo ya clasificado no se vuelve a preguntar."}
+      </p>
+      {problem && <p className="text-xs text-destructive">{problem}</p>}
+    </div>
+  )
+}
 
 /**
  * Ajustes → Servicios de IA (P-141, D-443): one row per service with its
@@ -159,6 +207,7 @@ export function AiServicesSection({ onOpen }: { onOpen: (place: ConnectionsPlace
                   : "Es un paso del proceso, después de la firma de parecidos y antes de las familias y el tipo: un vector por documento, de a 96 por llamada (unas 0,013 llamadas por documento, ninguna pregunta a un modelo de lenguaje). Una copia no pide nada; un texto que cambió vuelve a pedir; otro modelo vuelve a pedir todo. Espera a la lectura automática y, si Core no responde, espera y lo vuelve a intentar solo."}
               </p>
             )}
+            {vectors && !vectorsOff && <TypeHintToggle />}
             {(choice.engine || byDefault) && engine?.connection && !connected(engine.connection) && (
               <div className="flex flex-wrap items-center gap-2 text-xs text-warn">
                 <span>
