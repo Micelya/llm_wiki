@@ -19,6 +19,15 @@ use std::sync::Mutex;
 use tauri::{Emitter, Manager};
 use uuid::Uuid;
 
+/// The identifier of the person's app (`tauri.conf.json`): its data
+/// folder, with its base. The review app (`tauri.revision.conf.json`,
+/// D-780) has another one, so it never opens the person's base.
+pub(crate) const MAIN_IDENTIFIER: &str = "com.micelya.desktop";
+/// Set by `herramientas\abrir-revision.ps1`: this launch has to be the
+/// review app. With the identifier of the person's app it stops before
+/// touching anything of its data folder.
+const REVIEW_LAUNCH_VAR: &str = "MICELYA_REVISION";
+
 struct CloseBehaviorState(Mutex<String>);
 struct TrayAvailabilityState(Mutex<bool>);
 
@@ -355,6 +364,15 @@ fn only_app_webview<R: tauri::Runtime>(
 pub fn run() {
     apply_linux_webkit_compat_env();
 
+    let context = tauri::generate_context!();
+    if std::env::var_os(REVIEW_LAUNCH_VAR).is_some() && context.config().identifier == MAIN_IDENTIFIER {
+        eprintln!(
+            "[revision] {REVIEW_LAUNCH_VAR} pide la app de revisión, pero esta se armó con el identificador {MAIN_IDENTIFIER}: \
+             no se abre, para no tocar la base de la carpeta de datos de siempre. Abrila con --config src-tauri/tauri.revision.conf.json."
+        );
+        std::process::exit(2);
+    }
+
     tauri::Builder::default()
         // Has to be the first plugin. Closing the window only hides the
         // app in the tray, so opening it again used to start a second
@@ -682,7 +700,7 @@ pub fn run() {
                 }
             }
         })
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building tauri application")
         .run(|app, event| {
             #[cfg(target_os = "macos")]

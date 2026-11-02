@@ -5070,6 +5070,32 @@
       "detalle": "1) Una página cuyo único texto repite el pie de la anterior es una página con solo el pie, y sigue por regla, sin preguntar. En la corrida de control, una página así quedó como documento aparte con seguridad alta, porque el lector no marcó el renglón como pie. 2) La pista «termina con una fórmula de cierre: empezaría otro» no debe empujar a cortar cuando la página siguiente solo trae una firma con el nombre y la matrícula. 3) La pista «se pasa de digital a escaneada» no debe salir cuando la página tomada por escaneada tiene su propia capa de texto, como una página digital con una imagen grande. Son criterios generales; se miden con las respuestas guardadas contra la hoja y entran solo si no empeoran. Van con el corte, parte 3. Consultas de producción por documento (D-672): la 1 resta una pregunta en los archivos donde ese era el único salto dudoso; la 2 y la 3, 0.",
       "creado": "2026-11-01",
       "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-589",
+      "titulo": "La app de revisión comparte con la de siempre las claves guardadas en el llavero de Windows",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "pruebas y calidad",
+      "detalle": "Con otro identificador (D-780), la app de revisión tiene su propia carpeta de datos, pero el servicio del llavero es fijo (`secrets.rs`, `SERVICE`). Si en la app de revisión alguien guarda o borra una clave en Ajustes, cambia también para la app de siempre. Hoy no pasa porque la copia de la base queda sin motores y nadie guarda claves en la revisión. Arreglo posible: que el servicio del llavero salga del identificador, con la app de siempre en el nombre de hoy para no perder sus claves.",
+      "referencia": "D-780",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
+    },
+    {
+      "id": "P-590",
+      "titulo": "La app de revisión y la de siempre se disputan el puerto de los recortes web y el inicio con Windows",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "pruebas y calidad",
+      "detalle": "Dos cosas no se separan con el identificador (D-780). 1) El servidor de los recortes web escucha siempre en el puerto 19827 (`local_server`): lo toma la primera app que abre, y la otra queda sin recortes; si la de revisión abre primero, los recortes del navegador van a su carpeta de trabajo. 2) El inicio con Windows se guarda con el nombre del producto, que es el mismo en las dos: al abrir, la pantalla lo pone como lo tiene guardado esa app, así que abrir la de revisión (apagado) borraría el inicio con Windows de la de siempre si un día se enciende. Hoy está apagado en las dos. Arreglo posible: en la app de revisión, otro puerto o el servidor apagado, y no sincronizar el inicio con Windows cuando el identificador no es el de siempre.",
+      "referencia": "D-780",
+      "creado": "2026-11-01",
+      "actualizado": "2026-11-01"
     }
   ]
 }
