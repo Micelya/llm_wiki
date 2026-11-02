@@ -1034,6 +1034,40 @@ pub fn spawn(base: Arc<DocBase>, wake: Arc<Wake>, on_change: impl Fn() + Send + 
 }
 
 fn run(base: &DocBase, wake: &Arc<Wake>, on_change: &dyn Fn(), on_pages: &dyn Fn()) {
+    run_looked(base, wake, on_change, on_pages, &mut NoLooker);
+}
+
+/// What looks at the loop from outside: the control run (A4 of 2 nov)
+/// writes down each turn and counts the questions; the app looks with
+/// `NoLooker`. It never changes what a turn does: it can only count the
+/// questions of the engine of Ajustes, end the loop (`after`, `idle`), and
+/// do what a person does on the screen.
+pub(crate) trait Looker {
+    /// The engine of «Preguntar al modelo» of this turn, as Ajustes says.
+    fn asker(&mut self, asker: Option<Box<dyn DocumentAsker>>) -> Option<Box<dyn DocumentAsker>> {
+        asker
+    }
+    /// Just before a turn.
+    fn before(&mut self, _base: &DocBase) {}
+    /// Just after a turn; false ends the loop.
+    fn after(&mut self, _base: &DocBase, _turn: &Result<Turn, String>) -> bool {
+        true
+    }
+    /// The watcher heard a change that calmed down.
+    fn heard(&mut self, _base: &DocBase) {}
+    /// Nothing to do now: the loop is to sleep `sleep`; false ends it.
+    fn idle(&mut self, _base: &DocBase, _sleep: Duration) -> bool {
+        true
+    }
+}
+
+/// The app: nobody looks.
+struct NoLooker;
+
+impl Looker for NoLooker {}
+
+/// The loop of the app, looked at by `looker`.
+pub(crate) fn run_looked(base: &DocBase, wake: &Arc<Wake>, on_change: &dyn Fn(), on_pages: &dyn Fn(), looker: &mut dyn Looker) {
     let mut last_sweep: Option<Instant> = None;
     let mut last_notice = Instant::now();
     let mut unannounced = false;
@@ -1046,7 +1080,10 @@ fn run(base: &DocBase, wake: &Arc<Wake>, on_change: &dyn Fn(), on_pages: &dyn Fn
         if woken {
             base.process_woken();
         }
-        unannounced |= take_calmed(base, &watch);
+        if take_calmed(base, &watch) {
+            looker.heard(base);
+            unannounced = true;
+        }
         if sweep || last_sweep.is_none_or(|at| at.elapsed() >= SWEEP_EVERY) {
             unannounced |= base.sweep_origins(None);
             last_sweep = Some(Instant::now());
@@ -1060,8 +1097,12 @@ fn run(base: &DocBase, wake: &Arc<Wake>, on_change: &dyn Fn(), on_pages: &dyn Fn
         }
         // A panic in one operation does not end the loop: it is written
         // down as an error of the program, and the loop waits a little.
-        let asker = asker_now(base);
+        let asker = looker.asker(asker_now(base));
+        looker.before(base);
         let turn = crate::panic_guard::run_guarded("docbase_process_turn", || base.process_turn(asker.as_deref()));
+        if !looker.after(base, &turn) {
+            return;
+        }
         let worked = match turn {
             Ok(turn) => {
                 if turn.pages {
@@ -1084,7 +1125,11 @@ fn run(base: &DocBase, wake: &Arc<Wake>, on_change: &dyn Fn(), on_pages: &dyn Fn
             unannounced = false;
         }
         if !worked {
-            wake.wait(sleep_for(base, last_sweep.unwrap_or_else(Instant::now), &watch));
+            let sleep = sleep_for(base, last_sweep.unwrap_or_else(Instant::now), &watch);
+            if !looker.idle(base, sleep) {
+                return;
+            }
+            wake.wait(sleep);
         }
     }
 }

@@ -599,7 +599,11 @@ fn the_harness_of_the_run_changes_no_setting_of_the_app() {
     for setting in ["round_cap", "set_thresholds", "windows-by-itself", "WINDOWS_BY_ITSELF", "set_background_reading"] {
         assert!(!code.contains(setting), "the harness touches {setting}");
     }
-    assert!(code.contains("process_turn"), "it runs the same loop as the app");
+    // A4 of 2 nov: the loop of the app itself, and no answers kept nor
+    // taken from a file (the rule «desde cero»).
+    assert!(code.contains("run_looked(&base"), "it runs the loop of the app itself");
+    assert!(!code.contains("check::recorded"), "it keeps no answers and takes none from a file");
+    assert!(code.contains("refuse_other_runs();"), "it refuses the variables that bring things of other runs");
     assert!(code.contains("MICELYA_CONTROL_SETTINGS"), "what a run needs different is in its script");
 }
 
