@@ -5312,6 +5312,30 @@
       "detalle": "Desde la etapa E3 del 2 nov (decisiones D-786 y D-787), cada documento tiene su proporción de palabras seguras y la marca de confianza baja se calcula al mirar. Hoy solo «En curso» lo dice, en la lista de la lectura de entidades, con el motivo. Falta: en la pantalla del documento, junto al tipo, «confianza baja: 29 % de palabras seguras»; en Documentos, un filtro por esa marca; en Ajustes, los dos umbrales (el del tipo de confianza baja y el de «no legible»), que ya están en la configuración; y que un documento sin ninguna palabra aparezca como «sin texto», con «Leer con IA» (D-775). Es de la etapa P.",
       "creado": "2026-11-02",
       "actualizado": "2026-11-02"
+    },
+    {
+      "id": "P-627",
+      "titulo": "Volver a medir los topes del nombre de la identidad en la corrida larga y mostrarlos en Ajustes",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 2,
+      "tema": "identidad",
+      "detalle": "Desde la etapa E5 del 2 nov (decisión D-808), dos menciones con el mismo número o uno cerca se unen solo si sus nombres están a lo sumo a 2 letras y a lo sumo al 15 % del nombre. Los dos topes están en la configuración de la base, provisorios. En la medición sobre la base de la corrida del 1 nov el tope casi no se puso a prueba: los pares de la misma persona estaban a 2 letras o menos y el único par que quedó afuera estaba a 15 letras. Falta: medirlos otra vez en la corrida larga con la lista de pares que el nombre dejó afuera (la prueba que mide sobre una copia, check_numbers, la da), y que la pantalla de umbrales de Ajustes los muestre y deje cambiarlos (etapa P, junto a P-601).",
+      "creado": "2026-11-02",
+      "actualizado": "2026-11-02"
+    },
+    {
+      "id": "P-628",
+      "titulo": "Lo que quedó de la identidad de E5: un número por identificador en la página de la entidad, y separar una mención de una entidad de tres o más grupos",
+      "tipo": "codigo",
+      "responsable": "claude",
+      "estado": "pendiente",
+      "prioridad": 3,
+      "tema": "identidad",
+      "detalle": "Dos cosas que la etapa E5 del 2 nov (D-808) no hizo. 1) La página de una entidad y sus contactos agrupan los identificadores por cómo están escritos: una persona con su matrícula leída de varias formas («T° 12, F° 345», «T212-F2345») muestra varias matrículas. Falta agruparlas por la forma común, con la misma tolerancia que la identidad, y mostrar la más usada (la auditoría 1C, sección 4). 2) Separar una mención de una entidad («no es la misma») guarda la separación contra un solo grupo que representa a la entidad. Si la entidad tiene tres grupos o más, otro de ellos puede volver a traer la mención (por un número cerca o por el nombre). Pasaba antes con un número igual, y con la tolerancia puede pasar más seguido. Lo encontraron las pruebas de la etapa; para no cambiar lo que miden, las pruebas que lo usan siguen con un número a dos cifras.",
+      "creado": "2026-11-02",
+      "actualizado": "2026-11-02"
     }
   ]
 }
