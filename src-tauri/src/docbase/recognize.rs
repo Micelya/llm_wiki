@@ -31,16 +31,32 @@
 //! waits (D-714): a transient one sets it aside until its next attempt;
 //! any other, or the provider failing on the same document again and
 //! again, marks it with the reason until a person asks again.
+//!
+//! The text has its bands (D-668, E1 of 2 nov): with the reader of this
+//! computer, each page is read by zones with the thresholds of the
+//! configuration of the base, its firm lines are the text, its approximate
+//! ones go marked and its discarded ones do not enter
+//! (`source_volume::bands`); the reading by zones of each page stays beside
+//! the base and the step of the zones does not read it again. With Micelya
+//! Core, each line takes its band by how sure Core is of it; Codex says
+//! nothing of how sure it is, and its text stays as it is.
 
-use std::path::PathBuf;
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use rusqlite::{params, Connection, OptionalExtension};
 
 use crate::panic_guard::run_guarded;
-use crate::source_volume::recognition::{self, is_recognizable_image, textless_pages, RecognitionConfig, TextRecognizer};
-use crate::source_volume::recognized_store::RecognizedStore;
+use crate::source_volume::recognition::{
+    self, is_recognizable_image, marker, splice_replacing, textless_pages, RecognitionConfig, RecognizedPage, TextRecognizer,
+};
+use crate::source_volume::recognition_local::PageByZones;
+use crate::source_volume::recognized_store::{Part, RecognizedStore};
 use crate::source_volume::{LocalFolderProvider, SourceProvider};
+
+use super::structure::page::Bands;
+use super::structure::reader::{marked_text, read_image, read_pdf_pages};
 
 use super::similar::classify::stops_the_run;
 use super::text::EXTRACTION_ENGINE;
@@ -98,6 +114,156 @@ elegí uno en «Lector de IA para «Leer con IA»» (Codex o Micelya Core).";
 /// Where the reader a request of a person was made with is kept, by its
 /// document (`docbase_setting`).
 const READER_PREFIX: &str = "recognition:reader:";
+
+/// What the text of a scan read by zones says it was read with: the reader
+/// and the thresholds (E1 of 2 nov). Read with other thresholds, it is
+/// another reading: a person may ask to read it again with the ones of now,
+/// and it is not read again by itself (D-747).
+pub(crate) fn zones_text_engine(reader: &str, bands: Bands) -> String {
+    format!("{reader} por zonas, bajo {}, alto {}", bands.low, bands.high)
+}
+
+/// Where a base keeps that its texts of the simple scan were sent to be
+/// read again by zones (E1 of 2 nov, point 7).
+const SIMPLE_SCANS_AGAIN: &str = "recognition:simple-scans-read-again";
+
+/// Once per base (E1 of 2 nov, point 7): the documents whose text the
+/// reader of this computer read the old way (each page whole, without
+/// zones, with the 0,90 of its catalog) are read again by zones, with the
+/// reader of this computer (no question to the cloud), in the step of the
+/// scans, as requests kept in the base. When they are read their text
+/// changes, and the steps after follow in their order, as with any text
+/// that changed. Returns how many.
+pub(crate) fn simple_scans_read_again_once(conn: &Connection) -> Result<usize, String> {
+    let done: bool = conn
+        .query_row("SELECT EXISTS (SELECT 1 FROM docbase_setting WHERE key = ?1)", [SIMPLE_SCANS_AGAIN], |row| row.get(0))
+        .map_err(sql_err)?;
+    if done {
+        return Ok(0);
+    }
+    let ids: Vec<i64> = {
+        let mut statement = conn
+            .prepare(
+                "SELECT c.id FROM version c JOIN derivative d ON d.version_id = c.id AND d.kind = 'text'
+                 WHERE c.state = 'processed' AND d.engine LIKE ?1 AND d.engine NOT LIKE '% por zonas%'
+                   AND EXISTS (SELECT 1 FROM file f WHERE f.version_id = c.id)
+                 ORDER BY c.id",
+            )
+            .map_err(sql_err)?;
+        let rows = statement
+            .query_map([format!("{}:%", crate::source_volume::recognition_local::ENGINE)], |row| row.get(0))
+            .map_err(sql_err)?;
+        rows.collect::<Result<_, _>>().map_err(sql_err)?
+    };
+    let local = RecognitionConfig {
+        engine: crate::source_volume::recognition_local::ENGINE.to_string(),
+        model: crate::source_volume::recognition_local::catalog().model_set.clone(),
+    };
+    let pinned = serde_json::to_string(&local).map_err(|e| e.to_string())?;
+    let last: i64 =
+        conn.query_row("SELECT coalesce(max(position), 0) FROM recognition_request", [], |row| row.get(0)).map_err(sql_err)?;
+    let at = now_ms();
+    for (index, id) in ids.iter().enumerate() {
+        conn.execute(
+            "INSERT OR IGNORE INTO recognition_request (version_id, position, asked_at) VALUES (?1, ?2, ?3)",
+            params![id, last + 1 + index as i64, at],
+        )
+        .map_err(sql_err)?;
+        conn.execute("INSERT OR REPLACE INTO docbase_setting (key, value) VALUES (?1, ?2)", params![format!("{READER_PREFIX}{id}"), pinned])
+            .map_err(sql_err)?;
+    }
+    conn.execute("INSERT OR REPLACE INTO docbase_setting (key, value) VALUES (?1, ?2)", params![SIMPLE_SCANS_AGAIN, ids.len().to_string()])
+        .map_err(sql_err)?;
+    Ok(ids.len())
+}
+
+/// The text of a scan read by zones (E1 of 2 nov): every page of the PDF is
+/// read by zones with the thresholds `bands` (the image, whole), as the
+/// step of the zones reads it, so that step reads none again. Each page
+/// read by the reader (the ones the ficha of shape of the app sends, and
+/// the ones whose layer is a scan or an old recognition, as in N) gives its
+/// marked text (`marked_text`), in place of the text of its own layer, and
+/// is kept beside the base. The pages of the file kept as recognized and
+/// not read now enter too (D-523). Returns the text and each page read,
+/// with its engine.
+fn read_by_zones(
+    path: &Path,
+    ext: &str,
+    store: &RecognizedStore,
+    engine: &str,
+    bands: Bands,
+    reader: &dyn PageByZones,
+    on_page: &dyn Fn(usize, usize),
+) -> Result<(String, Vec<(u32, String, String)>), String> {
+    let entry = |page: &serde_json::Value| RecognizedPage {
+        engine_id: engine.to_string(),
+        text: marked_text(page),
+        read_by: Some(super::structure::reader::RECIPE.to_string()),
+        ..Default::default()
+    };
+    if ext == "pdf" {
+        let extracted = crate::commands::fs::extract_text_without_recognition(path)?.unwrap_or_default();
+        let shapes = crate::source_volume::page_shape::profile_pdf(path)?;
+        let wanted: BTreeSet<u32> = shapes.to_read().into_iter().collect();
+        let read: Vec<(u32, serde_json::Value)> = read_pdf_pages(path, bands, None, &wanted, Some(store), reader, on_page)?
+            .into_iter()
+            .filter(|(_, page)| page["forma"]["se_lee"].as_bool() == Some(true))
+            .collect();
+        let read_now: BTreeSet<u32> = read.iter().map(|(page, _)| *page).collect();
+        let replaced: BTreeSet<u32> = read_now.iter().copied().chain(shapes.old_layers()).collect();
+        let mut pages: BTreeMap<u32, RecognizedPage> = store.kept_pages().into_iter().filter(|(page, _)| !read_now.contains(page)).collect();
+        for (page, reading) in read {
+            let kept = entry(&reading);
+            store.put(Part::Page(page), &kept)?;
+            pages.insert(page, kept);
+        }
+        let text = splice_replacing(&extracted, &pages, &replaced);
+        return Ok((text, pages.into_iter().map(|(page, kept)| (page, kept.engine_id, kept.text)).collect()));
+    }
+    if !is_recognizable_image(ext) {
+        return Err(format!("A .{ext} file is not an image whose text can be recognized"));
+    }
+    on_page(1, 1);
+    let kept = entry(&read_image(path, bands, Some(store), reader)?);
+    store.put(Part::Image, &kept)?;
+    let text = format!("{}\n{}\n", marker(engine), kept.text);
+    Ok((text.clone(), vec![(1, engine.to_string(), text)]))
+}
+
+/// The text a reader without zones read (Codex, Micelya Core), as it read
+/// it; with Micelya Core, which says how sure it is of each line, each line
+/// with its band by the thresholds `bands` (D-668, E1 of 2 nov).
+fn read_alone(
+    path: &Path,
+    ext: &str,
+    store: &RecognizedStore,
+    recognizer: &dyn TextRecognizer,
+    bands: Bands,
+    on_page: &(dyn Fn(usize, usize) + Sync),
+) -> Result<(String, Vec<(u32, String, String)>), String> {
+    let engine = recognizer.engine_id();
+    let banded = |page: &RecognizedPage| RecognizedPage { text: page.banded(bands.low, bands.high), ..page.clone() };
+    if ext == "pdf" {
+        let extracted = crate::commands::fs::extract_text_without_recognition(path)?.unwrap_or_default();
+        let done = recognition::complete_pdf_text_kept(path, &extracted, store, recognizer, on_page)?;
+        if !done.pages.values().any(|page| !page.lines.is_empty()) {
+            return Ok((done.text, done.pages.into_iter().map(|(page, read)| (page, read.engine_id, read.text)).collect()));
+        }
+        let pages: BTreeMap<u32, RecognizedPage> = done.pages.iter().map(|(n, page)| (*n, banded(page))).collect();
+        let replaced = crate::source_volume::page_shape::profile_pdf(path).map(|s| s.old_layers()).unwrap_or_default();
+        let text = splice_replacing(&extracted, &pages, &replaced);
+        return Ok((text, pages.into_iter().map(|(page, read)| (page, read.engine_id, read.text)).collect()));
+    }
+    if !is_recognizable_image(ext) {
+        return Err(format!("A .{ext} file is not an image whose text can be recognized"));
+    }
+    on_page(1, 1);
+    let mut text = recognition::recognize_image_source(path, store, recognizer)?;
+    if let Some(read) = store.get(Part::Image).filter(|read| !read.lines.is_empty()) {
+        text = format!("{}\n{}\n", marker(&read.engine_id), banded(&read).text);
+    }
+    Ok((text.clone(), vec![(1, engine, text)]))
+}
 
 /// SQL over a version `c`: no failure of the recognition holds it now (a
 /// transient one before its next attempt, or any other, D-714) and no
@@ -176,6 +342,16 @@ impl DocBase {
         Ok(AiReadingCost { engine, pages })
     }
 
+    /// The name the text `reader` reads is kept with: with the reader of
+    /// this computer, its reading by zones with the thresholds of now.
+    pub(crate) fn text_engine_of(&self, reader: &RecognitionConfig) -> Result<String, String> {
+        let id = recognition::engine_id(reader)?;
+        if super::services::is_local(&reader.engine) {
+            return Ok(zones_text_engine(&id, self.reading_bands()?));
+        }
+        Ok(id)
+    }
+
     /// The reader a request was made with; `None` when nobody asked for
     /// the document (it is read with the reader chosen in Ajustes).
     pub(crate) fn reader_of_request(&self, content: i64) -> Result<Option<RecognitionConfig>, String> {
@@ -198,7 +374,7 @@ impl DocBase {
 
     /// Asks to read `which` with `reader`, kept with each request.
     fn ask_to_read(&self, which: &RecognitionRequest, reader: &RecognitionConfig) -> Result<usize, String> {
-        let current = recognition::engine_id(reader)?;
+        let current = self.text_engine_of(reader)?;
         let ids: Vec<i64> = {
             let conn = self.conn();
             let mut ids = Vec::new();
@@ -480,7 +656,11 @@ impl DocBase {
     /// its file. False when there is nothing to do: its text is not only
     /// pixels, or this engine already read it.
     pub fn recognize_content(&self, content_id: i64, recognizer: &dyn TextRecognizer) -> Result<bool, String> {
-        let engine = recognizer.engine_id();
+        let bands = self.reading_bands()?;
+        let engine = match recognizer.by_zones() {
+            Some(_) => zones_text_engine(&recognizer.engine_id(), bands),
+            None => recognizer.engine_id(),
+        };
         {
             let conn = self.conn();
             let found: Option<(String, Option<String>)> = conn
@@ -505,20 +685,11 @@ impl DocBase {
         let state = self.engine_state();
         let on_page = |page: usize, total: usize| state.recognizing_page(page, total);
         let ext = ext.to_lowercase();
-        // The text, and each page read with the engine that read it.
-        let (text, pages) = run_guarded("docbase_recognize_text", || {
-            if ext == "pdf" {
-                let extracted = crate::commands::fs::extract_text_without_recognition(&path)?.unwrap_or_default();
-                let done = recognition::complete_pdf_text_kept(&path, &extracted, &store, recognizer, &on_page)?;
-                let pages = done.pages.into_iter().map(|(page, read)| (page, read.engine_id, read.text)).collect();
-                Ok((done.text, pages))
-            } else if is_recognizable_image(&ext) {
-                on_page(1, 1);
-                let text = recognition::recognize_image_source(&path, &store, recognizer)?;
-                Ok((text.clone(), vec![(1, engine.clone(), text)]))
-            } else {
-                Err(format!("A .{ext} file is not an image whose text can be recognized"))
-            }
+        // The text, and each page read with the engine that read it: by
+        // zones with the reader of this computer, alone with another one.
+        let (text, pages) = run_guarded("docbase_recognize_text", || match recognizer.by_zones() {
+            Some(pages_reader) => read_by_zones(&path, &ext, &store, &engine, bands, pages_reader, &on_page),
+            None => read_alone(&path, &ext, &store, recognizer, bands, &on_page),
         })?;
         let pages: Vec<(u32, &str, &str)> = pages.iter().map(|(page, engine, body)| (*page, engine.as_str(), body.as_str())).collect();
         self.store_recognized_pages(&hash, &text, &engine, &pages)
@@ -1033,7 +1204,15 @@ del edificio inventado hasta que alguna de las partes la retire, con aviso de un
         base.set_recognition_engine(Some(&RecognitionConfig { engine: "core".into(), model: "textract-1.0".into() })).unwrap();
         turn_reading_on(&base);
         let core = FakeCore::start();
-        core.with(|state| state.outcome = Outcome::Read(vec![vec![("CONTRATO", 0.99), ("DE", 0.99), ("LOCACIÓN", 0.71)]]));
+        // Three lines: one firm, one approximate and one below the low
+        // threshold (E1 of 2 nov: the confidence of Core, to the bands).
+        core.with(|state| {
+            state.outcome = Outcome::Read(vec![
+                vec![("CONTRATO", 0.99), ("DE", 0.99), ("LOCACIÓN", 0.98)],
+                vec![("Persona", 0.95), ("Tres", 0.99)],
+                vec![("garabato", 0.71)],
+            ])
+        });
         let recognizer = CoreRecognizer::with_connection("textract-1.0", core.connection(), FakeCore::timing());
         let content = content_of(&base, "escaneo.pdf");
         assert_eq!(run(&base, &recognizer), vec![RecognitionStep::Recognized(content)]);
@@ -1041,7 +1220,10 @@ del edificio inventado hasta que alguna de las partes la retire, con aviso de un
         let (text, by) = text_of(&base, "escaneo.pdf");
         assert_eq!(by, "core:textract-1.0");
         assert_eq!(text.matches(&recognition::marker("core:textract-1.0")).count(), 2, "{text}");
-        assert!(text.contains("CONTRATO DE LOCACIÓN"));
+        assert!(text.contains("CONTRATO DE LOCACIÓN
+[aproximado] Persona Tres
+"), "{text}");
+        assert!(!text.contains("garabato"), "{text}");
         // One reading per page, each named by its page (both at once, in
         // any order), every one deleted.
         let mut names: Vec<String> = core.with(|state| state.readings.iter().map(|r| r.filename.clone()).collect());
@@ -1055,7 +1237,8 @@ del edificio inventado hasta que alguna de las partes la retire, con aviso de un
             .unwrap();
         let page = RecognizedStore::at(base.recognized.join(&hash)).get(Part::Page(1)).unwrap();
         assert_eq!(page.doubtful.len(), 1);
-        assert_eq!((page.doubtful[0].word.as_str(), page.doubtful[0].percent), ("LOCACIÓN", 71));
+        assert_eq!((page.doubtful[0].word.as_str(), page.doubtful[0].percent), ("garabato", 71));
+        assert_eq!(page.lines, [98, 95, 71]);
         assert_eq!(page.read_by.as_deref(), Some("textract-1.0"));
 
         // Core cannot be reached: the scan keeps waiting, the stage says so.

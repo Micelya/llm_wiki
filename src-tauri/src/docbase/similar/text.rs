@@ -15,6 +15,7 @@
 //! stamp in the margin).
 
 use crate::commands::extract_images::FORM_FIELDS_HEADING;
+use crate::source_volume::bands;
 use crate::source_volume::catalog::{is_page_heading, unaccented, RECOGNIZED_MARKER_START};
 
 /// Words per shingle.
@@ -32,8 +33,21 @@ pub fn fnv1a(bytes: &[u8]) -> u64 {
 }
 
 /// The lines of each page that are text of the document. A text with no
-/// page headings (a Word file) is a single page.
+/// page headings (a Word file) is a single page. The lines read with low
+/// confidence enter without their mark (D-668, E1 of 2 nov): the signature,
+/// the key data of the comparison, the marks and the templates use them as
+/// a signal. What gives data reads `firm_pages`.
 pub fn pages(text: &str) -> Vec<Vec<&str>> {
+    pages_with(text, true)
+}
+
+/// The firm lines of each page: the lines read with low confidence go
+/// away. The data of a type and the hints of the reading read these.
+pub fn firm_pages(text: &str) -> Vec<Vec<&str>> {
+    pages_with(text, false)
+}
+
+fn pages_with(text: &str, approximate: bool) -> Vec<Vec<&str>> {
     let mut pages: Vec<Vec<&str>> = vec![Vec::new()];
     let mut in_fields = false;
     for line in text.lines() {
@@ -52,6 +66,11 @@ pub fn pages(text: &str) -> Vec<Vec<&str>> {
         if in_fields || trimmed.starts_with(RECOGNIZED_MARKER_START) {
             continue;
         }
+        let line = match (bands::is_approximate(line), approximate) {
+            (true, false) => continue,
+            (true, true) => bands::without_mark(line),
+            (false, _) => line,
+        };
         pages.last_mut().expect("there is always a page").push(line);
     }
     pages

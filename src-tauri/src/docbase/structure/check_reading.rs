@@ -85,7 +85,7 @@ fn read_real_pdfs_by_zones() {
         match read_pdf(&pdf, bands) {
             Ok(pages) => {
                 for p in &pages {
-                    std::fs::write(dir.join(format!("pagina-{}.json", p.page)), serde_json::to_string(p).unwrap()).unwrap();
+                    std::fs::write(dir.join(format!("pagina-{}.json", p["page"])), serde_json::to_string(p).unwrap()).unwrap();
                 }
                 let summary = serde_json::json!({"sha256": hash, "paginas": pages.len(), "segundos": at.elapsed().as_secs_f64()});
                 std::fs::write(dir.join("pdf.json"), summary.to_string()).unwrap();

@@ -326,8 +326,8 @@ pub(crate) fn store(tx: &Transaction<'_>, content_id: i64, text: &str, engine: &
             .map_err(sql_err)?
             > 0;
         if taken {
-            let words = identity.map(|(_, words)| words).unwrap_or_default();
-            return store_alone(tx, content_id, text, engine, state, words as i64, now);
+            let words = firm_words(text, identity.map(|(_, words)| words as i64).unwrap_or_default());
+            return store_alone(tx, content_id, text, engine, state, words, now);
         }
     }
     if let Some((text_hash, _)) = &identity {
@@ -358,10 +358,13 @@ pub(crate) fn store(tx: &Transaction<'_>, content_id: i64, text: &str, engine: &
             return Ok(twin);
         }
     }
-    let words = match &identity {
-        Some((_, words)) => *words as i64,
-        None => text.split_whitespace().count() as i64,
-    };
+    let words = firm_words(
+        text,
+        match &identity {
+            Some((_, words)) => *words as i64,
+            None => text.split_whitespace().count() as i64,
+        },
+    );
     tx.execute(
         "UPDATE version SET state = ?1, text_hash = ?2, word_count = ?3, error = NULL, processed_at = ?4 WHERE id = ?5",
         params![state, identity.map(|(hash, _)| hash), words, now, content_id],
@@ -379,6 +382,16 @@ pub(crate) fn store(tx: &Transaction<'_>, content_id: i64, text: &str, engine: &
         .map_err(sql_err)?;
     super::search::index_content(tx, content_id)?;
     Ok(content_id)
+}
+
+/// The words of a text that count as its words (`word_count`): with lines
+/// read with low confidence, only those of its firm text, the text that
+/// gives data (D-668, E1 of 2 nov); `all` otherwise.
+fn firm_words(text: &str, all: i64) -> i64 {
+    if !crate::source_volume::bands::has_approximate(text) {
+        return all;
+    }
+    crate::source_volume::catalog::normalized_words(&crate::source_volume::bands::firm(text)).len() as i64
 }
 
 /// Keeps the text of each page of a file as an engine read it

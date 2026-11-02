@@ -623,8 +623,9 @@ fn type_prompt(
     prompt.push_str(&format!(
         "\nEl nombre del archivo es una pista, no una prueba: si el contenido dice otra cosa, manda el contenido.\n\
          Archivo: «{name}»\n\n\
-         Texto del documento{}:\n\"\"\"\n{text}\n\"\"\"\n\n\
+         {}Texto del documento{}:\n\"\"\"\n{text}\n\"\"\"\n\n\
          Respondé solo con el JSON pedido. \"confianza\" va de 0 a 1; \"razon\" es una frase corta que dice en qué te basaste.",
+        crate::source_volume::bands::note_for(&text),
         if cut { " (extracto: el principio y el final)" } else { "" }
     ));
     prompt
@@ -1132,16 +1133,30 @@ fn data_prompt(doc_type: &DocType, fields: &[&DataRule], name: &str, body: &str)
          Copiá de su texto estos datos, cada valor tal como aparece escrito:\n{list}\n\n\
          Si un dato no está en el texto, devolvé una lista vacía para ese dato. No inventes ni completes valores.\n\n\
          Archivo: «{name}»\n\n\
-         Texto del documento{}:\n\"\"\"\n{text}\n\"\"\"\n\n\
+         {}Texto del documento{}:\n\"\"\"\n{text}\n\"\"\"\n\n\
          Respondé solo con el JSON pedido.",
         doc_type.id,
         doc_type.description.trim(),
+        crate::source_volume::bands::note_for(&text),
         if cut { " (extracto: el principio y el final)" } else { "" }
     )
 }
 
-fn data_from_answer(fields: &[&DataRule], answer: &str) -> Result<Vec<Datum>, String> {
+/// The data the model copied of the text of a document (`body`). A value
+/// that is only in the lines read with low confidence is not a datum
+/// (D-668, E1 of 2 nov): it is left out.
+fn data_from_answer(fields: &[&DataRule], answer: &str, body: &str) -> Result<Vec<Datum>, String> {
     let value: serde_json::Value = parse_json(answer)?;
+    let only_approximate = |v: &str| {
+        use crate::docbase::knowledge::quote::{contains, words};
+        if !crate::source_volume::bands::has_approximate(body) {
+            return false;
+        }
+        let said = words(v);
+        !said.is_empty()
+            && !contains(&words(&crate::source_volume::bands::firm(body)), &said)
+            && contains(&words(&crate::source_volume::bands::unmarked(body)), &said)
+    };
     let mut out = Vec::new();
     for field in fields {
         let values: Vec<String> = match &value[&field.id] {
@@ -1149,7 +1164,7 @@ fn data_from_answer(fields: &[&DataRule], answer: &str) -> Result<Vec<Datum>, St
             serde_json::Value::String(one) => vec![one.trim().to_string()],
             _ => Vec::new(),
         };
-        for v in values.into_iter().filter(|v| !v.is_empty()) {
+        for v in values.into_iter().filter(|v| !v.is_empty() && !only_approximate(v)) {
             if !out.iter().any(|d: &Datum| d.field == field.id && data::comparable(&d.value) == data::comparable(&v)) {
                 out.push(Datum { field: field.id.clone(), value: v, source: "model".into() });
             }
@@ -1280,7 +1295,7 @@ impl DocBase {
                     match cached_answer(&conn, &question.key, engine.as_deref())? {
                         Some(answer) => {
                             let fields: Vec<&DataRule> = rules.iter().copied().filter(|r| missing.contains(&r.id)).collect();
-                            match data_from_answer(&fields, &answer) {
+                            match data_from_answer(&fields, &answer, &body) {
                                 Ok(more) => found.extend(more),
                                 Err(error) => {
                                     eprintln!("[docbase] stored answer {}: {error}", question.key);
@@ -1885,6 +1900,20 @@ pub(super) fn read_data(conn: &Connection, only: Option<i64>) -> Result<BTreeMap
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A value the model copies only from a line read with low confidence
+    /// is not a datum of the type (D-668, E1 of 2 nov); one of the firm
+    /// text is, and one the text does not say as written stays as before.
+    #[test]
+    fn a_datum_of_the_type_that_comes_only_from_approximate_text_is_left_out() {
+        let rule = DataRule { id: "partes".into(), many: true, ..serde_json::from_value(serde_json::json!({ "id": "partes" })).unwrap() };
+        let body = "CONTRATO DE PRUEBA\nEntre Persona Tres y otra parte\n[aproximado] Hijo de Xandro Quimbel";
+        let answer = r#"{"partes": ["Xandro Quimbel", "Persona Tres", "PERSONA 3"]}"#;
+        let values: Vec<String> = data_from_answer(&[&rule], answer, body).unwrap().into_iter().map(|d| d.value).collect();
+        assert_eq!(values, ["Persona Tres", "PERSONA 3"]);
+        let excerpt_note = crate::source_volume::bands::note_for(&excerpt(body).0);
+        assert!(excerpt_note.contains("[aproximado]"));
+    }
 
     fn mark(doc_type: &str, kind: &str, stage: Option<&str>) -> Mark {
         Mark {

@@ -501,7 +501,8 @@ fn text_words(conn: &Connection, content: i64) -> Result<Vec<String>, String> {
         .query_row("SELECT body FROM derivative WHERE version_id = ?1 AND kind = 'text'", [content], |row| row.get(0))
         .optional()
         .map_err(sql_err)?;
-    Ok(quote::words(&body.unwrap_or_default()))
+    // A version says a quote only in its firm text (D-668, E1 of 2 nov).
+    Ok(quote::words(&crate::source_volume::bands::firm(&body.unwrap_or_default())))
 }
 
 /// How a relation reads: "es el ejemplar firmado de" for one with a

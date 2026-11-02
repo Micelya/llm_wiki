@@ -6,6 +6,12 @@
 //! with, kept as the derivative `zones` of the version: the reading and
 //! the ficha of shape of each page (`forma`).
 //!
+//! Every PDF and every image is read by zones (E1 of 2 nov; before, only
+//! the PDFs of two pages or more): the text of a scan read by the reader of
+//! this computer comes from this reading, with its bands
+//! (`recognize.rs`), and the step of the scans and this one read a page
+//! once and share it (`RecognizedStore::zones`).
+//!
 //! While the setting `cut:zones-reading` is on (by default, D-746) the
 //! cut of a PDF of two pages or more waits for its reading. A reading that
 //! fails is a failure of the record (D-714) and the file waits: it is
@@ -20,7 +26,11 @@ pub(crate) mod reader;
 pub(crate) mod words;
 
 #[cfg(test)]
+mod bands_tests;
+#[cfg(test)]
 mod check_reading;
+#[cfg(test)]
+mod check_text;
 #[cfg(test)]
 mod tests;
 
@@ -43,21 +53,22 @@ pub fn basis(bands: Bands) -> String {
     format!("{}|alto {}|bajo {}", reader::RECIPE, bands.high, bands.low)
 }
 
-/// The PDFs `f` (version `c`, location `l`, origin `o`) with the ficha of
-/// their pages `d` and their reading by zones `z`, when they have one.
+/// The PDFs and the images `f` (version `c`, location `l`, origin `o`)
+/// with the ficha of their pages `d` (a PDF) and their reading by zones
+/// `z`, when they have one.
 const FROM: &str = "file f JOIN version c ON c.id = f.version_id
-     JOIN location l ON l.file_hash = f.hash AND l.hash_state = 'done' AND lower(l.ext) = 'pdf'
+     JOIN location l ON l.file_hash = f.hash AND l.hash_state = 'done' AND lower(l.ext) IN ('pdf', 'png', 'jpg', 'jpeg')
      JOIN origin o ON o.id = l.origin_id AND o.reachable = 1
-     JOIN derivative d ON d.version_id = c.id AND d.kind = ?1 AND d.engine = ?2
+     LEFT JOIN derivative d ON d.version_id = c.id AND d.kind = ?1 AND d.engine = ?2
      LEFT JOIN derivative z ON z.version_id = c.id AND z.kind = ?3";
 
-/// SQL: a PDF of `FROM` of two pages or more waits for its reading by
-/// zones (the setting is on and it has none), and it did not fail over
-/// `?4`, the basis.
+/// SQL: a PDF with the ficha of its pages, or an image, of `FROM` waits
+/// for its reading by zones (the setting is on and it has none), and it did
+/// not fail over `?4`, the basis.
 fn waiting_where() -> String {
     format!(
         "c.state IN ('processed', 'needs-recognition') AND NOT {excluded} AND z.body IS NULL
-         AND json_array_length(d.body, '$.pages') >= 2 AND {waiting}",
+         AND (lower(l.ext) <> 'pdf' OR json_array_length(d.body, '$.pages') >= 1) AND {waiting}",
         excluded = super::excluded_sql!(),
         waiting = zones_waiting_sql(),
     )
@@ -130,16 +141,35 @@ impl DocBase {
         Ok(())
     }
 
-    /// Reads by zones the next PDF waiting, and keeps its reading; or
-    /// writes down why it failed, and the file waits (D-717). Returns
-    /// whether there was one. Asks no model in the cloud.
+    /// Reads by zones the next PDF or image waiting, with the model of zones
+    /// and the reader of this computer, and keeps its reading; or writes
+    /// down why it failed, and the file waits (D-717). Returns whether there
+    /// was one. Asks no model in the cloud.
     pub(crate) fn read_zones_step(&self) -> Result<bool, String> {
+        self.read_zones_step_with(&crate::source_volume::recognition_local::LocalRecognizer::new())
+    }
+
+    /// Same as `read_zones_step`, reading the pages with `pages_reader`.
+    /// The pages the step of the scans already read by zones, with the same
+    /// thresholds, are not read again (E1 of 2 nov); the pages the ficha of
+    /// shape of the app sends to be read are read by the reader (`lee_app`).
+    pub(crate) fn read_zones_step_with(&self, pages_reader: &dyn crate::source_volume::recognition_local::PageByZones) -> Result<bool, String> {
         let bands = self.reading_bands()?;
         let Some((hash, path)) = self.zones_waiting(1)?.into_iter().next() else {
             return Ok(false);
         };
         let basis = basis(bands);
-        let read = crate::panic_guard::run_guarded("docbase_read_zones", || reader::read_pdf(&path, bands));
+        let kept = crate::source_volume::recognized_store::RecognizedStore::at(self.recognized.join(&hash));
+        let is_pdf = path.extension().is_some_and(|x| x.eq_ignore_ascii_case("pdf"));
+        let read = crate::panic_guard::run_guarded("docbase_read_zones", || {
+            if is_pdf {
+                let app = crate::source_volume::page_shape::profile_pdf(&path).map(|s| s.to_read().into_iter().collect()).unwrap_or_default();
+                reader::read_pdf_pages(&path, bands, None, &app, Some(&kept), pages_reader, &|_, _| {})
+                    .map(|pages| pages.into_iter().map(|(_, page)| page).collect::<Vec<_>>())
+            } else {
+                reader::read_image(&path, bands, Some(&kept), pages_reader).map(|page| vec![page])
+            }
+        });
         let body = read.and_then(|pages| serde_json::to_string(&pages).map_err(|e| e.to_string()));
         match body {
             Ok(body) => {

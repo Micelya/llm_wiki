@@ -354,6 +354,9 @@ pub(crate) fn group(conn: &Connection, vocabulary: &Vocabulary, joins: &[(String
             for row in rows {
                 let (content, body) = row.map_err(sql_err)?;
                 let Some(&i) = index.get(&content) else { continue };
+                // Only a number of the firm text puts a document in a
+                // matter (D-668, E1 of 2 nov).
+                let body = crate::source_volume::bands::firm(&body);
                 for token in body.split(|c: char| c.is_whitespace() || ",;()[]«»\"'".contains(c)) {
                     let digits = digits_of(token);
                     if digits.len() >= rules.min_digits && known.contains(&digits) {
@@ -985,6 +988,8 @@ fn document_text(vocabulary: &Vocabulary, view: &DocumentView) -> String {
         out.push_str(&format!("- {}: {} («{}»)\n", vocabulary.predicate_label(predicate), one_line(object), one_line(quote_text)));
     }
     if let Some(body) = &view.body {
+        // How it starts, in its firm text (D-668, E1 of 2 nov).
+        let body = crate::source_volume::bands::firm(body);
         let opening: Vec<&str> = body.split_whitespace().filter(|w| !w.starts_with("##")).take(OPENING_WORDS).collect();
         out.push_str(&format!("- Empieza así: «{}»\n", opening.join(" ")));
     }

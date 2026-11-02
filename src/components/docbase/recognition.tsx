@@ -196,6 +196,12 @@ export function DocumentRecognition({ document }: { document: DocumentDetail }) 
           {document.textAt ? ` el ${formatDate(document.textAt)}` : ""}.
         </span>
       </p>
+      {document.text?.includes("[aproximado]") && (
+        <p className="mt-1 text-muted-foreground">
+          Los renglones leídos con poca seguridad están marcados «[aproximado]»: sirven para entender el documento y no dan datos.
+          Lo leído con menos seguridad todavía no está en el texto.
+        </p>
+      )}
       {illegible && (
         <p className="mt-1 text-muted-foreground">
           {illegible.pages.length > 0

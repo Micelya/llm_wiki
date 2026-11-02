@@ -224,6 +224,9 @@ impl DocBase {
         // Once per base: a reader of the scans left as Codex goes back to
         // the one of this computer, with a notice (D-775, point 1).
         services::reader_back_to_local_once(&base.conn())?;
+        // Once per base: the texts of the simple scan are read again by
+        // zones, with their bands (E1 of 2 nov, point 7).
+        recognize::simple_scans_read_again_once(&base.conn())?;
         Ok(base)
     }
 

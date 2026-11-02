@@ -9,18 +9,31 @@
 //! their own under a picture or many drawn strokes (a scan), and the ones
 //! whose layer is an old recognition (under a picture that covers the
 //! page, or of words that do not look like words). The old layer of these
-//! is the second witness of their lines (D-671).
+//! is the second witness of their lines (D-671). A page the ficha of shape
+//! of the app sends to be read is read too (`read_anyway`, as N did with
+//! `lee_app`).
+//!
+//! Also the images (E1 of 2 nov), as `leer.py` read them: upright by their
+//! EXIF, with their long side at 2.000 pixels, each one a page read whole.
+//!
+//! The step of the scans (with the reader of this computer) and the step of
+//! the zones read a page once and share it: each page read is kept beside
+//! the base (`RecognizedStore::put_zones`) and taken from there by the
+//! other step when it was read with the same recipe and thresholds.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::Path;
 use std::sync::OnceLock;
 
 use regex::Regex;
 use serde::Serialize;
+use serde_json::Value;
 
 use super::page::{band_counts, flags, round_to, structure, Bands, Evidence, Flags, Line, ModelZone, Zone};
 use super::words::{junk, letter_runs};
 use crate::docbase::cut::by_zones::py::{is_space, splitlines};
+use crate::source_volume::recognition_local::PageByZones;
+use crate::source_volume::recognized_store::{Part, RecognizedStore};
 use crate::source_volume::{layout_local, recognition_local};
 
 /// Pixels of the long side of a page drawn to be read.
@@ -201,7 +214,9 @@ pub fn char_lines(chars: &[Char]) -> Vec<Line> {
     out
 }
 
-/// The reading of one page from what was drawn and read of it.
+/// The reading of one page from what was drawn and read of it; its lines
+/// came from the reader when its layer says so or `read_anyway`.
+#[allow(clippy::too_many_arguments)]
 pub fn page_out(
     page: u32,
     size: (u32, u32),
@@ -210,8 +225,10 @@ pub fn page_out(
     zones: &[ModelZone],
     bands: Bands,
     old_layer: Option<&str>,
+    read_anyway: bool,
 ) -> PageOut {
-    let (capa, read) = layer(profile);
+    let (capa, by_layer) = layer(profile);
+    let read = by_layer || read_anyway;
     let s = structure(lines, zones, bands, old_layer, (layout_local::MODEL_NAME, "rapidocr-onnx:ppocrv6-small"));
     let (banderas, firma, blank) = flags(lines, zones, bands.low, read, profile.own_chars);
     let forma = if blank {
@@ -346,33 +363,129 @@ fn draw(pdf: &Path, page_no: u32, read: bool, old: bool) -> Result<Drawn, String
     Ok(Drawn { picture, lines, old_layer })
 }
 
-/// Reads every page of a PDF by zones, with the thresholds `bands`. Each
-/// page is drawn with pdfium held, and read with it free.
-pub fn read_pdf(pdf: &Path, bands: Bands) -> Result<Vec<PageOut>, String> {
-    let pages = pdf_pages(pdf)?;
-    let profiles = profiles(&pages);
-    let mut out = Vec::with_capacity(profiles.len());
-    for (i, profile) in profiles.iter().enumerate() {
-        let page_no = i as u32 + 1;
-        let (capa, read) = layer(profile);
-        let drawn = draw(pdf, page_no, read, capa == "old_ocr")?;
-        let zones: Vec<ModelZone> = {
-            let mut model = layout_local::model()?;
-            layout_local::zones(&mut model, &drawn.picture)?
-                .into_iter()
-                .map(|z| ModelZone { bbox: z.bbox, class: z.class, score: z.score })
-                .collect()
-        };
-        let lines = if read {
-            let mut ocr = recognition_local::engine()?;
-            recognition_local::read_picture(&mut ocr, &drawn.picture)?
+/// Reads every page of a PDF by zones, with the thresholds `bands`, with
+/// the model of zones and the reader of this computer, keeping nothing.
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn read_pdf(pdf: &Path, bands: Bands) -> Result<Vec<Value>, String> {
+    let reader = recognition_local::LocalRecognizer::new();
+    Ok(read_pdf_pages(pdf, bands, None, &BTreeSet::new(), None, &reader, &|_, _| {})?.into_iter().map(|(_, page)| page).collect())
+}
+
+/// The zones and the lines of a picture, by `reader`.
+fn zones_and_lines(reader: &dyn PageByZones, picture: &image::RgbImage, read: bool) -> Result<(Vec<ModelZone>, Option<Vec<Line>>), String> {
+    let zones = reader.zones(picture)?.into_iter().map(|z| ModelZone { bbox: z.bbox, class: z.class, score: z.score }).collect();
+    let lines = if read {
+        Some(
+            reader
+                .lines(picture)?
                 .into_iter()
                 .map(|l| Line { bbox: l.bbox, text: l.text, score: Some(round_to(l.score as f64, 4)) })
-                .collect()
-        } else {
-            drawn.lines
-        };
-        out.push(page_out(page_no, drawn.picture.dimensions(), profile, &lines, &zones, bands, drawn.old_layer.as_deref()));
+                .collect(),
+        )
+    } else {
+        None
+    };
+    Ok((zones, lines))
+}
+
+/// Reads by zones the pages `only` of a PDF (all of them when `None`), in
+/// order, with the thresholds `bands`, each page drawn with pdfium held and
+/// read with it free. A page is read by `reader` when its layer says so or
+/// it is in `read_anyway`; else its lines are pdfium's. A page kept in
+/// `kept` with the same recipe and thresholds is not read again (a page read
+/// by the reader is good for both); each page read is kept there. `on_page`
+/// is told of each page (its position and the total) before it.
+pub fn read_pdf_pages(
+    pdf: &Path,
+    bands: Bands,
+    only: Option<&[u32]>,
+    read_anyway: &BTreeSet<u32>,
+    kept: Option<&RecognizedStore>,
+    reader: &dyn PageByZones,
+    on_page: &dyn Fn(usize, usize),
+) -> Result<Vec<(u32, Value)>, String> {
+    let basis = super::basis(bands);
+    let profiles = profiles(&pdf_pages(pdf)?);
+    let wanted: Vec<u32> = match only {
+        Some(pages) => pages.to_vec(),
+        None => (1..=profiles.len() as u32).collect(),
+    };
+    let mut out = Vec::with_capacity(wanted.len());
+    for (index, &page_no) in wanted.iter().enumerate() {
+        on_page(index + 1, wanted.len());
+        let profile = profiles.get((page_no as usize).wrapping_sub(1)).ok_or_else(|| format!("Page {page_no} not found"))?;
+        let (capa, by_layer) = layer(profile);
+        let force = read_anyway.contains(&page_no);
+        let read = by_layer || force;
+        if let Some(page) = kept.and_then(|store| store.zones(Part::Page(page_no), &basis)) {
+            // Read by the reader, or by pdfium when the reader is not needed.
+            if page["forma"]["se_lee"].as_bool() == Some(true) || !read {
+                out.push((page_no, page));
+                continue;
+            }
+        }
+        let drawn = draw(pdf, page_no, read, capa == "old_ocr")?;
+        let (zones, lines) = zones_and_lines(reader, &drawn.picture, read)?;
+        let lines = lines.unwrap_or(drawn.lines);
+        let page = page_out(page_no, drawn.picture.dimensions(), profile, &lines, &zones, bands, drawn.old_layer.as_deref(), force);
+        let page = serde_json::to_value(&page).map_err(|e| e.to_string())?;
+        if let Some(store) = kept {
+            store.put_zones(Part::Page(page_no), &page)?;
+        }
+        out.push((page_no, page));
     }
     Ok(out)
+}
+
+/// An image as a page drawn (`leer.py`, `imagen_np`): upright by its EXIF,
+/// in RGB, with its long side at `LONG_SIDE` pixels.
+pub fn upright_picture(path: &Path) -> Result<image::RgbImage, String> {
+    use image::ImageDecoder;
+    let failed = |e: String| format!("The image '{}' could not be opened: {e}", path.display());
+    let mut decoder = image::ImageReader::open(path)
+        .map_err(|e| failed(e.to_string()))?
+        .with_guessed_format()
+        .map_err(|e| failed(e.to_string()))?
+        .into_decoder()
+        .map_err(|e| failed(e.to_string()))?;
+    let orientation = decoder.orientation().unwrap_or(image::metadata::Orientation::NoTransforms);
+    let mut picture = image::DynamicImage::from_decoder(decoder).map_err(|e| failed(e.to_string()))?;
+    picture.apply_orientation(orientation);
+    let (w, h) = (picture.width() as f64, picture.height() as f64);
+    let scale = LONG_SIDE / w.max(h).max(1.0);
+    if (scale - 1.0).abs() > 1e-9 {
+        let (nw, nh) = ((w * scale).round().max(1.0) as u32, (h * scale).round().max(1.0) as u32);
+        picture = picture.resize_exact(nw, nh, image::imageops::FilterType::Lanczos3);
+    }
+    Ok(picture.to_rgb8())
+}
+
+/// Reads an image by zones, as one page read whole (`leer.py`), with the
+/// thresholds `bands`; kept in `kept`, and taken from there when it was read
+/// with the same recipe and thresholds.
+pub fn read_image(path: &Path, bands: Bands, kept: Option<&RecognizedStore>, reader: &dyn PageByZones) -> Result<Value, String> {
+    if let Some(page) = kept.and_then(|store| store.zones(Part::Image, &super::basis(bands))) {
+        return Ok(page);
+    }
+    let picture = upright_picture(path)?;
+    let (zones, lines) = zones_and_lines(reader, &picture, true)?;
+    let page = page_out(1, picture.dimensions(), &Profile::default(), &lines.unwrap_or_default(), &zones, bands, None, true);
+    let page = serde_json::to_value(&page).map_err(|e| e.to_string())?;
+    if let Some(store) = kept {
+        store.put_zones(Part::Image, &page)?;
+    }
+    Ok(page)
+}
+
+/// The text of a page read by zones, with its bands (D-668): the firm
+/// lines as they are, the approximate ones marked and the discarded ones
+/// out, in reading order (`source_volume::bands`).
+pub fn marked_text(page: &Value) -> String {
+    let rows = page["zonas"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .flat_map(|zone| zone["renglones"].as_array().into_iter().flatten())
+        .map(|row| (row["texto"].as_str().unwrap_or_default(), row["franja"].as_str().unwrap_or_default()));
+    crate::source_volume::bands::marked_text(rows)
 }

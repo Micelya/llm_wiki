@@ -138,7 +138,7 @@ fn the_letters_of_the_layer_make_lines() {
 fn the_reading_of_a_page_is_what_the_cut_reads() {
     let p = Profile { chars: 2000, own_chars: 1900, ..Default::default() };
     let lines = [line([100, 100, 900, 140], "CONTRATO INVENTADO", None), line([100, 200, 900, 240], "Página 1 de 2", None)];
-    let out = page_out(1, (1414, 2000), &p, &lines, &[zone([90, 90, 910, 150], "doc_title", 0.9)], BANDS, None);
+    let out = page_out(1, (1414, 2000), &p, &lines, &[zone([90, 90, 910, 150], "doc_title", 0.9)], BANDS, None, false);
     assert_eq!((out.forma.forma, out.forma.capa.as_str(), out.forma.se_lee), ("digital", "digital", false));
     assert_eq!(out.receta, "n-zonas-rust:pp_doc_layoutv2+rapidocr-onnx:ppocrv6-small|alto 0.97|bajo 0.9");
     let body = serde_json::to_string(&[&out]).unwrap();
@@ -168,17 +168,18 @@ fn without_the_model_of_zones_the_pdfs_wait_with_their_failure() {
     // In the tests no reading by zones is coming unless the setting says so.
     assert_eq!(zones_left(&base.conn(), free, BANDS).unwrap(), 0);
     base.conn().execute("INSERT INTO docbase_setting (key, value) VALUES (?1, 'on')", [ZONES_READING]).unwrap();
-    // Only the PDF of two pages or more waits for it; the cut waits too.
-    assert_eq!(zones_left(&base.conn(), free, BANDS).unwrap(), 1);
+    // Every PDF waits for it, the one of one page too (E1 of 2 nov); the
+    // cut waits too.
+    assert_eq!(zones_left(&base.conn(), free, BANDS).unwrap(), 2);
     assert_eq!(base.cut_pending(10).unwrap(), 0);
     let process = base.process_state(&crate::docbase::process::Scope::All, false).unwrap();
     assert!(process.pending(crate::docbase::process::Step::Zones) >= 1);
     let waiting = base.zones_waiting(10).unwrap();
-    assert_eq!(waiting.len(), 1);
-    assert!(waiting[0].1.ends_with("a.pdf"));
+    assert_eq!(waiting.len(), 2);
+    assert!(waiting.iter().any(|w| w.1.ends_with("a.pdf")) && waiting.iter().any(|w| w.1.ends_with("b.pdf")));
     // Without the model: written once, and the file waits; not cut with
     // the cut of before (D-717).
-    assert_eq!(base.zones_without_models("The model of zones of this computer is not installed").unwrap(), 1);
+    assert_eq!(base.zones_without_models("The model of zones of this computer is not installed").unwrap(), 2);
     assert_eq!(base.zones_without_models("again").unwrap(), 0);
     assert_eq!(zones_left(&base.conn(), free, BANDS).unwrap(), 0);
     assert!(base.zones_waiting(10).unwrap().is_empty());
@@ -190,15 +191,15 @@ fn without_the_model_of_zones_the_pdfs_wait_with_their_failure() {
     // The model is there: the file is read again (here it fails: the
     // tests have no model, and the failure is written with its class).
     base.zones_with_models().unwrap();
-    assert_eq!(base.zones_waiting(10).unwrap().len(), 1);
+    assert_eq!(base.zones_waiting(10).unwrap().len(), 2);
     // The scans' models do not resolve the failures of the reading by zones.
     base.zones_without_models("not installed").unwrap();
     base.scans_with_models().unwrap();
     assert!(base.zones_waiting(10).unwrap().is_empty());
     // A reading kept: the file is cut by it.
-    let hash = &waiting[0].0;
+    let hash = &waiting.iter().find(|w| w.1.ends_with("a.pdf")).unwrap().0;
     let p = Profile { chars: 200, own_chars: 200, ..Default::default() };
-    let page = |n: u32, t: &str| page_out(n, (1414, 2000), &p, &[line([100, 100, 900, 140], t, None)], &[], BANDS, None);
+    let page = |n: u32, t: &str| page_out(n, (1414, 2000), &p, &[line([100, 100, 900, 140], t, None)], &[], BANDS, None, false);
     let body = serde_json::to_string(&[page(1, "Texto inventado uno"), page(2, "Texto inventado dos")]).unwrap();
     base.put_zones_body(hash, &body, &basis(BANDS)).unwrap();
     assert!(base.zones_of(hash).unwrap().is_some());

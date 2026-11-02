@@ -61,6 +61,8 @@ pub mod values;
 #[cfg(test)]
 pub(crate) mod tests;
 #[cfg(test)]
+mod tests_bands;
+#[cfg(test)]
 mod tests_changes;
 #[cfg(test)]
 mod tests_filiations;

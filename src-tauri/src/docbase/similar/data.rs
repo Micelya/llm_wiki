@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use super::changes::{classify, Kind};
 use super::marks::Mark;
-use super::text::{normalized, pages, Raw};
+use super::text::{firm_pages, normalized, Raw};
 use super::types::{has_shape, DataRule};
 
 /// Tokens looked at after a phrase when the rule does not say.
@@ -37,7 +37,8 @@ struct Token {
 fn tokens(body: &str) -> Vec<Token> {
     let mut out = Vec::new();
     let mut line_index = 0;
-    for page in pages(body) {
+    // Only the firm text gives data (D-668, E1 of 2 nov).
+    for page in firm_pages(body) {
         for line in page {
             line_index += 1;
             let mut first = true;

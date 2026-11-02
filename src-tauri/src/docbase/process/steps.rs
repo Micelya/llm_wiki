@@ -178,9 +178,9 @@ impl Step {
                     "Lectura por zonas",
                     Level::File,
                     Class::Local,
-                    "los PDF de dos páginas o más",
+                    "los PDF y las imágenes (las páginas que ya leyó el paso de los escaneos no se leen de nuevo)",
                     "su lectura por zonas (un cambio de umbrales no vuelve a leer, D-747)",
-                    "un PDF nuevo",
+                    "un PDF o una imagen nuevos",
                     &["zones"],
                 ),
                 Step::CutRules => (

@@ -42,7 +42,7 @@ use crate::docbase::similar::classify::{
     self as classify, cached_answer, parse_json, stops_the_run, Question, ASKING, MIN_TYPE_WORDS,
 };
 use crate::docbase::similar::data::Datum;
-use crate::docbase::similar::text::{pages, Prepared};
+use crate::docbase::similar::text::{firm_pages, Prepared};
 use crate::docbase::{now_ms, sql_err, DocBase, Visible};
 use crate::source_volume::asking::DocumentAsker;
 use crate::source_volume::catalog::{is_page_heading, RECOGNIZED_MARKER_START};
@@ -320,9 +320,10 @@ pub fn parts(body: &str) -> Vec<String> {
     out
 }
 
-/// The identifiers the base recognizes by their shape, without a model.
+/// The identifiers the base recognizes by their shape, without a model,
+/// in the firm text (one read with low confidence is no hint, E1 of 2 nov).
 pub fn identifiers_by_shape(body: &str) -> Vec<String> {
-    let prepared = Prepared::new(&pages(body), &[], &[]);
+    let prepared = Prepared::new(&firm_pages(body), &[], &[]);
     let mut out: Vec<String> = Vec::new();
     for raw in &prepared.raws {
         if kind_of_token(raw) == Kind::Identifier && !out.contains(&raw.text) {
@@ -420,11 +421,19 @@ pub fn prompt(vocabulary: &Vocabulary, hints: &Hints, part: &str, index: usize, 
         String::new()
     };
     let summary_note = if total > 1 { " (de esta parte; el tema, del documento según lo que se ve en ella)" } else { "" };
+    // The lines read with low confidence go in the question, marked, to
+    // understand the document; nothing of them is a datum (D-668, E1 of
+    // 2 nov). A text without them has the question it had.
+    let approximate = if crate::source_volume::bands::has_approximate(part) {
+        format!("- {}\n", crate::source_volume::bands::NOTE)
+    } else {
+        String::new()
+    };
     format!(
         "Sos asistente de un estudio jurídico. Leé el documento de abajo y registrá las personas, organizaciones y asuntos \
 que nombra, con qué papel aparece cada uno, y lo que el documento dice de ellos.{part_note}\n\n\
 Reglas:\n\
-- Solo lo que dice este documento. No agregues nada que sepas por otro lado ni completes datos que el texto no trae.\n\
+{approximate}- Solo lo que dice este documento. No agregues nada que sepas por otro lado ni completes datos que el texto no trae.\n\
 - Cada cita es un fragmento copiado literalmente del texto, continuo, de no más de 40 palabras, sin puntos suspensivos ni cambios. \
 Si la frase es más larga, la cita es el tramo continuo que hace falta (en una relación, el que nombra a los dos); nunca saltees \
 palabras con «...» o «…»: esa cita se descarta. Se va a comprobar que esté en el texto: lo que no esté, se descarta.\n\
@@ -1324,10 +1333,34 @@ impl ClaimCheck<'_> {
     }
 }
 
+/// Why something the model said is left out when its quote is only in the
+/// lines read with low confidence (D-668, E1 of 2 nov).
+pub const APPROXIMATE_QUOTE: &str = "cita-en-texto-aproximado";
+
 /// Checks the answers about the parts of one document against its text,
 /// and puts them together: the mentions of every part, the same mention
 /// (type, name and role) once, and each claim once.
+///
+/// Only the firm text gives data (D-668, E1 of 2 nov): the answers are
+/// checked against it, so a name, a number, a relation, an amount or a
+/// point of the summary whose quote is only in the lines read with low
+/// confidence is left out, with its reason (`APPROXIMATE_QUOTE`).
 pub fn verify(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &[Answer]) -> Reading {
+    if !crate::source_volume::bands::has_approximate(body) {
+        return verify_firm(vocabulary, body, shapes, answers);
+    }
+    let mut reading = verify_firm(vocabulary, &crate::source_volume::bands::firm(body), shapes, answers);
+    let whole = crate::source_volume::bands::unmarked(body);
+    let whole = Located::new(&whole).with_forms(&vocabulary.closing_legal_forms());
+    for discarded in reading.discarded.iter_mut().filter(|d| d.reason == "cita-no-encontrada") {
+        if whole.locate(&discarded.quote, None).is_some() {
+            discarded.reason = APPROXIMATE_QUOTE.to_string();
+        }
+    }
+    reading
+}
+
+fn verify_firm(vocabulary: &Vocabulary, body: &str, shapes: &[String], answers: &[Answer]) -> Reading {
     // A quote that differs from the text only in the legal form that closes
     // a name is the text (P-480).
     let text = Located::new(body).with_forms(&vocabulary.closing_legal_forms());
